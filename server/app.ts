@@ -6,10 +6,6 @@ const app = new Hono();
 
 app.use("*", logger());
 app.use('*', serveStatic({ root: './frontend/dist' }));
-app.use('*', serveStatic({ path: './frontend/dist/index.html' }));
-
-app.get('/', (c) => {
-  return c.json({ message: 'Hello World' });
-});
+app.use('*', serveStatic({ path: './frontend/dist/index.html', rewriteRequestPath: () => '/index.html' }));
 
 export default app;
