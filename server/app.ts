@@ -5,7 +5,7 @@ import { serveStatic } from "hono/bun"
 const app = new Hono();
 
 app.use("*", logger());
-app.use('*', serveStatic({ root: './frontend/dist' }));
-app.use('*', serveStatic({ path: './frontend/dist/index.html', rewriteRequestPath: () => '/index.html' }));
+app.get('*', serveStatic({ root: './frontend/dist' }));
+app.get('*', serveStatic({ path: './frontend/dist/index.html' }));
 
 export default app;
