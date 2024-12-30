@@ -19,4 +19,4 @@ jobs:
             mkdir test 
             cd test 
             git clone git@github.com:anthonylim24/anthonyl.im.git 
-            echo 'Deployment successful to digital ocean' 
+            echo 'Deployment successful to Digital Ocean' 
