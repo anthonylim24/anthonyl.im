@@ -7,8 +7,4 @@ app.use("*", logger());
 app.use('*', serveStatic({ root: './frontend/dist' }));
 app.use('*', serveStatic({ path: './frontend/dist/index.html' }));
 
-app.get("/", (c) => {
-  return c.text("Hello World");
-});
-
 export default app;
