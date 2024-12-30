@@ -19,5 +19,6 @@ jobs:
             git pull
             cd frontend
             curl -fsSL https://bun.sh/install | bash
+            source ~/.bashrc
             bun run build
             echo 'Deployment successful to Digital Ocean' 
