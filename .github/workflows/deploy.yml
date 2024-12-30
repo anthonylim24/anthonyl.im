@@ -18,9 +18,8 @@ jobs:
             cd ~/anthonyl.im/
             git pull
             curl -fsSL https://bun.sh/install | bash
-            source /***/.bashrc
-            bun install
+            ~/.bun/bin/bun install
             cd frontend
-            bun install
-            bun run build
+            ~/.bun/bin/bun install
+            ~/.bun/bin/bun run build
             echo 'Deployment successful to Digital Ocean' 
