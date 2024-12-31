@@ -4,19 +4,15 @@
   "type": "module",
   "scripts": {
     "start": "bun run server/app.ts",
-    "dev": "bun --watch server/app.ts"
+    "dev": "pushd frontend && bun run build && popd && bun --watch server/app.ts"
   },
   "devDependencies": {
-    "@types/bun": "latest",
-    "@types/figlet": "^1.7.0",
-    "@types/three": "^0.171.0"
+    "@types/bun": "latest"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "figlet": "^1.8.0",
-    "gltfjsx": "^6.5.3",
     "hono": "^4.6.15"
   }
 }
