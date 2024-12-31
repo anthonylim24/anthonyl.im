@@ -69,7 +69,7 @@ function App() {
       
       <div className="content">
         <nav>
-          <a href="#work">Work</a>
+          <a href="#work">Workout</a>
           <a href="#about">About</a>
           <a href="#contact">Contact</a>
         </nav>
