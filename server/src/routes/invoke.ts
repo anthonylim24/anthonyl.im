@@ -31,7 +31,7 @@ invoke.post(
 
     const completion = await openai.chat.completions.create({
       stream: true,
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content: prompt }, { role: "system", content: "You are a helpful assistant." }],
       ...commonConfig
     });
 
@@ -68,7 +68,7 @@ invoke.get(
 
     const completion = await openai.chat.completions.create({
       stream: true,
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content: prompt },  { role: "system", content: "You are a helpful assistant." }],
       ...commonConfig
     });
 

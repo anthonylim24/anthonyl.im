@@ -27,6 +27,7 @@ app.use('/api/invoke/*', async (c, next) => {
   // Add headers needed for SSE
   c.header('Content-Type', 'text/event-stream; charset=utf-8');
   c.header('Cache-Control', 'no-cache');
+  c.header('X-Accel-Buffering', 'no');
   c.header('Connection', 'keep-alive');
   
   await next();
