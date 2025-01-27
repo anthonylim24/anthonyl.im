@@ -4,6 +4,8 @@ import { Input } from "./components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 import { Loader2 } from "lucide-react";
 import { cn } from "./lib/utils";
+import { invokeDeepseek } from "./lib/apiService";
+import { MessageContent } from "./components/message-content";
 
 interface ChatMessage {
   id: string;
@@ -30,29 +32,50 @@ function App() {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
-    const newMessage: ChatMessage = {
+    const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
       content: input.trim(),
       timestamp: Date.now(),
     };
 
-    setMessages((prev) => [...prev, newMessage]);
-    setInput("");
-    setIsLoading(true);
-
-    // TODO: Replace with actual API call
-    const mockResponse: ChatMessage = {
+    const assistantMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: "assistant",
-      content: "This is a mock response. Implement your API integration here.",
+      content: "",
       timestamp: Date.now(),
     };
 
-    setTimeout(() => {
-      setMessages((prev) => [...prev, mockResponse]);
+    setMessages((prev) => [...prev, userMessage, assistantMessage]);
+    setInput("");
+    setIsLoading(true);
+
+    try {
+      await invokeDeepseek(input, (content) => {
+        setMessages((prev) => {
+          const newMessages = [...prev];
+          const lastMessage = newMessages[newMessages.length - 1];
+          if (lastMessage.role === "assistant") {
+            lastMessage.content = content;
+          }
+          return newMessages;
+        });
+      });
+
       setIsLoading(false);
-    }, 1000);
+    } catch (error) {
+      console.error(error);
+      setMessages((prev) => {
+        const newMessages = [...prev];
+        const lastMessage = newMessages[newMessages.length - 1];
+        if (lastMessage.role === "assistant") {
+          lastMessage.content =
+            "An error occurred while processing your request.";
+        }
+        return newMessages;
+      });
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -68,7 +91,7 @@ function App() {
       <main className="flex-1 container max-w-4xl mx-auto p-4 pt-8">
         <Card className="border-2">
           <CardHeader>
-            <CardTitle>Chat Interface</CardTitle>
+            <CardTitle>DeepChat</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-[600px] overflow-y-auto p-4 space-y-4">
@@ -88,9 +111,7 @@ function App() {
                         : "bg-card border mr-8"
                     )}
                   >
-                    <div className="prose prose-sm dark:prose-invert break-words">
-                      {message.content}
-                    </div>
+                    <MessageContent content={message.content} />
                   </div>
                 </div>
               ))}
@@ -98,7 +119,9 @@ function App() {
                 <div className="flex justify-start animate-in fade-in-0 duration-300">
                   <div className="bg-card border rounded-lg p-4 flex items-center gap-2 mr-8">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="text-sm text-muted-foreground">Thinking...</span>
+                    <span className="text-sm text-muted-foreground">
+                      Thinking...
+                    </span>
                   </div>
                 </div>
               )}
