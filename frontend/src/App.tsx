@@ -93,8 +93,8 @@ function App() {
           <CardHeader className="flex-none">
             <CardTitle>DeepChat</CardTitle>
           </CardHeader>
-          <CardContent className="flex-1 flex flex-col p-0">
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <CardContent className="flex-1 flex flex-col p-0 relative">
+            <div className="absolute inset-0 overflow-y-auto p-4 space-y-4 pb-20">
               {messages.map((message) => (
                 <div
                   key={message.id}
@@ -128,7 +128,7 @@ function App() {
               <div ref={messagesEndRef} />
             </div>
 
-            <div className="flex-none p-4 border-t">
+            <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/60">
               <form onSubmit={handleSubmit} className="flex gap-2">
                 <Input
                   value={input}
