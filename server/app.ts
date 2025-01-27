@@ -49,11 +49,8 @@ app.notFound((c) => {
 });
 
 // Serve static files
-if (process.env.NODE_ENV === 'production') {
-  app.use('*', serveStatic({ root: './frontend/dist' }));
-  app.get('*', serveStatic({ path: './frontend/dist/index.html' }));
-} else {
-  console.warn('Running in development mode. Static file serving is disabled.');
-}
+app.use('*', serveStatic({ root: './frontend/dist' }));
+app.get('*', serveStatic({ path: './frontend/dist/index.html' }));
+
 
 export default app;
