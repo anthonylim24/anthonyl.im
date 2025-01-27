@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming'
 
 import { OpenAI } from 'openai';
+import Groq from 'groq-sdk'
 import { config } from '../config';
 import { InvokeRequest } from '../types';
 import { zValidator } from '@hono/zod-validator';
@@ -18,8 +19,6 @@ const openai = new OpenAI({
 const invokeSchema = z.object({
   prompt: z.string().min(1, 'Prompt is required'),
 });
-
-const model = 'klusterai/Meta-Llama-3.1-8B-Instruct-Turbo'
 
 invoke.post(
   '/',
@@ -66,11 +65,24 @@ invoke.get(
       return c.json({ error: 'Prompt is required' }, 400);
     }
 
-    const completion = await openai.chat.completions.create({
-      stream: true,
-      messages: [{ role: 'user', content: prompt },  { role: "system", content: "You are a helpful assistant." }],
-      ...commonConfig
+    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+    const completion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "user",
+          content: prompt
+        },
+      ],
+      model: "deepseek-r1-distill-llama-70b",
+      stream: true
     });
+
+    // const completion = await openai.chat.completions.create({
+    //   stream: true,
+    //   messages: [{ role: 'user', content: prompt },  { role: "system", content: "You are a helpful assistant." }],
+    //   ...commonConfig
+    // });
 
     return streamSSE(c, async (stream) => {
       try {
