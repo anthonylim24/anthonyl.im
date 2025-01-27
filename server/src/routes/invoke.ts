@@ -6,6 +6,7 @@ import { config } from '../config';
 import { InvokeRequest } from '../types';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
+import { commonConfig } from './constants'
 
 const invoke = new Hono();
 
@@ -18,6 +19,8 @@ const invokeSchema = z.object({
   prompt: z.string().min(1, 'Prompt is required'),
 });
 
+const model = 'klusterai/Meta-Llama-3.1-8B-Instruct-Turbo'
+
 invoke.post(
   '/',
   zValidator('json', invokeSchema),
@@ -29,16 +32,14 @@ invoke.post(
     const completion = await openai.chat.completions.create({
       stream: true,
       messages: [{ role: 'user', content: prompt }],
-      model: 'klusterai/Meta-Llama-3.1-8B-Instruct-Turbo',
-      temperature: 0.7,
-      max_tokens: 1000,
+      ...commonConfig
     });
 
     return streamSSE(c, async (stream) => {
       try {
         for await (const chunk of completion) {
           const content = chunk.choices[0]?.delta?.content || '';
-          console.log('streaming: ',content)
+          console.log('streaming post: ',content)
           await stream.writeSSE({
             data: content
           });
@@ -68,16 +69,14 @@ invoke.get(
     const completion = await openai.chat.completions.create({
       stream: true,
       messages: [{ role: 'user', content: prompt }],
-      model: 'klusterai/Meta-Llama-3.1-8B-Instruct-Turbo',
-      temperature: 0.7,
-      max_tokens: 1000,
+      ...commonConfig
     });
 
     return streamSSE(c, async (stream) => {
       try {
         for await (const chunk of completion) {
           const content = chunk.choices[0]?.delta?.content || '';
-          console.log('streaming: ', content);
+          console.log('streaming get: ', content);
           await stream.writeSSE({
             data: content
           });

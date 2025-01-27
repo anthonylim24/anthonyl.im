@@ -25,11 +25,10 @@ app.use('*', errorHandler);
 // Add specific headers for SSE endpoint
 app.use('/api/invoke/*', async (c, next) => {
   // Add headers needed for SSE
-  if (c.req.method === 'POST') {
-    c.header('Content-Type', 'text/event-stream');
-    c.header('Cache-Control', 'no-cache');
-    c.header('Connection', 'keep-alive');
-  }
+  c.header('Content-Type', 'text/event-stream; charset=utf-8');
+  c.header('Cache-Control', 'no-cache');
+  c.header('Connection', 'keep-alive');
+  
   await next();
 });
 
