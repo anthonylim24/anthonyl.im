@@ -68,7 +68,7 @@ invoke.get(
     const completion = await openai.chat.completions.create({
       stream: true,
       messages: [{ role: 'user', content: prompt }],
-      model: 'deepseek-ai/DeepSeek-R1',
+      model: 'klusterai/Meta-Llama-3.1-8B-Instruct-Turbo',
       temperature: 0.7,
       max_tokens: 1000,
     });
