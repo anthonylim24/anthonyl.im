@@ -79,7 +79,7 @@ function App() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-gradient-to-b from-background to-muted">
+    <div className="flex flex-col min-h-screen bg-gradient-to-b from-background bg-[#123524] to-muted/50">
       {/* <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-14 max-w-screen-2xl items-center">
           <div className="mr-4 hidden md:flex">
@@ -89,7 +89,7 @@ function App() {
       </header> */}
 
       <main className="flex-1 container max-w-4xl mx-auto p-4 flex flex-col h-[calc(100vh-3.5rem)]">
-        <Card className="flex-1 flex flex-col border-2">
+        <Card className="flex-1 flex flex-col border-2 bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <CardHeader className="flex-none">
             <CardTitle>DeepChat</CardTitle>
           </CardHeader>
@@ -105,10 +105,10 @@ function App() {
                 >
                   <div
                     className={cn(
-                      "max-w-[85%] rounded-lg p-4 shadow-md transition-colors",
+                      "max-w-[85%] rounded-lg p-4 shadow-md transition-colors backdrop-blur bg-opacity-60 supports-[backdrop-filter]:bg-opacity-40",
                       message.role === "user"
-                        ? "bg-primary text-primary-foreground ml-8"
-                        : "bg-card border mr-8"
+                        ? "bg-gradient-to-br from-primary/70 via-primary/80 to-primary/90 text-primary-foreground backdrop-blur-md ml-8 hover:shadow-lg hover:shadow-primary/20 hover:border-primary/30 hover:scale-[1.02] transition-all duration-300 border border-primary/10"
+                        : "bg-gradient-to-br from-card/70 via-card/80 to-card/90 border border-white/10 backdrop-blur-md mr-8 hover:shadow-lg hover:shadow-white/20 hover:border-white/30 hover:scale-[1.02] transition-all duration-300"
                     )}
                   >
                     <MessageContent content={message.content} />
