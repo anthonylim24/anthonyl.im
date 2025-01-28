@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import posthog from "posthog-js";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
@@ -13,6 +14,11 @@ interface ChatMessage {
   content: string;
   timestamp: number;
 }
+
+posthog.init("phc_yZpQ6Ze2cZ6rAtVHUsHl8o0l4cW0X23xncC2lA6K836", {
+  api_host: "https://us.i.posthog.com",
+  person_profiles: "identified_only", // or 'always' to create profiles for anonymous users as well
+});
 
 function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
