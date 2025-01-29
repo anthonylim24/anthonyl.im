@@ -9,8 +9,25 @@ interface MessageContentProps {
 }
 
 export function MessageContent({ content }: MessageContentProps) {
+  // Split content into think and regular parts
+  const thinkMatch = content.match(/^<think>(.*?)<\/think>\s*(.*)$/s);
+  const hasThinkTag = thinkMatch !== null;
+
+  const thinkContent = hasThinkTag ? thinkMatch[1] : "";
+  const regularContent = hasThinkTag ? thinkMatch[2] : content;
+
   return (
     <div className="prose prose-sm dark:prose-invert break-words max-w-none">
+      {hasThinkTag && (
+        <div className="text-xs text-gray-500 mb-2">
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeHighlight]}
+          >
+            {thinkContent}
+          </ReactMarkdown>
+        </div>
+      )}
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeHighlight]}
@@ -90,9 +107,26 @@ export function MessageContent({ content }: MessageContentProps) {
               {children}
             </td>
           ),
+          // Add custom component for think tags
+          span: ({ className, children }) =>
+            className === "think" ? (
+              <span className="text-xs text-gray-500">{children}</span>
+            ) : (
+              <span className={className}>{children}</span>
+            ),
+          sub: ({ children }) => (
+            <sub className="relative bottom-[-0.25em] text-[0.75em]">
+              {children}
+            </sub>
+          ),
+          sup: ({ children }) => (
+            <sup className="relative top-[-0.5em] text-[0.75em]">
+              {children}
+            </sup>
+          ),
         }}
       >
-        {content}
+        {regularContent}
       </ReactMarkdown>
     </div>
   );
