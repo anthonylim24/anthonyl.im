@@ -1,5 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { debounce } from "lodash";
+import { useState, useRef, useCallback } from "react";
 import posthog from "posthog-js";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
