@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { debounce } from "lodash";
 import posthog from "posthog-js";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
@@ -24,15 +25,29 @@ function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showScrollButton, setShowScrollButton] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  const handleScroll = useCallback(() => {
+    if (!messagesContainerRef.current) return;
+
+    const { scrollTop, scrollHeight, clientHeight } =
+      messagesContainerRef.current;
+    const hasScrollableContent = scrollHeight > clientHeight;
+    const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+    setShowScrollButton(hasScrollableContent && !isNearBottom);
+  }, []);
+
+  // useEffect(() => {
+  //   const debouncedScroll = debounce(scrollToBottom, 300);
+  //   debouncedScroll();
+  //   return () => debouncedScroll.cancel();
+  // }, [messages]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,6 +72,10 @@ function App() {
     setIsLoading(true);
 
     try {
+      setTimeout(() => {
+        scrollToBottom();
+      }, 200);
+
       await invokeDeepseek(input, (content) => {
         setMessages((prev) => {
           const newMessages = [...prev];
@@ -94,13 +113,17 @@ function App() {
         </div>
       </header> */}
 
-      <main className="flex-1 container max-w-4xl mx-auto p-4 flex flex-col h-[calc(100vh-3.5rem)]">
+      <main className="flex-1 container max-w-4xl mx-auto p-4 flex flex-col h-[100dvh]">
         <Card className="flex-1 flex flex-col border-2 bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <CardHeader className="flex-none">
             <CardTitle>DeepChat</CardTitle>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col p-0 relative">
-            <div className="absolute inset-0 overflow-y-auto p-4 space-y-4 pb-20">
+            <div
+              ref={messagesContainerRef}
+              className="absolute inset-0 overflow-y-auto p-4 space-y-4 pb-20"
+              onScroll={handleScroll}
+            >
               {messages.map((message) => (
                 <div
                   key={message.id}
@@ -113,8 +136,8 @@ function App() {
                     className={cn(
                       "max-w-[85%] rounded-lg p-4 shadow-md transition-colors backdrop-blur bg-opacity-60 supports-[backdrop-filter]:bg-opacity-40",
                       message.role === "user"
-                        ? "bg-gradient-to-br from-primary/70 via-primary/80 to-primary/90 text-primary-foreground backdrop-blur-md ml-8 hover:shadow-lg hover:shadow-primary/20 hover:border-primary/30 hover:scale-[1.02] transition-all duration-300 border border-primary/10"
-                        : "bg-gradient-to-br from-card/70 via-card/80 to-card/90 border border-white/10 backdrop-blur-md mr-8 hover:shadow-lg hover:shadow-white/20 hover:border-white/30 hover:scale-[1.02] transition-all duration-300"
+                        ? "bg-gradient-to-br from-primary/70 via-primary/80 to-primary/90 text-primary-foreground backdrop-blur-md ml-8 hover:shadow-lg hover:shadow-primary/20 hover:border-primary/30 transition-all duration-300 border border-primary/10"
+                        : "bg-gradient-to-br from-card/70 via-card/80 to-card/90 border border-white/10 backdrop-blur-md mr-8 hover:shadow-lg hover:shadow-white/20 hover:border-white/30 transition-all duration-300"
                     )}
                   >
                     <MessageContent content={message.content} />
@@ -134,6 +157,27 @@ function App() {
               <div ref={messagesEndRef} />
             </div>
 
+            {showScrollButton && (
+              <button
+                onClick={scrollToBottom}
+                className="absolute bottom-20 right-4 p-2 rounded-full bg-primary/80 text-primary-foreground shadow-lg hover:bg-primary transition-all duration-600 animate-bounce"
+                aria-label="Scroll to bottom"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+            )}
             <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/60">
               <form onSubmit={handleSubmit} className="flex gap-2">
                 <Input

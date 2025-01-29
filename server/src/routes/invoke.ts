@@ -38,7 +38,6 @@ invoke.post(
       try {
         for await (const chunk of completion) {
           const content = chunk.choices[0]?.delta?.content || '';
-          console.log('streaming post: ',content)
           await stream.writeSSE({
             data: content
           });
@@ -88,7 +87,6 @@ invoke.get(
       try {
         for await (const chunk of completion) {
           const content = chunk.choices[0]?.delta?.content || '';
-          console.log('streaming get: ', content);
           await stream.writeSSE({
             data: content
           });
