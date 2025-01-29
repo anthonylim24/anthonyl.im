@@ -112,8 +112,8 @@ function App() {
         </div>
       </header> */}
 
-      <main className="flex-1 container max-w-4xl mx-auto p-4 flex flex-col h-[100dvh]">
-        <Card className="flex-1 flex flex-col border-2 bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <main className="flex-1 container max-w-4xl mx-auto p-4 flex flex-col h-[100dvh] overflow-hidden">
+        <Card className="flex-1 flex flex-col border-2 bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/60 overflow-hidden">
           <CardHeader className="flex-none">
             <CardTitle>DeepChat</CardTitle>
           </CardHeader>
