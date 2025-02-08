@@ -9,57 +9,48 @@ import invokeRouter from './src/routes/invoke';
 
 const app = new Hono();
 
-// Group middleware by functionality
-const commonMiddleware = [
-  logger(),
-  prettyJSON(),
-  cors({
-    origin: config.corsOrigin,
-    credentials: true,
-    exposeHeaders: ['Content-Type'],
-    allowMethods: ['POST', 'GET', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization'],
-    maxAge: 86400,
-  }),
-  errorHandler,
-];
+// Middleware
+app.use('*', logger());
+app.use('*', prettyJSON());
+app.use('*', cors({
+  origin: config.corsOrigin,
+  credentials: true,
+  exposeHeaders: ['Content-Type'],
+  allowMethods: ['POST', 'GET', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 86400,
+}));
+app.use('*', errorHandler);
 
-// Apply common middleware
-app.use('*', ...commonMiddleware);
-
-// SSE headers middleware
-const sseHeaders = {
-  'Content-Type': 'text/event-stream; charset=utf-8',
-  'Cache-Control': 'no-cache',
-  'X-Accel-Buffering': 'no',
-  'Connection': 'keep-alive',
-} as const;
-
+// Add specific headers for SSE endpoint
 app.use('/api/invoke/*', async (c, next) => {
-  Object.entries(sseHeaders).forEach(([key, value]) => {
-    c.header(key, value);
-  });
+  // Add headers needed for SSE
+  c.header('Content-Type', 'text/event-stream; charset=utf-8');
+  c.header('Cache-Control', 'no-cache');
+  c.header('X-Accel-Buffering', 'no');
+  c.header('Connection', 'keep-alive');
+  
   await next();
 });
 
-// API Routes
+// Routes
 app.route('/api/invoke', invokeRouter);
 
 // Health check
-app.get('/health', (c) => c.json({
-  status: 'ok',
-  timestamp: new Date().toISOString(),
-  version: process.env.npm_package_version || '1.0.0',
-  environment: process.env.NODE_ENV || 'development'
-}));
+app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
-// Serve static assets
-app.use('*', serveStatic({ root: './frontend/dist' }));
-
-// Serve index.html for all other routes (SPA fallback)
-app.get('*', async (c) => {
-  const file = await Bun.file('./frontend/dist/index.html').text();
-  return c.html(file);
+// Error handling for 404
+app.notFound((c) => {
+  return c.json({
+    success: false,
+    error: 'Not Found',
+    path: c.req.path,
+  }, 404);
 });
+
+// Serve static files
+app.use('*', serveStatic({ root: './frontend/dist' }));
+app.get('*', serveStatic({ path: './frontend/dist/index.html' }));
+
 
 export default app;
