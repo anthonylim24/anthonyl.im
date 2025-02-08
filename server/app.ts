@@ -39,6 +39,10 @@ app.route('/api/invoke', invokeRouter);
 // Health check
 app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
+// Serve static files
+app.use('*', serveStatic({ root: './frontend/dist' }));
+app.get('*', serveStatic({ path: './frontend/dist/index.html' }));
+
 // Error handling for 404
 app.notFound((c) => {
   return c.json({
@@ -47,10 +51,5 @@ app.notFound((c) => {
     path: c.req.path,
   }, 404);
 });
-
-// Serve static files
-app.use('*', serveStatic({ root: './frontend/dist' }));
-app.get('*', serveStatic({ path: './frontend/dist/index.html' }));
-
 
 export default app;
