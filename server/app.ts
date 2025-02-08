@@ -6,6 +6,7 @@ import { prettyJSON } from 'hono/pretty-json';
 import { config } from './src/config';
 import { errorHandler } from './src/middleware/error';
 import invokeRouter from './src/routes/invoke';
+import { join, resolve } from "path";
 
 const app = new Hono();
 
@@ -53,12 +54,14 @@ app.get('/health', (c) => c.json({
   environment: process.env.NODE_ENV || 'development'
 }));
 
+const distPath = resolve(process.cwd(), 'frontend/dist');
+
 // Serve static assets
-app.use('*', serveStatic({ root: './frontend/dist' }));
+app.use('*', serveStatic({ root: distPath }));
 
 // Serve index.html for all other routes (SPA fallback)
 app.get('*', async (c) => {
-  const file = await Bun.file('./frontend/dist/index.html').text();
+  const file = await Bun.file(join(distPath, 'index.html')).text();
   return c.html(file);
 });
 
