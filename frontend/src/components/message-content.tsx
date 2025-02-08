@@ -8,7 +8,7 @@ interface MessageContentProps {
   content: string;
 }
 
-export function MessageContent({ content }: MessageContentProps) {
+const MessageContent = ({ content }: MessageContentProps) => {
   const thinkMatch = content.match(/^<think>(.*?)<\/think>\s*(.*)$/s);
   const hasThinkTag = thinkMatch !== null;
 
@@ -171,4 +171,6 @@ export function MessageContent({ content }: MessageContentProps) {
       </ReactMarkdown>
     </div>
   );
-}
+};
+
+export default MessageContent;

@@ -16,22 +16,39 @@ const openai = new OpenAI({
   baseURL: config.deepseekApiBaseUrl
 });
 
+const messageSchema = z.object({
+  role: z.enum(["user", "assistant"]),
+  content: z.string()
+});
+
 const invokeSchema = z.object({
   prompt: z.string().min(1, 'Prompt is required'),
+  messages: z.array(messageSchema).optional()
 });
 
 invoke.post(
   '/',
   zValidator('json', invokeSchema),
   async (c) => {
-    console.log('Received invoke request:', c.req.json());
-    console.log(config.deepseekApiKey, config.deepseekApiBaseUrl)
-    const { prompt } = await c.req.json<InvokeRequest>();
+    const { prompt, messages = [] } = await c.req.json();
+    
+    if (!prompt) {
+      return c.json({ error: 'Prompt is required' }, 400);
+    }
 
-    const completion = await openai.chat.completions.create({
-      stream: true,
-      messages: [{ role: 'user', content: prompt }, { role: "system", content: "You are a helpful assistant." }],
-      ...commonConfig
+    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+    // Include previous messages in the chat context
+    const completion = await groq.chat.completions.create({
+      messages: [
+        ...messages,
+        {
+          role: "user",
+          content: prompt
+        },
+      ],
+      model: "deepseek-r1-distill-llama-70b",
+      stream: true
     });
 
     return streamSSE(c, async (stream) => {
@@ -43,12 +60,12 @@ invoke.post(
           });
         }
         await stream.writeSSE({
-          data: '[DONE]',
+          data: '[DONE]'
         });
       } catch (error) {
         console.error('Streaming error:', error);
         await stream.writeSSE({
-          data: JSON.stringify({ error: 'Streaming error occurred' }),
+          data: JSON.stringify({ error: 'Streaming error occurred' })
         });
       }
     });

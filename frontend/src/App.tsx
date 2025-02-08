@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, lazy, Suspense } from "react";
 import posthog from "posthog-js";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
@@ -6,7 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 import { Loader2 } from "lucide-react";
 import { cn } from "./lib/utils";
 import { invokeDeepseek } from "./lib/apiService";
-import { MessageContent } from "./components/message-content";
+
+// Lazy load the MessageContent component
+const MessageContent = lazy(() => import("./components/message-content"));
 
 interface ChatMessage {
   id: string;
@@ -75,7 +77,13 @@ function App() {
         scrollToBottom();
       }, 200);
 
-      await invokeDeepseek(input, (content) => {
+      // Convert messages to the format expected by the API
+      const messageHistory = messages.map((msg) => ({
+        role: msg.role,
+        content: msg.content,
+      }));
+
+      await invokeDeepseek(input, messageHistory, (content) => {
         setMessages((prev) => {
           const newMessages = [...prev];
           const lastMessage = newMessages[newMessages.length - 1];
@@ -136,10 +144,14 @@ function App() {
                       "max-w-[85%] rounded-lg p-4 shadow-md transition-colors backdrop-blur bg-opacity-60 supports-[backdrop-filter]:bg-opacity-40",
                       message.role === "user"
                         ? "bg-gradient-to-br from-primary/70 via-primary/80 to-primary/90 text-primary-foreground backdrop-blur-md ml-8 hover:shadow-lg hover:shadow-primary/20 hover:border-primary/30 transition-all duration-300 border border-primary/10"
-                        : "bg-gradient-to-br from-card/70 via-card/80 to-card/90 border border-white/10 backdrop-blur-md mr-8 hover:shadow-lg hover:shadow-white/20 hover:border-white/30 transition-all duration-300"
+                        : "bg-gradient-to-br from-card/70 via-card/80 to-card/90 border border-white/10 backdrop-blur-md mr-8 hover:shadow-lg hover:shadow-gray/20 hover:border-white/30 transition-all duration-300"
                     )}
                   >
-                    <MessageContent content={message.content} />
+                    <Suspense
+                      fallback={<div className="animate-pulse">Loading...</div>}
+                    >
+                      <MessageContent content={message.content} />
+                    </Suspense>
                   </div>
                 </div>
               ))}
