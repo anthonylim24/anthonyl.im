@@ -9,47 +9,73 @@ import invokeRouter from './src/routes/invoke';
 
 const app = new Hono();
 
-// Middleware
-app.use('*', logger());
-app.use('*', prettyJSON());
-app.use('*', cors({
-  origin: config.corsOrigin,
-  credentials: true,
-  exposeHeaders: ['Content-Type'],
-  allowMethods: ['POST', 'GET', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization'],
-  maxAge: 86400,
-}));
-app.use('*', errorHandler);
+// Group middleware by functionality
+const commonMiddleware = [
+  logger(),
+  prettyJSON(),
+  cors({
+    origin: config.corsOrigin,
+    credentials: true,
+    exposeHeaders: ['Content-Type'],
+    allowMethods: ['POST', 'GET', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization'],
+    maxAge: 86400,
+  }),
+  errorHandler,
+];
 
-// Add specific headers for SSE endpoint
+// Apply common middleware
+app.use('*', ...commonMiddleware);
+
+// SSE headers middleware
+const sseHeaders = {
+  'Content-Type': 'text/event-stream; charset=utf-8',
+  'Cache-Control': 'no-cache',
+  'X-Accel-Buffering': 'no',
+  'Connection': 'keep-alive',
+} as const;
+
 app.use('/api/invoke/*', async (c, next) => {
-  // Add headers needed for SSE
-  c.header('Content-Type', 'text/event-stream; charset=utf-8');
-  c.header('Cache-Control', 'no-cache');
-  c.header('X-Accel-Buffering', 'no');
-  c.header('Connection', 'keep-alive');
-  
+  Object.entries(sseHeaders).forEach(([key, value]) => {
+    c.header(key, value);
+  });
   await next();
 });
 
-// Routes
+// API Routes
 app.route('/api/invoke', invokeRouter);
 
-// Health check
-app.get('/health', (c) => c.json({ status: 'ok', timestamp: new Date().toISOString() }));
+// Health check with more detailed info
+app.get('/health', (c) => c.json({
+  status: 'ok',
+  timestamp: new Date().toISOString(),
+  version: process.env.npm_package_version || '1.0.0',
+  environment: process.env.NODE_ENV || 'development'
+}));
 
-// Serve static files
-app.use('*', serveStatic({ root: './frontend/dist' }));
-app.get('*', serveStatic({ path: './frontend/dist/index.html' }));
+// Static file serving
+app.use('*', serveStatic({ 
+  root: './frontend/dist',
+  rewriteRequestPath: (path) => {
+    // Serve index.html for all non-asset routes
+    return path.match(/\.(js|css|png|jpg|svg)$/) ? path : '/index.html';
+  }
+}));
 
-// Error handling for 404
+// Improved 404 handler with more details
 app.notFound((c) => {
-  return c.json({
+  const requestInfo = {
     success: false,
     error: 'Not Found',
     path: c.req.path,
-  }, 404);
+    method: c.req.method,
+    timestamp: new Date().toISOString(),
+  };
+  
+  // Log 404s for monitoring
+  console.warn(`404 Not Found: ${c.req.method} ${c.req.path}`);
+  
+  return c.json(requestInfo, 404);
 });
 
 export default app;
