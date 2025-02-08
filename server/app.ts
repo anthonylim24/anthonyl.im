@@ -54,11 +54,11 @@ app.get('/health', (c) => c.json({
 }));
 
 // Serve static assets
-app.use('*', serveStatic({ root: './frontend/dist' }));
+app.use('*', serveStatic({ root: '~/anthonyl.im/frontend/dist' }));
 
 // Serve index.html for all other routes (SPA fallback)
 app.get('*', async (c) => {
-  const file = await Bun.file('./frontend/dist/index.html').text();
+  const file = await Bun.file('~/anthonyl.im/frontend/dist/index.html').text();
   return c.html(file);
 });
 
