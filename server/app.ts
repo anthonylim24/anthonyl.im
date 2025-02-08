@@ -45,7 +45,7 @@ app.use('/api/invoke/*', async (c, next) => {
 // API Routes
 app.route('/api/invoke', invokeRouter);
 
-// Health check with more detailed info
+// Health check
 app.get('/health', (c) => c.json({
   status: 'ok',
   timestamp: new Date().toISOString(),
@@ -53,17 +53,13 @@ app.get('/health', (c) => c.json({
   environment: process.env.NODE_ENV || 'development'
 }));
 
-// Static file serving
-app.get('*', serveStatic({ 
-  root: './frontend/dist',
-  rewriteRequestPath: (path) => {
-    // Check if path is requesting an asset
-    if (path.match(/\.(js|css|png|jpg|svg)$/)) {
-      return path;
-    }
-    // For all other routes, serve index.html
-    return '/index.html';
-  }
-}));
+// Serve static assets
+app.use('*', serveStatic({ root: './frontend/dist' }));
+
+// Serve index.html for all other routes (SPA fallback)
+app.get('*', async (c) => {
+  const file = await Bun.file('./frontend/dist/index.html').text();
+  return c.html(file);
+});
 
 export default app;
