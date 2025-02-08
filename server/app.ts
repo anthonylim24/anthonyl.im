@@ -54,28 +54,16 @@ app.get('/health', (c) => c.json({
 }));
 
 // Static file serving
-app.use('*', serveStatic({ 
+app.get('*', serveStatic({ 
   root: './frontend/dist',
   rewriteRequestPath: (path) => {
-    // Serve index.html for all non-asset routes
-    return path.match(/\.(js|css|png|jpg|svg)$/) ? path : '/index.html';
+    // Check if path is requesting an asset
+    if (path.match(/\.(js|css|png|jpg|svg)$/)) {
+      return path;
+    }
+    // For all other routes, serve index.html
+    return '/index.html';
   }
 }));
-
-// Improved 404 handler with more details
-app.notFound((c) => {
-  const requestInfo = {
-    success: false,
-    error: 'Not Found',
-    path: c.req.path,
-    method: c.req.method,
-    timestamp: new Date().toISOString(),
-  };
-  
-  // Log 404s for monitoring
-  console.warn(`404 Not Found: ${c.req.method} ${c.req.path}`);
-  
-  return c.json(requestInfo, 404);
-});
 
 export default app;
