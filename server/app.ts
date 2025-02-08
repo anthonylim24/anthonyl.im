@@ -54,7 +54,7 @@ app.get('/health', (c) => c.json({
   environment: process.env.NODE_ENV || 'development'
 }));
 
-const distPath = resolve(process.cwd(), 'frontend/dist');
+const distPath = resolve(process.cwd(), 'anthonyl.im/frontend/dist');
 
 // Serve static assets
 app.use('*', serveStatic({ root: distPath }));
