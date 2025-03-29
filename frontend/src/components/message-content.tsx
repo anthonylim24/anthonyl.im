@@ -4,11 +4,41 @@ import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/github-dark.css";
 
-interface MessageContentProps {
-  content: string;
+interface MessageData {
+  id?: string;
+  type: string;
+  data: string;
 }
 
+interface MessageContentProps {
+  content: string | MessageData;
+}
+
+const preprocessContent = (content: string): string => {
+  // First, handle the introduction text with colon
+  let processed = content.replace(/^(.*?:)\s*(\d+\.)/, "$1\n$2");
+
+  // Then handle the numbered list items
+  processed = processed.replace(/(\d+\..*?)(?=\d+\.|$)/g, "$1\n");
+
+  return processed;
+};
+
 const MessageContent = ({ content }: MessageContentProps) => {
+  // Handle structured message data
+  if (typeof content !== "string" && "type" in content) {
+    if (content.type === "message") {
+      const processedContent = preprocessContent(content.data);
+      return (
+        <div className="text-gray-200 whitespace-pre-wrap">
+          {processedContent}
+        </div>
+      );
+    }
+    return null;
+  }
+
+  // Handle markdown content with think tags
   const thinkMatch = content.match(/^<think>(.*?)<\/think>\s*(.*)$/s);
   const hasThinkTag = thinkMatch !== null;
 
@@ -167,7 +197,7 @@ const MessageContent = ({ content }: MessageContentProps) => {
           ),
         }}
       >
-        {regularContent}
+        {preprocessContent(regularContent)}
       </ReactMarkdown>
     </div>
   );

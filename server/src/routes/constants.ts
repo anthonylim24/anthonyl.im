@@ -27,4 +27,4 @@ Example interactions:
 - User: "Tell me about what Anthony Lim worked on at DoorDash."
   AI: "At DoorDash, Anthony Lim worked on various teams and projects throughout the years. He began as a front-end software engineer on the Dasher Growth team, focused on building the onboarding experience for new Dashers and ensuring a sufficient supply of Dashers to meet the demand of DoorDash customers and Merchants. He then transitioned to the Dasher Platform team, where he worked as a full-stack engineer to build platform tooling for DoorDash to scale into new markets and our next 10x customers. Currently, he is working on the Local Commerce Service Partner (LCSP) team, building a new platform allowing for entreprenuers to operate their own delivery businesses with DoorDash."
 
-If a user asks how to contact Anthony Lim, say: ‘You can reach Anthony Lim via the contact form on this website.’ Do not discuss personal details or future plans unless explicitly stated above.`;
+If a user asks how to contact Anthony Lim, say: ‘You can reach Anthony Lim via his email at anthonylim.ucsc@gmail.com.’ Do not discuss personal details or future plans unless explicitly stated above.`;

@@ -2,8 +2,8 @@ import { useState, useRef, useCallback, lazy, Suspense } from "react";
 import posthog from "posthog-js";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
-import { Loader2 } from "lucide-react";
+import { Card, CardContent } from "./components/ui/card";
+import { Loader2, ChevronUp, ChevronDown } from "lucide-react";
 import { cn } from "./lib/utils";
 import { invokeDeepseek } from "./lib/apiService";
 
@@ -17,9 +17,17 @@ interface ChatMessage {
   timestamp: number;
 }
 
+const suggestedQuestions = [
+  "What is Anthony's work history?",
+  "Where did Anthony go to school?",
+  "What are Anthony's technical skills?",
+  "How can I contact Anthony?",
+  "What is Anthony's current role?",
+];
+
 posthog.init("phc_yZpQ6Ze2cZ6rAtVHUsHl8o0l4cW0X23xncC2lA6K836", {
   api_host: "https://us.i.posthog.com",
-  person_profiles: "identified_only", // or 'always' to create profiles for anonymous users as well
+  person_profiles: "identified_only",
 });
 
 function App() {
@@ -27,6 +35,7 @@ function App() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
@@ -44,20 +53,18 @@ function App() {
     setShowScrollButton(hasScrollableContent && !isNearBottom);
   }, []);
 
-  // useEffect(() => {
-  //   const debouncedScroll = debounce(scrollToBottom, 300);
-  //   debouncedScroll();
-  //   return () => debouncedScroll.cancel();
-  // }, [messages]);
+  const handleSubmit = async (e?: React.FormEvent, submittedInput?: string) => {
+    if (e) {
+      e.preventDefault();
+    }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading) return;
+    const messageToSend = submittedInput || input;
+    if (!messageToSend.trim() || isLoading) return;
 
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
-      content: input.trim(),
+      content: messageToSend.trim(),
       timestamp: Date.now(),
     };
 
@@ -77,13 +84,12 @@ function App() {
         scrollToBottom();
       }, 200);
 
-      // Convert messages to the format expected by the API
       const messageHistory = messages.map((msg) => ({
         role: msg.role,
         content: msg.content,
       }));
 
-      await invokeDeepseek(input, messageHistory, (content) => {
+      await invokeDeepseek(messageToSend, messageHistory, (content) => {
         setMessages((prev) => {
           const newMessages = [...prev];
           const lastMessage = newMessages[newMessages.length - 1];
@@ -110,51 +116,64 @@ function App() {
     }
   };
 
-  return (
-    <div className="flex flex-col min-h-screen bg-gradient-to-b from-background bg-[#123524] to-muted/50">
-      {/* <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-14 max-w-screen-2xl items-center">
-          <div className="mr-4 hidden md:flex">
-            <CardTitle className="text-xl font-bold">Anthony Lim</CardTitle>
-          </div>
-        </div>
-      </header> */}
+  const handleSuggestedQuestion = (question: string) => {
+    handleSubmit(undefined, question);
+  };
 
-      <main className="flex-1 container max-w-4xl mx-auto p-4 flex flex-col h-[100dvh] overflow-hidden">
+  return (
+    <div className="flex flex-col min-h-screen bg-gradient-to-b from-background to-muted/50">
+      <main className="flex-1 container max-w-4xl mx-auto p-4 flex flex-col h-[100dvh] space-y-4">
+        <div className="text-center space-y-4">
+          <h1 className="text-4xl font-bold tracking-tighter">
+            Ask anything about Anthony Lim
+          </h1>
+          <p className="text-muted-foreground">
+            Get to know more about Anthony's professional experience and
+            background
+          </p>
+        </div>
+
         <Card className="flex-1 flex flex-col border-2 bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/60 overflow-hidden">
-          <CardHeader className="flex-none">
-            <CardTitle>DeepChat</CardTitle>
-          </CardHeader>
           <CardContent className="flex-1 flex flex-col p-0 relative">
             <div
               ref={messagesContainerRef}
-              className="absolute inset-0 overflow-y-auto p-4 space-y-4 pb-20"
+              className={cn(
+                "absolute inset-0 overflow-y-auto p-4 space-y-4",
+                showSuggestions ? "pb-64" : "pb-48"
+              )}
               onScroll={handleScroll}
             >
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={cn(
-                    "flex animate-in slide-in-from-bottom-2 duration-300",
-                    message.role === "user" ? "justify-end" : "justify-start"
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "max-w-[85%] rounded-lg p-4 shadow-md transition-colors backdrop-blur bg-opacity-60 supports-[backdrop-filter]:bg-opacity-40",
-                      message.role === "user"
-                        ? "bg-gradient-to-br from-primary/70 via-primary/80 to-primary/90 text-primary-foreground backdrop-blur-md ml-8 hover:shadow-lg hover:shadow-primary/20 hover:border-primary/30 transition-all duration-300 border border-primary/10"
-                        : "bg-gradient-to-br from-card/70 via-card/80 to-card/90 border border-white/10 backdrop-blur-md mr-8 hover:shadow-lg hover:shadow-gray/20 hover:border-white/30 transition-all duration-300"
-                    )}
-                  >
-                    <Suspense
-                      fallback={<div className="animate-pulse">Loading...</div>}
+              {messages.map(
+                (message) =>
+                  message.content && (
+                    <div
+                      key={message.id}
+                      className={cn(
+                        "flex animate-in slide-in-from-bottom-2 duration-300",
+                        message.role === "user"
+                          ? "justify-end"
+                          : "justify-start"
+                      )}
                     >
-                      <MessageContent content={message.content} />
-                    </Suspense>
-                  </div>
-                </div>
-              ))}
+                      <div
+                        className={cn(
+                          "max-w-[85%] rounded-lg p-4 shadow-md transition-colors backdrop-blur bg-opacity-60 supports-[backdrop-filter]:bg-opacity-40",
+                          message.role === "user"
+                            ? "bg-gradient-to-br from-primary/70 via-primary/80 to-primary/90 text-primary-foreground backdrop-blur-md ml-8 hover:shadow-lg hover:shadow-primary/20 hover:border-primary/30 transition-all duration-300 border border-primary/10"
+                            : "bg-gradient-to-br from-card/70 via-card/80 to-card/90 border border-white/10 backdrop-blur-md mr-8 hover:shadow-lg hover:shadow-gray/20 hover:border-white/30 transition-all duration-300"
+                        )}
+                      >
+                        <Suspense
+                          fallback={
+                            <div className="animate-pulse">Loading...</div>
+                          }
+                        >
+                          <MessageContent content={message.content} />
+                        </Suspense>
+                      </div>
+                    </div>
+                  )
+              )}
               {isLoading && (
                 <div className="flex justify-start animate-in fade-in-0 duration-300">
                   <div className="bg-card border rounded-lg p-4 flex items-center gap-2 mr-8">
@@ -171,7 +190,7 @@ function App() {
             {showScrollButton && (
               <button
                 onClick={scrollToBottom}
-                className="absolute bottom-20 right-4 p-2 rounded-full bg-primary/80 text-primary-foreground shadow-lg hover:bg-primary transition-all duration-600 animate-bounce"
+                className="absolute bottom-36 right-4 p-2 rounded-full bg-primary/80 text-primary-foreground shadow-lg hover:bg-primary transition-all duration-600 animate-bounce"
                 aria-label="Scroll to bottom"
               >
                 <svg
@@ -189,12 +208,57 @@ function App() {
                 </svg>
               </button>
             )}
-            <div className="absolute bottom-0 left-0 right-0 p-4 border-t bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+
+            <div className="absolute bottom-0 left-0 right-0 p-4 space-y-4 bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-t">
+              <div className="md:hidden flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">Suggested Questions</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="p-0 h-8 w-8"
+                  onClick={() => setShowSuggestions(!showSuggestions)}
+                >
+                  {showSuggestions ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+
+              <div
+                className={cn(
+                  "relative",
+                  !showSuggestions && "hidden md:block"
+                )}
+              >
+                <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-background/80 to-transparent pointer-events-none z-10" />
+                <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-background/80 to-transparent pointer-events-none z-10" />
+                <div
+                  className={cn(
+                    "flex gap-2 overflow-x-auto pb-2 px-2 no-scrollbar",
+                    "md:flex-wrap md:justify-center md:overflow-x-visible md:px-0",
+                    "scroll-smooth [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+                  )}
+                >
+                  {suggestedQuestions.map((question) => (
+                    <Button
+                      key={question}
+                      variant="outline"
+                      className="text-sm whitespace-nowrap flex-shrink-0 md:flex-shrink"
+                      onClick={() => handleSuggestedQuestion(question)}
+                    >
+                      {question}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
               <form onSubmit={handleSubmit} className="flex gap-2">
                 <Input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Type your message..."
+                  placeholder="Ask anything about Anthony..."
                   className="flex-1"
                   disabled={isLoading}
                 />
