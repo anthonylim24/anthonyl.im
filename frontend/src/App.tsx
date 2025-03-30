@@ -121,9 +121,9 @@ function App() {
   };
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-gradient-to-b from-background to-muted/50">
-      <main className="flex-1 container max-w-4xl mx-auto p-4 flex flex-col h-full">
-        <div className="text-center space-y-2">
+    <div className="fixed inset-0 flex flex-col bg-gradient-to-b from-background to-muted/50 overflow-hidden">
+      <main className="flex-1 container max-w-4xl mx-auto px-4 flex flex-col p-2">
+        <div className="text-center space-y-2 py-2">
           <h1 className="text-4xl font-bold tracking-tighter">
             Ask anything about Anthony Lim
           </h1>
@@ -133,7 +133,7 @@ function App() {
           </p>
         </div>
 
-        <Card className="mt-4 flex-1 flex flex-col border-2 bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/60 overflow-hidden">
+        <Card className="flex-1 flex flex-col border-2 bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/60 overflow-hidden">
           <CardContent className="flex-1 flex flex-col p-0 relative">
             <div
               ref={messagesContainerRef}
