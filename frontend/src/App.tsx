@@ -121,8 +121,20 @@ function App() {
   };
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-gradient-to-b from-background to-muted/50 overflow-hidden">
-      <main className="flex-1 container max-w-4xl mx-auto px-4 flex flex-col p-2">
+    <div className="fixed inset-0 flex flex-col overflow-hidden">
+      {/* Add background container */}
+      <div
+        className="fixed inset-0 bg-cover bg-center bg-no-repeat z-0"
+        style={{
+          backgroundImage: 'url("https://i.imgur.com/sXbuKNH.jpeg")',
+          filter: "brightness(0.6)",
+        }}
+      />
+      {/* Add overlay */}
+      <div className="fixed inset-0 bg-background/40 backdrop-blur-sm z-10" />
+
+      {/* Update main container to be above background */}
+      <main className="flex-1 container max-w-4xl mx-auto px-4 flex flex-col p-2 relative z-20">
         <div className="text-center space-y-2 py-2">
           <h1 className="text-4xl font-bold tracking-tighter">
             Ask anything about Anthony Lim
