@@ -82,7 +82,7 @@ function App() {
     try {
       setTimeout(() => {
         scrollToBottom();
-      }, 200);
+      }, 800);
 
       const messageHistory = messages.map((msg) => ({
         role: msg.role,
@@ -139,7 +139,7 @@ function App() {
               ref={messagesContainerRef}
               className={cn(
                 "absolute inset-0 overflow-y-auto p-4 space-y-4",
-                showSuggestions ? "pb-64" : "pb-48"
+                showSuggestions ? "pb-48" : "pb-32"
               )}
               onScroll={handleScroll}
             >
