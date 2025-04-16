@@ -16,7 +16,7 @@ const openai = new OpenAI({
   baseURL: config.deepseekApiBaseUrl,
 });
 
-const GROQ_MODEL = "llama-3.3-70b-specdec";
+const GROQ_MODEL = "meta-llama/llama-4-maverick-17b-128e-instruct";
 
 const messageSchema = z.object({
   role: z.enum(["user", "assistant"]),
