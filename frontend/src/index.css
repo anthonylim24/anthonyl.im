@@ -331,6 +331,53 @@ body,
     --radius: 0.75rem;
   }
 
+  /* Breathwork light mode variables */
+  .breathwork {
+    --background: 220 25% 97%;
+    --foreground: 220 25% 10%;
+    --card: 0 0% 100% / 0.6;
+    --card-foreground: 220 25% 10%;
+    --popover: 0 0% 100% / 0.85;
+    --popover-foreground: 220 25% 10%;
+    --primary: 210 100% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 20% 94% / 0.7;
+    --secondary-foreground: 220 25% 20%;
+    --muted: 220 15% 92% / 0.8;
+    --muted-foreground: 220 10% 45%;
+    --accent: 220 20% 96% / 0.8;
+    --accent-foreground: 220 25% 15%;
+    --destructive: 0 75% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 20% 88% / 0.6;
+    --input: 220 20% 95% / 0.8;
+    --ring: 210 100% 60% / 0.5;
+    --radius: 1rem;
+  }
+
+  /* Breathwork dark mode - dark class is on html, breathwork on child */
+  .dark .breathwork {
+    --background: 225 25% 8%;
+    --foreground: 220 15% 95%;
+    --card: 225 25% 12% / 0.5;
+    --card-foreground: 220 15% 95%;
+    --popover: 225 25% 12% / 0.9;
+    --popover-foreground: 220 15% 95%;
+    --primary: 210 100% 65%;
+    --primary-foreground: 225 25% 5%;
+    --secondary: 220 20% 18% / 0.7;
+    --secondary-foreground: 220 15% 90%;
+    --muted: 220 15% 18% / 0.8;
+    --muted-foreground: 220 10% 60%;
+    --accent: 220 20% 20% / 0.8;
+    --accent-foreground: 220 15% 95%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 20% 20% / 0.6;
+    --input: 220 20% 15% / 0.8;
+    --ring: 210 100% 65% / 0.5;
+  }
+
   * {
     @apply border-border;
   }
@@ -338,6 +385,89 @@ body,
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* ================================
+   BREATHWORK GLASS EFFECTS
+   ================================ */
+
+/* Glass card effect - outside @layer for proper specificity */
+.glass {
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.dark .glass {
+  background: rgba(30, 35, 50, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.glass-strong {
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(40px) saturate(200%);
+  -webkit-backdrop-filter: blur(40px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.12), 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+
+.dark .glass-strong {
+  background: rgba(20, 25, 40, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, hsl(210 100% 55%) 0%, hsl(270 80% 65%) 50%, hsl(175 70% 50%) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ================================
+   BREATHWORK ANIMATIONS
+   ================================ */
+
+/* Pulse animation for breathing */
+@keyframes pulse-breath {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.05); opacity: 1; }
+}
+
+.pulse-breath {
+  animation: pulse-breath 4s ease-in-out infinite;
+}
+
+/* Float animation */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+.float {
+  animation: float 6s ease-in-out infinite;
+}
+
+/* Animated gradient background */
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.animated-gradient {
+  background: linear-gradient(
+    -45deg,
+    hsl(210 100% 60% / 0.1),
+    hsl(270 80% 65% / 0.1),
+    hsl(175 70% 50% / 0.1),
+    hsl(40 90% 55% / 0.1)
+  );
+  background-size: 400% 400%;
+  animation: gradient-shift 15s ease infinite;
 }
 
 /* ================================
