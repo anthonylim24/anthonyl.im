@@ -19,7 +19,7 @@ export function Navigation() {
   }
 
   return (
-    <nav className="md:hidden px-4 pt-2 pb-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 px-4 pt-2 pb-4 safe-bottom">
       <div className="glass-strong rounded-2xl mx-auto max-w-md">
         <div className="flex items-center justify-around h-14 px-2">
           {navItems.map(({ path, label, icon: Icon }) => (

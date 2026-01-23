@@ -14,18 +14,11 @@ body,
 #root {
   width: 100%;
   height: 100%;
-  /* Use dvh for dynamic viewport height on mobile browsers */
   min-height: 100vh;
-  min-height: 100dvh;
+  /* Use svh (small viewport height) for stability - doesn't jank during toolbar animations */
+  min-height: 100svh;
   margin: 0;
   padding: 0;
-}
-
-/* Fix for Chrome iOS dynamic toolbar */
-@supports (height: 100dvh) {
-  html, body, #root {
-    height: 100dvh;
-  }
 }
 
 :root {
@@ -45,18 +38,9 @@ body,
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }
 
-/* Navigation bottom safe - handles Chrome iOS dynamic toolbar */
-.nav-bottom-safe {
-  /* Use transform to ensure proper positioning during viewport changes */
-  transform: translateZ(0);
-  -webkit-transform: translateZ(0);
-}
-
-/* Ensure content doesn't jump during Chrome iOS toolbar transitions */
-@supports (padding-bottom: env(safe-area-inset-bottom)) {
-  .nav-bottom-safe {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
+/* Safe bottom for fixed navigation - adds safe area inset */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* Scrollbar styling */
