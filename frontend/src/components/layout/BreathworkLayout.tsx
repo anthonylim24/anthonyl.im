@@ -8,15 +8,18 @@ export function BreathworkLayout() {
   useTheme()
 
   return (
-    <div className="breathwork min-h-screen min-h-[100dvh] bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-slate-800 dark:to-indigo-950 transition-colors duration-500">
-      {/* Animated gradient overlay */}
+    <div className="breathwork-layout">
+      {/* Background */}
+      <div className="fixed inset-0 bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-100 dark:from-slate-900 dark:via-slate-800 dark:to-indigo-950 transition-colors duration-500" />
       <div className="fixed inset-0 animated-gradient pointer-events-none" />
 
-      {/* Content */}
-      <div className="relative z-10 min-h-screen min-h-[100dvh] flex flex-col">
+      {/* Grid layout container - uses CSS Grid for proper footer anchoring */}
+      <div className="breathwork relative z-10 grid grid-rows-[auto_1fr_auto] min-h-screen min-h-[100dvh]">
         <Header />
-        <main className="flex-1 w-full max-w-5xl mx-auto px-5 sm:px-8 lg:px-12 py-6 sm:py-10 overflow-y-auto">
-          <Outlet />
+        <main className="overflow-y-auto overscroll-contain">
+          <div className="w-full max-w-5xl mx-auto px-5 sm:px-8 lg:px-12 py-6 sm:py-10">
+            <Outlet />
+          </div>
         </main>
         <Navigation />
       </div>

@@ -72,7 +72,7 @@ export function Progress() {
   }
 
   return (
-    <div className="pb-32 md:pb-16">
+    <div className="pb-4">
       <div className="space-y-6 sm:space-y-8">
         {/* Header */}
         <div className="flex items-center justify-between gap-4">

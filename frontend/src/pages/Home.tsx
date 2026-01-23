@@ -47,7 +47,7 @@ export function Home() {
   }
 
   return (
-    <div className="pb-32 md:pb-16">
+    <div className="pb-4">
       {/* Hero Section */}
       <div className="relative overflow-hidden mb-10 sm:mb-14">
         <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent" />

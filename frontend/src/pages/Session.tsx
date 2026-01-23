@@ -91,7 +91,7 @@ export function Session() {
 
   if (sessionStarted) {
     return (
-      <div className="pb-32 md:pb-16">
+      <div className="pb-4">
         <BreathingSession
           config={sessionConfig}
           onComplete={handleSessionComplete}
@@ -102,7 +102,7 @@ export function Session() {
   }
 
   return (
-    <div className="pb-32 md:pb-16">
+    <div className="pb-4">
       <div className="max-w-2xl mx-auto space-y-6 sm:space-y-8">
         {/* Header */}
         <div className="text-center space-y-2 sm:space-y-3">
