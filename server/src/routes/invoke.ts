@@ -58,9 +58,12 @@ invoke.post("/", zValidator("json", invokeSchema), async (c) => {
     try {
       for await (const chunk of completion) {
         const content = chunk.choices[0]?.delta?.content || "";
-        await stream.writeSSE({
-          data: content,
-        });
+        if (content) {
+          // JSON encode to preserve newlines and special characters
+          await stream.writeSSE({
+            data: JSON.stringify(content),
+          });
+        }
       }
       await stream.writeSSE({
         data: "[DONE]",

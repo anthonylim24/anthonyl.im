@@ -61,8 +61,16 @@ export async function invokeDeepseek(
             return { content };
           }
 
-          content += data;
-          onUpdate?.(content);
+          // Parse JSON-encoded content to preserve newlines
+          try {
+            const parsed = JSON.parse(data);
+            content += parsed;
+            onUpdate?.(content);
+          } catch {
+            // If not valid JSON, use raw data (fallback for compatibility)
+            content += data;
+            onUpdate?.(content);
+          }
         }
       }
     }
@@ -71,8 +79,14 @@ export async function invokeDeepseek(
     if (buffer.trim().startsWith('data: ')) {
       const data = buffer.trim().slice(6);
       if (data !== '[DONE]') {
-        content += data;
-        onUpdate?.(content);
+        try {
+          const parsed = JSON.parse(data);
+          content += parsed;
+          onUpdate?.(content);
+        } catch {
+          content += data;
+          onUpdate?.(content);
+        }
       }
     }
 

@@ -38,12 +38,15 @@ function App() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const shouldAutoScroll = useRef(true);
 
-  // Scroll to bottom function
-  const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
-    if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTo({
-        top: messagesContainerRef.current.scrollHeight,
-        behavior,
+  // Scroll to bottom function - uses scrollIntoView for better mobile support
+  const scrollToBottom = (instant = false) => {
+    if (messagesEndRef.current) {
+      // Use requestAnimationFrame to ensure DOM has updated
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({
+          behavior: instant ? "instant" : "smooth",
+          block: "end",
+        });
       });
     }
   };
@@ -62,10 +65,10 @@ function App() {
 
   // Auto-scroll when messages change during streaming
   useEffect(() => {
-    if (shouldAutoScroll.current && (isStreaming || messages.length > 0)) {
+    if (shouldAutoScroll.current) {
       scrollToBottom();
     }
-  }, [messages, isStreaming]);
+  }, [messages]);
 
   // Auto-resize textarea
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -106,8 +109,8 @@ function App() {
       inputRef.current.style.height = "auto";
     }
 
-    // Scroll immediately
-    setTimeout(() => scrollToBottom(), 50);
+    // Scroll immediately after DOM update
+    scrollToBottom();
 
     try {
       const messageHistory = messages.map((msg) => ({
@@ -245,7 +248,7 @@ function App() {
               })}
             </div>
 
-            <div ref={messagesEndRef} className="h-1" />
+            <div ref={messagesEndRef} className="h-4 shrink-0" />
           </div>
 
           {/* Scroll to bottom button */}
