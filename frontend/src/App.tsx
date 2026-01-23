@@ -1,13 +1,10 @@
-import { useState, useRef, useCallback, lazy, Suspense } from "react";
+import { useState, useRef, useEffect, lazy, Suspense } from "react";
 import posthog from "posthog-js";
 import { Button } from "./components/ui/button";
-import { Input } from "./components/ui/input";
-import { Card, CardContent } from "./components/ui/card";
-import { Loader2, ChevronUp, ChevronDown } from "lucide-react";
+import { Send, ChevronDown } from "lucide-react";
 import { cn } from "./lib/utils";
 import { invokeDeepseek } from "./lib/apiService";
 
-// Lazy load the MessageContent component
 const MessageContent = lazy(() => import("./components/message-content"));
 
 interface ChatMessage {
@@ -18,11 +15,10 @@ interface ChatMessage {
 }
 
 const suggestedQuestions = [
-  "What is Anthony's work history?",
-  "Where did Anthony go to school?",
-  "What are Anthony's technical skills?",
-  "How can I contact Anthony?",
-  "What is Anthony's current role?",
+  "What is Anthony's background?",
+  "What are his technical skills?",
+  "Where has he worked?",
+  "How can I contact him?",
 ];
 
 posthog.init("phc_yZpQ6Ze2cZ6rAtVHUsHl8o0l4cW0X23xncC2lA6K836", {
@@ -34,29 +30,54 @@ function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
-  const [showSuggestions, setShowSuggestions] = useState(true);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const shouldAutoScroll = useRef(true);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  // Scroll to bottom function
+  const scrollToBottom = (behavior: ScrollBehavior = "smooth") => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior,
+      });
+    }
   };
 
-  const handleScroll = useCallback(() => {
+  // Handle scroll events
+  const handleScroll = () => {
     if (!messagesContainerRef.current) return;
 
-    const { scrollTop, scrollHeight, clientHeight } =
-      messagesContainerRef.current;
-    const hasScrollableContent = scrollHeight > clientHeight;
-    const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
-    setShowScrollButton(hasScrollableContent && !isNearBottom);
-  }, []);
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+
+    // User is near bottom if within 150px
+    shouldAutoScroll.current = distanceFromBottom < 150;
+    setShowScrollButton(distanceFromBottom > 200);
+  };
+
+  // Auto-scroll when messages change during streaming
+  useEffect(() => {
+    if (shouldAutoScroll.current && (isStreaming || messages.length > 0)) {
+      scrollToBottom();
+    }
+  }, [messages, isStreaming]);
+
+  // Auto-resize textarea
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    if (inputRef.current) {
+      inputRef.current.style.height = "auto";
+      inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 120) + "px";
+    }
+  };
 
   const handleSubmit = async (e?: React.FormEvent, submittedInput?: string) => {
-    if (e) {
-      e.preventDefault();
-    }
+    if (e) e.preventDefault();
 
     const messageToSend = submittedInput || input;
     if (!messageToSend.trim() || isLoading) return;
@@ -78,213 +99,239 @@ function App() {
     setMessages((prev) => [...prev, userMessage, assistantMessage]);
     setInput("");
     setIsLoading(true);
+    shouldAutoScroll.current = true;
+
+    // Reset textarea height
+    if (inputRef.current) {
+      inputRef.current.style.height = "auto";
+    }
+
+    // Scroll immediately
+    setTimeout(() => scrollToBottom(), 50);
 
     try {
-      setTimeout(() => {
-        scrollToBottom();
-      }, 800);
-
       const messageHistory = messages.map((msg) => ({
         role: msg.role,
         content: msg.content,
       }));
 
       await invokeDeepseek(messageToSend, messageHistory, (content) => {
+        if (!isStreaming) setIsStreaming(true);
         setMessages((prev) => {
-          const newMessages = [...prev];
-          const lastMessage = newMessages[newMessages.length - 1];
-          if (lastMessage.role === "assistant") {
-            lastMessage.content = content;
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last?.role === "assistant") {
+            last.content = content;
           }
-          return newMessages;
+          return updated;
         });
       });
-
-      setIsLoading(false);
     } catch (error) {
       console.error(error);
       setMessages((prev) => {
-        const newMessages = [...prev];
-        const lastMessage = newMessages[newMessages.length - 1];
-        if (lastMessage.role === "assistant") {
-          lastMessage.content =
-            "An error occurred while processing your request.";
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        if (last?.role === "assistant") {
+          last.content = "I apologize, but something went wrong. Please try again.";
         }
-        return newMessages;
+        return updated;
       });
+    } finally {
       setIsLoading(false);
+      setIsStreaming(false);
     }
   };
 
-  const handleSuggestedQuestion = (question: string) => {
-    handleSubmit(undefined, question);
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
   };
 
+  const hasMessages = messages.length > 0;
+
   return (
-    <div className="fixed inset-0 flex flex-col overflow-hidden">
-      {/* Add background container */}
+    <div className="fixed inset-0 flex flex-col bg-[#030014] overflow-hidden">
+      {/* Background image */}
       <div
-        className="fixed inset-0 bg-cover bg-center bg-no-repeat z-0"
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{
           backgroundImage: 'url("https://i.imgur.com/sXbuKNH.jpeg")',
-          filter: "brightness(0.6)",
+          filter: "brightness(0.5)",
         }}
       />
-      {/* Add overlay */}
-      <div className="fixed inset-0 bg-background/40 backdrop-blur-sm z-10" />
+      {/* Overlay for better text readability */}
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" />
 
-      {/* Update main container to be above background */}
-      <main className="flex-1 container max-w-4xl mx-auto px-4 flex flex-col p-2 relative z-20">
-        <div className="text-center space-y-2 py-2">
-          <h1 className="text-4xl font-bold tracking-tighter">
-            Ask anything about Anthony Lim
+      {/* Main container */}
+      <div className="relative z-10 flex flex-col h-full max-w-3xl mx-auto w-full">
+        {/* Header */}
+        <header className={cn(
+          "shrink-0 text-center transition-all duration-500 ease-out px-4",
+          hasMessages ? "py-3" : "py-8 sm:py-12"
+        )}>
+          <h1 className={cn(
+            "font-bold tracking-tight text-white transition-all duration-500 drop-shadow-lg",
+            hasMessages ? "text-xl sm:text-2xl" : "text-3xl sm:text-4xl"
+          )}>
+            Anthony Lim
           </h1>
-          <p className="text-muted-foreground">
-            Get to know more about Anthony's professional experience and
-            background
+          <p className={cn(
+            "text-white/70 transition-all duration-500",
+            hasMessages ? "text-xs mt-0.5" : "text-sm sm:text-base mt-2"
+          )}>
+            Software Engineer
           </p>
-        </div>
+        </header>
 
-        <Card className="flex-1 flex flex-col border-2 bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/60 overflow-hidden">
-          <CardContent className="flex-1 flex flex-col p-0 relative">
-            <div
-              ref={messagesContainerRef}
-              className={cn(
-                "absolute inset-0 overflow-y-auto p-4 space-y-4",
-                showSuggestions ? "pb-48" : "pb-32"
-              )}
-              onScroll={handleScroll}
-            >
-              {messages.map(
-                (message) =>
-                  message.content && (
-                    <div
-                      key={message.id}
-                      className={cn(
-                        "flex animate-in slide-in-from-bottom-2 duration-300",
-                        message.role === "user"
-                          ? "justify-end"
-                          : "justify-start"
-                      )}
-                    >
-                      <div
-                        className={cn(
-                          "max-w-[85%] rounded-lg p-4 shadow-md transition-colors backdrop-blur bg-opacity-60 supports-[backdrop-filter]:bg-opacity-40",
-                          message.role === "user"
-                            ? "bg-gradient-to-br from-primary/70 via-primary/80 to-primary/90 text-primary-foreground backdrop-blur-md ml-8 hover:shadow-lg hover:shadow-primary/20 hover:border-primary/30 transition-all duration-300 border border-primary/10"
-                            : "bg-gradient-to-br from-card/70 via-card/80 to-card/90 border border-white/10 backdrop-blur-md mr-8 hover:shadow-lg hover:shadow-gray/20 hover:border-white/30 transition-all duration-300"
-                        )}
-                      >
-                        <Suspense
-                          fallback={
-                            <div className="animate-pulse">Loading...</div>
-                          }
-                        >
-                          <MessageContent content={message.content} />
-                        </Suspense>
-                      </div>
-                    </div>
-                  )
-              )}
-              {isLoading && (
-                <div className="flex justify-start animate-in fade-in-0 duration-300">
-                  <div className="bg-card border rounded-lg p-4 flex items-center gap-2 mr-8">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="text-sm text-muted-foreground">
-                      Thinking...
-                    </span>
-                  </div>
+        {/* Messages area */}
+        <div className="flex-1 relative min-h-0">
+          <div
+            ref={messagesContainerRef}
+            onScroll={handleScroll}
+            className="absolute inset-0 overflow-y-auto overscroll-contain px-4 pb-4 scroll-smooth"
+          >
+            {/* Empty state */}
+            {!hasMessages && (
+              <div className="flex flex-col items-center justify-center h-full py-8 animate-fade-in">
+                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-br from-white/10 to-white/5 flex items-center justify-center mb-6 ring-1 ring-white/10 backdrop-blur-sm">
+                  <span className="text-3xl sm:text-4xl">✨</span>
                 </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-
-            {showScrollButton && (
-              <button
-                onClick={scrollToBottom}
-                className="absolute bottom-36 right-4 p-2 rounded-full bg-primary/80 text-primary-foreground shadow-lg hover:bg-primary transition-all duration-600 animate-bounce"
-                aria-label="Scroll to bottom"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-              </button>
+                <p className="text-white/60 text-center text-sm sm:text-base max-w-xs px-4">
+                  Ask me anything about Anthony's experience, skills, or background
+                </p>
+              </div>
             )}
 
-            <div className="absolute bottom-0 left-0 right-0 p-4 space-y-4 bg-background/60 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-t">
-              <div className="md:hidden flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Suggested Questions</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="p-0 h-8 w-8"
-                  onClick={() => setShowSuggestions(!showSuggestions)}
-                >
-                  {showSuggestions ? (
-                    <ChevronUp className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
+            {/* Messages */}
+            <div className="space-y-4 py-2">
+              {messages.map((message, index) => {
+                const isUser = message.role === "user";
+                const isLastAssistant = !isUser && index === messages.length - 1;
+                const showContent = message.content || (isLastAssistant && isLoading);
 
-              <div
-                className={cn(
-                  "relative",
-                  !showSuggestions && "hidden md:block"
-                )}
-              >
-                <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-background/80 to-transparent pointer-events-none z-10" />
-                <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-background/80 to-transparent pointer-events-none z-10" />
-                <div
-                  className={cn(
-                    "flex gap-2 overflow-x-auto pb-2 px-2 no-scrollbar",
-                    "md:flex-wrap md:justify-center md:overflow-x-visible md:px-0",
-                    "scroll-smooth [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
-                  )}
-                >
-                  {suggestedQuestions.map((question) => (
-                    <Button
-                      key={question}
-                      variant="outline"
-                      className="text-sm whitespace-nowrap flex-shrink-0 md:flex-shrink"
-                      onClick={() => handleSuggestedQuestion(question)}
+                if (!showContent) return null;
+
+                return (
+                  <div
+                    key={message.id}
+                    className={cn(
+                      "flex animate-message-in",
+                      isUser ? "justify-end" : "justify-start"
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "max-w-[88%] sm:max-w-[80%] rounded-2xl px-4 py-3 shadow-lg",
+                        isUser
+                          ? "bg-gradient-to-br from-blue-600/90 to-blue-700/90 text-white ml-4 backdrop-blur-sm"
+                          : "bg-black/40 backdrop-blur-md border border-white/10 text-white mr-4"
+                      )}
                     >
-                      {question}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              <form onSubmit={handleSubmit} className="flex gap-2">
-                <Input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask anything about Anthony..."
-                  className="flex-1"
-                  disabled={isLoading}
-                />
-                <Button type="submit" disabled={isLoading}>
-                  {isLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : null}
-                  Send
-                </Button>
-              </form>
+                      {message.content ? (
+                        <Suspense fallback={<MessageSkeleton />}>
+                          <MessageContent
+                            content={message.content}
+                            isStreaming={isLastAssistant && isStreaming}
+                          />
+                        </Suspense>
+                      ) : (
+                        <TypingIndicator />
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          </CardContent>
-        </Card>
-      </main>
+
+            <div ref={messagesEndRef} className="h-1" />
+          </div>
+
+          {/* Scroll to bottom button */}
+          {showScrollButton && (
+            <button
+              onClick={() => {
+                shouldAutoScroll.current = true;
+                scrollToBottom();
+              }}
+              className="absolute bottom-4 right-4 p-2 rounded-full bg-white/10 backdrop-blur-md border border-white/10 text-white/80 hover:bg-white/20 hover:text-white transition-all duration-200 animate-fade-in shadow-lg"
+              aria-label="Scroll to bottom"
+            >
+              <ChevronDown className="w-5 h-5" />
+            </button>
+          )}
+        </div>
+
+        {/* Input area */}
+        <div className="shrink-0 p-4 pb-safe bg-black/20 backdrop-blur-md border-t border-white/5">
+          {/* Suggested questions - always visible */}
+          <div className="mb-3 overflow-hidden">
+            <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar scroll-smooth">
+              {suggestedQuestions.map((question) => (
+                <button
+                  key={question}
+                  onClick={() => handleSubmit(undefined, question)}
+                  disabled={isLoading}
+                  className="shrink-0 px-3 py-1.5 text-xs sm:text-sm rounded-full bg-white/[0.08] hover:bg-white/[0.15] border border-white/[0.1] text-white/80 hover:text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {question}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Input form */}
+          <form onSubmit={handleSubmit} className="relative">
+            <div className="flex items-end gap-2 bg-white/[0.06] backdrop-blur-md rounded-2xl border border-white/[0.1] p-2 focus-within:border-blue-500/50 focus-within:bg-white/[0.08] transition-all duration-200">
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask anything..."
+                disabled={isLoading}
+                rows={1}
+                className="flex-1 bg-transparent border-none outline-none resize-none text-white placeholder:text-white/40 text-sm sm:text-base px-2 py-2 max-h-[120px] disabled:opacity-50"
+              />
+              <Button
+                type="submit"
+                disabled={isLoading || !input.trim()}
+                size="icon"
+                className="shrink-0 h-10 w-10 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 shadow-lg shadow-blue-500/20"
+              >
+                <Send className="w-4 h-4" />
+              </Button>
+            </div>
+          </form>
+
+          {/* Footer */}
+          <p className="text-center text-[10px] sm:text-xs text-white/30 mt-3">
+            Powered by AI · Responses may be inaccurate
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Typing indicator component
+function TypingIndicator() {
+  return (
+    <div className="flex items-center gap-1 py-1 px-1">
+      <span className="w-2 h-2 rounded-full bg-white/50 animate-typing-dot" />
+      <span className="w-2 h-2 rounded-full bg-white/50 animate-typing-dot [animation-delay:0.15s]" />
+      <span className="w-2 h-2 rounded-full bg-white/50 animate-typing-dot [animation-delay:0.3s]" />
+    </div>
+  );
+}
+
+// Message skeleton for suspense
+function MessageSkeleton() {
+  return (
+    <div className="space-y-2 animate-pulse">
+      <div className="h-3 bg-white/10 rounded w-3/4" />
+      <div className="h-3 bg-white/10 rounded w-1/2" />
     </div>
   );
 }
