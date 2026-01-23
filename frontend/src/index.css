@@ -38,9 +38,17 @@ body,
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }
 
-/* Safe bottom for fixed navigation - adds safe area inset */
+/* Safe bottom for fixed navigation - combines base padding with dynamic safe area */
 .safe-bottom {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* Base padding + safe area for dynamic viewports (Chrome iOS, Safari) */
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* Extra safe margin for very dynamic viewports where toolbar animates */
+@supports (padding-bottom: max(0px, env(safe-area-inset-bottom))) {
+  .safe-bottom {
+    padding-bottom: max(1rem, calc(0.75rem + env(safe-area-inset-bottom, 0px)));
+  }
 }
 
 /* Scrollbar styling */

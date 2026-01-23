@@ -1,3 +1,8 @@
+/**
+ * Navigation.tsx
+ * Bottom navigation bar for mobile devices with dynamic safe area support.
+ * Updated: Added proper padding and safe-bottom margin for dynamic viewports (Chrome iOS).
+ */
 import { Link, useLocation } from 'react-router-dom'
 import { Wind, BarChart3, Home } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -19,9 +24,9 @@ export function Navigation() {
   }
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 px-4 pt-2 pb-4 safe-bottom">
-      <div className="glass-strong rounded-2xl mx-auto max-w-md">
-        <div className="flex items-center justify-around h-14 px-2">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 px-5 pt-3 safe-bottom">
+      <div className="glass-strong rounded-2xl mx-auto max-w-md shadow-lg">
+        <div className="flex items-center justify-around h-16 px-3">
           {navItems.map(({ path, label, icon: Icon }) => (
             <Link
               key={path}
