@@ -1,6 +1,4 @@
 import { useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { useHistoryStore } from '@/stores/historyStore'
 import { Apple, TrendingUp, Info, ChevronDown, ChevronUp, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -21,54 +19,52 @@ export function AppleHealthCard() {
 
   const getVO2MaxCategory = (value: number): { label: string; color: string } => {
     if (value >= 60) return { label: 'Elite', color: 'text-purple-500' }
-    if (value >= 52) return { label: 'Excellent', color: 'text-blue-500' }
-    if (value >= 45) return { label: 'Good', color: 'text-green-500' }
-    if (value >= 38) return { label: 'Average', color: 'text-yellow-500' }
-    return { label: 'Below Average', color: 'text-orange-500' }
+    if (value >= 52) return { label: 'Excellent', color: 'text-[#60a5fa]' }
+    if (value >= 45) return { label: 'Good', color: 'text-[#2dd4bf]' }
+    if (value >= 38) return { label: 'Average', color: 'text-[#fbbf24]' }
+    return { label: 'Below Average', color: 'text-[#f97316]' }
   }
 
   const category = vo2MaxManual ? getVO2MaxCategory(vo2MaxManual) : null
 
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="pb-4">
+    <div className="liquid-glass-breath rounded-3xl overflow-hidden">
+      <div className="p-5 sm:p-6 border-b border-white/20">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-pink-500 to-red-500 flex items-center justify-center shadow-lg shadow-pink-500/20">
+            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-[#ff7170] to-[#ff5eb5] flex items-center justify-center shadow-lg shadow-[#ff7170]/25">
               <Apple className="h-6 w-6 text-white" />
             </div>
             <div>
-              <CardTitle className="flex items-center gap-2">
+              <h3 className="flex items-center gap-2 font-semibold text-foreground">
                 Apple Health
-                <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-normal">
+                <span className="text-xs px-2.5 py-1 rounded-full bg-white/50 text-muted-foreground font-medium">
                   Manual Sync
                 </span>
-              </CardTitle>
-              <CardDescription>
+              </h3>
+              <p className="text-sm text-muted-foreground">
                 Track your VO2Max from Apple Fitness
-              </CardDescription>
+              </p>
             </div>
           </div>
         </div>
-      </CardHeader>
+      </div>
 
-      <CardContent className="space-y-6">
+      <div className="p-5 sm:p-6 space-y-5">
         {/* VO2Max Display/Input */}
-        <div className="p-6 rounded-2xl bg-gradient-to-br from-pink-500/5 to-red-500/5 border border-pink-500/10">
+        <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-[#ff7170]/10 to-[#ff5eb5]/10 border border-[#ff7170]/20">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-pink-500" />
-              <span className="font-medium">VO2 Max</span>
+              <TrendingUp className="h-5 w-5 text-[#ff7170]" />
+              <span className="font-semibold text-foreground">VO2 Max</span>
             </div>
             {!isEditing && vo2MaxManual && (
-              <Button
-                variant="ghost"
-                size="sm"
+              <button
                 onClick={() => setIsEditing(true)}
-                className="text-xs"
+                className="text-xs font-medium text-[#ff7170] hover:text-[#ff5eb5] transition-colors"
               >
                 Update
-              </Button>
+              </button>
             )}
           </div>
 
@@ -81,7 +77,7 @@ export function AppleHealthCard() {
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
                     placeholder="Enter your VO2Max"
-                    className="w-full text-4xl font-bold bg-transparent border-b-2 border-pink-500/30 focus:border-pink-500 outline-none pb-2 placeholder:text-muted-foreground/50 placeholder:text-2xl"
+                    className="w-full text-4xl font-bold bg-transparent border-b-2 border-[#ff7170]/30 focus:border-[#ff7170] outline-none pb-2 placeholder:text-muted-foreground/50 placeholder:text-2xl text-foreground"
                     min="10"
                     max="99"
                     step="0.1"
@@ -90,33 +86,31 @@ export function AppleHealthCard() {
                 <span className="text-muted-foreground pb-2">ml/kg/min</span>
               </div>
               <div className="flex gap-2">
-                <Button
+                <button
                   onClick={handleSave}
-                  size="sm"
-                  className="bg-gradient-to-r from-pink-500 to-red-500 shadow-lg shadow-pink-500/20"
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#ff7170] to-[#ff5eb5] text-white font-medium shadow-lg shadow-[#ff7170]/25 hover:shadow-xl transition-all duration-300"
                 >
                   Save
-                </Button>
+                </button>
                 {vo2MaxManual && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
+                  <button
                     onClick={() => {
                       setIsEditing(false)
                       setInputValue(vo2MaxManual.toString())
                     }}
+                    className="px-4 py-2 rounded-xl bg-white/50 hover:bg-white/70 text-foreground font-medium transition-all duration-300"
                   >
                     Cancel
-                  </Button>
+                  </button>
                 )}
               </div>
             </div>
           ) : (
             <div className="flex items-baseline gap-3">
-              <span className="text-5xl font-bold">{vo2MaxManual}</span>
+              <span className="text-5xl font-bold text-foreground">{vo2MaxManual}</span>
               <span className="text-muted-foreground">ml/kg/min</span>
               {category && (
-                <span className={cn('text-sm font-medium ml-2', category.color)}>
+                <span className={cn('text-sm font-semibold ml-2', category.color)}>
                   {category.label}
                 </span>
               )}
@@ -124,7 +118,7 @@ export function AppleHealthCard() {
           )}
 
           {vo2MaxHistory.length > 1 && (
-            <div className="mt-4 pt-4 border-t border-pink-500/10">
+            <div className="mt-4 pt-4 border-t border-[#ff7170]/20">
               <div className="text-xs text-muted-foreground">
                 Last updated: {new Date(vo2MaxHistory[vo2MaxHistory.length - 1].date).toLocaleDateString()}
               </div>
@@ -133,14 +127,14 @@ export function AppleHealthCard() {
         </div>
 
         {/* Expandable How-To Section */}
-        <div className="glass rounded-xl overflow-hidden">
+        <div className="bg-white/40 rounded-2xl overflow-hidden">
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="w-full flex items-center justify-between p-4 text-left hover:bg-accent/30 transition-colors"
+            className="w-full flex items-center justify-between p-4 text-left hover:bg-white/50 transition-colors"
           >
             <div className="flex items-center gap-2">
               <Info className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">How to find your VO2Max</span>
+              <span className="text-sm font-medium text-foreground">How to find your VO2Max</span>
             </div>
             {isExpanded ? (
               <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -163,14 +157,14 @@ export function AppleHealthCard() {
                   <li>Your VO2Max value is displayed at the top</li>
                 </ol>
 
-                <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                  <p className="text-amber-600 dark:text-amber-400 text-xs">
+                <div className="p-3 rounded-xl bg-[#fbbf24]/10 border border-[#fbbf24]/20">
+                  <p className="text-[#b45309] dark:text-[#fbbf24] text-xs">
                     <strong>Note:</strong> VO2Max estimates require an Apple Watch and outdoor workouts with GPS enabled.
                   </p>
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-border">
+              <div className="pt-3 border-t border-white/30">
                 <p className="text-xs text-muted-foreground mb-2">
                   Why manual entry? Apple HealthKit requires a native iOS app for direct data access. A companion app is planned for the future.
                 </p>
@@ -178,7 +172,7 @@ export function AppleHealthCard() {
                   href="https://support.apple.com/en-us/108709"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                  className="inline-flex items-center gap-1 text-xs text-[#ff7170] hover:text-[#ff5eb5] transition-colors font-medium"
                 >
                   Learn more about Cardio Fitness
                   <ExternalLink className="h-3 w-3" />
@@ -187,7 +181,7 @@ export function AppleHealthCard() {
             </div>
           )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }

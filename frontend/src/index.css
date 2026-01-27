@@ -31,6 +31,24 @@ body,
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;
+
+  /* Portfolio App Design Tokens */
+  --portfolio-bg: #0a0a12;
+  --portfolio-glass-tint: rgba(120, 130, 255, 0.08);
+  --portfolio-glass-border: rgba(255, 255, 255, 0.12);
+  --portfolio-accent-1: #7c8aff;
+  --portfolio-accent-2: #a78bfa;
+  --portfolio-text: #f8f7ff;
+  --portfolio-text-muted: rgba(248, 247, 255, 0.6);
+
+  /* Breathwork App Design Tokens */
+  --breath-accent-coral: #ff7170;
+  --breath-accent-magenta: #ff5eb5;
+  --breath-accent-blue: #60a5fa;
+  --breath-accent-amber: #fbbf24;
+  --breath-accent-teal: #2dd4bf;
+  --breath-glass-tint: rgba(255, 180, 170, 0.12);
+  --breath-glass-border: rgba(255, 255, 255, 0.25);
 }
 
 /* Safe area padding for mobile devices */
@@ -228,6 +246,156 @@ body,
 }
 
 /* ================================
+   LIQUID GLASS ANIMATIONS
+   ================================ */
+
+/* Shimmer effect for glass surfaces */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+/* Glow pulse for accents */
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(124, 138, 255, 0.3), 0 0 40px rgba(124, 138, 255, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(124, 138, 255, 0.5), 0 0 60px rgba(124, 138, 255, 0.2);
+  }
+}
+
+.animate-glow {
+  animation: glow-pulse 3s ease-in-out infinite;
+}
+
+/* Subtle float animation */
+@keyframes subtle-float {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  33% {
+    transform: translateY(-6px) rotate(0.5deg);
+  }
+  66% {
+    transform: translateY(-3px) rotate(-0.5deg);
+  }
+}
+
+.animate-subtle-float {
+  animation: subtle-float 6s ease-in-out infinite;
+}
+
+/* Scale in animation */
+@keyframes scale-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-scale-in {
+  animation: scale-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Slide up fade */
+@keyframes slide-up-fade {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up-fade 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Stagger children animation delays */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.1s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.2s; }
+.stagger-5 { animation-delay: 0.25s; }
+
+/* Breathwork gradient animation */
+@keyframes breath-gradient {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  25% {
+    background-position: 100% 50%;
+  }
+  50% {
+    background-position: 100% 100%;
+  }
+  75% {
+    background-position: 0% 100%;
+  }
+}
+
+.animate-breath-gradient {
+  background-size: 200% 200%;
+  animation: breath-gradient 15s ease infinite;
+}
+
+/* Orb floating animation for decorative elements */
+@keyframes orb-float {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.6;
+  }
+  25% {
+    transform: translate(10px, -20px) scale(1.05);
+    opacity: 0.8;
+  }
+  50% {
+    transform: translate(-5px, -10px) scale(0.95);
+    opacity: 0.5;
+  }
+  75% {
+    transform: translate(-15px, -25px) scale(1.02);
+    opacity: 0.7;
+  }
+}
+
+.animate-orb {
+  animation: orb-float 20s ease-in-out infinite;
+}
+
+.animate-orb-delayed {
+  animation: orb-float 25s ease-in-out infinite;
+  animation-delay: -5s;
+}
+
+.animate-orb-slow {
+  animation: orb-float 30s ease-in-out infinite;
+  animation-delay: -10s;
+}
+
+/* ================================
    MESSAGE CONTENT STYLES
    ================================ */
 
@@ -404,10 +572,82 @@ body,
 }
 
 /* ================================
-   BREATHWORK GLASS EFFECTS
+   LIQUID GLASS EFFECTS
    ================================ */
 
-/* Glass card effect - outside @layer for proper specificity */
+/* Portfolio liquid glass - elegant cool tones with visible blur */
+.liquid-glass-portfolio {
+  background: linear-gradient(
+    135deg,
+    rgba(120, 130, 255, 0.18) 0%,
+    rgba(167, 139, 250, 0.14) 50%,
+    rgba(120, 130, 255, 0.10) 100%
+  );
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 0 20px rgba(120, 130, 255, 0.05);
+}
+
+.liquid-glass-portfolio:hover {
+  background: linear-gradient(
+    135deg,
+    rgba(120, 130, 255, 0.16) 0%,
+    rgba(167, 139, 250, 0.12) 50%,
+    rgba(120, 130, 255, 0.08) 100%
+  );
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.35),
+    0 4px 12px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+/* Breathwork liquid glass - warm playful tones */
+.liquid-glass-breath {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.7) 0%,
+    rgba(255, 240, 245, 0.6) 50%,
+    rgba(255, 255, 255, 0.5) 100%
+  );
+  backdrop-filter: blur(20px) saturate(200%);
+  -webkit-backdrop-filter: blur(20px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.06),
+    0 2px 8px rgba(0, 0, 0, 0.04),
+    inset 0 2px 4px rgba(255, 255, 255, 0.8);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.liquid-glass-breath:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.1),
+    0 4px 12px rgba(0, 0, 0, 0.06),
+    inset 0 2px 4px rgba(255, 255, 255, 0.9);
+}
+
+.dark .liquid-glass-breath {
+  background: linear-gradient(
+    135deg,
+    rgba(40, 45, 60, 0.7) 0%,
+    rgba(50, 45, 70, 0.6) 50%,
+    rgba(40, 45, 60, 0.5) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    0 2px 8px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Standard glass - backwards compatible */
 .glass {
   background: rgba(255, 255, 255, 0.25);
   backdrop-filter: blur(20px) saturate(180%);
@@ -436,12 +676,88 @@ body,
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.25);
 }
 
-/* Gradient text */
+/* Gradient text - portfolio style */
 .gradient-text {
-  background: linear-gradient(135deg, hsl(210 100% 55%) 0%, hsl(270 80% 65%) 50%, hsl(175 70% 50%) 100%);
+  background: linear-gradient(135deg, #7c8aff 0%, #a78bfa 50%, #c4b5fd 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+/* Gradient text - breathwork style */
+.gradient-text-breath {
+  background: linear-gradient(135deg, #ff7170 0%, #ff5eb5 50%, #a78bfa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ================================
+   BREATHWORK BACKGROUNDS
+   ================================ */
+
+/* Main breathwork gradient background */
+.breath-bg {
+  background: linear-gradient(
+    135deg,
+    #fef7f0 0%,      /* Warm cream */
+    #fef2f4 25%,     /* Soft blush */
+    #fdf4ff 50%,     /* Light lavender */
+    #f0f9ff 75%,     /* Sky tint */
+    #fef7f0 100%     /* Back to cream */
+  );
+}
+
+.dark .breath-bg {
+  background: linear-gradient(
+    135deg,
+    #0f0d15 0%,      /* Deep purple-black */
+    #15121e 25%,     /* Warm dark */
+    #12101a 50%,     /* Neutral dark */
+    #0d1117 75%,     /* Cool dark */
+    #0f0d15 100%     /* Back to start */
+  );
+}
+
+/* Decorative orbs for breathwork */
+.breath-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.breath-orb-coral {
+  background: radial-gradient(circle, rgba(255, 113, 112, 0.4) 0%, transparent 70%);
+}
+
+.breath-orb-magenta {
+  background: radial-gradient(circle, rgba(255, 94, 181, 0.3) 0%, transparent 70%);
+}
+
+.breath-orb-blue {
+  background: radial-gradient(circle, rgba(96, 165, 250, 0.3) 0%, transparent 70%);
+}
+
+.breath-orb-amber {
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.3) 0%, transparent 70%);
+}
+
+.dark .breath-orb-coral {
+  background: radial-gradient(circle, rgba(255, 113, 112, 0.2) 0%, transparent 70%);
+}
+
+.dark .breath-orb-magenta {
+  background: radial-gradient(circle, rgba(255, 94, 181, 0.15) 0%, transparent 70%);
+}
+
+.dark .breath-orb-blue {
+  background: radial-gradient(circle, rgba(96, 165, 250, 0.15) 0%, transparent 70%);
+}
+
+.dark .breath-orb-amber {
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.15) 0%, transparent 70%);
 }
 
 /* ================================

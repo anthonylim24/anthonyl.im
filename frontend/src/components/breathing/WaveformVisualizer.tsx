@@ -129,10 +129,10 @@ export function WaveformVisualizer({
   }
 
   return (
-    <div className={cn('relative', className)}>
-      {/* Background glow effect */}
+    <div className={cn('relative overflow-hidden', className)}>
+      {/* Background glow effect - pointer-events-none to not block clicks */}
       <div
-        className="absolute inset-0 rounded-3xl transition-all duration-700 blur-3xl"
+        className="absolute inset-0 rounded-3xl transition-all duration-700 blur-3xl pointer-events-none"
         style={{
           background: `radial-gradient(circle at 50% 50%, ${phaseColors.glow}, transparent 70%)`,
           opacity: isActive ? 0.6 : 0.2,

@@ -1,6 +1,4 @@
 import { useState, useMemo } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ProgressChart } from '@/components/tracking/ProgressChart'
 import { SessionHistory } from '@/components/tracking/SessionHistory'
@@ -10,7 +8,7 @@ import { useHistoryStore } from '@/stores/historyStore'
 import { breathingProtocols } from '@/lib/breathingProtocols'
 import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 import { formatTime, cn } from '@/lib/utils'
-import { Activity, Calendar, Clock, Trash2, Wind, Flame, Box } from 'lucide-react'
+import { Activity, Calendar, Clock, Trash2, Wind, Flame, Box, TrendingUp, Sparkles } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -24,18 +22,22 @@ import {
 const techniqueConfig: Record<TechniqueId, {
   icon: React.ReactNode
   gradient: string
+  glow: string
 }> = {
   [TECHNIQUE_IDS.BOX_BREATHING]: {
     icon: <Box className="h-4 w-4" />,
-    gradient: 'from-blue-500 to-indigo-600',
+    gradient: 'from-[#60a5fa] to-[#818cf8]',
+    glow: 'shadow-[#60a5fa]/30',
   },
   [TECHNIQUE_IDS.CO2_TOLERANCE]: {
     icon: <Flame className="h-4 w-4" />,
-    gradient: 'from-orange-500 to-rose-600',
+    gradient: 'from-[#fbbf24] to-[#f97316]',
+    glow: 'shadow-[#fbbf24]/30',
   },
   [TECHNIQUE_IDS.POWER_BREATHING]: {
     icon: <Wind className="h-4 w-4" />,
-    gradient: 'from-emerald-500 to-teal-600',
+    gradient: 'from-[#2dd4bf] to-[#22d3ee]',
+    glow: 'shadow-[#2dd4bf]/30',
   },
 }
 
@@ -73,114 +75,126 @@ export function Progress() {
 
   return (
     <div className="pb-4">
-      <div className="space-y-6 sm:space-y-8">
+      <div className="space-y-8 sm:space-y-10">
         {/* Header */}
         <div className="flex items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold">Progress</h1>
-            <p className="text-muted-foreground mt-1">Track your breathing journey</p>
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full liquid-glass-breath text-sm font-medium animate-scale-in">
+              <TrendingUp className="h-4 w-4 text-[#ff7170]" />
+              <span className="text-foreground/80">Your Journey</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground opacity-0 animate-slide-up stagger-1">
+              <span className="gradient-text-breath">Progress</span> Tracking
+            </h1>
+            <p className="text-muted-foreground text-sm opacity-0 animate-slide-up stagger-2">Track your breathing journey</p>
           </div>
           <Dialog open={showClearDialog} onOpenChange={setShowClearDialog}>
             <DialogTrigger asChild>
-              <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
-                <Trash2 className="h-4 w-4 mr-2" />
-                Clear
-              </Button>
+              <button className="px-4 py-2 rounded-xl text-sm font-medium text-red-500 hover:bg-red-500/10 transition-all duration-300 flex items-center gap-2">
+                <Trash2 className="h-4 w-4" />
+                <span className="hidden sm:inline">Clear</span>
+              </button>
             </DialogTrigger>
-            <DialogContent className="glass-strong border-0">
+            <DialogContent className="liquid-glass-breath border-0 rounded-3xl">
               <DialogHeader>
-                <DialogTitle>Clear All History?</DialogTitle>
+                <DialogTitle className="text-foreground">Clear All History?</DialogTitle>
                 <DialogDescription>
                   This will permanently delete all your session history and
                   personal bests. This action cannot be undone.
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter className="gap-2">
-                <Button
-                  variant="outline"
+                <button
                   onClick={() => setShowClearDialog(false)}
+                  className="px-4 py-2 rounded-xl bg-white/50 hover:bg-white/70 text-foreground font-medium transition-all duration-300"
                 >
                   Cancel
-                </Button>
-                <Button variant="destructive" onClick={handleClearHistory}>
+                </button>
+                <button
+                  onClick={handleClearHistory}
+                  className="px-4 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white font-medium transition-all duration-300"
+                >
                   Clear All
-                </Button>
+                </button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
 
         {/* Stats Overview */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-4">
-          <Card className="group hover:scale-[1.02] transition-transform">
-            <CardContent className="p-3 sm:pt-6 sm:p-6">
-              <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
-                <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg sm:rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
-                  <Activity className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white" />
-                </div>
+        <div className="grid grid-cols-3 gap-3 sm:gap-4 opacity-0 animate-slide-up stagger-3">
+          <div className="liquid-glass-breath rounded-2xl p-4 sm:p-6 group hover:scale-[1.02] transition-all duration-300">
+            <div className="flex items-center gap-2 mb-2 sm:mb-3">
+              <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-gradient-to-br from-[#60a5fa] to-[#818cf8] flex items-center justify-center shadow-lg shadow-[#60a5fa]/25 group-hover:scale-110 transition-transform duration-300">
+                <Activity className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
-              <div className="text-xl sm:text-3xl font-bold">{sessions.length}</div>
-              <div className="text-xs sm:text-sm text-muted-foreground">Sessions</div>
-            </CardContent>
-          </Card>
-          <Card className="group hover:scale-[1.02] transition-transform">
-            <CardContent className="p-3 sm:pt-6 sm:p-6">
-              <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
-                <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg sm:rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center">
-                  <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white" />
-                </div>
+            </div>
+            <div className="text-2xl sm:text-3xl font-bold text-foreground">{sessions.length}</div>
+            <div className="text-xs sm:text-sm text-muted-foreground font-medium">Sessions</div>
+          </div>
+          <div className="liquid-glass-breath rounded-2xl p-4 sm:p-6 group hover:scale-[1.02] transition-all duration-300">
+            <div className="flex items-center gap-2 mb-2 sm:mb-3">
+              <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-gradient-to-br from-[#ff7170] to-[#ff5eb5] flex items-center justify-center shadow-lg shadow-[#ff7170]/25 group-hover:scale-110 transition-transform duration-300">
+                <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
-              <div className="text-xl sm:text-3xl font-bold">{formatTime(totalDuration)}</div>
-              <div className="text-xs sm:text-sm text-muted-foreground">Total Time</div>
-            </CardContent>
-          </Card>
-          <Card className="group hover:scale-[1.02] transition-transform">
-            <CardContent className="p-3 sm:pt-6 sm:p-6">
-              <div className="flex items-center gap-2 mb-1.5 sm:mb-2">
-                <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg sm:rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
-                  <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white" />
-                </div>
+            </div>
+            <div className="text-2xl sm:text-3xl font-bold text-foreground">{formatTime(totalDuration)}</div>
+            <div className="text-xs sm:text-sm text-muted-foreground font-medium">Total Time</div>
+          </div>
+          <div className="liquid-glass-breath rounded-2xl p-4 sm:p-6 group hover:scale-[1.02] transition-all duration-300">
+            <div className="flex items-center gap-2 mb-2 sm:mb-3">
+              <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl bg-gradient-to-br from-[#fbbf24] to-[#f97316] flex items-center justify-center shadow-lg shadow-[#fbbf24]/25 group-hover:scale-110 transition-transform duration-300">
+                <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
-              <div className="text-xl sm:text-3xl font-bold">{streak}</div>
-              <div className="text-xs sm:text-sm text-muted-foreground">Day Streak</div>
-            </CardContent>
-          </Card>
+            </div>
+            <div className="text-2xl sm:text-3xl font-bold text-foreground">{streak}</div>
+            <div className="text-xs sm:text-sm text-muted-foreground font-medium">Day Streak</div>
+          </div>
         </div>
 
         {/* Apple Health Integration */}
-        <AppleHealthCard />
+        <div className="opacity-0 animate-slide-up stagger-4">
+          <AppleHealthCard />
+        </div>
 
         {/* Personal Bests */}
-        <PersonalBests personalBests={personalBests} />
+        <div className="opacity-0 animate-slide-up stagger-5">
+          <PersonalBests personalBests={personalBests} />
+        </div>
 
         {/* Progress Chart */}
-        <ProgressChart
-          sessions={filteredSessions.filter((s) => s.maxHoldTime > 0)}
-        />
+        <div className="opacity-0 animate-scale-in" style={{ animationDelay: '0.6s' }}>
+          <ProgressChart
+            sessions={filteredSessions.filter((s) => s.maxHoldTime > 0)}
+          />
+        </div>
 
         {/* Session History */}
-        <Card>
-          <CardHeader className="p-4 sm:p-6 pb-3 sm:pb-4">
-            <CardTitle className="text-base sm:text-lg">Session History</CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 sm:p-6 pt-0">
+        <div className="liquid-glass-breath rounded-3xl overflow-hidden opacity-0 animate-scale-in" style={{ animationDelay: '0.7s' }}>
+          <div className="p-5 sm:p-6 border-b border-white/20">
+            <h3 className="text-base sm:text-lg font-semibold text-foreground flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-[#ff7170]" />
+              Session History
+            </h3>
+          </div>
+          <div className="p-5 sm:p-6">
             <Tabs
               value={filterTechnique}
               onValueChange={(v) => setFilterTechnique(v as TechniqueId | 'all')}
             >
-              <TabsList className="grid grid-cols-4 h-10 sm:h-12 p-1 glass rounded-lg sm:rounded-xl mb-4 sm:mb-6">
-                <TabsTrigger value="all" className="rounded-md sm:rounded-lg text-xs sm:text-sm">All</TabsTrigger>
+              <TabsList className="grid grid-cols-4 h-12 sm:h-14 p-1.5 liquid-glass-breath rounded-xl mb-5 sm:mb-6">
+                <TabsTrigger value="all" className="rounded-lg text-xs sm:text-sm data-[state=active]:bg-white/60 data-[state=active]:shadow-md">All</TabsTrigger>
                 {Object.values(TECHNIQUE_IDS).map((id) => {
                   const tc = techniqueConfig[id]
                   return (
-                    <TabsTrigger key={id} value={id} className="gap-1 sm:gap-1.5 rounded-md sm:rounded-lg">
+                    <TabsTrigger key={id} value={id} className="gap-1 sm:gap-1.5 rounded-lg data-[state=active]:bg-white/60 data-[state=active]:shadow-md">
                       <div className={cn(
-                        "h-4 w-4 sm:h-5 sm:w-5 rounded bg-gradient-to-br flex items-center justify-center",
+                        "h-5 w-5 sm:h-6 sm:w-6 rounded bg-gradient-to-br flex items-center justify-center shadow-sm",
                         tc.gradient
                       )}>
-                        <span className="text-white scale-[0.6] sm:scale-75">{tc.icon}</span>
+                        <span className="text-white scale-75">{tc.icon}</span>
                       </div>
-                      <span className="hidden sm:inline text-xs">
+                      <span className="hidden sm:inline text-xs font-medium">
                         {breathingProtocols[id].name.split(' ')[0]}
                       </span>
                     </TabsTrigger>
@@ -192,8 +206,8 @@ export function Progress() {
                 <SessionHistory sessions={filteredSessions} />
               </TabsContent>
             </Tabs>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </div>
   )

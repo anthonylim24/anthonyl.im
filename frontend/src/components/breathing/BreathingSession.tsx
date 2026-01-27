@@ -99,10 +99,10 @@ export function BreathingSession({
   }, [session, protocol.phases])
 
   return (
-    <div className="flex flex-col items-center gap-8 w-full max-w-2xl mx-auto">
-      {/* Round Progress */}
-      <div className="w-full">
-        <div className="flex items-center justify-between mb-3">
+    <div className="flex flex-col items-center w-full max-w-2xl mx-auto h-[calc(100svh-12rem)] min-h-[400px]">
+      {/* Round Progress - fixed height */}
+      <div className="w-full shrink-0 mb-4">
+        <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-medium text-muted-foreground">
             Round {session ? session.currentRound + 1 : 1} of {config.rounds}
           </span>
@@ -121,25 +121,25 @@ export function BreathingSession({
         </div>
       </div>
 
-      {/* Phase & Timer - Above waveform for prominence */}
-      <div className="text-center space-y-3">
+      {/* Phase & Timer - fixed height */}
+      <div className="text-center space-y-1 shrink-0 mb-4">
         <PhaseIndicator phase={session?.currentPhase ?? null} />
         <Timer seconds={session?.timeRemaining ?? 0} />
       </div>
 
-      {/* Waveform Visualization */}
-      <div className="w-full aspect-[4/3] max-h-72">
+      {/* Waveform Visualization - flexible, takes remaining space */}
+      <div className="w-full flex-1 min-h-0 mb-4">
         <WaveformVisualizer
           phase={session?.currentPhase ?? null}
           phaseDuration={currentPhaseDuration}
           timeRemaining={session?.timeRemaining ?? 0}
           isActive={isActive && !isPaused}
-          className="h-full"
+          className="h-full w-full"
         />
       </div>
 
-      {/* Controls */}
-      <div className="flex justify-center gap-4">
+      {/* Controls - fixed height at bottom */}
+      <div className="flex justify-center gap-3 sm:gap-4 relative z-10 shrink-0 pb-2">
         {!isActive && !isComplete ? (
           <Button
             onClick={handleStart}
