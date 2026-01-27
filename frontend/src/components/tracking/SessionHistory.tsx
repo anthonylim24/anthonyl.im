@@ -29,7 +29,7 @@ export function SessionHistory({ sessions }: SessionHistoryProps) {
   return (
     <div className="space-y-3">
       {sessions.map((session) => (
-        <Card key={session.id}>
+        <Card key={session.id} className="session-history-item">
           <CardContent className="py-4">
             <div className="flex items-start justify-between">
               <div className="flex items-start gap-3">

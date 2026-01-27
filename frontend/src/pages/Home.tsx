@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Card,
@@ -10,9 +11,8 @@ import { Button } from '@/components/ui/button'
 import { useHistoryStore } from '@/stores/historyStore'
 import { breathingProtocols } from '@/lib/breathingProtocols'
 import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
-import { formatDate } from '@/lib/utils'
+import { formatDate, cn } from '@/lib/utils'
 import { Wind, Flame, Box, Trophy, TrendingUp, Sparkles, ChevronRight } from 'lucide-react'
-import { cn } from '@/lib/utils'
 
 const techniqueConfig: Record<TechniqueId, {
   icon: React.ReactNode
@@ -39,8 +39,9 @@ const techniqueConfig: Record<TechniqueId, {
 export function Home() {
   const navigate = useNavigate()
   const { sessions, personalBests, getStreak } = useHistoryStore()
-  const streak = getStreak()
-  const recentSessions = sessions.slice(0, 3)
+  // Memoize expensive getStreak() calculation
+  const streak = useMemo(() => getStreak(), [sessions])
+  const recentSessions = useMemo(() => sessions.slice(0, 3), [sessions])
 
   const handleSelectTechnique = (techniqueId: TechniqueId) => {
     navigate(`/breathwork/session?technique=${techniqueId}`)

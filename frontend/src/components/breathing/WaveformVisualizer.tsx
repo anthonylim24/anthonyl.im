@@ -12,6 +12,9 @@ interface WaveformVisualizerProps {
   className?: string
 }
 
+// Hoisted constant to avoid array recreation on every render
+const PARTICLE_INDICES = [0, 1, 2, 3, 4, 5];
+
 export function WaveformVisualizer({
   phase,
   phaseDuration,
@@ -136,9 +139,11 @@ export function WaveformVisualizer({
         }}
       />
 
-      {/* Glass container */}
+      {/* Glass container - wrap SVG in div for GPU-accelerated transforms */}
       <div className="relative glass-strong rounded-3xl overflow-hidden">
-        <svg
+        {/* Animated wrapper div for hardware acceleration */}
+        <div className="transform-gpu">
+          <svg
           viewBox={`0 0 ${width} ${height}`}
           className="w-full h-full"
           preserveAspectRatio="xMidYMid meet"
@@ -260,8 +265,8 @@ export function WaveformVisualizer({
             />
           </g>
 
-          {/* Floating particles */}
-          {isActive && [...Array(6)].map((_, i) => {
+          {/* Floating particles - using hoisted constant */}
+          {isActive && PARTICLE_INDICES.map((i) => {
             const angle = (i / 6) * Math.PI * 2 + time * 0.3
             const particleRadius = orbRadius + 40 + Math.sin(time + i) * 10
             const px = width / 2 + Math.cos(angle) * particleRadius
@@ -278,6 +283,7 @@ export function WaveformVisualizer({
             )
           })}
         </svg>
+        </div>
       </div>
     </div>
   )

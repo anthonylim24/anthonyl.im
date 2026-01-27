@@ -8,9 +8,12 @@ interface MessageContentProps {
   isStreaming?: boolean;
 }
 
+// Hoisted regex - avoids recreation on every render
+const THINK_REGEX = /^<think>([\s\S]*?)<\/think>\s*([\s\S]*)$/;
+
 const MessageContent = ({ content, isStreaming = false }: MessageContentProps) => {
   // Handle think tags (AI reasoning)
-  const thinkMatch = content.match(/^<think>([\s\S]*?)<\/think>\s*([\s\S]*)$/);
+  const thinkMatch = content.match(THINK_REGEX);
   const hasThinkTag = thinkMatch !== null;
   const thinkContent = hasThinkTag ? thinkMatch[1] : "";
   const mainContent = hasThinkTag ? thinkMatch[2] : content;

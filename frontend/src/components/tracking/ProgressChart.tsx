@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import {
   LineChart,
   Line,
@@ -19,19 +20,26 @@ export function ProgressChart({
   sessions,
   title = 'Hold Time Progress',
 }: ProgressChartProps) {
-  // Prepare data for chart - reverse to show chronological order
-  const chartData = [...sessions]
-    .reverse()
-    .slice(-14) // Last 14 sessions
-    .map((session, index) => ({
-      session: index + 1,
-      date: new Date(session.date).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-      }),
-      maxHold: session.maxHoldTime,
-      avgHold: session.avgHoldTime,
-    }))
+  // Memoize chart data transformation - combined into single efficient loop
+  const chartData = useMemo(() => {
+    const result = []
+    const start = Math.max(0, sessions.length - 14)
+
+    // Single reverse iteration instead of reverse().slice().map()
+    for (let i = sessions.length - 1; i >= start; i--) {
+      const session = sessions[i]
+      result.push({
+        session: sessions.length - i,
+        date: new Date(session.date).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+        }),
+        maxHold: session.maxHoldTime,
+        avgHold: session.avgHoldTime,
+      })
+    }
+    return result
+  }, [sessions])
 
   if (chartData.length === 0) {
     return (

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -10,15 +10,7 @@ import { useHistoryStore } from '@/stores/historyStore'
 import { breathingProtocols } from '@/lib/breathingProtocols'
 import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 import { formatTime, cn } from '@/lib/utils'
-import {
-  Activity,
-  Calendar,
-  Clock,
-  Trash2,
-  Wind,
-  Flame,
-  Box,
-} from 'lucide-react'
+import { Activity, Calendar, Clock, Trash2, Wind, Flame, Box } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -58,13 +50,21 @@ export function Progress() {
   const [filterTechnique, setFilterTechnique] = useState<TechniqueId | 'all'>('all')
   const [showClearDialog, setShowClearDialog] = useState(false)
 
-  const filteredSessions =
+  // Memoize filtered sessions and computed values
+  const filteredSessions = useMemo(() =>
     filterTechnique === 'all'
       ? sessions
-      : sessions.filter((s) => s.techniqueId === filterTechnique)
+      : sessions.filter((s) => s.techniqueId === filterTechnique),
+    [sessions, filterTechnique]
+  )
 
-  const totalDuration = sessions.reduce((acc, s) => acc + s.durationSeconds, 0)
-  const streak = getStreak()
+  const totalDuration = useMemo(() =>
+    sessions.reduce((acc, s) => acc + s.durationSeconds, 0),
+    [sessions]
+  )
+
+  // Memoize expensive getStreak() calculation
+  const streak = useMemo(() => getStreak(), [sessions])
 
   const handleClearHistory = () => {
     clearHistory()

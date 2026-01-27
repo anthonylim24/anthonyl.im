@@ -1,5 +1,4 @@
-import { useState, useRef, useEffect, lazy, Suspense } from "react";
-import posthog from "posthog-js";
+import { useState, useRef, useEffect, lazy, Suspense, useCallback } from "react";
 import { Button } from "./components/ui/button";
 import { Send, ChevronDown } from "lucide-react";
 import { cn } from "./lib/utils";
@@ -14,6 +13,7 @@ interface ChatMessage {
   timestamp: number;
 }
 
+// Hoisted static constants
 const suggestedQuestions = [
   "What is Anthony's background?",
   "What are his technical skills?",
@@ -21,10 +21,17 @@ const suggestedQuestions = [
   "How can I contact him?",
 ];
 
-posthog.init("phc_yZpQ6Ze2cZ6rAtVHUsHl8o0l4cW0X23xncC2lA6K836", {
-  api_host: "https://us.i.posthog.com",
-  person_profiles: "identified_only",
-});
+// Hoisted static JSX for empty state
+const emptyStateContent = (
+  <div className="flex flex-col items-center justify-center h-full py-8 animate-fade-in">
+    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-br from-white/10 to-white/5 flex items-center justify-center mb-6 ring-1 ring-white/10 backdrop-blur-sm">
+      <span className="text-3xl sm:text-4xl">✨</span>
+    </div>
+    <p className="text-white/60 text-center text-sm sm:text-base max-w-xs px-4">
+      Ask me anything about Anthony's experience, skills, or background
+    </p>
+  </div>
+);
 
 function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -37,6 +44,18 @@ function App() {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const shouldAutoScroll = useRef(true);
+
+  // Defer PostHog loading - analytics shouldn't block initial render
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      import('posthog-js').then(({ default: posthog }) => {
+        posthog.init("phc_yZpQ6Ze2cZ6rAtVHUsHl8o0l4cW0X23xncC2lA6K836", {
+          api_host: "https://us.i.posthog.com",
+          person_profiles: "identified_only",
+        });
+      });
+    }
+  }, []);
 
   // Scroll to bottom function - uses scrollIntoView for better mobile support
   const scrollToBottom = (instant = false) => {
@@ -70,14 +89,14 @@ function App() {
     }
   }, [messages]);
 
-  // Auto-resize textarea
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  // Auto-resize textarea - memoized to prevent recreation
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
     if (inputRef.current) {
       inputRef.current.style.height = "auto";
       inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 120) + "px";
     }
-  };
+  }, []);
 
   const handleSubmit = async (e?: React.FormEvent, submittedInput?: string) => {
     if (e) e.preventDefault();
@@ -195,17 +214,8 @@ function App() {
             onScroll={handleScroll}
             className="absolute inset-0 overflow-y-auto overscroll-contain px-4 pb-4 scroll-smooth"
           >
-            {/* Empty state */}
-            {!hasMessages && (
-              <div className="flex flex-col items-center justify-center h-full py-8 animate-fade-in">
-                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-br from-white/10 to-white/5 flex items-center justify-center mb-6 ring-1 ring-white/10 backdrop-blur-sm">
-                  <span className="text-3xl sm:text-4xl">✨</span>
-                </div>
-                <p className="text-white/60 text-center text-sm sm:text-base max-w-xs px-4">
-                  Ask me anything about Anthony's experience, skills, or background
-                </p>
-              </div>
-            )}
+            {/* Empty state - hoisted to avoid recreation */}
+            {!hasMessages && emptyStateContent}
 
             {/* Messages */}
             <div className="space-y-4 py-2">

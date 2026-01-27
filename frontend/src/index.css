@@ -515,3 +515,25 @@ body,
     flex-shrink: 1;
   }
 }
+
+/* ================================
+   PERFORMANCE OPTIMIZATIONS
+   ================================ */
+
+/* content-visibility for long lists - improves rendering performance */
+.session-item {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 80px;
+}
+
+/* For session history items */
+.session-history-item {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 100px;
+}
+
+/* GPU acceleration for animations */
+.transform-gpu {
+  transform: translateZ(0);
+  will-change: transform;
+}

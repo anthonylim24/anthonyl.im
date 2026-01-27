@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useLayoutEffect } from 'react'
 import { useSessionStore } from '@/stores/sessionStore'
 import { useHistoryStore } from '@/stores/historyStore'
 import { BREATH_PHASES, type BreathPhase } from '@/lib/constants'
@@ -18,6 +18,19 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
     onSessionComplete,
     enableAudio = true,
   } = options
+
+  // Store callbacks in refs to avoid effect re-subscriptions
+  // This prevents unnecessary interval restarts when callbacks change
+  const onPhaseChangeRef = useRef(onPhaseChange)
+  const onRoundCompleteRef = useRef(onRoundComplete)
+  const onSessionCompleteRef = useRef(onSessionComplete)
+
+  // Update refs when callbacks change (synchronously before effects)
+  useLayoutEffect(() => {
+    onPhaseChangeRef.current = onPhaseChange
+    onRoundCompleteRef.current = onRoundComplete
+    onSessionCompleteRef.current = onSessionComplete
+  })
 
   const {
     session,
@@ -127,7 +140,7 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
             session.config.customPhaseDurations
           )
           updatePhase(nextPhaseConfig.phase, nextPhaseIndex, nextPhaseConfig.duration)
-          onPhaseChange?.(nextPhaseConfig.phase)
+          onPhaseChangeRef.current?.(nextPhaseConfig.phase)
           playBeep(nextPhaseConfig.phase === BREATH_PHASES.INHALE ? 660 : 440, 100)
 
           // Start tracking hold time
@@ -140,12 +153,12 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
         } else {
           // Round complete
           const nextRoundNum = session.currentRound + 1
-          onRoundComplete?.(session.currentRound)
+          onRoundCompleteRef.current?.(session.currentRound)
 
           if (nextRoundNum >= session.config.rounds) {
             // Session complete
             completeSession()
-            onSessionComplete?.()
+            onSessionCompleteRef.current?.()
             playBeep(880, 300)
 
             // Save to history
@@ -179,7 +192,7 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
               session.config.customPhaseDurations
             )
             updatePhase(firstPhase.phase, 0, firstPhase.duration)
-            onPhaseChange?.(firstPhase.phase)
+            onPhaseChangeRef.current?.(firstPhase.phase)
             playBeep(660, 150)
           }
         }
@@ -208,9 +221,8 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
     recordHoldTime,
     completeSession,
     addSession,
-    onPhaseChange,
-    onRoundComplete,
-    onSessionComplete,
+    // Removed callback props from deps - they're now accessed via refs
+    // This prevents effect re-runs when parent re-renders with new callback refs
     playBeep,
   ])
 
