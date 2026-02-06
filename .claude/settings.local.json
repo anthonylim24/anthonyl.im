@@ -6,7 +6,9 @@
       "WebFetch(domain:dribbble.com)",
       "Bash(npx tsc:*)",
       "Bash(npx vite build:*)",
-      "Bash(npx vitest:*)"
+      "Bash(npx vitest:*)",
+      "Bash(tree:*)",
+      "WebFetch(domain:www.linkedin.com)"
     ]
   }
 }

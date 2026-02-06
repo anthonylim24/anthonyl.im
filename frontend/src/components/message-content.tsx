@@ -48,7 +48,7 @@ const MessageContent = ({ content, isStreaming = false }: MessageContentProps) =
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-400 hover:text-blue-300 underline decoration-blue-400/30 underline-offset-2 transition-colors"
+                className="text-[#A5B4FC] hover:text-[#C7D2FE] underline decoration-[#6366F1]/30 underline-offset-2 transition-colors"
               >
                 {children}
               </a>
@@ -71,7 +71,7 @@ const MessageContent = ({ content, isStreaming = false }: MessageContentProps) =
               if (isInline) {
                 return (
                   <code
-                    className="px-1.5 py-0.5 rounded bg-white/10 text-blue-300 text-[13px] font-mono"
+                    className="px-1.5 py-0.5 rounded bg-white/10 text-[#A5B4FC] text-[13px] font-mono"
                     {...props}
                   >
                     {children}
@@ -114,7 +114,7 @@ const MessageContent = ({ content, isStreaming = false }: MessageContentProps) =
 
             // Blockquotes
             blockquote: ({ children }) => (
-              <blockquote className="my-3 pl-4 border-l-2 border-blue-400/30 text-white/80 italic">
+              <blockquote className="my-3 pl-4 border-l-2 border-[#6366F1]/40 text-white/80 italic">
                 {children}
               </blockquote>
             ),

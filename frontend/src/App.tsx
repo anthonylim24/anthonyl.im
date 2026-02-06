@@ -1,10 +1,48 @@
 import { useState, useRef, useEffect, lazy, Suspense, useCallback } from "react";
 import { Button } from "./components/ui/button";
-import { Send, ChevronDown } from "lucide-react";
+import { Send, ChevronDown, MessageCircle, Code2, Briefcase, Mail } from "lucide-react";
 import { cn } from "./lib/utils";
 import { invokeDeepseek } from "./lib/apiService";
 
 const MessageContent = lazy(() => import("./components/message-content"));
+
+// Pointer-responsive glow for the input container
+function usePointerGlow(ref: React.RefObject<HTMLDivElement | null>) {
+  const pointer = useRef({ x: 0, y: 0 });
+  const raf = useRef(0);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const update = (e: PointerEvent) => {
+      const rect = el.getBoundingClientRect();
+      pointer.current.x = e.clientX - rect.left;
+      pointer.current.y = e.clientY - rect.top;
+
+      if (!raf.current) {
+        raf.current = requestAnimationFrame(() => {
+          el.style.setProperty('--glow-x', `${pointer.current.x}px`);
+          el.style.setProperty('--glow-y', `${pointer.current.y}px`);
+          el.style.setProperty('--glow-opacity', '1');
+          raf.current = 0;
+        });
+      }
+    };
+
+    const hide = () => {
+      el.style.setProperty('--glow-opacity', '0');
+    };
+
+    el.addEventListener('pointermove', update);
+    el.addEventListener('pointerleave', hide);
+    return () => {
+      el.removeEventListener('pointermove', update);
+      el.removeEventListener('pointerleave', hide);
+      if (raf.current) cancelAnimationFrame(raf.current);
+    };
+  }, [ref]);
+}
 
 interface ChatMessage {
   id: string;
@@ -13,32 +51,12 @@ interface ChatMessage {
   timestamp: number;
 }
 
-// Hoisted static constants
 const suggestedQuestions = [
-  "What is Anthony's background?",
-  "What are his technical skills?",
-  "Where has he worked?",
-  "How can I contact him?",
+  { text: "What is Anthony's background?", icon: MessageCircle },
+  { text: "What are his technical skills?", icon: Code2 },
+  { text: "Where has he worked?", icon: Briefcase },
+  { text: "How can I contact him?", icon: Mail },
 ];
-
-// Hoisted static JSX for empty state - elegant liquid glass style
-const emptyStateContent = (
-  <div className="flex flex-col items-center justify-center h-full py-12 animate-scale-in">
-    {/* Decorative orb behind icon */}
-    <div className="relative mb-8">
-      <div className="absolute inset-0 w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-gradient-to-br from-[#7c8aff]/30 to-[#a78bfa]/20 blur-2xl animate-glow" />
-      <div className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-3xl liquid-glass-portfolio flex items-center justify-center animate-subtle-float">
-        <span className="text-4xl sm:text-5xl">✨</span>
-      </div>
-    </div>
-    <h2 className="text-xl sm:text-2xl font-semibold gradient-text mb-3">
-      Welcome
-    </h2>
-    <p className="text-[#f8f7ff]/60 text-center text-sm sm:text-base max-w-xs px-4 leading-relaxed">
-      Ask me anything about Anthony's experience, skills, or background
-    </p>
-  </div>
-);
 
 function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -50,9 +68,11 @@ function App() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const inputContainerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScroll = useRef(true);
 
-  // Defer PostHog loading - analytics shouldn't block initial render
+  usePointerGlow(inputContainerRef);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       import('posthog-js').then(({ default: posthog }) => {
@@ -64,10 +84,8 @@ function App() {
     }
   }, []);
 
-  // Scroll to bottom function - uses scrollIntoView for better mobile support
   const scrollToBottom = (instant = false) => {
     if (messagesEndRef.current) {
-      // Use requestAnimationFrame to ensure DOM has updated
       requestAnimationFrame(() => {
         messagesEndRef.current?.scrollIntoView({
           behavior: instant ? "instant" : "smooth",
@@ -77,26 +95,20 @@ function App() {
     }
   };
 
-  // Handle scroll events
   const handleScroll = () => {
     if (!messagesContainerRef.current) return;
-
     const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-
-    // User is near bottom if within 150px
     shouldAutoScroll.current = distanceFromBottom < 150;
     setShowScrollButton(distanceFromBottom > 200);
   };
 
-  // Auto-scroll when messages change during streaming
   useEffect(() => {
     if (shouldAutoScroll.current) {
       scrollToBottom();
     }
   }, [messages]);
 
-  // Auto-resize textarea - memoized to prevent recreation
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
     if (inputRef.current) {
@@ -130,12 +142,10 @@ function App() {
     setIsLoading(true);
     shouldAutoScroll.current = true;
 
-    // Reset textarea height
     if (inputRef.current) {
       inputRef.current.style.height = "auto";
     }
 
-    // Scroll immediately after DOM update
     scrollToBottom();
 
     try {
@@ -181,46 +191,55 @@ function App() {
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-[#0a0a12] overflow-hidden">
-      {/* Background image */}
+    <div className="fixed inset-0 flex flex-col bg-[#0a0a12] overflow-hidden noise-overlay">
+      {/* Background image - preserved */}
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{
           backgroundImage: 'url("https://i.imgur.com/sXbuKNH.jpeg")',
-          filter: "brightness(0.4) saturate(0.8)",
+          filter: "brightness(0.35) saturate(0.7)",
         }}
       />
-      {/* Gradient overlay for depth */}
-      <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a12]/60 via-transparent to-[#0a0a12]/80" />
-      {/* Subtle purple tint overlay */}
-      <div className="absolute inset-0 bg-[#7c8aff]/[0.03]" />
 
-      {/* Decorative floating orbs */}
-      <div className="absolute top-20 left-10 w-64 h-64 rounded-full bg-[#7c8aff]/10 blur-[100px] animate-orb pointer-events-none" />
-      <div className="absolute bottom-40 right-10 w-80 h-80 rounded-full bg-[#a78bfa]/10 blur-[120px] animate-orb-delayed pointer-events-none" />
+      {/* Depth gradient overlays */}
+      <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a12]/70 via-transparent to-[#0a0a12]/90" />
+      <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a12]/40 via-transparent to-transparent" />
+
+      {/* Indigo tint wash */}
+      <div className="absolute inset-0 bg-[#6366F1]/[0.03]" />
+
+      {/* Star field layers */}
+      <div className="stars" />
+      <div className="stars2" />
+      <div className="stars3" />
+
+      {/* Ambient orbs - breathwork style */}
+      <div className="absolute breath-orb breath-orb-indigo w-[350px] h-[350px] -top-24 -left-24 animate-orb-slow pointer-events-none" />
+      <div className="absolute breath-orb breath-orb-indigo-light w-[250px] h-[250px] bottom-32 right-[-60px] animate-orb-delayed pointer-events-none" />
+      <div className="absolute breath-orb breath-orb-indigo-deep w-[200px] h-[200px] top-1/2 left-1/3 animate-orb pointer-events-none" />
 
       {/* Main container */}
       <div className="relative z-10 flex flex-col h-full max-w-3xl mx-auto w-full">
-        {/* Header with liquid glass effect */}
+        {/* Header */}
         <header className={cn(
           "shrink-0 text-center transition-all duration-700 ease-out px-4",
-          hasMessages ? "py-4" : "py-10 sm:py-16"
+          hasMessages ? "py-3" : "py-8 sm:py-12"
         )}>
           <div className={cn(
             "inline-block transition-all duration-700",
             !hasMessages && "animate-slide-up"
           )}>
             <h1 className={cn(
-              "font-bold tracking-tight transition-all duration-700",
+              "font-display font-extrabold tracking-tight transition-all duration-700",
               hasMessages
-                ? "text-xl sm:text-2xl text-[#f8f7ff]"
-                : "text-4xl sm:text-5xl gradient-text"
+                ? "text-lg sm:text-xl text-white"
+                : "text-3xl sm:text-5xl gradient-text"
             )}>
               Anthony Lim
             </h1>
             <p className={cn(
-              "text-[#f8f7ff]/50 transition-all duration-700 font-medium",
-              hasMessages ? "text-xs mt-0.5" : "text-sm sm:text-base mt-3 tracking-wide"
+              "text-white/35 transition-all duration-700 font-semibold tracking-wide uppercase",
+              hasMessages ? "text-[10px] mt-0.5" : "text-xs sm:text-sm mt-2"
             )}>
               Software Engineer
             </p>
@@ -234,8 +253,35 @@ function App() {
             onScroll={handleScroll}
             className="absolute inset-0 overflow-y-auto overscroll-contain px-4 pb-4 scroll-smooth"
           >
-            {/* Empty state - hoisted to avoid recreation */}
-            {!hasMessages && emptyStateContent}
+            {/* Empty state */}
+            {!hasMessages && (
+              <div className="flex flex-col items-center justify-center h-full py-8 animate-scale-in">
+                {/* Decorative orb */}
+                <div className="relative mb-8">
+                  <div
+                    className="absolute inset-0 w-32 h-32 sm:w-36 sm:h-36 rounded-full blur-3xl animate-glow pointer-events-none"
+                    style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.35), rgba(129,140,248,0.15), transparent 70%)' }}
+                  />
+                  <div
+                    className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-[28px] flex items-center justify-center animate-subtle-float"
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(99,102,241,0.25), rgba(129,140,248,0.15))',
+                      backdropFilter: 'blur(24px) saturate(180%)',
+                      border: '1px solid rgba(255,255,255,0.08)',
+                      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1), 0 20px 50px -12px rgba(0,0,0,0.5), 0 0 40px rgba(99,102,241,0.15)',
+                    }}
+                  >
+                    <MessageCircle className="w-10 h-10 sm:w-12 sm:h-12 text-white/80" />
+                  </div>
+                </div>
+                <h2 className="font-display text-2xl sm:text-3xl font-extrabold gradient-text mb-2">
+                  Welcome
+                </h2>
+                <p className="text-white/35 text-center text-sm max-w-xs px-4 leading-relaxed font-medium">
+                  Ask me anything about Anthony's experience, skills, or background
+                </p>
+              </div>
+            )}
 
             {/* Messages */}
             <div className="space-y-4 py-2">
@@ -256,11 +302,15 @@ function App() {
                   >
                     <div
                       className={cn(
-                        "max-w-[88%] sm:max-w-[80%] rounded-2xl px-4 py-3 transition-all duration-300",
+                        "max-w-[88%] sm:max-w-[80%] rounded-[20px] px-4 py-3 transition-all duration-300",
                         isUser
-                          ? "bg-gradient-to-br from-[#7c8aff] to-[#a78bfa] text-white ml-4 shadow-lg shadow-[#7c8aff]/20"
-                          : "liquid-glass-portfolio text-[#f8f7ff] mr-4"
+                          ? "ml-4 text-white"
+                          : "card-elevated mr-4 text-white/90"
                       )}
+                      style={isUser ? {
+                        background: 'linear-gradient(135deg, #6366F1, #818CF8)',
+                        boxShadow: '0 8px 24px -4px rgba(99,102,241,0.35), inset 0 1px 0 rgba(255,255,255,0.15)',
+                      } : undefined}
                     >
                       {message.content ? (
                         <Suspense fallback={<MessageSkeleton />}>
@@ -288,7 +338,7 @@ function App() {
                 shouldAutoScroll.current = true;
                 scrollToBottom();
               }}
-              className="absolute bottom-4 right-4 p-2.5 rounded-xl liquid-glass-portfolio text-[#f8f7ff]/80 hover:text-[#f8f7ff] transition-all duration-300 animate-scale-in hover:scale-105"
+              className="absolute bottom-4 right-4 p-2.5 rounded-xl card-elevated text-white/60 hover:text-white transition-all duration-300 animate-scale-in hover:scale-105"
               aria-label="Scroll to bottom"
             >
               <ChevronDown className="w-5 h-5" />
@@ -296,36 +346,77 @@ function App() {
           )}
         </div>
 
-        {/* Input area with liquid glass */}
+        {/* Input area */}
         <div className="shrink-0 p-4 pb-safe">
-          <div className="liquid-glass-portfolio rounded-2xl p-4">
-            {/* Suggested questions */}
-            <div className="mb-4 overflow-hidden">
-              <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar scroll-smooth">
-                {suggestedQuestions.map((question, index) => (
+          <div
+            ref={inputContainerRef}
+            className="sculpted-card rounded-[24px] p-4 sm:p-5 relative overflow-hidden"
+            style={{ '--glow-x': '0px', '--glow-y': '0px', '--glow-opacity': '0' } as React.CSSProperties}
+          >
+            {/* Pointer-following glow */}
+            <div
+              className="pointer-glow pointer-events-none absolute inset-0 z-0 transition-opacity duration-500"
+              style={{ opacity: 'var(--glow-opacity)' }}
+            />
+            {/* Suggested questions - bento grid on empty, horizontal scroll with messages */}
+            {!hasMessages ? (
+              <div className="relative z-10 grid grid-cols-2 gap-2.5 mb-4">
+                {suggestedQuestions.map(({ text, icon: Icon }, index) => (
                   <button
-                    key={question}
-                    onClick={() => handleSubmit(undefined, question)}
+                    key={text}
+                    onClick={() => handleSubmit(undefined, text)}
                     disabled={isLoading}
                     className={cn(
-                      "shrink-0 px-4 py-2 text-xs sm:text-sm rounded-xl",
-                      "bg-[#7c8aff]/10 hover:bg-[#7c8aff]/20",
-                      "border border-[#7c8aff]/20 hover:border-[#7c8aff]/40",
-                      "text-[#f8f7ff]/70 hover:text-[#f8f7ff]",
+                      "card-elevated rounded-[16px] p-3.5 sm:p-4 text-left group",
+                      "hover:border-[rgba(255,255,255,0.12)] active:scale-[0.97]",
                       "transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed",
                       "opacity-0 animate-slide-up",
                       `stagger-${index + 1}`
                     )}
                   >
-                    {question}
+                    <div
+                      className="h-8 w-8 rounded-xl flex items-center justify-center mb-2.5 group-hover:scale-110 transition-transform duration-300"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(99,102,241,0.2), rgba(129,140,248,0.12))',
+                        boxShadow: '0 4px 12px -2px rgba(99,102,241,0.15)',
+                      }}
+                    >
+                      <Icon className="h-3.5 w-3.5 text-[#818CF8]" />
+                    </div>
+                    <span className="text-xs sm:text-sm text-white/50 group-hover:text-white/80 transition-colors leading-snug font-medium">
+                      {text}
+                    </span>
                   </button>
                 ))}
               </div>
-            </div>
+            ) : (
+              <div className="relative z-10 mb-3 overflow-hidden">
+                <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar scroll-smooth">
+                  {suggestedQuestions.map(({ text }, index) => (
+                    <button
+                      key={text}
+                      onClick={() => handleSubmit(undefined, text)}
+                      disabled={isLoading}
+                      className={cn(
+                        "shrink-0 px-3.5 py-1.5 text-xs rounded-xl",
+                        "bg-white/[0.04] hover:bg-white/[0.08]",
+                        "border border-white/[0.06] hover:border-white/[0.12]",
+                        "text-white/35 hover:text-white/70",
+                        "transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed",
+                        "opacity-0 animate-slide-up",
+                        `stagger-${index + 1}`
+                      )}
+                    >
+                      {text}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Input form */}
-            <form onSubmit={handleSubmit} className="relative">
-              <div className="flex items-end gap-3 bg-white/[0.04] rounded-xl border border-white/[0.08] p-2 focus-within:border-[#7c8aff]/40 focus-within:bg-white/[0.06] transition-all duration-300">
+            <form onSubmit={handleSubmit} className="relative z-10">
+              <div className="flex items-end gap-3 surface-well rounded-[16px] p-2 focus-within:border-[rgba(99,102,241,0.25)] transition-all duration-300">
                 <textarea
                   ref={inputRef}
                   value={input}
@@ -334,13 +425,17 @@ function App() {
                   placeholder="Ask anything..."
                   disabled={isLoading}
                   rows={1}
-                  className="flex-1 bg-transparent border-none outline-none resize-none text-[#f8f7ff] placeholder:text-[#f8f7ff]/30 text-sm sm:text-base px-3 py-2 max-h-[120px] disabled:opacity-50"
+                  className="flex-1 bg-transparent border-none outline-none resize-none text-white placeholder:text-white/20 text-sm sm:text-base px-3 py-2 max-h-[120px] disabled:opacity-50"
                 />
                 <Button
                   type="submit"
                   disabled={isLoading || !input.trim()}
                   size="icon"
-                  className="shrink-0 h-10 w-10 rounded-xl bg-gradient-to-r from-[#7c8aff] to-[#a78bfa] hover:from-[#8b98ff] hover:to-[#b69cfc] disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-300 shadow-lg shadow-[#7c8aff]/25 hover:shadow-[#7c8aff]/40 hover:scale-105"
+                  className="shrink-0 h-10 w-10 rounded-xl disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-300 hover:scale-105 active:scale-95"
+                  style={{
+                    background: 'linear-gradient(135deg, #6366F1, #818CF8)',
+                    boxShadow: '0 8px 20px -4px rgba(99,102,241,0.4)',
+                  }}
                 >
                   <Send className="w-4 h-4" />
                 </Button>
@@ -348,7 +443,7 @@ function App() {
             </form>
 
             {/* Footer */}
-            <p className="text-center text-[10px] sm:text-xs text-[#f8f7ff]/25 mt-3">
+            <p className="relative z-10 text-center text-[10px] text-white/15 mt-3 font-medium tracking-wide">
               Powered by AI · Responses may be inaccurate
             </p>
           </div>
@@ -358,23 +453,21 @@ function App() {
   );
 }
 
-// Typing indicator component
 function TypingIndicator() {
   return (
     <div className="flex items-center gap-1.5 py-1 px-1">
-      <span className="w-2 h-2 rounded-full bg-gradient-to-r from-[#7c8aff] to-[#a78bfa] animate-typing-dot" />
-      <span className="w-2 h-2 rounded-full bg-gradient-to-r from-[#7c8aff] to-[#a78bfa] animate-typing-dot [animation-delay:0.15s]" />
-      <span className="w-2 h-2 rounded-full bg-gradient-to-r from-[#7c8aff] to-[#a78bfa] animate-typing-dot [animation-delay:0.3s]" />
+      <span className="w-2 h-2 rounded-full animate-typing-dot" style={{ background: 'linear-gradient(135deg, #6366F1, #818CF8)' }} />
+      <span className="w-2 h-2 rounded-full animate-typing-dot [animation-delay:0.15s]" style={{ background: 'linear-gradient(135deg, #6366F1, #818CF8)' }} />
+      <span className="w-2 h-2 rounded-full animate-typing-dot [animation-delay:0.3s]" style={{ background: 'linear-gradient(135deg, #6366F1, #818CF8)' }} />
     </div>
   );
 }
 
-// Message skeleton for suspense
 function MessageSkeleton() {
   return (
     <div className="space-y-2.5 animate-pulse">
-      <div className="h-3 bg-[#7c8aff]/20 rounded-full w-3/4" />
-      <div className="h-3 bg-[#7c8aff]/15 rounded-full w-1/2" />
+      <div className="h-3 rounded-full w-3/4" style={{ background: 'rgba(99,102,241,0.15)' }} />
+      <div className="h-3 rounded-full w-1/2" style={{ background: 'rgba(99,102,241,0.10)' }} />
     </div>
   );
 }
