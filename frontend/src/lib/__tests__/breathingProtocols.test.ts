@@ -5,7 +5,6 @@ import {
   getProtocol,
   calculateSessionDuration,
   getPhaseForRound,
-  type BreathingProtocol,
 } from '../breathingProtocols'
 import { BREATH_PHASES, TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 
