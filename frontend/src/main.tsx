@@ -24,6 +24,7 @@ createRoot(document.getElementById('root')!).render(
       <Routes>
         {/* Main chat app */}
         <Route path="/" element={<App />} />
+        <Route path="/chatbot" element={<App />} />
 
         {/* Breathwork app - routes lazy loaded */}
         <Route path="/breathwork" element={<BreathworkLayout />}>
