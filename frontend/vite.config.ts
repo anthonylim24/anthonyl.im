@@ -23,7 +23,6 @@ export default defineConfig({
             '@radix-ui/react-dialog',
             '@radix-ui/react-tabs',
             '@radix-ui/react-progress',
-            '@radix-ui/react-slot'
           ],
         }
       }

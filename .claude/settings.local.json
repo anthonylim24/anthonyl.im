@@ -8,7 +8,8 @@
       "Bash(npx vite build:*)",
       "Bash(npx vitest:*)",
       "Bash(tree:*)",
-      "WebFetch(domain:www.linkedin.com)"
+      "WebFetch(domain:www.linkedin.com)",
+      "Bash(npm ls:*)"
     ]
   }
 }
