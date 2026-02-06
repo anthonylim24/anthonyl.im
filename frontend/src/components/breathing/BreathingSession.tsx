@@ -9,32 +9,11 @@ import { Play, Pause, Square, RotateCcw } from 'lucide-react'
 import type { SessionConfig } from '@/lib/breathingProtocols'
 import { getProtocol } from '@/lib/breathingProtocols'
 import { cn } from '@/lib/utils'
-import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 import { calculateXP, checkBadgeUnlocks } from '@/lib/gamification'
+import { techniqueGradientStyle, techniqueProgressStyle } from '@/lib/techniqueConfig'
+import { DESTRUCTIVE } from '@/lib/palette'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore } from '@/stores/historyStore'
-
-const techniqueConfig: Record<TechniqueId, {
-  gradient: string
-  gradientColors: string
-  glow: string
-}> = {
-  [TECHNIQUE_IDS.BOX_BREATHING]: {
-    gradient: 'from-blue-500 to-cyan-500',
-    gradientColors: '#3b82f6, #06b6d4',
-    glow: 'shadow-blue-500/30',
-  },
-  [TECHNIQUE_IDS.CO2_TOLERANCE]: {
-    gradient: 'from-amber-500 to-orange-500',
-    gradientColors: '#f59e0b, #f97316',
-    glow: 'shadow-amber-500/30',
-  },
-  [TECHNIQUE_IDS.POWER_BREATHING]: {
-    gradient: 'from-emerald-500 to-teal-500',
-    gradientColors: '#10b981, #14b8a6',
-    glow: 'shadow-emerald-500/30',
-  },
-}
 
 interface BreathingSessionProps {
   config: SessionConfig
@@ -80,7 +59,6 @@ export function BreathingSession({
     })
 
   const protocol = getProtocol(config.techniqueId)
-  const tc = techniqueConfig[config.techniqueId]
 
   const currentPhaseDuration = useMemo(() => {
     if (!session) return 0
@@ -199,18 +177,15 @@ export function BreathingSession({
 
   return (
     <div
-      className="fixed inset-0 z-40 flex flex-col items-center justify-center bg-[#0a0e1a] overflow-hidden select-none"
+      className="fixed inset-0 z-40 flex flex-col items-center justify-center bg-[#080b16] overflow-hidden select-none"
       onMouseMove={isActive && !isPaused ? showControls : undefined}
       onTouchStart={isActive && !isPaused ? showControls : undefined}
     >
       {/* Thin gradient progress bar at top */}
       <div className="absolute top-0 left-0 right-0 h-1 bg-white/5 z-10">
         <div
-          className={cn(
-            'h-full bg-gradient-to-r transition-all duration-700',
-            tc.gradient
-          )}
-          style={{ width: `${progress}%` }}
+          className="h-full transition-all duration-700"
+          style={{ width: `${progress}%`, ...techniqueProgressStyle(config.techniqueId) }}
         />
       </div>
 
@@ -251,12 +226,8 @@ export function BreathingSession({
         {!isActive && !isComplete ? (
           <button
             onClick={handleStart}
-            className={cn(
-              'flex items-center gap-3 px-10 py-4 rounded-2xl font-semibold text-white text-lg',
-              'bg-gradient-to-r shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105',
-              tc.gradient,
-              tc.glow
-            )}
+            className="flex items-center gap-3 px-10 py-4 rounded-2xl font-semibold text-white text-lg shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105"
+            style={techniqueGradientStyle(config.techniqueId)}
           >
             <Play className="h-5 w-5" />
             Start
@@ -277,7 +248,12 @@ export function BreathingSession({
             </button>
             <button
               onClick={handleStop}
-              className="h-14 w-14 rounded-xl bg-red-500/20 border border-red-500/20 flex items-center justify-center text-red-400 hover:bg-red-500/30 transition-all duration-300"
+              className="h-14 w-14 rounded-xl border flex items-center justify-center transition-all duration-300"
+              style={{
+                backgroundColor: `${DESTRUCTIVE}33`,
+                borderColor: `${DESTRUCTIVE}33`,
+                color: DESTRUCTIVE,
+              }}
             >
               <Square className="h-5 w-5" />
             </button>

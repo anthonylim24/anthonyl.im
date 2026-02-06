@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { cn } from '@/lib/utils'
+import { HEATMAP } from '@/lib/palette'
 
 interface SessionDay {
   date: string
@@ -49,11 +49,11 @@ export function ActivityHeatmap({ sessions }: ActivityHeatmapProps) {
     return { cells, months: monthLabels }
   }, [sessions])
 
-  const getIntensity = (count: number) => {
-    if (count === 0) return 'bg-white/5'
-    if (count === 1) return 'bg-emerald-500/30'
-    if (count === 2) return 'bg-emerald-500/50'
-    return 'bg-emerald-500/80'
+  const getIntensityStyle = (count: number): React.CSSProperties | undefined => {
+    if (count === 0) return undefined
+    if (count === 1) return { backgroundColor: HEATMAP[1] }
+    if (count === 2) return { backgroundColor: HEATMAP[2] }
+    return { backgroundColor: HEATMAP[3] }
   }
 
   return (
@@ -84,10 +84,8 @@ export function ActivityHeatmap({ sessions }: ActivityHeatmapProps) {
                   key={row}
                   data-cell
                   data-active={cell && cell.count > 0 ? 'true' : 'false'}
-                  className={cn(
-                    'w-3 h-3 rounded-[3px] transition-colors',
-                    cell ? getIntensity(cell.count) : 'bg-white/5'
-                  )}
+                  className="w-3 h-3 rounded-[3px] transition-colors bg-white/5"
+                  style={cell ? getIntensityStyle(cell.count) : undefined}
                   title={
                     cell
                       ? `${cell.date}: ${cell.count} session${cell.count !== 1 ? 's' : ''}`

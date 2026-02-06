@@ -11,28 +11,14 @@ import { ActivityHeatmap } from '@/components/gamification/ActivityHeatmap'
 import { breathingProtocols } from '@/lib/breathingProtocols'
 import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 import { cn } from '@/lib/utils'
+import { ACCENT, ACCENT_BRIGHT } from '@/lib/palette'
+import { techniqueGradientStyle } from '@/lib/techniqueConfig'
 import { Trash2, Wind, Flame, Box, Sparkles, Award, CalendarDays } from 'lucide-react'
 
-const techniqueConfig: Record<TechniqueId, {
-  icon: React.ReactNode
-  gradient: string
-  glow: string
-}> = {
-  [TECHNIQUE_IDS.BOX_BREATHING]: {
-    icon: <Box className="h-4 w-4" />,
-    gradient: 'from-[#60a5fa] to-[#818cf8]',
-    glow: 'shadow-[#60a5fa]/30',
-  },
-  [TECHNIQUE_IDS.CO2_TOLERANCE]: {
-    icon: <Flame className="h-4 w-4" />,
-    gradient: 'from-[#fbbf24] to-[#f97316]',
-    glow: 'shadow-[#fbbf24]/30',
-  },
-  [TECHNIQUE_IDS.POWER_BREATHING]: {
-    icon: <Wind className="h-4 w-4" />,
-    gradient: 'from-[#2dd4bf] to-[#22d3ee]',
-    glow: 'shadow-[#2dd4bf]/30',
-  },
+const techniqueIcons: Record<TechniqueId, React.ReactNode> = {
+  [TECHNIQUE_IDS.BOX_BREATHING]: <Box className="h-4 w-4" />,
+  [TECHNIQUE_IDS.CO2_TOLERANCE]: <Flame className="h-4 w-4" />,
+  [TECHNIQUE_IDS.POWER_BREATHING]: <Wind className="h-4 w-4" />,
 }
 
 export function Progress() {
@@ -130,8 +116,8 @@ export function Progress() {
               <div className="space-y-1.5">
                 <div className="h-2 rounded-full bg-white/10 overflow-hidden">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-[#60a5fa] to-[#818cf8] transition-all duration-700 ease-out"
-                    style={{ width: `${Math.min(100, progress * 100)}%` }}
+                    className="h-full rounded-full transition-all duration-700 ease-out"
+                    style={{ width: `${Math.min(100, progress * 100)}%`, background: `linear-gradient(to right, ${ACCENT}, ${ACCENT_BRIGHT})` }}
                   />
                 </div>
                 <div className="text-white/40 text-xs font-medium">
@@ -145,7 +131,7 @@ export function Progress() {
         {/* Achievements / Badge Grid */}
         <div className="opacity-0 animate-slide-up stagger-3">
           <h2 className="flex items-center gap-2 text-white font-semibold text-base sm:text-lg mb-4">
-            <Award className="h-5 w-5 text-amber-400" />
+            <Award className="h-5 w-5" style={{ color: ACCENT_BRIGHT }} />
             Achievements
           </h2>
           <BadgeGrid earnedBadges={earnedBadges} />
@@ -154,7 +140,7 @@ export function Progress() {
         {/* Activity Heatmap */}
         <div className="opacity-0 animate-slide-up stagger-4">
           <h2 className="flex items-center gap-2 text-white font-semibold text-base sm:text-lg mb-4">
-            <CalendarDays className="h-5 w-5 text-emerald-400" />
+            <CalendarDays className="h-5 w-5" style={{ color: ACCENT }} />
             Activity
           </h2>
           <ActivityHeatmap sessions={sessionDays} />
@@ -176,7 +162,7 @@ export function Progress() {
         <div className="liquid-glass-breath rounded-3xl overflow-hidden opacity-0 animate-scale-in" style={{ animationDelay: '0.7s' }}>
           <div className="p-5 sm:p-6 border-b border-white/10">
             <h3 className="text-base sm:text-lg font-semibold text-white flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-[#ff7170]" />
+              <Sparkles className="h-5 w-5" style={{ color: ACCENT_BRIGHT }} />
               Session History
             </h3>
           </div>
@@ -195,7 +181,6 @@ export function Progress() {
                 All
               </button>
               {Object.values(TECHNIQUE_IDS).map((id) => {
-                const tc = techniqueConfig[id]
                 return (
                   <button
                     key={id}
@@ -207,11 +192,8 @@ export function Progress() {
                         : 'text-white/40 hover:text-white/60'
                     )}
                   >
-                    <div className={cn(
-                      "h-5 w-5 sm:h-6 sm:w-6 rounded bg-gradient-to-br flex items-center justify-center shadow-sm",
-                      tc.gradient
-                    )}>
-                      <span className="text-white scale-75">{tc.icon}</span>
+                    <div className="h-5 w-5 sm:h-6 sm:w-6 rounded flex items-center justify-center shadow-sm" style={techniqueGradientStyle(id)}>
+                      <span className="text-white scale-75">{techniqueIcons[id]}</span>
                     </div>
                     <span className="hidden sm:inline text-xs font-medium">
                       {breathingProtocols[id].name.split(' ')[0]}

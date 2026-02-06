@@ -71,7 +71,7 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
               className={cn(
                 'h-10 w-10 rounded-xl flex items-center justify-center',
                 earned
-                  ? 'bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-500/25'
+                  ? 'bg-gradient-to-br from-[#B0B8FF] to-[#6E7BF2] text-white shadow-lg shadow-[#6E7BF2]/25'
                   : 'bg-white/10 text-white/30'
               )}
             >

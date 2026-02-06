@@ -1,6 +1,7 @@
 import { breathingProtocols } from '@/lib/breathingProtocols'
 import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
-import { formatDate, cn } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
+import { getTechniqueVisual, techniqueGradientStyle } from '@/lib/techniqueConfig'
 import type { PersonalBest } from '@/stores/historyStore'
 import { Wind, Flame, Box, Trophy } from 'lucide-react'
 
@@ -8,30 +9,10 @@ interface PersonalBestsProps {
   personalBests: Record<TechniqueId, PersonalBest | undefined>
 }
 
-const techniqueConfig: Record<TechniqueId, {
-  icon: React.ReactNode
-  gradient: string
-  glow: string
-  accentColor: string
-}> = {
-  [TECHNIQUE_IDS.BOX_BREATHING]: {
-    icon: <Box className="h-5 w-5" />,
-    gradient: 'from-[#60a5fa] to-[#818cf8]',
-    glow: 'shadow-[#60a5fa]/30',
-    accentColor: '#60a5fa',
-  },
-  [TECHNIQUE_IDS.CO2_TOLERANCE]: {
-    icon: <Flame className="h-5 w-5" />,
-    gradient: 'from-[#fbbf24] to-[#f97316]',
-    glow: 'shadow-[#fbbf24]/30',
-    accentColor: '#fbbf24',
-  },
-  [TECHNIQUE_IDS.POWER_BREATHING]: {
-    icon: <Wind className="h-5 w-5" />,
-    gradient: 'from-[#2dd4bf] to-[#22d3ee]',
-    glow: 'shadow-[#2dd4bf]/30',
-    accentColor: '#2dd4bf',
-  },
+const techniqueIcons: Record<TechniqueId, React.ReactNode> = {
+  [TECHNIQUE_IDS.BOX_BREATHING]: <Box className="h-5 w-5" />,
+  [TECHNIQUE_IDS.CO2_TOLERANCE]: <Flame className="h-5 w-5" />,
+  [TECHNIQUE_IDS.POWER_BREATHING]: <Wind className="h-5 w-5" />,
 }
 
 export function PersonalBests({ personalBests }: PersonalBestsProps) {
@@ -42,7 +23,7 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
       <div className="liquid-glass-breath rounded-3xl overflow-hidden">
         <div className="p-5 sm:p-6 border-b border-white/10">
           <h3 className="flex items-center gap-2 font-semibold text-white">
-            <Trophy className="h-5 w-5 text-[#fbbf24]" />
+            <Trophy className="h-5 w-5 text-[#B0B8FF]" />
             Personal Bests
           </h3>
         </div>
@@ -59,7 +40,7 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
     <div className="liquid-glass-breath rounded-3xl overflow-hidden">
       <div className="p-5 sm:p-6 border-b border-white/10">
         <h3 className="flex items-center gap-2 font-semibold text-white">
-          <Trophy className="h-5 w-5 text-[#fbbf24]" />
+          <Trophy className="h-5 w-5 text-[#B0B8FF]" />
           Personal Bests
         </h3>
       </div>
@@ -68,7 +49,7 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
           {Object.values(TECHNIQUE_IDS).map((techniqueId) => {
             const best = personalBests[techniqueId]
             if (!best) return null
-            const config = techniqueConfig[techniqueId]
+            const tv = getTechniqueVisual(techniqueId)
 
             return (
               <div
@@ -76,12 +57,11 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
                 className="flex items-center justify-between p-4 bg-white/5 rounded-2xl group hover:bg-white/10 transition-all duration-300"
               >
                 <div className="flex items-center gap-3">
-                  <div className={cn(
-                    "h-11 w-11 rounded-xl bg-gradient-to-br flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300",
-                    config.gradient,
-                    config.glow
-                  )}>
-                    <span className="text-white">{config.icon}</span>
+                  <div
+                    className="h-11 w-11 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300"
+                    style={techniqueGradientStyle(techniqueId)}
+                  >
+                    <span className="text-white">{techniqueIcons[techniqueId]}</span>
                   </div>
                   <div>
                     <div className="font-semibold text-white">
@@ -92,7 +72,7 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
                     </div>
                   </div>
                 </div>
-                <div className="text-2xl font-bold" style={{ color: config.accentColor }}>
+                <div className="text-2xl font-bold" style={{ color: tv.primary }}>
                   {best.maxHoldTime}s
                 </div>
               </div>

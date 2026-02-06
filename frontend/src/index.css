@@ -41,14 +41,12 @@ body,
   --portfolio-text: #f8f7ff;
   --portfolio-text-muted: rgba(248, 247, 255, 0.6);
 
-  /* Breathwork App Design Tokens */
-  --breath-accent-coral: #ff7170;
-  --breath-accent-magenta: #ff5eb5;
-  --breath-accent-blue: #60a5fa;
-  --breath-accent-amber: #fbbf24;
-  --breath-accent-teal: #2dd4bf;
-  --breath-glass-tint: rgba(255, 180, 170, 0.12);
-  --breath-glass-border: rgba(255, 255, 255, 0.25);
+  /* Breathwork App Design Tokens – indigo monochrome */
+  --breath-accent: #6E7BF2;
+  --breath-accent-bright: #8B96FF;
+  --breath-accent-subtle: #4B55B8;
+  --breath-glass-tint: rgba(110, 123, 242, 0.08);
+  --breath-glass-border: rgba(255, 255, 255, 0.10);
 }
 
 /* Safe area padding for mobile devices */
@@ -270,13 +268,13 @@ body,
   animation: shimmer 3s ease-in-out infinite;
 }
 
-/* Glow pulse for accents */
+/* Glow pulse for accents – indigo */
 @keyframes glow-pulse {
   0%, 100% {
-    box-shadow: 0 0 20px rgba(124, 138, 255, 0.3), 0 0 40px rgba(124, 138, 255, 0.1);
+    box-shadow: 0 0 20px rgba(110, 123, 242, 0.3), 0 0 40px rgba(110, 123, 242, 0.1);
   }
   50% {
-    box-shadow: 0 0 30px rgba(124, 138, 255, 0.5), 0 0 60px rgba(124, 138, 255, 0.2);
+    box-shadow: 0 0 30px rgba(110, 123, 242, 0.5), 0 0 60px rgba(110, 123, 242, 0.2);
   }
 }
 
@@ -470,15 +468,15 @@ body,
   display: none;
 }
 
-/* Selection color */
+/* Selection color – indigo */
 ::selection {
-  background: rgba(59, 130, 246, 0.3);
+  background: rgba(110, 123, 242, 0.3);
   color: white;
 }
 
-/* Focus styles */
+/* Focus styles – indigo */
 :focus-visible {
-  outline: 2px solid rgba(59, 130, 246, 0.5);
+  outline: 2px solid rgba(110, 123, 242, 0.5);
   outline-offset: 2px;
 }
 
@@ -516,25 +514,25 @@ body,
   }
 
   .breathwork {
-    --background: 225 20% 7%;
-    --foreground: 220 15% 95%;
-    --card: 225 20% 11% / 0.6;
-    --card-foreground: 220 15% 95%;
-    --popover: 225 20% 11% / 0.9;
-    --popover-foreground: 220 15% 95%;
-    --primary: 210 100% 65%;
-    --primary-foreground: 225 25% 5%;
-    --secondary: 220 15% 16% / 0.7;
-    --secondary-foreground: 220 15% 90%;
-    --muted: 220 12% 16% / 0.8;
-    --muted-foreground: 220 10% 55%;
-    --accent: 220 15% 18% / 0.8;
-    --accent-foreground: 220 15% 95%;
-    --destructive: 0 70% 50%;
+    --background: 228 38% 5%;
+    --foreground: 228 20% 93%;
+    --card: 228 32% 8% / 0.6;
+    --card-foreground: 228 20% 93%;
+    --popover: 228 32% 8% / 0.9;
+    --popover-foreground: 228 20% 93%;
+    --primary: 234 85% 69%;
+    --primary-foreground: 228 38% 5%;
+    --secondary: 230 20% 16% / 0.7;
+    --secondary-foreground: 228 20% 90%;
+    --muted: 230 18% 16% / 0.8;
+    --muted-foreground: 230 15% 55%;
+    --accent: 230 20% 18% / 0.8;
+    --accent-foreground: 228 20% 93%;
+    --destructive: 355 70% 63%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 15% 18% / 0.6;
-    --input: 220 15% 14% / 0.8;
-    --ring: 210 100% 65% / 0.5;
+    --border: 230 20% 18% / 0.6;
+    --input: 230 20% 14% / 0.8;
+    --ring: 234 85% 69% / 0.5;
     --radius: 1rem;
   }
 
@@ -583,13 +581,13 @@ body,
     inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
-/* Breathwork liquid glass - dark-first */
+/* Breathwork liquid glass – indigo-tinted dark */
 .liquid-glass-breath {
   background: linear-gradient(
     135deg,
-    rgba(30, 35, 55, 0.6) 0%,
-    rgba(40, 35, 60, 0.5) 50%,
-    rgba(30, 35, 55, 0.4) 100%
+    rgba(13, 17, 33, 0.65) 0%,
+    rgba(18, 22, 44, 0.55) 50%,
+    rgba(13, 17, 33, 0.45) 100%
   );
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
@@ -646,9 +644,9 @@ body,
   background-clip: text;
 }
 
-/* Gradient text - breathwork style */
+/* Gradient text – breathwork indigo */
 .gradient-text-breath {
-  background: linear-gradient(135deg, #ff7170 0%, #ff5eb5 50%, #a78bfa 100%);
+  background: linear-gradient(135deg, #8B96FF 0%, #6E7BF2 50%, #B0B8FF 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -658,15 +656,15 @@ body,
    BREATHWORK BACKGROUNDS
    ================================ */
 
-/* Main breathwork gradient background */
+/* Main breathwork gradient background – deep blue-black */
 .breath-bg {
   background: linear-gradient(
     135deg,
-    #0a0e1a 0%,
-    #0f1225 25%,
-    #0d1020 50%,
-    #080c18 75%,
-    #0a0e1a 100%
+    #080b16 0%,
+    #0d1121 25%,
+    #0a0e1c 50%,
+    #080b16 75%,
+    #0d1121 100%
   );
 }
 
@@ -679,17 +677,14 @@ body,
   z-index: 0;
 }
 
-.breath-orb-coral {
-  background: radial-gradient(circle, rgba(255, 113, 112, 0.15) 0%, transparent 70%);
+.breath-orb-indigo {
+  background: radial-gradient(circle, rgba(110, 123, 242, 0.15) 0%, transparent 70%);
 }
-.breath-orb-magenta {
-  background: radial-gradient(circle, rgba(255, 94, 181, 0.12) 0%, transparent 70%);
+.breath-orb-indigo-light {
+  background: radial-gradient(circle, rgba(139, 150, 255, 0.12) 0%, transparent 70%);
 }
-.breath-orb-blue {
-  background: radial-gradient(circle, rgba(96, 165, 250, 0.12) 0%, transparent 70%);
-}
-.breath-orb-amber {
-  background: radial-gradient(circle, rgba(251, 191, 36, 0.12) 0%, transparent 70%);
+.breath-orb-indigo-deep {
+  background: radial-gradient(circle, rgba(75, 85, 184, 0.12) 0%, transparent 70%);
 }
 
 /* ================================
@@ -725,10 +720,10 @@ body,
 .animated-gradient {
   background: linear-gradient(
     -45deg,
-    hsl(210 100% 60% / 0.1),
-    hsl(270 80% 65% / 0.1),
-    hsl(175 70% 50% / 0.1),
-    hsl(40 90% 55% / 0.1)
+    hsl(234 85% 69% / 0.08),
+    hsl(234 70% 55% / 0.08),
+    hsl(234 90% 78% / 0.06),
+    hsl(234 60% 45% / 0.08)
   );
   background-size: 400% 400%;
   animation: gradient-shift 15s ease infinite;

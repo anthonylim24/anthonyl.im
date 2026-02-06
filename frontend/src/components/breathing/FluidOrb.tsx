@@ -11,12 +11,12 @@ interface FluidOrbProps {
 }
 
 const PHASE_COLORS: Record<string, [string, string]> = {
-  [BREATH_PHASES.INHALE]: ['#3b82f6', '#06b6d4'],
-  [BREATH_PHASES.HOLD_IN]: ['#8b5cf6', '#a855f7'],
-  [BREATH_PHASES.EXHALE]: ['#14b8a6', '#10b981'],
-  [BREATH_PHASES.HOLD_OUT]: ['#f59e0b', '#f97316'],
-  [BREATH_PHASES.REST]: ['#6b7280', '#9ca3af'],
-  idle: ['#4b5563', '#6b7280'],
+  [BREATH_PHASES.INHALE]: ['#8B96FF', '#6E7BF2'],
+  [BREATH_PHASES.HOLD_IN]: ['#B0B8FF', '#8B96FF'],
+  [BREATH_PHASES.EXHALE]: ['#5B6AD4', '#4B55B8'],
+  [BREATH_PHASES.HOLD_OUT]: ['#3D4A9E', '#2A3370'],
+  [BREATH_PHASES.REST]: ['#2A3370', '#1E2550'],
+  idle: ['#1E2550', '#2A3370'],
 }
 
 export function FluidOrb({

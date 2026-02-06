@@ -188,9 +188,9 @@ describe('getUnlockedThemes', () => {
     expect(themes[0].id).toBe('default')
   })
 
-  it('includes aurora at level 5', () => {
+  it('includes midnight at level 5', () => {
     const themes = getUnlockedThemes(5)
-    expect(themes.some((t) => t.id === 'aurora')).toBe(true)
+    expect(themes.some((t) => t.id === 'midnight')).toBe(true)
   })
 
   it('returns all themes at level 50', () => {

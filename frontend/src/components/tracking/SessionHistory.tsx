@@ -1,6 +1,8 @@
 import { breathingProtocols } from '@/lib/breathingProtocols'
 import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
-import { formatDate, formatTime, cn } from '@/lib/utils'
+import { formatDate, formatTime } from '@/lib/utils'
+import { ACHIEVEMENT } from '@/lib/palette'
+import { techniqueGradientStyle } from '@/lib/techniqueConfig'
 import type { CompletedSession } from '@/stores/historyStore'
 import { Wind, Flame, Box, Clock, Trophy } from 'lucide-react'
 
@@ -8,26 +10,10 @@ interface SessionHistoryProps {
   sessions: CompletedSession[]
 }
 
-const techniqueConfig: Record<TechniqueId, {
-  icon: React.ReactNode
-  gradient: string
-  glow: string
-}> = {
-  [TECHNIQUE_IDS.BOX_BREATHING]: {
-    icon: <Box className="h-5 w-5" />,
-    gradient: 'from-[#60a5fa] to-[#818cf8]',
-    glow: 'shadow-[#60a5fa]/30',
-  },
-  [TECHNIQUE_IDS.CO2_TOLERANCE]: {
-    icon: <Flame className="h-5 w-5" />,
-    gradient: 'from-[#fbbf24] to-[#f97316]',
-    glow: 'shadow-[#fbbf24]/30',
-  },
-  [TECHNIQUE_IDS.POWER_BREATHING]: {
-    icon: <Wind className="h-5 w-5" />,
-    gradient: 'from-[#2dd4bf] to-[#22d3ee]',
-    glow: 'shadow-[#2dd4bf]/30',
-  },
+const techniqueIcons: Record<TechniqueId, React.ReactNode> = {
+  [TECHNIQUE_IDS.BOX_BREATHING]: <Box className="h-5 w-5" />,
+  [TECHNIQUE_IDS.CO2_TOLERANCE]: <Flame className="h-5 w-5" />,
+  [TECHNIQUE_IDS.POWER_BREATHING]: <Wind className="h-5 w-5" />,
 }
 
 export function SessionHistory({ sessions }: SessionHistoryProps) {
@@ -42,7 +28,6 @@ export function SessionHistory({ sessions }: SessionHistoryProps) {
   return (
     <div className="space-y-3">
       {sessions.map((session) => {
-        const config = techniqueConfig[session.techniqueId]
         return (
           <div
             key={session.id}
@@ -50,12 +35,11 @@ export function SessionHistory({ sessions }: SessionHistoryProps) {
           >
             <div className="flex items-start justify-between">
               <div className="flex items-start gap-3">
-                <div className={cn(
-                  "h-10 w-10 rounded-xl bg-gradient-to-br flex items-center justify-center shadow-lg shrink-0 group-hover:scale-110 transition-transform duration-300 mt-0.5",
-                  config.gradient,
-                  config.glow
-                )}>
-                  <span className="text-white scale-90">{config.icon}</span>
+                <div
+                  className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300 mt-0.5"
+                  style={techniqueGradientStyle(session.techniqueId)}
+                >
+                  <span className="text-white scale-90">{techniqueIcons[session.techniqueId]}</span>
                 </div>
                 <div className="space-y-1">
                   <div className="font-semibold text-white">
@@ -77,7 +61,7 @@ export function SessionHistory({ sessions }: SessionHistoryProps) {
               {session.maxHoldTime > 0 && (
                 <div className="text-right">
                   <div className="flex items-center gap-1.5 text-lg font-bold text-white">
-                    <Trophy className="h-4 w-4 text-[#fbbf24]" />
+                    <Trophy className="h-4 w-4" style={{ color: ACHIEVEMENT }} />
                     {session.maxHoldTime}s
                   </div>
                   <div className="text-xs text-white/40">

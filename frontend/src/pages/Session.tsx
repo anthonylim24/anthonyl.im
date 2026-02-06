@@ -8,40 +8,14 @@ import {
 } from '@/lib/breathingProtocols'
 import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 import { formatTime, cn } from '@/lib/utils'
+import { ACCENT_BRIGHT } from '@/lib/palette'
+import { techniqueGradientStyle, techniqueActiveStyle } from '@/lib/techniqueConfig'
 import { Wind, Flame, Box, Clock, Minus, Plus, Play, Sparkles } from 'lucide-react'
 
-const techniqueConfig: Record<TechniqueId, {
-  icon: React.ReactNode
-  gradient: string
-  glow: string
-  accentColor: string
-  borderActive: string
-  bgActive: string
-}> = {
-  [TECHNIQUE_IDS.BOX_BREATHING]: {
-    icon: <Box className="h-5 w-5" />,
-    gradient: 'from-blue-500 to-cyan-500',
-    glow: 'shadow-blue-500/30',
-    accentColor: '#60a5fa',
-    borderActive: 'border-blue-500/50',
-    bgActive: 'bg-blue-500/10',
-  },
-  [TECHNIQUE_IDS.CO2_TOLERANCE]: {
-    icon: <Flame className="h-5 w-5" />,
-    gradient: 'from-amber-500 to-orange-500',
-    glow: 'shadow-amber-500/30',
-    accentColor: '#fbbf24',
-    borderActive: 'border-amber-500/50',
-    bgActive: 'bg-amber-500/10',
-  },
-  [TECHNIQUE_IDS.POWER_BREATHING]: {
-    icon: <Wind className="h-5 w-5" />,
-    gradient: 'from-emerald-500 to-teal-500',
-    glow: 'shadow-emerald-500/30',
-    accentColor: '#2dd4bf',
-    borderActive: 'border-emerald-500/50',
-    bgActive: 'bg-emerald-500/10',
-  },
+const techniqueIcons: Record<TechniqueId, React.ReactNode> = {
+  [TECHNIQUE_IDS.BOX_BREATHING]: <Box className="h-5 w-5" />,
+  [TECHNIQUE_IDS.CO2_TOLERANCE]: <Flame className="h-5 w-5" />,
+  [TECHNIQUE_IDS.POWER_BREATHING]: <Wind className="h-5 w-5" />,
 }
 
 export function Session() {
@@ -58,7 +32,6 @@ export function Session() {
   const [sessionStarted, setSessionStarted] = useState(false)
 
   const protocol = breathingProtocols[selectedTechnique]
-  const config = techniqueConfig[selectedTechnique]
 
   const sessionConfig: SessionConfig = useMemo(
     () => ({
@@ -107,7 +80,7 @@ export function Session() {
         {/* Header */}
         <div className="text-center space-y-3 sm:space-y-4">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full liquid-glass-breath text-sm font-medium animate-scale-in">
-            <Sparkles className="h-4 w-4 text-[#ff7170]" />
+            <Sparkles className="h-4 w-4" style={{ color: ACCENT_BRIGHT }} />
             <span className="text-white/50">Configure Your Practice</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold opacity-0 animate-slide-up stagger-1">
@@ -122,7 +95,6 @@ export function Session() {
         {/* Technique Selection - 3 clickable cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 opacity-0 animate-slide-up stagger-3">
           {Object.values(TECHNIQUE_IDS).map((id) => {
-            const tc = techniqueConfig[id]
             const p = breathingProtocols[id]
             const isSelected = selectedTechnique === id
 
@@ -133,16 +105,12 @@ export function Session() {
                 className={cn(
                   'liquid-glass-breath rounded-2xl p-5 text-left transition-all duration-300',
                   'border hover:scale-[1.02]',
-                  isSelected
-                    ? cn(tc.borderActive, tc.bgActive, 'shadow-lg')
-                    : 'border-white/5 hover:border-white/10'
+                  !isSelected && 'border-white/5 hover:border-white/10'
                 )}
+                style={isSelected ? techniqueActiveStyle(id) : undefined}
               >
-                <div className={cn(
-                  'h-12 w-12 rounded-xl bg-gradient-to-br flex items-center justify-center shadow-lg mb-3',
-                  tc.gradient
-                )}>
-                  <span className="text-white">{tc.icon}</span>
+                <div className="h-12 w-12 rounded-xl flex items-center justify-center mb-3" style={techniqueGradientStyle(id)}>
+                  <span className="text-white">{techniqueIcons[id]}</span>
                 </div>
                 <h3 className="text-base font-semibold text-white mb-1">{p.name}</h3>
                 <p className="text-xs text-white/40 leading-relaxed line-clamp-2">
@@ -169,12 +137,8 @@ export function Session() {
         {/* Selected technique description */}
         <div className="liquid-glass-breath rounded-2xl p-5 opacity-0 animate-slide-up stagger-3">
           <div className="flex items-start gap-4">
-            <div className={cn(
-              'h-12 w-12 rounded-xl bg-gradient-to-br flex items-center justify-center shadow-lg shrink-0',
-              config.gradient,
-              config.glow
-            )}>
-              <span className="text-white">{config.icon}</span>
+            <div className="h-12 w-12 rounded-xl flex items-center justify-center shrink-0" style={techniqueGradientStyle(selectedTechnique)}>
+              <span className="text-white">{techniqueIcons[selectedTechnique]}</span>
             </div>
             <div className="min-w-0">
               <h3 className="text-lg font-semibold text-white">{protocol.name}</h3>
@@ -225,14 +189,8 @@ export function Session() {
         {/* Start Button */}
         <button
           onClick={handleStartSession}
-          className={cn(
-            'w-full py-4 sm:py-5 px-6 rounded-2xl font-semibold text-white text-base sm:text-lg',
-            'bg-gradient-to-r shadow-xl hover:shadow-2xl',
-            'flex items-center justify-center gap-3 transition-all duration-300 hover:scale-[1.02]',
-            'opacity-0 animate-scale-in stagger-5',
-            config.gradient,
-            config.glow
-          )}
+          className="w-full py-4 sm:py-5 px-6 rounded-2xl font-semibold text-white text-base sm:text-lg shadow-xl hover:shadow-2xl flex items-center justify-center gap-3 transition-all duration-300 hover:scale-[1.02] opacity-0 animate-scale-in stagger-5"
+          style={techniqueGradientStyle(selectedTechnique)}
         >
           <Play className="h-5 w-5 sm:h-6 sm:w-6" />
           Begin {protocol.name}

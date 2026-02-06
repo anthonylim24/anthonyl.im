@@ -9,6 +9,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import type { CompletedSession } from '@/stores/historyStore'
+import { ACCENT_BRIGHT, ACCENT_SUBTLE } from '@/lib/palette'
 import { TrendingUp } from 'lucide-react'
 
 interface ProgressChartProps {
@@ -46,7 +47,7 @@ export function ProgressChart({
       <div className="liquid-glass-breath rounded-3xl overflow-hidden">
         <div className="p-5 sm:p-6 border-b border-white/10">
           <h3 className="flex items-center gap-2 font-semibold text-white">
-            <TrendingUp className="h-5 w-5 text-[#2dd4bf]" />
+            <TrendingUp className="h-5 w-5 text-[#6E7BF2]" />
             {title}
           </h3>
         </div>
@@ -63,7 +64,7 @@ export function ProgressChart({
     <div className="liquid-glass-breath rounded-3xl overflow-hidden">
       <div className="p-5 sm:p-6 border-b border-white/10">
         <h3 className="flex items-center gap-2 font-semibold text-white">
-          <TrendingUp className="h-5 w-5 text-[#2dd4bf]" />
+          <TrendingUp className="h-5 w-5 text-[#6E7BF2]" />
           {title}
         </h3>
       </div>
@@ -100,20 +101,20 @@ export function ProgressChart({
                 type="monotone"
                 dataKey="maxHold"
                 name="Best Hold"
-                stroke="#ff7170"
+                stroke={ACCENT_BRIGHT}
                 strokeWidth={3}
-                dot={{ fill: '#ff7170', strokeWidth: 0, r: 4 }}
-                activeDot={{ r: 6, fill: '#ff7170', strokeWidth: 0 }}
+                dot={{ fill: ACCENT_BRIGHT, strokeWidth: 0, r: 4 }}
+                activeDot={{ r: 6, fill: ACCENT_BRIGHT, strokeWidth: 0 }}
               />
               <Line
                 type="monotone"
                 dataKey="avgHold"
                 name="Average"
-                stroke="#60a5fa"
+                stroke={ACCENT_SUBTLE}
                 strokeWidth={2}
                 strokeDasharray="5 5"
-                dot={{ fill: '#60a5fa', strokeWidth: 0, r: 3 }}
-                activeDot={{ r: 5, fill: '#60a5fa', strokeWidth: 0 }}
+                dot={{ fill: ACCENT_SUBTLE, strokeWidth: 0, r: 3 }}
+                activeDot={{ r: 5, fill: ACCENT_SUBTLE, strokeWidth: 0 }}
               />
             </LineChart>
           </ResponsiveContainer>

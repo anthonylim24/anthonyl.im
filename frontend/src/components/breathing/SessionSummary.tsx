@@ -1,5 +1,7 @@
 import { BADGES } from '@/lib/gamification'
 import { formatTime } from '@/lib/utils'
+import { ACCENT, ACCENT_BRIGHT, ACHIEVEMENT, PERSONAL_BEST } from '@/lib/palette'
+import { accentGradientStyle } from '@/lib/techniqueConfig'
 import { Trophy, Zap, Target, Clock, Star, X } from 'lucide-react'
 
 interface SessionSummaryProps {
@@ -37,13 +39,16 @@ export function SessionSummary({
           >
             <X className="h-4 w-4" />
           </button>
-          <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-amber-500/30">
+          <div
+            className="h-16 w-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
+            style={{ background: `linear-gradient(to bottom right, ${ACHIEVEMENT}, ${ACCENT})`, boxShadow: `0 10px 15px -3px ${ACCENT}40` }}
+          >
             <Trophy className="h-8 w-8 text-white" />
           </div>
           <h2 className="text-2xl font-bold text-white">Session Complete</h2>
-          <div className="inline-flex items-center gap-2 mt-3 px-4 py-2 rounded-full bg-blue-500/20 border border-blue-500/30">
-            <Zap className="h-4 w-4 text-blue-400" />
-            <span className="text-blue-300 font-bold">+{xpEarned} XP</span>
+          <div className="inline-flex items-center gap-2 mt-3 px-4 py-2 rounded-full" style={{ backgroundColor: `${ACCENT}33`, border: `1px solid ${ACCENT}4D` }}>
+            <Zap className="h-4 w-4" style={{ color: ACCENT_BRIGHT }} />
+            <span className="font-bold" style={{ color: ACCENT_BRIGHT }}>+{xpEarned} XP</span>
           </div>
         </div>
 
@@ -66,7 +71,7 @@ export function SessionSummary({
           {holdTimes.length > 0 && (
             <div className="grid grid-cols-2 gap-3 mt-3">
               <div className="rounded-xl bg-white/5 p-3 text-center">
-                <div className="text-xl font-bold text-amber-400">
+                <div className="text-xl font-bold" style={{ color: ACHIEVEMENT }}>
                   {maxHold}s
                 </div>
                 <div className="text-xs text-white/40">Best Hold</div>
@@ -79,13 +84,13 @@ export function SessionSummary({
           )}
 
           {isNewPersonalBest && (
-            <div className="mt-3 p-3 rounded-xl bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/20 text-center">
+            <div className="mt-3 p-3 rounded-xl text-center" style={{ background: `linear-gradient(to right, ${PERSONAL_BEST}33, ${ACCENT}33)`, border: `1px solid ${PERSONAL_BEST}33` }}>
               <div className="flex items-center justify-center gap-2">
-                <Star className="h-4 w-4 text-amber-400" />
-                <span className="text-sm font-semibold text-amber-300">
+                <Star className="h-4 w-4" style={{ color: PERSONAL_BEST }} />
+                <span className="text-sm font-semibold" style={{ color: PERSONAL_BEST }}>
                   New Personal Best!
                 </span>
-                <Star className="h-4 w-4 text-amber-400" />
+                <Star className="h-4 w-4" style={{ color: PERSONAL_BEST }} />
               </div>
             </div>
           )}
@@ -102,9 +107,10 @@ export function SessionSummary({
                   return (
                     <div
                       key={badgeId}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/20 border border-amber-500/30"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+                      style={{ backgroundColor: `${ACHIEVEMENT}33`, border: `1px solid ${ACHIEVEMENT}4D` }}
                     >
-                      <span className="text-xs font-medium text-amber-300">
+                      <span className="text-xs font-medium" style={{ color: ACHIEVEMENT }}>
                         {badge.name}
                       </span>
                     </div>
@@ -118,7 +124,8 @@ export function SessionSummary({
         <div className="px-6 pb-6">
           <button
             onClick={onClose}
-            className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 transition-all"
+            className="w-full py-3 rounded-xl text-white font-semibold shadow-lg hover:shadow-xl transition-all"
+            style={accentGradientStyle()}
           >
             Continue
           </button>

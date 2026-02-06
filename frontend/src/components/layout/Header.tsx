@@ -27,12 +27,12 @@ export function Header() {
             {/* Logo */}
             <Link to="/breathwork" className="flex items-center gap-3 mr-8 group">
               <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-br from-[#ff7170]/30 to-[#ff5eb5]/30 rounded-xl blur-lg group-hover:from-[#ff7170]/40 group-hover:to-[#ff5eb5]/40 transition-all duration-300" />
-                <div className="relative h-10 w-10 rounded-xl bg-gradient-to-br from-[#ff7170] to-[#ff5eb5] flex items-center justify-center shadow-lg shadow-[#ff7170]/25 group-hover:scale-105 transition-transform duration-300">
+                <div className="absolute inset-0 bg-gradient-to-br from-[#6E7BF2]/30 to-[#8B96FF]/30 rounded-xl blur-lg group-hover:from-[#6E7BF2]/40 group-hover:to-[#8B96FF]/40 transition-all duration-300" />
+                <div className="relative h-10 w-10 rounded-xl bg-gradient-to-br from-[#6E7BF2] to-[#8B96FF] flex items-center justify-center shadow-lg shadow-[#6E7BF2]/25 group-hover:scale-105 transition-transform duration-300">
                   <Wind className="h-5 w-5 text-white" />
                 </div>
               </div>
-              <span className="font-semibold text-lg tracking-tight hidden sm:block bg-gradient-to-r from-[#ff7170] to-[#ff5eb5] bg-clip-text text-transparent">
+              <span className="font-semibold text-lg tracking-tight hidden sm:block bg-gradient-to-r from-[#8B96FF] to-[#6E7BF2] bg-clip-text text-transparent">
                 BreathFlow
               </span>
             </Link>
@@ -46,7 +46,7 @@ export function Header() {
                   className={cn(
                     'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300',
                     isActive(path)
-                      ? 'bg-gradient-to-r from-[#ff7170]/15 to-[#ff5eb5]/15 text-[#ff7170] shadow-sm'
+                      ? 'bg-gradient-to-r from-[#6E7BF2]/15 to-[#8B96FF]/15 text-[#8B96FF] shadow-sm'
                       : 'text-white/40 hover:text-white hover:bg-white/10'
                   )}
                 >

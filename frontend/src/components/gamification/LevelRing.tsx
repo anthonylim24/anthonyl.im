@@ -11,7 +11,7 @@ export function LevelRing({
   progress,
   size = 80,
   strokeWidth = 4,
-  colors = ['#3b82f6', '#06b6d4'],
+  colors = ['#6E7BF2', '#8B96FF'],
 }: LevelRingProps) {
   const radius = (size - strokeWidth * 2) / 2
   const circumference = 2 * Math.PI * radius

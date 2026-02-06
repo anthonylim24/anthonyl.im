@@ -84,14 +84,14 @@ export function Settings() {
             className={cn(
               'relative flex items-center gap-3 p-4 rounded-xl border transition-all duration-200',
               theme === 'dark'
-                ? 'border-blue-500 bg-blue-500/10'
+                ? 'border-[#6E7BF2] bg-[#6E7BF2]/10'
                 : 'border-white/10 bg-white/5 hover:bg-white/10'
             )}
           >
             <Moon className="h-5 w-5 text-white" />
             <span className="text-white font-medium">Dark</span>
             {theme === 'dark' && (
-              <Check className="absolute top-3 right-3 h-4 w-4 text-blue-400" />
+              <Check className="absolute top-3 right-3 h-4 w-4 text-[#8B96FF]" />
             )}
           </button>
           <button
@@ -99,14 +99,14 @@ export function Settings() {
             className={cn(
               'relative flex items-center gap-3 p-4 rounded-xl border transition-all duration-200',
               theme === 'light'
-                ? 'border-blue-500 bg-blue-500/10'
+                ? 'border-[#6E7BF2] bg-[#6E7BF2]/10'
                 : 'border-white/10 bg-white/5 hover:bg-white/10'
             )}
           >
             <Sun className="h-5 w-5 text-white" />
             <span className="text-white font-medium">Light</span>
             {theme === 'light' && (
-              <Check className="absolute top-3 right-3 h-4 w-4 text-blue-400" />
+              <Check className="absolute top-3 right-3 h-4 w-4 text-[#8B96FF]" />
             )}
           </button>
         </div>
@@ -123,7 +123,7 @@ export function Settings() {
             onClick={() => setSoundEnabled(!soundEnabled)}
             className={cn(
               'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-              soundEnabled ? 'bg-blue-500' : 'bg-white/10'
+              soundEnabled ? 'bg-[#6E7BF2]' : 'bg-white/10'
             )}
           >
             <span
@@ -149,10 +149,10 @@ export function Settings() {
               step={0.01}
               value={soundVolume}
               onChange={(e) => setSoundVolume(parseFloat(e.target.value))}
-              className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/10 accent-blue-500
+              className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/10 accent-[#6E7BF2]
                 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4
-                [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500
-                [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:shadow-blue-500/25"
+                [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#6E7BF2]
+                [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:shadow-[#6E7BF2]/25"
             />
           </div>
         )}
@@ -169,7 +169,7 @@ export function Settings() {
             onClick={() => setHapticsEnabled(!hapticsEnabled)}
             className={cn(
               'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-              hapticsEnabled ? 'bg-blue-500' : 'bg-white/10'
+              hapticsEnabled ? 'bg-[#6E7BF2]' : 'bg-white/10'
             )}
           >
             <span

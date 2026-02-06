@@ -7,6 +7,8 @@ import { LevelRing } from '@/components/gamification/LevelRing'
 import { breathingProtocols } from '@/lib/breathingProtocols'
 import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 import { formatDate, formatTime, cn } from '@/lib/utils'
+import { ACCENT, ACCENT_BRIGHT, ACCENT_SUBTLE } from '@/lib/palette'
+import { getTechniqueVisual, techniqueGradientStyle } from '@/lib/techniqueConfig'
 import {
   Wind,
   Flame,
@@ -18,28 +20,10 @@ import {
   Target,
 } from 'lucide-react'
 
-const techniqueConfig: Record<
-  TechniqueId,
-  { icon: React.ReactNode; gradient: string; glow: string; accentColor: string }
-> = {
-  [TECHNIQUE_IDS.BOX_BREATHING]: {
-    icon: <Box className="h-6 w-6" />,
-    gradient: 'from-blue-500 to-cyan-500',
-    glow: 'shadow-blue-500/25',
-    accentColor: '#3b82f6',
-  },
-  [TECHNIQUE_IDS.CO2_TOLERANCE]: {
-    icon: <Flame className="h-6 w-6" />,
-    gradient: 'from-amber-500 to-orange-500',
-    glow: 'shadow-amber-500/25',
-    accentColor: '#f59e0b',
-  },
-  [TECHNIQUE_IDS.POWER_BREATHING]: {
-    icon: <Wind className="h-6 w-6" />,
-    gradient: 'from-emerald-500 to-teal-500',
-    glow: 'shadow-emerald-500/25',
-    accentColor: '#10b981',
-  },
+const techniqueIcons: Record<TechniqueId, React.ReactNode> = {
+  [TECHNIQUE_IDS.BOX_BREATHING]: <Box className="h-6 w-6" />,
+  [TECHNIQUE_IDS.CO2_TOLERANCE]: <Flame className="h-6 w-6" />,
+  [TECHNIQUE_IDS.POWER_BREATHING]: <Wind className="h-6 w-6" />,
 }
 
 export function Home() {
@@ -96,8 +80,8 @@ export function Home() {
               </div>
               <div className="h-2 rounded-full bg-white/10 overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-700 ease-out"
-                  style={{ width: `${Math.round(levelProgress * 100)}%` }}
+                  className="h-full rounded-full transition-all duration-700 ease-out"
+                  style={{ width: `${Math.round(levelProgress * 100)}%`, background: `linear-gradient(to right, ${ACCENT}, ${ACCENT_BRIGHT})` }}
                 />
               </div>
             </div>
@@ -106,7 +90,7 @@ export function Home() {
             <div className="flex items-center justify-center gap-6">
               {/* Streak */}
               <div className="flex items-center gap-2">
-                <Flame className="h-5 w-5 text-amber-400" />
+                <Flame className="h-5 w-5" style={{ color: ACCENT_BRIGHT }} />
                 <span className="text-lg font-semibold text-white">{streak}</span>
                 <span className="text-sm text-white/50">day streak</span>
               </div>
@@ -117,16 +101,12 @@ export function Home() {
               {/* Daily Goal */}
               <div className="flex items-center gap-2">
                 <Target
-                  className={cn(
-                    'h-5 w-5',
-                    dailyGoalMet ? 'text-emerald-400' : 'text-white/40',
-                  )}
+                  className="h-5 w-5"
+                  style={{ color: dailyGoalMet ? ACCENT_BRIGHT : 'rgba(255,255,255,0.4)' }}
                 />
                 <span
-                  className={cn(
-                    'text-sm font-medium',
-                    dailyGoalMet ? 'text-emerald-400' : 'text-white/50',
-                  )}
+                  className="text-sm font-medium"
+                  style={{ color: dailyGoalMet ? ACCENT_BRIGHT : 'rgba(255,255,255,0.5)' }}
                 >
                   {dailyGoalMet ? 'Goal met!' : '1 session today'}
                 </span>
@@ -142,7 +122,7 @@ export function Home() {
           <div className="grid grid-cols-3 gap-3 sm:gap-4 opacity-0 animate-slide-up stagger-2">
             {/* Total Sessions */}
             <div className="liquid-glass-breath rounded-2xl p-4 sm:p-6 text-center group">
-              <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-violet-500/25 group-hover:scale-110 transition-transform duration-300">
+              <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform duration-300" style={{ background: `linear-gradient(to bottom right, ${ACCENT_BRIGHT}, ${ACCENT})`, boxShadow: `0 10px 15px -3px ${ACCENT}40` }}>
                 <Trophy className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
               <div className="text-2xl sm:text-3xl font-bold text-white">
@@ -153,7 +133,7 @@ export function Home() {
 
             {/* Total Practice Time */}
             <div className="liquid-glass-breath rounded-2xl p-4 sm:p-6 text-center group">
-              <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-blue-500/25 group-hover:scale-110 transition-transform duration-300">
+              <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform duration-300" style={{ background: `linear-gradient(to bottom right, ${ACCENT}, ${ACCENT_SUBTLE})`, boxShadow: `0 10px 15px -3px ${ACCENT}40` }}>
                 <Zap className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
               <div className="text-2xl sm:text-3xl font-bold text-white">
@@ -164,7 +144,7 @@ export function Home() {
 
             {/* Current Streak */}
             <div className="liquid-glass-breath rounded-2xl p-4 sm:p-6 text-center group">
-              <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-amber-500/25 group-hover:scale-110 transition-transform duration-300">
+              <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform duration-300" style={{ background: `linear-gradient(to bottom right, ${ACCENT_SUBTLE}, ${ACCENT})`, boxShadow: `0 10px 15px -3px ${ACCENT_SUBTLE}40` }}>
                 <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
               <div className="text-2xl sm:text-3xl font-bold text-white">{streak}</div>
@@ -191,7 +171,7 @@ export function Home() {
               TECHNIQUE_IDS.POWER_BREATHING,
             ] as TechniqueId[]).map((id, index) => {
               const protocol = breathingProtocols[id]
-              const config = techniqueConfig[id]
+              const tv = getTechniqueVisual(id)
               return (
                 <div
                   key={id}
@@ -206,20 +186,16 @@ export function Home() {
                   {/* Icon + Name */}
                   <div className="flex items-start gap-4 mb-4">
                     <div
-                      className={cn(
-                        'h-12 w-12 sm:h-14 sm:w-14 rounded-2xl bg-gradient-to-br flex items-center justify-center shadow-lg shrink-0',
-                        'transition-all duration-300 group-hover:scale-110 group-hover:rotate-3',
-                        config.gradient,
-                        config.glow,
-                      )}
+                      className="h-12 w-12 sm:h-14 sm:w-14 rounded-2xl flex items-center justify-center shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:rotate-3"
+                      style={techniqueGradientStyle(id)}
                     >
-                      <span className="text-white">{config.icon}</span>
+                      <span className="text-white">{techniqueIcons[id]}</span>
                     </div>
                     <div className="flex-1 min-w-0 pt-0.5">
                       <h3 className="text-lg sm:text-xl font-semibold text-white">
                         {protocol.name}
                       </h3>
-                      <p className="text-xs font-medium mt-0.5" style={{ color: config.accentColor }}>
+                      <p className="text-xs font-medium mt-0.5" style={{ color: tv.primary }}>
                         {protocol.purpose}
                       </p>
                     </div>
@@ -232,14 +208,8 @@ export function Home() {
 
                   {/* Start Button */}
                   <button
-                    className={cn(
-                      'w-full py-3 px-4 rounded-xl font-medium text-white mt-5',
-                      'bg-gradient-to-r transition-all duration-300',
-                      'shadow-lg group-hover:shadow-xl',
-                      'flex items-center justify-center gap-2 group-hover:gap-3',
-                      config.gradient,
-                      config.glow,
-                    )}
+                    className="w-full py-3 px-4 rounded-xl font-medium text-white mt-5 transition-all duration-300 shadow-lg group-hover:shadow-xl flex items-center justify-center gap-2 group-hover:gap-3"
+                    style={techniqueGradientStyle(id)}
                   >
                     Start
                     <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
@@ -268,7 +238,6 @@ export function Home() {
 
             <div className="space-y-3">
               {recentSessions.map((session, index) => {
-                const config = techniqueConfig[session.techniqueId]
                 return (
                   <div
                     key={session.id}
@@ -279,14 +248,10 @@ export function Home() {
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-3 sm:gap-4 min-w-0">
                         <div
-                          className={cn(
-                            'h-10 w-10 sm:h-11 sm:w-11 rounded-xl bg-gradient-to-br flex items-center justify-center shadow-lg shrink-0',
-                            'group-hover:scale-110 transition-transform duration-300',
-                            config.gradient,
-                            config.glow,
-                          )}
+                          className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300"
+                          style={techniqueGradientStyle(session.techniqueId)}
                         >
-                          <span className="text-white scale-90">{config.icon}</span>
+                          <span className="text-white scale-90">{techniqueIcons[session.techniqueId]}</span>
                         </div>
                         <div className="min-w-0">
                           <div className="font-semibold text-sm sm:text-base text-white truncate">

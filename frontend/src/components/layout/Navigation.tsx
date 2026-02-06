@@ -11,10 +11,10 @@ export function Navigation() {
   const location = useLocation()
 
   const navItems = [
-    { path: '/breathwork', label: 'Home', icon: Home, gradient: 'from-[#ff7170] to-[#ff5eb5]' },
-    { path: '/breathwork/session', label: 'Breathe', icon: Wind, gradient: 'from-[#2dd4bf] to-[#22d3ee]' },
-    { path: '/breathwork/progress', label: 'Progress', icon: BarChart3, gradient: 'from-[#60a5fa] to-[#818cf8]' },
-    { path: '/breathwork/settings', label: 'Settings', icon: Settings, gradient: 'from-[#a855f7] to-[#ec4899]' },
+    { path: '/breathwork', label: 'Home', icon: Home, gradient: 'from-[#6E7BF2] to-[#8B96FF]' },
+    { path: '/breathwork/session', label: 'Breathe', icon: Wind, gradient: 'from-[#6E7BF2] to-[#8B96FF]' },
+    { path: '/breathwork/progress', label: 'Progress', icon: BarChart3, gradient: 'from-[#6E7BF2] to-[#8B96FF]' },
+    { path: '/breathwork/settings', label: 'Settings', icon: Settings, gradient: 'from-[#6E7BF2] to-[#8B96FF]' },
   ]
 
   const isActive = (path: string) => {
