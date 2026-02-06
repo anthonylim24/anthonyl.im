@@ -1,22 +1,15 @@
-import { useEffect, useState } from 'react'
-
-type Theme = 'light' | 'dark' | 'system'
+import { useEffect } from 'react'
+import { useSettingsStore } from '@/stores/settingsStore'
 
 export function useTheme() {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    if (typeof window !== 'undefined') {
-      return (localStorage.getItem('theme') as Theme) || 'system'
-    }
-    return 'system'
-  })
+  const { theme, setTheme } = useSettingsStore()
 
   useEffect(() => {
     const root = window.document.documentElement
 
-    const applyTheme = (t: Theme) => {
+    const applyTheme = (t: typeof theme | 'system') => {
       if (t === 'system') {
-        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)')
-          .matches
+        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
           ? 'dark'
           : 'light'
         root.classList.toggle('dark', systemTheme === 'dark')
@@ -26,23 +19,15 @@ export function useTheme() {
     }
 
     applyTheme(theme)
-    localStorage.setItem('theme', theme)
 
-    // Listen for system theme changes
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
     const handleChange = () => {
-      if (theme === 'system') {
-        applyTheme('system')
-      }
+      if ((theme as string) === 'system') applyTheme('system')
     }
 
     mediaQuery.addEventListener('change', handleChange)
     return () => mediaQuery.removeEventListener('change', handleChange)
   }, [theme])
-
-  const setTheme = (newTheme: Theme) => {
-    setThemeState(newTheme)
-  }
 
   return { theme, setTheme }
 }

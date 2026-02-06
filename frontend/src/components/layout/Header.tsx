@@ -28,11 +28,7 @@ export function Header() {
     }
   }
 
-  const isDark =
-    theme === 'dark' ||
-    (theme === 'system' &&
-      typeof window !== 'undefined' &&
-      window.matchMedia('(prefers-color-scheme: dark)').matches)
+  const isDark = theme === 'dark'
 
   return (
     <header className="sticky top-0 z-50 w-full">

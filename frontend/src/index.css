@@ -515,51 +515,27 @@ body,
     --radius: 0.75rem;
   }
 
-  /* Breathwork light mode variables */
   .breathwork {
-    --background: 220 25% 97%;
-    --foreground: 220 25% 10%;
-    --card: 0 0% 100% / 0.6;
-    --card-foreground: 220 25% 10%;
-    --popover: 0 0% 100% / 0.85;
-    --popover-foreground: 220 25% 10%;
-    --primary: 210 100% 55%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 220 20% 94% / 0.7;
-    --secondary-foreground: 220 25% 20%;
-    --muted: 220 15% 92% / 0.8;
-    --muted-foreground: 220 10% 45%;
-    --accent: 220 20% 96% / 0.8;
-    --accent-foreground: 220 25% 15%;
-    --destructive: 0 75% 55%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 220 20% 88% / 0.6;
-    --input: 220 20% 95% / 0.8;
-    --ring: 210 100% 60% / 0.5;
-    --radius: 1rem;
-  }
-
-  /* Breathwork dark mode - dark class is on html, breathwork on child */
-  .dark .breathwork {
-    --background: 225 25% 8%;
+    --background: 225 20% 7%;
     --foreground: 220 15% 95%;
-    --card: 225 25% 12% / 0.5;
+    --card: 225 20% 11% / 0.6;
     --card-foreground: 220 15% 95%;
-    --popover: 225 25% 12% / 0.9;
+    --popover: 225 20% 11% / 0.9;
     --popover-foreground: 220 15% 95%;
     --primary: 210 100% 65%;
     --primary-foreground: 225 25% 5%;
-    --secondary: 220 20% 18% / 0.7;
+    --secondary: 220 15% 16% / 0.7;
     --secondary-foreground: 220 15% 90%;
-    --muted: 220 15% 18% / 0.8;
-    --muted-foreground: 220 10% 60%;
-    --accent: 220 20% 20% / 0.8;
+    --muted: 220 12% 16% / 0.8;
+    --muted-foreground: 220 10% 55%;
+    --accent: 220 15% 18% / 0.8;
     --accent-foreground: 220 15% 95%;
     --destructive: 0 70% 50%;
     --destructive-foreground: 0 0% 100%;
-    --border: 220 20% 20% / 0.6;
-    --input: 220 20% 15% / 0.8;
+    --border: 220 15% 18% / 0.6;
+    --input: 220 15% 14% / 0.8;
     --ring: 210 100% 65% / 0.5;
+    --radius: 1rem;
   }
 
   * {
@@ -607,43 +583,29 @@ body,
     inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
-/* Breathwork liquid glass - warm playful tones */
+/* Breathwork liquid glass - dark-first */
 .liquid-glass-breath {
   background: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.7) 0%,
-    rgba(255, 240, 245, 0.6) 50%,
-    rgba(255, 255, 255, 0.5) 100%
+    rgba(30, 35, 55, 0.6) 0%,
+    rgba(40, 35, 60, 0.5) 50%,
+    rgba(30, 35, 55, 0.4) 100%
   );
-  backdrop-filter: blur(20px) saturate(200%);
-  -webkit-backdrop-filter: blur(20px) saturate(200%);
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.06),
-    0 2px 8px rgba(0, 0, 0, 0.04),
-    inset 0 2px 4px rgba(255, 255, 255, 0.8);
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    0 2px 8px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .liquid-glass-breath:hover {
-  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.12);
   box-shadow:
-    0 16px 48px rgba(0, 0, 0, 0.1),
-    0 4px 12px rgba(0, 0, 0, 0.06),
-    inset 0 2px 4px rgba(255, 255, 255, 0.9);
-}
-
-.dark .liquid-glass-breath {
-  background: linear-gradient(
-    135deg,
-    rgba(40, 45, 60, 0.7) 0%,
-    rgba(50, 45, 70, 0.6) 50%,
-    rgba(40, 45, 60, 0.5) 100%
-  );
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.3),
-    0 2px 8px rgba(0, 0, 0, 0.2),
+    0 16px 48px rgba(0, 0, 0, 0.35),
+    0 4px 12px rgba(0, 0, 0, 0.25),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
@@ -700,22 +662,11 @@ body,
 .breath-bg {
   background: linear-gradient(
     135deg,
-    #fef7f0 0%,      /* Warm cream */
-    #fef2f4 25%,     /* Soft blush */
-    #fdf4ff 50%,     /* Light lavender */
-    #f0f9ff 75%,     /* Sky tint */
-    #fef7f0 100%     /* Back to cream */
-  );
-}
-
-.dark .breath-bg {
-  background: linear-gradient(
-    135deg,
-    #0f0d15 0%,      /* Deep purple-black */
-    #15121e 25%,     /* Warm dark */
-    #12101a 50%,     /* Neutral dark */
-    #0d1117 75%,     /* Cool dark */
-    #0f0d15 100%     /* Back to start */
+    #0a0e1a 0%,
+    #0f1225 25%,
+    #0d1020 50%,
+    #080c18 75%,
+    #0a0e1a 100%
   );
 }
 
@@ -729,35 +680,16 @@ body,
 }
 
 .breath-orb-coral {
-  background: radial-gradient(circle, rgba(255, 113, 112, 0.4) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(255, 113, 112, 0.15) 0%, transparent 70%);
 }
-
 .breath-orb-magenta {
-  background: radial-gradient(circle, rgba(255, 94, 181, 0.3) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(255, 94, 181, 0.12) 0%, transparent 70%);
 }
-
 .breath-orb-blue {
-  background: radial-gradient(circle, rgba(96, 165, 250, 0.3) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(96, 165, 250, 0.12) 0%, transparent 70%);
 }
-
 .breath-orb-amber {
-  background: radial-gradient(circle, rgba(251, 191, 36, 0.3) 0%, transparent 70%);
-}
-
-.dark .breath-orb-coral {
-  background: radial-gradient(circle, rgba(255, 113, 112, 0.2) 0%, transparent 70%);
-}
-
-.dark .breath-orb-magenta {
-  background: radial-gradient(circle, rgba(255, 94, 181, 0.15) 0%, transparent 70%);
-}
-
-.dark .breath-orb-blue {
-  background: radial-gradient(circle, rgba(96, 165, 250, 0.15) 0%, transparent 70%);
-}
-
-.dark .breath-orb-amber {
-  background: radial-gradient(circle, rgba(251, 191, 36, 0.15) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.12) 0%, transparent 70%);
 }
 
 /* ================================
