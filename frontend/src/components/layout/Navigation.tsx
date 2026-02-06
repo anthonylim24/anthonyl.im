@@ -7,9 +7,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Wind, BarChart3, Home, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ACCENT, ACCENT_BRIGHT } from '@/lib/palette'
+import { useViewportOffset } from '@/hooks/useViewportOffset'
 
 export function Navigation() {
   const location = useLocation()
+  const { bottomOffset } = useViewportOffset()
 
   const navItems = [
     { path: '/breathwork', label: 'Home', icon: Home },
@@ -25,8 +27,17 @@ export function Navigation() {
     return location.pathname.startsWith(path)
   }
 
+  const shouldHideInSession = location.pathname.startsWith('/breathwork/session')
+
+  if (shouldHideInSession) {
+    return null
+  }
+
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 px-4 pt-2 safe-bottom">
+    <nav
+      className="md:hidden fixed left-0 right-0 z-50 px-4 pt-2 safe-bottom transition-[bottom] duration-200"
+      style={{ bottom: `${bottomOffset}px` }}
+    >
       <div
         className="rounded-[20px] mx-auto max-w-md overflow-hidden"
         style={{

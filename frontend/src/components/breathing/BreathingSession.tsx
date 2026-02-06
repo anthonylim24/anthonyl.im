@@ -1,4 +1,4 @@
-import { useCallback, useState, useMemo, useRef, useEffect } from 'react'
+import { useCallback, useState, useMemo, useRef, useEffect, type CSSProperties } from 'react'
 import { useBreathingCycle } from '@/hooks/useBreathingCycle'
 import { useWaveform } from '@/hooks/useWaveform'
 import { FluidOrb } from './FluidOrb'
@@ -14,6 +14,7 @@ import { techniqueGradientStyle, techniqueProgressStyle } from '@/lib/techniqueC
 import { DESTRUCTIVE } from '@/lib/palette'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore } from '@/stores/historyStore'
+import { useViewportOffset } from '@/hooks/useViewportOffset'
 
 interface BreathingSessionProps {
   config: SessionConfig
@@ -41,6 +42,10 @@ export function BreathingSession({
   // Gamification stores
   const { addXP, unlockBadges, recordSession, earnedBadges } = useGamificationStore()
   const { sessions, getStreak } = useHistoryStore()
+  const { bottomOffset } = useViewportOffset()
+  const viewportOffsetStyle = {
+    '--viewport-bottom-offset': `${bottomOffset}px`,
+  } as CSSProperties
 
   const showControls = useCallback(() => {
     setControlsVisible(true)
@@ -196,32 +201,48 @@ export function BreathingSession({
         </span>
       </div>
 
-      {/* Phase text above orb */}
-      <div className="relative z-10 mb-4">
-        <PhaseIndicator phase={session?.currentPhase ?? null} />
-      </div>
+      <div
+        data-testid="session-content"
+        className="session-content relative z-10 flex w-full max-w-md flex-1 flex-col items-center justify-center px-5"
+        style={viewportOffsetStyle}
+      >
+        {/* Phase text above orb */}
+        <div className="relative z-10 mb-3">
+          <PhaseIndicator phase={session?.currentPhase ?? null} />
+        </div>
 
-      {/* FluidOrb - centered and dominant */}
-      <div className="relative w-72 h-72 sm:w-80 sm:h-80 md:w-96 md:h-96">
-        <FluidOrb
-          phase={session?.currentPhase ?? null}
-          amplitude={amplitude}
-          isActive={isActive && !isPaused}
-          className="w-full h-full"
-        />
-      </div>
+        {/* FluidOrb - scales with screen height and width to avoid overlap */}
+        <div
+          className="relative"
+          style={{
+            width: 'clamp(10rem, 52vw, 24rem)',
+            height: 'clamp(10rem, 52vw, 24rem)',
+            maxWidth: 'min(82vw, 24rem)',
+            maxHeight: 'min(48vh, 24rem)',
+          }}
+        >
+          <FluidOrb
+            phase={session?.currentPhase ?? null}
+            amplitude={amplitude}
+            isActive={isActive && !isPaused}
+            className="w-full h-full"
+          />
+        </div>
 
-      {/* Timer below orb */}
-      <div className="relative z-10 mt-4">
-        <Timer seconds={session?.timeRemaining ?? 0} className="text-white" />
+        {/* Timer below orb */}
+        <div className="relative z-10 mt-3">
+          <Timer seconds={session?.timeRemaining ?? 0} className="text-white" />
+        </div>
       </div>
 
       {/* Controls - fade to 20% opacity after 3s */}
       <div
+        data-testid="session-controls"
         className={cn(
-          'absolute bottom-28 md:bottom-12 left-1/2 -translate-x-1/2 z-10 flex items-center gap-4 transition-opacity duration-500',
+          'session-controls absolute left-1/2 -translate-x-1/2 z-10 flex items-center gap-4 transition-opacity duration-500',
           controlsVisible ? 'opacity-100' : 'opacity-20 hover:opacity-100'
         )}
+        style={viewportOffsetStyle}
       >
         {!isActive && !isComplete ? (
           <button
