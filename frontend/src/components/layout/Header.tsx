@@ -1,16 +1,15 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Wind, BarChart3, Home, Sun, Moon } from 'lucide-react'
+import { Wind, BarChart3, Home, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useTheme } from '@/hooks/useTheme'
 
 export function Header() {
   const location = useLocation()
-  const { theme, setTheme } = useTheme()
 
   const navItems = [
     { path: '/breathwork', label: 'Home', icon: Home },
     { path: '/breathwork/session', label: 'Breathe', icon: Wind },
     { path: '/breathwork/progress', label: 'Progress', icon: BarChart3 },
+    { path: '/breathwork/settings', label: 'Settings', icon: Settings },
   ]
 
   const isActive = (path: string) => {
@@ -19,16 +18,6 @@ export function Header() {
     }
     return location.pathname.startsWith(path)
   }
-
-  const toggleTheme = () => {
-    if (theme === 'dark') {
-      setTheme('light')
-    } else {
-      setTheme('dark')
-    }
-  }
-
-  const isDark = theme === 'dark'
 
   return (
     <header className="sticky top-0 z-50 w-full">
@@ -58,7 +47,7 @@ export function Header() {
                     'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300',
                     isActive(path)
                       ? 'bg-gradient-to-r from-[#ff7170]/15 to-[#ff5eb5]/15 text-[#ff7170] shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-white/30'
+                      : 'text-white/40 hover:text-white hover:bg-white/10'
                   )}
                 >
                   <Icon className={cn(
@@ -70,19 +59,6 @@ export function Header() {
               ))}
             </nav>
           </div>
-
-          {/* Theme Toggle */}
-          <button
-            onClick={toggleTheme}
-            className="h-10 w-10 rounded-xl flex items-center justify-center bg-white/20 hover:bg-white/30 transition-all duration-300 text-foreground hover:scale-105"
-          >
-            {isDark ? (
-              <Sun className="h-5 w-5" />
-            ) : (
-              <Moon className="h-5 w-5" />
-            )}
-            <span className="sr-only">Toggle theme</span>
-          </button>
         </div>
       </div>
     </header>

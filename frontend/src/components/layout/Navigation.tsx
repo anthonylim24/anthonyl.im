@@ -4,7 +4,7 @@
  * Updated: Liquid glass styling with vibrant gradient accents.
  */
 import { Link, useLocation } from 'react-router-dom'
-import { Wind, BarChart3, Home } from 'lucide-react'
+import { Wind, BarChart3, Home, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export function Navigation() {
@@ -14,6 +14,7 @@ export function Navigation() {
     { path: '/breathwork', label: 'Home', icon: Home, gradient: 'from-[#ff7170] to-[#ff5eb5]' },
     { path: '/breathwork/session', label: 'Breathe', icon: Wind, gradient: 'from-[#2dd4bf] to-[#22d3ee]' },
     { path: '/breathwork/progress', label: 'Progress', icon: BarChart3, gradient: 'from-[#60a5fa] to-[#818cf8]' },
+    { path: '/breathwork/settings', label: 'Settings', icon: Settings, gradient: 'from-[#a855f7] to-[#ec4899]' },
   ]
 
   const isActive = (path: string) => {
@@ -34,10 +35,10 @@ export function Navigation() {
                 key={path}
                 to={path}
                 className={cn(
-                  'flex flex-col items-center gap-1 px-6 py-2 rounded-xl text-xs font-medium transition-all duration-300',
+                  'flex flex-col items-center gap-1 px-4 py-2 rounded-xl text-xs font-medium transition-all duration-300',
                   active
-                    ? 'text-foreground'
-                    : 'text-muted-foreground hover:text-foreground'
+                    ? 'text-white'
+                    : 'text-white/40 hover:text-white'
                 )}
               >
                 <div className={cn(

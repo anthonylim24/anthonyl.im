@@ -9,6 +9,7 @@ import { BreathworkLayout } from './components/layout/BreathworkLayout'
 const Home = lazy(() => import('./pages/Home').then(m => ({ default: m.Home })))
 const Session = lazy(() => import('./pages/Session').then(m => ({ default: m.Session })))
 const Progress = lazy(() => import('./pages/Progress').then(m => ({ default: m.Progress })))
+const Settings = lazy(() => import('./pages/Settings').then(m => ({ default: m.Settings })))
 
 // Loading fallback for route transitions
 const RouteLoader = () => (
@@ -29,6 +30,7 @@ createRoot(document.getElementById('root')!).render(
           <Route index element={<Suspense fallback={<RouteLoader />}><Home /></Suspense>} />
           <Route path="session" element={<Suspense fallback={<RouteLoader />}><Session /></Suspense>} />
           <Route path="progress" element={<Suspense fallback={<RouteLoader />}><Progress /></Suspense>} />
+          <Route path="settings" element={<Suspense fallback={<RouteLoader />}><Settings /></Suspense>} />
         </Route>
       </Routes>
     </BrowserRouter>
