@@ -40,14 +40,14 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
   if (!hasBests) {
     return (
       <div className="liquid-glass-breath rounded-3xl overflow-hidden">
-        <div className="p-5 sm:p-6 border-b border-white/20">
-          <h3 className="flex items-center gap-2 font-semibold text-foreground">
+        <div className="p-5 sm:p-6 border-b border-white/10">
+          <h3 className="flex items-center gap-2 font-semibold text-white">
             <Trophy className="h-5 w-5 text-[#fbbf24]" />
             Personal Bests
           </h3>
         </div>
         <div className="p-5 sm:p-6">
-          <div className="text-center text-muted-foreground py-4">
+          <div className="text-center text-white/40 py-4">
             Complete sessions to set personal records!
           </div>
         </div>
@@ -57,8 +57,8 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
 
   return (
     <div className="liquid-glass-breath rounded-3xl overflow-hidden">
-      <div className="p-5 sm:p-6 border-b border-white/20">
-        <h3 className="flex items-center gap-2 font-semibold text-foreground">
+      <div className="p-5 sm:p-6 border-b border-white/10">
+        <h3 className="flex items-center gap-2 font-semibold text-white">
           <Trophy className="h-5 w-5 text-[#fbbf24]" />
           Personal Bests
         </h3>
@@ -73,7 +73,7 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
             return (
               <div
                 key={techniqueId}
-                className="flex items-center justify-between p-4 bg-white/40 rounded-2xl group hover:bg-white/50 transition-all duration-300"
+                className="flex items-center justify-between p-4 bg-white/5 rounded-2xl group hover:bg-white/10 transition-all duration-300"
               >
                 <div className="flex items-center gap-3">
                   <div className={cn(
@@ -84,10 +84,10 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
                     <span className="text-white">{config.icon}</span>
                   </div>
                   <div>
-                    <div className="font-semibold text-foreground">
+                    <div className="font-semibold text-white">
                       {breathingProtocols[techniqueId].name}
                     </div>
-                    <div className="text-sm text-muted-foreground">
+                    <div className="text-sm text-white/40">
                       {formatDate(new Date(best.date))}
                     </div>
                   </div>

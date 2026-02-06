@@ -44,14 +44,14 @@ export function ProgressChart({
   if (chartData.length === 0) {
     return (
       <div className="liquid-glass-breath rounded-3xl overflow-hidden">
-        <div className="p-5 sm:p-6 border-b border-white/20">
-          <h3 className="flex items-center gap-2 font-semibold text-foreground">
+        <div className="p-5 sm:p-6 border-b border-white/10">
+          <h3 className="flex items-center gap-2 font-semibold text-white">
             <TrendingUp className="h-5 w-5 text-[#2dd4bf]" />
             {title}
           </h3>
         </div>
         <div className="p-5 sm:p-6">
-          <div className="h-64 flex items-center justify-center text-muted-foreground">
+          <div className="h-64 flex items-center justify-center text-white/40">
             Complete sessions to see your progress chart
           </div>
         </div>
@@ -61,8 +61,8 @@ export function ProgressChart({
 
   return (
     <div className="liquid-glass-breath rounded-3xl overflow-hidden">
-      <div className="p-5 sm:p-6 border-b border-white/20">
-        <h3 className="flex items-center gap-2 font-semibold text-foreground">
+      <div className="p-5 sm:p-6 border-b border-white/10">
+        <h3 className="flex items-center gap-2 font-semibold text-white">
           <TrendingUp className="h-5 w-5 text-[#2dd4bf]" />
           {title}
         </h3>
@@ -71,30 +71,30 @@ export function ProgressChart({
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                tick={{ fontSize: 12, fill: 'rgba(255,255,255,0.3)' }}
               />
               <YAxis
-                tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                tick={{ fontSize: 12, fill: 'rgba(255,255,255,0.3)' }}
                 label={{
                   value: 'Seconds',
                   angle: -90,
                   position: 'insideLeft',
-                  style: { fill: 'hsl(var(--muted-foreground))', fontSize: 12 },
+                  style: { fill: 'rgba(255,255,255,0.3)', fontSize: 12 },
                 }}
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                  border: 'none',
+                  backgroundColor: 'rgba(20,24,40,0.95)',
+                  border: '1px solid rgba(255,255,255,0.1)',
                   borderRadius: '16px',
-                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
                   padding: '12px 16px',
                 }}
-                labelStyle={{ color: 'hsl(var(--foreground))', fontWeight: 600, marginBottom: 4 }}
-                itemStyle={{ color: 'hsl(var(--foreground))' }}
+                labelStyle={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, marginBottom: 4 }}
+                itemStyle={{ color: 'rgba(255,255,255,0.7)' }}
               />
               <Line
                 type="monotone"
