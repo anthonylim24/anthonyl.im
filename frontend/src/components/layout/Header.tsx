@@ -23,6 +23,7 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full">
       <div
+        className="safe-top"
         style={{
           background: 'linear-gradient(145deg, rgba(10, 14, 30, 0.82) 0%, rgba(8, 12, 26, 0.75) 100%)',
           backdropFilter: 'blur(32px) saturate(200%)',

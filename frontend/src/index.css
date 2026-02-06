@@ -68,6 +68,10 @@ body,
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }
 
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
 .safe-bottom {
   padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
 }

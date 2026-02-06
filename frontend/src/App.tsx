@@ -64,6 +64,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState(0);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -72,6 +73,24 @@ function App() {
   const shouldAutoScroll = useRef(true);
 
   usePointerGlow(inputContainerRef);
+
+  useEffect(() => {
+    const updateViewportHeight = () => {
+      const nextHeight = window.visualViewport?.height ?? window.innerHeight;
+      setViewportHeight((prev) => (prev === nextHeight ? prev : nextHeight));
+    };
+
+    updateViewportHeight();
+    window.addEventListener("resize", updateViewportHeight);
+    window.visualViewport?.addEventListener("resize", updateViewportHeight);
+    window.visualViewport?.addEventListener("scroll", updateViewportHeight);
+
+    return () => {
+      window.removeEventListener("resize", updateViewportHeight);
+      window.visualViewport?.removeEventListener("resize", updateViewportHeight);
+      window.visualViewport?.removeEventListener("scroll", updateViewportHeight);
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -189,6 +208,7 @@ function App() {
   };
 
   const hasMessages = messages.length > 0;
+  const isShortViewport = viewportHeight > 0 && viewportHeight < 760;
 
   return (
     <div className="fixed inset-0 flex flex-col bg-[#0a0a12] overflow-hidden noise-overlay">
@@ -219,11 +239,11 @@ function App() {
       <div className="absolute breath-orb breath-orb-indigo-deep w-[200px] h-[200px] top-1/2 left-1/3 animate-orb pointer-events-none" />
 
       {/* Main container */}
-      <div className="relative z-10 flex flex-col h-full max-w-3xl mx-auto w-full">
+      <div className="relative z-10 flex flex-col h-full max-w-3xl mx-auto w-full safe-top">
         {/* Header */}
         <header className={cn(
           "shrink-0 text-center transition-all duration-700 ease-out px-4",
-          hasMessages ? "py-3" : "py-8 sm:py-12"
+          hasMessages ? "py-3" : isShortViewport ? "py-3 sm:py-5" : "py-6 sm:py-10"
         )}>
           <div className={cn(
             "inline-block transition-all duration-700",
@@ -233,13 +253,13 @@ function App() {
               "font-display font-extrabold tracking-tight transition-all duration-700",
               hasMessages
                 ? "text-lg sm:text-xl text-white"
-                : "text-3xl sm:text-5xl gradient-text"
+                : isShortViewport ? "text-2xl sm:text-4xl gradient-text" : "text-3xl sm:text-5xl gradient-text"
             )}>
               Anthony Lim
             </h1>
             <p className={cn(
               "text-white/35 transition-all duration-700 font-semibold tracking-wide uppercase",
-              hasMessages ? "text-[10px] mt-0.5" : "text-xs sm:text-sm mt-2"
+              hasMessages ? "text-[10px] mt-0.5" : isShortViewport ? "text-[11px] sm:text-sm mt-1.5" : "text-xs sm:text-sm mt-2"
             )}>
               Software Engineer
             </p>
@@ -248,88 +268,100 @@ function App() {
 
         {/* Messages area */}
         <div className="flex-1 relative min-h-0">
-          <div
-            ref={messagesContainerRef}
-            onScroll={handleScroll}
-            className="absolute inset-0 overflow-y-auto overscroll-contain px-4 pb-4 scroll-smooth"
-          >
-            {/* Empty state */}
-            {!hasMessages && (
-              <div className="flex flex-col items-center justify-center h-full py-8 animate-scale-in">
-                {/* Decorative orb */}
-                <div className="relative mb-8">
-                  <div
-                    className="absolute inset-0 w-32 h-32 sm:w-36 sm:h-36 rounded-full blur-3xl animate-glow pointer-events-none"
-                    style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.35), rgba(129,140,248,0.15), transparent 70%)' }}
-                  />
-                  <div
-                    className="relative w-24 h-24 sm:w-28 sm:h-28 rounded-[28px] flex items-center justify-center animate-subtle-float"
-                    style={{
-                      background: 'linear-gradient(135deg, rgba(99,102,241,0.25), rgba(129,140,248,0.15))',
-                      backdropFilter: 'blur(24px) saturate(180%)',
-                      border: '1px solid rgba(255,255,255,0.08)',
-                      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1), 0 20px 50px -12px rgba(0,0,0,0.5), 0 0 40px rgba(99,102,241,0.15)',
-                    }}
-                  >
-                    <MessageCircle className="w-10 h-10 sm:w-12 sm:h-12 text-white/80" />
-                  </div>
-                </div>
-                <h2 className="font-display text-2xl sm:text-3xl font-extrabold gradient-text mb-2">
-                  Welcome
-                </h2>
-                <p className="text-white/35 text-center text-sm max-w-xs px-4 leading-relaxed font-medium">
-                  Ask me anything about Anthony's experience, skills, or background
-                </p>
-              </div>
-            )}
+          {hasMessages ? (
+            <div
+              ref={messagesContainerRef}
+              onScroll={handleScroll}
+              className="absolute inset-0 overflow-y-auto overscroll-contain px-4 pb-4 scroll-smooth"
+            >
+              {/* Messages */}
+              <div className="space-y-4 py-2">
+                {messages.map((message, index) => {
+                  const isUser = message.role === "user";
+                  const isLastAssistant = !isUser && index === messages.length - 1;
+                  const showContent = message.content || (isLastAssistant && isLoading);
 
-            {/* Messages */}
-            <div className="space-y-4 py-2">
-              {messages.map((message, index) => {
-                const isUser = message.role === "user";
-                const isLastAssistant = !isUser && index === messages.length - 1;
-                const showContent = message.content || (isLastAssistant && isLoading);
+                  if (!showContent) return null;
 
-                if (!showContent) return null;
-
-                return (
-                  <div
-                    key={message.id}
-                    className={cn(
-                      "flex animate-message-in",
-                      isUser ? "justify-end" : "justify-start"
-                    )}
-                  >
+                  return (
                     <div
+                      key={message.id}
                       className={cn(
-                        "max-w-[88%] sm:max-w-[80%] rounded-[20px] px-4 py-3 transition-all duration-300",
-                        isUser
-                          ? "ml-4 text-white"
-                          : "card-elevated mr-4 text-white/90"
+                        "flex animate-message-in",
+                        isUser ? "justify-end" : "justify-start"
                       )}
-                      style={isUser ? {
-                        background: 'linear-gradient(135deg, #6366F1, #818CF8)',
-                        boxShadow: '0 8px 24px -4px rgba(99,102,241,0.35), inset 0 1px 0 rgba(255,255,255,0.15)',
-                      } : undefined}
                     >
-                      {message.content ? (
-                        <Suspense fallback={<MessageSkeleton />}>
-                          <MessageContent
-                            content={message.content}
-                            isStreaming={isLastAssistant && isStreaming}
-                          />
-                        </Suspense>
-                      ) : (
-                        <TypingIndicator />
-                      )}
+                      <div
+                        className={cn(
+                          "max-w-[88%] sm:max-w-[80%] rounded-[20px] px-4 py-3 transition-all duration-300",
+                          isUser
+                            ? "ml-4 text-white"
+                            : "card-elevated mr-4 text-white/90"
+                        )}
+                        style={isUser ? {
+                          background: 'linear-gradient(135deg, #6366F1, #818CF8)',
+                          boxShadow: '0 8px 24px -4px rgba(99,102,241,0.35), inset 0 1px 0 rgba(255,255,255,0.15)',
+                        } : undefined}
+                      >
+                        {message.content ? (
+                          <Suspense fallback={<MessageSkeleton />}>
+                            <MessageContent
+                              content={message.content}
+                              isStreaming={isLastAssistant && isStreaming}
+                            />
+                          </Suspense>
+                        ) : (
+                          <TypingIndicator />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div ref={messagesEndRef} className="h-4 shrink-0" />
+            </div>
+          ) : (
+            <div className="h-full overflow-hidden px-4">
+              <div className={cn(
+                "flex flex-col items-center justify-start md:justify-center h-full",
+                isShortViewport ? "py-0.5 sm:py-2" : "py-3 sm:py-8"
+              )}>
+                {/* Decorative orb */}
+                {!isShortViewport && (
+                  <div className="relative mb-4 sm:mb-8 mt-2 sm:mt-0">
+                    <div
+                      className="absolute inset-0 w-32 h-32 sm:w-36 sm:h-36 rounded-full blur-3xl animate-glow pointer-events-none"
+                      style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.35), rgba(129,140,248,0.15), transparent 70%)' }}
+                    />
+                    <div
+                      className="relative w-20 h-20 sm:w-28 sm:h-28 rounded-[24px] sm:rounded-[28px] flex items-center justify-center animate-subtle-float"
+                      style={{
+                        background: 'linear-gradient(135deg, rgba(99,102,241,0.25), rgba(129,140,248,0.15))',
+                        backdropFilter: 'blur(24px) saturate(180%)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1), 0 20px 50px -12px rgba(0,0,0,0.5), 0 0 40px rgba(99,102,241,0.15)',
+                      }}
+                    >
+                      <MessageCircle className="w-8 h-8 sm:w-12 sm:h-12 text-white/80" />
                     </div>
                   </div>
-                );
-              })}
+                )}
+                <h2 className={cn(
+                  "font-display font-extrabold gradient-text leading-tight",
+                  isShortViewport ? "text-lg sm:text-2xl mb-1" : "text-xl sm:text-3xl mb-2"
+                )}>
+                  Welcome
+                </h2>
+                <p className={cn(
+                  "text-white/35 text-center max-w-xs px-4 leading-relaxed font-medium",
+                  isShortViewport ? "text-xs sm:text-sm" : "text-sm"
+                )}>
+                  Ask me anything about Anthony&apos;s experience, skills, or background
+                </p>
+              </div>
             </div>
-
-            <div ref={messagesEndRef} className="h-4 shrink-0" />
-          </div>
+          )}
 
           {/* Scroll to bottom button */}
           {showScrollButton && (
@@ -347,10 +379,13 @@ function App() {
         </div>
 
         {/* Input area */}
-        <div className="shrink-0 p-4 pb-safe">
+        <div className={cn("shrink-0 pb-safe", isShortViewport && !hasMessages ? "p-3" : "p-4")}>
           <div
             ref={inputContainerRef}
-            className="sculpted-card rounded-[24px] p-4 sm:p-5 relative overflow-hidden"
+            className={cn(
+              "sculpted-card rounded-[24px] relative overflow-hidden",
+              isShortViewport && !hasMessages ? "p-3 sm:p-4" : "p-4 sm:p-5"
+            )}
             style={{ '--glow-x': '0px', '--glow-y': '0px', '--glow-opacity': '0' } as React.CSSProperties}
           >
             {/* Pointer-following glow */}
@@ -360,14 +395,18 @@ function App() {
             />
             {/* Suggested questions - bento grid on empty, horizontal scroll with messages */}
             {!hasMessages ? (
-              <div className="relative z-10 grid grid-cols-2 gap-2.5 mb-4">
+              <div className={cn(
+                "relative z-10 grid grid-cols-2 gap-2.5",
+                isShortViewport ? "mb-2" : "mb-4"
+              )}>
                 {suggestedQuestions.map(({ text, icon: Icon }, index) => (
                   <button
                     key={text}
                     onClick={() => handleSubmit(undefined, text)}
                     disabled={isLoading}
                     className={cn(
-                      "card-elevated rounded-[16px] p-3.5 sm:p-4 text-left group",
+                      "card-elevated rounded-[16px] text-left group",
+                      isShortViewport ? "p-2.5 sm:p-3" : "p-3.5 sm:p-4",
                       "hover:border-[rgba(255,255,255,0.12)] active:scale-[0.97]",
                       "transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed",
                       "opacity-0 animate-slide-up",
@@ -443,7 +482,10 @@ function App() {
             </form>
 
             {/* Footer */}
-            <p className="relative z-10 text-center text-[10px] text-white/15 mt-3 font-medium tracking-wide">
+            <p className={cn(
+              "relative z-10 text-center text-[10px] text-white/15 font-medium tracking-wide",
+              isShortViewport && !hasMessages ? "mt-2" : "mt-3"
+            )}>
               Powered by AI · Responses may be inaccurate
             </p>
           </div>
