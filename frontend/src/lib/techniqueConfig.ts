@@ -1,34 +1,31 @@
 // techniqueConfig.ts – Shared technique visual configuration.
-// Replaces the 6 duplicated techniqueConfig objects scattered across pages/components.
 // Uses inline style helpers because Tailwind JIT can't resolve dynamic bracket classes.
 
 import type { TechniqueId } from './constants'
 import { TECHNIQUE_IDS } from './constants'
-import { TECHNIQUE, ACCENT, ACCENT_BRIGHT } from './palette'
+import { TECHNIQUE, TECHNIQUE_GRADIENT, ACCENT, ACCENT_BRIGHT } from './palette'
 
 export interface TechniqueVisual {
-  /** Primary technique color (hex) */
   primary: string
-  /** Secondary technique color (hex) */
   secondary: string
+  gradient: { from: string; via: string; to: string }
 }
 
 const VISUALS: Record<TechniqueId, TechniqueVisual> = {
-  [TECHNIQUE_IDS.BOX_BREATHING]:   TECHNIQUE.box,
-  [TECHNIQUE_IDS.CO2_TOLERANCE]:   TECHNIQUE.co2,
-  [TECHNIQUE_IDS.POWER_BREATHING]: TECHNIQUE.power,
+  [TECHNIQUE_IDS.BOX_BREATHING]:   { ...TECHNIQUE.box, gradient: TECHNIQUE_GRADIENT.box },
+  [TECHNIQUE_IDS.CO2_TOLERANCE]:   { ...TECHNIQUE.co2, gradient: TECHNIQUE_GRADIENT.co2 },
+  [TECHNIQUE_IDS.POWER_BREATHING]: { ...TECHNIQUE.power, gradient: TECHNIQUE_GRADIENT.power },
 }
 
-/** Get the visual config for a technique */
 export function getTechniqueVisual(id: TechniqueId): TechniqueVisual {
   return VISUALS[id]
 }
 
-/** Inline style for a gradient background (e.g. icon boxes, buttons) */
+/** Inline style for a gradient background (icon boxes, buttons) */
 export function techniqueGradientStyle(id: TechniqueId): React.CSSProperties {
   const v = VISUALS[id]
   return {
-    background: `linear-gradient(to bottom right, ${v.primary}, ${v.secondary})`,
+    background: `linear-gradient(135deg, ${v.gradient.from}, ${v.gradient.to})`,
     boxShadow: `0 10px 15px -3px ${v.primary}40`,
   }
 }
@@ -37,9 +34,19 @@ export function techniqueGradientStyle(id: TechniqueId): React.CSSProperties {
 export function techniqueActiveStyle(id: TechniqueId): React.CSSProperties {
   const v = VISUALS[id]
   return {
-    borderColor: `${v.primary}80`,
-    backgroundColor: `${v.primary}1A`, // ~10% opacity
-    boxShadow: `0 10px 15px -3px ${v.primary}30`,
+    borderColor: `${v.primary}50`,
+    boxShadow: `0 0 0 1px ${v.primary}30, inset 0 1px 0 rgba(255,255,255,0.08), 0 20px 50px -12px rgba(0,0,0,0.5)`,
+    background: `linear-gradient(160deg, ${v.gradient.from}18 0%, ${v.gradient.to}10 100%)`,
+  }
+}
+
+/** Full vivid gradient for technique feature cards (Dribbble-style colorful cards) */
+export function techniqueCardGradient(id: TechniqueId): React.CSSProperties {
+  const v = VISUALS[id]
+  return {
+    background: `linear-gradient(135deg, ${v.gradient.from} 0%, ${v.gradient.via} 50%, ${v.gradient.to} 100%)`,
+    border: '1px solid rgba(255, 255, 255, 0.12)',
+    boxShadow: `inset 0 1px 0 rgba(255,255,255,0.15), 0 24px 60px -12px ${v.primary}35, 0 12px 28px -8px rgba(0,0,0,0.4)`,
   }
 }
 
@@ -47,7 +54,7 @@ export function techniqueActiveStyle(id: TechniqueId): React.CSSProperties {
 export function techniqueProgressStyle(id: TechniqueId): React.CSSProperties {
   const v = VISUALS[id]
   return {
-    background: `linear-gradient(to right, ${v.primary}, ${v.secondary})`,
+    background: `linear-gradient(to right, ${v.gradient.from}, ${v.gradient.to})`,
   }
 }
 

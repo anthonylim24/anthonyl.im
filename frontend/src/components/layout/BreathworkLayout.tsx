@@ -4,31 +4,32 @@ import { Navigation } from './Navigation'
 import { useTheme } from '@/hooks/useTheme'
 
 export function BreathworkLayout() {
-  // Initialize theme system
   useTheme()
 
   return (
-    <div className="breathwork-layout">
-      {/* Warm gradient background */}
+    <div className="breathwork-layout noise-overlay">
+      {/* Deep background with subtle radial vignettes */}
       <div className="fixed inset-0 breath-bg transition-colors duration-700" />
 
-      {/* Animated gradient overlay – indigo */}
-      <div className="fixed inset-0 animate-breath-gradient opacity-30 pointer-events-none"
+      {/* Slow-moving gradient wash */}
+      <div
+        className="fixed inset-0 animate-breath-gradient opacity-20 pointer-events-none"
         style={{
-          background: 'linear-gradient(135deg, rgba(110,123,242,0.06) 0%, rgba(75,85,184,0.06) 25%, rgba(139,150,255,0.06) 50%, rgba(110,123,242,0.06) 75%, rgba(75,85,184,0.06) 100%)',
-          backgroundSize: '400% 400%'
+          background:
+            'linear-gradient(135deg, rgba(99,102,241,0.06) 0%, rgba(79,70,229,0.05) 25%, rgba(129,140,248,0.05) 50%, rgba(99,102,241,0.06) 75%, rgba(79,70,229,0.05) 100%)',
+          backgroundSize: '400% 400%',
         }}
       />
 
-      {/* Decorative floating orbs – indigo family */}
+      {/* Ambient orbs */}
       <div className="fixed breath-orb breath-orb-indigo w-[300px] h-[300px] -top-20 -left-20 animate-orb-slow" />
       <div className="fixed breath-orb breath-orb-indigo-light w-[200px] h-[200px] bottom-20 right-1/4 animate-orb-delayed" />
 
-      {/* Main container */}
+      {/* Content */}
       <div className="breathwork relative z-10 min-h-screen min-h-[100svh]">
         <Header />
         <main>
-          <div className="w-full max-w-5xl mx-auto px-5 sm:px-8 lg:px-12 py-6 sm:py-10 pb-24 md:pb-10">
+          <div className="w-full max-w-5xl mx-auto px-5 sm:px-8 lg:px-12 py-6 sm:py-10 pb-28 md:pb-10">
             <Outlet />
           </div>
         </main>

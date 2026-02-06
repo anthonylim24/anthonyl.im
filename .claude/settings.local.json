@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Skill(superpowers:brainstorming)"
+      "Skill(superpowers:brainstorming)",
+      "Bash(wc:*)",
+      "WebFetch(domain:dribbble.com)",
+      "Bash(npx tsc:*)",
+      "Bash(npx vite build:*)",
+      "Bash(npx vitest:*)"
     ]
   }
 }

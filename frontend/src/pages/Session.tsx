@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import { BreathingSession } from '@/components/breathing/BreathingSession'
 import {
   breathingProtocols,
@@ -10,7 +11,11 @@ import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 import { formatTime, cn } from '@/lib/utils'
 import { ACCENT_BRIGHT } from '@/lib/palette'
 import { techniqueGradientStyle, techniqueActiveStyle } from '@/lib/techniqueConfig'
-import { Wind, Flame, Box, Clock, Minus, Plus, Play, Sparkles } from 'lucide-react'
+import { Wind, Flame, Box, Clock, Minus, Plus, Play } from 'lucide-react'
+
+const spring = { type: 'spring' as const, stiffness: 300, damping: 30, mass: 1 }
+const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } }
+const fadeUp = { hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0, transition: spring } }
 
 const techniqueIcons: Record<TechniqueId, React.ReactNode> = {
   [TECHNIQUE_IDS.BOX_BREATHING]: <Box className="h-5 w-5" />,
@@ -75,127 +80,147 @@ export function Session() {
   }
 
   return (
-    <div className="pb-4">
+    <motion.div className="pb-4" variants={stagger} initial="hidden" animate="show">
       <div className="max-w-2xl mx-auto space-y-8 sm:space-y-10">
         {/* Header */}
-        <div className="text-center space-y-3 sm:space-y-4">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full liquid-glass-breath text-sm font-medium animate-scale-in">
-            <Sparkles className="h-4 w-4" style={{ color: ACCENT_BRIGHT }} />
-            <span className="text-white/50">Configure Your Practice</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold opacity-0 animate-slide-up stagger-1">
-            <span className="gradient-text-breath">Session</span>{' '}
-            <span className="text-white">Setup</span>
+        <motion.div variants={fadeUp}>
+          <h1 className="font-display text-[28px] sm:text-4xl font-bold text-white tracking-tight">
+            Session Setup
           </h1>
-          <p className="text-sm sm:text-base text-white/40 opacity-0 animate-slide-up stagger-2">
-            Choose your technique and customize your session
+          <p className="text-sm text-white/35 mt-1.5">
+            Choose your technique and customize
           </p>
-        </div>
+        </motion.div>
 
-        {/* Technique Selection - 3 clickable cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 opacity-0 animate-slide-up stagger-3">
+        {/* Technique Selection - horizontal pill picker on mobile, 3-col on sm+ */}
+        <motion.div variants={fadeUp} className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           {Object.values(TECHNIQUE_IDS).map((id) => {
             const p = breathingProtocols[id]
             const isSelected = selectedTechnique === id
 
             return (
-              <button
+              <motion.button
                 key={id}
+                whileTap={{ scale: 0.98 }}
+                transition={spring}
                 onClick={() => handleTechniqueChange(id)}
                 className={cn(
-                  'liquid-glass-breath rounded-2xl p-5 text-left transition-all duration-300',
-                  'border hover:scale-[1.02]',
+                  'liquid-glass-breath rounded-[20px] p-5 text-left transition-all duration-300',
+                  'border',
                   !isSelected && 'border-white/5 hover:border-white/10'
                 )}
                 style={isSelected ? techniqueActiveStyle(id) : undefined}
               >
-                <div className="h-12 w-12 rounded-xl flex items-center justify-center mb-3" style={techniqueGradientStyle(id)}>
+                <div
+                  className="h-12 w-12 rounded-2xl flex items-center justify-center mb-3"
+                  style={techniqueGradientStyle(id)}
+                >
                   <span className="text-white">{techniqueIcons[id]}</span>
                 </div>
-                <h3 className="text-base font-semibold text-white mb-1">{p.name}</h3>
-                <p className="text-xs text-white/40 leading-relaxed line-clamp-2">
+                <h3 className="font-display text-base font-bold text-white mb-0.5">{p.name}</h3>
+                <p className="text-xs text-white/35 leading-relaxed line-clamp-2">
                   {p.purpose}
                 </p>
                 {/* Phase pattern */}
                 <div className="flex items-center gap-1.5 mt-3 flex-wrap">
                   {p.phases.map((phase, i) => (
                     <span key={i} className="flex items-center gap-1">
-                      <span className="px-2 py-0.5 rounded-md bg-white/5 text-[10px] font-mono text-white/50">
+                      <span className="px-2 py-0.5 rounded-md surface-inset text-[10px] font-mono text-white/45">
                         {phase.duration}s
                       </span>
                       {i < p.phases.length - 1 && (
-                        <span className="text-white/20 text-[10px]">→</span>
+                        <span className="text-white/15 text-[10px]">→</span>
                       )}
                     </span>
                   ))}
                 </div>
-              </button>
+              </motion.button>
             )
           })}
-        </div>
+        </motion.div>
 
-        {/* Selected technique description */}
-        <div className="liquid-glass-breath rounded-2xl p-5 opacity-0 animate-slide-up stagger-3">
+        {/* Selected technique detail */}
+        <motion.div variants={fadeUp} className="liquid-glass-breath rounded-[20px] p-5">
           <div className="flex items-start gap-4">
-            <div className="h-12 w-12 rounded-xl flex items-center justify-center shrink-0" style={techniqueGradientStyle(selectedTechnique)}>
+            <div
+              className="h-12 w-12 rounded-2xl flex items-center justify-center shrink-0"
+              style={techniqueGradientStyle(selectedTechnique)}
+            >
               <span className="text-white">{techniqueIcons[selectedTechnique]}</span>
             </div>
             <div className="min-w-0">
-              <h3 className="text-lg font-semibold text-white">{protocol.name}</h3>
-              <p className="mt-1 text-sm text-white/40 leading-relaxed">{protocol.description}</p>
+              <h3 className="font-display text-lg font-bold text-white">{protocol.name}</h3>
+              <p className="mt-1 text-sm text-white/35 leading-relaxed">{protocol.description}</p>
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        {/* Session Configuration */}
-        <div className="liquid-glass-breath rounded-2xl overflow-hidden opacity-0 animate-slide-up stagger-4">
-          <div className="p-5 sm:p-6 space-y-6 sm:space-y-8">
+        {/* Round Counter */}
+        <motion.div variants={fadeUp} className="sculpted-card rounded-[24px] overflow-hidden">
+          <div className="p-6 sm:p-8 space-y-8">
             {/* Rounds */}
-            <div className="space-y-4">
-              <label className="text-sm font-medium text-white/50">Number of Rounds</label>
-              <div className="flex items-center justify-center gap-5 sm:gap-8">
-                <button
+            <div className="space-y-5">
+              <label className="text-xs font-medium text-white/40 tracking-wide uppercase">
+                Number of Rounds
+              </label>
+              <div className="flex items-center justify-center gap-6 sm:gap-10">
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  transition={spring}
                   onClick={() => setRounds((r) => Math.max(1, r - 1))}
                   disabled={rounds <= 1}
-                  className="h-12 w-12 sm:h-14 sm:w-14 rounded-xl bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 border border-white/10 text-white"
+                  className="h-14 w-14 rounded-2xl surface-inset hover:bg-white/5 disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 text-white"
                 >
                   <Minus className="h-5 w-5" />
-                </button>
+                </motion.button>
                 <div className="text-center min-w-[100px]">
-                  <span className="text-5xl sm:text-6xl font-bold tabular-nums text-white">
+                  <span className="font-display text-6xl sm:text-7xl font-extrabold tabular-nums text-white leading-none">
                     {rounds}
                   </span>
-                  <span className="block text-sm text-white/40 mt-1 font-medium">rounds</span>
+                  <span className="block text-xs text-white/35 mt-2 font-medium tracking-wide uppercase">
+                    rounds
+                  </span>
                 </div>
-                <button
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  transition={spring}
                   onClick={() => setRounds((r) => Math.min(20, r + 1))}
                   disabled={rounds >= 20}
-                  className="h-12 w-12 sm:h-14 sm:w-14 rounded-xl bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 border border-white/10 text-white"
+                  className="h-14 w-14 rounded-2xl surface-inset hover:bg-white/5 disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 text-white"
                 >
                   <Plus className="h-5 w-5" />
-                </button>
+                </motion.button>
               </div>
             </div>
 
             {/* Estimated Duration */}
-            <div className="flex items-center justify-center gap-3 py-4 px-6 rounded-2xl bg-white/5 border border-white/5">
-              <Clock className="h-5 w-5 text-white/40" />
-              <span className="text-sm text-white/40">Estimated:</span>
-              <span className="font-bold text-lg text-white">{formatTime(estimatedDuration)}</span>
+            <div className="flex items-center justify-center gap-3 py-4 px-6 rounded-2xl surface-inset">
+              <Clock className="h-4.5 w-4.5 text-white/30" />
+              <span className="text-sm text-white/35">Estimated</span>
+              <span className="font-display font-bold text-lg text-white tabular-nums">
+                {formatTime(estimatedDuration)}
+              </span>
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Start Button */}
-        <button
+        <motion.button
+          variants={fadeUp}
+          whileTap={{ scale: 0.98 }}
+          whileHover={{ scale: 1.02 }}
+          transition={spring}
           onClick={handleStartSession}
-          className="w-full py-4 sm:py-5 px-6 rounded-2xl font-semibold text-white text-base sm:text-lg shadow-xl hover:shadow-2xl flex items-center justify-center gap-3 transition-all duration-300 hover:scale-[1.02] opacity-0 animate-scale-in stagger-5"
-          style={techniqueGradientStyle(selectedTechnique)}
+          className="w-full py-5 px-6 rounded-[20px] font-display font-bold text-white text-lg flex items-center justify-center gap-3"
+          style={{
+            ...techniqueGradientStyle(selectedTechnique),
+            boxShadow: `0 20px 40px -12px ${ACCENT_BRIGHT}40`,
+          }}
         >
-          <Play className="h-5 w-5 sm:h-6 sm:w-6" />
+          <Play className="h-5 w-5" />
           Begin {protocol.name}
-        </button>
+        </motion.button>
       </div>
-    </div>
+    </motion.div>
   )
 }

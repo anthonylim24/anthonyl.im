@@ -4,6 +4,7 @@ import { formatDate } from '@/lib/utils'
 import { getTechniqueVisual, techniqueGradientStyle } from '@/lib/techniqueConfig'
 import type { PersonalBest } from '@/stores/historyStore'
 import { Wind, Flame, Box, Trophy } from 'lucide-react'
+import { ACCENT_BRIGHT } from '@/lib/palette'
 
 interface PersonalBestsProps {
   personalBests: Record<TechniqueId, PersonalBest | undefined>
@@ -20,16 +21,16 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
 
   if (!hasBests) {
     return (
-      <div className="liquid-glass-breath rounded-3xl overflow-hidden">
-        <div className="p-5 sm:p-6 border-b border-white/10">
-          <h3 className="flex items-center gap-2 font-semibold text-white">
-            <Trophy className="h-5 w-5 text-[#B0B8FF]" />
+      <div className="sculpted-card rounded-[22px] overflow-hidden">
+        <div className="p-5 sm:p-6 border-b border-white/6">
+          <h3 className="flex items-center gap-2.5 font-display font-bold text-white">
+            <Trophy className="h-5 w-5" style={{ color: ACCENT_BRIGHT }} />
             Personal Bests
           </h3>
         </div>
         <div className="p-5 sm:p-6">
-          <div className="text-center text-white/40 py-4">
-            Complete sessions to set personal records!
+          <div className="text-center text-white/30 py-6 text-sm">
+            Complete sessions to set personal records
           </div>
         </div>
       </div>
@@ -37,10 +38,10 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
   }
 
   return (
-    <div className="liquid-glass-breath rounded-3xl overflow-hidden">
-      <div className="p-5 sm:p-6 border-b border-white/10">
-        <h3 className="flex items-center gap-2 font-semibold text-white">
-          <Trophy className="h-5 w-5 text-[#B0B8FF]" />
+    <div className="sculpted-card rounded-[22px] overflow-hidden">
+      <div className="p-5 sm:p-6 border-b border-white/6">
+        <h3 className="flex items-center gap-2.5 font-display font-bold text-white">
+          <Trophy className="h-5 w-5" style={{ color: ACCENT_BRIGHT }} />
           Personal Bests
         </h3>
       </div>
@@ -54,25 +55,25 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
             return (
               <div
                 key={techniqueId}
-                className="flex items-center justify-between p-4 bg-white/5 rounded-2xl group hover:bg-white/10 transition-all duration-300"
+                className="flex items-center justify-between p-4 rounded-[16px] surface-inset group hover:bg-white/5 transition-all duration-300"
               >
                 <div className="flex items-center gap-3">
                   <div
-                    className="h-11 w-11 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300"
+                    className="h-11 w-11 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform duration-300"
                     style={techniqueGradientStyle(techniqueId)}
                   >
                     <span className="text-white">{techniqueIcons[techniqueId]}</span>
                   </div>
                   <div>
-                    <div className="font-semibold text-white">
+                    <div className="font-semibold text-sm text-white">
                       {breathingProtocols[techniqueId].name}
                     </div>
-                    <div className="text-sm text-white/40">
+                    <div className="text-xs text-white/30">
                       {formatDate(new Date(best.date))}
                     </div>
                   </div>
                 </div>
-                <div className="text-2xl font-bold" style={{ color: tv.primary }}>
+                <div className="font-display text-2xl font-bold tabular-nums" style={{ color: tv.primary }}>
                   {best.maxHoldTime}s
                 </div>
               </div>

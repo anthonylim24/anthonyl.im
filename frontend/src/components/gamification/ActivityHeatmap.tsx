@@ -56,46 +56,47 @@ export function ActivityHeatmap({ sessions }: ActivityHeatmapProps) {
     return { backgroundColor: HEATMAP[3] }
   }
 
+  const numCols = Math.ceil(cells.length / 7) || 12
+
   return (
-    <div className="space-y-2">
-      <div className="flex gap-0 ml-0 text-[10px] text-muted-foreground">
-        {months.map((m, i) => (
-          <span
-            key={i}
-            className="flex-shrink-0"
-            style={{
-              marginLeft:
-                i === 0
-                  ? 0
-                  : `${(m.col - (months[i - 1]?.col ?? 0) - 1) * 16}px`,
-            }}
-          >
-            {m.label}
-          </span>
-        ))}
-      </div>
-      <div className="flex gap-[3px]">
-        {Array.from({ length: 12 }, (_, col) => (
-          <div key={col} className="flex flex-col gap-[3px]">
-            {Array.from({ length: 7 }, (_, row) => {
-              const cell = cells.find((c) => c.col === col && c.row === row)
-              return (
-                <div
-                  key={row}
-                  data-cell
-                  data-active={cell && cell.count > 0 ? 'true' : 'false'}
-                  className="w-3 h-3 rounded-[3px] transition-colors bg-white/5"
-                  style={cell ? getIntensityStyle(cell.count) : undefined}
-                  title={
-                    cell
-                      ? `${cell.date}: ${cell.count} session${cell.count !== 1 ? 's' : ''}`
-                      : ''
-                  }
-                />
-              )
-            })}
-          </div>
-        ))}
+    <div className="liquid-glass-breath rounded-[20px] p-5">
+      <div className="space-y-2">
+        {/* Month labels – positioned proportionally across the grid */}
+        <div className="relative h-4 text-[10px] text-white/30 font-medium">
+          {months.map((m, i) => (
+            <span
+              key={i}
+              className="absolute"
+              style={{ left: `${(m.col / numCols) * 100}%` }}
+            >
+              {m.label}
+            </span>
+          ))}
+        </div>
+        {/* Heatmap grid – columns flex to fill width */}
+        <div className="flex gap-[3px]">
+          {Array.from({ length: numCols }, (_, col) => (
+            <div key={col} className="flex-1 flex flex-col gap-[3px]">
+              {Array.from({ length: 7 }, (_, row) => {
+                const cell = cells.find((c) => c.col === col && c.row === row)
+                return (
+                  <div
+                    key={row}
+                    data-cell
+                    data-active={cell && cell.count > 0 ? 'true' : 'false'}
+                    className="w-full aspect-square rounded-[4px] transition-colors bg-white/[0.04]"
+                    style={cell ? getIntensityStyle(cell.count) : undefined}
+                    title={
+                      cell
+                        ? `${cell.date}: ${cell.count} session${cell.count !== 1 ? 's' : ''}`
+                        : ''
+                    }
+                  />
+                )
+              })}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )

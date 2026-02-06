@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { Wind, BarChart3, Home, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ACCENT, ACCENT_BRIGHT } from '@/lib/palette'
 
 export function Header() {
   const location = useLocation()
@@ -21,18 +22,35 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full">
-      <div className="liquid-glass-breath border-b border-white/20">
+      <div
+        style={{
+          background: 'linear-gradient(145deg, rgba(10, 14, 30, 0.82) 0%, rgba(8, 12, 26, 0.75) 100%)',
+          backdropFilter: 'blur(32px) saturate(200%)',
+          WebkitBackdropFilter: 'blur(32px) saturate(200%)',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+          boxShadow: 'inset 0 -1px 0 rgba(255, 255, 255, 0.04), 0 4px 24px rgba(0, 0, 0, 0.3)',
+        }}
+      >
         <div className="container flex h-16 items-center justify-between px-6">
           <div className="flex items-center">
             {/* Logo */}
             <Link to="/breathwork" className="flex items-center gap-3 mr-8 group">
               <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-br from-[#6E7BF2]/30 to-[#8B96FF]/30 rounded-xl blur-lg group-hover:from-[#6E7BF2]/40 group-hover:to-[#8B96FF]/40 transition-all duration-300" />
-                <div className="relative h-10 w-10 rounded-xl bg-gradient-to-br from-[#6E7BF2] to-[#8B96FF] flex items-center justify-center shadow-lg shadow-[#6E7BF2]/25 group-hover:scale-105 transition-transform duration-300">
+                <div
+                  className="absolute inset-0 rounded-xl blur-lg opacity-40 group-hover:opacity-50 transition-opacity duration-300"
+                  style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_BRIGHT})` }}
+                />
+                <div
+                  className="relative h-10 w-10 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform duration-300"
+                  style={{
+                    background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_BRIGHT})`,
+                    boxShadow: `0 8px 20px -4px ${ACCENT}40`,
+                  }}
+                >
                   <Wind className="h-5 w-5 text-white" />
                 </div>
               </div>
-              <span className="font-semibold text-lg tracking-tight hidden sm:block bg-gradient-to-r from-[#8B96FF] to-[#6E7BF2] bg-clip-text text-transparent">
+              <span className="font-display font-bold text-lg tracking-tight hidden sm:block gradient-text-breath">
                 BreathFlow
               </span>
             </Link>
@@ -44,11 +62,15 @@ export function Header() {
                   key={path}
                   to={path}
                   className={cn(
-                    'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300',
+                    'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-300',
                     isActive(path)
-                      ? 'bg-gradient-to-r from-[#6E7BF2]/15 to-[#8B96FF]/15 text-[#8B96FF] shadow-sm'
-                      : 'text-white/40 hover:text-white hover:bg-white/10'
+                      ? 'text-white'
+                      : 'text-white/35 hover:text-white/70 hover:bg-white/5'
                   )}
+                  style={isActive(path) ? {
+                    background: `linear-gradient(135deg, ${ACCENT}20, ${ACCENT_BRIGHT}15)`,
+                    color: ACCENT_BRIGHT,
+                  } : undefined}
                 >
                   <Icon className={cn(
                     "h-4 w-4 transition-transform duration-300",

@@ -21,12 +21,10 @@ export function ProgressChart({
   sessions,
   title = 'Hold Time Progress',
 }: ProgressChartProps) {
-  // Memoize chart data transformation - combined into single efficient loop
   const chartData = useMemo(() => {
     const result = []
     const start = Math.max(0, sessions.length - 14)
 
-    // Single reverse iteration instead of reverse().slice().map()
     for (let i = sessions.length - 1; i >= start; i--) {
       const session = sessions[i]
       result.push({
@@ -44,15 +42,15 @@ export function ProgressChart({
 
   if (chartData.length === 0) {
     return (
-      <div className="liquid-glass-breath rounded-3xl overflow-hidden">
-        <div className="p-5 sm:p-6 border-b border-white/10">
-          <h3 className="flex items-center gap-2 font-semibold text-white">
+      <div className="sculpted-card rounded-[22px] overflow-hidden">
+        <div className="p-5 sm:p-6 border-b border-white/6">
+          <h3 className="flex items-center gap-2.5 font-display font-bold text-white">
             <TrendingUp className="h-5 w-5 text-[#6E7BF2]" />
             {title}
           </h3>
         </div>
         <div className="p-5 sm:p-6">
-          <div className="h-64 flex items-center justify-center text-white/40">
+          <div className="h-64 flex items-center justify-center text-white/30 text-sm">
             Complete sessions to see your progress chart
           </div>
         </div>
@@ -61,9 +59,9 @@ export function ProgressChart({
   }
 
   return (
-    <div className="liquid-glass-breath rounded-3xl overflow-hidden">
-      <div className="p-5 sm:p-6 border-b border-white/10">
-        <h3 className="flex items-center gap-2 font-semibold text-white">
+    <div className="sculpted-card rounded-[22px] overflow-hidden">
+      <div className="p-5 sm:p-6 border-b border-white/6">
+        <h3 className="flex items-center gap-2.5 font-display font-bold text-white">
           <TrendingUp className="h-5 w-5 text-[#6E7BF2]" />
           {title}
         </h3>
@@ -72,30 +70,31 @@ export function ProgressChart({
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 12, fill: 'rgba(255,255,255,0.3)' }}
+                tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.25)', fontFamily: 'DM Sans' }}
               />
               <YAxis
-                tick={{ fontSize: 12, fill: 'rgba(255,255,255,0.3)' }}
+                tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.25)', fontFamily: 'DM Sans' }}
                 label={{
                   value: 'Seconds',
                   angle: -90,
                   position: 'insideLeft',
-                  style: { fill: 'rgba(255,255,255,0.3)', fontSize: 12 },
+                  style: { fill: 'rgba(255,255,255,0.25)', fontSize: 11, fontFamily: 'DM Sans' },
                 }}
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: 'rgba(20,24,40,0.95)',
-                  border: '1px solid rgba(255,255,255,0.1)',
+                  backgroundColor: 'rgba(14,18,38,0.95)',
+                  border: '1px solid rgba(255,255,255,0.08)',
                   borderRadius: '16px',
-                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+                  boxShadow: '0 16px 48px rgba(0, 0, 0, 0.4)',
                   padding: '12px 16px',
+                  fontFamily: 'DM Sans',
                 }}
-                labelStyle={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, marginBottom: 4 }}
-                itemStyle={{ color: 'rgba(255,255,255,0.7)' }}
+                labelStyle={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, marginBottom: 4, fontFamily: 'DM Sans' }}
+                itemStyle={{ color: 'rgba(255,255,255,0.6)', fontFamily: 'DM Sans' }}
               />
               <Line
                 type="monotone"

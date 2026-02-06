@@ -1,50 +1,57 @@
-// palette.ts – Single source of truth for the indigo monochrome color system.
-// Every color in the breathwork UI derives from this file.
+// palette.ts – Single source of truth for the indigo color system.
+// Uses Tailwind's indigo scale for consistency with the broader design system.
 
 // ── Backgrounds ──────────────────────────────────────────────────────────────
-export const BG = '#080b16'
-export const BG_ELEVATED = '#0d1121'
+export const BG = '#050816'
+export const BG_ELEVATED = '#0a0f1e'
 
 // ── Text ─────────────────────────────────────────────────────────────────────
 export const TEXT = '#e8eaf0'
 export const TEXT_MUTED = 'rgba(200,210,230,0.5)'
 
 // ── Accent (indigo) ─────────────────────────────────────────────────────────
-export const ACCENT = '#6E7BF2'
-export const ACCENT_BRIGHT = '#8B96FF'
-export const ACCENT_SUBTLE = '#4B55B8'
+export const ACCENT = '#6366F1'        // indigo-500
+export const ACCENT_BRIGHT = '#818CF8' // indigo-400
+export const ACCENT_SUBTLE = '#4F46E5' // indigo-600
 
 // ── Technique colors ────────────────────────────────────────────────────────
 export const TECHNIQUE = {
-  box:   { primary: '#7C8AFF', secondary: '#6E7BF2' },
-  co2:   { primary: '#5B6AD4', secondary: '#4B5ABE' },
-  power: { primary: '#99A5FF', secondary: '#8B96FF' },
+  box:   { primary: '#818CF8', secondary: '#6366F1' },  // indigo-400 → 500
+  co2:   { primary: '#6366F1', secondary: '#4F46E5' },  // indigo-500 → 600
+  power: { primary: '#A5B4FC', secondary: '#818CF8' },  // indigo-300 → 400
 } as const
 
 // ── Breath-phase colors (lightness ramp) ────────────────────────────────────
 export const PHASE = {
-  inhale:   '#8B96FF',
-  hold_in:  '#B0B8FF',
-  exhale:   '#5B6AD4',
-  hold_out: '#3D4A9E',
-  rest:     '#2A3370',
+  inhale:   '#818CF8', // indigo-400
+  hold_in:  '#A5B4FC', // indigo-300
+  exhale:   '#6366F1', // indigo-500
+  hold_out: '#4F46E5', // indigo-600
+  rest:     '#3730A3', // indigo-800
 } as const
 
 // ── Achievement / gamification ──────────────────────────────────────────────
-export const ACHIEVEMENT = '#B0B8FF'
-export const PERSONAL_BEST = '#A898FF'
+export const ACHIEVEMENT = '#A5B4FC'   // indigo-300
+export const PERSONAL_BEST = '#C7D2FE' // indigo-200
 
 // ── Destructive (the only non-indigo color) ─────────────────────────────────
-export const DESTRUCTIVE = '#E55B6B'
+export const DESTRUCTIVE = '#EF4444'
 
 // ── Heatmap intensity stops (indigo at varying alpha) ───────────────────────
 export const HEATMAP = [
-  'rgba(110,123,242, 0.05)',
-  'rgba(110,123,242, 0.25)',
-  'rgba(110,123,242, 0.45)',
-  'rgba(110,123,242, 0.70)',
+  'rgba(99,102,241, 0.05)',
+  'rgba(99,102,241, 0.25)',
+  'rgba(99,102,241, 0.45)',
+  'rgba(99,102,241, 0.70)',
 ] as const
 
 // ── Glass tint ──────────────────────────────────────────────────────────────
-export const GLASS_TINT = 'rgba(110,123,242, 0.08)'
-export const GLASS_BORDER = 'rgba(255,255,255,0.10)'
+export const GLASS_TINT = 'rgba(99,102,241, 0.08)'
+export const GLASS_BORDER = 'rgba(255,255,255,0.08)'
+
+// ── Gradient card backgrounds per technique ─────────────────────────────────
+export const TECHNIQUE_GRADIENT = {
+  box:   { from: '#4338CA', via: '#6366F1', to: '#818CF8' },   // deep → mid → bright
+  co2:   { from: '#312E81', via: '#4338CA', to: '#6366F1' },   // darker spectrum
+  power: { from: '#6366F1', via: '#818CF8', to: '#A5B4FC' },   // bright spectrum
+} as const

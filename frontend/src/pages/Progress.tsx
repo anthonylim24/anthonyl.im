@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { motion } from 'framer-motion'
 import { ProgressChart } from '@/components/tracking/ProgressChart'
 import { SessionHistory } from '@/components/tracking/SessionHistory'
 import { PersonalBests } from '@/components/tracking/PersonalBests'
@@ -14,6 +15,10 @@ import { cn } from '@/lib/utils'
 import { ACCENT, ACCENT_BRIGHT } from '@/lib/palette'
 import { techniqueGradientStyle } from '@/lib/techniqueConfig'
 import { Trash2, Wind, Flame, Box, Sparkles, Award, CalendarDays } from 'lucide-react'
+
+const spring = { type: 'spring' as const, stiffness: 300, damping: 30, mass: 1 }
+const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } }
+const fadeUp = { hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0, transition: spring } }
 
 const techniqueIcons: Record<TechniqueId, React.ReactNode> = {
   [TECHNIQUE_IDS.BOX_BREATHING]: <Box className="h-4 w-4" />,
@@ -66,28 +71,29 @@ export function Progress() {
   }
 
   return (
-    <div className="pb-4">
+    <motion.div className="pb-4" variants={stagger} initial="hidden" animate="show">
       <div className="space-y-8 sm:space-y-10">
         {/* Header */}
-        <div className="flex items-center justify-between gap-4">
-          <div className="space-y-1">
-            <h1 className="text-2xl sm:text-3xl font-bold text-white opacity-0 animate-slide-up stagger-1">
-              Your Progress
+        <motion.div variants={fadeUp} className="flex items-center justify-between gap-4">
+          <div>
+            <h1 className="font-display text-[28px] sm:text-4xl font-bold text-white tracking-tight">
+              Progress
             </h1>
+            <p className="text-sm text-white/35 mt-1">Your journey so far</p>
           </div>
           <div className="relative">
             {showClearConfirm ? (
-              <div className="flex items-center gap-2 animate-scale-in">
-                <span className="text-sm text-white/50">Clear all data?</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-white/40">Clear all?</span>
                 <button
                   onClick={handleClearHistory}
-                  className="px-3 py-1.5 rounded-lg text-sm font-medium bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all duration-300"
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-all duration-300"
                 >
                   Yes
                 </button>
                 <button
                   onClick={() => setShowClearConfirm(false)}
-                  className="px-3 py-1.5 rounded-lg text-sm font-medium bg-white/5 text-white/50 hover:bg-white/10 transition-all duration-300"
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold surface-inset text-white/50 hover:text-white/70 transition-all duration-300"
                 >
                   No
                 </button>
@@ -95,87 +101,99 @@ export function Progress() {
             ) : (
               <button
                 onClick={() => setShowClearConfirm(true)}
-                className="px-4 py-2 rounded-xl text-sm font-medium text-red-400 hover:bg-red-500/10 transition-all duration-300 flex items-center gap-2"
+                className="px-3 py-2 rounded-xl text-sm text-white/25 hover:text-red-400 hover:bg-red-500/10 transition-all duration-300"
               >
                 <Trash2 className="h-4 w-4" />
-                <span className="hidden sm:inline">Clear</span>
               </button>
             )}
           </div>
-        </div>
+        </motion.div>
 
-        {/* Level Card */}
-        <div className="liquid-glass-breath rounded-3xl p-5 sm:p-6 opacity-0 animate-slide-up stagger-2">
-          <div className="flex items-center gap-5">
-            <LevelRing level={level} progress={progress} size={100} />
-            <div className="flex-1 min-w-0 space-y-3">
-              <div>
-                <div className="text-white/50 text-sm font-medium">Level {level}</div>
-                <div className="text-white text-lg font-bold">{levelTitle}</div>
-              </div>
-              <div className="space-y-1.5">
-                <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-700 ease-out"
-                    style={{ width: `${Math.min(100, progress * 100)}%`, background: `linear-gradient(to right, ${ACCENT}, ${ACCENT_BRIGHT})` }}
-                  />
+        {/* ── Two-column grid on md+ ── */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
+          {/* Level Card */}
+          <motion.div variants={fadeUp} className="sculpted-card rounded-[24px] p-5 sm:p-6">
+            <div className="flex items-center gap-5">
+              <LevelRing level={level} progress={progress} size={100} />
+              <div className="flex-1 min-w-0 space-y-3">
+                <div>
+                  <div className="text-xs font-medium text-white/40 tracking-wide uppercase">
+                    Level {level}
+                  </div>
+                  <div className="font-display text-xl font-bold text-white">{levelTitle}</div>
                 </div>
-                <div className="text-white/40 text-xs font-medium">
-                  {xpInLevel} / {xpNeeded} XP
+                <div className="space-y-2">
+                  <div className="h-2.5 rounded-full surface-inset overflow-hidden">
+                    <motion.div
+                      className="h-full rounded-full"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min(100, progress * 100)}%` }}
+                      transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
+                      style={{
+                        background: `linear-gradient(to right, ${ACCENT}, ${ACCENT_BRIGHT})`,
+                        boxShadow: `0 0 12px ${ACCENT}60`,
+                      }}
+                    />
+                  </div>
+                  <div className="text-[11px] text-white/35 font-medium tabular-nums">
+                    {xpInLevel} / {xpNeeded} XP
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
+
+          {/* Activity Heatmap */}
+          <motion.div variants={fadeUp}>
+            <h2 className="flex items-center gap-2.5 font-display text-lg font-bold text-white mb-4">
+              <CalendarDays className="h-5 w-5" style={{ color: ACCENT }} />
+              Activity
+            </h2>
+            <ActivityHeatmap sessions={sessionDays} />
+          </motion.div>
+
+          {/* Achievements */}
+          <motion.div variants={fadeUp}>
+            <h2 className="flex items-center gap-2.5 font-display text-lg font-bold text-white mb-4">
+              <Award className="h-5 w-5" style={{ color: ACCENT_BRIGHT }} />
+              Achievements
+            </h2>
+            <BadgeGrid earnedBadges={earnedBadges} />
+          </motion.div>
+
+          {/* Personal Bests */}
+          <motion.div variants={fadeUp}>
+            <PersonalBests personalBests={personalBests} />
+          </motion.div>
         </div>
 
-        {/* Achievements / Badge Grid */}
-        <div className="opacity-0 animate-slide-up stagger-3">
-          <h2 className="flex items-center gap-2 text-white font-semibold text-base sm:text-lg mb-4">
-            <Award className="h-5 w-5" style={{ color: ACCENT_BRIGHT }} />
-            Achievements
-          </h2>
-          <BadgeGrid earnedBadges={earnedBadges} />
-        </div>
-
-        {/* Activity Heatmap */}
-        <div className="opacity-0 animate-slide-up stagger-4">
-          <h2 className="flex items-center gap-2 text-white font-semibold text-base sm:text-lg mb-4">
-            <CalendarDays className="h-5 w-5" style={{ color: ACCENT }} />
-            Activity
-          </h2>
-          <ActivityHeatmap sessions={sessionDays} />
-        </div>
-
-        {/* Personal Bests */}
-        <div className="opacity-0 animate-slide-up stagger-5">
-          <PersonalBests personalBests={personalBests} />
-        </div>
+        {/* ── Full-width cards below ── */}
 
         {/* Progress Chart */}
-        <div className="opacity-0 animate-scale-in" style={{ animationDelay: '0.6s' }}>
+        <motion.div variants={fadeUp}>
           <ProgressChart
             sessions={filteredSessions.filter((s) => s.maxHoldTime > 0)}
           />
-        </div>
+        </motion.div>
 
         {/* Session History */}
-        <div className="liquid-glass-breath rounded-3xl overflow-hidden opacity-0 animate-scale-in" style={{ animationDelay: '0.7s' }}>
-          <div className="p-5 sm:p-6 border-b border-white/10">
-            <h3 className="text-base sm:text-lg font-semibold text-white flex items-center gap-2">
+        <motion.div variants={fadeUp} className="sculpted-card rounded-[24px] overflow-hidden">
+          <div className="p-5 sm:p-6 border-b border-white/8">
+            <h3 className="font-display text-base sm:text-lg font-bold text-white flex items-center gap-2.5">
               <Sparkles className="h-5 w-5" style={{ color: ACCENT_BRIGHT }} />
               Session History
             </h3>
           </div>
           <div className="p-5 sm:p-6">
             {/* Filter Buttons */}
-            <div className="grid grid-cols-4 h-12 sm:h-14 p-1.5 bg-white/5 rounded-xl mb-5 sm:mb-6">
+            <div className="grid grid-cols-4 h-12 sm:h-14 p-1.5 surface-inset rounded-2xl mb-5 sm:mb-6">
               <button
                 onClick={() => setFilterTechnique('all')}
                 className={cn(
-                  'rounded-lg text-xs sm:text-sm font-medium transition-all duration-300',
+                  'rounded-xl text-xs sm:text-sm font-semibold transition-all duration-300',
                   filterTechnique === 'all'
                     ? 'bg-white/10 text-white shadow-md'
-                    : 'text-white/40 hover:text-white/60'
+                    : 'text-white/35 hover:text-white/55'
                 )}
               >
                 All
@@ -186,10 +204,10 @@ export function Progress() {
                     key={id}
                     onClick={() => setFilterTechnique(id)}
                     className={cn(
-                      'flex items-center justify-center gap-1 sm:gap-1.5 rounded-lg transition-all duration-300',
+                      'flex items-center justify-center gap-1 sm:gap-1.5 rounded-xl transition-all duration-300',
                       filterTechnique === id
                         ? 'bg-white/10 text-white shadow-md'
-                        : 'text-white/40 hover:text-white/60'
+                        : 'text-white/35 hover:text-white/55'
                     )}
                   >
                     <div className="h-5 w-5 sm:h-6 sm:w-6 rounded flex items-center justify-center shadow-sm" style={techniqueGradientStyle(id)}>
@@ -205,8 +223,8 @@ export function Progress() {
 
             <SessionHistory sessions={filteredSessions} />
           </div>
-        </div>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   )
 }

@@ -219,7 +219,7 @@ export function BreathingSession({
       {/* Controls - fade to 20% opacity after 3s */}
       <div
         className={cn(
-          'absolute bottom-12 left-1/2 -translate-x-1/2 z-10 flex items-center gap-4 transition-opacity duration-500',
+          'absolute bottom-28 md:bottom-12 left-1/2 -translate-x-1/2 z-10 flex items-center gap-4 transition-opacity duration-500',
           controlsVisible ? 'opacity-100' : 'opacity-20 hover:opacity-100'
         )}
       >

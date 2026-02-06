@@ -1,3 +1,4 @@
+import { motion } from 'framer-motion'
 import { BADGES } from '@/lib/gamification'
 import { cn } from '@/lib/utils'
 import {
@@ -15,6 +16,13 @@ import {
   HelpCircle,
   Lock,
 } from 'lucide-react'
+
+const spring = { type: 'spring' as const, stiffness: 300, damping: 30, mass: 1 }
+const badgeStagger = { hidden: {}, show: { transition: { staggerChildren: 0.04 } } }
+const badgePop = {
+  hidden: { opacity: 0, scale: 0.8 },
+  show: { opacity: 1, scale: 1, transition: spring },
+}
 
 const ICON_MAP: Record<string, React.ReactNode> = {
   Zap: <Zap className="h-5 w-5" />,
@@ -36,58 +44,67 @@ interface BadgeGridProps {
 
 export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
   return (
-    <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+    <motion.div
+      className="grid grid-cols-3 sm:grid-cols-4 gap-3"
+      variants={badgeStagger}
+      initial="hidden"
+      animate="show"
+    >
       {BADGES.map((badge) => {
         const earned = earnedBadges.includes(badge.id)
 
         if (badge.secret && !earned) {
           return (
-            <div
+            <motion.div
               key={badge.id}
+              variants={badgePop}
               data-badge={badge.id}
               data-secret="true"
-              className="flex flex-col items-center gap-2 p-3 rounded-2xl bg-white/5 border border-white/5"
+              className="flex flex-col items-center gap-2.5 p-3 rounded-[18px] surface-inset"
             >
-              <div className="h-10 w-10 rounded-xl bg-white/5 flex items-center justify-center">
-                <HelpCircle className="h-5 w-5 text-white/20" />
+              <div className="h-11 w-11 rounded-xl bg-white/5 flex items-center justify-center">
+                <HelpCircle className="h-5 w-5 text-white/15" />
               </div>
-              <span className="text-xs text-white/20 text-center">???</span>
-            </div>
+              <span className="text-[11px] text-white/15 text-center font-medium">???</span>
+            </motion.div>
           )
         }
 
         return (
-          <div
+          <motion.div
             key={badge.id}
+            variants={badgePop}
+            whileHover={earned ? { scale: 1.05 } : undefined}
+            transition={spring}
             data-badge={badge.id}
             className={cn(
-              'flex flex-col items-center gap-2 p-3 rounded-2xl border transition-all',
+              'flex flex-col items-center gap-2.5 p-3 rounded-[18px] border transition-all duration-300',
               earned
-                ? 'bg-white/10 border-white/15'
-                : 'bg-white/5 border-white/5 opacity-40'
+                ? 'liquid-glass-breath border-white/10'
+                : 'surface-inset border-transparent opacity-35'
             )}
           >
             <div
               className={cn(
-                'h-10 w-10 rounded-xl flex items-center justify-center',
+                'h-11 w-11 rounded-xl flex items-center justify-center transition-all duration-300',
                 earned
-                  ? 'bg-gradient-to-br from-[#B0B8FF] to-[#6E7BF2] text-white shadow-lg shadow-[#6E7BF2]/25'
-                  : 'bg-white/10 text-white/30'
+                  ? 'bg-gradient-to-br from-[#B0B8FF] to-[#6E7BF2] text-white shadow-lg shadow-[#6E7BF2]/20'
+                  : 'bg-white/8 text-white/25'
               )}
             >
               {earned ? ICON_MAP[badge.icon] : <Lock className="h-4 w-4" />}
             </div>
             <span
               className={cn(
-                'text-xs text-center font-medium leading-tight',
-                earned ? 'text-foreground' : 'text-white/30'
+                'text-[11px] text-center font-semibold leading-tight',
+                earned ? 'text-white' : 'text-white/25'
               )}
             >
               {badge.name}
             </span>
-          </div>
+          </motion.div>
         )
       })}
-    </div>
+    </motion.div>
   )
 }
