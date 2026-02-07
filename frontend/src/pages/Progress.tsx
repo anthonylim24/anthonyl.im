@@ -14,7 +14,7 @@ import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { ACCENT, ACCENT_BRIGHT } from '@/lib/palette'
 import { techniqueGradientStyle } from '@/lib/techniqueConfig'
-import { Trash2, Wind, Flame, Box, Sparkles, Award, CalendarDays } from 'lucide-react'
+import { Trash2, Wind, Flame, Box, Sparkles, Award, CalendarDays, Heart } from 'lucide-react'
 
 const spring = { type: 'spring' as const, stiffness: 300, damping: 30, mass: 1 }
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } }
@@ -24,6 +24,7 @@ const techniqueIcons: Record<TechniqueId, React.ReactNode> = {
   [TECHNIQUE_IDS.BOX_BREATHING]: <Box className="h-4 w-4" />,
   [TECHNIQUE_IDS.CO2_TOLERANCE]: <Flame className="h-4 w-4" />,
   [TECHNIQUE_IDS.POWER_BREATHING]: <Wind className="h-4 w-4" />,
+  [TECHNIQUE_IDS.CYCLIC_SIGHING]: <Heart className="h-4 w-4" />,
 }
 
 export function Progress() {

@@ -11,7 +11,7 @@ import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 import { formatTime, cn } from '@/lib/utils'
 import { ACCENT_BRIGHT } from '@/lib/palette'
 import { techniqueGradientStyle, techniqueActiveStyle } from '@/lib/techniqueConfig'
-import { Wind, Flame, Box, Clock, Minus, Plus, Play } from 'lucide-react'
+import { Wind, Flame, Box, Clock, Minus, Plus, Play, Heart } from 'lucide-react'
 
 const spring = { type: 'spring' as const, stiffness: 300, damping: 30, mass: 1 }
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } }
@@ -21,6 +21,7 @@ const techniqueIcons: Record<TechniqueId, React.ReactNode> = {
   [TECHNIQUE_IDS.BOX_BREATHING]: <Box className="h-5 w-5" />,
   [TECHNIQUE_IDS.CO2_TOLERANCE]: <Flame className="h-5 w-5" />,
   [TECHNIQUE_IDS.POWER_BREATHING]: <Wind className="h-5 w-5" />,
+  [TECHNIQUE_IDS.CYCLIC_SIGHING]: <Heart className="h-5 w-5" />,
 }
 
 export function Session() {
@@ -153,6 +154,12 @@ export function Session() {
               <p className="mt-1 text-sm text-white/35 leading-relaxed">{protocol.description}</p>
             </div>
           </div>
+          {protocol.science && (
+            <div className="mt-4 pt-4 border-t border-white/5">
+              <span className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">How it works</span>
+              <p className="mt-1.5 text-xs text-white/30 leading-relaxed">{protocol.science}</p>
+            </div>
+          )}
         </motion.div>
 
         {/* Round Counter */}
@@ -184,8 +191,8 @@ export function Session() {
                 <motion.button
                   whileTap={{ scale: 0.95 }}
                   transition={spring}
-                  onClick={() => setRounds((r) => Math.min(20, r + 1))}
-                  disabled={rounds >= 20}
+                  onClick={() => setRounds((r) => Math.min(40, r + 1))}
+                  disabled={rounds >= 40}
                   className="h-14 w-14 rounded-2xl surface-inset hover:bg-white/5 disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 text-white"
                 >
                   <Plus className="h-5 w-5" />

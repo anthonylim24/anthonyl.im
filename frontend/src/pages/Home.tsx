@@ -18,12 +18,14 @@ import {
   Zap,
   ChevronRight,
   ArrowRight,
+  Heart,
 } from 'lucide-react'
 
 const techniqueIcons: Record<TechniqueId, React.ReactNode> = {
   [TECHNIQUE_IDS.BOX_BREATHING]: <Box className="h-7 w-7" />,
   [TECHNIQUE_IDS.CO2_TOLERANCE]: <Flame className="h-7 w-7" />,
   [TECHNIQUE_IDS.POWER_BREATHING]: <Wind className="h-7 w-7" />,
+  [TECHNIQUE_IDS.CYCLIC_SIGHING]: <Heart className="h-7 w-7" />,
 }
 
 // Decorative SVG patterns per technique – unique visual identity
@@ -48,6 +50,16 @@ const techniquePatterns: Record<TechniqueId, React.ReactNode> = {
     <svg className="absolute inset-0 w-full h-full opacity-[0.08]" viewBox="0 0 200 200">
       {Array.from({ length: 8 }, (_, i) => (
         <line key={i} x1={0} y1={i * 28} x2={200} y2={i * 28 + 60} stroke="white" strokeWidth={2} />
+      ))}
+    </svg>
+  ),
+  [TECHNIQUE_IDS.CYCLIC_SIGHING]: (
+    <svg className="absolute inset-0 w-full h-full opacity-[0.08]" viewBox="0 0 200 200">
+      {Array.from({ length: 4 }, (_, i) => (
+        <path key={i} d={`M ${40 + i * 15} 100 Q 100 ${40 + i * 20}, ${160 - i * 15} 100`} fill="none" stroke="white" strokeWidth={1.5} />
+      ))}
+      {Array.from({ length: 4 }, (_, i) => (
+        <path key={`b${i}`} d={`M ${40 + i * 15} 100 Q 100 ${160 - i * 20}, ${160 - i * 15} 100`} fill="none" stroke="white" strokeWidth={1.5} />
       ))}
     </svg>
   ),
@@ -211,6 +223,7 @@ export function Home() {
             TECHNIQUE_IDS.BOX_BREATHING,
             TECHNIQUE_IDS.CO2_TOLERANCE,
             TECHNIQUE_IDS.POWER_BREATHING,
+            TECHNIQUE_IDS.CYCLIC_SIGHING,
           ] as TechniqueId[]).map((id) => {
             const protocol = breathingProtocols[id]
             return (

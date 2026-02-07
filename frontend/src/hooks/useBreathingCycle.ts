@@ -141,7 +141,7 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
           )
           updatePhase(nextPhaseConfig.phase, nextPhaseIndex, nextPhaseConfig.duration)
           onPhaseChangeRef.current?.(nextPhaseConfig.phase)
-          playBeep(nextPhaseConfig.phase === BREATH_PHASES.INHALE ? 660 : 440, 100)
+          playBeep(nextPhaseConfig.phase === BREATH_PHASES.INHALE || nextPhaseConfig.phase === BREATH_PHASES.DEEP_INHALE ? 660 : 440, 100)
 
           // Start tracking hold time
           if (

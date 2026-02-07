@@ -5,7 +5,7 @@ import { formatDate, formatTime } from '@/lib/utils'
 import { ACHIEVEMENT } from '@/lib/palette'
 import { techniqueGradientStyle } from '@/lib/techniqueConfig'
 import type { CompletedSession } from '@/stores/historyStore'
-import { Wind, Flame, Box, Clock, Trophy } from 'lucide-react'
+import { Wind, Flame, Box, Clock, Trophy, Heart } from 'lucide-react'
 
 const spring = { type: 'spring' as const, stiffness: 300, damping: 30, mass: 1 }
 
@@ -17,6 +17,7 @@ const techniqueIcons: Record<TechniqueId, React.ReactNode> = {
   [TECHNIQUE_IDS.BOX_BREATHING]: <Box className="h-5 w-5" />,
   [TECHNIQUE_IDS.CO2_TOLERANCE]: <Flame className="h-5 w-5" />,
   [TECHNIQUE_IDS.POWER_BREATHING]: <Wind className="h-5 w-5" />,
+  [TECHNIQUE_IDS.CYCLIC_SIGHING]: <Heart className="h-5 w-5" />,
 }
 
 export function SessionHistory({ sessions }: SessionHistoryProps) {

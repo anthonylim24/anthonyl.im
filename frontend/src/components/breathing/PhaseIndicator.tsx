@@ -10,6 +10,7 @@ interface PhaseIndicatorProps {
 
 const PHASE_COLOR_MAP: Record<BreathPhase, string> = {
   [BREATH_PHASES.INHALE]: PHASE.inhale,
+  [BREATH_PHASES.DEEP_INHALE]: PHASE.deep_inhale,
   [BREATH_PHASES.HOLD_IN]: PHASE.hold_in,
   [BREATH_PHASES.EXHALE]: PHASE.exhale,
   [BREATH_PHASES.HOLD_OUT]: PHASE.hold_out,

@@ -14,17 +14,19 @@ import { TECHNIQUE_IDS } from '@/lib/constants'
 
 describe('calculateXP', () => {
   it('returns base XP for each technique with default rounds and no streak', () => {
-    // box_breathing: base 50, defaultRounds=4, streak=0
-    expect(calculateXP(TECHNIQUE_IDS.BOX_BREATHING, 4, 0)).toBe(50)
+    // box_breathing: base 50, defaultRounds=19, streak=0
+    expect(calculateXP(TECHNIQUE_IDS.BOX_BREATHING, 19, 0)).toBe(50)
     // co2_tolerance: base 75, defaultRounds=8, streak=0
     expect(calculateXP(TECHNIQUE_IDS.CO2_TOLERANCE, 8, 0)).toBe(75)
-    // power_breathing: base 60, defaultRounds=3, streak=0
-    expect(calculateXP(TECHNIQUE_IDS.POWER_BREATHING, 3, 0)).toBe(60)
+    // power_breathing: base 60, defaultRounds=30, streak=0
+    expect(calculateXP(TECHNIQUE_IDS.POWER_BREATHING, 30, 0)).toBe(60)
+    // cyclic_sighing: base 55, defaultRounds=30, streak=0
+    expect(calculateXP(TECHNIQUE_IDS.CYCLIC_SIGHING, 30, 0)).toBe(55)
   })
 
   it('adds +5 per extra round beyond default', () => {
-    // box_breathing default is 4, doing 6 rounds = 50 + 2*5 = 60
-    expect(calculateXP(TECHNIQUE_IDS.BOX_BREATHING, 6, 0)).toBe(60)
+    // box_breathing default is 19, doing 21 rounds = 50 + 2*5 = 60
+    expect(calculateXP(TECHNIQUE_IDS.BOX_BREATHING, 21, 0)).toBe(60)
     // co2_tolerance default is 8, doing 10 rounds = 75 + 2*5 = 85
     expect(calculateXP(TECHNIQUE_IDS.CO2_TOLERANCE, 10, 0)).toBe(85)
   })
@@ -32,18 +34,18 @@ describe('calculateXP', () => {
   it('applies streak multiplier', () => {
     // streak=5 => multiplier = 1 + 5*0.1 = 1.5
     // box base 50 * 1.5 = 75
-    expect(calculateXP(TECHNIQUE_IDS.BOX_BREATHING, 4, 5)).toBe(75)
+    expect(calculateXP(TECHNIQUE_IDS.BOX_BREATHING, 19, 5)).toBe(75)
   })
 
   it('caps streak multiplier at 2.0', () => {
     // streak=15 => raw multiplier = 1 + 15*0.1 = 2.5, capped to 2.0
     // box base 50 * 2.0 = 100
-    expect(calculateXP(TECHNIQUE_IDS.BOX_BREATHING, 4, 15)).toBe(100)
+    expect(calculateXP(TECHNIQUE_IDS.BOX_BREATHING, 19, 15)).toBe(100)
   })
 
   it('gives no bonus for fewer rounds than default', () => {
-    // box_breathing default is 4, doing 2 rounds => still base 50
-    expect(calculateXP(TECHNIQUE_IDS.BOX_BREATHING, 2, 0)).toBe(50)
+    // box_breathing default is 19, doing 10 rounds => still base 50
+    expect(calculateXP(TECHNIQUE_IDS.BOX_BREATHING, 10, 0)).toBe(50)
   })
 })
 

@@ -3,7 +3,7 @@ import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 import { formatDate } from '@/lib/utils'
 import { getTechniqueVisual, techniqueGradientStyle } from '@/lib/techniqueConfig'
 import type { PersonalBest } from '@/stores/historyStore'
-import { Wind, Flame, Box, Trophy } from 'lucide-react'
+import { Wind, Flame, Box, Trophy, Heart } from 'lucide-react'
 import { ACCENT_BRIGHT } from '@/lib/palette'
 
 interface PersonalBestsProps {
@@ -14,6 +14,7 @@ const techniqueIcons: Record<TechniqueId, React.ReactNode> = {
   [TECHNIQUE_IDS.BOX_BREATHING]: <Box className="h-5 w-5" />,
   [TECHNIQUE_IDS.CO2_TOLERANCE]: <Flame className="h-5 w-5" />,
   [TECHNIQUE_IDS.POWER_BREATHING]: <Wind className="h-5 w-5" />,
+  [TECHNIQUE_IDS.CYCLIC_SIGHING]: <Heart className="h-5 w-5" />,
 }
 
 export function PersonalBests({ personalBests }: PersonalBestsProps) {

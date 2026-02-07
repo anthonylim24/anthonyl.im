@@ -13,6 +13,7 @@ describe('breathingProtocols', () => {
     TECHNIQUE_IDS.BOX_BREATHING,
     TECHNIQUE_IDS.CO2_TOLERANCE,
     TECHNIQUE_IDS.POWER_BREATHING,
+    TECHNIQUE_IDS.CYCLIC_SIGHING,
   ]
 
   it('has an entry for every technique ID', () => {
@@ -28,6 +29,8 @@ describe('breathingProtocols', () => {
       expect(typeof protocol.name).toBe('string')
       expect(protocol.name.length).toBeGreaterThan(0)
       expect(typeof protocol.description).toBe('string')
+      expect(typeof protocol.science).toBe('string')
+      expect(protocol.science.length).toBeGreaterThan(0)
       expect(typeof protocol.purpose).toBe('string')
       expect(typeof protocol.defaultRounds).toBe('number')
       expect(protocol.defaultRounds).toBeGreaterThan(0)
@@ -71,6 +74,22 @@ describe('breathingProtocols', () => {
     expect(power.phases[0].phase).toBe(BREATH_PHASES.INHALE)
     expect(power.phases[1].phase).toBe(BREATH_PHASES.EXHALE)
   })
+
+  it('cyclic sighing has inhale, deep inhale, and exhale phases', () => {
+    const sighing = breathingProtocols[TECHNIQUE_IDS.CYCLIC_SIGHING]
+    expect(sighing.phases).toHaveLength(3)
+    expect(sighing.phases[0].phase).toBe(BREATH_PHASES.INHALE)
+    expect(sighing.phases[0].duration).toBe(3)
+    expect(sighing.phases[1].phase).toBe(BREATH_PHASES.DEEP_INHALE)
+    expect(sighing.phases[1].duration).toBe(2)
+    expect(sighing.phases[2].phase).toBe(BREATH_PHASES.EXHALE)
+    expect(sighing.phases[2].duration).toBe(5)
+  })
+
+  it('cyclic sighing defaults to 30 rounds for ~5 minute session', () => {
+    const sighing = breathingProtocols[TECHNIQUE_IDS.CYCLIC_SIGHING]
+    expect(sighing.defaultRounds).toBe(30)
+  })
 })
 
 describe('getProtocol', () => {
@@ -78,6 +97,7 @@ describe('getProtocol', () => {
     expect(getProtocol(TECHNIQUE_IDS.BOX_BREATHING).name).toBe('Box Breathing')
     expect(getProtocol(TECHNIQUE_IDS.CO2_TOLERANCE).name).toBe('CO2 Tolerance Table')
     expect(getProtocol(TECHNIQUE_IDS.POWER_BREATHING).name).toBe('Power Breathing')
+    expect(getProtocol(TECHNIQUE_IDS.CYCLIC_SIGHING).name).toBe('Cyclic Sighing')
   })
 
   it('returns the same object as the breathingProtocols map', () => {
@@ -89,13 +109,7 @@ describe('getProtocol', () => {
 
 describe('calculateSessionDuration', () => {
   it('calculates box breathing duration: 4 phases x 4s x N rounds', () => {
-    // 4 phases * 4s = 16s per round, 4 rounds default = 64s
-    expect(
-      calculateSessionDuration({
-        techniqueId: TECHNIQUE_IDS.BOX_BREATHING,
-        rounds: 4,
-      })
-    ).toBe(64)
+    // 4 phases * 4s = 16s per round
 
     // 1 round = 16s
     expect(
@@ -112,6 +126,14 @@ describe('calculateSessionDuration', () => {
         rounds: 10,
       })
     ).toBe(160)
+
+    // 19 rounds (default) = 304s ≈ 5 min
+    expect(
+      calculateSessionDuration({
+        techniqueId: TECHNIQUE_IDS.BOX_BREATHING,
+        rounds: 19,
+      })
+    ).toBe(304)
   })
 
   it('calculates CO2 tolerance duration with progressive holds', () => {
@@ -150,13 +172,6 @@ describe('calculateSessionDuration', () => {
 
   it('calculates power breathing duration', () => {
     // 2 phases: inhale(2) + exhale(2) = 4s per round
-    // 3 rounds (default): 12s
-    expect(
-      calculateSessionDuration({
-        techniqueId: TECHNIQUE_IDS.POWER_BREATHING,
-        rounds: 3,
-      })
-    ).toBe(12)
 
     // 1 round: 4s
     expect(
@@ -165,6 +180,33 @@ describe('calculateSessionDuration', () => {
         rounds: 1,
       })
     ).toBe(4)
+
+    // 30 rounds (default, standard Wim Hof 30-breath set): 120s
+    expect(
+      calculateSessionDuration({
+        techniqueId: TECHNIQUE_IDS.POWER_BREATHING,
+        rounds: 30,
+      })
+    ).toBe(120)
+  })
+
+  it('calculates cyclic sighing duration', () => {
+    // 3 phases: inhale(3) + deep_inhale(2) + exhale(5) = 10s per round
+    // 30 rounds (default): 300s = 5 minutes
+    expect(
+      calculateSessionDuration({
+        techniqueId: TECHNIQUE_IDS.CYCLIC_SIGHING,
+        rounds: 30,
+      })
+    ).toBe(300)
+
+    // 1 round: 10s
+    expect(
+      calculateSessionDuration({
+        techniqueId: TECHNIQUE_IDS.CYCLIC_SIGHING,
+        rounds: 1,
+      })
+    ).toBe(10)
   })
 
   it('applies custom phase durations', () => {

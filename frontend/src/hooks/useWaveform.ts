@@ -33,6 +33,8 @@ export function useWaveform({
     switch (currentPhase) {
       case BREATH_PHASES.INHALE:
         return 1.0
+      case BREATH_PHASES.DEEP_INHALE:
+        return 1.0
       case BREATH_PHASES.HOLD_IN:
         return 1.0
       case BREATH_PHASES.EXHALE:
@@ -78,6 +80,7 @@ export function useWaveform({
         setWaveState((prev) => {
           // Smooth interpolation towards target
           const isExpanding = phase === BREATH_PHASES.INHALE
+          const isDeepInhale = phase === BREATH_PHASES.DEEP_INHALE
           const isContracting = phase === BREATH_PHASES.EXHALE
 
           let newAmplitude = prev.amplitude
@@ -85,6 +88,9 @@ export function useWaveform({
           if (isExpanding) {
             // Gradual rise during inhale
             newAmplitude = 0.2 + phaseProgress * 0.8
+          } else if (isDeepInhale) {
+            // Second sip: continue expanding from current amplitude towards 1.0
+            newAmplitude = 0.85 + phaseProgress * 0.15
           } else if (isContracting) {
             // Gradual fall during exhale
             newAmplitude = 1.0 - phaseProgress * 0.8

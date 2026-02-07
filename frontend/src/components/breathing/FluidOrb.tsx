@@ -12,6 +12,7 @@ interface FluidOrbProps {
 
 const PHASE_COLORS: Record<string, [string, string]> = {
   [BREATH_PHASES.INHALE]: ['#8B96FF', '#6E7BF2'],
+  [BREATH_PHASES.DEEP_INHALE]: ['#99A5FF', '#8B96FF'],
   [BREATH_PHASES.HOLD_IN]: ['#B0B8FF', '#8B96FF'],
   [BREATH_PHASES.EXHALE]: ['#5B6AD4', '#4B55B8'],
   [BREATH_PHASES.HOLD_OUT]: ['#3D4A9E', '#2A3370'],

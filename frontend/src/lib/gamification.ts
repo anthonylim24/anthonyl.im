@@ -10,6 +10,7 @@ const BASE_XP: Record<TechniqueId, number> = {
   [TECHNIQUE_IDS.BOX_BREATHING]: 50,
   [TECHNIQUE_IDS.CO2_TOLERANCE]: 75,
   [TECHNIQUE_IDS.POWER_BREATHING]: 60,
+  [TECHNIQUE_IDS.CYCLIC_SIGHING]: 55,
 }
 
 export function calculateXP(

@@ -1,5 +1,6 @@
 export const BREATH_PHASES = {
   INHALE: 'inhale',
+  DEEP_INHALE: 'deep_inhale',
   HOLD_IN: 'hold_in',
   EXHALE: 'exhale',
   HOLD_OUT: 'hold_out',
@@ -10,6 +11,7 @@ export type BreathPhase = typeof BREATH_PHASES[keyof typeof BREATH_PHASES]
 
 export const PHASE_LABELS: Record<BreathPhase, string> = {
   [BREATH_PHASES.INHALE]: 'Breathe In',
+  [BREATH_PHASES.DEEP_INHALE]: 'Sip In',
   [BREATH_PHASES.HOLD_IN]: 'Hold',
   [BREATH_PHASES.EXHALE]: 'Breathe Out',
   [BREATH_PHASES.HOLD_OUT]: 'Hold',
@@ -20,6 +22,7 @@ export const TECHNIQUE_IDS = {
   CO2_TOLERANCE: 'co2_tolerance',
   BOX_BREATHING: 'box_breathing',
   POWER_BREATHING: 'power_breathing',
+  CYCLIC_SIGHING: 'cyclic_sighing',
 } as const
 
 export type TechniqueId = typeof TECHNIQUE_IDS[keyof typeof TECHNIQUE_IDS]
