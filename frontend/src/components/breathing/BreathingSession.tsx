@@ -10,7 +10,7 @@ import type { SessionConfig } from '@/lib/breathingProtocols'
 import { getProtocol } from '@/lib/breathingProtocols'
 import { cn } from '@/lib/utils'
 import { calculateXP, checkBadgeUnlocks } from '@/lib/gamification'
-import { techniqueGradientStyle, techniqueProgressStyle } from '@/lib/techniqueConfig'
+import { techniqueGradientStyle, techniqueProgressStyle, getTechniqueVisual } from '@/lib/techniqueConfig'
 import { DESTRUCTIVE } from '@/lib/palette'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore } from '@/stores/historyStore'
@@ -182,24 +182,63 @@ export function BreathingSession({
 
   return (
     <div
-      className="fixed inset-0 z-40 flex flex-col items-center justify-center bg-[#080b16] overflow-hidden select-none"
+      className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-[#080b16] overflow-hidden select-none"
       onMouseMove={isActive && !isPaused ? showControls : undefined}
       onTouchStart={isActive && !isPaused ? showControls : undefined}
     >
-      {/* Thin gradient progress bar at top */}
-      <div className="absolute top-0 left-0 right-0 h-1 bg-white/5 z-10">
-        <div
-          className="h-full transition-all duration-700"
-          style={{ width: `${progress}%`, ...techniqueProgressStyle(config.techniqueId) }}
-        />
-      </div>
+      {/* Round progress indicator */}
+      {(() => {
+        const currentRound = session?.currentRound ?? 0
+        const total = config.rounds
+        const visual = getTechniqueVisual(config.techniqueId)
+        const useSegments = total <= 20
 
-      {/* Round indicator */}
-      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10">
-        <span className="text-sm font-medium text-white/40 tracking-wide">
-          Round {session ? session.currentRound + 1 : 1} of {config.rounds}
-        </span>
-      </div>
+        if (useSegments) {
+          return (
+            <div className="absolute top-0 left-0 right-0 z-10 flex items-center gap-[2px] px-4 pt-4 safe-top">
+              {Array.from({ length: total }, (_, i) => {
+                const done = i < currentRound
+                const active = i === currentRound && isActive
+                return (
+                  <div
+                    key={i}
+                    className="flex-1 h-[3px] rounded-full transition-all duration-500"
+                    style={{
+                      background: done
+                        ? `linear-gradient(to right, ${visual.gradient.from}, ${visual.gradient.to})`
+                        : active
+                          ? `linear-gradient(to right, ${visual.primary}60, ${visual.primary}30)`
+                          : 'rgba(255,255,255,0.06)',
+                      boxShadow: done ? `0 0 6px ${visual.primary}40` : 'none',
+                    }}
+                  />
+                )
+              })}
+            </div>
+          )
+        }
+
+        // For many rounds, use a continuous bar with round counter
+        return (
+          <div className="absolute top-0 left-0 right-0 z-10 safe-top pt-4 px-4">
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-[3px] rounded-full bg-white/6 overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{
+                    width: `${(currentRound / total) * 100}%`,
+                    background: `linear-gradient(to right, ${visual.gradient.from}, ${visual.gradient.to})`,
+                    boxShadow: `0 0 8px ${visual.primary}50`,
+                  }}
+                />
+              </div>
+              <span className="text-[11px] font-mono text-white/25 tabular-nums shrink-0">
+                {currentRound}/{total}
+              </span>
+            </div>
+          </div>
+        )
+      })()}
 
       <div
         data-testid="session-content"
