@@ -3,6 +3,7 @@ import { Button } from "./components/ui/button";
 import { Send, ChevronDown, MessageCircle, Code2, Briefcase, Mail } from "lucide-react";
 import { cn } from "./lib/utils";
 import { invokeDeepseek } from "./lib/apiService";
+import { useFavicon } from "./hooks/useFavicon";
 
 const MessageContent = lazy(() => import("./components/message-content"));
 
@@ -72,6 +73,7 @@ function App() {
   const inputContainerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScroll = useRef(true);
 
+  useFavicon();
   usePointerGlow(inputContainerRef);
 
   useEffect(() => {

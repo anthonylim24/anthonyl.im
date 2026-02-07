@@ -1,0 +1,23 @@
+<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#818CF8"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#818CF8" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#818CF8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Rounded square background -->
+  <rect width="32" height="32" rx="8" fill="#050816"/>
+  <!-- Subtle glow behind orb -->
+  <circle cx="16" cy="15" r="13" fill="url(#glow)"/>
+  <!-- Breathing orb - organic shape -->
+  <ellipse cx="16" cy="15" rx="8.5" ry="8" fill="url(#g)"/>
+  <!-- Highlight reflection -->
+  <ellipse cx="14" cy="12" rx="3.5" ry="2" fill="white" opacity="0.25"/>
+  <!-- Three small waves below orb representing breath -->
+  <path d="M10 26q3-2 6 0t6 0" fill="none" stroke="#818CF8" stroke-width="1" opacity="0.5"/>
+  <path d="M11 28q2.5-1.5 5 0t5 0" fill="none" stroke="#818CF8" stroke-width="0.8" opacity="0.3"/>
+</svg>
