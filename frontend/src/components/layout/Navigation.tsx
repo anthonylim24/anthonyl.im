@@ -49,11 +49,17 @@ export function Navigation() {
       >
         <div className="relative grid grid-cols-4 h-[64px]">
           {/* Sliding active indicator — GPU-composited, no layout recalc */}
+          {/* Sliding active indicator — GPU-composited, no layout recalc.
+              Positioned to align with the icon area (p-2.5 = 10px around 18px icon = 38px).
+              Cell is 64px tall; icon area starts ~9px from top → center at ~28px.
+              Pill is 38px tall → top = 28 - 19 = 9px. */}
           {activeIndex >= 0 && (
             <div
-              className="absolute inset-y-0 flex items-center justify-center pointer-events-none"
+              className="absolute pointer-events-none flex justify-center"
               style={{
                 width: `${100 / navItems.length}%`,
+                top: 9,
+                height: 38,
                 left: 0,
                 transform: `translateX(${activeIndex * 100}%) translateZ(0)`,
                 transition: 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -61,10 +67,9 @@ export function Navigation() {
               }}
             >
               <div
-                className="rounded-2xl"
+                className="h-full rounded-2xl"
                 style={{
                   width: 44,
-                  height: 40,
                   background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_BRIGHT})`,
                   boxShadow: `0 4px 16px -2px ${ACCENT}50`,
                 }}
