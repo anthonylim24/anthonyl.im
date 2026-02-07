@@ -9,7 +9,15 @@
       "Bash(npx vitest:*)",
       "Bash(tree:*)",
       "WebFetch(domain:www.linkedin.com)",
-      "Bash(npm ls:*)"
+      "Bash(npm ls:*)",
+      "WebFetch(domain:pmc.ncbi.nlm.nih.gov)",
+      "WebFetch(domain:www.nature.com)",
+      "WebFetch(domain:med.stanford.edu)",
+      "WebSearch",
+      "WebFetch(domain:www.physio-pedia.com)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd research-backed Cyclic Sighing technique and update all breathing programs with clinical evidence\n\n- Add Cyclic Sighing \\(double inhale + extended exhale\\) based on Stanford RCT\n  \\(Balban et al., 2023\\) showing superior anxiety reduction vs mindfulness\n- Add DEEP_INHALE breath phase for the second \"sip\" inhale\n- Update Box Breathing default from 4 to 19 rounds \\(~5 min\\) per systematic\n  review finding <5 min sessions are 67% ineffective\n- Update Power Breathing default from 3 to 30 rounds matching standard\n  Wim Hof 30-breath protocol \\(Kox et al., PNAS 2014\\)\n- Add science field to all protocols with concise mechanism, evidence,\n  and physiological effect descriptions\n- Display \"How it works\" section in Session setup page\n- Raise round cap from 20 to 40 to accommodate new defaults\n\nCo-Authored-By: Claude \\(claude-opus-4-6\\) <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nMake breathing session fully immersive with visual round progress\n\n- Raise session overlay z-index above header \\(z-60 > z-50\\) so the\n  header is completely hidden during active sessions\n- Replace text \"Round X of Y\" with a segmented progress bar:\n  - ≤20 rounds: individual segments that light up as rounds complete\n  - >20 rounds: continuous bar with a compact round counter\n- Segments use technique-specific gradient colors with a subtle glow\n  on completed rounds\n\nCo-Authored-By: Claude \\(claude-opus-4-6\\) <noreply@anthropic.com>\nEOF\n\\)\")"
     ]
   }
 }
