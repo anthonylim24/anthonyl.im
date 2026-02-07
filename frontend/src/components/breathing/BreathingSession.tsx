@@ -10,7 +10,7 @@ import type { SessionConfig } from '@/lib/breathingProtocols'
 import { getProtocol } from '@/lib/breathingProtocols'
 import { cn } from '@/lib/utils'
 import { calculateXP, checkBadgeUnlocks } from '@/lib/gamification'
-import { techniqueGradientStyle, techniqueProgressStyle, getTechniqueVisual } from '@/lib/techniqueConfig'
+import { techniqueGradientStyle, getTechniqueVisual } from '@/lib/techniqueConfig'
 import { DESTRUCTIVE } from '@/lib/palette'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore } from '@/stores/historyStore'
@@ -77,13 +77,6 @@ export function BreathingSession({
     timeRemaining: session?.timeRemaining ?? 0,
     isActive: isActive && !isPaused,
   })
-
-  // Calculate progress
-  const progress = session
-    ? ((session.currentRound * protocol.phases.length + session.currentPhaseIndex) /
-        (config.rounds * protocol.phases.length)) *
-      100
-    : 0
 
   // Auto-hide controls after 3s of activity
   useEffect(() => {
