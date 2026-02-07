@@ -55,7 +55,8 @@ export function LevelRing({
           strokeDasharray={circumference}
           strokeDashoffset={offset}
           strokeLinecap="round"
-          className="transition-all duration-700 ease-out"
+          className="transition-[stroke-dashoffset] duration-700 ease-out"
+          style={{ transform: 'translateZ(0)' }}
           filter={progress > 0 ? `url(#ring-glow-${level}-${size})` : undefined}
         />
       </svg>

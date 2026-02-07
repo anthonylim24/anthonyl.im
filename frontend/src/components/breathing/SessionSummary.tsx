@@ -30,7 +30,7 @@ export function SessionSummary({
       : 0
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" style={{ transform: 'translateZ(0)' }}>
       <div className="w-full max-w-sm rounded-3xl bg-gradient-to-b from-[#1a1e30] to-[#0f1220] border border-white/10 shadow-2xl animate-scale-in overflow-hidden">
         <div className="relative px-6 pt-8 pb-4 text-center">
           <button
@@ -124,7 +124,7 @@ export function SessionSummary({
         <div className="px-6 pb-6">
           <button
             onClick={onClose}
-            className="w-full py-3 rounded-xl text-white font-semibold shadow-lg hover:shadow-xl transition-all"
+            className="w-full py-3 rounded-xl text-white font-semibold shadow-lg hover:shadow-xl transition-[box-shadow] duration-300"
             style={accentGradientStyle()}
           >
             Continue

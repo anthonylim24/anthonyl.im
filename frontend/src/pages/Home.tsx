@@ -171,12 +171,12 @@ export function Home() {
             </div>
           </div>
           <div className="h-1.5 rounded-full surface-well overflow-hidden mt-3">
-            <motion.div
-              className="h-full rounded-full"
-              initial={{ width: 0 }}
-              animate={{ width: dailyGoalMet ? '100%' : `${Math.min(dailySessionCount, 1) * 100}%` }}
-              transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
-              style={{ background: `linear-gradient(to right, ${ACCENT}, ${ACCENT_BRIGHT})` }}
+            <div
+              className="h-full rounded-full origin-left transition-transform duration-700 ease-out"
+              style={{
+                background: `linear-gradient(to right, ${ACCENT}, ${ACCENT_BRIGHT})`,
+                transform: `translateZ(0) scaleX(${dailyGoalMet ? 1 : Math.min(dailySessionCount, 1)})`,
+              }}
             />
           </div>
         </motion.div>
@@ -278,14 +278,12 @@ export function Home() {
           </span>
         </div>
         <div className="h-3 rounded-full surface-well overflow-hidden">
-          <motion.div
-            className="h-full rounded-full"
-            initial={{ width: 0 }}
-            animate={{ width: `${Math.round(levelProgress * 100)}%` }}
-            transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.5 }}
+          <div
+            className="h-full rounded-full origin-left transition-transform duration-1000 ease-out"
             style={{
               background: `linear-gradient(to right, ${ACCENT}, ${ACCENT_BRIGHT})`,
               boxShadow: `0 0 16px ${ACCENT}50`,
+              transform: `translateZ(0) scaleX(${Math.round(levelProgress * 100) / 100})`,
             }}
           />
         </div>

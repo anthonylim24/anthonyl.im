@@ -78,7 +78,7 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
             transition={spring}
             data-badge={badge.id}
             className={cn(
-              'flex flex-col items-center gap-2.5 p-3 rounded-[18px] border transition-all duration-300',
+              'flex flex-col items-center gap-2.5 p-3 rounded-[18px] border transition-[background,border-color,opacity] duration-300',
               earned
                 ? 'liquid-glass-breath border-white/10'
                 : 'surface-inset border-transparent opacity-35'
@@ -86,7 +86,7 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
           >
             <div
               className={cn(
-                'h-11 w-11 rounded-xl flex items-center justify-center transition-all duration-300',
+                'h-11 w-11 rounded-xl flex items-center justify-center transition-[background,color,box-shadow] duration-300',
                 earned
                   ? 'bg-gradient-to-br from-[#B0B8FF] to-[#6E7BF2] text-white shadow-lg shadow-[#6E7BF2]/20'
                   : 'bg-white/8 text-white/25'

@@ -88,13 +88,13 @@ export function Progress() {
                 <span className="text-xs text-white/40">Clear all?</span>
                 <button
                   onClick={handleClearHistory}
-                  className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-all duration-300"
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors duration-300"
                 >
                   Yes
                 </button>
                 <button
                   onClick={() => setShowClearConfirm(false)}
-                  className="px-3 py-1.5 rounded-xl text-xs font-semibold surface-inset text-white/50 hover:text-white/70 transition-all duration-300"
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold surface-inset text-white/50 hover:text-white/70 transition-colors duration-300"
                 >
                   No
                 </button>
@@ -102,7 +102,7 @@ export function Progress() {
             ) : (
               <button
                 onClick={() => setShowClearConfirm(true)}
-                className="px-3 py-2 rounded-xl text-sm text-white/25 hover:text-red-400 hover:bg-red-500/10 transition-all duration-300"
+                className="px-3 py-2 rounded-xl text-sm text-white/25 hover:text-red-400 hover:bg-red-500/10 transition-colors duration-300"
               >
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -125,14 +125,12 @@ export function Progress() {
                 </div>
                 <div className="space-y-2">
                   <div className="h-2.5 rounded-full surface-inset overflow-hidden">
-                    <motion.div
-                      className="h-full rounded-full"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${Math.min(100, progress * 100)}%` }}
-                      transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
+                    <div
+                      className="h-full rounded-full origin-left transition-transform duration-700 ease-out"
                       style={{
                         background: `linear-gradient(to right, ${ACCENT}, ${ACCENT_BRIGHT})`,
                         boxShadow: `0 0 12px ${ACCENT}60`,
+                        transform: `translateZ(0) scaleX(${Math.min(1, progress)})`,
                       }}
                     />
                   </div>
@@ -191,7 +189,7 @@ export function Progress() {
               <button
                 onClick={() => setFilterTechnique('all')}
                 className={cn(
-                  'rounded-xl text-xs sm:text-sm font-semibold transition-all duration-300',
+                  'rounded-xl text-xs sm:text-sm font-semibold transition-[background,color,box-shadow] duration-300',
                   filterTechnique === 'all'
                     ? 'bg-white/10 text-white shadow-md'
                     : 'text-white/35 hover:text-white/55'
@@ -205,7 +203,7 @@ export function Progress() {
                     key={id}
                     onClick={() => setFilterTechnique(id)}
                     className={cn(
-                      'flex items-center justify-center gap-1 sm:gap-1.5 rounded-xl transition-all duration-300',
+                      'flex items-center justify-center gap-1 sm:gap-1.5 rounded-xl transition-[background,color,box-shadow] duration-300',
                       filterTechnique === id
                         ? 'bg-white/10 text-white shadow-md'
                         : 'text-white/35 hover:text-white/55'

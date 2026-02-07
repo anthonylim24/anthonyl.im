@@ -1,22 +1,27 @@
 import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 
-const FAVICONS: Record<string, string> = {
-  breathwork: '/favicon-breath.svg',
-  default: '/favicon-chat.svg',
+const ROUTE_META: Record<string, { favicon: string; themeColor: string }> = {
+  breathwork: { favicon: '/favicon-breath.svg', themeColor: '#090c1a' },
+  default: { favicon: '/favicon-chat.svg', themeColor: '#030014' },
 }
 
 export function useFavicon() {
   const { pathname } = useLocation()
 
   useEffect(() => {
-    const icon = pathname.startsWith('/breathwork')
-      ? FAVICONS.breathwork
-      : FAVICONS.default
+    const meta = pathname.startsWith('/breathwork')
+      ? ROUTE_META.breathwork
+      : ROUTE_META.default
 
     const link = document.querySelector<HTMLLinkElement>("link[rel='icon']")
-    if (link && link.href !== icon) {
-      link.href = icon
+    if (link && link.href !== meta.favicon) {
+      link.href = meta.favicon
+    }
+
+    const themeTag = document.querySelector<HTMLMetaElement>("meta[name='theme-color']")
+    if (themeTag && themeTag.content !== meta.themeColor) {
+      themeTag.content = meta.themeColor
     }
   }, [pathname])
 }
