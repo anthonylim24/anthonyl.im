@@ -47,15 +47,13 @@ export function Navigation() {
           transform: 'translateZ(0)',
         }}
       >
-        <div className="relative flex items-center justify-around h-[64px] px-2">
+        <div className="relative grid grid-cols-4 h-[64px]">
           {/* Sliding active indicator — GPU-composited, no layout recalc */}
           {activeIndex >= 0 && (
             <div
-              className="absolute top-1/2 rounded-2xl pointer-events-none"
+              className="absolute inset-y-0 flex items-center justify-center pointer-events-none"
               style={{
                 width: `${100 / navItems.length}%`,
-                height: 40,
-                marginTop: -20,
                 left: 0,
                 transform: `translateX(${activeIndex * 100}%) translateZ(0)`,
                 transition: 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -63,9 +61,10 @@ export function Navigation() {
               }}
             >
               <div
-                className="mx-auto h-full rounded-2xl"
+                className="rounded-2xl"
                 style={{
                   width: 44,
+                  height: 40,
                   background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_BRIGHT})`,
                   boxShadow: `0 4px 16px -2px ${ACCENT}50`,
                 }}
@@ -79,7 +78,7 @@ export function Navigation() {
                 key={path}
                 to={path}
                 className={cn(
-                  'flex flex-col items-center gap-1 px-3 py-1.5 rounded-2xl text-[10px] font-semibold transition-colors duration-300 relative',
+                  'flex flex-col items-center justify-center gap-1 rounded-2xl text-[10px] font-semibold transition-colors duration-300 relative',
                   active
                     ? 'text-white'
                     : 'text-white/30 hover:text-white/55 active:scale-95'
