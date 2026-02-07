@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { motion } from 'framer-motion'
+import { motion } from 'motion/react'
 import { ProgressChart } from '@/components/tracking/ProgressChart'
 import { SessionHistory } from '@/components/tracking/SessionHistory'
 import { PersonalBests } from '@/components/tracking/PersonalBests'
@@ -185,11 +185,11 @@ export function Progress() {
           </div>
           <div className="p-5 sm:p-6">
             {/* Filter Buttons */}
-            <div className="grid grid-cols-4 h-12 sm:h-14 p-1.5 surface-inset rounded-2xl mb-5 sm:mb-6">
+            <div className="flex gap-1.5 p-1.5 surface-inset rounded-2xl mb-5 sm:mb-6">
               <button
                 onClick={() => setFilterTechnique('all')}
                 className={cn(
-                  'rounded-xl text-xs sm:text-sm font-semibold transition-[background,color,box-shadow] duration-300',
+                  'flex-1 flex items-center justify-center gap-1.5 h-9 sm:h-10 rounded-xl text-xs font-semibold transition-[background,color,box-shadow] duration-200',
                   filterTechnique === 'all'
                     ? 'bg-white/10 text-white shadow-md'
                     : 'text-white/35 hover:text-white/55'
@@ -197,27 +197,28 @@ export function Progress() {
               >
                 All
               </button>
-              {Object.values(TECHNIQUE_IDS).map((id) => {
-                return (
-                  <button
-                    key={id}
-                    onClick={() => setFilterTechnique(id)}
-                    className={cn(
-                      'flex items-center justify-center gap-1 sm:gap-1.5 rounded-xl transition-[background,color,box-shadow] duration-300',
-                      filterTechnique === id
-                        ? 'bg-white/10 text-white shadow-md'
-                        : 'text-white/35 hover:text-white/55'
-                    )}
+              {Object.values(TECHNIQUE_IDS).map((id) => (
+                <button
+                  key={id}
+                  onClick={() => setFilterTechnique(id)}
+                  className={cn(
+                    'flex-1 flex items-center justify-center gap-1.5 h-9 sm:h-10 rounded-xl text-xs font-medium transition-[background,color,box-shadow] duration-200',
+                    filterTechnique === id
+                      ? 'bg-white/10 text-white shadow-md'
+                      : 'text-white/35 hover:text-white/55'
+                  )}
+                >
+                  <div
+                    className="h-5 w-5 rounded flex items-center justify-center shrink-0"
+                    style={techniqueGradientStyle(id)}
                   >
-                    <div className="h-5 w-5 sm:h-6 sm:w-6 rounded flex items-center justify-center shadow-sm" style={techniqueGradientStyle(id)}>
-                      <span className="text-white scale-75">{techniqueIcons[id]}</span>
-                    </div>
-                    <span className="hidden sm:inline text-xs font-medium">
-                      {breathingProtocols[id].name.split(' ')[0]}
-                    </span>
-                  </button>
-                )
-              })}
+                    <span className="text-white scale-75">{techniqueIcons[id]}</span>
+                  </div>
+                  <span className="hidden sm:inline truncate">
+                    {breathingProtocols[id].name.split(' ')[0]}
+                  </span>
+                </button>
+              ))}
             </div>
 
             <SessionHistory sessions={filteredSessions} />
