@@ -17,7 +17,7 @@ export function BreathworkLayout() {
   return (
     <div className="breathwork-layout noise-overlay">
       {/* Deep background with subtle radial vignettes */}
-      <div className="fixed inset-0 breath-bg transition-colors duration-700" />
+      <div className="fixed inset-0 breath-bg" style={{ transform: 'translateZ(0)' }} />
 
       {/* Slow-moving gradient wash */}
       <div

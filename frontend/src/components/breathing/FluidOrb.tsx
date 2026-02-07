@@ -39,40 +39,49 @@ export function FluidOrb({
     return `${r1}% ${r2}% ${r3}% ${r4}% / ${r2}% ${r3}% ${r4}% ${r1}%`
   }, [morphAmount])
 
+  const transitionDuration = isActive ? '800ms' : '1200ms'
+
   return (
     <div className={cn('relative flex items-center justify-center', className)}>
-      {/* Outer glow */}
+      {/* Outer glow — use transform: scale instead of width/height to stay on GPU */}
       <div
-        className="absolute rounded-full transition-all duration-700 blur-3xl"
+        className="absolute rounded-full blur-3xl"
         style={{
-          width: `${scale * 110}%`,
-          height: `${scale * 110}%`,
+          width: '110%',
+          height: '110%',
           maxWidth: '340px',
           maxHeight: '340px',
+          transform: `translateZ(0) scale(${scale})`,
           background: `radial-gradient(circle, ${colors[0]}40, transparent 70%)`,
           opacity: isActive ? 0.8 : 0.3,
+          transition: `transform ${transitionDuration} ease-out, opacity ${transitionDuration} ease-out`,
+          willChange: 'transform, opacity',
         }}
       />
       {/* Secondary glow */}
       <div
-        className="absolute rounded-full transition-all duration-1000 blur-xl"
+        className="absolute rounded-full blur-xl"
         style={{
-          width: `${scale * 90}%`,
-          height: `${scale * 90}%`,
+          width: '90%',
+          height: '90%',
           maxWidth: '280px',
           maxHeight: '280px',
+          transform: `translateZ(0) scale(${scale})`,
           background: `radial-gradient(circle, ${colors[1]}30, transparent 60%)`,
           opacity: isActive ? 0.6 : 0.2,
+          transition: `transform ${transitionDuration} ease-out, opacity ${transitionDuration} ease-out`,
+          willChange: 'transform, opacity',
         }}
       />
       {/* Main orb */}
       <div
-        className="relative transition-all ease-out"
+        className="relative"
         style={{
-          width: `${scale * 70}%`,
-          height: `${scale * 70}%`,
+          width: '70%',
+          height: '70%',
           maxWidth: '220px',
           maxHeight: '220px',
+          transform: `translateZ(0) scale(${scale})`,
           borderRadius,
           background: `linear-gradient(135deg, ${colors[0]}, ${colors[1]})`,
           boxShadow: `
@@ -81,7 +90,8 @@ export function FluidOrb({
             inset 0 -20px 40px ${colors[1]}40,
             inset 0 20px 40px rgba(255,255,255,0.15)
           `,
-          transitionDuration: isActive ? '800ms' : '1200ms',
+          transition: `transform ${transitionDuration} ease-out, border-radius ${transitionDuration} ease-out`,
+          willChange: 'transform, border-radius',
         }}
       >
         <div
@@ -91,6 +101,7 @@ export function FluidOrb({
             height: '25%',
             background: 'radial-gradient(ellipse, rgba(255,255,255,0.4), transparent)',
             filter: 'blur(8px)',
+            transform: 'translateZ(0)',
           }}
         />
       </div>

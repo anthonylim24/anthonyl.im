@@ -46,6 +46,7 @@ export function Navigation() {
           WebkitBackdropFilter: 'blur(32px) saturate(200%)',
           border: '1px solid rgba(255, 255, 255, 0.06)',
           boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 -4px 32px rgba(0,0,0,0.4), 0 8px 24px rgba(0,0,0,0.3)',
+          transform: 'translateZ(0)',
         }}
       >
         <div className="flex items-center justify-around h-[64px] px-2">

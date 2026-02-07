@@ -21,7 +21,7 @@ export function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full">
+    <header className="sticky top-0 z-50 w-full" style={{ transform: 'translateZ(0)' }}>
       <div
         className="safe-top"
         style={{
