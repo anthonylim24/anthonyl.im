@@ -7,7 +7,7 @@
     "dev": "pushd frontend && bun run build && popd && bun --watch server/app.ts"
   },
   "devDependencies": {
-    "@hono/zod-validator": "^0.4.2",
+    "@hono/zod-validator": "^0.7.6",
     "@types/bun": "latest"
   },
   "peerDependencies": {
