@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { KirbyCharacter } from './KirbyCharacter'
 
-const KIRBY_COUNT = 11
+export const KIRBY_COUNT = 11
 
 interface KirbyInstance {
   id: number
@@ -13,14 +13,17 @@ interface KirbyInstance {
 }
 
 function createKirbys(): KirbyInstance[] {
-  return Array.from({ length: KIRBY_COUNT }, (_, id) => ({
-    id,
-    x: Math.random() * Math.max(window.innerWidth - 70, 0),
-    y: Math.random() * Math.max(window.innerHeight - 70, 0),
-    vx: (Math.random() * 2 + 1) * (Math.random() < 0.5 ? 1 : -1),
-    vy: (Math.random() * 2 + 1) * (Math.random() < 0.5 ? 1 : -1),
-    size: Math.floor(Math.random() * 41) + 30, // 30–70px
-  }))
+  return Array.from({ length: KIRBY_COUNT }, (_, id) => {
+    const size = Math.floor(Math.random() * 41) + 30
+    return {
+      id,
+      x: Math.random() * Math.max(window.innerWidth - size, 0),
+      y: Math.random() * Math.max(window.innerHeight - size, 0),
+      vx: (Math.random() * 2 + 1) * (Math.random() < 0.5 ? 1 : -1),
+      vy: (Math.random() * 2 + 1) * (Math.random() < 0.5 ? 1 : -1),
+      size,
+    }
+  })
 }
 
 export function KirbyEasterEgg() {
@@ -55,8 +58,7 @@ export function KirbyEasterEgg() {
   return (
     <div
       data-testid="kirby-easter-egg"
-      className="fixed inset-0 pointer-events-none"
-      style={{ zIndex: 1 }}
+      className="fixed inset-0 pointer-events-none z-[1]"
     >
       {kirbysRef.current.map((k, i) => (
         <div

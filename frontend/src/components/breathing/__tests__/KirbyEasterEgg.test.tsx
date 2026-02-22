@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { KirbyEasterEgg } from '../KirbyEasterEgg'
+import { KirbyEasterEgg, KIRBY_COUNT } from '../KirbyEasterEgg'
 
 beforeEach(() => {
   vi.stubGlobal('requestAnimationFrame', vi.fn(() => 0))
@@ -24,6 +24,11 @@ describe('KirbyEasterEgg', () => {
 
   it('renders 11 Kirby instances', () => {
     render(<KirbyEasterEgg />)
-    expect(screen.getAllByTestId('kirby-instance')).toHaveLength(11)
+    expect(screen.getAllByTestId('kirby-instance')).toHaveLength(KIRBY_COUNT)
+  })
+
+  it('starts the animation loop on mount', () => {
+    render(<KirbyEasterEgg />)
+    expect(vi.mocked(requestAnimationFrame)).toHaveBeenCalledTimes(1)
   })
 })
