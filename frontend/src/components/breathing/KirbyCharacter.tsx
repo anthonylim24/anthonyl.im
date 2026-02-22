@@ -13,12 +13,13 @@ export function KirbyCharacter({
   style,
   className,
 }: KirbyCharacterProps) {
-  const cheekRx = 11 + puffAmount * 5
-  const cheekRy = 8 + puffAmount * 4
+  const clamped = Math.max(0, Math.min(1, puffAmount))
+  const cheekRx = 11 + clamped * 5
+  const cheekRy = 8 + clamped * 4
 
   return (
-    <div style={{ width: size, height: size, ...style }} className={className}>
-      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+    <div style={{ ...style, width: size, height: size }} className={className}>
+      <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" aria-hidden="true">
         {/* Arms (behind body) */}
         <ellipse cx="11" cy="64" rx="9" ry="12" fill="#FFB8D4" />
         <ellipse cx="89" cy="64" rx="9" ry="12" fill="#FFB8D4" />
