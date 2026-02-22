@@ -1,6 +1,7 @@
-import { useMemo } from 'react'
+import { useMemo, useRef, useCallback } from 'react'
 import { BREATH_PHASES, type BreathPhase } from '@/lib/constants'
 import { cn } from '@/lib/utils'
+import { KirbyCharacter } from './KirbyCharacter'
 
 interface FluidOrbProps {
   phase: BreathPhase | null
@@ -8,6 +9,8 @@ interface FluidOrbProps {
   isActive: boolean
   themeColors?: [string, string]
   className?: string
+  kirbyMode?: boolean
+  onEasterEggToggle?: () => void
 }
 
 const PHASE_COLORS: Record<string, [string, string]> = {
@@ -26,6 +29,8 @@ export function FluidOrb({
   isActive,
   themeColors,
   className,
+  kirbyMode = false,
+  onEasterEggToggle,
 }: FluidOrbProps) {
   const colors = themeColors ?? PHASE_COLORS[phase ?? 'idle']
   const scale = 0.6 + amplitude * 0.4
@@ -41,8 +46,45 @@ export function FluidOrb({
 
   const transitionDuration = isActive ? '800ms' : '1200ms'
 
+  // Tap detection: 5 taps within 2 seconds triggers the easter egg toggle
+  const tapTimestampsRef = useRef<number[]>([])
+  const handleClick = useCallback(() => {
+    const now = Date.now()
+    const recent = tapTimestampsRef.current.filter((t) => now - t < 2000)
+    recent.push(now)
+    tapTimestampsRef.current = recent
+    if (recent.length >= 5) {
+      tapTimestampsRef.current = []
+      onEasterEggToggle?.()
+    }
+  }, [onEasterEggToggle])
+
+  if (kirbyMode) {
+    return (
+      <div
+        data-testid="fluid-orb"
+        className={cn('relative flex items-center justify-center', className)}
+        onClick={handleClick}
+      >
+        <div
+          style={{
+            transform: `translateZ(0) scale(${scale})`,
+            transition: `transform ${transitionDuration} ease-out`,
+            willChange: 'transform',
+          }}
+        >
+          <KirbyCharacter size={200} puffAmount={amplitude} />
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className={cn('relative flex items-center justify-center', className)}>
+    <div
+      data-testid="fluid-orb"
+      className={cn('relative flex items-center justify-center', className)}
+      onClick={handleClick}
+    >
       {/* Outer glow — use transform: scale instead of width/height to stay on GPU */}
       <div
         className="absolute rounded-full blur-3xl"
