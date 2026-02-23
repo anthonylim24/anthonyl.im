@@ -2,6 +2,7 @@ import { useCallback, useState, useMemo, useRef, useEffect, type CSSProperties }
 import { useBreathingCycle } from '@/hooks/useBreathingCycle'
 import { useWaveform } from '@/hooks/useWaveform'
 import { FluidOrb } from './FluidOrb'
+import { KirbyEasterEgg } from './KirbyEasterEgg'
 import { SessionSummary } from './SessionSummary'
 import { PhaseIndicator } from './PhaseIndicator'
 import { Timer } from './Timer'
@@ -34,6 +35,9 @@ export function BreathingSession({
     durationSeconds: number
     isNewPersonalBest: boolean
   } | null>(null)
+
+  const [kirbyMode, setKirbyMode] = useState(false)
+  const toggleKirbyMode = useCallback(() => setKirbyMode((prev) => !prev), [])
 
   // Controls auto-fade state
   const [controlsVisible, setControlsVisible] = useState(true)
@@ -179,6 +183,9 @@ export function BreathingSession({
       onMouseMove={isActive && !isPaused ? showControls : undefined}
       onTouchStart={isActive && !isPaused ? showControls : undefined}
     >
+      {/* Kirby Easter Egg — background layer, behind all UI */}
+      {kirbyMode && <KirbyEasterEgg />}
+
       {/* Round progress indicator */}
       {(() => {
         const currentRound = session?.currentRound ?? 0
@@ -258,6 +265,8 @@ export function BreathingSession({
             amplitude={amplitude}
             isActive={isActive && !isPaused}
             className="w-full h-full"
+            kirbyMode={kirbyMode}
+            onEasterEggToggle={toggleKirbyMode}
           />
         </div>
 
