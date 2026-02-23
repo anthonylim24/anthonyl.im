@@ -51,9 +51,10 @@ jobs:
               curl -fsSL https://bun.sh/install | bash
             fi
             ~/.bun/bin/bun install
-            mkdir -p frontend/dist
 
       # Upload the CI-built dist — server never builds, so no OOM risk on 1GB droplet
+      # scp-action preserves the full source path, so source "frontend/dist" + target "anthonyl.im"
+      # lands at ~/anthonyl.im/frontend/dist — matching app.ts's production distPath
       - name: Upload frontend build
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -61,7 +62,7 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           username: ${{ secrets.SSH_USERNAME }}
           source: "frontend/dist"
-          target: "anthonyl.im/frontend"
+          target: "anthonyl.im"
 
       - name: Restart PM2
         uses: appleboy/ssh-action@v1.2.5
@@ -74,5 +75,5 @@ jobs:
             if [ ! -f ~/.bun/bin/pm2 ]; then
               ~/.bun/bin/bun add -g pm2
             fi
-            ~/.bun/bin/pm2 restart anthonyl.im --update-env
+            ~/.bun/bin/pm2 restart anthonyl.im
             echo 'Deployment successful to Digital Ocean'
