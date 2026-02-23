@@ -12,18 +12,41 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        // Manual chunks for better caching and smaller initial bundle
-        manualChunks: {
-          // Heavy visualization library - separate chunk
-          recharts: ['recharts'],
-          // Markdown rendering - loaded only for chat
-          markdown: ['react-markdown', 'remark-gfm', 'rehype-highlight'],
-          // Radix UI components - separate chunk for dialogs/tabs
-          radix: [
-            '@radix-ui/react-dialog',
-            '@radix-ui/react-tabs',
-            '@radix-ui/react-progress',
-          ],
+        manualChunks(id) {
+          if (id.includes('/node_modules/react/') || id.includes('/node_modules/react-dom/') || id.includes('/node_modules/scheduler/')) {
+            return 'react-vendor';
+          }
+          if (id.includes('@clerk/')) {
+            return 'clerk';
+          }
+          if (id.includes('@supabase/')) {
+            return 'supabase';
+          }
+          if (id.includes('/motion/') || id.includes('framer-motion')) {
+            return 'motion';
+          }
+          if (id.includes('react-router')) {
+            return 'router';
+          }
+          if (id.includes('recharts') || id.includes('/d3-') || id.includes('victory-vendor')) {
+            return 'recharts';
+          }
+          if (
+            id.includes('react-markdown') || id.includes('remark') ||
+            id.includes('rehype') || id.includes('unified') ||
+            id.includes('micromark') || id.includes('/mdast') || id.includes('/hast')
+          ) {
+            return 'markdown';
+          }
+          if (id.includes('@radix-ui/')) {
+            return 'radix';
+          }
+          if (id.includes('zustand')) {
+            return 'state';
+          }
+          if (id.includes('lucide-react')) {
+            return 'icons';
+          }
         }
       }
     }
