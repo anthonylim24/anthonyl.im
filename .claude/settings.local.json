@@ -28,7 +28,10 @@
       "Bash(git commit:*)",
       "WebFetch(domain:motion.dev)",
       "WebFetch(domain:www.npmjs.com)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(cd:*)",
+      "Bash(tail:*)",
+      "Bash(git rebase:*)"
     ]
   }
 }
