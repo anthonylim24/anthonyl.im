@@ -135,10 +135,7 @@ app.get("/health", (c) =>
   })
 );
 
-const distPath =
-  process.env.NODE_ENV === "development"
-    ? resolve(process.cwd(), "frontend/dist")
-    : resolve(process.cwd(), "anthonyl.im/frontend/dist");
+const distPath = resolve(import.meta.dir, "../frontend/dist");
 
 // Serve static assets
 app.use("*", serveStatic({ root: distPath }));

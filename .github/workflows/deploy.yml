@@ -64,7 +64,7 @@ jobs:
           source: "frontend/dist"
           target: "anthonyl.im"
 
-      - name: Restart PM2
+      - name: Verify dist and restart PM2
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -72,6 +72,12 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }}
           script: |
             set -e
+            if [ ! -f ~/anthonyl.im/frontend/dist/index.html ]; then
+              echo "ERROR: frontend/dist/index.html not found — SCP may have failed"
+              ls -la ~/anthonyl.im/frontend/ 2>/dev/null || echo "frontend/ dir missing"
+              exit 1
+            fi
+            echo "dist verified: $(ls ~/anthonyl.im/frontend/dist/ | wc -l) entries"
             if [ ! -f ~/.bun/bin/pm2 ]; then
               ~/.bun/bin/bun add -g pm2
             fi
