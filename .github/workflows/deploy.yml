@@ -72,14 +72,31 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }}
           script: |
             set -e
+            export PATH="$HOME/.bun/bin:$PATH"
+
             if [ ! -f ~/anthonyl.im/frontend/dist/index.html ]; then
-              echo "ERROR: frontend/dist/index.html not found — SCP may have failed"
-              ls -la ~/anthonyl.im/frontend/ 2>/dev/null || echo "frontend/ dir missing"
+              echo "ERROR: frontend/dist/index.html not found"
+              ls -laR ~/anthonyl.im/frontend/ 2>/dev/null || echo "frontend/ dir missing"
               exit 1
             fi
             echo "dist verified: $(ls ~/anthonyl.im/frontend/dist/ | wc -l) entries"
-            if [ ! -f ~/.bun/bin/pm2 ]; then
-              ~/.bun/bin/bun add -g pm2
+
+            if ! command -v pm2 &>/dev/null; then
+              bun add -g pm2
             fi
-            ~/.bun/bin/pm2 restart anthonyl.im
-            echo 'Deployment successful to Digital Ocean'
+
+            pm2 delete anthonyl.im 2>/dev/null || true
+            cd ~/anthonyl.im
+            pm2 start bun --name anthonyl.im -- run index.ts
+
+            sleep 3
+            pm2 logs anthonyl.im --lines 15 --nostream
+            echo ""
+
+            if pm2 show anthonyl.im | grep -q "status.*online"; then
+              echo 'Deployment successful to Digital Ocean'
+            else
+              echo "ERROR: Process is not online"
+              pm2 show anthonyl.im
+              exit 1
+            fi
