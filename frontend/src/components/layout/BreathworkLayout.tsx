@@ -5,10 +5,12 @@ import { Navigation } from './Navigation'
 import { useTheme } from '@/hooks/useTheme'
 import { useViewportOffset } from '@/hooks/useViewportOffset'
 import { useFavicon } from '@/hooks/useFavicon'
+import { useCloudSync } from '@/hooks/useCloudSync'
 
 export function BreathworkLayout() {
   useTheme()
   useFavicon()
+  useCloudSync()
   const { bottomOffset } = useViewportOffset()
   const contentStyle = {
     '--mobile-content-bottom-space': `calc(7.5rem + env(safe-area-inset-bottom, 0px) + ${bottomOffset}px)`,
