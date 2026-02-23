@@ -19,6 +19,7 @@ jobs:
             git clone git@github.com:anthonylim24/anthonyl.im.git
             cd ~
             cp .env ~/anthonyl.im/.env
+            cp .env ~/anthonyl.im/frontend/.env
             cd ~/anthonyl.im/
             curl -fsSL https://bun.sh/install | bash
             ~/.bun/bin/bun install
