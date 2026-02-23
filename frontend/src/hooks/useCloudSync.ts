@@ -1,10 +1,10 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useAuth, useUser, useSession } from '@clerk/clerk-react'
 import { createClerkSupabaseClient } from '@/lib/supabase'
-import { useHistoryStore, type CompletedSession } from '@/stores/historyStore'
+import { useHistoryStore, type CompletedSession, type PersonalBest } from '@/stores/historyStore'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useSettingsStore } from '@/stores/settingsStore'
-import { STORAGE_KEYS } from '@/lib/constants'
+import { STORAGE_KEYS, type TechniqueId } from '@/lib/constants'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 // ─── Merge utilities (exported for testing) ───────────────────────
@@ -327,11 +327,9 @@ function mapCloudSession(row: Record<string, unknown>): CompletedSession {
 }
 
 function hydrateStores(state: CloudUserState, sessions: CompletedSession[]) {
-  // Hydrate history store
-  const historyStore = useHistoryStore.getState()
   useHistoryStore.setState({
     sessions,
-    personalBests: (state.personal_bests ?? {}) as typeof historyStore.personalBests,
+    personalBests: (state.personal_bests ?? {}) as Record<TechniqueId, PersonalBest | undefined>,
     vo2MaxManual: (state.vo2_max_manual as number) ?? null,
     vo2MaxHistory: (state.vo2_max_history as { value: number; date: string }[]) ?? [],
   })
