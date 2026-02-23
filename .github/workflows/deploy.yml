@@ -46,6 +46,7 @@ jobs:
             rm -rf ~/anthonyl.im/
             git clone git@github.com:anthonylim24/anthonyl.im.git
             cp ~/.env ~/anthonyl.im/.env
+            cp ~/.env ~/anthonyl.im/frontend/.env
             cd ~/anthonyl.im/
             if [ ! -f ~/.bun/bin/bun ]; then
               curl -fsSL https://bun.sh/install | bash
