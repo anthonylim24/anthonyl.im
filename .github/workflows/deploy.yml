@@ -18,6 +18,15 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
 
+      # Cache downloaded packages — speeds up repeated deploys significantly
+      - name: Cache bun packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('frontend/package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
       - name: Build frontend
         working-directory: frontend
         run: |
@@ -25,6 +34,7 @@ jobs:
           bun install
           bun run build
 
+      # Clone repo & install backend deps, then prepare the dist directory for SCP
       - name: Deploy backend
         uses: appleboy/ssh-action@v1.2.5
         with:
@@ -37,9 +47,13 @@ jobs:
             git clone git@github.com:anthonylim24/anthonyl.im.git
             cp ~/.env ~/anthonyl.im/.env
             cd ~/anthonyl.im/
-            curl -fsSL https://bun.sh/install | bash
+            if [ ! -f ~/.bun/bin/bun ]; then
+              curl -fsSL https://bun.sh/install | bash
+            fi
             ~/.bun/bin/bun install
+            mkdir -p frontend/dist
 
+      # Upload the CI-built dist — server never builds, so no OOM risk on 1GB droplet
       - name: Upload frontend build
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -57,6 +71,8 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }}
           script: |
             set -e
-            ~/.bun/bin/bun add -g pm2
-            ~/.bun/bin/pm2 restart anthonyl.im
+            if [ ! -f ~/.bun/bin/pm2 ]; then
+              ~/.bun/bin/bun add -g pm2
+            fi
+            ~/.bun/bin/pm2 restart anthonyl.im --update-env
             echo 'Deployment successful to Digital Ocean'
