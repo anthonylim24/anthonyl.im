@@ -7,6 +7,11 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '25'
+
       - name: Deploy App
         uses: appleboy/ssh-action@v1.2.5
         with:
