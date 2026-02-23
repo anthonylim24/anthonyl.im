@@ -20,6 +20,16 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }} # User of the server you want to ssh into
 
           script: |
+            set -e
+
+            export NVM_DIR="$HOME/.nvm"
+            if [ ! -d "$NVM_DIR" ]; then
+              curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+            fi
+            [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+            nvm install 25
+            nvm use 25
+
             rm -rf ~/anthonyl.im/
             git clone git@github.com:anthonylim24/anthonyl.im.git
             cd ~
