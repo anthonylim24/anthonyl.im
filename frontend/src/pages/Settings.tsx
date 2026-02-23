@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { motion } from 'motion/react'
 import { SignedIn, SignedOut, SignInButton, useUser } from '@clerk/clerk-react'
+import { CLERK_ENABLED } from '@/lib/clerk'
 import {
   Palette,
   Volume2,
@@ -110,30 +111,32 @@ export function Settings() {
       </motion.div>
 
       {/* Account */}
-      <motion.section variants={fadeUp} className="sculpted-card rounded-[22px] p-5">
-        <div className="flex items-center gap-2.5 mb-4">
-          <User className="h-5 w-5 text-white/40" />
-          <h2 className="font-display text-base font-bold text-white">Account</h2>
-        </div>
-        <SignedOut>
-          <div className="flex flex-col items-center gap-3 py-2">
-            <p className="text-sm text-white/45 text-center">
-              Sign in with Google to sync your progress across devices
-            </p>
-            <SignInButton mode="modal">
-              <button
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 border border-white/10 hover:border-white/20 hover:bg-white/5 text-white"
-              >
-                <Cloud className="h-4 w-4" />
-                Sign in to sync
-              </button>
-            </SignInButton>
+      {CLERK_ENABLED && (
+        <motion.section variants={fadeUp} className="sculpted-card rounded-[22px] p-5">
+          <div className="flex items-center gap-2.5 mb-4">
+            <User className="h-5 w-5 text-white/40" />
+            <h2 className="font-display text-base font-bold text-white">Account</h2>
           </div>
-        </SignedOut>
-        <SignedIn>
-          <AccountInfo />
-        </SignedIn>
-      </motion.section>
+          <SignedOut>
+            <div className="flex flex-col items-center gap-3 py-2">
+              <p className="text-sm text-white/45 text-center">
+                Sign in with Google to sync your progress across devices
+              </p>
+              <SignInButton mode="modal">
+                <button
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 border border-white/10 hover:border-white/20 hover:bg-white/5 text-white"
+                >
+                  <Cloud className="h-4 w-4" />
+                  Sign in to sync
+                </button>
+              </SignInButton>
+            </div>
+          </SignedOut>
+          <SignedIn>
+            <AccountInfo />
+          </SignedIn>
+        </motion.section>
+      )}
 
       {/* Theme */}
       <motion.section variants={fadeUp} className="sculpted-card rounded-[22px] p-5">
