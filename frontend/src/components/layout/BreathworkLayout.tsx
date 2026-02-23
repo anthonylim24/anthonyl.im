@@ -5,6 +5,13 @@ import { Navigation } from './Navigation'
 import { useTheme } from '@/hooks/useTheme'
 import { useViewportOffset } from '@/hooks/useViewportOffset'
 import { useFavicon } from '@/hooks/useFavicon'
+import { useCloudSync } from '@/hooks/useCloudSync'
+import { CLERK_ENABLED } from '@/lib/clerk'
+
+function CloudSync() {
+  useCloudSync()
+  return null
+}
 
 export function BreathworkLayout() {
   useTheme()
@@ -16,6 +23,7 @@ export function BreathworkLayout() {
 
   return (
     <div className="breathwork-layout noise-overlay">
+      {CLERK_ENABLED && <CloudSync />}
       {/* Deep background with subtle radial vignettes */}
       <div className="fixed inset-0 breath-bg" style={{ transform: 'translateZ(0)' }} />
 

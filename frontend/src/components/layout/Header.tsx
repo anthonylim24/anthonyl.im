@@ -1,7 +1,9 @@
 import { Link, useLocation } from 'react-router-dom'
 import { Wind, BarChart3, Home, Settings } from 'lucide-react'
+import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react'
 import { cn } from '@/lib/utils'
 import { ACCENT, ACCENT_BRIGHT } from '@/lib/palette'
+import { CLERK_ENABLED } from '@/lib/clerk'
 
 export function Header() {
   const location = useLocation()
@@ -82,6 +84,30 @@ export function Header() {
               ))}
             </nav>
           </div>
+
+          {/* Auth controls */}
+          {CLERK_ENABLED && (
+            <div className="flex items-center">
+              <SignedOut>
+                <SignInButton mode="modal">
+                  <button
+                    className="px-4 py-2 rounded-xl text-sm font-semibold text-white/60 hover:text-white hover:bg-white/5 transition-all duration-300"
+                  >
+                    Sign In
+                  </button>
+                </SignInButton>
+              </SignedOut>
+              <SignedIn>
+                <UserButton
+                  appearance={{
+                    elements: {
+                      avatarBox: 'h-8 w-8',
+                    },
+                  }}
+                />
+              </SignedIn>
+            </div>
+          )}
         </div>
       </div>
     </header>
