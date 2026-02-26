@@ -15,12 +15,20 @@ describe('KirbyCharacter', () => {
     expect(wrapper.style.height).toBe('50px')
   })
 
-  it('puffed cheeks are larger than flat cheeks', () => {
+  it('puffAmount scales the body and cheeks', () => {
     const { container: flat } = render(<KirbyCharacter puffAmount={0} />)
     const { container: puffed } = render(<KirbyCharacter puffAmount={1} />)
-    const flatRx = Number(flat.querySelectorAll('ellipse[fill="#FF85A1"]')[0].getAttribute('rx'))
-    const puffedRx = Number(puffed.querySelectorAll('ellipse[fill="#FF85A1"]')[0].getAttribute('rx'))
-    expect(puffedRx).toBeGreaterThan(flatRx)
+
+    const flatSvg = flat.querySelector('svg') as SVGSVGElement
+    const puffedSvg = puffed.querySelector('svg') as SVGSVGElement
+    expect(flatSvg.style.transform).toBe('scale(1)')
+    expect(puffedSvg.style.transform).toBe('scale(1.15)')
+
+    // Cheek groups should be larger when puffed
+    const flatCheek = flat.querySelectorAll('g')[0] as SVGGElement
+    const puffedCheek = puffed.querySelectorAll('g')[0] as SVGGElement
+    expect(flatCheek.style.transform).toBe('scale(1)')
+    expect(puffedCheek.style.transform).toBe('scale(2.3)')
   })
 
   it('applies additional style and className', () => {

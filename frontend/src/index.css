@@ -251,6 +251,20 @@ body,
 .animate-orb-slow { animation: orb-float 30s ease-in-out infinite; animation-delay: -10s; will-change: transform, opacity; }
 
 /* ═══════════════════════════════════════════════════════
+   KIRBY ANIMATIONS
+   ═══════════════════════════════════════════════════════ */
+
+@keyframes kirby-float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  30%       { transform: translateY(-7px) rotate(1.2deg); }
+  70%       { transform: translateY(-4px) rotate(-0.8deg); }
+}
+.kirby-float {
+  animation: kirby-float 3.2s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* ═══════════════════════════════════════════════════════
    BREATHWORK ANIMATIONS
    ═══════════════════════════════════════════════════════ */
 
