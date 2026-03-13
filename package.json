@@ -14,7 +14,7 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "groq-sdk": "^0.37.0",
+    "groq-sdk": "^1.1.1",
     "hono": "^4.12.7",
     "openai": "^6.27.0",
     "posthog-js": "^1.360.1",
