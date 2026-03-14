@@ -1,14 +1,15 @@
-import type { BreathPhase } from '@/lib/constants'
+import type { BreathPhase, TechniqueId } from '@/lib/constants'
 import { PHASE_LABELS, BREATH_PHASES } from '@/lib/constants'
-import { PHASE } from '@/lib/palette'
+import { PHASE, TECHNIQUE_PHASES } from '@/lib/palette'
 import { cn } from '@/lib/utils'
 
 interface PhaseIndicatorProps {
   phase: BreathPhase | null
+  techniqueId?: TechniqueId
   className?: string
 }
 
-const PHASE_COLOR_MAP: Record<BreathPhase, string> = {
+const DEFAULT_PHASE_COLORS: Record<BreathPhase, string> = {
   [BREATH_PHASES.INHALE]: PHASE.inhale,
   [BREATH_PHASES.DEEP_INHALE]: PHASE.deep_inhale,
   [BREATH_PHASES.HOLD_IN]: PHASE.hold_in,
@@ -17,9 +18,10 @@ const PHASE_COLOR_MAP: Record<BreathPhase, string> = {
   [BREATH_PHASES.REST]: PHASE.rest,
 }
 
-export function PhaseIndicator({ phase, className }: PhaseIndicatorProps) {
+export function PhaseIndicator({ phase, techniqueId, className }: PhaseIndicatorProps) {
   const label = phase ? PHASE_LABELS[phase] : 'Ready'
-  const color = phase ? PHASE_COLOR_MAP[phase] : undefined
+  const colorMap = techniqueId ? TECHNIQUE_PHASES[techniqueId] : DEFAULT_PHASE_COLORS
+  const color = phase ? colorMap[phase] : undefined
 
   return (
     <div

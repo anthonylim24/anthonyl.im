@@ -43,7 +43,7 @@ body,
   --portfolio-text: #f8f7ff;
   --portfolio-text-muted: rgba(248, 247, 255, 0.6);
 
-  /* Breathwork tokens – indigo spectrum */
+  /* Breathwork tokens */
   --breath-accent: #6366F1;
   --breath-accent-bright: #818CF8;
   --breath-accent-subtle: #4F46E5;
@@ -251,7 +251,7 @@ body,
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
 ::selection { background: rgba(99, 102, 241, 0.3); color: white; }
-:focus-visible { outline: 2px solid rgba(99, 102, 241, 0.5); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--breath-accent, rgba(99, 102, 241, 0.5)); outline-offset: 2px; }
 :focus:not(:focus-visible) { outline: none; }
 
 /* ═══════════════════════════════════════════════════════
@@ -353,8 +353,8 @@ body,
 
 .breath-bg {
   background:
-    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(99,102,241,0.07) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(79,70,229,0.04) 0%, transparent 50%),
+    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(180,185,200,0.04) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(160,165,180,0.03) 0%, transparent 50%),
     linear-gradient(160deg, #050816 0%, #080c1a 30%, #0a0f1e 50%, #080c1a 70%, #050816 100%);
 }
 

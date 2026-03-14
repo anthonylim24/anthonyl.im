@@ -131,7 +131,7 @@ export function Home() {
           className="card-elevated rounded-[24px] p-5 sm:p-6 flex flex-col items-center justify-center text-center"
         >
           <div>
-            <LevelRing level={level} progress={levelProgress} size={88} strokeWidth={4} colors={['#fff', '#C7D2FE']} />
+            <LevelRing level={level} progress={levelProgress} size={88} strokeWidth={4} colors={['#fff', '#F0D08E']} />
           </div>
           <div className="mt-3">
             <div className="font-display text-lg font-bold text-white">{getLevelTitle(level)}</div>

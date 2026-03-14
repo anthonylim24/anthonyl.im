@@ -3,7 +3,7 @@
 
 import type { TechniqueId } from './constants'
 import { TECHNIQUE_IDS } from './constants'
-import { TECHNIQUE, TECHNIQUE_GRADIENT, ACCENT, ACCENT_BRIGHT } from './palette'
+import { TECHNIQUE, TECHNIQUE_GRADIENT, TECHNIQUE_PHASES, ACCENT, ACCENT_BRIGHT } from './palette'
 
 export interface TechniqueVisual {
   primary: string
@@ -61,4 +61,9 @@ export function accentGradientStyle(): React.CSSProperties {
   return {
     background: `linear-gradient(to right, ${ACCENT}, ${ACCENT_BRIGHT})`,
   }
+}
+
+/** Per-technique phase color map for FluidOrb and PhaseIndicator */
+export function getTechniquePhaseColors(id: TechniqueId) {
+  return TECHNIQUE_PHASES[id]
 }

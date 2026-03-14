@@ -11,7 +11,7 @@ import type { SessionConfig } from '@/lib/breathingProtocols'
 import { getProtocol } from '@/lib/breathingProtocols'
 import { cn } from '@/lib/utils'
 import { calculateXP, checkBadgeUnlocks } from '@/lib/gamification'
-import { techniqueGradientStyle, getTechniqueVisual } from '@/lib/techniqueConfig'
+import { techniqueGradientStyle, getTechniqueVisual, getTechniquePhaseColors } from '@/lib/techniqueConfig'
 import { DESTRUCTIVE } from '@/lib/palette'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore } from '@/stores/historyStore'
@@ -81,6 +81,15 @@ export function BreathingSession({
     timeRemaining: session?.timeRemaining ?? 0,
     isActive: isActive && !isPaused,
   })
+
+  // Technique-specific orb colors
+  const techniquePhases = useMemo(() => getTechniquePhaseColors(config.techniqueId), [config.techniqueId])
+  const orbThemeColors = useMemo((): [string, string] | undefined => {
+    const phase = session?.currentPhase
+    if (!phase) return undefined
+    const visual = getTechniqueVisual(config.techniqueId)
+    return [techniquePhases[phase], visual.secondary]
+  }, [session?.currentPhase, config.techniqueId, techniquePhases])
 
   // Auto-hide controls after 3s of activity
   useEffect(() => {
@@ -249,7 +258,7 @@ export function BreathingSession({
       >
         {/* Phase text above orb */}
         <div className="relative z-10 mb-3">
-          <PhaseIndicator phase={session?.currentPhase ?? null} />
+          <PhaseIndicator phase={session?.currentPhase ?? null} techniqueId={config.techniqueId} />
         </div>
 
         {/* FluidOrb - scales with screen height and width to avoid overlap */}
@@ -266,6 +275,7 @@ export function BreathingSession({
             phase={session?.currentPhase ?? null}
             amplitude={amplitude}
             isActive={isActive && !isPaused}
+            themeColors={orbThemeColors}
             className="w-full h-full"
             kirbyMode={kirbyMode}
             onEasterEggToggle={toggleKirbyMode}

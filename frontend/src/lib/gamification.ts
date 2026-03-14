@@ -227,14 +227,14 @@ export interface OrbTheme {
 }
 
 export const ORB_THEMES: OrbTheme[] = [
-  { id: 'default', name: 'Default', colors: ['#6E7BF2', '#8B96FF'], unlockLevel: 1 },
-  { id: 'midnight', name: 'Midnight', colors: ['#2A3370', '#3D4A9E'], unlockLevel: 5 },
-  { id: 'ocean', name: 'Ocean', colors: ['#4B55B8', '#5B6AD4'], unlockLevel: 10 },
-  { id: 'twilight', name: 'Twilight', colors: ['#5B6AD4', '#7C8AFF'], unlockLevel: 15 },
-  { id: 'nebula', name: 'Nebula', colors: ['#7C8AFF', '#99A5FF'], unlockLevel: 20 },
-  { id: 'aether', name: 'Aether', colors: ['#8B96FF', '#B0B8FF'], unlockLevel: 25 },
-  { id: 'frost', name: 'Frost', colors: ['#99A5FF', '#C8CDFF'], unlockLevel: 30 },
-  { id: 'prism', name: 'Prism', colors: ['#A898FF', '#B0B8FF'], unlockLevel: 40 },
+  { id: 'default', name: 'Default', colors: ['#6366F1', '#818CF8'], unlockLevel: 1 },
+  { id: 'tidal', name: 'Tidal', colors: ['#3D9088', '#7AD0C6'], unlockLevel: 5 },
+  { id: 'ember', name: 'Ember', colors: ['#B58834', '#E8BE72'], unlockLevel: 10 },
+  { id: 'coral', name: 'Coral', colors: ['#B45C56', '#EA9490'], unlockLevel: 15 },
+  { id: 'grove', name: 'Grove', colors: ['#5E9A6C', '#9CD4A8'], unlockLevel: 20 },
+  { id: 'midnight', name: 'Midnight', colors: ['#2A3370', '#4F46E5'], unlockLevel: 25 },
+  { id: 'dawn', name: 'Dawn', colors: ['#D4A04A', '#EA9490'], unlockLevel: 30 },
+  { id: 'arctic', name: 'Arctic', colors: ['#56B4A9', '#A0E5DD'], unlockLevel: 40 },
   { id: 'transcend', name: 'Transcend', colors: ['#D0D4FF', '#E8EAFF'], unlockLevel: 50 },
 ]
 

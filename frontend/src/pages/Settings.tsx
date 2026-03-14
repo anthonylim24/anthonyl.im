@@ -153,14 +153,14 @@ export function Settings() {
             className={cn(
               'relative flex items-center gap-3 p-4 rounded-[16px] border transition-all duration-300',
               theme === 'dark'
-                ? 'border-[#6E7BF2]/60 bg-[#6E7BF2]/10'
+                ? 'border-[#6366F1]/60 bg-[#6366F1]/10'
                 : 'border-white/8 surface-inset hover:border-white/12'
             )}
           >
             <Moon className="h-5 w-5 text-white" />
             <span className="text-white font-semibold text-sm">Dark</span>
             {theme === 'dark' && (
-              <Check className="absolute top-3 right-3 h-4 w-4 text-[#8B96FF]" />
+              <Check className="absolute top-3 right-3 h-4 w-4 text-[#818CF8]" />
             )}
           </motion.button>
           <motion.button
@@ -170,14 +170,14 @@ export function Settings() {
             className={cn(
               'relative flex items-center gap-3 p-4 rounded-[16px] border transition-all duration-300',
               theme === 'light'
-                ? 'border-[#6E7BF2]/60 bg-[#6E7BF2]/10'
+                ? 'border-[#6366F1]/60 bg-[#6366F1]/10'
                 : 'border-white/8 surface-inset hover:border-white/12'
             )}
           >
             <Sun className="h-5 w-5 text-white" />
             <span className="text-white font-semibold text-sm">Light</span>
             {theme === 'light' && (
-              <Check className="absolute top-3 right-3 h-4 w-4 text-[#8B96FF]" />
+              <Check className="absolute top-3 right-3 h-4 w-4 text-[#818CF8]" />
             )}
           </motion.button>
         </div>
@@ -196,7 +196,7 @@ export function Settings() {
             role="switch"
             className={cn(
               'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[44px] min-w-[44px]',
-              soundEnabled ? 'bg-[#6E7BF2]' : 'surface-inset'
+              soundEnabled ? 'bg-[#6366F1]' : 'surface-inset'
             )}
           >
             <span
@@ -222,10 +222,10 @@ export function Settings() {
               step={0.01}
               value={soundVolume}
               onChange={(e) => setSoundVolume(parseFloat(e.target.value))}
-              className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/8 accent-[#6E7BF2]
+              className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/8 accent-[#6366F1]
                 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5
-                [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#6E7BF2]
-                [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:shadow-[#6E7BF2]/30"
+                [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#6366F1]
+                [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:shadow-[#6366F1]/30"
             />
           </div>
         )}
@@ -244,7 +244,7 @@ export function Settings() {
             role="switch"
             className={cn(
               'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[44px] min-w-[44px]',
-              hapticsEnabled ? 'bg-[#6E7BF2]' : 'surface-inset'
+              hapticsEnabled ? 'bg-[#6366F1]' : 'surface-inset'
             )}
           >
             <span
