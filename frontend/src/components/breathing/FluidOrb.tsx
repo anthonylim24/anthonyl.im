@@ -1,5 +1,6 @@
 import { useMemo, useRef, useCallback } from 'react'
 import { BREATH_PHASES, type BreathPhase } from '@/lib/constants'
+import { PHASE } from '@/lib/palette'
 import { cn } from '@/lib/utils'
 import { KirbyCharacter } from './KirbyCharacter'
 
@@ -13,14 +14,15 @@ interface FluidOrbProps {
   onEasterEggToggle?: () => void
 }
 
+// Default phase colors (indigo) used when no technique-specific themeColors are passed
 const PHASE_COLORS: Record<string, [string, string]> = {
-  [BREATH_PHASES.INHALE]: ['#8B96FF', '#6E7BF2'],
-  [BREATH_PHASES.DEEP_INHALE]: ['#99A5FF', '#8B96FF'],
-  [BREATH_PHASES.HOLD_IN]: ['#B0B8FF', '#8B96FF'],
-  [BREATH_PHASES.EXHALE]: ['#5B6AD4', '#4B55B8'],
-  [BREATH_PHASES.HOLD_OUT]: ['#3D4A9E', '#2A3370'],
-  [BREATH_PHASES.REST]: ['#2A3370', '#1E2550'],
-  idle: ['#1E2550', '#2A3370'],
+  [BREATH_PHASES.INHALE]: [PHASE.inhale, PHASE.exhale],
+  [BREATH_PHASES.DEEP_INHALE]: [PHASE.deep_inhale, PHASE.inhale],
+  [BREATH_PHASES.HOLD_IN]: [PHASE.hold_in, PHASE.inhale],
+  [BREATH_PHASES.EXHALE]: [PHASE.exhale, PHASE.hold_out],
+  [BREATH_PHASES.HOLD_OUT]: [PHASE.hold_out, PHASE.rest],
+  [BREATH_PHASES.REST]: [PHASE.rest, '#1E2550'],
+  idle: ['#1E2550', PHASE.rest],
 }
 
 export function FluidOrb({

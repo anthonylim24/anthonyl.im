@@ -135,7 +135,7 @@ export function Home() {
             style={{ background: ACCENT_BRIGHT }}
           />
           <div className="relative z-10">
-            <LevelRing level={level} progress={levelProgress} size={88} strokeWidth={4} colors={['#fff', '#C7D2FE']} />
+            <LevelRing level={level} progress={levelProgress} size={88} strokeWidth={4} colors={['#fff', '#F0D08E']} />
           </div>
           <div className="relative z-10 mt-3">
             <div className="font-display text-lg font-bold text-white">{getLevelTitle(level)}</div>

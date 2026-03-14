@@ -43,11 +43,11 @@ body,
   --portfolio-text: #f8f7ff;
   --portfolio-text-muted: rgba(248, 247, 255, 0.6);
 
-  /* Breathwork tokens – indigo spectrum */
+  /* Breathwork tokens */
   --breath-accent: #6366F1;
   --breath-accent-bright: #818CF8;
   --breath-accent-subtle: #4F46E5;
-  --breath-glass-tint: rgba(99, 102, 241, 0.08);
+  --breath-glass-tint: rgba(180, 185, 200, 0.06);
   --breath-glass-border: rgba(255, 255, 255, 0.08);
 
   /* Depth system */
@@ -201,8 +201,8 @@ body,
 }
 
 @keyframes glow-pulse {
-  0%, 100% { box-shadow: 0 0 20px rgba(99,102,241,0.3), 0 0 40px rgba(99,102,241,0.1); }
-  50% { box-shadow: 0 0 30px rgba(99,102,241,0.5), 0 0 60px rgba(99,102,241,0.2); }
+  0%, 100% { box-shadow: 0 0 20px rgba(180,185,200,0.2), 0 0 40px rgba(180,185,200,0.08); }
+  50% { box-shadow: 0 0 30px rgba(180,185,200,0.35), 0 0 60px rgba(180,185,200,0.15); }
 }
 .animate-glow { animation: glow-pulse 3s ease-in-out infinite; }
 
@@ -285,7 +285,7 @@ body,
   50% { background-position: 100% 50%; }
 }
 .animated-gradient {
-  background: linear-gradient(-45deg, hsl(234 85% 69% / 0.08), hsl(234 70% 55% / 0.08), hsl(234 90% 78% / 0.06), hsl(234 60% 45% / 0.08));
+  background: linear-gradient(-45deg, rgba(180,185,200,0.05), rgba(160,165,180,0.05), rgba(190,195,210,0.04), rgba(160,165,180,0.05));
   background-size: 400% 400%;
   animation: gradient-shift 15s ease infinite;
 }
@@ -315,7 +315,7 @@ body,
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
 ::selection { background: rgba(99, 102, 241, 0.3); color: white; }
-:focus-visible { outline: 2px solid rgba(99, 102, 241, 0.5); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--breath-accent, rgba(99, 102, 241, 0.5)); outline-offset: 2px; }
 :focus:not(:focus-visible) { outline: none; }
 
 /* ═══════════════════════════════════════════════════════
@@ -598,8 +598,8 @@ body,
 
 .breath-bg {
   background:
-    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(99,102,241,0.07) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(79,70,229,0.04) 0%, transparent 50%),
+    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(180,185,200,0.04) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(160,165,180,0.03) 0%, transparent 50%),
     linear-gradient(160deg, #050816 0%, #080c1a 30%, #0a0f1e 50%, #080c1a 70%, #050816 100%);
 }
 
@@ -609,9 +609,9 @@ body,
   transform: translateZ(0);
   will-change: transform, opacity;
 }
-.breath-orb-indigo { background: radial-gradient(circle, rgba(99,102,241,0.10) 0%, transparent 70%); }
-.breath-orb-indigo-light { background: radial-gradient(circle, rgba(129,140,248,0.08) 0%, transparent 70%); }
-.breath-orb-indigo-deep { background: radial-gradient(circle, rgba(79,70,229,0.08) 0%, transparent 70%); }
+.breath-orb-indigo { background: radial-gradient(circle, rgba(180,185,200,0.06) 0%, transparent 70%); }
+.breath-orb-indigo-light { background: radial-gradient(circle, rgba(190,195,210,0.05) 0%, transparent 70%); }
+.breath-orb-indigo-deep { background: radial-gradient(circle, rgba(160,165,180,0.05) 0%, transparent 70%); }
 
 /* ═══════════════════════════════════════════════════════
    HORIZONTAL SCROLL (technique carousel)
@@ -651,8 +651,8 @@ body,
 .pointer-glow {
   background: radial-gradient(
     320px circle at var(--glow-x) var(--glow-y),
-    rgba(99, 102, 241, 0.12) 0%,
-    rgba(129, 140, 248, 0.06) 30%,
+    rgba(180, 185, 200, 0.08) 0%,
+    rgba(190, 195, 210, 0.04) 30%,
     transparent 70%
   );
 }
