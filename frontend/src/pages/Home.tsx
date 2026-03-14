@@ -4,76 +4,36 @@ import { motion } from 'motion/react'
 import { useHistoryStore } from '@/stores/historyStore'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { getLevelForXP, getXPForLevel, getLevelTitle } from '@/lib/gamification'
-import { LevelRing } from '@/components/gamification/LevelRing'
 import { breathingProtocols } from '@/lib/breathingProtocols'
 import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 import { formatTime } from '@/lib/utils'
-import { ACCENT, ACCENT_BRIGHT } from '@/lib/palette'
+import { ACCENT } from '@/lib/palette'
 import { techniqueCardGradient } from '@/lib/techniqueConfig'
 import {
   Wind,
   Flame,
   Box,
-  Trophy,
-  Zap,
   ChevronRight,
   ArrowRight,
   Heart,
 } from 'lucide-react'
 
 const techniqueIcons: Record<TechniqueId, React.ReactNode> = {
-  [TECHNIQUE_IDS.BOX_BREATHING]: <Box className="h-7 w-7" />,
-  [TECHNIQUE_IDS.CO2_TOLERANCE]: <Flame className="h-7 w-7" />,
-  [TECHNIQUE_IDS.POWER_BREATHING]: <Wind className="h-7 w-7" />,
-  [TECHNIQUE_IDS.CYCLIC_SIGHING]: <Heart className="h-7 w-7" />,
-}
-
-// Decorative SVG patterns per technique – unique visual identity
-const techniquePatterns: Record<TechniqueId, React.ReactNode> = {
-  [TECHNIQUE_IDS.BOX_BREATHING]: (
-    <svg className="absolute inset-0 w-full h-full opacity-[0.08]" viewBox="0 0 200 200">
-      {Array.from({ length: 5 }, (_, r) =>
-        Array.from({ length: 5 }, (_, c) => (
-          <rect key={`${r}-${c}`} x={20 + c * 36} y={20 + r * 36} width={24} height={24} rx={4} fill="white" />
-        ))
-      )}
-    </svg>
-  ),
-  [TECHNIQUE_IDS.CO2_TOLERANCE]: (
-    <svg className="absolute inset-0 w-full h-full opacity-[0.08]" viewBox="0 0 200 200">
-      {Array.from({ length: 5 }, (_, i) => (
-        <circle key={i} cx={100} cy={100} r={20 + i * 20} fill="none" stroke="white" strokeWidth={1.5} />
-      ))}
-    </svg>
-  ),
-  [TECHNIQUE_IDS.POWER_BREATHING]: (
-    <svg className="absolute inset-0 w-full h-full opacity-[0.08]" viewBox="0 0 200 200">
-      {Array.from({ length: 8 }, (_, i) => (
-        <line key={i} x1={0} y1={i * 28} x2={200} y2={i * 28 + 60} stroke="white" strokeWidth={2} />
-      ))}
-    </svg>
-  ),
-  [TECHNIQUE_IDS.CYCLIC_SIGHING]: (
-    <svg className="absolute inset-0 w-full h-full opacity-[0.08]" viewBox="0 0 200 200">
-      {Array.from({ length: 4 }, (_, i) => (
-        <path key={i} d={`M ${40 + i * 15} 100 Q 100 ${40 + i * 20}, ${160 - i * 15} 100`} fill="none" stroke="white" strokeWidth={1.5} />
-      ))}
-      {Array.from({ length: 4 }, (_, i) => (
-        <path key={`b${i}`} d={`M ${40 + i * 15} 100 Q 100 ${160 - i * 20}, ${160 - i * 15} 100`} fill="none" stroke="white" strokeWidth={1.5} />
-      ))}
-    </svg>
-  ),
+  [TECHNIQUE_IDS.BOX_BREATHING]: <Box className="h-5 w-5" />,
+  [TECHNIQUE_IDS.CO2_TOLERANCE]: <Flame className="h-5 w-5" />,
+  [TECHNIQUE_IDS.POWER_BREATHING]: <Wind className="h-5 w-5" />,
+  [TECHNIQUE_IDS.CYCLIC_SIGHING]: <Heart className="h-5 w-5" />,
 }
 
 const spring = { type: 'spring' as const, stiffness: 300, damping: 30, mass: 1 }
 
 const stagger = {
   hidden: {},
-  show: { transition: { staggerChildren: 0.07 } },
+  show: { transition: { staggerChildren: 0.08 } },
 }
 
 const fadeUp = {
-  hidden: { opacity: 0, y: 24 },
+  hidden: { opacity: 0, y: 20 },
   show: { opacity: 1, y: 0, transition: spring },
 }
 
@@ -106,230 +66,216 @@ export function Home() {
 
   const dailyGoalMet = dailySessionCount >= 1
 
+  const techniques = [
+    TECHNIQUE_IDS.BOX_BREATHING,
+    TECHNIQUE_IDS.CO2_TOLERANCE,
+    TECHNIQUE_IDS.POWER_BREATHING,
+    TECHNIQUE_IDS.CYCLIC_SIGHING,
+  ] as TechniqueId[]
+
+  // Feature the first technique as hero, rest as list
+  const heroTechnique = techniques[0]
+  const heroProtocol = breathingProtocols[heroTechnique]
+  const restTechniques = techniques.slice(1)
+
   return (
     <motion.div
-      className="pb-8 space-y-7 sm:space-y-10"
       variants={stagger}
       initial="hidden"
       animate="show"
     >
-      {/* ── Greeting ────────────────────────────────────────── */}
-      <motion.div variants={fadeUp} className="pt-1">
-        <h1 className="font-display text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+      {/* ── Greeting — massive, editorial ────────────────── */}
+      <motion.div variants={fadeUp} className="pt-2 pb-16 sm:pb-20">
+        <h1 className="font-display text-[clamp(2.75rem,8vw,4.5rem)] font-extrabold text-white tracking-[-0.03em] leading-[0.95]">
           {getGreeting()}
         </h1>
-        <p className="text-sm text-white/35 mt-1 font-medium">
+        <p className="text-sm text-white/30 mt-3 font-medium tracking-wide">
           {dailyGoalMet ? 'You\'ve completed today\'s goal' : 'Ready for today\'s session?'}
         </p>
       </motion.div>
 
-      {/* ── Bento Grid ──────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4">
-        {/* Level Card – vivid gradient */}
-        <motion.div
-          variants={fadeUp}
-          className="card-elevated rounded-[24px] p-5 sm:p-6 flex flex-col items-center justify-center text-center"
-        >
-          <div>
-            <LevelRing level={level} progress={levelProgress} size={88} strokeWidth={4} colors={['#fff', '#F0D08E']} />
-          </div>
-          <div className="mt-3">
-            <div className="font-display text-lg font-bold text-white">{getLevelTitle(level)}</div>
-            <div className="text-xs text-white/60 font-medium mt-0.5">Level {level}</div>
-          </div>
-        </motion.div>
-
-        {/* Daily Goal */}
-        <motion.div
-          variants={fadeUp}
-          className="card-elevated rounded-[24px] p-5 sm:p-6 flex flex-col justify-between"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-white/35 font-semibold tracking-wide uppercase">Today</span>
-            <div
-              className="h-8 w-8 rounded-xl flex items-center justify-center"
-              style={{
-                background: dailyGoalMet
-                  ? `linear-gradient(135deg, ${ACCENT}, ${ACCENT_BRIGHT})`
-                  : 'rgba(255,255,255,0.06)',
-              }}
-            >
-              <Zap className="h-4 w-4 text-white" />
-            </div>
-          </div>
-          <div className="mt-auto pt-4">
-            <div className="font-display text-4xl sm:text-5xl font-extrabold text-white tabular-nums leading-none">
-              {dailySessionCount}
-            </div>
-            <div className="text-xs text-white/35 font-medium mt-1">
-              {dailyGoalMet ? 'sessions today' : 'of 1 session goal'}
-            </div>
-          </div>
-          <div className="h-1.5 rounded-full surface-well overflow-hidden mt-3">
-            <div
-              className="h-full rounded-full origin-left transition-transform duration-700 ease-out"
-              style={{
-                background: `linear-gradient(to right, ${ACCENT}, ${ACCENT_BRIGHT})`,
-                transform: `translateZ(0) scaleX(${dailyGoalMet ? 1 : Math.min(dailySessionCount, 1)})`,
-              }}
-            />
-          </div>
-        </motion.div>
-
-        {/* Streak */}
-        <motion.div
-          variants={fadeUp}
-          className="card-elevated rounded-[24px] p-5 sm:p-6 flex flex-col justify-between"
-        >
-          <Flame className="h-5 w-5 text-white/30" />
-          <div className="mt-auto pt-3">
-            <div className="font-display text-4xl sm:text-5xl font-extrabold text-white tabular-nums leading-none">
-              {streak}
-            </div>
-            <div className="text-xs text-white/35 font-medium mt-1">day streak</div>
-          </div>
-        </motion.div>
-
-        {/* Total */}
-        <motion.div
-          variants={fadeUp}
-          className="card-elevated rounded-[24px] p-5 sm:p-6 flex flex-col justify-between"
-        >
-          <Trophy className="h-5 w-5 text-white/30" />
-          <div className="mt-auto pt-3">
-            <div className="font-display text-4xl sm:text-5xl font-extrabold text-white tabular-nums leading-none">
-              {sessions.length > 0 ? formatTime(totalPracticeTime) : '0:00'}
-            </div>
-            <div className="text-xs text-white/35 font-medium mt-1">
-              {sessions.length} session{sessions.length !== 1 ? 's' : ''} total
-            </div>
-          </div>
-        </motion.div>
-      </div>
-
-      {/* ── Techniques (horizontal scroll on mobile, grid on md+) */}
-      <motion.div variants={fadeUp}>
-        <h2 className="font-display text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-5">
-          Techniques
-        </h2>
-
-        <div className="flex gap-4 overflow-x-auto no-scrollbar scroll-snap-x pb-2 -mx-1 px-1 md:grid md:grid-cols-3 md:overflow-x-visible">
-          {([
-            TECHNIQUE_IDS.BOX_BREATHING,
-            TECHNIQUE_IDS.CO2_TOLERANCE,
-            TECHNIQUE_IDS.POWER_BREATHING,
-            TECHNIQUE_IDS.CYCLIC_SIGHING,
-          ] as TechniqueId[]).map((id) => {
-            const protocol = breathingProtocols[id]
-            return (
-              <motion.button
-                key={id}
-                whileTap={{ scale: 0.96 }}
-                transition={spring}
-                className="card-elevated relative rounded-[24px] p-6 text-left flex-shrink-0 w-[75vw] sm:w-auto min-h-[200px] flex flex-col justify-between overflow-hidden group"
-                style={techniqueCardGradient(id)}
-                onClick={() => navigate(`/breathwork/session?technique=${id}`)}
-              >
-                {techniquePatterns[id]}
-
-                <div className="relative z-10">
-                  <div className="h-14 w-14 rounded-2xl bg-white/8 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform duration-300">
-                    <span className="text-white">{techniqueIcons[id]}</span>
-                  </div>
-                  <h3 className="font-display text-xl font-bold text-white leading-tight">
-                    {protocol.name}
-                  </h3>
-                  <p className="text-sm text-white/70 mt-1 leading-relaxed line-clamp-2">
-                    {protocol.purpose}
-                  </p>
-                </div>
-
-                <div className="relative z-10 flex items-center gap-2 mt-5 text-white/80 text-sm font-semibold group-hover:text-white transition-colors">
-                  <span>Start</span>
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                </div>
-              </motion.button>
-            )
-          })}
+      {/* ── Stats — horizontal strip, not hero metrics ──── */}
+      <motion.div variants={fadeUp} className="flex items-baseline gap-8 sm:gap-12 pb-16 sm:pb-20 border-b border-white/[0.04]">
+        <div>
+          <span className="font-display text-3xl sm:text-4xl font-extrabold text-white tabular-nums leading-none">
+            {getLevelTitle(level)}
+          </span>
+          <span className="block text-[11px] text-white/25 font-semibold tracking-[0.08em] uppercase mt-1.5">
+            Level {level}
+          </span>
         </div>
+        <div>
+          <span className="font-display text-3xl sm:text-4xl font-extrabold text-white tabular-nums leading-none">
+            {streak}
+          </span>
+          <span className="block text-[11px] text-white/25 font-semibold tracking-[0.08em] uppercase mt-1.5">
+            Day streak
+          </span>
+        </div>
+        <div>
+          <span className="font-display text-3xl sm:text-4xl font-extrabold text-white tabular-nums leading-none">
+            {dailySessionCount}
+          </span>
+          <span className="block text-[11px] text-white/25 font-semibold tracking-[0.08em] uppercase mt-1.5">
+            Today
+          </span>
+        </div>
+        {sessions.length > 0 && (
+          <div className="hidden sm:block">
+            <span className="font-display text-3xl sm:text-4xl font-extrabold text-white tabular-nums leading-none">
+              {formatTime(totalPracticeTime)}
+            </span>
+            <span className="block text-[11px] text-white/25 font-semibold tracking-[0.08em] uppercase mt-1.5">
+              Total
+            </span>
+          </div>
+        )}
       </motion.div>
 
-      {/* ── XP Progress ────────────────────────────────────── */}
-      <motion.div variants={fadeUp} className="card-elevated rounded-[20px] p-5">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-xs text-white/40 font-semibold tracking-wide uppercase">
-            Level {level} Progress
+      {/* ── XP Progress — inline, minimal ────────────────── */}
+      <motion.div variants={fadeUp} className="py-5 sm:py-6">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[11px] text-white/25 font-semibold tracking-[0.08em] uppercase">
+            Level {level} progress
           </span>
-          <span className="text-xs text-white/30 font-medium tabular-nums">
+          <span className="text-[11px] text-white/20 font-medium tabular-nums">
             {xpInLevel} / {xpNeeded} XP
           </span>
         </div>
-        <div className="h-3 rounded-full surface-well overflow-hidden">
+        <div className="h-1 rounded-full surface-well overflow-hidden">
           <div
-            className="h-full rounded-full origin-left transition-transform duration-1000 ease-out"
+            className="h-full rounded-full origin-left transition-transform duration-700 ease-out"
             style={{
-              background: `linear-gradient(to right, ${ACCENT}, ${ACCENT_BRIGHT})`,
+              background: ACCENT,
               transform: `translateZ(0) scaleX(${Math.round(levelProgress * 100) / 100})`,
             }}
           />
         </div>
       </motion.div>
 
-      {/* ── Recent Sessions ────────────────────────────────── */}
+      {/* ── Techniques — hero card + list ────────────────── */}
+      <motion.div variants={fadeUp} className="pt-12 sm:pt-16">
+        <h2 className="font-display text-2xl sm:text-3xl font-bold text-white tracking-tight mb-8 sm:mb-10">
+          Techniques
+        </h2>
+
+        {/* Hero technique — full width, vivid */}
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          transition={spring}
+          className="relative rounded-2xl p-7 sm:p-8 text-left w-full min-h-[220px] flex flex-col justify-between overflow-hidden group mb-3"
+          style={techniqueCardGradient(heroTechnique)}
+          onClick={() => navigate(`/breathwork/session?technique=${heroTechnique}`)}
+        >
+          <div className="absolute inset-0 pointer-events-none" style={{
+            backgroundImage: 'var(--noise)',
+            backgroundRepeat: 'repeat',
+            backgroundSize: '256px 256px',
+            opacity: 0.12,
+            mixBlendMode: 'overlay' as const,
+          }} />
+          <div className="relative z-10">
+            <div className="h-12 w-12 rounded-xl bg-white/15 flex items-center justify-center mb-5">
+              <span className="text-white">{techniqueIcons[heroTechnique]}</span>
+            </div>
+            <h3 className="font-display text-2xl sm:text-3xl font-bold text-white leading-tight">
+              {heroProtocol.name}
+            </h3>
+            <p className="text-sm text-white/60 mt-2 leading-relaxed max-w-md">
+              {heroProtocol.purpose}
+            </p>
+          </div>
+          <div className="relative z-10 flex items-center gap-2 mt-6 text-white/70 text-sm font-semibold group-hover:text-white transition-colors">
+            <span>Start session</span>
+            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+          </div>
+        </motion.button>
+
+        {/* Remaining techniques — compact list */}
+        <div className="space-y-1">
+          {restTechniques.map((id) => {
+            const protocol = breathingProtocols[id]
+            return (
+              <motion.button
+                key={id}
+                whileTap={{ scale: 0.99 }}
+                transition={spring}
+                className="w-full flex items-center gap-4 p-4 sm:p-5 rounded-2xl text-left group hover:bg-white/[0.03] transition-colors duration-200"
+                onClick={() => navigate(`/breathwork/session?technique=${id}`)}
+              >
+                <div
+                  className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0"
+                  style={techniqueCardGradient(id)}
+                >
+                  <span className="text-white">{techniqueIcons[id]}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-display text-base font-bold text-white leading-tight">
+                    {protocol.name}
+                  </h3>
+                  <p className="text-xs text-white/30 mt-0.5 line-clamp-1">
+                    {protocol.purpose}
+                  </p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-white/15 shrink-0 group-hover:text-white/40 group-hover:translate-x-0.5 transition-all duration-200" />
+              </motion.button>
+            )
+          })}
+        </div>
+      </motion.div>
+
+      {/* ── Recent Sessions ──────────────────────────────── */}
       {sessions.length > 0 && (
-        <motion.div variants={fadeUp}>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-display text-xl sm:text-2xl font-bold text-white">Recent</h2>
+        <motion.div variants={fadeUp} className="pt-16 sm:pt-20">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="font-display text-2xl sm:text-3xl font-bold text-white tracking-tight">Recent</h2>
             <button
               onClick={() => navigate('/breathwork/progress')}
-              className="flex items-center gap-1 text-sm font-medium text-white/30 hover:text-white/60 transition-colors"
+              className="flex items-center gap-1 text-sm font-medium text-white/25 hover:text-white/50 transition-colors"
             >
               All
               <ChevronRight className="h-3.5 w-3.5" />
             </button>
           </div>
 
-          <div className="space-y-2.5">
+          <div className="space-y-1">
             {sessions.slice(0, 3).map((session) => {
               const protocol = breathingProtocols[session.techniqueId]
               return (
                 <motion.button
                   key={session.id}
-                  whileTap={{ scale: 0.98 }}
+                  whileTap={{ scale: 0.99 }}
                   transition={spring}
-                  className="card-elevated rounded-[18px] p-4 sm:p-5 w-full text-left group"
+                  className="w-full flex items-center gap-4 p-4 sm:p-5 rounded-2xl text-left group hover:bg-white/[0.03] transition-colors duration-200"
                   onClick={() => navigate('/breathwork/progress')}
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-                      <div
-                        className="h-11 w-11 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform duration-300"
-                        style={{
-                          background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_BRIGHT})`,
-                        }}
-                      >
-                        <span className="text-white scale-90">
-                          {techniqueIcons[session.techniqueId]}
-                        </span>
-                      </div>
-                      <div className="min-w-0">
-                        <div className="font-semibold text-sm sm:text-base text-white truncate">
-                          {protocol.name}
-                        </div>
-                        <div className="text-xs text-white/30 mt-0.5">
-                          {session.rounds} rounds
-                          {session.maxHoldTime > 0 && ` · ${session.maxHoldTime}s best hold`}
-                        </div>
-                      </div>
-                    </div>
-                    <ChevronRight className="h-4 w-4 text-white/15 shrink-0 group-hover:text-white/40 transition-colors" />
+                  <div
+                    className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0"
+                    style={{ background: ACCENT }}
+                  >
+                    <span className="text-white scale-90">
+                      {techniqueIcons[session.techniqueId]}
+                    </span>
                   </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-sm text-white truncate">
+                      {protocol.name}
+                    </div>
+                    <div className="text-xs text-white/25 mt-0.5">
+                      {session.rounds} rounds
+                      {session.maxHoldTime > 0 && ` · ${session.maxHoldTime}s best hold`}
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-white/10 shrink-0 group-hover:text-white/30 transition-colors" />
                 </motion.button>
               )
             })}
           </div>
         </motion.div>
       )}
+
+      {/* Bottom breathing room */}
+      <div className="h-8" />
     </motion.div>
   )
 }

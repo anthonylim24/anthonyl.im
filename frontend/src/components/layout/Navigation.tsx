@@ -37,13 +37,12 @@ export function Navigation() {
       style={{ bottom: `${bottomOffset}px` }}
     >
       <div
-        className="rounded-[20px] mx-auto max-w-md overflow-hidden"
+        className="rounded-2xl mx-auto max-w-md overflow-hidden"
         style={{
-          background: 'linear-gradient(145deg, rgba(14, 18, 38, 0.85) 0%, rgba(10, 14, 32, 0.78) 100%)',
-          backdropFilter: 'blur(32px) saturate(200%)',
-          WebkitBackdropFilter: 'blur(32px) saturate(200%)',
-          border: '1px solid rgba(255, 255, 255, 0.06)',
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 -4px 32px rgba(0,0,0,0.4), 0 8px 24px rgba(0,0,0,0.3)',
+          background: 'rgba(8, 12, 28, 0.9)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255, 255, 255, 0.05)',
           transform: 'translateZ(0)',
         }}
       >

@@ -27,23 +27,23 @@ export function Header() {
       <div
         className="safe-top"
         style={{
-          background: 'rgba(10, 14, 30, 0.85)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+          background: 'rgba(5, 8, 22, 0.85)',
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
         }}
       >
         <div className="container flex h-16 items-center justify-between px-6">
           <div className="flex items-center">
             {/* Logo */}
-            <Link to="/breathwork" className="flex items-center gap-3 mr-8 group">
+            <Link to="/breathwork" className="flex items-center gap-2.5 mr-8 group">
               <div
-                className="h-10 w-10 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform duration-300"
-                style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_BRIGHT})` }}
+                className="h-8 w-8 rounded-lg flex items-center justify-center"
+                style={{ background: ACCENT }}
               >
-                <Wind className="h-5 w-5 text-white" />
+                <Wind className="h-4 w-4 text-white" />
               </div>
-              <span className="font-display font-bold text-lg tracking-tight hidden sm:block text-white">
+              <span className="font-display font-bold text-base tracking-tight hidden sm:block text-white/90">
                 BreathFlow
               </span>
             </Link>

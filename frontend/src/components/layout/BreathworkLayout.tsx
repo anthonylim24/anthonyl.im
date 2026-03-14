@@ -24,7 +24,7 @@ export function BreathworkLayout() {
   return (
     <div className="breathwork-layout">
       {CLERK_ENABLED && <CloudSync />}
-      {/* Deep background with subtle radial vignettes */}
+      {/* Clean canvas */}
       <div className="fixed inset-0 breath-bg" style={{ transform: 'translateZ(0)' }} />
 
       {/* Content */}

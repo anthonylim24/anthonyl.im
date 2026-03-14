@@ -39,12 +39,12 @@ export function techniqueActiveStyle(id: TechniqueId): React.CSSProperties {
   }
 }
 
-/** Subtle tinted surface for technique feature cards */
+/** Vivid gradient for technique cards — simplified, no glass excess */
 export function techniqueCardGradient(id: TechniqueId): React.CSSProperties {
   const v = VISUALS[id]
   return {
-    background: `linear-gradient(160deg, ${v.gradient.from}12 0%, ${v.gradient.to}08 100%)`,
-    borderColor: `${v.primary}20`,
+    background: `linear-gradient(135deg, ${v.gradient.from} 0%, ${v.gradient.via} 50%, ${v.gradient.to} 100%)`,
+    border: '1px solid rgba(255, 255, 255, 0.08)',
   }
 }
 

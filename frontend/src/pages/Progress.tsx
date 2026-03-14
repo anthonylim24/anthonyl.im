@@ -77,10 +77,10 @@ export function Progress() {
         {/* Header */}
         <motion.div variants={fadeUp} className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="font-display text-[28px] sm:text-4xl font-bold text-white tracking-tight">
+            <h1 className="font-display text-[clamp(2rem,6vw,3rem)] font-extrabold text-white tracking-[-0.02em] leading-[0.95]">
               Progress
             </h1>
-            <p className="text-sm text-white/35 mt-1">Your journey so far</p>
+            <p className="text-sm text-white/30 mt-2 tracking-wide">Your journey so far</p>
           </div>
           <div className="relative">
             {showClearConfirm ? (
