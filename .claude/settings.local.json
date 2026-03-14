@@ -31,7 +31,15 @@
       "Bash(npm uninstall:*)",
       "Bash(cd:*)",
       "Bash(tail:*)",
-      "Bash(git rebase:*)"
+      "Bash(git rebase:*)",
+      "Bash(claude mcp:*)",
+      "mcp__paper__get_basic_info",
+      "mcp__paper__create_artboard",
+      "mcp__paper__write_html",
+      "mcp__paper__get_screenshot",
+      "mcp__paper__finish_working_on_nodes",
+      "mcp__chrome-devtools__new_page",
+      "mcp__chrome-devtools__performance_start_trace"
     ]
   }
 }
