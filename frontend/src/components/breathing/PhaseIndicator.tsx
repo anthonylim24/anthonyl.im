@@ -27,7 +27,7 @@ export function PhaseIndicator({ phase, className }: PhaseIndicatorProps) {
       {phase && color && (
         <div
           className="inline-flex items-center px-4 py-1.5 rounded-full mb-3 transition-all duration-300 border"
-          style={{ backgroundColor: `${color}1A`, borderColor: `${color}33` }}
+          style={{ backgroundColor: `color-mix(in srgb, ${color} 10%, transparent)`, borderColor: `color-mix(in srgb, ${color} 20%, transparent)` }}
         >
           <span
             className="text-sm font-medium uppercase tracking-wider"
@@ -46,7 +46,6 @@ export function PhaseIndicator({ phase, className }: PhaseIndicatorProps) {
         )}
         style={{
           color: color ?? undefined,
-          textShadow: phase ? `0 0 60px ${color}, 0 0 30px ${color}` : 'none',
         }}
       >
         {label}

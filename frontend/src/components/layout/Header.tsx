@@ -27,33 +27,23 @@ export function Header() {
       <div
         className="safe-top"
         style={{
-          background: 'linear-gradient(145deg, rgba(10, 14, 30, 0.82) 0%, rgba(8, 12, 26, 0.75) 100%)',
-          backdropFilter: 'blur(32px) saturate(200%)',
-          WebkitBackdropFilter: 'blur(32px) saturate(200%)',
+          background: 'rgba(10, 14, 30, 0.85)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
           borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
-          boxShadow: 'inset 0 -1px 0 rgba(255, 255, 255, 0.04), 0 4px 24px rgba(0, 0, 0, 0.3)',
         }}
       >
         <div className="container flex h-16 items-center justify-between px-6">
           <div className="flex items-center">
             {/* Logo */}
             <Link to="/breathwork" className="flex items-center gap-3 mr-8 group">
-              <div className="relative">
-                <div
-                  className="absolute inset-0 rounded-xl blur-lg opacity-40 group-hover:opacity-50 transition-opacity duration-300"
-                  style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_BRIGHT})` }}
-                />
-                <div
-                  className="relative h-10 w-10 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform duration-300"
-                  style={{
-                    background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_BRIGHT})`,
-                    boxShadow: `0 8px 20px -4px ${ACCENT}40`,
-                  }}
-                >
-                  <Wind className="h-5 w-5 text-white" />
-                </div>
+              <div
+                className="h-10 w-10 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform duration-300"
+                style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_BRIGHT})` }}
+              >
+                <Wind className="h-5 w-5 text-white" />
               </div>
-              <span className="font-display font-bold text-lg tracking-tight hidden sm:block gradient-text-breath">
+              <span className="font-display font-bold text-lg tracking-tight hidden sm:block text-white">
                 BreathFlow
               </span>
             </Link>

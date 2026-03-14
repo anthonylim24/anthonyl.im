@@ -47,9 +47,6 @@ export const HEATMAP = [
   'rgba(99,102,241, 0.70)',
 ] as const
 
-// ── Glass tint ──────────────────────────────────────────────────────────────
-export const GLASS_TINT = 'rgba(99,102,241, 0.08)'
-export const GLASS_BORDER = 'rgba(255,255,255,0.08)'
 
 // ── Gradient card backgrounds per technique ─────────────────────────────────
 export const TECHNIQUE_GRADIENT = {

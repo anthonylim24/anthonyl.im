@@ -22,24 +22,10 @@ export function BreathworkLayout() {
   } as CSSProperties
 
   return (
-    <div className="breathwork-layout noise-overlay">
+    <div className="breathwork-layout">
       {CLERK_ENABLED && <CloudSync />}
       {/* Deep background with subtle radial vignettes */}
       <div className="fixed inset-0 breath-bg" style={{ transform: 'translateZ(0)' }} />
-
-      {/* Slow-moving gradient wash */}
-      <div
-        className="fixed inset-0 animate-breath-gradient opacity-20 pointer-events-none"
-        style={{
-          background:
-            'linear-gradient(135deg, rgba(99,102,241,0.06) 0%, rgba(79,70,229,0.05) 25%, rgba(129,140,248,0.05) 50%, rgba(99,102,241,0.06) 75%, rgba(79,70,229,0.05) 100%)',
-          backgroundSize: '400% 400%',
-        }}
-      />
-
-      {/* Ambient orbs */}
-      <div className="fixed breath-orb breath-orb-indigo w-[300px] h-[300px] -top-20 -left-20 animate-orb-slow" />
-      <div className="fixed breath-orb breath-orb-indigo-light w-[200px] h-[200px] bottom-20 right-1/4 animate-orb-delayed" />
 
       {/* Content */}
       <div className="breathwork relative z-10 min-h-screen min-h-[100svh]">

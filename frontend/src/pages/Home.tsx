@@ -128,16 +128,12 @@ export function Home() {
         {/* Level Card – vivid gradient */}
         <motion.div
           variants={fadeUp}
-          className="card-gradient-indigo rounded-[24px] p-5 sm:p-6 flex flex-col items-center justify-center text-center relative overflow-hidden"
+          className="card-elevated rounded-[24px] p-5 sm:p-6 flex flex-col items-center justify-center text-center"
         >
-          <div
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 rounded-full blur-3xl opacity-20 pointer-events-none"
-            style={{ background: ACCENT_BRIGHT }}
-          />
-          <div className="relative z-10">
+          <div>
             <LevelRing level={level} progress={levelProgress} size={88} strokeWidth={4} colors={['#fff', '#C7D2FE']} />
           </div>
-          <div className="relative z-10 mt-3">
+          <div className="mt-3">
             <div className="font-display text-lg font-bold text-white">{getLevelTitle(level)}</div>
             <div className="text-xs text-white/60 font-medium mt-0.5">Level {level}</div>
           </div>
@@ -146,7 +142,7 @@ export function Home() {
         {/* Daily Goal */}
         <motion.div
           variants={fadeUp}
-          className="sculpted-card rounded-[24px] p-5 sm:p-6 flex flex-col justify-between"
+          className="card-elevated rounded-[24px] p-5 sm:p-6 flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs text-white/35 font-semibold tracking-wide uppercase">Today</span>
@@ -156,7 +152,6 @@ export function Home() {
                 background: dailyGoalMet
                   ? `linear-gradient(135deg, ${ACCENT}, ${ACCENT_BRIGHT})`
                   : 'rgba(255,255,255,0.06)',
-                boxShadow: dailyGoalMet ? `0 8px 20px -4px ${ACCENT}50` : undefined,
               }}
             >
               <Zap className="h-4 w-4 text-white" />
@@ -231,22 +226,14 @@ export function Home() {
                 key={id}
                 whileTap={{ scale: 0.96 }}
                 transition={spring}
-                className="relative rounded-[24px] p-6 text-left flex-shrink-0 w-[75vw] sm:w-auto min-h-[200px] flex flex-col justify-between overflow-hidden group"
+                className="card-elevated relative rounded-[24px] p-6 text-left flex-shrink-0 w-[75vw] sm:w-auto min-h-[200px] flex flex-col justify-between overflow-hidden group"
                 style={techniqueCardGradient(id)}
                 onClick={() => navigate(`/breathwork/session?technique=${id}`)}
               >
-                {/* Noise texture */}
-                <div className="absolute inset-0 pointer-events-none" style={{
-                  backgroundImage: 'var(--noise)',
-                  backgroundRepeat: 'repeat',
-                  backgroundSize: '256px 256px',
-                  opacity: 0.15,
-                  mixBlendMode: 'overlay' as const,
-                }} />
                 {techniquePatterns[id]}
 
                 <div className="relative z-10">
-                  <div className="h-14 w-14 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300">
+                  <div className="h-14 w-14 rounded-2xl bg-white/8 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform duration-300">
                     <span className="text-white">{techniqueIcons[id]}</span>
                   </div>
                   <h3 className="font-display text-xl font-bold text-white leading-tight">
@@ -282,7 +269,6 @@ export function Home() {
             className="h-full rounded-full origin-left transition-transform duration-1000 ease-out"
             style={{
               background: `linear-gradient(to right, ${ACCENT}, ${ACCENT_BRIGHT})`,
-              boxShadow: `0 0 16px ${ACCENT}50`,
               transform: `translateZ(0) scaleX(${Math.round(levelProgress * 100) / 100})`,
             }}
           />
@@ -320,7 +306,6 @@ export function Home() {
                         className="h-11 w-11 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform duration-300"
                         style={{
                           background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_BRIGHT})`,
-                          boxShadow: `0 8px 16px -4px ${ACCENT}35`,
                         }}
                       >
                         <span className="text-white scale-90">

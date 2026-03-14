@@ -37,7 +37,7 @@ export function KirbyCharacter({
         style={{
           transform: `scale(${bodyScale})`,
           transformOrigin: 'center',
-          transition: 'transform 600ms var(--spring-bounce)',
+          transition: 'transform 600ms var(--spring-smooth)',
         }}
       >
         <path d="m180.9 168.1c11.86 6.56 24.12 20.1 24.54 33 0.34 10.52-9.24 14.97-30.34 15.11-15.89 0.11-39.12-5.13-47.39-13.25-2.38-2.34-3.65-4.79-4.44-6.5l3.33-2.38 51.57-27.08 2.73 1.1z" fill="#D12828" stroke="#B72222" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3.2" />
@@ -66,7 +66,7 @@ export function KirbyCharacter({
           style={{
             transformOrigin: '72px 107px',
             transform: `scale(${cheekScale})`,
-            transition: 'transform 600ms var(--spring-bounce), opacity 400ms ease-out',
+            transition: 'transform 600ms var(--spring-smooth), opacity 400ms ease-out',
           }}
         >
           <path d="m71.93 103.7c-7.74 0-11.83 3.99-11.83 6.44 0 3.95 4.54 7 12.13 7 8.69 0 11.98-3.25 11.98-7 0-3.64-4.39-6.44-12.28-6.44z" fill="#FF85A1" opacity={cheekOpacity} />
@@ -76,7 +76,7 @@ export function KirbyCharacter({
           style={{
             transformOrigin: '157px 107px',
             transform: `scale(${cheekScale})`,
-            transition: 'transform 600ms var(--spring-bounce), opacity 400ms ease-out',
+            transition: 'transform 600ms var(--spring-smooth), opacity 400ms ease-out',
           }}
         >
           <path d="m157.4 103.7c-7.79 0-12.03 3.39-12.03 6.44 0 4.25 4.24 7 11.83 7 7.44 0 11.58-3.65 11.58-7 0-3.94-3.89-6.44-11.38-6.44z" fill="#FF85A1" opacity={cheekOpacity} />
