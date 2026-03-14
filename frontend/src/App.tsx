@@ -7,43 +7,6 @@ import { useFavicon } from "./hooks/useFavicon";
 
 const MessageContent = lazy(() => import("./components/message-content"));
 
-// Pointer-responsive glow for the input container
-function usePointerGlow(ref: React.RefObject<HTMLDivElement | null>) {
-  const pointer = useRef({ x: 0, y: 0 });
-  const raf = useRef(0);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-
-    const update = (e: PointerEvent) => {
-      const rect = el.getBoundingClientRect();
-      pointer.current.x = e.clientX - rect.left;
-      pointer.current.y = e.clientY - rect.top;
-
-      if (!raf.current) {
-        raf.current = requestAnimationFrame(() => {
-          el.style.setProperty('--glow-x', `${pointer.current.x}px`);
-          el.style.setProperty('--glow-y', `${pointer.current.y}px`);
-          el.style.setProperty('--glow-opacity', '1');
-          raf.current = 0;
-        });
-      }
-    };
-
-    const hide = () => {
-      el.style.setProperty('--glow-opacity', '0');
-    };
-
-    el.addEventListener('pointermove', update);
-    el.addEventListener('pointerleave', hide);
-    return () => {
-      el.removeEventListener('pointermove', update);
-      el.removeEventListener('pointerleave', hide);
-      if (raf.current) cancelAnimationFrame(raf.current);
-    };
-  }, [ref]);
-}
 
 interface ChatMessage {
   id: string;
@@ -70,11 +33,10 @@ function App() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const inputContainerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScroll = useRef(true);
 
   useFavicon();
-  usePointerGlow(inputContainerRef);
+
 
   useEffect(() => {
     const updateViewportHeight = () => {
@@ -213,7 +175,7 @@ function App() {
   const isShortViewport = viewportHeight > 0 && viewportHeight < 760;
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-[#0a0a12] overflow-hidden noise-overlay">
+    <div className="fixed inset-0 flex flex-col bg-[#0a0a12] overflow-hidden">
       {/* Background image - preserved */}
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
@@ -234,11 +196,6 @@ function App() {
       <div className="stars" />
       <div className="stars2" />
       <div className="stars3" />
-
-      {/* Ambient orbs - breathwork style */}
-      <div className="absolute breath-orb breath-orb-indigo w-[350px] h-[350px] -top-24 -left-24 animate-orb-slow pointer-events-none" />
-      <div className="absolute breath-orb breath-orb-indigo-light w-[250px] h-[250px] bottom-32 right-[-60px] animate-orb-delayed pointer-events-none" />
-      <div className="absolute breath-orb breath-orb-indigo-deep w-[200px] h-[200px] top-1/2 left-1/3 animate-orb pointer-events-none" />
 
       {/* Main container */}
       <div className="relative z-10 flex flex-col h-full max-w-3xl mx-auto w-full safe-top">
@@ -329,23 +286,17 @@ function App() {
                 "flex flex-col items-center justify-start md:justify-center h-full",
                 isShortViewport ? "py-0.5 sm:py-2" : "py-3 sm:py-8"
               )}>
-                {/* Decorative orb */}
+                {/* Decorative icon */}
                 {!isShortViewport && (
-                  <div className="relative mb-4 sm:mb-8 mt-2 sm:mt-0">
+                  <div className="mb-4 sm:mb-8 mt-2 sm:mt-0">
                     <div
-                      className="absolute inset-0 w-32 h-32 sm:w-36 sm:h-36 rounded-full blur-3xl animate-glow pointer-events-none"
-                      style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.35), rgba(129,140,248,0.15), transparent 70%)' }}
-                    />
-                    <div
-                      className="relative w-20 h-20 sm:w-28 sm:h-28 rounded-[24px] sm:rounded-[28px] flex items-center justify-center animate-subtle-float"
+                      className="w-20 h-20 sm:w-28 sm:h-28 rounded-[24px] sm:rounded-[28px] flex items-center justify-center"
                       style={{
-                        background: 'linear-gradient(135deg, rgba(99,102,241,0.25), rgba(129,140,248,0.15))',
-                        backdropFilter: 'blur(24px) saturate(180%)',
+                        background: 'linear-gradient(135deg, rgba(99,102,241,0.2), rgba(129,140,248,0.1))',
                         border: '1px solid rgba(255,255,255,0.08)',
-                        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1), 0 20px 50px -12px rgba(0,0,0,0.5), 0 0 40px rgba(99,102,241,0.15)',
                       }}
                     >
-                      <MessageCircle className="w-8 h-8 sm:w-12 sm:h-12 text-white/80" />
+                      <MessageCircle className="w-8 h-8 sm:w-12 sm:h-12 text-white/60" />
                     </div>
                   </div>
                 )}
@@ -383,18 +334,11 @@ function App() {
         {/* Input area */}
         <div className={cn("shrink-0 pb-safe", isShortViewport && !hasMessages ? "p-3" : "p-4")}>
           <div
-            ref={inputContainerRef}
             className={cn(
-              "sculpted-card rounded-[24px] relative overflow-hidden",
+              "card-elevated rounded-[24px] relative overflow-hidden",
               isShortViewport && !hasMessages ? "p-3 sm:p-4" : "p-4 sm:p-5"
             )}
-            style={{ '--glow-x': '0px', '--glow-y': '0px', '--glow-opacity': '0' } as React.CSSProperties}
           >
-            {/* Pointer-following glow */}
-            <div
-              className="pointer-glow pointer-events-none absolute inset-0 z-0 transition-opacity duration-500"
-              style={{ opacity: 'var(--glow-opacity)' }}
-            />
             {/* Suggested questions - bento grid on empty, horizontal scroll with messages */}
             {!hasMessages ? (
               <div className={cn(
@@ -418,8 +362,7 @@ function App() {
                     <div
                       className="h-8 w-8 rounded-xl flex items-center justify-center mb-2.5 group-hover:scale-110 transition-transform duration-300"
                       style={{
-                        background: 'linear-gradient(135deg, rgba(99,102,241,0.2), rgba(129,140,248,0.12))',
-                        boxShadow: '0 4px 12px -2px rgba(99,102,241,0.15)',
+                        background: 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(129,140,248,0.08))',
                       }}
                     >
                       <Icon className="h-3.5 w-3.5 text-[#818CF8]" />
@@ -475,7 +418,6 @@ function App() {
                   className="shrink-0 h-10 w-10 rounded-xl disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-300 hover:scale-105 active:scale-95"
                   style={{
                     background: 'linear-gradient(135deg, #6366F1, #818CF8)',
-                    boxShadow: '0 8px 20px -4px rgba(99,102,241,0.4)',
                   }}
                 >
                   <Send className="w-4 h-4" />

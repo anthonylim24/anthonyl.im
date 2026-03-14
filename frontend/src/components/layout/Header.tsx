@@ -24,28 +24,26 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full" style={{ transform: 'translateZ(0)' }}>
-      <div className="safe-top nav-bar-glass border-b border-white/6">
-
+      <div
+        className="safe-top"
+        style={{
+          background: 'rgba(5, 8, 22, 0.85)',
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+        }}
+      >
         <div className="container flex h-16 items-center justify-between px-6">
           <div className="flex items-center">
             {/* Logo */}
-            <Link to="/breathwork" className="flex items-center gap-3 mr-8 group">
-              <div className="relative">
-                <div
-                  className="absolute inset-0 rounded-xl blur-lg opacity-40 group-hover:opacity-50 transition-opacity duration-300"
-                  style={{ background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_BRIGHT})` }}
-                />
-                <div
-                  className="relative h-10 w-10 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform duration-300"
-                  style={{
-                    background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_BRIGHT})`,
-                    boxShadow: `0 8px 20px -4px ${ACCENT}40`,
-                  }}
-                >
-                  <Wind className="h-5 w-5 text-white" />
-                </div>
+            <Link to="/breathwork" className="flex items-center gap-2.5 mr-8 group">
+              <div
+                className="h-8 w-8 rounded-lg flex items-center justify-center"
+                style={{ background: ACCENT }}
+              >
+                <Wind className="h-4 w-4 text-white" />
               </div>
-              <span className="font-display font-bold text-lg tracking-tight hidden sm:block" style={{ color: ACCENT_BRIGHT }}>
+              <span className="font-display font-bold text-base tracking-tight hidden sm:block text-white/90">
                 BreathFlow
               </span>
             </Link>

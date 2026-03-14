@@ -36,8 +36,16 @@ export function Navigation() {
       className="md:hidden fixed left-0 right-0 z-50 px-4 pt-2 safe-bottom transition-[bottom] duration-200"
       style={{ bottom: `${bottomOffset}px` }}
     >
-      <div className="rounded-[20px] mx-auto max-w-md overflow-hidden nav-bar-glass border border-white/6 transform-gpu">
-
+      <div
+        className="rounded-2xl mx-auto max-w-md overflow-hidden"
+        style={{
+          background: 'rgba(8, 12, 28, 0.9)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255, 255, 255, 0.05)',
+          transform: 'translateZ(0)',
+        }}
+      >
         <div className="relative grid grid-cols-4 h-[64px]">
           {/* Sliding active indicator — GPU-composited, no layout recalc */}
           {/* Sliding active indicator — GPU-composited, no layout recalc.

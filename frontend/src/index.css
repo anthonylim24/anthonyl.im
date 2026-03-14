@@ -43,20 +43,15 @@ body,
   --portfolio-text: #f8f7ff;
   --portfolio-text-muted: rgba(248, 247, 255, 0.6);
 
-  /* Breathwork tokens – indigo spectrum */
+  /* Breathwork tokens */
   --breath-accent: #6366F1;
   --breath-accent-bright: #818CF8;
   --breath-accent-subtle: #4F46E5;
-  --breath-glass-tint: rgba(99, 102, 241, 0.08);
   --breath-glass-border: rgba(255, 255, 255, 0.08);
 
-  /* Depth system */
-  --spring-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Easing */
   --spring-smooth: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
-
-  /* Noise texture as inline SVG data URL */
-  --noise: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -199,19 +194,6 @@ body,
   animation: shimmer 3s ease-in-out infinite;
 }
 
-@keyframes glow-pulse {
-  0%, 100% { box-shadow: 0 0 20px rgba(99,102,241,0.3), 0 0 40px rgba(99,102,241,0.1); }
-  50% { box-shadow: 0 0 30px rgba(99,102,241,0.5), 0 0 60px rgba(99,102,241,0.2); }
-}
-.animate-glow { animation: glow-pulse 3s ease-in-out infinite; }
-
-@keyframes subtle-float {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  33% { transform: translateY(-6px) rotate(0.5deg); }
-  66% { transform: translateY(-3px) rotate(-0.5deg); }
-}
-.animate-subtle-float { animation: subtle-float 6s ease-in-out infinite; }
-
 @keyframes scale-in {
   0% { opacity: 0; transform: scale(0.92); }
   100% { opacity: 1; transform: scale(1); }
@@ -231,24 +213,6 @@ body,
 .stagger-5 { animation-delay: 0.30s; }
 .stagger-6 { animation-delay: 0.36s; }
 
-@keyframes breath-gradient {
-  0%, 100% { background-position: 0% 50%; }
-  25% { background-position: 100% 50%; }
-  50% { background-position: 100% 100%; }
-  75% { background-position: 0% 100%; }
-}
-.animate-breath-gradient { background-size: 200% 200%; animation: breath-gradient 15s ease infinite; }
-
-@keyframes orb-float {
-  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.6; }
-  25% { transform: translate(10px, -20px) scale(1.05); opacity: 0.8; }
-  50% { transform: translate(-5px, -10px) scale(0.95); opacity: 0.5; }
-  75% { transform: translate(-15px, -25px) scale(1.02); opacity: 0.7; }
-}
-.animate-orb { animation: orb-float 20s ease-in-out infinite; will-change: transform, opacity; }
-.animate-orb-delayed { animation: orb-float 25s ease-in-out infinite; animation-delay: -5s; will-change: transform, opacity; }
-.animate-orb-slow { animation: orb-float 30s ease-in-out infinite; animation-delay: -10s; will-change: transform, opacity; }
-
 /* ═══════════════════════════════════════════════════════
    KIRBY ANIMATIONS
    ═══════════════════════════════════════════════════════ */
@@ -260,32 +224,6 @@ body,
 }
 .kirby-float {
   animation: kirby-float 3.2s ease-in-out infinite;
-}
-
-/* ═══════════════════════════════════════════════════════
-   BREATHWORK ANIMATIONS
-   ═══════════════════════════════════════════════════════ */
-
-@keyframes pulse-breath {
-  0%, 100% { transform: scale(1); opacity: 0.8; }
-  50% { transform: scale(1.05); opacity: 1; }
-}
-.pulse-breath { animation: pulse-breath 4s ease-in-out infinite; }
-
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-}
-.float { animation: float 6s ease-in-out infinite; }
-
-@keyframes gradient-shift {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-}
-.animated-gradient {
-  background: linear-gradient(-45deg, hsl(234 85% 69% / 0.08), hsl(234 70% 55% / 0.08), hsl(234 90% 78% / 0.06), hsl(234 60% 45% / 0.08));
-  background-size: 400% 400%;
-  animation: gradient-shift 15s ease infinite;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -313,7 +251,7 @@ body,
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
 ::selection { background: rgba(99, 102, 241, 0.3); color: white; }
-:focus-visible { outline: 2px solid rgba(99, 102, 241, 0.5); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--breath-accent, rgba(99, 102, 241, 0.5)); outline-offset: 2px; }
 :focus:not(:focus-visible) { outline: none; }
 
 /* ═══════════════════════════════════════════════════════
@@ -372,9 +310,10 @@ body,
 }
 
 /* ═══════════════════════════════════════════════════════
-   NOISE TEXTURE OVERLAY
+   CARD SYSTEM (simplified)
    ═══════════════════════════════════════════════════════ */
 
+/* Noise texture overlay */
 .noise-overlay::after {
   content: '';
   position: fixed;
@@ -384,26 +323,17 @@ body,
   background-size: 256px 256px;
   pointer-events: none;
   z-index: 9999;
-  opacity: 0.35;
+  opacity: 0.2;
   mix-blend-mode: overlay;
   -webkit-transform: translateZ(0);
   transform: translateZ(0);
 }
 
 /* ═══════════════════════════════════════════════════════
-   GLASS & CARD SYSTEM
+   SURFACE SYSTEM — Flat, intentional, no glass excess
    ═══════════════════════════════════════════════════════ */
 
-/* Navigation bar glass (Header + bottom nav) */
-.nav-bar-glass {
-  background: linear-gradient(145deg, rgba(14, 18, 38, 0.85) 0%, rgba(10, 14, 32, 0.78) 100%);
-  backdrop-filter: blur(32px) saturate(200%);
-  -webkit-backdrop-filter: blur(32px) saturate(200%);
-  border-color: rgba(255, 255, 255, 0.06);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 4px 24px rgba(0, 0, 0, 0.3);
-}
-
-/* Portfolio glass */
+/* Portfolio glass (portfolio only — keep blur here) */
 .liquid-glass-portfolio {
   background: linear-gradient(135deg, rgba(120,130,255,0.18) 0%, rgba(167,139,250,0.14) 50%, rgba(120,130,255,0.10) 100%);
   backdrop-filter: blur(20px) saturate(180%);
@@ -412,122 +342,53 @@ body,
   box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15);
 }
 
-/* ── Tier 1: Surface (recessed wells, inputs, inner areas) ── */
+/* Recessed well — inputs, progress bars, inner areas */
 .surface-well {
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4), inset 0 1px 2px rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.03);
 }
 
-/* ── Tier 2: Card (standard containers) ── */
+/* Standard card — flat dark surface, subtle border */
 .card-elevated {
-  background: linear-gradient(160deg, rgba(15, 18, 40, 0.75) 0%, rgba(10, 13, 32, 0.6) 100%);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 20px 50px -12px rgba(0, 0, 0, 0.5),
-    0 8px 20px -8px rgba(0, 0, 0, 0.4);
-  transition: border-color 0.4s var(--spring-smooth), box-shadow 0.4s var(--spring-smooth);
+  background: rgba(12, 16, 36, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: border-color 0.3s ease;
 }
 
 .card-elevated:hover {
-  border-color: rgba(255, 255, 255, 0.10);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.07),
-    0 28px 60px -12px rgba(0, 0, 0, 0.55),
-    0 12px 28px -8px rgba(0, 0, 0, 0.45);
+  border-color: rgba(255, 255, 255, 0.09);
 }
 
-/* ── Tier 3: Feature card (hero, prominent) ── */
+/* Prominent card — slightly lighter surface */
 .sculpted-card {
-  background: linear-gradient(160deg, rgba(20, 24, 56, 0.82) 0%, rgba(14, 17, 42, 0.65) 50%, rgba(20, 24, 56, 0.50) 100%);
-  backdrop-filter: blur(32px) saturate(200%);
-  -webkit-backdrop-filter: blur(32px) saturate(200%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.07),
-    inset 0 -1px 0 rgba(0,0,0,0.2),
-    0 24px 60px -12px rgba(0,0,0,0.6),
-    0 12px 28px -8px rgba(0,0,0,0.45);
-  transition: border-color 0.4s var(--spring-smooth), box-shadow 0.4s var(--spring-smooth), transform 0.4s var(--spring-smooth);
+  background: rgba(16, 20, 44, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: border-color 0.3s ease;
 }
 
 .sculpted-card:hover {
-  border-color: rgba(255, 255, 255, 0.12);
-  transform: translateY(-2px);
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.09),
-    inset 0 -1px 0 rgba(0,0,0,0.2),
-    0 32px 72px -12px rgba(0,0,0,0.65),
-    0 16px 36px -8px rgba(0,0,0,0.5);
+  border-color: rgba(255, 255, 255, 0.10);
 }
 
-/* ── Tier 4: Vivid gradient cards (for techniques, hero sections) ── */
-/* These are the colorful cards inspired by the Dribbble shots */
-
+/* Accent card — the ONE vivid gradient moment */
 .card-gradient-indigo {
   background: linear-gradient(135deg, #4338CA 0%, #6366F1 50%, #818CF8 100%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.15),
-    0 24px 60px -12px rgba(99, 102, 241, 0.35),
-    0 12px 28px -8px rgba(0, 0, 0, 0.4);
-  transition: border-color 0.4s var(--spring-smooth), box-shadow 0.4s var(--spring-smooth);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: 0 24px 60px -12px rgba(99, 102, 241, 0.25);
   position: relative;
   overflow: hidden;
+}
+
+/* Generic glass compat (used by shadcn Card component) */
+.glass {
+  background: rgba(12, 16, 36, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.glass:hover {
+  border-color: rgba(255, 255, 255, 0.09);
 }
 
 .card-gradient-indigo::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: var(--noise);
-  background-repeat: repeat;
-  background-size: 256px 256px;
-  opacity: 0.15;
-  mix-blend-mode: overlay;
-  pointer-events: none;
-}
-
-.card-gradient-violet {
-  background: linear-gradient(135deg, #5B21B6 0%, #7C3AED 50%, #A78BFA 100%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.15),
-    0 24px 60px -12px rgba(124, 58, 237, 0.35),
-    0 12px 28px -8px rgba(0, 0, 0, 0.4);
-  transition: border-color 0.4s var(--spring-smooth), box-shadow 0.4s var(--spring-smooth);
-  position: relative;
-  overflow: hidden;
-}
-
-.card-gradient-violet::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: var(--noise);
-  background-repeat: repeat;
-  background-size: 256px 256px;
-  opacity: 0.15;
-  mix-blend-mode: overlay;
-  pointer-events: none;
-}
-
-.card-gradient-slate {
-  background: linear-gradient(135deg, #1E293B 0%, #334155 50%, #475569 100%);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.10),
-    0 24px 60px -12px rgba(0, 0, 0, 0.5),
-    0 12px 28px -8px rgba(0, 0, 0, 0.35);
-  transition: border-color 0.4s var(--spring-smooth), box-shadow 0.4s var(--spring-smooth);
-  position: relative;
-  overflow: hidden;
-}
-
-.card-gradient-slate::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -539,27 +400,42 @@ body,
   pointer-events: none;
 }
 
-
+/* Gradient text — use sparingly, only for portfolio */
+.gradient-text {
+  background: linear-gradient(135deg, #7c8aff 0%, #a78bfa 50%, #c4b5fd 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
 /* ═══════════════════════════════════════════════════════
    BREATHWORK BACKGROUNDS
    ═══════════════════════════════════════════════════════ */
 
+/* Clean canvas with one subtle vignette — nothing more */
 .breath-bg {
   background:
-    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(99,102,241,0.07) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 80% 80%, rgba(79,70,229,0.04) 0%, transparent 50%),
-    linear-gradient(160deg, #050816 0%, #080c1a 30%, #0a0f1e 50%, #080c1a 70%, #050816 100%);
+    radial-gradient(ellipse 70% 50% at 50% 0%, rgba(99,102,241,0.04) 0%, transparent 60%),
+    #050816;
 }
 
+/* Ambient orbs — portfolio only */
 .breath-orb {
   position: absolute; border-radius: 50%; filter: blur(60px); pointer-events: none; z-index: 0;
-  -webkit-transform: translateZ(0);
   transform: translateZ(0);
-  will-change: transform, opacity;
 }
 .breath-orb-indigo { background: radial-gradient(circle, rgba(99,102,241,0.10) 0%, transparent 70%); }
 .breath-orb-indigo-light { background: radial-gradient(circle, rgba(129,140,248,0.08) 0%, transparent 70%); }
 .breath-orb-indigo-deep { background: radial-gradient(circle, rgba(79,70,229,0.08) 0%, transparent 70%); }
+
+/* Portfolio glass compat */
+.glass-strong {
+  background: rgba(255,255,255,0.45);
+  backdrop-filter: blur(40px) saturate(200%);
+  -webkit-backdrop-filter: blur(40px) saturate(200%);
+  border: 1px solid rgba(255,255,255,0.4);
+}
+.dark .glass-strong {
+  background: rgba(20,25,40,0.7);
+  border: 1px solid rgba(255,255,255,0.1);
+}
 
 /* ═══════════════════════════════════════════════════════
    HORIZONTAL SCROLL (technique carousel)
@@ -573,6 +449,21 @@ body,
 
 .scroll-snap-x > * {
   scroll-snap-align: start;
+}
+
+/* ═══════════════════════════════════════════════════════
+   REDUCED MOTION
+   ═══════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -593,34 +484,9 @@ body,
 }
 
 /* ═══════════════════════════════════════════════════════
-   POINTER GLOW
-   ═══════════════════════════════════════════════════════ */
-
-.pointer-glow {
-  background: radial-gradient(
-    320px circle at var(--glow-x) var(--glow-y),
-    rgba(99, 102, 241, 0.12) 0%,
-    rgba(129, 140, 248, 0.06) 30%,
-    transparent 70%
-  );
-}
-
-/* ═══════════════════════════════════════════════════════
    PERFORMANCE
    ═══════════════════════════════════════════════════════ */
 
 .session-item { content-visibility: auto; contain-intrinsic-size: 0 80px; }
 .session-history-item { content-visibility: auto; contain-intrinsic-size: 0 100px; }
 .transform-gpu { transform: translateZ(0); }
-
-/* ═══════════════════════════════════════════════════════
-   REDUCED MOTION
-   ═══════════════════════════════════════════════════════ */
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}

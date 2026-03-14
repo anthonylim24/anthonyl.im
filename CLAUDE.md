@@ -135,3 +135,18 @@ The current UI reads as AI-generated. Specific tells:
 2. **Short-term (design overhaul):** Build light-mode token set, strip glassmorphism/glow excess, normalize all colors to tokens, rebuild visual identity with distinctive typography and asymmetric layouts
 3. **Medium-term:** Container queries, fluid typography, redesign technique cards with hierarchy, rethink stats away from hero metric pattern
 4. **Long-term:** Full WCAG AA audit post-overhaul, evaluate Clerk cookies, consider body font replacement
+
+---
+
+## PR Workflow
+
+### Frontend Screenshot Rule
+
+When creating a pull request that includes frontend changes (any modifications to files in `frontend/src/` that affect UI — components, pages, CSS, layout, styles), you **must** attempt to capture screenshots of the affected pages using the Chrome MCP tools before creating the PR. Include these screenshots in the PR description under a `## Screenshots` section.
+
+**Process:**
+1. Start the dev server (`bun run dev` in `frontend/`)
+2. Use Chrome MCP to navigate to affected pages and capture screenshots
+3. Add the screenshots to the PR description body
+
+If the Chrome MCP is unavailable or the dev server cannot start (e.g., Node.js version incompatibility), note this in the PR description and skip screenshots. Do not block PR creation on screenshot availability.

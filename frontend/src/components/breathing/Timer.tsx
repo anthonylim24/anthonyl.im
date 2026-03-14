@@ -15,8 +15,8 @@ export function Timer({ seconds, className, size = 'lg' }: TimerProps) {
 
   return (
     <div
-      aria-live="polite"
-      aria-atomic="true"
+      role="timer"
+      aria-live="off"
       aria-label={`${seconds} seconds remaining`}
       className={cn(
         'font-mono tabular-nums font-bold tracking-tight text-foreground',
@@ -26,7 +26,7 @@ export function Timer({ seconds, className, size = 'lg' }: TimerProps) {
       style={{ fontFeatureSettings: '"tnum" on' }}
     >
       <span className="opacity-90">{seconds}</span>
-      <span className="text-muted-foreground text-[0.4em] ml-1">s</span>
+      <span className="text-muted-foreground text-[0.4em] ml-1" aria-hidden="true">s</span>
     </div>
   )
 }
