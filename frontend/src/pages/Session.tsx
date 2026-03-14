@@ -106,7 +106,7 @@ export function Session() {
                 transition={spring}
                 onClick={() => handleTechniqueChange(id)}
                 className={cn(
-                  'liquid-glass-breath rounded-[20px] p-5 text-left transition-all duration-300',
+                  'card-elevated rounded-[20px] p-5 text-left transition-all duration-300',
                   'border',
                   !isSelected && 'border-white/5 hover:border-white/10'
                 )}
@@ -141,7 +141,7 @@ export function Session() {
         </motion.div>
 
         {/* Selected technique detail */}
-        <motion.div variants={fadeUp} className="liquid-glass-breath rounded-[20px] p-5">
+        <motion.div variants={fadeUp} className="card-elevated rounded-[20px] p-5">
           <div className="flex items-start gap-4">
             <div
               className="h-12 w-12 rounded-2xl flex items-center justify-center shrink-0"
@@ -163,7 +163,7 @@ export function Session() {
         </motion.div>
 
         {/* Round Counter */}
-        <motion.div variants={fadeUp} className="sculpted-card rounded-[24px] overflow-hidden">
+        <motion.div variants={fadeUp} className="card-elevated rounded-[24px] overflow-hidden">
           <div className="p-6 sm:p-8 space-y-8">
             {/* Rounds */}
             <div className="space-y-5">

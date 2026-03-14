@@ -251,9 +251,7 @@ export function Home() {
                 >
                   <div
                     className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0"
-                    style={{
-                      background: ACCENT,
-                    }}
+                    style={{ background: ACCENT }}
                   >
                     <span className="text-white scale-90">
                       {techniqueIcons[session.techniqueId]}

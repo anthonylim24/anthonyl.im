@@ -22,7 +22,7 @@ export function BreathworkLayout() {
   } as CSSProperties
 
   return (
-    <div className="breathwork-layout noise-overlay">
+    <div className="breathwork-layout">
       {CLERK_ENABLED && <CloudSync />}
       {/* Clean canvas */}
       <div className="fixed inset-0 breath-bg" style={{ transform: 'translateZ(0)' }} />

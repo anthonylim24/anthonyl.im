@@ -113,7 +113,7 @@ export function Progress() {
         {/* ── Two-column grid on md+ ── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
           {/* Level Card */}
-          <motion.div variants={fadeUp} className="sculpted-card rounded-[24px] p-5 sm:p-6">
+          <motion.div variants={fadeUp} className="card-elevated rounded-[24px] p-5 sm:p-6">
             <div className="flex items-center gap-5">
               <LevelRing level={level} progress={progress} size={100} />
               <div className="flex-1 min-w-0 space-y-3">
@@ -176,7 +176,7 @@ export function Progress() {
         </motion.div>
 
         {/* Session History */}
-        <motion.div variants={fadeUp} className="sculpted-card rounded-[24px] overflow-hidden">
+        <motion.div variants={fadeUp} className="card-elevated rounded-[24px] overflow-hidden">
           <div className="p-5 sm:p-6 border-b border-white/8">
             <h3 className="font-display text-base sm:text-lg font-bold text-white flex items-center gap-2.5">
               <Sparkles className="h-5 w-5" style={{ color: ACCENT_BRIGHT }} />

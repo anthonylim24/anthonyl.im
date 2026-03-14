@@ -11,7 +11,7 @@ import type { SessionConfig } from '@/lib/breathingProtocols'
 import { getProtocol } from '@/lib/breathingProtocols'
 import { cn } from '@/lib/utils'
 import { calculateXP, checkBadgeUnlocks } from '@/lib/gamification'
-import { techniqueGradientStyle, getTechniqueVisual } from '@/lib/techniqueConfig'
+import { techniqueGradientStyle, getTechniqueVisual, getTechniquePhaseColors } from '@/lib/techniqueConfig'
 import { DESTRUCTIVE } from '@/lib/palette'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore } from '@/stores/historyStore'
@@ -81,6 +81,15 @@ export function BreathingSession({
     timeRemaining: session?.timeRemaining ?? 0,
     isActive: isActive && !isPaused,
   })
+
+  // Technique-specific orb colors
+  const techniquePhases = useMemo(() => getTechniquePhaseColors(config.techniqueId), [config.techniqueId])
+  const orbThemeColors = useMemo((): [string, string] | undefined => {
+    const phase = session?.currentPhase
+    if (!phase) return undefined
+    const visual = getTechniqueVisual(config.techniqueId)
+    return [techniquePhases[phase], visual.secondary]
+  }, [session?.currentPhase, config.techniqueId, techniquePhases])
 
   // Auto-hide controls after 3s of activity
   useEffect(() => {
@@ -179,6 +188,8 @@ export function BreathingSession({
 
   return (
     <div
+      role="region"
+      aria-label={`Breathing session: ${protocol.name}`}
       className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-[#080b16] overflow-hidden select-none"
       onMouseMove={isActive && !isPaused ? showControls : undefined}
       onTouchStart={isActive && !isPaused ? showControls : undefined}
@@ -247,7 +258,7 @@ export function BreathingSession({
       >
         {/* Phase text above orb */}
         <div className="relative z-10 mb-3">
-          <PhaseIndicator phase={session?.currentPhase ?? null} />
+          <PhaseIndicator phase={session?.currentPhase ?? null} techniqueId={config.techniqueId} />
         </div>
 
         {/* FluidOrb - scales with screen height and width to avoid overlap */}
@@ -264,6 +275,7 @@ export function BreathingSession({
             phase={session?.currentPhase ?? null}
             amplitude={amplitude}
             isActive={isActive && !isPaused}
+            themeColors={orbThemeColors}
             className="w-full h-full"
             kirbyMode={kirbyMode}
             onEasterEggToggle={toggleKirbyMode}
@@ -280,9 +292,11 @@ export function BreathingSession({
       <div
         data-testid="session-controls"
         className={cn(
-          'session-controls absolute left-1/2 -translate-x-1/2 z-10 flex items-center gap-4 transition-opacity duration-500',
+          'session-controls absolute left-1/2 -translate-x-1/2 z-10 flex items-center gap-4 transition-opacity duration-500 focus-within:opacity-100',
           controlsVisible ? 'opacity-100' : 'opacity-20 hover:opacity-100'
         )}
+        role="toolbar"
+        aria-label="Session controls"
         style={viewportOffsetStyle}
       >
         {!isActive && !isComplete ? (
@@ -298,18 +312,21 @@ export function BreathingSession({
           <>
             <button
               onClick={handlePause}
+              aria-label={isPaused ? 'Resume' : 'Pause'}
               className="h-14 w-14 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-all duration-300"
             >
               {isPaused ? <Play className="h-5 w-5" /> : <Pause className="h-5 w-5" />}
             </button>
             <button
               onClick={handleRestart}
+              aria-label="Restart"
               className="h-14 w-14 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-all duration-300"
             >
               <RotateCcw className="h-5 w-5" />
             </button>
             <button
               onClick={handleStop}
+              aria-label="Stop"
               className="h-14 w-14 rounded-xl border flex items-center justify-center transition-all duration-300"
               style={{
                 backgroundColor: `${DESTRUCTIVE}33`,

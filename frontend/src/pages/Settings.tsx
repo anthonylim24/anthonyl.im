@@ -36,6 +36,7 @@ function AccountInfo() {
       <img
         src={user.imageUrl}
         alt={user.fullName ?? 'Profile'}
+        loading="lazy"
         className="h-12 w-12 rounded-full ring-2 ring-white/10"
       />
       <div className="flex-1 min-w-0">
@@ -112,7 +113,7 @@ export function Settings() {
 
       {/* Account */}
       {CLERK_ENABLED && (
-        <motion.section variants={fadeUp} className="sculpted-card rounded-[22px] p-5">
+        <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
           <div className="flex items-center gap-2.5 mb-4">
             <User className="h-5 w-5 text-white/40" />
             <h2 className="font-display text-base font-bold text-white">Account</h2>
@@ -139,7 +140,7 @@ export function Settings() {
       )}
 
       {/* Theme */}
-      <motion.section variants={fadeUp} className="sculpted-card rounded-[22px] p-5">
+      <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
         <div className="flex items-center gap-2.5 mb-4">
           <Palette className="h-5 w-5 text-white/40" />
           <h2 className="font-display text-base font-bold text-white">Theme</h2>
@@ -152,14 +153,14 @@ export function Settings() {
             className={cn(
               'relative flex items-center gap-3 p-4 rounded-[16px] border transition-all duration-300',
               theme === 'dark'
-                ? 'border-[#6E7BF2]/60 bg-[#6E7BF2]/10'
+                ? 'border-[#6366F1]/60 bg-[#6366F1]/10'
                 : 'border-white/8 surface-inset hover:border-white/12'
             )}
           >
             <Moon className="h-5 w-5 text-white" />
             <span className="text-white font-semibold text-sm">Dark</span>
             {theme === 'dark' && (
-              <Check className="absolute top-3 right-3 h-4 w-4 text-[#8B96FF]" />
+              <Check className="absolute top-3 right-3 h-4 w-4 text-[#818CF8]" />
             )}
           </motion.button>
           <motion.button
@@ -169,21 +170,21 @@ export function Settings() {
             className={cn(
               'relative flex items-center gap-3 p-4 rounded-[16px] border transition-all duration-300',
               theme === 'light'
-                ? 'border-[#6E7BF2]/60 bg-[#6E7BF2]/10'
+                ? 'border-[#6366F1]/60 bg-[#6366F1]/10'
                 : 'border-white/8 surface-inset hover:border-white/12'
             )}
           >
             <Sun className="h-5 w-5 text-white" />
             <span className="text-white font-semibold text-sm">Light</span>
             {theme === 'light' && (
-              <Check className="absolute top-3 right-3 h-4 w-4 text-[#8B96FF]" />
+              <Check className="absolute top-3 right-3 h-4 w-4 text-[#818CF8]" />
             )}
           </motion.button>
         </div>
       </motion.section>
 
       {/* Sound */}
-      <motion.section variants={fadeUp} className="sculpted-card rounded-[22px] p-5">
+      <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <Volume2 className="h-5 w-5 text-white/40" />
@@ -191,9 +192,11 @@ export function Settings() {
           </div>
           <button
             onClick={() => setSoundEnabled(!soundEnabled)}
+            aria-checked={soundEnabled}
+            role="switch"
             className={cn(
-              'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300',
-              soundEnabled ? 'bg-[#6E7BF2]' : 'surface-inset'
+              'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[44px] min-w-[44px]',
+              soundEnabled ? 'bg-[#6366F1]' : 'surface-inset'
             )}
           >
             <span
@@ -219,17 +222,17 @@ export function Settings() {
               step={0.01}
               value={soundVolume}
               onChange={(e) => setSoundVolume(parseFloat(e.target.value))}
-              className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/8 accent-[#6E7BF2]
+              className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/8 accent-[#6366F1]
                 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5
-                [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#6E7BF2]
-                [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:shadow-[#6E7BF2]/30"
+                [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#6366F1]
+                [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:shadow-[#6366F1]/30"
             />
           </div>
         )}
       </motion.section>
 
       {/* Haptics */}
-      <motion.section variants={fadeUp} className="sculpted-card rounded-[22px] p-5">
+      <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <Smartphone className="h-5 w-5 text-white/40" />
@@ -237,9 +240,11 @@ export function Settings() {
           </div>
           <button
             onClick={() => setHapticsEnabled(!hapticsEnabled)}
+            aria-checked={hapticsEnabled}
+            role="switch"
             className={cn(
-              'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300',
-              hapticsEnabled ? 'bg-[#6E7BF2]' : 'surface-inset'
+              'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[44px] min-w-[44px]',
+              hapticsEnabled ? 'bg-[#6366F1]' : 'surface-inset'
             )}
           >
             <span
@@ -253,7 +258,7 @@ export function Settings() {
       </motion.section>
 
       {/* Orb Theme */}
-      <motion.section variants={fadeUp} className="sculpted-card rounded-[22px] p-5">
+      <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
         <div className="flex items-center gap-2.5 mb-4">
           <Sparkles className="h-5 w-5 text-white/40" />
           <h2 className="font-display text-base font-bold text-white">Orb Theme</h2>
@@ -309,7 +314,7 @@ export function Settings() {
       </motion.section>
 
       {/* Data */}
-      <motion.section variants={fadeUp} className="sculpted-card rounded-[22px] p-5">
+      <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
         <div className="flex items-center gap-2.5 mb-4">
           <Database className="h-5 w-5 text-white/40" />
           <h2 className="font-display text-base font-bold text-white">Data</h2>
