@@ -18,26 +18,26 @@ const DEFAULT_PHASE_COLORS: Record<BreathPhase, string> = {
   [BREATH_PHASES.REST]: PHASE.rest,
 }
 
-/** Convert a hex color to rgba with the given alpha */
-function hexToRgba(hex: string, alpha: number): string {
-  const r = parseInt(hex.slice(1, 3), 16)
-  const g = parseInt(hex.slice(3, 5), 16)
-  const b = parseInt(hex.slice(5, 7), 16)
-  return `rgba(${r},${g},${b},${alpha})`
-}
-
 export function PhaseIndicator({ phase, techniqueId, className }: PhaseIndicatorProps) {
   const label = phase ? PHASE_LABELS[phase] : 'Ready'
   const colorMap = techniqueId ? TECHNIQUE_PHASES[techniqueId] : DEFAULT_PHASE_COLORS
   const color = phase ? colorMap[phase] : undefined
 
   return (
-    <div className={cn('text-center', className)}>
+    <div
+      className={cn('text-center', className)}
+      role="status"
+      aria-live="assertive"
+      aria-atomic="true"
+    >
       {/* Phase label badge */}
       {phase && color && (
         <div
           className="inline-flex items-center px-4 py-1.5 rounded-full mb-3 transition-all duration-300 border"
-          style={{ backgroundColor: hexToRgba(color, 0.1), borderColor: hexToRgba(color, 0.2) }}
+          style={{
+            backgroundColor: `color-mix(in srgb, ${color} 10%, transparent)`,
+            borderColor: `color-mix(in srgb, ${color} 20%, transparent)`,
+          }}
         >
           <span
             className="text-sm font-medium uppercase tracking-wider"
@@ -56,7 +56,6 @@ export function PhaseIndicator({ phase, techniqueId, className }: PhaseIndicator
         )}
         style={{
           color: color ?? undefined,
-          textShadow: phase ? `0 0 60px ${color}, 0 0 30px ${color}` : 'none',
         }}
       >
         {label}

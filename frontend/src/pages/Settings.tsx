@@ -36,6 +36,7 @@ function AccountInfo() {
       <img
         src={user.imageUrl}
         alt={user.fullName ?? 'Profile'}
+        loading="lazy"
         className="h-12 w-12 rounded-full ring-2 ring-white/10"
       />
       <div className="flex-1 min-w-0">
@@ -112,7 +113,7 @@ export function Settings() {
 
       {/* Account */}
       {CLERK_ENABLED && (
-        <motion.section variants={fadeUp} className="sculpted-card rounded-[22px] p-5">
+        <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
           <div className="flex items-center gap-2.5 mb-4">
             <User className="h-5 w-5 text-white/40" />
             <h2 className="font-display text-base font-bold text-white">Account</h2>
@@ -139,7 +140,7 @@ export function Settings() {
       )}
 
       {/* Theme */}
-      <motion.section variants={fadeUp} className="sculpted-card rounded-[22px] p-5">
+      <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
         <div className="flex items-center gap-2.5 mb-4">
           <Palette className="h-5 w-5 text-white/40" />
           <h2 className="font-display text-base font-bold text-white">Theme</h2>
@@ -183,7 +184,7 @@ export function Settings() {
       </motion.section>
 
       {/* Sound */}
-      <motion.section variants={fadeUp} className="sculpted-card rounded-[22px] p-5">
+      <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <Volume2 className="h-5 w-5 text-white/40" />
@@ -191,8 +192,10 @@ export function Settings() {
           </div>
           <button
             onClick={() => setSoundEnabled(!soundEnabled)}
+            aria-checked={soundEnabled}
+            role="switch"
             className={cn(
-              'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300',
+              'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[44px] min-w-[44px]',
               soundEnabled ? 'bg-[#6366F1]' : 'surface-inset'
             )}
           >
@@ -229,7 +232,7 @@ export function Settings() {
       </motion.section>
 
       {/* Haptics */}
-      <motion.section variants={fadeUp} className="sculpted-card rounded-[22px] p-5">
+      <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <Smartphone className="h-5 w-5 text-white/40" />
@@ -237,8 +240,10 @@ export function Settings() {
           </div>
           <button
             onClick={() => setHapticsEnabled(!hapticsEnabled)}
+            aria-checked={hapticsEnabled}
+            role="switch"
             className={cn(
-              'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300',
+              'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[44px] min-w-[44px]',
               hapticsEnabled ? 'bg-[#6366F1]' : 'surface-inset'
             )}
           >
@@ -253,7 +258,7 @@ export function Settings() {
       </motion.section>
 
       {/* Orb Theme */}
-      <motion.section variants={fadeUp} className="sculpted-card rounded-[22px] p-5">
+      <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
         <div className="flex items-center gap-2.5 mb-4">
           <Sparkles className="h-5 w-5 text-white/40" />
           <h2 className="font-display text-base font-bold text-white">Orb Theme</h2>
@@ -309,7 +314,7 @@ export function Settings() {
       </motion.section>
 
       {/* Data */}
-      <motion.section variants={fadeUp} className="sculpted-card rounded-[22px] p-5">
+      <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
         <div className="flex items-center gap-2.5 mb-4">
           <Database className="h-5 w-5 text-white/40" />
           <h2 className="font-display text-base font-bold text-white">Data</h2>

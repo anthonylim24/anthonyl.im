@@ -27,7 +27,6 @@ export function techniqueGradientStyle(id: TechniqueId): React.CSSProperties {
   const v = VISUALS[id]
   return {
     background: `linear-gradient(135deg, ${v.gradient.from}, ${v.gradient.to})`,
-    boxShadow: `0 10px 15px -3px ${v.primary}40`,
   }
 }
 
@@ -36,18 +35,16 @@ export function techniqueActiveStyle(id: TechniqueId): React.CSSProperties {
   const v = VISUALS[id]
   return {
     borderColor: `${v.primary}50`,
-    boxShadow: `0 0 0 1px ${v.primary}30, inset 0 1px 0 rgba(255,255,255,0.08), 0 20px 50px -12px rgba(0,0,0,0.5)`,
     background: `linear-gradient(160deg, ${v.gradient.from}18 0%, ${v.gradient.to}10 100%)`,
   }
 }
 
-/** Full vivid gradient for technique feature cards (Dribbble-style colorful cards) */
+/** Subtle tinted surface for technique feature cards */
 export function techniqueCardGradient(id: TechniqueId): React.CSSProperties {
   const v = VISUALS[id]
   return {
-    background: `linear-gradient(135deg, ${v.gradient.from} 0%, ${v.gradient.via} 50%, ${v.gradient.to} 100%)`,
-    border: '1px solid rgba(255, 255, 255, 0.12)',
-    boxShadow: `inset 0 1px 0 rgba(255,255,255,0.15), 0 24px 60px -12px ${v.primary}35, 0 12px 28px -8px rgba(0,0,0,0.4)`,
+    background: `linear-gradient(160deg, ${v.gradient.from}12 0%, ${v.gradient.to}08 100%)`,
+    borderColor: `${v.primary}20`,
   }
 }
 
@@ -63,7 +60,6 @@ export function techniqueProgressStyle(id: TechniqueId): React.CSSProperties {
 export function accentGradientStyle(): React.CSSProperties {
   return {
     background: `linear-gradient(to right, ${ACCENT}, ${ACCENT_BRIGHT})`,
-    boxShadow: `0 10px 15px -3px ${ACCENT}40`,
   }
 }
 

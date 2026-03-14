@@ -1,7 +1,8 @@
-import { useMemo, useRef, useCallback } from 'react'
+import { useMemo, useRef, useCallback, type KeyboardEvent } from 'react'
 import { BREATH_PHASES, type BreathPhase } from '@/lib/constants'
 import { PHASE } from '@/lib/palette'
 import { cn } from '@/lib/utils'
+import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { KirbyCharacter } from './KirbyCharacter'
 
 interface FluidOrbProps {
@@ -34,9 +35,10 @@ export function FluidOrb({
   kirbyMode = false,
   onEasterEggToggle,
 }: FluidOrbProps) {
+  const reducedMotion = useReducedMotion()
   const colors = themeColors ?? PHASE_COLORS[phase ?? 'idle']
-  const scale = 0.6 + amplitude * 0.4
-  const morphAmount = isActive ? amplitude * 15 : 0
+  const scale = reducedMotion ? 1 : 0.6 + amplitude * 0.4
+  const morphAmount = isActive && !reducedMotion ? amplitude * 15 : 0
   const borderRadius = useMemo(() => {
     const base = 50
     const r1 = base + morphAmount
@@ -61,21 +63,36 @@ export function FluidOrb({
     }
   }, [onEasterEggToggle])
 
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        handleClick()
+      }
+    },
+    [handleClick]
+  )
+
+  const transitionStyle = reducedMotion ? 'none' : undefined
+
   if (kirbyMode) {
     return (
       <div
         data-testid="fluid-orb"
+        role="button"
+        tabIndex={0}
+        aria-label="Breathing orb"
         className={cn('relative flex items-center justify-center', className)}
         onClick={handleClick}
+        onKeyDown={handleKeyDown}
       >
         <div
           style={{
             transform: `translateZ(0) scale(${scale})`,
-            transition: `transform ${transitionDuration} ease-out`,
-            willChange: 'transform',
+            transition: transitionStyle ?? `transform ${transitionDuration} ease-out`,
           }}
         >
-          <KirbyCharacter size={200} puffAmount={amplitude} />
+          <KirbyCharacter size={200} puffAmount={reducedMotion ? 0 : amplitude} />
         </div>
       </div>
     )
@@ -84,10 +101,14 @@ export function FluidOrb({
   return (
     <div
       data-testid="fluid-orb"
+      role="button"
+      tabIndex={0}
+      aria-label="Breathing orb"
       className={cn('relative flex items-center justify-center', className)}
       onClick={handleClick}
+      onKeyDown={handleKeyDown}
     >
-      {/* Outer glow — use transform: scale instead of width/height to stay on GPU */}
+      {/* Soft outer glow */}
       <div
         className="absolute rounded-full blur-3xl"
         style={{
@@ -96,25 +117,9 @@ export function FluidOrb({
           maxWidth: '340px',
           maxHeight: '340px',
           transform: `translateZ(0) scale(${scale})`,
-          background: `radial-gradient(circle, ${colors[0]}40, transparent 70%)`,
-          opacity: isActive ? 0.8 : 0.3,
-          transition: `transform ${transitionDuration} ease-out, opacity ${transitionDuration} ease-out`,
-          willChange: 'transform, opacity',
-        }}
-      />
-      {/* Secondary glow */}
-      <div
-        className="absolute rounded-full blur-xl"
-        style={{
-          width: '90%',
-          height: '90%',
-          maxWidth: '280px',
-          maxHeight: '280px',
-          transform: `translateZ(0) scale(${scale})`,
-          background: `radial-gradient(circle, ${colors[1]}30, transparent 60%)`,
-          opacity: isActive ? 0.6 : 0.2,
-          transition: `transform ${transitionDuration} ease-out, opacity ${transitionDuration} ease-out`,
-          willChange: 'transform, opacity',
+          background: `radial-gradient(circle, ${colors[0]}30, transparent 70%)`,
+          opacity: isActive ? 0.4 : 0.15,
+          transition: transitionStyle ?? `transform ${transitionDuration} ease-out, opacity ${transitionDuration} ease-out`,
         }}
       />
       {/* Main orb */}
@@ -129,13 +134,10 @@ export function FluidOrb({
           borderRadius,
           background: `linear-gradient(135deg, ${colors[0]}, ${colors[1]})`,
           boxShadow: `
-            0 0 60px ${colors[0]}40,
-            0 0 120px ${colors[0]}20,
-            inset 0 -20px 40px ${colors[1]}40,
-            inset 0 20px 40px rgba(255,255,255,0.15)
+            0 0 40px ${colors[0]}25,
+            inset 0 20px 40px rgba(255,255,255,0.1)
           `,
-          transition: `transform ${transitionDuration} ease-out, border-radius ${transitionDuration} ease-out`,
-          willChange: 'transform, border-radius',
+          transition: transitionStyle ?? `transform ${transitionDuration} ease-out, border-radius ${transitionDuration} ease-out`,
         }}
       >
         <div
@@ -143,7 +145,7 @@ export function FluidOrb({
           style={{
             width: '40%',
             height: '25%',
-            background: 'radial-gradient(ellipse, rgba(255,255,255,0.4), transparent)',
+            background: 'radial-gradient(ellipse, rgba(255,255,255,0.3), transparent)',
             filter: 'blur(8px)',
             transform: 'translateZ(0)',
           }}

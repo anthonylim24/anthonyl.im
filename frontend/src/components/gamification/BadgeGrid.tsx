@@ -80,7 +80,7 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
             className={cn(
               'flex flex-col items-center gap-2.5 p-3 rounded-[18px] border transition-[background,border-color,opacity] duration-300',
               earned
-                ? 'liquid-glass-breath border-white/10'
+                ? 'card-elevated border-white/10'
                 : 'surface-inset border-transparent opacity-35'
             )}
           >
