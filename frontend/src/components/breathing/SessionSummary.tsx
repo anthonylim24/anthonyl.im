@@ -6,6 +6,7 @@ import { ACCENT, ACCENT_BRIGHT, ACHIEVEMENT, PERSONAL_BEST } from '@/lib/palette
 import { accentGradientStyle } from '@/lib/techniqueConfig'
 import { Trophy, Zap, Target, Clock, Star, X } from 'lucide-react'
 import { CelebrationParticles } from './CelebrationParticles'
+import { useHaptics } from '@/hooks/useHaptics'
 
 interface SessionSummaryProps {
   xpEarned: number
@@ -74,6 +75,7 @@ export function SessionSummary({
   isNewPersonalBest,
   onClose,
 }: SessionSummaryProps) {
+  const { trigger: haptic } = useHaptics()
   const maxHold = holdTimes.length > 0 ? Math.max(...holdTimes) : 0
   const avgHold =
     holdTimes.length > 0
@@ -81,6 +83,17 @@ export function SessionSummary({
       : 0
 
   const particleCount = isNewPersonalBest ? 60 : newBadges.length > 0 ? 50 : 40
+
+  // Celebration haptic on mount
+  useEffect(() => {
+    if (isNewPersonalBest) {
+      haptic([100, 50, 100, 50, 150], { intensity: 0.9 })
+    } else if (newBadges.length > 0) {
+      haptic([80, 40, 80, 40, 80], { intensity: 0.7 })
+    } else {
+      haptic('success')
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <motion.div

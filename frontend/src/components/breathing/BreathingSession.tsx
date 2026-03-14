@@ -17,6 +17,7 @@ import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore } from '@/stores/historyStore'
 import { useViewportOffset } from '@/hooks/useViewportOffset'
 import { useWakeLock } from '@/hooks/useWakeLock'
+import { useHaptics } from '@/hooks/useHaptics'
 
 interface BreathingSessionProps {
   config: SessionConfig
@@ -52,6 +53,8 @@ export function BreathingSession({
     '--viewport-bottom-offset': `${bottomOffset}px`,
   } as CSSProperties
 
+  const { trigger: haptic } = useHaptics()
+
   const showControls = useCallback(() => {
     setControlsVisible(true)
     if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current)
@@ -62,12 +65,10 @@ export function BreathingSession({
     setShowSummary(true)
   }, [])
 
-  // Haptic feedback on phase transitions (subtle vibration pattern)
+  // Haptic feedback on phase transitions
   const handlePhaseChange = useCallback(() => {
-    if ('vibrate' in navigator) {
-      navigator.vibrate(30)
-    }
-  }, [])
+    haptic(30)
+  }, [haptic])
 
   const { session, start, pause, stop, isActive, isPaused, isComplete } =
     useBreathingCycle({
@@ -170,22 +171,26 @@ export function BreathingSession({
   }, [showSummary, session, summaryData, sessions, config, getStreak, addXP, recordSession, unlockBadges, earnedBadges])
 
   const handleStart = () => {
+    haptic('success')
     start(config)
     showControls()
   }
 
   const handlePause = () => {
+    haptic(40)
     pause()
     setControlsVisible(true)
     if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current)
   }
 
   const handleStop = () => {
+    haptic('error')
     stop()
     onCancel?.()
   }
 
   const handleRestart = () => {
+    haptic('nudge')
     stop()
     start(config)
     showControls()

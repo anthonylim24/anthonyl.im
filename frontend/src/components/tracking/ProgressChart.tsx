@@ -51,7 +51,7 @@ export function ProgressChart({
         </div>
         <div className="p-5 sm:p-6">
           <div className="h-64 flex items-center justify-center text-white/30 text-sm">
-            Complete sessions to see your progress chart
+            Your hold time trends will appear here after a few sessions.
           </div>
         </div>
       </div>

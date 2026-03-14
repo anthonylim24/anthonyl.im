@@ -31,7 +31,7 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
         </div>
         <div className="p-5 sm:p-6">
           <div className="text-center text-white/30 py-6 text-sm">
-            Complete sessions to set personal records
+            Personal records unlock as you practice. Start your first session to begin tracking.
           </div>
         </div>
       </div>

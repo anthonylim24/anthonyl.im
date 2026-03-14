@@ -20,6 +20,7 @@ import {
 import { cn } from '@/lib/utils'
 import { ACCENT, ACCENT_BRIGHT, withAlpha } from '@/lib/palette'
 import { useSettingsStore } from '@/stores/settingsStore'
+import { useHaptics } from '@/hooks/useHaptics'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore } from '@/stores/historyStore'
 import { getLevelForXP, ORB_THEMES } from '@/lib/gamification'
@@ -71,6 +72,7 @@ export function Settings() {
   const { xp, selectedTheme, setSelectedTheme } = useGamificationStore()
   const { clearHistory } = useHistoryStore()
 
+  const { trigger: haptic } = useHaptics()
   const [confirmClear, setConfirmClear] = useState(false)
 
   const currentLevel = getLevelForXP(xp)
@@ -96,9 +98,11 @@ export function Settings() {
 
   const handleClearData = () => {
     if (!confirmClear) {
+      haptic('error')
       setConfirmClear(true)
       return
     }
+    haptic([100, 50, 100])
     clearHistory()
     setConfirmClear(false)
   }
@@ -240,7 +244,12 @@ export function Settings() {
             <h2 className="font-display text-base font-bold text-white">Haptics</h2>
           </div>
           <button
-            onClick={() => setHapticsEnabled(!hapticsEnabled)}
+            onClick={() => {
+              const next = !hapticsEnabled
+              setHapticsEnabled(next)
+              // Fire a test pulse so the user feels it when enabling
+              if (next) setTimeout(() => haptic('nudge'), 50)
+            }}
             aria-checked={hapticsEnabled}
             role="switch"
             className={cn(

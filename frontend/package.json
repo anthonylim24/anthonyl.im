@@ -34,6 +34,7 @@
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.5.0",
     "tailwindcss-animate": "^1.0.7",
+    "web-haptics": "^0.0.6",
     "zustand": "^5.0.11"
   },
   "devDependencies": {
