@@ -147,6 +147,7 @@ When creating a pull request that includes frontend changes (any modifications t
 **Process:**
 1. Start the dev server (`bun run dev` in `frontend/`)
 2. Use Chrome MCP to navigate to affected pages and capture screenshots
-3. Add the screenshots to the PR description body
+3. **Upload screenshots to GitHub** using `gh api` so they get permanent URLs visible in the PR. Local file paths and repo blob URLs do not render in PR descriptions. Use: `gh api --method POST repos/{owner}/{repo}/issues/{pr_number}/comments --field body="![screenshot](url)"` or upload via the GitHub upload endpoint.
+4. Add the uploaded screenshot URLs to the PR description body
 
 If the Chrome MCP is unavailable or the dev server cannot start (e.g., Node.js version incompatibility), note this in the PR description and skip screenshots. Do not block PR creation on screenshot availability.
