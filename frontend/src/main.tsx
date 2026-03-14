@@ -48,6 +48,18 @@ const AppRoutes = () => (
   </BrowserRouter>
 )
 
+// Easter egg for curious developers
+if (import.meta.env.PROD) {
+  console.log(
+    '%c🌬 BreathFlow',
+    'font-size:20px;font-weight:bold;color:#818CF8;',
+  )
+  console.log(
+    '%cBuilt with care by Anthony Lim.\nCurious how it works? → github.com/anthonylim24',
+    'font-size:12px;color:#6b7280;',
+  )
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     {CLERK_PUBLISHABLE_KEY ? (
