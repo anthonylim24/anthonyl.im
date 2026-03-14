@@ -22,7 +22,7 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
 
   if (!hasBests) {
     return (
-      <div className="sculpted-card rounded-[22px] overflow-hidden">
+      <div className="card-elevated rounded-[22px] overflow-hidden">
         <div className="p-5 sm:p-6 border-b border-white/6">
           <h3 className="flex items-center gap-2.5 font-display font-bold text-white">
             <Trophy className="h-5 w-5" style={{ color: ACCENT_BRIGHT }} />
@@ -39,7 +39,7 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
   }
 
   return (
-    <div className="sculpted-card rounded-[22px] overflow-hidden">
+    <div className="card-elevated rounded-[22px] overflow-hidden">
       <div className="p-5 sm:p-6 border-b border-white/6">
         <h3 className="flex items-center gap-2.5 font-display font-bold text-white">
           <Trophy className="h-5 w-5" style={{ color: ACCENT_BRIGHT }} />

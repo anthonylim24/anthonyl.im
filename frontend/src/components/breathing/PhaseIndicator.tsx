@@ -54,7 +54,6 @@ export function PhaseIndicator({ phase, className }: PhaseIndicatorProps) {
         )}
         style={{
           color: color ?? undefined,
-          textShadow: phase ? `0 0 60px ${color}, 0 0 30px ${color}` : 'none',
         }}
       >
         {label}

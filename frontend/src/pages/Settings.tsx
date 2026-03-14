@@ -113,7 +113,7 @@ export function Settings() {
 
       {/* Account */}
       {CLERK_ENABLED && (
-        <motion.section variants={fadeUp} className="sculpted-card rounded-[22px] p-5">
+        <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
           <div className="flex items-center gap-2.5 mb-4">
             <User className="h-5 w-5 text-white/40" />
             <h2 className="font-display text-base font-bold text-white">Account</h2>
@@ -140,7 +140,7 @@ export function Settings() {
       )}
 
       {/* Theme */}
-      <motion.section variants={fadeUp} className="sculpted-card rounded-[22px] p-5">
+      <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
         <div className="flex items-center gap-2.5 mb-4">
           <Palette className="h-5 w-5 text-white/40" />
           <h2 className="font-display text-base font-bold text-white">Theme</h2>
@@ -184,7 +184,7 @@ export function Settings() {
       </motion.section>
 
       {/* Sound */}
-      <motion.section variants={fadeUp} className="sculpted-card rounded-[22px] p-5">
+      <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <Volume2 className="h-5 w-5 text-white/40" />
@@ -232,7 +232,7 @@ export function Settings() {
       </motion.section>
 
       {/* Haptics */}
-      <motion.section variants={fadeUp} className="sculpted-card rounded-[22px] p-5">
+      <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <Smartphone className="h-5 w-5 text-white/40" />
@@ -258,7 +258,7 @@ export function Settings() {
       </motion.section>
 
       {/* Orb Theme */}
-      <motion.section variants={fadeUp} className="sculpted-card rounded-[22px] p-5">
+      <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
         <div className="flex items-center gap-2.5 mb-4">
           <Sparkles className="h-5 w-5 text-white/40" />
           <h2 className="font-display text-base font-bold text-white">Orb Theme</h2>
@@ -314,7 +314,7 @@ export function Settings() {
       </motion.section>
 
       {/* Data */}
-      <motion.section variants={fadeUp} className="sculpted-card rounded-[22px] p-5">
+      <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
         <div className="flex items-center gap-2.5 mb-4">
           <Database className="h-5 w-5 text-white/40" />
           <h2 className="font-display text-base font-bold text-white">Data</h2>
