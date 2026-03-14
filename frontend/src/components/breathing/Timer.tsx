@@ -23,10 +23,7 @@ export function Timer({ seconds, className, size = 'lg' }: TimerProps) {
         sizeStyles[size],
         className
       )}
-      style={{
-        fontFeatureSettings: '"tnum" on',
-        textShadow: '0 2px 20px rgba(0,0,0,0.1)',
-      }}
+      style={{ fontFeatureSettings: '"tnum" on' }}
     >
       <span className="opacity-90">{seconds}</span>
       <span className="text-muted-foreground text-[0.4em] ml-1" aria-hidden="true">s</span>

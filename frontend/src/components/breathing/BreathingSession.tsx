@@ -12,7 +12,7 @@ import { getProtocol } from '@/lib/breathingProtocols'
 import { cn } from '@/lib/utils'
 import { calculateXP, checkBadgeUnlocks } from '@/lib/gamification'
 import { techniqueGradientStyle, getTechniqueVisual, getTechniquePhaseColors } from '@/lib/techniqueConfig'
-import { DESTRUCTIVE } from '@/lib/palette'
+import { DESTRUCTIVE, BG, withAlpha } from '@/lib/palette'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore } from '@/stores/historyStore'
 import { useViewportOffset } from '@/hooks/useViewportOffset'
@@ -190,7 +190,8 @@ export function BreathingSession({
     <div
       role="region"
       aria-label={`Breathing session: ${protocol.name}`}
-      className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-[#080b16] overflow-hidden select-none"
+      className="fixed inset-0 z-[60] flex flex-col items-center justify-center overflow-hidden select-none"
+      style={{ backgroundColor: BG }}
       onMouseMove={isActive && !isPaused ? showControls : undefined}
       onTouchStart={isActive && !isPaused ? showControls : undefined}
     >
@@ -329,8 +330,8 @@ export function BreathingSession({
               aria-label="Stop"
               className="h-14 w-14 rounded-xl border flex items-center justify-center transition-all duration-300"
               style={{
-                backgroundColor: `${DESTRUCTIVE}33`,
-                borderColor: `${DESTRUCTIVE}33`,
+                backgroundColor: withAlpha(DESTRUCTIVE, 0.2),
+                borderColor: withAlpha(DESTRUCTIVE, 0.2),
                 color: DESTRUCTIVE,
               }}
             >

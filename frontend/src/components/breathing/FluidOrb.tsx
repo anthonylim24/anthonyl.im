@@ -74,6 +74,7 @@ export function FluidOrb({
   )
 
   const transitionStyle = reducedMotion ? 'none' : undefined
+  const phaseLabel = phase ? phase.replace('_', ' ') : 'idle'
 
   if (kirbyMode) {
     return (
@@ -81,7 +82,7 @@ export function FluidOrb({
         data-testid="fluid-orb"
         role="button"
         tabIndex={0}
-        aria-label="Breathing orb"
+        aria-label={`Breathing orb — ${phaseLabel}`}
         className={cn('relative flex items-center justify-center', className)}
         onClick={handleClick}
         onKeyDown={handleKeyDown}
@@ -103,7 +104,7 @@ export function FluidOrb({
       data-testid="fluid-orb"
       role="button"
       tabIndex={0}
-      aria-label="Breathing orb"
+      aria-label={`Breathing orb — ${phaseLabel}`}
       className={cn('relative flex items-center justify-center', className)}
       onClick={handleClick}
       onKeyDown={handleKeyDown}

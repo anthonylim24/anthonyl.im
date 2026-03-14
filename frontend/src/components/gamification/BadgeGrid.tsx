@@ -1,6 +1,7 @@
 import { motion } from 'motion/react'
 import { BADGES } from '@/lib/gamification'
 import { cn } from '@/lib/utils'
+import { BADGE_GRADIENT, withAlpha, ACCENT } from '@/lib/palette'
 import {
   Zap,
   Flame,
@@ -60,7 +61,7 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
               variants={badgePop}
               data-badge={badge.id}
               data-secret="true"
-              className="flex flex-col items-center gap-2.5 p-3 rounded-[18px] surface-inset"
+              className="flex flex-col items-center gap-2.5 p-3 rounded-[18px] surface-well"
             >
               <div className="h-11 w-11 rounded-xl bg-white/5 flex items-center justify-center">
                 <HelpCircle className="h-5 w-5 text-white/15" />
@@ -81,16 +82,20 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
               'flex flex-col items-center gap-2.5 p-3 rounded-[18px] border transition-[background,border-color,opacity] duration-300',
               earned
                 ? 'card-elevated border-white/10'
-                : 'surface-inset border-transparent opacity-35'
+                : 'surface-well border-transparent opacity-35'
             )}
           >
             <div
               className={cn(
                 'h-11 w-11 rounded-xl flex items-center justify-center transition-[background,color,box-shadow] duration-300',
                 earned
-                  ? 'bg-gradient-to-br from-[#F0D08E] to-[#D4A04A] text-white shadow-lg shadow-[#D4A04A]/20'
+                  ? 'text-white shadow-lg'
                   : 'bg-white/8 text-white/25'
               )}
+              style={earned ? {
+                background: `linear-gradient(to bottom right, ${BADGE_GRADIENT.from}, ${BADGE_GRADIENT.to})`,
+                boxShadow: `0 10px 15px -3px ${withAlpha(ACCENT, 0.2)}`,
+              } : undefined}
             >
               {earned ? ICON_MAP[badge.icon] : <Lock className="h-4 w-4" />}
             </div>

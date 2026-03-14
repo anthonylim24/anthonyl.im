@@ -82,13 +82,13 @@ export function Navigation() {
                 key={path}
                 to={path}
                 className={cn(
-                  'flex flex-col items-center justify-center gap-1 rounded-2xl text-[10px] font-semibold transition-colors duration-300 relative',
+                  'flex flex-col items-center justify-center gap-1 rounded-2xl text-[10px] font-semibold transition-colors duration-300 relative min-h-[44px] min-w-[44px]',
                   active
                     ? 'text-white'
                     : 'text-white/30 hover:text-white/55 active:scale-95'
                 )}
               >
-                <div className="relative p-2.5 rounded-2xl">
+                <div className="relative p-3 rounded-2xl">
                   <Icon className={cn(
                     "relative h-[18px] w-[18px] transition-colors duration-300",
                     active ? "text-white" : ""

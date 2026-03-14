@@ -94,7 +94,7 @@ export function Progress() {
                 </button>
                 <button
                   onClick={() => setShowClearConfirm(false)}
-                  className="px-3 py-1.5 rounded-xl text-xs font-semibold surface-inset text-white/50 hover:text-white/70 transition-colors duration-300"
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold surface-well text-white/50 hover:text-white/70 transition-colors duration-300"
                 >
                   No
                 </button>
@@ -124,7 +124,7 @@ export function Progress() {
                   <div className="font-display text-xl font-bold text-white">{levelTitle}</div>
                 </div>
                 <div className="space-y-2">
-                  <div className="h-2.5 rounded-full surface-inset overflow-hidden">
+                  <div className="h-2.5 rounded-full surface-well overflow-hidden">
                     <div
                       className="h-full rounded-full origin-left transition-transform duration-700 ease-out"
                       style={{
@@ -185,7 +185,7 @@ export function Progress() {
           </div>
           <div className="p-5 sm:p-6">
             {/* Filter Buttons */}
-            <div className="flex gap-1.5 p-1.5 surface-inset rounded-2xl mb-5 sm:mb-6">
+            <div className="flex gap-1.5 p-1.5 surface-well rounded-2xl mb-5 sm:mb-6">
               <button
                 onClick={() => setFilterTechnique('all')}
                 className={cn(

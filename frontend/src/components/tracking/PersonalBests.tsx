@@ -56,7 +56,7 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
             return (
               <div
                 key={techniqueId}
-                className="flex items-center justify-between p-4 rounded-[16px] surface-inset group hover:bg-white/5 transition-all duration-300"
+                className="flex items-center justify-between p-4 rounded-[16px] surface-well group hover:bg-white/5 transition-all duration-300"
               >
                 <div className="flex items-center gap-3">
                   <div

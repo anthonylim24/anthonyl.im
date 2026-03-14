@@ -18,6 +18,7 @@ import {
   Cloud,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { ACCENT, ACCENT_BRIGHT, withAlpha } from '@/lib/palette'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore } from '@/stores/historyStore'
@@ -47,9 +48,9 @@ function AccountInfo() {
           {user.primaryEmailAddress?.emailAddress}
         </p>
       </div>
-      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-        <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-        <span className="text-[11px] text-emerald-400 font-medium">Synced</span>
+      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border" style={{ background: withAlpha(ACCENT, 0.1), borderColor: withAlpha(ACCENT, 0.2) }}>
+        <div className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: ACCENT_BRIGHT }} />
+        <span className="text-[11px] font-medium" style={{ color: ACCENT_BRIGHT }}>Synced</span>
       </div>
     </div>
   )
@@ -153,14 +154,14 @@ export function Settings() {
             className={cn(
               'relative flex items-center gap-3 p-4 rounded-[16px] border transition-all duration-300',
               theme === 'dark'
-                ? 'border-[#6366F1]/60 bg-[#6366F1]/10'
-                : 'border-white/8 surface-inset hover:border-white/12'
+                ? 'border-primary/60 bg-primary/10'
+                : 'border-white/8 surface-well hover:border-white/12'
             )}
           >
             <Moon className="h-5 w-5 text-white" />
             <span className="text-white font-semibold text-sm">Dark</span>
             {theme === 'dark' && (
-              <Check className="absolute top-3 right-3 h-4 w-4 text-[#818CF8]" />
+              <Check className="absolute top-3 right-3 h-4 w-4 text-primary" />
             )}
           </motion.button>
           <motion.button
@@ -170,14 +171,14 @@ export function Settings() {
             className={cn(
               'relative flex items-center gap-3 p-4 rounded-[16px] border transition-all duration-300',
               theme === 'light'
-                ? 'border-[#6366F1]/60 bg-[#6366F1]/10'
-                : 'border-white/8 surface-inset hover:border-white/12'
+                ? 'border-primary/60 bg-primary/10'
+                : 'border-white/8 surface-well hover:border-white/12'
             )}
           >
             <Sun className="h-5 w-5 text-white" />
             <span className="text-white font-semibold text-sm">Light</span>
             {theme === 'light' && (
-              <Check className="absolute top-3 right-3 h-4 w-4 text-[#818CF8]" />
+              <Check className="absolute top-3 right-3 h-4 w-4 text-primary" />
             )}
           </motion.button>
         </div>
@@ -196,7 +197,7 @@ export function Settings() {
             role="switch"
             className={cn(
               'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[44px] min-w-[44px]',
-              soundEnabled ? 'bg-[#6366F1]' : 'surface-inset'
+              soundEnabled ? 'bg-primary' : 'surface-well'
             )}
           >
             <span
@@ -222,10 +223,10 @@ export function Settings() {
               step={0.01}
               value={soundVolume}
               onChange={(e) => setSoundVolume(parseFloat(e.target.value))}
-              className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/8 accent-[#6366F1]
+              className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/8 accent-primary
                 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5
-                [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#6366F1]
-                [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:shadow-[#6366F1]/30"
+                [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary
+                [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:shadow-primary/30"
             />
           </div>
         )}
@@ -244,7 +245,7 @@ export function Settings() {
             role="switch"
             className={cn(
               'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[44px] min-w-[44px]',
-              hapticsEnabled ? 'bg-[#6366F1]' : 'surface-inset'
+              hapticsEnabled ? 'bg-primary' : 'surface-well'
             )}
           >
             <span
@@ -324,7 +325,7 @@ export function Settings() {
             whileTap={{ scale: 0.99 }}
             transition={spring}
             onClick={handleExportData}
-            className="flex items-center gap-3 w-full p-4 rounded-[16px] surface-inset hover:bg-white/5 transition-all duration-300 text-left"
+            className="flex items-center gap-3 w-full p-4 rounded-[16px] surface-well hover:bg-white/5 transition-all duration-300 text-left"
           >
             <Download className="h-4 w-4 text-white/40" />
             <div>
@@ -342,7 +343,7 @@ export function Settings() {
               'flex items-center gap-3 w-full p-4 rounded-[16px] transition-all duration-300 text-left',
               confirmClear
                 ? 'bg-red-500/15 hover:bg-red-500/20 border border-red-500/20'
-                : 'surface-inset hover:bg-white/5'
+                : 'surface-well hover:bg-white/5'
             )}
           >
             <Trash2

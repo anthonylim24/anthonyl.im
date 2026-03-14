@@ -20,7 +20,7 @@ const techniqueIcons: Record<TechniqueId, React.ReactNode> = {
 export function SessionHistory({ sessions }: SessionHistoryProps) {
   if (sessions.length === 0) {
     return (
-      <div className="py-10 text-center text-white/30 surface-inset rounded-[18px] text-sm">
+      <div className="py-10 text-center text-white/30 surface-well rounded-[18px] text-sm">
         No sessions completed yet. Start your first breathing session!
       </div>
     )
@@ -31,7 +31,7 @@ export function SessionHistory({ sessions }: SessionHistoryProps) {
       {sessions.map((session) => (
         <div
           key={session.id}
-          className="flex items-center gap-3 p-3.5 rounded-2xl surface-inset hover:bg-white/[0.04] transition-colors duration-200"
+          className="flex items-center gap-3 p-3.5 rounded-2xl surface-well hover:bg-white/[0.04] transition-colors duration-200"
         >
           {/* Technique icon */}
           <div
