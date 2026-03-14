@@ -27,7 +27,6 @@ export function techniqueGradientStyle(id: TechniqueId): React.CSSProperties {
   const v = VISUALS[id]
   return {
     background: `linear-gradient(135deg, ${v.gradient.from}, ${v.gradient.to})`,
-    boxShadow: `0 10px 15px -3px ${v.primary}40`,
   }
 }
 
@@ -41,13 +40,12 @@ export function techniqueActiveStyle(id: TechniqueId): React.CSSProperties {
   }
 }
 
-/** Full vivid gradient for technique feature cards (Dribbble-style colorful cards) */
+/** Vivid gradient for technique cards — simplified, no glass excess */
 export function techniqueCardGradient(id: TechniqueId): React.CSSProperties {
   const v = VISUALS[id]
   return {
     background: `linear-gradient(135deg, ${v.gradient.from} 0%, ${v.gradient.via} 50%, ${v.gradient.to} 100%)`,
-    border: '1px solid rgba(255, 255, 255, 0.12)',
-    boxShadow: `inset 0 1px 0 rgba(255,255,255,0.15), 0 24px 60px -12px ${v.primary}35, 0 12px 28px -8px rgba(0,0,0,0.4)`,
+    border: '1px solid rgba(255, 255, 255, 0.08)',
   }
 }
 

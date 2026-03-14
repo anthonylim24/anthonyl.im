@@ -82,13 +82,13 @@ export function Session() {
 
   return (
     <motion.div className="pb-4" variants={stagger} initial="hidden" animate="show">
-      <div className="max-w-2xl mx-auto space-y-8 sm:space-y-10">
+      <div className="max-w-2xl mx-auto space-y-10 sm:space-y-14">
         {/* Header */}
         <motion.div variants={fadeUp}>
-          <h1 className="font-display text-[28px] sm:text-4xl font-bold text-white tracking-tight">
+          <h1 className="font-display text-[clamp(2rem,6vw,3rem)] font-extrabold text-white tracking-[-0.02em] leading-[0.95]">
             Session Setup
           </h1>
-          <p className="text-sm text-white/35 mt-1.5">
+          <p className="text-sm text-white/30 mt-2 tracking-wide">
             Choose your technique and customize
           </p>
         </motion.div>
