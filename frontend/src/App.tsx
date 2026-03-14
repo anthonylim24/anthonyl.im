@@ -255,7 +255,7 @@ function App() {
               "font-display font-extrabold tracking-tight transition-all duration-700",
               hasMessages
                 ? "text-lg sm:text-xl text-white"
-                : isShortViewport ? "text-2xl sm:text-4xl gradient-text" : "text-3xl sm:text-5xl gradient-text"
+                : isShortViewport ? "text-2xl sm:text-4xl text-white" : "text-3xl sm:text-5xl text-white"
             )}>
               Anthony Lim
             </h1>
@@ -350,7 +350,7 @@ function App() {
                   </div>
                 )}
                 <h2 className={cn(
-                  "font-display font-extrabold gradient-text leading-tight",
+                  "font-display font-extrabold text-white leading-tight",
                   isShortViewport ? "text-lg sm:text-2xl mb-1" : "text-xl sm:text-3xl mb-2"
                 )}>
                   Welcome

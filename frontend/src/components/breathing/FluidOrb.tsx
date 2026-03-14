@@ -1,7 +1,8 @@
 import { useMemo, useRef, useCallback } from 'react'
-import { BREATH_PHASES, type BreathPhase } from '@/lib/constants'
+import type { BreathPhase } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { KirbyCharacter } from './KirbyCharacter'
+import { PHASE_PAIR } from '@/lib/palette'
 
 interface FluidOrbProps {
   phase: BreathPhase | null
@@ -13,16 +14,6 @@ interface FluidOrbProps {
   onEasterEggToggle?: () => void
 }
 
-const PHASE_COLORS: Record<string, [string, string]> = {
-  [BREATH_PHASES.INHALE]: ['#8B96FF', '#6E7BF2'],
-  [BREATH_PHASES.DEEP_INHALE]: ['#99A5FF', '#8B96FF'],
-  [BREATH_PHASES.HOLD_IN]: ['#B0B8FF', '#8B96FF'],
-  [BREATH_PHASES.EXHALE]: ['#5B6AD4', '#4B55B8'],
-  [BREATH_PHASES.HOLD_OUT]: ['#3D4A9E', '#2A3370'],
-  [BREATH_PHASES.REST]: ['#2A3370', '#1E2550'],
-  idle: ['#1E2550', '#2A3370'],
-}
-
 export function FluidOrb({
   phase,
   amplitude,
@@ -32,7 +23,7 @@ export function FluidOrb({
   kirbyMode = false,
   onEasterEggToggle,
 }: FluidOrbProps) {
-  const colors = themeColors ?? PHASE_COLORS[phase ?? 'idle']
+  const colors = themeColors ?? PHASE_PAIR[phase ?? 'idle']
   const scale = 0.6 + amplitude * 0.4
   const morphAmount = isActive ? amplitude * 15 : 0
   const borderRadius = useMemo(() => {
@@ -59,12 +50,25 @@ export function FluidOrb({
     }
   }, [onEasterEggToggle])
 
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      handleClick()
+    }
+  }, [handleClick])
+
+  const phaseLabel = phase ? phase.replace('_', ' ') : 'idle'
+
   if (kirbyMode) {
     return (
       <div
         data-testid="fluid-orb"
+        role="button"
+        tabIndex={0}
+        aria-label={`Breathing orb — ${phaseLabel}`}
         className={cn('relative flex items-center justify-center', className)}
         onClick={handleClick}
+        onKeyDown={handleKeyDown}
       >
         <div
           style={{
@@ -82,8 +86,12 @@ export function FluidOrb({
   return (
     <div
       data-testid="fluid-orb"
+      role="button"
+      tabIndex={0}
+      aria-label={`Breathing orb — ${phaseLabel}`}
       className={cn('relative flex items-center justify-center', className)}
       onClick={handleClick}
+      onKeyDown={handleKeyDown}
     >
       {/* Outer glow — use transform: scale instead of width/height to stay on GPU */}
       <div

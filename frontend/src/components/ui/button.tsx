@@ -14,7 +14,7 @@ const buttonVariants = cva(
         destructive:
           "bg-destructive text-destructive-foreground shadow-lg shadow-destructive/25 hover:shadow-xl hover:shadow-destructive/30 hover:bg-destructive/90",
         outline:
-          "glass border-0 hover:bg-accent/50",
+          "card-elevated border-0 hover:bg-accent/50",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost:
@@ -22,7 +22,7 @@ const buttonVariants = cva(
         link:
           "text-primary underline-offset-4 hover:underline",
         glass:
-          "glass-strong hover:shadow-[0_16px_48px_hsl(220_25%_10%_/_0.15)] dark:hover:shadow-[0_16px_48px_hsl(0_0%_0%_/_0.4)]",
+          "sculpted-card",
       },
       size: {
         default: "h-11 px-6 py-2",

@@ -1,6 +1,7 @@
 import type { TechniqueId } from './constants'
 import { TECHNIQUE_IDS } from './constants'
 import { breathingProtocols } from './breathingProtocols'
+import { ACCENT, ACCENT_BRIGHT } from './palette'
 
 // ---------------------------------------------------------------------------
 // XP Calculation
@@ -227,7 +228,7 @@ export interface OrbTheme {
 }
 
 export const ORB_THEMES: OrbTheme[] = [
-  { id: 'default', name: 'Default', colors: ['#6E7BF2', '#8B96FF'], unlockLevel: 1 },
+  { id: 'default', name: 'Default', colors: [ACCENT, ACCENT_BRIGHT], unlockLevel: 1 },
   { id: 'midnight', name: 'Midnight', colors: ['#2A3370', '#3D4A9E'], unlockLevel: 5 },
   { id: 'ocean', name: 'Ocean', colors: ['#4B55B8', '#5B6AD4'], unlockLevel: 10 },
   { id: 'twilight', name: 'Twilight', colors: ['#5B6AD4', '#7C8AFF'], unlockLevel: 15 },

@@ -15,15 +15,15 @@ export function Timer({ seconds, className, size = 'lg' }: TimerProps) {
 
   return (
     <div
+      aria-live="polite"
+      aria-atomic="true"
+      aria-label={`${seconds} seconds remaining`}
       className={cn(
         'font-mono tabular-nums font-bold tracking-tight text-foreground',
         sizeStyles[size],
         className
       )}
-      style={{
-        fontFeatureSettings: '"tnum" on',
-        textShadow: '0 2px 20px rgba(0,0,0,0.1)',
-      }}
+      style={{ fontFeatureSettings: '"tnum" on' }}
     >
       <span className="opacity-90">{seconds}</span>
       <span className="text-muted-foreground text-[0.4em] ml-1">s</span>

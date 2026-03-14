@@ -1,6 +1,6 @@
 import type { BreathPhase } from '@/lib/constants'
 import { PHASE_LABELS, BREATH_PHASES } from '@/lib/constants'
-import { PHASE } from '@/lib/palette'
+import { PHASE, withAlpha } from '@/lib/palette'
 import { cn } from '@/lib/utils'
 
 interface PhaseIndicatorProps {
@@ -22,12 +22,12 @@ export function PhaseIndicator({ phase, className }: PhaseIndicatorProps) {
   const color = phase ? PHASE_COLOR_MAP[phase] : undefined
 
   return (
-    <div className={cn('text-center', className)}>
+    <div className={cn('text-center', className)} aria-live="assertive" aria-atomic="true">
       {/* Phase label badge */}
       {phase && color && (
         <div
           className="inline-flex items-center px-4 py-1.5 rounded-full mb-3 transition-all duration-300 border"
-          style={{ backgroundColor: `${color}1A`, borderColor: `${color}33` }}
+          style={{ backgroundColor: withAlpha(color, 0.1), borderColor: withAlpha(color, 0.2) }}
         >
           <span
             className="text-sm font-medium uppercase tracking-wider"

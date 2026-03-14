@@ -11,7 +11,7 @@ const Card = React.forwardRef<
     className={cn(
       "rounded-2xl text-card-foreground transition-all duration-300",
       variant === 'glass'
-        ? "glass hover:shadow-[0_16px_48px_hsl(220_25%_10%_/_0.12)] dark:hover:shadow-[0_16px_48px_hsl(0_0%_0%_/_0.4)]"
+        ? "card-elevated"
         : "bg-card border shadow",
       className
     )}

@@ -106,7 +106,7 @@ export function Session() {
                 transition={spring}
                 onClick={() => handleTechniqueChange(id)}
                 className={cn(
-                  'liquid-glass-breath rounded-[20px] p-5 text-left transition-all duration-300',
+                  'card-elevated rounded-[20px] p-5 text-left transition-all duration-300',
                   'border',
                   !isSelected && 'border-white/5 hover:border-white/10'
                 )}
@@ -126,7 +126,7 @@ export function Session() {
                 <div className="flex items-center gap-1.5 mt-3 flex-wrap">
                   {p.phases.map((phase, i) => (
                     <span key={i} className="flex items-center gap-1">
-                      <span className="px-2 py-0.5 rounded-md surface-inset text-[10px] font-mono text-white/45">
+                      <span className="px-2 py-0.5 rounded-md surface-well text-[10px] font-mono text-white/45">
                         {phase.duration}s
                       </span>
                       {i < p.phases.length - 1 && (
@@ -141,7 +141,7 @@ export function Session() {
         </motion.div>
 
         {/* Selected technique detail */}
-        <motion.div variants={fadeUp} className="liquid-glass-breath rounded-[20px] p-5">
+        <motion.div variants={fadeUp} className="card-elevated rounded-[20px] p-5">
           <div className="flex items-start gap-4">
             <div
               className="h-12 w-12 rounded-2xl flex items-center justify-center shrink-0"
@@ -176,7 +176,7 @@ export function Session() {
                   transition={spring}
                   onClick={() => setRounds((r) => Math.max(1, r - 1))}
                   disabled={rounds <= 1}
-                  className="h-14 w-14 rounded-2xl surface-inset hover:bg-white/5 disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 text-white"
+                  className="h-14 w-14 rounded-2xl surface-well hover:bg-white/5 disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 text-white"
                 >
                   <Minus className="h-5 w-5" />
                 </motion.button>
@@ -193,7 +193,7 @@ export function Session() {
                   transition={spring}
                   onClick={() => setRounds((r) => Math.min(40, r + 1))}
                   disabled={rounds >= 40}
-                  className="h-14 w-14 rounded-2xl surface-inset hover:bg-white/5 disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 text-white"
+                  className="h-14 w-14 rounded-2xl surface-well hover:bg-white/5 disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 text-white"
                 >
                   <Plus className="h-5 w-5" />
                 </motion.button>
@@ -201,7 +201,7 @@ export function Session() {
             </div>
 
             {/* Estimated Duration */}
-            <div className="flex items-center justify-center gap-3 py-4 px-6 rounded-2xl surface-inset">
+            <div className="flex items-center justify-center gap-3 py-4 px-6 rounded-2xl surface-well">
               <Clock className="h-4.5 w-4.5 text-white/30" />
               <span className="text-sm text-white/35">Estimated</span>
               <span className="font-display font-bold text-lg text-white tabular-nums">

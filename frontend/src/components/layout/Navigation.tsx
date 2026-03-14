@@ -36,17 +36,8 @@ export function Navigation() {
       className="md:hidden fixed left-0 right-0 z-50 px-4 pt-2 safe-bottom transition-[bottom] duration-200"
       style={{ bottom: `${bottomOffset}px` }}
     >
-      <div
-        className="rounded-[20px] mx-auto max-w-md overflow-hidden"
-        style={{
-          background: 'linear-gradient(145deg, rgba(14, 18, 38, 0.85) 0%, rgba(10, 14, 32, 0.78) 100%)',
-          backdropFilter: 'blur(32px) saturate(200%)',
-          WebkitBackdropFilter: 'blur(32px) saturate(200%)',
-          border: '1px solid rgba(255, 255, 255, 0.06)',
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), 0 -4px 32px rgba(0,0,0,0.4), 0 8px 24px rgba(0,0,0,0.3)',
-          transform: 'translateZ(0)',
-        }}
-      >
+      <div className="rounded-[20px] mx-auto max-w-md overflow-hidden nav-bar-glass border border-white/6 transform-gpu">
+
         <div className="relative grid grid-cols-4 h-[64px]">
           {/* Sliding active indicator — GPU-composited, no layout recalc */}
           {/* Sliding active indicator — GPU-composited, no layout recalc.
@@ -83,13 +74,13 @@ export function Navigation() {
                 key={path}
                 to={path}
                 className={cn(
-                  'flex flex-col items-center justify-center gap-1 rounded-2xl text-[10px] font-semibold transition-colors duration-300 relative',
+                  'flex flex-col items-center justify-center gap-1 rounded-2xl text-[10px] font-semibold transition-colors duration-300 relative min-h-[44px] min-w-[44px]',
                   active
                     ? 'text-white'
                     : 'text-white/30 hover:text-white/55 active:scale-95'
                 )}
               >
-                <div className="relative p-2.5 rounded-2xl">
+                <div className="relative p-3 rounded-2xl">
                   <Icon className={cn(
                     "relative h-[18px] w-[18px] transition-colors duration-300",
                     active ? "text-white" : ""

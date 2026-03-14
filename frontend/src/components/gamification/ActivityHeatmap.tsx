@@ -59,7 +59,7 @@ export function ActivityHeatmap({ sessions }: ActivityHeatmapProps) {
   const numCols = Math.ceil(cells.length / 7) || 12
 
   return (
-    <div className="liquid-glass-breath rounded-[20px] p-5">
+    <div className="card-elevated rounded-[20px] p-5">
       <div className="space-y-2">
         {/* Month labels – positioned proportionally across the grid */}
         <div className="relative h-4 text-[10px] text-white/30 font-medium">

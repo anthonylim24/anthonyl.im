@@ -1,3 +1,5 @@
+import { ACCENT, ACCENT_BRIGHT, GLASS_BORDER } from '@/lib/palette'
+
 interface LevelRingProps {
   level: number
   progress: number // 0 to 1
@@ -11,7 +13,7 @@ export function LevelRing({
   progress,
   size = 80,
   strokeWidth = 4,
-  colors = ['#6E7BF2', '#8B96FF'],
+  colors = [ACCENT, ACCENT_BRIGHT],
 }: LevelRingProps) {
   const radius = (size - strokeWidth * 2) / 2
   const circumference = 2 * Math.PI * radius
@@ -41,7 +43,7 @@ export function LevelRing({
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="rgba(255,255,255,0.06)"
+          stroke={GLASS_BORDER}
           strokeWidth={strokeWidth}
         />
         {/* Progress arc */}

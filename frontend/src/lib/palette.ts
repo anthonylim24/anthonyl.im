@@ -58,3 +58,26 @@ export const TECHNIQUE_GRADIENT = {
   power:   { from: '#6366F1', via: '#818CF8', to: '#A5B4FC' },   // bright spectrum
   sighing: { from: '#3730A3', via: '#5B6AD4', to: '#7C8AFF' },   // calm deep → mid
 } as const
+
+// ── FluidOrb phase color pairs [primary, secondary] ──────────────────────────
+export const PHASE_PAIR: Record<string, [string, string]> = {
+  inhale:      [PHASE.inhale, ACCENT],
+  deep_inhale: [PHASE.deep_inhale, PHASE.inhale],
+  hold_in:     [PHASE.hold_in, PHASE.inhale],
+  exhale:      [ACCENT, ACCENT_SUBTLE],
+  hold_out:    [ACCENT_SUBTLE, '#3730A3'],
+  rest:        ['#3730A3', '#1E2550'],
+  idle:        ['#1E2550', '#3730A3'],
+}
+
+// ── Badge gradient ────────────────────────────────────────────────────────────
+export const BADGE_GRADIENT = { from: ACHIEVEMENT, to: ACCENT } as const
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+/** Convert a hex color + alpha (0-1) to an rgba string */
+export function withAlpha(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16)
+  const g = parseInt(hex.slice(3, 5), 16)
+  const b = parseInt(hex.slice(5, 7), 16)
+  return `rgba(${r},${g},${b},${alpha})`
+}

@@ -8,7 +8,7 @@ import { LevelRing } from '@/components/gamification/LevelRing'
 import { breathingProtocols } from '@/lib/breathingProtocols'
 import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 import { formatTime } from '@/lib/utils'
-import { ACCENT, ACCENT_BRIGHT } from '@/lib/palette'
+import { ACCENT, ACCENT_BRIGHT, PERSONAL_BEST } from '@/lib/palette'
 import { techniqueCardGradient } from '@/lib/techniqueConfig'
 import {
   Wind,
@@ -135,7 +135,7 @@ export function Home() {
             style={{ background: ACCENT_BRIGHT }}
           />
           <div className="relative z-10">
-            <LevelRing level={level} progress={levelProgress} size={88} strokeWidth={4} colors={['#fff', '#C7D2FE']} />
+            <LevelRing level={level} progress={levelProgress} size={88} strokeWidth={4} colors={['#fff', PERSONAL_BEST]} />
           </div>
           <div className="relative z-10 mt-3">
             <div className="font-display text-lg font-bold text-white">{getLevelTitle(level)}</div>

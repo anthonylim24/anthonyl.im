@@ -24,16 +24,8 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full" style={{ transform: 'translateZ(0)' }}>
-      <div
-        className="safe-top"
-        style={{
-          background: 'linear-gradient(145deg, rgba(10, 14, 30, 0.82) 0%, rgba(8, 12, 26, 0.75) 100%)',
-          backdropFilter: 'blur(32px) saturate(200%)',
-          WebkitBackdropFilter: 'blur(32px) saturate(200%)',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
-          boxShadow: 'inset 0 -1px 0 rgba(255, 255, 255, 0.04), 0 4px 24px rgba(0, 0, 0, 0.3)',
-        }}
-      >
+      <div className="safe-top nav-bar-glass border-b border-white/6">
+
         <div className="container flex h-16 items-center justify-between px-6">
           <div className="flex items-center">
             {/* Logo */}
@@ -53,7 +45,7 @@ export function Header() {
                   <Wind className="h-5 w-5 text-white" />
                 </div>
               </div>
-              <span className="font-display font-bold text-lg tracking-tight hidden sm:block gradient-text-breath">
+              <span className="font-display font-bold text-lg tracking-tight hidden sm:block" style={{ color: ACCENT_BRIGHT }}>
                 BreathFlow
               </span>
             </Link>
