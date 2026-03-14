@@ -211,21 +211,36 @@ export function Session() {
           </div>
         </motion.div>
 
-        {/* Start Button */}
+        {/* Start Button — subtle breathing pulse invites the user */}
         <motion.button
           variants={fadeUp}
           whileTap={{ scale: 0.98 }}
           whileHover={{ scale: 1.02 }}
           transition={spring}
           onClick={handleStartSession}
-          className="w-full py-5 px-6 rounded-[20px] font-display font-bold text-white text-lg flex items-center justify-center gap-3"
+          className="relative w-full py-5 px-6 rounded-[20px] font-display font-bold text-white text-lg flex items-center justify-center gap-3"
           style={{
             ...techniqueGradientStyle(selectedTechnique),
             boxShadow: `0 20px 40px -12px ${ACCENT_BRIGHT}40`,
           }}
         >
-          <Play className="h-5 w-5" />
-          Begin {protocol.name}
+          {/* Breathing glow pulse behind button */}
+          <motion.div
+            className="absolute inset-0 rounded-[20px] pointer-events-none"
+            style={{ background: techniqueGradientStyle(selectedTechnique).background }}
+            animate={{
+              opacity: [0, 0.4, 0],
+              scale: [1, 1.04, 1],
+            }}
+            transition={{
+              duration: 4,
+              repeat: Infinity,
+              ease: 'easeInOut',
+            }}
+            aria-hidden="true"
+          />
+          <Play className="relative h-5 w-5" />
+          <span className="relative">Begin {protocol.name}</span>
         </motion.button>
       </div>
     </motion.div>

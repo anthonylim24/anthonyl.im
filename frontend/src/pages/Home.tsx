@@ -45,6 +45,17 @@ function getGreeting(): string {
   return 'Good evening'
 }
 
+function getStreakMessage(streak: number, dailyGoalMet: boolean): string {
+  if (dailyGoalMet && streak >= 30) return 'A month of consistency. Remarkable discipline.'
+  if (dailyGoalMet && streak >= 14) return 'Two weeks strong. This is becoming part of you.'
+  if (dailyGoalMet && streak >= 7) return 'A full week. Your body is learning.'
+  if (dailyGoalMet && streak >= 3) return 'Building momentum. Keep showing up.'
+  if (dailyGoalMet) return 'You\'ve completed today\'s goal'
+  if (streak >= 7) return `${streak} day streak — don't break the chain`
+  if (streak >= 3) return 'Your streak is growing. Ready for today?'
+  return 'Ready for today\'s session?'
+}
+
 export function Home() {
   const navigate = useNavigate()
   const { sessions, getStreak } = useHistoryStore()
@@ -90,7 +101,7 @@ export function Home() {
           {getGreeting()}
         </h1>
         <p className="text-sm text-white/30 mt-3 font-medium tracking-wide">
-          {dailyGoalMet ? 'You\'ve completed today\'s goal' : 'Ready for today\'s session?'}
+          {getStreakMessage(streak, dailyGoalMet)}
         </p>
       </motion.div>
 
