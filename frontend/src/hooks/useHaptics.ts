@@ -10,7 +10,6 @@ export function useHaptics() {
   const instanceRef = useRef<WebHaptics | null>(null)
 
   useEffect(() => {
-    if (!WebHaptics.isSupported) return
     instanceRef.current = new WebHaptics()
     return () => {
       instanceRef.current?.destroy()
@@ -30,5 +29,5 @@ export function useHaptics() {
     instanceRef.current?.cancel()
   }, [])
 
-  return { trigger, cancel }
+  return { trigger, cancel, isSupported: WebHaptics.isSupported }
 }

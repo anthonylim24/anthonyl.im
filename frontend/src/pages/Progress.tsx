@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { ACCENT, ACCENT_BRIGHT } from '@/lib/palette'
 import { techniqueGradientStyle } from '@/lib/techniqueConfig'
 import { Trash2, Wind, Flame, Box, Sparkles, Award, CalendarDays, Heart } from 'lucide-react'
+import { useHaptics } from '@/hooks/useHaptics'
 
 const spring = { type: 'spring' as const, stiffness: 300, damping: 30, mass: 1 }
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } }
@@ -36,6 +37,7 @@ export function Progress() {
 
   const { xp, earnedBadges } = useGamificationStore()
 
+  const { trigger: haptic } = useHaptics()
   const [filterTechnique, setFilterTechnique] = useState<TechniqueId | 'all'>('all')
   const [showClearConfirm, setShowClearConfirm] = useState(false)
 
@@ -67,6 +69,7 @@ export function Progress() {
   }, [sessions])
 
   const handleClearHistory = () => {
+    haptic([100, 50, 100])
     clearHistory()
     setShowClearConfirm(false)
   }
@@ -101,7 +104,7 @@ export function Progress() {
               </div>
             ) : (
               <button
-                onClick={() => setShowClearConfirm(true)}
+                onClick={() => { haptic('error'); setShowClearConfirm(true) }}
                 className="px-3 py-2 rounded-xl text-sm text-white/25 hover:text-red-400 hover:bg-red-500/10 transition-colors duration-300"
               >
                 <Trash2 className="h-4 w-4" />
@@ -187,7 +190,7 @@ export function Progress() {
             {/* Filter Buttons */}
             <div className="flex gap-1.5 p-1.5 surface-well rounded-2xl mb-5 sm:mb-6">
               <button
-                onClick={() => setFilterTechnique('all')}
+                onClick={() => { haptic('selection'); setFilterTechnique('all') }}
                 className={cn(
                   'flex-1 flex items-center justify-center gap-1.5 h-9 sm:h-10 rounded-xl text-xs font-semibold transition-[background,color,box-shadow] duration-200',
                   filterTechnique === 'all'
@@ -200,7 +203,7 @@ export function Progress() {
               {Object.values(TECHNIQUE_IDS).map((id) => (
                 <button
                   key={id}
-                  onClick={() => setFilterTechnique(id)}
+                  onClick={() => { haptic('selection'); setFilterTechnique(id) }}
                   className={cn(
                     'flex-1 flex items-center justify-center gap-1.5 h-9 sm:h-10 rounded-xl text-xs font-medium transition-[background,color,box-shadow] duration-200',
                     filterTechnique === id

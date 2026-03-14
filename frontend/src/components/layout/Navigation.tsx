@@ -7,6 +7,7 @@ import { Wind, BarChart3, Home, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ACCENT, ACCENT_BRIGHT } from '@/lib/palette'
 import { useViewportOffset } from '@/hooks/useViewportOffset'
+import { useHaptics } from '@/hooks/useHaptics'
 
 const navItems = [
   { path: '/breathwork', label: 'Home', icon: Home },
@@ -18,6 +19,7 @@ const navItems = [
 export function Navigation() {
   const location = useLocation()
   const { bottomOffset } = useViewportOffset()
+  const { trigger: haptic } = useHaptics()
 
   const activeIndex = navItems.findIndex(({ path }) =>
     path === '/breathwork'
@@ -81,6 +83,7 @@ export function Navigation() {
               <Link
                 key={path}
                 to={path}
+                onClick={() => { if (i !== activeIndex) haptic('selection') }}
                 className={cn(
                   'flex flex-col items-center justify-center gap-1 rounded-2xl text-[10px] font-semibold transition-colors duration-300 relative min-h-[44px] min-w-[44px]',
                   active

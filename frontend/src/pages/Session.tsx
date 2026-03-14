@@ -93,7 +93,7 @@ export function Session() {
         {/* Back button */}
         <motion.button
           variants={fadeUp}
-          onClick={() => navigate('/breathwork')}
+          onClick={() => { haptic('light'); navigate('/breathwork') }}
           className="flex items-center gap-1 text-sm text-white/40 hover:text-white/60 transition-colors mb-4 -ml-1"
         >
           <ChevronLeft className="h-4 w-4" />
