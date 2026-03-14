@@ -16,6 +16,7 @@ import { DESTRUCTIVE, BG, withAlpha } from '@/lib/palette'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore } from '@/stores/historyStore'
 import { useViewportOffset } from '@/hooks/useViewportOffset'
+import { useWakeLock } from '@/hooks/useWakeLock'
 
 interface BreathingSessionProps {
   config: SessionConfig
@@ -61,11 +62,22 @@ export function BreathingSession({
     setShowSummary(true)
   }, [])
 
+  // Haptic feedback on phase transitions (subtle vibration pattern)
+  const handlePhaseChange = useCallback(() => {
+    if ('vibrate' in navigator) {
+      navigator.vibrate(30)
+    }
+  }, [])
+
   const { session, start, pause, stop, isActive, isPaused, isComplete } =
     useBreathingCycle({
       onSessionComplete: handleSessionComplete,
+      onPhaseChange: handlePhaseChange,
       enableAudio: true,
     })
+
+  // Keep screen awake during active sessions
+  useWakeLock(isActive)
 
   const protocol = getProtocol(config.techniqueId)
 

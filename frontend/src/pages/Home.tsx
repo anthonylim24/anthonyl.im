@@ -95,20 +95,53 @@ export function Home() {
       initial="hidden"
       animate="show"
     >
-      {/* ── Greeting — massive, editorial ────────────────── */}
-      <motion.div variants={fadeUp} className="pt-2 pb-16 sm:pb-20">
-        <h1 className="font-display text-[clamp(2.75rem,8vw,4.5rem)] font-extrabold text-white tracking-[-0.03em] leading-[0.95]">
+      {/* ── Greeting ────────────────────────────────────── */}
+      <motion.div variants={fadeUp} className="pt-2 pb-8 md:pb-20">
+        <p className="text-sm text-white/30 font-medium tracking-wide md:hidden">
           {getGreeting()}
+        </p>
+        <h1 className="font-display text-[clamp(1.75rem,6vw,2rem)] md:text-[clamp(2.75rem,8vw,4.5rem)] font-extrabold text-white tracking-[-0.03em] leading-[0.95] mt-1 md:mt-0">
+          <span className="md:hidden">Time to breathe</span>
+          <span className="hidden md:inline">{getGreeting()}</span>
         </h1>
-        <p className="text-sm text-white/30 mt-3 font-medium tracking-wide">
+        <p className="text-sm text-white/30 mt-2 md:mt-3 font-medium tracking-wide hidden md:block">
           {getStreakMessage(streak, dailyGoalMet)}
         </p>
       </motion.div>
 
-      {/* ── Stats — horizontal strip, not hero metrics ──── */}
-      <motion.div variants={fadeUp} className="flex items-baseline gap-8 sm:gap-12 pb-16 sm:pb-20 border-b border-white/[0.04]">
+      {/* ── Stats — compact chips on mobile, editorial on desktop ── */}
+      {/* Mobile: 3 compact bordered chips */}
+      <motion.div variants={fadeUp} className="flex gap-2 pb-6 md:hidden">
+        <div className="flex-1 rounded-xl border border-white/10 px-3 py-2.5">
+          <span className="font-display text-lg font-bold text-white tabular-nums leading-none">
+            Lv {level}
+          </span>
+          <span className="block text-[10px] text-white/30 font-medium tracking-wide uppercase mt-1">
+            Level
+          </span>
+        </div>
+        <div className="flex-1 rounded-xl border border-white/10 px-3 py-2.5">
+          <span className="font-display text-lg font-bold text-white tabular-nums leading-none">
+            {streak}
+          </span>
+          <span className="block text-[10px] text-white/30 font-medium tracking-wide uppercase mt-1">
+            Streak
+          </span>
+        </div>
+        <div className="flex-1 rounded-xl border border-white/10 px-3 py-2.5">
+          <span className="font-display text-lg font-bold text-white tabular-nums leading-none">
+            {formatTime(totalPracticeTime)}
+          </span>
+          <span className="block text-[10px] text-white/30 font-medium tracking-wide uppercase mt-1">
+            Total
+          </span>
+        </div>
+      </motion.div>
+
+      {/* Desktop: editorial horizontal strip */}
+      <motion.div variants={fadeUp} className="hidden md:flex items-baseline gap-12 pb-20 border-b border-white/[0.04]">
         <div>
-          <span className="font-display text-3xl sm:text-4xl font-extrabold text-white tabular-nums leading-none">
+          <span className="font-display text-4xl font-extrabold text-white tabular-nums leading-none">
             {getLevelTitle(level)}
           </span>
           <span className="block text-[11px] text-white/25 font-semibold tracking-[0.08em] uppercase mt-1.5">
@@ -116,7 +149,7 @@ export function Home() {
           </span>
         </div>
         <div>
-          <span className="font-display text-3xl sm:text-4xl font-extrabold text-white tabular-nums leading-none">
+          <span className="font-display text-4xl font-extrabold text-white tabular-nums leading-none">
             {streak}
           </span>
           <span className="block text-[11px] text-white/25 font-semibold tracking-[0.08em] uppercase mt-1.5">
@@ -124,7 +157,7 @@ export function Home() {
           </span>
         </div>
         <div>
-          <span className="font-display text-3xl sm:text-4xl font-extrabold text-white tabular-nums leading-none">
+          <span className="font-display text-4xl font-extrabold text-white tabular-nums leading-none">
             {dailySessionCount}
           </span>
           <span className="block text-[11px] text-white/25 font-semibold tracking-[0.08em] uppercase mt-1.5">
@@ -132,8 +165,8 @@ export function Home() {
           </span>
         </div>
         {sessions.length > 0 && (
-          <div className="hidden sm:block">
-            <span className="font-display text-3xl sm:text-4xl font-extrabold text-white tabular-nums leading-none">
+          <div>
+            <span className="font-display text-4xl font-extrabold text-white tabular-nums leading-none">
               {formatTime(totalPracticeTime)}
             </span>
             <span className="block text-[11px] text-white/25 font-semibold tracking-[0.08em] uppercase mt-1.5">
@@ -164,74 +197,114 @@ export function Home() {
         </div>
       </motion.div>
 
-      {/* ── Techniques — hero card + list ────────────────── */}
-      <motion.div variants={fadeUp} className="pt-12 sm:pt-16">
-        <h2 className="font-display text-2xl sm:text-3xl font-bold text-white tracking-tight mb-8 sm:mb-10">
+      {/* ── Techniques ──────────────────────────────────── */}
+      <motion.div variants={fadeUp} className="pt-8 md:pt-16">
+        <h2 className="font-display text-xl md:text-3xl font-bold text-white tracking-tight mb-5 md:mb-10">
           Techniques
         </h2>
 
-        {/* Hero technique — full width, vivid */}
-        <motion.button
-          whileTap={{ scale: 0.98 }}
-          transition={spring}
-          className="relative rounded-2xl p-7 sm:p-8 text-left w-full min-h-[220px] flex flex-col justify-between overflow-hidden group mb-3"
-          style={techniqueCardGradient(heroTechnique)}
-          onClick={() => navigate(`/breathwork/session?technique=${heroTechnique}`)}
-        >
-          <div className="absolute inset-0 pointer-events-none" style={{
-            backgroundImage: 'var(--noise)',
-            backgroundRepeat: 'repeat',
-            backgroundSize: '256px 256px',
-            opacity: 0.12,
-            mixBlendMode: 'overlay' as const,
-          }} />
-          <div className="relative z-10">
-            <div className="h-12 w-12 rounded-xl bg-white/15 flex items-center justify-center mb-5">
-              <span className="text-white">{techniqueIcons[heroTechnique]}</span>
-            </div>
-            <h3 className="font-display text-2xl sm:text-3xl font-bold text-white leading-tight">
-              {heroProtocol.name}
-            </h3>
-            <p className="text-sm text-white/60 mt-2 leading-relaxed max-w-md">
-              {heroProtocol.purpose}
-            </p>
-          </div>
-          <div className="relative z-10 flex items-center gap-2 mt-6 text-white/70 text-sm font-semibold group-hover:text-white transition-colors">
-            <span>Start session</span>
-            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-          </div>
-        </motion.button>
-
-        {/* Remaining techniques — compact list */}
-        <div className="space-y-1">
-          {restTechniques.map((id) => {
-            const protocol = breathingProtocols[id]
-            return (
-              <motion.button
-                key={id}
-                whileTap={{ scale: 0.99 }}
-                transition={spring}
-                className="w-full flex items-center gap-4 p-4 sm:p-5 rounded-2xl text-left group hover:bg-white/[0.03] transition-colors duration-200"
-                onClick={() => navigate(`/breathwork/session?technique=${id}`)}
-              >
-                <div
-                  className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0"
-                  style={techniqueCardGradient(id)}
+        {/* Mobile: horizontal scroll carousel — 2 cards visible */}
+        <div className="md:hidden -mx-4 px-4 overflow-x-auto no-scrollbar" style={{ scrollSnapType: 'x mandatory' }}>
+          <div className="flex gap-3" style={{ width: 'max-content' }}>
+            {techniques.map((id) => {
+              const p = breathingProtocols[id]
+              return (
+                <motion.button
+                  key={id}
+                  whileTap={{ scale: 0.97 }}
+                  transition={spring}
+                  className="rounded-2xl p-4 text-left border border-white/10 bg-white/[0.03] flex-shrink-0"
+                  style={{ width: 'calc(50vw - 28px)', scrollSnapAlign: 'start' }}
+                  onClick={() => navigate(`/breathwork/session?technique=${id}`)}
                 >
-                  <span className="text-white">{techniqueIcons[id]}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-display text-base font-bold text-white leading-tight">
-                    {protocol.name}
+                  <div
+                    className="h-10 w-10 rounded-xl flex items-center justify-center mb-3"
+                    style={techniqueCardGradient(id)}
+                  >
+                    <span className="text-white">{techniqueIcons[id]}</span>
+                  </div>
+                  <h3 className="font-display text-sm font-bold text-white leading-tight">
+                    {p.name}
                   </h3>
-                  <p className="text-xs text-white/30 mt-0.5 line-clamp-1">
-                    {protocol.purpose}
-                  </p>
-                </div>
-                <ArrowRight className="h-4 w-4 text-white/15 shrink-0 group-hover:text-white/40 group-hover:translate-x-0.5 transition-all duration-200" />
-              </motion.button>
-            )
-          })}
+                  <div className="flex items-center gap-1 mt-2 flex-wrap">
+                    {p.phases.map((phase, i) => (
+                      <span key={i} className="flex items-center gap-0.5">
+                        <span className="text-[10px] font-mono text-white/40">{phase.duration}s</span>
+                        {i < p.phases.length - 1 && (
+                          <span className="text-white/15 text-[10px]">→</span>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                </motion.button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Desktop: hero card + compact list */}
+        <div className="hidden md:block">
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            transition={spring}
+            className="relative rounded-2xl p-8 text-left w-full min-h-[220px] flex flex-col justify-between overflow-hidden group mb-3"
+            style={techniqueCardGradient(heroTechnique)}
+            onClick={() => navigate(`/breathwork/session?technique=${heroTechnique}`)}
+          >
+            <div className="absolute inset-0 pointer-events-none" style={{
+              backgroundImage: 'var(--noise)',
+              backgroundRepeat: 'repeat',
+              backgroundSize: '256px 256px',
+              opacity: 0.12,
+              mixBlendMode: 'overlay' as const,
+            }} />
+            <div className="relative z-10">
+              <div className="h-12 w-12 rounded-xl bg-white/15 flex items-center justify-center mb-5">
+                <span className="text-white">{techniqueIcons[heroTechnique]}</span>
+              </div>
+              <h3 className="font-display text-3xl font-bold text-white leading-tight">
+                {heroProtocol.name}
+              </h3>
+              <p className="text-sm text-white/60 mt-2 leading-relaxed max-w-md">
+                {heroProtocol.purpose}
+              </p>
+            </div>
+            <div className="relative z-10 flex items-center gap-2 mt-6 text-white/70 text-sm font-semibold group-hover:text-white transition-colors">
+              <span>Start session</span>
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+            </div>
+          </motion.button>
+
+          <div className="space-y-1">
+            {restTechniques.map((id) => {
+              const protocol = breathingProtocols[id]
+              return (
+                <motion.button
+                  key={id}
+                  whileTap={{ scale: 0.99 }}
+                  transition={spring}
+                  className="w-full flex items-center gap-4 p-5 rounded-2xl text-left group hover:bg-white/[0.03] transition-colors duration-200"
+                  onClick={() => navigate(`/breathwork/session?technique=${id}`)}
+                >
+                  <div
+                    className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0"
+                    style={techniqueCardGradient(id)}
+                  >
+                    <span className="text-white">{techniqueIcons[id]}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-display text-base font-bold text-white leading-tight">
+                      {protocol.name}
+                    </h3>
+                    <p className="text-xs text-white/30 mt-0.5 line-clamp-1">
+                      {protocol.purpose}
+                    </p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-white/15 shrink-0 group-hover:text-white/40 group-hover:translate-x-0.5 transition-all duration-200" />
+                </motion.button>
+              )
+            })}
+          </div>
         </div>
       </motion.div>
 
