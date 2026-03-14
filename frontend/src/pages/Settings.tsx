@@ -36,6 +36,7 @@ function AccountInfo() {
       <img
         src={user.imageUrl}
         alt={user.fullName ?? 'Profile'}
+        loading="lazy"
         className="h-12 w-12 rounded-full ring-2 ring-white/10"
       />
       <div className="flex-1 min-w-0">
@@ -191,8 +192,10 @@ export function Settings() {
           </div>
           <button
             onClick={() => setSoundEnabled(!soundEnabled)}
+            aria-checked={soundEnabled}
+            role="switch"
             className={cn(
-              'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300',
+              'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[44px] min-w-[44px]',
               soundEnabled ? 'bg-[#6E7BF2]' : 'surface-inset'
             )}
           >
@@ -237,8 +240,10 @@ export function Settings() {
           </div>
           <button
             onClick={() => setHapticsEnabled(!hapticsEnabled)}
+            aria-checked={hapticsEnabled}
+            role="switch"
             className={cn(
-              'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300',
+              'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[44px] min-w-[44px]',
               hapticsEnabled ? 'bg-[#6E7BF2]' : 'surface-inset'
             )}
           >
