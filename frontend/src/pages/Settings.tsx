@@ -154,7 +154,7 @@ export function Settings() {
           <motion.button
             whileTap={{ scale: 0.98 }}
             transition={spring}
-            onClick={() => setTheme('dark')}
+            onClick={() => { haptic('selection'); setTheme('dark') }}
             className={cn(
               'relative flex items-center gap-3 p-4 rounded-[16px] border transition-all duration-300',
               theme === 'dark'
@@ -171,7 +171,7 @@ export function Settings() {
           <motion.button
             whileTap={{ scale: 0.98 }}
             transition={spring}
-            onClick={() => setTheme('light')}
+            onClick={() => { haptic('selection'); setTheme('light') }}
             className={cn(
               'relative flex items-center gap-3 p-4 rounded-[16px] border transition-all duration-300',
               theme === 'light'
@@ -196,7 +196,7 @@ export function Settings() {
             <h2 className="font-display text-base font-bold text-white">Sound</h2>
           </div>
           <button
-            onClick={() => setSoundEnabled(!soundEnabled)}
+            onClick={() => { haptic('selection'); setSoundEnabled(!soundEnabled) }}
             aria-checked={soundEnabled}
             role="switch"
             className={cn(
@@ -285,7 +285,7 @@ export function Settings() {
                 key={orbTheme.id}
                 whileTap={isUnlocked ? { scale: 0.95 } : undefined}
                 transition={spring}
-                onClick={() => isUnlocked && setSelectedTheme(orbTheme.id)}
+                onClick={() => { if (isUnlocked) { haptic('selection'); setSelectedTheme(orbTheme.id) } }}
                 disabled={!isUnlocked}
                 className={cn(
                   'flex flex-col items-center gap-2.5 p-3 rounded-[16px] transition-all duration-300',
@@ -333,7 +333,7 @@ export function Settings() {
           <motion.button
             whileTap={{ scale: 0.99 }}
             transition={spring}
-            onClick={handleExportData}
+            onClick={() => { haptic('light'); handleExportData() }}
             className="flex items-center gap-3 w-full p-4 rounded-[16px] surface-well hover:bg-white/5 transition-all duration-300 text-left"
           >
             <Download className="h-4 w-4 text-white/40" />

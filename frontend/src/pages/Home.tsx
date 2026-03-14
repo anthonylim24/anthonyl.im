@@ -18,6 +18,7 @@ import {
   Heart,
   Play,
 } from 'lucide-react'
+import { useHaptics } from '@/hooks/useHaptics'
 
 const techniqueIcons: Record<TechniqueId, React.ReactNode> = {
   [TECHNIQUE_IDS.BOX_BREATHING]: <Box className="h-5 w-5" />,
@@ -90,6 +91,7 @@ export function Home() {
   const heroProtocol = breathingProtocols[heroTechnique]
   const restTechniques = techniques.slice(1)
 
+  const { trigger: haptic } = useHaptics()
   const isNewUser = sessions.length === 0
 
   return (
@@ -123,7 +125,7 @@ export function Home() {
               Your first session takes just 4 minutes
             </p>
             <button
-              onClick={() => navigate('/breathwork/session?technique=box_breathing')}
+              onClick={() => { haptic('success'); navigate('/breathwork/session?technique=box_breathing') }}
               className="w-full flex items-center justify-center gap-2.5 rounded-2xl py-4 font-display font-bold text-white text-base transition-opacity hover:opacity-90"
               style={{ background: ACCENT }}
             >
@@ -132,6 +134,7 @@ export function Home() {
             </button>
             <button
               onClick={() => {
+                haptic('light')
                 document.getElementById('techniques-section')?.scrollIntoView({ behavior: 'smooth' })
               }}
               className="w-full mt-3 text-sm text-white/30 font-medium hover:text-white/50 transition-colors py-2"
@@ -143,7 +146,7 @@ export function Home() {
           {/* Desktop welcome */}
           <motion.div variants={fadeUp} className="hidden md:block pb-20 border-b border-white/[0.04]">
             <button
-              onClick={() => navigate('/breathwork/session?technique=box_breathing')}
+              onClick={() => { haptic('success'); navigate('/breathwork/session?technique=box_breathing') }}
               className="flex items-center gap-3 rounded-2xl px-8 py-4 font-display font-bold text-white text-lg transition-opacity hover:opacity-90"
               style={{ background: ACCENT }}
             >
@@ -152,6 +155,7 @@ export function Home() {
             </button>
             <button
               onClick={() => {
+                haptic('light')
                 document.getElementById('techniques-section')?.scrollIntoView({ behavior: 'smooth' })
               }}
               className="mt-4 text-sm text-white/30 font-medium hover:text-white/50 transition-colors"
@@ -268,7 +272,7 @@ export function Home() {
                   transition={spring}
                   className="rounded-2xl p-4 text-left border border-white/10 bg-white/[0.03] flex-shrink-0"
                   style={{ width: 'calc(50vw - 28px)', scrollSnapAlign: 'start' }}
-                  onClick={() => navigate(`/breathwork/session?technique=${id}`)}
+                  onClick={() => { haptic('light'); navigate(`/breathwork/session?technique=${id}`) }}
                 >
                   <div
                     className="h-10 w-10 rounded-xl flex items-center justify-center mb-3"
@@ -302,7 +306,7 @@ export function Home() {
             transition={spring}
             className="relative rounded-2xl p-8 text-left w-full min-h-[220px] flex flex-col justify-between overflow-hidden group mb-3"
             style={techniqueCardGradient(heroTechnique)}
-            onClick={() => navigate(`/breathwork/session?technique=${heroTechnique}`)}
+            onClick={() => { haptic('medium'); navigate(`/breathwork/session?technique=${heroTechnique}`) }}
           >
             <div className="absolute inset-0 pointer-events-none" style={{
               backgroundImage: 'var(--noise)',
@@ -337,7 +341,7 @@ export function Home() {
                   whileTap={{ scale: 0.99 }}
                   transition={spring}
                   className="w-full flex items-center gap-4 p-5 rounded-2xl text-left group hover:bg-white/[0.03] transition-colors duration-200"
-                  onClick={() => navigate(`/breathwork/session?technique=${id}`)}
+                  onClick={() => { haptic('light'); navigate(`/breathwork/session?technique=${id}`) }}
                 >
                   <div
                     className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0"
@@ -367,7 +371,7 @@ export function Home() {
           <div className="flex items-center justify-between mb-6">
             <h2 className="font-display text-2xl sm:text-3xl font-bold text-white tracking-tight">Recent</h2>
             <button
-              onClick={() => navigate('/breathwork/progress')}
+              onClick={() => { haptic('selection'); navigate('/breathwork/progress') }}
               className="flex items-center gap-1 text-sm font-medium text-white/25 hover:text-white/50 transition-colors"
             >
               All
@@ -384,7 +388,7 @@ export function Home() {
                   whileTap={{ scale: 0.99 }}
                   transition={spring}
                   className="w-full flex items-center gap-4 p-4 sm:p-5 rounded-2xl text-left group hover:bg-white/[0.03] transition-colors duration-200"
-                  onClick={() => navigate('/breathwork/progress')}
+                  onClick={() => { haptic('selection'); navigate('/breathwork/progress') }}
                 >
                   <div
                     className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0"

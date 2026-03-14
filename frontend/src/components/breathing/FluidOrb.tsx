@@ -3,6 +3,7 @@ import { BREATH_PHASES, type BreathPhase } from '@/lib/constants'
 import { PHASE } from '@/lib/palette'
 import { cn } from '@/lib/utils'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
+import { useHaptics } from '@/hooks/useHaptics'
 import { KirbyCharacter } from './KirbyCharacter'
 
 interface FluidOrbProps {
@@ -36,6 +37,7 @@ export function FluidOrb({
   onEasterEggToggle,
 }: FluidOrbProps) {
   const reducedMotion = useReducedMotion()
+  const { trigger: haptic } = useHaptics()
   const colors = themeColors ?? PHASE_COLORS[phase ?? 'idle']
   const scale = reducedMotion ? 1 : 0.6 + amplitude * 0.4
   const morphAmount = isActive && !reducedMotion ? amplitude * 15 : 0
@@ -53,15 +55,17 @@ export function FluidOrb({
   // Tap detection: 5 taps within 2 seconds triggers the easter egg toggle
   const tapTimestampsRef = useRef<number[]>([])
   const handleClick = useCallback(() => {
+    haptic('selection')
     const now = Date.now()
     const recent = tapTimestampsRef.current.filter((t) => now - t < 2000)
     recent.push(now)
     tapTimestampsRef.current = recent
     if (recent.length >= 5) {
       tapTimestampsRef.current = []
+      haptic('success')
       onEasterEggToggle?.()
     }
-  }, [onEasterEggToggle])
+  }, [onEasterEggToggle, haptic])
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
