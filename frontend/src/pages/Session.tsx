@@ -12,6 +12,7 @@ import { formatTime, cn } from '@/lib/utils'
 import { ACCENT_BRIGHT } from '@/lib/palette'
 import { techniqueGradientStyle, techniqueActiveStyle } from '@/lib/techniqueConfig'
 import { Wind, Flame, Box, Clock, Minus, Plus, Play, Heart, ChevronLeft, ChevronDown } from 'lucide-react'
+import { useHaptics } from '@/hooks/useHaptics'
 
 const spring = { type: 'spring' as const, stiffness: 300, damping: 30, mass: 1 }
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } }
@@ -38,6 +39,8 @@ export function Session() {
   const [sessionStarted, setSessionStarted] = useState(false)
   const [scienceExpanded, setScienceExpanded] = useState(false)
 
+  const { trigger: haptic } = useHaptics()
+
   const protocol = breathingProtocols[selectedTechnique]
 
   const sessionConfig: SessionConfig = useMemo(
@@ -54,11 +57,13 @@ export function Session() {
   )
 
   const handleTechniqueChange = (techniqueId: TechniqueId) => {
+    haptic(20)
     setSelectedTechnique(techniqueId)
     setRounds(breathingProtocols[techniqueId].defaultRounds)
   }
 
   const handleStartSession = () => {
+    haptic('success')
     setSessionStarted(true)
   }
 
@@ -152,7 +157,7 @@ export function Session() {
             <motion.button
               whileTap={{ scale: 0.9 }}
               transition={spring}
-              onClick={() => setRounds((r) => Math.max(1, r - 1))}
+              onClick={() => { haptic(15); setRounds((r) => Math.max(1, r - 1)) }}
               disabled={rounds <= 1}
               className="h-12 w-12 rounded-full surface-well hover:bg-white/5 disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all text-white"
             >
@@ -164,7 +169,7 @@ export function Session() {
             <motion.button
               whileTap={{ scale: 0.9 }}
               transition={spring}
-              onClick={() => setRounds((r) => Math.min(40, r + 1))}
+              onClick={() => { haptic(15); setRounds((r) => Math.min(40, r + 1)) }}
               disabled={rounds >= 40}
               className="h-12 w-12 rounded-full surface-well hover:bg-white/5 disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all text-white"
             >
@@ -291,7 +296,7 @@ export function Session() {
                 <motion.button
                   whileTap={{ scale: 0.95 }}
                   transition={spring}
-                  onClick={() => setRounds((r) => Math.max(1, r - 1))}
+                  onClick={() => { haptic(15); setRounds((r) => Math.max(1, r - 1)) }}
                   disabled={rounds <= 1}
                   className="h-14 w-14 rounded-2xl surface-well hover:bg-white/5 disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 text-white"
                 >
@@ -308,7 +313,7 @@ export function Session() {
                 <motion.button
                   whileTap={{ scale: 0.95 }}
                   transition={spring}
-                  onClick={() => setRounds((r) => Math.min(40, r + 1))}
+                  onClick={() => { haptic(15); setRounds((r) => Math.min(40, r + 1)) }}
                   disabled={rounds >= 40}
                   className="h-14 w-14 rounded-2xl surface-well hover:bg-white/5 disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 text-white"
                 >

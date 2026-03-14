@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { breathingProtocols } from '@/lib/breathingProtocols'
 import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 import { formatDate, formatTime } from '@/lib/utils'
@@ -18,10 +19,18 @@ const techniqueIcons: Record<TechniqueId, React.ReactNode> = {
 }
 
 export function SessionHistory({ sessions }: SessionHistoryProps) {
+  const navigate = useNavigate()
+
   if (sessions.length === 0) {
     return (
-      <div className="py-10 text-center text-white/30 surface-well rounded-[18px] text-sm">
-        No sessions completed yet. Start your first breathing session!
+      <div className="py-10 text-center surface-well rounded-[18px] text-sm">
+        <p className="text-white/30">Your session history will appear here after your first practice.</p>
+        <button
+          onClick={() => navigate('/breathwork/session?technique=box_breathing')}
+          className="mt-3 text-sm font-medium text-white/50 hover:text-white/70 transition-colors"
+        >
+          Start your first session &rarr;
+        </button>
       </div>
     )
   }

@@ -16,6 +16,7 @@ import {
   ChevronRight,
   ArrowRight,
   Heart,
+  Play,
 } from 'lucide-react'
 
 const techniqueIcons: Record<TechniqueId, React.ReactNode> = {
@@ -89,6 +90,8 @@ export function Home() {
   const heroProtocol = breathingProtocols[heroTechnique]
   const restTechniques = techniques.slice(1)
 
+  const isNewUser = sessions.length === 0
+
   return (
     <motion.div
       variants={stagger}
@@ -105,100 +108,150 @@ export function Home() {
           <span className="hidden md:inline">{getGreeting()}</span>
         </h1>
         <p className="text-sm text-white/30 mt-2 md:mt-3 font-medium tracking-wide hidden md:block">
-          {getStreakMessage(streak, dailyGoalMet)}
+          {isNewUser
+            ? 'Your first session takes just 4 minutes'
+            : getStreakMessage(streak, dailyGoalMet)}
         </p>
       </motion.div>
 
-      {/* ── Stats — compact chips on mobile, editorial on desktop ── */}
-      {/* Mobile: 3 compact bordered chips */}
-      <motion.div variants={fadeUp} className="flex gap-2 pb-6 md:hidden">
-        <div className="flex-1 rounded-xl border border-white/10 px-3 py-2.5">
-          <span className="font-display text-lg font-bold text-white tabular-nums leading-none">
-            Lv {level}
-          </span>
-          <span className="block text-[10px] text-white/30 font-medium tracking-wide uppercase mt-1">
-            Level
-          </span>
-        </div>
-        <div className="flex-1 rounded-xl border border-white/10 px-3 py-2.5">
-          <span className="font-display text-lg font-bold text-white tabular-nums leading-none">
-            {streak}
-          </span>
-          <span className="block text-[10px] text-white/30 font-medium tracking-wide uppercase mt-1">
-            Streak
-          </span>
-        </div>
-        <div className="flex-1 rounded-xl border border-white/10 px-3 py-2.5">
-          <span className="font-display text-lg font-bold text-white tabular-nums leading-none">
-            {formatTime(totalPracticeTime)}
-          </span>
-          <span className="block text-[10px] text-white/30 font-medium tracking-wide uppercase mt-1">
-            Total
-          </span>
-        </div>
-      </motion.div>
+      {isNewUser ? (
+        /* ── Welcome State ──────────────────────────────── */
+        <>
+          {/* Mobile welcome */}
+          <motion.div variants={fadeUp} className="pb-8 md:hidden">
+            <p className="text-sm text-white/40 leading-relaxed mb-6">
+              Your first session takes just 4 minutes
+            </p>
+            <button
+              onClick={() => navigate('/breathwork/session?technique=box_breathing')}
+              className="w-full flex items-center justify-center gap-2.5 rounded-2xl py-4 font-display font-bold text-white text-base transition-opacity hover:opacity-90"
+              style={{ background: ACCENT }}
+            >
+              <Play className="h-4 w-4" />
+              Start your first session
+            </button>
+            <button
+              onClick={() => {
+                document.getElementById('techniques-section')?.scrollIntoView({ behavior: 'smooth' })
+              }}
+              className="w-full mt-3 text-sm text-white/30 font-medium hover:text-white/50 transition-colors py-2"
+            >
+              Browse all techniques
+            </button>
+          </motion.div>
 
-      {/* Desktop: editorial horizontal strip */}
-      <motion.div variants={fadeUp} className="hidden md:flex items-baseline gap-12 pb-20 border-b border-white/[0.04]">
-        <div>
-          <span className="font-display text-4xl font-extrabold text-white tabular-nums leading-none">
-            {getLevelTitle(level)}
-          </span>
-          <span className="block text-[11px] text-white/25 font-semibold tracking-[0.08em] uppercase mt-1.5">
-            Level {level}
-          </span>
-        </div>
-        <div>
-          <span className="font-display text-4xl font-extrabold text-white tabular-nums leading-none">
-            {streak}
-          </span>
-          <span className="block text-[11px] text-white/25 font-semibold tracking-[0.08em] uppercase mt-1.5">
-            Day streak
-          </span>
-        </div>
-        <div>
-          <span className="font-display text-4xl font-extrabold text-white tabular-nums leading-none">
-            {dailySessionCount}
-          </span>
-          <span className="block text-[11px] text-white/25 font-semibold tracking-[0.08em] uppercase mt-1.5">
-            Today
-          </span>
-        </div>
-        {sessions.length > 0 && (
-          <div>
-            <span className="font-display text-4xl font-extrabold text-white tabular-nums leading-none">
-              {formatTime(totalPracticeTime)}
-            </span>
-            <span className="block text-[11px] text-white/25 font-semibold tracking-[0.08em] uppercase mt-1.5">
-              Total
-            </span>
-          </div>
-        )}
-      </motion.div>
+          {/* Desktop welcome */}
+          <motion.div variants={fadeUp} className="hidden md:block pb-20 border-b border-white/[0.04]">
+            <button
+              onClick={() => navigate('/breathwork/session?technique=box_breathing')}
+              className="flex items-center gap-3 rounded-2xl px-8 py-4 font-display font-bold text-white text-lg transition-opacity hover:opacity-90"
+              style={{ background: ACCENT }}
+            >
+              <Play className="h-5 w-5" />
+              Start your first session
+            </button>
+            <button
+              onClick={() => {
+                document.getElementById('techniques-section')?.scrollIntoView({ behavior: 'smooth' })
+              }}
+              className="mt-4 text-sm text-white/30 font-medium hover:text-white/50 transition-colors"
+            >
+              Or browse all techniques
+            </button>
+          </motion.div>
+        </>
+      ) : (
+        /* ── Returning User Stats ──────────────────────── */
+        <>
+          {/* Mobile: 3 compact bordered chips */}
+          <motion.div variants={fadeUp} className="flex gap-2 pb-6 md:hidden">
+            <div className="flex-1 rounded-xl border border-white/10 px-3 py-2.5">
+              <span className="font-display text-lg font-bold text-white tabular-nums leading-none">
+                Lv {level}
+              </span>
+              <span className="block text-[10px] text-white/30 font-medium tracking-wide uppercase mt-1">
+                Level
+              </span>
+            </div>
+            <div className="flex-1 rounded-xl border border-white/10 px-3 py-2.5">
+              <span className="font-display text-lg font-bold text-white tabular-nums leading-none">
+                {streak}
+              </span>
+              <span className="block text-[10px] text-white/30 font-medium tracking-wide uppercase mt-1">
+                Streak
+              </span>
+            </div>
+            <div className="flex-1 rounded-xl border border-white/10 px-3 py-2.5">
+              <span className="font-display text-lg font-bold text-white tabular-nums leading-none">
+                {formatTime(totalPracticeTime)}
+              </span>
+              <span className="block text-[10px] text-white/30 font-medium tracking-wide uppercase mt-1">
+                Total
+              </span>
+            </div>
+          </motion.div>
 
-      {/* ── XP Progress — inline, minimal ────────────────── */}
-      <motion.div variants={fadeUp} className="py-5 sm:py-6">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-[11px] text-white/25 font-semibold tracking-[0.08em] uppercase">
-            Level {level} progress
-          </span>
-          <span className="text-[11px] text-white/20 font-medium tabular-nums">
-            {xpInLevel} / {xpNeeded} XP
-          </span>
-        </div>
-        <div className="h-1 rounded-full surface-well overflow-hidden">
-          <div
-            className="h-full rounded-full origin-left transition-transform duration-700 ease-out"
-            style={{
-              background: ACCENT,
-              transform: `translateZ(0) scaleX(${Math.round(levelProgress * 100) / 100})`,
-            }}
-          />
-        </div>
-      </motion.div>
+          {/* Desktop: editorial horizontal strip */}
+          <motion.div variants={fadeUp} className="hidden md:flex items-baseline gap-12 pb-20 border-b border-white/[0.04]">
+            <div>
+              <span className="font-display text-4xl font-extrabold text-white tabular-nums leading-none">
+                {getLevelTitle(level)}
+              </span>
+              <span className="block text-[11px] text-white/25 font-semibold tracking-[0.08em] uppercase mt-1.5">
+                Level {level}
+              </span>
+            </div>
+            <div>
+              <span className="font-display text-4xl font-extrabold text-white tabular-nums leading-none">
+                {streak}
+              </span>
+              <span className="block text-[11px] text-white/25 font-semibold tracking-[0.08em] uppercase mt-1.5">
+                Day streak
+              </span>
+            </div>
+            <div>
+              <span className="font-display text-4xl font-extrabold text-white tabular-nums leading-none">
+                {dailySessionCount}
+              </span>
+              <span className="block text-[11px] text-white/25 font-semibold tracking-[0.08em] uppercase mt-1.5">
+                Today
+              </span>
+            </div>
+            <div>
+              <span className="font-display text-4xl font-extrabold text-white tabular-nums leading-none">
+                {formatTime(totalPracticeTime)}
+              </span>
+              <span className="block text-[11px] text-white/25 font-semibold tracking-[0.08em] uppercase mt-1.5">
+                Total
+              </span>
+            </div>
+          </motion.div>
+
+          {/* ── XP Progress — inline, minimal ────────────────── */}
+          <motion.div variants={fadeUp} className="py-5 sm:py-6">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] text-white/25 font-semibold tracking-[0.08em] uppercase">
+                Level {level} progress
+              </span>
+              <span className="text-[11px] text-white/20 font-medium tabular-nums">
+                {xpInLevel} / {xpNeeded} XP
+              </span>
+            </div>
+            <div className="h-1 rounded-full surface-well overflow-hidden">
+              <div
+                className="h-full rounded-full origin-left transition-transform duration-700 ease-out"
+                style={{
+                  background: ACCENT,
+                  transform: `translateZ(0) scaleX(${Math.round(levelProgress * 100) / 100})`,
+                }}
+              />
+            </div>
+          </motion.div>
+        </>
+      )}
 
       {/* ── Techniques ──────────────────────────────────── */}
-      <motion.div variants={fadeUp} className="pt-8 md:pt-16">
+      <motion.div variants={fadeUp} className="pt-8 md:pt-16" id="techniques-section">
         <h2 className="font-display text-xl md:text-3xl font-bold text-white tracking-tight mb-5 md:mb-10">
           Techniques
         </h2>
