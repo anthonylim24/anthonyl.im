@@ -65,7 +65,7 @@ export function LevelRing({
         />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="font-display text-xl font-bold text-bw">{level}</span>
+        <span className="font-display text-xl font-light text-bw">{level}</span>
       </div>
     </div>
   )

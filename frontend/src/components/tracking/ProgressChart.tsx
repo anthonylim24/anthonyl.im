@@ -43,7 +43,7 @@ export function ProgressChart({
     return (
       <div className="card-elevated rounded-[22px] overflow-hidden">
         <div className="p-5 sm:p-6 border-b border-bw-border-subtle">
-          <h3 className="font-display font-bold text-bw">
+          <h3 className="font-display font-light text-bw tracking-[0.04em]">
             {title}
           </h3>
         </div>
@@ -59,7 +59,7 @@ export function ProgressChart({
   return (
     <div className="card-elevated rounded-[22px] overflow-hidden">
       <div className="p-5 sm:p-6 border-b border-bw-border-subtle">
-        <h3 className="font-display font-bold text-bw">
+        <h3 className="font-display font-light text-bw tracking-[0.04em]">
           {title}
         </h3>
       </div>

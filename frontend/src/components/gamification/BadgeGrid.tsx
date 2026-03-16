@@ -89,7 +89,7 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
               className={cn(
                 'h-11 w-11 rounded-xl flex items-center justify-center transition-[background,color,box-shadow] duration-300',
                 earned
-                  ? 'text-white shadow-lg'
+                  ? 'text-[var(--breath-canvas)] shadow-lg'
                   : 'bg-bw-active text-bw-tertiary'
               )}
               style={earned ? {

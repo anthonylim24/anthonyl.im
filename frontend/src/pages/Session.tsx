@@ -9,8 +9,7 @@ import {
 } from '@/lib/breathingProtocols'
 import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 import { formatTime, cn } from '@/lib/utils'
-import { ACCENT_BRIGHT } from '@/lib/palette'
-import { techniqueGradientStyle, techniqueActiveStyle } from '@/lib/techniqueConfig'
+import { techniqueActiveStyle } from '@/lib/techniqueConfig'
 import { Wind, Flame, Box, Clock, Minus, Plus, Play, Heart, ChevronLeft, ChevronDown } from 'lucide-react'
 import { useHaptics } from '@/hooks/useHaptics'
 
@@ -103,13 +102,10 @@ export function Session() {
         {/* Technique header */}
         <motion.div variants={fadeUp} className="mb-6">
           <div className="flex items-center gap-3 mb-2">
-            <div
-              className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0"
-              style={techniqueGradientStyle(selectedTechnique)}
-            >
-              <span className="text-white scale-90">{techniqueIcons[selectedTechnique]}</span>
+            <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 bg-bw-hover border border-bw-border">
+              <span className="text-bw-secondary scale-90">{techniqueIcons[selectedTechnique]}</span>
             </div>
-            <h1 className="font-display text-xl font-bold text-bw">{protocol.name}</h1>
+            <h1 className="font-display text-xl font-light text-bw tracking-[0.04em]">{protocol.name}</h1>
           </div>
           <p className="text-sm text-bw-tertiary leading-relaxed">{protocol.description}</p>
         </motion.div>
@@ -163,7 +159,7 @@ export function Session() {
             >
               <Minus className="h-5 w-5" />
             </motion.button>
-            <span className="font-display text-5xl font-extrabold tabular-nums text-bw leading-none min-w-[60px] text-center">
+            <span className="font-display text-5xl font-light tabular-nums text-bw leading-none min-w-[60px] text-center">
               {rounds}
             </span>
             <motion.button
@@ -187,16 +183,11 @@ export function Session() {
             whileTap={{ scale: 0.98 }}
             transition={spring}
             onClick={handleStartSession}
-            className="relative w-full py-4 px-6 rounded-2xl font-display font-bold text-white text-lg flex items-center justify-center gap-3"
-            style={{
-              ...techniqueGradientStyle(selectedTechnique),
-              boxShadow: `0 16px 32px -8px ${ACCENT_BRIGHT}40`,
-            }}
+            className="relative w-full py-4 px-6 rounded-2xl font-display font-light text-[var(--breath-canvas)] text-lg flex items-center justify-center gap-3 bg-bw"
           >
             <motion.div
-              className="absolute inset-0 rounded-2xl pointer-events-none"
-              style={{ background: techniqueGradientStyle(selectedTechnique).background }}
-              animate={{ opacity: [0, 0.4, 0], scale: [1, 1.04, 1] }}
+              className="absolute inset-0 rounded-2xl pointer-events-none bg-bw"
+              animate={{ opacity: [0, 0.15, 0], scale: [1, 1.02, 1] }}
               transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
               aria-hidden="true"
             />
@@ -209,7 +200,7 @@ export function Session() {
       <div className="hidden md:block max-w-2xl mx-auto space-y-14">
         {/* Header */}
         <motion.div variants={fadeUp}>
-          <h1 className="font-display text-[clamp(2rem,6vw,3rem)] font-extrabold text-bw tracking-[-0.02em] leading-[0.95]">
+          <h1 className="font-display text-[clamp(2rem,6vw,3rem)] font-light text-bw tracking-[0.04em] leading-[0.95]">
             Session Setup
           </h1>
         </motion.div>
@@ -234,12 +225,11 @@ export function Session() {
                 style={isSelected ? techniqueActiveStyle(id) : undefined}
               >
                 <div
-                  className="h-12 w-12 rounded-2xl flex items-center justify-center mb-3"
-                  style={techniqueGradientStyle(id)}
+                  className="h-12 w-12 rounded-2xl flex items-center justify-center mb-3 bg-bw-hover border border-bw-border"
                 >
-                  <span className="text-white">{techniqueIcons[id]}</span>
+                  <span className="text-bw-secondary">{techniqueIcons[id]}</span>
                 </div>
-                <h3 className="font-display text-base font-bold text-bw mb-0.5">{p.name}</h3>
+                <h3 className="font-display text-base font-light text-bw mb-0.5">{p.name}</h3>
                 <p className="text-xs text-bw-tertiary leading-relaxed line-clamp-2">
                   {p.purpose}
                 </p>
@@ -278,7 +268,7 @@ export function Session() {
                   <Minus className="h-5 w-5" />
                 </motion.button>
                 <div className="text-center min-w-[100px]">
-                  <span className="font-display text-7xl font-extrabold tabular-nums text-bw leading-none">
+                  <span className="font-display text-7xl font-light tabular-nums text-bw leading-none">
                     {rounds}
                   </span>
                   <span className="block text-xs text-bw-tertiary mt-2 font-medium tracking-wide uppercase">
@@ -314,16 +304,11 @@ export function Session() {
           whileHover={{ scale: 1.02 }}
           transition={spring}
           onClick={handleStartSession}
-          className="relative w-full py-5 px-6 rounded-[20px] font-display font-bold text-white text-lg flex items-center justify-center gap-3"
-          style={{
-            ...techniqueGradientStyle(selectedTechnique),
-            boxShadow: `0 20px 40px -12px ${ACCENT_BRIGHT}40`,
-          }}
+          className="relative w-full py-5 px-6 rounded-[20px] font-display font-light text-[var(--breath-canvas)] text-lg flex items-center justify-center gap-3 bg-bw"
         >
           <motion.div
-            className="absolute inset-0 rounded-[20px] pointer-events-none"
-            style={{ background: techniqueGradientStyle(selectedTechnique).background }}
-            animate={{ opacity: [0, 0.4, 0], scale: [1, 1.04, 1] }}
+            className="absolute inset-0 rounded-[20px] pointer-events-none bg-bw"
+            animate={{ opacity: [0, 0.15, 0], scale: [1, 1.02, 1] }}
             transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
             aria-hidden="true"
           />

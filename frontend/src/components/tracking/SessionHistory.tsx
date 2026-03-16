@@ -1,21 +1,13 @@
 import { useNavigate } from 'react-router-dom'
 import { breathingProtocols } from '@/lib/breathingProtocols'
-import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
+import type { TechniqueId } from '@/lib/constants'
 import { formatDate, formatTime } from '@/lib/utils'
-import { ACHIEVEMENT } from '@/lib/palette'
-import { techniqueGradientStyle } from '@/lib/techniqueConfig'
 import type { CompletedSession } from '@/stores/historyStore'
-import { Wind, Flame, Box, Clock, Trophy, Heart } from 'lucide-react'
+import { TechniqueGeometryIcon } from '@/components/ui/TechniqueGeometryIcon'
+import { Clock, Trophy } from 'lucide-react'
 
 interface SessionHistoryProps {
   sessions: CompletedSession[]
-}
-
-const techniqueIcons: Record<TechniqueId, React.ReactNode> = {
-  [TECHNIQUE_IDS.BOX_BREATHING]: <Box className="h-4 w-4" />,
-  [TECHNIQUE_IDS.CO2_TOLERANCE]: <Flame className="h-4 w-4" />,
-  [TECHNIQUE_IDS.POWER_BREATHING]: <Wind className="h-4 w-4" />,
-  [TECHNIQUE_IDS.CYCLIC_SIGHING]: <Heart className="h-4 w-4" />,
 }
 
 export function SessionHistory({ sessions }: SessionHistoryProps) {
@@ -43,11 +35,8 @@ export function SessionHistory({ sessions }: SessionHistoryProps) {
           className="flex items-center gap-3 p-3.5 rounded-2xl surface-well hover:bg-bw-hover transition-colors duration-200"
         >
           {/* Technique icon */}
-          <div
-            className="h-9 w-9 rounded-xl flex items-center justify-center shrink-0"
-            style={techniqueGradientStyle(session.techniqueId)}
-          >
-            <span className="text-white">{techniqueIcons[session.techniqueId]}</span>
+          <div className="h-9 w-9 rounded-xl flex items-center justify-center shrink-0 bg-bw-hover border border-bw-border">
+            <TechniqueGeometryIcon techniqueId={session.techniqueId} className="text-bw-secondary" />
           </div>
 
           {/* Name + date */}
@@ -72,8 +61,8 @@ export function SessionHistory({ sessions }: SessionHistoryProps) {
           {/* Best hold (only for CO2 tolerance) */}
           {session.maxHoldTime > 0 && (
             <div className="shrink-0 text-right pl-2 border-l border-bw-border">
-              <div className="flex items-center gap-1 font-display text-sm font-bold text-bw tabular-nums">
-                <Trophy className="h-3 w-3" style={{ color: ACHIEVEMENT }} />
+              <div className="flex items-center gap-1 font-display text-sm font-light text-bw tabular-nums">
+                <Trophy className="h-3 w-3 text-bw-secondary" />
                 {session.maxHoldTime}s
               </div>
               <div className="text-[10px] text-bw-tertiary tabular-nums">

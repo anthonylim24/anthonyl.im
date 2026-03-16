@@ -1,19 +1,11 @@
 import { breathingProtocols } from '@/lib/breathingProtocols'
 import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 import { formatDate } from '@/lib/utils'
-import { getTechniqueVisual, techniqueGradientStyle } from '@/lib/techniqueConfig'
 import type { PersonalBest } from '@/stores/historyStore'
-import { Wind, Flame, Box, Heart } from 'lucide-react'
+import { TechniqueGeometryIcon } from '@/components/ui/TechniqueGeometryIcon'
 
 interface PersonalBestsProps {
   personalBests: Record<TechniqueId, PersonalBest | undefined>
-}
-
-const techniqueIcons: Record<TechniqueId, React.ReactNode> = {
-  [TECHNIQUE_IDS.BOX_BREATHING]: <Box className="h-5 w-5" />,
-  [TECHNIQUE_IDS.CO2_TOLERANCE]: <Flame className="h-5 w-5" />,
-  [TECHNIQUE_IDS.POWER_BREATHING]: <Wind className="h-5 w-5" />,
-  [TECHNIQUE_IDS.CYCLIC_SIGHING]: <Heart className="h-5 w-5" />,
 }
 
 export function PersonalBests({ personalBests }: PersonalBestsProps) {
@@ -23,7 +15,7 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
     return (
       <div className="card-elevated rounded-[22px] overflow-hidden">
         <div className="p-5 sm:p-6 border-b border-bw-border-subtle">
-          <h3 className="font-display font-bold text-bw">
+          <h3 className="font-display font-light text-bw tracking-[0.04em]">
             Personal Bests
           </h3>
         </div>
@@ -39,7 +31,7 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
   return (
     <div className="card-elevated rounded-[22px] overflow-hidden">
       <div className="p-5 sm:p-6 border-b border-bw-border-subtle">
-        <h3 className="font-display font-bold text-bw">
+        <h3 className="font-display font-light text-bw tracking-[0.04em]">
           Personal Bests
         </h3>
       </div>
@@ -48,7 +40,6 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
           {Object.values(TECHNIQUE_IDS).map((techniqueId) => {
             const best = personalBests[techniqueId]
             if (!best) return null
-            const tv = getTechniqueVisual(techniqueId)
 
             return (
               <div
@@ -56,11 +47,8 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
                 className="flex items-center justify-between p-4 rounded-[16px] surface-well group hover:bg-bw-hover transition-all duration-300"
               >
                 <div className="flex items-center gap-3">
-                  <div
-                    className="h-11 w-11 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform duration-300"
-                    style={techniqueGradientStyle(techniqueId)}
-                  >
-                    <span className="text-white">{techniqueIcons[techniqueId]}</span>
+                  <div className="h-11 w-11 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform duration-300 bg-bw-hover border border-bw-border">
+                    <TechniqueGeometryIcon techniqueId={techniqueId} className="text-bw-secondary" />
                   </div>
                   <div>
                     <div className="font-semibold text-sm text-bw">
@@ -71,7 +59,7 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
                     </div>
                   </div>
                 </div>
-                <div className="font-display text-2xl font-bold tabular-nums" style={{ color: tv.primary }}>
+                <div className="font-display text-2xl font-light text-bw tabular-nums">
                   {best.maxHoldTime}s
                 </div>
               </div>
