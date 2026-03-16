@@ -70,8 +70,8 @@ export default {
         sm: 'calc(var(--radius) - 4px)'
       },
       fontFamily: {
-        sans: ['"DM Sans"', 'system-ui', ...fontFamily.sans],
-        display: ['"Anybody"', 'system-ui', ...fontFamily.sans],
+        sans: ['"Inter"', 'system-ui', ...fontFamily.sans],
+        display: ['"Cormorant Garamond"', 'Georgia', ...fontFamily.serif],
       },
     }
   },
