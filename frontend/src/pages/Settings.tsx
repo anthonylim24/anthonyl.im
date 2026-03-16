@@ -5,7 +5,6 @@ import { CLERK_ENABLED } from '@/lib/clerk'
 import {
   Download,
   Trash2,
-  Lock,
   Check,
   Sun,
   Moon,
@@ -14,11 +13,9 @@ import {
 import { cn } from '@/lib/utils'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useHaptics } from '@/hooks/useHaptics'
-import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore } from '@/stores/historyStore'
-import { getLevelForXP, ORB_THEMES } from '@/lib/gamification'
 
-const motionTransition = { type: 'tween' as const, duration: 0.6, ease: [0.33, 0, 0, 1] }
+const motionTransition = { type: 'tween' as const, duration: 0.6, ease: [0.33, 0, 0, 1] as const }
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } }
 const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: motionTransition } }
 
@@ -62,13 +59,10 @@ export function Settings() {
     setHapticsEnabled,
   } = useSettingsStore()
 
-  const { xp, selectedTheme, setSelectedTheme } = useGamificationStore()
   const { clearHistory } = useHistoryStore()
 
   const { trigger: haptic } = useHaptics()
   const [confirmClear, setConfirmClear] = useState(false)
-
-  const currentLevel = getLevelForXP(xp)
 
   const handleExportData = () => {
     const data: Record<string, string> = {}
@@ -133,7 +127,7 @@ export function Settings() {
         </motion.section>
       )}
 
-      {/* Appearance — Theme + Orb Theme merged */}
+      {/* Appearance */}
       <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
         <h2 className="font-display text-base font-light text-bw tracking-[0.04em] mb-4">Appearance</h2>
         <div className="grid grid-cols-2 gap-3">
@@ -144,7 +138,7 @@ export function Settings() {
             className={cn(
               'relative flex items-center gap-3 p-4 rounded-[16px] border transition-all duration-300',
               theme === 'dark'
-                ? 'bg-bw text-[var(--breath-canvas)] border-transparent'
+                ? 'bg-foreground text-background border-transparent'
                 : 'border-bw-border surface-well text-bw-secondary hover:border-bw-border'
             )}
           >
@@ -161,7 +155,7 @@ export function Settings() {
             className={cn(
               'relative flex items-center gap-3 p-4 rounded-[16px] border transition-all duration-300',
               theme === 'light'
-                ? 'bg-bw text-[var(--breath-canvas)] border-transparent'
+                ? 'bg-foreground text-background border-transparent'
                 : 'border-bw-border surface-well text-bw-secondary hover:border-bw-border'
             )}
           >
@@ -173,60 +167,6 @@ export function Settings() {
           </motion.button>
         </div>
 
-        {/* Orb Theme */}
-        <div className="mt-5 pt-5 border-t border-bw-border-subtle">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs text-bw-tertiary font-medium">Orb Theme</span>
-            <span className="text-[11px] text-bw-tertiary font-medium tracking-wide uppercase">
-              Level {currentLevel}
-            </span>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            {ORB_THEMES.map((orbTheme) => {
-              const isUnlocked = currentLevel >= orbTheme.unlockLevel
-              const isSelected = selectedTheme === orbTheme.id
-              return (
-                <motion.button
-                  key={orbTheme.id}
-                  whileTap={isUnlocked ? { scale: 0.95 } : undefined}
-                  transition={motionTransition}
-                  onClick={() => { if (isUnlocked) { haptic('selection'); setSelectedTheme(orbTheme.id) } }}
-                  disabled={!isUnlocked}
-                  className={cn(
-                    'flex flex-col items-center gap-2.5 p-3 rounded-[16px] transition-all duration-300',
-                    isUnlocked
-                      ? 'hover:bg-bw-hover cursor-pointer'
-                      : 'opacity-25 cursor-not-allowed'
-                  )}
-                >
-                  <div className="relative">
-                    <div
-                      className={cn(
-                        'h-14 w-14 rounded-full transition-all duration-300',
-                        isSelected && 'ring-2 ring-bw/80 ring-offset-2 ring-offset-transparent scale-110'
-                      )}
-                      style={{
-                        background: `linear-gradient(135deg, ${orbTheme.colors[0]}, ${orbTheme.colors[1]})`,
-                        boxShadow: isSelected ? `0 8px 24px -4px ${orbTheme.colors[0]}50` : undefined,
-                      }}
-                    />
-                    {!isUnlocked && (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <Lock className="h-4 w-4 text-bw-tertiary" />
-                      </div>
-                    )}
-                  </div>
-                  <span className="text-xs text-bw-secondary font-medium">{orbTheme.name}</span>
-                  {!isUnlocked && (
-                    <span className="text-[10px] text-bw-tertiary -mt-1">
-                      Lvl {orbTheme.unlockLevel}
-                    </span>
-                  )}
-                </motion.button>
-              )
-            })}
-          </div>
-        </div>
       </motion.section>
 
       {/* Feedback — Sound + Haptics merged */}

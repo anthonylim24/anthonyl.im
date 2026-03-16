@@ -3,7 +3,7 @@
 
 import type { TechniqueId } from './constants'
 import { TECHNIQUE_IDS } from './constants'
-import { TECHNIQUE, TECHNIQUE_GRADIENT, TECHNIQUE_PHASES, INK, INK_SECONDARY } from './palette'
+import { TECHNIQUE, TECHNIQUE_GRADIENT, TECHNIQUE_PHASES, INK } from './palette'
 
 export type TechniqueGeometry = 'grid' | 'triangle' | 'octagram' | 'spiral'
 

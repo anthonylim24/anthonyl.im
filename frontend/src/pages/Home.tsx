@@ -17,7 +17,7 @@ import { useHaptics } from '@/hooks/useHaptics'
 
 /* ── Animation ─────────────────────────────────────── */
 
-const motionTransition = { type: 'tween' as const, duration: 0.6, ease: [0.33, 0, 0, 1] }
+const motionTransition = { type: 'tween' as const, duration: 0.6, ease: [0.33, 0, 0, 1] as const }
 
 const stagger = {
   hidden: {},
@@ -120,7 +120,7 @@ export function Home() {
             </p>
             <button
               onClick={() => { haptic('success'); navigate('/breathwork/session?technique=box_breathing') }}
-              className="w-full flex items-center justify-center gap-2.5 rounded-2xl py-4 font-display font-light text-[var(--breath-canvas)] text-base transition-opacity hover:opacity-90 bg-bw"
+              className="w-full flex items-center justify-center gap-2.5 rounded-2xl py-4 font-display font-light text-background text-base transition-opacity hover:opacity-90 bg-foreground"
             >
               <Play className="h-4 w-4" />
               Start your first session
@@ -140,7 +140,7 @@ export function Home() {
           <motion.div variants={fadeUp} className="hidden md:block pb-20 border-b border-bw-border-subtle">
             <button
               onClick={() => { haptic('success'); navigate('/breathwork/session?technique=box_breathing') }}
-              className="flex items-center gap-3 rounded-2xl px-8 py-4 font-display font-light text-[var(--breath-canvas)] text-lg transition-opacity hover:opacity-90 bg-bw"
+              className="flex items-center gap-3 rounded-2xl px-8 py-4 font-display font-light text-background text-lg transition-opacity hover:opacity-90 bg-foreground"
             >
               <Play className="h-5 w-5" />
               Start your first session
@@ -292,7 +292,7 @@ export function Home() {
           <motion.button
             whileTap={{ scale: 0.98 }}
             transition={motionTransition}
-            className="relative rounded-2xl p-8 text-left w-full min-h-[220px] flex flex-col justify-between overflow-hidden group mb-3 border border-bw-border bg-[var(--breath-surface)]"
+            className="relative rounded-2xl p-8 text-left w-full min-h-[220px] flex flex-col justify-between overflow-hidden group mb-3 border border-bw-border bg-card"
             onClick={() => { haptic('medium'); navigate(`/breathwork/session?technique=${heroTechnique}`) }}
           >
             <div className="relative z-10">

@@ -1,6 +1,5 @@
 import { useNavigate } from 'react-router-dom'
 import { breathingProtocols } from '@/lib/breathingProtocols'
-import type { TechniqueId } from '@/lib/constants'
 import { formatDate, formatTime } from '@/lib/utils'
 import type { CompletedSession } from '@/stores/historyStore'
 import { TechniqueGeometryIcon } from '@/components/ui/TechniqueGeometryIcon'

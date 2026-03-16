@@ -10,19 +10,14 @@ import {
 import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 import { formatTime, cn } from '@/lib/utils'
 import { techniqueActiveStyle } from '@/lib/techniqueConfig'
-import { Wind, Flame, Box, Clock, Minus, Plus, Play, Heart, ChevronLeft, ChevronDown } from 'lucide-react'
+import { TechniqueGeometryIcon } from '@/components/ui/TechniqueGeometryIcon'
+import { Clock, Minus, Plus, Play, ChevronLeft, ChevronDown } from 'lucide-react'
 import { useHaptics } from '@/hooks/useHaptics'
 
+const motionTransition = { type: 'tween' as const, duration: 0.6, ease: [0.33, 0, 0, 1] as const }
 const spring = { type: 'spring' as const, stiffness: 300, damping: 30, mass: 1 }
-const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } }
-const fadeUp = { hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0, transition: spring } }
-
-const techniqueIcons: Record<TechniqueId, React.ReactNode> = {
-  [TECHNIQUE_IDS.BOX_BREATHING]: <Box className="h-5 w-5" />,
-  [TECHNIQUE_IDS.CO2_TOLERANCE]: <Flame className="h-5 w-5" />,
-  [TECHNIQUE_IDS.POWER_BREATHING]: <Wind className="h-5 w-5" />,
-  [TECHNIQUE_IDS.CYCLIC_SIGHING]: <Heart className="h-5 w-5" />,
-}
+const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } }
+const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: motionTransition } }
 
 export function Session() {
   const navigate = useNavigate()
@@ -103,7 +98,7 @@ export function Session() {
         <motion.div variants={fadeUp} className="mb-6">
           <div className="flex items-center gap-3 mb-2">
             <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 bg-bw-hover border border-bw-border">
-              <span className="text-bw-secondary scale-90">{techniqueIcons[selectedTechnique]}</span>
+              <TechniqueGeometryIcon techniqueId={selectedTechnique} className="text-bw-secondary" size={14} />
             </div>
             <h1 className="font-display text-xl font-light text-bw tracking-[0.04em]">{protocol.name}</h1>
           </div>
@@ -183,10 +178,10 @@ export function Session() {
             whileTap={{ scale: 0.98 }}
             transition={spring}
             onClick={handleStartSession}
-            className="relative w-full py-4 px-6 rounded-2xl font-display font-light text-[var(--breath-canvas)] text-lg flex items-center justify-center gap-3 bg-bw"
+            className="relative w-full py-4 px-6 rounded-2xl font-display font-light text-background text-lg flex items-center justify-center gap-3 bg-foreground"
           >
             <motion.div
-              className="absolute inset-0 rounded-2xl pointer-events-none bg-bw"
+              className="absolute inset-0 rounded-2xl pointer-events-none bg-foreground"
               animate={{ opacity: [0, 0.15, 0], scale: [1, 1.02, 1] }}
               transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
               aria-hidden="true"
@@ -227,7 +222,7 @@ export function Session() {
                 <div
                   className="h-12 w-12 rounded-2xl flex items-center justify-center mb-3 bg-bw-hover border border-bw-border"
                 >
-                  <span className="text-bw-secondary">{techniqueIcons[id]}</span>
+                  <TechniqueGeometryIcon techniqueId={id} className="text-bw-secondary" />
                 </div>
                 <h3 className="font-display text-base font-light text-bw mb-0.5">{p.name}</h3>
                 <p className="text-xs text-bw-tertiary leading-relaxed line-clamp-2">
@@ -304,10 +299,10 @@ export function Session() {
           whileHover={{ scale: 1.02 }}
           transition={spring}
           onClick={handleStartSession}
-          className="relative w-full py-5 px-6 rounded-[20px] font-display font-light text-[var(--breath-canvas)] text-lg flex items-center justify-center gap-3 bg-bw"
+          className="relative w-full py-5 px-6 rounded-[20px] font-display font-light text-background text-lg flex items-center justify-center gap-3 bg-foreground"
         >
           <motion.div
-            className="absolute inset-0 rounded-[20px] pointer-events-none bg-bw"
+            className="absolute inset-0 rounded-[20px] pointer-events-none bg-foreground"
             animate={{ opacity: [0, 0.15, 0], scale: [1, 1.02, 1] }}
             transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
             aria-hidden="true"

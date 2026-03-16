@@ -293,7 +293,7 @@ export function BreathingSession({
         {!isActive && !isComplete ? (
           <button
             onClick={handleStart}
-            className="flex items-center gap-3 px-10 py-4 rounded-2xl font-semibold text-lg transition-all duration-300 hover:scale-105 bg-bw text-[var(--breath-canvas)]"
+            className="flex items-center gap-3 px-10 py-4 rounded-2xl font-semibold text-lg transition-all duration-300 hover:scale-105 bg-foreground text-background"
           >
             <Play className="h-5 w-5" />
             Start

@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import React, { useMemo } from 'react'
 import { BREATH_PHASES, type BreathPhase } from '@/lib/constants'
 import type { TechniqueId } from '@/lib/constants'
 import { getTechniqueGeometry, type TechniqueGeometry } from '@/lib/techniqueConfig'
@@ -38,7 +38,7 @@ function GeometryOverlay({ geometry, radius }: { geometry: TechniqueGeometry; ra
   switch (geometry) {
     case 'grid': {
       // 4x4 grid inscribed within the outermost ring
-      const lines: JSX.Element[] = []
+      const lines: React.ReactElement[] = []
       const step = (radius * 2) / 4
       const start = cx - radius
       const top = cy - radius
@@ -121,7 +121,7 @@ function GeometryOverlay({ geometry, radius }: { geometry: TechniqueGeometry; ra
 export function ConcentricRings({
   phase,
   amplitude,
-  isActive,
+  isActive: _isActive,
   techniqueId,
   className,
 }: ConcentricRingsProps) {

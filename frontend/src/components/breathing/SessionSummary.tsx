@@ -126,9 +126,9 @@ export function SessionSummary({
 
             <motion.div
               variants={fadeUp}
-              className="h-16 w-16 rounded-2xl flex items-center justify-center mx-auto mb-4 bg-bw"
+              className="h-16 w-16 rounded-2xl flex items-center justify-center mx-auto mb-4 bg-foreground"
             >
-              <Trophy className="h-8 w-8 text-[var(--breath-canvas)]" />
+              <Trophy className="h-8 w-8 text-background" />
             </motion.div>
 
             <motion.h2
@@ -234,7 +234,7 @@ export function SessionSummary({
           <motion.div variants={fadeUp} className="px-6 pb-6">
             <button
               onClick={onClose}
-              className="w-full py-3 rounded-xl text-[var(--breath-canvas)] font-semibold active:scale-[0.98] transition-all duration-200 bg-bw"
+              className="w-full py-3 rounded-xl text-background font-semibold active:scale-[0.98] transition-all duration-200 bg-foreground"
             >
               Continue
             </button>
