@@ -236,8 +236,8 @@ export function Home() {
             <div className="h-1 rounded-full surface-well overflow-hidden">
               <div
                 className="h-full rounded-full origin-left transition-transform duration-700 ease-out"
-                style={{ backgroundColor: 'var(--bw-accent)' }}
                 style={{
+                  backgroundColor: 'var(--bw-accent)',
                   transform: `translateZ(0) scaleX(${Math.round(levelProgress * 100) / 100})`,
                 }}
               />
