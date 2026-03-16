@@ -2,6 +2,8 @@ import { useCallback, useState, useMemo, useRef, useEffect, type CSSProperties }
 import { useBreathingCycle } from '@/hooks/useBreathingCycle'
 import { useWaveform } from '@/hooks/useWaveform'
 import { ConcentricRings } from './ConcentricRings'
+import { KirbyEasterEgg } from './KirbyEasterEgg'
+import { KirbyCharacter } from './KirbyCharacter'
 import { SessionSummary } from './SessionSummary'
 import { PhaseIndicator } from './PhaseIndicator'
 import { Timer } from './Timer'
@@ -49,6 +51,22 @@ export function BreathingSession({
   } as CSSProperties
 
   const { trigger: haptic } = useHaptics()
+
+  // Kirby easter egg: 5 rapid taps on the rings
+  const [kirbyMode, setKirbyMode] = useState(false)
+  const toggleKirbyMode = useCallback(() => setKirbyMode((prev) => !prev), [])
+  const tapTimestampsRef = useRef<number[]>([])
+  const handleRingsClick = useCallback(() => {
+    const now = Date.now()
+    const recent = tapTimestampsRef.current.filter((t) => now - t < 2000)
+    recent.push(now)
+    tapTimestampsRef.current = recent
+    if (recent.length >= 5) {
+      tapTimestampsRef.current = []
+      haptic('success')
+      toggleKirbyMode()
+    }
+  }, [toggleKirbyMode, haptic])
 
   const showControls = useCallback(() => {
     setControlsVisible(true)
@@ -197,6 +215,9 @@ export function BreathingSession({
       onMouseMove={isActive && !isPaused ? showControls : undefined}
       onTouchStart={isActive && !isPaused ? showControls : undefined}
     >
+      {/* Kirby Easter Egg — background layer, behind all UI */}
+      {kirbyMode && <KirbyEasterEgg />}
+
       {/* Round progress indicator */}
       {(() => {
         const currentRound = session?.currentRound ?? 0
@@ -254,7 +275,7 @@ export function BreathingSession({
           <PhaseIndicator phase={session?.currentPhase ?? null} techniqueId={config.techniqueId} />
         </div>
 
-        {/* ConcentricRings - scales with screen height and width to avoid overlap */}
+        {/* Breathing visualization - scales with screen height and width to avoid overlap */}
         <div
           className="relative"
           style={{
@@ -264,13 +285,20 @@ export function BreathingSession({
             maxHeight: 'min(48vh, 24rem)',
           }}
         >
-          <ConcentricRings
-            phase={session?.currentPhase ?? null}
-            amplitude={amplitude}
-            isActive={isActive && !isPaused}
-            techniqueId={config.techniqueId}
-            className="w-full h-full"
-          />
+          {kirbyMode ? (
+            <div className="w-full h-full flex items-center justify-center" onClick={handleRingsClick} data-testid="concentric-rings">
+              <KirbyCharacter size={200} puffAmount={amplitude} />
+            </div>
+          ) : (
+            <ConcentricRings
+              phase={session?.currentPhase ?? null}
+              amplitude={amplitude}
+              isActive={isActive && !isPaused}
+              techniqueId={config.techniqueId}
+              className="w-full h-full"
+              onClick={handleRingsClick}
+            />
+          )}
         </div>
 
         {/* Timer below orb */}

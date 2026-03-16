@@ -11,6 +11,7 @@ interface ConcentricRingsProps {
   isActive: boolean
   techniqueId: TechniqueId
   className?: string
+  onClick?: () => void
 }
 
 const RING_COUNT = 8
@@ -124,6 +125,7 @@ export function ConcentricRings({
   isActive: _isActive,
   techniqueId,
   className,
+  onClick,
 }: ConcentricRingsProps) {
   const reducedMotion = useReducedMotion()
   const geometry = getTechniqueGeometry(techniqueId)
@@ -173,6 +175,8 @@ export function ConcentricRings({
           : 'Breathing visualization: ready'
       }
       className={cn('text-bw', className)}
+      onClick={onClick}
+      data-testid="concentric-rings"
     >
       {/* Crosshair axes */}
       <line
@@ -210,7 +214,7 @@ export function ConcentricRings({
       ))}
 
       {/* Technique geometry overlay — rotates slowly */}
-      <g style={rotationStyle} transform-origin={`${CENTER} ${CENTER}`}>
+      <g style={{ ...rotationStyle, transformOrigin: `${CENTER}px ${CENTER}px` }}>
         <GeometryOverlay geometry={geometry} radius={outerRadius * 0.95} />
       </g>
     </svg>
