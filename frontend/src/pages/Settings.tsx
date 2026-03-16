@@ -3,11 +3,6 @@ import { motion } from 'motion/react'
 import { SignedIn, SignedOut, SignInButton, useUser } from '@clerk/clerk-react'
 import { CLERK_ENABLED } from '@/lib/clerk'
 import {
-  Palette,
-  Volume2,
-  Smartphone,
-  Sparkles,
-  Database,
   Download,
   Trash2,
   Lock,
@@ -113,16 +108,12 @@ export function Settings() {
         <h1 className="font-display text-[clamp(2rem,6vw,3rem)] font-extrabold text-white tracking-[-0.02em] leading-[0.95]">
           Settings
         </h1>
-        <p className="text-sm text-white/30 mt-2 tracking-wide">Customize your experience</p>
       </motion.div>
 
       {/* Account */}
       {CLERK_ENABLED && (
         <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
-          <div className="flex items-center gap-2.5 mb-4">
-            <User className="h-5 w-5 text-white/40" />
-            <h2 className="font-display text-base font-bold text-white">Account</h2>
-          </div>
+          <h2 className="font-display text-base font-bold text-white mb-4">Account</h2>
           <SignedOut>
             <div className="flex flex-col items-center gap-3 py-2">
               <p className="text-sm text-white/45 text-center">
@@ -144,12 +135,9 @@ export function Settings() {
         </motion.section>
       )}
 
-      {/* Theme */}
+      {/* Appearance — Theme + Orb Theme merged */}
       <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
-        <div className="flex items-center gap-2.5 mb-4">
-          <Palette className="h-5 w-5 text-white/40" />
-          <h2 className="font-display text-base font-bold text-white">Theme</h2>
-        </div>
+        <h2 className="font-display text-base font-bold text-white mb-4">Appearance</h2>
         <div className="grid grid-cols-2 gap-3">
           <motion.button
             whileTap={{ scale: 0.98 }}
@@ -186,149 +174,144 @@ export function Settings() {
             )}
           </motion.button>
         </div>
-      </motion.section>
 
-      {/* Sound */}
-      <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <Volume2 className="h-5 w-5 text-white/40" />
-            <h2 className="font-display text-base font-bold text-white">Sound</h2>
+        {/* Orb Theme */}
+        <div className="mt-5 pt-5 border-t border-white/6">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs text-white/40 font-medium">Orb Theme</span>
+            <span className="text-[11px] text-white/30 font-medium tracking-wide uppercase">
+              Level {currentLevel}
+            </span>
           </div>
-          <button
-            onClick={() => { haptic('selection'); setSoundEnabled(!soundEnabled) }}
-            aria-checked={soundEnabled}
-            role="switch"
-            className={cn(
-              'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[44px] min-w-[44px]',
-              soundEnabled ? 'bg-primary' : 'surface-well'
-            )}
-          >
-            <span
-              className={cn(
-                'inline-block h-5 w-5 transform rounded-full bg-white shadow-lg transition-transform duration-300',
-                soundEnabled ? 'translate-x-6' : 'translate-x-1'
-              )}
-            />
-          </button>
-        </div>
-        {soundEnabled && (
-          <div className="mt-4 pt-4 border-t border-white/8">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs text-white/40 font-medium">Volume</span>
-              <span className="text-xs text-white/40 font-medium tabular-nums">
-                {Math.round(soundVolume * 100)}%
-              </span>
-            </div>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={soundVolume}
-              onChange={(e) => setSoundVolume(parseFloat(e.target.value))}
-              className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/8 accent-primary
-                [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5
-                [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary
-                [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:shadow-primary/30"
-            />
+          <div className="grid grid-cols-3 gap-3">
+            {ORB_THEMES.map((orbTheme) => {
+              const isUnlocked = currentLevel >= orbTheme.unlockLevel
+              const isSelected = selectedTheme === orbTheme.id
+              return (
+                <motion.button
+                  key={orbTheme.id}
+                  whileTap={isUnlocked ? { scale: 0.95 } : undefined}
+                  transition={spring}
+                  onClick={() => { if (isUnlocked) { haptic('selection'); setSelectedTheme(orbTheme.id) } }}
+                  disabled={!isUnlocked}
+                  className={cn(
+                    'flex flex-col items-center gap-2.5 p-3 rounded-[16px] transition-all duration-300',
+                    isUnlocked
+                      ? 'hover:bg-white/5 cursor-pointer'
+                      : 'opacity-25 cursor-not-allowed'
+                  )}
+                >
+                  <div className="relative">
+                    <div
+                      className={cn(
+                        'h-14 w-14 rounded-full transition-all duration-300',
+                        isSelected && 'ring-2 ring-white/80 ring-offset-2 ring-offset-transparent scale-110'
+                      )}
+                      style={{
+                        background: `linear-gradient(135deg, ${orbTheme.colors[0]}, ${orbTheme.colors[1]})`,
+                        boxShadow: isSelected ? `0 8px 24px -4px ${orbTheme.colors[0]}50` : undefined,
+                      }}
+                    />
+                    {!isUnlocked && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Lock className="h-4 w-4 text-white/60" />
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-xs text-white/45 font-medium">{orbTheme.name}</span>
+                  {!isUnlocked && (
+                    <span className="text-[10px] text-white/30 -mt-1">
+                      Lvl {orbTheme.unlockLevel}
+                    </span>
+                  )}
+                </motion.button>
+              )
+            })}
           </div>
-        )}
-      </motion.section>
-
-      {/* Haptics */}
-      <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <Smartphone className="h-5 w-5 text-white/40" />
-            <h2 className="font-display text-base font-bold text-white">Haptics</h2>
-          </div>
-          <button
-            onClick={() => {
-              const next = !hapticsEnabled
-              setHapticsEnabled(next)
-              // Fire a test pulse so the user feels it when enabling
-              if (next) setTimeout(() => haptic('nudge'), 50)
-            }}
-            aria-checked={hapticsEnabled}
-            role="switch"
-            className={cn(
-              'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[44px] min-w-[44px]',
-              hapticsEnabled ? 'bg-primary' : 'surface-well'
-            )}
-          >
-            <span
-              className={cn(
-                'inline-block h-5 w-5 transform rounded-full bg-white shadow-lg transition-transform duration-300',
-                hapticsEnabled ? 'translate-x-6' : 'translate-x-1'
-              )}
-            />
-          </button>
         </div>
       </motion.section>
 
-      {/* Orb Theme */}
+      {/* Feedback — Sound + Haptics merged */}
       <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
-        <div className="flex items-center gap-2.5 mb-4">
-          <Sparkles className="h-5 w-5 text-white/40" />
-          <h2 className="font-display text-base font-bold text-white">Orb Theme</h2>
-          <span className="text-[11px] text-white/30 ml-auto font-medium tracking-wide uppercase">
-            Level {currentLevel}
-          </span>
-        </div>
-        <div className="grid grid-cols-3 gap-3">
-          {ORB_THEMES.map((orbTheme) => {
-            const isUnlocked = currentLevel >= orbTheme.unlockLevel
-            const isSelected = selectedTheme === orbTheme.id
-            return (
-              <motion.button
-                key={orbTheme.id}
-                whileTap={isUnlocked ? { scale: 0.95 } : undefined}
-                transition={spring}
-                onClick={() => { if (isUnlocked) { haptic('selection'); setSelectedTheme(orbTheme.id) } }}
-                disabled={!isUnlocked}
+        <h2 className="font-display text-base font-bold text-white mb-4">Feedback</h2>
+        <div className="space-y-4">
+          {/* Sound toggle */}
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-white font-semibold">Sound</span>
+              <button
+                onClick={() => { haptic('selection'); setSoundEnabled(!soundEnabled) }}
+                aria-checked={soundEnabled}
+                role="switch"
                 className={cn(
-                  'flex flex-col items-center gap-2.5 p-3 rounded-[16px] transition-all duration-300',
-                  isUnlocked
-                    ? 'hover:bg-white/5 cursor-pointer'
-                    : 'opacity-25 cursor-not-allowed'
+                  'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[44px] min-w-[44px]',
+                  soundEnabled ? 'bg-primary' : 'surface-well'
                 )}
               >
-                <div className="relative">
-                  <div
-                    className={cn(
-                      'h-14 w-14 rounded-full transition-all duration-300',
-                      isSelected && 'ring-2 ring-white/80 ring-offset-2 ring-offset-transparent scale-110'
-                    )}
-                    style={{
-                      background: `linear-gradient(135deg, ${orbTheme.colors[0]}, ${orbTheme.colors[1]})`,
-                      boxShadow: isSelected ? `0 8px 24px -4px ${orbTheme.colors[0]}50` : undefined,
-                    }}
-                  />
-                  {!isUnlocked && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Lock className="h-4 w-4 text-white/60" />
-                    </div>
+                <span
+                  className={cn(
+                    'inline-block h-5 w-5 transform rounded-full bg-white shadow-lg transition-transform duration-300',
+                    soundEnabled ? 'translate-x-6' : 'translate-x-1'
                   )}
-                </div>
-                <span className="text-xs text-white/45 font-medium">{orbTheme.name}</span>
-                {!isUnlocked && (
-                  <span className="text-[10px] text-white/30 -mt-1">
-                    Lvl {orbTheme.unlockLevel}
+                />
+              </button>
+            </div>
+            {soundEnabled && (
+              <div className="mt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-white/40 font-medium">Volume</span>
+                  <span className="text-xs text-white/40 font-medium tabular-nums">
+                    {Math.round(soundVolume * 100)}%
                   </span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={soundVolume}
+                  onChange={(e) => setSoundVolume(parseFloat(e.target.value))}
+                  className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/8 accent-primary
+                    [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5
+                    [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary
+                    [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:shadow-primary/30"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Haptics toggle */}
+          <div className="pt-4 border-t border-white/6">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-white font-semibold">Haptics</span>
+              <button
+                onClick={() => {
+                  const next = !hapticsEnabled
+                  setHapticsEnabled(next)
+                  if (next) setTimeout(() => haptic('nudge'), 50)
+                }}
+                aria-checked={hapticsEnabled}
+                role="switch"
+                className={cn(
+                  'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[44px] min-w-[44px]',
+                  hapticsEnabled ? 'bg-primary' : 'surface-well'
                 )}
-              </motion.button>
-            )
-          })}
+              >
+                <span
+                  className={cn(
+                    'inline-block h-5 w-5 transform rounded-full bg-white shadow-lg transition-transform duration-300',
+                    hapticsEnabled ? 'translate-x-6' : 'translate-x-1'
+                  )}
+                />
+              </button>
+            </div>
+          </div>
         </div>
       </motion.section>
 
       {/* Data */}
       <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
-        <div className="flex items-center gap-2.5 mb-4">
-          <Database className="h-5 w-5 text-white/40" />
-          <h2 className="font-display text-base font-bold text-white">Data</h2>
-        </div>
+        <h2 className="font-display text-base font-bold text-white mb-4">Data</h2>
         <div className="flex flex-col gap-2.5">
           <motion.button
             whileTap={{ scale: 0.99 }}

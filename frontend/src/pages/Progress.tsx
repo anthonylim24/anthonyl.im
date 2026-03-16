@@ -12,9 +12,9 @@ import { ActivityHeatmap } from '@/components/gamification/ActivityHeatmap'
 import { breathingProtocols } from '@/lib/breathingProtocols'
 import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 import { cn } from '@/lib/utils'
-import { ACCENT, ACCENT_BRIGHT, ACHIEVEMENT } from '@/lib/palette'
+import { ACCENT, ACCENT_BRIGHT } from '@/lib/palette'
 import { techniqueGradientStyle, getTechniqueVisual } from '@/lib/techniqueConfig'
-import { Trash2, Wind, Flame, Box, Sparkles, Award, CalendarDays, Heart } from 'lucide-react'
+import { Trash2, Wind, Flame, Box, Heart } from 'lucide-react'
 import { useHaptics } from '@/hooks/useHaptics'
 
 const spring = { type: 'spring' as const, stiffness: 300, damping: 30, mass: 1 }
@@ -83,7 +83,6 @@ export function Progress() {
             <h1 className="font-display text-[clamp(2rem,6vw,3rem)] font-extrabold text-white tracking-[-0.02em] leading-[0.95]">
               Progress
             </h1>
-            <p className="text-sm text-white/30 mt-2 tracking-wide">Your journey so far</p>
           </div>
           <div className="relative">
             {showClearConfirm ? (
@@ -147,8 +146,7 @@ export function Progress() {
 
           {/* Activity Heatmap */}
           <motion.div variants={fadeUp}>
-            <h2 className="flex items-center gap-2.5 font-display text-lg font-bold text-white mb-4">
-              <CalendarDays className="h-5 w-5" style={{ color: ACHIEVEMENT }} />
+            <h2 className="font-display text-lg font-bold text-white mb-4">
               Activity
             </h2>
             <ActivityHeatmap sessions={sessionDays} />
@@ -156,8 +154,7 @@ export function Progress() {
 
           {/* Achievements */}
           <motion.div variants={fadeUp}>
-            <h2 className="flex items-center gap-2.5 font-display text-lg font-bold text-white mb-4">
-              <Award className="h-5 w-5" style={{ color: ACCENT_BRIGHT }} />
+            <h2 className="font-display text-lg font-bold text-white mb-4">
               Achievements
             </h2>
             <BadgeGrid earnedBadges={earnedBadges} />
@@ -181,8 +178,7 @@ export function Progress() {
         {/* Session History */}
         <motion.div variants={fadeUp} className="card-elevated rounded-[24px] overflow-hidden">
           <div className="p-5 sm:p-6 border-b border-white/8">
-            <h3 className="font-display text-base sm:text-lg font-bold text-white flex items-center gap-2.5">
-              <Sparkles className="h-5 w-5" style={{ color: ACCENT_BRIGHT }} />
+            <h3 className="font-display text-base sm:text-lg font-bold text-white">
               Session History
             </h3>
           </div>
