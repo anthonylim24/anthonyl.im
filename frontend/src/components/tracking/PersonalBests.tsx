@@ -22,13 +22,13 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
   if (!hasBests) {
     return (
       <div className="card-elevated rounded-[22px] overflow-hidden">
-        <div className="p-5 sm:p-6 border-b border-white/6">
-          <h3 className="font-display font-bold text-white">
+        <div className="p-5 sm:p-6 border-b border-zinc-100">
+          <h3 className="font-display font-bold text-zinc-900">
             Personal Bests
           </h3>
         </div>
         <div className="p-5 sm:p-6">
-          <div className="text-center text-white/30 py-6 text-sm">
+          <div className="text-center text-zinc-400 py-6 text-sm">
             Personal records unlock as you practice. Start your first session to begin tracking.
           </div>
         </div>
@@ -38,8 +38,8 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
 
   return (
     <div className="card-elevated rounded-[22px] overflow-hidden">
-      <div className="p-5 sm:p-6 border-b border-white/6">
-        <h3 className="font-display font-bold text-white">
+      <div className="p-5 sm:p-6 border-b border-zinc-100">
+        <h3 className="font-display font-bold text-zinc-900">
           Personal Bests
         </h3>
       </div>
@@ -53,7 +53,7 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
             return (
               <div
                 key={techniqueId}
-                className="flex items-center justify-between p-4 rounded-[16px] surface-well group hover:bg-white/5 transition-all duration-300"
+                className="flex items-center justify-between p-4 rounded-[16px] surface-well group hover:bg-zinc-50 transition-all duration-300"
               >
                 <div className="flex items-center gap-3">
                   <div
@@ -63,10 +63,10 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
                     <span className="text-white">{techniqueIcons[techniqueId]}</span>
                   </div>
                   <div>
-                    <div className="font-semibold text-sm text-white">
+                    <div className="font-semibold text-sm text-zinc-900">
                       {breathingProtocols[techniqueId].name}
                     </div>
-                    <div className="text-xs text-white/30">
+                    <div className="text-xs text-zinc-400">
                       {formatDate(new Date(best.date))}
                     </div>
                   </div>

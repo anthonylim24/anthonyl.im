@@ -41,10 +41,11 @@ export function Navigation() {
       <div
         className="rounded-2xl mx-auto max-w-md overflow-hidden"
         style={{
-          background: 'rgba(8, 12, 28, 0.9)',
+          background: 'rgba(255, 255, 255, 0.92)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255, 255, 255, 0.05)',
+          border: '1px solid rgba(0, 0, 0, 0.06)',
+          boxShadow: '0 -1px 3px rgba(0, 0, 0, 0.04)',
           transform: 'translateZ(0)',
         }}
       >
@@ -71,8 +72,8 @@ export function Navigation() {
                 className="h-full rounded-2xl"
                 style={{
                   width: 44,
-                  background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_BRIGHT})`,
-                  boxShadow: `0 4px 16px -2px ${ACCENT}50`,
+                  background: ACCENT,
+                  boxShadow: `0 2px 8px -2px ${ACCENT}30`,
                 }}
               />
             </div>
@@ -88,7 +89,7 @@ export function Navigation() {
                   'flex flex-col items-center justify-center gap-1 rounded-2xl text-[10px] font-semibold transition-colors duration-300 relative min-h-[44px] min-w-[44px]',
                   active
                     ? 'text-white'
-                    : 'text-white/30 hover:text-white/55 active:scale-95'
+                    : 'text-zinc-400 hover:text-zinc-600 active:scale-95'
                 )}
               >
                 <div className="relative p-3 rounded-2xl">

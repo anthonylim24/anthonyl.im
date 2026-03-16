@@ -62,7 +62,7 @@ export function ActivityHeatmap({ sessions }: ActivityHeatmapProps) {
     <div className="card-elevated rounded-[20px] p-5">
       <div className="space-y-2">
         {/* Month labels – positioned proportionally across the grid */}
-        <div className="relative h-4 text-[10px] text-white/30 font-medium">
+        <div className="relative h-4 text-[10px] text-zinc-400 font-medium">
           {months.map((m, i) => (
             <span
               key={i}
@@ -84,7 +84,7 @@ export function ActivityHeatmap({ sessions }: ActivityHeatmapProps) {
                     key={row}
                     data-cell
                     data-active={cell && cell.count > 0 ? 'true' : 'false'}
-                    className="w-full aspect-square rounded-[4px] transition-colors bg-white/[0.04]"
+                    className="w-full aspect-square rounded-[4px] transition-colors bg-black/[0.04]"
                     style={cell ? getIntensityStyle(cell.count) : undefined}
                     title={
                       cell

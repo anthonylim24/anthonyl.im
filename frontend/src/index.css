@@ -26,7 +26,7 @@ body,
   font-family: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color-scheme: dark;
+  color-scheme: light dark;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -44,10 +44,10 @@ body,
   --portfolio-text-muted: rgba(248, 247, 255, 0.6);
 
   /* Breathwork tokens */
-  --breath-accent: #6366F1;
-  --breath-accent-bright: #818CF8;
-  --breath-accent-subtle: #4F46E5;
-  --breath-glass-border: rgba(255, 255, 255, 0.08);
+  --breath-accent: #18181B;
+  --breath-accent-bright: #27272A;
+  --breath-accent-subtle: #09090B;
+  --breath-glass-border: rgba(0, 0, 0, 0.06);
 
   /* Easing */
   --spring-smooth: cubic-bezier(0.16, 1, 0.3, 1);
@@ -92,6 +92,9 @@ body,
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.15); }
+
+.breathwork ::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.10); }
+.breathwork ::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.18); }
 
 @media (max-width: 768px) {
   ::-webkit-scrollbar { display: none; }
@@ -189,7 +192,7 @@ body,
   100% { background-position: 200% 0; }
 }
 .animate-shimmer {
-  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 50%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.03) 50%, transparent 100%);
   background-size: 200% 100%;
   animation: shimmer 3s ease-in-out infinite;
 }
@@ -251,6 +254,7 @@ body,
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
 ::selection { background: rgba(99, 102, 241, 0.3); color: white; }
+.breathwork ::selection { background: rgba(24, 24, 27, 0.12); color: #18181B; }
 :focus-visible { outline: 2px solid var(--breath-accent, rgba(99, 102, 241, 0.5)); outline-offset: 2px; }
 :focus:not(:focus-visible) { outline: none; }
 
@@ -283,25 +287,26 @@ body,
   }
 
   .breathwork {
-    --background: 230 40% 4%;
-    --foreground: 230 20% 93%;
-    --card: 230 32% 8% / 0.6;
-    --card-foreground: 230 20% 93%;
-    --popover: 230 32% 8% / 0.9;
-    --popover-foreground: 230 20% 93%;
-    --primary: 239 84% 67%;
-    --primary-foreground: 230 40% 4%;
-    --secondary: 232 20% 16% / 0.7;
-    --secondary-foreground: 230 20% 90%;
-    --muted: 232 18% 16% / 0.8;
-    --muted-foreground: 232 15% 55%;
-    --accent: 232 20% 18% / 0.8;
-    --accent-foreground: 230 20% 93%;
-    --destructive: 355 70% 63%;
+    color-scheme: light;
+    --background: 0 0% 98%;
+    --foreground: 240 6% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 6% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 6% 10%;
+    --primary: 240 6% 10%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 5% 96%;
+    --secondary-foreground: 240 6% 10%;
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
+    --accent: 240 5% 96%;
+    --accent-foreground: 240 6% 10%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 232 20% 18% / 0.6;
-    --input: 232 20% 14% / 0.8;
-    --ring: 239 84% 67% / 0.5;
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 240 6% 10% / 0.2;
     --radius: 1rem;
   }
 
@@ -388,6 +393,40 @@ body,
   border-color: rgba(255, 255, 255, 0.09);
 }
 
+/* ── Breathwork light overrides ── */
+.breathwork .surface-well {
+  background: rgba(0, 0, 0, 0.035);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.breathwork .card-elevated {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.breathwork .card-elevated:hover {
+  border-color: rgba(0, 0, 0, 0.10);
+}
+
+.breathwork .sculpted-card {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.breathwork .sculpted-card:hover {
+  border-color: rgba(0, 0, 0, 0.10);
+}
+
+.breathwork .glass {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+.breathwork .glass:hover {
+  border-color: rgba(0, 0, 0, 0.10);
+}
+
 .card-gradient-indigo::before {
   content: '';
   position: absolute;
@@ -409,11 +448,11 @@ body,
    BREATHWORK BACKGROUNDS
    ═══════════════════════════════════════════════════════ */
 
-/* Clean canvas with one subtle vignette — nothing more */
+/* Clean canvas — warm off-white with a subtle top vignette */
 .breath-bg {
   background:
-    radial-gradient(ellipse 70% 50% at 50% 0%, rgba(99,102,241,0.04) 0%, transparent 60%),
-    #050816;
+    radial-gradient(ellipse 70% 50% at 50% 0%, rgba(0,0,0,0.015) 0%, transparent 60%),
+    #FAFAFA;
 }
 
 /* Ambient orbs — portfolio only */

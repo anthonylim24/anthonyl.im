@@ -94,7 +94,7 @@ export function Session() {
         <motion.button
           variants={fadeUp}
           onClick={() => { haptic('light'); navigate('/breathwork') }}
-          className="flex items-center gap-1 text-sm text-white/40 hover:text-white/60 transition-colors mb-4 -ml-1"
+          className="flex items-center gap-1 text-sm text-zinc-400 hover:text-zinc-500 transition-colors mb-4 -ml-1"
         >
           <ChevronLeft className="h-4 w-4" />
           <span>Back</span>
@@ -109,18 +109,18 @@ export function Session() {
             >
               <span className="text-white scale-90">{techniqueIcons[selectedTechnique]}</span>
             </div>
-            <h1 className="font-display text-xl font-bold text-white">{protocol.name}</h1>
+            <h1 className="font-display text-xl font-bold text-zinc-900">{protocol.name}</h1>
           </div>
-          <p className="text-sm text-white/35 leading-relaxed">{protocol.description}</p>
+          <p className="text-sm text-zinc-400 leading-relaxed">{protocol.description}</p>
         </motion.div>
 
         {/* Phase pattern */}
-        <motion.div variants={fadeUp} className="flex items-center gap-2 px-4 py-3 rounded-xl border border-white/10 mb-6 justify-center">
+        <motion.div variants={fadeUp} className="flex items-center gap-2 px-4 py-3 rounded-xl border border-zinc-200 mb-6 justify-center">
           {protocol.phases.map((phase, i) => (
             <span key={i} className="flex items-center gap-1.5">
-              <span className="text-sm font-mono text-white/50">{phase.duration}s</span>
+              <span className="text-sm font-mono text-zinc-500">{phase.duration}s</span>
               {i < protocol.phases.length - 1 && (
-                <span className="text-white/20">→</span>
+                <span className="text-zinc-300">→</span>
               )}
             </span>
           ))}
@@ -133,9 +133,9 @@ export function Session() {
               onClick={() => setScienceExpanded(!scienceExpanded)}
               className="flex items-center justify-between w-full text-left"
             >
-              <span className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">How it works</span>
+              <span className="text-[10px] font-semibold text-zinc-300 uppercase tracking-wider">How it works</span>
               <ChevronDown className={cn(
-                'h-3.5 w-3.5 text-white/25 transition-transform duration-200',
+                'h-3.5 w-3.5 text-zinc-300 transition-transform duration-200',
                 scienceExpanded && 'rotate-180'
               )} />
             </button>
@@ -145,25 +145,25 @@ export function Session() {
               transition={{ duration: 0.2 }}
               className="overflow-hidden"
             >
-              <p className="mt-2 text-xs text-white/30 leading-relaxed">{protocol.science}</p>
+              <p className="mt-2 text-xs text-zinc-400 leading-relaxed">{protocol.science}</p>
             </motion.div>
           </motion.div>
         )}
 
         {/* Rounds */}
         <motion.div variants={fadeUp} className="flex-1 flex flex-col items-center justify-center gap-4">
-          <span className="text-xs font-medium text-white/40 tracking-wide uppercase">Rounds</span>
+          <span className="text-xs font-medium text-zinc-400 tracking-wide uppercase">Rounds</span>
           <div className="flex items-center gap-8">
             <motion.button
               whileTap={{ scale: 0.9 }}
               transition={spring}
               onClick={() => { haptic(15); setRounds((r) => Math.max(1, r - 1)) }}
               disabled={rounds <= 1}
-              className="h-12 w-12 rounded-full surface-well hover:bg-white/5 disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all text-white"
+              className="h-12 w-12 rounded-full surface-well hover:bg-zinc-50 disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all text-zinc-900"
             >
               <Minus className="h-5 w-5" />
             </motion.button>
-            <span className="font-display text-5xl font-extrabold tabular-nums text-white leading-none min-w-[60px] text-center">
+            <span className="font-display text-5xl font-extrabold tabular-nums text-zinc-900 leading-none min-w-[60px] text-center">
               {rounds}
             </span>
             <motion.button
@@ -171,12 +171,12 @@ export function Session() {
               transition={spring}
               onClick={() => { haptic(15); setRounds((r) => Math.min(40, r + 1)) }}
               disabled={rounds >= 40}
-              className="h-12 w-12 rounded-full surface-well hover:bg-white/5 disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all text-white"
+              className="h-12 w-12 rounded-full surface-well hover:bg-zinc-50 disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all text-zinc-900"
             >
               <Plus className="h-5 w-5" />
             </motion.button>
           </div>
-          <span className="text-sm text-white/30">
+          <span className="text-sm text-zinc-400">
             Est. {formatTime(estimatedDuration)}
           </span>
         </motion.div>
@@ -209,7 +209,7 @@ export function Session() {
       <div className="hidden md:block max-w-2xl mx-auto space-y-14">
         {/* Header */}
         <motion.div variants={fadeUp}>
-          <h1 className="font-display text-[clamp(2rem,6vw,3rem)] font-extrabold text-white tracking-[-0.02em] leading-[0.95]">
+          <h1 className="font-display text-[clamp(2rem,6vw,3rem)] font-extrabold text-zinc-900 tracking-[-0.02em] leading-[0.95]">
             Session Setup
           </h1>
         </motion.div>
@@ -229,7 +229,7 @@ export function Session() {
                 className={cn(
                   'card-elevated rounded-[20px] p-5 text-left transition-all duration-300',
                   'border',
-                  !isSelected && 'border-white/5 hover:border-white/10'
+                  !isSelected && 'border-zinc-100 hover:border-zinc-300'
                 )}
                 style={isSelected ? techniqueActiveStyle(id) : undefined}
               >
@@ -239,18 +239,18 @@ export function Session() {
                 >
                   <span className="text-white">{techniqueIcons[id]}</span>
                 </div>
-                <h3 className="font-display text-base font-bold text-white mb-0.5">{p.name}</h3>
-                <p className="text-xs text-white/35 leading-relaxed line-clamp-2">
+                <h3 className="font-display text-base font-bold text-zinc-900 mb-0.5">{p.name}</h3>
+                <p className="text-xs text-zinc-400 leading-relaxed line-clamp-2">
                   {p.purpose}
                 </p>
                 <div className="flex items-center gap-1.5 mt-3 flex-wrap">
                   {p.phases.map((phase, i) => (
                     <span key={i} className="flex items-center gap-1">
-                      <span className="px-2 py-0.5 rounded-md surface-well text-[10px] font-mono text-white/45">
+                      <span className="px-2 py-0.5 rounded-md surface-well text-[10px] font-mono text-zinc-500">
                         {phase.duration}s
                       </span>
                       {i < p.phases.length - 1 && (
-                        <span className="text-white/15 text-[10px]">→</span>
+                        <span className="text-zinc-200 text-[10px]">→</span>
                       )}
                     </span>
                   ))}
@@ -264,7 +264,7 @@ export function Session() {
         <motion.div variants={fadeUp} className="card-elevated rounded-[24px] overflow-hidden">
           <div className="p-8 space-y-8">
             <div className="space-y-5">
-              <label className="text-xs font-medium text-white/40 tracking-wide uppercase">
+              <label className="text-xs font-medium text-zinc-400 tracking-wide uppercase">
                 Number of Rounds
               </label>
               <div className="flex items-center justify-center gap-10">
@@ -273,15 +273,15 @@ export function Session() {
                   transition={spring}
                   onClick={() => { haptic(15); setRounds((r) => Math.max(1, r - 1)) }}
                   disabled={rounds <= 1}
-                  className="h-14 w-14 rounded-2xl surface-well hover:bg-white/5 disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 text-white"
+                  className="h-14 w-14 rounded-2xl surface-well hover:bg-zinc-50 disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 text-zinc-900"
                 >
                   <Minus className="h-5 w-5" />
                 </motion.button>
                 <div className="text-center min-w-[100px]">
-                  <span className="font-display text-7xl font-extrabold tabular-nums text-white leading-none">
+                  <span className="font-display text-7xl font-extrabold tabular-nums text-zinc-900 leading-none">
                     {rounds}
                   </span>
-                  <span className="block text-xs text-white/35 mt-2 font-medium tracking-wide uppercase">
+                  <span className="block text-xs text-zinc-400 mt-2 font-medium tracking-wide uppercase">
                     rounds
                   </span>
                 </div>
@@ -290,7 +290,7 @@ export function Session() {
                   transition={spring}
                   onClick={() => { haptic(15); setRounds((r) => Math.min(40, r + 1)) }}
                   disabled={rounds >= 40}
-                  className="h-14 w-14 rounded-2xl surface-well hover:bg-white/5 disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 text-white"
+                  className="h-14 w-14 rounded-2xl surface-well hover:bg-zinc-50 disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 text-zinc-900"
                 >
                   <Plus className="h-5 w-5" />
                 </motion.button>
@@ -298,9 +298,9 @@ export function Session() {
             </div>
 
             <div className="flex items-center justify-center gap-3 py-4 px-6 rounded-2xl surface-well">
-              <Clock className="h-4.5 w-4.5 text-white/30" />
-              <span className="text-sm text-white/35">Estimated</span>
-              <span className="font-display font-bold text-lg text-white tabular-nums">
+              <Clock className="h-4.5 w-4.5 text-zinc-400" />
+              <span className="text-sm text-zinc-400">Estimated</span>
+              <span className="font-display font-bold text-lg text-zinc-900 tabular-nums">
                 {formatTime(estimatedDuration)}
               </span>
             </div>

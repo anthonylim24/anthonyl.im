@@ -63,10 +63,10 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
               data-secret="true"
               className="flex flex-col items-center gap-2.5 p-3 rounded-[18px] surface-well"
             >
-              <div className="h-11 w-11 rounded-xl bg-white/5 flex items-center justify-center">
-                <HelpCircle className="h-5 w-5 text-white/15" />
+              <div className="h-11 w-11 rounded-xl bg-zinc-100 flex items-center justify-center">
+                <HelpCircle className="h-5 w-5 text-zinc-300" />
               </div>
-              <span className="text-[11px] text-white/15 text-center font-medium">???</span>
+              <span className="text-[11px] text-zinc-300 text-center font-medium">???</span>
             </motion.div>
           )
         }
@@ -81,7 +81,7 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
             className={cn(
               'flex flex-col items-center gap-2.5 p-3 rounded-[18px] border transition-[background,border-color,opacity] duration-300',
               earned
-                ? 'card-elevated border-white/10'
+                ? 'card-elevated border-zinc-200'
                 : 'surface-well border-transparent opacity-35'
             )}
           >
@@ -90,7 +90,7 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
                 'h-11 w-11 rounded-xl flex items-center justify-center transition-[background,color,box-shadow] duration-300',
                 earned
                   ? 'text-white shadow-lg'
-                  : 'bg-white/8 text-white/25'
+                  : 'bg-zinc-100 text-zinc-400'
               )}
               style={earned ? {
                 background: `linear-gradient(to bottom right, ${BADGE_GRADIENT.from}, ${BADGE_GRADIENT.to})`,
@@ -102,7 +102,7 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
             <span
               className={cn(
                 'text-[11px] text-center font-semibold leading-tight',
-                earned ? 'text-white' : 'text-white/25'
+                earned ? 'text-zinc-900' : 'text-zinc-400'
               )}
             >
               {badge.name}

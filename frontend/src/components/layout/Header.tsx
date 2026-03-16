@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { Wind, BarChart3, Home, Settings } from 'lucide-react'
 import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react'
 import { cn } from '@/lib/utils'
-import { ACCENT, ACCENT_BRIGHT } from '@/lib/palette'
+import { ACCENT } from '@/lib/palette'
 import { CLERK_ENABLED } from '@/lib/clerk'
 
 export function Header() {
@@ -27,10 +27,10 @@ export function Header() {
       <div
         className="safe-top"
         style={{
-          background: 'rgba(5, 8, 22, 0.85)',
+          background: 'rgba(255, 255, 255, 0.85)',
           backdropFilter: 'blur(24px)',
           WebkitBackdropFilter: 'blur(24px)',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
+          borderBottom: '1px solid rgba(0, 0, 0, 0.06)',
         }}
       >
         <div className="container flex h-16 items-center justify-between px-6">
@@ -43,7 +43,7 @@ export function Header() {
               >
                 <Wind className="h-4 w-4 text-white" />
               </div>
-              <span className="font-display font-bold text-base tracking-tight hidden sm:block text-white/90">
+              <span className="font-display font-bold text-base tracking-tight hidden sm:block text-zinc-900">
                 BreathFlow
               </span>
             </Link>
@@ -57,12 +57,12 @@ export function Header() {
                   className={cn(
                     'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-300',
                     isActive(path)
-                      ? 'text-white'
-                      : 'text-white/35 hover:text-white/70 hover:bg-white/5'
+                      ? 'text-zinc-900'
+                      : 'text-zinc-400 hover:text-zinc-700 hover:bg-zinc-50'
                   )}
                   style={isActive(path) ? {
-                    background: `linear-gradient(135deg, ${ACCENT}20, ${ACCENT_BRIGHT}15)`,
-                    color: ACCENT_BRIGHT,
+                    background: 'rgba(0, 0, 0, 0.05)',
+                    color: '#18181B',
                   } : undefined}
                 >
                   <Icon className={cn(
@@ -81,7 +81,7 @@ export function Header() {
               <SignedOut>
                 <SignInButton mode="modal">
                   <button
-                    className="px-4 py-2 rounded-xl text-sm font-semibold text-white/60 hover:text-white hover:bg-white/5 transition-all duration-300"
+                    className="px-4 py-2 rounded-xl text-sm font-semibold text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 transition-all duration-300"
                   >
                     Sign In
                   </button>

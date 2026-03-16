@@ -33,13 +33,13 @@ function AccountInfo() {
         src={user.imageUrl}
         alt={user.fullName ?? 'Profile'}
         loading="lazy"
-        className="h-12 w-12 rounded-full ring-2 ring-white/10"
+        className="h-12 w-12 rounded-full ring-2 ring-zinc-200"
       />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-white truncate">
+        <p className="text-sm font-semibold text-zinc-900 truncate">
           {user.fullName}
         </p>
-        <p className="text-xs text-white/40 truncate">
+        <p className="text-xs text-zinc-400 truncate">
           {user.primaryEmailAddress?.emailAddress}
         </p>
       </div>
@@ -104,7 +104,7 @@ export function Settings() {
   return (
     <motion.div className="space-y-8 pb-8" variants={stagger} initial="hidden" animate="show">
       <motion.div variants={fadeUp}>
-        <h1 className="font-display text-[clamp(2rem,6vw,3rem)] font-extrabold text-white tracking-[-0.02em] leading-[0.95]">
+        <h1 className="font-display text-[clamp(2rem,6vw,3rem)] font-extrabold text-zinc-900 tracking-[-0.02em] leading-[0.95]">
           Settings
         </h1>
       </motion.div>
@@ -112,15 +112,15 @@ export function Settings() {
       {/* Account */}
       {CLERK_ENABLED && (
         <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
-          <h2 className="font-display text-base font-bold text-white mb-4">Account</h2>
+          <h2 className="font-display text-base font-bold text-zinc-900 mb-4">Account</h2>
           <SignedOut>
             <div className="flex flex-col items-center gap-3 py-2">
-              <p className="text-sm text-white/45 text-center">
+              <p className="text-sm text-zinc-400 text-center">
                 Sign in with Google to sync your progress across devices
               </p>
               <SignInButton mode="modal">
                 <button
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 border border-white/10 hover:border-white/20 hover:bg-white/5 text-white"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 text-zinc-900"
                 >
                   <Cloud className="h-4 w-4" />
                   Sign in to sync
@@ -136,7 +136,7 @@ export function Settings() {
 
       {/* Appearance — Theme + Orb Theme merged */}
       <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
-        <h2 className="font-display text-base font-bold text-white mb-4">Appearance</h2>
+        <h2 className="font-display text-base font-bold text-zinc-900 mb-4">Appearance</h2>
         <div className="grid grid-cols-2 gap-3">
           <motion.button
             whileTap={{ scale: 0.98 }}
@@ -146,11 +146,11 @@ export function Settings() {
               'relative flex items-center gap-3 p-4 rounded-[16px] border transition-all duration-300',
               theme === 'dark'
                 ? 'border-primary/60 bg-primary/10'
-                : 'border-white/8 surface-well hover:border-white/12'
+                : 'border-zinc-200 surface-well hover:border-zinc-300'
             )}
           >
-            <Moon className="h-5 w-5 text-white" />
-            <span className="text-white font-semibold text-sm">Dark</span>
+            <Moon className="h-5 w-5 text-zinc-900" />
+            <span className="text-zinc-900 font-semibold text-sm">Dark</span>
             {theme === 'dark' && (
               <Check className="absolute top-3 right-3 h-4 w-4 text-primary" />
             )}
@@ -163,11 +163,11 @@ export function Settings() {
               'relative flex items-center gap-3 p-4 rounded-[16px] border transition-all duration-300',
               theme === 'light'
                 ? 'border-primary/60 bg-primary/10'
-                : 'border-white/8 surface-well hover:border-white/12'
+                : 'border-zinc-200 surface-well hover:border-zinc-300'
             )}
           >
-            <Sun className="h-5 w-5 text-white" />
-            <span className="text-white font-semibold text-sm">Light</span>
+            <Sun className="h-5 w-5 text-zinc-900" />
+            <span className="text-zinc-900 font-semibold text-sm">Light</span>
             {theme === 'light' && (
               <Check className="absolute top-3 right-3 h-4 w-4 text-primary" />
             )}
@@ -175,10 +175,10 @@ export function Settings() {
         </div>
 
         {/* Orb Theme */}
-        <div className="mt-5 pt-5 border-t border-white/6">
+        <div className="mt-5 pt-5 border-t border-zinc-100">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs text-white/40 font-medium">Orb Theme</span>
-            <span className="text-[11px] text-white/30 font-medium tracking-wide uppercase">
+            <span className="text-xs text-zinc-400 font-medium">Orb Theme</span>
+            <span className="text-[11px] text-zinc-400 font-medium tracking-wide uppercase">
               Level {currentLevel}
             </span>
           </div>
@@ -196,7 +196,7 @@ export function Settings() {
                   className={cn(
                     'flex flex-col items-center gap-2.5 p-3 rounded-[16px] transition-all duration-300',
                     isUnlocked
-                      ? 'hover:bg-white/5 cursor-pointer'
+                      ? 'hover:bg-zinc-50 cursor-pointer'
                       : 'opacity-25 cursor-not-allowed'
                   )}
                 >
@@ -204,7 +204,7 @@ export function Settings() {
                     <div
                       className={cn(
                         'h-14 w-14 rounded-full transition-all duration-300',
-                        isSelected && 'ring-2 ring-white/80 ring-offset-2 ring-offset-transparent scale-110'
+                        isSelected && 'ring-2 ring-zinc-900/80 ring-offset-2 ring-offset-transparent scale-110'
                       )}
                       style={{
                         background: `linear-gradient(135deg, ${orbTheme.colors[0]}, ${orbTheme.colors[1]})`,
@@ -213,13 +213,13 @@ export function Settings() {
                     />
                     {!isUnlocked && (
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <Lock className="h-4 w-4 text-white/60" />
+                        <Lock className="h-4 w-4 text-zinc-400" />
                       </div>
                     )}
                   </div>
-                  <span className="text-xs text-white/45 font-medium">{orbTheme.name}</span>
+                  <span className="text-xs text-zinc-500 font-medium">{orbTheme.name}</span>
                   {!isUnlocked && (
-                    <span className="text-[10px] text-white/30 -mt-1">
+                    <span className="text-[10px] text-zinc-400 -mt-1">
                       Lvl {orbTheme.unlockLevel}
                     </span>
                   )}
@@ -232,12 +232,12 @@ export function Settings() {
 
       {/* Feedback — Sound + Haptics merged */}
       <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
-        <h2 className="font-display text-base font-bold text-white mb-4">Feedback</h2>
+        <h2 className="font-display text-base font-bold text-zinc-900 mb-4">Feedback</h2>
         <div className="space-y-4">
           {/* Sound toggle */}
           <div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-white font-semibold">Sound</span>
+              <span className="text-sm text-zinc-900 font-semibold">Sound</span>
               <button
                 onClick={() => { haptic('selection'); setSoundEnabled(!soundEnabled) }}
                 aria-checked={soundEnabled}
@@ -258,8 +258,8 @@ export function Settings() {
             {soundEnabled && (
               <div className="mt-3">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-white/40 font-medium">Volume</span>
-                  <span className="text-xs text-white/40 font-medium tabular-nums">
+                  <span className="text-xs text-zinc-400 font-medium">Volume</span>
+                  <span className="text-xs text-zinc-400 font-medium tabular-nums">
                     {Math.round(soundVolume * 100)}%
                   </span>
                 </div>
@@ -270,7 +270,7 @@ export function Settings() {
                   step={0.01}
                   value={soundVolume}
                   onChange={(e) => setSoundVolume(parseFloat(e.target.value))}
-                  className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-white/8 accent-primary
+                  className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-zinc-200 accent-primary
                     [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5
                     [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary
                     [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:shadow-primary/30"
@@ -280,9 +280,9 @@ export function Settings() {
           </div>
 
           {/* Haptics toggle */}
-          <div className="pt-4 border-t border-white/6">
+          <div className="pt-4 border-t border-zinc-100">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-white font-semibold">Haptics</span>
+              <span className="text-sm text-zinc-900 font-semibold">Haptics</span>
               <button
                 onClick={() => {
                   const next = !hapticsEnabled
@@ -310,18 +310,18 @@ export function Settings() {
 
       {/* Data */}
       <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
-        <h2 className="font-display text-base font-bold text-white mb-4">Data</h2>
+        <h2 className="font-display text-base font-bold text-zinc-900 mb-4">Data</h2>
         <div className="flex flex-col gap-2.5">
           <motion.button
             whileTap={{ scale: 0.99 }}
             transition={spring}
             onClick={() => { haptic('light'); handleExportData() }}
-            className="flex items-center gap-3 w-full p-4 rounded-[16px] surface-well hover:bg-white/5 transition-all duration-300 text-left"
+            className="flex items-center gap-3 w-full p-4 rounded-[16px] surface-well hover:bg-zinc-50 transition-all duration-300 text-left"
           >
-            <Download className="h-4 w-4 text-white/40" />
+            <Download className="h-4 w-4 text-zinc-400" />
             <div>
-              <p className="text-sm font-semibold text-white">Export Data</p>
-              <p className="text-xs text-white/35">
+              <p className="text-sm font-semibold text-zinc-900">Export Data</p>
+              <p className="text-xs text-zinc-400">
                 Download all data as JSON
               </p>
             </div>
@@ -334,25 +334,25 @@ export function Settings() {
               'flex items-center gap-3 w-full p-4 rounded-[16px] transition-all duration-300 text-left',
               confirmClear
                 ? 'bg-red-500/15 hover:bg-red-500/20 border border-red-500/20'
-                : 'surface-well hover:bg-white/5'
+                : 'surface-well hover:bg-zinc-50'
             )}
           >
             <Trash2
               className={cn(
                 'h-4 w-4',
-                confirmClear ? 'text-red-400' : 'text-white/40'
+                confirmClear ? 'text-red-400' : 'text-zinc-400'
               )}
             />
             <div>
               <p
                 className={cn(
                   'text-sm font-semibold',
-                  confirmClear ? 'text-red-400' : 'text-white'
+                  confirmClear ? 'text-red-400' : 'text-zinc-900'
                 )}
               >
                 {confirmClear ? 'Tap again to confirm' : 'Clear All Data'}
               </p>
-              <p className="text-xs text-white/35">
+              <p className="text-xs text-zinc-400">
                 {confirmClear
                   ? 'This action cannot be undone'
                   : 'Remove all session history'}
@@ -362,7 +362,7 @@ export function Settings() {
           {confirmClear && (
             <button
               onClick={() => setConfirmClear(false)}
-              className="text-xs text-white/35 hover:text-white/55 transition-colors"
+              className="text-xs text-zinc-400 hover:text-zinc-600 transition-colors"
             >
               Cancel
             </button>
