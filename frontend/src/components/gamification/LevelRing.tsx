@@ -8,7 +8,7 @@ interface LevelRingProps {
   colors?: [string, string]
 }
 
-const GLASS_BORDER = 'rgba(0, 0, 0, 0.08)'
+const GLASS_BORDER = 'var(--bw-border)'
 
 export function LevelRing({
   level,
