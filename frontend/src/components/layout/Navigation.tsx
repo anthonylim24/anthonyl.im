@@ -1,11 +1,10 @@
 /**
  * Navigation.tsx
- * Premium iOS-style bottom tab bar with sculpted depth and active indicators.
+ * Minimal bottom tab bar — parchment + ink aesthetic.
  */
 import { Link, useLocation } from 'react-router-dom'
 import { Wind, BarChart3, Home, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { ACCENT } from '@/lib/palette'
 import { useViewportOffset } from '@/hooks/useViewportOffset'
 import { useHaptics } from '@/hooks/useHaptics'
 
@@ -35,49 +34,17 @@ export function Navigation() {
 
   return (
     <nav
-      className="md:hidden fixed left-0 right-0 z-50 px-4 pt-2 safe-bottom transition-[bottom] duration-200"
+      className="md:hidden fixed left-0 right-0 z-50 transition-[bottom] duration-200"
       style={{ bottom: `${bottomOffset}px` }}
     >
       <div
-        className="rounded-2xl mx-auto max-w-md overflow-hidden"
+        className="mx-auto max-w-md"
         style={{
           background: 'var(--bw-nav-bg-mobile)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          border: '1px solid var(--bw-nav-border)',
-          boxShadow: 'var(--bw-nav-shadow)',
-          transform: 'translateZ(0)',
+          borderTop: '1px solid var(--bw-nav-border)',
         }}
       >
-        <div className="relative grid grid-cols-4 h-[64px]">
-          {/* Sliding active indicator — GPU-composited, no layout recalc */}
-          {/* Sliding active indicator — GPU-composited, no layout recalc.
-              Positioned to align with the icon area (p-2.5 = 10px around 18px icon = 38px).
-              Cell is 64px tall; icon area starts ~9px from top → center at ~28px.
-              Pill is 38px tall → top = 28 - 19 = 9px. */}
-          {activeIndex >= 0 && (
-            <div
-              className="absolute pointer-events-none flex justify-center"
-              style={{
-                width: `${100 / navItems.length}%`,
-                top: 9,
-                height: 38,
-                left: 0,
-                transform: `translateX(${activeIndex * 100}%) translateZ(0)`,
-                transition: 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
-                willChange: 'transform',
-              }}
-            >
-              <div
-                className="h-full rounded-2xl"
-                style={{
-                  width: 44,
-                  background: ACCENT,
-                  boxShadow: `0 2px 8px -2px ${ACCENT}30`,
-                }}
-              />
-            </div>
-          )}
+        <div className="grid grid-cols-4 h-[64px]">
           {navItems.map(({ path, label, icon: Icon }, i) => {
             const active = i === activeIndex
             return (
@@ -86,16 +53,16 @@ export function Navigation() {
                 to={path}
                 onClick={() => { if (i !== activeIndex) haptic('selection') }}
                 className={cn(
-                  'flex flex-col items-center justify-center gap-1 rounded-2xl text-[10px] font-semibold transition-colors duration-300 relative min-h-[44px] min-w-[44px]',
+                  'flex flex-col items-center justify-center gap-1 text-[10px] font-semibold transition-colors duration-300 relative min-h-[24px] min-w-[44px]',
                   active
-                    ? 'text-white'
+                    ? 'text-bw font-semibold'
                     : 'text-bw-tertiary hover:text-bw-secondary active:scale-95'
                 )}
               >
-                <div className="relative p-3 rounded-2xl">
+                <div className="relative">
                   <Icon className={cn(
-                    "relative h-[18px] w-[18px] transition-colors duration-300",
-                    active ? "text-white" : ""
+                    "relative h-[24px] w-[24px] transition-colors duration-300",
+                    active ? "text-bw" : "text-bw-tertiary"
                   )} />
                 </div>
                 <span className="tracking-wide">{label}</span>

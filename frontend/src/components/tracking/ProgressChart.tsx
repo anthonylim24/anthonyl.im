@@ -43,7 +43,7 @@ export function ProgressChart({
     return (
       <div className="card-elevated rounded-[22px] overflow-hidden">
         <div className="p-5 sm:p-6 border-b border-bw-border-subtle">
-          <h3 className="font-display font-bold text-bw">
+          <h3 className="font-display font-light text-bw tracking-[0.04em]">
             {title}
           </h3>
         </div>
@@ -59,7 +59,7 @@ export function ProgressChart({
   return (
     <div className="card-elevated rounded-[22px] overflow-hidden">
       <div className="p-5 sm:p-6 border-b border-bw-border-subtle">
-        <h3 className="font-display font-bold text-bw">
+        <h3 className="font-display font-light text-bw tracking-[0.04em]">
           {title}
         </h3>
       </div>
@@ -70,15 +70,15 @@ export function ProgressChart({
               <CartesianGrid strokeDasharray="3 3" stroke="var(--bw-chart-grid)" />
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 11, fill: 'var(--bw-chart-tick)', fontFamily: 'DM Sans' }}
+                tick={{ fontSize: 11, fill: 'var(--bw-chart-tick)', fontFamily: 'Inter' }}
               />
               <YAxis
-                tick={{ fontSize: 11, fill: 'var(--bw-chart-tick)', fontFamily: 'DM Sans' }}
+                tick={{ fontSize: 11, fill: 'var(--bw-chart-tick)', fontFamily: 'Inter' }}
                 label={{
                   value: 'Seconds',
                   angle: -90,
                   position: 'insideLeft',
-                  style: { fill: 'var(--bw-chart-tick)', fontSize: 11, fontFamily: 'DM Sans' },
+                  style: { fill: 'var(--bw-chart-tick)', fontSize: 11, fontFamily: 'Inter' },
                 }}
               />
               <Tooltip
@@ -88,10 +88,10 @@ export function ProgressChart({
                   borderRadius: '16px',
                   boxShadow: '0 16px 48px rgba(0, 0, 0, 0.12)',
                   padding: '12px 16px',
-                  fontFamily: 'DM Sans',
+                  fontFamily: 'Inter',
                 }}
-                labelStyle={{ color: 'var(--bw-tooltip-label)', fontWeight: 600, marginBottom: 4, fontFamily: 'DM Sans' }}
-                itemStyle={{ color: 'var(--bw-tooltip-item)', fontFamily: 'DM Sans' }}
+                labelStyle={{ color: 'var(--bw-tooltip-label)', fontWeight: 600, marginBottom: 4, fontFamily: 'Inter' }}
+                itemStyle={{ color: 'var(--bw-tooltip-item)', fontFamily: 'Inter' }}
               />
               <Line
                 type="monotone"

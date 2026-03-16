@@ -5,23 +5,19 @@ import { CLERK_ENABLED } from '@/lib/clerk'
 import {
   Download,
   Trash2,
-  Lock,
   Check,
   Sun,
   Moon,
   Cloud,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { ACCENT, ACCENT_BRIGHT, withAlpha } from '@/lib/palette'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useHaptics } from '@/hooks/useHaptics'
-import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore } from '@/stores/historyStore'
-import { getLevelForXP, ORB_THEMES } from '@/lib/gamification'
 
-const spring = { type: 'spring' as const, stiffness: 300, damping: 30, mass: 1 }
-const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } }
-const fadeUp = { hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0, transition: spring } }
+const motionTransition = { type: 'tween' as const, duration: 0.6, ease: [0.33, 0, 0, 1] as const }
+const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } }
+const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: motionTransition } }
 
 function AccountInfo() {
   const { user } = useUser()
@@ -43,9 +39,9 @@ function AccountInfo() {
           {user.primaryEmailAddress?.emailAddress}
         </p>
       </div>
-      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border" style={{ background: withAlpha(ACCENT, 0.1), borderColor: withAlpha(ACCENT, 0.2) }}>
-        <div className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: ACCENT_BRIGHT }} />
-        <span className="text-[11px] font-medium" style={{ color: ACCENT_BRIGHT }}>Synced</span>
+      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-bw-border bg-bw-hover">
+        <div className="h-1.5 w-1.5 rounded-full animate-pulse bg-bw-tertiary" />
+        <span className="text-[11px] font-medium text-bw-secondary">Synced</span>
       </div>
     </div>
   )
@@ -63,13 +59,10 @@ export function Settings() {
     setHapticsEnabled,
   } = useSettingsStore()
 
-  const { xp, selectedTheme, setSelectedTheme } = useGamificationStore()
   const { clearHistory } = useHistoryStore()
 
   const { trigger: haptic } = useHaptics()
   const [confirmClear, setConfirmClear] = useState(false)
-
-  const currentLevel = getLevelForXP(xp)
 
   const handleExportData = () => {
     const data: Record<string, string> = {}
@@ -104,7 +97,7 @@ export function Settings() {
   return (
     <motion.div className="space-y-8 pb-8" variants={stagger} initial="hidden" animate="show">
       <motion.div variants={fadeUp}>
-        <h1 className="font-display text-[clamp(2rem,6vw,3rem)] font-extrabold text-bw tracking-[-0.02em] leading-[0.95]">
+        <h1 className="font-display text-[clamp(2rem,6vw,3rem)] font-light text-bw tracking-[0.04em] leading-[0.95]">
           Settings
         </h1>
       </motion.div>
@@ -112,7 +105,7 @@ export function Settings() {
       {/* Account */}
       {CLERK_ENABLED && (
         <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
-          <h2 className="font-display text-base font-bold text-bw mb-4">Account</h2>
+          <h2 className="font-display text-base font-light text-bw tracking-[0.04em] mb-4">Account</h2>
           <SignedOut>
             <div className="flex flex-col items-center gap-3 py-2">
               <p className="text-sm text-bw-tertiary text-center">
@@ -134,105 +127,51 @@ export function Settings() {
         </motion.section>
       )}
 
-      {/* Appearance — Theme + Orb Theme merged */}
+      {/* Appearance */}
       <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
-        <h2 className="font-display text-base font-bold text-bw mb-4">Appearance</h2>
+        <h2 className="font-display text-base font-light text-bw tracking-[0.04em] mb-4">Appearance</h2>
         <div className="grid grid-cols-2 gap-3">
           <motion.button
             whileTap={{ scale: 0.98 }}
-            transition={spring}
+            transition={motionTransition}
             onClick={() => { haptic('selection'); setTheme('dark') }}
             className={cn(
               'relative flex items-center gap-3 p-4 rounded-[16px] border transition-all duration-300',
               theme === 'dark'
-                ? 'border-primary/60 bg-primary/10'
-                : 'border-bw-border surface-well hover:border-bw-border'
+                ? 'bg-foreground text-background border-transparent'
+                : 'border-bw-border surface-well text-bw-secondary hover:border-bw-border'
             )}
           >
-            <Moon className="h-5 w-5 text-bw" />
-            <span className="text-bw font-semibold text-sm">Dark</span>
+            <Moon className="h-5 w-5" />
+            <span className="font-semibold text-sm">Dark</span>
             {theme === 'dark' && (
-              <Check className="absolute top-3 right-3 h-4 w-4 text-primary" />
+              <Check className="absolute top-3 right-3 h-4 w-4" />
             )}
           </motion.button>
           <motion.button
             whileTap={{ scale: 0.98 }}
-            transition={spring}
+            transition={motionTransition}
             onClick={() => { haptic('selection'); setTheme('light') }}
             className={cn(
               'relative flex items-center gap-3 p-4 rounded-[16px] border transition-all duration-300',
               theme === 'light'
-                ? 'border-primary/60 bg-primary/10'
-                : 'border-bw-border surface-well hover:border-bw-border'
+                ? 'bg-foreground text-background border-transparent'
+                : 'border-bw-border surface-well text-bw-secondary hover:border-bw-border'
             )}
           >
-            <Sun className="h-5 w-5 text-bw" />
-            <span className="text-bw font-semibold text-sm">Light</span>
+            <Sun className="h-5 w-5" />
+            <span className="font-semibold text-sm">Light</span>
             {theme === 'light' && (
-              <Check className="absolute top-3 right-3 h-4 w-4 text-primary" />
+              <Check className="absolute top-3 right-3 h-4 w-4" />
             )}
           </motion.button>
         </div>
 
-        {/* Orb Theme */}
-        <div className="mt-5 pt-5 border-t border-bw-border-subtle">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs text-bw-tertiary font-medium">Orb Theme</span>
-            <span className="text-[11px] text-bw-tertiary font-medium tracking-wide uppercase">
-              Level {currentLevel}
-            </span>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            {ORB_THEMES.map((orbTheme) => {
-              const isUnlocked = currentLevel >= orbTheme.unlockLevel
-              const isSelected = selectedTheme === orbTheme.id
-              return (
-                <motion.button
-                  key={orbTheme.id}
-                  whileTap={isUnlocked ? { scale: 0.95 } : undefined}
-                  transition={spring}
-                  onClick={() => { if (isUnlocked) { haptic('selection'); setSelectedTheme(orbTheme.id) } }}
-                  disabled={!isUnlocked}
-                  className={cn(
-                    'flex flex-col items-center gap-2.5 p-3 rounded-[16px] transition-all duration-300',
-                    isUnlocked
-                      ? 'hover:bg-bw-hover cursor-pointer'
-                      : 'opacity-25 cursor-not-allowed'
-                  )}
-                >
-                  <div className="relative">
-                    <div
-                      className={cn(
-                        'h-14 w-14 rounded-full transition-all duration-300',
-                        isSelected && 'ring-2 ring-bw/80 ring-offset-2 ring-offset-transparent scale-110'
-                      )}
-                      style={{
-                        background: `linear-gradient(135deg, ${orbTheme.colors[0]}, ${orbTheme.colors[1]})`,
-                        boxShadow: isSelected ? `0 8px 24px -4px ${orbTheme.colors[0]}50` : undefined,
-                      }}
-                    />
-                    {!isUnlocked && (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <Lock className="h-4 w-4 text-bw-tertiary" />
-                      </div>
-                    )}
-                  </div>
-                  <span className="text-xs text-bw-secondary font-medium">{orbTheme.name}</span>
-                  {!isUnlocked && (
-                    <span className="text-[10px] text-bw-tertiary -mt-1">
-                      Lvl {orbTheme.unlockLevel}
-                    </span>
-                  )}
-                </motion.button>
-              )
-            })}
-          </div>
-        </div>
       </motion.section>
 
       {/* Feedback — Sound + Haptics merged */}
       <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
-        <h2 className="font-display text-base font-bold text-bw mb-4">Feedback</h2>
+        <h2 className="font-display text-base font-light text-bw tracking-[0.04em] mb-4">Feedback</h2>
         <div className="space-y-4">
           {/* Sound toggle */}
           <div>
@@ -243,7 +182,7 @@ export function Settings() {
                 aria-checked={soundEnabled}
                 role="switch"
                 className={cn(
-                  'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[44px] min-w-[44px]',
+                  'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[24px] min-w-[44px]',
                   soundEnabled ? 'bg-primary' : 'surface-well'
                 )}
               >
@@ -292,7 +231,7 @@ export function Settings() {
                 aria-checked={hapticsEnabled}
                 role="switch"
                 className={cn(
-                  'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[44px] min-w-[44px]',
+                  'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[24px] min-w-[44px]',
                   hapticsEnabled ? 'bg-primary' : 'surface-well'
                 )}
               >
@@ -310,11 +249,11 @@ export function Settings() {
 
       {/* Data */}
       <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
-        <h2 className="font-display text-base font-bold text-bw mb-4">Data</h2>
+        <h2 className="font-display text-base font-light text-bw tracking-[0.04em] mb-4">Data</h2>
         <div className="flex flex-col gap-2.5">
           <motion.button
             whileTap={{ scale: 0.99 }}
-            transition={spring}
+            transition={motionTransition}
             onClick={() => { haptic('light'); handleExportData() }}
             className="flex items-center gap-3 w-full p-4 rounded-[16px] surface-well hover:bg-bw-hover transition-all duration-300 text-left"
           >
@@ -328,7 +267,7 @@ export function Settings() {
           </motion.button>
           <motion.button
             whileTap={{ scale: 0.99 }}
-            transition={spring}
+            transition={motionTransition}
             onClick={handleClearData}
             className={cn(
               'flex items-center gap-3 w-full p-4 rounded-[16px] transition-all duration-300 text-left',

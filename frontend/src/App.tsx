@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, lazy, Suspense, useCallback } from "react";
 import { Button } from "./components/ui/button";
-import { Send, ChevronDown, MessageCircle, Code2, Briefcase, Mail } from "lucide-react";
+import { Send, ChevronDown } from "lucide-react";
 import { cn } from "./lib/utils";
 import { invokeDeepseek } from "./lib/apiService";
 import { useFavicon } from "./hooks/useFavicon";
@@ -16,10 +16,10 @@ interface ChatMessage {
 }
 
 const suggestedQuestions = [
-  { text: "What is Anthony's background?", icon: MessageCircle },
-  { text: "What are his technical skills?", icon: Code2 },
-  { text: "Where has he worked?", icon: Briefcase },
-  { text: "How can I contact him?", icon: Mail },
+  "What is Anthony's background?",
+  "What are his technical skills?",
+  "Where has he worked?",
+  "How can I contact him?",
 ];
 
 function App() {
@@ -254,13 +254,9 @@ function App() {
                         className={cn(
                           "max-w-[88%] sm:max-w-[80%] rounded-[20px] px-4 py-3 transition-all duration-300",
                           isUser
-                            ? "ml-4 text-white"
-                            : "card-elevated mr-4 text-white/90"
+                            ? "ml-4 text-white bg-[#6366F1] shadow-[0_8px_24px_-4px_rgba(99,102,241,0.3)]"
+                            : "mr-4 text-white/90 bg-white/[0.06] backdrop-blur-sm border border-white/[0.06]"
                         )}
-                        style={isUser ? {
-                          background: 'linear-gradient(135deg, #6366F1, #818CF8)',
-                          boxShadow: '0 8px 24px -4px rgba(99,102,241,0.35), inset 0 1px 0 rgba(255,255,255,0.15)',
-                        } : undefined}
                       >
                         {message.content ? (
                           <Suspense fallback={<MessageSkeleton />}>
@@ -286,31 +282,17 @@ function App() {
                 "flex flex-col items-center justify-start md:justify-center h-full",
                 isShortViewport ? "py-0.5 sm:py-2" : "py-3 sm:py-8"
               )}>
-                {/* Decorative icon */}
-                {!isShortViewport && (
-                  <div className="mb-4 sm:mb-8 mt-2 sm:mt-0">
-                    <div
-                      className="w-20 h-20 sm:w-28 sm:h-28 rounded-[24px] sm:rounded-[28px] flex items-center justify-center"
-                      style={{
-                        background: 'linear-gradient(135deg, rgba(99,102,241,0.2), rgba(129,140,248,0.1))',
-                        border: '1px solid rgba(255,255,255,0.08)',
-                      }}
-                    >
-                      <MessageCircle className="w-8 h-8 sm:w-12 sm:h-12 text-white/60" />
-                    </div>
-                  </div>
-                )}
                 <h2 className={cn(
-                  "font-display font-extrabold text-white leading-tight",
-                  isShortViewport ? "text-lg sm:text-2xl mb-1" : "text-xl sm:text-3xl mb-2"
+                  "font-display text-white leading-[0.95] tracking-tight",
+                  isShortViewport ? "text-3xl sm:text-5xl mb-2" : "text-4xl sm:text-6xl mb-3"
                 )}>
-                  Welcome
+                  Ask me anything
                 </h2>
                 <p className={cn(
-                  "text-white/35 text-center max-w-xs px-4 leading-relaxed font-medium",
-                  isShortViewport ? "text-xs sm:text-sm" : "text-sm"
+                  "text-white/25 text-center max-w-sm leading-relaxed",
+                  isShortViewport ? "text-xs" : "text-sm"
                 )}>
-                  Ask me anything about Anthony&apos;s experience, skills, or background
+                  About Anthony&apos;s experience, skills, and background
                 </p>
               </div>
             </div>
@@ -323,7 +305,7 @@ function App() {
                 shouldAutoScroll.current = true;
                 scrollToBottom();
               }}
-              className="absolute bottom-4 right-4 p-2.5 rounded-xl card-elevated text-white/60 hover:text-white transition-all duration-300 animate-scale-in hover:scale-105"
+              className="absolute bottom-4 right-4 p-2.5 rounded-xl bg-white/[0.08] border border-white/[0.08] backdrop-blur-sm text-white/60 hover:text-white hover:bg-white/[0.12] transition-all duration-300 animate-scale-in hover:scale-105"
               aria-label="Scroll to bottom"
             >
               <ChevronDown className="w-5 h-5" />
@@ -335,7 +317,7 @@ function App() {
         <div className={cn("shrink-0 pb-safe", isShortViewport && !hasMessages ? "p-3" : "p-4")}>
           <div
             className={cn(
-              "card-elevated rounded-[24px] relative overflow-hidden",
+              "rounded-[24px] relative overflow-hidden bg-[rgba(10,10,20,0.65)] backdrop-blur-md border border-white/[0.08]",
               isShortViewport && !hasMessages ? "p-3 sm:p-4" : "p-4 sm:p-5"
             )}
           >
@@ -345,30 +327,24 @@ function App() {
                 "relative z-10 grid grid-cols-2 gap-2.5",
                 isShortViewport ? "mb-2" : "mb-4"
               )}>
-                {suggestedQuestions.map(({ text, icon: Icon }, index) => (
+                {suggestedQuestions.map((question, index) => (
                   <button
-                    key={text}
-                    onClick={() => handleSubmit(undefined, text)}
+                    key={question}
+                    onClick={() => handleSubmit(undefined, question)}
                     disabled={isLoading}
                     className={cn(
-                      "card-elevated rounded-[16px] text-left group",
-                      isShortViewport ? "p-2.5 sm:p-3" : "p-3.5 sm:p-4",
-                      "hover:border-[rgba(255,255,255,0.12)] active:scale-[0.97]",
+                      "rounded-2xl text-left group",
+                      isShortViewport ? "p-3" : "p-4",
+                      "bg-white/[0.04] border border-white/[0.06]",
+                      "hover:bg-white/[0.08] hover:border-white/[0.10]",
+                      "active:scale-[0.97]",
                       "transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed",
                       "opacity-0 animate-slide-up",
                       `stagger-${index + 1}`
                     )}
                   >
-                    <div
-                      className="h-8 w-8 rounded-xl flex items-center justify-center mb-2.5 group-hover:scale-110 transition-transform duration-300"
-                      style={{
-                        background: 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(129,140,248,0.08))',
-                      }}
-                    >
-                      <Icon className="h-3.5 w-3.5 text-[#818CF8]" />
-                    </div>
-                    <span className="text-xs sm:text-sm text-white/50 group-hover:text-white/80 transition-colors leading-snug font-medium">
-                      {text}
+                    <span className="text-xs sm:text-sm text-white/40 group-hover:text-white/75 transition-colors leading-snug">
+                      {question}
                     </span>
                   </button>
                 ))}
@@ -376,10 +352,10 @@ function App() {
             ) : (
               <div className="relative z-10 mb-3 overflow-hidden">
                 <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar scroll-smooth">
-                  {suggestedQuestions.map(({ text }, index) => (
+                  {suggestedQuestions.map((question, index) => (
                     <button
-                      key={text}
-                      onClick={() => handleSubmit(undefined, text)}
+                      key={question}
+                      onClick={() => handleSubmit(undefined, question)}
                       disabled={isLoading}
                       className={cn(
                         "shrink-0 px-3.5 py-1.5 text-xs rounded-xl",
@@ -391,7 +367,7 @@ function App() {
                         `stagger-${index + 1}`
                       )}
                     >
-                      {text}
+                      {question}
                     </button>
                   ))}
                 </div>
@@ -400,7 +376,7 @@ function App() {
 
             {/* Input form */}
             <form onSubmit={handleSubmit} className="relative z-10">
-              <div className="flex items-end gap-3 surface-well rounded-[16px] p-2 focus-within:border-[rgba(99,102,241,0.25)] transition-all duration-300">
+              <div className="flex items-end gap-3 bg-white/[0.04] border border-white/[0.06] rounded-[16px] p-2 focus-within:border-white/[0.14] transition-all duration-300">
                 <textarea
                   ref={inputRef}
                   value={input}
@@ -415,10 +391,7 @@ function App() {
                   type="submit"
                   disabled={isLoading || !input.trim()}
                   size="icon"
-                  className="shrink-0 h-10 w-10 rounded-xl disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-300 hover:scale-105 active:scale-95"
-                  style={{
-                    background: 'linear-gradient(135deg, #6366F1, #818CF8)',
-                  }}
+                  className="shrink-0 h-10 w-10 rounded-xl bg-[#6366F1] hover:bg-[#818CF8] disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-300 hover:scale-105 active:scale-95"
                 >
                   <Send className="w-4 h-4" />
                 </Button>
@@ -442,9 +415,9 @@ function App() {
 function TypingIndicator() {
   return (
     <div className="flex items-center gap-1.5 py-1 px-1">
-      <span className="w-2 h-2 rounded-full animate-typing-dot" style={{ background: 'linear-gradient(135deg, #6366F1, #818CF8)' }} />
-      <span className="w-2 h-2 rounded-full animate-typing-dot [animation-delay:0.15s]" style={{ background: 'linear-gradient(135deg, #6366F1, #818CF8)' }} />
-      <span className="w-2 h-2 rounded-full animate-typing-dot [animation-delay:0.3s]" style={{ background: 'linear-gradient(135deg, #6366F1, #818CF8)' }} />
+      <span className="w-2 h-2 rounded-full bg-[#818CF8] animate-typing-dot" />
+      <span className="w-2 h-2 rounded-full bg-[#818CF8] animate-typing-dot [animation-delay:0.15s]" />
+      <span className="w-2 h-2 rounded-full bg-[#818CF8] animate-typing-dot [animation-delay:0.3s]" />
     </div>
   );
 }

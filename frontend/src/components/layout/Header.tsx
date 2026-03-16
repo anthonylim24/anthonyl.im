@@ -2,7 +2,6 @@ import { Link, useLocation } from 'react-router-dom'
 import { Wind, BarChart3, Home, Settings } from 'lucide-react'
 import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react'
 import { cn } from '@/lib/utils'
-import { ACCENT } from '@/lib/palette'
 import { CLERK_ENABLED } from '@/lib/clerk'
 
 export function Header() {
@@ -28,8 +27,6 @@ export function Header() {
         className="safe-top"
         style={{
           background: 'var(--bw-nav-bg)',
-          backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)',
           borderBottom: '1px solid var(--bw-nav-border)',
         }}
       >
@@ -37,13 +34,7 @@ export function Header() {
           <div className="flex items-center">
             {/* Logo */}
             <Link to="/breathwork" className="flex items-center gap-2.5 mr-8 group">
-              <div
-                className="h-8 w-8 rounded-lg flex items-center justify-center"
-                style={{ background: ACCENT }}
-              >
-                <Wind className="h-4 w-4 text-white" />
-              </div>
-              <span className="font-display font-bold text-base tracking-tight hidden sm:block text-bw">
+              <span className="font-display font-light text-lg tracking-[0.04em] text-bw">
                 BreathFlow
               </span>
             </Link>
@@ -55,20 +46,13 @@ export function Header() {
                   key={path}
                   to={path}
                   className={cn(
-                    'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-300',
+                    'flex items-center gap-2 px-4 py-2 text-sm font-medium tracking-wide transition-colors duration-300',
                     isActive(path)
-                      ? 'text-bw'
-                      : 'text-bw-tertiary hover:text-bw hover:bg-bw-hover'
+                      ? 'text-bw font-semibold'
+                      : 'text-bw-tertiary hover:text-bw'
                   )}
-                  style={isActive(path) ? {
-                    background: 'var(--bw-hover)',
-                    color: 'var(--bw-text)',
-                  } : undefined}
                 >
-                  <Icon className={cn(
-                    "h-4 w-4 transition-transform duration-300",
-                    isActive(path) && "scale-110"
-                  )} />
+                  <Icon className="h-4 w-4" />
                   {label}
                 </Link>
               ))}

@@ -63,14 +63,14 @@ describe('BreathingSession easter egg', () => {
     expect(screen.queryByTestId('kirby-easter-egg')).toBeNull()
   })
 
-  it('shows KirbyEasterEgg after 5 rapid orb taps', async () => {
+  it('shows KirbyEasterEgg after 5 rapid taps on rings', async () => {
     let t = 0
     vi.spyOn(Date, 'now').mockImplementation(() => (t += 100))
 
     render(<BreathingSession config={CONFIG} />)
-    const orb = screen.getByTestId('fluid-orb')
+    const rings = screen.getByTestId('concentric-rings')
     for (let i = 0; i < 5; i++) {
-      await userEvent.click(orb)
+      await userEvent.click(rings)
     }
     expect(screen.getByTestId('kirby-easter-egg')).toBeTruthy()
   })
@@ -80,15 +80,17 @@ describe('BreathingSession easter egg', () => {
     vi.spyOn(Date, 'now').mockImplementation(() => (t += 100))
 
     render(<BreathingSession config={CONFIG} />)
-    const orb = screen.getByTestId('fluid-orb')
+    const rings = screen.getByTestId('concentric-rings')
 
     for (let i = 0; i < 5; i++) {
-      await userEvent.click(orb)
+      await userEvent.click(rings)
     }
     expect(screen.getByTestId('kirby-easter-egg')).toBeTruthy()
 
+    // In kirby mode, the click target changes but still has same testid
+    const kirbyTarget = screen.getByTestId('concentric-rings')
     for (let i = 0; i < 5; i++) {
-      await userEvent.click(orb)
+      await userEvent.click(kirbyTarget)
     }
     expect(screen.queryByTestId('kirby-easter-egg')).toBeNull()
   })

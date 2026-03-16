@@ -39,7 +39,14 @@
       "mcp__paper__get_screenshot",
       "mcp__paper__finish_working_on_nodes",
       "mcp__chrome-devtools__new_page",
-      "mcp__chrome-devtools__performance_start_trace"
+      "mcp__chrome-devtools__performance_start_trace",
+      "WebFetch(domain:www.secondnature.inc)",
+      "mcp__chrome-devtools__navigate_page",
+      "mcp__chrome-devtools__take_screenshot",
+      "mcp__chrome-devtools__take_snapshot",
+      "mcp__chrome-devtools__fill",
+      "mcp__chrome-devtools__click",
+      "mcp__chrome-devtools__press_key"
     ]
   }
 }

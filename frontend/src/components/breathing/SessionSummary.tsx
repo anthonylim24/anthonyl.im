@@ -3,7 +3,6 @@ import { motion } from 'motion/react'
 import { BADGES } from '@/lib/gamification'
 import { formatTime } from '@/lib/utils'
 import { ACCENT, ACCENT_BRIGHT, ACHIEVEMENT, PERSONAL_BEST } from '@/lib/palette'
-import { accentGradientStyle } from '@/lib/techniqueConfig'
 import { Trophy, Zap, Target, Clock, Star, X } from 'lucide-react'
 import { CelebrationParticles } from './CelebrationParticles'
 import { useHaptics } from '@/hooks/useHaptics'
@@ -127,15 +126,14 @@ export function SessionSummary({
 
             <motion.div
               variants={fadeUp}
-              className="h-16 w-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
-              style={{ background: `linear-gradient(to bottom right, ${ACHIEVEMENT}, ${ACCENT})`, boxShadow: `0 10px 15px -3px ${ACCENT}40` }}
+              className="h-16 w-16 rounded-2xl flex items-center justify-center mx-auto mb-4 bg-foreground"
             >
-              <Trophy className="h-8 w-8 text-white" />
+              <Trophy className="h-8 w-8 text-background" />
             </motion.div>
 
             <motion.h2
               variants={fadeUp}
-              className="text-2xl font-bold text-bw"
+              className="font-display text-2xl font-light text-bw tracking-[0.04em]"
             >
               Session Complete
             </motion.h2>
@@ -236,8 +234,7 @@ export function SessionSummary({
           <motion.div variants={fadeUp} className="px-6 pb-6">
             <button
               onClick={onClose}
-              className="w-full py-3 rounded-xl text-white font-semibold shadow-md hover:shadow-lg active:scale-[0.98] transition-all duration-200"
-              style={accentGradientStyle()}
+              className="w-full py-3 rounded-xl text-background font-semibold active:scale-[0.98] transition-all duration-200 bg-foreground"
             >
               Continue
             </button>

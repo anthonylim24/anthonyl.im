@@ -12,21 +12,13 @@ import { ActivityHeatmap } from '@/components/gamification/ActivityHeatmap'
 import { breathingProtocols } from '@/lib/breathingProtocols'
 import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 import { cn } from '@/lib/utils'
-import { ACCENT, ACCENT_BRIGHT } from '@/lib/palette'
-import { techniqueGradientStyle, getTechniqueVisual } from '@/lib/techniqueConfig'
-import { Trash2, Wind, Flame, Box, Heart } from 'lucide-react'
+import { TechniqueGeometryIcon } from '@/components/ui/TechniqueGeometryIcon'
+import { Trash2 } from 'lucide-react'
 import { useHaptics } from '@/hooks/useHaptics'
 
-const spring = { type: 'spring' as const, stiffness: 300, damping: 30, mass: 1 }
-const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } }
-const fadeUp = { hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0, transition: spring } }
-
-const techniqueIcons: Record<TechniqueId, React.ReactNode> = {
-  [TECHNIQUE_IDS.BOX_BREATHING]: <Box className="h-4 w-4" />,
-  [TECHNIQUE_IDS.CO2_TOLERANCE]: <Flame className="h-4 w-4" />,
-  [TECHNIQUE_IDS.POWER_BREATHING]: <Wind className="h-4 w-4" />,
-  [TECHNIQUE_IDS.CYCLIC_SIGHING]: <Heart className="h-4 w-4" />,
-}
+const motionTransition = { type: 'tween' as const, duration: 0.6, ease: [0.33, 0, 0, 1] as const }
+const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } }
+const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: motionTransition } }
 
 export function Progress() {
   const {
@@ -80,7 +72,7 @@ export function Progress() {
         {/* Header */}
         <motion.div variants={fadeUp} className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="font-display text-[clamp(2rem,6vw,3rem)] font-extrabold text-bw tracking-[-0.02em] leading-[0.95]">
+            <h1 className="font-display text-[clamp(2rem,6vw,3rem)] font-light text-bw tracking-[0.04em] leading-[0.95]">
               Progress
             </h1>
           </div>
@@ -123,15 +115,13 @@ export function Progress() {
                   <div className="text-xs font-medium text-bw-tertiary tracking-wide uppercase">
                     Level {level}
                   </div>
-                  <div className="font-display text-xl font-bold text-bw">{levelTitle}</div>
+                  <div className="font-display text-xl font-light text-bw">{levelTitle}</div>
                 </div>
                 <div className="space-y-2">
                   <div className="h-2.5 rounded-full surface-well overflow-hidden">
                     <div
-                      className="h-full rounded-full origin-left transition-transform duration-700 ease-out"
+                      className="h-full rounded-full origin-left transition-transform duration-700 ease-out bg-bw"
                       style={{
-                        background: `linear-gradient(to right, ${ACCENT}, ${ACCENT_BRIGHT})`,
-                        boxShadow: `0 0 12px ${ACCENT}60`,
                         transform: `translateZ(0) scaleX(${Math.min(1, progress)})`,
                       }}
                     />
@@ -146,7 +136,7 @@ export function Progress() {
 
           {/* Activity Heatmap */}
           <motion.div variants={fadeUp}>
-            <h2 className="font-display text-lg font-bold text-bw mb-4">
+            <h2 className="font-display text-lg font-light text-bw tracking-[0.04em] mb-4">
               Activity
             </h2>
             <ActivityHeatmap sessions={sessionDays} />
@@ -154,7 +144,7 @@ export function Progress() {
 
           {/* Achievements */}
           <motion.div variants={fadeUp}>
-            <h2 className="font-display text-lg font-bold text-bw mb-4">
+            <h2 className="font-display text-lg font-light text-bw tracking-[0.04em] mb-4">
               Achievements
             </h2>
             <BadgeGrid earnedBadges={earnedBadges} />
@@ -178,7 +168,7 @@ export function Progress() {
         {/* Session History */}
         <motion.div variants={fadeUp} className="card-elevated rounded-[24px] overflow-hidden">
           <div className="p-5 sm:p-6 border-b border-bw-border-subtle">
-            <h3 className="font-display text-base sm:text-lg font-bold text-bw">
+            <h3 className="font-display text-base sm:text-lg font-light text-bw tracking-[0.04em]">
               Session History
             </h3>
           </div>
@@ -196,32 +186,26 @@ export function Progress() {
               >
                 All
               </button>
-              {Object.values(TECHNIQUE_IDS).map((id) => {
-                const tv = getTechniqueVisual(id)
-                return (
+              {Object.values(TECHNIQUE_IDS).map((id) => (
                 <button
                   key={id}
                   onClick={() => { haptic('selection'); setFilterTechnique(id) }}
                   className={cn(
                     'flex-1 flex items-center justify-center gap-1.5 h-9 sm:h-10 rounded-xl text-xs font-medium transition-[background,color,box-shadow] duration-200',
                     filterTechnique === id
-                      ? 'text-bw shadow-md'
+                      ? 'bg-bw-active text-bw shadow-md'
                       : 'text-bw-tertiary hover:text-bw-secondary'
                   )}
-                  style={filterTechnique === id ? { background: `${tv.primary}25` } : undefined}
                 >
-                  <div
-                    className="h-5 w-5 rounded flex items-center justify-center shrink-0"
-                    style={techniqueGradientStyle(id)}
-                  >
-                    <span className="text-white scale-75">{techniqueIcons[id]}</span>
-                  </div>
+                  <TechniqueGeometryIcon techniqueId={id} className={cn(
+                    'shrink-0',
+                    filterTechnique === id ? 'text-bw' : 'text-bw-tertiary'
+                  )} />
                   <span className="hidden sm:inline truncate">
                     {breathingProtocols[id].name.split(' ')[0]}
                   </span>
                 </button>
-                )
-              })}
+              ))}
             </div>
 
             <SessionHistory sessions={filteredSessions} />

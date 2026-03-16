@@ -19,7 +19,7 @@ export function Timer({ seconds, className, size = 'lg' }: TimerProps) {
       aria-live="off"
       aria-label={`${seconds} seconds remaining`}
       className={cn(
-        'font-mono tabular-nums font-bold tracking-tight text-foreground',
+        'font-display font-light tabular-nums tracking-[0.04em] text-foreground',
         sizeStyles[size],
         className
       )}
