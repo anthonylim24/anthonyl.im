@@ -212,9 +212,6 @@ export function Session() {
           <h1 className="font-display text-[clamp(2rem,6vw,3rem)] font-extrabold text-white tracking-[-0.02em] leading-[0.95]">
             Session Setup
           </h1>
-          <p className="text-sm text-white/30 mt-2 tracking-wide">
-            Choose your technique and customize
-          </p>
         </motion.div>
 
         {/* Technique Selection — 3-col grid */}
@@ -261,28 +258,6 @@ export function Session() {
               </motion.button>
             )
           })}
-        </motion.div>
-
-        {/* Selected technique detail */}
-        <motion.div variants={fadeUp} className="card-elevated rounded-[20px] p-5">
-          <div className="flex items-start gap-4">
-            <div
-              className="h-12 w-12 rounded-2xl flex items-center justify-center shrink-0"
-              style={techniqueGradientStyle(selectedTechnique)}
-            >
-              <span className="text-white">{techniqueIcons[selectedTechnique]}</span>
-            </div>
-            <div className="min-w-0">
-              <h3 className="font-display text-lg font-bold text-white">{protocol.name}</h3>
-              <p className="mt-1 text-sm text-white/35 leading-relaxed">{protocol.description}</p>
-            </div>
-          </div>
-          {protocol.science && (
-            <div className="mt-4 pt-4 border-t border-white/5">
-              <span className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">How it works</span>
-              <p className="mt-1.5 text-xs text-white/30 leading-relaxed">{protocol.science}</p>
-            </div>
-          )}
         </motion.div>
 
         {/* Round Counter */}

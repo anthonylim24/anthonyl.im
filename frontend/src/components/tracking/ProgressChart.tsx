@@ -10,7 +10,6 @@ import {
 } from 'recharts'
 import type { CompletedSession } from '@/stores/historyStore'
 import { TECHNIQUE } from '@/lib/palette'
-import { TrendingUp } from 'lucide-react'
 
 interface ProgressChartProps {
   sessions: CompletedSession[]
@@ -44,8 +43,7 @@ export function ProgressChart({
     return (
       <div className="card-elevated rounded-[22px] overflow-hidden">
         <div className="p-5 sm:p-6 border-b border-white/6">
-          <h3 className="flex items-center gap-2.5 font-display font-bold text-white">
-            <TrendingUp className="h-5 w-5 text-primary" />
+          <h3 className="font-display font-bold text-white">
             {title}
           </h3>
         </div>
@@ -61,8 +59,7 @@ export function ProgressChart({
   return (
     <div className="card-elevated rounded-[22px] overflow-hidden">
       <div className="p-5 sm:p-6 border-b border-white/6">
-        <h3 className="flex items-center gap-2.5 font-display font-bold text-white">
-          <TrendingUp className="h-5 w-5 text-primary" />
+        <h3 className="font-display font-bold text-white">
           {title}
         </h3>
       </div>
