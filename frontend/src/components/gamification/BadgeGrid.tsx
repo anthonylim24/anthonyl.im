@@ -1,7 +1,7 @@
 import { motion } from 'motion/react'
 import { BADGES } from '@/lib/gamification'
 import { cn } from '@/lib/utils'
-import { BADGE_GRADIENT, withAlpha, ACCENT } from '@/lib/palette'
+import { BADGE_GRADIENT, withAlpha, ACCENT_WARM } from '@/lib/palette'
 import {
   Zap,
   Flame,
@@ -94,7 +94,7 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
               )}
               style={earned ? {
                 background: `linear-gradient(to bottom right, ${BADGE_GRADIENT.from}, ${BADGE_GRADIENT.to})`,
-                boxShadow: `0 10px 15px -3px ${withAlpha(ACCENT, 0.2)}`,
+                boxShadow: `0 10px 15px -3px ${withAlpha(ACCENT_WARM, 0.2)}`,
               } : undefined}
             >
               {earned ? ICON_MAP[badge.icon] : <Lock className="h-4 w-4" />}

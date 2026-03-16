@@ -120,8 +120,9 @@ export function Progress() {
                 <div className="space-y-2">
                   <div className="h-2.5 rounded-full surface-well overflow-hidden">
                     <div
-                      className="h-full rounded-full origin-left transition-transform duration-700 ease-out bg-bw"
+                      className="h-full rounded-full origin-left transition-transform duration-700 ease-out"
                       style={{
+                        backgroundColor: 'var(--bw-accent)',
                         transform: `translateZ(0) scaleX(${Math.min(1, progress)})`,
                       }}
                     />

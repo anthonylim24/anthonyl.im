@@ -9,7 +9,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import type { CompletedSession } from '@/stores/historyStore'
-import { TECHNIQUE } from '@/lib/palette'
+import { ACCENT_WARM, ACCENT_WARM_LIGHT } from '@/lib/palette'
 
 interface ProgressChartProps {
   sessions: CompletedSession[]
@@ -97,20 +97,20 @@ export function ProgressChart({
                 type="monotone"
                 dataKey="maxHold"
                 name="Best Hold"
-                stroke={TECHNIQUE.co2.primary}
+                stroke={ACCENT_WARM}
                 strokeWidth={3}
-                dot={{ fill: TECHNIQUE.co2.primary, strokeWidth: 0, r: 4 }}
-                activeDot={{ r: 6, fill: TECHNIQUE.co2.primary, strokeWidth: 0 }}
+                dot={{ fill: ACCENT_WARM, strokeWidth: 0, r: 4 }}
+                activeDot={{ r: 6, fill: ACCENT_WARM, strokeWidth: 0 }}
               />
               <Line
                 type="monotone"
                 dataKey="avgHold"
                 name="Average"
-                stroke={TECHNIQUE.co2.secondary}
+                stroke={ACCENT_WARM_LIGHT}
                 strokeWidth={2}
                 strokeDasharray="5 5"
-                dot={{ fill: TECHNIQUE.co2.secondary, strokeWidth: 0, r: 3 }}
-                activeDot={{ r: 5, fill: TECHNIQUE.co2.secondary, strokeWidth: 0 }}
+                dot={{ fill: ACCENT_WARM_LIGHT, strokeWidth: 0, r: 3 }}
+                activeDot={{ r: 5, fill: ACCENT_WARM_LIGHT, strokeWidth: 0 }}
               />
             </LineChart>
           </ResponsiveContainer>

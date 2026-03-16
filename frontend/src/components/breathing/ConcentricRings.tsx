@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react'
 import { BREATH_PHASES, type BreathPhase } from '@/lib/constants'
 import type { TechniqueId } from '@/lib/constants'
-import { getTechniqueGeometry, type TechniqueGeometry } from '@/lib/techniqueConfig'
+import { getTechniqueGeometry, getTechniqueRingColor, type TechniqueGeometry } from '@/lib/techniqueConfig'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { cn } from '@/lib/utils'
 
@@ -31,7 +31,7 @@ function isHoldPhase(phase: BreathPhase | null): boolean {
   return phase === BREATH_PHASES.HOLD_IN || phase === BREATH_PHASES.HOLD_OUT || phase === BREATH_PHASES.REST
 }
 
-/** Render technique-specific geometry overlay */
+/** Render technique-specific geometry overlay — stays monochromatic (ink) */
 function GeometryOverlay({ geometry, radius }: { geometry: TechniqueGeometry; radius: number }) {
   const cx = CENTER
   const cy = CENTER
@@ -130,6 +130,10 @@ export function ConcentricRings({
   const reducedMotion = useReducedMotion()
   const geometry = getTechniqueGeometry(techniqueId)
 
+  // Detect dark mode for ring color selection
+  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+  const ringColors = getTechniqueRingColor(techniqueId, isDark)
+
   // Compute ring radii based on amplitude
   const rings = useMemo(() => {
     return Array.from({ length: RING_COUNT }, (_, i) => {
@@ -178,7 +182,7 @@ export function ConcentricRings({
       onClick={onClick}
       data-testid="concentric-rings"
     >
-      {/* Crosshair axes */}
+      {/* Crosshair axes — stay monochromatic (ink) */}
       <line
         x1={CENTER - MAX_RADIUS * 1.1}
         y1={CENTER}
@@ -198,7 +202,7 @@ export function ConcentricRings({
         opacity="0.06"
       />
 
-      {/* Concentric rings */}
+      {/* Concentric rings — technique-colored */}
       {rings.map((ring, i) => (
         <circle
           key={i}
@@ -206,14 +210,14 @@ export function ConcentricRings({
           cy={CENTER}
           r={ring.radius}
           fill="none"
-          stroke="currentColor"
+          stroke={ringColors.primary}
           strokeWidth={i === RING_COUNT - 1 ? '0.6' : '0.4'}
           opacity={ring.opacity}
           style={reducedMotion ? undefined : { transition: 'r 0.3s ease-out, opacity 0.3s ease-out' }}
         />
       ))}
 
-      {/* Technique geometry overlay — rotates slowly */}
+      {/* Technique geometry overlay — rotates slowly, stays monochromatic */}
       <g style={{ ...rotationStyle, transformOrigin: `${CENTER}px ${CENTER}px` }}>
         <GeometryOverlay geometry={geometry} radius={outerRadius * 0.95} />
       </g>
