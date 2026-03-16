@@ -34,7 +34,7 @@ export function Navigation() {
 
   return (
     <nav
-      className="md:hidden fixed left-0 right-0 z-50 safe-bottom transition-[bottom] duration-200"
+      className="md:hidden fixed left-0 right-0 z-50 transition-[bottom] duration-200"
       style={{ bottom: `${bottomOffset}px` }}
     >
       <div
@@ -53,15 +53,15 @@ export function Navigation() {
                 to={path}
                 onClick={() => { if (i !== activeIndex) haptic('selection') }}
                 className={cn(
-                  'flex flex-col items-center justify-center gap-1 text-[10px] font-semibold transition-colors duration-300 relative min-h-[44px] min-w-[44px]',
+                  'flex flex-col items-center justify-center gap-1 text-[10px] font-semibold transition-colors duration-300 relative min-h-[24px] min-w-[44px]',
                   active
                     ? 'text-bw font-semibold'
                     : 'text-bw-tertiary hover:text-bw-secondary active:scale-95'
                 )}
               >
-                <div className="relative p-3">
+                <div className="relative">
                   <Icon className={cn(
-                    "relative h-[18px] w-[18px] transition-colors duration-300",
+                    "relative h-[24px] w-[24px] transition-colors duration-300",
                     active ? "text-bw" : "text-bw-tertiary"
                   )} />
                 </div>

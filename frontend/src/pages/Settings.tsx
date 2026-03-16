@@ -182,7 +182,7 @@ export function Settings() {
                 aria-checked={soundEnabled}
                 role="switch"
                 className={cn(
-                  'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[44px] min-w-[44px]',
+                  'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[24px] min-w-[44px]',
                   soundEnabled ? 'bg-primary' : 'surface-well'
                 )}
               >
@@ -231,7 +231,7 @@ export function Settings() {
                 aria-checked={hapticsEnabled}
                 role="switch"
                 className={cn(
-                  'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[44px] min-w-[44px]',
+                  'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[24px] min-w-[44px]',
                   hapticsEnabled ? 'bg-primary' : 'surface-well'
                 )}
               >
