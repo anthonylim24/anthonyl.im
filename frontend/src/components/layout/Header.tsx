@@ -27,10 +27,10 @@ export function Header() {
       <div
         className="safe-top"
         style={{
-          background: 'rgba(255, 255, 255, 0.85)',
+          background: 'var(--bw-nav-bg)',
           backdropFilter: 'blur(24px)',
           WebkitBackdropFilter: 'blur(24px)',
-          borderBottom: '1px solid rgba(0, 0, 0, 0.06)',
+          borderBottom: '1px solid var(--bw-nav-border)',
         }}
       >
         <div className="container flex h-16 items-center justify-between px-6">
@@ -43,7 +43,7 @@ export function Header() {
               >
                 <Wind className="h-4 w-4 text-white" />
               </div>
-              <span className="font-display font-bold text-base tracking-tight hidden sm:block text-zinc-900">
+              <span className="font-display font-bold text-base tracking-tight hidden sm:block text-bw">
                 BreathFlow
               </span>
             </Link>
@@ -57,12 +57,12 @@ export function Header() {
                   className={cn(
                     'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-300',
                     isActive(path)
-                      ? 'text-zinc-900'
-                      : 'text-zinc-400 hover:text-zinc-700 hover:bg-zinc-50'
+                      ? 'text-bw'
+                      : 'text-bw-tertiary hover:text-bw hover:bg-bw-hover'
                   )}
                   style={isActive(path) ? {
-                    background: 'rgba(0, 0, 0, 0.05)',
-                    color: '#18181B',
+                    background: 'var(--bw-hover)',
+                    color: 'var(--bw-text)',
                   } : undefined}
                 >
                   <Icon className={cn(
@@ -81,7 +81,7 @@ export function Header() {
               <SignedOut>
                 <SignInButton mode="modal">
                   <button
-                    className="px-4 py-2 rounded-xl text-sm font-semibold text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 transition-all duration-300"
+                    className="px-4 py-2 rounded-xl text-sm font-semibold text-bw-secondary hover:text-bw hover:bg-bw-hover transition-all duration-300"
                   >
                     Sign In
                   </button>

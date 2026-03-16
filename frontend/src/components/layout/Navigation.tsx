@@ -5,7 +5,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { Wind, BarChart3, Home, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { ACCENT, ACCENT_BRIGHT } from '@/lib/palette'
+import { ACCENT } from '@/lib/palette'
 import { useViewportOffset } from '@/hooks/useViewportOffset'
 import { useHaptics } from '@/hooks/useHaptics'
 
@@ -41,11 +41,11 @@ export function Navigation() {
       <div
         className="rounded-2xl mx-auto max-w-md overflow-hidden"
         style={{
-          background: 'rgba(255, 255, 255, 0.92)',
+          background: 'var(--bw-nav-bg-mobile)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
-          border: '1px solid rgba(0, 0, 0, 0.06)',
-          boxShadow: '0 -1px 3px rgba(0, 0, 0, 0.04)',
+          border: '1px solid var(--bw-nav-border)',
+          boxShadow: 'var(--bw-nav-shadow)',
           transform: 'translateZ(0)',
         }}
       >
@@ -89,7 +89,7 @@ export function Navigation() {
                   'flex flex-col items-center justify-center gap-1 rounded-2xl text-[10px] font-semibold transition-colors duration-300 relative min-h-[44px] min-w-[44px]',
                   active
                     ? 'text-white'
-                    : 'text-zinc-400 hover:text-zinc-600 active:scale-95'
+                    : 'text-bw-tertiary hover:text-bw-secondary active:scale-95'
                 )}
               >
                 <div className="relative p-3 rounded-2xl">

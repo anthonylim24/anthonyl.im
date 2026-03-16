@@ -110,7 +110,7 @@ export function SessionSummary({
         initial={{ opacity: 0, scale: 0.92, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ ...spring, delay: 0.1 }}
-        className="relative w-full max-w-sm rounded-3xl bg-white border border-zinc-200 shadow-2xl overflow-hidden"
+        className="relative w-full max-w-sm rounded-3xl bg-white border border-bw-border shadow-2xl overflow-hidden"
       >
         <motion.div
           variants={stagger}
@@ -120,7 +120,7 @@ export function SessionSummary({
           <div className="relative px-6 pt-8 pb-4 text-center">
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 h-8 w-8 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-400 hover:text-zinc-600 transition-colors"
+              className="absolute top-4 right-4 h-8 w-8 rounded-full bg-bw-active flex items-center justify-center text-bw-tertiary hover:text-bw-secondary transition-colors"
             >
               <X className="h-4 w-4" />
             </button>
@@ -135,7 +135,7 @@ export function SessionSummary({
 
             <motion.h2
               variants={fadeUp}
-              className="text-2xl font-bold text-zinc-900"
+              className="text-2xl font-bold text-bw"
             >
               Session Complete
             </motion.h2>
@@ -157,33 +157,33 @@ export function SessionSummary({
 
           <div className="px-6 pb-4">
             <motion.div variants={fadeUp} className="grid grid-cols-2 gap-3">
-              <div className="rounded-xl bg-zinc-50 p-3 text-center">
-                <Target className="h-5 w-5 mx-auto mb-1 text-zinc-400" />
-                <div className="text-xl font-bold text-zinc-900">{rounds}</div>
-                <div className="text-xs text-zinc-400">Rounds</div>
+              <div className="rounded-xl bg-bw-hover p-3 text-center">
+                <Target className="h-5 w-5 mx-auto mb-1 text-bw-tertiary" />
+                <div className="text-xl font-bold text-bw">{rounds}</div>
+                <div className="text-xs text-bw-tertiary">Rounds</div>
               </div>
-              <div className="rounded-xl bg-zinc-50 p-3 text-center">
-                <Clock className="h-5 w-5 mx-auto mb-1 text-zinc-400" />
-                <div className="text-xl font-bold text-zinc-900">
+              <div className="rounded-xl bg-bw-hover p-3 text-center">
+                <Clock className="h-5 w-5 mx-auto mb-1 text-bw-tertiary" />
+                <div className="text-xl font-bold text-bw">
                   {formatTime(durationSeconds)}
                 </div>
-                <div className="text-xs text-zinc-400">Duration</div>
+                <div className="text-xs text-bw-tertiary">Duration</div>
               </div>
             </motion.div>
 
             {holdTimes.length > 0 && (
               <motion.div variants={fadeUp} className="grid grid-cols-2 gap-3 mt-3">
-                <div className="rounded-xl bg-zinc-50 p-3 text-center">
+                <div className="rounded-xl bg-bw-hover p-3 text-center">
                   <div className="text-xl font-bold" style={{ color: ACHIEVEMENT }}>
                     <AnimatedCounter target={maxHold} suffix="s" />
                   </div>
-                  <div className="text-xs text-zinc-400">Best Hold</div>
+                  <div className="text-xs text-bw-tertiary">Best Hold</div>
                 </div>
-                <div className="rounded-xl bg-zinc-50 p-3 text-center">
-                  <div className="text-xl font-bold text-zinc-900">
+                <div className="rounded-xl bg-bw-hover p-3 text-center">
+                  <div className="text-xl font-bold text-bw">
                     <AnimatedCounter target={avgHold} suffix="s" />
                   </div>
-                  <div className="text-xs text-zinc-400">Avg Hold</div>
+                  <div className="text-xs text-bw-tertiary">Avg Hold</div>
                 </div>
               </motion.div>
             )}
@@ -206,7 +206,7 @@ export function SessionSummary({
 
             {newBadges.length > 0 && (
               <motion.div variants={fadeUp} className="mt-4 space-y-2">
-                <div className="text-xs text-zinc-400 text-center font-medium uppercase tracking-wider">
+                <div className="text-xs text-bw-tertiary text-center font-medium uppercase tracking-wider">
                   Badges Unlocked
                 </div>
                 <div className="flex flex-wrap justify-center gap-2">
