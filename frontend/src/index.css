@@ -68,6 +68,10 @@ body,
   padding-top: env(safe-area-inset-top, 0px);
 }
 
+.pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
 .session-content {
   padding-bottom: calc(8.75rem + env(safe-area-inset-bottom, 0px) + var(--viewport-bottom-offset, 0px));
 }
