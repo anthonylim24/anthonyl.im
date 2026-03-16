@@ -8,7 +8,7 @@ interface LevelRingProps {
   colors?: [string, string]
 }
 
-const GLASS_BORDER = 'rgba(255, 255, 255, 0.06)'
+const GLASS_BORDER = 'rgba(0, 0, 0, 0.08)'
 
 export function LevelRing({
   level,
@@ -65,7 +65,7 @@ export function LevelRing({
         />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="font-display text-xl font-bold text-white">{level}</span>
+        <span className="font-display text-xl font-bold text-bw">{level}</span>
       </div>
     </div>
   )

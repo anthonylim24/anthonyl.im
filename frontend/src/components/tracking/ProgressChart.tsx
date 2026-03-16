@@ -42,13 +42,13 @@ export function ProgressChart({
   if (chartData.length === 0) {
     return (
       <div className="card-elevated rounded-[22px] overflow-hidden">
-        <div className="p-5 sm:p-6 border-b border-white/6">
-          <h3 className="font-display font-bold text-white">
+        <div className="p-5 sm:p-6 border-b border-bw-border-subtle">
+          <h3 className="font-display font-bold text-bw">
             {title}
           </h3>
         </div>
         <div className="p-5 sm:p-6">
-          <div className="h-64 flex items-center justify-center text-white/30 text-sm">
+          <div className="h-64 flex items-center justify-center text-bw-tertiary text-sm">
             Your hold time trends will appear here after a few sessions.
           </div>
         </div>
@@ -58,8 +58,8 @@ export function ProgressChart({
 
   return (
     <div className="card-elevated rounded-[22px] overflow-hidden">
-      <div className="p-5 sm:p-6 border-b border-white/6">
-        <h3 className="font-display font-bold text-white">
+      <div className="p-5 sm:p-6 border-b border-bw-border-subtle">
+        <h3 className="font-display font-bold text-bw">
           {title}
         </h3>
       </div>
@@ -67,31 +67,31 @@ export function ProgressChart({
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--bw-chart-grid)" />
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.25)', fontFamily: 'DM Sans' }}
+                tick={{ fontSize: 11, fill: 'var(--bw-chart-tick)', fontFamily: 'DM Sans' }}
               />
               <YAxis
-                tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.25)', fontFamily: 'DM Sans' }}
+                tick={{ fontSize: 11, fill: 'var(--bw-chart-tick)', fontFamily: 'DM Sans' }}
                 label={{
                   value: 'Seconds',
                   angle: -90,
                   position: 'insideLeft',
-                  style: { fill: 'rgba(255,255,255,0.25)', fontSize: 11, fontFamily: 'DM Sans' },
+                  style: { fill: 'var(--bw-chart-tick)', fontSize: 11, fontFamily: 'DM Sans' },
                 }}
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: 'rgba(14,18,38,0.95)',
-                  border: '1px solid rgba(255,255,255,0.08)',
+                  backgroundColor: 'var(--bw-tooltip-bg)',
+                  border: '1px solid var(--bw-tooltip-border)',
                   borderRadius: '16px',
-                  boxShadow: '0 16px 48px rgba(0, 0, 0, 0.4)',
+                  boxShadow: '0 16px 48px rgba(0, 0, 0, 0.12)',
                   padding: '12px 16px',
                   fontFamily: 'DM Sans',
                 }}
-                labelStyle={{ color: 'rgba(255,255,255,0.9)', fontWeight: 600, marginBottom: 4, fontFamily: 'DM Sans' }}
-                itemStyle={{ color: 'rgba(255,255,255,0.6)', fontFamily: 'DM Sans' }}
+                labelStyle={{ color: 'var(--bw-tooltip-label)', fontWeight: 600, marginBottom: 4, fontFamily: 'DM Sans' }}
+                itemStyle={{ color: 'var(--bw-tooltip-item)', fontFamily: 'DM Sans' }}
               />
               <Line
                 type="monotone"

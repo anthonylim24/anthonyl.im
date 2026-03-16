@@ -26,7 +26,7 @@ body,
   font-family: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color-scheme: dark;
+  color-scheme: light dark;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -44,10 +44,10 @@ body,
   --portfolio-text-muted: rgba(248, 247, 255, 0.6);
 
   /* Breathwork tokens */
-  --breath-accent: #6366F1;
-  --breath-accent-bright: #818CF8;
-  --breath-accent-subtle: #4F46E5;
-  --breath-glass-border: rgba(255, 255, 255, 0.08);
+  --breath-accent: #18181B;
+  --breath-accent-bright: #27272A;
+  --breath-accent-subtle: #09090B;
+  --breath-glass-border: rgba(0, 0, 0, 0.06);
 
   /* Easing */
   --spring-smooth: cubic-bezier(0.16, 1, 0.3, 1);
@@ -92,6 +92,11 @@ body,
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.15); }
+
+.breathwork ::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.10); }
+.breathwork ::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.18); }
+.dark .breathwork ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); }
+.dark .breathwork ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.15); }
 
 @media (max-width: 768px) {
   ::-webkit-scrollbar { display: none; }
@@ -189,7 +194,7 @@ body,
   100% { background-position: 200% 0; }
 }
 .animate-shimmer {
-  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 50%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.03) 50%, transparent 100%);
   background-size: 200% 100%;
   animation: shimmer 3s ease-in-out infinite;
 }
@@ -251,6 +256,8 @@ body,
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
 ::selection { background: rgba(99, 102, 241, 0.3); color: white; }
+.breathwork ::selection { background: rgba(24, 24, 27, 0.12); color: #18181B; }
+.dark .breathwork ::selection { background: rgba(99, 102, 241, 0.3); color: white; }
 :focus-visible { outline: 2px solid var(--breath-accent, rgba(99, 102, 241, 0.5)); outline-offset: 2px; }
 :focus:not(:focus-visible) { outline: none; }
 
@@ -283,26 +290,91 @@ body,
   }
 
   .breathwork {
-    --background: 230 40% 4%;
-    --foreground: 230 20% 93%;
-    --card: 230 32% 8% / 0.6;
-    --card-foreground: 230 20% 93%;
-    --popover: 230 32% 8% / 0.9;
-    --popover-foreground: 230 20% 93%;
-    --primary: 239 84% 67%;
-    --primary-foreground: 230 40% 4%;
-    --secondary: 232 20% 16% / 0.7;
-    --secondary-foreground: 230 20% 90%;
-    --muted: 232 18% 16% / 0.8;
-    --muted-foreground: 232 15% 55%;
-    --accent: 232 20% 18% / 0.8;
-    --accent-foreground: 230 20% 93%;
-    --destructive: 355 70% 63%;
+    color-scheme: light;
+    --background: 0 0% 98%;
+    --foreground: 240 6% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 6% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 6% 10%;
+    --primary: 240 6% 10%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 5% 96%;
+    --secondary-foreground: 240 6% 10%;
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
+    --accent: 240 5% 96%;
+    --accent-foreground: 240 6% 10%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 232 20% 18% / 0.6;
-    --input: 232 20% 14% / 0.8;
-    --ring: 239 84% 67% / 0.5;
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 240 6% 10% / 0.2;
     --radius: 1rem;
+
+    /* ── Semantic bw tokens (light) ── */
+    --bw-text: #18181B;
+    --bw-text-secondary: #52525B;
+    --bw-text-tertiary: #A1A1AA;
+    --bw-text-faint: #D4D4D8;
+    --bw-border: #E4E4E7;
+    --bw-border-subtle: #F4F4F5;
+    --bw-hover: #F4F4F5;
+    --bw-active: #E4E4E7;
+    --bw-nav-bg: rgba(255, 255, 255, 0.85);
+    --bw-nav-bg-mobile: rgba(255, 255, 255, 0.92);
+    --bw-nav-border: rgba(0, 0, 0, 0.06);
+    --bw-nav-shadow: 0 -1px 3px rgba(0, 0, 0, 0.04);
+    --bw-chart-grid: rgba(0, 0, 0, 0.06);
+    --bw-chart-tick: rgba(0, 0, 0, 0.35);
+    --bw-tooltip-bg: rgba(255, 255, 255, 0.97);
+    --bw-tooltip-border: rgba(0, 0, 0, 0.08);
+    --bw-tooltip-label: rgba(0, 0, 0, 0.85);
+    --bw-tooltip-item: rgba(0, 0, 0, 0.55);
+  }
+
+  /* ── Dark overrides ── */
+  .dark .breathwork {
+    color-scheme: dark;
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 239 84% 67%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 239 84% 67%;
+
+    /* ── Semantic bw tokens (dark) ── */
+    --bw-text: #e8eaf0;
+    --bw-text-secondary: rgba(255, 255, 255, 0.55);
+    --bw-text-tertiary: rgba(255, 255, 255, 0.35);
+    --bw-text-faint: rgba(255, 255, 255, 0.18);
+    --bw-border: rgba(255, 255, 255, 0.08);
+    --bw-border-subtle: rgba(255, 255, 255, 0.04);
+    --bw-hover: rgba(255, 255, 255, 0.05);
+    --bw-active: rgba(255, 255, 255, 0.10);
+    --bw-nav-bg: rgba(5, 8, 22, 0.85);
+    --bw-nav-bg-mobile: rgba(5, 8, 22, 0.92);
+    --bw-nav-border: rgba(255, 255, 255, 0.06);
+    --bw-nav-shadow: 0 -1px 3px rgba(0, 0, 0, 0.3);
+    --bw-chart-grid: rgba(255, 255, 255, 0.06);
+    --bw-chart-tick: rgba(255, 255, 255, 0.35);
+    --bw-tooltip-bg: rgba(15, 18, 40, 0.97);
+    --bw-tooltip-border: rgba(255, 255, 255, 0.08);
+    --bw-tooltip-label: rgba(255, 255, 255, 0.85);
+    --bw-tooltip-item: rgba(255, 255, 255, 0.55);
   }
 
   * { @apply border-border; }
@@ -388,6 +460,67 @@ body,
   border-color: rgba(255, 255, 255, 0.09);
 }
 
+/* ── Breathwork light overrides ── */
+.breathwork .surface-well {
+  background: rgba(0, 0, 0, 0.035);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.breathwork .card-elevated {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.breathwork .card-elevated:hover {
+  border-color: rgba(0, 0, 0, 0.10);
+}
+
+.breathwork .sculpted-card {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.breathwork .sculpted-card:hover {
+  border-color: rgba(0, 0, 0, 0.10);
+}
+
+.breathwork .glass {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+.breathwork .glass:hover {
+  border-color: rgba(0, 0, 0, 0.10);
+}
+
+/* ── Dark breathwork surfaces ── */
+.dark .breathwork .surface-well {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+.dark .breathwork .card-elevated {
+  background: rgba(12, 16, 36, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.dark .breathwork .card-elevated:hover {
+  border-color: rgba(255, 255, 255, 0.09);
+}
+.dark .breathwork .sculpted-card {
+  background: rgba(16, 20, 44, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.dark .breathwork .sculpted-card:hover {
+  border-color: rgba(255, 255, 255, 0.10);
+}
+.dark .breathwork .glass {
+  background: rgba(12, 16, 36, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.dark .breathwork .glass:hover {
+  border-color: rgba(255, 255, 255, 0.09);
+}
+
 .card-gradient-indigo::before {
   content: '';
   position: absolute;
@@ -409,11 +542,14 @@ body,
    BREATHWORK BACKGROUNDS
    ═══════════════════════════════════════════════════════ */
 
-/* Clean canvas with one subtle vignette — nothing more */
+/* Clean canvas — warm off-white with a subtle top vignette */
 .breath-bg {
   background:
-    radial-gradient(ellipse 70% 50% at 50% 0%, rgba(99,102,241,0.04) 0%, transparent 60%),
-    #050816;
+    radial-gradient(ellipse 70% 50% at 50% 0%, rgba(0,0,0,0.015) 0%, transparent 60%),
+    #FAFAFA;
+}
+.dark .breath-bg {
+  background: #050816;
 }
 
 /* Ambient orbs — portfolio only */

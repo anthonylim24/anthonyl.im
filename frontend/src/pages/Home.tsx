@@ -102,14 +102,14 @@ export function Home() {
     >
       {/* ── Greeting ────────────────────────────────────── */}
       <motion.div variants={fadeUp} className="pt-2 pb-8 md:pb-20">
-        <p className="text-sm text-white/30 font-medium tracking-wide md:hidden">
+        <p className="text-sm text-bw-tertiary font-medium tracking-wide md:hidden">
           {getGreeting()}
         </p>
-        <h1 className="font-display text-[clamp(1.75rem,6vw,2rem)] md:text-[clamp(2.75rem,8vw,4.5rem)] font-extrabold text-white tracking-[-0.03em] leading-[0.95] mt-1 md:mt-0">
+        <h1 className="font-display text-[clamp(1.75rem,6vw,2rem)] md:text-[clamp(2.75rem,8vw,4.5rem)] font-extrabold text-bw tracking-[-0.03em] leading-[0.95] mt-1 md:mt-0">
           <span className="md:hidden">Time to breathe</span>
           <span className="hidden md:inline">{getGreeting()}</span>
         </h1>
-        <p className="text-sm text-white/30 mt-2 md:mt-3 font-medium tracking-wide hidden md:block">
+        <p className="text-sm text-bw-tertiary mt-2 md:mt-3 font-medium tracking-wide hidden md:block">
           {isNewUser
             ? 'Your first session takes just 4 minutes'
             : getStreakMessage(streak, dailyGoalMet)}
@@ -121,7 +121,7 @@ export function Home() {
         <>
           {/* Mobile welcome */}
           <motion.div variants={fadeUp} className="pb-8 md:hidden">
-            <p className="text-sm text-white/40 leading-relaxed mb-6">
+            <p className="text-sm text-bw-tertiary leading-relaxed mb-6">
               Your first session takes just 4 minutes
             </p>
             <button
@@ -137,14 +137,14 @@ export function Home() {
                 haptic('light')
                 document.getElementById('techniques-section')?.scrollIntoView({ behavior: 'smooth' })
               }}
-              className="w-full mt-3 text-sm text-white/30 font-medium hover:text-white/50 transition-colors py-2"
+              className="w-full mt-3 text-sm text-bw-tertiary font-medium hover:text-bw-secondary transition-colors py-2"
             >
               Browse all techniques
             </button>
           </motion.div>
 
           {/* Desktop welcome */}
-          <motion.div variants={fadeUp} className="hidden md:block pb-20 border-b border-white/[0.04]">
+          <motion.div variants={fadeUp} className="hidden md:block pb-20 border-b border-bw-border-subtle">
             <button
               onClick={() => { haptic('success'); navigate('/breathwork/session?technique=box_breathing') }}
               className="flex items-center gap-3 rounded-2xl px-8 py-4 font-display font-bold text-white text-lg transition-opacity hover:opacity-90"
@@ -158,7 +158,7 @@ export function Home() {
                 haptic('light')
                 document.getElementById('techniques-section')?.scrollIntoView({ behavior: 'smooth' })
               }}
-              className="mt-4 text-sm text-white/30 font-medium hover:text-white/50 transition-colors"
+              className="mt-4 text-sm text-bw-tertiary font-medium hover:text-bw-secondary transition-colors"
             >
               Or browse all techniques
             </button>
@@ -169,11 +169,11 @@ export function Home() {
         <>
           {/* Mobile: 3 compact bordered chips */}
           <motion.div variants={fadeUp} className="flex gap-2 pb-6 md:hidden">
-            <div className="flex-1 rounded-xl border border-white/10 px-3 py-2.5">
-              <span className="font-display text-lg font-bold text-white tabular-nums leading-none">
+            <div className="flex-1 rounded-xl border border-bw-border px-3 py-2.5">
+              <span className="font-display text-lg font-bold text-bw tabular-nums leading-none">
                 Lv {level}
               </span>
-              <span className="block text-[10px] text-white/30 font-medium tracking-wide uppercase mt-1">
+              <span className="block text-[10px] text-bw-tertiary font-medium tracking-wide uppercase mt-1">
                 Level
               </span>
             </div>
@@ -181,59 +181,59 @@ export function Home() {
               className="flex-1 rounded-xl border px-3 py-2.5"
               style={streak >= 3
                 ? { borderColor: `${ACHIEVEMENT}30`, background: `${ACHIEVEMENT}08` }
-                : { borderColor: 'rgba(255,255,255,0.1)' }}
+                : { borderColor: 'rgba(0,0,0,0.08)' }}
             >
               <span
-                className="font-display text-lg font-bold tabular-nums leading-none"
-                style={streak >= 3 ? { color: ACHIEVEMENT } : { color: 'white' }}
+                className="font-display text-lg font-bold text-bw tabular-nums leading-none"
+                style={streak >= 3 ? { color: ACHIEVEMENT } : undefined}
               >
                 {streak}
               </span>
-              <span className="block text-[10px] text-white/30 font-medium tracking-wide uppercase mt-1">
+              <span className="block text-[10px] text-bw-tertiary font-medium tracking-wide uppercase mt-1">
                 Streak
               </span>
             </div>
-            <div className="flex-1 rounded-xl border border-white/10 px-3 py-2.5">
-              <span className="font-display text-lg font-bold text-white tabular-nums leading-none">
+            <div className="flex-1 rounded-xl border border-bw-border px-3 py-2.5">
+              <span className="font-display text-lg font-bold text-bw tabular-nums leading-none">
                 {formatTime(totalPracticeTime)}
               </span>
-              <span className="block text-[10px] text-white/30 font-medium tracking-wide uppercase mt-1">
+              <span className="block text-[10px] text-bw-tertiary font-medium tracking-wide uppercase mt-1">
                 Total
               </span>
             </div>
           </motion.div>
 
           {/* Desktop: editorial horizontal strip */}
-          <motion.div variants={fadeUp} className="hidden md:flex items-baseline gap-12 pb-20 border-b border-white/[0.04]">
+          <motion.div variants={fadeUp} className="hidden md:flex items-baseline gap-12 pb-20 border-b border-bw-border-subtle">
             <div>
-              <span className="font-display text-4xl font-extrabold text-white tabular-nums leading-none">
+              <span className="font-display text-4xl font-extrabold text-bw tabular-nums leading-none">
                 {getLevelTitle(level)}
               </span>
-              <span className="block text-[11px] text-white/25 font-semibold tracking-[0.08em] uppercase mt-1.5">
+              <span className="block text-[11px] text-bw-faint font-semibold tracking-[0.08em] uppercase mt-1.5">
                 Level {level}
               </span>
             </div>
             <div>
-              <span className="font-display text-4xl font-extrabold text-white tabular-nums leading-none">
+              <span className="font-display text-4xl font-extrabold text-bw tabular-nums leading-none">
                 {streak}
               </span>
-              <span className="block text-[11px] text-white/25 font-semibold tracking-[0.08em] uppercase mt-1.5">
+              <span className="block text-[11px] text-bw-faint font-semibold tracking-[0.08em] uppercase mt-1.5">
                 Day streak
               </span>
             </div>
             <div>
-              <span className="font-display text-4xl font-extrabold text-white tabular-nums leading-none">
+              <span className="font-display text-4xl font-extrabold text-bw tabular-nums leading-none">
                 {dailySessionCount}
               </span>
-              <span className="block text-[11px] text-white/25 font-semibold tracking-[0.08em] uppercase mt-1.5">
+              <span className="block text-[11px] text-bw-faint font-semibold tracking-[0.08em] uppercase mt-1.5">
                 Today
               </span>
             </div>
             <div>
-              <span className="font-display text-4xl font-extrabold text-white tabular-nums leading-none">
+              <span className="font-display text-4xl font-extrabold text-bw tabular-nums leading-none">
                 {formatTime(totalPracticeTime)}
               </span>
-              <span className="block text-[11px] text-white/25 font-semibold tracking-[0.08em] uppercase mt-1.5">
+              <span className="block text-[11px] text-bw-faint font-semibold tracking-[0.08em] uppercase mt-1.5">
                 Total
               </span>
             </div>
@@ -242,10 +242,10 @@ export function Home() {
           {/* ── XP Progress — inline, minimal ────────────────── */}
           <motion.div variants={fadeUp} className="py-5 sm:py-6">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[11px] text-white/25 font-semibold tracking-[0.08em] uppercase">
+              <span className="text-[11px] text-bw-faint font-semibold tracking-[0.08em] uppercase">
                 Level {level} progress
               </span>
-              <span className="text-[11px] text-white/20 font-medium tabular-nums">
+              <span className="text-[11px] text-bw-faint font-medium tabular-nums">
                 {xpInLevel} / {xpNeeded} XP
               </span>
             </div>
@@ -264,7 +264,7 @@ export function Home() {
 
       {/* ── Techniques ──────────────────────────────────── */}
       <motion.div variants={fadeUp} className="pt-8 md:pt-16" id="techniques-section">
-        <h2 className="font-display text-xl md:text-3xl font-bold text-white tracking-tight mb-5 md:mb-10">
+        <h2 className="font-display text-xl md:text-3xl font-bold text-bw tracking-tight mb-5 md:mb-10">
           Techniques
         </h2>
 
@@ -278,7 +278,7 @@ export function Home() {
                   key={id}
                   whileTap={{ scale: 0.97 }}
                   transition={spring}
-                  className="rounded-2xl p-4 text-left border border-white/10 bg-white/[0.03] flex-shrink-0"
+                  className="rounded-2xl p-4 text-left border border-bw-border bg-bw-hover flex-shrink-0"
                   style={{ width: 'calc(50vw - 28px)', scrollSnapAlign: 'start' }}
                   onClick={() => { haptic('light'); navigate(`/breathwork/session?technique=${id}`) }}
                 >
@@ -288,15 +288,15 @@ export function Home() {
                   >
                     <span className="text-white">{techniqueIcons[id]}</span>
                   </div>
-                  <h3 className="font-display text-sm font-bold text-white leading-tight">
+                  <h3 className="font-display text-sm font-bold text-bw leading-tight">
                     {p.name}
                   </h3>
                   <div className="flex items-center gap-1 mt-2 flex-wrap">
                     {p.phases.map((phase, i) => (
                       <span key={i} className="flex items-center gap-0.5">
-                        <span className="text-[10px] font-mono text-white/40">{phase.duration}s</span>
+                        <span className="text-[10px] font-mono text-bw-tertiary">{phase.duration}s</span>
                         {i < p.phases.length - 1 && (
-                          <span className="text-white/15 text-[10px]">→</span>
+                          <span className="text-bw-faint text-[10px]">→</span>
                         )}
                       </span>
                     ))}
@@ -324,7 +324,7 @@ export function Home() {
               mixBlendMode: 'overlay' as const,
             }} />
             <div className="relative z-10">
-              <div className="h-12 w-12 rounded-xl bg-white/15 flex items-center justify-center mb-5">
+              <div className="h-12 w-12 rounded-xl bg-white/20 flex items-center justify-center mb-5">
                 <span className="text-white">{techniqueIcons[heroTechnique]}</span>
               </div>
               <h3 className="font-display text-3xl font-bold text-white leading-tight">
@@ -348,7 +348,7 @@ export function Home() {
                   key={id}
                   whileTap={{ scale: 0.99 }}
                   transition={spring}
-                  className="w-full flex items-center gap-4 p-5 rounded-2xl text-left group hover:bg-white/[0.03] transition-colors duration-200"
+                  className="w-full flex items-center gap-4 p-5 rounded-2xl text-left group hover:bg-bw-hover transition-colors duration-200"
                   onClick={() => { haptic('light'); navigate(`/breathwork/session?technique=${id}`) }}
                 >
                   <div
@@ -358,14 +358,14 @@ export function Home() {
                     <span className="text-white">{techniqueIcons[id]}</span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-display text-base font-bold text-white leading-tight">
+                    <h3 className="font-display text-base font-bold text-bw leading-tight">
                       {protocol.name}
                     </h3>
-                    <p className="text-xs text-white/30 mt-0.5 line-clamp-1">
+                    <p className="text-xs text-bw-tertiary mt-0.5 line-clamp-1">
                       {protocol.purpose}
                     </p>
                   </div>
-                  <ArrowRight className="h-4 w-4 text-white/15 shrink-0 group-hover:text-white/40 group-hover:translate-x-0.5 transition-all duration-200" />
+                  <ArrowRight className="h-4 w-4 text-bw-faint shrink-0 group-hover:text-bw-tertiary group-hover:translate-x-0.5 transition-all duration-200" />
                 </motion.button>
               )
             })}
@@ -377,10 +377,10 @@ export function Home() {
       {sessions.length > 0 && (
         <motion.div variants={fadeUp} className="pt-16 sm:pt-20">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="font-display text-2xl sm:text-3xl font-bold text-white tracking-tight">Recent</h2>
+            <h2 className="font-display text-2xl sm:text-3xl font-bold text-bw tracking-tight">Recent</h2>
             <button
               onClick={() => { haptic('selection'); navigate('/breathwork/progress') }}
-              className="flex items-center gap-1 text-sm font-medium text-white/25 hover:text-white/50 transition-colors"
+              className="flex items-center gap-1 text-sm font-medium text-bw-faint hover:text-bw-secondary transition-colors"
             >
               All
               <ChevronRight className="h-3.5 w-3.5" />
@@ -395,7 +395,7 @@ export function Home() {
                   key={session.id}
                   whileTap={{ scale: 0.99 }}
                   transition={spring}
-                  className="w-full flex items-center gap-4 p-4 sm:p-5 rounded-2xl text-left group hover:bg-white/[0.03] transition-colors duration-200"
+                  className="w-full flex items-center gap-4 p-4 sm:p-5 rounded-2xl text-left group hover:bg-bw-hover transition-colors duration-200"
                   onClick={() => { haptic('selection'); navigate('/breathwork/progress') }}
                 >
                   <div
@@ -407,15 +407,15 @@ export function Home() {
                     </span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-sm text-white truncate">
+                    <div className="font-semibold text-sm text-bw truncate">
                       {protocol.name}
                     </div>
-                    <div className="text-xs text-white/25 mt-0.5">
+                    <div className="text-xs text-bw-faint mt-0.5">
                       {session.rounds} rounds
                       {session.maxHoldTime > 0 && ` · ${session.maxHoldTime}s best hold`}
                     </div>
                   </div>
-                  <ChevronRight className="h-4 w-4 text-white/10 shrink-0 group-hover:text-white/30 transition-colors" />
+                  <ChevronRight className="h-4 w-4 text-bw-faint shrink-0 group-hover:text-bw-tertiary transition-colors" />
                 </motion.button>
               )
             })}

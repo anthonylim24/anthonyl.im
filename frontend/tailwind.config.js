@@ -53,6 +53,16 @@ export default {
           DEFAULT: 'hsl(var(--destructive))',
           foreground: 'hsl(var(--destructive-foreground))'
         },
+        bw: {
+          DEFAULT: 'var(--bw-text)',
+          secondary: 'var(--bw-text-secondary)',
+          tertiary: 'var(--bw-text-tertiary)',
+          faint: 'var(--bw-text-faint)',
+          border: 'var(--bw-border)',
+          'border-subtle': 'var(--bw-border-subtle)',
+          hover: 'var(--bw-hover)',
+          active: 'var(--bw-active)',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',

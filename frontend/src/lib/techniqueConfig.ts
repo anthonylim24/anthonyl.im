@@ -44,7 +44,7 @@ export function techniqueCardGradient(id: TechniqueId): React.CSSProperties {
   const v = VISUALS[id]
   return {
     background: `linear-gradient(135deg, ${v.gradient.from} 0%, ${v.gradient.via} 50%, ${v.gradient.to} 100%)`,
-    border: '1px solid rgba(255, 255, 255, 0.08)',
+    border: '1px solid rgba(255, 255, 255, 0.15)',
   }
 }
 

@@ -80,14 +80,14 @@ export function Progress() {
         {/* Header */}
         <motion.div variants={fadeUp} className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="font-display text-[clamp(2rem,6vw,3rem)] font-extrabold text-white tracking-[-0.02em] leading-[0.95]">
+            <h1 className="font-display text-[clamp(2rem,6vw,3rem)] font-extrabold text-bw tracking-[-0.02em] leading-[0.95]">
               Progress
             </h1>
           </div>
           <div className="relative">
             {showClearConfirm ? (
               <div className="flex items-center gap-2">
-                <span className="text-xs text-white/40">Clear all?</span>
+                <span className="text-xs text-bw-tertiary">Clear all?</span>
                 <button
                   onClick={handleClearHistory}
                   className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors duration-300"
@@ -96,7 +96,7 @@ export function Progress() {
                 </button>
                 <button
                   onClick={() => setShowClearConfirm(false)}
-                  className="px-3 py-1.5 rounded-xl text-xs font-semibold surface-well text-white/50 hover:text-white/70 transition-colors duration-300"
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold surface-well text-bw-secondary hover:text-bw transition-colors duration-300"
                 >
                   No
                 </button>
@@ -104,7 +104,7 @@ export function Progress() {
             ) : (
               <button
                 onClick={() => { haptic('error'); setShowClearConfirm(true) }}
-                className="px-3 py-2 rounded-xl text-sm text-white/25 hover:text-red-400 hover:bg-red-500/10 transition-colors duration-300"
+                className="px-3 py-2 rounded-xl text-sm text-bw-faint hover:text-red-400 hover:bg-red-500/10 transition-colors duration-300"
               >
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -120,10 +120,10 @@ export function Progress() {
               <LevelRing level={level} progress={progress} size={100} />
               <div className="flex-1 min-w-0 space-y-3">
                 <div>
-                  <div className="text-xs font-medium text-white/40 tracking-wide uppercase">
+                  <div className="text-xs font-medium text-bw-tertiary tracking-wide uppercase">
                     Level {level}
                   </div>
-                  <div className="font-display text-xl font-bold text-white">{levelTitle}</div>
+                  <div className="font-display text-xl font-bold text-bw">{levelTitle}</div>
                 </div>
                 <div className="space-y-2">
                   <div className="h-2.5 rounded-full surface-well overflow-hidden">
@@ -136,7 +136,7 @@ export function Progress() {
                       }}
                     />
                   </div>
-                  <div className="text-[11px] text-white/35 font-medium tabular-nums">
+                  <div className="text-[11px] text-bw-tertiary font-medium tabular-nums">
                     {xpInLevel} / {xpNeeded} XP
                   </div>
                 </div>
@@ -146,7 +146,7 @@ export function Progress() {
 
           {/* Activity Heatmap */}
           <motion.div variants={fadeUp}>
-            <h2 className="font-display text-lg font-bold text-white mb-4">
+            <h2 className="font-display text-lg font-bold text-bw mb-4">
               Activity
             </h2>
             <ActivityHeatmap sessions={sessionDays} />
@@ -154,7 +154,7 @@ export function Progress() {
 
           {/* Achievements */}
           <motion.div variants={fadeUp}>
-            <h2 className="font-display text-lg font-bold text-white mb-4">
+            <h2 className="font-display text-lg font-bold text-bw mb-4">
               Achievements
             </h2>
             <BadgeGrid earnedBadges={earnedBadges} />
@@ -177,8 +177,8 @@ export function Progress() {
 
         {/* Session History */}
         <motion.div variants={fadeUp} className="card-elevated rounded-[24px] overflow-hidden">
-          <div className="p-5 sm:p-6 border-b border-white/8">
-            <h3 className="font-display text-base sm:text-lg font-bold text-white">
+          <div className="p-5 sm:p-6 border-b border-bw-border-subtle">
+            <h3 className="font-display text-base sm:text-lg font-bold text-bw">
               Session History
             </h3>
           </div>
@@ -190,8 +190,8 @@ export function Progress() {
                 className={cn(
                   'flex-1 flex items-center justify-center gap-1.5 h-9 sm:h-10 rounded-xl text-xs font-semibold transition-[background,color,box-shadow] duration-200',
                   filterTechnique === 'all'
-                    ? 'bg-white/10 text-white shadow-md'
-                    : 'text-white/35 hover:text-white/55'
+                    ? 'bg-bw-active text-bw shadow-md'
+                    : 'text-bw-tertiary hover:text-bw-secondary'
                 )}
               >
                 All
@@ -205,8 +205,8 @@ export function Progress() {
                   className={cn(
                     'flex-1 flex items-center justify-center gap-1.5 h-9 sm:h-10 rounded-xl text-xs font-medium transition-[background,color,box-shadow] duration-200',
                     filterTechnique === id
-                      ? 'text-white shadow-md'
-                      : 'text-white/35 hover:text-white/55'
+                      ? 'text-bw shadow-md'
+                      : 'text-bw-tertiary hover:text-bw-secondary'
                   )}
                   style={filterTechnique === id ? { background: `${tv.primary}25` } : undefined}
                 >

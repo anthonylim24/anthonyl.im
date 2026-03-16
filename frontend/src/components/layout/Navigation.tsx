@@ -5,7 +5,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { Wind, BarChart3, Home, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { ACCENT, ACCENT_BRIGHT } from '@/lib/palette'
+import { ACCENT } from '@/lib/palette'
 import { useViewportOffset } from '@/hooks/useViewportOffset'
 import { useHaptics } from '@/hooks/useHaptics'
 
@@ -41,10 +41,11 @@ export function Navigation() {
       <div
         className="rounded-2xl mx-auto max-w-md overflow-hidden"
         style={{
-          background: 'rgba(8, 12, 28, 0.9)',
+          background: 'var(--bw-nav-bg-mobile)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255, 255, 255, 0.05)',
+          border: '1px solid var(--bw-nav-border)',
+          boxShadow: 'var(--bw-nav-shadow)',
           transform: 'translateZ(0)',
         }}
       >
@@ -71,8 +72,8 @@ export function Navigation() {
                 className="h-full rounded-2xl"
                 style={{
                   width: 44,
-                  background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_BRIGHT})`,
-                  boxShadow: `0 4px 16px -2px ${ACCENT}50`,
+                  background: ACCENT,
+                  boxShadow: `0 2px 8px -2px ${ACCENT}30`,
                 }}
               />
             </div>
@@ -88,7 +89,7 @@ export function Navigation() {
                   'flex flex-col items-center justify-center gap-1 rounded-2xl text-[10px] font-semibold transition-colors duration-300 relative min-h-[44px] min-w-[44px]',
                   active
                     ? 'text-white'
-                    : 'text-white/30 hover:text-white/55 active:scale-95'
+                    : 'text-bw-tertiary hover:text-bw-secondary active:scale-95'
                 )}
               >
                 <div className="relative p-3 rounded-2xl">
