@@ -9,7 +9,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import type { CompletedSession } from '@/stores/historyStore'
-import { ACCENT_BRIGHT, ACCENT_SUBTLE } from '@/lib/palette'
+import { TECHNIQUE } from '@/lib/palette'
 import { TrendingUp } from 'lucide-react'
 
 interface ProgressChartProps {
@@ -100,20 +100,20 @@ export function ProgressChart({
                 type="monotone"
                 dataKey="maxHold"
                 name="Best Hold"
-                stroke={ACCENT_BRIGHT}
+                stroke={TECHNIQUE.co2.primary}
                 strokeWidth={3}
-                dot={{ fill: ACCENT_BRIGHT, strokeWidth: 0, r: 4 }}
-                activeDot={{ r: 6, fill: ACCENT_BRIGHT, strokeWidth: 0 }}
+                dot={{ fill: TECHNIQUE.co2.primary, strokeWidth: 0, r: 4 }}
+                activeDot={{ r: 6, fill: TECHNIQUE.co2.primary, strokeWidth: 0 }}
               />
               <Line
                 type="monotone"
                 dataKey="avgHold"
                 name="Average"
-                stroke={ACCENT_SUBTLE}
+                stroke={TECHNIQUE.co2.secondary}
                 strokeWidth={2}
                 strokeDasharray="5 5"
-                dot={{ fill: ACCENT_SUBTLE, strokeWidth: 0, r: 3 }}
-                activeDot={{ r: 5, fill: ACCENT_SUBTLE, strokeWidth: 0 }}
+                dot={{ fill: TECHNIQUE.co2.secondary, strokeWidth: 0, r: 3 }}
+                activeDot={{ r: 5, fill: TECHNIQUE.co2.secondary, strokeWidth: 0 }}
               />
             </LineChart>
           </ResponsiveContainer>

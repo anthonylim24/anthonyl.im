@@ -12,8 +12,8 @@ import { ActivityHeatmap } from '@/components/gamification/ActivityHeatmap'
 import { breathingProtocols } from '@/lib/breathingProtocols'
 import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 import { cn } from '@/lib/utils'
-import { ACCENT, ACCENT_BRIGHT } from '@/lib/palette'
-import { techniqueGradientStyle } from '@/lib/techniqueConfig'
+import { ACCENT, ACCENT_BRIGHT, ACHIEVEMENT } from '@/lib/palette'
+import { techniqueGradientStyle, getTechniqueVisual } from '@/lib/techniqueConfig'
 import { Trash2, Wind, Flame, Box, Sparkles, Award, CalendarDays, Heart } from 'lucide-react'
 import { useHaptics } from '@/hooks/useHaptics'
 
@@ -148,7 +148,7 @@ export function Progress() {
           {/* Activity Heatmap */}
           <motion.div variants={fadeUp}>
             <h2 className="flex items-center gap-2.5 font-display text-lg font-bold text-white mb-4">
-              <CalendarDays className="h-5 w-5" style={{ color: ACCENT }} />
+              <CalendarDays className="h-5 w-5" style={{ color: ACHIEVEMENT }} />
               Activity
             </h2>
             <ActivityHeatmap sessions={sessionDays} />
@@ -200,16 +200,19 @@ export function Progress() {
               >
                 All
               </button>
-              {Object.values(TECHNIQUE_IDS).map((id) => (
+              {Object.values(TECHNIQUE_IDS).map((id) => {
+                const tv = getTechniqueVisual(id)
+                return (
                 <button
                   key={id}
                   onClick={() => { haptic('selection'); setFilterTechnique(id) }}
                   className={cn(
                     'flex-1 flex items-center justify-center gap-1.5 h-9 sm:h-10 rounded-xl text-xs font-medium transition-[background,color,box-shadow] duration-200',
                     filterTechnique === id
-                      ? 'bg-white/10 text-white shadow-md'
+                      ? 'text-white shadow-md'
                       : 'text-white/35 hover:text-white/55'
                   )}
+                  style={filterTechnique === id ? { background: `${tv.primary}25` } : undefined}
                 >
                   <div
                     className="h-5 w-5 rounded flex items-center justify-center shrink-0"
@@ -221,7 +224,8 @@ export function Progress() {
                     {breathingProtocols[id].name.split(' ')[0]}
                   </span>
                 </button>
-              ))}
+                )
+              })}
             </div>
 
             <SessionHistory sessions={filteredSessions} />
