@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react'
+import { useMemo } from 'react'
 import { BREATH_PHASES, type BreathPhase } from '@/lib/constants'
 import type { TechniqueId } from '@/lib/constants'
-import { getTechniqueGeometry, getTechniqueRingColor, type TechniqueGeometry } from '@/lib/techniqueConfig'
+import { getTechniqueRingColor } from '@/lib/techniqueConfig'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { cn } from '@/lib/utils'
 
@@ -14,13 +14,9 @@ interface ConcentricRingsProps {
   onClick?: () => void
 }
 
-const RING_COUNT = 8
 const CENTER = 100
 const VIEW_SIZE = 200
-const MIN_RADIUS = 12
-const MAX_RADIUS = 90
 
-// Whether the phase is an expansion (inhale) or contraction (exhale)
 function isExpandPhase(phase: BreathPhase | null): boolean {
   if (!phase) return false
   return phase === BREATH_PHASES.INHALE || phase === BREATH_PHASES.DEEP_INHALE
@@ -31,92 +27,62 @@ function isHoldPhase(phase: BreathPhase | null): boolean {
   return phase === BREATH_PHASES.HOLD_IN || phase === BREATH_PHASES.HOLD_OUT || phase === BREATH_PHASES.REST
 }
 
-/** Render technique-specific geometry overlay — stays monochromatic (ink) */
-function GeometryOverlay({ geometry, radius }: { geometry: TechniqueGeometry; radius: number }) {
-  const cx = CENTER
-  const cy = CENTER
-
-  switch (geometry) {
-    case 'grid': {
-      // 4x4 grid inscribed within the outermost ring
-      const lines: React.ReactElement[] = []
-      const step = (radius * 2) / 4
-      const start = cx - radius
-      const top = cy - radius
-      for (let i = 0; i <= 4; i++) {
-        const x = start + step * i
-        const y = top + step * i
-        lines.push(
-          <line key={`v${i}`} x1={x} y1={top} x2={x} y2={top + radius * 2} />,
-          <line key={`h${i}`} x1={start} y1={y} x2={start + radius * 2} y2={y} />,
-        )
-      }
-      return <g className="text-bw" stroke="currentColor" strokeWidth="0.3" opacity="0.12">{lines}</g>
-    }
-
-    case 'triangle': {
-      // Equilateral triangle inscribed in the ring
-      const points = [0, 1, 2].map(i => {
-        const angle = (i * 2 * Math.PI) / 3 - Math.PI / 2
-        return `${cx + radius * Math.cos(angle)},${cy + radius * Math.sin(angle)}`
-      }).join(' ')
-      return (
-        <polygon
-          points={points}
-          fill="none"
-          className="text-bw"
-          stroke="currentColor"
-          strokeWidth="0.4"
-          opacity="0.12"
-        />
-      )
-    }
-
-    case 'octagram': {
-      // 8-pointed star: two overlapping squares rotated 45 degrees
-      const sq1 = [0, 1, 2, 3].map(i => {
-        const angle = (i * Math.PI) / 2 + Math.PI / 4
-        return `${cx + radius * Math.cos(angle)},${cy + radius * Math.sin(angle)}`
-      }).join(' ')
-      const sq2 = [0, 1, 2, 3].map(i => {
-        const angle = (i * Math.PI) / 2
-        return `${cx + radius * Math.cos(angle)},${cy + radius * Math.sin(angle)}`
-      }).join(' ')
-      return (
-        <g className="text-bw" stroke="currentColor" strokeWidth="0.4" opacity="0.12" fill="none">
-          <polygon points={sq1} />
-          <polygon points={sq2} />
-        </g>
-      )
-    }
-
-    case 'spiral': {
-      // Golden spiral approximation using logarithmic spiral
-      const points: string[] = []
-      const a = 1
-      const b = 0.1759 // ~golden ratio growth
-      const maxAngle = 6 * Math.PI
-      const steps = 120
-      for (let i = 0; i <= steps; i++) {
-        const theta = (i / steps) * maxAngle
-        const r = a * Math.exp(b * theta)
-        const scale = radius / (a * Math.exp(b * maxAngle))
-        const x = cx + r * scale * Math.cos(theta)
-        const y = cy + r * scale * Math.sin(theta)
-        points.push(`${x},${y}`)
-      }
-      return (
-        <polyline
-          points={points.join(' ')}
-          fill="none"
-          className="text-bw"
-          stroke="currentColor"
-          strokeWidth="0.4"
-          opacity="0.12"
-        />
-      )
-    }
+/**
+ * Generate an organic blob path using perturbed circle with smooth cubic beziers.
+ * Uses a seeded pseudo-noise for deterministic shapes per layer.
+ */
+function blobPath(
+  cx: number,
+  cy: number,
+  baseRadius: number,
+  points: number,
+  seed: number,
+  wobble: number,
+): string {
+  // Simple seeded pseudo-random for deterministic shapes
+  const noise = (angle: number, s: number): number => {
+    const x = Math.sin(angle * 3.7 + s * 17.3) * 43758.5453
+    return (x - Math.floor(x)) * 2 - 1 // -1 to 1
   }
+
+  // Generate perturbed points around the circle
+  const pts: { x: number; y: number }[] = []
+  for (let i = 0; i < points; i++) {
+    const angle = (i / points) * Math.PI * 2
+    const r = baseRadius + noise(angle, seed) * wobble
+    pts.push({
+      x: cx + r * Math.cos(angle),
+      y: cy + r * Math.sin(angle),
+    })
+  }
+
+  // Convert to smooth cubic bezier using Catmull-Rom → Bezier conversion
+  const n = pts.length
+  const segments: string[] = []
+
+  for (let i = 0; i < n; i++) {
+    const p0 = pts[(i - 1 + n) % n]
+    const p1 = pts[i]
+    const p2 = pts[(i + 1) % n]
+    const p3 = pts[(i + 2) % n]
+
+    // Catmull-Rom to cubic bezier control points (tension = 0, alpha = 0.5)
+    const tension = 6 // Higher = smoother curves
+    const cp1x = p1.x + (p2.x - p0.x) / tension
+    const cp1y = p1.y + (p2.y - p0.y) / tension
+    const cp2x = p2.x - (p3.x - p1.x) / tension
+    const cp2y = p2.y - (p3.y - p1.y) / tension
+
+    if (i === 0) {
+      segments.push(`M ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`)
+    }
+    segments.push(
+      `C ${cp1x.toFixed(2)} ${cp1y.toFixed(2)} ${cp2x.toFixed(2)} ${cp2y.toFixed(2)} ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`,
+    )
+  }
+
+  segments.push('Z')
+  return segments.join(' ')
 }
 
 export function ConcentricRings({
@@ -128,46 +94,53 @@ export function ConcentricRings({
   onClick,
 }: ConcentricRingsProps) {
   const reducedMotion = useReducedMotion()
-  const geometry = getTechniqueGeometry(techniqueId)
 
-  // Detect dark mode for ring color selection
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
   const ringColors = getTechniqueRingColor(techniqueId, isDark)
 
-  // Compute ring radii based on amplitude
-  const rings = useMemo(() => {
-    return Array.from({ length: RING_COUNT }, (_, i) => {
-      const t = i / (RING_COUNT - 1) // 0..1
-      const baseRadius = MIN_RADIUS + t * (MAX_RADIUS - MIN_RADIUS)
+  // Bucket amplitude to ~10 steps to avoid constant path recalculation
+  const ampBucket = Math.round(amplitude * 10) / 10
 
-      // Expand outward on inhale, contract on exhale
-      const expand = isExpandPhase(phase)
-      const scale = expand
-        ? 1 + amplitude * 0.25 * (0.5 + t * 0.5) // outer rings expand more
-        : 1 - amplitude * 0.15 * (0.5 + t * 0.5) // outer rings contract more
-      const radius = baseRadius * scale
+  // Generate blob paths that morph subtly with amplitude
+  const blobPaths = useMemo(() => {
+    // Wobble modulates with amplitude: contracting = rounder, expanding = more organic
+    const wobbleMod = 1 + ampBucket * 0.3
+    return {
+      outer: blobPath(CENTER, CENTER, 70, 7, 1.0, 12 * wobbleMod),
+      middle: blobPath(CENTER, CENTER, 50, 6, 2.5, 8 * wobbleMod),
+      core: blobPath(CENTER, CENTER, 30, 5, 4.2, 5 * wobbleMod),
+    }
+  }, [ampBucket])
 
-      // Opacity: thins as rings expand, thickens as they contract
-      const baseOpacity = expand
-        ? 0.10 + (1 - amplitude) * 0.05
-        : 0.10 + amplitude * 0.05
+  // INVERTED animation: high amplitude = small (inhale contracts), low amplitude = large (exhale expands)
+  const hold = isHoldPhase(phase)
+  const amp = hold ? amplitude * 0.4 : amplitude
 
-      // Hold phase: subtle pulse via amplitude oscillation passed from parent
-      const holdPulse = isHoldPhase(phase) ? 0.10 + amplitude * 0.05 : baseOpacity
+  const coreScale = 1.15 - amp * 0.33      // ~1.05 at rest → ~0.82 at peak
+  const middleScale = 1.15 - amp * 0.47    // ~1.10 at rest → ~0.68 at peak
+  const outerScale = 1.15 - amp * 0.60     // ~1.15 at rest → ~0.55 at peak
 
-      const opacity = isHoldPhase(phase) ? holdPulse : baseOpacity
+  // Opacity: contract = denser (more opaque), expand = thinner (more transparent)
+  const coreOpacity = 0.18 + amp * 0.12     // 0.18 → 0.30
+  const middleOpacity = 0.10 + amp * 0.10   // 0.10 → 0.20
+  const outerOpacity = 0.06 + amp * 0.08    // 0.06 → 0.14
 
-      return { radius, opacity }
-    })
-  }, [amplitude, phase])
+  const breathTransition = reducedMotion
+    ? undefined
+    : 'transform 1.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1)'
 
-  // Outermost ring radius for geometry overlay
-  const outerRadius = rings[RING_COUNT - 1]?.radius ?? MAX_RADIUS
+  const rotationStyle = (duration: string, reverse = false): React.CSSProperties =>
+    reducedMotion
+      ? {}
+      : {
+          animation: `spin-slow ${duration} linear infinite${reverse ? ' reverse' : ''}`,
+          transformOrigin: `${CENTER}px ${CENTER}px`,
+        }
 
-  // Rotation: 1 revolution per 60s = 6 deg/s
-  const rotationStyle = reducedMotion
-    ? {}
-    : { animation: 'spin-slow 60s linear infinite' }
+  const scaleStyle = (scale: number): React.CSSProperties => ({
+    transform: `translate(${CENTER}px, ${CENTER}px) scale(${scale}) translate(${-CENTER}px, ${-CENTER}px)`,
+    transition: breathTransition,
+  })
 
   return (
     <svg
@@ -182,44 +155,50 @@ export function ConcentricRings({
       onClick={onClick}
       data-testid="concentric-rings"
     >
-      {/* Crosshair axes — stay monochromatic (ink) */}
-      <line
-        x1={CENTER - MAX_RADIUS * 1.1}
-        y1={CENTER}
-        x2={CENTER + MAX_RADIUS * 1.1}
-        y2={CENTER}
-        stroke="currentColor"
-        strokeWidth="0.3"
-        opacity="0.06"
-      />
-      <line
-        x1={CENTER}
-        y1={CENTER - MAX_RADIUS * 1.1}
-        x2={CENTER}
-        y2={CENTER + MAX_RADIUS * 1.1}
-        stroke="currentColor"
-        strokeWidth="0.3"
-        opacity="0.06"
-      />
+      <defs>
+        <radialGradient id="blobGradient" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor={ringColors.secondary} stopOpacity="0.9" />
+          <stop offset="60%" stopColor={ringColors.primary} stopOpacity="0.6" />
+          <stop offset="100%" stopColor={ringColors.primary} stopOpacity="0" />
+        </radialGradient>
 
-      {/* Concentric rings — technique-colored */}
-      {rings.map((ring, i) => (
-        <circle
-          key={i}
-          cx={CENTER}
-          cy={CENTER}
-          r={ring.radius}
-          fill="none"
-          stroke={ringColors.primary}
-          strokeWidth={i === RING_COUNT - 1 ? '0.6' : '0.4'}
-          opacity={ring.opacity}
-          style={reducedMotion ? undefined : { transition: 'r 0.3s ease-out, opacity 0.3s ease-out' }}
-        />
-      ))}
+        <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="2" />
+        </filter>
+      </defs>
 
-      {/* Technique geometry overlay — rotates slowly, stays monochromatic */}
-      <g style={{ ...rotationStyle, transformOrigin: `${CENTER}px ${CENTER}px` }}>
-        <GeometryOverlay geometry={geometry} radius={outerRadius * 0.95} />
+      {/* Layer 1 (back): Outer blob — largest, most transparent, most movement */}
+      <g style={scaleStyle(outerScale)}>
+        <g style={rotationStyle('90s')}>
+          <path
+            d={blobPaths.outer}
+            fill={ringColors.secondary}
+            opacity={outerOpacity}
+            filter="url(#softGlow)"
+          />
+        </g>
+      </g>
+
+      {/* Layer 2 (mid): Middle blob — medium size, moderate opacity */}
+      <g style={scaleStyle(middleScale)}>
+        <g style={rotationStyle('70s', true)}>
+          <path
+            d={blobPaths.middle}
+            fill={ringColors.primary}
+            opacity={middleOpacity}
+          />
+        </g>
+      </g>
+
+      {/* Layer 3 (front): Core blob — smallest, densest, least movement */}
+      <g style={scaleStyle(coreScale)}>
+        <g style={rotationStyle('50s')}>
+          <path
+            d={blobPaths.core}
+            fill="url(#blobGradient)"
+            opacity={coreOpacity}
+          />
+        </g>
       </g>
     </svg>
   )
