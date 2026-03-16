@@ -7,7 +7,7 @@ import { getLevelForXP, getXPForLevel, getLevelTitle } from '@/lib/gamification'
 import { breathingProtocols } from '@/lib/breathingProtocols'
 import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 import { formatTime } from '@/lib/utils'
-import { ACCENT } from '@/lib/palette'
+import { ACCENT, ACHIEVEMENT } from '@/lib/palette'
 import { techniqueCardGradient } from '@/lib/techniqueConfig'
 import {
   Wind,
@@ -177,8 +177,16 @@ export function Home() {
                 Level
               </span>
             </div>
-            <div className="flex-1 rounded-xl border border-white/10 px-3 py-2.5">
-              <span className="font-display text-lg font-bold text-white tabular-nums leading-none">
+            <div
+              className="flex-1 rounded-xl border px-3 py-2.5"
+              style={streak >= 3
+                ? { borderColor: `${ACHIEVEMENT}30`, background: `${ACHIEVEMENT}08` }
+                : { borderColor: 'rgba(255,255,255,0.1)' }}
+            >
+              <span
+                className="font-display text-lg font-bold tabular-nums leading-none"
+                style={streak >= 3 ? { color: ACHIEVEMENT } : { color: 'white' }}
+              >
                 {streak}
               </span>
               <span className="block text-[10px] text-white/30 font-medium tracking-wide uppercase mt-1">
@@ -392,7 +400,7 @@ export function Home() {
                 >
                   <div
                     className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0"
-                    style={{ background: ACCENT }}
+                    style={techniqueCardGradient(session.techniqueId)}
                   >
                     <span className="text-white scale-90">
                       {techniqueIcons[session.techniqueId]}

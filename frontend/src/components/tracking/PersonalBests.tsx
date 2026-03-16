@@ -4,7 +4,7 @@ import { formatDate } from '@/lib/utils'
 import { getTechniqueVisual, techniqueGradientStyle } from '@/lib/techniqueConfig'
 import type { PersonalBest } from '@/stores/historyStore'
 import { Wind, Flame, Box, Trophy, Heart } from 'lucide-react'
-import { ACCENT_BRIGHT } from '@/lib/palette'
+import { ACHIEVEMENT } from '@/lib/palette'
 
 interface PersonalBestsProps {
   personalBests: Record<TechniqueId, PersonalBest | undefined>
@@ -25,7 +25,7 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
       <div className="card-elevated rounded-[22px] overflow-hidden">
         <div className="p-5 sm:p-6 border-b border-white/6">
           <h3 className="flex items-center gap-2.5 font-display font-bold text-white">
-            <Trophy className="h-5 w-5" style={{ color: ACCENT_BRIGHT }} />
+            <Trophy className="h-5 w-5" style={{ color: ACHIEVEMENT }} />
             Personal Bests
           </h3>
         </div>
