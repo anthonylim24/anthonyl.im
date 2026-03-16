@@ -1,8 +1,7 @@
 import { useCallback, useState, useMemo, useRef, useEffect, type CSSProperties } from 'react'
 import { useBreathingCycle } from '@/hooks/useBreathingCycle'
 import { useWaveform } from '@/hooks/useWaveform'
-import { FluidOrb } from './FluidOrb'
-import { KirbyEasterEgg } from './KirbyEasterEgg'
+import { ConcentricRings } from './ConcentricRings'
 import { SessionSummary } from './SessionSummary'
 import { PhaseIndicator } from './PhaseIndicator'
 import { Timer } from './Timer'
@@ -11,8 +10,7 @@ import type { SessionConfig } from '@/lib/breathingProtocols'
 import { getProtocol } from '@/lib/breathingProtocols'
 import { cn } from '@/lib/utils'
 import { calculateXP, checkBadgeUnlocks } from '@/lib/gamification'
-import { techniqueGradientStyle, getTechniqueVisual, getTechniquePhaseColors } from '@/lib/techniqueConfig'
-import { DESTRUCTIVE, BG, withAlpha } from '@/lib/palette'
+import { DESTRUCTIVE, withAlpha } from '@/lib/palette'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore } from '@/stores/historyStore'
 import { useViewportOffset } from '@/hooks/useViewportOffset'
@@ -37,9 +35,6 @@ export function BreathingSession({
     durationSeconds: number
     isNewPersonalBest: boolean
   } | null>(null)
-
-  const [kirbyMode, setKirbyMode] = useState(false)
-  const toggleKirbyMode = useCallback(() => setKirbyMode((prev) => !prev), [])
 
   // Controls auto-fade state
   const [controlsVisible, setControlsVisible] = useState(true)
@@ -94,15 +89,6 @@ export function BreathingSession({
     timeRemaining: session?.timeRemaining ?? 0,
     isActive: isActive && !isPaused,
   })
-
-  // Technique-specific orb colors
-  const techniquePhases = useMemo(() => getTechniquePhaseColors(config.techniqueId), [config.techniqueId])
-  const orbThemeColors = useMemo((): [string, string] | undefined => {
-    const phase = session?.currentPhase
-    if (!phase) return undefined
-    const visual = getTechniqueVisual(config.techniqueId)
-    return [techniquePhases[phase], visual.secondary]
-  }, [session?.currentPhase, config.techniqueId, techniquePhases])
 
   // Auto-hide controls after 3s of activity
   useEffect(() => {
@@ -207,19 +193,14 @@ export function BreathingSession({
     <div
       role="region"
       aria-label={`Breathing session: ${protocol.name}`}
-      className="fixed inset-0 z-[60] flex flex-col items-center justify-center overflow-hidden select-none"
-      style={{ backgroundColor: BG }}
+      className="fixed inset-0 z-[60] flex flex-col items-center justify-center overflow-hidden select-none breath-bg breathwork"
       onMouseMove={isActive && !isPaused ? showControls : undefined}
       onTouchStart={isActive && !isPaused ? showControls : undefined}
     >
-      {/* Kirby Easter Egg — background layer, behind all UI */}
-      {kirbyMode && <KirbyEasterEgg />}
-
       {/* Round progress indicator */}
       {(() => {
         const currentRound = session?.currentRound ?? 0
         const total = config.rounds
-        const visual = getTechniqueVisual(config.techniqueId)
         const useSegments = total <= 20
 
         if (useSegments) {
@@ -233,12 +214,7 @@ export function BreathingSession({
                     key={i}
                     className="flex-1 h-[3px] rounded-full transition-all duration-500"
                     style={{
-                      background: done
-                        ? `linear-gradient(to right, ${visual.gradient.from}, ${visual.gradient.to})`
-                        : active
-                          ? `linear-gradient(to right, ${visual.primary}60, ${visual.primary}30)`
-                          : 'rgba(255,255,255,0.06)',
-                      boxShadow: done ? `0 0 6px ${visual.primary}40` : 'none',
+                      background: done ? 'var(--bw-text)' : active ? 'var(--bw-text-faint)' : 'var(--bw-border)',
                     }}
                   />
                 )
@@ -251,17 +227,16 @@ export function BreathingSession({
         return (
           <div className="absolute top-0 left-0 right-0 z-10 safe-top pt-4 px-4">
             <div className="flex items-center gap-3">
-              <div className="flex-1 h-[3px] rounded-full bg-white/6 overflow-hidden">
+              <div className="flex-1 h-[3px] rounded-full overflow-hidden" style={{ background: 'var(--bw-border)' }}>
                 <div
                   className="h-full rounded-full transition-all duration-500"
                   style={{
                     width: `${(currentRound / total) * 100}%`,
-                    background: `linear-gradient(to right, ${visual.gradient.from}, ${visual.gradient.to})`,
-                    boxShadow: `0 0 8px ${visual.primary}50`,
+                    background: 'var(--bw-text)',
                   }}
                 />
               </div>
-              <span className="text-[11px] font-mono text-white/25 tabular-nums shrink-0">
+              <span className="text-[11px] font-mono text-bw-tertiary tabular-nums shrink-0">
                 {currentRound}/{total}
               </span>
             </div>
@@ -279,7 +254,7 @@ export function BreathingSession({
           <PhaseIndicator phase={session?.currentPhase ?? null} techniqueId={config.techniqueId} />
         </div>
 
-        {/* FluidOrb - scales with screen height and width to avoid overlap */}
+        {/* ConcentricRings - scales with screen height and width to avoid overlap */}
         <div
           className="relative"
           style={{
@@ -289,20 +264,18 @@ export function BreathingSession({
             maxHeight: 'min(48vh, 24rem)',
           }}
         >
-          <FluidOrb
+          <ConcentricRings
             phase={session?.currentPhase ?? null}
             amplitude={amplitude}
             isActive={isActive && !isPaused}
-            themeColors={orbThemeColors}
+            techniqueId={config.techniqueId}
             className="w-full h-full"
-            kirbyMode={kirbyMode}
-            onEasterEggToggle={toggleKirbyMode}
           />
         </div>
 
         {/* Timer below orb */}
         <div className="relative z-10 mt-3">
-          <Timer seconds={session?.timeRemaining ?? 0} className="text-white" />
+          <Timer seconds={session?.timeRemaining ?? 0} className="text-bw" />
         </div>
       </div>
 
@@ -320,8 +293,7 @@ export function BreathingSession({
         {!isActive && !isComplete ? (
           <button
             onClick={handleStart}
-            className="flex items-center gap-3 px-10 py-4 rounded-2xl font-semibold text-white text-lg shadow-xl hover:shadow-2xl transition-all duration-300 hover:scale-105"
-            style={techniqueGradientStyle(config.techniqueId)}
+            className="flex items-center gap-3 px-10 py-4 rounded-2xl font-semibold text-lg transition-all duration-300 hover:scale-105 bg-bw text-[var(--breath-canvas)]"
           >
             <Play className="h-5 w-5" />
             Start
@@ -331,14 +303,16 @@ export function BreathingSession({
             <button
               onClick={handlePause}
               aria-label={isPaused ? 'Resume' : 'Pause'}
-              className="h-14 w-14 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-all duration-300"
+              className="h-14 w-14 rounded-xl flex items-center justify-center text-bw transition-all duration-300"
+              style={{ background: 'var(--bw-hover)', borderWidth: 1, borderColor: 'var(--bw-border)' }}
             >
               {isPaused ? <Play className="h-5 w-5" /> : <Pause className="h-5 w-5" />}
             </button>
             <button
               onClick={handleRestart}
               aria-label="Restart"
-              className="h-14 w-14 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-all duration-300"
+              className="h-14 w-14 rounded-xl flex items-center justify-center text-bw transition-all duration-300"
+              style={{ background: 'var(--bw-hover)', borderWidth: 1, borderColor: 'var(--bw-border)' }}
             >
               <RotateCcw className="h-5 w-5" />
             </button>
