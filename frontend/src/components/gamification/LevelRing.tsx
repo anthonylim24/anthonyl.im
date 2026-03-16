@@ -1,4 +1,4 @@
-import { ACHIEVEMENT, ACCENT_BRIGHT } from '@/lib/palette'
+import { ACCENT_WARM, ACCENT_WARM_LIGHT } from '@/lib/palette'
 
 interface LevelRingProps {
   level: number
@@ -15,7 +15,7 @@ export function LevelRing({
   progress,
   size = 80,
   strokeWidth = 4,
-  colors = [ACHIEVEMENT, ACCENT_BRIGHT],
+  colors = [ACCENT_WARM, ACCENT_WARM_LIGHT],
 }: LevelRingProps) {
   const radius = (size - strokeWidth * 2) / 2
   const circumference = 2 * Math.PI * radius

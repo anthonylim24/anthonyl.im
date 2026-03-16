@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { motion } from 'motion/react'
 import { BADGES } from '@/lib/gamification'
 import { formatTime } from '@/lib/utils'
-import { ACCENT, ACCENT_BRIGHT, ACHIEVEMENT, PERSONAL_BEST } from '@/lib/palette'
+import { ACCENT_WARM, ACCENT_WARM_LIGHT, ACHIEVEMENT, PERSONAL_BEST } from '@/lib/palette'
 import { Trophy, Zap, Target, Clock, Star, X } from 'lucide-react'
 import { CelebrationParticles } from './CelebrationParticles'
 import { useHaptics } from '@/hooks/useHaptics'
@@ -126,9 +126,10 @@ export function SessionSummary({
 
             <motion.div
               variants={fadeUp}
-              className="h-16 w-16 rounded-2xl flex items-center justify-center mx-auto mb-4 bg-foreground"
+              className="h-16 w-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
+              style={{ background: ACCENT_WARM }}
             >
-              <Trophy className="h-8 w-8 text-background" />
+              <Trophy className="h-8 w-8 text-white" />
             </motion.div>
 
             <motion.h2
@@ -141,9 +142,9 @@ export function SessionSummary({
             <motion.div
               variants={fadeUp}
               className="inline-flex items-center gap-2 mt-3 px-4 py-2 rounded-full"
-              style={{ backgroundColor: `${ACCENT}15`, border: `1px solid ${ACCENT}25` }}
+              style={{ backgroundColor: `${ACCENT_WARM}15`, border: `1px solid ${ACCENT_WARM}25` }}
             >
-              <Zap className="h-4 w-4" style={{ color: ACCENT_BRIGHT }} />
+              <Zap className="h-4 w-4" style={{ color: ACCENT_WARM_LIGHT }} />
               <AnimatedCounter
                 target={xpEarned}
                 prefix="+"

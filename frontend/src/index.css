@@ -256,8 +256,8 @@ body,
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
 ::selection { background: rgba(28, 25, 23, 0.12); color: #1C1917; }
-.breathwork ::selection { background: rgba(28, 25, 23, 0.12); color: #1C1917; }
-.dark .breathwork ::selection { background: rgba(231, 227, 222, 0.2); color: #E7E3DE; }
+.breathwork ::selection { background: rgba(184, 134, 11, 0.15); color: #1C1917; }
+.dark .breathwork ::selection { background: rgba(212, 164, 44, 0.2); color: #E7E3DE; }
 :focus-visible { outline: 2px solid rgba(28, 25, 23, 0.3); outline-offset: 2px; }
 :focus:not(:focus-visible) { outline: none; }
 
@@ -331,6 +331,12 @@ body,
     --bw-tooltip-border: rgba(28, 25, 23, 0.08);
     --bw-tooltip-label: rgba(28, 25, 23, 0.85);
     --bw-tooltip-item: rgba(28, 25, 23, 0.55);
+
+    /* Warm accent tokens */
+    --bw-accent: #B8860B;
+    --bw-accent-light: #C9A227;
+    --bw-accent-subtle: rgba(184, 134, 11, 0.12);
+    --bw-success: #6B8F71;
   }
 
   /* ── Dark overrides ── */
@@ -375,6 +381,12 @@ body,
     --bw-tooltip-border: rgba(255, 252, 245, 0.08);
     --bw-tooltip-label: rgba(255, 252, 245, 0.85);
     --bw-tooltip-item: rgba(255, 252, 245, 0.55);
+
+    /* Warm accent tokens (dark) */
+    --bw-accent: #D4A42C;
+    --bw-accent-light: #E0B93E;
+    --bw-accent-subtle: rgba(212, 164, 44, 0.12);
+    --bw-success: #7FA886;
   }
 
   * { @apply border-border; }

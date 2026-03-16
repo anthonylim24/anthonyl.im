@@ -3,6 +3,7 @@ import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 import { formatDate } from '@/lib/utils'
 import type { PersonalBest } from '@/stores/historyStore'
 import { TechniqueGeometryIcon } from '@/components/ui/TechniqueGeometryIcon'
+import { TECHNIQUE_RING_COLORS } from '@/lib/palette'
 
 interface PersonalBestsProps {
   personalBests: Record<TechniqueId, PersonalBest | undefined>
@@ -48,7 +49,7 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
               >
                 <div className="flex items-center gap-3">
                   <div className="h-11 w-11 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform duration-300 bg-bw-hover border border-bw-border">
-                    <TechniqueGeometryIcon techniqueId={techniqueId} className="text-bw-secondary" />
+                    <TechniqueGeometryIcon techniqueId={techniqueId} style={{ color: TECHNIQUE_RING_COLORS[techniqueId].primary }} />
                   </div>
                   <div>
                     <div className="font-semibold text-sm text-bw">
