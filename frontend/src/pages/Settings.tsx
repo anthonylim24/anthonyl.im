@@ -9,7 +9,6 @@ import {
   Check,
   Sun,
   Moon,
-  User,
   Cloud,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
