@@ -1,69 +1,66 @@
-// techniqueConfig.ts – Shared technique visual configuration.
-// Uses inline style helpers because Tailwind JIT can't resolve dynamic bracket classes.
+// techniqueConfig.ts – Technique visual configuration.
+// Monochromatic: techniques are distinguished by geometry, not color.
 
 import type { TechniqueId } from './constants'
 import { TECHNIQUE_IDS } from './constants'
-import { TECHNIQUE, TECHNIQUE_GRADIENT, TECHNIQUE_PHASES, ACCENT, ACCENT_BRIGHT } from './palette'
+import { TECHNIQUE, TECHNIQUE_GRADIENT, TECHNIQUE_PHASES, INK, INK_SECONDARY } from './palette'
+
+export type TechniqueGeometry = 'grid' | 'triangle' | 'octagram' | 'spiral'
 
 export interface TechniqueVisual {
   primary: string
   secondary: string
   gradient: { from: string; via: string; to: string }
+  geometry: TechniqueGeometry
 }
 
 const VISUALS: Record<TechniqueId, TechniqueVisual> = {
-  [TECHNIQUE_IDS.BOX_BREATHING]:   { ...TECHNIQUE.box, gradient: TECHNIQUE_GRADIENT.box },
-  [TECHNIQUE_IDS.CO2_TOLERANCE]:   { ...TECHNIQUE.co2, gradient: TECHNIQUE_GRADIENT.co2 },
-  [TECHNIQUE_IDS.POWER_BREATHING]: { ...TECHNIQUE.power, gradient: TECHNIQUE_GRADIENT.power },
-  [TECHNIQUE_IDS.CYCLIC_SIGHING]:  { ...TECHNIQUE.sighing, gradient: TECHNIQUE_GRADIENT.sighing },
+  [TECHNIQUE_IDS.BOX_BREATHING]:   { ...TECHNIQUE.box, gradient: TECHNIQUE_GRADIENT.box, geometry: 'grid' },
+  [TECHNIQUE_IDS.CO2_TOLERANCE]:   { ...TECHNIQUE.co2, gradient: TECHNIQUE_GRADIENT.co2, geometry: 'triangle' },
+  [TECHNIQUE_IDS.POWER_BREATHING]: { ...TECHNIQUE.power, gradient: TECHNIQUE_GRADIENT.power, geometry: 'octagram' },
+  [TECHNIQUE_IDS.CYCLIC_SIGHING]:  { ...TECHNIQUE.sighing, gradient: TECHNIQUE_GRADIENT.sighing, geometry: 'spiral' },
 }
 
 export function getTechniqueVisual(id: TechniqueId): TechniqueVisual {
   return VISUALS[id]
 }
 
-/** Inline style for a gradient background (icon boxes, buttons) */
-export function techniqueGradientStyle(id: TechniqueId): React.CSSProperties {
-  const v = VISUALS[id]
+export function getTechniqueGeometry(id: TechniqueId): TechniqueGeometry {
+  return VISUALS[id].geometry
+}
+
+/** Inline style for technique icon box — flat ink */
+export function techniqueGradientStyle(_id: TechniqueId): React.CSSProperties {
+  return { background: INK }
+}
+
+/** Inline style for an active/selected state — subtle ink tint */
+export function techniqueActiveStyle(_id: TechniqueId): React.CSSProperties {
   return {
-    background: `linear-gradient(135deg, ${v.gradient.from}, ${v.gradient.to})`,
+    borderColor: 'rgba(28, 25, 23, 0.14)',
+    background: 'rgba(28, 25, 23, 0.04)',
   }
 }
 
-/** Inline style for an active/selected card border + tint */
-export function techniqueActiveStyle(id: TechniqueId): React.CSSProperties {
-  const v = VISUALS[id]
+/** Technique card background — flat ink */
+export function techniqueCardGradient(_id: TechniqueId): React.CSSProperties {
   return {
-    borderColor: `${v.primary}50`,
-    background: `linear-gradient(160deg, ${v.gradient.from}18 0%, ${v.gradient.to}10 100%)`,
+    background: INK,
+    border: '1px solid rgba(28, 25, 23, 0.08)',
   }
 }
 
-/** Vivid gradient for technique cards — simplified, no glass excess */
-export function techniqueCardGradient(id: TechniqueId): React.CSSProperties {
-  const v = VISUALS[id]
-  return {
-    background: `linear-gradient(135deg, ${v.gradient.from} 0%, ${v.gradient.via} 50%, ${v.gradient.to} 100%)`,
-    border: '1px solid rgba(255, 255, 255, 0.15)',
-  }
+/** Progress bar style — ink */
+export function techniqueProgressStyle(_id: TechniqueId): React.CSSProperties {
+  return { background: INK }
 }
 
-/** Inline style for a progress bar using the technique's gradient */
-export function techniqueProgressStyle(id: TechniqueId): React.CSSProperties {
-  const v = VISUALS[id]
-  return {
-    background: `linear-gradient(to right, ${v.gradient.from}, ${v.gradient.to})`,
-  }
-}
-
-/** Default accent gradient style (for non-technique-specific elements) */
+/** Default accent style */
 export function accentGradientStyle(): React.CSSProperties {
-  return {
-    background: `linear-gradient(to right, ${ACCENT}, ${ACCENT_BRIGHT})`,
-  }
+  return { background: INK }
 }
 
-/** Per-technique phase color map for FluidOrb and PhaseIndicator */
+/** Per-technique phase color map */
 export function getTechniquePhaseColors(id: TechniqueId) {
   return TECHNIQUE_PHASES[id]
 }
