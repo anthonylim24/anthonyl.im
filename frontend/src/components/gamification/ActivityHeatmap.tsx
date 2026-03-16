@@ -84,7 +84,7 @@ export function ActivityHeatmap({ sessions }: ActivityHeatmapProps) {
                     key={row}
                     data-cell
                     data-active={cell && cell.count > 0 ? 'true' : 'false'}
-                    className="w-full aspect-square rounded-[4px] transition-colors bg-black/[0.04]"
+                    className="w-full aspect-square rounded-[4px] transition-colors bg-bw-hover"
                     style={cell ? getIntensityStyle(cell.count) : undefined}
                     title={
                       cell
