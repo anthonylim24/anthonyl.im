@@ -8,11 +8,14 @@ Primary user is the developer themselves, along with wellness enthusiasts and pe
 ### Brand Personality
 **Calm, Scientific, Premium.** Like a high-end wellness lab — trustworthy, refined, and evidence-based. The interface should feel like a precision instrument for the body, not a toy. Gamification (XP, levels, achievements) exists to sustain habit, not to entertain — it's motivation architecture, not playfulness.
 
+**Emotional Goals:** Immediate calm (like stepping into a quiet room — tension drops instantly) and quiet confidence (like a deep breath before a big moment — grounded and capable).
+
 ### Aesthetic Direction
-- **Visual tone:** Dark-first, immersive, atmospheric. Deep space navy (#050816) as the canvas, with indigo (#6366F1) as the single defining accent color.
+- **Visual tone:** Warm parchment + ink. Light-first with a warm beige canvas (#F5F2ED), ink typography (#1C1917), and amber accents (#B8860B). Dark mode inverts to #171613 canvas with light ink.
+- **Typography:** Cormorant Garamond for display/headings (distinctive serif), Inter for body text (clean, readable).
 - **References:** The approachability and wellness credibility of Calm/Headspace, combined with the obsessive craft and minimal UI of Arc/Linear. The result should feel more technical and refined than mainstream wellness apps, but warmer and more human than pure developer tools.
-- **Anti-references:** Avoid generic "SaaS purple" aesthetics. Avoid overly illustrated or cartoon-like wellness imagery. Avoid cluttered dashboards — every element should earn its space.
-- **Theme:** Dark mode is the primary (and currently only) experience. Glassmorphism with layered depth creates the sense of looking into a calm, deep space.
+- **Anti-references:** Avoid generic "SaaS purple" aesthetics. Avoid overly illustrated or cartoon-like wellness imagery. Avoid cluttered dashboards — every element should earn its space. Avoid the indigo-on-navy "AI color palette."
+- **Theme:** Light mode is the primary experience. Dark mode available but secondary.
 
 ### Design Principles
 
@@ -20,29 +23,37 @@ Primary user is the developer themselves, along with wellness enthusiasts and pe
 
 2. **Scientific credibility.** Typography, data visualization, and content should convey authority. The app teaches real breathwork protocols — the design must feel trustworthy enough to match.
 
-3. **Depth through restraint.** Use the indigo palette's full range (indigo-800 through indigo-300) to create depth and hierarchy, but never more than one vivid moment per viewport. One accent, many neutrals.
+3. **Depth through restraint.** Use the warm palette's full range to create depth and hierarchy, but never more than one vivid moment per viewport. One accent, many neutrals.
 
 4. **Motion with purpose.** Animations serve the breathing experience (orb expansion, phase transitions) or guide attention (staggered reveals, spring easing). Never decorative-only motion.
 
 5. **Craft over convention.** Prefer custom, considered solutions over generic component library defaults. Spacing, typography weight contrast, and surface hierarchy should feel intentionally designed, not assembled.
 
+### Accessibility
+
+- **Target:** WCAG AA compliance (4.5:1 contrast ratio, keyboard navigation, screen reader support)
+- **Reduced motion:** All animations must respect `prefers-reduced-motion` — freeze orb, skip y-offsets, near-instant opacity
+- **Touch targets:** Minimum 44x44px for all interactive elements
+- **ARIA:** All breathing components must have live regions, labels, and roles
+
 ### Design Tokens (Quick Reference)
 
-| Token | Value | Usage |
-|-------|-------|-------|
-| Background | `#050816` | Page canvas |
-| Surface | `rgba(15, 18, 40, 0.75)` | Cards, panels (glass) |
-| Surface border | `rgba(255, 255, 255, 0.06)` | Subtle glass edges |
-| Text primary | `#e8eaf0` | Body text |
-| Text muted | `rgba(200, 210, 230, 0.5)` | Secondary/hint text |
-| Accent | `#6366F1` | Primary interactive color |
-| Accent bright | `#818CF8` | Hover, highlights |
-| Accent subtle | `#4F46E5` | Depth, pressed states |
-| Destructive | `#EF4444` | Errors, delete actions |
-| Body font | DM Sans | All UI text |
-| Display font | Anybody | Logo, brand headings |
-| Border radius | `0.75rem` | Standard rounding |
-| Spring easing | `cubic-bezier(0.16, 1, 0.3, 1)` | Smooth motion default |
+| Token | Light | Dark | Usage |
+|-------|-------|------|-------|
+| Canvas | `#F5F2ED` | `#171613` | Page background |
+| Surface | `#FFFEFA` | `hsl(40 6% 11%)` | Cards, panels |
+| Ink Primary | `#1C1917` | `#E7E3DE` | Body text |
+| Ink Secondary | `#78716C` | `#A8A29E` | Secondary text |
+| Ink Tertiary | `#A8A29E` | `#78716C` | Hint/muted text |
+| Accent | `#B8860B` | `#C9A227` | Primary interactive |
+| Success | `#6B8F71` | `#8DAF92` | Personal bests |
+| Destructive | `#EF4444` | `#EF4444` | Errors, delete |
+| Border | `rgba(28,25,23,0.08)` | `rgba(255,252,245,0.06)` | Subtle edges |
+| Body font | Inter | | All UI text |
+| Display font | Cormorant Garamond | | Headings, brand |
+| Border radius | `0.5rem` | | Standard rounding |
+| Spring easing | `cubic-bezier(0.16, 1, 0.3, 1)` | | Smooth motion default |
+| Decel easing | `cubic-bezier(0.33, 0, 0, 1)` | | Smooth stops |
 
 ### Tech Stack
 - React 19 + TypeScript + Vite 8
