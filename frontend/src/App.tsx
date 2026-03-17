@@ -422,11 +422,14 @@ function TypingIndicator() {
   );
 }
 
+const skeletonStyle1 = { background: 'rgba(99,102,241,0.15)' } as const;
+const skeletonStyle2 = { background: 'rgba(99,102,241,0.10)' } as const;
+
 function MessageSkeleton() {
   return (
     <div className="space-y-2.5 animate-pulse">
-      <div className="h-3 rounded-full w-3/4" style={{ background: 'rgba(99,102,241,0.15)' }} />
-      <div className="h-3 rounded-full w-1/2" style={{ background: 'rgba(99,102,241,0.10)' }} />
+      <div className="h-3 rounded-full w-3/4" style={skeletonStyle1} />
+      <div className="h-3 rounded-full w-1/2" style={skeletonStyle2} />
     </div>
   );
 }

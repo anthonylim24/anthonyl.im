@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import { BREATH_PHASES, type BreathPhase } from '@/lib/constants'
 import type { TechniqueId } from '@/lib/constants'
 import { getTechniqueRingColor } from '@/lib/techniqueConfig'
@@ -80,7 +80,7 @@ function blobPath(
   return segments.join(' ')
 }
 
-export function ConcentricRings({
+export const ConcentricRings = memo(function ConcentricRings({
   phase,
   amplitude,
   isActive: _isActive,
@@ -197,4 +197,4 @@ export function ConcentricRings({
       </g>
     </svg>
   )
-}
+})

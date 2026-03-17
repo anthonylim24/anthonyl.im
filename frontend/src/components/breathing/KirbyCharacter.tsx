@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import { memo, type CSSProperties } from 'react'
 
 interface KirbyCharacterProps {
   size?: number
@@ -7,7 +7,7 @@ interface KirbyCharacterProps {
   className?: string
 }
 
-export function KirbyCharacter({
+export const KirbyCharacter = memo(function KirbyCharacter({
   size = 100,
   puffAmount = 0,
   style,
@@ -114,4 +114,4 @@ export function KirbyCharacter({
       </svg>
     </div>
   )
-}
+})

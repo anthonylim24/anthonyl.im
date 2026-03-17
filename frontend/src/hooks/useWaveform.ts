@@ -74,7 +74,7 @@ export function useWaveform({
 
       const elapsed = timestamp - lastTimeRef.current
 
-      if (elapsed > 16) { // ~60fps
+      if (elapsed > 32) { // ~30fps — sufficient for smooth breathing visuals
         lastTimeRef.current = timestamp
 
         setWaveState((prev) => {

@@ -174,6 +174,8 @@ const MessageContent = ({ content, isStreaming = false }: MessageContentProps) =
               <img
                 src={src}
                 alt={alt}
+                loading="lazy"
+                decoding="async"
                 className="my-3 rounded-lg max-w-full border border-white/10"
               />
             ),
