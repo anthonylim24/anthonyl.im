@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router-dom'
 import { motion } from 'motion/react'
 import { BreathingSession } from '@/components/breathing/BreathingSession'
 import {
@@ -13,6 +13,7 @@ import { techniqueActiveStyle } from '@/lib/techniqueConfig'
 import { TechniqueGeometryIcon } from '@/components/ui/TechniqueGeometryIcon'
 import { Clock, Minus, Plus, Play, ChevronLeft, ChevronDown } from 'lucide-react'
 import { useHaptics } from '@/hooks/useHaptics'
+import { useViewTransitionNavigate } from '@/hooks/useViewTransition'
 
 const motionTransition = { type: 'tween' as const, duration: 0.6, ease: [0.33, 0, 0, 1] as const }
 const spring = { type: 'spring' as const, stiffness: 300, damping: 30, mass: 1 }
@@ -20,7 +21,7 @@ const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } }
 const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: motionTransition } }
 
 export function Session() {
-  const navigate = useNavigate()
+  const navigate = useViewTransitionNavigate()
   const [searchParams] = useSearchParams()
   const initialTechnique =
     (searchParams.get('technique') as TechniqueId) || TECHNIQUE_IDS.BOX_BREATHING
@@ -97,10 +98,16 @@ export function Session() {
         {/* Technique header */}
         <motion.div variants={fadeUp} className="mb-6">
           <div className="flex items-center gap-3 mb-2">
-            <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 bg-bw-hover border border-bw-border">
+            <div
+              className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 bg-bw-hover border border-bw-border"
+              style={{ viewTransitionName: `technique-icon-${selectedTechnique}` } as React.CSSProperties}
+            >
               <TechniqueGeometryIcon techniqueId={selectedTechnique} className="text-bw-secondary" size={14} />
             </div>
-            <h1 className="font-display text-xl font-light text-bw tracking-[0.04em]">{protocol.name}</h1>
+            <h1
+              className="font-display text-xl font-light text-bw tracking-[0.04em]"
+              style={{ viewTransitionName: `technique-name-${selectedTechnique}` } as React.CSSProperties}
+            >{protocol.name}</h1>
           </div>
           <p className="text-sm text-bw-tertiary leading-relaxed">{protocol.description}</p>
         </motion.div>
@@ -221,10 +228,14 @@ export function Session() {
               >
                 <div
                   className="h-12 w-12 rounded-2xl flex items-center justify-center mb-3 bg-bw-hover border border-bw-border"
+                  style={isSelected ? { viewTransitionName: `technique-icon-${id}` } as React.CSSProperties : undefined}
                 >
                   <TechniqueGeometryIcon techniqueId={id} className="text-bw-secondary" />
                 </div>
-                <h3 className="font-display text-base font-light text-bw mb-0.5">{p.name}</h3>
+                <h3
+                  className="font-display text-base font-light text-bw mb-0.5"
+                  style={isSelected ? { viewTransitionName: `technique-name-${id}` } as React.CSSProperties : undefined}
+                >{p.name}</h3>
                 <p className="text-xs text-bw-tertiary leading-relaxed line-clamp-2">
                   {p.purpose}
                 </p>

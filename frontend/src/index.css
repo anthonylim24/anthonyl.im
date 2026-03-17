@@ -548,6 +548,45 @@ body,
 }
 
 /* ═══════════════════════════════════════════════════════
+   VIEW TRANSITIONS API
+   ═══════════════════════════════════════════════════════ */
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.3s;
+  animation-timing-function: cubic-bezier(0.33, 0, 0, 1);
+}
+
+::view-transition-old(root) {
+  animation-name: vt-fade-out;
+}
+
+::view-transition-new(root) {
+  animation-name: vt-fade-in;
+}
+
+@keyframes vt-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes vt-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Technique card → session header morph */
+[style*="view-transition-name: technique-icon"],
+[style*="view-transition-name: technique-name"] {
+  contain: layout;
+}
+
+::view-transition-group(*) {
+  animation-duration: 0.4s;
+  animation-timing-function: cubic-bezier(0.33, 0, 0, 1);
+}
+
+/* ═══════════════════════════════════════════════════════
    REDUCED MOTION
    ═══════════════════════════════════════════════════════ */
 
@@ -559,6 +598,12 @@ body,
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root),
+  ::view-transition-group(*) {
+    animation-duration: 0.01ms !important;
   }
 }
 
