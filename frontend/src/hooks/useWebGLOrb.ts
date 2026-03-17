@@ -202,7 +202,7 @@ export function useWebGLOrb({
   amplitude,
   color1,
   color2,
-  isActive,
+  isActive: _isActive,
   reducedMotion,
 }: UseWebGLOrbOptions): boolean {
   const amplitudeRef = useRef(amplitude)
@@ -214,6 +214,7 @@ export function useWebGLOrb({
   amplitudeRef.current = amplitude
   color1Ref.current = color1
   color2Ref.current = color2
+  // isActive reserved for future pause/resume of RAF loop
   reducedMotionRef.current = reducedMotion
 
   useEffect(() => {
