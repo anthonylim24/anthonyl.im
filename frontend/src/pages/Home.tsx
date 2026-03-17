@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useViewTransitionNavigate } from '@/hooks/useViewTransition'
 import { motion } from 'motion/react'
 import { useHistoryStore } from '@/stores/historyStore'
 import { useGamificationStore } from '@/stores/gamificationStore'
@@ -54,7 +54,7 @@ function getStreakMessage(streak: number, dailyGoalMet: boolean): string {
 /* ── Component ─────────────────────────────────────── */
 
 export function Home() {
-  const navigate = useNavigate()
+  const navigate = useViewTransitionNavigate()
   const { sessions, getStreak } = useHistoryStore()
   const { xp, dailySessionCount } = useGamificationStore()
 
@@ -269,10 +269,16 @@ export function Home() {
                   style={{ width: 'calc(50vw - 28px)', scrollSnapAlign: 'start' }}
                   onClick={() => { haptic('light'); navigate(`/breathwork/session?technique=${id}`) }}
                 >
-                  <div className="h-10 w-10 rounded-xl flex items-center justify-center mb-3 bg-bw-hover border border-bw-border">
+                  <div
+                    className="h-10 w-10 rounded-xl flex items-center justify-center mb-3 bg-bw-hover border border-bw-border"
+                    style={{ viewTransitionName: `technique-icon-${id}` } as React.CSSProperties}
+                  >
                     <TechniqueGeometryIcon techniqueId={id} style={{ color: TECHNIQUE_RING_COLORS[id].primary }} />
                   </div>
-                  <h3 className="font-display text-sm font-light text-bw leading-tight">
+                  <h3
+                    className="font-display text-sm font-light text-bw leading-tight"
+                    style={{ viewTransitionName: `technique-name-${id}` } as React.CSSProperties}
+                  >
                     {p.name}
                   </h3>
                   <div className="flex items-center gap-1 mt-2 flex-wrap">
@@ -301,10 +307,16 @@ export function Home() {
             onClick={() => { haptic('medium'); navigate(`/breathwork/session?technique=${heroTechnique}`) }}
           >
             <div className="relative z-10">
-              <div className="h-14 w-14 rounded-xl flex items-center justify-center mb-6" style={{ backgroundColor: `${TECHNIQUE_RING_COLORS[heroTechnique].primary}12` }}>
+              <div
+                className="h-14 w-14 rounded-xl flex items-center justify-center mb-6"
+                style={{ backgroundColor: `${TECHNIQUE_RING_COLORS[heroTechnique].primary}12`, viewTransitionName: `technique-icon-${heroTechnique}` } as React.CSSProperties}
+              >
                 <TechniqueGeometryIcon techniqueId={heroTechnique} size={22} style={{ color: TECHNIQUE_RING_COLORS[heroTechnique].primary }} />
               </div>
-              <h3 className="font-display text-[2.25rem] font-light text-bw leading-tight tracking-[0.02em]">
+              <h3
+                className="font-display text-[2.25rem] font-light text-bw leading-tight tracking-[0.02em]"
+                style={{ viewTransitionName: `technique-name-${heroTechnique}` } as React.CSSProperties}
+              >
                 {heroProtocol.name}
               </h3>
               <p className="text-base text-bw-secondary mt-3 leading-relaxed max-w-lg">
@@ -328,11 +340,17 @@ export function Home() {
                   className="w-full flex items-center gap-4 p-5 rounded-2xl text-left group hover:bg-bw-hover transition-colors duration-200"
                   onClick={() => { haptic('light'); navigate(`/breathwork/session?technique=${id}`) }}
                 >
-                  <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0 bg-bw-hover border border-bw-border">
+                  <div
+                    className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0 bg-bw-hover border border-bw-border"
+                    style={{ viewTransitionName: `technique-icon-${id}` } as React.CSSProperties}
+                  >
                     <TechniqueGeometryIcon techniqueId={id} style={{ color: TECHNIQUE_RING_COLORS[id].primary }} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-display text-base font-light text-bw leading-tight">
+                    <h3
+                      className="font-display text-base font-light text-bw leading-tight"
+                      style={{ viewTransitionName: `technique-name-${id}` } as React.CSSProperties}
+                    >
                       {protocol.name}
                     </h3>
                     <p className="text-xs text-bw-tertiary mt-0.5 line-clamp-1">

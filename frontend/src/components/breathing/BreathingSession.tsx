@@ -1,7 +1,7 @@
 import { useCallback, useState, useMemo, useRef, useEffect, type CSSProperties } from 'react'
 import { useBreathingCycle } from '@/hooks/useBreathingCycle'
 import { useWaveform } from '@/hooks/useWaveform'
-import { ConcentricRings } from './ConcentricRings'
+import { ShaderOrb } from './ShaderOrb'
 import { KirbyEasterEgg } from './KirbyEasterEgg'
 import { KirbyCharacter } from './KirbyCharacter'
 import { SessionSummary } from './SessionSummary'
@@ -290,7 +290,7 @@ export function BreathingSession({
               <KirbyCharacter size={200} puffAmount={amplitude} />
             </div>
           ) : (
-            <ConcentricRings
+            <ShaderOrb
               phase={session?.currentPhase ?? null}
               amplitude={amplitude}
               isActive={isActive && !isPaused}

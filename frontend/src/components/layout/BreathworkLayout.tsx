@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom'
+import { AnimatedOutlet } from './AnimatedOutlet'
 import type { CSSProperties } from 'react'
 import { Header } from './Header'
 import { Navigation } from './Navigation'
@@ -35,7 +35,7 @@ export function BreathworkLayout() {
             className="w-full max-w-3xl mx-auto px-5 sm:px-8 lg:px-12 py-6 sm:py-10 pb-[var(--mobile-content-bottom-space)] md:pb-10"
             style={contentStyle}
           >
-            <Outlet />
+            <AnimatedOutlet />
           </div>
         </main>
         <Navigation />
