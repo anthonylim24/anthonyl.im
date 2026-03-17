@@ -48,5 +48,8 @@
       "mcp__chrome-devtools__click",
       "mcp__chrome-devtools__press_key"
     ]
+  },
+  "enabledPlugins": {
+    "impeccable@impeccable": false
   }
 }
