@@ -72,7 +72,7 @@ export function Progress() {
         {/* Header */}
         <motion.div variants={fadeUp} className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="font-display text-[clamp(2rem,6vw,3rem)] font-light text-bw tracking-[0.04em] leading-[0.95]">
+            <h1 className="font-display text-[clamp(2rem,6vw,3.5rem)] font-light text-bw tracking-[0.02em] leading-[0.90]">
               Progress
             </h1>
           </div>
@@ -105,17 +105,17 @@ export function Progress() {
         </motion.div>
 
         {/* ── Two-column grid on md+ ── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-10">
           {/* Level Card */}
-          <motion.div variants={fadeUp} className="card-elevated rounded-[24px] p-5 sm:p-6">
-            <div className="flex items-center gap-5">
-              <LevelRing level={level} progress={progress} size={100} />
+          <motion.div variants={fadeUp} className="card-elevated rounded-[24px] p-6 sm:p-8">
+            <div className="flex items-center gap-6">
+              <LevelRing level={level} progress={progress} size={120} strokeWidth={5} />
               <div className="flex-1 min-w-0 space-y-3">
                 <div>
                   <div className="text-xs font-medium text-bw-tertiary tracking-wide uppercase">
                     Level {level}
                   </div>
-                  <div className="font-display text-xl font-light text-bw">{levelTitle}</div>
+                  <div className="font-display text-2xl font-light text-bw">{levelTitle}</div>
                 </div>
                 <div className="space-y-2">
                   <div className="h-2.5 rounded-full surface-well overflow-hidden">
@@ -137,7 +137,7 @@ export function Progress() {
 
           {/* Activity Heatmap */}
           <motion.div variants={fadeUp}>
-            <h2 className="font-display text-lg font-light text-bw tracking-[0.04em] mb-4">
+            <h2 className="font-display text-xl font-light text-bw tracking-[0.02em] mb-5">
               Activity
             </h2>
             <ActivityHeatmap sessions={sessionDays} />
@@ -145,7 +145,7 @@ export function Progress() {
 
           {/* Achievements */}
           <motion.div variants={fadeUp}>
-            <h2 className="font-display text-lg font-light text-bw tracking-[0.04em] mb-4">
+            <h2 className="font-display text-xl font-light text-bw tracking-[0.02em] mb-5">
               Achievements
             </h2>
             <BadgeGrid earnedBadges={earnedBadges} />

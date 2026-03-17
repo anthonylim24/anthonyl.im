@@ -17,11 +17,6 @@ interface ConcentricRingsProps {
 const CENTER = 100
 const VIEW_SIZE = 200
 
-function isExpandPhase(phase: BreathPhase | null): boolean {
-  if (!phase) return false
-  return phase === BREATH_PHASES.INHALE || phase === BREATH_PHASES.DEEP_INHALE
-}
-
 function isHoldPhase(phase: BreathPhase | null): boolean {
   if (!phase) return false
   return phase === BREATH_PHASES.HOLD_IN || phase === BREATH_PHASES.HOLD_OUT || phase === BREATH_PHASES.REST

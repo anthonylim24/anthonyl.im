@@ -8,6 +8,7 @@ import { breathingProtocols } from '@/lib/breathingProtocols'
 import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 import { formatTime } from '@/lib/utils'
 import { TechniqueGeometryIcon } from '@/components/ui/TechniqueGeometryIcon'
+import { TECHNIQUE_RING_COLORS } from '@/lib/palette'
 import {
   ChevronRight,
   ArrowRight,
@@ -95,15 +96,15 @@ export function Home() {
       animate="show"
     >
       {/* ── Greeting ────────────────────────────────────── */}
-      <motion.div variants={fadeUp} className="pt-2 pb-8 md:pb-20">
+      <motion.div variants={fadeUp} className="pt-2 pb-8 md:pb-24">
         <p className="text-sm text-bw-tertiary font-medium tracking-wide md:hidden">
           {getGreeting()}
         </p>
-        <h1 className="font-display text-[clamp(1.75rem,6vw,2rem)] md:text-[clamp(2.75rem,8vw,4.5rem)] font-light text-bw tracking-[0.04em] leading-[0.95] mt-1 md:mt-0">
+        <h1 className="font-display text-[clamp(1.75rem,6vw,2rem)] md:text-[clamp(3.5rem,9vw,5.5rem)] font-light text-bw tracking-[0.02em] leading-[0.90] mt-1 md:mt-0">
           <span className="md:hidden">Time to breathe</span>
           <span className="hidden md:inline">{getGreeting()}</span>
         </h1>
-        <p className="text-sm text-bw-tertiary mt-2 md:mt-3 font-medium tracking-wide hidden md:block">
+        <p className="text-sm md:text-base text-bw-tertiary mt-2 md:mt-4 font-medium tracking-wide hidden md:block">
           {isNewUser
             ? 'Your first session takes just 4 minutes'
             : getStreakMessage(streak, dailyGoalMet)}
@@ -120,7 +121,8 @@ export function Home() {
             </p>
             <button
               onClick={() => { haptic('success'); navigate('/breathwork/session?technique=box_breathing') }}
-              className="w-full flex items-center justify-center gap-2.5 rounded-2xl py-4 font-display font-light text-background text-base transition-opacity hover:opacity-90 bg-foreground"
+              className="w-full flex items-center justify-center gap-2.5 rounded-2xl py-4 font-display font-light text-white text-base transition-all hover:brightness-110"
+              style={{ backgroundColor: 'var(--bw-accent)', boxShadow: '0 4px 20px rgba(184, 134, 11, 0.2)' }}
             >
               <Play className="h-4 w-4" />
               Start your first session
@@ -137,10 +139,11 @@ export function Home() {
           </motion.div>
 
           {/* Desktop welcome */}
-          <motion.div variants={fadeUp} className="hidden md:block pb-20 border-b border-bw-border-subtle">
+          <motion.div variants={fadeUp} className="hidden md:block pb-24 border-b border-bw-border-subtle">
             <button
               onClick={() => { haptic('success'); navigate('/breathwork/session?technique=box_breathing') }}
-              className="flex items-center gap-3 rounded-2xl px-8 py-4 font-display font-light text-background text-lg transition-opacity hover:opacity-90 bg-foreground"
+              className="flex items-center gap-3 rounded-2xl px-10 py-5 font-display font-light text-white text-lg transition-all hover:brightness-110"
+              style={{ backgroundColor: 'var(--bw-accent)', boxShadow: '0 6px 24px rgba(184, 134, 11, 0.2)' }}
             >
               <Play className="h-5 w-5" />
               Start your first session
@@ -188,9 +191,9 @@ export function Home() {
           </motion.div>
 
           {/* Desktop: editorial horizontal strip */}
-          <motion.div variants={fadeUp} className="hidden md:flex items-baseline gap-12 pb-20 border-b border-bw-border-subtle">
+          <motion.div variants={fadeUp} className="hidden md:flex items-baseline gap-16 pb-24 border-b border-bw-border-subtle">
             <div>
-              <span className="font-display text-4xl font-light text-bw tabular-nums leading-none">
+              <span className="font-display text-5xl font-light text-bw tabular-nums leading-none">
                 {getLevelTitle(level)}
               </span>
               <span className="block text-[11px] text-bw-faint font-medium tracking-[0.08em] uppercase mt-1.5">
@@ -198,7 +201,7 @@ export function Home() {
               </span>
             </div>
             <div>
-              <span className="font-display text-4xl font-light text-bw tabular-nums leading-none">
+              <span className="font-display text-5xl font-light text-bw tabular-nums leading-none">
                 {streak}
               </span>
               <span className="block text-[11px] text-bw-faint font-medium tracking-[0.08em] uppercase mt-1.5">
@@ -206,7 +209,7 @@ export function Home() {
               </span>
             </div>
             <div>
-              <span className="font-display text-4xl font-light text-bw tabular-nums leading-none">
+              <span className="font-display text-5xl font-light text-bw tabular-nums leading-none">
                 {dailySessionCount}
               </span>
               <span className="block text-[11px] text-bw-faint font-medium tracking-[0.08em] uppercase mt-1.5">
@@ -214,7 +217,7 @@ export function Home() {
               </span>
             </div>
             <div>
-              <span className="font-display text-4xl font-light text-bw tabular-nums leading-none">
+              <span className="font-display text-5xl font-light text-bw tabular-nums leading-none">
                 {formatTime(totalPracticeTime)}
               </span>
               <span className="block text-[11px] text-bw-faint font-medium tracking-[0.08em] uppercase mt-1.5">
@@ -233,7 +236,7 @@ export function Home() {
                 {xpInLevel} / {xpNeeded} XP
               </span>
             </div>
-            <div className="h-1 rounded-full surface-well overflow-hidden">
+            <div className="h-1.5 rounded-full surface-well overflow-hidden">
               <div
                 className="h-full rounded-full origin-left transition-transform duration-700 ease-out"
                 style={{
@@ -247,8 +250,8 @@ export function Home() {
       )}
 
       {/* ── Techniques ──────────────────────────────────── */}
-      <motion.div variants={fadeUp} className="pt-8 md:pt-16" id="techniques-section">
-        <h2 className="font-display text-2xl md:text-4xl font-light text-bw tracking-[0.04em] mb-5 md:mb-10">
+      <motion.div variants={fadeUp} className="pt-10 md:pt-20" id="techniques-section">
+        <h2 className="font-display text-2xl md:text-[2.75rem] font-light text-bw tracking-[0.02em] mb-5 md:mb-12">
           Techniques
         </h2>
 
@@ -267,7 +270,7 @@ export function Home() {
                   onClick={() => { haptic('light'); navigate(`/breathwork/session?technique=${id}`) }}
                 >
                   <div className="h-10 w-10 rounded-xl flex items-center justify-center mb-3 bg-bw-hover border border-bw-border">
-                    <TechniqueGeometryIcon techniqueId={id} className="text-bw-secondary" />
+                    <TechniqueGeometryIcon techniqueId={id} style={{ color: TECHNIQUE_RING_COLORS[id].primary }} />
                   </div>
                   <h3 className="font-display text-sm font-light text-bw leading-tight">
                     {p.name}
@@ -293,21 +296,22 @@ export function Home() {
           <motion.button
             whileTap={{ scale: 0.98 }}
             transition={motionTransition}
-            className="relative rounded-2xl p-8 text-left w-full min-h-[220px] flex flex-col justify-between overflow-hidden group mb-3 border border-bw-border bg-card"
+            className="relative rounded-2xl p-10 text-left w-full min-h-[260px] flex flex-col justify-between overflow-hidden group mb-4 border border-bw-border bg-card"
+            style={{ borderLeftWidth: 3, borderLeftColor: TECHNIQUE_RING_COLORS[heroTechnique].primary }}
             onClick={() => { haptic('medium'); navigate(`/breathwork/session?technique=${heroTechnique}`) }}
           >
             <div className="relative z-10">
-              <div className="h-12 w-12 rounded-xl bg-bw-hover flex items-center justify-center mb-5">
-                <TechniqueGeometryIcon techniqueId={heroTechnique} className="text-bw-secondary" />
+              <div className="h-14 w-14 rounded-xl flex items-center justify-center mb-6" style={{ backgroundColor: `${TECHNIQUE_RING_COLORS[heroTechnique].primary}12` }}>
+                <TechniqueGeometryIcon techniqueId={heroTechnique} size={22} style={{ color: TECHNIQUE_RING_COLORS[heroTechnique].primary }} />
               </div>
-              <h3 className="font-display text-3xl font-light text-bw leading-tight tracking-[0.04em]">
+              <h3 className="font-display text-[2.25rem] font-light text-bw leading-tight tracking-[0.02em]">
                 {heroProtocol.name}
               </h3>
-              <p className="text-sm text-bw-secondary mt-2 leading-relaxed max-w-md">
+              <p className="text-base text-bw-secondary mt-3 leading-relaxed max-w-lg">
                 {heroProtocol.purpose}
               </p>
             </div>
-            <div className="relative z-10 flex items-center gap-2 mt-6 text-bw-tertiary text-sm font-medium group-hover:text-bw transition-colors">
+            <div className="relative z-10 flex items-center gap-2 mt-8 text-sm font-medium transition-colors" style={{ color: TECHNIQUE_RING_COLORS[heroTechnique].primary }}>
               <span>Start session</span>
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
             </div>
@@ -325,7 +329,7 @@ export function Home() {
                   onClick={() => { haptic('light'); navigate(`/breathwork/session?technique=${id}`) }}
                 >
                   <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0 bg-bw-hover border border-bw-border">
-                    <TechniqueGeometryIcon techniqueId={id} className="text-bw-secondary" />
+                    <TechniqueGeometryIcon techniqueId={id} style={{ color: TECHNIQUE_RING_COLORS[id].primary }} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="font-display text-base font-light text-bw leading-tight">
@@ -345,9 +349,9 @@ export function Home() {
 
       {/* ── Recent Sessions ──────────────────────────────── */}
       {sessions.length > 0 && (
-        <motion.div variants={fadeUp} className="pt-16 sm:pt-20">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="font-display text-2xl md:text-4xl font-light text-bw tracking-[0.04em]">Recent</h2>
+        <motion.div variants={fadeUp} className="pt-20 sm:pt-28">
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="font-display text-2xl md:text-[2.75rem] font-light text-bw tracking-[0.02em]">Recent</h2>
             <button
               onClick={() => { haptic('selection'); navigate('/breathwork/progress') }}
               className="flex items-center gap-1 text-sm font-medium text-bw-faint hover:text-bw-secondary transition-colors"
@@ -369,7 +373,7 @@ export function Home() {
                   onClick={() => { haptic('selection'); navigate('/breathwork/progress') }}
                 >
                   <div className="h-10 w-10 rounded-xl flex items-center justify-center shrink-0 bg-bw-hover border border-bw-border">
-                    <TechniqueGeometryIcon techniqueId={session.techniqueId} className="text-bw-secondary" />
+                    <TechniqueGeometryIcon techniqueId={session.techniqueId} style={{ color: TECHNIQUE_RING_COLORS[session.techniqueId].primary }} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-sm text-bw truncate">
