@@ -72,6 +72,7 @@ export default {
       fontFamily: {
         sans: ['"Inter"', 'system-ui', ...fontFamily.sans],
         display: ['"Cormorant Garamond"', 'Georgia', ...fontFamily.serif],
+        mono: ['"Fragment Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
     }
   },

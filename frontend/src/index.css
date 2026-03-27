@@ -34,14 +34,18 @@ body,
   -webkit-tap-highlight-color: transparent;
   font-optical-sizing: auto;
 
-  /* Portfolio tokens */
-  --portfolio-bg: #0a0a12;
-  --portfolio-glass-tint: rgba(120, 130, 255, 0.08);
-  --portfolio-glass-border: rgba(255, 255, 255, 0.12);
-  --portfolio-accent-1: #7c8aff;
-  --portfolio-accent-2: #a78bfa;
-  --portfolio-text: #f8f7ff;
-  --portfolio-text-muted: rgba(248, 247, 255, 0.6);
+  /* Chatbot tokens — dany.works-inspired editorial */
+  --chat-bg: #080808;
+  --chat-text: #b4b4b4;
+  --chat-text-bright: #e0e0e0;
+  --chat-mid: #404040;
+  --chat-line: #181818;
+
+  /* Shadow mode tokens */
+  --chat-shadow-bg: #f2efe9;
+  --chat-shadow-text: #1a1a1a;
+  --chat-shadow-mid: #888;
+  --chat-shadow-line: #d8d5cf;
 
   /* Breathwork tokens — parchment + ink */
   --breath-canvas: #F5F2ED;
@@ -99,58 +103,33 @@ body,
 }
 
 /* ═══════════════════════════════════════════════════════
-   STAR FIELD (portfolio)
+   SHADOW MODE OVERLAY (dany.works-inspired leaf shadows)
    ═══════════════════════════════════════════════════════ */
 
-@keyframes twinkle {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
+.shadow-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  transition: opacity 700ms cubic-bezier(0.33, 0, 0, 1);
+  will-change: opacity;
 }
 
-.stars, .stars2, .stars3 {
-  position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;
-  -webkit-transform: translateZ(0);
+/* Column fade-in — dany.works entry animation */
+@keyframes col-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.stars {
-  background-image:
-    radial-gradient(1px 1px at 20px 30px, white, transparent),
-    radial-gradient(1px 1px at 40px 70px, rgba(255,255,255,0.8), transparent),
-    radial-gradient(1px 1px at 50px 160px, rgba(255,255,255,0.6), transparent),
-    radial-gradient(1px 1px at 90px 40px, white, transparent),
-    radial-gradient(1px 1px at 130px 80px, rgba(255,255,255,0.7), transparent),
-    radial-gradient(1px 1px at 160px 120px, white, transparent),
-    radial-gradient(1.5px 1.5px at 200px 50px, rgba(200,180,255,0.9), transparent),
-    radial-gradient(1px 1px at 220px 150px, white, transparent),
-    radial-gradient(1px 1px at 250px 20px, rgba(255,255,255,0.8), transparent),
-    radial-gradient(1px 1px at 280px 100px, white, transparent);
-  background-repeat: repeat; background-size: 300px 200px;
-  animation: twinkle 4s ease-in-out infinite;
-}
-
-.stars2 {
-  background-image:
-    radial-gradient(1px 1px at 10px 10px, rgba(255,255,255,0.5), transparent),
-    radial-gradient(1px 1px at 60px 50px, rgba(255,255,255,0.6), transparent),
-    radial-gradient(1px 1px at 100px 90px, rgba(255,255,255,0.4), transparent),
-    radial-gradient(1.5px 1.5px at 140px 30px, rgba(180,160,255,0.7), transparent),
-    radial-gradient(1px 1px at 180px 130px, rgba(255,255,255,0.5), transparent),
-    radial-gradient(1px 1px at 230px 70px, rgba(255,255,255,0.6), transparent),
-    radial-gradient(1px 1px at 270px 110px, rgba(255,255,255,0.4), transparent);
-  background-repeat: repeat; background-size: 350px 180px;
-  animation: twinkle 5s ease-in-out infinite; animation-delay: 1s;
-}
-
-.stars3 {
-  background-image:
-    radial-gradient(1px 1px at 30px 80px, rgba(255,255,255,0.4), transparent),
-    radial-gradient(1.5px 1.5px at 70px 25px, rgba(200,180,255,0.6), transparent),
-    radial-gradient(1px 1px at 110px 140px, rgba(255,255,255,0.3), transparent),
-    radial-gradient(1px 1px at 150px 60px, rgba(255,255,255,0.5), transparent),
-    radial-gradient(1px 1px at 190px 100px, rgba(255,255,255,0.4), transparent),
-    radial-gradient(1px 1px at 240px 40px, rgba(255,255,255,0.3), transparent);
-  background-repeat: repeat; background-size: 280px 160px;
-  animation: twinkle 6s ease-in-out infinite; animation-delay: 2s;
+.col-fade-in {
+  animation: col-fade-in 560ms cubic-bezier(0.33, 0, 0, 1) forwards;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -262,7 +241,8 @@ body,
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
-::selection { background: rgba(28, 25, 23, 0.12); color: #1C1917; }
+::selection { background: rgba(180, 180, 180, 0.2); color: #e0e0e0; }
+.chatbot-shadow ::selection { background: rgba(26, 26, 26, 0.15); color: #1a1a1a; }
 .breathwork ::selection { background: rgba(184, 134, 11, 0.15); color: #1C1917; }
 .dark .breathwork ::selection { background: rgba(212, 164, 44, 0.2); color: #E7E3DE; }
 :focus-visible { outline: 2px solid rgba(28, 25, 23, 0.3); outline-offset: 2px; }
@@ -274,26 +254,26 @@ body,
 
 @layer base {
   :root {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 239 84% 67%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
+    --background: 0 0% 3%;
+    --foreground: 0 0% 71%;
+    --card: 0 0% 5%;
+    --card-foreground: 0 0% 71%;
+    --popover: 0 0% 5%;
+    --popover-foreground: 0 0% 71%;
+    --primary: 0 0% 71%;
+    --primary-foreground: 0 0% 3%;
+    --secondary: 0 0% 9%;
+    --secondary-foreground: 0 0% 71%;
+    --muted: 0 0% 9%;
+    --muted-foreground: 0 0% 25%;
+    --accent: 0 0% 9%;
+    --accent-foreground: 0 0% 71%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 239 84% 67%;
-    --radius: 0.75rem;
+    --border: 0 0% 9%;
+    --input: 0 0% 9%;
+    --ring: 0 0% 25%;
+    --radius: 0rem;
   }
 
   .breathwork {
@@ -422,7 +402,7 @@ body,
    SURFACE SYSTEM — Flat parchment + ink, no glass excess
    ═══════════════════════════════════════════════════════ */
 
-/* Portfolio glass (portfolio only — keep blur here) */
+/* Legacy portfolio glass — preserved for breathwork compat */
 .liquid-glass-portfolio {
   background: linear-gradient(135deg, rgba(120,130,255,0.18) 0%, rgba(167,139,250,0.14) 50%, rgba(120,130,255,0.10) 100%);
   backdrop-filter: blur(20px) saturate(180%);
