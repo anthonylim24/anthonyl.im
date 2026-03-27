@@ -213,7 +213,7 @@ function App() {
     <div className={cn("fixed inset-0 flex flex-col overflow-hidden font-mono transition-colors duration-700", themeClass)}>
       <video
         ref={leavesVideoRef}
-        src="https://anthonyl.im/leaves.mp4"
+        src="https://leaves.anthonylim-ucsc.workers.dev/"
         loop
         muted
         playsInline
