@@ -335,7 +335,7 @@ function App() {
               ))}
             </div>
           ) : (
-            <div className="mb-3 overflow-hidden">
+            <div className="mb-3">
               <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar scroll-smooth">
                 {suggestedQuestions.map((question) => (
                   <button
