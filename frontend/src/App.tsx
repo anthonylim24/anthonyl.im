@@ -36,7 +36,7 @@ function App() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [viewportHeight, setViewportHeight] = useState(0);
-  const [shadowMode, setShadowMode] = useState(false);
+  const [shadowMode, setShadowMode] = useState(true);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -217,7 +217,7 @@ function App() {
         loop
         muted
         playsInline
-        preload="none"
+        preload="auto"
         aria-hidden="true"
         className="leaves-overlay"
         style={{ opacity: shadowMode ? 1 : 0 }}
