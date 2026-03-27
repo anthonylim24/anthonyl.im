@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, lazy, Suspense, useCallback } from "react";
-import { Button } from "./components/ui/button";
 import { Send, ChevronDown } from "lucide-react";
 import { cn } from "./lib/utils";
 import { invokeDeepseek } from "./lib/apiService";
@@ -29,6 +28,7 @@ function App() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [viewportHeight, setViewportHeight] = useState(0);
+  const [shadowMode, setShadowMode] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -37,6 +37,21 @@ function App() {
 
   useFavicon();
 
+  // Shadow mode keyboard listener (press S to toggle)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger when typing in input fields
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      if (e.key === "s" || e.key === "S") {
+        setShadowMode((prev) => !prev);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   useEffect(() => {
     const updateViewportHeight = () => {
@@ -175,53 +190,200 @@ function App() {
   const isShortViewport = viewportHeight > 0 && viewportHeight < 760;
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-[#0a0a12] overflow-hidden">
-      {/* Background image - preserved */}
+    <div
+      className={cn(
+        "fixed inset-0 flex flex-col overflow-hidden font-mono transition-colors duration-700",
+        shadowMode ? "chatbot-shadow" : "chatbot-dark"
+      )}
+      style={{
+        backgroundColor: shadowMode ? "#f2efe9" : "#080808",
+      }}
+    >
+      {/* Shadow mode leaf overlay */}
       <div
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+        className="shadow-overlay"
+        style={{ opacity: shadowMode ? 1 : 0 }}
+        aria-hidden="true"
+      >
+        {/* Animated dappled light pattern */}
+        <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id="leaf-turbulence">
+              <feTurbulence
+                type="fractalNoise"
+                baseFrequency="0.015 0.025"
+                numOctaves="4"
+                seed="3"
+                result="noise"
+              >
+                <animate
+                  attributeName="baseFrequency"
+                  values="0.015 0.025;0.018 0.028;0.015 0.025"
+                  dur="20s"
+                  repeatCount="indefinite"
+                />
+              </feTurbulence>
+              <feDisplacementMap
+                in="SourceGraphic"
+                in2="noise"
+                scale="60"
+                xChannelSelector="R"
+                yChannelSelector="G"
+              />
+            </filter>
+            <filter id="leaf-blur">
+              <feGaussianBlur stdDeviation="12" />
+            </filter>
+          </defs>
+          {/* Organic shadow shapes */}
+          <g filter="url(#leaf-blur)" opacity="0.35">
+            <ellipse cx="15%" cy="20%" rx="120" ry="80" fill="#3a5a2e">
+              <animateTransform
+                attributeName="transform"
+                type="translate"
+                values="0,0;15,8;-5,12;0,0"
+                dur="18s"
+                repeatCount="indefinite"
+              />
+            </ellipse>
+            <ellipse cx="75%" cy="15%" rx="100" ry="60" fill="#2d4a23">
+              <animateTransform
+                attributeName="transform"
+                type="translate"
+                values="0,0;-12,6;8,14;0,0"
+                dur="22s"
+                repeatCount="indefinite"
+              />
+            </ellipse>
+            <ellipse cx="40%" cy="45%" rx="140" ry="70" fill="#3a5a2e">
+              <animateTransform
+                attributeName="transform"
+                type="translate"
+                values="0,0;10,-8;-8,10;0,0"
+                dur="16s"
+                repeatCount="indefinite"
+              />
+            </ellipse>
+            <ellipse cx="85%" cy="60%" rx="110" ry="90" fill="#2d4a23">
+              <animateTransform
+                attributeName="transform"
+                type="translate"
+                values="0,0;-8,12;12,-6;0,0"
+                dur="24s"
+                repeatCount="indefinite"
+              />
+            </ellipse>
+            <ellipse cx="25%" cy="75%" rx="130" ry="65" fill="#3a5a2e">
+              <animateTransform
+                attributeName="transform"
+                type="translate"
+                values="0,0;14,10;-10,8;0,0"
+                dur="20s"
+                repeatCount="indefinite"
+              />
+            </ellipse>
+            <ellipse cx="60%" cy="85%" rx="100" ry="80" fill="#2d4a23">
+              <animateTransform
+                attributeName="transform"
+                type="translate"
+                values="0,0;-6,-10;10,6;0,0"
+                dur="26s"
+                repeatCount="indefinite"
+              />
+            </ellipse>
+          </g>
+          {/* Smaller leaf fragments */}
+          <g filter="url(#leaf-blur)" opacity="0.2">
+            <circle cx="30%" cy="30%" r="40" fill="#4a6a3e">
+              <animateTransform
+                attributeName="transform"
+                type="translate"
+                values="0,0;20,15;-10,20;0,0"
+                dur="14s"
+                repeatCount="indefinite"
+              />
+            </circle>
+            <circle cx="70%" cy="40%" r="35" fill="#4a6a3e">
+              <animateTransform
+                attributeName="transform"
+                type="translate"
+                values="0,0;-15,10;10,18;0,0"
+                dur="17s"
+                repeatCount="indefinite"
+              />
+            </circle>
+            <circle cx="50%" cy="65%" r="50" fill="#3a5a2e">
+              <animateTransform
+                attributeName="transform"
+                type="translate"
+                values="0,0;12,-12;-8,16;0,0"
+                dur="19s"
+                repeatCount="indefinite"
+              />
+            </circle>
+          </g>
+        </svg>
+      </div>
+
+      {/* Subtle grain texture */}
+      <div
+        className="fixed inset-0 pointer-events-none z-[2] opacity-[0.04]"
         style={{
-          backgroundImage: 'url("https://i.imgur.com/sXbuKNH.jpeg")',
-          filter: "brightness(0.35) saturate(0.7)",
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E")`,
+          backgroundRepeat: "repeat",
+          backgroundSize: "256px 256px",
         }}
+        aria-hidden="true"
       />
 
-      {/* Depth gradient overlays */}
-      <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a12]/70 via-transparent to-[#0a0a12]/90" />
-      <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a12]/40 via-transparent to-transparent" />
-
-      {/* Indigo tint wash */}
-      <div className="absolute inset-0 bg-[#6366F1]/[0.03]" />
-
-      {/* Star field layers */}
-      <div className="stars" />
-      <div className="stars2" />
-      <div className="stars3" />
-
       {/* Main container */}
-      <div className="relative z-10 flex flex-col h-full max-w-3xl mx-auto w-full safe-top">
+      <div className="relative z-10 flex flex-col h-full max-w-2xl mx-auto w-full safe-top">
         {/* Header */}
-        <header className={cn(
-          "shrink-0 text-center transition-all duration-700 ease-out px-4",
-          hasMessages ? "py-3" : isShortViewport ? "py-3 sm:py-5" : "py-6 sm:py-10"
-        )}>
-          <div className={cn(
-            "inline-block transition-all duration-700",
-            !hasMessages && "animate-slide-up"
-          )}>
-            <h1 className={cn(
-              "font-display font-extrabold tracking-tight transition-all duration-700",
-              hasMessages
-                ? "text-lg sm:text-xl text-white"
-                : isShortViewport ? "text-2xl sm:text-4xl text-white" : "text-3xl sm:text-5xl text-white"
-            )}>
+        <header
+          className={cn(
+            "shrink-0 text-left transition-all duration-700 ease-out px-6",
+            hasMessages ? "py-4" : isShortViewport ? "py-4 sm:py-6" : "py-8 sm:py-14"
+          )}
+        >
+          <div
+            className={cn(
+              "transition-all duration-700 col-fade-in",
+            )}
+          >
+            {/* Name — monospace, uppercase, small */}
+            <h1
+              className={cn(
+                "font-mono font-medium tracking-[0.07em] uppercase transition-all duration-700",
+                hasMessages
+                  ? "text-[10px]"
+                  : "text-[10px] sm:text-[11px]",
+                shadowMode ? "text-[#1a1a1a]" : "text-[#b4b4b4]"
+              )}
+            >
               Anthony Lim
             </h1>
-            <p className={cn(
-              "text-white/35 transition-all duration-700 font-semibold tracking-wide uppercase",
-              hasMessages ? "text-[10px] mt-0.5" : isShortViewport ? "text-[11px] sm:text-sm mt-1.5" : "text-xs sm:text-sm mt-2"
-            )}>
+
+            {/* Subtitle */}
+            <p
+              className={cn(
+                "font-mono transition-all duration-700 mt-1",
+                hasMessages
+                  ? "text-[10px]"
+                  : "text-[10px] sm:text-[11px]",
+                shadowMode ? "text-[#888]" : "text-[#404040]"
+              )}
+            >
               Software Engineer
             </p>
+
+            {/* Thin divider line */}
+            <div
+              className={cn(
+                "transition-all duration-700 mt-4",
+                hasMessages ? "mt-3" : "mt-5",
+                shadowMode ? "border-t border-[#d8d5cf]" : "border-t border-[#181818]"
+              )}
+            />
           </div>
         </header>
 
@@ -231,10 +393,9 @@ function App() {
             <div
               ref={messagesContainerRef}
               onScroll={handleScroll}
-              className="absolute inset-0 overflow-y-auto overscroll-contain px-4 pb-4 scroll-smooth"
+              className="absolute inset-0 overflow-y-auto overscroll-contain px-6 pb-4 scroll-smooth"
             >
-              {/* Messages */}
-              <div className="space-y-4 py-2">
+              <div className="space-y-5 py-2">
                 {messages.map((message, index) => {
                   const isUser = message.role === "user";
                   const isLastAssistant = !isUser && index === messages.length - 1;
@@ -246,29 +407,41 @@ function App() {
                     <div
                       key={message.id}
                       className={cn(
-                        "flex animate-message-in",
-                        isUser ? "justify-end" : "justify-start"
+                        "animate-message-in",
+                        isUser ? "flex justify-end" : ""
                       )}
                     >
-                      <div
-                        className={cn(
-                          "max-w-[88%] sm:max-w-[80%] rounded-[20px] px-4 py-3 transition-all duration-300",
-                          isUser
-                            ? "ml-4 text-white bg-[#6366F1] shadow-[0_8px_24px_-4px_rgba(99,102,241,0.3)]"
-                            : "mr-4 text-white/90 bg-white/[0.06] backdrop-blur-sm border border-white/[0.06]"
-                        )}
-                      >
-                        {message.content ? (
-                          <Suspense fallback={<MessageSkeleton />}>
-                            <MessageContent
-                              content={message.content}
-                              isStreaming={isLastAssistant && isStreaming}
-                            />
-                          </Suspense>
-                        ) : (
-                          <TypingIndicator />
-                        )}
-                      </div>
+                      {isUser ? (
+                        <div
+                          className={cn(
+                            "max-w-[85%] sm:max-w-[75%] text-[14px] leading-[1.7] font-mono px-4 py-2.5 rounded-lg transition-colors duration-700",
+                            shadowMode
+                              ? "bg-[#1a1a1a] text-[#f2efe9]"
+                              : "bg-[#181818] text-[#e0e0e0]"
+                          )}
+                        >
+                          {message.content}
+                        </div>
+                      ) : (
+                        <div
+                          className={cn(
+                            "max-w-[92%] sm:max-w-[85%] transition-colors duration-700",
+                            shadowMode ? "chatbot-shadow" : "chatbot-dark"
+                          )}
+                        >
+                          {message.content ? (
+                            <Suspense fallback={<MessageSkeleton shadowMode={shadowMode} />}>
+                              <MessageContent
+                                content={message.content}
+                                isStreaming={isLastAssistant && isStreaming}
+                                shadowMode={shadowMode}
+                              />
+                            </Suspense>
+                          ) : (
+                            <TypingIndicator shadowMode={shadowMode} />
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -277,23 +450,24 @@ function App() {
               <div ref={messagesEndRef} className="h-4 shrink-0" />
             </div>
           ) : (
-            <div className="h-full overflow-hidden px-4">
-              <div className={cn(
-                "flex flex-col items-center justify-start md:justify-center h-full",
-                isShortViewport ? "py-0.5 sm:py-2" : "py-3 sm:py-8"
-              )}>
-                <h2 className={cn(
-                  "font-display text-white leading-[0.95] tracking-tight",
-                  isShortViewport ? "text-3xl sm:text-5xl mb-2" : "text-4xl sm:text-6xl mb-3"
-                )}>
-                  Ask me anything
+            <div className="h-full overflow-hidden px-6">
+              <div
+                className={cn(
+                  "flex flex-col justify-start md:justify-center h-full col-fade-in stagger-2",
+                  isShortViewport ? "py-1 sm:py-3" : "py-4 sm:py-10"
+                )}
+              >
+                <h2
+                  className={cn(
+                    "font-mono font-normal leading-[1.5] transition-colors duration-700",
+                    isShortViewport ? "text-sm sm:text-base" : "text-base sm:text-lg",
+                    shadowMode ? "text-[#1a1a1a]" : "text-[#b4b4b4]"
+                  )}
+                >
+                  Ask me anything about Anthony&apos;s
+                  <br />
+                  experience, skills, and background.
                 </h2>
-                <p className={cn(
-                  "text-white/25 text-center max-w-sm leading-relaxed",
-                  isShortViewport ? "text-xs" : "text-sm"
-                )}>
-                  About Anthony&apos;s experience, skills, and background
-                </p>
               </div>
             </div>
           )}
@@ -305,106 +479,127 @@ function App() {
                 shouldAutoScroll.current = true;
                 scrollToBottom();
               }}
-              className="absolute bottom-4 right-4 p-2.5 rounded-xl bg-white/[0.08] border border-white/[0.08] backdrop-blur-sm text-white/60 hover:text-white hover:bg-white/[0.12] transition-all duration-300 animate-scale-in hover:scale-105"
+              className={cn(
+                "absolute bottom-4 right-6 p-2 transition-all duration-300 animate-scale-in",
+                shadowMode
+                  ? "text-[#888] hover:text-[#1a1a1a] border border-[#d8d5cf] bg-[#f2efe9]"
+                  : "text-[#404040] hover:text-[#b4b4b4] border border-[#181818] bg-[#080808]"
+              )}
               aria-label="Scroll to bottom"
             >
-              <ChevronDown className="w-5 h-5" />
+              <ChevronDown className="w-4 h-4" />
             </button>
           )}
         </div>
 
         {/* Input area */}
-        <div className={cn("shrink-0 pb-safe", isShortViewport && !hasMessages ? "p-3" : "p-4")}>
-          <div
-            className={cn(
-              "rounded-[24px] relative overflow-hidden bg-[rgba(10,10,20,0.65)] backdrop-blur-md border border-white/[0.08]",
-              isShortViewport && !hasMessages ? "p-3 sm:p-4" : "p-4 sm:p-5"
-            )}
-          >
-            {/* Suggested questions - bento grid on empty, horizontal scroll with messages */}
-            {!hasMessages ? (
-              <div className={cn(
-                "relative z-10 grid grid-cols-2 gap-2.5",
-                isShortViewport ? "mb-2" : "mb-4"
-              )}>
-                {suggestedQuestions.map((question, index) => (
+        <div className={cn("shrink-0 pb-safe px-6", isShortViewport && !hasMessages ? "py-3" : "py-4")}>
+          {/* Suggested questions */}
+          {!hasMessages ? (
+            <div
+              className={cn(
+                "grid grid-cols-2 gap-2 col-fade-in stagger-3",
+                isShortViewport ? "mb-3" : "mb-5"
+              )}
+            >
+              {suggestedQuestions.map((question) => (
+                <button
+                  key={question}
+                  onClick={() => handleSubmit(undefined, question)}
+                  disabled={isLoading}
+                  className={cn(
+                    "text-left text-[12px] font-mono leading-[1.6] px-3 py-2.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed",
+                    shadowMode
+                      ? "text-[#888] hover:text-[#1a1a1a] border border-[#d8d5cf] hover:border-[#888]"
+                      : "text-[#404040] hover:text-[#b4b4b4] border border-[#181818] hover:border-[#404040]"
+                  )}
+                >
+                  {question}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="mb-3 overflow-hidden">
+              <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar scroll-smooth">
+                {suggestedQuestions.map((question) => (
                   <button
                     key={question}
                     onClick={() => handleSubmit(undefined, question)}
                     disabled={isLoading}
                     className={cn(
-                      "rounded-2xl text-left group",
-                      isShortViewport ? "p-3" : "p-4",
-                      "bg-white/[0.04] border border-white/[0.06]",
-                      "hover:bg-white/[0.08] hover:border-white/[0.10]",
-                      "active:scale-[0.97]",
-                      "transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed",
-                      "opacity-0 animate-slide-up",
-                      `stagger-${index + 1}`
+                      "shrink-0 px-3 py-1.5 text-[11px] font-mono transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed",
+                      shadowMode
+                        ? "text-[#888] hover:text-[#1a1a1a] border border-[#d8d5cf] hover:border-[#888]"
+                        : "text-[#404040] hover:text-[#b4b4b4] border border-[#181818] hover:border-[#404040]"
                     )}
                   >
-                    <span className="text-xs sm:text-sm text-white/40 group-hover:text-white/75 transition-colors leading-snug">
-                      {question}
-                    </span>
+                    {question}
                   </button>
                 ))}
               </div>
-            ) : (
-              <div className="relative z-10 mb-3 overflow-hidden">
-                <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar scroll-smooth">
-                  {suggestedQuestions.map((question, index) => (
-                    <button
-                      key={question}
-                      onClick={() => handleSubmit(undefined, question)}
-                      disabled={isLoading}
-                      className={cn(
-                        "shrink-0 px-3.5 py-1.5 text-xs rounded-xl",
-                        "bg-white/[0.04] hover:bg-white/[0.08]",
-                        "border border-white/[0.06] hover:border-white/[0.12]",
-                        "text-white/35 hover:text-white/70",
-                        "transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed",
-                        "opacity-0 animate-slide-up",
-                        `stagger-${index + 1}`
-                      )}
-                    >
-                      {question}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+            </div>
+          )}
 
-            {/* Input form */}
-            <form onSubmit={handleSubmit} className="relative z-10">
-              <div className="flex items-end gap-3 bg-white/[0.04] border border-white/[0.06] rounded-[16px] p-2 focus-within:border-white/[0.14] transition-all duration-300">
-                <textarea
-                  ref={inputRef}
-                  value={input}
-                  onChange={handleInputChange}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Ask anything..."
-                  disabled={isLoading}
-                  rows={1}
-                  className="flex-1 bg-transparent border-none outline-none resize-none text-white placeholder:text-white/20 text-sm sm:text-base px-3 py-2 max-h-[120px] disabled:opacity-50"
-                />
-                <Button
-                  type="submit"
-                  disabled={isLoading || !input.trim()}
-                  size="icon"
-                  className="shrink-0 h-10 w-10 rounded-xl bg-[#6366F1] hover:bg-[#818CF8] disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-300 hover:scale-105 active:scale-95"
-                >
-                  <Send className="w-4 h-4" />
-                </Button>
-              </div>
-            </form>
+          {/* Input form */}
+          <form onSubmit={handleSubmit}>
+            <div
+              className={cn(
+                "flex items-end gap-3 px-3 py-2 transition-all duration-700",
+                shadowMode
+                  ? "border border-[#d8d5cf] focus-within:border-[#888]"
+                  : "border border-[#181818] focus-within:border-[#404040]"
+              )}
+            >
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask anything..."
+                disabled={isLoading}
+                rows={1}
+                className={cn(
+                  "flex-1 bg-transparent border-none outline-none resize-none text-[14px] font-mono leading-[1.7] px-1 py-1.5 max-h-[120px] disabled:opacity-50 transition-colors duration-700",
+                  shadowMode
+                    ? "text-[#1a1a1a] placeholder:text-[#ccc]"
+                    : "text-[#b4b4b4] placeholder:text-[#303030]"
+                )}
+              />
+              <button
+                type="submit"
+                disabled={isLoading || !input.trim()}
+                className={cn(
+                  "shrink-0 p-2 transition-all duration-300 disabled:opacity-20 disabled:cursor-not-allowed",
+                  shadowMode
+                    ? "text-[#888] hover:text-[#1a1a1a]"
+                    : "text-[#404040] hover:text-[#b4b4b4]"
+                )}
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
+          </form>
 
-            {/* Footer */}
-            <p className={cn(
-              "relative z-10 text-center text-[10px] text-white/15 font-medium tracking-wide",
-              isShortViewport && !hasMessages ? "mt-2" : "mt-3"
-            )}>
+          {/* Footer */}
+          <div className="flex items-center justify-between mt-3">
+            <p
+              className={cn(
+                "text-[10px] font-mono tracking-[0.04em] transition-colors duration-700",
+                shadowMode ? "text-[#bbb]" : "text-[#282828]"
+              )}
+            >
               Powered by AI · Responses may be inaccurate
             </p>
+            <button
+              onClick={() => setShadowMode((prev) => !prev)}
+              className={cn(
+                "text-[10px] font-mono tracking-[0.04em] uppercase transition-colors duration-300 hover:opacity-100",
+                shadowMode ? "text-[#888] opacity-60" : "text-[#404040] opacity-40"
+              )}
+              title={shadowMode ? "Press S for dark mode" : "Press S for shadow mode"}
+            >
+              [{shadowMode ? "S:on" : "S"}]
+            </button>
           </div>
         </div>
       </div>
@@ -412,24 +607,36 @@ function App() {
   );
 }
 
-function TypingIndicator() {
+function TypingIndicator({ shadowMode }: { shadowMode: boolean }) {
   return (
     <div className="flex items-center gap-1.5 py-1 px-1">
-      <span className="w-2 h-2 rounded-full bg-[#818CF8] animate-typing-dot" />
-      <span className="w-2 h-2 rounded-full bg-[#818CF8] animate-typing-dot [animation-delay:0.15s]" />
-      <span className="w-2 h-2 rounded-full bg-[#818CF8] animate-typing-dot [animation-delay:0.3s]" />
+      <span className={cn(
+        "w-1.5 h-1.5 rounded-full animate-typing-dot transition-colors duration-700",
+        shadowMode ? "bg-[#888]" : "bg-[#404040]"
+      )} />
+      <span className={cn(
+        "w-1.5 h-1.5 rounded-full animate-typing-dot [animation-delay:0.15s] transition-colors duration-700",
+        shadowMode ? "bg-[#888]" : "bg-[#404040]"
+      )} />
+      <span className={cn(
+        "w-1.5 h-1.5 rounded-full animate-typing-dot [animation-delay:0.3s] transition-colors duration-700",
+        shadowMode ? "bg-[#888]" : "bg-[#404040]"
+      )} />
     </div>
   );
 }
 
-const skeletonStyle1 = { background: 'rgba(99,102,241,0.15)' } as const;
-const skeletonStyle2 = { background: 'rgba(99,102,241,0.10)' } as const;
-
-function MessageSkeleton() {
+function MessageSkeleton({ shadowMode }: { shadowMode: boolean }) {
   return (
-    <div className="space-y-2.5 animate-pulse">
-      <div className="h-3 rounded-full w-3/4" style={skeletonStyle1} />
-      <div className="h-3 rounded-full w-1/2" style={skeletonStyle2} />
+    <div className="space-y-2 animate-pulse">
+      <div
+        className="h-2.5 rounded w-3/4"
+        style={{ background: shadowMode ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.06)" }}
+      />
+      <div
+        className="h-2.5 rounded w-1/2"
+        style={{ background: shadowMode ? "rgba(0,0,0,0.05)" : "rgba(255,255,255,0.04)" }}
+      />
     </div>
   );
 }

@@ -5,7 +5,7 @@ export const commonConfig: Pick<
   OpenAI.Chat.ChatCompletionCreateParams,
   "model" | "temperature" | "max_tokens"
 > = {
-  model: "moonshotai/kimi-k2-instruct-0905",
+  model: "qwen/qwen3-32b",
   // model: 'deepseek-ai/DeepSeek-R1',
   temperature: 0.1,
   max_tokens: 2500,
