@@ -14,10 +14,10 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "groq-sdk": "^1.1.1",
-    "hono": "^4.12.8",
-    "openai": "^6.32.0",
-    "posthog-js": "^1.363.0",
+    "groq-sdk": "^1.1.2",
+    "hono": "^4.12.9",
+    "openai": "^6.33.0",
+    "posthog-js": "^1.364.0",
     "zod": "^4.3.6"
   }
 }
