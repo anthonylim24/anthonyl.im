@@ -68,11 +68,11 @@ export function Progress() {
 
   return (
     <motion.div className="pb-4" variants={stagger} initial="hidden" animate="show">
-      <div className="space-y-8 sm:space-y-10">
+      <div className="space-y-10 sm:space-y-12">
         {/* Header */}
         <motion.div variants={fadeUp} className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="font-display text-[clamp(2rem,6vw,3.5rem)] font-light text-bw tracking-[0.02em] leading-[0.90]">
+            <h1 className="font-mono text-lg font-medium text-bw tracking-[0.02em]">
               Progress
             </h1>
           </div>
@@ -82,13 +82,13 @@ export function Progress() {
                 <span className="text-xs text-bw-tertiary">Clear all?</span>
                 <button
                   onClick={handleClearHistory}
-                  className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors duration-300"
+                  className="px-3 py-1.5 text-xs font-medium border border-red-400/30 text-red-400 hover:bg-red-500/10 transition-colors duration-300"
                 >
                   Yes
                 </button>
                 <button
                   onClick={() => setShowClearConfirm(false)}
-                  className="px-3 py-1.5 rounded-xl text-xs font-semibold surface-well text-bw-secondary hover:text-bw transition-colors duration-300"
+                  className="px-3 py-1.5 text-xs font-medium border border-bw-border text-bw-secondary hover:text-bw transition-colors duration-300"
                 >
                   No
                 </button>
@@ -96,38 +96,37 @@ export function Progress() {
             ) : (
               <button
                 onClick={() => { haptic('error'); setShowClearConfirm(true) }}
-                className="px-3 py-2 rounded-xl text-sm text-bw-faint hover:text-red-400 hover:bg-red-500/10 transition-colors duration-300"
+                className="px-3 py-2 text-xs text-bw-tertiary hover:text-red-400 transition-colors duration-300"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-3.5 w-3.5" />
               </button>
             )}
           </div>
         </motion.div>
 
         {/* ── Two-column grid on md+ ── */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-10">
-          {/* Level Card */}
-          <motion.div variants={fadeUp} className="card-elevated rounded-[24px] p-6 sm:p-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 sm:gap-12">
+          {/* Level */}
+          <motion.div variants={fadeUp} className="border-t border-bw-border pt-5">
             <div className="flex items-center gap-6">
-              <LevelRing level={level} progress={progress} size={120} strokeWidth={5} />
+              <LevelRing level={level} progress={progress} size={100} strokeWidth={4} />
               <div className="flex-1 min-w-0 space-y-3">
                 <div>
-                  <div className="text-xs font-medium text-bw-tertiary tracking-wide uppercase">
+                  <div className="text-[10px] font-medium text-bw-secondary tracking-[0.07em] uppercase">
                     Level {level}
                   </div>
-                  <div className="font-display text-2xl font-light text-bw">{levelTitle}</div>
+                  <div className="font-mono text-lg font-normal text-bw">{levelTitle}</div>
                 </div>
                 <div className="space-y-2">
-                  <div className="h-2.5 rounded-full surface-well overflow-hidden">
+                  <div className="h-px bg-bw-border overflow-hidden">
                     <div
-                      className="h-full rounded-full origin-left transition-transform duration-700 ease-out"
+                      className="h-full origin-left transition-transform duration-700 ease-out bg-bw"
                       style={{
-                        backgroundColor: 'var(--bw-accent)',
                         transform: `translateZ(0) scaleX(${Math.min(1, progress)})`,
                       }}
                     />
                   </div>
-                  <div className="text-[11px] text-bw-tertiary font-medium tabular-nums">
+                  <div className="text-[10px] text-bw-tertiary font-medium tabular-nums">
                     {xpInLevel} / {xpNeeded} XP
                   </div>
                 </div>
@@ -136,52 +135,52 @@ export function Progress() {
           </motion.div>
 
           {/* Activity Heatmap */}
-          <motion.div variants={fadeUp}>
-            <h2 className="font-display text-xl font-light text-bw tracking-[0.02em] mb-5">
+          <motion.div variants={fadeUp} className="border-t border-bw-border pt-5">
+            <h2 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary mb-5">
               Activity
             </h2>
             <ActivityHeatmap sessions={sessionDays} />
           </motion.div>
 
           {/* Achievements */}
-          <motion.div variants={fadeUp}>
-            <h2 className="font-display text-xl font-light text-bw tracking-[0.02em] mb-5">
+          <motion.div variants={fadeUp} className="border-t border-bw-border pt-5">
+            <h2 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary mb-5">
               Achievements
             </h2>
             <BadgeGrid earnedBadges={earnedBadges} />
           </motion.div>
 
           {/* Personal Bests */}
-          <motion.div variants={fadeUp}>
+          <motion.div variants={fadeUp} className="border-t border-bw-border pt-5">
             <PersonalBests personalBests={personalBests} />
           </motion.div>
         </div>
 
-        {/* ── Full-width cards below ── */}
+        {/* ── Full-width sections below ── */}
 
         {/* Progress Chart */}
-        <motion.div variants={fadeUp}>
+        <motion.div variants={fadeUp} className="border-t border-bw-border pt-5">
           <ProgressChart
             sessions={filteredSessions.filter((s) => s.maxHoldTime > 0)}
           />
         </motion.div>
 
         {/* Session History */}
-        <motion.div variants={fadeUp} className="card-elevated rounded-[24px] overflow-hidden">
-          <div className="p-5 sm:p-6 border-b border-bw-border-subtle">
-            <h3 className="font-display text-base sm:text-lg font-light text-bw tracking-[0.04em]">
+        <motion.div variants={fadeUp} className="border-t border-bw-border pt-5">
+          <div className="mb-5">
+            <h3 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary">
               Session History
             </h3>
           </div>
-          <div className="p-5 sm:p-6">
+          <div>
             {/* Filter Buttons */}
-            <div className="flex gap-1.5 p-1.5 surface-well rounded-2xl mb-5 sm:mb-6">
+            <div className="flex gap-4 mb-5 sm:mb-6 border-b border-bw-border pb-3">
               <button
                 onClick={() => { haptic('selection'); setFilterTechnique('all') }}
                 className={cn(
-                  'flex-1 flex items-center justify-center gap-1.5 h-9 sm:h-10 rounded-xl text-xs font-semibold transition-[background,color,box-shadow] duration-200',
+                  'text-xs font-medium transition-colors duration-200',
                   filterTechnique === 'all'
-                    ? 'bg-bw-active text-bw shadow-md'
+                    ? 'text-bw'
                     : 'text-bw-tertiary hover:text-bw-secondary'
                 )}
               >
@@ -192,9 +191,9 @@ export function Progress() {
                   key={id}
                   onClick={() => { haptic('selection'); setFilterTechnique(id) }}
                   className={cn(
-                    'flex-1 flex items-center justify-center gap-1.5 h-9 sm:h-10 rounded-xl text-xs font-medium transition-[background,color,box-shadow] duration-200',
+                    'flex items-center gap-1.5 text-xs font-medium transition-colors duration-200',
                     filterTechnique === id
-                      ? 'bg-bw-active text-bw shadow-md'
+                      ? 'text-bw'
                       : 'text-bw-tertiary hover:text-bw-secondary'
                   )}
                 >

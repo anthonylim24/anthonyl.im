@@ -59,7 +59,7 @@ export function ActivityHeatmap({ sessions }: ActivityHeatmapProps) {
   const numCols = Math.ceil(cells.length / 7) || 12
 
   return (
-    <div className="card-elevated rounded-[20px] p-5">
+    <div className="p-5">
       <div className="space-y-2">
         {/* Month labels – positioned proportionally across the grid */}
         <div className="relative h-4 text-[10px] text-bw-tertiary font-medium">
@@ -84,7 +84,7 @@ export function ActivityHeatmap({ sessions }: ActivityHeatmapProps) {
                     key={row}
                     data-cell
                     data-active={cell && cell.count > 0 ? 'true' : 'false'}
-                    className="w-full aspect-square rounded-[4px] transition-colors bg-bw-hover"
+                    className="w-full aspect-square transition-colors bg-bw-hover"
                     style={cell ? getIntensityStyle(cell.count) : undefined}
                     title={
                       cell

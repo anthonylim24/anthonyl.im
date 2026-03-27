@@ -321,8 +321,8 @@ body,
 
 ::selection { background: rgba(180, 180, 180, 0.2); color: #e0e0e0; }
 .chatbot-shadow ::selection { background: rgba(26, 26, 26, 0.15); color: #1a1a1a; }
-.breathwork ::selection { background: rgba(184, 134, 11, 0.15); color: #1C1917; }
-.dark .breathwork ::selection { background: rgba(212, 164, 44, 0.2); color: #E7E3DE; }
+.breathwork ::selection { background: rgba(26, 26, 26, 0.12); color: #1a1a1a; }
+.dark .breathwork ::selection { background: rgba(180, 180, 180, 0.2); color: #b4b4b4; }
 :focus-visible { outline: 2px solid rgba(28, 25, 23, 0.3); outline-offset: 2px; }
 :focus:not(:focus-visible) { outline: none; }
 
@@ -356,102 +356,102 @@ body,
 
   .breathwork {
     color-scheme: light;
-    --background: 36 33% 95%;
-    --foreground: 20 13% 9%;
-    --card: 43 100% 99%;
-    --card-foreground: 20 13% 9%;
-    --popover: 43 100% 99%;
-    --popover-foreground: 20 13% 9%;
-    --primary: 20 13% 9%;
-    --primary-foreground: 36 33% 95%;
-    --secondary: 30 10% 94%;
-    --secondary-foreground: 20 13% 9%;
-    --muted: 30 10% 94%;
-    --muted-foreground: 25 5% 45%;
-    --accent: 30 10% 94%;
-    --accent-foreground: 20 13% 9%;
+    --background: 36 18% 93%;
+    --foreground: 0 0% 10%;
+    --card: 36 18% 93%;
+    --card-foreground: 0 0% 10%;
+    --popover: 36 18% 93%;
+    --popover-foreground: 0 0% 10%;
+    --primary: 0 0% 10%;
+    --primary-foreground: 36 18% 93%;
+    --secondary: 0 0% 85%;
+    --secondary-foreground: 0 0% 10%;
+    --muted: 0 0% 85%;
+    --muted-foreground: 0 0% 53%;
+    --accent: 0 0% 85%;
+    --accent-foreground: 0 0% 10%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 25 8% 88%;
-    --input: 25 8% 88%;
-    --ring: 20 13% 9% / 0.2;
-    --radius: 0.5rem;
+    --border: 36 12% 84%;
+    --input: 36 12% 84%;
+    --ring: 0 0% 10% / 0.2;
+    --radius: 0rem;
 
-    /* Semantic bw tokens (light — parchment) */
-    --bw-text: #1C1917;
-    --bw-text-secondary: #78716C;
-    --bw-text-tertiary: #A8A29E;
-    --bw-text-faint: #D6D3D1;
-    --bw-border: rgba(28, 25, 23, 0.08);
-    --bw-border-subtle: rgba(28, 25, 23, 0.04);
-    --bw-hover: rgba(28, 25, 23, 0.04);
-    --bw-active: rgba(28, 25, 23, 0.08);
-    --bw-nav-bg: rgba(245, 242, 237, 0.92);
-    --bw-nav-bg-mobile: rgba(245, 242, 237, 0.95);
-    --bw-nav-border: rgba(28, 25, 23, 0.06);
+    /* Semantic bw tokens (editorial — monochrome ink) */
+    --bw-text: #1a1a1a;
+    --bw-text-secondary: #888;
+    --bw-text-tertiary: #888;
+    --bw-text-faint: #d8d5cf;
+    --bw-border: #d8d5cf;
+    --bw-border-subtle: #e5e2dc;
+    --bw-hover: rgba(0, 0, 0, 0.03);
+    --bw-active: rgba(0, 0, 0, 0.06);
+    --bw-nav-bg: rgba(242, 239, 233, 0.95);
+    --bw-nav-bg-mobile: rgba(242, 239, 233, 0.98);
+    --bw-nav-border: #d8d5cf;
     --bw-nav-shadow: none;
-    --bw-chart-grid: rgba(28, 25, 23, 0.06);
-    --bw-chart-tick: rgba(28, 25, 23, 0.35);
-    --bw-tooltip-bg: rgba(255, 254, 250, 0.97);
-    --bw-tooltip-border: rgba(28, 25, 23, 0.08);
-    --bw-tooltip-label: rgba(28, 25, 23, 0.85);
-    --bw-tooltip-item: rgba(28, 25, 23, 0.55);
+    --bw-chart-grid: rgba(26, 26, 26, 0.06);
+    --bw-chart-tick: rgba(26, 26, 26, 0.35);
+    --bw-tooltip-bg: rgba(242, 239, 233, 0.97);
+    --bw-tooltip-border: #d8d5cf;
+    --bw-tooltip-label: rgba(26, 26, 26, 0.85);
+    --bw-tooltip-item: rgba(26, 26, 26, 0.55);
 
-    /* Warm accent tokens */
-    --bw-accent: #B8860B;
-    --bw-accent-light: #C9A227;
-    --bw-accent-subtle: rgba(184, 134, 11, 0.12);
-    --bw-success: #6B8F71;
+    /* Accent tokens (ink — no chromatic accent) */
+    --bw-accent: #1a1a1a;
+    --bw-accent-light: #888;
+    --bw-accent-subtle: rgba(26, 26, 26, 0.08);
+    --bw-success: #1a1a1a;
   }
 
-  /* ── Dark overrides ── */
+  /* ── Dark overrides (matches chatbot dark) ── */
   .dark .breathwork {
     color-scheme: dark;
-    --background: 40 8% 8%;
-    --foreground: 36 15% 90%;
-    --card: 40 6% 11%;
-    --card-foreground: 36 15% 90%;
-    --popover: 40 6% 11%;
-    --popover-foreground: 36 15% 90%;
-    --primary: 36 15% 90%;
-    --primary-foreground: 40 8% 8%;
-    --secondary: 30 5% 15%;
-    --secondary-foreground: 36 15% 90%;
-    --muted: 30 5% 15%;
-    --muted-foreground: 30 5% 55%;
-    --accent: 30 5% 15%;
-    --accent-foreground: 36 15% 90%;
+    --background: 0 0% 3%;
+    --foreground: 0 0% 71%;
+    --card: 0 0% 5%;
+    --card-foreground: 0 0% 71%;
+    --popover: 0 0% 5%;
+    --popover-foreground: 0 0% 71%;
+    --primary: 0 0% 71%;
+    --primary-foreground: 0 0% 3%;
+    --secondary: 0 0% 9%;
+    --secondary-foreground: 0 0% 71%;
+    --muted: 0 0% 9%;
+    --muted-foreground: 0 0% 25%;
+    --accent: 0 0% 9%;
+    --accent-foreground: 0 0% 71%;
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 36 15% 90%;
-    --border: 30 5% 18%;
-    --input: 30 5% 18%;
-    --ring: 36 15% 90% / 0.2;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 9%;
+    --input: 0 0% 9%;
+    --ring: 0 0% 25%;
 
-    /* Semantic bw tokens (dark — manuscript at night) */
-    --bw-text: #E7E3DE;
-    --bw-text-secondary: #8C857E;
-    --bw-text-tertiary: rgba(231, 227, 222, 0.35);
-    --bw-text-faint: rgba(231, 227, 222, 0.18);
-    --bw-border: rgba(255, 252, 245, 0.06);
-    --bw-border-subtle: rgba(255, 252, 245, 0.03);
-    --bw-hover: rgba(255, 252, 245, 0.04);
-    --bw-active: rgba(255, 252, 245, 0.08);
-    --bw-nav-bg: rgba(23, 22, 19, 0.92);
-    --bw-nav-bg-mobile: rgba(23, 22, 19, 0.95);
-    --bw-nav-border: rgba(255, 252, 245, 0.06);
+    /* Semantic bw tokens (dark — editorial) */
+    --bw-text: #b4b4b4;
+    --bw-text-secondary: #404040;
+    --bw-text-tertiary: #404040;
+    --bw-text-faint: #181818;
+    --bw-border: #181818;
+    --bw-border-subtle: #111;
+    --bw-hover: rgba(255, 255, 255, 0.03);
+    --bw-active: rgba(255, 255, 255, 0.06);
+    --bw-nav-bg: rgba(8, 8, 8, 0.95);
+    --bw-nav-bg-mobile: rgba(8, 8, 8, 0.98);
+    --bw-nav-border: #181818;
     --bw-nav-shadow: none;
-    --bw-chart-grid: rgba(255, 252, 245, 0.06);
-    --bw-chart-tick: rgba(255, 252, 245, 0.35);
-    --bw-tooltip-bg: rgba(23, 22, 19, 0.97);
-    --bw-tooltip-border: rgba(255, 252, 245, 0.08);
-    --bw-tooltip-label: rgba(255, 252, 245, 0.85);
-    --bw-tooltip-item: rgba(255, 252, 245, 0.55);
+    --bw-chart-grid: rgba(255, 255, 255, 0.06);
+    --bw-chart-tick: rgba(255, 255, 255, 0.35);
+    --bw-tooltip-bg: rgba(8, 8, 8, 0.97);
+    --bw-tooltip-border: #181818;
+    --bw-tooltip-label: rgba(255, 255, 255, 0.85);
+    --bw-tooltip-item: rgba(255, 255, 255, 0.55);
 
-    /* Warm accent tokens (dark) */
-    --bw-accent: #D4A42C;
-    --bw-accent-light: #E0B93E;
-    --bw-accent-subtle: rgba(212, 164, 44, 0.12);
-    --bw-success: #7FA886;
+    /* Accent tokens (dark ink) */
+    --bw-accent: #e0e0e0;
+    --bw-accent-light: #b4b4b4;
+    --bw-accent-subtle: rgba(255, 255, 255, 0.08);
+    --bw-success: #b4b4b4;
   }
 
   * { @apply border-border; }
@@ -489,76 +489,71 @@ body,
   box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15);
 }
 
-/* Recessed well — inputs, progress bars, inner areas */
+/* Recessed well — transparent in editorial mode */
 .surface-well {
-  background: rgba(28, 25, 23, 0.03);
-  border: 1px solid rgba(28, 25, 23, 0.06);
+  background: transparent;
+  border: none;
 }
 
-/* Standard card — flat paper surface, ink borders */
+/* Standard card — editorial: transparent bg, thin top border */
 .card-elevated {
-  background: #FFFEFA;
-  border: 1px solid rgba(28, 25, 23, 0.08);
-  transition: border-color 0.3s ease;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--bw-border, #d8d5cf);
 }
 
 .card-elevated:hover {
-  border-color: rgba(28, 25, 23, 0.14);
+  border-color: var(--bw-text-secondary, #888);
 }
 
-/* Prominent card — same as card-elevated (flat paper) */
+/* Prominent card — same flat editorial treatment */
 .sculpted-card {
-  background: #FFFEFA;
-  border: 1px solid rgba(28, 25, 23, 0.08);
-  transition: border-color 0.3s ease;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--bw-border, #d8d5cf);
 }
 
 .sculpted-card:hover {
-  border-color: rgba(28, 25, 23, 0.14);
+  border-color: var(--bw-text-secondary, #888);
 }
 
-/* Generic glass compat (used by shadcn Card component) — flat paper */
+/* Generic glass compat — flat editorial */
 .glass {
-  background: #FFFEFA;
-  border: 1px solid rgba(28, 25, 23, 0.08);
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--bw-border, #d8d5cf);
 }
 .glass:hover {
-  border-color: rgba(28, 25, 23, 0.14);
+  border-color: var(--bw-text-secondary, #888);
 }
 
-/* ── Breathwork base background — parchment canvas ── */
+/* ── Breathwork base — editorial canvas + monospace ── */
 .breathwork {
-  background-color: #F5F2ED;
+  background-color: #f2efe9;
+  font-family: "Fragment Mono", ui-monospace, SFMono-Regular, monospace;
+  font-size: 14px;
+  line-height: 1.7;
 }
 .dark .breathwork {
-  background-color: #171613;
+  background-color: #080808;
 }
 
-/* ── Dark breathwork surface overrides ── */
+/* ── Dark breathwork surface overrides (editorial) ── */
 .dark .breathwork .surface-well {
-  background: rgba(255, 252, 245, 0.03);
-  border: 1px solid rgba(255, 252, 245, 0.04);
+  background: transparent;
+  border: none;
 }
-.dark .breathwork .card-elevated {
-  background: hsl(40 6% 11%);
-  border: 1px solid rgba(255, 252, 245, 0.06);
-}
-.dark .breathwork .card-elevated:hover {
-  border-color: rgba(255, 252, 245, 0.10);
-}
-.dark .breathwork .sculpted-card {
-  background: hsl(40 6% 11%);
-  border: 1px solid rgba(255, 252, 245, 0.06);
-}
-.dark .breathwork .sculpted-card:hover {
-  border-color: rgba(255, 252, 245, 0.10);
-}
+.dark .breathwork .card-elevated,
+.dark .breathwork .sculpted-card,
 .dark .breathwork .glass {
-  background: hsl(40 6% 11%);
-  border: 1px solid rgba(255, 252, 245, 0.06);
+  background: transparent;
+  border: none;
+  border-top: 1px solid #181818;
 }
+.dark .breathwork .card-elevated:hover,
+.dark .breathwork .sculpted-card:hover,
 .dark .breathwork .glass:hover {
-  border-color: rgba(255, 252, 245, 0.10);
+  border-color: #404040;
 }
 
 /* Gradient text — portfolio only */
@@ -571,12 +566,12 @@ body,
    BREATHWORK BACKGROUNDS
    ═══════════════════════════════════════════════════════ */
 
-/* Clean canvas — warm parchment */
+/* Clean canvas — editorial */
 .breath-bg {
-  background: #F5F2ED;
+  background: #f2efe9;
 }
 .dark .breath-bg {
-  background: #171613;
+  background: #080808;
 }
 
 /* Portfolio glass compat */

@@ -41,14 +41,14 @@ export function ProgressChart({
 
   if (chartData.length === 0) {
     return (
-      <div className="card-elevated rounded-[22px] overflow-hidden">
-        <div className="p-5 sm:p-6 border-b border-bw-border-subtle">
-          <h3 className="font-display font-light text-bw tracking-[0.04em]">
+      <div className="overflow-hidden">
+        <div className="pb-4 border-b border-bw-border">
+          <h3 className="font-mono font-normal text-bw tracking-[0.04em]">
             {title}
           </h3>
         </div>
-        <div className="p-5 sm:p-6">
-          <div className="h-64 flex items-center justify-center text-bw-tertiary text-sm">
+        <div className="pt-4">
+          <div className="h-64 flex items-center justify-center text-bw-tertiary text-sm font-mono">
             Your hold time trends will appear here after a few sessions.
           </div>
         </div>
@@ -57,41 +57,40 @@ export function ProgressChart({
   }
 
   return (
-    <div className="card-elevated rounded-[22px] overflow-hidden">
-      <div className="p-5 sm:p-6 border-b border-bw-border-subtle">
-        <h3 className="font-display font-light text-bw tracking-[0.04em]">
+    <div className="overflow-hidden">
+      <div className="pb-4 border-b border-bw-border">
+        <h3 className="font-mono font-normal text-bw tracking-[0.04em]">
           {title}
         </h3>
       </div>
-      <div className="p-5 sm:p-6">
+      <div className="pt-4">
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--bw-chart-grid)" />
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 11, fill: 'var(--bw-chart-tick)', fontFamily: 'Inter' }}
+                tick={{ fontSize: 11, fill: 'var(--bw-chart-tick)', fontFamily: '"Fragment Mono"' }}
               />
               <YAxis
-                tick={{ fontSize: 11, fill: 'var(--bw-chart-tick)', fontFamily: 'Inter' }}
+                tick={{ fontSize: 11, fill: 'var(--bw-chart-tick)', fontFamily: '"Fragment Mono"' }}
                 label={{
                   value: 'Seconds',
                   angle: -90,
                   position: 'insideLeft',
-                  style: { fill: 'var(--bw-chart-tick)', fontSize: 11, fontFamily: 'Inter' },
+                  style: { fill: 'var(--bw-chart-tick)', fontSize: 11, fontFamily: '"Fragment Mono"' },
                 }}
               />
               <Tooltip
                 contentStyle={{
                   backgroundColor: 'var(--bw-tooltip-bg)',
-                  border: '1px solid var(--bw-tooltip-border)',
-                  borderRadius: '16px',
-                  boxShadow: '0 16px 48px rgba(0, 0, 0, 0.12)',
+                  border: '1px solid var(--bw-border)',
+                  borderRadius: 0,
                   padding: '12px 16px',
-                  fontFamily: 'Inter',
+                  fontFamily: '"Fragment Mono"',
                 }}
-                labelStyle={{ color: 'var(--bw-tooltip-label)', fontWeight: 600, marginBottom: 4, fontFamily: 'Inter' }}
-                itemStyle={{ color: 'var(--bw-tooltip-item)', fontFamily: 'Inter' }}
+                labelStyle={{ color: 'var(--bw-tooltip-label)', fontWeight: 600, marginBottom: 4, fontFamily: '"Fragment Mono"' }}
+                itemStyle={{ color: 'var(--bw-tooltip-item)', fontFamily: '"Fragment Mono"' }}
               />
               <Line
                 type="monotone"

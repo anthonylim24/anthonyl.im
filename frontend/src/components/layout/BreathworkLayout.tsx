@@ -27,8 +27,20 @@ export function BreathworkLayout() {
       {/* Clean canvas */}
       <div className="fixed inset-0 breath-bg" style={{ transform: 'translateZ(0)' }} />
 
+      {/* Leaves video overlay */}
+      <video
+        src="https://leaves.anthonylim-ucsc.workers.dev/"
+        loop
+        muted
+        playsInline
+        preload="auto"
+        aria-hidden="true"
+        className="leaves-overlay"
+        style={{ opacity: 1 }}
+      />
+
       {/* Content */}
-      <div className="breathwork relative z-10 min-h-screen min-h-[100svh]">
+      <div className="breathwork relative z-10 min-h-screen min-h-[100svh] col-fade-in">
         <Header />
         <main>
           <div

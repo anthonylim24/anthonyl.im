@@ -113,20 +113,6 @@ export function FluidOrb({
       onClick={handleClick}
       onKeyDown={handleKeyDown}
     >
-      {/* Soft outer glow */}
-      <div
-        className="absolute rounded-full blur-3xl"
-        style={{
-          width: '110%',
-          height: '110%',
-          maxWidth: '340px',
-          maxHeight: '340px',
-          transform: `translateZ(0) scale(${scale})`,
-          background: `radial-gradient(circle, ${colors[0]}30, transparent 70%)`,
-          opacity: isActive ? 0.4 : 0.15,
-          transition: transitionStyle ?? `transform ${transitionDuration} ease-out, opacity ${transitionDuration} ease-out`,
-        }}
-      />
       {/* Main orb */}
       <div
         className="relative"
@@ -138,24 +124,9 @@ export function FluidOrb({
           transform: `translateZ(0) scale(${scale})`,
           borderRadius,
           background: `linear-gradient(135deg, ${colors[0]}, ${colors[1]})`,
-          boxShadow: `
-            0 0 40px ${colors[0]}25,
-            inset 0 20px 40px rgba(255,255,255,0.1)
-          `,
           transition: transitionStyle ?? `transform ${transitionDuration} ease-out, border-radius ${transitionDuration} ease-out`,
         }}
-      >
-        <div
-          className="absolute top-[15%] left-[20%] rounded-full"
-          style={{
-            width: '40%',
-            height: '25%',
-            background: 'radial-gradient(ellipse, rgba(255,255,255,0.3), transparent)',
-            filter: 'blur(8px)',
-            transform: 'translateZ(0)',
-          }}
-        />
-      </div>
+      />
     </div>
   )
 }

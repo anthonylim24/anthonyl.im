@@ -20,14 +20,8 @@ export function PhaseIndicator({ phase, className }: PhaseIndicatorProps) {
     >
       {/* Phase label badge */}
       {phase && (
-        <div
-          className="inline-flex items-center px-4 py-1.5 rounded-full mb-3 transition-all duration-300 border"
-          style={{
-            backgroundColor: 'var(--bw-hover)',
-            borderColor: 'var(--bw-border)',
-          }}
-        >
-          <span className="text-sm font-medium uppercase tracking-wider text-bw-secondary">
+        <div className="mb-3">
+          <span className="text-[10px] font-mono font-medium uppercase tracking-[0.07em] text-bw-secondary">
             {phase.replace('_', ' ')}
           </span>
         </div>
@@ -36,7 +30,7 @@ export function PhaseIndicator({ phase, className }: PhaseIndicatorProps) {
       {/* Main text */}
       <h2
         className={cn(
-          'font-display font-light text-4xl md:text-5xl tracking-wide transition-all duration-500 text-bw',
+          'font-mono text-xl font-normal tracking-wide transition-all duration-500 text-bw',
           !phase && 'text-bw-tertiary'
         )}
       >

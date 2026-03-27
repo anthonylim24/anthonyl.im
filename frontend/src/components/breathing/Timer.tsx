@@ -8,9 +8,9 @@ interface TimerProps {
 
 export function Timer({ seconds, className, size = 'lg' }: TimerProps) {
   const sizeStyles = {
-    sm: 'text-3xl',
-    md: 'text-5xl',
-    lg: 'text-6xl md:text-7xl',
+    sm: 'text-xl',
+    md: 'text-3xl',
+    lg: 'text-4xl md:text-5xl',
   }
 
   return (
@@ -19,7 +19,7 @@ export function Timer({ seconds, className, size = 'lg' }: TimerProps) {
       aria-live="off"
       aria-label={`${seconds} seconds remaining`}
       className={cn(
-        'font-display font-light tabular-nums tracking-[0.04em] text-foreground',
+        'font-mono font-normal tabular-nums tracking-[0.04em] text-foreground',
         sizeStyles[size],
         className
       )}

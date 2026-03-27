@@ -29,19 +29,19 @@ function AccountInfo() {
         src={user.imageUrl}
         alt={user.fullName ?? 'Profile'}
         loading="lazy"
-        className="h-12 w-12 rounded-full ring-2 ring-bw-border"
+        className="h-10 w-10 ring-1 ring-bw-border"
       />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-bw truncate">
+        <p className="text-xs font-medium text-bw truncate">
           {user.fullName}
         </p>
-        <p className="text-xs text-bw-tertiary truncate">
+        <p className="text-[10px] text-bw-tertiary truncate">
           {user.primaryEmailAddress?.emailAddress}
         </p>
       </div>
-      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-bw-border bg-bw-hover">
-        <div className="h-1.5 w-1.5 rounded-full animate-pulse bg-bw-tertiary" />
-        <span className="text-[11px] font-medium text-bw-secondary">Synced</span>
+      <div className="flex items-center gap-1.5 px-2.5 py-1 border border-bw-border">
+        <div className="h-1 w-1 animate-pulse bg-bw-tertiary" />
+        <span className="text-[10px] font-medium text-bw-secondary">Synced</span>
       </div>
     </div>
   )
@@ -95,27 +95,27 @@ export function Settings() {
   }
 
   return (
-    <motion.div className="space-y-8 pb-8" variants={stagger} initial="hidden" animate="show">
-      <motion.div variants={fadeUp}>
-        <h1 className="font-display text-[clamp(2rem,6vw,3rem)] font-light text-bw tracking-[0.04em] leading-[0.95]">
+    <motion.div className="space-y-0 pb-8" variants={stagger} initial="hidden" animate="show">
+      <motion.div variants={fadeUp} className="pb-8">
+        <h1 className="font-mono text-lg font-medium text-bw tracking-[0.02em]">
           Settings
         </h1>
       </motion.div>
 
       {/* Account */}
       {CLERK_ENABLED && (
-        <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
-          <h2 className="font-display text-base font-light text-bw tracking-[0.04em] mb-4">Account</h2>
+        <motion.section variants={fadeUp} className="border-t border-bw-border pt-5 pb-6">
+          <h2 className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary mb-4">Account</h2>
           <SignedOut>
-            <div className="flex flex-col items-center gap-3 py-2">
-              <p className="text-sm text-bw-tertiary text-center">
+            <div className="flex flex-col items-start gap-3 py-2">
+              <p className="text-xs text-bw-tertiary">
                 Sign in with Google to sync your progress across devices
               </p>
               <SignInButton mode="modal">
                 <button
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 border border-bw-border hover:border-bw-border hover:bg-bw-hover text-bw"
+                  className="flex items-center gap-2 px-4 py-2.5 text-xs font-medium transition-all duration-300 border border-bw-border hover:bg-bw-hover text-bw"
                 >
-                  <Cloud className="h-4 w-4" />
+                  <Cloud className="h-3.5 w-3.5" />
                   Sign in to sync
                 </button>
               </SignInButton>
@@ -128,24 +128,24 @@ export function Settings() {
       )}
 
       {/* Appearance */}
-      <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
-        <h2 className="font-display text-base font-light text-bw tracking-[0.04em] mb-4">Appearance</h2>
-        <div className="grid grid-cols-2 gap-3">
+      <motion.section variants={fadeUp} className="border-t border-bw-border pt-5 pb-6">
+        <h2 className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary mb-4">Appearance</h2>
+        <div className="flex gap-3">
           <motion.button
             whileTap={{ scale: 0.98 }}
             transition={motionTransition}
             onClick={() => { haptic('selection'); setTheme('dark') }}
             className={cn(
-              'relative flex items-center gap-3 p-4 rounded-[16px] border transition-all duration-300',
+              'flex items-center gap-2 px-4 py-2.5 text-xs font-medium border transition-all duration-300',
               theme === 'dark'
-                ? 'bg-foreground text-background border-transparent'
-                : 'border-bw-border surface-well text-bw-secondary hover:border-bw-border'
+                ? 'border-bw text-bw'
+                : 'border-bw-border text-bw-tertiary hover:text-bw-secondary hover:border-bw-border'
             )}
           >
-            <Moon className="h-5 w-5" />
-            <span className="font-semibold text-sm">Dark</span>
+            <Moon className="h-3.5 w-3.5" />
+            <span>Dark</span>
             {theme === 'dark' && (
-              <Check className="absolute top-3 right-3 h-4 w-4" />
+              <Check className="h-3 w-3 ml-1" />
             )}
           </motion.button>
           <motion.button
@@ -153,16 +153,16 @@ export function Settings() {
             transition={motionTransition}
             onClick={() => { haptic('selection'); setTheme('light') }}
             className={cn(
-              'relative flex items-center gap-3 p-4 rounded-[16px] border transition-all duration-300',
+              'flex items-center gap-2 px-4 py-2.5 text-xs font-medium border transition-all duration-300',
               theme === 'light'
-                ? 'bg-foreground text-background border-transparent'
-                : 'border-bw-border surface-well text-bw-secondary hover:border-bw-border'
+                ? 'border-bw text-bw'
+                : 'border-bw-border text-bw-tertiary hover:text-bw-secondary hover:border-bw-border'
             )}
           >
-            <Sun className="h-5 w-5" />
-            <span className="font-semibold text-sm">Light</span>
+            <Sun className="h-3.5 w-3.5" />
+            <span>Light</span>
             {theme === 'light' && (
-              <Check className="absolute top-3 right-3 h-4 w-4" />
+              <Check className="h-3 w-3 ml-1" />
             )}
           </motion.button>
         </div>
@@ -170,26 +170,26 @@ export function Settings() {
       </motion.section>
 
       {/* Feedback — Sound + Haptics merged */}
-      <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
-        <h2 className="font-display text-base font-light text-bw tracking-[0.04em] mb-4">Feedback</h2>
+      <motion.section variants={fadeUp} className="border-t border-bw-border pt-5 pb-6">
+        <h2 className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary mb-4">Feedback</h2>
         <div className="space-y-4">
           {/* Sound toggle */}
           <div>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-bw font-semibold">Sound</span>
+              <span className="text-xs text-bw font-medium">Sound</span>
               <button
                 onClick={() => { haptic('selection'); setSoundEnabled(!soundEnabled) }}
                 aria-checked={soundEnabled}
                 role="switch"
                 className={cn(
                   'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[24px] min-w-[44px]',
-                  soundEnabled ? 'bg-primary' : 'surface-well'
+                  soundEnabled ? 'bg-bw' : 'border border-bw-border'
                 )}
               >
                 <span
                   className={cn(
-                    'inline-block h-5 w-5 transform rounded-full bg-white shadow-lg transition-transform duration-300',
-                    soundEnabled ? 'translate-x-6' : 'translate-x-1'
+                    'inline-block h-5 w-5 transform rounded-full shadow-sm transition-transform duration-300',
+                    soundEnabled ? 'translate-x-6 bg-bw-canvas' : 'translate-x-1 bg-bw-tertiary'
                   )}
                 />
               </button>
@@ -197,8 +197,8 @@ export function Settings() {
             {soundEnabled && (
               <div className="mt-3">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-bw-tertiary font-medium">Volume</span>
-                  <span className="text-xs text-bw-tertiary font-medium tabular-nums">
+                  <span className="text-[10px] text-bw-tertiary font-medium">Volume</span>
+                  <span className="text-[10px] text-bw-tertiary font-medium tabular-nums">
                     {Math.round(soundVolume * 100)}%
                   </span>
                 </div>
@@ -209,19 +209,19 @@ export function Settings() {
                   step={0.01}
                   value={soundVolume}
                   onChange={(e) => setSoundVolume(parseFloat(e.target.value))}
-                  className="w-full h-1.5 rounded-full appearance-none cursor-pointer bg-bw-active accent-primary
-                    [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5
-                    [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary
-                    [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:shadow-primary/30"
+                  className="w-full h-px appearance-none cursor-pointer bg-bw-border accent-bw
+                    [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4
+                    [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-bw
+                    [&::-webkit-slider-thumb]:shadow-sm"
                 />
               </div>
             )}
           </div>
 
           {/* Haptics toggle */}
-          <div className="pt-4 border-t border-bw-border-subtle">
+          <div className="pt-4 border-t border-bw-border">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-bw font-semibold">Haptics</span>
+              <span className="text-xs text-bw font-medium">Haptics</span>
               <button
                 onClick={() => {
                   const next = !hapticsEnabled
@@ -232,13 +232,13 @@ export function Settings() {
                 role="switch"
                 className={cn(
                   'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[24px] min-w-[44px]',
-                  hapticsEnabled ? 'bg-primary' : 'surface-well'
+                  hapticsEnabled ? 'bg-bw' : 'border border-bw-border'
                 )}
               >
                 <span
                   className={cn(
-                    'inline-block h-5 w-5 transform rounded-full bg-white shadow-lg transition-transform duration-300',
-                    hapticsEnabled ? 'translate-x-6' : 'translate-x-1'
+                    'inline-block h-5 w-5 transform rounded-full shadow-sm transition-transform duration-300',
+                    hapticsEnabled ? 'translate-x-6 bg-bw-canvas' : 'translate-x-1 bg-bw-tertiary'
                   )}
                 />
               </button>
@@ -248,19 +248,19 @@ export function Settings() {
       </motion.section>
 
       {/* Data */}
-      <motion.section variants={fadeUp} className="card-elevated rounded-[22px] p-5">
-        <h2 className="font-display text-base font-light text-bw tracking-[0.04em] mb-4">Data</h2>
-        <div className="flex flex-col gap-2.5">
+      <motion.section variants={fadeUp} className="border-t border-bw-border pt-5 pb-6">
+        <h2 className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary mb-4">Data</h2>
+        <div className="divide-y divide-bw-border">
           <motion.button
             whileTap={{ scale: 0.99 }}
             transition={motionTransition}
             onClick={() => { haptic('light'); handleExportData() }}
-            className="flex items-center gap-3 w-full p-4 rounded-[16px] surface-well hover:bg-bw-hover transition-all duration-300 text-left"
+            className="flex items-center gap-3 w-full py-4 hover:bg-bw-hover transition-all duration-300 text-left"
           >
-            <Download className="h-4 w-4 text-bw-tertiary" />
+            <Download className="h-3.5 w-3.5 text-bw-tertiary" />
             <div>
-              <p className="text-sm font-semibold text-bw">Export Data</p>
-              <p className="text-xs text-bw-tertiary">
+              <p className="text-xs font-medium text-bw">Export Data</p>
+              <p className="text-[10px] text-bw-tertiary">
                 Download all data as JSON
               </p>
             </div>
@@ -270,28 +270,28 @@ export function Settings() {
             transition={motionTransition}
             onClick={handleClearData}
             className={cn(
-              'flex items-center gap-3 w-full p-4 rounded-[16px] transition-all duration-300 text-left',
+              'flex items-center gap-3 w-full py-4 transition-all duration-300 text-left',
               confirmClear
-                ? 'bg-red-500/15 hover:bg-red-500/20 border border-red-500/20'
-                : 'surface-well hover:bg-bw-hover'
+                ? 'bg-red-500/5 hover:bg-red-500/10'
+                : 'hover:bg-bw-hover'
             )}
           >
             <Trash2
               className={cn(
-                'h-4 w-4',
+                'h-3.5 w-3.5',
                 confirmClear ? 'text-red-400' : 'text-bw-tertiary'
               )}
             />
             <div>
               <p
                 className={cn(
-                  'text-sm font-semibold',
+                  'text-xs font-medium',
                   confirmClear ? 'text-red-400' : 'text-bw'
                 )}
               >
                 {confirmClear ? 'Tap again to confirm' : 'Clear All Data'}
               </p>
-              <p className="text-xs text-bw-tertiary">
+              <p className="text-[10px] text-bw-tertiary">
                 {confirmClear
                   ? 'This action cannot be undone'
                   : 'Remove all session history'}
@@ -301,7 +301,7 @@ export function Settings() {
           {confirmClear && (
             <button
               onClick={() => setConfirmClear(false)}
-              className="text-xs text-bw-tertiary hover:text-bw-secondary transition-colors"
+              className="text-[10px] text-bw-tertiary hover:text-bw-secondary transition-colors py-3"
             >
               Cancel
             </button>

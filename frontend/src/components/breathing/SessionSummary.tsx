@@ -2,7 +2,6 @@ import { useEffect, useState, useRef } from 'react'
 import { motion } from 'motion/react'
 import { BADGES } from '@/lib/gamification'
 import { formatTime } from '@/lib/utils'
-import { ACCENT_WARM, ACCENT_WARM_LIGHT, ACHIEVEMENT, PERSONAL_BEST } from '@/lib/palette'
 import { Trophy, Zap, Target, Clock, Star, X } from 'lucide-react'
 import { CelebrationParticles } from './CelebrationParticles'
 import { useHaptics } from '@/hooks/useHaptics'
@@ -109,7 +108,7 @@ export function SessionSummary({
         initial={{ opacity: 0, scale: 0.92, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ ...spring, delay: 0.1 }}
-        className="relative w-full max-w-sm rounded-3xl bg-white border border-bw-border shadow-2xl overflow-hidden"
+        className="relative w-full max-w-sm border border-bw-border bg-[var(--bw-nav-bg)] overflow-hidden"
       >
         <motion.div
           variants={stagger}
@@ -119,70 +118,72 @@ export function SessionSummary({
           <div className="relative px-6 pt-8 pb-4 text-center">
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 h-8 w-8 rounded-full bg-bw-active flex items-center justify-center text-bw-tertiary hover:text-bw-secondary transition-colors"
+              className="absolute top-4 right-4 h-8 w-8 flex items-center justify-center text-bw-tertiary hover:text-bw-secondary transition-colors border border-bw-border"
             >
               <X className="h-4 w-4" />
             </button>
 
             <motion.div
               variants={fadeUp}
-              className="h-16 w-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
-              style={{ background: ACCENT_WARM }}
+              className="h-16 w-16 flex items-center justify-center mx-auto mb-4 bg-bw-text text-background"
             >
-              <Trophy className="h-8 w-8 text-white" />
+              <Trophy className="h-8 w-8" />
             </motion.div>
 
             <motion.h2
               variants={fadeUp}
-              className="font-display text-2xl font-light text-bw tracking-[0.04em]"
+              className="font-mono text-2xl font-normal text-bw tracking-[0.04em]"
             >
               Session Complete
             </motion.h2>
 
             <motion.div
               variants={fadeUp}
-              className="inline-flex items-center gap-2 mt-3 px-4 py-2 rounded-full"
-              style={{ backgroundColor: `${ACCENT_WARM}15`, border: `1px solid ${ACCENT_WARM}25` }}
+              className="inline-flex items-center gap-2 mt-3"
             >
-              <Zap className="h-4 w-4" style={{ color: ACCENT_WARM_LIGHT }} />
+              <Zap className="h-4 w-4 text-bw-secondary" />
               <AnimatedCounter
                 target={xpEarned}
                 prefix="+"
                 suffix=" XP"
-                className="font-bold"
+                className="font-mono font-medium text-bw"
               />
             </motion.div>
           </div>
 
           <div className="px-6 pb-4">
-            <motion.div variants={fadeUp} className="grid grid-cols-2 gap-3">
-              <div className="rounded-xl bg-bw-hover p-3 text-center">
-                <Target className="h-5 w-5 mx-auto mb-1 text-bw-tertiary" />
-                <div className="text-xl font-bold text-bw">{rounds}</div>
-                <div className="text-xs text-bw-tertiary">Rounds</div>
+            <motion.div variants={fadeUp} className="divide-y divide-bw-border">
+              <div className="flex items-center justify-between py-3">
+                <div className="flex items-center gap-2 text-bw-secondary">
+                  <Target className="h-4 w-4" />
+                  <span className="text-xs font-mono uppercase tracking-wider">Rounds</span>
+                </div>
+                <div className="text-sm font-mono font-medium text-bw tabular-nums">{rounds}</div>
               </div>
-              <div className="rounded-xl bg-bw-hover p-3 text-center">
-                <Clock className="h-5 w-5 mx-auto mb-1 text-bw-tertiary" />
-                <div className="text-xl font-bold text-bw">
+              <div className="flex items-center justify-between py-3">
+                <div className="flex items-center gap-2 text-bw-secondary">
+                  <Clock className="h-4 w-4" />
+                  <span className="text-xs font-mono uppercase tracking-wider">Duration</span>
+                </div>
+                <div className="text-sm font-mono font-medium text-bw tabular-nums">
                   {formatTime(durationSeconds)}
                 </div>
-                <div className="text-xs text-bw-tertiary">Duration</div>
               </div>
             </motion.div>
 
             {holdTimes.length > 0 && (
-              <motion.div variants={fadeUp} className="grid grid-cols-2 gap-3 mt-3">
-                <div className="rounded-xl bg-bw-hover p-3 text-center">
-                  <div className="text-xl font-bold" style={{ color: ACHIEVEMENT }}>
+              <motion.div variants={fadeUp} className="divide-y divide-bw-border">
+                <div className="flex items-center justify-between py-3">
+                  <span className="text-xs font-mono uppercase tracking-wider text-bw-secondary">Best Hold</span>
+                  <span className="text-sm font-mono font-medium text-bw tabular-nums">
                     <AnimatedCounter target={maxHold} suffix="s" />
-                  </div>
-                  <div className="text-xs text-bw-tertiary">Best Hold</div>
+                  </span>
                 </div>
-                <div className="rounded-xl bg-bw-hover p-3 text-center">
-                  <div className="text-xl font-bold text-bw">
+                <div className="flex items-center justify-between py-3">
+                  <span className="text-xs font-mono uppercase tracking-wider text-bw-secondary">Avg Hold</span>
+                  <span className="text-sm font-mono font-medium text-bw tabular-nums">
                     <AnimatedCounter target={avgHold} suffix="s" />
-                  </div>
-                  <div className="text-xs text-bw-tertiary">Avg Hold</div>
+                  </span>
                 </div>
               </motion.div>
             )}
@@ -190,15 +191,14 @@ export function SessionSummary({
             {isNewPersonalBest && (
               <motion.div
                 variants={fadeUp}
-                className="mt-3 p-3 rounded-xl text-center"
-                style={{ background: `linear-gradient(to right, ${PERSONAL_BEST}20, ${PERSONAL_BEST}10)`, border: `1px solid ${PERSONAL_BEST}40` }}
+                className="mt-3 p-3 text-center border border-bw-border"
               >
                 <div className="flex items-center justify-center gap-2">
-                  <Star className="h-4 w-4" style={{ color: PERSONAL_BEST }} />
-                  <span className="text-sm font-semibold" style={{ color: PERSONAL_BEST }}>
-                    New Personal Best!
+                  <Star className="h-4 w-4 text-bw-secondary" />
+                  <span className="text-sm font-mono font-medium text-bw">
+                    New Personal Best
                   </span>
-                  <Star className="h-4 w-4" style={{ color: PERSONAL_BEST }} />
+                  <Star className="h-4 w-4 text-bw-secondary" />
                 </div>
               </motion.div>
             )}
@@ -218,10 +218,9 @@ export function SessionSummary({
                         initial={{ opacity: 0, scale: 0.5 }}
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ ...spring, delay: 0.8 }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
-                        style={{ backgroundColor: `${ACHIEVEMENT}33`, border: `1px solid ${ACHIEVEMENT}4D` }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 border border-bw-border"
                       >
-                        <span className="text-xs font-medium" style={{ color: ACHIEVEMENT }}>
+                        <span className="text-xs font-mono font-medium text-bw">
                           {badge.name}
                         </span>
                       </motion.div>
@@ -235,7 +234,7 @@ export function SessionSummary({
           <motion.div variants={fadeUp} className="px-6 pb-6">
             <button
               onClick={onClose}
-              className="w-full py-3 rounded-xl text-background font-semibold active:scale-[0.98] transition-all duration-200 bg-foreground"
+              className="w-full py-3 text-background font-mono font-semibold active:scale-[0.98] transition-all duration-200 bg-foreground border border-bw-border"
             >
               Continue
             </button>

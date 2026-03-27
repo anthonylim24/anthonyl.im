@@ -38,11 +38,7 @@ export function Navigation() {
       style={{ bottom: `${bottomOffset}px` }}
     >
       <div
-        className="mx-auto max-w-md"
-        style={{
-          background: 'var(--bw-nav-bg-mobile)',
-          borderTop: '1px solid var(--bw-nav-border)',
-        }}
+        className="mx-auto max-w-md border-t border-bw-border"
       >
         <div className="grid grid-cols-4 h-[64px]">
           {navItems.map(({ path, label, icon: Icon }, i) => {
@@ -53,19 +49,19 @@ export function Navigation() {
                 to={path}
                 onClick={() => { if (i !== activeIndex) haptic('selection') }}
                 className={cn(
-                  'flex flex-col items-center justify-center gap-1 text-[10px] font-semibold transition-colors duration-300 relative min-h-[24px] min-w-[44px]',
+                  'flex flex-col items-center justify-center gap-1 text-[10px] font-mono font-medium tracking-[0.07em] uppercase transition-colors duration-300 relative min-h-[24px] min-w-[44px]',
                   active
-                    ? 'text-bw font-semibold'
-                    : 'text-bw-tertiary hover:text-bw-secondary active:scale-95'
+                    ? 'text-bw'
+                    : 'text-bw-secondary hover:text-bw active:scale-95'
                 )}
               >
                 <div className="relative">
                   <Icon className={cn(
                     "relative h-[24px] w-[24px] transition-colors duration-300",
-                    active ? "text-bw" : "text-bw-tertiary"
+                    active ? "text-bw" : "text-bw-secondary"
                   )} />
                 </div>
-                <span className="tracking-wide">{label}</span>
+                <span>{label}</span>
               </Link>
             )
           })}

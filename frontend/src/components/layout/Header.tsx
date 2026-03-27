@@ -24,9 +24,8 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full" style={{ transform: 'translateZ(0)' }}>
       <div
-        className="safe-top"
+        className="safe-top bg-bw-canvas"
         style={{
-          background: 'var(--bw-nav-bg)',
           borderBottom: '1px solid var(--bw-nav-border)',
         }}
       >
@@ -34,7 +33,7 @@ export function Header() {
           <div className="flex items-center">
             {/* Logo */}
             <Link to="/breathwork" className="flex items-center gap-2.5 mr-8 group">
-              <span className="font-display font-light text-lg tracking-[0.04em] text-bw">
+              <span className="font-mono text-[10px] font-medium tracking-[0.07em] uppercase text-bw">
                 BreathFlow
               </span>
             </Link>
@@ -46,10 +45,10 @@ export function Header() {
                   key={path}
                   to={path}
                   className={cn(
-                    'flex items-center gap-2 px-4 py-2 text-sm font-medium tracking-wide transition-colors duration-300',
+                    'flex items-center gap-2 px-4 py-2 text-[10px] font-mono font-medium tracking-[0.07em] uppercase transition-colors duration-300',
                     isActive(path)
-                      ? 'text-bw font-semibold'
-                      : 'text-bw-tertiary hover:text-bw'
+                      ? 'text-bw'
+                      : 'text-bw-secondary hover:text-bw'
                   )}
                 >
                   <Icon className="h-4 w-4" />

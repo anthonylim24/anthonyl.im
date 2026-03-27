@@ -321,7 +321,7 @@ export function BreathingSession({
         {!isActive && !isComplete ? (
           <button
             onClick={handleStart}
-            className="flex items-center gap-3 px-10 py-4 rounded-2xl font-semibold text-lg transition-all duration-300 hover:scale-105 bg-foreground text-background"
+            className="flex items-center gap-3 px-10 py-4 font-mono font-semibold text-lg transition-all duration-300 hover:scale-105 bg-foreground text-background border border-bw-border"
           >
             <Play className="h-5 w-5" />
             Start
@@ -331,23 +331,21 @@ export function BreathingSession({
             <button
               onClick={handlePause}
               aria-label={isPaused ? 'Resume' : 'Pause'}
-              className="h-14 w-14 rounded-xl flex items-center justify-center text-bw transition-all duration-300"
-              style={{ background: 'var(--bw-hover)', borderWidth: 1, borderColor: 'var(--bw-border)' }}
+              className="h-14 w-14 flex items-center justify-center text-bw transition-all duration-300 border border-bw-border"
             >
               {isPaused ? <Play className="h-5 w-5" /> : <Pause className="h-5 w-5" />}
             </button>
             <button
               onClick={handleRestart}
               aria-label="Restart"
-              className="h-14 w-14 rounded-xl flex items-center justify-center text-bw transition-all duration-300"
-              style={{ background: 'var(--bw-hover)', borderWidth: 1, borderColor: 'var(--bw-border)' }}
+              className="h-14 w-14 flex items-center justify-center text-bw transition-all duration-300 border border-bw-border"
             >
               <RotateCcw className="h-5 w-5" />
             </button>
             <button
               onClick={handleStop}
               aria-label="Stop"
-              className="h-14 w-14 rounded-xl border flex items-center justify-center transition-all duration-300"
+              className="h-14 w-14 border flex items-center justify-center transition-all duration-300"
               style={{
                 backgroundColor: withAlpha(DESTRUCTIVE, 0.2),
                 borderColor: withAlpha(DESTRUCTIVE, 0.2),

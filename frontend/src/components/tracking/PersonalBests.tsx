@@ -14,14 +14,14 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
 
   if (!hasBests) {
     return (
-      <div className="card-elevated rounded-[22px] overflow-hidden">
-        <div className="p-5 sm:p-6 border-b border-bw-border-subtle">
-          <h3 className="font-display font-light text-bw tracking-[0.04em]">
+      <div className="overflow-hidden">
+        <div className="pb-4 border-b border-bw-border">
+          <h3 className="font-mono font-normal text-bw tracking-[0.04em]">
             Personal Bests
           </h3>
         </div>
-        <div className="p-5 sm:p-6">
-          <div className="text-center text-bw-tertiary py-6 text-sm">
+        <div className="pt-4">
+          <div className="text-center text-bw-tertiary py-6 text-sm font-mono">
             Personal records unlock as you practice. Start your first session to begin tracking.
           </div>
         </div>
@@ -30,14 +30,14 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
   }
 
   return (
-    <div className="card-elevated rounded-[22px] overflow-hidden">
-      <div className="p-5 sm:p-6 border-b border-bw-border-subtle">
-        <h3 className="font-display font-light text-bw tracking-[0.04em]">
+    <div className="overflow-hidden">
+      <div className="pb-4 border-b border-bw-border">
+        <h3 className="font-mono font-normal text-bw tracking-[0.04em]">
           Personal Bests
         </h3>
       </div>
-      <div className="p-5 sm:p-6">
-        <div className="grid gap-3">
+      <div className="pt-4">
+        <div>
           {Object.values(TECHNIQUE_IDS).map((techniqueId) => {
             const best = personalBests[techniqueId]
             if (!best) return null
@@ -45,22 +45,20 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
             return (
               <div
                 key={techniqueId}
-                className="flex items-center justify-between p-4 rounded-[16px] surface-well group hover:bg-bw-hover transition-all duration-300"
+                className="flex items-center justify-between border-b border-bw-border py-3 group hover:bg-bw-hover transition-all duration-300"
               >
                 <div className="flex items-center gap-3">
-                  <div className="h-11 w-11 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform duration-300 bg-bw-hover border border-bw-border">
-                    <TechniqueGeometryIcon techniqueId={techniqueId} style={{ color: TECHNIQUE_RING_COLORS[techniqueId].primary }} />
-                  </div>
+                  <TechniqueGeometryIcon techniqueId={techniqueId} className="text-bw-secondary" style={{ color: TECHNIQUE_RING_COLORS[techniqueId].primary }} />
                   <div>
-                    <div className="font-semibold text-sm text-bw">
+                    <div className="font-mono font-medium text-sm text-bw">
                       {breathingProtocols[techniqueId].name}
                     </div>
-                    <div className="text-xs text-bw-tertiary">
+                    <div className="text-xs font-mono text-bw-tertiary">
                       {formatDate(new Date(best.date))}
                     </div>
                   </div>
                 </div>
-                <div className="font-display text-2xl font-light text-bw tabular-nums">
+                <div className="font-mono text-2xl font-normal text-bw tabular-nums">
                   {best.maxHoldTime}s
                 </div>
               </div>

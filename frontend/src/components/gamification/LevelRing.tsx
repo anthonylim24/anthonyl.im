@@ -30,15 +30,7 @@ export function LevelRing({
             <stop offset="0%" stopColor={colors[0]} />
             <stop offset="100%" stopColor={colors[1]} />
           </linearGradient>
-          {/* Glow filter */}
-          <filter id={`ring-glow-${level}-${size}`}>
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
+          </defs>
         {/* Track */}
         <circle
           cx={size / 2}
@@ -61,11 +53,10 @@ export function LevelRing({
           strokeLinecap="round"
           className="transition-[stroke-dashoffset] duration-700 ease-out"
           style={{ transform: 'translateZ(0)' }}
-          filter={progress > 0 ? `url(#ring-glow-${level}-${size})` : undefined}
         />
       </svg>
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className="font-display text-xl font-light text-bw">{level}</span>
+        <span className="font-mono text-sm font-normal text-bw">{level}</span>
       </div>
     </div>
   )

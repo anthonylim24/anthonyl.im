@@ -1,7 +1,6 @@
 import { motion } from 'motion/react'
 import { BADGES } from '@/lib/gamification'
 import { cn } from '@/lib/utils'
-import { BADGE_GRADIENT, withAlpha, ACCENT_WARM } from '@/lib/palette'
 import {
   Zap,
   Flame,
@@ -61,9 +60,9 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
               variants={badgePop}
               data-badge={badge.id}
               data-secret="true"
-              className="flex flex-col items-center gap-2.5 p-3 rounded-[18px] surface-well"
+              className="flex flex-col items-center gap-2.5 p-3 border border-bw-border"
             >
-              <div className="h-11 w-11 rounded-xl bg-bw-active flex items-center justify-center">
+              <div className="h-11 w-11 bg-bw-active flex items-center justify-center">
                 <HelpCircle className="h-5 w-5 text-bw-faint" />
               </div>
               <span className="text-[11px] text-bw-faint text-center font-medium">???</span>
@@ -79,29 +78,25 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
             transition={spring}
             data-badge={badge.id}
             className={cn(
-              'flex flex-col items-center gap-2.5 p-3 rounded-[18px] border transition-[background,border-color,opacity] duration-300',
+              'flex flex-col items-center gap-2.5 p-3 border transition-[background,border-color,opacity] duration-300',
               earned
-                ? 'card-elevated border-bw-border'
-                : 'surface-well border-transparent opacity-35'
+                ? 'border-bw-border'
+                : 'border-transparent opacity-35'
             )}
           >
             <div
               className={cn(
-                'h-11 w-11 rounded-xl flex items-center justify-center transition-[background,color,box-shadow] duration-300',
+                'h-11 w-11 flex items-center justify-center transition-[background,color] duration-300',
                 earned
-                  ? 'text-background shadow-lg'
+                  ? 'bg-bw-text text-background'
                   : 'bg-bw-active text-bw-tertiary'
               )}
-              style={earned ? {
-                background: `linear-gradient(to bottom right, ${BADGE_GRADIENT.from}, ${BADGE_GRADIENT.to})`,
-                boxShadow: `0 10px 15px -3px ${withAlpha(ACCENT_WARM, 0.2)}`,
-              } : undefined}
             >
               {earned ? ICON_MAP[badge.icon] : <Lock className="h-4 w-4" />}
             </div>
             <span
               className={cn(
-                'text-[11px] text-center font-semibold leading-tight',
+                'text-[11px] text-center font-mono font-medium leading-tight',
                 earned ? 'text-bw' : 'text-bw-tertiary'
               )}
             >

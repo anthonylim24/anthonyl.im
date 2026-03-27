@@ -9,7 +9,6 @@ import {
 } from '@/lib/breathingProtocols'
 import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 import { formatTime, cn } from '@/lib/utils'
-import { techniqueActiveStyle } from '@/lib/techniqueConfig'
 import { TechniqueGeometryIcon } from '@/components/ui/TechniqueGeometryIcon'
 import { Clock, Minus, Plus, Play, ChevronLeft, ChevronDown } from 'lucide-react'
 import { useHaptics } from '@/hooks/useHaptics'
@@ -89,9 +88,9 @@ export function Session() {
         <motion.button
           variants={fadeUp}
           onClick={() => { haptic('light'); navigate('/breathwork') }}
-          className="flex items-center gap-1 text-sm text-bw-tertiary hover:text-bw-secondary transition-colors mb-4 -ml-1"
+          className="flex items-center gap-1 text-xs text-bw-tertiary hover:text-bw transition-colors mb-4 -ml-1"
         >
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronLeft className="h-3.5 w-3.5" />
           <span>Back</span>
         </motion.button>
 
@@ -99,26 +98,26 @@ export function Session() {
         <motion.div variants={fadeUp} className="mb-6">
           <div className="flex items-center gap-3 mb-2">
             <div
-              className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0 bg-bw-hover border border-bw-border"
+              className="h-7 w-7 flex items-center justify-center shrink-0 border border-bw-border"
               style={{ viewTransitionName: `technique-icon-${selectedTechnique}` } as React.CSSProperties}
             >
-              <TechniqueGeometryIcon techniqueId={selectedTechnique} className="text-bw-secondary" size={14} />
+              <TechniqueGeometryIcon techniqueId={selectedTechnique} className="text-bw-secondary" size={12} />
             </div>
             <h1
-              className="font-display text-xl font-light text-bw tracking-[0.04em]"
+              className="font-mono text-sm font-medium text-bw tracking-[0.02em]"
               style={{ viewTransitionName: `technique-name-${selectedTechnique}` } as React.CSSProperties}
             >{protocol.name}</h1>
           </div>
-          <p className="text-sm text-bw-tertiary leading-relaxed">{protocol.description}</p>
+          <p className="text-xs text-bw-tertiary leading-relaxed">{protocol.description}</p>
         </motion.div>
 
         {/* Phase pattern */}
-        <motion.div variants={fadeUp} className="flex items-center gap-2 px-4 py-3 rounded-xl border border-bw-border mb-6 justify-center">
+        <motion.div variants={fadeUp} className="flex items-center gap-2 py-3 border-t border-bw-border mb-6 justify-center">
           {protocol.phases.map((phase, i) => (
             <span key={i} className="flex items-center gap-1.5">
-              <span className="text-sm font-mono text-bw-secondary">{phase.duration}s</span>
+              <span className="text-xs font-mono text-bw-secondary">{phase.duration}s</span>
               {i < protocol.phases.length - 1 && (
-                <span className="text-bw-faint">→</span>
+                <span className="text-bw-tertiary">→</span>
               )}
             </span>
           ))}
@@ -131,9 +130,9 @@ export function Session() {
               onClick={() => setScienceExpanded(!scienceExpanded)}
               className="flex items-center justify-between w-full text-left"
             >
-              <span className="text-[10px] font-semibold text-bw-faint uppercase tracking-wider">How it works</span>
+              <span className="text-[10px] font-medium text-bw-secondary uppercase tracking-[0.07em]">How it works</span>
               <ChevronDown className={cn(
-                'h-3.5 w-3.5 text-bw-faint transition-transform duration-200',
+                'h-3 w-3 text-bw-tertiary transition-transform duration-200',
                 scienceExpanded && 'rotate-180'
               )} />
             </button>
@@ -150,18 +149,18 @@ export function Session() {
 
         {/* Rounds */}
         <motion.div variants={fadeUp} className="flex-1 flex flex-col items-center justify-center gap-4">
-          <span className="text-xs font-medium text-bw-tertiary tracking-wide uppercase">Rounds</span>
+          <span className="text-[10px] font-medium text-bw-secondary tracking-[0.07em] uppercase">Rounds</span>
           <div className="flex items-center gap-8">
             <motion.button
               whileTap={{ scale: 0.9 }}
               transition={spring}
               onClick={() => { haptic(15); setRounds((r) => Math.max(1, r - 1)) }}
               disabled={rounds <= 1}
-              className="h-12 w-12 rounded-full surface-well hover:bg-bw-hover disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all text-bw"
+              className="h-11 w-11 border border-bw-border hover:bg-bw-hover disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all text-bw"
             >
-              <Minus className="h-5 w-5" />
+              <Minus className="h-4 w-4" />
             </motion.button>
-            <span className="font-display text-5xl font-light tabular-nums text-bw leading-none min-w-[60px] text-center">
+            <span className="font-mono text-2xl font-normal tabular-nums text-bw leading-none min-w-[48px] text-center">
               {rounds}
             </span>
             <motion.button
@@ -169,32 +168,24 @@ export function Session() {
               transition={spring}
               onClick={() => { haptic(15); setRounds((r) => Math.min(40, r + 1)) }}
               disabled={rounds >= 40}
-              className="h-12 w-12 rounded-full surface-well hover:bg-bw-hover disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all text-bw"
+              className="h-11 w-11 border border-bw-border hover:bg-bw-hover disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all text-bw"
             >
-              <Plus className="h-5 w-5" />
+              <Plus className="h-4 w-4" />
             </motion.button>
           </div>
-          <span className="text-sm text-bw-tertiary">
+          <span className="text-xs text-bw-tertiary">
             Est. {formatTime(estimatedDuration)}
           </span>
         </motion.div>
 
         {/* Pinned CTA */}
         <motion.div variants={fadeUp} className="pt-6 pb-2">
-          <motion.button
-            whileTap={{ scale: 0.98 }}
-            transition={spring}
+          <button
             onClick={handleStartSession}
-            className="relative w-full py-4 px-6 rounded-2xl font-display font-light text-background text-lg flex items-center justify-center gap-3 bg-foreground"
+            className="w-full py-4 px-6 border border-bw-border bg-transparent font-mono font-medium text-bw text-sm flex items-center justify-center gap-3 hover:bg-bw-hover transition-colors"
           >
-            <motion.div
-              className="absolute inset-0 rounded-2xl pointer-events-none bg-foreground"
-              animate={{ opacity: [0, 0.15, 0], scale: [1, 1.02, 1] }}
-              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-              aria-hidden="true"
-            />
-            <span className="relative">Begin Session</span>
-          </motion.button>
+            <span>Begin Session</span>
+          </button>
         </motion.div>
       </div>
 
@@ -202,101 +193,110 @@ export function Session() {
       <div className="hidden md:block max-w-2xl mx-auto space-y-14">
         {/* Header */}
         <motion.div variants={fadeUp}>
-          <h1 className="font-display text-[clamp(2rem,6vw,3rem)] font-light text-bw tracking-[0.04em] leading-[0.95]">
+          <h1 className="font-mono text-lg font-medium text-bw tracking-[0.02em]">
             Session Setup
           </h1>
         </motion.div>
 
-        {/* Technique Selection — 3-col grid */}
-        <motion.div variants={fadeUp} className="grid grid-cols-3 gap-4">
-          {Object.values(TECHNIQUE_IDS).map((id) => {
-            const p = breathingProtocols[id]
-            const isSelected = selectedTechnique === id
+        {/* Technique Selection — border-separated list */}
+        <motion.div variants={fadeUp}>
+          <h2 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary mb-4">
+            Technique
+          </h2>
+          <div className="divide-y divide-bw-border border-t border-bw-border">
+            {Object.values(TECHNIQUE_IDS).map((id) => {
+              const p = breathingProtocols[id]
+              const isSelected = selectedTechnique === id
 
-            return (
-              <motion.button
-                key={id}
-                whileTap={{ scale: 0.98 }}
-                transition={spring}
-                onClick={() => handleTechniqueChange(id)}
-                className={cn(
-                  'card-elevated rounded-[20px] p-5 text-left transition-all duration-300',
-                  'border',
-                  !isSelected && 'border-bw-border-subtle hover:border-bw-border'
-                )}
-                style={isSelected ? techniqueActiveStyle(id) : undefined}
-              >
-                <div
-                  className="h-12 w-12 rounded-2xl flex items-center justify-center mb-3 bg-bw-hover border border-bw-border"
-                  style={isSelected ? { viewTransitionName: `technique-icon-${id}` } as React.CSSProperties : undefined}
+              return (
+                <motion.button
+                  key={id}
+                  whileTap={{ scale: 0.99 }}
+                  transition={spring}
+                  onClick={() => handleTechniqueChange(id)}
+                  className={cn(
+                    'w-full flex items-center gap-4 py-4 text-left transition-colors duration-200',
+                    isSelected ? 'bg-bw-hover' : 'hover:bg-bw-hover'
+                  )}
                 >
-                  <TechniqueGeometryIcon techniqueId={id} className="text-bw-secondary" />
-                </div>
-                <h3
-                  className="font-display text-base font-light text-bw mb-0.5"
-                  style={isSelected ? { viewTransitionName: `technique-name-${id}` } as React.CSSProperties : undefined}
-                >{p.name}</h3>
-                <p className="text-xs text-bw-tertiary leading-relaxed line-clamp-2">
-                  {p.purpose}
-                </p>
-                <div className="flex items-center gap-1.5 mt-3 flex-wrap">
-                  {p.phases.map((phase, i) => (
-                    <span key={i} className="flex items-center gap-1">
-                      <span className="px-2 py-0.5 rounded-md surface-well text-[10px] font-mono text-bw-secondary">
-                        {phase.duration}s
-                      </span>
-                      {i < p.phases.length - 1 && (
-                        <span className="text-bw-faint text-[10px]">→</span>
+                  <div
+                    className="h-8 w-8 flex items-center justify-center shrink-0 border border-bw-border"
+                    style={isSelected ? { viewTransitionName: `technique-icon-${id}` } as React.CSSProperties : undefined}
+                  >
+                    <TechniqueGeometryIcon techniqueId={id} className="text-bw-secondary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3
+                      className={cn(
+                        'font-mono text-sm text-bw leading-tight',
+                        isSelected ? 'font-medium' : 'font-normal'
                       )}
-                    </span>
-                  ))}
-                </div>
-              </motion.button>
-            )
-          })}
+                      style={isSelected ? { viewTransitionName: `technique-name-${id}` } as React.CSSProperties : undefined}
+                    >{p.name}</h3>
+                    <p className="text-xs text-bw-tertiary mt-0.5 line-clamp-1">
+                      {p.purpose}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {p.phases.map((phase, i) => (
+                      <span key={i} className="flex items-center gap-0.5">
+                        <span className="text-[10px] font-mono text-bw-tertiary">
+                          {phase.duration}s
+                        </span>
+                        {i < p.phases.length - 1 && (
+                          <span className="text-bw-tertiary text-[10px]">→</span>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                  {isSelected && (
+                    <div className="h-1.5 w-1.5 bg-bw shrink-0" />
+                  )}
+                </motion.button>
+              )
+            })}
+          </div>
         </motion.div>
 
         {/* Round Counter */}
-        <motion.div variants={fadeUp} className="card-elevated rounded-[24px] overflow-hidden">
-          <div className="p-8 space-y-8">
-            <div className="space-y-5">
-              <label className="text-xs font-medium text-bw-tertiary tracking-wide uppercase">
-                Number of Rounds
-              </label>
-              <div className="flex items-center justify-center gap-10">
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  transition={spring}
-                  onClick={() => { haptic(15); setRounds((r) => Math.max(1, r - 1)) }}
-                  disabled={rounds <= 1}
-                  className="h-14 w-14 rounded-2xl surface-well hover:bg-bw-hover disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 text-bw"
-                >
-                  <Minus className="h-5 w-5" />
-                </motion.button>
-                <div className="text-center min-w-[100px]">
-                  <span className="font-display text-7xl font-light tabular-nums text-bw leading-none">
-                    {rounds}
-                  </span>
-                  <span className="block text-xs text-bw-tertiary mt-2 font-medium tracking-wide uppercase">
-                    rounds
-                  </span>
-                </div>
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  transition={spring}
-                  onClick={() => { haptic(15); setRounds((r) => Math.min(40, r + 1)) }}
-                  disabled={rounds >= 40}
-                  className="h-14 w-14 rounded-2xl surface-well hover:bg-bw-hover disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 text-bw"
-                >
-                  <Plus className="h-5 w-5" />
-                </motion.button>
+        <motion.div variants={fadeUp} className="border-t border-bw-border pt-8">
+          <div className="space-y-6">
+            <label className="text-[10px] font-medium text-bw-secondary tracking-[0.07em] uppercase">
+              Number of Rounds
+            </label>
+            <div className="flex items-center justify-center gap-10">
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                transition={spring}
+                onClick={() => { haptic(15); setRounds((r) => Math.max(1, r - 1)) }}
+                disabled={rounds <= 1}
+                className="h-12 w-12 border border-bw-border hover:bg-bw-hover disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 text-bw"
+              >
+                <Minus className="h-4 w-4" />
+              </motion.button>
+              <div className="text-center min-w-[80px]">
+                <span className="font-mono text-3xl font-normal tabular-nums text-bw leading-none">
+                  {rounds}
+                </span>
+                <span className="block text-[10px] text-bw-secondary mt-2 font-medium tracking-[0.07em] uppercase">
+                  rounds
+                </span>
               </div>
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                transition={spring}
+                onClick={() => { haptic(15); setRounds((r) => Math.min(40, r + 1)) }}
+                disabled={rounds >= 40}
+                className="h-12 w-12 border border-bw-border hover:bg-bw-hover disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 text-bw"
+              >
+                <Plus className="h-4 w-4" />
+              </motion.button>
             </div>
 
-            <div className="flex items-center justify-center gap-3 py-4 px-6 rounded-2xl surface-well">
-              <Clock className="h-4.5 w-4.5 text-bw-tertiary" />
-              <span className="text-sm text-bw-tertiary">Estimated</span>
-              <span className="font-display font-bold text-lg text-bw tabular-nums">
+            <div className="flex items-center justify-center gap-2 py-3 border-t border-bw-border">
+              <Clock className="h-3.5 w-3.5 text-bw-tertiary" />
+              <span className="text-xs text-bw-tertiary">Estimated</span>
+              <span className="font-mono font-medium text-sm text-bw tabular-nums">
                 {formatTime(estimatedDuration)}
               </span>
             </div>
@@ -307,19 +307,13 @@ export function Session() {
         <motion.button
           variants={fadeUp}
           whileTap={{ scale: 0.98 }}
-          whileHover={{ scale: 1.02 }}
+          whileHover={{ opacity: 0.8 }}
           transition={spring}
           onClick={handleStartSession}
-          className="relative w-full py-5 px-6 rounded-[20px] font-display font-light text-background text-lg flex items-center justify-center gap-3 bg-foreground"
+          className="w-full py-4 px-6 border border-bw-border bg-transparent font-mono font-medium text-bw text-sm flex items-center justify-center gap-3 hover:bg-bw-hover transition-colors"
         >
-          <motion.div
-            className="absolute inset-0 rounded-[20px] pointer-events-none bg-foreground"
-            animate={{ opacity: [0, 0.15, 0], scale: [1, 1.02, 1] }}
-            transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-            aria-hidden="true"
-          />
-          <Play className="relative h-5 w-5" />
-          <span className="relative">Begin {protocol.name}</span>
+          <Play className="h-4 w-4" />
+          <span>Begin {protocol.name}</span>
         </motion.button>
       </div>
     </motion.div>
