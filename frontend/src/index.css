@@ -106,14 +106,19 @@ body,
    SHADOW MODE OVERLAY (dany.works-inspired leaf shadows)
    ═══════════════════════════════════════════════════════ */
 
-.shadow-overlay {
+/* Leaves overlay — exact match to dany.works implementation */
+.leaves-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1;
-  pointer-events: none;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
   mix-blend-mode: multiply;
-  transition: opacity 700ms cubic-bezier(0.33, 0, 0, 1);
-  will-change: opacity;
+  pointer-events: none;
+  z-index: 999;
+  opacity: 0;
+  transition: opacity 700ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 /* Column fade-in — dany.works entry animation */

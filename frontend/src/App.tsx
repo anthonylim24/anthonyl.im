@@ -33,6 +33,7 @@ function App() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const leavesVideoRef = useRef<HTMLVideoElement>(null);
   const shouldAutoScroll = useRef(true);
 
   useFavicon();
@@ -52,6 +53,18 @@ function App() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  // Play/pause leaves video when shadow mode toggles
+  useEffect(() => {
+    const video = leavesVideoRef.current;
+    if (!video) return;
+
+    if (shadowMode) {
+      video.play().catch(() => {});
+    } else {
+      video.pause();
+    }
+  }, [shadowMode]);
 
   useEffect(() => {
     const updateViewportHeight = () => {
@@ -199,131 +212,19 @@ function App() {
         backgroundColor: shadowMode ? "#f2efe9" : "#080808",
       }}
     >
-      {/* Shadow mode leaf overlay */}
-      <div
-        className="shadow-overlay"
-        style={{ opacity: shadowMode ? 1 : 0 }}
+      {/* Shadow mode leaves overlay — video with multiply blend, identical to dany.works */}
+      <video
+        ref={leavesVideoRef}
+        id="leaves-overlay"
+        src="/leaves.mp4"
+        loop
+        muted
+        playsInline
+        preload="none"
         aria-hidden="true"
-      >
-        {/* Animated dappled light pattern */}
-        <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <filter id="leaf-turbulence">
-              <feTurbulence
-                type="fractalNoise"
-                baseFrequency="0.015 0.025"
-                numOctaves="4"
-                seed="3"
-                result="noise"
-              >
-                <animate
-                  attributeName="baseFrequency"
-                  values="0.015 0.025;0.018 0.028;0.015 0.025"
-                  dur="20s"
-                  repeatCount="indefinite"
-                />
-              </feTurbulence>
-              <feDisplacementMap
-                in="SourceGraphic"
-                in2="noise"
-                scale="60"
-                xChannelSelector="R"
-                yChannelSelector="G"
-              />
-            </filter>
-            <filter id="leaf-blur">
-              <feGaussianBlur stdDeviation="12" />
-            </filter>
-          </defs>
-          {/* Organic shadow shapes */}
-          <g filter="url(#leaf-blur)" opacity="0.35">
-            <ellipse cx="15%" cy="20%" rx="120" ry="80" fill="#3a5a2e">
-              <animateTransform
-                attributeName="transform"
-                type="translate"
-                values="0,0;15,8;-5,12;0,0"
-                dur="18s"
-                repeatCount="indefinite"
-              />
-            </ellipse>
-            <ellipse cx="75%" cy="15%" rx="100" ry="60" fill="#2d4a23">
-              <animateTransform
-                attributeName="transform"
-                type="translate"
-                values="0,0;-12,6;8,14;0,0"
-                dur="22s"
-                repeatCount="indefinite"
-              />
-            </ellipse>
-            <ellipse cx="40%" cy="45%" rx="140" ry="70" fill="#3a5a2e">
-              <animateTransform
-                attributeName="transform"
-                type="translate"
-                values="0,0;10,-8;-8,10;0,0"
-                dur="16s"
-                repeatCount="indefinite"
-              />
-            </ellipse>
-            <ellipse cx="85%" cy="60%" rx="110" ry="90" fill="#2d4a23">
-              <animateTransform
-                attributeName="transform"
-                type="translate"
-                values="0,0;-8,12;12,-6;0,0"
-                dur="24s"
-                repeatCount="indefinite"
-              />
-            </ellipse>
-            <ellipse cx="25%" cy="75%" rx="130" ry="65" fill="#3a5a2e">
-              <animateTransform
-                attributeName="transform"
-                type="translate"
-                values="0,0;14,10;-10,8;0,0"
-                dur="20s"
-                repeatCount="indefinite"
-              />
-            </ellipse>
-            <ellipse cx="60%" cy="85%" rx="100" ry="80" fill="#2d4a23">
-              <animateTransform
-                attributeName="transform"
-                type="translate"
-                values="0,0;-6,-10;10,6;0,0"
-                dur="26s"
-                repeatCount="indefinite"
-              />
-            </ellipse>
-          </g>
-          {/* Smaller leaf fragments */}
-          <g filter="url(#leaf-blur)" opacity="0.2">
-            <circle cx="30%" cy="30%" r="40" fill="#4a6a3e">
-              <animateTransform
-                attributeName="transform"
-                type="translate"
-                values="0,0;20,15;-10,20;0,0"
-                dur="14s"
-                repeatCount="indefinite"
-              />
-            </circle>
-            <circle cx="70%" cy="40%" r="35" fill="#4a6a3e">
-              <animateTransform
-                attributeName="transform"
-                type="translate"
-                values="0,0;-15,10;10,18;0,0"
-                dur="17s"
-                repeatCount="indefinite"
-              />
-            </circle>
-            <circle cx="50%" cy="65%" r="50" fill="#3a5a2e">
-              <animateTransform
-                attributeName="transform"
-                type="translate"
-                values="0,0;12,-12;-8,16;0,0"
-                dur="19s"
-                repeatCount="indefinite"
-              />
-            </circle>
-          </g>
-        </svg>
-      </div>
+        className="leaves-overlay"
+        style={{ opacity: shadowMode ? 1 : 0 }}
+      />
 
       {/* Subtle grain texture */}
       <div
