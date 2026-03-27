@@ -3,14 +3,12 @@
   "module": "index.ts",
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "preview": "wrangler dev --remote"
+    "start": "bun run server/app.ts",
+    "dev": "pushd frontend && bun run build && popd && bun --watch server/app.ts"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20250320.0",
     "@hono/zod-validator": "^0.7.6",
-    "wrangler": "^4"
+    "@types/bun": "latest"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
