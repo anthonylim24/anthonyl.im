@@ -1,20 +1,12 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-
-import { OpenAI } from "openai";
 import Groq from "groq-sdk";
-import { config } from "../config";
-import { InvokeRequest } from "../types";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { commonConfig, SYSTEM_PROMPT } from "./constants";
+import { SYSTEM_PROMPT } from "./constants";
+import type { Bindings } from "../types";
 
-const invoke = new Hono();
-
-const openai = new OpenAI({
-  apiKey: config.deepseekApiKey,
-  baseURL: config.deepseekApiBaseUrl,
-});
+const invoke = new Hono<{ Bindings: Bindings }>();
 
 const GROQ_MODEL = "moonshotai/kimi-k2-instruct-0905";
 
@@ -35,9 +27,8 @@ invoke.post("/", zValidator("json", invokeSchema), async (c) => {
     return c.json({ error: "Prompt is required" }, 400);
   }
 
-  const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  const groq = new Groq({ apiKey: c.env.GROQ_API_KEY });
 
-  // Include previous messages in the chat context
   const completion = await groq.chat.completions.create({
     messages: [
       ...messages,
@@ -59,7 +50,6 @@ invoke.post("/", zValidator("json", invokeSchema), async (c) => {
       for await (const chunk of completion) {
         const content = chunk.choices[0]?.delta?.content || "";
         if (content) {
-          // JSON encode to preserve newlines and special characters
           await stream.writeSSE({
             data: JSON.stringify(content),
           });
