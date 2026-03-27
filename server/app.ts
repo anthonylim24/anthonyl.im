@@ -1,15 +1,12 @@
 import { Hono } from "hono";
 import { logger } from "hono/logger";
-import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
 import { prettyJSON } from "hono/pretty-json";
-import { config } from "./src/config";
 import { errorHandler } from "./src/middleware/error";
 import invokeRouter from "./src/routes/invoke";
-import { join, resolve } from "path";
+import type { Bindings } from "./src/types";
 
-const app = new Hono();
-const siteUrl = (process.env.SITE_URL || "https://anthonyl.im").replace(/\/+$/, "");
+const app = new Hono<{ Bindings: Bindings }>();
 
 type AppPreviewMeta = {
   title: string;
@@ -45,7 +42,7 @@ const escapeHtml = (value: string): string =>
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 
-const resolveImageUrl = (imagePathOrUrl: string): string =>
+const resolveImageUrl = (imagePathOrUrl: string, siteUrl: string): string =>
   imagePathOrUrl.startsWith("http")
     ? imagePathOrUrl
     : `${siteUrl}${imagePathOrUrl.startsWith("/") ? imagePathOrUrl : `/${imagePathOrUrl}`}`;
@@ -64,10 +61,14 @@ const stripExistingPreviewMeta = (html: string): string =>
     .replace(/<meta\s+name=["']apple-mobile-web-app-title["'][^>]*>\s*/gi, "")
     .replace(/<link\s+rel=["']canonical["'][^>]*>\s*/i, "");
 
-const injectPreviewMeta = (html: string, pathname: string): string => {
+const injectPreviewMeta = (
+  html: string,
+  pathname: string,
+  siteUrl: string
+): string => {
   const preview = getPreviewMetaForPath(pathname);
   const pageUrl = `${siteUrl}${pathname || "/"}`;
-  const imageUrl = resolveImageUrl(preview.imagePathOrUrl);
+  const imageUrl = resolveImageUrl(preview.imagePathOrUrl, siteUrl);
   const metaTags = `
     <title>${escapeHtml(preview.title)}</title>
     <meta name="description" content="${escapeHtml(preview.description)}" />
@@ -86,28 +87,27 @@ const injectPreviewMeta = (html: string, pathname: string): string => {
     <meta name="apple-mobile-web-app-title" content="${escapeHtml(preview.title)}" />
     <link rel="canonical" href="${escapeHtml(pageUrl)}" />`;
 
-  return stripExistingPreviewMeta(html).replace("</head>", `${metaTags}\n  </head>`);
+  return stripExistingPreviewMeta(html).replace(
+    "</head>",
+    `${metaTags}\n  </head>`
+  );
 };
 
-// Group middleware by functionality
-const commonMiddleware = [
+app.use(
+  "*",
   logger(),
   prettyJSON(),
   cors({
-    origin: config.corsOrigin,
+    origin: (_, c) => c.env.CORS_ORIGIN || "https://anthonyl.im",
     credentials: true,
     exposeHeaders: ["Content-Type"],
     allowMethods: ["POST", "GET", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
     maxAge: 86400,
   }),
-  errorHandler,
-];
+  errorHandler
+);
 
-// Apply common middleware
-app.use("*", ...commonMiddleware);
-
-// SSE headers middleware
 const sseHeaders = {
   "Content-Type": "text/event-stream; charset=utf-8",
   "Cache-Control": "no-cache",
@@ -122,28 +122,26 @@ app.use("/api/invoke/*", async (c, next) => {
   await next();
 });
 
-// API Routes
 app.route("/api/invoke", invokeRouter);
 
-// Health check
 app.get("/health", (c) =>
   c.json({
     status: "ok",
     timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version || "1.0.0",
-    environment: process.env.NODE_ENV || "development",
+    version: "1.0.0",
   })
 );
 
-const distPath = resolve(import.meta.dir, "../frontend/dist");
-
-// Serve static assets
-app.use("*", serveStatic({ root: distPath }));
-
-// Serve index.html for all other routes (SPA fallback)
 app.get("*", async (c) => {
-  const baseHtml = await Bun.file(join(distPath, "index.html")).text();
-  const withMeta = injectPreviewMeta(baseHtml, c.req.path);
+  const siteUrl = (c.env.SITE_URL || "https://anthonyl.im").replace(
+    /\/+$/,
+    ""
+  );
+  const assetResponse = await c.env.ASSETS.fetch(
+    new Request(new URL("/index.html", c.req.url))
+  );
+  const baseHtml = await assetResponse.text();
+  const withMeta = injectPreviewMeta(baseHtml, c.req.path, siteUrl);
   return c.html(withMeta);
 });
 
