@@ -8,6 +8,10 @@ interface MessageContentProps {
   isStreaming?: boolean;
 }
 
+// Hoisted plugin arrays — prevents ReactMarkdown from treating them as new props
+const remarkPlugins = [remarkGfm];
+const rehypePlugins = [rehypeHighlight];
+
 const THINK_REGEX = /^<think>([\s\S]*?)<\/think>\s*([\s\S]*)$/;
 
 // Stable style objects using CSS custom properties — never recreated
@@ -109,12 +113,12 @@ const MessageContent = ({ content, isStreaming = false }: MessageContentProps) =
     <div className="message-content">
       {hasThinkTag && thinkContent.trim() && (
         <div className="text-[12px] font-mono mb-3 pb-3 italic leading-[1.7] transition-colors duration-700" style={s.thinkBorder}>
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{thinkContent.trim()}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={remarkPlugins}>{thinkContent.trim()}</ReactMarkdown>
         </div>
       )}
 
       <div className="max-w-none">
-        <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]} components={markdownComponents}>
+        <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={markdownComponents}>
           {mainContent}
         </ReactMarkdown>
       </div>
