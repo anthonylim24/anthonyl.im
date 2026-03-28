@@ -211,10 +211,13 @@ export function BreathingSession({
     <div
       role="region"
       aria-label={`Breathing session: ${protocol.name}`}
-      className="fixed inset-0 z-[60] flex flex-col items-center justify-center overflow-hidden select-none breath-bg breathwork"
+      className="fixed inset-0 z-[60] flex flex-col items-center justify-center overflow-hidden select-none bg-transparent breathwork"
       onMouseMove={isActive && !isPaused ? showControls : undefined}
       onTouchStart={isActive && !isPaused ? showControls : undefined}
     >
+      {/* Opaque canvas as absolute child — keeps the fixed parent transparent
+          so Safari 26 liquid glass can tint through the safe areas */}
+      <div className="absolute inset-0 breath-bg" aria-hidden="true" />
       {/* Kirby Easter Egg — background layer, behind all UI */}
       {kirbyMode && <KirbyEasterEgg />}
 
