@@ -454,7 +454,7 @@ body,
   }
 
   * { @apply border-border; }
-  body { @apply bg-background text-foreground; }
+  body { @apply text-foreground; background-color: transparent; }
 }
 
 /* ═══════════════════════════════════════════════════════

@@ -37,12 +37,13 @@ export function Navigation() {
       className="md:hidden fixed left-0 right-0 z-50 bg-transparent transition-[bottom] duration-200"
       style={{ bottom: `${bottomOffset}px` }}
     >
-      {/* Visual layer — absolute child so Safari 26 liquid glass
-          tinting sees the transparent parent, not this backdrop */}
+      {/* Visual layer — absolute child that stops ABOVE the bottom safe area
+          so Safari 26 sees transparent in the home indicator zone → liquid glass */}
       <div
-        className="absolute inset-0"
+        className="absolute left-0 right-0 top-0"
         aria-hidden="true"
         style={{
+          bottom: 'env(safe-area-inset-bottom, 0px)',
           backgroundColor: 'var(--bw-nav-bg-mobile)',
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',

@@ -78,8 +78,6 @@ export function BreathworkLayout() {
   return (
     <div className="breathwork-layout">
       {CLERK_ENABLED && <CloudSync />}
-      {/* Clean canvas */}
-      <div className="fixed inset-0 breath-bg" style={{ transform: 'translateZ(0)' }} />
 
       {/* Leaves video overlay — fully isolated from React re-renders */}
       <LeavesVideo />

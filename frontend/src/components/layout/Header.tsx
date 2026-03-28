@@ -22,20 +22,22 @@ export function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-transparent" style={{ transform: 'translateZ(0)' }}>
-      {/* Visual layer — absolute child so Safari 26 liquid glass
-          tinting sees the transparent parent, not this backdrop */}
+    <header className="sticky top-0 z-50 w-full bg-transparent safe-top" style={{ transform: 'translateZ(0)' }}>
+      {/* Visual layer — absolute child positioned BELOW the safe area so
+          Safari 26 sees transparent in the status bar zone → liquid glass.
+          The backdrop starts after safe-area-inset-top. */}
       <div
-        className="absolute inset-0 safe-top"
+        className="absolute left-0 right-0 bottom-0"
         aria-hidden="true"
         style={{
+          top: 'env(safe-area-inset-top, 0px)',
           backgroundColor: 'var(--bw-nav-bg)',
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
           borderBottom: '1px solid var(--bw-nav-border)',
         }}
       />
-      <div className="relative safe-top">
+      <div className="relative">
         <div className="container flex h-16 items-center justify-between px-6">
           <div className="flex items-center">
             {/* Logo */}
