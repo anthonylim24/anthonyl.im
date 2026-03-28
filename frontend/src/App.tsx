@@ -72,6 +72,13 @@ function App() {
   }, [shadowMode]);
 
   useEffect(() => {
+    const bg = shadowMode ? "#f2efe9" : "#080808";
+    document.documentElement.style.backgroundColor = bg;
+    document.body.style.backgroundColor = bg;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", bg);
+  }, [shadowMode]);
+
+  useEffect(() => {
     let rafId: number;
     const updateViewportHeight = () => {
       cancelAnimationFrame(rafId);
@@ -335,7 +342,7 @@ function App() {
             </div>
           ) : (
             <div className="mb-3">
-              <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+              <div className="flex gap-2 overflow-x-scroll pb-2 no-scrollbar touch-pan-x" style={{ WebkitOverflowScrolling: "touch" }}>
                 {suggestedQuestions.map((question) => (
                   <button
                     key={question}
