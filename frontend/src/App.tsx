@@ -75,7 +75,6 @@ function App() {
     const bg = shadowMode ? "#f2efe9" : "#080808";
     document.documentElement.style.backgroundColor = bg;
     document.body.style.backgroundColor = bg;
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", bg);
   }, [shadowMode]);
 
   useEffect(() => {
@@ -341,8 +340,8 @@ function App() {
               ))}
             </div>
           ) : (
-            <div className="mb-3">
-              <div className="flex gap-2 overflow-x-scroll pb-2 no-scrollbar touch-pan-x" style={{ WebkitOverflowScrolling: "touch" }}>
+            <div className="mb-3 overflow-x-auto no-scrollbar" style={{ WebkitOverflowScrolling: "touch" }}>
+              <div className="flex gap-2 w-max pb-2">
                 {suggestedQuestions.map((question) => (
                   <button
                     key={question}
