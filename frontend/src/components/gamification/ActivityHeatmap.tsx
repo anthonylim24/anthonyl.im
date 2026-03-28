@@ -86,6 +86,11 @@ export function ActivityHeatmap({ sessions }: ActivityHeatmapProps) {
                     data-active={cell && cell.count > 0 ? 'true' : 'false'}
                     className="w-full aspect-square transition-colors bg-bw-hover"
                     style={cell ? getIntensityStyle(cell.count) : undefined}
+                    aria-label={
+                      cell
+                        ? `${cell.date}: ${cell.count} session${cell.count !== 1 ? 's' : ''}`
+                        : undefined
+                    }
                     title={
                       cell
                         ? `${cell.date}: ${cell.count} session${cell.count !== 1 ? 's' : ''}`

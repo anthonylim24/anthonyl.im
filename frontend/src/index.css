@@ -255,7 +255,6 @@ body,
   inset: 0;
   background: linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.03) 50%, transparent 100%);
   animation: shimmer 3s ease-in-out infinite;
-  will-change: transform;
 }
 
 @keyframes spin-slow {
@@ -480,15 +479,6 @@ body,
    SURFACE SYSTEM — Flat parchment + ink, no glass excess
    ═══════════════════════════════════════════════════════ */
 
-/* Legacy portfolio glass — preserved for breathwork compat */
-.liquid-glass-portfolio {
-  background: linear-gradient(135deg, rgba(120,130,255,0.18) 0%, rgba(167,139,250,0.14) 50%, rgba(120,130,255,0.10) 100%);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255,255,255,0.15);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15);
-}
-
 /* Recessed well — transparent in editorial mode */
 .surface-well {
   background: transparent;
@@ -572,18 +562,6 @@ body,
 }
 .dark .breath-bg {
   background: #080808;
-}
-
-/* Portfolio glass compat */
-.glass-strong {
-  background: rgba(255,255,255,0.45);
-  backdrop-filter: blur(40px) saturate(200%);
-  -webkit-backdrop-filter: blur(40px) saturate(200%);
-  border: 1px solid rgba(255,255,255,0.4);
-}
-.dark .glass-strong {
-  background: rgba(20,25,40,0.7);
-  border: 1px solid rgba(255,255,255,0.1);
 }
 
 /* ═══════════════════════════════════════════════════════

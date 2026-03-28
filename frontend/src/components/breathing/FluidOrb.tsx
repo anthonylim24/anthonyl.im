@@ -1,6 +1,6 @@
 import { useMemo, useRef, useCallback, type KeyboardEvent } from 'react'
 import { BREATH_PHASES, type BreathPhase } from '@/lib/constants'
-import { PHASE } from '@/lib/palette'
+import { PHASE, INK_FAINT } from '@/lib/palette'
 import { cn } from '@/lib/utils'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { useHaptics } from '@/hooks/useHaptics'
@@ -16,15 +16,15 @@ interface FluidOrbProps {
   onEasterEggToggle?: () => void
 }
 
-// Default phase colors (indigo) used when no technique-specific themeColors are passed
+// Default phase colors (ink ramp) used when no technique-specific themeColors are passed
 const PHASE_COLORS: Record<string, [string, string]> = {
   [BREATH_PHASES.INHALE]: [PHASE.inhale, PHASE.exhale],
   [BREATH_PHASES.DEEP_INHALE]: [PHASE.deep_inhale, PHASE.inhale],
   [BREATH_PHASES.HOLD_IN]: [PHASE.hold_in, PHASE.inhale],
   [BREATH_PHASES.EXHALE]: [PHASE.exhale, PHASE.hold_out],
   [BREATH_PHASES.HOLD_OUT]: [PHASE.hold_out, PHASE.rest],
-  [BREATH_PHASES.REST]: [PHASE.rest, '#1E2550'],
-  idle: ['#1E2550', PHASE.rest],
+  [BREATH_PHASES.REST]: [PHASE.rest, INK_FAINT],
+  idle: [INK_FAINT, PHASE.rest],
 }
 
 export function FluidOrb({
@@ -39,7 +39,7 @@ export function FluidOrb({
   const reducedMotion = useReducedMotion()
   const { trigger: haptic } = useHaptics()
   const colors = themeColors ?? PHASE_COLORS[phase ?? 'idle']
-  const scale = reducedMotion ? 1 : 0.6 + amplitude * 0.4
+  const scale = reducedMotion ? 1 : 0.45 + amplitude * 0.65
   const morphAmount = isActive && !reducedMotion ? amplitude * 15 : 0
   const borderRadius = useMemo(() => {
     const base = 50

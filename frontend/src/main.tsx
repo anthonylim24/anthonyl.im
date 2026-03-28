@@ -45,11 +45,11 @@ const AppRoutes = () => (
 if (import.meta.env.PROD) {
   console.log(
     '%c🌬 BreathFlow',
-    'font-size:20px;font-weight:bold;color:#818CF8;',
+    'font-size:20px;font-weight:bold;color:#1a1a1a;',
   )
   console.log(
     '%cBuilt with care by Anthony Lim.\nCurious how it works? → github.com/anthonylim24',
-    'font-size:12px;color:#6b7280;',
+    'font-size:12px;color:#888;',
   )
 }
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { SessionSummary } from '../SessionSummary'
 
 const defaultProps = {
@@ -13,9 +13,11 @@ const defaultProps = {
 }
 
 describe('SessionSummary', () => {
-  it('displays XP earned', () => {
+  it('displays XP earned', async () => {
     render(<SessionSummary {...defaultProps} />)
-    expect(screen.getByText('+75 XP')).toBeTruthy()
+    await waitFor(() => {
+      expect(screen.getByText('+75 XP')).toBeTruthy()
+    })
   })
 
   it('displays round count', () => {
@@ -33,8 +35,10 @@ describe('SessionSummary', () => {
     expect(screen.getByText('First Breath')).toBeTruthy()
   })
 
-  it('shows hold stats', () => {
+  it('shows hold stats', async () => {
     render(<SessionSummary {...defaultProps} />)
-    expect(screen.getByText('22s')).toBeTruthy()
+    await waitFor(() => {
+      expect(screen.getByText('22s')).toBeTruthy()
+    })
   })
 })

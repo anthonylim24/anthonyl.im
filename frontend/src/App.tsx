@@ -92,12 +92,15 @@ function App() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      import('posthog-js').then(({ default: posthog }) => {
-        posthog.init("phc_yZpQ6Ze2cZ6rAtVHUsHl8o0l4cW0X23xncC2lA6K836", {
-          api_host: "https://us.i.posthog.com",
-          person_profiles: "identified_only",
-        });
-      }).catch(() => {});
+      const posthogKey = import.meta.env.VITE_POSTHOG_KEY
+      if (posthogKey) {
+        import('posthog-js').then(({ default: posthog }) => {
+          posthog.init(posthogKey, {
+            api_host: "https://us.i.posthog.com",
+            person_profiles: "identified_only",
+          });
+        }).catch(() => {});
+      }
     }
   }, []);
 

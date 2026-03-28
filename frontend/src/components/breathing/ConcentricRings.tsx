@@ -107,18 +107,18 @@ export const ConcentricRings = memo(function ConcentricRings({
     }
   }, [ampBucket])
 
-  // INVERTED animation: high amplitude = small (inhale contracts), low amplitude = large (exhale expands)
+  // Inhale expands, exhale contracts — mirrors natural breathing
   const hold = isHoldPhase(phase)
   const amp = hold ? amplitude * 0.4 : amplitude
 
-  const coreScale = 1.15 - amp * 0.33      // ~1.05 at rest → ~0.82 at peak
-  const middleScale = 1.15 - amp * 0.47    // ~1.10 at rest → ~0.68 at peak
-  const outerScale = 1.15 - amp * 0.60     // ~1.15 at rest → ~0.55 at peak
+  const coreScale = 0.55 + amp * 0.55       // exhale ~0.66 → inhale ~1.10
+  const middleScale = 0.40 + amp * 0.70     // exhale ~0.54 → inhale ~1.10
+  const outerScale = 0.30 + amp * 0.85      // exhale ~0.47 → inhale ~1.15
 
-  // Opacity: contract = denser (more opaque), expand = thinner (more transparent)
-  const coreOpacity = 0.18 + amp * 0.12     // 0.18 → 0.30
-  const middleOpacity = 0.10 + amp * 0.10   // 0.10 → 0.20
-  const outerOpacity = 0.06 + amp * 0.08    // 0.06 → 0.14
+  // Opacity: expand = denser (more opaque), contract = thinner (more transparent)
+  const coreOpacity = 0.10 + amp * 0.22     // 0.14 → 0.32
+  const middleOpacity = 0.06 + amp * 0.16   // 0.09 → 0.22
+  const outerOpacity = 0.03 + amp * 0.12    // 0.05 → 0.15
 
   const breathTransition = reducedMotion
     ? undefined

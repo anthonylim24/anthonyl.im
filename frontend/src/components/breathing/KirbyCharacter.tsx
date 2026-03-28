@@ -15,12 +15,16 @@ export const KirbyCharacter = memo(function KirbyCharacter({
 }: KirbyCharacterProps) {
   const clamped = Math.max(0, Math.min(1, puffAmount))
 
-  // Body inflates noticeably when puffed
-  const bodyScale = 1 + clamped * 0.15
+  // Body inflates dramatically when puffed — Kirby balloons up
+  const bodyScale = 0.85 + clamped * 0.45
 
   // Cheeks grow significantly and become much more visible
-  const cheekScale = 1 + clamped * 1.3
-  const cheekOpacity = 0.3 + clamped * 0.5
+  const cheekScale = 1 + clamped * 1.8
+  const cheekOpacity = 0.2 + clamped * 0.6
+
+  // Subtle vertical squash on exhale, stretch on inhale
+  const squashY = 1 + clamped * 0.06
+  const squashX = 1 - clamped * 0.03
 
   return (
     <div
@@ -35,8 +39,8 @@ export const KirbyCharacter = memo(function KirbyCharacter({
         fill="none"
         aria-hidden="true"
         style={{
-          transform: `scale(${bodyScale})`,
-          transformOrigin: 'center',
+          transform: `scale(${bodyScale}) scaleX(${squashX}) scaleY(${squashY})`,
+          transformOrigin: 'center 60%',
           transition: 'transform 600ms var(--spring-smooth)',
         }}
       >

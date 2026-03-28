@@ -286,7 +286,19 @@ export function BreathingSession({
           }}
         >
           {kirbyMode ? (
-            <div className="w-full h-full flex items-center justify-center" onClick={handleRingsClick} data-testid="concentric-rings">
+            <div className="w-full h-full flex items-center justify-center relative" onClick={handleRingsClick} data-testid="concentric-rings">
+              {/* Radial glow behind Kirby that pulses with breath —
+                  uses transform + opacity (both GPU-composited) instead of
+                  rebuilding gradient strings every frame */}
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  background: 'radial-gradient(circle, rgba(255,150,170,0.28) 0%, rgba(255,200,210,0.14) 40%, transparent 70%)',
+                  transform: `translateZ(0) scale(${0.7 + amplitude * 0.6})`,
+                  opacity: 0.3 + amplitude * 0.7,
+                  transition: 'transform 800ms cubic-bezier(0.16, 1, 0.3, 1), opacity 800ms ease-out',
+                }}
+              />
               <KirbyCharacter size={200} puffAmount={amplitude} />
             </div>
           ) : (
