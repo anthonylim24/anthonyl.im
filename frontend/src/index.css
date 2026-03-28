@@ -15,13 +15,11 @@ html,
 body,
 #root {
   width: 100%;
+  height: 100%;
+  min-height: 100vh;
+  min-height: 100svh;
   margin: 0;
   padding: 0;
-}
-
-html,
-body {
-  background-color: #f2efe9;
 }
 
 :root {
@@ -90,6 +88,7 @@ body {
 
 @media (max-width: 768px) {
   ::-webkit-scrollbar { display: none; }
+  * { scrollbar-width: none; }
 }
 
 /* ═══════════════════════════════════════════════════════
