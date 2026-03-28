@@ -20,10 +20,7 @@ export function BreathworkLayout() {
   const { bottomOffset } = useViewportOffset()
   const leavesVideoRef = useRef<HTMLVideoElement>(null)
 
-  // Resolve effective theme (light or dark)
-  const isDark =
-    theme === 'dark' ||
-    (theme === 'system' && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  const isDark = theme === 'dark'
 
   // Play/pause leaves video based on theme
   useEffect(() => {
