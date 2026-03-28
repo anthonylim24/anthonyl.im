@@ -83,7 +83,7 @@ export function Session() {
   return (
     <motion.div className="pb-4" variants={stagger} initial="hidden" animate="show">
       {/* ═══ MOBILE LAYOUT ═══════════════════════════════ */}
-      <div className="md:hidden flex flex-col min-h-[calc(100dvh-140px)]">
+      <div className="md:hidden flex flex-col h-[calc(100dvh-7.5rem)] overflow-hidden">
         {/* Back button */}
         <motion.button
           variants={fadeUp}
@@ -190,7 +190,7 @@ export function Session() {
       </div>
 
       {/* ═══ DESKTOP LAYOUT ══════════════════════════════ */}
-      <div className="hidden md:block max-w-2xl mx-auto space-y-14">
+      <div className="hidden md:flex md:flex-col max-w-2xl mx-auto space-y-14 max-h-[calc(100dvh-8rem)] overflow-hidden">
         {/* Header */}
         <motion.div variants={fadeUp}>
           <h1 className="font-mono text-lg font-medium text-bw tracking-[0.02em]">

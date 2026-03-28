@@ -24,8 +24,9 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full" style={{ transform: 'translateZ(0)' }}>
       <div
-        className="safe-top bg-bw-canvas"
+        className="safe-top"
         style={{
+          backgroundColor: 'var(--bw-nav-bg)',
           borderBottom: '1px solid var(--bw-nav-border)',
         }}
       >
