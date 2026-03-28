@@ -73,20 +73,23 @@ function App() {
   }, [shadowMode]);
 
   useEffect(() => {
+    let rafId: number;
     const updateViewportHeight = () => {
-      const nextHeight = window.visualViewport?.height ?? window.innerHeight;
-      setViewportHeight((prev) => (prev === nextHeight ? prev : nextHeight));
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const nextHeight = window.visualViewport?.height ?? window.innerHeight;
+        setViewportHeight((prev) => (prev === nextHeight ? prev : nextHeight));
+      });
     };
 
     updateViewportHeight();
     window.addEventListener("resize", updateViewportHeight);
     window.visualViewport?.addEventListener("resize", updateViewportHeight);
-    window.visualViewport?.addEventListener("scroll", updateViewportHeight);
 
     return () => {
+      cancelAnimationFrame(rafId);
       window.removeEventListener("resize", updateViewportHeight);
       window.visualViewport?.removeEventListener("resize", updateViewportHeight);
-      window.visualViewport?.removeEventListener("scroll", updateViewportHeight);
     };
   }, []);
 
@@ -210,7 +213,7 @@ function App() {
   const themeClass = shadowMode ? "chatbot-shadow" : "chatbot-dark";
 
   return (
-    <div className={cn("fixed inset-0 flex flex-col overflow-hidden font-mono transition-colors duration-700", themeClass)}>
+    <div className={cn("fixed inset-0 flex flex-col overflow-clip font-mono transition-colors duration-700", themeClass)}>
       <video
         ref={leavesVideoRef}
         src="https://leaves.anthonylim-ucsc.workers.dev/"
@@ -225,7 +228,7 @@ function App() {
 
       <div className="fixed inset-0 pointer-events-none z-[2] opacity-[0.04]" style={grainStyle} aria-hidden="true" />
 
-      <div className="relative z-10 flex flex-col h-full max-w-2xl mx-auto w-full safe-top">
+      <div className="relative z-10 flex flex-col h-full max-w-2xl mx-auto w-full safe-top isolate">
         <header className={cn(
           "shrink-0 text-left transition-all duration-700 ease-out px-6",
           hasMessages ? "py-4" : isShortViewport ? "py-4 sm:py-6" : "py-8 sm:py-14"
@@ -255,7 +258,7 @@ function App() {
             <div
               ref={messagesContainerRef}
               onScroll={handleScroll}
-              className="absolute inset-0 overflow-y-scroll overscroll-contain ios-scroll px-6 pb-4 scroll-smooth"
+              className="absolute inset-0 overflow-y-auto px-6 pb-4"
             >
               <div className="space-y-5 py-2">
                 {messages.map((message, index) => {
@@ -336,7 +339,7 @@ function App() {
             </div>
           ) : (
             <div className="mb-3">
-              <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar scroll-smooth touch-pan-x">
+              <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
                 {suggestedQuestions.map((question) => (
                   <button
                     key={question}
