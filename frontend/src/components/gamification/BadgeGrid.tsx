@@ -60,6 +60,7 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
               variants={badgePop}
               data-badge={badge.id}
               data-secret="true"
+              aria-label="Secret badge — not yet discovered"
               className="flex flex-col items-center gap-2.5 p-3 border border-bw-border"
             >
               <div className="h-11 w-11 bg-bw-active flex items-center justify-center">
@@ -77,6 +78,7 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
             whileHover={earned ? { scale: 1.05 } : undefined}
             transition={spring}
             data-badge={badge.id}
+            aria-label={`${badge.name} — ${earned ? 'earned' : 'locked'}`}
             className={cn(
               'flex flex-col items-center gap-2.5 p-3 border transition-[background,border-color,opacity] duration-300',
               earned

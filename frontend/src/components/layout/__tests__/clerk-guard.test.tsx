@@ -9,18 +9,30 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
-// Verify CLERK_ENABLED is false in the test environment (no env var set)
-import { CLERK_ENABLED } from '@/lib/clerk'
+// Mock CLERK_ENABLED to false — simulates no Clerk key in env
+vi.mock('@/lib/clerk', () => ({ CLERK_ENABLED: false }))
+
+// Mock Clerk React to prevent "must be inside ClerkProvider" errors
+vi.mock('@clerk/clerk-react', () => ({
+  SignedIn: ({ children }: { children: React.ReactNode }) => null,
+  SignedOut: ({ children }: { children: React.ReactNode }) => null,
+  SignInButton: ({ children }: { children: React.ReactNode }) => children,
+  UserButton: () => null,
+  useAuth: () => ({ isSignedIn: false }),
+  useUser: () => ({ user: null }),
+  useSession: () => ({ session: null }),
+}))
 
 // Mock hooks used by BreathworkLayout that depend on browser APIs
-vi.mock('@/hooks/useTheme', () => ({ useTheme: () => {} }))
+vi.mock('@/hooks/useTheme', () => ({ useTheme: () => ({ theme: 'light', setTheme: () => {} }) }))
 vi.mock('@/hooks/useFavicon', () => ({ useFavicon: () => {} }))
 vi.mock('@/hooks/useViewportOffset', () => ({
   useViewportOffset: () => ({ bottomOffset: 0 }),
 }))
 
 describe('Components render without ClerkProvider', () => {
-  it('CLERK_ENABLED is false when env var is not set', () => {
+  it('CLERK_ENABLED is false when mocked', async () => {
+    const { CLERK_ENABLED } = await import('@/lib/clerk')
     expect(CLERK_ENABLED).toBe(false)
   })
 

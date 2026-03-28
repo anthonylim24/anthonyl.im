@@ -21,14 +21,14 @@ describe('KirbyCharacter', () => {
 
     const flatSvg = flat.querySelector('svg') as SVGSVGElement
     const puffedSvg = puffed.querySelector('svg') as SVGSVGElement
-    expect(flatSvg.style.transform).toBe('scale(1)')
-    expect(puffedSvg.style.transform).toBe('scale(1.15)')
+    expect(flatSvg.style.transform).toBe('scale(0.85) scaleX(1) scaleY(1)')
+    expect(puffedSvg.style.transform).toBe('scale(1.3) scaleX(0.97) scaleY(1.06)')
 
     // Cheek groups should be larger when puffed
     const flatCheek = flat.querySelectorAll('g')[0] as SVGGElement
     const puffedCheek = puffed.querySelectorAll('g')[0] as SVGGElement
     expect(flatCheek.style.transform).toBe('scale(1)')
-    expect(puffedCheek.style.transform).toBe('scale(2.3)')
+    expect(puffedCheek.style.transform).toBe('scale(2.8)')
   })
 
   it('applies additional style and className', () => {

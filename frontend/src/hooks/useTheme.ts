@@ -1,8 +1,9 @@
-import { useEffect } from 'react'
+import { useEffect, useCallback } from 'react'
 import { useSettingsStore } from '@/stores/settingsStore'
 
 export function useTheme() {
-  const { theme, setTheme } = useSettingsStore()
+  const theme = useSettingsStore((s) => s.theme)
+  const setTheme = useSettingsStore((s) => s.setTheme)
 
   useEffect(() => {
     const root = window.document.documentElement

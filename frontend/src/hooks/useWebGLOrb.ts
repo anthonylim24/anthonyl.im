@@ -57,16 +57,18 @@ const FRAG = [
   '  float aspect = u_resolution.x / u_resolution.y;',
   '  fromCenter.x *= aspect;',
   '  float dist = length(fromCenter);',
-  '  float baseRadius = 0.28 + (1.0 - u_amplitude) * 0.08;',
-  '  float displace = fbm(fromCenter * 3.5 + u_time * 0.15) * 0.06 * (0.3 + u_amplitude * 0.7);',
+  '  float baseRadius = 0.16 + u_amplitude * 0.22;',
+  '  float displace = fbm(fromCenter * 3.5 + u_time * 0.15) * 0.08 * (0.3 + u_amplitude * 0.7);',
   '  float sdf = dist - baseRadius - displace;',
-  '  float edge = smoothstep(0.02, -0.02, sdf);',
-  '  float glow = smoothstep(0.12, -0.04, sdf) * 0.35;',
+  '  float edge = smoothstep(0.025, -0.025, sdf);',
+  '  float glow = smoothstep(0.15, -0.05, sdf) * (0.25 + u_amplitude * 0.15);',
   '  float colorNoise = fbm(fromCenter * 2.0 + u_time * 0.08 + 50.0);',
   '  vec3 col = mix(u_color1, u_color2, colorNoise);',
   '  float rim = smoothstep(baseRadius * 0.3, baseRadius, dist) * edge;',
   '  col += rim * 0.15;',
   '  float alpha = edge * 0.85 + glow * (1.0 - edge);',
+  '  float edgeFade = smoothstep(0.5, 0.42, dist);',
+  '  alpha *= edgeFade;',
   '  fragColor = vec4(col * alpha, alpha);',
   '}',
 ].join('\n')
@@ -279,7 +281,7 @@ export function useWebGLOrb({
 
         const dt = 1 / 60
         const targetAmplitude = amplitudeRef.current
-        currentAmplitude += (targetAmplitude - currentAmplitude) * Math.min(1, dt * 4)
+        currentAmplitude += (targetAmplitude - currentAmplitude) * Math.min(1, dt * 6)
 
         let time: number
         if (reducedMotionRef.current) {

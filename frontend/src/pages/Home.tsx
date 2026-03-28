@@ -247,8 +247,8 @@ export function Home() {
         </h2>
 
         {/* Mobile: horizontal scroll carousel — 2 cards visible */}
-        <div className="md:hidden -mx-4 px-4 overflow-x-auto no-scrollbar" style={{ scrollSnapType: 'x mandatory' }}>
-          <div className="flex gap-3" style={{ width: 'max-content' }}>
+        <div className="md:hidden -mx-4 px-4 overflow-x-auto no-scrollbar" style={{ scrollSnapType: 'x mandatory', scrollPaddingLeft: '1rem' }}>
+          <div className="flex gap-3 pl-4" style={{ width: 'max-content' }}>
             {techniques.map((id) => {
               const p = breathingProtocols[id]
               return (
