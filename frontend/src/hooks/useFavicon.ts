@@ -2,8 +2,8 @@ import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 
 const ROUTE_META: Record<string, { favicon: string; themeColor: string }> = {
-  breathwork: { favicon: '/favicon-breath.svg', themeColor: '#090c1a' },
-  default: { favicon: '/favicon-chat.svg', themeColor: '#030014' },
+  breathwork: { favicon: '/favicon-breath.svg', themeColor: 'transparent' },
+  default: { favicon: '/favicon-chat.svg', themeColor: 'transparent' },
 }
 
 export function useFavicon() {

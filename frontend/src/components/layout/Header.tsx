@@ -22,14 +22,20 @@ export function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full" style={{ transform: 'translateZ(0)' }}>
+    <header className="sticky top-0 z-50 w-full bg-transparent" style={{ transform: 'translateZ(0)' }}>
+      {/* Visual layer — absolute child so Safari 26 liquid glass
+          tinting sees the transparent parent, not this backdrop */}
       <div
-        className="safe-top"
+        className="absolute inset-0 safe-top"
+        aria-hidden="true"
         style={{
           backgroundColor: 'var(--bw-nav-bg)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
           borderBottom: '1px solid var(--bw-nav-border)',
         }}
-      >
+      />
+      <div className="relative safe-top">
         <div className="container flex h-16 items-center justify-between px-6">
           <div className="flex items-center">
             {/* Logo */}
