@@ -39,7 +39,6 @@ function App() {
   const [shadowMode, setShadowMode] = useState(true);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const leavesVideoRef = useRef<HTMLVideoElement>(null);
   const shouldAutoScroll = useRef(true);
@@ -115,13 +114,17 @@ function App() {
     }
   };
 
-  const handleScroll = () => {
-    if (!messagesContainerRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+  const handleScroll = useCallback(() => {
+    const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
     shouldAutoScroll.current = distanceFromBottom < 150;
     setShowScrollButton(distanceFromBottom > 200);
-  };
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [handleScroll]);
 
   useEffect(() => {
     if (shouldAutoScroll.current) {
@@ -213,7 +216,7 @@ function App() {
   const themeClass = shadowMode ? "chatbot-shadow" : "chatbot-dark";
 
   return (
-    <div className={cn("flex flex-col h-full font-mono transition-colors duration-700", themeClass)}>
+    <div className={cn("min-h-dvh flex flex-col font-mono transition-colors duration-700", themeClass)}>
       <video
         ref={leavesVideoRef}
         src="https://leaves.anthonylim-ucsc.workers.dev/"
@@ -228,7 +231,7 @@ function App() {
 
       <div className="fixed inset-0 pointer-events-none z-[2] opacity-[0.04]" style={grainStyle} aria-hidden="true" />
 
-      <div className="relative z-10 flex flex-col h-full max-w-2xl mx-auto w-full safe-top isolate">
+      <div className="relative z-10 flex flex-col flex-1 max-w-2xl mx-auto w-full safe-top isolate">
         <header className={cn(
           "shrink-0 text-left transition-all duration-700 ease-out px-6",
           hasMessages ? "py-4" : isShortViewport ? "py-4 sm:py-6" : "py-8 sm:py-14"
@@ -253,13 +256,9 @@ function App() {
           </div>
         </header>
 
-        <div className="flex-1 relative min-h-0">
+        <div className="flex-1 flex flex-col">
           {hasMessages ? (
-            <div
-              ref={messagesContainerRef}
-              onScroll={handleScroll}
-              className="h-full overflow-y-auto px-6 pb-4"
-            >
+            <div className="px-6 pb-4">
               <div className="space-y-5 py-2">
                 {messages.map((message, index) => {
                   const isUser = message.role === "user";
@@ -295,35 +294,32 @@ function App() {
               <div ref={messagesEndRef} className="h-4 shrink-0" />
             </div>
           ) : (
-            <div className="h-full overflow-hidden px-6">
-              <div className={cn(
-                "flex flex-col justify-start md:justify-center h-full col-fade-in stagger-2",
-                isShortViewport ? "py-1 sm:py-3" : "py-4 sm:py-10"
+            <div className={cn(
+              "flex-1 flex flex-col justify-start md:justify-center px-6 col-fade-in stagger-2",
+              isShortViewport ? "py-1 sm:py-3" : "py-4 sm:py-10"
+            )}>
+              <h2 className={cn(
+                "font-mono font-normal leading-[1.5] chat-text transition-colors duration-700",
+                isShortViewport ? "text-sm sm:text-base" : "text-base sm:text-lg"
               )}>
-                <h2 className={cn(
-                  "font-mono font-normal leading-[1.5] chat-text transition-colors duration-700",
-                  isShortViewport ? "text-sm sm:text-base" : "text-base sm:text-lg"
-                )}>
-                  Ask me anything about Anthony&apos;s
-                  <br />
-                  experience, skills, and background.
-                </h2>
-              </div>
+                Ask me anything about Anthony&apos;s
+                <br />
+                experience, skills, and background.
+              </h2>
             </div>
           )}
+        </div>
 
+        <div className={cn("sticky bottom-0 z-10 shrink-0 pb-safe px-6 bg-[var(--chat-bg)] transition-colors duration-700 relative", isShortViewport && !hasMessages ? "py-3" : "py-4")}>
           {showScrollButton && (
             <button
               onClick={() => { shouldAutoScroll.current = true; scrollToBottom(); }}
-              className="absolute bottom-4 right-6 p-2 transition-all duration-300 animate-scale-in chat-scroll-btn"
+              className="absolute -top-10 right-6 p-2 transition-all duration-300 animate-scale-in chat-scroll-btn"
               aria-label="Scroll to bottom"
             >
               <ChevronDown className="w-4 h-4" />
             </button>
           )}
-        </div>
-
-        <div className={cn("shrink-0 pb-safe px-6", isShortViewport && !hasMessages ? "py-3" : "py-4")}>
           {!hasMessages ? (
             <div className={cn("grid grid-cols-2 gap-2 col-fade-in stagger-3", isShortViewport ? "mb-3" : "mb-5")}>
               {suggestedQuestions.map((question) => (
