@@ -18,12 +18,12 @@
     <title>Anthony Lim - Software Engineer</title>
 
     <style>
-      /* Transparent html background enables Safari 26 liquid glass
-         in the status bar and bottom toolbar safe areas.
-         Page color comes from .breathwork background-color. */
-      html {
-        background-color: transparent;
-      }
+      /* html background fills iOS safe areas (status bar, home indicator).
+         Must match the page canvas so they blend seamlessly.
+         Safari 26 liquid glass on the TOOLBAR is enabled by keeping
+         position:fixed/sticky elements transparent (done in components). */
+      html { background-color: #f2efe9; }
+      html.dark { background-color: #080808; }
     </style>
   </head>
   <body>
