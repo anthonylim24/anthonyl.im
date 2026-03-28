@@ -1,3 +1,4 @@
+import { useRef, useEffect } from 'react'
 import { AnimatedOutlet } from './AnimatedOutlet'
 import type { CSSProperties } from 'react'
 import { Header } from './Header'
@@ -14,9 +15,28 @@ function CloudSync() {
 }
 
 export function BreathworkLayout() {
-  useTheme()
+  const { theme } = useTheme()
   useFavicon()
   const { bottomOffset } = useViewportOffset()
+  const leavesVideoRef = useRef<HTMLVideoElement>(null)
+
+  // Resolve effective theme (light or dark)
+  const isDark =
+    theme === 'dark' ||
+    (theme === 'system' && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+
+  // Play/pause leaves video based on theme
+  useEffect(() => {
+    const video = leavesVideoRef.current
+    if (!video) return
+
+    if (!isDark) {
+      video.play().catch(() => {})
+    } else {
+      video.pause()
+    }
+  }, [isDark])
+
   const contentStyle = {
     '--mobile-content-bottom-space': `calc(7.5rem + env(safe-area-inset-bottom, 0px) + ${bottomOffset}px)`,
   } as CSSProperties
@@ -27,8 +47,9 @@ export function BreathworkLayout() {
       {/* Clean canvas */}
       <div className="fixed inset-0 breath-bg" style={{ transform: 'translateZ(0)' }} />
 
-      {/* Leaves video overlay */}
+      {/* Leaves video overlay — visible in light mode only */}
       <video
+        ref={leavesVideoRef}
         src="https://leaves.anthonylim-ucsc.workers.dev/"
         loop
         muted
@@ -36,7 +57,7 @@ export function BreathworkLayout() {
         preload="auto"
         aria-hidden="true"
         className="leaves-overlay"
-        style={{ opacity: 1 }}
+        style={{ opacity: isDark ? 0 : 1 }}
       />
 
       {/* Content */}
