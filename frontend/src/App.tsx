@@ -255,7 +255,7 @@ function App() {
             <div
               ref={messagesContainerRef}
               onScroll={handleScroll}
-              className="absolute inset-0 overflow-y-auto overscroll-contain px-6 pb-4 scroll-smooth"
+              className="absolute inset-0 overflow-y-scroll overscroll-contain ios-scroll px-6 pb-4 scroll-smooth"
             >
               <div className="space-y-5 py-2">
                 {messages.map((message, index) => {
@@ -336,7 +336,7 @@ function App() {
             </div>
           ) : (
             <div className="mb-3">
-              <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar scroll-smooth">
+              <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar scroll-smooth touch-pan-x">
                 {suggestedQuestions.map((question) => (
                   <button
                     key={question}
