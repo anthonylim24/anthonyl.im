@@ -14,8 +14,8 @@ vi.mock('@/lib/clerk', () => ({ CLERK_ENABLED: false }))
 
 // Mock Clerk React to prevent "must be inside ClerkProvider" errors
 vi.mock('@clerk/clerk-react', () => ({
-  SignedIn: ({ children }: { children: React.ReactNode }) => null,
-  SignedOut: ({ children }: { children: React.ReactNode }) => null,
+  SignedIn: () => null,
+  SignedOut: () => null,
   SignInButton: ({ children }: { children: React.ReactNode }) => children,
   UserButton: () => null,
   useAuth: () => ({ isSignedIn: false }),

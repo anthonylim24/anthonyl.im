@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react'
+import { useEffect } from 'react'
 import { useSettingsStore } from '@/stores/settingsStore'
 
 export function useTheme() {
