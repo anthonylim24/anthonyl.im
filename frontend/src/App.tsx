@@ -213,7 +213,7 @@ function App() {
   const themeClass = shadowMode ? "chatbot-shadow" : "chatbot-dark";
 
   return (
-    <div className={cn("fixed inset-0 flex flex-col overflow-clip font-mono transition-colors duration-700", themeClass)}>
+    <div className={cn("flex flex-col h-full font-mono transition-colors duration-700", themeClass)}>
       <video
         ref={leavesVideoRef}
         src="https://leaves.anthonylim-ucsc.workers.dev/"
@@ -258,7 +258,7 @@ function App() {
             <div
               ref={messagesContainerRef}
               onScroll={handleScroll}
-              className="absolute inset-0 overflow-y-auto px-6 pb-4"
+              className="h-full overflow-y-auto px-6 pb-4"
             >
               <div className="space-y-5 py-2">
                 {messages.map((message, index) => {
