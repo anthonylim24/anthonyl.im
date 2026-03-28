@@ -81,21 +81,21 @@ export function Session() {
   }
 
   return (
-    <motion.div className="pb-4" variants={stagger} initial="hidden" animate="show">
+    <motion.div variants={stagger} initial="hidden" animate="show">
       {/* ═══ MOBILE LAYOUT ═══════════════════════════════ */}
-      <div className="md:hidden flex flex-col h-[calc(100dvh-7.5rem)] overflow-hidden">
+      <div className="md:hidden flex flex-col h-[calc(100dvh-4rem-3rem)] overflow-hidden">
         {/* Back button */}
         <motion.button
           variants={fadeUp}
           onClick={() => { haptic('light'); navigate('/breathwork') }}
-          className="flex items-center gap-1 text-xs text-bw-tertiary hover:text-bw transition-colors mb-4 -ml-1"
+          className="flex items-center gap-1 text-xs text-bw-tertiary hover:text-bw transition-colors mb-2 -ml-1"
         >
           <ChevronLeft className="h-3.5 w-3.5" />
           <span>Back</span>
         </motion.button>
 
         {/* Technique header */}
-        <motion.div variants={fadeUp} className="mb-6">
+        <motion.div variants={fadeUp} className="mb-3">
           <div className="flex items-center gap-3 mb-2">
             <div
               className="h-7 w-7 flex items-center justify-center shrink-0 border border-bw-border"
@@ -112,7 +112,7 @@ export function Session() {
         </motion.div>
 
         {/* Phase pattern */}
-        <motion.div variants={fadeUp} className="flex items-center gap-2 py-3 border-t border-bw-border mb-6 justify-center">
+        <motion.div variants={fadeUp} className="flex items-center gap-2 py-2 border-t border-bw-border mb-3 justify-center">
           {protocol.phases.map((phase, i) => (
             <span key={i} className="flex items-center gap-1.5">
               <span className="text-xs font-mono text-bw-secondary">{phase.duration}s</span>
@@ -125,7 +125,7 @@ export function Session() {
 
         {/* Science section — collapsible */}
         {protocol.science && (
-          <motion.div variants={fadeUp} className="mb-6">
+          <motion.div variants={fadeUp} className="mb-3">
             <button
               onClick={() => setScienceExpanded(!scienceExpanded)}
               className="flex items-center justify-between w-full text-left"
@@ -179,10 +179,10 @@ export function Session() {
         </motion.div>
 
         {/* Pinned CTA */}
-        <motion.div variants={fadeUp} className="pt-6 pb-2">
+        <motion.div variants={fadeUp} className="pt-3 shrink-0">
           <button
             onClick={handleStartSession}
-            className="w-full py-4 px-6 border border-bw-border bg-transparent font-mono font-medium text-bw text-sm flex items-center justify-center gap-3 hover:bg-bw-hover transition-colors"
+            className="w-full py-3.5 px-6 border border-bw-border bg-transparent font-mono font-medium text-bw text-sm flex items-center justify-center gap-3 hover:bg-bw-hover transition-colors"
           >
             <span>Begin Session</span>
           </button>
@@ -190,7 +190,7 @@ export function Session() {
       </div>
 
       {/* ═══ DESKTOP LAYOUT ══════════════════════════════ */}
-      <div className="hidden md:flex md:flex-col max-w-2xl mx-auto space-y-14 max-h-[calc(100dvh-8rem)] overflow-hidden">
+      <div className="hidden md:flex md:flex-col max-w-2xl mx-auto space-y-10 h-[calc(100dvh-4rem-5rem)] overflow-hidden">
         {/* Header */}
         <motion.div variants={fadeUp}>
           <h1 className="font-mono text-lg font-medium text-bw tracking-[0.02em]">
