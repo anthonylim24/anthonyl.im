@@ -338,14 +338,14 @@ function App() {
               ))}
             </div>
           ) : (
-            <div className="mb-3">
-              <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar scroll-smooth">
+            <div className="mb-3 -mx-6">
+              <div className="flex gap-2 overflow-x-auto px-6 pb-1 no-scrollbar scroll-smooth snap-x snap-proximity">
                 {suggestedQuestions.map((question) => (
                   <button
                     key={question}
                     onClick={() => handleSubmit(undefined, question)}
                     disabled={isLoading}
-                    className="chat-suggestion shrink-0 px-3 py-1.5 text-[11px] font-mono transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="chat-suggestion shrink-0 snap-start px-3 py-1.5 text-[11px] font-mono transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {question}
                   </button>
