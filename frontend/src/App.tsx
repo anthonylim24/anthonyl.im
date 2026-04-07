@@ -20,14 +20,54 @@ const suggestedQuestions = [
   "How can I contact him?",
 ];
 
-// Hoisted static styles
+const TYPING_DELAYS = ["", "[animation-delay:0.15s]", "[animation-delay:0.3s]"];
+
+/* ── Hoisted static style objects (stable references — rerender-memo) ── */
+
 const grainStyle = {
   backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E")`,
   backgroundRepeat: "repeat",
   backgroundSize: "256px 256px",
 } as const;
 
-const TYPING_DELAYS = ["", "[animation-delay:0.15s]", "[animation-delay:0.3s]"];
+// CRITICAL: Inline styles for layout-structural properties.
+// Tailwind v4's @config compat shim may silently drop utility classes.
+// These inline styles are immune to CSS cascade / specificity issues.
+const rootStyle = {
+  display: "flex",
+  flexDirection: "column" as const,
+  height: "100dvh",
+  overflow: "hidden",
+};
+
+const columnStyle = {
+  display: "flex",
+  flexDirection: "column" as const,
+  flex: "1 1 0%",
+  minHeight: 0,
+  position: "relative" as const,
+  zIndex: 10,
+};
+
+const scrollAreaStyle = {
+  flex: "1 1 0%",
+  minHeight: 0,
+  overflowY: "auto" as const,
+  overflowX: "hidden" as const,
+  overscrollBehavior: "contain" as const,
+  WebkitOverflowScrolling: "touch" as const,
+};
+
+const headerFooterStyle = { flexShrink: 0 };
+
+const overlayStyle = {
+  position: "fixed" as const,
+  inset: 0,
+  pointerEvents: "none" as const,
+  zIndex: 1,
+};
+
+/* ── App ────────────────────────────────────────────── */
 
 function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -38,151 +78,112 @@ function App() {
   const [shadowMode, setShadowMode] = useState(true);
 
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const leavesVideoRef = useRef<HTMLVideoElement>(null);
   const shouldAutoScroll = useRef(true);
 
   useFavicon();
 
-  // Keyboard shortcut for shadow mode toggle
+  // Shadow mode keyboard shortcut
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-      if (e.key === "s" || e.key === "S") {
-        setShadowMode((prev) => !prev);
-      }
+      if (e.key === "s" || e.key === "S") setShadowMode((p) => !p);
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Video play/pause based on shadow mode
+  // Video play/pause
   useEffect(() => {
-    const video = leavesVideoRef.current;
-    if (!video) return;
-    if (shadowMode) {
-      video.play().catch(() => {});
-    } else {
-      video.pause();
-    }
+    const v = leavesVideoRef.current;
+    if (!v) return;
+    shadowMode ? v.play().catch(() => {}) : v.pause();
   }, [shadowMode]);
 
-  // PostHog init (deferred — bundle-defer-third-party)
+  // PostHog (deferred — bundle-defer-third-party)
   useEffect(() => {
-    const posthogKey = import.meta.env.VITE_POSTHOG_KEY;
-    if (posthogKey) {
+    const key = import.meta.env.VITE_POSTHOG_KEY;
+    if (key) {
       import("posthog-js")
-        .then(({ default: posthog }) => {
-          posthog.init(posthogKey, {
-            api_host: "https://us.i.posthog.com",
-            person_profiles: "identified_only",
-          });
-        })
+        .then(({ default: ph }) =>
+          ph.init(key, { api_host: "https://us.i.posthog.com", person_profiles: "identified_only" }),
+        )
         .catch(() => {});
     }
   }, []);
 
-  // Scroll helpers
+  /* ── Scroll ── */
+
   const scrollToBottom = useCallback((instant = false) => {
     const el = scrollAreaRef.current;
     if (!el) return;
     requestAnimationFrame(() => {
-      el.scrollTo({
-        top: el.scrollHeight,
-        behavior: instant ? "instant" : "smooth",
-      });
+      el.scrollTo({ top: el.scrollHeight, behavior: instant ? "instant" : "smooth" });
     });
   }, []);
 
   const handleScroll = useCallback(() => {
     const el = scrollAreaRef.current;
     if (!el) return;
-    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    shouldAutoScroll.current = distanceFromBottom < 150;
-    setShowScrollButton(distanceFromBottom > 200);
+    const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
+    shouldAutoScroll.current = gap < 150;
+    setShowScrollButton(gap > 200);
   }, []);
 
-  // Auto-scroll on new messages
+  // Auto-scroll when messages change
   useEffect(() => {
-    if (shouldAutoScroll.current) {
-      scrollToBottom();
-    }
+    if (shouldAutoScroll.current) scrollToBottom();
   }, [messages, scrollToBottom]);
 
-  const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-      setInput(e.target.value);
-      const el = inputRef.current;
-      if (el) {
-        el.style.height = "auto";
-        el.style.height = Math.min(el.scrollHeight, 120) + "px";
-      }
-    },
-    [],
-  );
+  /* ── Input ── */
+
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    const el = inputRef.current;
+    if (el) {
+      el.style.height = "auto";
+      el.style.height = Math.min(el.scrollHeight, 120) + "px";
+    }
+  }, []);
+
+  /* ── Submit ── */
 
   const handleSubmit = useCallback(
     async (e?: React.FormEvent, submittedInput?: string) => {
       if (e) e.preventDefault();
+      const text = (submittedInput || input).trim();
+      if (!text || isLoading) return;
 
-      const messageToSend = submittedInput || input;
-      if (!messageToSend.trim() || isLoading) return;
+      const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: text, timestamp: Date.now() };
+      const asstMsg: ChatMessage = { id: crypto.randomUUID(), role: "assistant", content: "", timestamp: Date.now() };
 
-      const userMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "user",
-        content: messageToSend.trim(),
-        timestamp: Date.now(),
-      };
-
-      const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: "",
-        timestamp: Date.now(),
-      };
-
-      setMessages((prev) => [...prev, userMessage, assistantMessage]);
+      setMessages((prev) => [...prev, userMsg, asstMsg]);
       setInput("");
       setIsLoading(true);
       shouldAutoScroll.current = true;
-
-      if (inputRef.current) {
-        inputRef.current.style.height = "auto";
-      }
-
+      if (inputRef.current) inputRef.current.style.height = "auto";
       scrollToBottom();
 
       try {
-        // Build history from current messages (before this new pair)
-        const messageHistory = messages.map((msg) => ({
-          role: msg.role,
-          content: msg.content,
-        }));
-
-        await invokeDeepseek(messageToSend, messageHistory, (content) => {
+        const history = messages.map((m) => ({ role: m.role, content: m.content }));
+        await invokeDeepseek(text, history, (content) => {
           if (!isStreaming) setIsStreaming(true);
           setMessages((prev) => {
-            const updated = [...prev];
-            const last = updated[updated.length - 1];
-            if (last?.role === "assistant") {
-              last.content = content;
-            }
-            return updated;
+            const next = [...prev];
+            const last = next[next.length - 1];
+            if (last?.role === "assistant") last.content = content;
+            return next;
           });
         });
-      } catch (error) {
-        console.error(error);
+      } catch (err) {
+        console.error(err);
         setMessages((prev) => {
-          const updated = [...prev];
-          const last = updated[updated.length - 1];
-          if (last?.role === "assistant") {
-            last.content =
-              "I apologize, but something went wrong. Please try again.";
-          }
-          return updated;
+          const next = [...prev];
+          const last = next[next.length - 1];
+          if (last?.role === "assistant") last.content = "I apologize, but something went wrong. Please try again.";
+          return next;
         });
       } finally {
         setIsLoading(false);
@@ -205,14 +206,11 @@ function App() {
   const hasMessages = messages.length > 0;
   const themeClass = shadowMode ? "chatbot-shadow" : "chatbot-dark";
 
+  /* ── Render ── */
+
   return (
-    <div
-      className={cn(
-        "chat-root flex flex-col overflow-hidden font-mono transition-colors duration-700",
-        themeClass,
-      )}
-    >
-      {/* Decorative overlays — below content z-index, pointer-events: none */}
+    <div className={cn("font-mono transition-colors duration-700", themeClass)} style={rootStyle}>
+      {/* Decorative overlays — z-index 1, BELOW content z-index 10 */}
       <video
         ref={leavesVideoRef}
         src="https://leaves.anthonylim-ucsc.workers.dev/"
@@ -224,22 +222,19 @@ function App() {
         className="leaves-overlay"
         style={{ opacity: shadowMode ? 1 : 0 }}
       />
-      <div
-        className="fixed inset-0 pointer-events-none z-[2] opacity-[0.04]"
-        style={grainStyle}
-        aria-hidden="true"
-      />
+      <div className="opacity-[0.04]" style={{ ...overlayStyle, zIndex: 2 }} aria-hidden="true">
+        <div className="w-full h-full" style={grainStyle} />
+      </div>
 
-      {/* Main column */}
-      <div className="relative z-10 flex flex-col flex-1 min-h-0 max-w-2xl mx-auto w-full safe-top">
+      {/* Main column — flex child fills root, itself a flex column */}
+      <div className="max-w-2xl mx-auto w-full safe-top" style={columnStyle}>
         {/* ── Header ── */}
         <header
           className={cn(
-            "shrink-0 text-left transition-all duration-700 ease-out px-6",
-            hasMessages
-              ? "py-4"
-              : "py-8 sm:py-14",
+            "text-left transition-all duration-700 ease-out px-6",
+            hasMessages ? "py-4" : "py-8 sm:py-14",
           )}
+          style={headerFooterStyle}
         >
           <div className="transition-all duration-700 col-fade-in">
             <h1
@@ -258,41 +253,22 @@ function App() {
             >
               Software Engineer
             </p>
-            <div
-              className={cn(
-                "transition-all duration-700 border-t chat-border",
-                hasMessages ? "mt-3" : "mt-5",
-              )}
-            />
+            <div className={cn("transition-all duration-700 border-t chat-border", hasMessages ? "mt-3" : "mt-5")} />
           </div>
         </header>
 
-        {/* ── Scrollable middle — this is the ONLY scrollable area ── */}
-        <div
-          ref={scrollAreaRef}
-          onScroll={handleScroll}
-          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6"
-        >
+        {/* ── Scrollable area — THE scroll container ── */}
+        <div ref={scrollAreaRef} onScroll={handleScroll} className="px-6" style={scrollAreaStyle}>
           {hasMessages ? (
             <>
               <div className="space-y-5 py-2">
                 {messages.map((message, index) => {
                   const isUser = message.role === "user";
-                  const isLastAssistant =
-                    !isUser && index === messages.length - 1;
-                  const showContent =
-                    message.content || (isLastAssistant && isLoading);
-
-                  if (!showContent) return null;
+                  const isLastAssistant = !isUser && index === messages.length - 1;
+                  if (!message.content && !(isLastAssistant && isLoading)) return null;
 
                   return (
-                    <div
-                      key={message.id}
-                      className={cn(
-                        "animate-message-in",
-                        isUser && "flex justify-end",
-                      )}
-                    >
+                    <div key={message.id} className={cn("animate-message-in", isUser && "flex justify-end")}>
                       {isUser ? (
                         <div className="chat-user-bubble max-w-[85%] sm:max-w-[75%] text-[14px] leading-[1.7] font-mono px-4 py-2.5 rounded-lg transition-colors duration-700">
                           {message.content}
@@ -301,10 +277,7 @@ function App() {
                         <div className="max-w-[92%] sm:max-w-[85%]">
                           {message.content ? (
                             <Suspense fallback={<MessageSkeleton />}>
-                              <MessageContent
-                                content={message.content}
-                                isStreaming={isLastAssistant && isStreaming}
-                              />
+                              <MessageContent content={message.content} isStreaming={isLastAssistant && isStreaming} />
                             </Suspense>
                           ) : (
                             <TypingIndicator />
@@ -315,10 +288,14 @@ function App() {
                   );
                 })}
               </div>
-              <div ref={bottomRef} className="h-4 shrink-0" />
+              {/* Scroll anchor */}
+              <div className="h-4" />
             </>
           ) : (
-            <div className="flex flex-col justify-start md:justify-center h-full col-fade-in stagger-2 py-4 sm:py-10">
+            <div
+              className="col-fade-in stagger-2 py-4 sm:py-10"
+              style={{ display: "flex", flexDirection: "column", justifyContent: "center", height: "100%" }}
+            >
               <h2 className="font-mono font-normal leading-[1.5] chat-text transition-colors duration-700 text-base sm:text-lg">
                 Ask me anything about Anthony&apos;s
                 <br />
@@ -328,9 +305,9 @@ function App() {
           )}
         </div>
 
-        {/* Scroll-to-bottom button — anchored to scroll area */}
+        {/* Scroll-to-bottom FAB */}
         {showScrollButton && (
-          <div className="relative z-20 px-6">
+          <div style={{ position: "relative", zIndex: 20 }} className="px-6">
             <button
               onClick={() => {
                 shouldAutoScroll.current = true;
@@ -345,31 +322,43 @@ function App() {
         )}
 
         {/* ── Footer: suggestions + input ── */}
-        <div className="shrink-0 pb-safe px-6 py-4">
+        <div className="pb-safe px-6 py-4" style={headerFooterStyle}>
           {!hasMessages ? (
             <div className="grid grid-cols-2 gap-2 col-fade-in stagger-3 mb-5">
-              {suggestedQuestions.map((question) => (
+              {suggestedQuestions.map((q) => (
                 <button
-                  key={question}
-                  onClick={() => handleSubmit(undefined, question)}
+                  key={q}
+                  onClick={() => handleSubmit(undefined, q)}
                   disabled={isLoading}
                   className="chat-suggestion text-left text-[12px] font-mono leading-[1.6] px-3 py-2.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {question}
+                  {q}
                 </button>
               ))}
             </div>
           ) : (
-            <div className="mb-3 -mx-6">
-              <div className="flex gap-2 overflow-x-auto px-6 pb-1 no-scrollbar snap-x snap-proximity">
-                {suggestedQuestions.map((question) => (
+            <div className="mb-3" style={{ marginLeft: "-1.5rem", marginRight: "-1.5rem" }}>
+              <div
+                className="no-scrollbar"
+                style={{
+                  display: "flex",
+                  gap: "0.5rem",
+                  overflowX: "auto",
+                  paddingLeft: "1.5rem",
+                  paddingRight: "1.5rem",
+                  paddingBottom: "0.25rem",
+                  scrollSnapType: "x proximity",
+                }}
+              >
+                {suggestedQuestions.map((q) => (
                   <button
-                    key={question}
-                    onClick={() => handleSubmit(undefined, question)}
+                    key={q}
+                    onClick={() => handleSubmit(undefined, q)}
                     disabled={isLoading}
-                    className="chat-suggestion shrink-0 snap-start px-3 py-1.5 text-[11px] font-mono transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="chat-suggestion text-[11px] font-mono transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    style={{ flexShrink: 0, scrollSnapAlign: "start", padding: "0.375rem 0.75rem" }}
                   >
-                    {question}
+                    {q}
                   </button>
                 ))}
               </div>
@@ -403,11 +392,9 @@ function App() {
               Powered by AI · Responses may be inaccurate
             </p>
             <button
-              onClick={() => setShadowMode((prev) => !prev)}
+              onClick={() => setShadowMode((p) => !p)}
               className="chat-mid text-[10px] font-mono tracking-[0.04em] uppercase transition-colors duration-300 opacity-50 hover:opacity-100"
-              title={
-                shadowMode ? "Press S for dark mode" : "Press S for shadow mode"
-              }
+              title={shadowMode ? "Press S for dark mode" : "Press S for shadow mode"}
             >
               [{shadowMode ? "S:on" : "S"}]
             </button>
@@ -418,16 +405,15 @@ function App() {
   );
 }
 
+/* ── Extracted static components (rendering-hoist-jsx) ── */
+
 function TypingIndicator() {
   return (
     <div className="flex items-center gap-1.5 py-1 px-1">
       {TYPING_DELAYS.map((delay, i) => (
         <span
           key={i}
-          className={cn(
-            "w-1.5 h-1.5 rounded-full chat-typing-dot animate-typing-dot transition-colors duration-700",
-            delay,
-          )}
+          className={cn("w-1.5 h-1.5 rounded-full chat-typing-dot animate-typing-dot transition-colors duration-700", delay)}
         />
       ))}
     </div>
