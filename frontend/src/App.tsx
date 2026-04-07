@@ -20,7 +20,7 @@ const suggestedQuestions = [
   "How can I contact him?",
 ];
 
-// Hoisted static styles to avoid re-creation on every render
+// Hoisted static styles
 const grainStyle = {
   backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E")`,
   backgroundRepeat: "repeat",
@@ -35,36 +35,33 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
-  const [viewportHeight, setViewportHeight] = useState(0);
   const [shadowMode, setShadowMode] = useState(true);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const leavesVideoRef = useRef<HTMLVideoElement>(null);
   const shouldAutoScroll = useRef(true);
 
   useFavicon();
 
-  // Don't trigger keyboard shortcuts when typing in form fields
+  // Keyboard shortcut for shadow mode toggle
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-
       if (e.key === "s" || e.key === "S") {
         setShadowMode((prev) => !prev);
       }
     };
-
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  // Video play/pause based on shadow mode
   useEffect(() => {
     const video = leavesVideoRef.current;
     if (!video) return;
-
     if (shadowMode) {
       video.play().catch(() => {});
     } else {
@@ -72,148 +69,150 @@ function App() {
     }
   }, [shadowMode]);
 
+  // PostHog init (deferred — bundle-defer-third-party)
   useEffect(() => {
-    const updateViewportHeight = () => {
-      const nextHeight = window.visualViewport?.height ?? window.innerHeight;
-      setViewportHeight((prev) => (prev === nextHeight ? prev : nextHeight));
-    };
-
-    updateViewportHeight();
-    window.addEventListener("resize", updateViewportHeight);
-    window.visualViewport?.addEventListener("resize", updateViewportHeight);
-    window.visualViewport?.addEventListener("scroll", updateViewportHeight);
-
-    return () => {
-      window.removeEventListener("resize", updateViewportHeight);
-      window.visualViewport?.removeEventListener("resize", updateViewportHeight);
-      window.visualViewport?.removeEventListener("scroll", updateViewportHeight);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const posthogKey = import.meta.env.VITE_POSTHOG_KEY
-      if (posthogKey) {
-        import('posthog-js').then(({ default: posthog }) => {
+    const posthogKey = import.meta.env.VITE_POSTHOG_KEY;
+    if (posthogKey) {
+      import("posthog-js")
+        .then(({ default: posthog }) => {
           posthog.init(posthogKey, {
             api_host: "https://us.i.posthog.com",
             person_profiles: "identified_only",
           });
-        }).catch(() => {});
-      }
+        })
+        .catch(() => {});
     }
   }, []);
 
-  const scrollToBottom = (instant = false) => {
-    if (messagesEndRef.current) {
-      requestAnimationFrame(() => {
-        messagesEndRef.current?.scrollIntoView({
-          behavior: instant ? "instant" : "smooth",
-          block: "end",
-        });
+  // Scroll helpers
+  const scrollToBottom = useCallback((instant = false) => {
+    const el = scrollAreaRef.current;
+    if (!el) return;
+    requestAnimationFrame(() => {
+      el.scrollTo({
+        top: el.scrollHeight,
+        behavior: instant ? "instant" : "smooth",
       });
-    }
-  };
+    });
+  }, []);
 
-  const handleScroll = () => {
-    if (!messagesContainerRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
-    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+  const handleScroll = useCallback(() => {
+    const el = scrollAreaRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     shouldAutoScroll.current = distanceFromBottom < 150;
     setShowScrollButton(distanceFromBottom > 200);
-  };
+  }, []);
 
+  // Auto-scroll on new messages
   useEffect(() => {
     if (shouldAutoScroll.current) {
       scrollToBottom();
     }
-  }, [messages]);
+  }, [messages, scrollToBottom]);
 
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value);
-    if (inputRef.current) {
-      inputRef.current.style.height = "auto";
-      inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 120) + "px";
-    }
-  }, []);
+  const handleInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      setInput(e.target.value);
+      const el = inputRef.current;
+      if (el) {
+        el.style.height = "auto";
+        el.style.height = Math.min(el.scrollHeight, 120) + "px";
+      }
+    },
+    [],
+  );
 
-  const handleSubmit = async (e?: React.FormEvent, submittedInput?: string) => {
-    if (e) e.preventDefault();
+  const handleSubmit = useCallback(
+    async (e?: React.FormEvent, submittedInput?: string) => {
+      if (e) e.preventDefault();
 
-    const messageToSend = submittedInput || input;
-    if (!messageToSend.trim() || isLoading) return;
+      const messageToSend = submittedInput || input;
+      if (!messageToSend.trim() || isLoading) return;
 
-    const userMessage: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: messageToSend.trim(),
-      timestamp: Date.now(),
-    };
+      const userMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "user",
+        content: messageToSend.trim(),
+        timestamp: Date.now(),
+      };
 
-    const assistantMessage: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      content: "",
-      timestamp: Date.now(),
-    };
+      const assistantMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: "",
+        timestamp: Date.now(),
+      };
 
-    setMessages((prev) => [...prev, userMessage, assistantMessage]);
-    setInput("");
-    setIsLoading(true);
-    shouldAutoScroll.current = true;
+      setMessages((prev) => [...prev, userMessage, assistantMessage]);
+      setInput("");
+      setIsLoading(true);
+      shouldAutoScroll.current = true;
 
-    if (inputRef.current) {
-      inputRef.current.style.height = "auto";
-    }
+      if (inputRef.current) {
+        inputRef.current.style.height = "auto";
+      }
 
-    scrollToBottom();
+      scrollToBottom();
 
-    try {
-      const messageHistory = messages.map((msg) => ({
-        role: msg.role,
-        content: msg.content,
-      }));
+      try {
+        // Build history from current messages (before this new pair)
+        const messageHistory = messages.map((msg) => ({
+          role: msg.role,
+          content: msg.content,
+        }));
 
-      await invokeDeepseek(messageToSend, messageHistory, (content) => {
-        if (!isStreaming) setIsStreaming(true);
+        await invokeDeepseek(messageToSend, messageHistory, (content) => {
+          if (!isStreaming) setIsStreaming(true);
+          setMessages((prev) => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last?.role === "assistant") {
+              last.content = content;
+            }
+            return updated;
+          });
+        });
+      } catch (error) {
+        console.error(error);
         setMessages((prev) => {
           const updated = [...prev];
           const last = updated[updated.length - 1];
           if (last?.role === "assistant") {
-            last.content = content;
+            last.content =
+              "I apologize, but something went wrong. Please try again.";
           }
           return updated;
         });
-      });
-    } catch (error) {
-      console.error(error);
-      setMessages((prev) => {
-        const updated = [...prev];
-        const last = updated[updated.length - 1];
-        if (last?.role === "assistant") {
-          last.content = "I apologize, but something went wrong. Please try again.";
-        }
-        return updated;
-      });
-    } finally {
-      setIsLoading(false);
-      setIsStreaming(false);
-    }
-  };
+      } finally {
+        setIsLoading(false);
+        setIsStreaming(false);
+      }
+    },
+    [input, isLoading, isStreaming, messages, scrollToBottom],
+  );
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
-    }
-  };
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        handleSubmit();
+      }
+    },
+    [handleSubmit],
+  );
 
   const hasMessages = messages.length > 0;
-  const isShortViewport = viewportHeight > 0 && viewportHeight < 760;
   const themeClass = shadowMode ? "chatbot-shadow" : "chatbot-dark";
 
   return (
-    <div className={cn("fixed inset-0 flex flex-col overflow-hidden font-mono transition-colors duration-700", themeClass)}>
+    <div
+      className={cn(
+        "chat-root flex flex-col overflow-hidden font-mono transition-colors duration-700",
+        themeClass,
+      )}
+    >
+      {/* Decorative overlays — below content z-index, pointer-events: none */}
       <video
         ref={leavesVideoRef}
         src="https://leaves.anthonylim-ucsc.workers.dev/"
@@ -225,51 +224,75 @@ function App() {
         className="leaves-overlay"
         style={{ opacity: shadowMode ? 1 : 0 }}
       />
+      <div
+        className="fixed inset-0 pointer-events-none z-[2] opacity-[0.04]"
+        style={grainStyle}
+        aria-hidden="true"
+      />
 
-      <div className="fixed inset-0 pointer-events-none z-[2] opacity-[0.04]" style={grainStyle} aria-hidden="true" />
-
-      <div className="relative z-10 flex flex-col h-full max-w-2xl mx-auto w-full safe-top">
-        <header className={cn(
-          "shrink-0 text-left transition-all duration-700 ease-out px-6",
-          hasMessages ? "py-4" : isShortViewport ? "py-4 sm:py-6" : "py-8 sm:py-14"
-        )}>
+      {/* Main column */}
+      <div className="relative z-10 flex flex-col flex-1 min-h-0 max-w-2xl mx-auto w-full safe-top">
+        {/* ── Header ── */}
+        <header
+          className={cn(
+            "shrink-0 text-left transition-all duration-700 ease-out px-6",
+            hasMessages
+              ? "py-4"
+              : "py-8 sm:py-14",
+          )}
+        >
           <div className="transition-all duration-700 col-fade-in">
-            <h1 className={cn(
-              "font-mono font-medium tracking-[0.07em] uppercase chat-text transition-all duration-700",
-              hasMessages ? "text-[10px]" : "text-[10px] sm:text-[11px]"
-            )}>
+            <h1
+              className={cn(
+                "font-mono font-medium tracking-[0.07em] uppercase chat-text transition-all duration-700",
+                hasMessages ? "text-[10px]" : "text-[10px] sm:text-[11px]",
+              )}
+            >
               Anthony Lim
             </h1>
-            <p className={cn(
-              "font-mono chat-mid transition-all duration-700 mt-1",
-              hasMessages ? "text-[10px]" : "text-[10px] sm:text-[11px]"
-            )}>
+            <p
+              className={cn(
+                "font-mono chat-mid transition-all duration-700 mt-1",
+                hasMessages ? "text-[10px]" : "text-[10px] sm:text-[11px]",
+              )}
+            >
               Software Engineer
             </p>
-            <div className={cn(
-              "transition-all duration-700 border-t chat-border",
-              hasMessages ? "mt-3" : "mt-5"
-            )} />
+            <div
+              className={cn(
+                "transition-all duration-700 border-t chat-border",
+                hasMessages ? "mt-3" : "mt-5",
+              )}
+            />
           </div>
         </header>
 
-        <div className="flex-1 relative min-h-0">
+        {/* ── Scrollable middle — this is the ONLY scrollable area ── */}
+        <div
+          ref={scrollAreaRef}
+          onScroll={handleScroll}
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6"
+        >
           {hasMessages ? (
-            <div
-              ref={messagesContainerRef}
-              onScroll={handleScroll}
-              className="absolute inset-0 overflow-y-auto overscroll-contain px-6 pb-4 scroll-smooth"
-            >
+            <>
               <div className="space-y-5 py-2">
                 {messages.map((message, index) => {
                   const isUser = message.role === "user";
-                  const isLastAssistant = !isUser && index === messages.length - 1;
-                  const showContent = message.content || (isLastAssistant && isLoading);
+                  const isLastAssistant =
+                    !isUser && index === messages.length - 1;
+                  const showContent =
+                    message.content || (isLastAssistant && isLoading);
 
                   if (!showContent) return null;
 
                   return (
-                    <div key={message.id} className={cn("animate-message-in", isUser && "flex justify-end")}>
+                    <div
+                      key={message.id}
+                      className={cn(
+                        "animate-message-in",
+                        isUser && "flex justify-end",
+                      )}
+                    >
                       {isUser ? (
                         <div className="chat-user-bubble max-w-[85%] sm:max-w-[75%] text-[14px] leading-[1.7] font-mono px-4 py-2.5 rounded-lg transition-colors duration-700">
                           {message.content}
@@ -292,40 +315,39 @@ function App() {
                   );
                 })}
               </div>
-              <div ref={messagesEndRef} className="h-4 shrink-0" />
-            </div>
+              <div ref={bottomRef} className="h-4 shrink-0" />
+            </>
           ) : (
-            <div className="h-full overflow-hidden px-6">
-              <div className={cn(
-                "flex flex-col justify-start md:justify-center h-full col-fade-in stagger-2",
-                isShortViewport ? "py-1 sm:py-3" : "py-4 sm:py-10"
-              )}>
-                <h2 className={cn(
-                  "font-mono font-normal leading-[1.5] chat-text transition-colors duration-700",
-                  isShortViewport ? "text-sm sm:text-base" : "text-base sm:text-lg"
-                )}>
-                  Ask me anything about Anthony&apos;s
-                  <br />
-                  experience, skills, and background.
-                </h2>
-              </div>
+            <div className="flex flex-col justify-start md:justify-center h-full col-fade-in stagger-2 py-4 sm:py-10">
+              <h2 className="font-mono font-normal leading-[1.5] chat-text transition-colors duration-700 text-base sm:text-lg">
+                Ask me anything about Anthony&apos;s
+                <br />
+                experience, skills, and background.
+              </h2>
             </div>
           )}
+        </div>
 
-          {showScrollButton && (
+        {/* Scroll-to-bottom button — anchored to scroll area */}
+        {showScrollButton && (
+          <div className="relative z-20 px-6">
             <button
-              onClick={() => { shouldAutoScroll.current = true; scrollToBottom(); }}
-              className="absolute bottom-4 right-6 p-2 transition-all duration-300 animate-scale-in chat-scroll-btn"
+              onClick={() => {
+                shouldAutoScroll.current = true;
+                scrollToBottom();
+              }}
+              className="absolute bottom-2 right-6 p-2 transition-all duration-300 animate-scale-in chat-scroll-btn"
               aria-label="Scroll to bottom"
             >
               <ChevronDown className="w-4 h-4" />
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
-        <div className={cn("shrink-0 pb-safe px-6", isShortViewport && !hasMessages ? "py-3" : "py-4")}>
+        {/* ── Footer: suggestions + input ── */}
+        <div className="shrink-0 pb-safe px-6 py-4">
           {!hasMessages ? (
-            <div className={cn("grid grid-cols-2 gap-2 col-fade-in stagger-3", isShortViewport ? "mb-3" : "mb-5")}>
+            <div className="grid grid-cols-2 gap-2 col-fade-in stagger-3 mb-5">
               {suggestedQuestions.map((question) => (
                 <button
                   key={question}
@@ -339,7 +361,7 @@ function App() {
             </div>
           ) : (
             <div className="mb-3 -mx-6">
-              <div className="flex gap-2 overflow-x-auto px-6 pb-1 no-scrollbar scroll-smooth snap-x snap-proximity">
+              <div className="flex gap-2 overflow-x-auto px-6 pb-1 no-scrollbar snap-x snap-proximity">
                 {suggestedQuestions.map((question) => (
                   <button
                     key={question}
@@ -383,7 +405,9 @@ function App() {
             <button
               onClick={() => setShadowMode((prev) => !prev)}
               className="chat-mid text-[10px] font-mono tracking-[0.04em] uppercase transition-colors duration-300 opacity-50 hover:opacity-100"
-              title={shadowMode ? "Press S for dark mode" : "Press S for shadow mode"}
+              title={
+                shadowMode ? "Press S for dark mode" : "Press S for shadow mode"
+              }
             >
               [{shadowMode ? "S:on" : "S"}]
             </button>
@@ -398,7 +422,13 @@ function TypingIndicator() {
   return (
     <div className="flex items-center gap-1.5 py-1 px-1">
       {TYPING_DELAYS.map((delay, i) => (
-        <span key={i} className={cn("w-1.5 h-1.5 rounded-full chat-typing-dot animate-typing-dot transition-colors duration-700", delay)} />
+        <span
+          key={i}
+          className={cn(
+            "w-1.5 h-1.5 rounded-full chat-typing-dot animate-typing-dot transition-colors duration-700",
+            delay,
+          )}
+        />
       ))}
     </div>
   );
