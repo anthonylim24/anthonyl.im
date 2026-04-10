@@ -16,8 +16,8 @@
   "dependencies": {
     "groq-sdk": "^1.1.2",
     "hono": "^4.12.12",
-    "openai": "^6.33.0",
-    "posthog-js": "^1.364.6",
+    "openai": "^6.34.0",
+    "posthog-js": "^1.367.0",
     "zod": "^4.3.6"
   }
 }
