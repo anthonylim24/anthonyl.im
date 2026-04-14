@@ -16,7 +16,7 @@ const openai = new OpenAI({
   baseURL: config.deepseekApiBaseUrl,
 });
 
-const GROQ_MODEL = "moonshotai/kimi-k2-instruct-0905";
+const GROQ_MODEL = "openai/gpt-oss-120b";
 
 const messageSchema = z.object({
   role: z.enum(["user", "assistant"]),
