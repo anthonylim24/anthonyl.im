@@ -9,6 +9,44 @@ interface SessionHistoryProps {
   sessions: CompletedSession[]
 }
 
+function pluralize(value: number, unit: string): string {
+  return `${value} ${unit}${value === 1 ? '' : 's'}`
+}
+
+function formatDurationLabel(seconds: number): string {
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  const parts: string[] = []
+
+  if (minutes > 0) {
+    parts.push(pluralize(minutes, 'minute'))
+  }
+  if (remainingSeconds > 0 || parts.length === 0) {
+    parts.push(pluralize(remainingSeconds, 'second'))
+  }
+
+  return parts.join(' ')
+}
+
+function buildSessionLabel(session: CompletedSession): string {
+  const protocolName = breathingProtocols[session.techniqueId].name
+  const parts = [
+    protocolName,
+    formatDate(new Date(session.date)),
+    formatDurationLabel(session.durationSeconds),
+    pluralize(session.rounds, 'round'),
+  ]
+
+  if (session.maxHoldTime > 0) {
+    parts.push(
+      `best hold ${pluralize(session.maxHoldTime, 'second')}`,
+      `average hold ${pluralize(session.avgHoldTime, 'second')}`
+    )
+  }
+
+  return parts.join(', ')
+}
+
 export function SessionHistory({ sessions }: SessionHistoryProps) {
   const navigate = useNavigate()
 
@@ -28,10 +66,16 @@ export function SessionHistory({ sessions }: SessionHistoryProps) {
   }
 
   return (
-    <div className="space-y-2">
+    <div
+      className="space-y-2"
+      role="list"
+      aria-label={`${sessions.length} completed session${sessions.length === 1 ? '' : 's'}`}
+    >
       {sessions.map((session) => (
         <div
           key={session.id}
+          role="listitem"
+          aria-label={buildSessionLabel(session)}
           className="flex items-center gap-3 border-b border-bw-border py-3 hover:bg-bw-hover transition-colors duration-200"
         >
           {/* Technique icon */}
@@ -51,18 +95,18 @@ export function SessionHistory({ sessions }: SessionHistoryProps) {
 
           {/* Stats */}
           <div className="flex items-center gap-3 shrink-0 text-xs text-bw-tertiary tabular-nums">
-            <span className="flex items-center gap-1">
-              <Clock className="h-3 w-3" />
+            <span className="flex items-center gap-1" aria-label={formatDurationLabel(session.durationSeconds)}>
+              <Clock className="h-3 w-3" aria-hidden="true" />
               {formatTime(session.durationSeconds)}
             </span>
-            <span>{session.rounds}r</span>
+            <span aria-label={pluralize(session.rounds, 'round')}>{session.rounds}r</span>
           </div>
 
           {/* Best hold (only for CO2 tolerance) */}
           {session.maxHoldTime > 0 && (
             <div className="shrink-0 text-right pl-2 border-l border-bw-border">
               <div className="flex items-center gap-1 font-mono text-sm font-normal text-bw tabular-nums">
-                <Trophy className="h-3 w-3 text-bw-secondary" />
+                <Trophy className="h-3 w-3 text-bw-secondary" aria-hidden="true" />
                 {session.maxHoldTime}s
               </div>
               <div className="text-[10px] text-bw-tertiary tabular-nums">
