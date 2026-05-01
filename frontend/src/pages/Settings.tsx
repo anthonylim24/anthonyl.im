@@ -238,9 +238,10 @@ export function Settings() {
       {/* Appearance */}
       <motion.section variants={fadeUp} className="border-t border-bw-border pt-5 pb-6">
         <h2 className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary mb-4">Appearance</h2>
-        <div className="flex gap-3">
+        <div className="flex gap-3" role="group" aria-label="Appearance theme">
           <motion.button
             type="button"
+            aria-pressed={theme === 'dark'}
             whileTap={tap(0.98)}
             transition={motionTransition}
             onClick={() => { haptic('selection'); setTheme('dark') }}
@@ -259,6 +260,7 @@ export function Settings() {
           </motion.button>
           <motion.button
             type="button"
+            aria-pressed={theme === 'light'}
             whileTap={tap(0.98)}
             transition={motionTransition}
             onClick={() => { haptic('selection'); setTheme('light') }}
@@ -287,7 +289,11 @@ export function Settings() {
             Level {level}
           </span>
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div
+          className="grid grid-cols-2 gap-2 sm:grid-cols-3"
+          role="group"
+          aria-label={`Orb palettes unlocked through level ${level}`}
+        >
           {ORB_THEMES.map((orbTheme) => {
             const unlocked = unlockedThemeIds.has(orbTheme.id)
             const selected = effectiveSelectedTheme === orbTheme.id
@@ -297,7 +303,7 @@ export function Settings() {
                 key={orbTheme.id}
                 type="button"
                 disabled={!unlocked}
-                aria-pressed={unlocked ? selected : undefined}
+                aria-pressed={selected}
                 aria-label={
                   unlocked
                     ? `${orbTheme.name} orb palette`
