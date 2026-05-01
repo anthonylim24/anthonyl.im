@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { TechniqueId } from '@/lib/constants'
+import type { BreathPhase, TechniqueId } from '@/lib/constants'
 import { STORAGE_KEYS } from '@/lib/constants'
 import {
   addLocalDays,
@@ -15,6 +15,7 @@ export interface CompletedSession {
   date: string // ISO string
   durationSeconds: number
   rounds: number
+  customPhaseDurations?: Partial<Record<BreathPhase, number>>
   holdTimes: number[]
   maxHoldTime: number
   avgHoldTime: number

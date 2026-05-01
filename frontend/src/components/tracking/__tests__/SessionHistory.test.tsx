@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { SessionHistory } from '../SessionHistory'
-import { TECHNIQUE_IDS } from '@/lib/constants'
+import { BREATH_PHASES, TECHNIQUE_IDS } from '@/lib/constants'
 import type { CompletedSession } from '@/stores/historyStore'
 
 const { navigate } = vi.hoisted(() => ({
@@ -74,5 +74,36 @@ describe('SessionHistory', () => {
         name: /Box Breathing, May 1, 2026, 1 minute 4 seconds, 4 rounds/i,
       })
     ).toBeInTheDocument()
+  })
+
+  it('replays a completed session with rounds and custom cadence', async () => {
+    const user = userEvent.setup()
+    render(
+      <SessionHistory
+        sessions={[
+          session({
+            id: 'custom-resonance',
+            techniqueId: TECHNIQUE_IDS.RESONANCE_BREATHING,
+            durationSeconds: 330,
+            rounds: 30,
+            customPhaseDurations: {
+              [BREATH_PHASES.INHALE]: 6,
+              [BREATH_PHASES.EXHALE]: 5,
+            },
+          }),
+        ]}
+      />
+    )
+
+    const repeatButton = screen.getByRole('button', {
+      name: /Repeat Resonance Breathing, 5 minutes 30 seconds, 30 rounds, custom cadence/i,
+    })
+    expect(repeatButton).toHaveClass('h-11', 'w-11')
+
+    await user.click(repeatButton)
+
+    expect(navigate).toHaveBeenCalledWith(
+      '/breathwork/session?technique=resonance_breathing&rounds=30&phase_inhale=6&phase_exhale=5'
+    )
   })
 })
