@@ -279,9 +279,11 @@ export function Session() {
               return (
                 <button
                   key={p.id}
+                  type="button"
+                  aria-pressed={isSelected}
                   onClick={() => handleTechniqueChange(p.id)}
                   className={cn(
-                    'h-10 px-3 flex items-center gap-2 border text-[10px] font-medium uppercase tracking-[0.07em] transition-colors duration-200',
+                    'flex min-h-11 items-center gap-2 border px-3 text-[10px] font-medium uppercase tracking-[0.07em] transition-colors duration-200',
                     isSelected
                       ? 'border-bw-accent text-bw bg-bw-active'
                       : 'border-bw-border text-bw-tertiary'
@@ -382,11 +384,13 @@ export function Session() {
             <motion.button
               whileTap={tap(0.9)}
               transition={spring}
+              type="button"
+              aria-label="Decrease rounds"
               onClick={() => { haptic(15); setRounds((r) => Math.max(1, r - 1)) }}
               disabled={rounds <= 1}
               className="h-11 w-11 border border-bw-border hover:bg-bw-hover disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all text-bw"
             >
-              <Minus className="h-4 w-4" />
+              <Minus className="h-4 w-4" aria-hidden="true" />
             </motion.button>
             <span className="font-mono text-2xl font-normal tabular-nums text-bw leading-none min-w-[48px] text-center">
               {rounds}
@@ -394,11 +398,13 @@ export function Session() {
             <motion.button
               whileTap={tap(0.9)}
               transition={spring}
+              type="button"
+              aria-label="Increase rounds"
               onClick={() => { haptic(15); setRounds((r) => Math.min(40, r + 1)) }}
               disabled={rounds >= 40}
               className="h-11 w-11 border border-bw-border hover:bg-bw-hover disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all text-bw"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-4 w-4" aria-hidden="true" />
             </motion.button>
           </div>
           <span className="text-xs text-bw-tertiary">
@@ -439,11 +445,13 @@ export function Session() {
               return (
                 <motion.button
                   key={p.id}
+                  type="button"
+                  aria-pressed={isSelected}
                   whileTap={tap(0.99)}
                   transition={spring}
                   onClick={() => handleTechniqueChange(p.id)}
                   className={cn(
-                    'w-full flex items-center gap-4 py-4 text-left transition-colors duration-200',
+                    'flex min-h-11 w-full items-center gap-4 py-4 text-left transition-colors duration-200',
                     isSelected ? 'bg-bw-active' : 'hover:bg-bw-hover'
                   )}
                 >
@@ -550,11 +558,13 @@ export function Session() {
               <motion.button
                 whileTap={tap(0.95)}
                 transition={spring}
+                type="button"
+                aria-label="Decrease rounds"
                 onClick={() => { haptic(15); setRounds((r) => Math.max(1, r - 1)) }}
                 disabled={rounds <= 1}
                 className="h-12 w-12 border border-bw-border hover:bg-bw-hover disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 text-bw"
               >
-                <Minus className="h-4 w-4" />
+                <Minus className="h-4 w-4" aria-hidden="true" />
               </motion.button>
               <div className="text-center min-w-[80px]">
                 <span className="font-mono text-3xl font-normal tabular-nums text-bw leading-none">
@@ -567,11 +577,13 @@ export function Session() {
               <motion.button
                 whileTap={tap(0.95)}
                 transition={spring}
+                type="button"
+                aria-label="Increase rounds"
                 onClick={() => { haptic(15); setRounds((r) => Math.min(40, r + 1)) }}
                 disabled={rounds >= 40}
                 className="h-12 w-12 border border-bw-border hover:bg-bw-hover disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 text-bw"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-4 w-4" aria-hidden="true" />
               </motion.button>
             </div>
 
