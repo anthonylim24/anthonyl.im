@@ -49,7 +49,7 @@ body {
   --breath-ink-secondary: #5F574F;
   --breath-ink-tertiary: #6F6760;
   --breath-surface: #FFFEFA;
-  --breath-accent: #AD7800;
+  --breath-accent: #B8860B;
   --breath-well: rgba(28, 25, 23, 0.03);
   --breath-border: rgba(28, 25, 23, 0.08);
   --breath-border-hover: rgba(28, 25, 23, 0.14);
@@ -372,19 +372,19 @@ body {
     --card-foreground: 20 10% 10%;
     --popover: 45 100% 99%;
     --popover-foreground: 20 10% 10%;
-    --primary: 42 100% 34%;
+    --primary: 43 89% 38%;
     --primary-foreground: 36 31% 95%;
     --secondary: 28 11% 45%;
     --secondary-foreground: 20 10% 10%;
     --muted: 28 13% 83%;
     --muted-foreground: 28 11% 45%;
-    --accent: 42 100% 34%;
+    --accent: 43 89% 38%;
     --accent-foreground: 36 31% 95%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
     --border: 30 15% 83%;
     --input: 30 15% 83%;
-    --ring: 42 100% 34% / 0.28;
+    --ring: 43 89% 38% / 0.28;
     --radius: 0.5rem;
 
     /* Semantic bw tokens — warm parchment + ink */
@@ -396,8 +396,8 @@ body {
     --bw-text-faint: #D8D1C7;
     --bw-border: rgba(28, 25, 23, 0.08);
     --bw-border-subtle: rgba(28, 25, 23, 0.05);
-    --bw-hover: rgba(173, 120, 0, 0.06);
-    --bw-active: rgba(173, 120, 0, 0.1);
+    --bw-hover: rgba(184, 134, 11, 0.06);
+    --bw-active: rgba(184, 134, 11, 0.1);
     --bw-nav-bg: rgba(245, 242, 237, 0.92);
     --bw-nav-bg-mobile: rgba(245, 242, 237, 0.96);
     --bw-nav-border: rgba(28, 25, 23, 0.08);
@@ -410,9 +410,9 @@ body {
     --bw-tooltip-item: rgba(95, 87, 79, 0.9);
 
     /* Accent tokens */
-    --bw-accent: #AD7800;
+    --bw-accent: #B8860B;
     --bw-accent-light: #D6AD47;
-    --bw-accent-subtle: rgba(173, 120, 0, 0.12);
+    --bw-accent-subtle: rgba(184, 134, 11, 0.12);
     --bw-accent-foreground: #1C1917;
     --bw-success: #6B8F71;
   }
