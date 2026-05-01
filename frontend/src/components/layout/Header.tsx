@@ -1,9 +1,13 @@
+import { lazy, Suspense } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Wind, BarChart3, Home, Settings } from 'lucide-react'
-import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react'
 import { cn } from '@/lib/utils'
 import { CLERK_ENABLED } from '@/lib/clerk'
 import { preloadBreathworkRoute } from '@/lib/breathworkRoutePreload'
+
+const HeaderAuthControls = lazy(() =>
+  import('./HeaderAuthControls').then((module) => ({ default: module.HeaderAuthControls })),
+)
 
 export function Header() {
   const location = useLocation()
@@ -78,27 +82,9 @@ export function Header() {
 
           {/* Auth controls */}
           {CLERK_ENABLED && (
-            <div className="flex items-center">
-              <SignedOut>
-                <SignInButton mode="modal">
-                  <button
-                    type="button"
-                    className="min-h-11 min-w-11 rounded-lg px-4 py-2 text-sm font-semibold text-bw-secondary hover:text-bw hover:bg-bw-hover transition-all duration-300"
-                  >
-                    Sign In
-                  </button>
-                </SignInButton>
-              </SignedOut>
-              <SignedIn>
-                <UserButton
-                  appearance={{
-                    elements: {
-                      avatarBox: 'h-11 w-11',
-                    },
-                  }}
-                />
-              </SignedIn>
-            </div>
+            <Suspense fallback={null}>
+              <HeaderAuthControls />
+            </Suspense>
           )}
         </div>
       </div>
