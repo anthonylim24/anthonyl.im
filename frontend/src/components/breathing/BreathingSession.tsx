@@ -18,6 +18,7 @@ import { Timer } from './Timer'
 import { Play, Pause, Square, RotateCcw } from 'lucide-react'
 import type { SessionConfig } from '@/lib/breathingProtocols'
 import { getProtocol } from '@/lib/breathingProtocols'
+import { PHASE_LABELS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import {
   calculateXP,
@@ -39,6 +40,42 @@ interface BreathingSessionProps {
   config: SessionConfig
   onComplete?: () => void
   onCancel?: () => void
+}
+
+function getSessionAnnouncement({
+  protocolName,
+  currentPhase,
+  currentRound,
+  totalRounds,
+  isActive,
+  isPaused,
+  isComplete,
+}: {
+  protocolName: string
+  currentPhase: keyof typeof PHASE_LABELS | null
+  currentRound: number
+  totalRounds: number
+  isActive: boolean
+  isPaused: boolean
+  isComplete: boolean
+}): string {
+  if (isComplete) {
+    return `${protocolName} complete. Review your session summary.`
+  }
+
+  if (!isActive || !currentPhase) {
+    return `${protocolName} ready. Press Start when you are ready.`
+  }
+
+  const round = Math.min(currentRound + 1, totalRounds)
+  const phaseLabel = PHASE_LABELS[currentPhase]
+  const progress = `Round ${round} of ${totalRounds}. ${phaseLabel} phase.`
+
+  if (isPaused) {
+    return `${protocolName} paused. ${progress}`
+  }
+
+  return progress
 }
 
 export function BreathingSession({
@@ -144,6 +181,28 @@ export function BreathingSession({
   useWakeLock(isActive)
 
   const protocol = getProtocol(config.techniqueId)
+  const sessionAnnouncement = useMemo(
+    () =>
+      getSessionAnnouncement({
+        protocolName: protocol.name,
+        currentPhase: session?.currentPhase ?? null,
+        currentRound: session?.currentRound ?? 0,
+        totalRounds: config.rounds,
+        isActive,
+        isPaused,
+        isComplete: isComplete || Boolean(session?.isComplete),
+      }),
+    [
+      protocol.name,
+      session?.currentPhase,
+      session?.currentRound,
+      session?.isComplete,
+      config.rounds,
+      isActive,
+      isPaused,
+      isComplete,
+    ]
+  )
 
   const currentPhaseDuration = useMemo(() => {
     if (!session) return 0
@@ -297,6 +356,15 @@ export function BreathingSession({
       {/* Opaque canvas as absolute child — keeps the fixed parent transparent
           so Safari 26 liquid glass can tint through the safe areas */}
       <div className="absolute inset-0 breath-bg" aria-hidden="true" />
+      <div
+        className="sr-only"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        data-testid="session-live-region"
+      >
+        {sessionAnnouncement}
+      </div>
       {/* Aura mode — background layer, behind all UI */}
       {auraMode && <BreathAuraField />}
 
