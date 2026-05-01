@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { motion } from 'motion/react'
 import { SignedIn, SignedOut, SignInButton, useUser } from '@clerk/clerk-react'
 import { CLERK_ENABLED } from '@/lib/clerk'
@@ -9,12 +9,15 @@ import {
   Sun,
   Moon,
   Cloud,
+  Lock,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useHaptics } from '@/hooks/useHaptics'
 import { useHistoryStore } from '@/stores/historyStore'
 import { useEntranceMotion } from '@/lib/motionPresets'
+import { useGamificationStore } from '@/stores/gamificationStore'
+import { DEFAULT_ORB_THEME_ID, getLevelForXP, getUnlockedThemes, ORB_THEMES } from '@/lib/gamification'
 
 interface SettingsSwitchProps {
   checked: boolean
@@ -90,6 +93,15 @@ export function Settings() {
     hapticsEnabled,
     setHapticsEnabled,
   } = useSettingsStore()
+  const { xp, selectedTheme, setSelectedTheme } = useGamificationStore()
+  const level = getLevelForXP(xp)
+  const unlockedThemeIds = useMemo(
+    () => new Set(getUnlockedThemes(level).map((orbTheme) => orbTheme.id)),
+    [level]
+  )
+  const effectiveSelectedTheme = unlockedThemeIds.has(selectedTheme)
+    ? selectedTheme
+    : DEFAULT_ORB_THEME_ID
 
   const { clearHistory } = useHistoryStore()
 
@@ -199,6 +211,66 @@ export function Settings() {
           </motion.button>
         </div>
 
+      </motion.section>
+
+      {/* Orb palette */}
+      <motion.section variants={fadeUp} className="border-t border-bw-border pt-5 pb-6">
+        <div className="mb-4 flex items-baseline justify-between gap-3">
+          <h2 className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">Orb Palette</h2>
+          <span className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
+            Level {level}
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {ORB_THEMES.map((orbTheme) => {
+            const unlocked = unlockedThemeIds.has(orbTheme.id)
+            const selected = effectiveSelectedTheme === orbTheme.id
+
+            return (
+              <motion.button
+                key={orbTheme.id}
+                type="button"
+                disabled={!unlocked}
+                aria-pressed={unlocked ? selected : undefined}
+                aria-label={
+                  unlocked
+                    ? `${orbTheme.name} orb palette`
+                    : `${orbTheme.name} orb palette, unlocks at level ${orbTheme.unlockLevel}`
+                }
+                whileTap={unlocked ? tap(0.98) : undefined}
+                transition={motionTransition}
+                onClick={() => {
+                  if (!unlocked) return
+                  haptic('selection')
+                  setSelectedTheme(orbTheme.id)
+                }}
+                className={cn(
+                  'min-h-24 border p-2.5 text-left transition-all duration-300',
+                  selected
+                    ? 'border-bw-accent bg-bw-active text-bw'
+                    : 'border-bw-border text-bw-secondary hover:border-bw-border hover:bg-bw-hover',
+                  !unlocked && 'cursor-not-allowed opacity-45 hover:bg-transparent'
+                )}
+              >
+                <span
+                  aria-hidden="true"
+                  className="mb-3 block h-8 w-full border border-bw-border"
+                  style={{
+                    background: `linear-gradient(135deg, ${orbTheme.colors[0]}, ${orbTheme.colors[1]})`,
+                  }}
+                />
+                <span className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium">{orbTheme.name}</span>
+                  {selected ? <Check className="h-3.5 w-3.5 text-bw-accent" aria-hidden="true" /> : null}
+                  {!unlocked ? <Lock className="h-3.5 w-3.5 text-bw-tertiary" aria-hidden="true" /> : null}
+                </span>
+                <span className="mt-1 block text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
+                  Lv {orbTheme.unlockLevel}
+                </span>
+              </motion.button>
+            )
+          })}
+        </div>
       </motion.section>
 
       {/* Feedback — Sound + Haptics merged */}

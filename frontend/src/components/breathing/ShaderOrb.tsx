@@ -12,6 +12,7 @@ interface ShaderOrbProps {
   amplitude: number
   isActive: boolean
   techniqueId: TechniqueId
+  themeColors?: [string, string]
   className?: string
   onClick?: () => void
 }
@@ -29,6 +30,7 @@ export function ShaderOrb({
   amplitude,
   isActive,
   techniqueId,
+  themeColors,
   className,
   onClick,
 }: ShaderOrbProps) {
@@ -37,7 +39,9 @@ export function ShaderOrb({
   const webgl2 = useWebGL2()
 
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
-  const ringColors = getTechniqueRingColor(techniqueId, isDark)
+  const ringColors = themeColors
+    ? { primary: themeColors[0], secondary: themeColors[1] }
+    : getTechniqueRingColor(techniqueId, isDark)
 
   const color1 = useMemo(() => hexToVec3(ringColors.primary), [ringColors.primary])
   const color2 = useMemo(() => hexToVec3(ringColors.secondary), [ringColors.secondary])
@@ -86,6 +90,7 @@ export function ShaderOrb({
         amplitude={amplitude}
         isActive={isActive}
         techniqueId={techniqueId}
+        themeColors={themeColors}
         className={className}
         onClick={onClick}
       />
