@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { motion } from 'motion/react'
 import { BreathingSession } from '@/components/breathing/BreathingSession'
@@ -18,6 +18,10 @@ import {
   type BreathingProtocol,
   type SessionConfig,
 } from '@/lib/breathingProtocols'
+import {
+  getAdvancedProtocolRecoveryStatus,
+  type AdvancedProtocolRecoveryStatus,
+} from '@/lib/advancedProtocolRecovery'
 import { TECHNIQUE_IDS, type BreathPhase, type TechniqueId } from '@/lib/constants'
 import { formatTime, cn } from '@/lib/utils'
 import { parseCustomPhaseDurations } from '@/lib/sessionRoutes'
@@ -26,6 +30,7 @@ import { Clock, Minus, Plus, Play, ChevronLeft, ChevronDown, ExternalLink, Shiel
 import { useHaptics } from '@/hooks/useHaptics'
 import { useViewTransitionNavigate } from '@/hooks/useViewTransition'
 import { useEntranceMotion } from '@/lib/motionPresets'
+import { useHistoryStore } from '@/stores/historyStore'
 
 function getInitialRounds(requestedRounds: string | null, techniqueId: TechniqueId): number {
   const parsedRounds = Number(requestedRounds)
@@ -160,6 +165,43 @@ function ProtocolSafetyGate({
   )
 }
 
+interface AdvancedRecoveryNoticeProps {
+  status: AdvancedProtocolRecoveryStatus
+  compact?: boolean
+}
+
+function AdvancedRecoveryNotice({ status, compact = false }: AdvancedRecoveryNoticeProps) {
+  if (!status.isActive || !status.lastProtocolName) {
+    return null
+  }
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      data-testid="advanced-recovery-window"
+      className={cn(
+        'border-y border-bw-border',
+        compact ? 'mb-3 py-3' : 'pt-5 pb-6'
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center border border-bw-border text-bw-accent">
+          <Clock className="h-4 w-4" aria-hidden="true" />
+        </div>
+        <div>
+          <h2 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary">
+            Recovery window
+          </h2>
+          <p className="mt-2 text-xs leading-relaxed text-bw-tertiary">
+            Wait {formatTime(status.remainingSeconds)} after {status.lastProtocolName} before another advanced set.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 interface EvidenceTrailProps {
   citations: BreathingProtocol['citations']
   compact?: boolean
@@ -240,17 +282,28 @@ export function Session() {
   const [sessionStarted, setSessionStarted] = useState(false)
   const [scienceExpanded, setScienceExpanded] = useState(false)
   const [safetyAcknowledged, setSafetyAcknowledged] = useState(false)
+  const [recoveryNow, setRecoveryNow] = useState(() => new Date())
 
   const { trigger: haptic } = useHaptics()
+  const { sessions } = useHistoryStore()
 
   const protocol = breathingProtocols[selectedTechnique]
   const protocols = useMemo(() => getProtocolCatalog(), [])
   const maxRounds = getProtocolRoundLimit(selectedTechnique)
   const requiresSafetyCheck = Boolean(protocol.safetyChecklist?.length)
-  const canStartSession = !requiresSafetyCheck || safetyAcknowledged
-  const startSafetyHelpText = requiresSafetyCheck && !canStartSession
-    ? 'Complete the safety check to begin.'
-    : null
+  const recoveryStatus = useMemo(
+    () => getAdvancedProtocolRecoveryStatus(sessions, selectedTechnique, recoveryNow),
+    [recoveryNow, selectedTechnique, sessions],
+  )
+  const needsSafetyAcknowledgement = requiresSafetyCheck && !safetyAcknowledged
+  const canStartSession = !needsSafetyAcknowledgement && !recoveryStatus.isActive
+  const startSafetyHelpText = needsSafetyAcknowledgement && recoveryStatus.isActive
+    ? `Complete the safety check and wait ${formatTime(recoveryStatus.remainingSeconds)} before another advanced set.`
+    : needsSafetyAcknowledgement
+      ? 'Complete the safety check to begin.'
+      : recoveryStatus.isActive
+        ? `Recovery window active. Wait ${formatTime(recoveryStatus.remainingSeconds)} before another advanced set.`
+        : null
   const hasCustomCadence = useMemo(
     () => hasCustomPhaseDurations(protocol, customPhaseDurations),
     [customPhaseDurations, protocol]
@@ -288,7 +341,17 @@ export function Session() {
     setRounds(breathingProtocols[techniqueId].defaultRounds)
     setCustomPhaseDurations({})
     setSafetyAcknowledged(false)
+    setRecoveryNow(new Date())
   }
+
+  useEffect(() => {
+    if (!recoveryStatus.isActive) {
+      return
+    }
+
+    const intervalId = window.setInterval(() => setRecoveryNow(new Date()), 1000)
+    return () => window.clearInterval(intervalId)
+  }, [recoveryStatus.isActive])
 
   const handleCadenceChange = useCallback((phase: BreathPhase, duration: number) => {
     haptic(10)
@@ -500,6 +563,10 @@ export function Session() {
         ) : null}
 
         <motion.div variants={fadeUp}>
+          <AdvancedRecoveryNotice status={recoveryStatus} compact />
+        </motion.div>
+
+        <motion.div variants={fadeUp}>
           <CadenceEditor
             protocol={protocol}
             customDurations={customPhaseDurations}
@@ -708,6 +775,10 @@ export function Session() {
             />
           </motion.div>
         ) : null}
+
+        <motion.div variants={fadeUp}>
+          <AdvancedRecoveryNotice status={recoveryStatus} />
+        </motion.div>
 
         <motion.div variants={fadeUp}>
           <CadenceEditor
