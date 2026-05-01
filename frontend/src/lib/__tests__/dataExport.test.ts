@@ -4,7 +4,7 @@ import {
   parseBreathFlowImportData,
   replaceBreathFlowStorageData,
 } from '../dataExport'
-import { STORAGE_KEYS } from '../constants'
+import { STORAGE_KEYS, TECHNIQUE_IDS } from '../constants'
 
 function storageWith(values: Record<string, string>) {
   return {
@@ -63,6 +63,33 @@ describe('parseBreathFlowImportData', () => {
     })
   })
 
+  it('accepts app-generated history sessions with current protocol defaults', () => {
+    const history = JSON.stringify({
+      state: {
+        sessions: [
+          {
+            id: 'pursed-lip-session',
+            techniqueId: TECHNIQUE_IDS.PURSED_LIP_RECOVERY,
+            date: '2026-05-01T10:00:00.000Z',
+            durationSeconds: 300,
+            rounds: 50,
+            holdTimes: [],
+            maxHoldTime: 0,
+            avgHoldTime: 0,
+          },
+        ],
+      },
+    })
+
+    expect(
+      parseBreathFlowImportData({
+        [STORAGE_KEYS.SESSION_HISTORY]: history,
+      })
+    ).toEqual({
+      [STORAGE_KEYS.SESSION_HISTORY]: history,
+    })
+  })
+
   it('rejects files without BreathFlow-owned keys', () => {
     expect(() => parseBreathFlowImportData({ other: '{}' })).toThrow(
       /does not contain BreathFlow data/i
@@ -75,6 +102,45 @@ describe('parseBreathFlowImportData', () => {
         [STORAGE_KEYS.SETTINGS]: '{not-json',
       })
     ).toThrow(/must be valid JSON/i)
+  })
+
+  it('rejects valid JSON that is not a persisted BreathFlow store', () => {
+    expect(() =>
+      parseBreathFlowImportData({
+        [STORAGE_KEYS.SETTINGS]: '{"theme":"light"}',
+      })
+    ).toThrow(/persisted BreathFlow store object/i)
+  })
+
+  it('rejects invalid persisted settings values', () => {
+    expect(() =>
+      parseBreathFlowImportData({
+        [STORAGE_KEYS.SETTINGS]: '{"state":{"theme":"neon","soundVolume":"loud"}}',
+      })
+    ).toThrow(/invalid theme/i)
+  })
+
+  it('rejects invalid persisted session history values', () => {
+    expect(() =>
+      parseBreathFlowImportData({
+        [STORAGE_KEYS.SESSION_HISTORY]: JSON.stringify({
+          state: {
+            sessions: [
+              {
+                id: 'bad-session',
+                techniqueId: 'unknown',
+                date: '2026-05-01T10:00:00.000Z',
+                durationSeconds: 120,
+                rounds: 3,
+                holdTimes: [],
+                maxHoldTime: 0,
+                avgHoldTime: 0,
+              },
+            ],
+          },
+        }),
+      })
+    ).toThrow(/invalid sessions/i)
   })
 
   it('rejects non-object imports', () => {
