@@ -8,6 +8,7 @@ import { useViewportOffset } from '@/hooks/useViewportOffset'
 import { useFavicon } from '@/hooks/useFavicon'
 import { useDocumentMetadata } from '@/hooks/useDocumentMetadata'
 import { useCloudSync } from '@/hooks/useCloudSync'
+import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { CLERK_ENABLED } from '@/lib/clerk'
 
@@ -19,14 +20,15 @@ function CloudSync() {
 /**
  * Fully isolated video component — subscribes to the theme store directly
  * and manages play/pause imperatively via refs. Wrapped in memo with a
- * constant comparator so React never re-renders or reconciles the <video>
- * DOM node after initial mount. This prevents browsers (especially Safari)
- * from restarting the video during parent re-renders.
+ * comparator that only allows reduced-motion changes through. This prevents
+ * browsers from restarting the video during ordinary parent re-renders.
  */
-const LeavesVideo = memo(function LeavesVideo() {
+const LeavesVideo = memo(function LeavesVideo({ reducedMotion }: { reducedMotion: boolean }) {
   const videoRef = useRef<HTMLVideoElement>(null)
 
   useEffect(() => {
+    if (reducedMotion) return
+
     // Subscribe to theme changes outside of React's render cycle
     const unsubscribe = useSettingsStore.subscribe((state) => {
       const video = videoRef.current
@@ -51,7 +53,9 @@ const LeavesVideo = memo(function LeavesVideo() {
     }
 
     return unsubscribe
-  }, [])
+  }, [reducedMotion])
+
+  if (reducedMotion) return null
 
   return (
     <video
@@ -65,7 +69,7 @@ const LeavesVideo = memo(function LeavesVideo() {
       className="leaves-overlay"
     />
   )
-}, () => true) // Never re-render — everything is ref/subscription-based
+}, (prev, next) => prev.reducedMotion === next.reducedMotion)
 
 export function BreathworkLayout() {
   useTheme() // Applies dark class to <html>
@@ -74,6 +78,7 @@ export function BreathworkLayout() {
     title: 'BreathFlow - Scientific Breathwork',
     description: 'BreathFlow is a warm, evidence-informed breathwork app for calm, sleep, focus, recovery, and performance training.',
   })
+  const reducedMotion = useReducedMotion()
   const { bottomOffset } = useViewportOffset()
 
   const contentStyle = {
@@ -85,7 +90,7 @@ export function BreathworkLayout() {
       {CLERK_ENABLED && <CloudSync />}
 
       {/* Leaves video overlay — fully isolated from React re-renders */}
-      <LeavesVideo />
+      <LeavesVideo reducedMotion={reducedMotion} />
 
       {/* Content */}
       <div className="breathwork relative z-10 min-h-screen min-h-[100svh] col-fade-in">
