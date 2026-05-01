@@ -15,9 +15,9 @@ export const INK_TERTIARY = '#6F6760'
 export const INK_FAINT = '#D8D1C7'
 
 // ── Accent ──────────────────────────────────────────────────────────────
-export const ACCENT_WARM = '#AD7800'
+export const ACCENT_WARM = '#B8860B'
 export const ACCENT_WARM_LIGHT = '#D6AD47'
-export const ACCENT_WARM_SUBTLE = 'rgba(173, 120, 0, 0.12)'
+export const ACCENT_WARM_SUBTLE = 'rgba(184, 134, 11, 0.12)'
 export const SUCCESS = '#6B8F71'
 
 // Legacy aliases
@@ -30,7 +30,7 @@ export const ACCENT_BRIGHT = ACCENT_WARM_LIGHT
 export const ACCENT_SUBTLE = ACCENT_WARM_SUBTLE
 
 // ── Technique ring colors (warm accent, restrained) ─────────────────────
-const WARM_RING = { primary: '#AD7800', secondary: '#D6AD47' }
+const WARM_RING = { primary: ACCENT_WARM, secondary: ACCENT_WARM_LIGHT }
 const WARM_RING_DARK = { primary: '#C9A227', secondary: '#E1C45C' }
 
 export const TECHNIQUE_RING_COLORS: Record<TechniqueId, { primary: string; secondary: string }> = {
@@ -57,7 +57,7 @@ export const TECHNIQUE_RING_COLORS_DARK: Record<TechniqueId, { primary: string; 
 
 // ── Breath-phase colors (ink scale) ──
 export const PHASE = {
-  inhale:      '#AD7800',
+  inhale:      ACCENT_WARM,
   deep_inhale: '#C99A2E',
   hold_in:     '#8B6F47',
   exhale:      '#6F6760',
@@ -88,25 +88,25 @@ export const TECHNIQUE_PHASES: Record<TechniqueId, Record<BreathPhase, string>> 
 
 // ── Technique visual config ──────────────────────────────────────────────
 export const TECHNIQUE = {
-  box:     { primary: '#AD7800', secondary: '#6F6760' },
-  co2:     { primary: '#AD7800', secondary: '#6F6760' },
-  power:   { primary: '#AD7800', secondary: '#6F6760' },
-  sighing: { primary: '#AD7800', secondary: '#6F6760' },
-  resonance: { primary: '#AD7800', secondary: '#6F6760' },
-  exhale: { primary: '#AD7800', secondary: '#6F6760' },
-  sleep: { primary: '#AD7800', secondary: '#6F6760' },
-  recovery: { primary: '#AD7800', secondary: '#6F6760' },
+  box:     { primary: ACCENT_WARM, secondary: '#6F6760' },
+  co2:     { primary: ACCENT_WARM, secondary: '#6F6760' },
+  power:   { primary: ACCENT_WARM, secondary: '#6F6760' },
+  sighing: { primary: ACCENT_WARM, secondary: '#6F6760' },
+  resonance: { primary: ACCENT_WARM, secondary: '#6F6760' },
+  exhale: { primary: ACCENT_WARM, secondary: '#6F6760' },
+  sleep: { primary: ACCENT_WARM, secondary: '#6F6760' },
+  recovery: { primary: ACCENT_WARM, secondary: '#6F6760' },
 } as const
 
 export const TECHNIQUE_GRADIENT = {
-  box:     { from: '#AD7800', via: '#D6AD47', to: '#6F6760' },
-  co2:     { from: '#AD7800', via: '#D6AD47', to: '#6F6760' },
-  power:   { from: '#AD7800', via: '#D6AD47', to: '#6F6760' },
-  sighing: { from: '#AD7800', via: '#D6AD47', to: '#6F6760' },
-  resonance: { from: '#AD7800', via: '#D6AD47', to: '#6F6760' },
-  exhale: { from: '#AD7800', via: '#D6AD47', to: '#6F6760' },
-  sleep: { from: '#AD7800', via: '#D6AD47', to: '#6F6760' },
-  recovery: { from: '#AD7800', via: '#D6AD47', to: '#6F6760' },
+  box:     { from: ACCENT_WARM, via: ACCENT_WARM_LIGHT, to: '#6F6760' },
+  co2:     { from: ACCENT_WARM, via: ACCENT_WARM_LIGHT, to: '#6F6760' },
+  power:   { from: ACCENT_WARM, via: ACCENT_WARM_LIGHT, to: '#6F6760' },
+  sighing: { from: ACCENT_WARM, via: ACCENT_WARM_LIGHT, to: '#6F6760' },
+  resonance: { from: ACCENT_WARM, via: ACCENT_WARM_LIGHT, to: '#6F6760' },
+  exhale: { from: ACCENT_WARM, via: ACCENT_WARM_LIGHT, to: '#6F6760' },
+  sleep: { from: ACCENT_WARM, via: ACCENT_WARM_LIGHT, to: '#6F6760' },
+  recovery: { from: ACCENT_WARM, via: ACCENT_WARM_LIGHT, to: '#6F6760' },
 } as const
 
 // ── Achievement / gamification ──────────────────────────────────────────
@@ -118,10 +118,10 @@ export const DESTRUCTIVE = '#EF4444'
 
 // ── Heatmap intensity stops (ink ramp) ───────────────────────────────────
 export const HEATMAP = [
-  'rgba(173, 120, 0, 0.1)',
-  'rgba(173, 120, 0, 0.22)',
-  'rgba(173, 120, 0, 0.4)',
-  'rgba(173, 120, 0, 0.62)',
+  'rgba(184, 134, 11, 0.1)',
+  'rgba(184, 134, 11, 0.22)',
+  'rgba(184, 134, 11, 0.4)',
+  'rgba(184, 134, 11, 0.62)',
 ] as const
 
 // ── FluidOrb/Ring phase color pairs (ink shades) ────────────────────────
@@ -136,7 +136,7 @@ export const PHASE_PAIR: Record<string, [string, string]> = {
 }
 
 // ── Badge gradient ───────────────────────────────────────────────────────
-export const BADGE_GRADIENT = { from: '#AD7800', to: '#D6AD47' } as const
+export const BADGE_GRADIENT = { from: ACCENT_WARM, to: ACCENT_WARM_LIGHT } as const
 
 // ── Utilities ───────────────────────────────────────────────────────────
 export function withAlpha(hex: string, alpha: number): string {
