@@ -74,12 +74,14 @@ describe('Session safety gates', () => {
       expect(button).toBeDisabled()
     }
     expect(beginButtons[0].parentElement).toHaveClass('shrink-0', 'border-t')
+    expect(beginButtons[1].parentElement).toHaveClass('shrink-0', 'border-t')
     expect(beginButtons[0].parentElement).not.toHaveClass('sticky')
+    expect(beginButtons[1].parentElement).not.toHaveClass('sticky')
     expect(screen.getAllByText(/complete the safety check to begin/i)).toHaveLength(2)
     expect(beginButtons[0]).toHaveAccessibleDescription(/complete the safety check to begin/i)
     expect(beginButtons[1]).toHaveAccessibleDescription(/complete the safety check to begin/i)
 
-    await user.click(beginButtons[0])
+    await user.click(beginButtons[1])
     expect(screen.queryByTestId('active-session')).not.toBeInTheDocument()
 
     const safetyCheckbox = screen.getAllByRole('checkbox', {
@@ -133,7 +135,7 @@ describe('Session safety gates', () => {
       expect(button).toHaveAccessibleDescription(/recovery window active/i)
     }
 
-    await user.click(beginButtons[0])
+    await user.click(beginButtons[1])
     expect(screen.queryByTestId('active-session')).not.toBeInTheDocument()
   })
 
@@ -151,7 +153,7 @@ describe('Session safety gates', () => {
       expect(button).not.toBeDisabled()
     }
 
-    await user.click(beginButtons[0])
+    await user.click(beginButtons[1])
     expect(screen.getByTestId('active-session')).toHaveTextContent(
       `${TECHNIQUE_IDS.RESONANCE_BREATHING}:30`
     )
