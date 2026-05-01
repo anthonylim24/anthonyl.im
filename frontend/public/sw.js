@@ -10,12 +10,21 @@ const APP_SHELL = [
 ]
 const CACHEABLE_DESTINATIONS = new Set(['script', 'style', 'font', 'image', 'manifest'])
 
+async function cacheAppShell() {
+  const cache = await caches.open(CACHE_VERSION)
+  await Promise.allSettled(
+    APP_SHELL.map(async (url) => {
+      const response = await fetch(url, { cache: 'reload' })
+      if (response.ok) {
+        await cache.put(url, response)
+      }
+    })
+  )
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches
-      .open(CACHE_VERSION)
-      .then((cache) => cache.addAll(APP_SHELL))
-      .then(() => self.skipWaiting())
+    cacheAppShell().then(() => self.skipWaiting())
   )
 })
 
