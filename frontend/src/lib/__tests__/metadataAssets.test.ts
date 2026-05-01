@@ -8,6 +8,7 @@ describe('metadata assets', () => {
     const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8')
 
     expect(html).toContain('<link rel="manifest" href="/site.webmanifest" />')
+    expect(html).toContain('<meta name="mobile-web-app-capable" content="yes" />')
     expect(html).toContain('<link rel="apple-touch-icon" href="/favicon-breath.svg" />')
   })
 
