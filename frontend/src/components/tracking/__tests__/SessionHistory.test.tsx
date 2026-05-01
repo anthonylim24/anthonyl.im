@@ -66,7 +66,13 @@ describe('SessionHistory', () => {
     expect(screen.getByRole('list', { name: /2 completed sessions/i })).toBeInTheDocument()
     expect(
       screen.getByRole('listitem', {
-        name: /CO2 Tolerance Table, May 1, 2026, 3 minutes 5 seconds, 3 rounds, best hold 45 seconds, average hold 35 seconds/i,
+        name: /CO2 Tolerance Table, May 1, 2026, 3 minutes 5 seconds, 3 rounds, best hold 45 seconds, average hold 35 seconds, safety check required before repeat/i,
+      })
+    ).toBeInTheDocument()
+    expect(screen.getByText('Safety check')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', {
+        name: /Review safety check before repeating CO2 Tolerance Table, 3 minutes 5 seconds, 3 rounds/i,
       })
     ).toBeInTheDocument()
     expect(
@@ -104,6 +110,33 @@ describe('SessionHistory', () => {
 
     expect(navigate).toHaveBeenCalledWith(
       '/breathwork/session?technique=resonance_breathing&rounds=30&phase_inhale=6&phase_exhale=5'
+    )
+  })
+
+  it('routes advanced repeats through the safety-check setup path', async () => {
+    const user = userEvent.setup()
+    render(
+      <SessionHistory
+        sessions={[
+          session({
+            id: 'advanced-co2',
+            techniqueId: TECHNIQUE_IDS.CO2_TOLERANCE,
+            durationSeconds: 185,
+            rounds: 3,
+            holdTimes: [25, 45],
+            maxHoldTime: 45,
+            avgHoldTime: 35,
+          }),
+        ]}
+      />
+    )
+
+    await user.click(screen.getByRole('button', {
+      name: /Review safety check before repeating CO2 Tolerance Table, 3 minutes 5 seconds, 3 rounds/i,
+    }))
+
+    expect(navigate).toHaveBeenCalledWith(
+      '/breathwork/session?technique=co2_tolerance&rounds=3'
     )
   })
 })

@@ -94,10 +94,17 @@ function buildRepeatSessionLabel(
   durationSeconds: number,
   rounds: number,
   hasCustomCadence: boolean,
+  requiresSafetyCheck: boolean,
 ) {
-  return `Repeat ${buildProtocolDetailLabel(protocolName, durationSeconds, rounds)}${
+  const sessionDetail = `${buildProtocolDetailLabel(protocolName, durationSeconds, rounds)}${
     hasCustomCadence ? ', custom cadence' : ''
   }`
+
+  if (requiresSafetyCheck) {
+    return `Review safety check before repeating ${sessionDetail}`
+  }
+
+  return `Repeat ${sessionDetail}`
 }
 
 /* ── Component ─────────────────────────────────────── */
@@ -608,6 +615,7 @@ export function Home() {
           <div className="divide-y divide-bw-border">
             {sessions.slice(0, 3).map((session) => {
               const protocol = breathingProtocols[session.techniqueId]
+              const requiresSafetyCheck = Boolean(protocol.safetyChecklist?.length)
               return (
                 <motion.button
                   key={session.id}
@@ -619,6 +627,7 @@ export function Home() {
                     session.durationSeconds,
                     session.rounds,
                     Boolean(session.customPhaseDurations),
+                    requiresSafetyCheck,
                   )}
                   className="w-full flex items-center gap-4 py-4 text-left group hover:bg-bw-hover transition-colors duration-200"
                   onClick={() => { haptic('selection'); navigate(buildSessionRoutePath(session)) }}
@@ -634,6 +643,7 @@ export function Home() {
                       {session.rounds} rounds
                       {session.customPhaseDurations && ' · custom cadence'}
                       {session.maxHoldTime > 0 && ` \u00b7 ${session.maxHoldTime}s best hold`}
+                      {requiresSafetyCheck && ' · safety check'}
                     </div>
                   </div>
                   <ChevronRight className="h-3.5 w-3.5 text-bw-tertiary shrink-0 group-hover:text-bw transition-colors" />
