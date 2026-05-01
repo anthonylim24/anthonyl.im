@@ -3,6 +3,7 @@ import { motion } from 'motion/react'
 import { ProgressChart } from '@/components/tracking/ProgressChart'
 import { SessionHistory } from '@/components/tracking/SessionHistory'
 import { PersonalBests } from '@/components/tracking/PersonalBests'
+import { PracticeConsistency } from '@/components/tracking/PracticeConsistency'
 import { useHistoryStore } from '@/stores/historyStore'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { getLevelForXP, getXPForLevel, getLevelTitle } from '@/lib/gamification'
@@ -111,6 +112,10 @@ export function Progress() {
 
         {/* ── Two-column grid on md+ ── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10 sm:gap-12">
+          <motion.div variants={fadeUp} className="md:col-span-2">
+            <PracticeConsistency sessions={sessions} />
+          </motion.div>
+
           {/* Level */}
           <motion.div variants={fadeUp} className="border-t border-bw-border pt-5">
             <div className="flex items-center gap-6">
