@@ -99,6 +99,33 @@ describe('Session safety gates', () => {
     )
   })
 
+  it('names round controls and exposes selected technique state', async () => {
+    const user = userEvent.setup()
+    renderSession(`/breathwork/session?technique=${TECHNIQUE_IDS.RESONANCE_BREATHING}&rounds=12`)
+
+    const decreaseButtons = screen.getAllByRole('button', { name: /decrease rounds/i })
+    const increaseButtons = screen.getAllByRole('button', { name: /increase rounds/i })
+
+    expect(decreaseButtons.length).toBeGreaterThan(0)
+    expect(increaseButtons.length).toBeGreaterThan(0)
+    expect(decreaseButtons[0]).toHaveClass('h-11', 'w-11')
+    expect(increaseButtons[0]).toHaveClass('h-11', 'w-11')
+
+    const selectedTechniqueButtons = screen.getAllByRole('button', {
+      name: /resonance breathing/i,
+    }).filter((button) => button.getAttribute('aria-pressed') === 'true')
+
+    expect(selectedTechniqueButtons.length).toBeGreaterThan(0)
+    expect(selectedTechniqueButtons[0]).toHaveClass('min-h-11')
+
+    await user.click(decreaseButtons[0])
+    await user.click(screen.getAllByRole('button', { name: /begin/i })[0])
+
+    expect(screen.getByTestId('active-session')).toHaveTextContent(
+      `${TECHNIQUE_IDS.RESONANCE_BREATHING}:11`
+    )
+  })
+
   it('renders source-level evidence links for the selected protocol', () => {
     renderSession(`/breathwork/session?technique=${TECHNIQUE_IDS.CYCLIC_SIGHING}`)
 
