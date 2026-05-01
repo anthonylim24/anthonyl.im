@@ -2,11 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Home } from '../Home'
+import { TECHNIQUE_IDS } from '@/lib/constants'
+import type { CompletedSession } from '@/stores/historyStore'
 
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   haptic: vi.fn(),
-  sessions: [],
+  sessions: [] as CompletedSession[],
   streak: 0,
   xp: 0,
   dailySessionCount: 0,
@@ -80,5 +82,32 @@ describe('Home Protocol Lab', () => {
     expect(mocks.navigate).toHaveBeenCalledWith(
       '/breathwork/session?technique=co2_tolerance&rounds=7'
     )
+  })
+
+  it('keeps welcome secondary controls at 44px target height', () => {
+    renderHome()
+
+    for (const button of screen.getAllByRole('button', { name: /browse all techniques/i })) {
+      expect(button).toHaveClass('min-h-11')
+    }
+  })
+
+  it('names the recent sessions shortcut and keeps it at 44px target height', () => {
+    mocks.sessions = [
+      {
+        id: 'session-1',
+        techniqueId: TECHNIQUE_IDS.BOX_BREATHING,
+        date: '2026-05-01T10:00:00.000Z',
+        durationSeconds: 120,
+        rounds: 3,
+        holdTimes: [],
+        maxHoldTime: 0,
+        avgHoldTime: 0,
+      },
+    ]
+
+    renderHome()
+
+    expect(screen.getByRole('button', { name: /view all sessions/i })).toHaveClass('min-h-11')
   })
 })

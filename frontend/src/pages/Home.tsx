@@ -138,18 +138,20 @@ export function Home() {
               Your first session takes about 5 minutes
             </p>
             <button
+              type="button"
               onClick={() => { haptic('success'); navigate(suggestedPath) }}
               className="w-full flex items-center justify-center gap-2.5 border border-bw-accent bg-bw-accent py-4 font-medium text-bw-accent-foreground text-sm transition-all hover:opacity-90"
             >
-              <Play className="h-4 w-4" />
+              <Play className="h-4 w-4" aria-hidden="true" />
               Start your first session
             </button>
             <button
+              type="button"
               onClick={() => {
                 haptic('light')
                 document.getElementById('techniques-section')?.scrollIntoView({ behavior: 'smooth' })
               }}
-              className="w-full mt-3 text-xs text-bw-tertiary font-medium hover:text-bw-secondary transition-colors py-2"
+              className="mt-3 flex min-h-11 w-full items-center justify-center py-2 text-xs font-medium text-bw-tertiary transition-colors hover:text-bw-secondary"
             >
               Browse all techniques
             </button>
@@ -158,18 +160,20 @@ export function Home() {
           {/* Desktop welcome */}
           <motion.div variants={fadeUp} className="hidden md:block pb-16 border-b border-bw-border">
             <button
+              type="button"
               onClick={() => { haptic('success'); navigate(suggestedPath) }}
               className="flex items-center gap-3 border border-bw-accent bg-bw-accent px-8 py-4 font-medium text-bw-accent-foreground text-sm transition-all hover:opacity-90"
             >
-              <Play className="h-4 w-4" />
+              <Play className="h-4 w-4" aria-hidden="true" />
               Start your first session
             </button>
             <button
+              type="button"
               onClick={() => {
                 haptic('light')
                 document.getElementById('techniques-section')?.scrollIntoView({ behavior: 'smooth' })
               }}
-              className="mt-4 text-xs text-bw-tertiary font-medium hover:text-bw-secondary transition-colors"
+              className="mt-3 inline-flex min-h-11 items-center text-xs font-medium text-bw-tertiary transition-colors hover:text-bw-secondary"
             >
               Or browse all techniques
             </button>
@@ -505,11 +509,13 @@ export function Home() {
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary">Recent</h2>
             <button
+              type="button"
+              aria-label="View all sessions"
               onClick={() => { haptic('selection'); navigate('/breathwork/progress') }}
-              className="flex items-center gap-1 text-xs font-medium text-bw-tertiary hover:text-bw transition-colors"
+              className="flex min-h-11 items-center gap-1 text-xs font-medium text-bw-tertiary transition-colors hover:text-bw"
             >
               All
-              <ChevronRight className="h-3 w-3" />
+              <ChevronRight className="h-3 w-3" aria-hidden="true" />
             </button>
           </div>
 
