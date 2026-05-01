@@ -11,11 +11,15 @@ interface TechniqueGeometryIconProps {
 export function TechniqueGeometryIcon({ techniqueId, className, style, size = 16 }: TechniqueGeometryIconProps) {
   const geometry = getTechniqueGeometry(techniqueId)
   const c = size / 2
+  const decorativeProps = {
+    'aria-hidden': true,
+    focusable: 'false',
+  } as const
 
   switch (geometry) {
     case 'grid':
       return (
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none" stroke="currentColor" strokeWidth="1" className={className} style={style}>
+        <svg {...decorativeProps} width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none" stroke="currentColor" strokeWidth="1" className={className} style={style}>
           {[0, 1, 2, 3, 4].map(i => {
             const pos = (i / 4) * size
             return <g key={i}><line x1="0" y1={pos} x2={size} y2={pos} /><line x1={pos} y1="0" x2={pos} y2={size} /></g>
@@ -24,7 +28,7 @@ export function TechniqueGeometryIcon({ techniqueId, className, style, size = 16
       )
     case 'triangle':
       return (
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none" stroke="currentColor" strokeWidth="1" className={className} style={style}>
+        <svg {...decorativeProps} width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none" stroke="currentColor" strokeWidth="1" className={className} style={style}>
           <polygon points={`${c},1 ${size - 1},${size - 1} 1,${size - 1}`} />
         </svg>
       )
@@ -33,7 +37,7 @@ export function TechniqueGeometryIcon({ techniqueId, className, style, size = 16
       const sq1 = [0,1,2,3].map(i => { const a = i*Math.PI/2 - Math.PI/4; return `${c+r*Math.cos(a)},${c+r*Math.sin(a)}` }).join(' ')
       const sq2 = [0,1,2,3].map(i => { const a = i*Math.PI/2; return `${c+r*Math.cos(a)},${c+r*Math.sin(a)}` }).join(' ')
       return (
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none" stroke="currentColor" strokeWidth="1" className={className} style={style}>
+        <svg {...decorativeProps} width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none" stroke="currentColor" strokeWidth="1" className={className} style={style}>
           <polygon points={sq1} /><polygon points={sq2} />
         </svg>
       )
@@ -42,7 +46,7 @@ export function TechniqueGeometryIcon({ techniqueId, className, style, size = 16
       const pts: string[] = []
       for (let i = 0; i <= 180; i++) { const t = i/60; const a = t*2*Math.PI; const r = (t/3)*size*0.45; pts.push(`${c+r*Math.cos(a)},${c+r*Math.sin(a)}`) }
       return (
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none" stroke="currentColor" strokeWidth="1" className={className} style={style}>
+        <svg {...decorativeProps} width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none" stroke="currentColor" strokeWidth="1" className={className} style={style}>
           <polyline points={pts.join(' ')} />
         </svg>
       )
@@ -54,7 +58,7 @@ export function TechniqueGeometryIcon({ techniqueId, className, style, size = 16
         return `${x},${y}`
       }).join(' ')
       return (
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" className={className} style={style}>
+        <svg {...decorativeProps} width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" className={className} style={style}>
           <polyline points={pts} />
           <line x1="0" y1={c} x2={size} y2={c} opacity="0.28" />
         </svg>
@@ -62,7 +66,7 @@ export function TechniqueGeometryIcon({ techniqueId, className, style, size = 16
     }
     case 'ladder':
       return (
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" className={className} style={style}>
+        <svg {...decorativeProps} width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" className={className} style={style}>
           <line x1={size * 0.28} y1="1" x2={size * 0.28} y2={size - 1} />
           <line x1={size * 0.72} y1="1" x2={size * 0.72} y2={size - 1} />
           {[0.22, 0.5, 0.78].map((p) => (
@@ -72,13 +76,13 @@ export function TechniqueGeometryIcon({ techniqueId, className, style, size = 16
       )
     case 'crescent':
       return (
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" className={className} style={style}>
+        <svg {...decorativeProps} width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" className={className} style={style}>
           <path d={`M ${size * 0.68} ${size * 0.12} A ${size * 0.42} ${size * 0.42} 0 1 0 ${size * 0.68} ${size * 0.88} A ${size * 0.28} ${size * 0.28} 0 1 1 ${size * 0.68} ${size * 0.12}`} />
         </svg>
       )
     case 'diamond':
       return (
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none" stroke="currentColor" strokeWidth="1" className={className} style={style}>
+        <svg {...decorativeProps} width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none" stroke="currentColor" strokeWidth="1" className={className} style={style}>
           <polygon points={`${c},1 ${size - 1},${c} ${c},${size - 1} 1,${c}`} />
           <line x1={c} y1="1" x2={c} y2={size - 1} opacity="0.4" />
           <line x1="1" y1={c} x2={size - 1} y2={c} opacity="0.4" />

@@ -87,8 +87,24 @@ describe('Progress accessibility', () => {
   it('keeps history filter controls and empty-history CTA at 44px height', () => {
     renderProgress()
 
-    expect(screen.getByRole('button', { name: 'All' })).toHaveClass('min-h-11')
-    expect(screen.getByRole('button', { name: /Box/i })).toHaveClass('min-h-11')
+    expect(screen.getByRole('button', { name: /show all sessions/i })).toHaveClass('min-h-11')
+    expect(screen.getByRole('button', { name: /show box sessions/i })).toHaveClass('min-h-11')
     expect(screen.getByRole('button', { name: /start your first session/i })).toHaveClass('min-h-11')
+  })
+
+  it('exposes the selected history filter state to assistive technology', async () => {
+    const user = userEvent.setup()
+    renderProgress()
+
+    const allFilter = screen.getByRole('button', { name: /show all sessions/i })
+    const boxFilter = screen.getByRole('button', { name: /show box sessions/i })
+
+    expect(allFilter).toHaveAttribute('aria-pressed', 'true')
+    expect(boxFilter).toHaveAttribute('aria-pressed', 'false')
+
+    await user.click(boxFilter)
+
+    expect(allFilter).toHaveAttribute('aria-pressed', 'false')
+    expect(boxFilter).toHaveAttribute('aria-pressed', 'true')
   })
 })
