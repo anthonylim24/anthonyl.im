@@ -16,6 +16,7 @@ import {
 } from '@/lib/protocolRecommendations'
 import { formatTime, cn } from '@/lib/utils'
 import { TechniqueGeometryIcon } from '@/components/ui/TechniqueGeometryIcon'
+import { BreathPatternStrip } from '@/components/breathing/BreathPatternStrip'
 import {
   ChevronRight,
   ArrowRight,
@@ -350,6 +351,11 @@ export function Home() {
               )
             })}
           </div>
+
+          <BreathPatternStrip
+            protocol={suggestedProtocol}
+            className="mt-5"
+          />
 
           <button
             type="button"

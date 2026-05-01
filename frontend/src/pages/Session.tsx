@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { motion } from 'motion/react'
 import { BreathingSession } from '@/components/breathing/BreathingSession'
+import { BreathPatternStrip } from '@/components/breathing/BreathPatternStrip'
 import {
   breathingProtocols,
   calculateSessionDuration,
@@ -299,15 +300,8 @@ export function Session() {
         </motion.div>
 
         {/* Phase pattern */}
-        <motion.div variants={fadeUp} className="flex items-center gap-2 py-2 border-t border-bw-border mb-3 justify-center">
-          {protocol.phases.map((phase, i) => (
-            <span key={i} className="flex items-center gap-1.5">
-              <span className="text-xs font-mono text-bw-secondary">{phase.duration}s</span>
-              {i < protocol.phases.length - 1 && (
-                <span className="text-bw-tertiary">→</span>
-              )}
-            </span>
-          ))}
+        <motion.div variants={fadeUp} className="border-t border-bw-border py-3 mb-3">
+          <BreathPatternStrip protocol={protocol} compact />
         </motion.div>
 
         {/* Protocol metadata */}
@@ -518,6 +512,7 @@ export function Session() {
               <p className="text-xs text-bw-tertiary leading-relaxed">
                 {protocol.science}
               </p>
+              <BreathPatternStrip protocol={protocol} className="mt-5" />
               {protocol.caution && (
                 <p className="text-[10px] text-bw-tertiary leading-relaxed mt-3">
                   {protocol.caution}
