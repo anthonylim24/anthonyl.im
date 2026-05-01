@@ -52,12 +52,13 @@ vi.mock('@/components/tracking/PracticeConsistency', () => ({
   PracticeConsistency: () => <section aria-label="Practice signal" />,
 }))
 
-function renderProgress() {
+async function renderProgress() {
   render(
     <MemoryRouter>
       <Progress />
     </MemoryRouter>,
   )
+  await screen.findByRole('region', { name: /practice signal/i })
 }
 
 describe('Progress accessibility', () => {
@@ -71,7 +72,7 @@ describe('Progress accessibility', () => {
 
   it('names the clear-history control and keeps confirmation targets large', async () => {
     const user = userEvent.setup()
-    renderProgress()
+    await renderProgress()
 
     const clearButton = screen.getByRole('button', { name: /clear session history/i })
     expect(clearButton).toHaveClass('min-h-11', 'min-w-11')
@@ -94,8 +95,8 @@ describe('Progress accessibility', () => {
     expect(screen.getByRole('status')).toHaveTextContent(/history cleared/i)
   })
 
-  it('keeps history filter controls and empty-history CTA at 44px height', () => {
-    renderProgress()
+  it('keeps history filter controls and empty-history CTA at 44px height', async () => {
+    await renderProgress()
 
     expect(screen.getByRole('region', { name: /practice signal/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /show all sessions/i })).toHaveClass('min-h-11')
@@ -105,7 +106,7 @@ describe('Progress accessibility', () => {
 
   it('exposes the selected history filter state to assistive technology', async () => {
     const user = userEvent.setup()
-    renderProgress()
+    await renderProgress()
 
     const allFilter = screen.getByRole('button', { name: /show all sessions/i })
     const boxFilter = screen.getByRole('button', { name: /show box sessions/i })
