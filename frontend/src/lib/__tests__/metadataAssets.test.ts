@@ -18,6 +18,12 @@ describe('metadata assets', () => {
     expect(html).not.toContain('posthog.com')
   })
 
+  it('does not prefetch unused third-party media hosts from static HTML', () => {
+    const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8')
+
+    expect(html).not.toContain('i.imgur.com')
+  })
+
   it('defines an installable BreathFlow manifest', () => {
     const manifest = JSON.parse(
       readFileSync(resolve(process.cwd(), 'public/site.webmanifest'), 'utf8')
