@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { STORAGE_KEYS } from '@/lib/constants'
+import { createBrowserJSONStorage } from '@/lib/persistStorage'
 
 export interface SettingsState {
   theme: 'dark' | 'light'
@@ -89,6 +90,7 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: STORAGE_KEYS.SETTINGS,
+      storage: createBrowserJSONStorage<PersistedSettingsState>(),
       version: SETTINGS_STORAGE_VERSION,
       partialize: (state): PersistedSettingsState => ({
         theme: state.theme,
