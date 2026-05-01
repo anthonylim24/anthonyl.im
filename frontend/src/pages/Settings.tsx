@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { motion } from 'motion/react'
 import { SignedIn, SignedOut, SignInButton, useUser } from '@clerk/clerk-react'
 import { CLERK_ENABLED } from '@/lib/clerk'
 import {
   Download,
+  Upload,
   Trash2,
   Check,
   Sun,
@@ -18,7 +19,7 @@ import { useHistoryStore } from '@/stores/historyStore'
 import { useEntranceMotion } from '@/lib/motionPresets'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { DEFAULT_ORB_THEME_ID, getLevelForXP, getUnlockedThemes, ORB_THEMES } from '@/lib/gamification'
-import { buildBreathFlowExportData } from '@/lib/dataExport'
+import { buildBreathFlowExportData, parseBreathFlowImportData } from '@/lib/dataExport'
 import { BREATHFLOW_STORAGE_KEYS } from '@/lib/constants'
 
 interface SettingsSwitchProps {
@@ -110,6 +111,8 @@ export function Settings() {
 
   const { trigger: haptic } = useHaptics()
   const [confirmClear, setConfirmClear] = useState(false)
+  const [importError, setImportError] = useState<string | null>(null)
+  const importInputRef = useRef<HTMLInputElement>(null)
 
   const handleExportData = () => {
     const data = buildBreathFlowExportData(localStorage)
@@ -122,6 +125,31 @@ export function Settings() {
     a.download = `breathflow-data-${new Date().toISOString().split('T')[0]}.json`
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  const handleImportData = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0]
+    if (!file) return
+
+    try {
+      const rawData = JSON.parse(await file.text()) as unknown
+      const data = parseBreathFlowImportData(rawData)
+
+      for (const key of BREATHFLOW_STORAGE_KEYS) {
+        const value = data[key]
+        if (value !== undefined) {
+          localStorage.setItem(key, value)
+        }
+      }
+
+      haptic('success')
+      window.location.reload()
+    } catch (error) {
+      haptic('error')
+      setImportError(error instanceof Error ? error.message : 'Could not import this file.')
+    } finally {
+      event.currentTarget.value = ''
+    }
   }
 
   const handleClearData = () => {
@@ -348,7 +376,7 @@ export function Settings() {
             whileTap={tap(0.99)}
             transition={motionTransition}
             onClick={() => { haptic('light'); handleExportData() }}
-            className="flex items-center gap-3 w-full py-4 hover:bg-bw-hover transition-all duration-300 text-left"
+            className="flex min-h-11 items-center gap-3 w-full py-4 hover:bg-bw-hover transition-all duration-300 text-left"
           >
             <Download className="h-3.5 w-3.5 text-bw-tertiary" aria-hidden="true" />
             <div>
@@ -362,9 +390,41 @@ export function Settings() {
             type="button"
             whileTap={tap(0.99)}
             transition={motionTransition}
+            onClick={() => {
+              haptic('light')
+              setImportError(null)
+              importInputRef.current?.click()
+            }}
+            className="flex min-h-11 items-center gap-3 w-full py-4 hover:bg-bw-hover transition-all duration-300 text-left"
+          >
+            <Upload className="h-3.5 w-3.5 text-bw-tertiary" aria-hidden="true" />
+            <div>
+              <p className="text-xs font-medium text-bw">Import Data</p>
+              <p className="text-[10px] text-bw-tertiary">
+                Restore a BreathFlow JSON backup
+              </p>
+            </div>
+          </motion.button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept="application/json,.json"
+            aria-label="Choose BreathFlow data backup"
+            className="sr-only"
+            onChange={handleImportData}
+          />
+          {importError ? (
+            <p className="py-3 text-xs leading-relaxed text-red-400" role="alert">
+              {importError}
+            </p>
+          ) : null}
+          <motion.button
+            type="button"
+            whileTap={tap(0.99)}
+            transition={motionTransition}
             onClick={handleClearData}
             className={cn(
-              'flex items-center gap-3 w-full py-4 transition-all duration-300 text-left',
+              'flex min-h-11 items-center gap-3 w-full py-4 transition-all duration-300 text-left',
               confirmClear
                 ? 'bg-red-500/5 hover:bg-red-500/10'
                 : 'hover:bg-bw-hover'
