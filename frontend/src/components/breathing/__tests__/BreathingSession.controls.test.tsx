@@ -84,10 +84,11 @@ vi.mock('@/stores/settingsStore', () => ({
   useSettingsStore: () => mocks.settings,
 }))
 
-function renderSession() {
+function renderSession(props?: { onCancel?: () => void }) {
   return render(
     <BreathingSession
       config={{ techniqueId: TECHNIQUE_IDS.BOX_BREATHING, rounds: 4 }}
+      onCancel={props?.onCancel}
     />
   )
 }
@@ -199,5 +200,35 @@ describe('BreathingSession controls accessibility', () => {
     expect(screen.getByTestId('session-live-region')).toHaveTextContent(
       'Box Breathing complete. Review your session summary.'
     )
+  })
+
+  it('lets keyboard users pause an active session with Space', () => {
+    renderSession()
+
+    fireEvent.keyDown(window, { key: ' ' })
+
+    expect(mocks.cycle.pause).toHaveBeenCalledTimes(1)
+    expect(mocks.haptic).toHaveBeenCalledWith(40)
+  })
+
+  it('does not override native Space handling on focused controls', () => {
+    renderSession()
+
+    const pauseButton = screen.getByRole('button', { name: 'Pause' })
+    pauseButton.focus()
+    fireEvent.keyDown(pauseButton, { key: ' ' })
+
+    expect(mocks.cycle.pause).not.toHaveBeenCalled()
+  })
+
+  it('lets keyboard users stop an active session with Escape', () => {
+    const onCancel = vi.fn()
+    renderSession({ onCancel })
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+
+    expect(mocks.cycle.stop).toHaveBeenCalledTimes(1)
+    expect(mocks.haptic).toHaveBeenCalledWith('error')
+    expect(onCancel).toHaveBeenCalledTimes(1)
   })
 })
