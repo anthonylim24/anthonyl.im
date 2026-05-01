@@ -17,6 +17,7 @@ export function SessionHistory({ sessions }: SessionHistoryProps) {
       <div className="py-10 text-center text-sm">
         <p className="text-bw-tertiary">Your session history will appear here after your first practice.</p>
         <button
+          type="button"
           onClick={() => navigate('/breathwork/session?technique=box_breathing')}
           className="mt-3 inline-flex min-h-11 items-center text-sm font-medium text-bw-secondary hover:text-bw transition-colors"
         >

@@ -420,6 +420,7 @@ export function Session() {
         {/* Pinned CTA */}
         <motion.div variants={fadeUp} className="sticky bottom-0 z-10 shrink-0 bg-bw-canvas pt-3 pb-1">
           <button
+            type="button"
             onClick={handleStartSession}
             disabled={!canStartSession}
             className="w-full py-3.5 px-6 border border-bw-accent bg-bw-accent font-medium text-bw-accent-foreground text-sm flex items-center justify-center gap-3 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:border-bw-border disabled:bg-bw-active disabled:text-bw-tertiary disabled:hover:opacity-100"
@@ -604,6 +605,7 @@ export function Session() {
 
         {/* Start Button */}
         <motion.button
+          type="button"
           variants={fadeUp}
           whileTap={tap(0.98)}
           whileHover={canStartSession ? hoverOpacity(0.8) : undefined}
@@ -612,7 +614,7 @@ export function Session() {
           disabled={!canStartSession}
           className="w-full py-4 px-6 border border-bw-accent bg-bw-accent font-medium text-bw-accent-foreground text-sm flex items-center justify-center gap-3 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:border-bw-border disabled:bg-bw-active disabled:text-bw-tertiary disabled:hover:opacity-100"
         >
-          <Play className="h-4 w-4" />
+          <Play className="h-4 w-4" aria-hidden="true" />
           <span>Begin {protocol.name}</span>
         </motion.button>
       </div>

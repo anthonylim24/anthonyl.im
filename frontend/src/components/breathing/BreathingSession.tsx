@@ -493,29 +493,33 @@ export function BreathingSession({
       >
         {!isActive && !isComplete ? (
           <button
+            type="button"
             onClick={handleStart}
             className="flex items-center gap-3 px-10 py-4 font-medium text-lg transition-all duration-300 hover:scale-105 bg-bw-accent text-bw-accent-foreground border border-bw-accent"
           >
-            <Play className="h-5 w-5" />
+            <Play className="h-5 w-5" aria-hidden="true" />
             Start
           </button>
         ) : (
           <>
             <button
+              type="button"
               onClick={handlePause}
               aria-label={isPaused ? 'Resume' : 'Pause'}
               className="h-14 w-14 flex items-center justify-center text-bw transition-all duration-300 border border-bw-border"
             >
-              {isPaused ? <Play className="h-5 w-5" /> : <Pause className="h-5 w-5" />}
+              {isPaused ? <Play className="h-5 w-5" aria-hidden="true" /> : <Pause className="h-5 w-5" aria-hidden="true" />}
             </button>
             <button
+              type="button"
               onClick={handleRestart}
               aria-label="Restart"
               className="h-14 w-14 flex items-center justify-center text-bw transition-all duration-300 border border-bw-border"
             >
-              <RotateCcw className="h-5 w-5" />
+              <RotateCcw className="h-5 w-5" aria-hidden="true" />
             </button>
             <button
+              type="button"
               onClick={handleStop}
               aria-label="Stop"
               className="h-14 w-14 border flex items-center justify-center transition-all duration-300"
@@ -525,7 +529,7 @@ export function BreathingSession({
                 color: DESTRUCTIVE,
               }}
             >
-              <Square className="h-5 w-5" />
+              <Square className="h-5 w-5" aria-hidden="true" />
             </button>
           </>
         )}

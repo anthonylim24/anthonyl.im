@@ -346,6 +346,7 @@ export function Home() {
           </div>
 
           <button
+            type="button"
             onClick={() => { haptic('light'); navigate(suggestedPath) }}
             aria-label={`Start ${suggestedProtocol.name} for ${formatTime(suggestedDuration)}`}
             className="group mt-5 w-full border-t border-bw-border pt-5 text-left transition-colors duration-200 hover:bg-bw-hover"
@@ -414,6 +415,7 @@ export function Home() {
               return (
                 <motion.button
                   key={id}
+                  type="button"
                   whileTap={tap(0.97)}
                   transition={motionTransition}
                   className="border-t border-bw-border pt-4 pb-2 text-left bg-transparent flex-shrink-0"
@@ -459,6 +461,7 @@ export function Home() {
               return (
                 <motion.button
                   key={id}
+                  type="button"
                   whileTap={tap(0.99)}
                   transition={motionTransition}
                   className="w-full flex items-center gap-4 py-5 text-left group hover:bg-bw-hover transition-colors duration-200"
@@ -525,6 +528,7 @@ export function Home() {
               return (
                 <motion.button
                   key={session.id}
+                  type="button"
                   whileTap={tap(0.99)}
                   transition={motionTransition}
                   className="w-full flex items-center gap-4 py-4 text-left group hover:bg-bw-hover transition-colors duration-200"
