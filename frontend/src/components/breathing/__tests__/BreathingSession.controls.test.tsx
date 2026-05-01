@@ -25,8 +25,13 @@ const mocks = vi.hoisted(() => {
 
   return {
     cycle,
+    cycleOptions: undefined as { enableAudio?: boolean; audioVolume?: number } | undefined,
     reducedMotion: false,
     haptic: vi.fn(),
+    settings: {
+      soundEnabled: true,
+      soundVolume: 0.3,
+    },
   }
 })
 
@@ -51,7 +56,10 @@ vi.mock('@/hooks/useWakeLock', () => ({
 }))
 
 vi.mock('@/hooks/useBreathingCycle', () => ({
-  useBreathingCycle: () => mocks.cycle,
+  useBreathingCycle: (options: { enableAudio?: boolean; audioVolume?: number }) => {
+    mocks.cycleOptions = options
+    return mocks.cycle
+  },
 }))
 
 vi.mock('@/stores/gamificationStore', () => ({
@@ -72,6 +80,10 @@ vi.mock('@/stores/historyStore', () => ({
   }),
 }))
 
+vi.mock('@/stores/settingsStore', () => ({
+  useSettingsStore: () => mocks.settings,
+}))
+
 function renderSession() {
   return render(
     <BreathingSession
@@ -89,7 +101,10 @@ async function advance(ms: number) {
 describe('BreathingSession controls accessibility', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    mocks.cycleOptions = undefined
     mocks.reducedMotion = false
+    mocks.settings.soundEnabled = true
+    mocks.settings.soundVolume = 0.3
     mocks.cycle.isActive = true
     mocks.cycle.isPaused = false
     mocks.cycle.isComplete = false
@@ -140,6 +155,18 @@ describe('BreathingSession controls accessibility', () => {
     await advance(10000)
     expect(controls).toHaveClass('opacity-100')
     expect(controls).not.toHaveClass('opacity-20')
+  })
+
+  it('passes sound settings into the breathing cycle', () => {
+    mocks.settings.soundEnabled = false
+    mocks.settings.soundVolume = 0.42
+
+    renderSession()
+
+    expect(mocks.cycleOptions).toMatchObject({
+      enableAudio: false,
+      audioVolume: 0.42,
+    })
   })
 
   it('announces active phase and round progress without relying on the countdown text', () => {
