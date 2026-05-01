@@ -1,8 +1,9 @@
 import type { TechniqueId } from './constants'
 import { TECHNIQUE_IDS } from './constants'
 import { breathingProtocols } from './breathingProtocols'
-// Palette accent is now zinc-900 (near-black UI accent); orb themes use hard-coded
-// vivid colors instead so they stay colorful on the dark session canvas.
+import { ACCENT_WARM, ACCENT_WARM_LIGHT } from './palette'
+// Orb themes keep a restrained range of vivid colors, while the default theme
+// uses the core BreathFlow warm accent pair.
 
 // ---------------------------------------------------------------------------
 // XP Calculation
@@ -260,7 +261,7 @@ export interface OrbTheme {
 }
 
 export const ORB_THEMES: OrbTheme[] = [
-  { id: 'default', name: 'Default', colors: ['#6366F1', '#818CF8'], unlockLevel: 1 },
+  { id: 'default', name: 'Default', colors: [ACCENT_WARM, ACCENT_WARM_LIGHT], unlockLevel: 1 },
   { id: 'tidal', name: 'Tidal', colors: ['#3D9088', '#7AD0C6'], unlockLevel: 5 },
   { id: 'ember', name: 'Ember', colors: ['#B58834', '#E8BE72'], unlockLevel: 10 },
   { id: 'coral', name: 'Coral', colors: ['#B45C56', '#EA9490'], unlockLevel: 15 },
