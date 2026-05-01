@@ -212,6 +212,7 @@ export function useWebGLOrb({
   const color2Ref = useRef(color2)
   const isActiveRef = useRef(isActive)
   const reducedMotionRef = useRef(reducedMotion)
+  const requestRenderRef = useRef<(() => void) | null>(null)
   const [failed, setFailed] = useState(false)
 
   useEffect(() => {
@@ -220,6 +221,7 @@ export function useWebGLOrb({
     color2Ref.current = color2
     isActiveRef.current = isActive
     reducedMotionRef.current = reducedMotion
+    requestRenderRef.current?.()
   }, [amplitude, color1, color2, isActive, reducedMotion])
 
   useEffect(() => {
@@ -236,6 +238,7 @@ export function useWebGLOrb({
     let cancelled = false
 
     const tearDownGL = () => {
+      requestRenderRef.current = null
       if (rafId !== null) {
         cancelAnimationFrame(rafId)
         rafId = null
@@ -278,36 +281,12 @@ export function useWebGLOrb({
 
       const { program, vao, uniforms } = state
 
-      // ── Resize handling ──
-      let currentWidth = 0
-      let currentHeight = 0
-
-      const resize = () => {
-        const dpr = Math.min(window.devicePixelRatio, 2)
-        const rect = canvas.getBoundingClientRect()
-        const w = Math.round(rect.width * dpr)
-        const h = Math.round(rect.height * dpr)
-        if (w !== currentWidth || h !== currentHeight) {
-          currentWidth = w
-          currentHeight = h
-          canvas.width = w
-          canvas.height = h
-          gl.viewport(0, 0, w, h)
-        }
-      }
-
-      ro = new ResizeObserver(resize)
-      ro.observe(canvas)
-      resize()
-
-      // ── Animation loop ──
+      // ── Render scheduling ──
       let currentAmplitude = amplitudeRef.current
       let frozenTime = 0
       const startTime = performance.now()
 
-      const render = (now: number) => {
-        rafId = requestAnimationFrame(render)
-
+      const draw = (now: number) => {
         const dt = 1 / 60
         const targetAmplitude = amplitudeRef.current
         currentAmplitude += (targetAmplitude - currentAmplitude) * Math.min(1, dt * 6)
@@ -335,7 +314,45 @@ export function useWebGLOrb({
         gl.drawArrays(gl.TRIANGLES, 0, 6)
       }
 
-      rafId = requestAnimationFrame(render)
+      const scheduleRender = () => {
+        if (cancelled || rafId !== null) return
+
+        rafId = requestAnimationFrame((now) => {
+          rafId = null
+          draw(now)
+
+          if (!cancelled && !reducedMotionRef.current && isActiveRef.current) {
+            scheduleRender()
+          }
+        })
+      }
+
+      requestRenderRef.current = scheduleRender
+
+      // ── Resize handling ──
+      let currentWidth = 0
+      let currentHeight = 0
+
+      const resize = () => {
+        const dpr = Math.min(window.devicePixelRatio, 2)
+        const rect = canvas.getBoundingClientRect()
+        const w = Math.round(rect.width * dpr)
+        const h = Math.round(rect.height * dpr)
+        if (w !== currentWidth || h !== currentHeight) {
+          currentWidth = w
+          currentHeight = h
+          canvas.width = w
+          canvas.height = h
+          gl.viewport(0, 0, w, h)
+          scheduleRender()
+        }
+      }
+
+      ro = new ResizeObserver(resize)
+      ro.observe(canvas)
+      resize()
+
+      scheduleRender()
     }
 
     // Defer initialization to avoid competing with page-load GPU work.
