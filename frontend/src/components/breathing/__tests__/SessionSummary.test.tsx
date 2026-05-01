@@ -15,6 +15,14 @@ const defaultProps = {
   onClose: vi.fn(),
 }
 
+const gentleProps = {
+  ...defaultProps,
+  techniqueId: TECHNIQUE_IDS.RESONANCE_BREATHING,
+  xpEarned: 55,
+  holdTimes: [],
+  isNewPersonalBest: false,
+}
+
 describe('SessionSummary', () => {
   it('displays XP earned', async () => {
     render(<SessionSummary {...defaultProps} />)
@@ -66,16 +74,26 @@ describe('SessionSummary', () => {
     render(<SessionSummary {...defaultProps} onRepeat={vi.fn()} />)
 
     expect(screen.getByRole('button', { name: /close session summary/i })).toHaveClass('h-11', 'w-11')
-    expect(screen.getByRole('button', { name: /repeat/i })).toHaveClass('min-h-11')
+    expect(screen.queryByRole('button', { name: /repeat/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /continue/i })).toHaveClass('min-h-11')
   })
 
-  it('can repeat the completed session', async () => {
+  it('shows recovery guidance instead of repeat for advanced protocols', () => {
+    render(<SessionSummary {...defaultProps} onRepeat={vi.fn()} />)
+
+    expect(screen.queryByRole('button', { name: /repeat/i })).not.toBeInTheDocument()
+    expect(screen.getByText('Recovery first')).toBeTruthy()
+    expect(screen.getByText(/relaxed nasal breathing before another advanced set/i)).toBeTruthy()
+  })
+
+  it('can repeat a gentle completed session', async () => {
     const user = userEvent.setup()
     const onRepeat = vi.fn()
-    render(<SessionSummary {...defaultProps} onRepeat={onRepeat} />)
+    render(<SessionSummary {...gentleProps} onRepeat={onRepeat} />)
 
-    await user.click(screen.getByRole('button', { name: /repeat/i }))
+    const repeatButton = screen.getByRole('button', { name: /repeat/i })
+    expect(repeatButton).toHaveClass('min-h-11')
+    await user.click(repeatButton)
 
     expect(onRepeat).toHaveBeenCalledTimes(1)
   })
