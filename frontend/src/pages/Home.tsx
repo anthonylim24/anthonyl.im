@@ -355,6 +355,7 @@ export function Home() {
           <BreathPatternStrip
             protocol={suggestedProtocol}
             className="mt-5"
+            animated
           />
 
           <button

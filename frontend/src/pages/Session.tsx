@@ -302,7 +302,7 @@ export function Session() {
 
         {/* Phase pattern */}
         <motion.div variants={fadeUp} className="border-t border-bw-border py-3 mb-3">
-          <BreathPatternStrip protocol={protocol} compact />
+          <BreathPatternStrip protocol={protocol} compact animated />
         </motion.div>
 
         {/* Protocol metadata */}
@@ -517,7 +517,7 @@ export function Session() {
               <p className="text-xs text-bw-tertiary leading-relaxed">
                 {protocol.science}
               </p>
-              <BreathPatternStrip protocol={protocol} className="mt-5" />
+              <BreathPatternStrip protocol={protocol} className="mt-5" animated />
               {protocol.caution && (
                 <p className="text-[10px] text-bw-tertiary leading-relaxed mt-3">
                   {protocol.caution}
