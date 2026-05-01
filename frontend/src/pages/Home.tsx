@@ -14,6 +14,7 @@ import {
   type ProtocolGoal,
   type SessionWindow,
 } from '@/lib/protocolRecommendations'
+import { buildSessionRoutePath } from '@/lib/sessionRoutes'
 import { formatTime, cn } from '@/lib/utils'
 import { TechniqueGeometryIcon } from '@/components/ui/TechniqueGeometryIcon'
 import { BreathPatternStrip } from '@/components/breathing/BreathPatternStrip'
@@ -86,6 +87,17 @@ function buildProtocolDetailLabel(
 
 function buildStartProtocolLabel(protocolName: string, durationSeconds: number, rounds: number) {
   return `Start ${buildProtocolDetailLabel(protocolName, durationSeconds, rounds)}`
+}
+
+function buildRepeatSessionLabel(
+  protocolName: string,
+  durationSeconds: number,
+  rounds: number,
+  hasCustomCadence: boolean,
+) {
+  return `Repeat ${buildProtocolDetailLabel(protocolName, durationSeconds, rounds)}${
+    hasCustomCadence ? ', custom cadence' : ''
+  }`
 }
 
 /* ── Component ─────────────────────────────────────── */
@@ -602,8 +614,14 @@ export function Home() {
                   type="button"
                   whileTap={tap(0.99)}
                   transition={motionTransition}
+                  aria-label={buildRepeatSessionLabel(
+                    protocol.name,
+                    session.durationSeconds,
+                    session.rounds,
+                    Boolean(session.customPhaseDurations),
+                  )}
                   className="w-full flex items-center gap-4 py-4 text-left group hover:bg-bw-hover transition-colors duration-200"
-                  onClick={() => { haptic('selection'); navigate('/breathwork/progress') }}
+                  onClick={() => { haptic('selection'); navigate(buildSessionRoutePath(session)) }}
                 >
                   <div className="h-8 w-8 flex items-center justify-center shrink-0 border border-bw-border">
                     <TechniqueGeometryIcon techniqueId={session.techniqueId} className="text-bw-secondary" />
@@ -614,6 +632,7 @@ export function Home() {
                     </div>
                     <div className="text-[10px] text-bw-tertiary mt-0.5">
                       {session.rounds} rounds
+                      {session.customPhaseDurations && ' · custom cadence'}
                       {session.maxHoldTime > 0 && ` \u00b7 ${session.maxHoldTime}s best hold`}
                     </div>
                   </div>
