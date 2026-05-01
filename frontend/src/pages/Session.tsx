@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { motion } from 'motion/react'
 import { BreathingSession } from '@/components/breathing/BreathingSession'
 import { BreathPatternStrip } from '@/components/breathing/BreathPatternStrip'
+import { ProgressiveHoldLadder } from '@/components/breathing/ProgressiveHoldLadder'
 import {
   breathingProtocols,
   calculateSessionDuration,
@@ -376,6 +377,10 @@ export function Session() {
           </motion.div>
         ) : null}
 
+        <motion.div variants={fadeUp}>
+          <ProgressiveHoldLadder protocol={protocol} rounds={rounds} compact />
+        </motion.div>
+
         {/* Rounds */}
         <motion.div variants={fadeUp} className="flex min-h-36 flex-1 flex-col items-center justify-center gap-4 pb-24">
           <span className="text-[10px] font-medium text-bw-secondary tracking-[0.07em] uppercase">Rounds</span>
@@ -548,6 +553,10 @@ export function Session() {
             />
           </motion.div>
         ) : null}
+
+        <motion.div variants={fadeUp}>
+          <ProgressiveHoldLadder protocol={protocol} rounds={rounds} />
+        </motion.div>
 
         {/* Round Counter */}
         <motion.div variants={fadeUp} className="border-t border-bw-border pt-8">
