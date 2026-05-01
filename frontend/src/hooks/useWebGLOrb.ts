@@ -226,10 +226,32 @@ export function useWebGLOrb({
     const canvas = canvasRef.current
     if (!canvas) return
 
-    let rafId: number
-    let ro: ResizeObserver
+    let rafId: number | null = null
+    let ro: ResizeObserver | null = null
     let state: GLState | null = null
     let cancelled = false
+
+    const tearDownGL = () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+        rafId = null
+      }
+      ro?.disconnect()
+      ro = null
+      if (state) {
+        destroyGL(state)
+        state = null
+      }
+    }
+
+    const handleContextLost = (event: Event) => {
+      event.preventDefault()
+      cancelled = true
+      tearDownGL()
+      setFailed(true)
+    }
+
+    canvas.addEventListener('webglcontextlost', handleContextLost)
 
     const start = () => {
       if (cancelled) return
@@ -319,12 +341,8 @@ export function useWebGLOrb({
     return () => {
       cancelled = true
       clearTimeout(timerId)
-      cancelAnimationFrame(rafId)
-      ro?.disconnect()
-      if (state) {
-        destroyGL(state)
-        state = null
-      }
+      canvas.removeEventListener('webglcontextlost', handleContextLost)
+      tearDownGL()
     }
   }, [canvasRef])
 
