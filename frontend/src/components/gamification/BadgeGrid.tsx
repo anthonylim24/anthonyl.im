@@ -90,7 +90,7 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
               className={cn(
                 'h-11 w-11 flex items-center justify-center transition-[background,color] duration-300',
                 earned
-                  ? 'bg-bw-text text-background'
+                  ? 'bg-bw-accent text-bw-accent-foreground'
                   : 'bg-bw-active text-bw-tertiary'
               )}
             >
@@ -98,7 +98,7 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
             </div>
             <span
               className={cn(
-                'text-[11px] text-center font-mono font-medium leading-tight',
+                'text-[11px] text-center font-medium leading-tight',
                 earned ? 'text-bw' : 'text-bw-tertiary'
               )}
             >

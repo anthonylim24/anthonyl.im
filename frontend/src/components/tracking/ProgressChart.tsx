@@ -43,12 +43,12 @@ export function ProgressChart({
     return (
       <div className="overflow-hidden">
         <div className="pb-4 border-b border-bw-border">
-          <h3 className="font-mono font-normal text-bw tracking-[0.04em]">
+          <h3 className="font-display text-2xl font-semibold text-bw leading-none">
             {title}
           </h3>
         </div>
         <div className="pt-4">
-          <div className="h-64 flex items-center justify-center text-bw-tertiary text-sm font-mono">
+          <div className="h-64 flex items-center justify-center text-bw-tertiary text-sm">
             Your hold time trends will appear here after a few sessions.
           </div>
         </div>
@@ -59,7 +59,7 @@ export function ProgressChart({
   return (
     <div className="overflow-hidden">
       <div className="pb-4 border-b border-bw-border">
-        <h3 className="font-mono font-normal text-bw tracking-[0.04em]">
+        <h3 className="font-display text-2xl font-semibold text-bw leading-none">
           {title}
         </h3>
       </div>

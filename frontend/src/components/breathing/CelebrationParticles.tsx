@@ -13,11 +13,11 @@ interface Particle {
 }
 
 const COLORS = [
-  'rgba(129, 140, 248, 0.8)', // indigo-400
-  'rgba(232, 190, 114, 0.8)', // warm gold
-  'rgba(165, 180, 252, 0.6)', // indigo-300
-  'rgba(240, 208, 142, 0.6)', // lighter gold
-  'rgba(99, 102, 241, 0.7)',  // indigo-500
+  'rgba(173, 120, 0, 0.8)',
+  'rgba(214, 173, 71, 0.72)',
+  'rgba(107, 143, 113, 0.58)',
+  'rgba(120, 113, 108, 0.42)',
+  'rgba(28, 25, 23, 0.34)',
 ]
 
 function createParticle(cx: number, cy: number): Particle {

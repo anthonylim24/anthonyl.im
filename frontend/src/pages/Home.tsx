@@ -103,7 +103,7 @@ export function Home() {
         <p className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary md:hidden">
           {getGreeting()}
         </p>
-        <h1 className="font-mono text-lg md:text-2xl font-normal text-bw tracking-[0.02em] leading-tight mt-1 md:mt-0">
+        <h1 className="font-display text-3xl md:text-5xl font-semibold text-bw leading-[0.95] mt-1 md:mt-0">
           <span className="md:hidden">Time to breathe</span>
           <span className="hidden md:inline">{getGreeting()}</span>
         </h1>
@@ -124,7 +124,7 @@ export function Home() {
             </p>
             <button
               onClick={() => { haptic('success'); navigate(`/breathwork/session?technique=${suggestedProtocol.id}`) }}
-              className="w-full flex items-center justify-center gap-2.5 border border-bw-border bg-transparent py-4 font-mono font-normal text-bw text-sm transition-all hover:bg-bw-hover"
+              className="w-full flex items-center justify-center gap-2.5 border border-bw-accent bg-bw-accent py-4 font-medium text-bw-accent-foreground text-sm transition-all hover:opacity-90"
             >
               <Play className="h-4 w-4" />
               Start your first session
@@ -144,7 +144,7 @@ export function Home() {
           <motion.div variants={fadeUp} className="hidden md:block pb-16 border-b border-bw-border">
             <button
               onClick={() => { haptic('success'); navigate(`/breathwork/session?technique=${suggestedProtocol.id}`) }}
-              className="flex items-center gap-3 border border-bw-border bg-transparent px-8 py-4 font-mono font-normal text-bw text-sm transition-all hover:bg-bw-hover"
+              className="flex items-center gap-3 border border-bw-accent bg-bw-accent px-8 py-4 font-medium text-bw-accent-foreground text-sm transition-all hover:opacity-90"
             >
               <Play className="h-4 w-4" />
               Start your first session
@@ -194,7 +194,7 @@ export function Home() {
           {/* Desktop: editorial horizontal strip */}
           <motion.div variants={fadeUp} className="hidden md:flex items-baseline gap-16 pb-16 border-b border-bw-border">
             <div>
-              <span className="font-mono text-2xl font-normal text-bw tabular-nums leading-none">
+              <span className="font-display text-3xl font-semibold text-bw leading-none">
                 {getLevelTitle(level)}
               </span>
               <span className="block text-[10px] text-bw-secondary font-medium tracking-[0.07em] uppercase mt-1.5">
@@ -239,7 +239,7 @@ export function Home() {
             </div>
             <div className="h-px bg-bw-border overflow-hidden">
               <div
-                className="h-full origin-left transition-transform duration-700 ease-out bg-bw"
+                className="h-full origin-left transition-transform duration-700 ease-out bg-bw-accent"
                 style={{
                   transform: `translateZ(0) scaleX(${Math.round(levelProgress * 100) / 100})`,
                 }}
@@ -257,13 +257,13 @@ export function Home() {
         >
           <div className="flex items-center gap-4">
             <div className="h-10 w-10 flex items-center justify-center shrink-0 border border-bw-border">
-              <TechniqueGeometryIcon techniqueId={suggestedProtocol.id} className="text-bw-secondary" />
+              <TechniqueGeometryIcon techniqueId={suggestedProtocol.id} className="text-bw-accent" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-[10px] text-bw-secondary font-medium tracking-[0.07em] uppercase">
                 Suggested now
               </div>
-              <div className="font-mono text-sm md:text-base text-bw mt-1">
+              <div className="font-display text-2xl md:text-3xl font-semibold text-bw mt-1 leading-none">
                 {suggestedProtocol.name}
               </div>
               <p className="text-xs text-bw-tertiary mt-1 line-clamp-2">
@@ -307,7 +307,7 @@ export function Home() {
                     <TechniqueGeometryIcon techniqueId={id} className="text-bw-secondary" />
                   </div>
                   <h3
-                    className="font-mono text-xs font-medium text-bw leading-tight"
+                    className="font-medium text-sm text-bw leading-tight"
                     style={{ viewTransitionName: `technique-name-${id}` } as React.CSSProperties}
                   >
                     {p.name}
@@ -352,7 +352,7 @@ export function Home() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3
-                      className="font-mono text-sm font-medium text-bw leading-tight"
+                      className="font-medium text-base text-bw leading-tight"
                       style={{ viewTransitionName: `technique-name-${id}` } as React.CSSProperties}
                     >
                       {protocol.name}
@@ -412,7 +412,7 @@ export function Home() {
                     <TechniqueGeometryIcon techniqueId={session.techniqueId} className="text-bw-secondary" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-mono text-xs font-medium text-bw truncate">
+                    <div className="text-sm font-medium text-bw truncate">
                       {protocol.name}
                     </div>
                     <div className="text-[10px] text-bw-tertiary mt-0.5">

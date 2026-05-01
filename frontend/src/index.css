@@ -46,9 +46,10 @@ body {
   /* Breathwork tokens — parchment + ink */
   --breath-canvas: #F5F2ED;
   --breath-ink: #1C1917;
-  --breath-ink-secondary: #78716C;
-  --breath-ink-tertiary: #A8A29E;
+  --breath-ink-secondary: #5F574F;
+  --breath-ink-tertiary: #6F6760;
   --breath-surface: #FFFEFA;
+  --breath-accent: #AD7800;
   --breath-well: rgba(28, 25, 23, 0.03);
   --breath-border: rgba(28, 25, 23, 0.08);
   --breath-border-hover: rgba(28, 25, 23, 0.14);
@@ -365,102 +366,108 @@ body {
 
   .breathwork {
     color-scheme: light;
-    --background: 36 18% 93%;
-    --foreground: 0 0% 10%;
-    --card: 36 18% 93%;
-    --card-foreground: 0 0% 10%;
-    --popover: 36 18% 93%;
-    --popover-foreground: 0 0% 10%;
-    --primary: 0 0% 10%;
-    --primary-foreground: 36 18% 93%;
-    --secondary: 0 0% 85%;
-    --secondary-foreground: 0 0% 10%;
-    --muted: 0 0% 85%;
-    --muted-foreground: 0 0% 53%;
-    --accent: 0 0% 85%;
-    --accent-foreground: 0 0% 10%;
+    --background: 36 31% 95%;
+    --foreground: 20 10% 10%;
+    --card: 45 100% 99%;
+    --card-foreground: 20 10% 10%;
+    --popover: 45 100% 99%;
+    --popover-foreground: 20 10% 10%;
+    --primary: 42 100% 34%;
+    --primary-foreground: 36 31% 95%;
+    --secondary: 28 11% 45%;
+    --secondary-foreground: 20 10% 10%;
+    --muted: 28 13% 83%;
+    --muted-foreground: 28 11% 45%;
+    --accent: 42 100% 34%;
+    --accent-foreground: 36 31% 95%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 36 12% 84%;
-    --input: 36 12% 84%;
-    --ring: 0 0% 10% / 0.2;
-    --radius: 0rem;
+    --border: 30 15% 83%;
+    --input: 30 15% 83%;
+    --ring: 42 100% 34% / 0.28;
+    --radius: 0.5rem;
 
-    /* Semantic bw tokens (editorial — monochrome ink) */
-    --bw-text: #1a1a1a;
-    --bw-text-secondary: #888;
-    --bw-text-tertiary: #888;
-    --bw-text-faint: #d8d5cf;
-    --bw-border: #d8d5cf;
-    --bw-border-subtle: #e5e2dc;
-    --bw-hover: rgba(0, 0, 0, 0.03);
-    --bw-active: rgba(0, 0, 0, 0.06);
-    --bw-nav-bg: rgba(242, 239, 233, 0.95);
-    --bw-nav-bg-mobile: rgba(242, 239, 233, 0.98);
-    --bw-nav-border: #d8d5cf;
-    --bw-nav-shadow: none;
-    --bw-chart-grid: rgba(26, 26, 26, 0.06);
-    --bw-chart-tick: rgba(26, 26, 26, 0.35);
-    --bw-tooltip-bg: rgba(242, 239, 233, 0.97);
-    --bw-tooltip-border: #d8d5cf;
-    --bw-tooltip-label: rgba(26, 26, 26, 0.85);
-    --bw-tooltip-item: rgba(26, 26, 26, 0.55);
+    /* Semantic bw tokens — warm parchment + ink */
+    --bw-canvas: #F5F2ED;
+    --bw-surface: #FFFEFA;
+    --bw-text: #1C1917;
+    --bw-text-secondary: #5F574F;
+    --bw-text-tertiary: #6F6760;
+    --bw-text-faint: #D8D1C7;
+    --bw-border: rgba(28, 25, 23, 0.08);
+    --bw-border-subtle: rgba(28, 25, 23, 0.05);
+    --bw-hover: rgba(173, 120, 0, 0.06);
+    --bw-active: rgba(173, 120, 0, 0.1);
+    --bw-nav-bg: rgba(245, 242, 237, 0.92);
+    --bw-nav-bg-mobile: rgba(245, 242, 237, 0.96);
+    --bw-nav-border: rgba(28, 25, 23, 0.08);
+    --bw-nav-shadow: 0 16px 40px rgba(28, 25, 23, 0.06);
+    --bw-chart-grid: rgba(28, 25, 23, 0.06);
+    --bw-chart-tick: rgba(28, 25, 23, 0.45);
+    --bw-tooltip-bg: rgba(255, 254, 250, 0.98);
+    --bw-tooltip-border: rgba(28, 25, 23, 0.08);
+    --bw-tooltip-label: rgba(28, 25, 23, 0.88);
+    --bw-tooltip-item: rgba(95, 87, 79, 0.9);
 
-    /* Accent tokens (ink — no chromatic accent) */
-    --bw-accent: #1a1a1a;
-    --bw-accent-light: #888;
-    --bw-accent-subtle: rgba(26, 26, 26, 0.08);
-    --bw-success: #1a1a1a;
+    /* Accent tokens */
+    --bw-accent: #AD7800;
+    --bw-accent-light: #D6AD47;
+    --bw-accent-subtle: rgba(173, 120, 0, 0.12);
+    --bw-accent-foreground: #1C1917;
+    --bw-success: #6B8F71;
   }
 
   /* ── Dark overrides (matches chatbot dark) ── */
   .dark .breathwork {
     color-scheme: dark;
-    --background: 0 0% 3%;
-    --foreground: 0 0% 71%;
-    --card: 0 0% 5%;
-    --card-foreground: 0 0% 71%;
-    --popover: 0 0% 5%;
-    --popover-foreground: 0 0% 71%;
-    --primary: 0 0% 71%;
-    --primary-foreground: 0 0% 3%;
-    --secondary: 0 0% 9%;
-    --secondary-foreground: 0 0% 71%;
-    --muted: 0 0% 9%;
-    --muted-foreground: 0 0% 25%;
-    --accent: 0 0% 9%;
-    --accent-foreground: 0 0% 71%;
+    --background: 30 10% 8%;
+    --foreground: 30 13% 89%;
+    --card: 40 6% 11%;
+    --card-foreground: 30 13% 89%;
+    --popover: 40 6% 11%;
+    --popover-foreground: 30 13% 89%;
+    --primary: 48 67% 47%;
+    --primary-foreground: 30 10% 8%;
+    --secondary: 30 5% 63%;
+    --secondary-foreground: 30 13% 89%;
+    --muted: 30 4% 20%;
+    --muted-foreground: 30 5% 63%;
+    --accent: 48 67% 47%;
+    --accent-foreground: 30 10% 8%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 9%;
-    --input: 0 0% 9%;
-    --ring: 0 0% 25%;
+    --border: 30 5% 18%;
+    --input: 30 5% 18%;
+    --ring: 48 67% 47% / 0.35;
 
-    /* Semantic bw tokens (dark — editorial) */
-    --bw-text: #b4b4b4;
-    --bw-text-secondary: #404040;
-    --bw-text-tertiary: #404040;
-    --bw-text-faint: #181818;
-    --bw-border: #181818;
-    --bw-border-subtle: #111;
-    --bw-hover: rgba(255, 255, 255, 0.03);
-    --bw-active: rgba(255, 255, 255, 0.06);
-    --bw-nav-bg: rgba(8, 8, 8, 0.95);
-    --bw-nav-bg-mobile: rgba(8, 8, 8, 0.98);
-    --bw-nav-border: #181818;
-    --bw-nav-shadow: none;
-    --bw-chart-grid: rgba(255, 255, 255, 0.06);
-    --bw-chart-tick: rgba(255, 255, 255, 0.35);
-    --bw-tooltip-bg: rgba(8, 8, 8, 0.97);
-    --bw-tooltip-border: #181818;
-    --bw-tooltip-label: rgba(255, 255, 255, 0.85);
-    --bw-tooltip-item: rgba(255, 255, 255, 0.55);
+    /* Semantic bw tokens (dark) */
+    --bw-canvas: #171613;
+    --bw-surface: hsl(40 6% 11%);
+    --bw-text: #E7E3DE;
+    --bw-text-secondary: #A8A29E;
+    --bw-text-tertiary: #8D8782;
+    --bw-text-faint: rgba(231, 227, 222, 0.18);
+    --bw-border: rgba(255, 252, 245, 0.06);
+    --bw-border-subtle: rgba(255, 252, 245, 0.04);
+    --bw-hover: rgba(201, 162, 39, 0.08);
+    --bw-active: rgba(201, 162, 39, 0.12);
+    --bw-nav-bg: rgba(23, 22, 19, 0.92);
+    --bw-nav-bg-mobile: rgba(23, 22, 19, 0.96);
+    --bw-nav-border: rgba(255, 252, 245, 0.06);
+    --bw-nav-shadow: 0 16px 40px rgba(0, 0, 0, 0.24);
+    --bw-chart-grid: rgba(255, 252, 245, 0.06);
+    --bw-chart-tick: rgba(231, 227, 222, 0.45);
+    --bw-tooltip-bg: rgba(28, 27, 24, 0.98);
+    --bw-tooltip-border: rgba(255, 252, 245, 0.06);
+    --bw-tooltip-label: rgba(231, 227, 222, 0.88);
+    --bw-tooltip-item: rgba(168, 162, 158, 0.88);
 
-    /* Accent tokens (dark ink) */
-    --bw-accent: #e0e0e0;
-    --bw-accent-light: #b4b4b4;
-    --bw-accent-subtle: rgba(255, 255, 255, 0.08);
-    --bw-success: #b4b4b4;
+    /* Accent tokens */
+    --bw-accent: #C9A227;
+    --bw-accent-light: #E1C45C;
+    --bw-accent-subtle: rgba(201, 162, 39, 0.16);
+    --bw-accent-foreground: #171613;
+    --bw-success: #8DAF92;
   }
 
   * { @apply border-border; }
@@ -527,15 +534,15 @@ body {
   border-color: var(--bw-text-secondary, #888);
 }
 
-/* ── Breathwork base — editorial canvas + monospace ── */
+/* ── Breathwork base — warm parchment + precise sans ── */
 .breathwork {
-  background-color: #f2efe9;
-  font-family: "Fragment Mono", ui-monospace, SFMono-Regular, monospace;
-  font-size: 14px;
-  line-height: 1.7;
+  background-color: var(--bw-canvas, #F5F2ED);
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.65;
 }
 .dark .breathwork {
-  background-color: #080808;
+  background-color: var(--bw-canvas, #171613);
 }
 
 /* ── Dark breathwork surface overrides (editorial) ── */
@@ -548,12 +555,12 @@ body {
 .dark .breathwork .glass {
   background: transparent;
   border: none;
-  border-top: 1px solid #181818;
+  border-top: 1px solid var(--bw-border);
 }
 .dark .breathwork .card-elevated:hover,
 .dark .breathwork .sculpted-card:hover,
 .dark .breathwork .glass:hover {
-  border-color: #404040;
+  border-color: var(--bw-text-tertiary);
 }
 
 /* Gradient text — portfolio only */
@@ -568,10 +575,14 @@ body {
 
 /* Clean canvas — editorial */
 .breath-bg {
-  background: #f2efe9;
+  background:
+    linear-gradient(180deg, rgba(255, 254, 250, 0.42) 0%, rgba(245, 242, 237, 0) 34%),
+    var(--bw-canvas, #F5F2ED);
 }
 .dark .breath-bg {
-  background: #080808;
+  background:
+    linear-gradient(180deg, rgba(201, 162, 39, 0.05) 0%, rgba(23, 22, 19, 0) 38%),
+    var(--bw-canvas, #171613);
 }
 
 /* ═══════════════════════════════════════════════════════
