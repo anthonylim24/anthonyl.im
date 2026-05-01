@@ -142,7 +142,7 @@ export function SessionSummary({
             <button
               onClick={onClose}
               aria-label="Close session summary"
-              className="absolute top-4 right-4 h-8 w-8 flex items-center justify-center text-bw-tertiary hover:text-bw-secondary transition-colors border border-bw-border"
+              className="absolute top-4 right-4 flex h-11 w-11 items-center justify-center border border-bw-border text-bw-tertiary transition-colors hover:text-bw-secondary"
             >
               <X className="h-4 w-4" />
             </button>
@@ -317,7 +317,7 @@ export function SessionSummary({
           <motion.div variants={fadeUp} className="px-6 pb-6 sm:px-8">
             <button
               onClick={onClose}
-              className="w-full py-3 text-bw-accent-foreground font-medium active:scale-[0.98] transition-all duration-200 bg-bw-accent border border-bw-accent"
+              className="min-h-11 w-full border border-bw-accent bg-bw-accent py-3 font-medium text-bw-accent-foreground transition-all duration-200 active:scale-[0.98]"
             >
               Continue
             </button>

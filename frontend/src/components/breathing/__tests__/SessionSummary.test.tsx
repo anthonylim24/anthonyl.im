@@ -60,4 +60,11 @@ describe('SessionSummary', () => {
     expect(screen.getByRole('dialog', { name: /session complete/i })).toBeTruthy()
     expect(screen.getByRole('button', { name: /close session summary/i })).toBeTruthy()
   })
+
+  it('uses 44px minimum hit areas for summary actions', () => {
+    render(<SessionSummary {...defaultProps} />)
+
+    expect(screen.getByRole('button', { name: /close session summary/i })).toHaveClass('h-11', 'w-11')
+    expect(screen.getByRole('button', { name: /continue/i })).toHaveClass('min-h-11')
+  })
 })
