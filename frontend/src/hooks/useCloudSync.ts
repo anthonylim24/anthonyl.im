@@ -110,6 +110,7 @@ export function useCloudSync() {
   const supabaseRef = useRef<SupabaseClient | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isSyncingRef = useRef(false)
+  const pendingSyncRef = useRef(false)
   const mergedUserIdRef = useRef<string | null>(null)
 
   // Create Supabase client when session is available
@@ -263,6 +264,11 @@ export function useCloudSync() {
     const supabase = supabaseRef.current
     if (!supabase || !user || isSyncingRef.current) return
 
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+      debounceRef.current = null
+    }
+
     isSyncingRef.current = true
     try {
       const history = useHistoryStore.getState()
@@ -300,6 +306,7 @@ export function useCloudSync() {
         )
         assertNoSupabaseError(sessionsError)
       }
+      pendingSyncRef.current = false
     } catch (err) {
       console.error('[CloudSync] Failed to sync to cloud:', err)
     } finally {
@@ -308,8 +315,17 @@ export function useCloudSync() {
   }, [user])
 
   const debouncedSync = useCallback(() => {
+    pendingSyncRef.current = true
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(syncToCloud, DEBOUNCE_MS)
+    debounceRef.current = setTimeout(() => {
+      debounceRef.current = null
+      void syncToCloud()
+    }, DEBOUNCE_MS)
+  }, [syncToCloud])
+
+  const flushPendingSync = useCallback(() => {
+    if (!pendingSyncRef.current) return
+    void syncToCloud()
   }, [syncToCloud])
 
   // ─── Initial fetch on sign-in ─────────────────────────────────
@@ -332,9 +348,28 @@ export function useCloudSync() {
       unsubHistory()
       unsubGamification()
       unsubSettings()
+      flushPendingSync()
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [isSignedIn, debouncedSync])
+  }, [isSignedIn, debouncedSync, flushPendingSync])
+
+  useEffect(() => {
+    if (!isSignedIn) return
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        flushPendingSync()
+      }
+    }
+
+    window.addEventListener('pagehide', flushPendingSync)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener('pagehide', flushPendingSync)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [isSignedIn, flushPendingSync])
 }
 
 // ─── Helpers ────────────────────────────────────────────────────

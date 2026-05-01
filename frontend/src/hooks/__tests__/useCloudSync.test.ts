@@ -80,6 +80,7 @@ function createSupabaseClientMock(options: SupabaseClientMockOptions = {}) {
   }))
 
   const sessionsInsert = vi.fn(async () => ({ error: null }))
+  const sessionsUpsert = vi.fn(async () => ({ error: null }))
   const sessionsOrder = vi.fn(async () => ({
     data: options.cloudSessions ?? [],
     error: null,
@@ -100,7 +101,7 @@ function createSupabaseClientMock(options: SupabaseClientMockOptions = {}) {
       return { select: userStateSelect, upsert: userStateUpsert }
     }
     if (table === 'sessions') {
-      return { select: sessionsSelect, insert: sessionsInsert, upsert: vi.fn() }
+      return { select: sessionsSelect, insert: sessionsInsert, upsert: sessionsUpsert }
     }
     throw new Error(`Unexpected table: ${table}`)
   })
@@ -108,6 +109,8 @@ function createSupabaseClientMock(options: SupabaseClientMockOptions = {}) {
   return {
     client: { from },
     sessionsInsert,
+    sessionsOrder,
+    sessionsUpsert,
     userStateUpsert,
   }
 }
@@ -400,5 +403,118 @@ describe('useCloudSync', () => {
         { onConflict: 'user_id' },
       )
     })
+  })
+
+  it('flushes a pending cloud sync when the page is hidden', async () => {
+    const supabase = createSupabaseClientMock()
+    const visibilitySpy = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+
+    signInAs('user_1')
+    supabaseMock.createClerkSupabaseClient.mockReturnValue(supabase.client)
+
+    const { unmount } = renderHook(() => useCloudSync())
+
+    await waitFor(() => {
+      expect(supabase.sessionsOrder).toHaveBeenCalled()
+    })
+
+    supabase.userStateUpsert.mockClear()
+    supabase.sessionsUpsert.mockClear()
+
+    useHistoryStore.setState({
+      sessions: [
+        {
+          id: 'pending-session',
+          techniqueId: 'resonance_breathing',
+          date: '2026-05-01T12:00:00.000Z',
+          durationSeconds: 120,
+          rounds: 12,
+          holdTimes: [],
+          maxHoldTime: 0,
+          avgHoldTime: 0,
+        },
+      ],
+    })
+
+    expect(supabase.userStateUpsert).not.toHaveBeenCalled()
+
+    document.dispatchEvent(new Event('visibilitychange'))
+
+    await waitFor(() => {
+      expect(supabase.userStateUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          user_id: 'user_1',
+          xp: 0,
+        }),
+        { onConflict: 'user_id' },
+      )
+    })
+    expect(supabase.sessionsUpsert).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          id: 'pending-session',
+          user_id: 'user_1',
+          technique_id: 'resonance_breathing',
+          duration_seconds: 120,
+        }),
+      ],
+      { onConflict: 'id' },
+    )
+
+    unmount()
+    visibilitySpy.mockRestore()
+  })
+
+  it('flushes a pending cloud sync when the hook unmounts', async () => {
+    const supabase = createSupabaseClientMock()
+
+    signInAs('user_1')
+    supabaseMock.createClerkSupabaseClient.mockReturnValue(supabase.client)
+
+    const { unmount } = renderHook(() => useCloudSync())
+
+    await waitFor(() => {
+      expect(supabase.sessionsOrder).toHaveBeenCalled()
+    })
+
+    supabase.userStateUpsert.mockClear()
+    supabase.sessionsUpsert.mockClear()
+
+    useHistoryStore.setState({
+      sessions: [
+        {
+          id: 'cleanup-session',
+          techniqueId: 'box_breathing',
+          date: '2026-05-01T12:15:00.000Z',
+          durationSeconds: 240,
+          rounds: 4,
+          holdTimes: [],
+          maxHoldTime: 0,
+          avgHoldTime: 0,
+        },
+      ],
+    })
+
+    unmount()
+
+    await waitFor(() => {
+      expect(supabase.userStateUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          user_id: 'user_1',
+        }),
+        { onConflict: 'user_id' },
+      )
+    })
+    expect(supabase.sessionsUpsert).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          id: 'cleanup-session',
+          user_id: 'user_1',
+          technique_id: 'box_breathing',
+          duration_seconds: 240,
+        }),
+      ],
+      { onConflict: 'id' },
+    )
   })
 })
