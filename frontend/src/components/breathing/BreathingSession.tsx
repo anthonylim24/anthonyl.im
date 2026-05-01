@@ -15,6 +15,7 @@ import { BreathAura } from './BreathAura'
 import { SessionSummary } from './SessionSummary'
 import { PhaseIndicator } from './PhaseIndicator'
 import { Timer } from './Timer'
+import { getPhaseCoachCue } from './phaseCoaching'
 import { getInteractiveBreathingVisualizationLabel } from './visualizationLabels'
 import { Play, Pause, Square, RotateCcw } from 'lucide-react'
 import {
@@ -57,6 +58,7 @@ function getSessionAnnouncement({
   isActive,
   isPaused,
   isComplete,
+  coachCue,
 }: {
   protocolName: string
   currentPhase: keyof typeof PHASE_LABELS | null
@@ -65,18 +67,19 @@ function getSessionAnnouncement({
   isActive: boolean
   isPaused: boolean
   isComplete: boolean
+  coachCue: string
 }): string {
   if (isComplete) {
     return `${protocolName} complete. Review your session summary.`
   }
 
   if (!isActive || !currentPhase) {
-    return `${protocolName} ready. Press Start when you are ready.`
+    return `${protocolName} ready. ${coachCue} Press Start when you are ready.`
   }
 
   const round = Math.min(currentRound + 1, totalRounds)
   const phaseLabel = PHASE_LABELS[currentPhase]
-  const progress = `Round ${round} of ${totalRounds}. ${phaseLabel} phase.`
+  const progress = `Round ${round} of ${totalRounds}. ${phaseLabel} phase. ${coachCue}`
 
   if (isPaused) {
     return `${protocolName} paused. ${progress}`
@@ -213,6 +216,7 @@ export function BreathingSession({
   useWakeLock(isActive)
 
   const protocol = getProtocol(config.techniqueId)
+  const coachCue = getPhaseCoachCue(config.techniqueId, session?.currentPhase)
   const sessionAnnouncement = useMemo(
     () =>
       getSessionAnnouncement({
@@ -223,6 +227,7 @@ export function BreathingSession({
         isActive,
         isPaused,
         isComplete: isComplete || Boolean(session?.isComplete),
+        coachCue,
       }),
     [
       protocol.name,
@@ -233,6 +238,7 @@ export function BreathingSession({
       isActive,
       isPaused,
       isComplete,
+      coachCue,
     ]
   )
 
@@ -556,6 +562,13 @@ export function BreathingSession({
         <div className="relative z-10 mt-3">
           <Timer seconds={session?.timeRemaining ?? 0} className="text-bw" />
         </div>
+
+        <p
+          className="relative z-10 mt-4 max-w-xs text-center text-xs leading-relaxed text-bw-tertiary"
+          data-testid="phase-coach-cue"
+        >
+          {coachCue}
+        </p>
       </div>
 
       {/* Controls - fade only for pointer users after 3s of active breathing */}
