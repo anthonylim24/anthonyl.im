@@ -31,6 +31,17 @@ describe('Navigation responsive behavior', () => {
     }
   })
 
+  it('marks the active mobile tab as the current page', () => {
+    render(
+      <MemoryRouter initialEntries={['/breathwork/progress']}>
+        <Navigation />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole('link', { name: 'Progress' })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('link', { name: 'Home' })).not.toHaveAttribute('aria-current')
+  })
+
   it('hides mobile nav on session route', () => {
     render(
       <MemoryRouter initialEntries={['/breathwork/session']}>

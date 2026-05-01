@@ -53,6 +53,7 @@ export function Header() {
                 <Link
                   key={path}
                   to={path}
+                  aria-current={isActive(path) ? 'page' : undefined}
                   className={cn(
                     'flex items-center gap-2 px-4 py-2 text-[10px] font-mono font-medium tracking-[0.07em] uppercase transition-colors duration-300',
                     isActive(path)
