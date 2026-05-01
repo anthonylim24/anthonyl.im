@@ -73,7 +73,7 @@ export function Progress() {
         {/* Header */}
         <motion.div variants={fadeUp} className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="font-mono text-lg font-medium text-bw tracking-[0.02em]">
+            <h1 className="font-display text-4xl font-semibold text-bw leading-none">
               Progress
             </h1>
           </div>
@@ -116,12 +116,12 @@ export function Progress() {
                   <div className="text-[10px] font-medium text-bw-secondary tracking-[0.07em] uppercase">
                     Level {level}
                   </div>
-                  <div className="font-mono text-lg font-normal text-bw">{levelTitle}</div>
+                  <div className="font-display text-3xl font-semibold text-bw leading-none">{levelTitle}</div>
                 </div>
                 <div className="space-y-2">
                   <div className="h-px bg-bw-border overflow-hidden">
                     <div
-                      className="h-full origin-left transition-transform duration-700 ease-out bg-bw"
+                      className="h-full origin-left transition-transform duration-700 ease-out bg-bw-accent"
                       style={{
                         transform: `translateZ(0) scaleX(${Math.min(1, progress)})`,
                       }}
@@ -200,7 +200,7 @@ export function Progress() {
                 >
                   <TechniqueGeometryIcon techniqueId={id} className={cn(
                     'shrink-0',
-                    filterTechnique === id ? 'text-bw' : 'text-bw-tertiary'
+                    filterTechnique === id ? 'text-bw-accent' : 'text-bw-tertiary'
                   )} />
                   <span className="hidden sm:inline truncate">
                     {shortName}

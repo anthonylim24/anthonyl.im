@@ -42,7 +42,7 @@ export function Header() {
           <div className="flex items-center">
             {/* Logo */}
             <Link to="/breathwork" className="flex items-center gap-2.5 mr-8 group">
-              <span className="font-mono text-[10px] font-medium tracking-[0.07em] uppercase text-bw">
+              <span className="font-display text-xl font-semibold text-bw leading-none">
                 BreathFlow
               </span>
             </Link>
@@ -60,7 +60,7 @@ export function Header() {
                       : 'text-bw-secondary hover:text-bw'
                   )}
                 >
-                  <Icon className="h-4 w-4" />
+                  <Icon className={cn('h-4 w-4', isActive(path) && 'text-bw-accent')} />
                   {label}
                 </Link>
               ))}
@@ -73,7 +73,7 @@ export function Header() {
               <SignedOut>
                 <SignInButton mode="modal">
                   <button
-                    className="px-4 py-2 rounded-xl text-sm font-semibold text-bw-secondary hover:text-bw hover:bg-bw-hover transition-all duration-300"
+                    className="px-4 py-2 rounded-lg text-sm font-semibold text-bw-secondary hover:text-bw hover:bg-bw-hover transition-all duration-300"
                   >
                     Sign In
                   </button>

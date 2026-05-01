@@ -69,7 +69,7 @@ export function Navigation() {
                 <div className="relative">
                   <Icon className={cn(
                     "relative h-[24px] w-[24px] transition-colors duration-300",
-                    active ? "text-bw" : "text-bw-secondary"
+                    active ? "text-bw-accent" : "text-bw-secondary"
                   )} />
                 </div>
                 <span>{label}</span>

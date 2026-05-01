@@ -21,7 +21,7 @@ export function PhaseIndicator({ phase, className }: PhaseIndicatorProps) {
       {/* Phase label badge */}
       {phase && (
         <div className="mb-3">
-          <span className="text-[10px] font-mono font-medium uppercase tracking-[0.07em] text-bw-secondary">
+          <span className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">
             {phase.replace('_', ' ')}
           </span>
         </div>
@@ -30,7 +30,7 @@ export function PhaseIndicator({ phase, className }: PhaseIndicatorProps) {
       {/* Main text */}
       <h2
         className={cn(
-          'font-mono text-xl font-normal tracking-wide transition-all duration-500 text-bw',
+          'font-display text-4xl font-semibold leading-none transition-all duration-500 text-bw',
           !phase && 'text-bw-tertiary'
         )}
       >

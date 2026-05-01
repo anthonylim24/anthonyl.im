@@ -250,7 +250,7 @@ export function BreathingSession({
                     key={i}
                     className="flex-1 h-[3px] rounded-full transition-all duration-500"
                     style={{
-                      background: done ? 'var(--bw-text)' : active ? 'var(--bw-text-faint)' : 'var(--bw-border)',
+                      background: done ? 'var(--bw-accent)' : active ? 'var(--bw-accent-subtle)' : 'var(--bw-border)',
                     }}
                   />
                 )
@@ -268,7 +268,7 @@ export function BreathingSession({
                   className="h-full rounded-full transition-all duration-500"
                   style={{
                     width: `${(currentRound / total) * 100}%`,
-                    background: 'var(--bw-text)',
+                    background: 'var(--bw-accent)',
                   }}
                 />
               </div>
@@ -348,7 +348,7 @@ export function BreathingSession({
         {!isActive && !isComplete ? (
           <button
             onClick={handleStart}
-            className="flex items-center gap-3 px-10 py-4 font-mono font-semibold text-lg transition-all duration-300 hover:scale-105 bg-foreground text-background border border-bw-border"
+            className="flex items-center gap-3 px-10 py-4 font-medium text-lg transition-all duration-300 hover:scale-105 bg-bw-accent text-bw-accent-foreground border border-bw-accent"
           >
             <Play className="h-5 w-5" />
             Start

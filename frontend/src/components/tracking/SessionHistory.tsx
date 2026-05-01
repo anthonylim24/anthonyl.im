@@ -15,7 +15,7 @@ export function SessionHistory({ sessions }: SessionHistoryProps) {
   if (sessions.length === 0) {
     return (
       <div className="py-10 text-center text-sm">
-        <p className="text-bw-tertiary font-mono">Your session history will appear here after your first practice.</p>
+        <p className="text-bw-tertiary">Your session history will appear here after your first practice.</p>
         <button
           onClick={() => navigate('/breathwork/session?technique=box_breathing')}
           className="mt-3 text-sm font-medium text-bw-secondary hover:text-bw transition-colors"
@@ -40,10 +40,10 @@ export function SessionHistory({ sessions }: SessionHistoryProps) {
 
           {/* Name + date */}
           <div className="flex-1 min-w-0">
-            <div className="font-mono font-medium text-sm text-bw leading-tight truncate">
+            <div className="font-medium text-sm text-bw leading-tight truncate">
               {breathingProtocols[session.techniqueId].name}
             </div>
-            <div className="text-xs font-mono text-bw-tertiary mt-0.5">
+            <div className="text-xs text-bw-tertiary mt-0.5">
               {formatDate(new Date(session.date))}
             </div>
           </div>

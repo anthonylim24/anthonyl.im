@@ -1,24 +1,24 @@
-// palette.ts – Monochrome ink color system. Editorial aesthetic, no chromatic accents.
+// palette.ts – BreathFlow warm parchment + ink color system.
 
 import type { TechniqueId } from './constants'
 import { TECHNIQUE_IDS, BREATH_PHASES, type BreathPhase } from './constants'
 
 // ── Canvas ──────────────────────────────────────────────────────────────
-export const CANVAS = '#f2efe9'
-export const CANVAS_DARK = '#080808'
-export const SURFACE = '#f2efe9'
+export const CANVAS = '#F5F2ED'
+export const CANVAS_DARK = '#171613'
+export const SURFACE = '#FFFEFA'
 
 // ── Ink ─────────────────────────────────────────────────────────────────
-export const INK = '#1a1a1a'
-export const INK_SECONDARY = '#888'
-export const INK_TERTIARY = '#888'
-export const INK_FAINT = '#d8d5cf'
+export const INK = '#1C1917'
+export const INK_SECONDARY = '#5F574F'
+export const INK_TERTIARY = '#6F6760'
+export const INK_FAINT = '#D8D1C7'
 
-// ── Accent (ink — no chromatic accent in editorial mode) ────────────────
-export const ACCENT_WARM = '#1a1a1a'
-export const ACCENT_WARM_LIGHT = '#888'
-export const ACCENT_WARM_SUBTLE = 'rgba(26, 26, 26, 0.08)'
-export const SUCCESS = '#1a1a1a'
+// ── Accent ──────────────────────────────────────────────────────────────
+export const ACCENT_WARM = '#AD7800'
+export const ACCENT_WARM_LIGHT = '#D6AD47'
+export const ACCENT_WARM_SUBTLE = 'rgba(173, 120, 0, 0.12)'
+export const SUCCESS = '#6B8F71'
 
 // Legacy aliases
 export const BG = CANVAS_DARK
@@ -29,99 +29,99 @@ export const ACCENT = ACCENT_WARM
 export const ACCENT_BRIGHT = ACCENT_WARM_LIGHT
 export const ACCENT_SUBTLE = ACCENT_WARM_SUBTLE
 
-// ── Technique ring colors (monochrome — all techniques identical) ────────
-const MONO_RING = { primary: '#1a1a1a', secondary: '#888' }
-const MONO_RING_DARK = { primary: '#b4b4b4', secondary: '#404040' }
+// ── Technique ring colors (warm accent, restrained) ─────────────────────
+const WARM_RING = { primary: '#AD7800', secondary: '#D6AD47' }
+const WARM_RING_DARK = { primary: '#C9A227', secondary: '#E1C45C' }
 
 export const TECHNIQUE_RING_COLORS: Record<TechniqueId, { primary: string; secondary: string }> = {
-  [TECHNIQUE_IDS.BOX_BREATHING]:   MONO_RING,
-  [TECHNIQUE_IDS.CO2_TOLERANCE]:   MONO_RING,
-  [TECHNIQUE_IDS.POWER_BREATHING]: MONO_RING,
-  [TECHNIQUE_IDS.CYCLIC_SIGHING]:  MONO_RING,
-  [TECHNIQUE_IDS.RESONANCE_BREATHING]: MONO_RING,
-  [TECHNIQUE_IDS.EXTENDED_EXHALE]: MONO_RING,
-  [TECHNIQUE_IDS.FOUR_SEVEN_EIGHT]: MONO_RING,
-  [TECHNIQUE_IDS.PURSED_LIP_RECOVERY]: MONO_RING,
+  [TECHNIQUE_IDS.BOX_BREATHING]:   WARM_RING,
+  [TECHNIQUE_IDS.CO2_TOLERANCE]:   WARM_RING,
+  [TECHNIQUE_IDS.POWER_BREATHING]: WARM_RING,
+  [TECHNIQUE_IDS.CYCLIC_SIGHING]:  WARM_RING,
+  [TECHNIQUE_IDS.RESONANCE_BREATHING]: WARM_RING,
+  [TECHNIQUE_IDS.EXTENDED_EXHALE]: WARM_RING,
+  [TECHNIQUE_IDS.FOUR_SEVEN_EIGHT]: WARM_RING,
+  [TECHNIQUE_IDS.PURSED_LIP_RECOVERY]: WARM_RING,
 }
 
 export const TECHNIQUE_RING_COLORS_DARK: Record<TechniqueId, { primary: string; secondary: string }> = {
-  [TECHNIQUE_IDS.BOX_BREATHING]:   MONO_RING_DARK,
-  [TECHNIQUE_IDS.CO2_TOLERANCE]:   MONO_RING_DARK,
-  [TECHNIQUE_IDS.POWER_BREATHING]: MONO_RING_DARK,
-  [TECHNIQUE_IDS.CYCLIC_SIGHING]:  MONO_RING_DARK,
-  [TECHNIQUE_IDS.RESONANCE_BREATHING]: MONO_RING_DARK,
-  [TECHNIQUE_IDS.EXTENDED_EXHALE]: MONO_RING_DARK,
-  [TECHNIQUE_IDS.FOUR_SEVEN_EIGHT]: MONO_RING_DARK,
-  [TECHNIQUE_IDS.PURSED_LIP_RECOVERY]: MONO_RING_DARK,
+  [TECHNIQUE_IDS.BOX_BREATHING]:   WARM_RING_DARK,
+  [TECHNIQUE_IDS.CO2_TOLERANCE]:   WARM_RING_DARK,
+  [TECHNIQUE_IDS.POWER_BREATHING]: WARM_RING_DARK,
+  [TECHNIQUE_IDS.CYCLIC_SIGHING]:  WARM_RING_DARK,
+  [TECHNIQUE_IDS.RESONANCE_BREATHING]: WARM_RING_DARK,
+  [TECHNIQUE_IDS.EXTENDED_EXHALE]: WARM_RING_DARK,
+  [TECHNIQUE_IDS.FOUR_SEVEN_EIGHT]: WARM_RING_DARK,
+  [TECHNIQUE_IDS.PURSED_LIP_RECOVERY]: WARM_RING_DARK,
 }
 
 // ── Breath-phase colors (ink scale) ──
 export const PHASE = {
-  inhale:      '#1a1a1a',
-  deep_inhale: '#333',
-  hold_in:     '#555',
-  exhale:      '#666',
-  hold_out:    '#888',
-  rest:        '#aaa',
+  inhale:      '#AD7800',
+  deep_inhale: '#C99A2E',
+  hold_in:     '#8B6F47',
+  exhale:      '#6F6760',
+  hold_out:    '#8B8178',
+  rest:        '#D8D1C7',
 } as const
 
-// ── Per-technique phase colors (monochromatic — same for all) ───────────
-const MONO_PHASES: Record<BreathPhase, string> = {
-  [BREATH_PHASES.INHALE]:      '#1a1a1a',
-  [BREATH_PHASES.DEEP_INHALE]: '#333',
-  [BREATH_PHASES.HOLD_IN]:     '#555',
-  [BREATH_PHASES.EXHALE]:      '#666',
-  [BREATH_PHASES.HOLD_OUT]:    '#888',
-  [BREATH_PHASES.REST]:        '#aaa',
+// ── Per-technique phase colors (shared warm scale) ──────────────────────
+const WARM_PHASES: Record<BreathPhase, string> = {
+  [BREATH_PHASES.INHALE]:      PHASE.inhale,
+  [BREATH_PHASES.DEEP_INHALE]: PHASE.deep_inhale,
+  [BREATH_PHASES.HOLD_IN]:     PHASE.hold_in,
+  [BREATH_PHASES.EXHALE]:      PHASE.exhale,
+  [BREATH_PHASES.HOLD_OUT]:    PHASE.hold_out,
+  [BREATH_PHASES.REST]:        PHASE.rest,
 }
 
 export const TECHNIQUE_PHASES: Record<TechniqueId, Record<BreathPhase, string>> = {
-  [TECHNIQUE_IDS.BOX_BREATHING]:   MONO_PHASES,
-  [TECHNIQUE_IDS.CO2_TOLERANCE]:   MONO_PHASES,
-  [TECHNIQUE_IDS.POWER_BREATHING]: MONO_PHASES,
-  [TECHNIQUE_IDS.CYCLIC_SIGHING]:  MONO_PHASES,
-  [TECHNIQUE_IDS.RESONANCE_BREATHING]: MONO_PHASES,
-  [TECHNIQUE_IDS.EXTENDED_EXHALE]: MONO_PHASES,
-  [TECHNIQUE_IDS.FOUR_SEVEN_EIGHT]: MONO_PHASES,
-  [TECHNIQUE_IDS.PURSED_LIP_RECOVERY]: MONO_PHASES,
+  [TECHNIQUE_IDS.BOX_BREATHING]:   WARM_PHASES,
+  [TECHNIQUE_IDS.CO2_TOLERANCE]:   WARM_PHASES,
+  [TECHNIQUE_IDS.POWER_BREATHING]: WARM_PHASES,
+  [TECHNIQUE_IDS.CYCLIC_SIGHING]:  WARM_PHASES,
+  [TECHNIQUE_IDS.RESONANCE_BREATHING]: WARM_PHASES,
+  [TECHNIQUE_IDS.EXTENDED_EXHALE]: WARM_PHASES,
+  [TECHNIQUE_IDS.FOUR_SEVEN_EIGHT]: WARM_PHASES,
+  [TECHNIQUE_IDS.PURSED_LIP_RECOVERY]: WARM_PHASES,
 }
 
-// ── Technique visual config (monochrome) ─────────────────────────────────
+// ── Technique visual config ──────────────────────────────────────────────
 export const TECHNIQUE = {
-  box:     { primary: '#1a1a1a', secondary: '#888' },
-  co2:     { primary: '#1a1a1a', secondary: '#888' },
-  power:   { primary: '#1a1a1a', secondary: '#888' },
-  sighing: { primary: '#1a1a1a', secondary: '#888' },
-  resonance: { primary: '#1a1a1a', secondary: '#888' },
-  exhale: { primary: '#1a1a1a', secondary: '#888' },
-  sleep: { primary: '#1a1a1a', secondary: '#888' },
-  recovery: { primary: '#1a1a1a', secondary: '#888' },
+  box:     { primary: '#AD7800', secondary: '#6F6760' },
+  co2:     { primary: '#AD7800', secondary: '#6F6760' },
+  power:   { primary: '#AD7800', secondary: '#6F6760' },
+  sighing: { primary: '#AD7800', secondary: '#6F6760' },
+  resonance: { primary: '#AD7800', secondary: '#6F6760' },
+  exhale: { primary: '#AD7800', secondary: '#6F6760' },
+  sleep: { primary: '#AD7800', secondary: '#6F6760' },
+  recovery: { primary: '#AD7800', secondary: '#6F6760' },
 } as const
 
 export const TECHNIQUE_GRADIENT = {
-  box:     { from: '#1a1a1a', via: '#555', to: '#888' },
-  co2:     { from: '#1a1a1a', via: '#555', to: '#888' },
-  power:   { from: '#1a1a1a', via: '#555', to: '#888' },
-  sighing: { from: '#1a1a1a', via: '#555', to: '#888' },
-  resonance: { from: '#1a1a1a', via: '#555', to: '#888' },
-  exhale: { from: '#1a1a1a', via: '#555', to: '#888' },
-  sleep: { from: '#1a1a1a', via: '#555', to: '#888' },
-  recovery: { from: '#1a1a1a', via: '#555', to: '#888' },
+  box:     { from: '#AD7800', via: '#D6AD47', to: '#6F6760' },
+  co2:     { from: '#AD7800', via: '#D6AD47', to: '#6F6760' },
+  power:   { from: '#AD7800', via: '#D6AD47', to: '#6F6760' },
+  sighing: { from: '#AD7800', via: '#D6AD47', to: '#6F6760' },
+  resonance: { from: '#AD7800', via: '#D6AD47', to: '#6F6760' },
+  exhale: { from: '#AD7800', via: '#D6AD47', to: '#6F6760' },
+  sleep: { from: '#AD7800', via: '#D6AD47', to: '#6F6760' },
+  recovery: { from: '#AD7800', via: '#D6AD47', to: '#6F6760' },
 } as const
 
 // ── Achievement / gamification ──────────────────────────────────────────
-export const ACHIEVEMENT = '#1a1a1a'
-export const PERSONAL_BEST = '#1a1a1a'
+export const ACHIEVEMENT = ACCENT_WARM
+export const PERSONAL_BEST = SUCCESS
 
 // ── Destructive ─────────────────────────────────────────────────────────
 export const DESTRUCTIVE = '#EF4444'
 
 // ── Heatmap intensity stops (ink ramp) ───────────────────────────────────
 export const HEATMAP = [
-  'rgba(26, 26, 26, 0.08)',
-  'rgba(26, 26, 26, 0.18)',
-  'rgba(26, 26, 26, 0.35)',
-  'rgba(26, 26, 26, 0.55)',
+  'rgba(173, 120, 0, 0.1)',
+  'rgba(173, 120, 0, 0.22)',
+  'rgba(173, 120, 0, 0.4)',
+  'rgba(173, 120, 0, 0.62)',
 ] as const
 
 // ── FluidOrb/Ring phase color pairs (ink shades) ────────────────────────
@@ -135,8 +135,8 @@ export const PHASE_PAIR: Record<string, [string, string]> = {
   idle:        [INK_FAINT, PHASE.rest],
 }
 
-// ── Badge gradient (ink) ──────────────────────────────────────────────────
-export const BADGE_GRADIENT = { from: '#1a1a1a', to: '#888' } as const
+// ── Badge gradient ───────────────────────────────────────────────────────
+export const BADGE_GRADIENT = { from: '#AD7800', to: '#D6AD47' } as const
 
 // ── Utilities ───────────────────────────────────────────────────────────
 export function withAlpha(hex: string, alpha: number): string {

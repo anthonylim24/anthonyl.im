@@ -106,10 +106,10 @@ export function Session() {
               className="h-7 w-7 flex items-center justify-center shrink-0 border border-bw-border"
               style={{ viewTransitionName: `technique-icon-${selectedTechnique}` } as React.CSSProperties}
             >
-              <TechniqueGeometryIcon techniqueId={selectedTechnique} className="text-bw-secondary" size={12} />
+              <TechniqueGeometryIcon techniqueId={selectedTechnique} className="text-bw-accent" size={12} />
             </div>
             <h1
-              className="font-mono text-sm font-medium text-bw tracking-[0.02em]"
+              className="font-display text-2xl font-semibold text-bw leading-none"
               style={{ viewTransitionName: `technique-name-${selectedTechnique}` } as React.CSSProperties}
             >{protocol.name}</h1>
           </div>
@@ -126,13 +126,13 @@ export function Session() {
                   key={p.id}
                   onClick={() => handleTechniqueChange(p.id)}
                   className={cn(
-                    'h-10 px-3 flex items-center gap-2 border text-[10px] font-mono font-medium uppercase tracking-[0.07em] transition-colors duration-200',
+                    'h-10 px-3 flex items-center gap-2 border text-[10px] font-medium uppercase tracking-[0.07em] transition-colors duration-200',
                     isSelected
-                      ? 'border-bw text-bw bg-bw-hover'
+                      ? 'border-bw-accent text-bw bg-bw-active'
                       : 'border-bw-border text-bw-tertiary'
                   )}
                 >
-                  <TechniqueGeometryIcon techniqueId={p.id} className={isSelected ? 'text-bw' : 'text-bw-tertiary'} size={12} />
+                  <TechniqueGeometryIcon techniqueId={p.id} className={isSelected ? 'text-bw-accent' : 'text-bw-tertiary'} size={12} />
                   <span>{p.shortName}</span>
                 </button>
               )
@@ -242,7 +242,7 @@ export function Session() {
         <motion.div variants={fadeUp} className="pt-3 shrink-0">
           <button
             onClick={handleStartSession}
-            className="w-full py-3.5 px-6 border border-bw-border bg-transparent font-mono font-medium text-bw text-sm flex items-center justify-center gap-3 hover:bg-bw-hover transition-colors"
+            className="w-full py-3.5 px-6 border border-bw-accent bg-bw-accent font-medium text-bw-accent-foreground text-sm flex items-center justify-center gap-3 hover:opacity-90 transition-opacity"
           >
             <span>Begin Session</span>
           </button>
@@ -253,7 +253,7 @@ export function Session() {
       <div className="hidden md:flex md:flex-col max-w-2xl mx-auto space-y-8 h-[calc(100dvh-4rem-5rem)] overflow-y-auto no-scrollbar pb-4">
         {/* Header */}
         <motion.div variants={fadeUp}>
-          <h1 className="font-mono text-lg font-medium text-bw tracking-[0.02em]">
+          <h1 className="font-display text-4xl font-semibold text-bw leading-none">
             Session Setup
           </h1>
         </motion.div>
@@ -275,20 +275,20 @@ export function Session() {
                   onClick={() => handleTechniqueChange(p.id)}
                   className={cn(
                     'w-full flex items-center gap-4 py-4 text-left transition-colors duration-200',
-                    isSelected ? 'bg-bw-hover' : 'hover:bg-bw-hover'
+                    isSelected ? 'bg-bw-active' : 'hover:bg-bw-hover'
                   )}
                 >
                   <div
                     className="h-8 w-8 flex items-center justify-center shrink-0 border border-bw-border"
                     style={isSelected ? { viewTransitionName: `technique-icon-${p.id}` } as React.CSSProperties : undefined}
                   >
-                    <TechniqueGeometryIcon techniqueId={p.id} className="text-bw-secondary" />
+                    <TechniqueGeometryIcon techniqueId={p.id} className={isSelected ? 'text-bw-accent' : 'text-bw-secondary'} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3
                       className={cn(
-                        'font-mono text-sm text-bw leading-tight',
-                        isSelected ? 'font-medium' : 'font-normal'
+                        'text-base text-bw leading-tight',
+                        isSelected ? 'font-semibold' : 'font-medium'
                       )}
                       style={isSelected ? { viewTransitionName: `technique-name-${p.id}` } as React.CSSProperties : undefined}
                     >{p.name}</h3>
@@ -317,7 +317,7 @@ export function Session() {
                     ))}
                   </div>
                   {isSelected && (
-                    <div className="h-1.5 w-1.5 bg-bw shrink-0" />
+                    <div className="h-1.5 w-1.5 bg-bw-accent shrink-0" />
                   )}
                 </motion.button>
               )
@@ -411,7 +411,7 @@ export function Session() {
           whileHover={{ opacity: 0.8 }}
           transition={spring}
           onClick={handleStartSession}
-          className="w-full py-4 px-6 border border-bw-border bg-transparent font-mono font-medium text-bw text-sm flex items-center justify-center gap-3 hover:bg-bw-hover transition-colors"
+          className="w-full py-4 px-6 border border-bw-accent bg-bw-accent font-medium text-bw-accent-foreground text-sm flex items-center justify-center gap-3 hover:opacity-90 transition-opacity"
         >
           <Play className="h-4 w-4" />
           <span>Begin {protocol.name}</span>

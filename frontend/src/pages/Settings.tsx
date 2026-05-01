@@ -97,7 +97,7 @@ export function Settings() {
   return (
     <motion.div className="space-y-0 pb-8" variants={stagger} initial="hidden" animate="show">
       <motion.div variants={fadeUp} className="pb-8">
-        <h1 className="font-mono text-lg font-medium text-bw tracking-[0.02em]">
+        <h1 className="font-display text-4xl font-semibold text-bw leading-none">
           Settings
         </h1>
       </motion.div>
@@ -138,7 +138,7 @@ export function Settings() {
             className={cn(
               'flex items-center gap-2 px-4 py-2.5 text-xs font-medium border transition-all duration-300',
               theme === 'dark'
-                ? 'border-bw text-bw'
+                ? 'border-bw-accent text-bw bg-bw-active'
                 : 'border-bw-border text-bw-tertiary hover:text-bw-secondary hover:border-bw-border'
             )}
           >
@@ -155,7 +155,7 @@ export function Settings() {
             className={cn(
               'flex items-center gap-2 px-4 py-2.5 text-xs font-medium border transition-all duration-300',
               theme === 'light'
-                ? 'border-bw text-bw'
+                ? 'border-bw-accent text-bw bg-bw-active'
                 : 'border-bw-border text-bw-tertiary hover:text-bw-secondary hover:border-bw-border'
             )}
           >
@@ -183,7 +183,7 @@ export function Settings() {
                 role="switch"
                 className={cn(
                   'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[24px] min-w-[44px]',
-                  soundEnabled ? 'bg-bw' : 'border border-bw-border'
+                  soundEnabled ? 'bg-bw-accent' : 'border border-bw-border'
                 )}
               >
                 <span
@@ -209,9 +209,9 @@ export function Settings() {
                   step={0.01}
                   value={soundVolume}
                   onChange={(e) => setSoundVolume(parseFloat(e.target.value))}
-                  className="w-full h-px appearance-none cursor-pointer bg-bw-border accent-bw
+                  className="w-full h-px appearance-none cursor-pointer bg-bw-border accent-bw-accent
                     [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4
-                    [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-bw
+                    [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-bw-accent
                     [&::-webkit-slider-thumb]:shadow-sm"
                 />
               </div>
@@ -232,7 +232,7 @@ export function Settings() {
                 role="switch"
                 className={cn(
                   'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[24px] min-w-[44px]',
-                  hapticsEnabled ? 'bg-bw' : 'border border-bw-border'
+                  hapticsEnabled ? 'bg-bw-accent' : 'border border-bw-border'
                 )}
               >
                 <span
