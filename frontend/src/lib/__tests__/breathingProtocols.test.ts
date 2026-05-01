@@ -113,6 +113,36 @@ describe('breathingProtocols', () => {
     }
   })
 
+  it('keeps public evidence copy free of quantitative and medical overclaims', () => {
+    const publicEvidenceCopy = getProtocolCatalog()
+      .flatMap((protocol) => [
+        protocol.description,
+        protocol.science,
+        protocol.evidence,
+        protocol.purpose,
+        ...protocol.bestFor,
+      ])
+      .join(' ')
+
+    expect(publicEvidenceCopy).not.toMatch(/~?\d+(?:\.\d+)?\s*%/)
+    expect(publicEvidenceCopy).not.toMatch(/\b\d+(?:\.\d+)?\s*W\b/)
+    expect(publicEvidenceCopy).not.toMatch(/\bsuppress(?:es|ing|ed)? pro-inflammatory cytokines\b/i)
+    expect(publicEvidenceCopy).not.toMatch(/\bimmune modulation\b/i)
+    expect(publicEvidenceCopy).not.toMatch(/\bhypoxia resistance\b/i)
+    expect(publicEvidenceCopy).not.toMatch(/\bpain tolerance\b/i)
+  })
+
+  it('qualifies limited evidence behind advanced protocol claims', () => {
+    const co2 = breathingProtocols[TECHNIQUE_IDS.CO2_TOLERANCE]
+    const power = breathingProtocols[TECHNIQUE_IDS.POWER_BREATHING]
+
+    expect(co2.science).toMatch(/small conference study/i)
+    expect(co2.science).toMatch(/not a guaranteed endurance boost/i)
+    expect(power.science).toMatch(/multi-component program/i)
+    expect(power.science).toMatch(/does not show that an app session independently treats inflammation or modulates immunity/i)
+    expect(power.purpose).toBe('Sympathetic activation and alertness')
+  })
+
   it('cyclic sighing has inhale, deep inhale, and exhale phases', () => {
     const sighing = breathingProtocols[TECHNIQUE_IDS.CYCLIC_SIGHING]
     expect(sighing.phases).toHaveLength(3)
