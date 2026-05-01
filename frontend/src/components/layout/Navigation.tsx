@@ -7,6 +7,7 @@ import { Wind, BarChart3, Home, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useViewportOffset } from '@/hooks/useViewportOffset'
 import { useHaptics } from '@/hooks/useHaptics'
+import { preloadBreathworkRoute } from '@/lib/breathworkRoutePreload'
 
 const navItems = [
   { path: '/breathwork', label: 'Home', icon: Home },
@@ -59,6 +60,8 @@ export function Navigation() {
                 key={path}
                 to={path}
                 aria-current={active ? 'page' : undefined}
+                onPointerEnter={() => preloadBreathworkRoute(path)}
+                onFocus={() => preloadBreathworkRoute(path)}
                 onClick={() => { if (i !== activeIndex) haptic('selection') }}
                 className={cn(
                   'flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 text-[10px] font-mono font-medium tracking-[0.07em] uppercase transition-colors duration-300 relative',

@@ -1,13 +1,26 @@
-import { describe, it, expect, vi } from 'vitest'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { Navigation } from '../Navigation'
+
+const { preloadBreathworkRoute } = vi.hoisted(() => ({
+  preloadBreathworkRoute: vi.fn(),
+}))
 
 vi.mock('@/hooks/useViewportOffset', () => ({
   useViewportOffset: () => ({ bottomOffset: 24 }),
 }))
 
+vi.mock('@/lib/breathworkRoutePreload', () => ({
+  preloadBreathworkRoute,
+}))
+
 describe('Navigation responsive behavior', () => {
+  beforeEach(() => {
+    preloadBreathworkRoute.mockClear()
+  })
+
   it('applies dynamic bottom offset for mobile browser chrome', () => {
     render(
       <MemoryRouter initialEntries={['/breathwork']}>
@@ -50,5 +63,26 @@ describe('Navigation responsive behavior', () => {
     )
 
     expect(screen.queryByRole('navigation')).toBeNull()
+  })
+
+  it('preloads mobile nav routes on pointer intent and keyboard focus', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <MemoryRouter initialEntries={['/breathwork']}>
+        <Navigation />
+      </MemoryRouter>
+    )
+
+    const settingsLink = screen.getByRole('link', { name: 'Settings' })
+
+    await user.hover(settingsLink)
+    expect(preloadBreathworkRoute).toHaveBeenCalledWith('/breathwork/settings')
+
+    preloadBreathworkRoute.mockClear()
+
+    settingsLink.focus()
+    expect(settingsLink).toHaveFocus()
+    expect(preloadBreathworkRoute).toHaveBeenCalledWith('/breathwork/settings')
   })
 })

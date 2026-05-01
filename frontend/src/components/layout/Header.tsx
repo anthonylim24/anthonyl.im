@@ -3,6 +3,7 @@ import { Wind, BarChart3, Home, Settings } from 'lucide-react'
 import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react'
 import { cn } from '@/lib/utils'
 import { CLERK_ENABLED } from '@/lib/clerk'
+import { preloadBreathworkRoute } from '@/lib/breathworkRoutePreload'
 
 export function Header() {
   const location = useLocation()
@@ -41,7 +42,12 @@ export function Header() {
         <div className="container flex h-16 items-center justify-between px-6">
           <div className="flex items-center">
             {/* Logo */}
-            <Link to="/breathwork" className="flex items-center gap-2.5 mr-8 group">
+            <Link
+              to="/breathwork"
+              onPointerEnter={() => preloadBreathworkRoute('/breathwork')}
+              onFocus={() => preloadBreathworkRoute('/breathwork')}
+              className="flex items-center gap-2.5 mr-8 group"
+            >
               <span className="font-display text-xl font-semibold text-bw leading-none">
                 BreathFlow
               </span>
@@ -54,6 +60,8 @@ export function Header() {
                   key={path}
                   to={path}
                   aria-current={isActive(path) ? 'page' : undefined}
+                  onPointerEnter={() => preloadBreathworkRoute(path)}
+                  onFocus={() => preloadBreathworkRoute(path)}
                   className={cn(
                     'flex items-center gap-2 px-4 py-2 text-[10px] font-mono font-medium tracking-[0.07em] uppercase transition-colors duration-300',
                     isActive(path)
