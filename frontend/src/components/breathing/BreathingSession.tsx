@@ -1,4 +1,12 @@
-import { useCallback, useState, useMemo, useRef, useEffect, type CSSProperties } from 'react'
+import {
+  useCallback,
+  useState,
+  useMemo,
+  useRef,
+  useEffect,
+  type CSSProperties,
+  type FocusEvent,
+} from 'react'
 import { useBreathingCycle } from '@/hooks/useBreathingCycle'
 import { useWaveform } from '@/hooks/useWaveform'
 import { ShaderOrb } from './ShaderOrb'
@@ -18,6 +26,7 @@ import { useHistoryStore } from '@/stores/historyStore'
 import { useViewportOffset } from '@/hooks/useViewportOffset'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import { useHaptics } from '@/hooks/useHaptics'
+import { useReducedMotion } from '@/hooks/useReducedMotion'
 
 interface BreathingSessionProps {
   config: SessionConfig
@@ -41,7 +50,9 @@ export function BreathingSession({
 
   // Controls auto-fade state
   const [controlsVisible, setControlsVisible] = useState(true)
+  const [controlsFocused, setControlsFocused] = useState(false)
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const reducedMotion = useReducedMotion()
 
   // Gamification stores
   const { addXP, unlockBadges, recordSession, earnedBadges } = useGamificationStore()
@@ -69,10 +80,11 @@ export function BreathingSession({
     }
   }, [toggleKirbyMode, haptic])
 
-  const showControls = useCallback(() => {
-    setControlsVisible(true)
-    if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current)
-    controlsTimerRef.current = setTimeout(() => setControlsVisible(false), 3000)
+  const clearControlsTimer = useCallback(() => {
+    if (controlsTimerRef.current) {
+      clearTimeout(controlsTimerRef.current)
+      controlsTimerRef.current = null
+    }
   }, [])
 
   const handleSessionComplete = useCallback(() => {
@@ -90,6 +102,30 @@ export function BreathingSession({
       onPhaseChange: handlePhaseChange,
       enableAudio: true,
     })
+
+  const showControls = useCallback(() => {
+    setControlsVisible(true)
+    clearControlsTimer()
+
+    if (isActive && !isPaused && !controlsFocused && !reducedMotion) {
+      controlsTimerRef.current = setTimeout(() => setControlsVisible(false), 3000)
+    }
+  }, [clearControlsTimer, controlsFocused, isActive, isPaused, reducedMotion])
+
+  const handleControlsFocus = useCallback(() => {
+    setControlsFocused(true)
+    setControlsVisible(true)
+    clearControlsTimer()
+  }, [clearControlsTimer])
+
+  const handleControlsBlur = useCallback((event: FocusEvent<HTMLDivElement>) => {
+    const nextTarget = event.relatedTarget as Node | null
+    if (nextTarget && event.currentTarget.contains(nextTarget)) {
+      return
+    }
+
+    setControlsFocused(false)
+  }, [])
 
   // Keep screen awake during active sessions
   useWakeLock(isActive)
@@ -109,17 +145,32 @@ export function BreathingSession({
     isActive: isActive && !isPaused,
   })
 
-  // Auto-hide controls after 3s of activity
+  // Auto-hide controls after 3s of pointer activity, but keep them visible
+  // for keyboard focus and reduced-motion users.
   useEffect(() => {
     let frameId: number | null = null
+
+    if (!isActive || isPaused || controlsFocused || reducedMotion) {
+      clearControlsTimer()
+      return
+    }
+
     if (isActive && !isPaused) {
       frameId = requestAnimationFrame(showControls)
     }
+
     return () => {
       if (frameId !== null) cancelAnimationFrame(frameId)
-      if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current)
+      clearControlsTimer()
     }
-  }, [isActive, isPaused, showControls])
+  }, [
+    isActive,
+    isPaused,
+    controlsFocused,
+    reducedMotion,
+    showControls,
+    clearControlsTimer,
+  ])
 
   // Process gamification on session complete
   useEffect(() => {
@@ -193,7 +244,7 @@ export function BreathingSession({
     haptic(40)
     pause()
     setControlsVisible(true)
-    if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current)
+    clearControlsTimer()
   }
 
   const handleStop = () => {
@@ -218,6 +269,9 @@ export function BreathingSession({
     stop()
     onComplete?.()
   }
+
+  const controlsDimmed =
+    isActive && !isPaused && !controlsVisible && !controlsFocused && !reducedMotion
 
   return (
     <div
@@ -340,15 +394,17 @@ export function BreathingSession({
         </div>
       </div>
 
-      {/* Controls - fade to 20% opacity after 3s */}
+      {/* Controls - fade only for pointer users after 3s of active breathing */}
       <div
         data-testid="session-controls"
         className={cn(
-          'session-controls absolute left-1/2 -translate-x-1/2 z-10 flex items-center gap-4 transition-opacity duration-500 focus-within:opacity-100',
-          controlsVisible ? 'opacity-100' : 'opacity-20 hover:opacity-100'
+          'session-controls absolute left-1/2 -translate-x-1/2 z-10 flex items-center gap-4 transition-opacity duration-500 motion-reduce:transition-none focus-within:opacity-100',
+          controlsDimmed ? 'opacity-20 hover:opacity-100' : 'opacity-100'
         )}
         role="toolbar"
         aria-label="Session controls"
+        onFocusCapture={handleControlsFocus}
+        onBlurCapture={handleControlsBlur}
         style={viewportOffsetStyle}
       >
         {!isActive && !isComplete ? (
