@@ -2,7 +2,12 @@ import { useCallback, useEffect, useRef, useLayoutEffect } from 'react'
 import { useSessionStore } from '@/stores/sessionStore'
 import { useHistoryStore } from '@/stores/historyStore'
 import { BREATH_PHASES, type BreathPhase } from '@/lib/constants'
-import { getProtocol, getPhaseForRound, type SessionConfig } from '@/lib/breathingProtocols'
+import {
+  calculateSessionDuration,
+  getProtocol,
+  getPhaseForRound,
+  type SessionConfig,
+} from '@/lib/breathingProtocols'
 
 interface UseBreathingCycleOptions {
   onPhaseChange?: (phase: BreathPhase) => void
@@ -10,6 +15,10 @@ interface UseBreathingCycleOptions {
   onSessionComplete?: () => void
   enableAudio?: boolean
   audioVolume?: number
+}
+
+function isHoldPhase(phase: BreathPhase | undefined): boolean {
+  return phase === BREATH_PHASES.HOLD_IN || phase === BREATH_PHASES.HOLD_OUT
 }
 
 export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
@@ -51,6 +60,32 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
   const holdStartTimeRef = useRef<number | null>(null)
+  const accumulatedHoldMsRef = useRef(0)
+
+  const resetHoldTimer = useCallback(() => {
+    holdStartTimeRef.current = null
+    accumulatedHoldMsRef.current = 0
+  }, [])
+
+  const startHoldTimer = useCallback(() => {
+    holdStartTimeRef.current = Date.now()
+    accumulatedHoldMsRef.current = 0
+  }, [])
+
+  const pauseHoldTimer = useCallback(() => {
+    if (holdStartTimeRef.current === null) return
+
+    accumulatedHoldMsRef.current += Date.now() - holdStartTimeRef.current
+    holdStartTimeRef.current = null
+  }, [])
+
+  const getActiveHoldSeconds = useCallback(() => {
+    const activeMs = holdStartTimeRef.current === null
+      ? 0
+      : Date.now() - holdStartTimeRef.current
+
+    return Math.round((accumulatedHoldMsRef.current + activeMs) / 1000)
+  }, [])
 
   const clearTimer = useCallback(() => {
     if (intervalRef.current) {
@@ -91,23 +126,34 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
   const start = useCallback((config: SessionConfig) => {
     const protocol = getProtocol(config.techniqueId)
     const firstPhase = getPhaseForRound(protocol, 0, 0, config.customPhaseDurations)
-    holdStartTimeRef.current =
-      firstPhase.phase === BREATH_PHASES.HOLD_IN || firstPhase.phase === BREATH_PHASES.HOLD_OUT
-        ? Date.now()
-        : null
+    if (isHoldPhase(firstPhase.phase)) {
+      startHoldTimer()
+    } else {
+      resetHoldTimer()
+    }
     startSession(config, firstPhase.phase, firstPhase.duration)
     playBeep(660, 150)
-  }, [startSession, playBeep])
+  }, [resetHoldTimer, startHoldTimer, startSession, playBeep])
 
   const pause = useCallback(() => {
+    const activeSession = useSessionStore.getState().session
+
+    if (isHoldPhase(activeSession?.currentPhase)) {
+      if (activeSession?.isPaused) {
+        holdStartTimeRef.current = Date.now()
+      } else {
+        pauseHoldTimer()
+      }
+    }
+
     togglePause()
-  }, [togglePause])
+  }, [pauseHoldTimer, togglePause])
 
   const stop = useCallback(() => {
     clearTimer()
-    holdStartTimeRef.current = null
+    resetHoldTimer()
     resetSession()
-  }, [clearTimer, resetSession])
+  }, [clearTimer, resetHoldTimer, resetSession])
 
   const sessionRunning = Boolean(session && !session.isPaused && !session.isComplete)
 
@@ -137,16 +183,11 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
         let holdTimesForCompletion = activeSession.holdTimes
 
         // Record hold time if it was a hold phase
-        if (
-          currentPhaseConfig.phase === BREATH_PHASES.HOLD_IN ||
-          currentPhaseConfig.phase === BREATH_PHASES.HOLD_OUT
-        ) {
-          if (holdStartTimeRef.current) {
-            const holdDuration = Math.round((Date.now() - holdStartTimeRef.current) / 1000)
-            recordHoldTime(holdDuration)
-            holdTimesForCompletion = [...activeSession.holdTimes, holdDuration]
-            holdStartTimeRef.current = null
-          }
+        if (isHoldPhase(currentPhaseConfig.phase)) {
+          const holdDuration = getActiveHoldSeconds()
+          recordHoldTime(holdDuration)
+          holdTimesForCompletion = [...activeSession.holdTimes, holdDuration]
+          resetHoldTimer()
         }
 
         // Check if there are more phases in this round
@@ -165,11 +206,10 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
           playBeep(nextPhaseConfig.phase === BREATH_PHASES.INHALE || nextPhaseConfig.phase === BREATH_PHASES.DEEP_INHALE ? 660 : 440, 100)
 
           // Start tracking hold time
-          if (
-            nextPhaseConfig.phase === BREATH_PHASES.HOLD_IN ||
-            nextPhaseConfig.phase === BREATH_PHASES.HOLD_OUT
-          ) {
-            holdStartTimeRef.current = Date.now()
+          if (isHoldPhase(nextPhaseConfig.phase)) {
+            startHoldTimer()
+          } else {
+            resetHoldTimer()
           }
         } else {
           // Round complete
@@ -183,10 +223,7 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
             playBeep(880, 300)
 
             // Save to history
-            const endTime = new Date()
-            const durationSeconds = Math.round(
-              (endTime.getTime() - activeSession.startTime.getTime()) / 1000
-            )
+            const durationSeconds = calculateSessionDuration(activeSession.config)
 
             addSession({
               techniqueId: activeSession.config.techniqueId,
@@ -216,11 +253,11 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
             updatePhase(firstPhase.phase, 0, firstPhase.duration)
             onPhaseChangeRef.current?.(firstPhase.phase)
             playBeep(660, 150)
-            holdStartTimeRef.current =
-              firstPhase.phase === BREATH_PHASES.HOLD_IN ||
-              firstPhase.phase === BREATH_PHASES.HOLD_OUT
-                ? Date.now()
-                : null
+            if (isHoldPhase(firstPhase.phase)) {
+              startHoldTimer()
+            } else {
+              resetHoldTimer()
+            }
           }
         }
       } else {
@@ -244,6 +281,9 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
     recordHoldTime,
     completeSession,
     addSession,
+    getActiveHoldSeconds,
+    resetHoldTimer,
+    startHoldTimer,
     // Removed callback props from deps - they're now accessed via refs
     // This prevents effect re-runs when parent re-renders with new callback refs
     playBeep,
@@ -252,13 +292,13 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      holdStartTimeRef.current = null
+      resetHoldTimer()
       if (audioContextRef.current) {
         audioContextRef.current.close()
         audioContextRef.current = null
       }
     }
-  }, [])
+  }, [resetHoldTimer])
 
   return {
     session,
