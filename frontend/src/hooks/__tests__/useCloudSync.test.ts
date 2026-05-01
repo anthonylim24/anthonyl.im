@@ -1,11 +1,145 @@
-import { describe, it, expect } from 'vitest'
-import { DEFAULT_SETTINGS_STATE } from '@/stores/settingsStore'
+import { renderHook, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { STORAGE_KEYS, type TechniqueId } from '@/lib/constants'
+import { useGamificationStore } from '@/stores/gamificationStore'
+import { useHistoryStore, type PersonalBest } from '@/stores/historyStore'
+import { DEFAULT_SETTINGS_STATE, useSettingsStore } from '@/stores/settingsStore'
+
+const localStorageMock = vi.hoisted(() => {
+  const values = new Map<string, string>()
+  const storage = {
+    clear: vi.fn(() => values.clear()),
+    getItem: vi.fn((key: string) => values.get(key) ?? null),
+    removeItem: vi.fn((key: string) => {
+      values.delete(key)
+    }),
+    setItem: vi.fn((key: string, value: string) => {
+      values.set(key, value)
+    }),
+  }
+
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: storage,
+  })
+
+  return storage
+})
+
+const clerkMock = vi.hoisted(() => ({
+  auth: { isSignedIn: false },
+  user: {
+    user: null as null | {
+      id: string
+      primaryEmailAddress: { emailAddress: string } | null
+      fullName: string | null
+      imageUrl: string | null
+    },
+  },
+  session: { session: null as null | { id: string } },
+}))
+
+const supabaseMock = vi.hoisted(() => ({
+  createClerkSupabaseClient: vi.fn(),
+}))
+
+vi.mock('@clerk/clerk-react', () => ({
+  useAuth: () => clerkMock.auth,
+  useUser: () => clerkMock.user,
+  useSession: () => clerkMock.session,
+}))
+
+vi.mock('@/lib/supabase', () => ({
+  createClerkSupabaseClient: supabaseMock.createClerkSupabaseClient,
+}))
+
 import {
   hasNonDefaultSettings,
   mergeUserState,
   mergeSessionHistory,
   normalizeCloudSettings,
+  useCloudSync,
 } from '../useCloudSync'
+
+interface SupabaseClientMockOptions {
+  stateUpsertError?: unknown
+}
+
+function createSupabaseClientMock(options: SupabaseClientMockOptions = {}) {
+  const userStateUpsert = vi.fn(async () => ({ error: options.stateUpsertError ?? null }))
+  const userStateMaybeSingle = vi.fn(async () => ({ data: null, error: null }))
+  const userStateSelect = vi.fn(() => ({
+    eq: vi.fn(() => ({
+      maybeSingle: userStateMaybeSingle,
+    })),
+  }))
+
+  const sessionsInsert = vi.fn(async () => ({ error: null }))
+  const sessionsOrder = vi.fn(async () => ({ data: [], error: null }))
+  const sessionsSelect = vi.fn(() => ({
+    eq: vi.fn(() => ({
+      order: sessionsOrder,
+    })),
+  }))
+
+  const profileUpsert = vi.fn(async () => ({ error: null }))
+
+  const from = vi.fn((table: string) => {
+    if (table === 'profiles') {
+      return { upsert: profileUpsert }
+    }
+    if (table === 'user_state') {
+      return { select: userStateSelect, upsert: userStateUpsert }
+    }
+    if (table === 'sessions') {
+      return { select: sessionsSelect, insert: sessionsInsert, upsert: vi.fn() }
+    }
+    throw new Error(`Unexpected table: ${table}`)
+  })
+
+  return {
+    client: { from },
+    sessionsInsert,
+    userStateUpsert,
+  }
+}
+
+function resetStores() {
+  useHistoryStore.setState({
+    sessions: [],
+    personalBests: {} as Record<TechniqueId, PersonalBest | undefined>,
+    vo2MaxManual: null,
+    vo2MaxHistory: [],
+  })
+  useGamificationStore.setState({
+    xp: 0,
+    earnedBadges: [],
+    selectedTheme: 'default',
+    dailySessionCount: 0,
+    weeklySessionCount: 0,
+    lastDailyReset: '2026-05-01',
+    lastWeeklyReset: '2026-04-27',
+  })
+  useSettingsStore.setState(DEFAULT_SETTINGS_STATE)
+}
+
+beforeEach(() => {
+  clerkMock.auth.isSignedIn = false
+  clerkMock.user.user = null
+  clerkMock.session.session = null
+  supabaseMock.createClerkSupabaseClient.mockReset()
+  localStorageMock.getItem.mockClear()
+  localStorageMock.setItem.mockClear()
+  localStorageMock.removeItem.mockClear()
+  resetStores()
+  localStorage.clear()
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  resetStores()
+  localStorage.clear()
+})
 
 describe('mergeUserState', () => {
   it('takes the higher XP value', () => {
@@ -114,5 +248,36 @@ describe('hasNonDefaultSettings', () => {
     expect(hasNonDefaultSettings({ ...DEFAULT_SETTINGS_STATE, soundEnabled: false })).toBe(true)
     expect(hasNonDefaultSettings({ ...DEFAULT_SETTINGS_STATE, soundVolume: 0.8 })).toBe(true)
     expect(hasNonDefaultSettings({ ...DEFAULT_SETTINGS_STATE, hapticsEnabled: false })).toBe(true)
+  })
+})
+
+describe('useCloudSync', () => {
+  it('keeps local persisted data when first-login cloud upsert fails', async () => {
+    const upsertError = new Error('permission denied')
+    const supabase = createSupabaseClientMock({ stateUpsertError: upsertError })
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    clerkMock.auth.isSignedIn = true
+    clerkMock.user.user = {
+      id: 'user_1',
+      primaryEmailAddress: { emailAddress: 'user@example.com' },
+      fullName: 'BreathFlow User',
+      imageUrl: 'https://example.com/avatar.png',
+    }
+    clerkMock.session.session = { id: 'session_1' }
+    supabaseMock.createClerkSupabaseClient.mockReturnValue(supabase.client)
+    useSettingsStore.setState({ ...DEFAULT_SETTINGS_STATE, theme: 'dark' })
+
+    renderHook(() => useCloudSync())
+
+    await waitFor(() => {
+      expect(supabase.userStateUpsert).toHaveBeenCalled()
+      expect(consoleErrorSpy).toHaveBeenCalledWith('[CloudSync] Failed to fetch/hydrate:', upsertError)
+    })
+
+    expect(supabase.sessionsInsert).not.toHaveBeenCalled()
+    expect(localStorageMock.removeItem).not.toHaveBeenCalledWith(STORAGE_KEYS.SESSION_HISTORY)
+    expect(localStorageMock.removeItem).not.toHaveBeenCalledWith(STORAGE_KEYS.GAMIFICATION)
+    expect(localStorageMock.removeItem).not.toHaveBeenCalledWith(STORAGE_KEYS.SETTINGS)
   })
 })

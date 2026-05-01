@@ -127,13 +127,14 @@ export function useCloudSync() {
     if (!supabase || !user) return
 
     try {
-      await supabase.from('profiles').upsert({
+      const { error } = await supabase.from('profiles').upsert({
         user_id: user.id,
         email: user.primaryEmailAddress?.emailAddress ?? null,
         name: user.fullName ?? null,
         avatar_url: user.imageUrl ?? null,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' })
+      assertNoSupabaseError(error)
     } catch (err) {
       console.error('[CloudSync] Failed to upsert profile:', err)
     }
@@ -146,18 +147,20 @@ export function useCloudSync() {
 
     try {
       // Fetch user state
-      const { data: cloudState } = await supabase
+      const { data: cloudState, error: cloudStateError } = await supabase
         .from('user_state')
         .select('*')
         .eq('user_id', user.id)
-        .single()
+        .maybeSingle()
+      assertNoSupabaseError(cloudStateError)
 
       // Fetch sessions
-      const { data: cloudSessions } = await supabase
+      const { data: cloudSessions, error: cloudSessionsError } = await supabase
         .from('sessions')
         .select('*')
         .eq('user_id', user.id)
         .order('date', { ascending: false })
+      assertNoSupabaseError(cloudSessionsError)
 
       // Get local data from stores
       const localHistory = useHistoryStore.getState()
@@ -202,11 +205,12 @@ export function useCloudSync() {
         const merged = mergeUserState(localState, cloudStateData)
 
         // Upsert merged state to cloud
-        await supabase.from('user_state').upsert({
+        const { error: mergedStateError } = await supabase.from('user_state').upsert({
           user_id: user.id,
           ...merged,
           updated_at: new Date().toISOString(),
         }, { onConflict: 'user_id' })
+        assertNoSupabaseError(mergedStateError)
 
         // Insert local sessions that aren't in cloud
         const cloudSessionMap = new Map(
@@ -214,7 +218,7 @@ export function useCloudSync() {
         )
         const newSessions = localHistory.sessions.filter(s => !cloudSessionMap.has(s.id))
         if (newSessions.length > 0) {
-          await supabase.from('sessions').insert(
+          const { error: newSessionsError } = await supabase.from('sessions').insert(
             newSessions.map(s => ({
               id: s.id,
               user_id: user.id,
@@ -227,6 +231,7 @@ export function useCloudSync() {
               avg_hold_time: s.avgHoldTime,
             })),
           )
+          assertNoSupabaseError(newSessionsError)
         }
 
         // Merge session lists for store hydration
@@ -267,7 +272,7 @@ export function useCloudSync() {
       const gamification = useGamificationStore.getState()
       const settings = useSettingsStore.getState()
 
-      await supabase.from('user_state').upsert({
+      const { error: stateError } = await supabase.from('user_state').upsert({
         user_id: user.id,
         xp: gamification.xp,
         earned_badges: gamification.earnedBadges,
@@ -287,11 +292,12 @@ export function useCloudSync() {
         },
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' })
+      assertNoSupabaseError(stateError)
 
       // Upsert recent sessions (idempotent via ON CONFLICT)
       const recentSessions = history.sessions.slice(0, 50)
       if (recentSessions.length > 0) {
-        await supabase.from('sessions').upsert(
+        const { error: sessionsError } = await supabase.from('sessions').upsert(
           recentSessions.map(s => ({
             id: s.id,
             user_id: user.id,
@@ -305,6 +311,7 @@ export function useCloudSync() {
           })),
           { onConflict: 'id' },
         )
+        assertNoSupabaseError(sessionsError)
       }
     } catch (err) {
       console.error('[CloudSync] Failed to sync to cloud:', err)
@@ -355,6 +362,12 @@ function mapCloudSession(row: Record<string, unknown>): CompletedSession {
     holdTimes: (row.hold_times as number[]) ?? [],
     maxHoldTime: row.max_hold_time as number,
     avgHoldTime: row.avg_hold_time as number,
+  }
+}
+
+function assertNoSupabaseError(error: unknown): void {
+  if (error) {
+    throw error
   }
 }
 
