@@ -71,9 +71,13 @@ describe('Home Protocol Lab', () => {
     await user.click(screen.getByRole('button', { name: 'Calm' }))
     await user.click(screen.getByRole('button', { name: /Standard/ }))
 
-    expect(screen.getByRole('button', { name: /Start Cyclic Sighing/i })).toBeInTheDocument()
+    const startButton = screen.getByRole('button', {
+      name: /Start Cyclic Sighing, .*30 rounds/i,
+    })
 
-    await user.click(screen.getByRole('button', { name: /Start Cyclic Sighing/i }))
+    expect(startButton).toBeInTheDocument()
+
+    await user.click(startButton)
     expect(mocks.navigate).toHaveBeenCalledWith(
       '/breathwork/session?technique=cyclic_sighing&rounds=30'
     )
@@ -85,10 +89,14 @@ describe('Home Protocol Lab', () => {
 
     await user.click(screen.getByRole('button', { name: 'Perform' }))
 
-    expect(screen.getByRole('button', { name: /Start CO2 Tolerance Table/i })).toBeInTheDocument()
+    const startButton = screen.getByRole('button', {
+      name: /Start CO2 Tolerance Table, .*7 rounds/i,
+    })
+
+    expect(startButton).toBeInTheDocument()
     expect(screen.getAllByText('Safety gated').length).toBeGreaterThan(0)
 
-    await user.click(screen.getByRole('button', { name: /Start CO2 Tolerance Table/i }))
+    await user.click(startButton)
     expect(mocks.navigate).toHaveBeenCalledWith(
       '/breathwork/session?technique=co2_tolerance&rounds=7'
     )
@@ -97,9 +105,19 @@ describe('Home Protocol Lab', () => {
   it('keeps welcome secondary controls at 44px target height', () => {
     renderHome()
 
+    for (const button of screen.getAllByRole('button', { name: /start your first session, .*rounds/i })) {
+      expect(button).toHaveClass('min-h-11')
+    }
+
     for (const button of screen.getAllByRole('button', { name: /browse all techniques/i })) {
       expect(button).toHaveClass('min-h-11')
     }
+  })
+
+  it('uses start-oriented labels for technique directory entries', () => {
+    renderHome()
+
+    expect(screen.getAllByRole('button', { name: /start box breathing/i }).length).toBeGreaterThan(0)
   })
 
   it('does not smooth scroll the welcome browse control for reduced-motion users', async () => {
