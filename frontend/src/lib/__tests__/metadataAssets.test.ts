@@ -12,6 +12,12 @@ describe('metadata assets', () => {
     expect(html).toContain('<link rel="apple-touch-icon" href="/favicon-breath.svg" />')
   })
 
+  it('does not preconnect or prefetch optional analytics hosts from static HTML', () => {
+    const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8')
+
+    expect(html).not.toContain('posthog.com')
+  })
+
   it('defines an installable BreathFlow manifest', () => {
     const manifest = JSON.parse(
       readFileSync(resolve(process.cwd(), 'public/site.webmanifest'), 'utf8')
