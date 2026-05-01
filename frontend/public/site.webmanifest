@@ -1,0 +1,18 @@
+{
+  "name": "BreathFlow",
+  "short_name": "BreathFlow",
+  "description": "Evidence-informed breathwork for calm, sleep, focus, recovery, and performance.",
+  "start_url": "/breathwork",
+  "scope": "/breathwork",
+  "display": "standalone",
+  "background_color": "#F5F2ED",
+  "theme_color": "#F5F2ED",
+  "icons": [
+    {
+      "src": "/favicon-breath.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

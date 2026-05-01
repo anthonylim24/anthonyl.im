@@ -6,6 +6,7 @@ import { Navigation } from './Navigation'
 import { useTheme } from '@/hooks/useTheme'
 import { useViewportOffset } from '@/hooks/useViewportOffset'
 import { useFavicon } from '@/hooks/useFavicon'
+import { useDocumentMetadata } from '@/hooks/useDocumentMetadata'
 import { useCloudSync } from '@/hooks/useCloudSync'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { CLERK_ENABLED } from '@/lib/clerk'
@@ -69,6 +70,10 @@ const LeavesVideo = memo(function LeavesVideo() {
 export function BreathworkLayout() {
   useTheme() // Applies dark class to <html>
   useFavicon()
+  useDocumentMetadata({
+    title: 'BreathFlow - Scientific Breathwork',
+    description: 'BreathFlow is a warm, evidence-informed breathwork app for calm, sleep, focus, recovery, and performance training.',
+  })
   const { bottomOffset } = useViewportOffset()
 
   const contentStyle = {
