@@ -1,7 +1,9 @@
 import {
   breathingProtocols,
   calculateSessionDuration,
+  clampProtocolRounds,
   getProtocolCatalog,
+  getProtocolRoundLimit,
   type BreathingProtocol,
   type ProtocolCategory,
   type ProtocolIntensity,
@@ -145,7 +147,7 @@ export function getDefaultProtocolGoal(currentHour = new Date().getHours()): Pro
 }
 
 export function getRecommendedRounds(protocol: BreathingProtocol, targetSeconds: number): number {
-  const maxRounds = maxRecommendedRounds[protocol.id] ?? 40
+  const maxRounds = maxRecommendedRounds[protocol.id] ?? getProtocolRoundLimit(protocol.id)
   let bestRounds = protocol.defaultRounds
   let bestDelta = Number.POSITIVE_INFINITY
 
@@ -164,7 +166,7 @@ export function getRecommendedRounds(protocol: BreathingProtocol, targetSeconds:
 export function buildProtocolSessionPath(techniqueId: TechniqueId, rounds: number): string {
   const params = new URLSearchParams({
     technique: techniqueId,
-    rounds: String(Math.max(1, Math.min(40, Math.round(rounds)))),
+    rounds: String(clampProtocolRounds(techniqueId, rounds)),
   })
   return `/breathwork/session?${params.toString()}`
 }

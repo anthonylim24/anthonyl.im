@@ -11,6 +11,8 @@ import {
   breathingProtocols,
   calculateSessionDuration,
   getProtocolCatalog,
+  getProtocolRoundLimit,
+  MIN_SESSION_ROUNDS,
   hasCustomPhaseDurations,
   isTechniqueId,
   type BreathingProtocol,
@@ -25,19 +27,12 @@ import { useHaptics } from '@/hooks/useHaptics'
 import { useViewTransitionNavigate } from '@/hooks/useViewTransition'
 import { useEntranceMotion } from '@/lib/motionPresets'
 
-const MIN_ROUNDS = 1
-const BASE_MAX_ROUNDS = 40
-
-function getMaxRounds(techniqueId: TechniqueId): number {
-  return Math.max(BASE_MAX_ROUNDS, breathingProtocols[techniqueId].defaultRounds)
-}
-
 function getInitialRounds(requestedRounds: string | null, techniqueId: TechniqueId): number {
   const parsedRounds = Number(requestedRounds)
   if (
     Number.isInteger(parsedRounds) &&
-    parsedRounds >= MIN_ROUNDS &&
-    parsedRounds <= getMaxRounds(techniqueId)
+    parsedRounds >= MIN_SESSION_ROUNDS &&
+    parsedRounds <= getProtocolRoundLimit(techniqueId)
   ) {
     return parsedRounds
   }
@@ -250,7 +245,7 @@ export function Session() {
 
   const protocol = breathingProtocols[selectedTechnique]
   const protocols = useMemo(() => getProtocolCatalog(), [])
-  const maxRounds = getMaxRounds(selectedTechnique)
+  const maxRounds = getProtocolRoundLimit(selectedTechnique)
   const requiresSafetyCheck = Boolean(protocol.safetyChecklist?.length)
   const canStartSession = !requiresSafetyCheck || safetyAcknowledged
   const startSafetyHelpText = requiresSafetyCheck && !canStartSession
@@ -537,8 +532,8 @@ export function Session() {
               transition={spring}
               type="button"
               aria-label={`Decrease rounds, currently ${rounds} rounds selected`}
-              onClick={() => { haptic(15); setRounds((r) => Math.max(MIN_ROUNDS, r - 1)) }}
-              disabled={rounds <= MIN_ROUNDS}
+              onClick={() => { haptic(15); setRounds((r) => Math.max(MIN_SESSION_ROUNDS, r - 1)) }}
+              disabled={rounds <= MIN_SESSION_ROUNDS}
               className="h-11 w-11 border border-bw-border hover:bg-bw-hover disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all text-bw"
             >
               <Minus className="h-4 w-4" aria-hidden="true" />
@@ -747,8 +742,8 @@ export function Session() {
                 transition={spring}
                 type="button"
                 aria-label={`Decrease rounds, currently ${rounds} rounds selected`}
-                onClick={() => { haptic(15); setRounds((r) => Math.max(MIN_ROUNDS, r - 1)) }}
-                disabled={rounds <= MIN_ROUNDS}
+                onClick={() => { haptic(15); setRounds((r) => Math.max(MIN_SESSION_ROUNDS, r - 1)) }}
+                disabled={rounds <= MIN_SESSION_ROUNDS}
                 className="h-12 w-12 border border-bw-border hover:bg-bw-hover disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 text-bw"
               >
                 <Minus className="h-4 w-4" aria-hidden="true" />

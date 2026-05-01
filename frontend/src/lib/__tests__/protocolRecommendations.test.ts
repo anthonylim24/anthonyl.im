@@ -46,9 +46,11 @@ describe('protocolRecommendations', () => {
   it('keeps advanced recommendations within safe catalog defaults', () => {
     const power = breathingProtocols[TECHNIQUE_IDS.POWER_BREATHING]
     const co2 = breathingProtocols[TECHNIQUE_IDS.CO2_TOLERANCE]
+    const recovery = breathingProtocols[TECHNIQUE_IDS.PURSED_LIP_RECOVERY]
 
     expect(getRecommendedRounds(power, 480)).toBe(power.defaultRounds)
     expect(getRecommendedRounds(co2, 480)).toBe(co2.defaultRounds)
+    expect(getRecommendedRounds(recovery, 300)).toBe(recovery.defaultRounds)
     expect(calculateSessionDuration({ techniqueId: co2.id, rounds: co2.defaultRounds })).toBe(388)
   })
 
@@ -58,6 +60,9 @@ describe('protocolRecommendations', () => {
     )
     expect(buildProtocolSessionPath(TECHNIQUE_IDS.RESONANCE_BREATHING, 90)).toBe(
       '/breathwork/session?technique=resonance_breathing&rounds=40'
+    )
+    expect(buildProtocolSessionPath(TECHNIQUE_IDS.PURSED_LIP_RECOVERY, 90)).toBe(
+      '/breathwork/session?technique=pursed_lip_recovery&rounds=50'
     )
   })
 })
