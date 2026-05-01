@@ -263,7 +263,6 @@ export function Session() {
     transition: motionTransition,
     spring,
     tap,
-    hoverOpacity,
   } = useEntranceMotion()
   const [searchParams] = useSearchParams()
   const requestedTechnique = searchParams.get('technique')
@@ -655,13 +654,14 @@ export function Session() {
       </div>
 
       {/* ═══ DESKTOP LAYOUT ══════════════════════════════ */}
-      <div className="hidden md:flex md:flex-col max-w-2xl mx-auto space-y-8 h-[calc(100dvh-4rem-5rem)] overflow-y-auto no-scrollbar pb-4">
-        {/* Header */}
-        <motion.div variants={fadeUp}>
-          <h1 className="font-display text-4xl font-semibold text-bw leading-none">
-            Session Setup
-          </h1>
-        </motion.div>
+      <div className="hidden md:flex md:h-[calc(100dvh-4rem-5rem)] md:flex-col max-w-2xl mx-auto">
+        <div className="flex-1 space-y-8 overflow-y-auto no-scrollbar pb-4">
+          {/* Header */}
+          <motion.div variants={fadeUp}>
+            <h1 className="font-display text-4xl font-semibold text-bw leading-none">
+              Session Setup
+            </h1>
+          </motion.div>
 
         {/* Technique Selection — border-separated list */}
         <motion.div variants={fadeUp}>
@@ -861,30 +861,29 @@ export function Session() {
           </div>
         </motion.div>
 
-        {/* Start Button */}
-        {startSafetyHelpText ? (
-          <motion.p
-            variants={fadeUp}
-            id="desktop-start-safety-help"
-            className="-mb-5 text-center text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary"
+        </div>
+
+        {/* Pinned Start Button */}
+        <motion.div variants={fadeUp} className="shrink-0 border-t border-bw-border bg-bw-canvas pt-3 pb-1">
+          {startSafetyHelpText ? (
+            <p
+              id="desktop-start-safety-help"
+              className="mb-2 text-center text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary"
+            >
+              {startSafetyHelpText}
+            </p>
+          ) : null}
+          <button
+            type="button"
+            onClick={handleStartSession}
+            disabled={!canStartSession}
+            aria-describedby={startSafetyHelpText ? 'desktop-start-safety-help' : undefined}
+            className="w-full py-3.5 px-6 border border-bw-accent bg-bw-accent font-medium text-bw-accent-foreground text-sm flex items-center justify-center gap-3 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:border-bw-border disabled:bg-bw-active disabled:text-bw-tertiary disabled:hover:opacity-100"
           >
-            {startSafetyHelpText}
-          </motion.p>
-        ) : null}
-        <motion.button
-          type="button"
-          variants={fadeUp}
-          whileTap={tap(0.98)}
-          whileHover={canStartSession ? hoverOpacity(0.8) : undefined}
-          transition={spring}
-          onClick={handleStartSession}
-          disabled={!canStartSession}
-          aria-describedby={startSafetyHelpText ? 'desktop-start-safety-help' : undefined}
-          className="w-full py-4 px-6 border border-bw-accent bg-bw-accent font-medium text-bw-accent-foreground text-sm flex items-center justify-center gap-3 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:border-bw-border disabled:bg-bw-active disabled:text-bw-tertiary disabled:hover:opacity-100"
-        >
-          <Play className="h-4 w-4" aria-hidden="true" />
-          <span>Begin {protocol.name}</span>
-        </motion.button>
+            <Play className="h-4 w-4" aria-hidden="true" />
+            <span>Begin {protocol.name}</span>
+          </button>
+        </motion.div>
       </div>
     </motion.div>
   )
