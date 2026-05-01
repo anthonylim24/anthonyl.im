@@ -1,19 +1,59 @@
 import { useMemo } from 'react'
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts'
 import type { CompletedSession } from '@/stores/historyStore'
 import { ACCENT_WARM, ACCENT_WARM_LIGHT } from '@/lib/palette'
 
 interface ProgressChartProps {
   sessions: CompletedSession[]
   title?: string
+}
+
+interface ChartPoint {
+  session: number
+  date: string
+  maxHold: number
+  avgHold: number
+}
+
+const CHART_WIDTH = 640
+const CHART_HEIGHT = 256
+const CHART_PADDING = {
+  top: 18,
+  right: 18,
+  bottom: 36,
+  left: 48,
+}
+
+const plotWidth = CHART_WIDTH - CHART_PADDING.left - CHART_PADDING.right
+const plotHeight = CHART_HEIGHT - CHART_PADDING.top - CHART_PADDING.bottom
+const plotBottom = CHART_HEIGHT - CHART_PADDING.bottom
+
+function getYMax(chartData: ChartPoint[]): number {
+  const maxValue = Math.max(
+    10,
+    ...chartData.flatMap((entry) => [entry.maxHold, entry.avgHold]),
+  )
+  return Math.ceil(maxValue / 10) * 10
+}
+
+function getPointCoordinates(chartData: ChartPoint[], yMax: number, key: 'maxHold' | 'avgHold') {
+  const denominator = Math.max(1, chartData.length - 1)
+
+  return chartData.map((entry, index) => {
+    const x = CHART_PADDING.left + (index / denominator) * plotWidth
+    const y = plotBottom - (entry[key] / yMax) * plotHeight
+    return {
+      x,
+      y,
+      value: entry[key],
+      date: entry.date,
+    }
+  })
+}
+
+function pointsToPath(points: ReturnType<typeof getPointCoordinates>): string {
+  return points
+    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
+    .join(' ')
 }
 
 export function ProgressChart({
@@ -77,6 +117,18 @@ export function ProgressChart({
     )
   }
 
+  const yMax = getYMax(chartData)
+  const maxHoldPoints = getPointCoordinates(chartData, yMax, 'maxHold')
+  const avgHoldPoints = getPointCoordinates(chartData, yMax, 'avgHold')
+  const gridTicks = [0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+    const value = Math.round(yMax * (1 - ratio))
+    const y = CHART_PADDING.top + ratio * plotHeight
+    return { value, y }
+  })
+  const xTicks = chartData.length > 1
+    ? [chartData[0], chartData[chartData.length - 1]]
+    : [chartData[0]]
+
   return (
     <div className="overflow-hidden">
       <div className="pb-4 border-b border-bw-border">
@@ -86,54 +138,108 @@ export function ProgressChart({
       </div>
       <div className="pt-4">
         <div className="h-64" role="img" aria-label={chartLabel}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--bw-chart-grid)" />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 11, fill: 'var(--bw-chart-tick)', fontFamily: '"Fragment Mono"' }}
+          <svg
+            data-testid="progress-chart-svg"
+            viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
+            className="h-full w-full overflow-visible"
+            aria-hidden="true"
+          >
+            {gridTicks.map(({ value, y }) => (
+              <g key={value}>
+                <line
+                  x1={CHART_PADDING.left}
+                  x2={CHART_WIDTH - CHART_PADDING.right}
+                  y1={y}
+                  y2={y}
+                  stroke="var(--bw-chart-grid)"
+                  strokeWidth="1"
+                />
+                <text
+                  x={CHART_PADDING.left - 12}
+                  y={y + 4}
+                  textAnchor="end"
+                  className="fill-[color:var(--bw-chart-tick)] font-mono text-[11px]"
+                >
+                  {value}
+                </text>
+              </g>
+            ))}
+            <line
+              x1={CHART_PADDING.left}
+              x2={CHART_PADDING.left}
+              y1={CHART_PADDING.top}
+              y2={plotBottom}
+              stroke="var(--bw-chart-grid)"
+              strokeWidth="1"
+            />
+            {xTicks.map((entry, index) => (
+              <text
+                key={`${entry.date}-${index}`}
+                x={chartData.length > 1 && index === xTicks.length - 1
+                  ? CHART_WIDTH - CHART_PADDING.right
+                  : CHART_PADDING.left}
+                y={CHART_HEIGHT - 10}
+                textAnchor={chartData.length > 1 && index === xTicks.length - 1 ? 'end' : 'start'}
+                className="fill-[color:var(--bw-chart-tick)] font-mono text-[11px]"
+              >
+                {entry.date}
+              </text>
+            ))}
+            <path
+              data-series="max-hold"
+              d={pointsToPath(maxHoldPoints)}
+              fill="none"
+              stroke={ACCENT_WARM}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="3"
+            />
+            <path
+              data-series="avg-hold"
+              d={pointsToPath(avgHoldPoints)}
+              fill="none"
+              stroke={ACCENT_WARM_LIGHT}
+              strokeDasharray="6 6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+            />
+            {maxHoldPoints.map((point) => (
+              <circle
+                key={`max-${point.date}-${point.value}`}
+                cx={point.x}
+                cy={point.y}
+                r="4"
+                fill={ACCENT_WARM}
               />
-              <YAxis
-                tick={{ fontSize: 11, fill: 'var(--bw-chart-tick)', fontFamily: '"Fragment Mono"' }}
-                label={{
-                  value: 'Seconds',
-                  angle: -90,
-                  position: 'insideLeft',
-                  style: { fill: 'var(--bw-chart-tick)', fontSize: 11, fontFamily: '"Fragment Mono"' },
+            ))}
+            {avgHoldPoints.map((point) => (
+              <circle
+                key={`avg-${point.date}-${point.value}`}
+                cx={point.x}
+                cy={point.y}
+                r="3"
+                fill={ACCENT_WARM_LIGHT}
+              />
+            ))}
+          </svg>
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
+            <span className="inline-flex items-center gap-2">
+              <span className="h-px w-5 bg-bw-accent" aria-hidden="true" />
+              Best hold
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <span
+                className="h-px w-5"
+                style={{
+                  backgroundImage: `linear-gradient(to right, ${ACCENT_WARM_LIGHT} 45%, transparent 45%)`,
+                  backgroundSize: '8px 1px',
                 }}
+                aria-hidden="true"
               />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'var(--bw-tooltip-bg)',
-                  border: '1px solid var(--bw-border)',
-                  borderRadius: 0,
-                  padding: '12px 16px',
-                  fontFamily: '"Fragment Mono"',
-                }}
-                labelStyle={{ color: 'var(--bw-tooltip-label)', fontWeight: 600, marginBottom: 4, fontFamily: '"Fragment Mono"' }}
-                itemStyle={{ color: 'var(--bw-tooltip-item)', fontFamily: '"Fragment Mono"' }}
-              />
-              <Line
-                type="monotone"
-                dataKey="maxHold"
-                name="Best Hold"
-                stroke={ACCENT_WARM}
-                strokeWidth={3}
-                dot={{ fill: ACCENT_WARM, strokeWidth: 0, r: 4 }}
-                activeDot={{ r: 6, fill: ACCENT_WARM, strokeWidth: 0 }}
-              />
-              <Line
-                type="monotone"
-                dataKey="avgHold"
-                name="Average"
-                stroke={ACCENT_WARM_LIGHT}
-                strokeWidth={2}
-                strokeDasharray="5 5"
-                dot={{ fill: ACCENT_WARM_LIGHT, strokeWidth: 0, r: 3 }}
-                activeDot={{ r: 5, fill: ACCENT_WARM_LIGHT, strokeWidth: 0 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+              Average
+            </span>
+          </div>
         </div>
       </div>
     </div>

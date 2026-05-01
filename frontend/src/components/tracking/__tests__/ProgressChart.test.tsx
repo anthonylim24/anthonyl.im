@@ -1,23 +1,8 @@
 import { render, screen } from '@testing-library/react'
-import type { ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { ProgressChart } from '../ProgressChart'
 import { TECHNIQUE_IDS } from '@/lib/constants'
 import type { CompletedSession } from '@/stores/historyStore'
-
-vi.mock('recharts', () => ({
-  ResponsiveContainer: ({ children }: { children: ReactNode }) => (
-    <div data-testid="responsive-container">{children}</div>
-  ),
-  LineChart: ({ children }: { children: ReactNode }) => (
-    <svg data-testid="line-chart">{children}</svg>
-  ),
-  Line: () => <g data-testid="line" />,
-  XAxis: () => <g data-testid="x-axis" />,
-  YAxis: () => <g data-testid="y-axis" />,
-  CartesianGrid: () => <g data-testid="grid" />,
-  Tooltip: () => <g data-testid="tooltip" />,
-}))
 
 function session(
   id: string,
@@ -63,5 +48,22 @@ describe('ProgressChart', () => {
         name: /hold time progress: 2 sessions from .* to .* best hold 32 seconds\. latest average 18 seconds/i,
       })
     ).toBeInTheDocument()
+  })
+
+  it('renders a native SVG trend without a charting runtime', () => {
+    const { container } = render(
+      <ProgressChart
+        sessions={[
+          session('new', '2026-05-02T08:00:00.000Z', 32, 18),
+          session('old', '2026-05-01T08:00:00.000Z', 24, 14),
+        ]}
+      />
+    )
+
+    expect(screen.getByTestId('progress-chart-svg')).toBeInTheDocument()
+    expect(container.querySelector('[data-series="max-hold"]')?.getAttribute('d')).toMatch(/^M /)
+    expect(container.querySelector('[data-series="avg-hold"]')?.getAttribute('d')).toMatch(/^M /)
+    expect(screen.getByText('Best hold')).toBeInTheDocument()
+    expect(screen.getByText('Average')).toBeInTheDocument()
   })
 })
