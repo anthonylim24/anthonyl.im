@@ -4,6 +4,7 @@ import breathAuraSource from '../../components/breathing/BreathAura.tsx?raw'
 import breathPatternStripSource from '../../components/breathing/BreathPatternStrip.tsx?raw'
 import breathingSessionSource from '../../components/breathing/BreathingSession.tsx?raw'
 import celebrationParticlesSource from '../../components/breathing/CelebrationParticles.tsx?raw'
+import sessionSummarySource from '../../components/breathing/SessionSummary.tsx?raw'
 import progressSource from '../../pages/Progress.tsx?raw'
 import settingsSource from '../../pages/Settings.tsx?raw'
 
@@ -46,5 +47,11 @@ describe('visual debt guardrails', () => {
     expect(breathPatternStripSource).not.toContain('border-[rgba')
     expect(breathingSessionSource).not.toMatch(/DESTRUCTIVE|withAlpha\(DESTRUCTIVE/)
     expect(breathingSessionSource).toContain('bg-bw-destructive-subtle')
+  })
+
+  it('keeps the session summary scrim on semantic tokens', () => {
+    expect(indexCss).toContain('--bw-dialog-scrim')
+    expect(sessionSummarySource).toContain('var(--bw-dialog-scrim)')
+    expect(sessionSummarySource).not.toMatch(/bg-black|backdrop-blur/)
   })
 })
