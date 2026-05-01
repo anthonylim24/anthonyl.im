@@ -102,6 +102,40 @@ describe('Home Protocol Lab', () => {
     )
   })
 
+  it('routes performance recommendations around active advanced recovery windows', async () => {
+    const user = userEvent.setup()
+    mocks.sessions = [
+      {
+        id: 'recent-advanced-session',
+        techniqueId: TECHNIQUE_IDS.POWER_BREATHING,
+        date: new Date(Date.now() - 30_000).toISOString(),
+        durationSeconds: 120,
+        rounds: 30,
+        holdTimes: [],
+        maxHoldTime: 0,
+        avgHoldTime: 0,
+      },
+    ]
+
+    renderHome()
+
+    await user.click(screen.getByRole('button', { name: 'Perform' }))
+
+    expect(screen.getByTestId('protocol-lab-recovery-window')).toHaveTextContent(
+      /advanced recovery active/i,
+    )
+
+    const startButton = screen.getByRole('button', {
+      name: /Start Box Breathing, .*19 rounds/i,
+    })
+
+    await user.click(startButton)
+
+    expect(mocks.navigate).toHaveBeenCalledWith(
+      '/breathwork/session?technique=box_breathing&rounds=19'
+    )
+  })
+
   it('keeps welcome secondary controls at 44px target height', () => {
     renderHome()
 

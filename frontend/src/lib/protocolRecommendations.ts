@@ -35,6 +35,7 @@ export interface ProtocolRecommendationQuery {
   isNewUser?: boolean
   dailyGoalMet?: boolean
   currentHour?: number
+  blockedTechniqueIds?: TechniqueId[]
 }
 
 export interface ProtocolRecommendationOption {
@@ -182,8 +183,14 @@ function scoreProtocol(
   const preferredIndex = goal.preferredTechniqueIds.indexOf(protocol.id)
   const intensityIndex = goal.intensityPreference.indexOf(protocol.intensity)
   const durationDelta = Math.abs(estimatedDuration - windowOption.targetSeconds)
+  const isBlocked = query.blockedTechniqueIds?.includes(protocol.id) ?? false
   const reasons: string[] = []
   let score = evidenceScore[protocol.evidenceLevel]
+
+  if (isBlocked) {
+    score -= 200
+    reasons.push('recovery window')
+  }
 
   if (goal.categories.includes(protocol.category)) {
     score += protocol.category === goal.id ? 48 : 30

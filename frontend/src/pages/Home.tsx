@@ -5,6 +5,7 @@ import { useHistoryStore } from '@/stores/historyStore'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { getLevelForXP, getXPForLevel, getLevelTitle } from '@/lib/gamification'
 import { breathingProtocols, getProtocolCatalog } from '@/lib/breathingProtocols'
+import { TECHNIQUE_IDS } from '@/lib/constants'
 import {
   buildProtocolSessionPath,
   getDefaultProtocolGoal,
@@ -14,6 +15,10 @@ import {
   type ProtocolGoal,
   type SessionWindow,
 } from '@/lib/protocolRecommendations'
+import {
+  getAdvancedProtocolRecoveryStatus,
+  isAdvancedBreathingProtocol,
+} from '@/lib/advancedProtocolRecovery'
 import { buildSessionRoutePath } from '@/lib/sessionRoutes'
 import { formatTime, cn } from '@/lib/utils'
 import { TechniqueGeometryIcon } from '@/components/ui/TechniqueGeometryIcon'
@@ -145,6 +150,19 @@ export function Home() {
   const { trigger: haptic } = useHaptics()
   const isNewUser = sessions.length === 0
   const protocols = useMemo(() => getProtocolCatalog(), [])
+  const advancedRecoveryStatus = useMemo(
+    () => getAdvancedProtocolRecoveryStatus(sessions, TECHNIQUE_IDS.CO2_TOLERANCE),
+    [sessions],
+  )
+  const recoveryBlockedTechniqueIds = useMemo(
+    () =>
+      advancedRecoveryStatus.isActive
+        ? protocols
+            .filter((protocol) => isAdvancedBreathingProtocol(protocol.id))
+            .map((protocol) => protocol.id)
+        : [],
+    [advancedRecoveryStatus.isActive, protocols],
+  )
   const recommendation = useMemo(
     () => getProtocolRecommendation({
       goal: selectedGoal,
@@ -152,8 +170,9 @@ export function Home() {
       isNewUser,
       dailyGoalMet,
       currentHour,
+      blockedTechniqueIds: recoveryBlockedTechniqueIds,
     }),
-    [currentHour, dailyGoalMet, isNewUser, selectedGoal, selectedWindow]
+    [currentHour, dailyGoalMet, isNewUser, recoveryBlockedTechniqueIds, selectedGoal, selectedWindow]
   )
   const suggestedProtocol = recommendation.primary.protocol
   const suggestedDuration = recommendation.primary.estimatedDuration
@@ -418,6 +437,22 @@ export function Home() {
             className="mt-5"
             animated
           />
+
+          {advancedRecoveryStatus.isActive && selectedGoal === 'performance' ? (
+            <div
+              role="status"
+              aria-live="polite"
+              data-testid="protocol-lab-recovery-window"
+              className="mt-4 border-y border-bw-border py-3"
+            >
+              <div className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">
+                Advanced recovery active
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-bw-tertiary">
+                Showing a moderate performance protocol for {formatTime(advancedRecoveryStatus.remainingSeconds)} after {advancedRecoveryStatus.lastProtocolName}.
+              </p>
+            </div>
+          ) : null}
 
           <button
             type="button"
