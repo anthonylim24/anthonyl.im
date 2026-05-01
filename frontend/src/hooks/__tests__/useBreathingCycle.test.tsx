@@ -275,6 +275,40 @@ describe('useBreathingCycle', () => {
     expect(onSessionComplete).toHaveBeenCalledTimes(1)
   })
 
+  it('runs and records sessions with custom phase durations', async () => {
+    render(
+      <Probe
+        config={{
+          techniqueId: TECHNIQUE_IDS.POWER_BREATHING,
+          rounds: 1,
+          customPhaseDurations: {
+            [BREATH_PHASES.INHALE]: 1,
+            [BREATH_PHASES.EXHALE]: 1,
+          },
+        }}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
+
+    expect(screen.getByTestId('phase')).toHaveTextContent(BREATH_PHASES.INHALE)
+    expect(screen.getByTestId('time')).toHaveTextContent('1')
+
+    await advanceSeconds(1)
+    expect(screen.getByTestId('phase')).toHaveTextContent(BREATH_PHASES.EXHALE)
+    expect(screen.getByTestId('time')).toHaveTextContent('1')
+
+    await advanceSeconds(1)
+    expect(screen.getByTestId('complete')).toHaveTextContent('true')
+
+    const [savedSession] = historyMock.getState().sessions
+    expect(savedSession).toMatchObject({
+      techniqueId: TECHNIQUE_IDS.POWER_BREATHING,
+      durationSeconds: 2,
+      rounds: 1,
+    })
+  })
+
   it('records hold time before saving a completed CO2 tolerance session', async () => {
     render(
       <Probe

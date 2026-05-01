@@ -1,11 +1,13 @@
 import { useId } from 'react'
 import type { BreathingProtocol } from '@/lib/breathingProtocols'
+import type { BreathPhase } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { getProgressiveHoldDurations } from './progressiveHold'
 
 interface ProgressiveHoldLadderProps {
   protocol: BreathingProtocol
   rounds: number
+  customPhaseDurations?: Partial<Record<BreathPhase, number>>
   compact?: boolean
   className?: string
 }
@@ -19,11 +21,12 @@ function buildLadderLabel(durations: number[]) {
 export function ProgressiveHoldLadder({
   protocol,
   rounds,
+  customPhaseDurations,
   compact = false,
   className,
 }: ProgressiveHoldLadderProps) {
   const headingId = useId()
-  const durations = getProgressiveHoldDurations(protocol, rounds)
+  const durations = getProgressiveHoldDurations(protocol, rounds, customPhaseDurations)
 
   if (durations.length === 0) {
     return null

@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BreathingSession } from '../BreathingSession'
 import { BREATH_PHASES, TECHNIQUE_IDS } from '@/lib/constants'
+import type { SessionConfig } from '@/lib/breathingProtocols'
 
 const mocks = vi.hoisted(() => {
   const cycle = {
@@ -26,6 +27,7 @@ const mocks = vi.hoisted(() => {
   return {
     cycle,
     cycleOptions: undefined as { enableAudio?: boolean; audioVolume?: number } | undefined,
+    waveformOptions: undefined as { phaseDuration?: number } | undefined,
     reducedMotion: false,
     haptic: vi.fn(),
     settings: {
@@ -40,7 +42,10 @@ vi.mock('@/hooks/useViewportOffset', () => ({
 }))
 
 vi.mock('@/hooks/useWaveform', () => ({
-  useWaveform: () => ({ amplitude: 0.25 }),
+  useWaveform: (options: { phaseDuration?: number }) => {
+    mocks.waveformOptions = options
+    return { amplitude: 0.25 }
+  },
 }))
 
 vi.mock('@/hooks/useReducedMotion', () => ({
@@ -84,10 +89,13 @@ vi.mock('@/stores/settingsStore', () => ({
   useSettingsStore: () => mocks.settings,
 }))
 
-function renderSession(props?: { onCancel?: () => void }) {
+function renderSession(props?: {
+  config?: SessionConfig
+  onCancel?: () => void
+}) {
   return render(
     <BreathingSession
-      config={{ techniqueId: TECHNIQUE_IDS.BOX_BREATHING, rounds: 4 }}
+      config={props?.config ?? { techniqueId: TECHNIQUE_IDS.BOX_BREATHING, rounds: 4 }}
       onCancel={props?.onCancel}
     />
   )
@@ -103,6 +111,7 @@ describe('BreathingSession controls accessibility', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     mocks.cycleOptions = undefined
+    mocks.waveformOptions = undefined
     mocks.reducedMotion = false
     mocks.settings.soundEnabled = true
     mocks.settings.soundVolume = 0.3
@@ -167,6 +176,22 @@ describe('BreathingSession controls accessibility', () => {
     expect(mocks.cycleOptions).toMatchObject({
       enableAudio: false,
       audioVolume: 0.42,
+    })
+  })
+
+  it('uses custom phase duration for waveform timing', () => {
+    renderSession({
+      config: {
+        techniqueId: TECHNIQUE_IDS.BOX_BREATHING,
+        rounds: 4,
+        customPhaseDurations: {
+          [BREATH_PHASES.INHALE]: 6,
+        },
+      },
+    })
+
+    expect(mocks.waveformOptions).toMatchObject({
+      phaseDuration: 6,
     })
   })
 

@@ -19,6 +19,7 @@ import { getInteractiveBreathingVisualizationLabel } from './visualizationLabels
 import { Play, Pause, Square, RotateCcw } from 'lucide-react'
 import {
   calculateSessionDuration,
+  getPhaseForRound,
   getProtocol,
   type SessionConfig,
 } from '@/lib/breathingProtocols'
@@ -237,8 +238,14 @@ export function BreathingSession({
 
   const currentPhaseDuration = useMemo(() => {
     if (!session) return 0
-    return protocol.phases[session.currentPhaseIndex]?.duration ?? 0
-  }, [session, protocol.phases])
+    if (!protocol.phases[session.currentPhaseIndex]) return 0
+    return getPhaseForRound(
+      protocol,
+      session.currentRound,
+      session.currentPhaseIndex,
+      config.customPhaseDurations,
+    ).duration
+  }, [config.customPhaseDurations, protocol, session])
 
   // Waveform amplitude drives the active breathing visualization.
   const { amplitude } = useWaveform({
