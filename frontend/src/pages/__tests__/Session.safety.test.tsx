@@ -46,6 +46,10 @@ describe('Session safety gates', () => {
 
     expect(screen.getAllByText('Safety check')).toHaveLength(2)
     expect(screen.getAllByText(/progressive breath holds/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('heading', { name: 'Hold ladder' })).toHaveLength(2)
+    expect(screen.getAllByRole('img', {
+      name: /round 1 15 seconds, round 2 20 seconds/,
+    }).length).toBeGreaterThan(0)
 
     const beginButtons = screen.getAllByRole('button', { name: /begin/i })
     for (const button of beginButtons) {
