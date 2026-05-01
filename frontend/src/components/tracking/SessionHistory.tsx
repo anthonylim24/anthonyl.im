@@ -18,7 +18,7 @@ export function SessionHistory({ sessions }: SessionHistoryProps) {
         <p className="text-bw-tertiary">Your session history will appear here after your first practice.</p>
         <button
           onClick={() => navigate('/breathwork/session?technique=box_breathing')}
-          className="mt-3 text-sm font-medium text-bw-secondary hover:text-bw transition-colors"
+          className="mt-3 inline-flex min-h-11 items-center text-sm font-medium text-bw-secondary hover:text-bw transition-colors"
         >
           Start your first session &rarr;
         </button>
