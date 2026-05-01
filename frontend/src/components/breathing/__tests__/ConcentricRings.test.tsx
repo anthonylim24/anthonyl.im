@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { TECHNIQUE_IDS } from '@/lib/constants'
+import { BREATH_PHASES, TECHNIQUE_IDS } from '@/lib/constants'
 import { ConcentricRings } from '../ConcentricRings'
 
 describe('ConcentricRings', () => {
@@ -16,6 +16,19 @@ describe('ConcentricRings', () => {
     )
 
     expect(screen.getByRole('img', { name: /breathing visualization: ready/i })).toBeInTheDocument()
+  })
+
+  it('uses user-facing phase names in non-interactive labels', () => {
+    render(
+      <ConcentricRings
+        phase={BREATH_PHASES.DEEP_INHALE}
+        amplitude={0.3}
+        isActive={false}
+        techniqueId={TECHNIQUE_IDS.CYCLIC_SIGHING}
+      />
+    )
+
+    expect(screen.getByRole('img', { name: /Sip In phase/i })).toBeInTheDocument()
   })
 
   it('uses a native button for interactive visual toggles', async () => {

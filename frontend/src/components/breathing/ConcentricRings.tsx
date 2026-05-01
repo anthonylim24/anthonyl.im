@@ -3,6 +3,10 @@ import { BREATH_PHASES, type BreathPhase } from '@/lib/constants'
 import type { TechniqueId } from '@/lib/constants'
 import { getTechniqueRingColor } from '@/lib/techniqueConfig'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
+import {
+  getBreathingVisualizationLabel,
+  getInteractiveBreathingVisualizationLabel,
+} from './visualizationLabels'
 import { cn } from '@/lib/utils'
 
 interface ConcentricRingsProps {
@@ -139,10 +143,8 @@ export const ConcentricRings = memo(function ConcentricRings({
     transform: `translate(${CENTER}px, ${CENTER}px) scale(${scale}) translate(${-CENTER}px, ${-CENTER}px)`,
     transition: breathTransition,
   })
-  const ariaLabel = phase
-    ? `Breathing visualization: ${phase.replace('_', ' ')} phase`
-    : 'Breathing visualization: ready'
-  const interactiveAriaLabel = `${ariaLabel}. Activate repeatedly to toggle alternate visual.`
+  const ariaLabel = getBreathingVisualizationLabel(phase)
+  const interactiveAriaLabel = getInteractiveBreathingVisualizationLabel(phase)
 
   const visual = (
     <svg

@@ -87,7 +87,7 @@ describe('BreathingSession aura mode', () => {
     vi.spyOn(Date, 'now').mockImplementation(() => (t += 100))
 
     render(<BreathingSession config={CONFIG} />)
-    const rings = screen.getByRole('button', { name: /breathing visualization/i })
+    const rings = screen.getByRole('button', { name: /Breathe In phase/i })
     rings.focus()
     for (let i = 0; i < 5; i++) {
       await userEvent.keyboard('{Enter}')
