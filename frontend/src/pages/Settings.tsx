@@ -16,6 +16,7 @@ import { useHaptics } from '@/hooks/useHaptics'
 import { useHistoryStore } from '@/stores/historyStore'
 import { useEntranceMotion } from '@/lib/motionPresets'
 import { useGamificationStore } from '@/stores/gamificationStore'
+import { BreathworkSafetyDisclosure } from '@/components/breathing/BreathworkSafetyDisclosure'
 import { DEFAULT_ORB_THEME_ID, getLevelForXP, getUnlockedThemes, ORB_THEMES } from '@/lib/gamification'
 import {
   buildBreathFlowExportData,
@@ -360,6 +361,11 @@ export function Settings() {
           </div>
         </div>
       </motion.section>
+
+      {/* Safety */}
+      <motion.div variants={fadeUp} className="pb-6">
+        <BreathworkSafetyDisclosure />
+      </motion.div>
 
       {/* Data */}
       <motion.section variants={fadeUp} className="border-t border-bw-border pt-5 pb-6">
