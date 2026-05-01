@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
 import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
+import { addLocalDays, getLocalDayStart } from '@/lib/localDates'
 import type { CompletedSession } from '@/stores/historyStore'
 import { buildPracticeConsistencyInsight } from '../practiceAnalytics'
 
@@ -62,5 +63,25 @@ describe('buildPracticeConsistencyInsight', () => {
     expect(insight.totalMinutes).toBe(0)
     expect(insight.label).toBe('Ready to begin')
     expect(insight.dominantProtocolName).toBeNull()
+  })
+
+  it('includes the first day of the local seven-day window', () => {
+    const localNow = new Date(2026, 4, 8, 23)
+    const firstWindowDay = addLocalDays(getLocalDayStart(localNow), -6)
+    const insight = buildPracticeConsistencyInsight([
+      session(
+        'first-window-day',
+        new Date(
+          firstWindowDay.getFullYear(),
+          firstWindowDay.getMonth(),
+          firstWindowDay.getDate(),
+          0,
+          15
+        ).toISOString()
+      ),
+    ], localNow)
+
+    expect(insight.activeDays).toBe(1)
+    expect(insight.sessionCount).toBe(1)
   })
 })

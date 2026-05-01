@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { render } from '@testing-library/react'
+import { formatLocalDateKey } from '@/lib/localDates'
 import { ActivityHeatmap } from '../ActivityHeatmap'
 
 describe('ActivityHeatmap', () => {
@@ -19,7 +20,7 @@ describe('ActivityHeatmap', () => {
     const target = new Date()
     target.setHours(0, 0, 0, 0)
     target.setDate(target.getDate() - 40)
-    const dateStr = target.toISOString().split('T')[0]
+    const dateStr = formatLocalDateKey(target)
     const { container } = render(
       <ActivityHeatmap sessions={[{ date: dateStr, count: 2 }]} />
     )

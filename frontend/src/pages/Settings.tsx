@@ -21,6 +21,7 @@ import { useGamificationStore } from '@/stores/gamificationStore'
 import { DEFAULT_ORB_THEME_ID, getLevelForXP, getUnlockedThemes, ORB_THEMES } from '@/lib/gamification'
 import { buildBreathFlowExportData, parseBreathFlowImportData } from '@/lib/dataExport'
 import { BREATHFLOW_STORAGE_KEYS } from '@/lib/constants'
+import { formatLocalDateKey } from '@/lib/localDates'
 
 interface SettingsSwitchProps {
   checked: boolean
@@ -122,7 +123,7 @@ export function Settings() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `breathflow-data-${new Date().toISOString().split('T')[0]}.json`
+    a.download = `breathflow-data-${formatLocalDateKey(new Date())}.json`
     a.click()
     URL.revokeObjectURL(url)
   }

@@ -1,18 +1,14 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { STORAGE_KEYS } from '@/lib/constants'
+import { formatLocalDateKey, getLocalWeekStartKey } from '@/lib/localDates'
 
 function getToday(): string {
-  return new Date().toISOString().split('T')[0]
+  return formatLocalDateKey(new Date())
 }
 
 function getWeekStart(): string {
-  const now = new Date()
-  const day = now.getDay()
-  const diff = now.getDate() - day + (day === 0 ? -6 : 1) // Monday
-  const monday = new Date(now)
-  monday.setDate(diff)
-  return monday.toISOString().split('T')[0]
+  return getLocalWeekStartKey()
 }
 
 interface GamificationState {
