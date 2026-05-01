@@ -293,16 +293,16 @@ body {
 .stagger-6 { animation-delay: 0.48s; }
 
 /* ═══════════════════════════════════════════════════════
-   KIRBY ANIMATIONS
+   AURA ANIMATIONS
    ═══════════════════════════════════════════════════════ */
 
-@keyframes kirby-float {
+@keyframes aura-float {
   0%, 100% { transform: translateY(0px) rotate(0deg); }
   30%       { transform: translateY(-7px) rotate(1.2deg); }
   70%       { transform: translateY(-4px) rotate(-0.8deg); }
 }
-.kirby-float {
-  animation: kirby-float 3.2s ease-in-out infinite;
+.aura-float {
+  animation: aura-float 3.2s ease-in-out infinite;
 }
 
 /* ═══════════════════════════════════════════════════════

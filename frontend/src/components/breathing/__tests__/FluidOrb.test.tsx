@@ -38,21 +38,21 @@ describe('FluidOrb', () => {
     expect(container.querySelector('.custom-class')).toBeTruthy()
   })
 
-  it('renders an SVG Kirby when kirbyMode is true', () => {
+  it('renders the aura SVG when auraMode is true', () => {
     const { container } = render(
-      <FluidOrb phase={null} amplitude={0.5} isActive={true} kirbyMode={true} />
+      <FluidOrb phase={null} amplitude={0.5} isActive={true} auraMode={true} />
     )
     expect(container.querySelector('svg')).toBeTruthy()
   })
 
-  it('does not render an SVG when kirbyMode is false', () => {
+  it('does not render an SVG when auraMode is false', () => {
     const { container } = render(
-      <FluidOrb phase={null} amplitude={0.5} isActive={true} kirbyMode={false} />
+      <FluidOrb phase={null} amplitude={0.5} isActive={true} auraMode={false} />
     )
     expect(container.querySelector('svg')).toBeFalsy()
   })
 
-  it('calls onEasterEggToggle after 5 clicks within 2 seconds', async () => {
+  it('calls onAuraModeToggle after 5 clicks within 2 seconds', async () => {
     const onToggle = vi.fn()
     let t = 0
     vi.spyOn(Date, 'now').mockImplementation(() => (t += 100))
@@ -62,7 +62,7 @@ describe('FluidOrb', () => {
         phase={null}
         amplitude={0.5}
         isActive={true}
-        onEasterEggToggle={onToggle}
+        onAuraModeToggle={onToggle}
       />
     )
     const orb = getByTestId('fluid-orb')
@@ -73,7 +73,7 @@ describe('FluidOrb', () => {
     vi.restoreAllMocks()
   })
 
-  it('does not call onEasterEggToggle for 5 clicks spread over more than 2 seconds', async () => {
+  it('does not call onAuraModeToggle for 5 clicks spread over more than 2 seconds', async () => {
     const onToggle = vi.fn()
     let t = 0
     vi.spyOn(Date, 'now').mockImplementation(() => (t += 1000))
@@ -83,7 +83,7 @@ describe('FluidOrb', () => {
         phase={null}
         amplitude={0.5}
         isActive={true}
-        onEasterEggToggle={onToggle}
+        onAuraModeToggle={onToggle}
       />
     )
     const orb = getByTestId('fluid-orb')
