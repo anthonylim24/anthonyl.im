@@ -34,4 +34,12 @@ export type TechniqueId = typeof TECHNIQUE_IDS[keyof typeof TECHNIQUE_IDS]
 export const STORAGE_KEYS = {
   SESSION_HISTORY: 'breathwork-session-history',
   USER_PREFERENCES: 'breathwork-user-preferences',
+  GAMIFICATION: 'breathwork-gamification',
+  SETTINGS: 'breathwork-settings',
 }
+
+export const BREATHFLOW_STORAGE_KEYS = [
+  STORAGE_KEYS.SESSION_HISTORY,
+  STORAGE_KEYS.GAMIFICATION,
+  STORAGE_KEYS.SETTINGS,
+] as const

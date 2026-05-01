@@ -212,8 +212,8 @@ export function useCloudSync() {
 
         // Clear localStorage now that cloud has the merged data
         localStorage.removeItem(STORAGE_KEYS.SESSION_HISTORY)
-        localStorage.removeItem('breathwork-gamification')
-        localStorage.removeItem('breathwork-settings')
+        localStorage.removeItem(STORAGE_KEYS.GAMIFICATION)
+        localStorage.removeItem(STORAGE_KEYS.SETTINGS)
       } else if (cloudState) {
         // Subsequent login: hydrate from cloud
         const sessions = (cloudSessions ?? []).map(mapCloudSession)
