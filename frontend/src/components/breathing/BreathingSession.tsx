@@ -266,7 +266,7 @@ export function BreathingSession({
     phase: session?.currentPhase ?? null,
     phaseDuration: currentPhaseDuration,
     timeRemaining: session?.timeRemaining ?? 0,
-    isActive: isActive && !isPaused,
+    isActive: isActive && !isPaused && !reducedMotion,
   })
 
   // Auto-hide controls after 3s of pointer activity, but keep them visible

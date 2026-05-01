@@ -27,7 +27,7 @@ const mocks = vi.hoisted(() => {
   return {
     cycle,
     cycleOptions: undefined as { enableAudio?: boolean; audioVolume?: number } | undefined,
-    waveformOptions: undefined as { phaseDuration?: number } | undefined,
+    waveformOptions: undefined as { isActive?: boolean; phaseDuration?: number } | undefined,
     reducedMotion: false,
     haptic: vi.fn(),
     settings: {
@@ -42,7 +42,7 @@ vi.mock('@/hooks/useViewportOffset', () => ({
 }))
 
 vi.mock('@/hooks/useWaveform', () => ({
-  useWaveform: (options: { phaseDuration?: number }) => {
+  useWaveform: (options: { isActive?: boolean; phaseDuration?: number }) => {
     mocks.waveformOptions = options
     return { amplitude: 0.25 }
   },
@@ -165,6 +165,9 @@ describe('BreathingSession controls accessibility', () => {
     await advance(10000)
     expect(controls).toHaveClass('opacity-100')
     expect(controls).not.toHaveClass('opacity-20')
+    expect(mocks.waveformOptions).toMatchObject({
+      isActive: false,
+    })
   })
 
   it('passes sound settings into the breathing cycle', () => {
@@ -191,6 +194,7 @@ describe('BreathingSession controls accessibility', () => {
     })
 
     expect(mocks.waveformOptions).toMatchObject({
+      isActive: true,
       phaseDuration: 6,
     })
   })
