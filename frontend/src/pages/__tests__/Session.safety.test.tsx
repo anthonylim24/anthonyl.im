@@ -126,6 +126,24 @@ describe('Session safety gates', () => {
     )
   })
 
+  it('exposes mobile setup navigation and science disclosure semantics', async () => {
+    const user = userEvent.setup()
+    renderSession(`/breathwork/session?technique=${TECHNIQUE_IDS.RESONANCE_BREATHING}`)
+
+    expect(screen.getByRole('button', { name: 'Back' })).toHaveClass('min-h-11')
+
+    const scienceToggle = screen.getByRole('button', { name: /how it works/i })
+    expect(scienceToggle).toHaveClass('min-h-11')
+    expect(scienceToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(scienceToggle).toHaveAttribute(
+      'aria-controls',
+      `mobile-science-panel-${TECHNIQUE_IDS.RESONANCE_BREATHING}`,
+    )
+
+    await user.click(scienceToggle)
+    expect(scienceToggle).toHaveAttribute('aria-expanded', 'true')
+  })
+
   it('renders source-level evidence links for the selected protocol', () => {
     renderSession(`/breathwork/session?technique=${TECHNIQUE_IDS.CYCLIC_SIGHING}`)
 
