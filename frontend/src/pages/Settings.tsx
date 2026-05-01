@@ -14,10 +14,7 @@ import { cn } from '@/lib/utils'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useHaptics } from '@/hooks/useHaptics'
 import { useHistoryStore } from '@/stores/historyStore'
-
-const motionTransition = { type: 'tween' as const, duration: 0.6, ease: [0.33, 0, 0, 1] as const }
-const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } }
-const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: motionTransition } }
+import { useEntranceMotion } from '@/lib/motionPresets'
 
 interface SettingsSwitchProps {
   checked: boolean
@@ -82,6 +79,7 @@ function AccountInfo() {
 }
 
 export function Settings() {
+  const { stagger, fadeUp, transition: motionTransition, tap } = useEntranceMotion()
   const {
     theme,
     setTheme,
@@ -166,7 +164,7 @@ export function Settings() {
         <h2 className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary mb-4">Appearance</h2>
         <div className="flex gap-3">
           <motion.button
-            whileTap={{ scale: 0.98 }}
+            whileTap={tap(0.98)}
             transition={motionTransition}
             onClick={() => { haptic('selection'); setTheme('dark') }}
             className={cn(
@@ -183,7 +181,7 @@ export function Settings() {
             )}
           </motion.button>
           <motion.button
-            whileTap={{ scale: 0.98 }}
+            whileTap={tap(0.98)}
             transition={motionTransition}
             onClick={() => { haptic('selection'); setTheme('light') }}
             className={cn(
@@ -264,7 +262,7 @@ export function Settings() {
         <h2 className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary mb-4">Data</h2>
         <div className="divide-y divide-bw-border">
           <motion.button
-            whileTap={{ scale: 0.99 }}
+            whileTap={tap(0.99)}
             transition={motionTransition}
             onClick={() => { haptic('light'); handleExportData() }}
             className="flex items-center gap-3 w-full py-4 hover:bg-bw-hover transition-all duration-300 text-left"
@@ -278,7 +276,7 @@ export function Settings() {
             </div>
           </motion.button>
           <motion.button
-            whileTap={{ scale: 0.99 }}
+            whileTap={tap(0.99)}
             transition={motionTransition}
             onClick={handleClearData}
             className={cn(

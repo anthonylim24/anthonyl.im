@@ -9,6 +9,7 @@ import { Trophy, Zap, Target, Clock, Star, X, Sparkles, Activity, ArrowRight } f
 import { CelebrationParticles } from './CelebrationParticles'
 import { useHaptics } from '@/hooks/useHaptics'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
+import { reducedMotionTransition, useEntranceMotion } from '@/lib/motionPresets'
 
 interface SessionSummaryProps {
   techniqueId: TechniqueId
@@ -19,18 +20,6 @@ interface SessionSummaryProps {
   holdTimes: number[]
   isNewPersonalBest: boolean
   onClose: () => void
-}
-
-const spring = { type: 'spring' as const, stiffness: 300, damping: 30, mass: 1 }
-
-const stagger = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.1, delayChildren: 0.3 } },
-}
-
-const fadeUp = {
-  hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0, transition: spring },
 }
 
 /** Animated counter that counts up from 0 to `target` */
@@ -85,6 +74,11 @@ export function SessionSummary({
   onClose,
 }: SessionSummaryProps) {
   const { trigger: haptic } = useHaptics()
+  const { reducedMotion, stagger, fadeUp, spring } = useEntranceMotion({
+    offset: 16,
+    staggerChildren: 0.1,
+    delayChildren: 0.3,
+  })
   const protocol = getProtocol(techniqueId)
   const maxHold = holdTimes.length > 0 ? Math.max(...holdTimes) : 0
   const avgHold =
@@ -117,7 +111,7 @@ export function SessionSummary({
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
+      transition={reducedMotion ? reducedMotionTransition : { duration: 0.3 }}
       className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4 bg-black/20 backdrop-blur-sm breathwork"
       style={{ transform: 'translateZ(0)' }}
       role="dialog"
@@ -128,9 +122,9 @@ export function SessionSummary({
       <CelebrationParticles count={particleCount} />
 
       <motion.div
-        initial={{ opacity: 0, scale: 0.92, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ ...spring, delay: 0.1 }}
+        initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.92, y: 20 }}
+        animate={reducedMotion ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
+        transition={reducedMotion ? reducedMotionTransition : { ...spring, delay: 0.1 }}
         className="relative my-auto w-full max-w-lg border border-bw-border bg-bw-canvas overflow-hidden"
       >
         <motion.div
@@ -298,9 +292,9 @@ export function SessionSummary({
                     return (
                       <motion.div
                         key={badgeId}
-                        initial={{ opacity: 0, scale: 0.5 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ ...spring, delay: 0.8 }}
+                        initial={reducedMotion ? { opacity: 0 } : { opacity: 0, scale: 0.5 }}
+                        animate={reducedMotion ? { opacity: 1 } : { opacity: 1, scale: 1 }}
+                        transition={reducedMotion ? reducedMotionTransition : { ...spring, delay: 0.8 }}
                         className="flex items-center gap-1.5 px-3 py-1.5 border border-bw-border"
                       >
                         <span className="text-xs font-medium text-bw">
