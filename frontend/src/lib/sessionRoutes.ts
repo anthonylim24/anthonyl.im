@@ -1,5 +1,6 @@
 import { BREATH_PHASES, type BreathPhase, type TechniqueId } from './constants'
 import { clampCadenceDuration } from './cadenceDurations'
+import { clampProtocolRounds } from './breathingProtocols'
 
 interface SessionRouteConfig {
   techniqueId: TechniqueId
@@ -39,7 +40,7 @@ export function buildSessionRoutePath({
 }: SessionRouteConfig): string {
   const searchParams = new URLSearchParams({
     technique: techniqueId,
-    rounds: String(rounds),
+    rounds: String(clampProtocolRounds(techniqueId, rounds)),
   })
 
   if (customPhaseDurations) {

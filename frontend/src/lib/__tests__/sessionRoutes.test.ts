@@ -13,6 +13,22 @@ describe('sessionRoutes', () => {
     ).toBe('/breathwork/session?technique=resonance_breathing&rounds=12')
   })
 
+  it('clamps replay round counts to the selected protocol range', () => {
+    expect(
+      buildSessionRoutePath({
+        techniqueId: TECHNIQUE_IDS.RESONANCE_BREATHING,
+        rounds: 90,
+      })
+    ).toBe('/breathwork/session?technique=resonance_breathing&rounds=40')
+
+    expect(
+      buildSessionRoutePath({
+        techniqueId: TECHNIQUE_IDS.PURSED_LIP_RECOVERY,
+        rounds: 90,
+      })
+    ).toBe('/breathwork/session?technique=pursed_lip_recovery&rounds=50')
+  })
+
   it('serializes custom phase durations into stable query parameters', () => {
     expect(
       buildSessionRoutePath({
