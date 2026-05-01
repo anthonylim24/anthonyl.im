@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ClerkProvider } from '@clerk/clerk-react'
 import { AppRoutes } from './AppRoutes'
+import { registerServiceWorker } from './lib/serviceWorker'
 import './index.css'
 
 const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
@@ -26,6 +27,8 @@ if (import.meta.env.PROD) {
     'font-size:12px;color:#888;',
   )
 }
+
+registerServiceWorker()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
