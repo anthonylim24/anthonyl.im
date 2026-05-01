@@ -7,7 +7,7 @@ import {
   PHASE_DURATION_LIMITS,
   PHASE_EDITOR_LABELS,
   clampCadenceDuration,
-} from './cadenceDurations'
+} from '@/lib/cadenceDurations'
 
 interface CadenceEditorProps {
   protocol: BreathingProtocol

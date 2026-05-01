@@ -306,6 +306,10 @@ describe('useBreathingCycle', () => {
       techniqueId: TECHNIQUE_IDS.POWER_BREATHING,
       durationSeconds: 2,
       rounds: 1,
+      customPhaseDurations: {
+        [BREATH_PHASES.INHALE]: 1,
+        [BREATH_PHASES.EXHALE]: 1,
+      },
     })
   })
 

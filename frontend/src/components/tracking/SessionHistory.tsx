@@ -1,9 +1,10 @@
 import { useNavigate } from 'react-router-dom'
 import { breathingProtocols } from '@/lib/breathingProtocols'
+import { buildSessionRoutePath } from '@/lib/sessionRoutes'
 import { formatDate, formatTime } from '@/lib/utils'
 import type { CompletedSession } from '@/stores/historyStore'
 import { TechniqueGeometryIcon } from '@/components/ui/TechniqueGeometryIcon'
-import { Clock, Trophy } from 'lucide-react'
+import { Clock, RotateCcw, Trophy } from 'lucide-react'
 
 interface SessionHistoryProps {
   sessions: CompletedSession[]
@@ -45,6 +46,13 @@ function buildSessionLabel(session: CompletedSession): string {
   }
 
   return parts.join(', ')
+}
+
+function buildRepeatLabel(session: CompletedSession): string {
+  const protocolName = breathingProtocols[session.techniqueId].name
+  const cadenceText = session.customPhaseDurations ? ', custom cadence' : ''
+
+  return `Repeat ${protocolName}, ${formatDurationLabel(session.durationSeconds)}, ${pluralize(session.rounds, 'round')}${cadenceText}`
 }
 
 export function SessionHistory({ sessions }: SessionHistoryProps) {
@@ -114,6 +122,15 @@ export function SessionHistory({ sessions }: SessionHistoryProps) {
               </div>
             </div>
           )}
+
+          <button
+            type="button"
+            aria-label={buildRepeatLabel(session)}
+            onClick={() => navigate(buildSessionRoutePath(session))}
+            className="flex h-11 w-11 shrink-0 items-center justify-center border border-bw-border text-bw-tertiary transition-colors hover:bg-bw-hover hover:text-bw"
+          >
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
         </div>
       ))}
     </div>

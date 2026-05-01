@@ -4,7 +4,7 @@ import { motion } from 'motion/react'
 import { BreathingSession } from '@/components/breathing/BreathingSession'
 import { BreathPatternStrip } from '@/components/breathing/BreathPatternStrip'
 import { CadenceEditor } from '@/components/breathing/CadenceEditor'
-import { clampCadenceDuration } from '@/components/breathing/cadenceDurations'
+import { clampCadenceDuration } from '@/lib/cadenceDurations'
 import { ProgressiveHoldLadder } from '@/components/breathing/ProgressiveHoldLadder'
 import {
   applyCustomPhaseDurations,
@@ -18,6 +18,7 @@ import {
 } from '@/lib/breathingProtocols'
 import { TECHNIQUE_IDS, type BreathPhase, type TechniqueId } from '@/lib/constants'
 import { formatTime, cn } from '@/lib/utils'
+import { parseCustomPhaseDurations } from '@/lib/sessionRoutes'
 import { TechniqueGeometryIcon } from '@/components/ui/TechniqueGeometryIcon'
 import { Clock, Minus, Plus, Play, ChevronLeft, ChevronDown, ExternalLink, ShieldAlert } from 'lucide-react'
 import { useHaptics } from '@/hooks/useHaptics'
@@ -198,6 +199,7 @@ export function Session() {
   const [searchParams] = useSearchParams()
   const requestedTechnique = searchParams.get('technique')
   const requestedRounds = searchParams.get('rounds')
+  const requestedCustomPhaseDurations = parseCustomPhaseDurations(searchParams)
   const initialTechnique = isTechniqueId(requestedTechnique)
     ? requestedTechnique
     : TECHNIQUE_IDS.CYCLIC_SIGHING
@@ -208,7 +210,7 @@ export function Session() {
     getInitialRounds(requestedRounds, initialTechnique)
   )
   const [customPhaseDurations, setCustomPhaseDurations] =
-    useState<Partial<Record<BreathPhase, number>>>({})
+    useState<Partial<Record<BreathPhase, number>>>(() => requestedCustomPhaseDurations)
   const [sessionStarted, setSessionStarted] = useState(false)
   const [scienceExpanded, setScienceExpanded] = useState(false)
   const [safetyAcknowledged, setSafetyAcknowledged] = useState(false)

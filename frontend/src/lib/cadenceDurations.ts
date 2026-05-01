@@ -1,4 +1,4 @@
-import { BREATH_PHASES, PHASE_LABELS, type BreathPhase } from '@/lib/constants'
+import { BREATH_PHASES, PHASE_LABELS, type BreathPhase } from './constants'
 
 export const PHASE_DURATION_LIMITS = {
   [BREATH_PHASES.INHALE]: { min: 1, max: 12 },

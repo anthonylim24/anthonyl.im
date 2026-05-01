@@ -125,6 +125,24 @@ describe('Session safety gates', () => {
     )
   })
 
+  it('hydrates custom phase durations from replay links', async () => {
+    const user = userEvent.setup()
+    renderSession(
+      `/breathwork/session?technique=${TECHNIQUE_IDS.RESONANCE_BREATHING}&rounds=12&phase_inhale=6`
+    )
+
+    expect(screen.getAllByRole('img', {
+      name: /Breath pattern: Breathe In 6 seconds, Breathe Out 5 seconds/i,
+    }).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('5.5 bpm').length).toBeGreaterThan(0)
+
+    await user.click(screen.getAllByRole('button', { name: /^begin/i })[0])
+
+    expect(screen.getByTestId('active-session')).toHaveTextContent(
+      `${TECHNIQUE_IDS.RESONANCE_BREATHING}:12:{"inhale":6}`
+    )
+  })
+
   it('names round controls and exposes selected technique state', async () => {
     const user = userEvent.setup()
     renderSession(`/breathwork/session?technique=${TECHNIQUE_IDS.RESONANCE_BREATHING}&rounds=12`)

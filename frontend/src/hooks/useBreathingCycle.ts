@@ -230,6 +230,9 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
               date: activeSession.startTime.toISOString(),
               durationSeconds,
               rounds: activeSession.config.rounds,
+              ...(activeSession.config.customPhaseDurations
+                ? { customPhaseDurations: { ...activeSession.config.customPhaseDurations } }
+                : {}),
               holdTimes: holdTimesForCompletion,
               maxHoldTime: Math.max(...holdTimesForCompletion, 0),
               avgHoldTime:
