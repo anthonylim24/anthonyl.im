@@ -220,17 +220,7 @@ export function useCloudSync() {
         const newSessions = localHistory.sessions.filter(s => !cloudSessionMap.has(s.id))
         if (newSessions.length > 0) {
           const { error: newSessionsError } = await supabase.from('sessions').insert(
-            newSessions.map(s => ({
-              id: s.id,
-              user_id: user.id,
-              technique_id: s.techniqueId,
-              date: s.date,
-              duration_seconds: s.durationSeconds,
-              rounds: s.rounds,
-              hold_times: s.holdTimes,
-              max_hold_time: s.maxHoldTime,
-              avg_hold_time: s.avgHoldTime,
-            })),
+            newSessions.map(s => mapSessionToCloudRow(s, user.id)),
           )
           assertNoSupabaseError(newSessionsError)
         }
@@ -305,17 +295,7 @@ export function useCloudSync() {
       const recentSessions = history.sessions.slice(0, 50)
       if (recentSessions.length > 0) {
         const { error: sessionsError } = await supabase.from('sessions').upsert(
-          recentSessions.map(s => ({
-            id: s.id,
-            user_id: user.id,
-            technique_id: s.techniqueId,
-            date: s.date,
-            duration_seconds: s.durationSeconds,
-            rounds: s.rounds,
-            hold_times: s.holdTimes,
-            max_hold_time: s.maxHoldTime,
-            avg_hold_time: s.avgHoldTime,
-          })),
+          recentSessions.map(s => mapSessionToCloudRow(s, user.id)),
           { onConflict: 'id' },
         )
         assertNoSupabaseError(sessionsError)
@@ -359,7 +339,30 @@ export function useCloudSync() {
 
 // ─── Helpers ────────────────────────────────────────────────────
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function mapSessionToCloudRow(session: CompletedSession, userId: string) {
+  return {
+    id: session.id,
+    user_id: userId,
+    technique_id: session.techniqueId,
+    date: session.date,
+    duration_seconds: session.durationSeconds,
+    rounds: session.rounds,
+    hold_times: session.holdTimes,
+    custom_phase_durations: session.customPhaseDurations ?? null,
+    max_hold_time: session.maxHoldTime,
+    avg_hold_time: session.avgHoldTime,
+  }
+}
+
 function mapCloudSession(row: Record<string, unknown>): CompletedSession {
+  const customPhaseDurations = isRecord(row.custom_phase_durations)
+    ? { customPhaseDurations: row.custom_phase_durations as CompletedSession['customPhaseDurations'] }
+    : {}
+
   return {
     id: row.id as string,
     techniqueId: row.technique_id as CompletedSession['techniqueId'],
@@ -367,6 +370,7 @@ function mapCloudSession(row: Record<string, unknown>): CompletedSession {
     durationSeconds: row.duration_seconds as number,
     rounds: row.rounds as number,
     holdTimes: (row.hold_times as number[]) ?? [],
+    ...customPhaseDurations,
     maxHoldTime: row.max_hold_time as number,
     avgHoldTime: row.avg_hold_time as number,
   }
