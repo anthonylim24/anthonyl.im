@@ -212,7 +212,7 @@ export function BreathingSession({
     return protocol.phases[session.currentPhaseIndex]?.duration ?? 0
   }, [session, protocol.phases])
 
-  // Waveform for FluidOrb
+  // Waveform amplitude drives the active breathing visualization.
   const { amplitude } = useWaveform({
     phase: session?.currentPhase ?? null,
     phaseDuration: currentPhaseDuration,

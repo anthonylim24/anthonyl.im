@@ -124,7 +124,7 @@ export const HEATMAP = [
   'rgba(184, 134, 11, 0.62)',
 ] as const
 
-// ── FluidOrb/Ring phase color pairs (ink shades) ────────────────────────
+// ── Breathing phase color pairs (ink shades) ────────────────────────────
 export const PHASE_PAIR: Record<string, [string, string]> = {
   inhale:      [PHASE.inhale, PHASE.exhale],
   deep_inhale: [PHASE.deep_inhale, PHASE.inhale],
