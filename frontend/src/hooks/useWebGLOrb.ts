@@ -204,20 +204,23 @@ export function useWebGLOrb({
   amplitude,
   color1,
   color2,
-  isActive: _isActive,
+  isActive,
   reducedMotion,
 }: UseWebGLOrbOptions): boolean {
   const amplitudeRef = useRef(amplitude)
   const color1Ref = useRef(color1)
   const color2Ref = useRef(color2)
+  const isActiveRef = useRef(isActive)
   const reducedMotionRef = useRef(reducedMotion)
   const [failed, setFailed] = useState(false)
 
-  amplitudeRef.current = amplitude
-  color1Ref.current = color1
-  color2Ref.current = color2
-  // isActive reserved for future pause/resume of RAF loop
-  reducedMotionRef.current = reducedMotion
+  useEffect(() => {
+    amplitudeRef.current = amplitude
+    color1Ref.current = color1
+    color2Ref.current = color2
+    isActiveRef.current = isActive
+    reducedMotionRef.current = reducedMotion
+  }, [amplitude, color1, color2, isActive, reducedMotion])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -284,7 +287,7 @@ export function useWebGLOrb({
         currentAmplitude += (targetAmplitude - currentAmplitude) * Math.min(1, dt * 6)
 
         let time: number
-        if (reducedMotionRef.current) {
+        if (reducedMotionRef.current || !isActiveRef.current) {
           time = frozenTime
         } else {
           time = (now - startTime) / 1000

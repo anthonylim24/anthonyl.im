@@ -47,5 +47,42 @@ export function TechniqueGeometryIcon({ techniqueId, className, style, size = 16
         </svg>
       )
     }
+    case 'wave': {
+      const pts = [0, 1, 2, 3, 4].map((i) => {
+        const x = (i / 4) * size
+        const y = c + Math.sin(i * Math.PI / 2) * c * 0.45
+        return `${x},${y}`
+      }).join(' ')
+      return (
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" className={className} style={style}>
+          <polyline points={pts} />
+          <line x1="0" y1={c} x2={size} y2={c} opacity="0.28" />
+        </svg>
+      )
+    }
+    case 'ladder':
+      return (
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" className={className} style={style}>
+          <line x1={size * 0.28} y1="1" x2={size * 0.28} y2={size - 1} />
+          <line x1={size * 0.72} y1="1" x2={size * 0.72} y2={size - 1} />
+          {[0.22, 0.5, 0.78].map((p) => (
+            <line key={p} x1={size * 0.2} y1={size * p} x2={size * 0.8} y2={size * p} />
+          ))}
+        </svg>
+      )
+    case 'crescent':
+      return (
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" className={className} style={style}>
+          <path d={`M ${size * 0.68} ${size * 0.12} A ${size * 0.42} ${size * 0.42} 0 1 0 ${size * 0.68} ${size * 0.88} A ${size * 0.28} ${size * 0.28} 0 1 1 ${size * 0.68} ${size * 0.12}`} />
+        </svg>
+      )
+    case 'diamond':
+      return (
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none" stroke="currentColor" strokeWidth="1" className={className} style={style}>
+          <polygon points={`${c},1 ${size - 1},${c} ${c},${size - 1} 1,${c}`} />
+          <line x1={c} y1="1" x2={c} y2={size - 1} opacity="0.4" />
+          <line x1="1" y1={c} x2={size - 1} y2={c} opacity="0.4" />
+        </svg>
+      )
   }
 }

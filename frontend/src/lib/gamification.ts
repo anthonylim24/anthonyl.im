@@ -13,6 +13,10 @@ const BASE_XP: Record<TechniqueId, number> = {
   [TECHNIQUE_IDS.CO2_TOLERANCE]: 75,
   [TECHNIQUE_IDS.POWER_BREATHING]: 60,
   [TECHNIQUE_IDS.CYCLIC_SIGHING]: 55,
+  [TECHNIQUE_IDS.RESONANCE_BREATHING]: 55,
+  [TECHNIQUE_IDS.EXTENDED_EXHALE]: 50,
+  [TECHNIQUE_IDS.FOUR_SEVEN_EIGHT]: 60,
+  [TECHNIQUE_IDS.PURSED_LIP_RECOVERY]: 45,
 }
 
 export function calculateXP(
@@ -147,6 +151,24 @@ export const BADGES: Badge[] = [
     icon: 'Zap',
   },
   {
+    id: 'protocol_sampler',
+    name: 'Protocol Sampler',
+    description: 'Complete sessions in 4 different techniques',
+    icon: 'Star',
+  },
+  {
+    id: 'resonance_keeper',
+    name: 'Resonance Keeper',
+    description: 'Complete 30 resonance breathing sessions',
+    icon: 'Wind',
+  },
+  {
+    id: 'sleep_ritual',
+    name: 'Sleep Ritual',
+    description: 'Complete 20 4-7-8 sessions',
+    icon: 'Moon',
+  },
+  {
     id: 'night_owl',
     name: 'Night Owl',
     description: 'Complete a session between 10 PM and 4 AM',
@@ -201,6 +223,15 @@ export function checkBadgeUnlocks(ctx: BadgeCheckContext): string[] {
   }
   if ((ctx.sessionsByTechnique[TECHNIQUE_IDS.POWER_BREATHING] ?? 0) >= 50) {
     earned.push('power_adept')
+  }
+  if (Object.values(TECHNIQUE_IDS).filter((id) => (ctx.sessionsByTechnique[id] ?? 0) > 0).length >= 4) {
+    earned.push('protocol_sampler')
+  }
+  if ((ctx.sessionsByTechnique[TECHNIQUE_IDS.RESONANCE_BREATHING] ?? 0) >= 30) {
+    earned.push('resonance_keeper')
+  }
+  if ((ctx.sessionsByTechnique[TECHNIQUE_IDS.FOUR_SEVEN_EIGHT] ?? 0) >= 20) {
+    earned.push('sleep_ritual')
   }
 
   // Secret badges

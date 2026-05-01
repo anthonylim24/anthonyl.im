@@ -83,7 +83,6 @@ function blobPath(
 export const ConcentricRings = memo(function ConcentricRings({
   phase,
   amplitude,
-  isActive: _isActive,
   techniqueId,
   className,
   onClick,

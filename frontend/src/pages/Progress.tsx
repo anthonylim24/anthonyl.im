@@ -9,8 +9,8 @@ import { getLevelForXP, getXPForLevel, getLevelTitle } from '@/lib/gamification'
 import { LevelRing } from '@/components/gamification/LevelRing'
 import { BadgeGrid } from '@/components/gamification/BadgeGrid'
 import { ActivityHeatmap } from '@/components/gamification/ActivityHeatmap'
-import { breathingProtocols } from '@/lib/breathingProtocols'
-import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
+import { getProtocolCatalog } from '@/lib/breathingProtocols'
+import type { TechniqueId } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { TechniqueGeometryIcon } from '@/components/ui/TechniqueGeometryIcon'
 import { Trash2 } from 'lucide-react'
@@ -32,6 +32,7 @@ export function Progress() {
   const { trigger: haptic } = useHaptics()
   const [filterTechnique, setFilterTechnique] = useState<TechniqueId | 'all'>('all')
   const [showClearConfirm, setShowClearConfirm] = useState(false)
+  const protocols = useMemo(() => getProtocolCatalog(), [])
 
   // Gamification derived state
   const level = getLevelForXP(xp)
@@ -174,11 +175,11 @@ export function Progress() {
           </div>
           <div>
             {/* Filter Buttons */}
-            <div className="flex gap-4 mb-5 sm:mb-6 border-b border-bw-border pb-3">
+            <div className="flex gap-4 mb-5 sm:mb-6 border-b border-bw-border pb-3 overflow-x-auto no-scrollbar">
               <button
                 onClick={() => { haptic('selection'); setFilterTechnique('all') }}
                 className={cn(
-                  'text-xs font-medium transition-colors duration-200',
+                  'text-xs font-medium transition-colors duration-200 shrink-0',
                   filterTechnique === 'all'
                     ? 'text-bw'
                     : 'text-bw-tertiary hover:text-bw-secondary'
@@ -186,12 +187,12 @@ export function Progress() {
               >
                 All
               </button>
-              {Object.values(TECHNIQUE_IDS).map((id) => (
+              {protocols.map(({ id, shortName }) => (
                 <button
                   key={id}
                   onClick={() => { haptic('selection'); setFilterTechnique(id) }}
                   className={cn(
-                    'flex items-center gap-1.5 text-xs font-medium transition-colors duration-200',
+                    'flex items-center gap-1.5 text-xs font-medium transition-colors duration-200 shrink-0',
                     filterTechnique === id
                       ? 'text-bw'
                       : 'text-bw-tertiary hover:text-bw-secondary'
@@ -202,7 +203,7 @@ export function Progress() {
                     filterTechnique === id ? 'text-bw' : 'text-bw-tertiary'
                   )} />
                   <span className="hidden sm:inline truncate">
-                    {breathingProtocols[id].name.split(' ')[0]}
+                    {shortName}
                   </span>
                 </button>
               ))}

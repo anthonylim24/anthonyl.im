@@ -4,7 +4,7 @@ import { motion } from 'motion/react'
 import { useHistoryStore } from '@/stores/historyStore'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { getLevelForXP, getXPForLevel, getLevelTitle } from '@/lib/gamification'
-import { breathingProtocols } from '@/lib/breathingProtocols'
+import { breathingProtocols, calculateSessionDuration, getProtocolCatalog } from '@/lib/breathingProtocols'
 import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 import { formatTime } from '@/lib/utils'
 import { TechniqueGeometryIcon } from '@/components/ui/TechniqueGeometryIcon'
@@ -50,6 +50,16 @@ function getStreakMessage(streak: number, dailyGoalMet: boolean): string {
   return 'Ready for today\'s session?'
 }
 
+function getSuggestedTechnique(isNewUser: boolean, dailyGoalMet: boolean): TechniqueId {
+  const hour = new Date().getHours()
+
+  if (isNewUser) return TECHNIQUE_IDS.CYCLIC_SIGHING
+  if (hour >= 21 || hour < 5) return TECHNIQUE_IDS.FOUR_SEVEN_EIGHT
+  if (hour >= 5 && hour < 11) return TECHNIQUE_IDS.RESONANCE_BREATHING
+  if (dailyGoalMet) return TECHNIQUE_IDS.EXTENDED_EXHALE
+  return TECHNIQUE_IDS.CYCLIC_SIGHING
+}
+
 /* ── Component ─────────────────────────────────────── */
 
 export function Home() {
@@ -57,7 +67,7 @@ export function Home() {
   const { sessions, getStreak } = useHistoryStore()
   const { xp, dailySessionCount } = useGamificationStore()
 
-  const streak = useMemo(() => getStreak(), [sessions])
+  const streak = getStreak()
 
   const level = getLevelForXP(xp)
   const currentLevelXP = getXPForLevel(level)
@@ -73,15 +83,14 @@ export function Home() {
 
   const dailyGoalMet = dailySessionCount >= 1
 
-  const techniques = [
-    TECHNIQUE_IDS.BOX_BREATHING,
-    TECHNIQUE_IDS.CO2_TOLERANCE,
-    TECHNIQUE_IDS.POWER_BREATHING,
-    TECHNIQUE_IDS.CYCLIC_SIGHING,
-  ] as TechniqueId[]
-
   const { trigger: haptic } = useHaptics()
   const isNewUser = sessions.length === 0
+  const protocols = useMemo(() => getProtocolCatalog(), [])
+  const suggestedProtocol = breathingProtocols[getSuggestedTechnique(isNewUser, dailyGoalMet)]
+  const suggestedDuration = calculateSessionDuration({
+    techniqueId: suggestedProtocol.id,
+    rounds: suggestedProtocol.defaultRounds,
+  })
 
   return (
     <motion.div
@@ -100,7 +109,7 @@ export function Home() {
         </h1>
         <p className="text-xs text-bw-tertiary mt-2 md:mt-3 font-medium tracking-wide hidden md:block">
           {isNewUser
-            ? 'Your first session takes just 4 minutes'
+            ? 'Your first session takes about 5 minutes'
             : getStreakMessage(streak, dailyGoalMet)}
         </p>
       </motion.div>
@@ -111,10 +120,10 @@ export function Home() {
           {/* Mobile welcome */}
           <motion.div variants={fadeUp} className="pb-8 md:hidden">
             <p className="text-xs text-bw-tertiary leading-relaxed mb-6">
-              Your first session takes just 4 minutes
+              Your first session takes about 5 minutes
             </p>
             <button
-              onClick={() => { haptic('success'); navigate('/breathwork/session?technique=box_breathing') }}
+              onClick={() => { haptic('success'); navigate(`/breathwork/session?technique=${suggestedProtocol.id}`) }}
               className="w-full flex items-center justify-center gap-2.5 border border-bw-border bg-transparent py-4 font-mono font-normal text-bw text-sm transition-all hover:bg-bw-hover"
             >
               <Play className="h-4 w-4" />
@@ -134,7 +143,7 @@ export function Home() {
           {/* Desktop welcome */}
           <motion.div variants={fadeUp} className="hidden md:block pb-16 border-b border-bw-border">
             <button
-              onClick={() => { haptic('success'); navigate('/breathwork/session?technique=box_breathing') }}
+              onClick={() => { haptic('success'); navigate(`/breathwork/session?technique=${suggestedProtocol.id}`) }}
               className="flex items-center gap-3 border border-bw-border bg-transparent px-8 py-4 font-mono font-normal text-bw text-sm transition-all hover:bg-bw-hover"
             >
               <Play className="h-4 w-4" />
@@ -240,6 +249,37 @@ export function Home() {
         </>
       )}
 
+      {/* ── Suggested Protocol ─────────────────────────── */}
+      <motion.div variants={fadeUp} className="pt-3 md:pt-8">
+        <button
+          onClick={() => { haptic('light'); navigate(`/breathwork/session?technique=${suggestedProtocol.id}`) }}
+          className="w-full border-y border-bw-border py-5 text-left group hover:bg-bw-hover transition-colors duration-200"
+        >
+          <div className="flex items-center gap-4">
+            <div className="h-10 w-10 flex items-center justify-center shrink-0 border border-bw-border">
+              <TechniqueGeometryIcon techniqueId={suggestedProtocol.id} className="text-bw-secondary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-[10px] text-bw-secondary font-medium tracking-[0.07em] uppercase">
+                Suggested now
+              </div>
+              <div className="font-mono text-sm md:text-base text-bw mt-1">
+                {suggestedProtocol.name}
+              </div>
+              <p className="text-xs text-bw-tertiary mt-1 line-clamp-2">
+                {suggestedProtocol.purpose}
+              </p>
+              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
+                <span>{suggestedProtocol.evidence}</span>
+                <span>{formatTime(suggestedDuration)}</span>
+                <span>{suggestedProtocol.intensity}</span>
+              </div>
+            </div>
+            <ArrowRight className="h-4 w-4 text-bw-tertiary shrink-0 group-hover:text-bw group-hover:translate-x-0.5 transition-all duration-200" />
+          </div>
+        </button>
+      </motion.div>
+
       {/* ── Techniques ──────────────────────────────────── */}
       <motion.div variants={fadeUp} className="pt-10 md:pt-16" id="techniques-section">
         <h2 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary mb-5 md:mb-8">
@@ -249,8 +289,8 @@ export function Home() {
         {/* Mobile: horizontal scroll carousel — 2 cards visible */}
         <div className="md:hidden -mx-4 px-4 overflow-x-auto no-scrollbar" style={{ scrollSnapType: 'x mandatory', scrollPaddingLeft: '1rem' }}>
           <div className="flex gap-3 pl-4" style={{ width: 'max-content' }}>
-            {techniques.map((id) => {
-              const p = breathingProtocols[id]
+            {protocols.map((p) => {
+              const id = p.id
               return (
                 <motion.button
                   key={id}
@@ -282,6 +322,9 @@ export function Home() {
                       </span>
                     ))}
                   </div>
+                  <div className="mt-3 text-[10px] text-bw-tertiary font-medium uppercase tracking-[0.07em]">
+                    {p.category}
+                  </div>
                 </motion.button>
               )
             })}
@@ -291,8 +334,8 @@ export function Home() {
         {/* Desktop: border-separated technique rows */}
         <div className="hidden md:block">
           <div className="divide-y divide-bw-border">
-            {techniques.map((id) => {
-              const protocol = breathingProtocols[id]
+            {protocols.map((protocol) => {
+              const id = protocol.id
               return (
                 <motion.button
                   key={id}
@@ -315,8 +358,12 @@ export function Home() {
                       {protocol.name}
                     </h3>
                     <p className="text-xs text-bw-tertiary mt-0.5 line-clamp-1">
-                      {protocol.purpose}
+                      {protocol.purpose} · {protocol.bestFor[0]}
                     </p>
+                  </div>
+                  <div className="hidden lg:flex items-center gap-3 shrink-0 text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
+                    <span>{protocol.evidence}</span>
+                    <span>{protocol.intensity}</span>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     {protocol.phases.map((phase, i) => (

@@ -37,6 +37,7 @@ export function BreathingSession({
     durationSeconds: number
     isNewPersonalBest: boolean
   } | null>(null)
+  const summaryProcessedRef = useRef(false)
 
   // Controls auto-fade state
   const [controlsVisible, setControlsVisible] = useState(true)
@@ -110,17 +111,20 @@ export function BreathingSession({
 
   // Auto-hide controls after 3s of activity
   useEffect(() => {
+    let frameId: number | null = null
     if (isActive && !isPaused) {
-      showControls()
+      frameId = requestAnimationFrame(showControls)
     }
     return () => {
+      if (frameId !== null) cancelAnimationFrame(frameId)
       if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current)
     }
   }, [isActive, isPaused, showControls])
 
   // Process gamification on session complete
   useEffect(() => {
-    if (showSummary && session && !summaryData) {
+    if (showSummary && session && !summaryData && !summaryProcessedRef.current) {
+      summaryProcessedRef.current = true
       const endTime = new Date()
       const durationSeconds = Math.round(
         (endTime.getTime() - session.startTime.getTime()) / 1000
@@ -165,16 +169,21 @@ export function BreathingSession({
         ? Math.max(...session.holdTimes) > Math.max(...sessions.flatMap((s) => s.holdTimes || []), 0)
         : false
 
-      setSummaryData({
-        xpEarned,
-        newBadges: trulyNewBadges,
-        durationSeconds,
-        isNewPersonalBest,
+      const frameId = requestAnimationFrame(() => {
+        setSummaryData({
+          xpEarned,
+          newBadges: trulyNewBadges,
+          durationSeconds,
+          isNewPersonalBest,
+        })
       })
+
+      return () => cancelAnimationFrame(frameId)
     }
   }, [showSummary, session, summaryData, sessions, config, getStreak, addXP, recordSession, unlockBadges, earnedBadges])
 
   const handleStart = () => {
+    summaryProcessedRef.current = false
     haptic('success')
     start(config)
     showControls()
@@ -188,12 +197,14 @@ export function BreathingSession({
   }
 
   const handleStop = () => {
+    summaryProcessedRef.current = false
     haptic('error')
     stop()
     onCancel?.()
   }
 
   const handleRestart = () => {
+    summaryProcessedRef.current = false
     haptic('nudge')
     stop()
     start(config)
@@ -201,6 +212,7 @@ export function BreathingSession({
   }
 
   const handleCloseSummary = () => {
+    summaryProcessedRef.current = false
     setShowSummary(false)
     setSummaryData(null)
     stop()

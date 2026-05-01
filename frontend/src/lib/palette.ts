@@ -38,6 +38,10 @@ export const TECHNIQUE_RING_COLORS: Record<TechniqueId, { primary: string; secon
   [TECHNIQUE_IDS.CO2_TOLERANCE]:   MONO_RING,
   [TECHNIQUE_IDS.POWER_BREATHING]: MONO_RING,
   [TECHNIQUE_IDS.CYCLIC_SIGHING]:  MONO_RING,
+  [TECHNIQUE_IDS.RESONANCE_BREATHING]: MONO_RING,
+  [TECHNIQUE_IDS.EXTENDED_EXHALE]: MONO_RING,
+  [TECHNIQUE_IDS.FOUR_SEVEN_EIGHT]: MONO_RING,
+  [TECHNIQUE_IDS.PURSED_LIP_RECOVERY]: MONO_RING,
 }
 
 export const TECHNIQUE_RING_COLORS_DARK: Record<TechniqueId, { primary: string; secondary: string }> = {
@@ -45,6 +49,10 @@ export const TECHNIQUE_RING_COLORS_DARK: Record<TechniqueId, { primary: string; 
   [TECHNIQUE_IDS.CO2_TOLERANCE]:   MONO_RING_DARK,
   [TECHNIQUE_IDS.POWER_BREATHING]: MONO_RING_DARK,
   [TECHNIQUE_IDS.CYCLIC_SIGHING]:  MONO_RING_DARK,
+  [TECHNIQUE_IDS.RESONANCE_BREATHING]: MONO_RING_DARK,
+  [TECHNIQUE_IDS.EXTENDED_EXHALE]: MONO_RING_DARK,
+  [TECHNIQUE_IDS.FOUR_SEVEN_EIGHT]: MONO_RING_DARK,
+  [TECHNIQUE_IDS.PURSED_LIP_RECOVERY]: MONO_RING_DARK,
 }
 
 // ── Breath-phase colors (ink scale) ──
@@ -72,6 +80,10 @@ export const TECHNIQUE_PHASES: Record<TechniqueId, Record<BreathPhase, string>> 
   [TECHNIQUE_IDS.CO2_TOLERANCE]:   MONO_PHASES,
   [TECHNIQUE_IDS.POWER_BREATHING]: MONO_PHASES,
   [TECHNIQUE_IDS.CYCLIC_SIGHING]:  MONO_PHASES,
+  [TECHNIQUE_IDS.RESONANCE_BREATHING]: MONO_PHASES,
+  [TECHNIQUE_IDS.EXTENDED_EXHALE]: MONO_PHASES,
+  [TECHNIQUE_IDS.FOUR_SEVEN_EIGHT]: MONO_PHASES,
+  [TECHNIQUE_IDS.PURSED_LIP_RECOVERY]: MONO_PHASES,
 }
 
 // ── Technique visual config (monochrome) ─────────────────────────────────
@@ -80,6 +92,10 @@ export const TECHNIQUE = {
   co2:     { primary: '#1a1a1a', secondary: '#888' },
   power:   { primary: '#1a1a1a', secondary: '#888' },
   sighing: { primary: '#1a1a1a', secondary: '#888' },
+  resonance: { primary: '#1a1a1a', secondary: '#888' },
+  exhale: { primary: '#1a1a1a', secondary: '#888' },
+  sleep: { primary: '#1a1a1a', secondary: '#888' },
+  recovery: { primary: '#1a1a1a', secondary: '#888' },
 } as const
 
 export const TECHNIQUE_GRADIENT = {
@@ -87,6 +103,10 @@ export const TECHNIQUE_GRADIENT = {
   co2:     { from: '#1a1a1a', via: '#555', to: '#888' },
   power:   { from: '#1a1a1a', via: '#555', to: '#888' },
   sighing: { from: '#1a1a1a', via: '#555', to: '#888' },
+  resonance: { from: '#1a1a1a', via: '#555', to: '#888' },
+  exhale: { from: '#1a1a1a', via: '#555', to: '#888' },
+  sleep: { from: '#1a1a1a', via: '#555', to: '#888' },
+  recovery: { from: '#1a1a1a', via: '#555', to: '#888' },
 } as const
 
 // ── Achievement / gamification ──────────────────────────────────────────
