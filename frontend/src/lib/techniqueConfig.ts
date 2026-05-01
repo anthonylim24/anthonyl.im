@@ -12,7 +12,15 @@ import {
   ACCENT_WARM,
 } from './palette'
 
-export type TechniqueGeometry = 'grid' | 'triangle' | 'octagram' | 'spiral'
+export type TechniqueGeometry =
+  | 'grid'
+  | 'triangle'
+  | 'octagram'
+  | 'spiral'
+  | 'wave'
+  | 'ladder'
+  | 'crescent'
+  | 'diamond'
 
 export interface TechniqueVisual {
   primary: string
@@ -26,6 +34,10 @@ const VISUALS: Record<TechniqueId, TechniqueVisual> = {
   [TECHNIQUE_IDS.CO2_TOLERANCE]:   { ...TECHNIQUE.co2, gradient: TECHNIQUE_GRADIENT.co2, geometry: 'triangle' },
   [TECHNIQUE_IDS.POWER_BREATHING]: { ...TECHNIQUE.power, gradient: TECHNIQUE_GRADIENT.power, geometry: 'octagram' },
   [TECHNIQUE_IDS.CYCLIC_SIGHING]:  { ...TECHNIQUE.sighing, gradient: TECHNIQUE_GRADIENT.sighing, geometry: 'spiral' },
+  [TECHNIQUE_IDS.RESONANCE_BREATHING]: { ...TECHNIQUE.resonance, gradient: TECHNIQUE_GRADIENT.resonance, geometry: 'wave' },
+  [TECHNIQUE_IDS.EXTENDED_EXHALE]: { ...TECHNIQUE.exhale, gradient: TECHNIQUE_GRADIENT.exhale, geometry: 'ladder' },
+  [TECHNIQUE_IDS.FOUR_SEVEN_EIGHT]: { ...TECHNIQUE.sleep, gradient: TECHNIQUE_GRADIENT.sleep, geometry: 'crescent' },
+  [TECHNIQUE_IDS.PURSED_LIP_RECOVERY]: { ...TECHNIQUE.recovery, gradient: TECHNIQUE_GRADIENT.recovery, geometry: 'diamond' },
 }
 
 export function getTechniqueVisual(id: TechniqueId): TechniqueVisual {

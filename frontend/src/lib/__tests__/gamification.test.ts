@@ -22,6 +22,10 @@ describe('calculateXP', () => {
     expect(calculateXP(TECHNIQUE_IDS.POWER_BREATHING, 30, 0)).toBe(60)
     // cyclic_sighing: base 55, defaultRounds=30, streak=0
     expect(calculateXP(TECHNIQUE_IDS.CYCLIC_SIGHING, 30, 0)).toBe(55)
+    expect(calculateXP(TECHNIQUE_IDS.RESONANCE_BREATHING, 30, 0)).toBe(55)
+    expect(calculateXP(TECHNIQUE_IDS.EXTENDED_EXHALE, 30, 0)).toBe(50)
+    expect(calculateXP(TECHNIQUE_IDS.FOUR_SEVEN_EIGHT, 16, 0)).toBe(60)
+    expect(calculateXP(TECHNIQUE_IDS.PURSED_LIP_RECOVERY, 50, 0)).toBe(45)
   })
 
   it('adds +5 per extra round beyond default', () => {
@@ -105,8 +109,8 @@ describe('getLevelTitle', () => {
 })
 
 describe('BADGES', () => {
-  it('has 12 badges', () => {
-    expect(BADGES).toHaveLength(12)
+  it('has 15 badges', () => {
+    expect(BADGES).toHaveLength(15)
   })
 
   it('has secret badges for night_owl, early_bird, marathon', () => {
@@ -169,6 +173,31 @@ describe('checkBadgeUnlocks', () => {
       streak: 30,
     })
     expect(result).toContain('streak_30')
+  })
+
+  it('returns protocol_sampler when 4 techniques have sessions', () => {
+    const result = checkBadgeUnlocks({
+      ...defaultCtx,
+      sessionsByTechnique: {
+        [TECHNIQUE_IDS.CYCLIC_SIGHING]: 1,
+        [TECHNIQUE_IDS.RESONANCE_BREATHING]: 1,
+        [TECHNIQUE_IDS.EXTENDED_EXHALE]: 1,
+        [TECHNIQUE_IDS.BOX_BREATHING]: 1,
+      },
+    })
+    expect(result).toContain('protocol_sampler')
+  })
+
+  it('returns new technique mastery badges', () => {
+    const result = checkBadgeUnlocks({
+      ...defaultCtx,
+      sessionsByTechnique: {
+        [TECHNIQUE_IDS.RESONANCE_BREATHING]: 30,
+        [TECHNIQUE_IDS.FOUR_SEVEN_EIGHT]: 20,
+      },
+    })
+    expect(result).toContain('resonance_keeper')
+    expect(result).toContain('sleep_ritual')
   })
 })
 

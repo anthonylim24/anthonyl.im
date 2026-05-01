@@ -23,6 +23,10 @@ export const TECHNIQUE_IDS = {
   BOX_BREATHING: 'box_breathing',
   POWER_BREATHING: 'power_breathing',
   CYCLIC_SIGHING: 'cyclic_sighing',
+  RESONANCE_BREATHING: 'resonance_breathing',
+  EXTENDED_EXHALE: 'extended_exhale',
+  FOUR_SEVEN_EIGHT: 'four_seven_eight',
+  PURSED_LIP_RECOVERY: 'pursed_lip_recovery',
 } as const
 
 export type TechniqueId = typeof TECHNIQUE_IDS[keyof typeof TECHNIQUE_IDS]

@@ -57,12 +57,14 @@ export function useWaveform({
         cancelAnimationFrame(animationRef.current)
         animationRef.current = null
       }
-      setWaveState({
-        amplitude: 0.2,
-        targetAmplitude: 0.2,
-        animationProgress: 0,
+      const resetFrame = requestAnimationFrame(() => {
+        setWaveState({
+          amplitude: 0.2,
+          targetAmplitude: 0.2,
+          animationProgress: 0,
+        })
       })
-      return
+      return () => cancelAnimationFrame(resetFrame)
     }
 
     const targetAmplitude = getTargetAmplitude(phase)
@@ -77,13 +79,13 @@ export function useWaveform({
       if (elapsed > 32) { // ~30fps — sufficient for smooth breathing visuals
         lastTimeRef.current = timestamp
 
-        setWaveState((prev) => {
+        setWaveState(() => {
           // Smooth interpolation towards target
           const isExpanding = phase === BREATH_PHASES.INHALE
           const isDeepInhale = phase === BREATH_PHASES.DEEP_INHALE
           const isContracting = phase === BREATH_PHASES.EXHALE
 
-          let newAmplitude = prev.amplitude
+          let newAmplitude: number
 
           if (isExpanding) {
             // Gradual rise during inhale

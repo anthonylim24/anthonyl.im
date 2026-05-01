@@ -99,7 +99,11 @@ function App() {
   useEffect(() => {
     const v = leavesVideoRef.current;
     if (!v) return;
-    shadowMode ? v.play().catch(() => {}) : v.pause();
+    if (shadowMode) {
+      v.play().catch(() => {});
+    } else {
+      v.pause();
+    }
   }, [shadowMode]);
 
   // PostHog (deferred — bundle-defer-third-party)

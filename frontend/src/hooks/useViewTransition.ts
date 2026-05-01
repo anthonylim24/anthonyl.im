@@ -12,10 +12,9 @@ export function useViewTransitionNavigate() {
     (to: To, options?: NavigateOptions) => {
       if (
         typeof document !== 'undefined' &&
-        'startViewTransition' in document &&
-        typeof (document as any).startViewTransition === 'function'
+        typeof document.startViewTransition === 'function'
       ) {
-        ;(document as any).startViewTransition(() => {
+        document.startViewTransition(() => {
           navigate(to, options)
         })
       } else {

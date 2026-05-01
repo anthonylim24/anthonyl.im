@@ -2,24 +2,28 @@
 import { describe, it, expect } from 'vitest'
 import {
   breathingProtocols,
+  getProtocolCatalog,
+  protocolOrder,
   getProtocol,
+  isTechniqueId,
   calculateSessionDuration,
   getPhaseForRound,
 } from '../breathingProtocols'
 import { BREATH_PHASES, TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 
 describe('breathingProtocols', () => {
-  const allTechniqueIds: TechniqueId[] = [
-    TECHNIQUE_IDS.BOX_BREATHING,
-    TECHNIQUE_IDS.CO2_TOLERANCE,
-    TECHNIQUE_IDS.POWER_BREATHING,
-    TECHNIQUE_IDS.CYCLIC_SIGHING,
-  ]
+  const allTechniqueIds = Object.values(TECHNIQUE_IDS) as TechniqueId[]
 
   it('has an entry for every technique ID', () => {
     for (const id of allTechniqueIds) {
       expect(breathingProtocols[id]).toBeDefined()
     }
+  })
+
+  it('catalog order includes every technique exactly once', () => {
+    expect(new Set(protocolOrder).size).toBe(allTechniqueIds.length)
+    expect(protocolOrder).toEqual(expect.arrayContaining(allTechniqueIds))
+    expect(getProtocolCatalog().map((protocol) => protocol.id)).toEqual(protocolOrder)
   })
 
   it('each protocol has all required fields', () => {
@@ -28,10 +32,18 @@ describe('breathingProtocols', () => {
       expect(protocol.id).toBe(id)
       expect(typeof protocol.name).toBe('string')
       expect(protocol.name.length).toBeGreaterThan(0)
+      expect(typeof protocol.shortName).toBe('string')
+      expect(protocol.shortName.length).toBeGreaterThan(0)
       expect(typeof protocol.description).toBe('string')
       expect(typeof protocol.science).toBe('string')
       expect(protocol.science.length).toBeGreaterThan(0)
+      expect(typeof protocol.evidence).toBe('string')
+      expect(['strong', 'promising', 'traditional']).toContain(protocol.evidenceLevel)
       expect(typeof protocol.purpose).toBe('string')
+      expect(['calm', 'sleep', 'performance', 'recovery', 'focus']).toContain(protocol.category)
+      expect(['gentle', 'moderate', 'advanced']).toContain(protocol.intensity)
+      expect(protocol.bestFor.length).toBeGreaterThan(0)
+      expect(protocol.breathsPerMinute).toBeGreaterThan(0)
       expect(typeof protocol.defaultRounds).toBe('number')
       expect(protocol.defaultRounds).toBeGreaterThan(0)
       expect(Array.isArray(protocol.phases)).toBe(true)
@@ -98,12 +110,24 @@ describe('getProtocol', () => {
     expect(getProtocol(TECHNIQUE_IDS.CO2_TOLERANCE).name).toBe('CO2 Tolerance Table')
     expect(getProtocol(TECHNIQUE_IDS.POWER_BREATHING).name).toBe('Power Breathing')
     expect(getProtocol(TECHNIQUE_IDS.CYCLIC_SIGHING).name).toBe('Cyclic Sighing')
+    expect(getProtocol(TECHNIQUE_IDS.RESONANCE_BREATHING).name).toBe('Resonance Breathing')
+    expect(getProtocol(TECHNIQUE_IDS.EXTENDED_EXHALE).name).toBe('Extended Exhale')
+    expect(getProtocol(TECHNIQUE_IDS.FOUR_SEVEN_EIGHT).name).toBe('4-7-8 Downshift')
+    expect(getProtocol(TECHNIQUE_IDS.PURSED_LIP_RECOVERY).name).toBe('Pursed-Lip Recovery')
   })
 
   it('returns the same object as the breathingProtocols map', () => {
     expect(getProtocol(TECHNIQUE_IDS.BOX_BREATHING)).toBe(
       breathingProtocols[TECHNIQUE_IDS.BOX_BREATHING]
     )
+  })
+})
+
+describe('isTechniqueId', () => {
+  it('validates known technique IDs', () => {
+    expect(isTechniqueId(TECHNIQUE_IDS.CYCLIC_SIGHING)).toBe(true)
+    expect(isTechniqueId('not-a-technique')).toBe(false)
+    expect(isTechniqueId(null)).toBe(false)
   })
 })
 
@@ -207,6 +231,36 @@ describe('calculateSessionDuration', () => {
         rounds: 1,
       })
     ).toBe(10)
+  })
+
+  it('calculates added protocol durations', () => {
+    expect(
+      calculateSessionDuration({
+        techniqueId: TECHNIQUE_IDS.RESONANCE_BREATHING,
+        rounds: 30,
+      })
+    ).toBe(300)
+
+    expect(
+      calculateSessionDuration({
+        techniqueId: TECHNIQUE_IDS.EXTENDED_EXHALE,
+        rounds: 30,
+      })
+    ).toBe(300)
+
+    expect(
+      calculateSessionDuration({
+        techniqueId: TECHNIQUE_IDS.FOUR_SEVEN_EIGHT,
+        rounds: 16,
+      })
+    ).toBe(304)
+
+    expect(
+      calculateSessionDuration({
+        techniqueId: TECHNIQUE_IDS.PURSED_LIP_RECOVERY,
+        rounds: 50,
+      })
+    ).toBe(300)
   })
 
   it('applies custom phase durations', () => {

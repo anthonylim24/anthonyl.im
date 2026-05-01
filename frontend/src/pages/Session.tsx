@@ -5,6 +5,8 @@ import { BreathingSession } from '@/components/breathing/BreathingSession'
 import {
   breathingProtocols,
   calculateSessionDuration,
+  getProtocolCatalog,
+  isTechniqueId,
   type SessionConfig,
 } from '@/lib/breathingProtocols'
 import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
@@ -22,8 +24,10 @@ const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transit
 export function Session() {
   const navigate = useViewTransitionNavigate()
   const [searchParams] = useSearchParams()
-  const initialTechnique =
-    (searchParams.get('technique') as TechniqueId) || TECHNIQUE_IDS.BOX_BREATHING
+  const requestedTechnique = searchParams.get('technique')
+  const initialTechnique = isTechniqueId(requestedTechnique)
+    ? requestedTechnique
+    : TECHNIQUE_IDS.CYCLIC_SIGHING
 
   const [selectedTechnique, setSelectedTechnique] =
     useState<TechniqueId>(initialTechnique)
@@ -36,6 +40,7 @@ export function Session() {
   const { trigger: haptic } = useHaptics()
 
   const protocol = breathingProtocols[selectedTechnique]
+  const protocols = useMemo(() => getProtocolCatalog(), [])
 
   const sessionConfig: SessionConfig = useMemo(
     () => ({
@@ -111,6 +116,30 @@ export function Session() {
           <p className="text-xs text-bw-tertiary leading-relaxed">{protocol.description}</p>
         </motion.div>
 
+        {/* Technique rail */}
+        <motion.div variants={fadeUp} className="-mx-5 mb-3 overflow-x-auto no-scrollbar">
+          <div className="flex gap-2 px-5" style={{ width: 'max-content' }}>
+            {protocols.map((p) => {
+              const isSelected = selectedTechnique === p.id
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => handleTechniqueChange(p.id)}
+                  className={cn(
+                    'h-10 px-3 flex items-center gap-2 border text-[10px] font-mono font-medium uppercase tracking-[0.07em] transition-colors duration-200',
+                    isSelected
+                      ? 'border-bw text-bw bg-bw-hover'
+                      : 'border-bw-border text-bw-tertiary'
+                  )}
+                >
+                  <TechniqueGeometryIcon techniqueId={p.id} className={isSelected ? 'text-bw' : 'text-bw-tertiary'} size={12} />
+                  <span>{p.shortName}</span>
+                </button>
+              )
+            })}
+          </div>
+        </motion.div>
+
         {/* Phase pattern */}
         <motion.div variants={fadeUp} className="flex items-center gap-2 py-2 border-t border-bw-border mb-3 justify-center">
           {protocol.phases.map((phase, i) => (
@@ -121,6 +150,22 @@ export function Session() {
               )}
             </span>
           ))}
+        </motion.div>
+
+        {/* Protocol metadata */}
+        <motion.div variants={fadeUp} className="grid grid-cols-3 gap-2 border-y border-bw-border py-2.5 mb-3">
+          <div>
+            <span className="block text-[9px] text-bw-tertiary font-medium uppercase tracking-[0.07em]">Evidence</span>
+            <span className="block text-[10px] text-bw-secondary mt-0.5 truncate">{protocol.evidence}</span>
+          </div>
+          <div>
+            <span className="block text-[9px] text-bw-tertiary font-medium uppercase tracking-[0.07em]">Cadence</span>
+            <span className="block text-[10px] text-bw-secondary mt-0.5">{protocol.breathsPerMinute} bpm</span>
+          </div>
+          <div>
+            <span className="block text-[9px] text-bw-tertiary font-medium uppercase tracking-[0.07em]">Intensity</span>
+            <span className="block text-[10px] text-bw-secondary mt-0.5 capitalize">{protocol.intensity}</span>
+          </div>
         </motion.div>
 
         {/* Science section — collapsible */}
@@ -143,6 +188,21 @@ export function Session() {
               className="overflow-hidden"
             >
               <p className="mt-2 text-xs text-bw-tertiary leading-relaxed">{protocol.science}</p>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {protocol.bestFor.map((item) => (
+                  <span
+                    key={item}
+                    className="border border-bw-border px-2 py-1 text-[10px] text-bw-tertiary"
+                  >
+                    {item}
+                  </span>
+                ))}
+              </div>
+              {protocol.caution && (
+                <p className="mt-3 text-[10px] text-bw-tertiary leading-relaxed">
+                  {protocol.caution}
+                </p>
+              )}
             </motion.div>
           </motion.div>
         )}
@@ -190,7 +250,7 @@ export function Session() {
       </div>
 
       {/* ═══ DESKTOP LAYOUT ══════════════════════════════ */}
-      <div className="hidden md:flex md:flex-col max-w-2xl mx-auto space-y-10 h-[calc(100dvh-4rem-5rem)] overflow-hidden">
+      <div className="hidden md:flex md:flex-col max-w-2xl mx-auto space-y-8 h-[calc(100dvh-4rem-5rem)] overflow-y-auto no-scrollbar pb-4">
         {/* Header */}
         <motion.div variants={fadeUp}>
           <h1 className="font-mono text-lg font-medium text-bw tracking-[0.02em]">
@@ -204,16 +264,15 @@ export function Session() {
             Technique
           </h2>
           <div className="divide-y divide-bw-border border-t border-bw-border">
-            {Object.values(TECHNIQUE_IDS).map((id) => {
-              const p = breathingProtocols[id]
-              const isSelected = selectedTechnique === id
+            {protocols.map((p) => {
+              const isSelected = selectedTechnique === p.id
 
               return (
                 <motion.button
-                  key={id}
+                  key={p.id}
                   whileTap={{ scale: 0.99 }}
                   transition={spring}
-                  onClick={() => handleTechniqueChange(id)}
+                  onClick={() => handleTechniqueChange(p.id)}
                   className={cn(
                     'w-full flex items-center gap-4 py-4 text-left transition-colors duration-200',
                     isSelected ? 'bg-bw-hover' : 'hover:bg-bw-hover'
@@ -221,9 +280,9 @@ export function Session() {
                 >
                   <div
                     className="h-8 w-8 flex items-center justify-center shrink-0 border border-bw-border"
-                    style={isSelected ? { viewTransitionName: `technique-icon-${id}` } as React.CSSProperties : undefined}
+                    style={isSelected ? { viewTransitionName: `technique-icon-${p.id}` } as React.CSSProperties : undefined}
                   >
-                    <TechniqueGeometryIcon techniqueId={id} className="text-bw-secondary" />
+                    <TechniqueGeometryIcon techniqueId={p.id} className="text-bw-secondary" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3
@@ -231,11 +290,19 @@ export function Session() {
                         'font-mono text-sm text-bw leading-tight',
                         isSelected ? 'font-medium' : 'font-normal'
                       )}
-                      style={isSelected ? { viewTransitionName: `technique-name-${id}` } as React.CSSProperties : undefined}
+                      style={isSelected ? { viewTransitionName: `technique-name-${p.id}` } as React.CSSProperties : undefined}
                     >{p.name}</h3>
                     <p className="text-xs text-bw-tertiary mt-0.5 line-clamp-1">
-                      {p.purpose}
+                      {p.purpose} · {p.bestFor[0]}
                     </p>
+                  </div>
+                  <div className="hidden lg:block shrink-0 text-right">
+                    <div className="text-[10px] text-bw-secondary font-medium uppercase tracking-[0.07em]">
+                      {p.evidence}
+                    </div>
+                    <div className="text-[10px] text-bw-tertiary capitalize mt-0.5">
+                      {p.intensity}
+                    </div>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     {p.phases.map((phase, i) => (
@@ -255,6 +322,40 @@ export function Session() {
                 </motion.button>
               )
             })}
+          </div>
+        </motion.div>
+
+        {/* Selected science */}
+        <motion.div variants={fadeUp} className="border-t border-bw-border pt-5">
+          <div className="grid grid-cols-[1fr_auto] gap-6">
+            <div>
+              <h2 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary mb-3">
+                Protocol Notes
+              </h2>
+              <p className="text-xs text-bw-tertiary leading-relaxed">
+                {protocol.science}
+              </p>
+              {protocol.caution && (
+                <p className="text-[10px] text-bw-tertiary leading-relaxed mt-3">
+                  {protocol.caution}
+                </p>
+              )}
+            </div>
+            <div className="min-w-36 border-l border-bw-border pl-5">
+              <div className="text-[10px] text-bw-secondary font-medium uppercase tracking-[0.07em]">
+                {protocol.evidence}
+              </div>
+              <div className="text-[10px] text-bw-tertiary capitalize mt-1">
+                {protocol.intensity} · {protocol.breathsPerMinute} bpm
+              </div>
+              <div className="mt-4 space-y-1.5">
+                {protocol.bestFor.map((item) => (
+                  <div key={item} className="text-[10px] text-bw-tertiary">
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </motion.div>
 
