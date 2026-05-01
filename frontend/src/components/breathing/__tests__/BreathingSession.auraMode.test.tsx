@@ -62,13 +62,13 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('BreathingSession easter egg', () => {
-  it('does not show KirbyEasterEgg initially', () => {
+describe('BreathingSession aura mode', () => {
+  it('does not show the aura field initially', () => {
     render(<BreathingSession config={CONFIG} />)
-    expect(screen.queryByTestId('kirby-easter-egg')).toBeNull()
+    expect(screen.queryByTestId('breath-aura-field')).toBeNull()
   })
 
-  it('shows KirbyEasterEgg after 5 rapid taps on rings', async () => {
+  it('shows the aura field after 5 rapid taps on rings', async () => {
     let t = 0
     vi.spyOn(Date, 'now').mockImplementation(() => (t += 100))
 
@@ -77,10 +77,10 @@ describe('BreathingSession easter egg', () => {
     for (let i = 0; i < 5; i++) {
       await userEvent.click(rings)
     }
-    expect(screen.getByTestId('kirby-easter-egg')).toBeTruthy()
+    expect(screen.getByTestId('breath-aura-field')).toBeTruthy()
   })
 
-  it('shows KirbyEasterEgg after 5 keyboard activations on rings', async () => {
+  it('shows the aura field after 5 keyboard activations on rings', async () => {
     let t = 0
     vi.spyOn(Date, 'now').mockImplementation(() => (t += 100))
 
@@ -90,10 +90,10 @@ describe('BreathingSession easter egg', () => {
     for (let i = 0; i < 5; i++) {
       await userEvent.keyboard('{Enter}')
     }
-    expect(screen.getByTestId('kirby-easter-egg')).toBeTruthy()
+    expect(screen.getByTestId('breath-aura-field')).toBeTruthy()
   })
 
-  it('hides KirbyEasterEgg after a second set of 5 rapid taps', async () => {
+  it('hides the aura field after a second set of 5 rapid taps', async () => {
     let t = 0
     vi.spyOn(Date, 'now').mockImplementation(() => (t += 100))
 
@@ -103,17 +103,16 @@ describe('BreathingSession easter egg', () => {
     for (let i = 0; i < 5; i++) {
       await userEvent.click(rings)
     }
-    expect(screen.getByTestId('kirby-easter-egg')).toBeTruthy()
+    expect(screen.getByTestId('breath-aura-field')).toBeTruthy()
 
-    // In kirby mode, the click target changes but still has same testid
-    const kirbyTarget = screen.getByTestId('concentric-rings')
+    const auraTarget = screen.getByTestId('concentric-rings')
     for (let i = 0; i < 5; i++) {
-      await userEvent.click(kirbyTarget)
+      await userEvent.click(auraTarget)
     }
-    expect(screen.queryByTestId('kirby-easter-egg')).toBeNull()
+    expect(screen.queryByTestId('breath-aura-field')).toBeNull()
   })
 
-  it('does not enable Kirby mode when reduced motion is requested', async () => {
+  it('does not enable aura mode when reduced motion is requested', async () => {
     vi.mocked(useReducedMotion).mockReturnValue(true)
     let t = 0
     vi.spyOn(Date, 'now').mockImplementation(() => (t += 100))
@@ -124,6 +123,6 @@ describe('BreathingSession easter egg', () => {
       await userEvent.click(rings)
     }
 
-    expect(screen.queryByTestId('kirby-easter-egg')).toBeNull()
+    expect(screen.queryByTestId('breath-aura-field')).toBeNull()
   })
 })

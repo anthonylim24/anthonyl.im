@@ -4,7 +4,7 @@ import { PHASE, INK_FAINT } from '@/lib/palette'
 import { cn } from '@/lib/utils'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { useHaptics } from '@/hooks/useHaptics'
-import { KirbyCharacter } from './KirbyCharacter'
+import { BreathAura } from './BreathAura'
 
 interface FluidOrbProps {
   phase: BreathPhase | null
@@ -12,8 +12,8 @@ interface FluidOrbProps {
   isActive: boolean
   themeColors?: [string, string]
   className?: string
-  kirbyMode?: boolean
-  onEasterEggToggle?: () => void
+  auraMode?: boolean
+  onAuraModeToggle?: () => void
 }
 
 // Default phase colors (ink ramp) used when no technique-specific themeColors are passed
@@ -33,8 +33,8 @@ export function FluidOrb({
   isActive,
   themeColors,
   className,
-  kirbyMode = false,
-  onEasterEggToggle,
+  auraMode = false,
+  onAuraModeToggle,
 }: FluidOrbProps) {
   const reducedMotion = useReducedMotion()
   const { trigger: haptic } = useHaptics()
@@ -52,7 +52,7 @@ export function FluidOrb({
 
   const transitionDuration = isActive ? '800ms' : '1200ms'
 
-  // Tap detection: 5 taps within 2 seconds triggers the easter egg toggle
+  // Tap detection: 5 taps within 2 seconds triggers aura mode.
   const tapTimestampsRef = useRef<number[]>([])
   const handleClick = useCallback(() => {
     haptic('selection')
@@ -65,9 +65,9 @@ export function FluidOrb({
     if (recent.length >= 5) {
       tapTimestampsRef.current = []
       haptic('success')
-      onEasterEggToggle?.()
+      onAuraModeToggle?.()
     }
-  }, [onEasterEggToggle, haptic, reducedMotion])
+  }, [onAuraModeToggle, haptic, reducedMotion])
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -82,7 +82,7 @@ export function FluidOrb({
   const transitionStyle = reducedMotion ? 'none' : undefined
   const phaseLabel = phase ? phase.replace('_', ' ') : 'idle'
 
-  if (kirbyMode) {
+  if (auraMode) {
     return (
       <div
         data-testid="fluid-orb"
@@ -99,7 +99,7 @@ export function FluidOrb({
             transition: transitionStyle ?? `transform ${transitionDuration} ease-out`,
           }}
         >
-          <KirbyCharacter size={200} puffAmount={reducedMotion ? 0 : amplitude} />
+          <BreathAura size={200} amplitude={reducedMotion ? 0 : amplitude} />
         </div>
       </div>
     )

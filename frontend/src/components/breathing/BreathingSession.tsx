@@ -10,8 +10,8 @@ import {
 import { useBreathingCycle } from '@/hooks/useBreathingCycle'
 import { useWaveform } from '@/hooks/useWaveform'
 import { ShaderOrb } from './ShaderOrb'
-import { KirbyEasterEgg } from './KirbyEasterEgg'
-import { KirbyCharacter } from './KirbyCharacter'
+import { BreathAuraField } from './BreathAuraField'
+import { BreathAura } from './BreathAura'
 import { SessionSummary } from './SessionSummary'
 import { PhaseIndicator } from './PhaseIndicator'
 import { Timer } from './Timer'
@@ -64,9 +64,9 @@ export function BreathingSession({
 
   const { trigger: haptic } = useHaptics()
 
-  // Kirby easter egg: 5 rapid taps on the rings
-  const [kirbyMode, setKirbyMode] = useState(false)
-  const toggleKirbyMode = useCallback(() => setKirbyMode((prev) => !prev), [])
+  // Hidden aura mode: 5 rapid taps on the visualization.
+  const [auraMode, setAuraMode] = useState(false)
+  const toggleAuraMode = useCallback(() => setAuraMode((prev) => !prev), [])
   const tapTimestampsRef = useRef<number[]>([])
   const handleRingsClick = useCallback(() => {
     if (reducedMotion) return
@@ -78,9 +78,9 @@ export function BreathingSession({
     if (recent.length >= 5) {
       tapTimestampsRef.current = []
       haptic('success')
-      toggleKirbyMode()
+      toggleAuraMode()
     }
-  }, [reducedMotion, toggleKirbyMode, haptic])
+  }, [reducedMotion, toggleAuraMode, haptic])
 
   const clearControlsTimer = useCallback(() => {
     if (controlsTimerRef.current) {
@@ -286,8 +286,8 @@ export function BreathingSession({
       {/* Opaque canvas as absolute child — keeps the fixed parent transparent
           so Safari 26 liquid glass can tint through the safe areas */}
       <div className="absolute inset-0 breath-bg" aria-hidden="true" />
-      {/* Kirby Easter Egg — background layer, behind all UI */}
-      {kirbyMode && <KirbyEasterEgg />}
+      {/* Aura mode — background layer, behind all UI */}
+      {auraMode && <BreathAuraField />}
 
       {/* Round progress indicator */}
       {(() => {
@@ -356,7 +356,7 @@ export function BreathingSession({
             maxHeight: 'min(48vh, 24rem)',
           }}
         >
-          {kirbyMode ? (
+          {auraMode ? (
             <button
               type="button"
               className="w-full h-full flex items-center justify-center relative appearance-none border-0 bg-transparent p-0"
@@ -364,19 +364,18 @@ export function BreathingSession({
               aria-label="Breathing visualization. Activate repeatedly to toggle alternate visual."
               data-testid="concentric-rings"
             >
-              {/* Radial glow behind Kirby that pulses with breath —
-                  uses transform + opacity (both GPU-composited) instead of
-                  rebuilding gradient strings every frame */}
+              {/* Radial glow behind the aura uses transform + opacity instead
+                  of rebuilding gradient strings every frame. */}
               <div
                 className="absolute inset-0 pointer-events-none"
                 style={{
-                  background: 'radial-gradient(circle, rgba(255,150,170,0.28) 0%, rgba(255,200,210,0.14) 40%, transparent 70%)',
+                  background: 'radial-gradient(circle, rgba(214,173,71,0.28) 0%, rgba(184,134,11,0.12) 42%, transparent 70%)',
                   transform: `translateZ(0) scale(${0.7 + amplitude * 0.6})`,
                   opacity: 0.3 + amplitude * 0.7,
                   transition: 'transform 800ms cubic-bezier(0.16, 1, 0.3, 1), opacity 800ms ease-out',
                 }}
               />
-              <KirbyCharacter size={200} puffAmount={amplitude} />
+              <BreathAura size={200} amplitude={amplitude} />
             </button>
           ) : (
             <ShaderOrb
