@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef } from 'react'
+import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { KirbyCharacter } from './KirbyCharacter'
 
 export const KIRBY_COUNT = 11
@@ -37,11 +38,14 @@ function createKirbys(): KirbyInstance[] {
 }
 
 export const KirbyEasterEgg = memo(function KirbyEasterEgg() {
+  const reducedMotion = useReducedMotion()
   const kirbysRef = useRef<KirbyInstance[]>(createKirbys())
   const kirbyElemsRef = useRef<(HTMLDivElement | null)[]>([])
   const rafRef = useRef<number>(0)
 
   useEffect(() => {
+    if (reducedMotion) return
+
     const loop = () => {
       const w = window.innerWidth
       const h = window.innerHeight
@@ -67,7 +71,9 @@ export const KirbyEasterEgg = memo(function KirbyEasterEgg() {
     }
     rafRef.current = requestAnimationFrame(loop)
     return () => cancelAnimationFrame(rafRef.current)
-  }, [])
+  }, [reducedMotion])
+
+  if (reducedMotion) return null
 
   return (
     <div

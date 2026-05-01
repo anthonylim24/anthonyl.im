@@ -1,9 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { BreathingSession } from '../BreathingSession'
 import { TECHNIQUE_IDS } from '@/lib/constants'
 
+vi.mock('@/hooks/useReducedMotion', () => ({
+  useReducedMotion: vi.fn(() => false),
+}))
 vi.mock('@/hooks/useViewportOffset', () => ({
   useViewportOffset: () => ({ bottomOffset: 0 }),
 }))
@@ -48,6 +52,7 @@ vi.mock('@/stores/historyStore', () => ({
 const CONFIG = { techniqueId: TECHNIQUE_IDS.BOX_BREATHING, rounds: 4 }
 
 beforeEach(() => {
+  vi.mocked(useReducedMotion).mockReturnValue(false)
   vi.stubGlobal('requestAnimationFrame', vi.fn(() => 0))
   vi.stubGlobal('cancelAnimationFrame', vi.fn())
 })
@@ -105,6 +110,20 @@ describe('BreathingSession easter egg', () => {
     for (let i = 0; i < 5; i++) {
       await userEvent.click(kirbyTarget)
     }
+    expect(screen.queryByTestId('kirby-easter-egg')).toBeNull()
+  })
+
+  it('does not enable Kirby mode when reduced motion is requested', async () => {
+    vi.mocked(useReducedMotion).mockReturnValue(true)
+    let t = 0
+    vi.spyOn(Date, 'now').mockImplementation(() => (t += 100))
+
+    render(<BreathingSession config={CONFIG} />)
+    const rings = screen.getByTestId('concentric-rings')
+    for (let i = 0; i < 5; i++) {
+      await userEvent.click(rings)
+    }
+
     expect(screen.queryByTestId('kirby-easter-egg')).toBeNull()
   })
 })

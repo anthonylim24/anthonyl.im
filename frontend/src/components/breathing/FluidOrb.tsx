@@ -56,6 +56,8 @@ export function FluidOrb({
   const tapTimestampsRef = useRef<number[]>([])
   const handleClick = useCallback(() => {
     haptic('selection')
+    if (reducedMotion) return
+
     const now = Date.now()
     const recent = tapTimestampsRef.current.filter((t) => now - t < 2000)
     recent.push(now)
@@ -65,7 +67,7 @@ export function FluidOrb({
       haptic('success')
       onEasterEggToggle?.()
     }
-  }, [onEasterEggToggle, haptic])
+  }, [onEasterEggToggle, haptic, reducedMotion])
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {

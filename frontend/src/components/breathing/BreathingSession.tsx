@@ -69,6 +69,8 @@ export function BreathingSession({
   const toggleKirbyMode = useCallback(() => setKirbyMode((prev) => !prev), [])
   const tapTimestampsRef = useRef<number[]>([])
   const handleRingsClick = useCallback(() => {
+    if (reducedMotion) return
+
     const now = Date.now()
     const recent = tapTimestampsRef.current.filter((t) => now - t < 2000)
     recent.push(now)
@@ -78,7 +80,7 @@ export function BreathingSession({
       haptic('success')
       toggleKirbyMode()
     }
-  }, [toggleKirbyMode, haptic])
+  }, [reducedMotion, toggleKirbyMode, haptic])
 
   const clearControlsTimer = useCallback(() => {
     if (controlsTimerRef.current) {
