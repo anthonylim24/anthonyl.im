@@ -81,11 +81,17 @@ describe('Progress accessibility', () => {
     const confirmButton = screen.getByRole('button', { name: /confirm clear history/i })
     const cancelButton = screen.getByRole('button', { name: /cancel clear history/i })
 
+    expect(screen.getByRole('status')).toHaveTextContent(/requires confirmation/i)
     expect(confirmButton).toHaveClass('min-h-11', 'min-w-11')
     expect(cancelButton).toHaveClass('min-h-11', 'min-w-11')
 
-    await user.click(confirmButton)
+    await user.click(cancelButton)
+    expect(screen.getByRole('status')).toHaveTextContent(/cancelled/i)
+
+    await user.click(screen.getByRole('button', { name: /clear session history/i }))
+    await user.click(screen.getByRole('button', { name: /confirm clear history/i }))
     expect(mocks.clearHistory).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('status')).toHaveTextContent(/history cleared/i)
   })
 
   it('keeps history filter controls and empty-history CTA at 44px height', () => {
@@ -104,6 +110,7 @@ describe('Progress accessibility', () => {
     const allFilter = screen.getByRole('button', { name: /show all sessions/i })
     const boxFilter = screen.getByRole('button', { name: /show box sessions/i })
 
+    expect(screen.getByRole('group', { name: /session history filters/i })).toBeInTheDocument()
     expect(allFilter).toHaveAttribute('aria-pressed', 'true')
     expect(boxFilter).toHaveAttribute('aria-pressed', 'false')
 
