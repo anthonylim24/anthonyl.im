@@ -54,6 +54,22 @@ describe('protocolRecommendations', () => {
     expect(calculateSessionDuration({ techniqueId: co2.id, rounds: co2.defaultRounds })).toBe(388)
   })
 
+  it('routes around advanced protocols when a recovery window is active', () => {
+    const recommendation = getProtocolRecommendation({
+      goal: 'performance',
+      sessionWindow: 'standard',
+      currentHour: 14,
+      blockedTechniqueIds: [
+        TECHNIQUE_IDS.CO2_TOLERANCE,
+        TECHNIQUE_IDS.POWER_BREATHING,
+      ],
+    })
+
+    expect(recommendation.primary.protocol.id).toBe(TECHNIQUE_IDS.BOX_BREATHING)
+    expect(recommendation.primary.protocol.safetyChecklist).toBeUndefined()
+    expect(recommendation.primary.reasons).not.toContain('recovery window')
+  })
+
   it('builds bounded session setup links with round counts', () => {
     expect(buildProtocolSessionPath(TECHNIQUE_IDS.RESONANCE_BREATHING, 12)).toBe(
       '/breathwork/session?technique=resonance_breathing&rounds=12'
