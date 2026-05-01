@@ -10,13 +10,31 @@ export function useWakeLock(enabled: boolean) {
   useEffect(() => {
     if (!enabled || !('wakeLock' in navigator)) return
 
-    let released = false
+    let disposed = false
+    let requestVersion = 0
+
+    const releaseCurrent = () => {
+      const currentLock = lockRef.current
+      lockRef.current = null
+      currentLock?.release().catch(() => {})
+    }
 
     const acquire = async () => {
+      const version = ++requestVersion
       try {
-        lockRef.current = await navigator.wakeLock.request('screen')
-        lockRef.current.addEventListener('release', () => {
-          lockRef.current = null
+        const lock = await navigator.wakeLock.request('screen')
+
+        if (disposed || version !== requestVersion) {
+          lock.release().catch(() => {})
+          return
+        }
+
+        releaseCurrent()
+        lockRef.current = lock
+        lock.addEventListener('release', () => {
+          if (lockRef.current === lock) {
+            lockRef.current = null
+          }
         })
       } catch {
         // Wake lock request failed (e.g. low battery, tab hidden)
@@ -27,17 +45,17 @@ export function useWakeLock(enabled: boolean) {
 
     // Re-acquire on visibility change (lock is released when tab is hidden)
     const handleVisibility = () => {
-      if (!released && document.visibilityState === 'visible') {
+      if (!disposed && document.visibilityState === 'visible' && !lockRef.current) {
         acquire()
       }
     }
     document.addEventListener('visibilitychange', handleVisibility)
 
     return () => {
-      released = true
+      disposed = true
+      requestVersion += 1
       document.removeEventListener('visibilitychange', handleVisibility)
-      lockRef.current?.release().catch(() => {})
-      lockRef.current = null
+      releaseCurrent()
     }
   }, [enabled])
 }
