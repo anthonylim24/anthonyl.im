@@ -3,6 +3,7 @@ import { Send, ChevronDown } from "lucide-react";
 import { cn } from "./lib/utils";
 import { invokeDeepseek } from "./lib/apiService";
 import { useFavicon } from "./hooks/useFavicon";
+import { getPostHogConfig } from "./lib/analytics";
 
 const MessageContent = lazy(() => import("./components/message-content"));
 
@@ -108,11 +109,14 @@ function App() {
 
   // PostHog (deferred — bundle-defer-third-party)
   useEffect(() => {
-    const key = import.meta.env.VITE_POSTHOG_KEY;
-    if (key) {
+    const postHogConfig = getPostHogConfig();
+    if (postHogConfig) {
       import("posthog-js")
         .then(({ default: ph }) =>
-          ph.init(key, { api_host: "https://us.i.posthog.com", person_profiles: "identified_only" }),
+          ph.init(postHogConfig.key, {
+            api_host: postHogConfig.apiHost,
+            person_profiles: "identified_only",
+          }),
         )
         .catch(() => {});
     }
