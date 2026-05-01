@@ -106,6 +106,9 @@ export function SessionSummary({
     isNewPersonalBest,
     newBadgeCount: newBadges.length,
   })
+  const isSafetyGatedProtocol = (protocol.safetyChecklist?.length ?? 0) > 0
+  const canRepeatSession = Boolean(onRepeat) && !isSafetyGatedProtocol
+  const showRecoveryReminder = Boolean(onRepeat) && isSafetyGatedProtocol
 
   const particleCount = isNewPersonalBest ? 60 : newBadges.length > 0 ? 50 : 40
 
@@ -372,9 +375,23 @@ export function SessionSummary({
           <motion.div
             variants={fadeUp}
             className="grid gap-2 px-6 pb-6 sm:px-8"
-            style={onRepeat ? { gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)' } : undefined}
+            style={canRepeatSession ? { gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)' } : undefined}
           >
-            {onRepeat ? (
+            {showRecoveryReminder ? (
+              <div
+                role="note"
+                data-testid="summary-recovery-reminder"
+                className="border border-bw-border bg-bw-active px-4 py-3"
+              >
+                <div className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">
+                  Recovery first
+                </div>
+                <p className="mt-1 text-xs leading-relaxed text-bw-tertiary">
+                  Return to relaxed nasal breathing before another advanced set.
+                </p>
+              </div>
+            ) : null}
+            {canRepeatSession ? (
               <button
                 type="button"
                 onClick={onRepeat}

@@ -6,7 +6,7 @@ import { calculateSessionDuration, type SessionConfig } from '@/lib/breathingPro
 import type { CompletedSession } from '@/stores/historyStore'
 
 const sessionConfig: SessionConfig = {
-  techniqueId: TECHNIQUE_IDS.CO2_TOLERANCE,
+  techniqueId: TECHNIQUE_IDS.RESONANCE_BREATHING,
   rounds: 1,
 }
 const startTime = new Date('2026-05-01T10:00:00.000Z')
@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => {
   const cycle = {
     session: {
       config: {
-        techniqueId: 'co2_tolerance',
+        techniqueId: 'resonance_breathing',
         rounds: 1,
       },
       startTime: new Date('2026-05-01T10:00:00.000Z'),
