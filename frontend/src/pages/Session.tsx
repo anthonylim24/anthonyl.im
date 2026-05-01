@@ -241,6 +241,9 @@ export function Session() {
   const protocols = useMemo(() => getProtocolCatalog(), [])
   const requiresSafetyCheck = Boolean(protocol.safetyChecklist?.length)
   const canStartSession = !requiresSafetyCheck || safetyAcknowledged
+  const startSafetyHelpText = requiresSafetyCheck && !canStartSession
+    ? 'Complete the safety check to begin.'
+    : null
   const hasCustomCadence = useMemo(
     () => hasCustomPhaseDurations(protocol, customPhaseDurations),
     [customPhaseDurations, protocol]
@@ -550,10 +553,19 @@ export function Session() {
 
         {/* Pinned CTA */}
         <motion.div variants={fadeUp} className="sticky bottom-0 z-10 shrink-0 bg-bw-canvas pt-3 pb-1">
+          {startSafetyHelpText ? (
+            <p
+              id="mobile-start-safety-help"
+              className="mb-2 text-center text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary"
+            >
+              {startSafetyHelpText}
+            </p>
+          ) : null}
           <button
             type="button"
             onClick={handleStartSession}
             disabled={!canStartSession}
+            aria-describedby={startSafetyHelpText ? 'mobile-start-safety-help' : undefined}
             className="w-full py-3.5 px-6 border border-bw-accent bg-bw-accent font-medium text-bw-accent-foreground text-sm flex items-center justify-center gap-3 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:border-bw-border disabled:bg-bw-active disabled:text-bw-tertiary disabled:hover:opacity-100"
           >
             <span>Begin Session</span>
@@ -761,6 +773,15 @@ export function Session() {
         </motion.div>
 
         {/* Start Button */}
+        {startSafetyHelpText ? (
+          <motion.p
+            variants={fadeUp}
+            id="desktop-start-safety-help"
+            className="-mb-5 text-center text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary"
+          >
+            {startSafetyHelpText}
+          </motion.p>
+        ) : null}
         <motion.button
           type="button"
           variants={fadeUp}
@@ -769,6 +790,7 @@ export function Session() {
           transition={spring}
           onClick={handleStartSession}
           disabled={!canStartSession}
+          aria-describedby={startSafetyHelpText ? 'desktop-start-safety-help' : undefined}
           className="w-full py-4 px-6 border border-bw-accent bg-bw-accent font-medium text-bw-accent-foreground text-sm flex items-center justify-center gap-3 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:border-bw-border disabled:bg-bw-active disabled:text-bw-tertiary disabled:hover:opacity-100"
         >
           <Play className="h-4 w-4" aria-hidden="true" />
