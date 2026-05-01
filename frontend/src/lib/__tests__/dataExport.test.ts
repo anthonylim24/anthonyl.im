@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildBreathFlowExportData } from '../dataExport'
+import { buildBreathFlowExportData, parseBreathFlowImportData } from '../dataExport'
 import { STORAGE_KEYS } from '../constants'
 
 function storageWith(values: Record<string, string>) {
@@ -27,5 +27,39 @@ describe('buildBreathFlowExportData', () => {
 
   it('omits BreathFlow keys that are not present locally', () => {
     expect(buildBreathFlowExportData(storageWith({}))).toEqual({})
+  })
+})
+
+describe('parseBreathFlowImportData', () => {
+  it('imports only BreathFlow-owned keys with JSON string values', () => {
+    expect(
+      parseBreathFlowImportData({
+        [STORAGE_KEYS.SESSION_HISTORY]: '{"state":{"sessions":[]}}',
+        [STORAGE_KEYS.GAMIFICATION]: '{"state":{"xp":120}}',
+        'other-app': '{"keep":true}',
+      })
+    ).toEqual({
+      [STORAGE_KEYS.SESSION_HISTORY]: '{"state":{"sessions":[]}}',
+      [STORAGE_KEYS.GAMIFICATION]: '{"state":{"xp":120}}',
+    })
+  })
+
+  it('rejects files without BreathFlow-owned keys', () => {
+    expect(() => parseBreathFlowImportData({ other: '{}' })).toThrow(
+      /does not contain BreathFlow data/i
+    )
+  })
+
+  it('rejects malformed import values before writing storage', () => {
+    expect(() =>
+      parseBreathFlowImportData({
+        [STORAGE_KEYS.SETTINGS]: '{not-json',
+      })
+    ).toThrow(/must be valid JSON/i)
+  })
+
+  it('rejects non-object imports', () => {
+    expect(() => parseBreathFlowImportData(null)).toThrow(/JSON object/i)
+    expect(() => parseBreathFlowImportData([])).toThrow(/JSON object/i)
   })
 })
