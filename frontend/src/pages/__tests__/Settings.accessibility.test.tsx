@@ -51,6 +51,7 @@ describe('Settings accessibility', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    window.sessionStorage.clear()
     storageValues.clear()
     vi.stubGlobal('localStorage', {
       getItem: vi.fn((key: string) => storageValues.get(key) ?? null),
@@ -97,6 +98,32 @@ describe('Settings accessibility', () => {
     )
   })
 
+  it('announces invalid import files without leaving the chooser stuck', async () => {
+    const user = userEvent.setup()
+    render(<Settings />)
+
+    const input = screen.getByLabelText(/choose breathflow data backup/i) as HTMLInputElement
+    await user.upload(
+      input,
+      new File(['not-json'], 'breathflow-data.json', { type: 'application/json' }),
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/import file must be valid json/i)
+    expect(input.value).toBe('')
+  })
+
+  it('announces a completed import after the restore reload', () => {
+    window.sessionStorage.setItem(
+      'breathflow-import-status',
+      'Data import complete. BreathFlow restored your backup.',
+    )
+
+    render(<Settings />)
+
+    expect(screen.getByRole('status')).toHaveTextContent(/data import complete/i)
+    expect(window.sessionStorage.getItem('breathflow-import-status')).toBeNull()
+  })
+
   it('shows unlocked and locked orb palette controls with clear states', () => {
     render(<Settings />)
 
@@ -123,6 +150,7 @@ describe('Settings accessibility', () => {
     expect(mocks.clearHistory).not.toHaveBeenCalled()
     expect(mocks.gamification.resetProgress).not.toHaveBeenCalled()
     expect(mocks.settings.resetSettings).not.toHaveBeenCalled()
+    expect(screen.getByRole('status')).toHaveTextContent(/requires confirmation/i)
 
     await user.click(screen.getByRole('button', { name: /tap again to confirm/i }))
 
@@ -133,5 +161,6 @@ describe('Settings accessibility', () => {
     expect(localStorage.getItem(STORAGE_KEYS.GAMIFICATION)).toBeNull()
     expect(localStorage.getItem(STORAGE_KEYS.SETTINGS)).toBeNull()
     expect(localStorage.getItem('unrelated-app-key')).toBe('keep')
+    expect(screen.getByRole('status')).toHaveTextContent(/data was cleared/i)
   })
 })
