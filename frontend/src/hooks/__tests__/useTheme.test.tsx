@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, act } from '@testing-library/react'
 import { useTheme } from '../useTheme'
 
@@ -49,6 +49,10 @@ describe('useTheme', () => {
     mockState.theme = 'light'
   })
 
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   it('light theme: no dark class on documentElement', () => {
     render(<Probe />)
     expect(document.documentElement.classList.contains('dark')).toBe(false)
@@ -77,5 +81,14 @@ describe('useTheme', () => {
     })
     rerender(<Probe />)
     expect(document.documentElement.classList.contains('dark')).toBe(false)
+  })
+
+  it('does not subscribe to system color-scheme changes', () => {
+    const matchMedia = vi.fn()
+    vi.stubGlobal('matchMedia', matchMedia)
+
+    render(<Probe />)
+
+    expect(matchMedia).not.toHaveBeenCalled()
   })
 })
