@@ -122,6 +122,32 @@ describe('Session safety gates', () => {
     )
   })
 
+  it('keeps round controls aligned with protocol defaults above the base range', async () => {
+    const user = userEvent.setup()
+    renderSession(`/breathwork/session?technique=${TECHNIQUE_IDS.PURSED_LIP_RECOVERY}`)
+
+    expect(screen.getAllByRole('group', { name: /session rounds, 50 selected/i }).length).toBeGreaterThan(0)
+
+    for (const button of screen.getAllByRole('button', { name: /increase rounds/i })) {
+      expect(button).toBeDisabled()
+    }
+
+    await user.click(screen.getAllByRole('button', { name: /decrease rounds/i })[0])
+    expect(screen.getAllByRole('group', { name: /session rounds, 49 selected/i }).length).toBeGreaterThan(0)
+
+    const increaseButtons = screen.getAllByRole('button', { name: /increase rounds/i })
+    for (const button of increaseButtons) {
+      expect(button).not.toBeDisabled()
+    }
+
+    await user.click(increaseButtons[0])
+    await user.click(screen.getAllByRole('button', { name: /^begin/i })[0])
+
+    expect(screen.getByTestId('active-session')).toHaveTextContent(
+      `${TECHNIQUE_IDS.PURSED_LIP_RECOVERY}:50`
+    )
+  })
+
   it('passes customized phase durations into the active session config', async () => {
     const user = userEvent.setup()
     renderSession(`/breathwork/session?technique=${TECHNIQUE_IDS.RESONANCE_BREATHING}`)
