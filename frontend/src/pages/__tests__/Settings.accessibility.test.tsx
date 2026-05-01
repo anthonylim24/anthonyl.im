@@ -81,6 +81,7 @@ describe('Settings accessibility', () => {
 
     expect(screen.getByRole('switch', { name: /sound/i })).toHaveClass('h-11', 'w-14')
     expect(screen.getByRole('switch', { name: /haptics/i })).toHaveClass('h-11', 'w-14')
+    expect(screen.getByRole('slider', { name: /sound volume/i })).toHaveClass('h-11')
   })
 
   it('shows unlocked and locked orb palette controls with clear states', () => {

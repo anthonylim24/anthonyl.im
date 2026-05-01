@@ -299,15 +299,20 @@ export function Settings() {
                 </div>
                 <input
                   type="range"
+                  aria-label="Sound volume"
                   min={0}
                   max={1}
                   step={0.01}
                   value={soundVolume}
                   onChange={(e) => setSoundVolume(parseFloat(e.target.value))}
-                  className="w-full h-px appearance-none cursor-pointer bg-bw-border accent-bw-accent
-                    [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4
+                  className="h-11 w-full appearance-none cursor-pointer bg-transparent accent-bw-accent
+                    [&::-webkit-slider-runnable-track]:h-px [&::-webkit-slider-runnable-track]:bg-bw-border
+                    [&::-webkit-slider-thumb]:mt-[-7.5px] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4
                     [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-bw-accent
-                    [&::-webkit-slider-thumb]:shadow-sm"
+                    [&::-webkit-slider-thumb]:shadow-sm
+                    [&::-moz-range-track]:h-px [&::-moz-range-track]:bg-bw-border
+                    [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:rounded-full
+                    [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-bw-accent"
                 />
               </div>
             )}
