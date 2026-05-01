@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BreathingSession } from '../BreathingSession'
-import { TECHNIQUE_IDS } from '@/lib/constants'
+import { BREATH_PHASES, TECHNIQUE_IDS } from '@/lib/constants'
 
 const mocks = vi.hoisted(() => {
   const cycle = {
@@ -73,7 +73,7 @@ vi.mock('@/stores/historyStore', () => ({
 }))
 
 function renderSession() {
-  render(
+  return render(
     <BreathingSession
       config={{ techniqueId: TECHNIQUE_IDS.BOX_BREATHING, rounds: 4 }}
     />
@@ -93,6 +93,12 @@ describe('BreathingSession controls accessibility', () => {
     mocks.cycle.isActive = true
     mocks.cycle.isPaused = false
     mocks.cycle.isComplete = false
+    mocks.cycle.session.currentRound = 0
+    mocks.cycle.session.currentPhaseIndex = 0
+    mocks.cycle.session.currentPhase = BREATH_PHASES.INHALE
+    mocks.cycle.session.timeRemaining = 4
+    mocks.cycle.session.isPaused = false
+    mocks.cycle.session.isComplete = false
   })
 
   afterEach(() => {
@@ -134,5 +140,37 @@ describe('BreathingSession controls accessibility', () => {
     await advance(10000)
     expect(controls).toHaveClass('opacity-100')
     expect(controls).not.toHaveClass('opacity-20')
+  })
+
+  it('announces active phase and round progress without relying on the countdown text', () => {
+    renderSession()
+
+    expect(screen.getByTestId('session-live-region')).toHaveTextContent(
+      'Round 1 of 4. Breathe In phase.'
+    )
+  })
+
+  it('announces paused session context', () => {
+    mocks.cycle.isPaused = true
+    mocks.cycle.session.isPaused = true
+    mocks.cycle.session.currentRound = 1
+    mocks.cycle.session.currentPhase = BREATH_PHASES.EXHALE
+
+    renderSession()
+
+    expect(screen.getByTestId('session-live-region')).toHaveTextContent(
+      'Box Breathing paused. Round 2 of 4. Breathe Out phase.'
+    )
+  })
+
+  it('announces completion when the breathing cycle completes', () => {
+    mocks.cycle.isComplete = true
+    mocks.cycle.session.isComplete = true
+
+    renderSession()
+
+    expect(screen.getByTestId('session-live-region')).toHaveTextContent(
+      'Box Breathing complete. Review your session summary.'
+    )
   })
 })

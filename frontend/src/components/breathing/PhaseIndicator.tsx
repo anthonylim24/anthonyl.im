@@ -15,7 +15,7 @@ export function PhaseIndicator({ phase, className }: PhaseIndicatorProps) {
     <div
       className={cn('text-center', className)}
       role="status"
-      aria-live="assertive"
+      aria-live="polite"
       aria-atomic="true"
     >
       {/* Phase label badge */}
