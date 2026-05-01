@@ -8,7 +8,9 @@ import {
   BADGES,
   checkBadgeUnlocks,
   ORB_THEMES,
+  getOrbTheme,
   getUnlockedThemes,
+  isOrbThemeUnlocked,
 } from '../gamification'
 import { TECHNIQUE_IDS } from '@/lib/constants'
 import { ACCENT_WARM, ACCENT_WARM_LIGHT } from '../palette'
@@ -217,6 +219,18 @@ describe('ORB_THEMES', () => {
     expect(defaultTheme?.colors).toEqual([ACCENT_WARM, ACCENT_WARM_LIGHT])
     expect(defaultTheme?.colors).not.toEqual(['#6366F1', '#818CF8'])
   })
+
+  it('keeps unlockable themes out of the old indigo/purple palette family', () => {
+    const flattenedColors = ORB_THEMES.flatMap((theme) => theme.colors)
+
+    expect(flattenedColors).not.toEqual(
+      expect.arrayContaining(['#6366F1', '#818CF8', '#4F46E5', '#D0D4FF', '#E8EAFF'])
+    )
+  })
+
+  it('falls back to default for unknown theme IDs', () => {
+    expect(getOrbTheme('missing').id).toBe('default')
+  })
 })
 
 describe('getUnlockedThemes', () => {
@@ -234,5 +248,11 @@ describe('getUnlockedThemes', () => {
   it('returns all themes at level 50', () => {
     const themes = getUnlockedThemes(50)
     expect(themes).toHaveLength(9)
+  })
+
+  it('checks individual orb theme unlock status', () => {
+    expect(isOrbThemeUnlocked('tidal', 4)).toBe(false)
+    expect(isOrbThemeUnlocked('tidal', 5)).toBe(true)
+    expect(isOrbThemeUnlocked('missing', 1)).toBe(true)
   })
 })

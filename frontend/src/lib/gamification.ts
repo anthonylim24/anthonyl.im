@@ -260,18 +260,28 @@ export interface OrbTheme {
   unlockLevel: number
 }
 
+export const DEFAULT_ORB_THEME_ID = 'default'
+
 export const ORB_THEMES: OrbTheme[] = [
-  { id: 'default', name: 'Default', colors: [ACCENT_WARM, ACCENT_WARM_LIGHT], unlockLevel: 1 },
+  { id: DEFAULT_ORB_THEME_ID, name: 'Default', colors: [ACCENT_WARM, ACCENT_WARM_LIGHT], unlockLevel: 1 },
   { id: 'tidal', name: 'Tidal', colors: ['#3D9088', '#7AD0C6'], unlockLevel: 5 },
   { id: 'ember', name: 'Ember', colors: ['#B58834', '#E8BE72'], unlockLevel: 10 },
   { id: 'coral', name: 'Coral', colors: ['#B45C56', '#EA9490'], unlockLevel: 15 },
   { id: 'grove', name: 'Grove', colors: ['#5E9A6C', '#9CD4A8'], unlockLevel: 20 },
-  { id: 'midnight', name: 'Midnight', colors: ['#2A3370', '#4F46E5'], unlockLevel: 25 },
+  { id: 'midnight', name: 'Nocturne', colors: ['#5F574F', '#C9A227'], unlockLevel: 25 },
   { id: 'dawn', name: 'Dawn', colors: ['#D4A04A', '#EA9490'], unlockLevel: 30 },
   { id: 'arctic', name: 'Arctic', colors: ['#56B4A9', '#A0E5DD'], unlockLevel: 40 },
-  { id: 'transcend', name: 'Transcend', colors: ['#D0D4FF', '#E8EAFF'], unlockLevel: 50 },
+  { id: 'transcend', name: 'Clarity', colors: ['#8DAF92', '#E1C45C'], unlockLevel: 50 },
 ]
+
+export function getOrbTheme(id: string): OrbTheme {
+  return ORB_THEMES.find((theme) => theme.id === id) ?? ORB_THEMES[0]
+}
 
 export function getUnlockedThemes(level: number): OrbTheme[] {
   return ORB_THEMES.filter((theme) => theme.unlockLevel <= level)
+}
+
+export function isOrbThemeUnlocked(id: string, level: number): boolean {
+  return getOrbTheme(id).unlockLevel <= level
 }

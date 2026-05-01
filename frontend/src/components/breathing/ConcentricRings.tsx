@@ -10,6 +10,7 @@ interface ConcentricRingsProps {
   amplitude: number // 0-1
   isActive: boolean
   techniqueId: TechniqueId
+  themeColors?: [string, string]
   className?: string
   onClick?: () => void
 }
@@ -84,13 +85,16 @@ export const ConcentricRings = memo(function ConcentricRings({
   phase,
   amplitude,
   techniqueId,
+  themeColors,
   className,
   onClick,
 }: ConcentricRingsProps) {
   const reducedMotion = useReducedMotion()
 
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
-  const ringColors = getTechniqueRingColor(techniqueId, isDark)
+  const ringColors = themeColors
+    ? { primary: themeColors[0], secondary: themeColors[1] }
+    : getTechniqueRingColor(techniqueId, isDark)
 
   // Bucket amplitude to ~10 steps to avoid constant path recalculation
   const ampBucket = Math.round(amplitude * 10) / 10

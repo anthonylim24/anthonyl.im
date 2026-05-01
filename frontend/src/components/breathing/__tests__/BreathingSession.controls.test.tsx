@@ -60,6 +60,8 @@ vi.mock('@/stores/gamificationStore', () => ({
     unlockBadges: vi.fn(),
     recordSession: vi.fn(),
     earnedBadges: [],
+    selectedTheme: 'default',
+    xp: 0,
   }),
 }))
 

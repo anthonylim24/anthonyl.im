@@ -19,7 +19,14 @@ import { Play, Pause, Square, RotateCcw } from 'lucide-react'
 import type { SessionConfig } from '@/lib/breathingProtocols'
 import { getProtocol } from '@/lib/breathingProtocols'
 import { cn } from '@/lib/utils'
-import { calculateXP, checkBadgeUnlocks } from '@/lib/gamification'
+import {
+  calculateXP,
+  checkBadgeUnlocks,
+  DEFAULT_ORB_THEME_ID,
+  getLevelForXP,
+  getOrbTheme,
+  isOrbThemeUnlocked,
+} from '@/lib/gamification'
 import { DESTRUCTIVE, withAlpha } from '@/lib/palette'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore } from '@/stores/historyStore'
@@ -55,8 +62,12 @@ export function BreathingSession({
   const reducedMotion = useReducedMotion()
 
   // Gamification stores
-  const { addXP, unlockBadges, recordSession, earnedBadges } = useGamificationStore()
+  const { addXP, unlockBadges, recordSession, earnedBadges, selectedTheme, xp } = useGamificationStore()
   const { sessions, getStreak } = useHistoryStore()
+  const level = getLevelForXP(xp)
+  const selectedOrbTheme = isOrbThemeUnlocked(selectedTheme, level)
+    ? getOrbTheme(selectedTheme)
+    : getOrbTheme(DEFAULT_ORB_THEME_ID)
   const { bottomOffset } = useViewportOffset()
   const viewportOffsetStyle = {
     '--viewport-bottom-offset': `${bottomOffset}px`,
@@ -383,6 +394,7 @@ export function BreathingSession({
               amplitude={amplitude}
               isActive={isActive && !isPaused}
               techniqueId={config.techniqueId}
+              themeColors={selectedOrbTheme.colors}
               className="w-full h-full"
               onClick={handleRingsClick}
             />
