@@ -247,10 +247,11 @@ export function Session() {
         {/* Back button */}
         <motion.button
           variants={fadeUp}
+          type="button"
           onClick={() => { haptic('light'); navigate('/breathwork') }}
-          className="flex items-center gap-1 text-xs text-bw-tertiary hover:text-bw transition-colors mb-2 -ml-1"
+          className="mb-2 -ml-1 flex min-h-11 items-center gap-1 text-xs text-bw-tertiary transition-colors hover:text-bw"
         >
-          <ChevronLeft className="h-3.5 w-3.5" />
+          <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
           <span>Back</span>
         </motion.button>
 
@@ -329,16 +330,20 @@ export function Session() {
         {protocol.science && (
           <motion.div variants={fadeUp} className="mb-3">
             <button
+              type="button"
+              aria-expanded={scienceExpanded}
+              aria-controls={`mobile-science-panel-${selectedTechnique}`}
               onClick={() => setScienceExpanded(!scienceExpanded)}
-              className="flex items-center justify-between w-full text-left"
+              className="flex min-h-11 w-full items-center justify-between text-left"
             >
               <span className="text-[10px] font-medium text-bw-secondary uppercase tracking-[0.07em]">How it works</span>
               <ChevronDown className={cn(
                 'h-3 w-3 text-bw-tertiary transition-transform duration-200',
                 scienceExpanded && 'rotate-180'
-              )} />
+              )} aria-hidden="true" />
             </button>
             <motion.div
+              id={`mobile-science-panel-${selectedTechnique}`}
               initial={false}
               animate={{ height: scienceExpanded ? 'auto' : 0, opacity: scienceExpanded ? 1 : 0 }}
               transition={reducedMotion ? motionTransition : { duration: 0.2 }}
