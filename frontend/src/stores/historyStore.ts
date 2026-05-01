@@ -8,6 +8,7 @@ import {
   getLocalDateKey,
   getLocalDayStart,
 } from '@/lib/localDates'
+import { createBrowserJSONStorage } from '@/lib/persistStorage'
 
 export interface CompletedSession {
   id: string
@@ -176,6 +177,7 @@ export const useHistoryStore = create<HistoryState>()(
     }),
     {
       name: STORAGE_KEYS.SESSION_HISTORY,
+      storage: createBrowserJSONStorage<PersistedHistoryState>(),
       version: HISTORY_STORAGE_VERSION,
       partialize: (state): PersistedHistoryState => ({
         sessions: state.sessions,

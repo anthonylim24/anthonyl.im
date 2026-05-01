@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { STORAGE_KEYS } from '@/lib/constants'
 import { formatLocalDateKey, getLocalWeekStartKey } from '@/lib/localDates'
+import { createBrowserJSONStorage } from '@/lib/persistStorage'
 
 function getToday(): string {
   return formatLocalDateKey(new Date())
@@ -165,6 +166,7 @@ export const useGamificationStore = create<GamificationState>()(
     }),
     {
       name: STORAGE_KEYS.GAMIFICATION,
+      storage: createBrowserJSONStorage<PersistedGamificationState>(),
       version: GAMIFICATION_STORAGE_VERSION,
       partialize: (state): PersistedGamificationState => ({
         xp: state.xp,
