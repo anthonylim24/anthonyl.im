@@ -41,7 +41,7 @@ vi.mock('@/components/gamification/ActivityHeatmap', () => ({
 }))
 
 vi.mock('@/components/gamification/BadgeGrid', () => ({
-  BadgeGrid: () => <section aria-label="Achievements grid" />,
+  BadgeGrid: () => <section aria-label="Milestones grid" />,
 }))
 
 vi.mock('@/components/tracking/PersonalBests', () => ({

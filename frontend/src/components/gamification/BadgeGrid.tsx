@@ -10,15 +10,17 @@ import {
 import {
   Zap,
   Flame,
-  Crown,
   Award,
   Clock,
+  Trophy,
   Star,
-  Box,
+  Square,
   Wind,
   Moon,
   Sunrise,
   Timer,
+  Beaker,
+  Mountain,
   HelpCircle,
   Lock,
 } from 'lucide-react'
@@ -26,15 +28,17 @@ import {
 const ICON_MAP: Record<string, React.ReactNode> = {
   Zap: <Zap className="h-5 w-5" aria-hidden="true" />,
   Flame: <Flame className="h-5 w-5" aria-hidden="true" />,
-  Crown: <Crown className="h-5 w-5" aria-hidden="true" />,
   Award: <Award className="h-5 w-5" aria-hidden="true" />,
   Clock: <Clock className="h-5 w-5" aria-hidden="true" />,
+  Trophy: <Trophy className="h-5 w-5" aria-hidden="true" />,
   Star: <Star className="h-5 w-5" aria-hidden="true" />,
-  Box: <Box className="h-5 w-5" aria-hidden="true" />,
+  Square: <Square className="h-5 w-5" aria-hidden="true" />,
   Wind: <Wind className="h-5 w-5" aria-hidden="true" />,
   Moon: <Moon className="h-5 w-5" aria-hidden="true" />,
   Sunrise: <Sunrise className="h-5 w-5" aria-hidden="true" />,
   Timer: <Timer className="h-5 w-5" aria-hidden="true" />,
+  Beaker: <Beaker className="h-5 w-5" aria-hidden="true" />,
+  Mountain: <Mountain className="h-5 w-5" aria-hidden="true" />,
 }
 
 interface BadgeGridProps {
@@ -49,7 +53,7 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
     <motion.div
       className="grid grid-cols-3 sm:grid-cols-4 gap-3"
       role="list"
-      aria-label={`${earnedCount} of ${BADGES.length} achievements earned`}
+      aria-label={`${earnedCount} of ${BADGES.length} milestones earned`}
       variants={reducedMotion ? reducedBadgeStagger : badgeStagger}
       initial="hidden"
       animate="show"
@@ -66,7 +70,7 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
               data-badge={badge.id}
               data-secret="true"
               role="listitem"
-              aria-label="Secret badge locked. Not yet discovered."
+              aria-label="Secret milestone locked. Not yet discovered."
               className="flex flex-col items-center gap-2.5 p-3 border border-bw-border"
             >
               <div className="h-11 w-11 bg-bw-active flex items-center justify-center">

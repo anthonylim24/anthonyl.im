@@ -363,7 +363,7 @@ export function SessionSummary({
             {newBadges.length > 0 && (
               <motion.div variants={fadeUp} className="mt-4 space-y-2">
                 <div className="text-xs text-bw-tertiary text-center font-medium uppercase tracking-wider">
-                  Badges Unlocked
+                  {newBadges.length === 1 ? 'Milestone Unlocked' : 'Milestones Unlocked'}
                 </div>
                 <div className="flex flex-wrap justify-center gap-2">
                   {newBadges.map((badgeId) => {
