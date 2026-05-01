@@ -88,7 +88,7 @@ export function Progress() {
                   type="button"
                   aria-label="Confirm clear history"
                   onClick={handleClearHistory}
-                  className="min-h-11 min-w-11 px-3 py-2 text-xs font-medium border border-red-400/30 text-red-400 hover:bg-red-500/10 transition-colors duration-300"
+                  className="min-h-11 min-w-11 px-3 py-2 text-xs font-medium border border-bw-destructive-border text-bw-destructive hover:bg-bw-destructive-hover transition-colors duration-300"
                 >
                   Yes
                 </button>
@@ -113,7 +113,7 @@ export function Progress() {
                   setShowClearConfirm(true)
                   setHistoryStatus('Clear history requires confirmation.')
                 }}
-                className="inline-flex min-h-11 min-w-11 items-center justify-center px-3 py-2 text-xs text-bw-tertiary hover:text-red-400 transition-colors duration-300"
+                className="inline-flex min-h-11 min-w-11 items-center justify-center px-3 py-2 text-xs text-bw-tertiary hover:text-bw-destructive transition-colors duration-300"
               >
                 <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
