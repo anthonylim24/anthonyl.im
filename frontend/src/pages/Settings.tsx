@@ -19,6 +19,40 @@ const motionTransition = { type: 'tween' as const, duration: 0.6, ease: [0.33, 0
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } }
 const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: motionTransition } }
 
+interface SettingsSwitchProps {
+  checked: boolean
+  label: string
+  onClick: () => void
+}
+
+function SettingsSwitch({ checked, label, onClick }: SettingsSwitchProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-checked={checked}
+      role="switch"
+      className="inline-flex h-11 w-14 items-center justify-center"
+    >
+      <span
+        aria-hidden="true"
+        className={cn(
+          'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300',
+          checked ? 'bg-bw-accent' : 'border border-bw-border'
+        )}
+      >
+        <span
+          className={cn(
+            'absolute left-1 top-1 h-5 w-5 transform rounded-full shadow-sm transition-transform duration-300',
+            checked ? 'translate-x-5 bg-bw-canvas' : 'translate-x-0 bg-bw-tertiary'
+          )}
+        />
+      </span>
+    </button>
+  )
+}
+
 function AccountInfo() {
   const { user } = useUser()
   if (!user) return null
@@ -113,7 +147,7 @@ export function Settings() {
               </p>
               <SignInButton mode="modal">
                 <button
-                  className="flex items-center gap-2 px-4 py-2.5 text-xs font-medium transition-all duration-300 border border-bw-border hover:bg-bw-hover text-bw"
+                  className="flex min-h-11 items-center gap-2 px-4 py-2.5 text-xs font-medium transition-all duration-300 border border-bw-border hover:bg-bw-hover text-bw"
                 >
                   <Cloud className="h-3.5 w-3.5" />
                   Sign in to sync
@@ -136,7 +170,7 @@ export function Settings() {
             transition={motionTransition}
             onClick={() => { haptic('selection'); setTheme('dark') }}
             className={cn(
-              'flex items-center gap-2 px-4 py-2.5 text-xs font-medium border transition-all duration-300',
+              'flex min-h-11 items-center gap-2 px-4 py-2.5 text-xs font-medium border transition-all duration-300',
               theme === 'dark'
                 ? 'border-bw-accent text-bw bg-bw-active'
                 : 'border-bw-border text-bw-tertiary hover:text-bw-secondary hover:border-bw-border'
@@ -153,7 +187,7 @@ export function Settings() {
             transition={motionTransition}
             onClick={() => { haptic('selection'); setTheme('light') }}
             className={cn(
-              'flex items-center gap-2 px-4 py-2.5 text-xs font-medium border transition-all duration-300',
+              'flex min-h-11 items-center gap-2 px-4 py-2.5 text-xs font-medium border transition-all duration-300',
               theme === 'light'
                 ? 'border-bw-accent text-bw bg-bw-active'
                 : 'border-bw-border text-bw-tertiary hover:text-bw-secondary hover:border-bw-border'
@@ -177,22 +211,11 @@ export function Settings() {
           <div>
             <div className="flex items-center justify-between">
               <span className="text-xs text-bw font-medium">Sound</span>
-              <button
+              <SettingsSwitch
+                checked={soundEnabled}
+                label="Sound"
                 onClick={() => { haptic('selection'); setSoundEnabled(!soundEnabled) }}
-                aria-checked={soundEnabled}
-                role="switch"
-                className={cn(
-                  'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[24px] min-w-[44px]',
-                  soundEnabled ? 'bg-bw-accent' : 'border border-bw-border'
-                )}
-              >
-                <span
-                  className={cn(
-                    'inline-block h-5 w-5 transform rounded-full shadow-sm transition-transform duration-300',
-                    soundEnabled ? 'translate-x-6 bg-bw-canvas' : 'translate-x-1 bg-bw-tertiary'
-                  )}
-                />
-              </button>
+              />
             </div>
             {soundEnabled && (
               <div className="mt-3">
@@ -222,26 +245,15 @@ export function Settings() {
           <div className="pt-4 border-t border-bw-border">
             <div className="flex items-center justify-between">
               <span className="text-xs text-bw font-medium">Haptics</span>
-              <button
+              <SettingsSwitch
+                checked={hapticsEnabled}
+                label="Haptics"
                 onClick={() => {
                   const next = !hapticsEnabled
                   setHapticsEnabled(next)
                   if (next) setTimeout(() => haptic('nudge'), 50)
                 }}
-                aria-checked={hapticsEnabled}
-                role="switch"
-                className={cn(
-                  'relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 min-h-[24px] min-w-[44px]',
-                  hapticsEnabled ? 'bg-bw-accent' : 'border border-bw-border'
-                )}
-              >
-                <span
-                  className={cn(
-                    'inline-block h-5 w-5 transform rounded-full shadow-sm transition-transform duration-300',
-                    hapticsEnabled ? 'translate-x-6 bg-bw-canvas' : 'translate-x-1 bg-bw-tertiary'
-                  )}
-                />
-              </button>
+              />
             </div>
           </div>
         </div>
@@ -301,7 +313,7 @@ export function Settings() {
           {confirmClear && (
             <button
               onClick={() => setConfirmClear(false)}
-              className="text-[10px] text-bw-tertiary hover:text-bw-secondary transition-colors py-3"
+              className="min-h-11 text-[10px] text-bw-tertiary hover:text-bw-secondary transition-colors py-3"
             >
               Cancel
             </button>

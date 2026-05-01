@@ -60,7 +60,7 @@ export function Navigation() {
                 to={path}
                 onClick={() => { if (i !== activeIndex) haptic('selection') }}
                 className={cn(
-                  'flex flex-col items-center justify-center gap-1 text-[10px] font-mono font-medium tracking-[0.07em] uppercase transition-colors duration-300 relative min-h-[24px] min-w-[44px]',
+                  'flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 text-[10px] font-mono font-medium tracking-[0.07em] uppercase transition-colors duration-300 relative',
                   active
                     ? 'text-bw'
                     : 'text-bw-secondary hover:text-bw active:scale-95'
