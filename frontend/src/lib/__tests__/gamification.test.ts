@@ -11,6 +11,7 @@ import {
   getUnlockedThemes,
 } from '../gamification'
 import { TECHNIQUE_IDS } from '@/lib/constants'
+import { ACCENT_WARM, ACCENT_WARM_LIGHT } from '../palette'
 
 describe('calculateXP', () => {
   it('returns base XP for each technique with default rounds and no streak', () => {
@@ -209,6 +210,12 @@ describe('ORB_THEMES', () => {
   it('has default theme at unlock level 1', () => {
     const defaultTheme = ORB_THEMES.find((t) => t.id === 'default')
     expect(defaultTheme?.unlockLevel).toBe(1)
+  })
+
+  it('uses the BreathFlow warm accent pair for the default theme', () => {
+    const defaultTheme = ORB_THEMES.find((t) => t.id === 'default')
+    expect(defaultTheme?.colors).toEqual([ACCENT_WARM, ACCENT_WARM_LIGHT])
+    expect(defaultTheme?.colors).not.toEqual(['#6366F1', '#818CF8'])
   })
 })
 
