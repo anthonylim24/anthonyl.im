@@ -1,9 +1,13 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
+import { BREATH_PHASES, TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 import { addLocalDays, getLocalDayStart } from '@/lib/localDates'
 import type { PersonalBest } from '../historyStore'
-import { useHistoryStore } from '../historyStore'
+import {
+  HISTORY_STORAGE_VERSION,
+  migratePersistedHistoryState,
+  useHistoryStore,
+} from '../historyStore'
 
 describe('historyStore', () => {
   beforeEach(() => {
@@ -101,5 +105,39 @@ describe('historyStore', () => {
     })
 
     expect(useHistoryStore.getState().getStreak()).toBe(2)
+  })
+
+  it('versions and migrates persisted history state', () => {
+    const migrated = migratePersistedHistoryState({
+      sessions: [
+        {
+          id: 'session-custom',
+          techniqueId: TECHNIQUE_IDS.BOX_BREATHING,
+          date: '2026-05-01T10:00:00.000Z',
+          durationSeconds: 120,
+          rounds: 3,
+          customPhaseDurations: {
+            [BREATH_PHASES.INHALE]: 6,
+          },
+          holdTimes: [],
+          maxHoldTime: 0,
+          avgHoldTime: 0,
+        },
+      ],
+      personalBests: {},
+    })
+
+    expect(HISTORY_STORAGE_VERSION).toBeGreaterThan(0)
+    expect(migrated.sessions[0].customPhaseDurations).toEqual({
+      [BREATH_PHASES.INHALE]: 6,
+    })
+    expect(migrated.vo2MaxManual).toBeNull()
+    expect(migrated.vo2MaxHistory).toEqual([])
+    expect(migratePersistedHistoryState(undefined)).toEqual({
+      sessions: [],
+      personalBests: {},
+      vo2MaxManual: null,
+      vo2MaxHistory: [],
+    })
   })
 })

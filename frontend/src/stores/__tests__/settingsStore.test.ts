@@ -1,6 +1,11 @@
 // @vitest-environment node
 import { describe, it, expect, beforeEach } from 'vitest'
-import { useSettingsStore } from '../settingsStore'
+import {
+  DEFAULT_SETTINGS_STATE,
+  SETTINGS_STORAGE_VERSION,
+  migratePersistedSettingsState,
+  useSettingsStore,
+} from '../settingsStore'
 
 describe('settingsStore', () => {
   beforeEach(() => {
@@ -43,5 +48,22 @@ describe('settingsStore', () => {
       soundVolume: 0.3,
       hapticsEnabled: true,
     })
+  })
+
+  it('versions and migrates persisted settings state', () => {
+    expect(SETTINGS_STORAGE_VERSION).toBeGreaterThan(0)
+    expect(migratePersistedSettingsState({
+      theme: 'dark',
+      soundEnabled: false,
+      soundVolume: 2,
+    })).toEqual({
+      ...DEFAULT_SETTINGS_STATE,
+      theme: 'dark',
+      soundEnabled: false,
+      soundVolume: 1,
+    })
+    const fallback = migratePersistedSettingsState(null)
+    expect(fallback).toEqual(DEFAULT_SETTINGS_STATE)
+    expect(fallback).not.toBe(DEFAULT_SETTINGS_STATE)
   })
 })

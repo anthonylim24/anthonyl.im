@@ -28,6 +28,31 @@ interface GamificationState {
   resetProgress: () => void
 }
 
+export type PersistedGamificationState = Pick<
+  GamificationState,
+  | 'xp'
+  | 'earnedBadges'
+  | 'selectedTheme'
+  | 'dailySessionCount'
+  | 'weeklySessionCount'
+  | 'lastDailyReset'
+  | 'lastWeeklyReset'
+>
+
+export const GAMIFICATION_STORAGE_VERSION = 1
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isNonNegativeNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+}
+
+function isLocalDateKey(value: unknown): value is string {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+}
+
 function getInitialProgressState(): Pick<
   GamificationState,
   | 'xp'
@@ -46,6 +71,38 @@ function getInitialProgressState(): Pick<
     weeklySessionCount: 0,
     lastDailyReset: getToday(),
     lastWeeklyReset: getWeekStart(),
+  }
+}
+
+export function migratePersistedGamificationState(
+  persistedState: unknown
+): PersistedGamificationState {
+  const defaults = getInitialProgressState()
+  if (!isRecord(persistedState)) {
+    return defaults
+  }
+
+  return {
+    xp: isNonNegativeNumber(persistedState.xp) ? persistedState.xp : defaults.xp,
+    earnedBadges: Array.isArray(persistedState.earnedBadges)
+      && persistedState.earnedBadges.every((badge) => typeof badge === 'string')
+      ? persistedState.earnedBadges
+      : defaults.earnedBadges,
+    selectedTheme: typeof persistedState.selectedTheme === 'string'
+      ? persistedState.selectedTheme
+      : defaults.selectedTheme,
+    dailySessionCount: isNonNegativeNumber(persistedState.dailySessionCount)
+      ? persistedState.dailySessionCount
+      : defaults.dailySessionCount,
+    weeklySessionCount: isNonNegativeNumber(persistedState.weeklySessionCount)
+      ? persistedState.weeklySessionCount
+      : defaults.weeklySessionCount,
+    lastDailyReset: isLocalDateKey(persistedState.lastDailyReset)
+      ? persistedState.lastDailyReset
+      : defaults.lastDailyReset,
+    lastWeeklyReset: isLocalDateKey(persistedState.lastWeeklyReset)
+      ? persistedState.lastWeeklyReset
+      : defaults.lastWeeklyReset,
   }
 }
 
@@ -108,6 +165,17 @@ export const useGamificationStore = create<GamificationState>()(
     }),
     {
       name: STORAGE_KEYS.GAMIFICATION,
+      version: GAMIFICATION_STORAGE_VERSION,
+      partialize: (state): PersistedGamificationState => ({
+        xp: state.xp,
+        earnedBadges: state.earnedBadges,
+        selectedTheme: state.selectedTheme,
+        dailySessionCount: state.dailySessionCount,
+        weeklySessionCount: state.weeklySessionCount,
+        lastDailyReset: state.lastDailyReset,
+        lastWeeklyReset: state.lastWeeklyReset,
+      }),
+      migrate: (persistedState) => migratePersistedGamificationState(persistedState),
     },
   ),
 )
