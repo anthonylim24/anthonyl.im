@@ -26,7 +26,7 @@ import {
   type SessionConfig,
 } from '@/lib/breathingProtocols'
 import { PHASE_LABELS } from '@/lib/constants'
-import { cn } from '@/lib/utils'
+import { cn, formatTime } from '@/lib/utils'
 import {
   calculateXP,
   checkBadgeUnlocks,
@@ -227,6 +227,7 @@ export function BreathingSession({
   useWakeLock(isActive)
 
   const protocol = getProtocol(config.techniqueId)
+  const plannedDuration = useMemo(() => calculateSessionDuration(config), [config])
   const coachCue = getPhaseCoachCue(config.techniqueId, session?.currentPhase)
   const safetyCue = getActiveSessionSafetyCue(protocol)
   const sessionAnnouncement = useMemo(
@@ -580,7 +581,21 @@ export function BreathingSession({
 
         {/* Timer below orb */}
         <div className="relative z-10 mt-3">
-          <Timer seconds={session?.timeRemaining ?? 0} className="text-bw" />
+          {session ? (
+            <Timer seconds={session.timeRemaining} className="text-bw" />
+          ) : (
+            <div
+              className="font-mono text-4xl font-normal tabular-nums tracking-[0.04em] text-bw md:text-5xl"
+              aria-label={`${formatTime(plannedDuration)} planned duration`}
+              data-testid="session-planned-duration"
+            >
+              <span className="opacity-90">{formatTime(plannedDuration)}</span>
+              {' '}
+              <span className="ml-2 text-[0.28em] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
+                planned
+              </span>
+            </div>
+          )}
         </div>
 
         <p
