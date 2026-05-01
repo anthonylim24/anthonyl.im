@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 
+const passiveListenerOptions: AddEventListenerOptions = { passive: true }
+
 function readViewportBottomOffset() {
   if (typeof window === 'undefined' || !window.visualViewport) {
     return 0
@@ -35,19 +37,19 @@ export function useViewportOffset() {
 
     update()
 
-    window.addEventListener('resize', update)
-    window.addEventListener('orientationchange', update)
-    window.visualViewport?.addEventListener('resize', update)
-    window.visualViewport?.addEventListener('scroll', update)
+    window.addEventListener('resize', update, passiveListenerOptions)
+    window.addEventListener('orientationchange', update, passiveListenerOptions)
+    window.visualViewport?.addEventListener('resize', update, passiveListenerOptions)
+    window.visualViewport?.addEventListener('scroll', update, passiveListenerOptions)
 
     return () => {
       if (frameId) {
         cancelAnimationFrame(frameId)
       }
-      window.removeEventListener('resize', update)
-      window.removeEventListener('orientationchange', update)
-      window.visualViewport?.removeEventListener('resize', update)
-      window.visualViewport?.removeEventListener('scroll', update)
+      window.removeEventListener('resize', update, passiveListenerOptions)
+      window.removeEventListener('orientationchange', update, passiveListenerOptions)
+      window.visualViewport?.removeEventListener('resize', update, passiveListenerOptions)
+      window.visualViewport?.removeEventListener('scroll', update, passiveListenerOptions)
     }
   }, [])
 
