@@ -394,6 +394,7 @@ export function BreathingSession({
       {/* Session Summary overlay */}
       {showSummary && summaryData && session && (
         <SessionSummary
+          techniqueId={config.techniqueId}
           xpEarned={summaryData.xpEarned}
           newBadges={summaryData.newBadges}
           rounds={config.rounds}

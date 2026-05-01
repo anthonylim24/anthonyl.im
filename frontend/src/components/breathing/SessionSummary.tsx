@@ -2,11 +2,16 @@ import { useEffect, useState, useRef } from 'react'
 import { motion } from 'motion/react'
 import { BADGES } from '@/lib/gamification'
 import { formatTime } from '@/lib/utils'
-import { Trophy, Zap, Target, Clock, Star, X } from 'lucide-react'
+import { buildSessionInsight } from '@/lib/sessionInsights'
+import type { TechniqueId } from '@/lib/constants'
+import { getProtocol } from '@/lib/breathingProtocols'
+import { Trophy, Zap, Target, Clock, Star, X, Sparkles, Activity, ArrowRight } from 'lucide-react'
 import { CelebrationParticles } from './CelebrationParticles'
 import { useHaptics } from '@/hooks/useHaptics'
+import { useReducedMotion } from '@/hooks/useReducedMotion'
 
 interface SessionSummaryProps {
+  techniqueId: TechniqueId
   xpEarned: number
   newBadges: string[]
   rounds: number
@@ -35,12 +40,15 @@ function AnimatedCounter({ target, prefix = '', suffix = '', className }: {
   suffix?: string
   className?: string
 }) {
+  const reducedMotion = useReducedMotion()
   const [value, setValue] = useState(0)
   const rafRef = useRef<number>(0)
   const startRef = useRef<number>(0)
 
   useEffect(() => {
-    if (target <= 0) return
+    if (reducedMotion) {
+      return
+    }
 
     const duration = Math.min(1200, 400 + target * 8)
     startRef.current = performance.now()
@@ -59,12 +67,15 @@ function AnimatedCounter({ target, prefix = '', suffix = '', className }: {
 
     rafRef.current = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(rafRef.current)
-  }, [target])
+  }, [reducedMotion, target])
 
-  return <span className={className}>{prefix}{value}{suffix}</span>
+  const displayedValue = reducedMotion ? target : value
+
+  return <span className={className}>{prefix}{displayedValue}{suffix}</span>
 }
 
 export function SessionSummary({
+  techniqueId,
   xpEarned,
   newBadges,
   rounds,
@@ -74,11 +85,20 @@ export function SessionSummary({
   onClose,
 }: SessionSummaryProps) {
   const { trigger: haptic } = useHaptics()
+  const protocol = getProtocol(techniqueId)
   const maxHold = holdTimes.length > 0 ? Math.max(...holdTimes) : 0
   const avgHold =
     holdTimes.length > 0
       ? Math.round(holdTimes.reduce((a, b) => a + b, 0) / holdTimes.length)
       : 0
+  const insight = buildSessionInsight({
+    techniqueId,
+    rounds,
+    durationSeconds,
+    holdTimes,
+    isNewPersonalBest,
+    newBadgeCount: newBadges.length,
+  })
 
   const particleCount = isNewPersonalBest ? 60 : newBadges.length > 0 ? 50 : 40
 
@@ -98,8 +118,11 @@ export function SessionSummary({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4 bg-black/20 backdrop-blur-sm breathwork"
       style={{ transform: 'translateZ(0)' }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="session-summary-title"
     >
       {/* Celebration particles behind the card */}
       <CelebrationParticles count={particleCount} />
@@ -108,16 +131,17 @@ export function SessionSummary({
         initial={{ opacity: 0, scale: 0.92, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ ...spring, delay: 0.1 }}
-        className="relative w-full max-w-sm border border-bw-border bg-[var(--bw-nav-bg)] overflow-hidden"
+        className="relative my-auto w-full max-w-lg border border-bw-border bg-bw-canvas overflow-hidden"
       >
         <motion.div
           variants={stagger}
           initial="hidden"
           animate="show"
         >
-          <div className="relative px-6 pt-8 pb-4 text-center">
+          <div className="relative px-6 pt-8 pb-5 text-center sm:px-8">
             <button
               onClick={onClose}
+              aria-label="Close session summary"
               className="absolute top-4 right-4 h-8 w-8 flex items-center justify-center text-bw-tertiary hover:text-bw-secondary transition-colors border border-bw-border"
             >
               <X className="h-4 w-4" />
@@ -131,11 +155,15 @@ export function SessionSummary({
             </motion.div>
 
             <motion.h2
+              id="session-summary-title"
               variants={fadeUp}
               className="font-display text-4xl font-semibold text-bw leading-none"
             >
               Session Complete
             </motion.h2>
+            <motion.p variants={fadeUp} className="mt-2 text-xs text-bw-tertiary">
+              {protocol.name} · {insight.doseLabel}
+            </motion.p>
 
             <motion.div
               variants={fadeUp}
@@ -151,23 +179,64 @@ export function SessionSummary({
             </motion.div>
           </div>
 
-          <div className="px-6 pb-4">
-            <motion.div variants={fadeUp} className="divide-y divide-bw-border">
-              <div className="flex items-center justify-between py-3">
-                <div className="flex items-center gap-2 text-bw-secondary">
-                  <Target className="h-4 w-4" />
-                  <span className="text-xs font-medium uppercase tracking-wider">Rounds</span>
-                </div>
-                <div className="text-sm font-mono font-medium text-bw tabular-nums">{rounds}</div>
+          <div className="px-6 pb-5 sm:px-8">
+            <motion.div variants={fadeUp} className="grid grid-cols-[auto_1fr] gap-5 border-y border-bw-border py-5">
+              <div className="flex h-20 w-20 flex-col items-center justify-center border border-bw-border">
+                <span className="font-mono text-2xl text-bw tabular-nums">
+                  <AnimatedCounter target={insight.score} />
+                </span>
+                <span className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
+                  Score
+                </span>
               </div>
-              <div className="flex items-center justify-between py-3">
+              <div className="min-w-0">
                 <div className="flex items-center gap-2 text-bw-secondary">
-                  <Clock className="h-4 w-4" />
-                  <span className="text-xs font-medium uppercase tracking-wider">Duration</span>
+                  <Activity className="h-4 w-4 text-bw-accent" aria-hidden="true" />
+                  <span className="text-[10px] font-medium uppercase tracking-[0.07em]">
+                    Session Insight · {insight.scoreLabel}
+                  </span>
                 </div>
-                <div className="text-sm font-mono font-medium text-bw tabular-nums">
+                <h3 className="mt-2 font-display text-2xl font-semibold leading-none text-bw">
+                  {insight.effectLabel}
+                </h3>
+                <p className="mt-2 text-xs leading-relaxed text-bw-tertiary">
+                  {insight.effectDescription}
+                </p>
+              </div>
+            </motion.div>
+
+            <motion.div variants={fadeUp} className="grid grid-cols-2 gap-x-6 border-b border-bw-border py-4 sm:grid-cols-4">
+              <div>
+                <div className="flex items-center gap-1.5 text-bw-secondary">
+                  <Target className="h-3.5 w-3.5" />
+                  <span className="text-[10px] font-medium uppercase tracking-[0.07em]">Rounds</span>
+                </div>
+                <div className="mt-1 font-mono text-sm font-medium text-bw tabular-nums">{rounds}</div>
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5 text-bw-secondary">
+                  <Clock className="h-3.5 w-3.5" />
+                  <span className="text-[10px] font-medium uppercase tracking-[0.07em]">Duration</span>
+                </div>
+                <div className="mt-1 font-mono text-sm font-medium text-bw tabular-nums">
                   {formatTime(durationSeconds)}
                 </div>
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5 text-bw-secondary">
+                  <Zap className="h-3.5 w-3.5" />
+                  <span className="text-[10px] font-medium uppercase tracking-[0.07em]">XP</span>
+                </div>
+                <div className="mt-1 font-mono text-sm font-medium text-bw tabular-nums">
+                  +{xpEarned}
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5 text-bw-secondary">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span className="text-[10px] font-medium uppercase tracking-[0.07em]">Dose</span>
+                </div>
+                <div className="mt-1 text-xs font-medium text-bw">{insight.doseLabel}</div>
               </div>
             </motion.div>
 
@@ -191,7 +260,7 @@ export function SessionSummary({
             {isNewPersonalBest && (
               <motion.div
                 variants={fadeUp}
-                className="mt-3 p-3 text-center border border-bw-border"
+                className="mt-3 p-3 text-center border border-bw-border bg-bw-active"
               >
                 <div className="flex items-center justify-center gap-2">
                   <Star className="h-4 w-4 text-bw-secondary" />
@@ -202,6 +271,20 @@ export function SessionSummary({
                 </div>
               </motion.div>
             )}
+
+            <motion.div variants={fadeUp} className="mt-4 border border-bw-border p-4">
+              <div className="flex items-start gap-3">
+                <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-bw-accent" />
+                <div>
+                  <div className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">
+                    Next step
+                  </div>
+                  <p className="mt-1 text-xs leading-relaxed text-bw-tertiary">
+                    {insight.nextStep}
+                  </p>
+                </div>
+              </div>
+            </motion.div>
 
             {newBadges.length > 0 && (
               <motion.div variants={fadeUp} className="mt-4 space-y-2">
@@ -231,7 +314,7 @@ export function SessionSummary({
             )}
           </div>
 
-          <motion.div variants={fadeUp} className="px-6 pb-6">
+          <motion.div variants={fadeUp} className="px-6 pb-6 sm:px-8">
             <button
               onClick={onClose}
               className="w-full py-3 text-bw-accent-foreground font-medium active:scale-[0.98] transition-all duration-200 bg-bw-accent border border-bw-accent"
