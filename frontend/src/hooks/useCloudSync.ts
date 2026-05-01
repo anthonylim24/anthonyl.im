@@ -3,7 +3,11 @@ import { useAuth, useUser, useSession } from '@clerk/clerk-react'
 import { createClerkSupabaseClient } from '@/lib/supabase'
 import { useHistoryStore, type CompletedSession, type PersonalBest } from '@/stores/historyStore'
 import { useGamificationStore } from '@/stores/gamificationStore'
-import { useSettingsStore } from '@/stores/settingsStore'
+import {
+  DEFAULT_SETTINGS_STATE,
+  useSettingsStore,
+  type PersistedSettingsState,
+} from '@/stores/settingsStore'
 import { STORAGE_KEYS, type TechniqueId } from '@/lib/constants'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -66,6 +70,26 @@ export function mergeSessionHistory(
   return Array.from(seen.values()).sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
   )
+}
+
+export function normalizeCloudSettings(settings: Record<string, unknown>): PersistedSettingsState {
+  const theme = settings.theme === 'dark' || settings.theme === 'light'
+    ? settings.theme
+    : DEFAULT_SETTINGS_STATE.theme
+  const soundVolume = typeof settings.soundVolume === 'number' && Number.isFinite(settings.soundVolume)
+    ? Math.max(0, Math.min(1, settings.soundVolume))
+    : DEFAULT_SETTINGS_STATE.soundVolume
+
+  return {
+    theme,
+    soundEnabled: typeof settings.soundEnabled === 'boolean'
+      ? settings.soundEnabled
+      : DEFAULT_SETTINGS_STATE.soundEnabled,
+    soundVolume,
+    hapticsEnabled: typeof settings.hapticsEnabled === 'boolean'
+      ? settings.hapticsEnabled
+      : DEFAULT_SETTINGS_STATE.hapticsEnabled,
+  }
 }
 
 // ─── Cloud sync hook ──────────────────────────────────────────────
@@ -348,11 +372,6 @@ function hydrateStores(state: CloudUserState, sessions: CompletedSession[]) {
   // Hydrate settings store
   const settings = (state.settings ?? {}) as Record<string, unknown>
   if (Object.keys(settings).length > 0) {
-    useSettingsStore.setState({
-      theme: (settings.theme as 'dark' | 'light') ?? 'dark',
-      soundEnabled: (settings.soundEnabled as boolean) ?? true,
-      soundVolume: (settings.soundVolume as number) ?? 0.3,
-      hapticsEnabled: (settings.hapticsEnabled as boolean) ?? true,
-    })
+    useSettingsStore.setState(normalizeCloudSettings(settings))
   }
 }

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { STORAGE_KEYS } from '@/lib/constants'
 
-interface SettingsState {
+export interface SettingsState {
   theme: 'dark' | 'light'
   soundEnabled: boolean
   soundVolume: number
@@ -15,12 +15,17 @@ interface SettingsState {
   resetSettings: () => void
 }
 
-const DEFAULT_SETTINGS_STATE = {
+export type PersistedSettingsState = Pick<
+  SettingsState,
+  'theme' | 'soundEnabled' | 'soundVolume' | 'hapticsEnabled'
+>
+
+export const DEFAULT_SETTINGS_STATE: PersistedSettingsState = {
   theme: 'light',
   soundEnabled: true,
   soundVolume: 0.3,
   hapticsEnabled: true,
-} satisfies Pick<SettingsState, 'theme' | 'soundEnabled' | 'soundVolume' | 'hapticsEnabled'>
+}
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
