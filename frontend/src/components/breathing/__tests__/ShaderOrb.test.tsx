@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { TECHNIQUE_IDS } from '@/lib/constants'
+import { BREATH_PHASES, TECHNIQUE_IDS } from '@/lib/constants'
 import { ShaderOrb } from '../ShaderOrb'
 
 vi.mock('@/hooks/useReducedMotion', () => ({
@@ -58,5 +58,20 @@ describe('ShaderOrb', () => {
     await user.keyboard(' ')
 
     expect(onClick).toHaveBeenCalledTimes(2)
+  })
+
+  it('uses user-facing phase names in interactive labels', () => {
+    render(
+      <ShaderOrb
+        phase={BREATH_PHASES.DEEP_INHALE}
+        amplitude={0.2}
+        isActive={false}
+        techniqueId={TECHNIQUE_IDS.CYCLIC_SIGHING}
+        themeColors={['#3D9088', '#7AD0C6']}
+        onClick={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: /Sip In phase/i })).toBeInTheDocument()
   })
 })

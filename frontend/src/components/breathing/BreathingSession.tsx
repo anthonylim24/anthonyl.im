@@ -15,6 +15,7 @@ import { BreathAura } from './BreathAura'
 import { SessionSummary } from './SessionSummary'
 import { PhaseIndicator } from './PhaseIndicator'
 import { Timer } from './Timer'
+import { getInteractiveBreathingVisualizationLabel } from './visualizationLabels'
 import { Play, Pause, Square, RotateCcw } from 'lucide-react'
 import {
   calculateSessionDuration,
@@ -513,7 +514,9 @@ export function BreathingSession({
               type="button"
               className="w-full h-full flex items-center justify-center relative appearance-none border-0 bg-transparent p-0"
               onClick={handleRingsClick}
-              aria-label="Breathing visualization. Activate repeatedly to toggle alternate visual."
+              aria-label={getInteractiveBreathingVisualizationLabel(
+                session?.currentPhase ?? null,
+              )}
               data-testid="concentric-rings"
             >
               {/* Radial glow behind the aura uses transform + opacity instead

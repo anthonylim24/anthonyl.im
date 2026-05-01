@@ -5,6 +5,10 @@ import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { useWebGL2 } from '@/hooks/useWebGL2'
 import { useWebGLOrb } from '@/hooks/useWebGLOrb'
 import { ConcentricRings } from './ConcentricRings'
+import {
+  getBreathingVisualizationLabel,
+  getInteractiveBreathingVisualizationLabel,
+} from './visualizationLabels'
 import { cn } from '@/lib/utils'
 
 interface ShaderOrbProps {
@@ -55,10 +59,8 @@ export function ShaderOrb({
     reducedMotion,
   })
 
-  const ariaLabel = phase
-    ? `Breathing visualization: ${phase.replace('_', ' ')} phase`
-    : 'Breathing visualization: ready'
-  const interactiveAriaLabel = `${ariaLabel}. Activate repeatedly to toggle alternate visual.`
+  const ariaLabel = getBreathingVisualizationLabel(phase)
+  const interactiveAriaLabel = getInteractiveBreathingVisualizationLabel(phase)
 
   // Fallback: reduced-motion + inactive → static div; no WebGL2 or GL error → SVG ConcentricRings
   if (reducedMotion && !isActive) {
