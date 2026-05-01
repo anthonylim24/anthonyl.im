@@ -43,6 +43,7 @@ export interface BreathingProtocol {
 export const protocolOrder: TechniqueId[] = [
   TECHNIQUE_IDS.CYCLIC_SIGHING,
   TECHNIQUE_IDS.RESONANCE_BREATHING,
+  TECHNIQUE_IDS.DIAPHRAGMATIC_BREATHING,
   TECHNIQUE_IDS.EXTENDED_EXHALE,
   TECHNIQUE_IDS.BOX_BREATHING,
   TECHNIQUE_IDS.FOUR_SEVEN_EIGHT,
@@ -128,6 +129,20 @@ const protocolCitations = {
     source: 'Journal of Cardiopulmonary Rehabilitation and Prevention',
     year: 2007,
     url: 'https://doi.org/10.1097/01.HCR.0000281770.82652.cb',
+  },
+  ma2017: {
+    authors: 'Ma et al.',
+    title: 'The Effect of Diaphragmatic Breathing on Attention, Negative Affect and Stress in Healthy Adults',
+    source: 'Frontiers in Psychology',
+    year: 2017,
+    url: 'https://doi.org/10.3389/fpsyg.2017.00874',
+  },
+  kwon2026: {
+    authors: 'Kwon et al.',
+    title: 'The health effects of diaphragmatic breathing: A systematic review',
+    source: 'Complementary Therapies in Medicine',
+    year: 2026,
+    url: 'https://doi.org/10.1016/j.ctim.2025.103317',
   },
 } satisfies Record<string, ProtocolCitation>
 
@@ -257,6 +272,28 @@ export const breathingProtocols: Record<TechniqueId, BreathingProtocol> = {
     phases: [
       { phase: BREATH_PHASES.INHALE, duration: 5 },
       { phase: BREATH_PHASES.EXHALE, duration: 5 },
+    ],
+  },
+
+  [TECHNIQUE_IDS.DIAPHRAGMATIC_BREATHING]: {
+    id: TECHNIQUE_IDS.DIAPHRAGMATIC_BREATHING,
+    name: 'Diaphragmatic Reset',
+    shortName: 'Belly',
+    description: 'A foundational belly-breathing cadence: 4-second inhale, 4-second exhale, no holds. Built for low-friction body awareness and calm baseline training.',
+    science: 'Diaphragmatic breathing trains the diaphragm to lead the breath instead of the upper chest. Randomized research in healthy adults found improved sustained attention, lower negative affect, and reduced cortisol after structured practice. A recent systematic review found promising benefits for anxiety and several clinical conditions, while noting that protocols and study quality remain heterogeneous. BreathFlow treats this as a gentle self-regulation practice, not a medical treatment.',
+    evidence: 'RCT + systematic review',
+    evidenceLevel: 'promising',
+    citations: [protocolCitations.ma2017, protocolCitations.kwon2026, protocolCitations.zaccaro2018],
+    purpose: 'Build calm body awareness with the lowest-effort breath',
+    category: 'calm',
+    intensity: 'gentle',
+    bestFor: ['Beginners', 'Body awareness', 'Low-intensity reset'],
+    breathsPerMinute: 7.5,
+    caution: 'Keep the breath quiet and easy. If belly breathing feels forced, return to normal breathing.',
+    defaultRounds: 38,
+    phases: [
+      { phase: BREATH_PHASES.INHALE, duration: 4 },
+      { phase: BREATH_PHASES.EXHALE, duration: 4 },
     ],
   },
 

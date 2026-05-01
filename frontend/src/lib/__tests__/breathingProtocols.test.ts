@@ -125,6 +125,20 @@ describe('breathingProtocols', () => {
     const sighing = breathingProtocols[TECHNIQUE_IDS.CYCLIC_SIGHING]
     expect(sighing.defaultRounds).toBe(30)
   })
+
+  it('diaphragmatic reset is a gentle hold-free belly breathing protocol', () => {
+    const diaphragmatic = breathingProtocols[TECHNIQUE_IDS.DIAPHRAGMATIC_BREATHING]
+
+    expect(diaphragmatic.intensity).toBe('gentle')
+    expect(diaphragmatic.evidenceLevel).toBe('promising')
+    expect(diaphragmatic.phases).toEqual([
+      { phase: BREATH_PHASES.INHALE, duration: 4 },
+      { phase: BREATH_PHASES.EXHALE, duration: 4 },
+    ])
+    expect(diaphragmatic.citations.map((citation) => citation.url)).toContain(
+      'https://doi.org/10.3389/fpsyg.2017.00874',
+    )
+  })
 })
 
 describe('getProtocol', () => {
@@ -134,6 +148,7 @@ describe('getProtocol', () => {
     expect(getProtocol(TECHNIQUE_IDS.POWER_BREATHING).name).toBe('Power Breathing')
     expect(getProtocol(TECHNIQUE_IDS.CYCLIC_SIGHING).name).toBe('Cyclic Sighing')
     expect(getProtocol(TECHNIQUE_IDS.RESONANCE_BREATHING).name).toBe('Resonance Breathing')
+    expect(getProtocol(TECHNIQUE_IDS.DIAPHRAGMATIC_BREATHING).name).toBe('Diaphragmatic Reset')
     expect(getProtocol(TECHNIQUE_IDS.EXTENDED_EXHALE).name).toBe('Extended Exhale')
     expect(getProtocol(TECHNIQUE_IDS.FOUR_SEVEN_EIGHT).name).toBe('4-7-8 Downshift')
     expect(getProtocol(TECHNIQUE_IDS.PURSED_LIP_RECOVERY).name).toBe('Pursed-Lip Recovery')
@@ -263,6 +278,13 @@ describe('calculateSessionDuration', () => {
         rounds: 30,
       })
     ).toBe(300)
+
+    expect(
+      calculateSessionDuration({
+        techniqueId: TECHNIQUE_IDS.DIAPHRAGMATIC_BREATHING,
+        rounds: 38,
+      })
+    ).toBe(304)
 
     expect(
       calculateSessionDuration({

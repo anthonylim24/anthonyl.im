@@ -51,7 +51,7 @@ describe('Session safety gates', () => {
       name: /round 1 15 seconds, round 2 20 seconds/,
     }).length).toBeGreaterThan(0)
 
-    const beginButtons = screen.getAllByRole('button', { name: /begin/i })
+    const beginButtons = screen.getAllByRole('button', { name: /^begin/i })
     for (const button of beginButtons) {
       expect(button).toBeDisabled()
     }
@@ -65,7 +65,7 @@ describe('Session safety gates', () => {
       })[0]
     )
 
-    const enabledBeginButtons = screen.getAllByRole('button', { name: /begin/i })
+    const enabledBeginButtons = screen.getAllByRole('button', { name: /^begin/i })
     for (const button of enabledBeginButtons) {
       expect(button).not.toBeDisabled()
     }
@@ -82,7 +82,7 @@ describe('Session safety gates', () => {
 
     expect(screen.queryByText('Safety check')).not.toBeInTheDocument()
 
-    const beginButtons = screen.getAllByRole('button', { name: /begin/i })
+    const beginButtons = screen.getAllByRole('button', { name: /^begin/i })
     for (const button of beginButtons) {
       expect(button).not.toBeDisabled()
     }
@@ -97,7 +97,7 @@ describe('Session safety gates', () => {
     const user = userEvent.setup()
     renderSession(`/breathwork/session?technique=${TECHNIQUE_IDS.RESONANCE_BREATHING}&rounds=12`)
 
-    await user.click(screen.getAllByRole('button', { name: /begin/i })[0])
+    await user.click(screen.getAllByRole('button', { name: /^begin/i })[0])
     expect(screen.getByTestId('active-session')).toHaveTextContent(
       `${TECHNIQUE_IDS.RESONANCE_BREATHING}:12`
     )
@@ -130,7 +130,7 @@ describe('Session safety gates', () => {
     await user.click(decreaseButtons[0])
     expect(screen.getAllByRole('group', { name: /session rounds, 11 selected/i }).length).toBeGreaterThan(0)
 
-    await user.click(screen.getAllByRole('button', { name: /begin/i })[0])
+    await user.click(screen.getAllByRole('button', { name: /^begin/i })[0])
 
     expect(screen.getByTestId('active-session')).toHaveTextContent(
       `${TECHNIQUE_IDS.RESONANCE_BREATHING}:11`

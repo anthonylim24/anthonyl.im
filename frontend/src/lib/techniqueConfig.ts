@@ -18,6 +18,7 @@ export type TechniqueGeometry =
   | 'octagram'
   | 'spiral'
   | 'wave'
+  | 'rings'
   | 'ladder'
   | 'crescent'
   | 'diamond'
@@ -35,6 +36,7 @@ const VISUALS: Record<TechniqueId, TechniqueVisual> = {
   [TECHNIQUE_IDS.POWER_BREATHING]: { ...TECHNIQUE.power, gradient: TECHNIQUE_GRADIENT.power, geometry: 'octagram' },
   [TECHNIQUE_IDS.CYCLIC_SIGHING]:  { ...TECHNIQUE.sighing, gradient: TECHNIQUE_GRADIENT.sighing, geometry: 'spiral' },
   [TECHNIQUE_IDS.RESONANCE_BREATHING]: { ...TECHNIQUE.resonance, gradient: TECHNIQUE_GRADIENT.resonance, geometry: 'wave' },
+  [TECHNIQUE_IDS.DIAPHRAGMATIC_BREATHING]: { ...TECHNIQUE.diaphragm, gradient: TECHNIQUE_GRADIENT.diaphragm, geometry: 'rings' },
   [TECHNIQUE_IDS.EXTENDED_EXHALE]: { ...TECHNIQUE.exhale, gradient: TECHNIQUE_GRADIENT.exhale, geometry: 'ladder' },
   [TECHNIQUE_IDS.FOUR_SEVEN_EIGHT]: { ...TECHNIQUE.sleep, gradient: TECHNIQUE_GRADIENT.sleep, geometry: 'crescent' },
   [TECHNIQUE_IDS.PURSED_LIP_RECOVERY]: { ...TECHNIQUE.recovery, gradient: TECHNIQUE_GRADIENT.recovery, geometry: 'diamond' },

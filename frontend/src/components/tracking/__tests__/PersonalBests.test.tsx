@@ -28,6 +28,7 @@ describe('PersonalBests', () => {
           [TECHNIQUE_IDS.POWER_BREATHING]: undefined,
           [TECHNIQUE_IDS.CYCLIC_SIGHING]: undefined,
           [TECHNIQUE_IDS.RESONANCE_BREATHING]: undefined,
+          [TECHNIQUE_IDS.DIAPHRAGMATIC_BREATHING]: undefined,
           [TECHNIQUE_IDS.EXTENDED_EXHALE]: undefined,
           [TECHNIQUE_IDS.FOUR_SEVEN_EIGHT]: undefined,
           [TECHNIQUE_IDS.PURSED_LIP_RECOVERY]: undefined,
