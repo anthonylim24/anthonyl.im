@@ -1,6 +1,7 @@
 import { BREATHFLOW_STORAGE_KEYS } from './constants'
 
 type ExportStorage = Pick<Storage, 'getItem'>
+type ImportStorage = Pick<Storage, 'removeItem' | 'setItem'>
 type BreathFlowStorageKey = typeof BREATHFLOW_STORAGE_KEYS[number]
 
 export function buildBreathFlowExportData(storage: ExportStorage): Record<string, string> {
@@ -54,4 +55,22 @@ export function parseBreathFlowImportData(rawData: unknown): Partial<Record<Brea
   }
 
   return importedData
+}
+
+export function replaceBreathFlowStorageData(
+  storage: ImportStorage,
+  data: Partial<Record<BreathFlowStorageKey, string>>,
+) {
+  for (const key of BREATHFLOW_STORAGE_KEYS) {
+    const value = data[key]
+    if (value !== undefined) {
+      storage.setItem(key, value)
+    }
+  }
+
+  for (const key of BREATHFLOW_STORAGE_KEYS) {
+    if (data[key] === undefined) {
+      storage.removeItem(key)
+    }
+  }
 }

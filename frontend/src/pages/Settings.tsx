@@ -19,9 +19,15 @@ import { useHistoryStore } from '@/stores/historyStore'
 import { useEntranceMotion } from '@/lib/motionPresets'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { DEFAULT_ORB_THEME_ID, getLevelForXP, getUnlockedThemes, ORB_THEMES } from '@/lib/gamification'
-import { buildBreathFlowExportData, parseBreathFlowImportData } from '@/lib/dataExport'
+import {
+  buildBreathFlowExportData,
+  parseBreathFlowImportData,
+  replaceBreathFlowStorageData,
+} from '@/lib/dataExport'
 import { BREATHFLOW_STORAGE_KEYS } from '@/lib/constants'
 import { formatLocalDateKey } from '@/lib/localDates'
+
+const IMPORT_STATUS_STORAGE_KEY = 'breathflow-import-status'
 
 interface SettingsSwitchProps {
   checked: boolean
@@ -85,6 +91,18 @@ function AccountInfo() {
   )
 }
 
+function consumePendingImportStatus() {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  const message = window.sessionStorage.getItem(IMPORT_STATUS_STORAGE_KEY)
+  if (message) {
+    window.sessionStorage.removeItem(IMPORT_STATUS_STORAGE_KEY)
+  }
+  return message
+}
+
 export function Settings() {
   const { stagger, fadeUp, transition: motionTransition, tap } = useEntranceMotion()
   const {
@@ -113,9 +131,12 @@ export function Settings() {
   const { trigger: haptic } = useHaptics()
   const [confirmClear, setConfirmClear] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
+  const [dataStatus, setDataStatus] = useState<string | null>(consumePendingImportStatus)
   const importInputRef = useRef<HTMLInputElement>(null)
 
   const handleExportData = () => {
+    setImportError(null)
+    setDataStatus('Export started. Your browser will save a BreathFlow JSON backup.')
     const data = buildBreathFlowExportData(localStorage)
     const blob = new Blob([JSON.stringify(data, null, 2)], {
       type: 'application/json',
@@ -129,34 +150,44 @@ export function Settings() {
   }
 
   const handleImportData = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.currentTarget.files?.[0]
+    const input = event.currentTarget
+    const file = input.files?.[0]
     if (!file) return
 
     try {
-      const rawData = JSON.parse(await file.text()) as unknown
+      const fileText = await file.text()
+      let rawData: unknown
+      try {
+        rawData = JSON.parse(fileText) as unknown
+      } catch {
+        throw new Error('Import file must be valid JSON.')
+      }
       const data = parseBreathFlowImportData(rawData)
 
-      for (const key of BREATHFLOW_STORAGE_KEYS) {
-        const value = data[key]
-        if (value !== undefined) {
-          localStorage.setItem(key, value)
-        }
-      }
+      replaceBreathFlowStorageData(localStorage, data)
 
+      const statusMessage = 'Data import complete. BreathFlow restored your backup.'
+      window.sessionStorage.setItem(IMPORT_STATUS_STORAGE_KEY, statusMessage)
+      setDataStatus('Import complete. Reloading BreathFlow.')
       haptic('success')
       window.location.reload()
     } catch (error) {
       haptic('error')
+      setDataStatus(null)
       setImportError(error instanceof Error ? error.message : 'Could not import this file.')
     } finally {
-      event.currentTarget.value = ''
+      input.value = ''
     }
   }
 
   const handleClearData = () => {
+    setImportError(null)
     if (!confirmClear) {
       haptic('error')
       setConfirmClear(true)
+      setDataStatus(
+        'Clear all data requires confirmation. Press clear again to permanently remove BreathFlow data.',
+      )
       return
     }
     haptic([100, 50, 100])
@@ -167,6 +198,7 @@ export function Settings() {
       localStorage.removeItem(key)
     }
     setConfirmClear(false)
+    setDataStatus('All BreathFlow data was cleared.')
   }
 
   return (
@@ -394,6 +426,7 @@ export function Settings() {
             onClick={() => {
               haptic('light')
               setImportError(null)
+              setDataStatus(null)
               importInputRef.current?.click()
             }}
             className="flex min-h-11 items-center gap-3 w-full py-4 hover:bg-bw-hover transition-all duration-300 text-left"
@@ -414,6 +447,16 @@ export function Settings() {
             className="sr-only"
             onChange={handleImportData}
           />
+          {dataStatus ? (
+            <p
+              className="py-3 text-xs leading-relaxed text-bw-secondary"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+            >
+              {dataStatus}
+            </p>
+          ) : null}
           {importError ? (
             <p className="py-3 text-xs leading-relaxed text-red-400" role="alert">
               {importError}
@@ -457,7 +500,10 @@ export function Settings() {
           {confirmClear && (
             <button
               type="button"
-              onClick={() => setConfirmClear(false)}
+              onClick={() => {
+                setConfirmClear(false)
+                setDataStatus('Clear data cancelled.')
+              }}
               className="min-h-11 text-[10px] text-bw-tertiary hover:text-bw-secondary transition-colors py-3"
             >
               Cancel

@@ -1,10 +1,29 @@
 import { describe, expect, it } from 'vitest'
-import { buildBreathFlowExportData, parseBreathFlowImportData } from '../dataExport'
+import {
+  buildBreathFlowExportData,
+  parseBreathFlowImportData,
+  replaceBreathFlowStorageData,
+} from '../dataExport'
 import { STORAGE_KEYS } from '../constants'
 
 function storageWith(values: Record<string, string>) {
   return {
     getItem: (key: string) => values[key] ?? null,
+  }
+}
+
+function mutableStorageWith(values: Record<string, string>) {
+  const storage = new Map(Object.entries(values))
+
+  return {
+    getItem: (key: string) => storage.get(key) ?? null,
+    removeItem: (key: string) => {
+      storage.delete(key)
+    },
+    setItem: (key: string, value: string) => {
+      storage.set(key, value)
+    },
+    values: () => Object.fromEntries(storage),
   }
 }
 
@@ -61,5 +80,25 @@ describe('parseBreathFlowImportData', () => {
   it('rejects non-object imports', () => {
     expect(() => parseBreathFlowImportData(null)).toThrow(/JSON object/i)
     expect(() => parseBreathFlowImportData([])).toThrow(/JSON object/i)
+  })
+})
+
+describe('replaceBreathFlowStorageData', () => {
+  it('replaces BreathFlow-owned keys and preserves unrelated localStorage data', () => {
+    const storage = mutableStorageWith({
+      [STORAGE_KEYS.SESSION_HISTORY]: '{"state":{"sessions":[{"id":"old"}]}}',
+      [STORAGE_KEYS.GAMIFICATION]: '{"state":{"xp":300}}',
+      [STORAGE_KEYS.SETTINGS]: '{"state":{"theme":"dark"}}',
+      'third-party-token': 'keep',
+    })
+
+    replaceBreathFlowStorageData(storage, {
+      [STORAGE_KEYS.SESSION_HISTORY]: '{"state":{"sessions":[]}}',
+    })
+
+    expect(storage.values()).toEqual({
+      [STORAGE_KEYS.SESSION_HISTORY]: '{"state":{"sessions":[]}}',
+      'third-party-token': 'keep',
+    })
   })
 })
