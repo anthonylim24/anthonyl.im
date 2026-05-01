@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Home } from '../Home'
-import { TECHNIQUE_IDS } from '@/lib/constants'
+import { BREATH_PHASES, TECHNIQUE_IDS } from '@/lib/constants'
 import type { CompletedSession } from '@/stores/historyStore'
 
 const mocks = vi.hoisted(() => ({
@@ -141,7 +141,8 @@ describe('Home Protocol Lab', () => {
     expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'auto' })
   })
 
-  it('names the recent sessions shortcut and keeps it at 44px target height', () => {
+  it('replays recent sessions from the home shortcut', async () => {
+    const user = userEvent.setup()
     mocks.sessions = [
       {
         id: 'session-1',
@@ -149,6 +150,9 @@ describe('Home Protocol Lab', () => {
         date: '2026-05-01T10:00:00.000Z',
         durationSeconds: 120,
         rounds: 3,
+        customPhaseDurations: {
+          [BREATH_PHASES.INHALE]: 6,
+        },
         holdTimes: [],
         maxHoldTime: 0,
         avgHoldTime: 0,
@@ -158,5 +162,16 @@ describe('Home Protocol Lab', () => {
     renderHome()
 
     expect(screen.getByRole('button', { name: /view all sessions/i })).toHaveClass('min-h-11')
+
+    const repeatButton = screen.getByRole('button', {
+      name: /Repeat Box Breathing, 2 minutes, 3 rounds, custom cadence/i,
+    })
+    expect(repeatButton).toHaveClass('w-full')
+
+    await user.click(repeatButton)
+
+    expect(mocks.navigate).toHaveBeenCalledWith(
+      '/breathwork/session?technique=box_breathing&rounds=3&phase_inhale=6'
+    )
   })
 })
