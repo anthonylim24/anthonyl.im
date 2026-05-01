@@ -1,6 +1,12 @@
 import { motion } from 'motion/react'
 import { BADGES } from '@/lib/gamification'
 import { cn } from '@/lib/utils'
+import { useReducedMotion } from '@/hooks/useReducedMotion'
+import {
+  badgeStagger,
+  getBadgeMotionConfig,
+  reducedBadgeStagger,
+} from './badgeMotion'
 import {
   Zap,
   Flame,
@@ -16,13 +22,6 @@ import {
   HelpCircle,
   Lock,
 } from 'lucide-react'
-
-const spring = { type: 'spring' as const, stiffness: 300, damping: 30, mass: 1 }
-const badgeStagger = { hidden: {}, show: { transition: { staggerChildren: 0.04 } } }
-const badgePop = {
-  hidden: { opacity: 0, scale: 0.8 },
-  show: { opacity: 1, scale: 1, transition: spring },
-}
 
 const ICON_MAP: Record<string, React.ReactNode> = {
   Zap: <Zap className="h-5 w-5" />,
@@ -43,21 +42,24 @@ interface BadgeGridProps {
 }
 
 export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
+  const reducedMotion = useReducedMotion()
+
   return (
     <motion.div
       className="grid grid-cols-3 sm:grid-cols-4 gap-3"
-      variants={badgeStagger}
+      variants={reducedMotion ? reducedBadgeStagger : badgeStagger}
       initial="hidden"
       animate="show"
     >
       {BADGES.map((badge) => {
         const earned = earnedBadges.includes(badge.id)
+        const motionConfig = getBadgeMotionConfig(reducedMotion, earned)
 
         if (badge.secret && !earned) {
           return (
             <motion.div
               key={badge.id}
-              variants={badgePop}
+              variants={motionConfig.variants}
               data-badge={badge.id}
               data-secret="true"
               aria-label="Secret badge — not yet discovered"
@@ -74,9 +76,9 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
         return (
           <motion.div
             key={badge.id}
-            variants={badgePop}
-            whileHover={earned ? { scale: 1.05 } : undefined}
-            transition={spring}
+            variants={motionConfig.variants}
+            whileHover={motionConfig.whileHover}
+            transition={motionConfig.transition}
             data-badge={badge.id}
             aria-label={`${badge.name} — ${earned ? 'earned' : 'locked'}`}
             className={cn(
