@@ -18,6 +18,7 @@ import { useHistoryStore } from '@/stores/historyStore'
 import { useEntranceMotion } from '@/lib/motionPresets'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { DEFAULT_ORB_THEME_ID, getLevelForXP, getUnlockedThemes, ORB_THEMES } from '@/lib/gamification'
+import { buildBreathFlowExportData } from '@/lib/dataExport'
 
 interface SettingsSwitchProps {
   checked: boolean
@@ -109,13 +110,7 @@ export function Settings() {
   const [confirmClear, setConfirmClear] = useState(false)
 
   const handleExportData = () => {
-    const data: Record<string, string> = {}
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (key) {
-        data[key] = localStorage.getItem(key) ?? ''
-      }
-    }
+    const data = buildBreathFlowExportData(localStorage)
     const blob = new Blob([JSON.stringify(data, null, 2)], {
       type: 'application/json',
     })

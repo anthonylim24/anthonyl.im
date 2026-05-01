@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { STORAGE_KEYS } from '@/lib/constants'
 
 interface SettingsState {
   theme: 'dark' | 'light'
@@ -38,7 +39,7 @@ export const useSettingsStore = create<SettingsState>()(
       },
     }),
     {
-      name: 'breathwork-settings',
+      name: STORAGE_KEYS.SETTINGS,
     },
   ),
 )

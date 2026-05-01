@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { STORAGE_KEYS } from '@/lib/constants'
 
 function getToday(): string {
   return new Date().toISOString().split('T')[0]
@@ -90,7 +91,7 @@ export const useGamificationStore = create<GamificationState>()(
       },
     }),
     {
-      name: 'breathwork-gamification',
+      name: STORAGE_KEYS.GAMIFICATION,
     },
   ),
 )
