@@ -206,6 +206,33 @@ describe('BreathingSession controls accessibility', () => {
     )
   })
 
+  it('keeps safety-gated protocol reminders visible during active sessions', () => {
+    renderSession({
+      config: {
+        techniqueId: TECHNIQUE_IDS.CO2_TOLERANCE,
+        rounds: 1,
+      },
+    })
+
+    expect(screen.getByTestId('active-session-safety-cue')).toHaveTextContent(
+      /stay seated or lying down/i
+    )
+    expect(screen.getByTestId('session-live-region')).toHaveTextContent(
+      /Safety reminder: Stay seated or lying down/i
+    )
+  })
+
+  it('does not show an active safety reminder for gentle protocols', () => {
+    renderSession({
+      config: {
+        techniqueId: TECHNIQUE_IDS.RESONANCE_BREATHING,
+        rounds: 1,
+      },
+    })
+
+    expect(screen.queryByTestId('active-session-safety-cue')).not.toBeInTheDocument()
+  })
+
   it('announces paused session context', () => {
     mocks.cycle.isPaused = true
     mocks.cycle.session.isPaused = true
