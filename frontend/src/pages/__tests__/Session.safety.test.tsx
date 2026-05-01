@@ -73,6 +73,8 @@ describe('Session safety gates', () => {
     for (const button of beginButtons) {
       expect(button).toBeDisabled()
     }
+    expect(beginButtons[0].parentElement).toHaveClass('shrink-0', 'border-t')
+    expect(beginButtons[0].parentElement).not.toHaveClass('sticky')
     expect(screen.getAllByText(/complete the safety check to begin/i)).toHaveLength(2)
     expect(beginButtons[0]).toHaveAccessibleDescription(/complete the safety check to begin/i)
     expect(beginButtons[1]).toHaveAccessibleDescription(/complete the safety check to begin/i)

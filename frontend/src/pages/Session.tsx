@@ -411,17 +411,18 @@ export function Session() {
   return (
     <motion.div variants={stagger} initial="hidden" animate="show">
       {/* ═══ MOBILE LAYOUT ═══════════════════════════════ */}
-      <div className="md:hidden flex h-[calc(100dvh-4rem-3rem)] flex-col overflow-y-auto no-scrollbar pb-4">
-        {/* Back button */}
-        <motion.button
-          variants={fadeUp}
-          type="button"
-          onClick={() => { haptic('light'); navigate('/breathwork') }}
-          className="mb-2 -ml-1 flex min-h-11 items-center gap-1 text-xs text-bw-tertiary transition-colors hover:text-bw"
-        >
-          <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
-          <span>Back</span>
-        </motion.button>
+      <div className="md:hidden flex h-[calc(100dvh-4rem-3rem)] flex-col overflow-hidden">
+        <div className="flex-1 overflow-y-auto no-scrollbar pb-4">
+          {/* Back button */}
+          <motion.button
+            variants={fadeUp}
+            type="button"
+            onClick={() => { haptic('light'); navigate('/breathwork') }}
+            className="mb-2 -ml-1 flex min-h-11 items-center gap-1 text-xs text-bw-tertiary transition-colors hover:text-bw"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Back</span>
+          </motion.button>
 
         {/* Technique header */}
         <motion.div variants={fadeUp} className="mb-3">
@@ -593,7 +594,7 @@ export function Session() {
         {/* Rounds */}
         <motion.div
           variants={fadeUp}
-          className="flex min-h-36 flex-1 flex-col items-center justify-center gap-4 pb-24"
+          className="flex min-h-36 flex-col items-center justify-center gap-4 pb-6"
           role="group"
           aria-label={`Session rounds, ${rounds} selected`}
         >
@@ -629,9 +630,10 @@ export function Session() {
             Est. {formatTime(estimatedDuration)}
           </span>
         </motion.div>
+        </div>
 
         {/* Pinned CTA */}
-        <motion.div variants={fadeUp} className="sticky bottom-0 z-10 shrink-0 bg-bw-canvas pt-3 pb-1">
+        <motion.div variants={fadeUp} className="shrink-0 border-t border-bw-border bg-bw-canvas pt-3 pb-1">
           {startSafetyHelpText ? (
             <p
               id="mobile-start-safety-help"

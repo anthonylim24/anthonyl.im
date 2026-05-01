@@ -16,6 +16,8 @@ const CloudSync = lazy(() =>
   import('./CloudSync').then((module) => ({ default: module.CloudSync })),
 )
 
+const LEAVES_VISIBLE_OPACITY = '0.08'
+
 /**
  * Fully isolated video component — subscribes to the theme store directly
  * and manages play/pause imperatively via refs. Wrapped in memo with a
@@ -33,7 +35,7 @@ const LeavesVideo = memo(function LeavesVideo({ reducedMotion }: { reducedMotion
       const video = videoRef.current
       if (!video) return
       const isDark = state.theme === 'dark'
-      video.style.opacity = isDark ? '0' : '1'
+      video.style.opacity = isDark ? '0' : LEAVES_VISIBLE_OPACITY
       if (isDark) {
         video.pause()
       } else {
@@ -45,7 +47,7 @@ const LeavesVideo = memo(function LeavesVideo({ reducedMotion }: { reducedMotion
     const video = videoRef.current
     if (video) {
       const isDark = useSettingsStore.getState().theme === 'dark'
-      video.style.opacity = isDark ? '0' : '1'
+      video.style.opacity = isDark ? '0' : LEAVES_VISIBLE_OPACITY
       if (!isDark) {
         video.play().catch(() => {})
       }
