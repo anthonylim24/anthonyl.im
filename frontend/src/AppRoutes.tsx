@@ -8,6 +8,9 @@ const Home = lazy(() => import('./pages/Home').then((module) => ({ default: modu
 const Session = lazy(() => import('./pages/Session').then((module) => ({ default: module.Session })))
 const Progress = lazy(() => import('./pages/Progress').then((module) => ({ default: module.Progress })))
 const Settings = lazy(() => import('./pages/Settings').then((module) => ({ default: module.Settings })))
+const BreathworkNotFound = lazy(() =>
+  import('./pages/BreathworkNotFound').then((module) => ({ default: module.BreathworkNotFound }))
+)
 
 export function AppRoutes() {
   return (
@@ -21,6 +24,7 @@ export function AppRoutes() {
           <Route path="session" element={<Session />} />
           <Route path="progress" element={<Progress />} />
           <Route path="settings" element={<Settings />} />
+          <Route path="*" element={<BreathworkNotFound />} />
         </Route>
       </Routes>
     </BrowserRouter>
