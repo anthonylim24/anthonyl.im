@@ -17,13 +17,17 @@ const APP_SHELL = [
 ]
 const CACHEABLE_DESTINATIONS = new Set(['script', 'style', 'font', 'image', 'manifest'])
 
+function cachePutSafe(cache, request, response) {
+  return cache.put(request, response).catch(() => undefined)
+}
+
 async function cacheAppShell() {
   const cache = await caches.open(CACHE_VERSION)
   await Promise.allSettled(
     APP_SHELL.map(async (url) => {
       const response = await fetch(url, { cache: 'reload' })
       if (response.ok) {
-        await cache.put(url, response)
+        await cachePutSafe(cache, url, response)
       }
     })
   )
@@ -56,7 +60,7 @@ async function networkFirstNavigation(request) {
   try {
     const response = await fetch(request)
     if (response.ok) {
-      cache.put(request, response.clone())
+      await cachePutSafe(cache, request, response.clone())
     }
     return response
   } catch {
@@ -78,7 +82,7 @@ async function cacheFirst(request) {
   const response = await fetch(request)
   if (response.ok && response.type === 'basic') {
     const cache = await caches.open(RUNTIME_CACHE)
-    cache.put(request, response.clone())
+    void cachePutSafe(cache, request, response.clone())
   }
   return response
 }
