@@ -1,7 +1,11 @@
 // @vitest-environment node
 import { describe, it, expect, beforeEach } from 'vitest'
 import { formatLocalDateKey, getLocalWeekStartKey } from '@/lib/localDates'
-import { useGamificationStore } from '../gamificationStore'
+import {
+  GAMIFICATION_STORAGE_VERSION,
+  migratePersistedGamificationState,
+  useGamificationStore,
+} from '../gamificationStore'
 
 describe('gamificationStore', () => {
   beforeEach(() => {
@@ -101,6 +105,34 @@ describe('gamificationStore', () => {
       weeklySessionCount: 0,
       lastDailyReset: formatLocalDateKey(new Date()),
       lastWeeklyReset: getWeekStart(),
+    })
+  })
+
+  it('versions and migrates persisted gamification state', () => {
+    const migrated = migratePersistedGamificationState({
+      xp: 240,
+      earnedBadges: ['first_session'],
+      selectedTheme: 'tidal',
+      dailySessionCount: 2,
+      weeklySessionCount: 5,
+      lastDailyReset: '2026-05-01',
+      lastWeeklyReset: 'not-a-date',
+    })
+
+    expect(GAMIFICATION_STORAGE_VERSION).toBeGreaterThan(0)
+    expect(migrated).toMatchObject({
+      xp: 240,
+      earnedBadges: ['first_session'],
+      selectedTheme: 'tidal',
+      dailySessionCount: 2,
+      weeklySessionCount: 5,
+      lastDailyReset: '2026-05-01',
+      lastWeeklyReset: getWeekStart(),
+    })
+    expect(migratePersistedGamificationState(null)).toMatchObject({
+      xp: 0,
+      earnedBadges: [],
+      selectedTheme: 'default',
     })
   })
 })

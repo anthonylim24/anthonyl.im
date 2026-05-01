@@ -40,6 +40,21 @@ interface HistoryState {
   getStreak: () => number
 }
 
+export type PersistedHistoryState = Pick<
+  HistoryState,
+  'sessions' | 'personalBests' | 'vo2MaxManual' | 'vo2MaxHistory'
+>
+
+export const HISTORY_STORAGE_VERSION = 1
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isNonNegativeNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+}
+
 function getEmptyHistoryState(): Pick<
   HistoryState,
   'sessions' | 'personalBests' | 'vo2MaxManual' | 'vo2MaxHistory'
@@ -49,6 +64,27 @@ function getEmptyHistoryState(): Pick<
     personalBests: {} as Record<TechniqueId, PersonalBest | undefined>,
     vo2MaxManual: null,
     vo2MaxHistory: [],
+  }
+}
+
+export function migratePersistedHistoryState(persistedState: unknown): PersistedHistoryState {
+  if (!isRecord(persistedState)) {
+    return getEmptyHistoryState()
+  }
+
+  return {
+    sessions: Array.isArray(persistedState.sessions)
+      ? (persistedState.sessions as CompletedSession[])
+      : [],
+    personalBests: isRecord(persistedState.personalBests)
+      ? (persistedState.personalBests as Record<TechniqueId, PersonalBest | undefined>)
+      : ({} as Record<TechniqueId, PersonalBest | undefined>),
+    vo2MaxManual: isNonNegativeNumber(persistedState.vo2MaxManual)
+      ? persistedState.vo2MaxManual
+      : null,
+    vo2MaxHistory: Array.isArray(persistedState.vo2MaxHistory)
+      ? (persistedState.vo2MaxHistory as { value: number; date: string }[])
+      : [],
   }
 }
 
@@ -140,6 +176,14 @@ export const useHistoryStore = create<HistoryState>()(
     }),
     {
       name: STORAGE_KEYS.SESSION_HISTORY,
+      version: HISTORY_STORAGE_VERSION,
+      partialize: (state): PersistedHistoryState => ({
+        sessions: state.sessions,
+        personalBests: state.personalBests,
+        vo2MaxManual: state.vo2MaxManual,
+        vo2MaxHistory: state.vo2MaxHistory,
+      }),
+      migrate: (persistedState) => migratePersistedHistoryState(persistedState),
     }
   )
 )
