@@ -19,21 +19,8 @@ export default defineConfig({
           if (id.includes('@supabase/')) {
             return 'supabase';
           }
-          if (id.includes('/motion/') || id.includes('framer-motion')) {
-            return 'motion';
-          }
           if (id.includes('react-router')) {
             return 'router';
-          }
-          if (id.includes('recharts') || id.includes('/d3-') || id.includes('victory-vendor')) {
-            return 'recharts';
-          }
-          if (
-            id.includes('react-markdown') || id.includes('remark') ||
-            id.includes('rehype') || id.includes('unified') ||
-            id.includes('micromark') || id.includes('/mdast') || id.includes('/hast')
-          ) {
-            return 'markdown';
           }
           if (id.includes('@radix-ui/')) {
             return 'radix';
