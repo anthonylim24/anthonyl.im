@@ -1,6 +1,6 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { STORAGE_KEYS, type TechniqueId } from '@/lib/constants'
+import { BREATH_PHASES, STORAGE_KEYS, type TechniqueId } from '@/lib/constants'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore, type PersonalBest } from '@/stores/historyStore'
 import { DEFAULT_SETTINGS_STATE, useSettingsStore } from '@/stores/settingsStore'
@@ -62,12 +62,17 @@ import {
 } from '../useCloudSync'
 
 interface SupabaseClientMockOptions {
+  cloudSessions?: Record<string, unknown>[]
+  cloudState?: Record<string, unknown> | null
   stateUpsertError?: unknown
 }
 
 function createSupabaseClientMock(options: SupabaseClientMockOptions = {}) {
   const userStateUpsert = vi.fn(async () => ({ error: options.stateUpsertError ?? null }))
-  const userStateMaybeSingle = vi.fn(async () => ({ data: null, error: null }))
+  const userStateMaybeSingle = vi.fn(async () => ({
+    data: options.cloudState ?? null,
+    error: null,
+  }))
   const userStateSelect = vi.fn(() => ({
     eq: vi.fn(() => ({
       maybeSingle: userStateMaybeSingle,
@@ -75,7 +80,10 @@ function createSupabaseClientMock(options: SupabaseClientMockOptions = {}) {
   }))
 
   const sessionsInsert = vi.fn(async () => ({ error: null }))
-  const sessionsOrder = vi.fn(async () => ({ data: [], error: null }))
+  const sessionsOrder = vi.fn(async () => ({
+    data: options.cloudSessions ?? [],
+    error: null,
+  }))
   const sessionsSelect = vi.fn(() => ({
     eq: vi.fn(() => ({
       order: sessionsOrder,
@@ -263,6 +271,88 @@ describe('hasNonDefaultSettings', () => {
 })
 
 describe('useCloudSync', () => {
+  it('uploads custom cadence sessions during first-login merge', async () => {
+    const supabase = createSupabaseClientMock()
+
+    signInAs('user_1')
+    supabaseMock.createClerkSupabaseClient.mockReturnValue(supabase.client)
+    useHistoryStore.setState({
+      sessions: [
+        {
+          id: 'custom-session',
+          techniqueId: 'resonance_breathing',
+          date: '2026-05-01T12:00:00.000Z',
+          durationSeconds: 330,
+          rounds: 30,
+          customPhaseDurations: {
+            [BREATH_PHASES.INHALE]: 6,
+            [BREATH_PHASES.EXHALE]: 5,
+          },
+          holdTimes: [],
+          maxHoldTime: 0,
+          avgHoldTime: 0,
+        },
+      ],
+    })
+
+    renderHook(() => useCloudSync())
+
+    await waitFor(() => {
+      expect(supabase.sessionsInsert).toHaveBeenCalledWith([
+        expect.objectContaining({
+          id: 'custom-session',
+          custom_phase_durations: {
+            [BREATH_PHASES.INHALE]: 6,
+            [BREATH_PHASES.EXHALE]: 5,
+          },
+        }),
+      ])
+    })
+  })
+
+  it('hydrates custom cadence sessions from cloud rows', async () => {
+    const supabase = createSupabaseClientMock({
+      cloudState: {
+        xp: 0,
+        earned_badges: [],
+        selected_theme: 'default',
+        personal_bests: {},
+        settings: {},
+      },
+      cloudSessions: [
+        {
+          id: 'cloud-custom-session',
+          technique_id: 'resonance_breathing',
+          date: '2026-05-01T12:00:00.000Z',
+          duration_seconds: 330,
+          rounds: 30,
+          custom_phase_durations: {
+            [BREATH_PHASES.INHALE]: 6,
+            [BREATH_PHASES.EXHALE]: 5,
+          },
+          hold_times: [],
+          max_hold_time: 0,
+          avg_hold_time: 0,
+        },
+      ],
+    })
+
+    signInAs('user_1')
+    supabaseMock.createClerkSupabaseClient.mockReturnValue(supabase.client)
+
+    renderHook(() => useCloudSync())
+
+    await waitFor(() => {
+      expect(useHistoryStore.getState().sessions[0]).toMatchObject({
+        id: 'cloud-custom-session',
+        customPhaseDurations: {
+          [BREATH_PHASES.INHALE]: 6,
+          [BREATH_PHASES.EXHALE]: 5,
+        },
+      })
+    })
+  })
+
   it('keeps local persisted data when first-login cloud upsert fails', async () => {
     const upsertError = new Error('permission denied')
     const supabase = createSupabaseClientMock({ stateUpsertError: upsertError })

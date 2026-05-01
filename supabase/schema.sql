@@ -29,10 +29,14 @@ create table if not exists public.sessions (
   duration_seconds integer not null,
   rounds           integer not null,
   hold_times       jsonb default '[]',
+  custom_phase_durations jsonb,
   max_hold_time    real not null,
   avg_hold_time    real not null,
   created_at       timestamptz default now()
 );
+
+alter table if exists public.sessions
+  add column if not exists custom_phase_durations jsonb;
 
 alter table public.sessions enable row level security;
 
