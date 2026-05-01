@@ -5,8 +5,8 @@ import { BREATH_PHASES, TECHNIQUE_IDS } from '@/lib/constants'
 import type { SessionConfig } from '@/lib/breathingProtocols'
 
 const mocks = vi.hoisted(() => {
-  const cycle = {
-    session: {
+  function createSession() {
+    return {
       startTime: new Date('2026-01-01T00:00:00.000Z'),
       currentRound: 0,
       currentPhaseIndex: 0,
@@ -15,7 +15,11 @@ const mocks = vi.hoisted(() => {
       isPaused: false,
       isComplete: false,
       holdTimes: [],
-    },
+    }
+  }
+
+  const cycle = {
+    session: createSession() as ReturnType<typeof createSession> | null,
     start: vi.fn(),
     pause: vi.fn(),
     stop: vi.fn(),
@@ -26,6 +30,7 @@ const mocks = vi.hoisted(() => {
 
   return {
     cycle,
+    createSession,
     cycleOptions: undefined as { enableAudio?: boolean; audioVolume?: number } | undefined,
     waveformOptions: undefined as { isActive?: boolean; phaseDuration?: number } | undefined,
     reducedMotion: false,
@@ -101,6 +106,15 @@ function renderSession(props?: {
   )
 }
 
+function getMockCycleSession() {
+  const session = mocks.cycle.session
+  if (!session) {
+    throw new Error('Expected a mocked active breathing session')
+  }
+
+  return session
+}
+
 async function advance(ms: number) {
   await act(async () => {
     vi.advanceTimersByTime(ms)
@@ -118,12 +132,7 @@ describe('BreathingSession controls accessibility', () => {
     mocks.cycle.isActive = true
     mocks.cycle.isPaused = false
     mocks.cycle.isComplete = false
-    mocks.cycle.session.currentRound = 0
-    mocks.cycle.session.currentPhaseIndex = 0
-    mocks.cycle.session.currentPhase = BREATH_PHASES.INHALE
-    mocks.cycle.session.timeRemaining = 4
-    mocks.cycle.session.isPaused = false
-    mocks.cycle.session.isComplete = false
+    mocks.cycle.session = mocks.createSession()
   })
 
   afterEach(() => {
@@ -180,6 +189,24 @@ describe('BreathingSession controls accessibility', () => {
       enableAudio: false,
       audioVolume: 0.42,
     })
+  })
+
+  it('shows planned duration in the ready state before the phase timer starts', () => {
+    mocks.cycle.session = null
+    mocks.cycle.isActive = false
+    mocks.cycle.isPaused = false
+    mocks.cycle.isComplete = false
+
+    renderSession({
+      config: {
+        techniqueId: TECHNIQUE_IDS.RESONANCE_BREATHING,
+        rounds: 12,
+      },
+    })
+
+    expect(screen.getByTestId('session-planned-duration')).toHaveTextContent('2:00 planned')
+    expect(screen.getByLabelText('2:00 planned duration')).toBeInTheDocument()
+    expect(screen.queryByRole('timer')).not.toBeInTheDocument()
   })
 
   it('styles the stop control with semantic destructive tokens', () => {
@@ -252,10 +279,11 @@ describe('BreathingSession controls accessibility', () => {
   })
 
   it('announces paused session context', () => {
+    const session = getMockCycleSession()
     mocks.cycle.isPaused = true
-    mocks.cycle.session.isPaused = true
-    mocks.cycle.session.currentRound = 1
-    mocks.cycle.session.currentPhase = BREATH_PHASES.EXHALE
+    session.isPaused = true
+    session.currentRound = 1
+    session.currentPhase = BREATH_PHASES.EXHALE
 
     renderSession()
 
@@ -265,8 +293,9 @@ describe('BreathingSession controls accessibility', () => {
   })
 
   it('announces completion when the breathing cycle completes', () => {
+    const session = getMockCycleSession()
     mocks.cycle.isComplete = true
-    mocks.cycle.session.isComplete = true
+    session.isComplete = true
 
     renderSession()
 

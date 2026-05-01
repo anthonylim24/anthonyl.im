@@ -69,19 +69,19 @@ describe('Session safety gates', () => {
       name: /round 1 15 seconds, round 2 20 seconds/,
     }).length).toBeGreaterThan(0)
 
-    const beginButtons = screen.getAllByRole('button', { name: /^begin/i })
-    for (const button of beginButtons) {
+    const enterButtons = screen.getAllByRole('button', { name: /^enter/i })
+    for (const button of enterButtons) {
       expect(button).toBeDisabled()
     }
-    expect(beginButtons[0].parentElement).toHaveClass('shrink-0', 'border-t')
-    expect(beginButtons[1].parentElement).toHaveClass('shrink-0', 'border-t')
-    expect(beginButtons[0].parentElement).not.toHaveClass('sticky')
-    expect(beginButtons[1].parentElement).not.toHaveClass('sticky')
-    expect(screen.getAllByText(/complete the safety check to begin/i)).toHaveLength(2)
-    expect(beginButtons[0]).toHaveAccessibleDescription(/complete the safety check to begin/i)
-    expect(beginButtons[1]).toHaveAccessibleDescription(/complete the safety check to begin/i)
+    expect(enterButtons[0].parentElement).toHaveClass('shrink-0', 'border-t')
+    expect(enterButtons[1].parentElement).toHaveClass('shrink-0', 'border-t')
+    expect(enterButtons[0].parentElement).not.toHaveClass('sticky')
+    expect(enterButtons[1].parentElement).not.toHaveClass('sticky')
+    expect(screen.getAllByText(/complete the safety check to enter/i)).toHaveLength(2)
+    expect(enterButtons[0]).toHaveAccessibleDescription(/complete the safety check to enter/i)
+    expect(enterButtons[1]).toHaveAccessibleDescription(/complete the safety check to enter/i)
 
-    await user.click(beginButtons[1])
+    await user.click(enterButtons[1])
     expect(screen.queryByTestId('active-session')).not.toBeInTheDocument()
 
     const safetyCheckbox = screen.getAllByRole('checkbox', {
@@ -91,14 +91,14 @@ describe('Session safety gates', () => {
 
     await user.click(safetyCheckbox)
 
-    const enabledBeginButtons = screen.getAllByRole('button', { name: /^begin/i })
-    for (const button of enabledBeginButtons) {
+    const enabledEnterButtons = screen.getAllByRole('button', { name: /^enter/i })
+    for (const button of enabledEnterButtons) {
       expect(button).not.toBeDisabled()
-      expect(button).not.toHaveAccessibleDescription(/complete the safety check to begin/i)
+      expect(button).not.toHaveAccessibleDescription(/complete the safety check to enter/i)
     }
-    expect(screen.queryByText(/complete the safety check to begin/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/complete the safety check to enter/i)).not.toBeInTheDocument()
 
-    await user.click(enabledBeginButtons[0])
+    await user.click(enabledEnterButtons[0])
     expect(screen.getByTestId('active-session')).toHaveTextContent(
       `${TECHNIQUE_IDS.CO2_TOLERANCE}:8`
     )
@@ -129,13 +129,13 @@ describe('Session safety gates', () => {
     })[0]
     await user.click(safetyCheckbox)
 
-    const beginButtons = screen.getAllByRole('button', { name: /^begin/i })
-    for (const button of beginButtons) {
+    const enterButtons = screen.getAllByRole('button', { name: /^enter/i })
+    for (const button of enterButtons) {
       expect(button).toBeDisabled()
       expect(button).toHaveAccessibleDescription(/recovery window active/i)
     }
 
-    await user.click(beginButtons[1])
+    await user.click(enterButtons[1])
     expect(screen.queryByTestId('active-session')).not.toBeInTheDocument()
   })
 
@@ -148,12 +148,12 @@ describe('Session safety gates', () => {
     expect(screen.getAllByText(/wellness education, not medical care/i)).toHaveLength(2)
     expect(screen.getAllByText(/cardiovascular, respiratory, neurological/i)).toHaveLength(2)
 
-    const beginButtons = screen.getAllByRole('button', { name: /^begin/i })
-    for (const button of beginButtons) {
+    const enterButtons = screen.getAllByRole('button', { name: /^enter/i })
+    for (const button of enterButtons) {
       expect(button).not.toBeDisabled()
     }
 
-    await user.click(beginButtons[1])
+    await user.click(enterButtons[1])
     expect(screen.getByTestId('active-session')).toHaveTextContent(
       `${TECHNIQUE_IDS.RESONANCE_BREATHING}:30`
     )
@@ -171,7 +171,7 @@ describe('Session safety gates', () => {
     const user = userEvent.setup()
     renderSession(`/breathwork/session?technique=${TECHNIQUE_IDS.RESONANCE_BREATHING}&rounds=12`)
 
-    await user.click(screen.getAllByRole('button', { name: /^begin/i })[0])
+    await user.click(screen.getAllByRole('button', { name: /^enter/i })[0])
     expect(screen.getByTestId('active-session')).toHaveTextContent(
       `${TECHNIQUE_IDS.RESONANCE_BREATHING}:12`
     )
@@ -196,7 +196,7 @@ describe('Session safety gates', () => {
     }
 
     await user.click(increaseButtons[0])
-    await user.click(screen.getAllByRole('button', { name: /^begin/i })[0])
+    await user.click(screen.getAllByRole('button', { name: /^enter/i })[0])
 
     expect(screen.getByTestId('active-session')).toHaveTextContent(
       `${TECHNIQUE_IDS.PURSED_LIP_RECOVERY}:50`
@@ -216,7 +216,7 @@ describe('Session safety gates', () => {
     }).length).toBeGreaterThan(0)
     expect(screen.getAllByText('5.5 bpm').length).toBeGreaterThan(0)
 
-    await user.click(screen.getAllByRole('button', { name: /^begin/i })[0])
+    await user.click(screen.getAllByRole('button', { name: /^enter/i })[0])
 
     expect(screen.getByTestId('active-session')).toHaveTextContent(
       `${TECHNIQUE_IDS.RESONANCE_BREATHING}:30:{"inhale":6}`
@@ -234,7 +234,7 @@ describe('Session safety gates', () => {
     }).length).toBeGreaterThan(0)
     expect(screen.getAllByText('5.5 bpm').length).toBeGreaterThan(0)
 
-    await user.click(screen.getAllByRole('button', { name: /^begin/i })[0])
+    await user.click(screen.getAllByRole('button', { name: /^enter/i })[0])
 
     expect(screen.getByTestId('active-session')).toHaveTextContent(
       `${TECHNIQUE_IDS.RESONANCE_BREATHING}:12:{"inhale":6}`
@@ -268,7 +268,7 @@ describe('Session safety gates', () => {
     await user.click(decreaseButtons[0])
     expect(screen.getAllByRole('group', { name: /session rounds, 11 selected/i }).length).toBeGreaterThan(0)
 
-    await user.click(screen.getAllByRole('button', { name: /^begin/i })[0])
+    await user.click(screen.getAllByRole('button', { name: /^enter/i })[0])
 
     expect(screen.getByTestId('active-session')).toHaveTextContent(
       `${TECHNIQUE_IDS.RESONANCE_BREATHING}:11`
