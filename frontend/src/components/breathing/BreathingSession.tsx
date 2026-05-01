@@ -31,6 +31,7 @@ import {
 import { DESTRUCTIVE, withAlpha } from '@/lib/palette'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore } from '@/stores/historyStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 import { useViewportOffset } from '@/hooks/useViewportOffset'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import { useHaptics } from '@/hooks/useHaptics'
@@ -101,6 +102,7 @@ export function BreathingSession({
   // Gamification stores
   const { addXP, unlockBadges, recordSession, earnedBadges, selectedTheme, xp } = useGamificationStore()
   const { sessions, getStreak } = useHistoryStore()
+  const { soundEnabled, soundVolume } = useSettingsStore()
   const level = getLevelForXP(xp)
   const selectedOrbTheme = isOrbThemeUnlocked(selectedTheme, level)
     ? getOrbTheme(selectedTheme)
@@ -150,7 +152,8 @@ export function BreathingSession({
     useBreathingCycle({
       onSessionComplete: handleSessionComplete,
       onPhaseChange: handlePhaseChange,
-      enableAudio: true,
+      enableAudio: soundEnabled,
+      audioVolume: soundVolume,
     })
 
   const showControls = useCallback(() => {

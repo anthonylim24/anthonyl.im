@@ -59,6 +59,8 @@ interface ProbeProps {
   onPhaseChange?: (phase: BreathPhase) => void
   onRoundComplete?: (round: number) => void
   onSessionComplete?: () => void
+  enableAudio?: boolean
+  audioVolume?: number
 }
 
 function Probe({
@@ -66,9 +68,12 @@ function Probe({
   onPhaseChange,
   onRoundComplete,
   onSessionComplete,
+  enableAudio = false,
+  audioVolume,
 }: ProbeProps) {
   const cycle = useBreathingCycle({
-    enableAudio: false,
+    enableAudio,
+    audioVolume,
     onPhaseChange,
     onRoundComplete,
     onSessionComplete,
@@ -140,6 +145,7 @@ describe('useBreathingCycle', () => {
       vo2MaxHistory: [],
     })
     historyMock.addSession.mockClear()
+    vi.unstubAllGlobals()
   })
 
   it('completes a one-round power session from the final 1-second phase', async () => {
@@ -190,6 +196,59 @@ describe('useBreathingCycle', () => {
       maxHoldTime: 0,
       avgHoldTime: 0,
     })
+  })
+
+  it('uses the configured audio volume for session beeps', () => {
+    const gainSetValueAtTime = vi.fn()
+    const gainRampToValueAtTime = vi.fn()
+    const oscillatorStart = vi.fn()
+    const oscillatorStop = vi.fn()
+
+    class FakeAudioContext {
+      currentTime = 12
+      destination = {}
+
+      createOscillator() {
+        return {
+          connect: vi.fn(),
+          frequency: { value: 0 },
+          type: 'sine',
+          start: oscillatorStart,
+          stop: oscillatorStop,
+        }
+      }
+
+      createGain() {
+        return {
+          connect: vi.fn(),
+          gain: {
+            setValueAtTime: gainSetValueAtTime,
+            exponentialRampToValueAtTime: gainRampToValueAtTime,
+          },
+        }
+      }
+
+      close() {
+        return Promise.resolve()
+      }
+    }
+
+    vi.stubGlobal('AudioContext', FakeAudioContext)
+
+    render(
+      <Probe
+        config={{ techniqueId: TECHNIQUE_IDS.POWER_BREATHING, rounds: 1 }}
+        enableAudio
+        audioVolume={0.12}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
+
+    expect(gainSetValueAtTime).toHaveBeenCalledWith(0.12, 12)
+    expect(gainRampToValueAtTime).toHaveBeenCalledWith(0.01, 12.15)
+    expect(oscillatorStart).toHaveBeenCalledWith(12)
+    expect(oscillatorStop).toHaveBeenCalledWith(12.15)
   })
 
   it('keeps ticking through an unrelated StrictMode rerender during the final second', async () => {

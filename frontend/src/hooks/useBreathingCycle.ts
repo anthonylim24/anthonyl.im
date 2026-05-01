@@ -9,6 +9,7 @@ interface UseBreathingCycleOptions {
   onRoundComplete?: (round: number) => void
   onSessionComplete?: () => void
   enableAudio?: boolean
+  audioVolume?: number
 }
 
 export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
@@ -17,6 +18,7 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
     onRoundComplete,
     onSessionComplete,
     enableAudio = true,
+    audioVolume = 0.3,
   } = options
 
   // Store callbacks in refs to avoid effect re-subscriptions
@@ -58,7 +60,8 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
   }, [])
 
   const playBeep = useCallback((frequency: number = 440, duration: number = 100) => {
-    if (!enableAudio) return
+    const volume = Math.max(0, Math.min(1, audioVolume))
+    if (!enableAudio || volume === 0) return
 
     try {
       if (!audioContextRef.current) {
@@ -75,7 +78,7 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
       oscillator.frequency.value = frequency
       oscillator.type = 'sine'
 
-      gainNode.gain.setValueAtTime(0.3, ctx.currentTime)
+      gainNode.gain.setValueAtTime(volume, ctx.currentTime)
       gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration / 1000)
 
       oscillator.start(ctx.currentTime)
@@ -83,7 +86,7 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
     } catch {
       // Audio not supported
     }
-  }, [enableAudio])
+  }, [audioVolume, enableAudio])
 
   const start = useCallback((config: SessionConfig) => {
     const protocol = getProtocol(config.techniqueId)
