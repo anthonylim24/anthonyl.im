@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react'
+import { render, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { BreathworkLayout } from '../BreathworkLayout'
@@ -23,14 +23,18 @@ describe('BreathworkLayout reduced motion', () => {
     mocks.reducedMotion = false
   })
 
-  it('renders the ambient leaves overlay when motion is allowed', () => {
+  it('renders the ambient leaves overlay as a subtle texture when motion is allowed', async () => {
     const { container } = render(
       <MemoryRouter>
         <BreathworkLayout />
       </MemoryRouter>,
     )
 
-    expect(container.querySelector('.leaves-overlay')).toBeTruthy()
+    const overlay = container.querySelector<HTMLVideoElement>('.leaves-overlay')
+    expect(overlay).toBeTruthy()
+    await waitFor(() => {
+      expect(overlay).toHaveStyle({ opacity: '0.08' })
+    })
   })
 
   it('does not render autoplaying ambient video for reduced-motion users', () => {
