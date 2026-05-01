@@ -1,8 +1,16 @@
-import { describe, it, expect, vi } from 'vitest'
+import { afterEach, describe, it, expect, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SessionSummary } from '../SessionSummary'
 import { TECHNIQUE_IDS } from '@/lib/constants'
+
+const hapticsMock = vi.hoisted(() => ({
+  trigger: vi.fn(),
+}))
+
+vi.mock('@/hooks/useHaptics', () => ({
+  useHaptics: () => ({ trigger: hapticsMock.trigger }),
+}))
 
 const defaultProps = {
   techniqueId: TECHNIQUE_IDS.CO2_TOLERANCE,
@@ -24,6 +32,10 @@ const gentleProps = {
 }
 
 describe('SessionSummary', () => {
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
   it('displays XP earned', async () => {
     render(<SessionSummary {...defaultProps} />)
     await waitFor(() => {
@@ -61,6 +73,19 @@ describe('SessionSummary', () => {
     expect(screen.getByText('CO2 tolerance exposure')).toBeTruthy()
     expect(screen.getByText(/progressive holds practice/i)).toBeTruthy()
     expect(screen.getByText(/relaxed nasal breathing/i)).toBeTruthy()
+  })
+
+  it('fires the initial celebration haptic once', () => {
+    const { rerender } = render(<SessionSummary {...defaultProps} />)
+
+    expect(hapticsMock.trigger).toHaveBeenCalledWith(
+      [100, 50, 100, 50, 150],
+      { intensity: 0.9 }
+    )
+
+    rerender(<SessionSummary {...gentleProps} newBadges={[]} />)
+
+    expect(hapticsMock.trigger).toHaveBeenCalledTimes(1)
   })
 
   it('exposes the summary as an accessible dialog', () => {

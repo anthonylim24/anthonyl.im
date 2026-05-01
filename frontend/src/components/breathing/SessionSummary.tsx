@@ -109,19 +109,35 @@ export function SessionSummary({
   const isSafetyGatedProtocol = (protocol.safetyChecklist?.length ?? 0) > 0
   const canRepeatSession = Boolean(onRepeat) && !isSafetyGatedProtocol
   const showRecoveryReminder = Boolean(onRepeat) && isSafetyGatedProtocol
+  const initialCelebrationRef = useRef<{
+    haptic: typeof haptic
+    isNewPersonalBest: boolean
+    newBadgeCount: number
+  } | null>(null)
+
+  if (initialCelebrationRef.current === null) {
+    initialCelebrationRef.current = {
+      haptic,
+      isNewPersonalBest,
+      newBadgeCount: newBadges.length,
+    }
+  }
 
   const particleCount = isNewPersonalBest ? 60 : newBadges.length > 0 ? 50 : 40
 
   // Celebration haptic on mount
   useEffect(() => {
-    if (isNewPersonalBest) {
-      haptic([100, 50, 100, 50, 150], { intensity: 0.9 })
-    } else if (newBadges.length > 0) {
-      haptic([80, 40, 80, 40, 80], { intensity: 0.7 })
+    const celebration = initialCelebrationRef.current
+    if (!celebration) return
+
+    if (celebration.isNewPersonalBest) {
+      celebration.haptic([100, 50, 100, 50, 150], { intensity: 0.9 })
+    } else if (celebration.newBadgeCount > 0) {
+      celebration.haptic([80, 40, 80, 40, 80], { intensity: 0.7 })
     } else {
-      haptic('success')
+      celebration.haptic('success')
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     continueButtonRef.current?.focus()
