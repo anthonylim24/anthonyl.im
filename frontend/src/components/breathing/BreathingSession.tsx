@@ -375,6 +375,12 @@ export function BreathingSession({
     showControls()
   }
 
+  const handleRepeatFromSummary = () => {
+    setShowSummary(false)
+    setSummaryData(null)
+    handleRestart()
+  }
+
   const handleCloseSummary = () => {
     summaryProcessedRef.current = false
     setShowSummary(false)
@@ -639,6 +645,7 @@ export function BreathingSession({
           holdTimes={session.holdTimes}
           isNewPersonalBest={summaryData.isNewPersonalBest}
           onClose={handleCloseSummary}
+          onRepeat={handleRepeatFromSummary}
         />
       )}
     </div>
