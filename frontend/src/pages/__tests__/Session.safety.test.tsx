@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { Session } from '../Session'
@@ -97,6 +97,14 @@ describe('Session safety gates', () => {
     expect(screen.getByTestId('active-session')).toHaveTextContent(
       `${TECHNIQUE_IDS.RESONANCE_BREATHING}:30`
     )
+  })
+
+  it('surfaces mobile protocol cautions without opening science details', () => {
+    renderSession(`/breathwork/session?technique=${TECHNIQUE_IDS.PURSED_LIP_RECOVERY}`)
+
+    const mobileCaution = screen.getByTestId('mobile-protocol-caution')
+    expect(within(mobileCaution).getByText('Caution')).toBeInTheDocument()
+    expect(within(mobileCaution).getByText(/Seek medical care for chest pain/i)).toBeInTheDocument()
   })
 
   it('hydrates the round count from a valid recommendation link', async () => {
