@@ -5,6 +5,8 @@
   "start_url": "/breathwork",
   "scope": "/breathwork",
   "display": "standalone",
+  "orientation": "portrait-primary",
+  "categories": ["health", "fitness", "lifestyle"],
   "background_color": "#F5F2ED",
   "theme_color": "#F5F2ED",
   "icons": [
@@ -13,6 +15,50 @@
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Start Calm Session",
+      "short_name": "Calm",
+      "description": "Begin BreathFlow with the default evidence-backed calming protocol.",
+      "url": "/breathwork/session?technique=cyclic_sighing&rounds=30",
+      "icons": [
+        {
+          "src": "/favicon-breath.svg",
+          "sizes": "any",
+          "type": "image/svg+xml",
+          "purpose": "any maskable"
+        }
+      ]
+    },
+    {
+      "name": "Sleep Downshift",
+      "short_name": "Sleep",
+      "description": "Open a gentle evening breathing setup for sleep onset.",
+      "url": "/breathwork/session?technique=four_seven_eight&rounds=16",
+      "icons": [
+        {
+          "src": "/favicon-breath.svg",
+          "sizes": "any",
+          "type": "image/svg+xml",
+          "purpose": "any maskable"
+        }
+      ]
+    },
+    {
+      "name": "View Progress",
+      "short_name": "Progress",
+      "description": "Open your BreathFlow practice history and achievements.",
+      "url": "/breathwork/progress",
+      "icons": [
+        {
+          "src": "/favicon-breath.svg",
+          "sizes": "any",
+          "type": "image/svg+xml",
+          "purpose": "any maskable"
+        }
+      ]
     }
   ]
 }

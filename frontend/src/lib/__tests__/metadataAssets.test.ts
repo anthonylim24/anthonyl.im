@@ -20,12 +20,32 @@ describe('metadata assets', () => {
     expect(manifest.name).toBe('BreathFlow')
     expect(manifest.start_url).toBe('/breathwork')
     expect(manifest.display).toBe('standalone')
+    expect(manifest.orientation).toBe('portrait-primary')
+    expect(manifest.categories).toEqual(
+      expect.arrayContaining(['health', 'fitness', 'lifestyle'])
+    )
     expect(manifest.icons).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           src: '/favicon-breath.svg',
           type: 'image/svg+xml',
           purpose: 'any maskable',
+        }),
+      ])
+    )
+    expect(manifest.shortcuts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'Start Calm Session',
+          url: '/breathwork/session?technique=cyclic_sighing&rounds=30',
+        }),
+        expect.objectContaining({
+          name: 'Sleep Downshift',
+          url: '/breathwork/session?technique=four_seven_eight&rounds=16',
+        }),
+        expect.objectContaining({
+          name: 'View Progress',
+          url: '/breathwork/progress',
         }),
       ])
     )
