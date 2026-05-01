@@ -1,0 +1,94 @@
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { Progress } from '../Progress'
+
+const mocks = vi.hoisted(() => ({
+  clearHistory: vi.fn(),
+  haptic: vi.fn(),
+  history: {
+    sessions: [],
+    personalBests: {},
+  },
+  gamification: {
+    xp: 0,
+    earnedBadges: [],
+  },
+}))
+
+vi.mock('@/hooks/useHaptics', () => ({
+  useHaptics: () => ({ trigger: mocks.haptic }),
+}))
+
+vi.mock('@/stores/historyStore', () => ({
+  useHistoryStore: () => ({
+    ...mocks.history,
+    clearHistory: mocks.clearHistory,
+  }),
+}))
+
+vi.mock('@/stores/gamificationStore', () => ({
+  useGamificationStore: () => mocks.gamification,
+}))
+
+vi.mock('@/components/tracking/ProgressChart', () => ({
+  ProgressChart: () => <section aria-label="Progress chart" />,
+}))
+
+vi.mock('@/components/gamification/ActivityHeatmap', () => ({
+  ActivityHeatmap: () => <section aria-label="Activity heatmap" />,
+}))
+
+vi.mock('@/components/gamification/BadgeGrid', () => ({
+  BadgeGrid: () => <section aria-label="Achievements grid" />,
+}))
+
+vi.mock('@/components/tracking/PersonalBests', () => ({
+  PersonalBests: () => <section aria-label="Personal bests" />,
+}))
+
+function renderProgress() {
+  render(
+    <MemoryRouter>
+      <Progress />
+    </MemoryRouter>,
+  )
+}
+
+describe('Progress accessibility', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.history.sessions = []
+    mocks.history.personalBests = {}
+    mocks.gamification.xp = 0
+    mocks.gamification.earnedBadges = []
+  })
+
+  it('names the clear-history control and keeps confirmation targets large', async () => {
+    const user = userEvent.setup()
+    renderProgress()
+
+    const clearButton = screen.getByRole('button', { name: /clear session history/i })
+    expect(clearButton).toHaveClass('min-h-11', 'min-w-11')
+
+    await user.click(clearButton)
+
+    const confirmButton = screen.getByRole('button', { name: /confirm clear history/i })
+    const cancelButton = screen.getByRole('button', { name: /cancel clear history/i })
+
+    expect(confirmButton).toHaveClass('min-h-11', 'min-w-11')
+    expect(cancelButton).toHaveClass('min-h-11', 'min-w-11')
+
+    await user.click(confirmButton)
+    expect(mocks.clearHistory).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps history filter controls and empty-history CTA at 44px height', () => {
+    renderProgress()
+
+    expect(screen.getByRole('button', { name: 'All' })).toHaveClass('min-h-11')
+    expect(screen.getByRole('button', { name: /Box/i })).toHaveClass('min-h-11')
+    expect(screen.getByRole('button', { name: /start your first session/i })).toHaveClass('min-h-11')
+  })
+})

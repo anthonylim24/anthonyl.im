@@ -80,24 +80,27 @@ export function Progress() {
               <div className="flex items-center gap-2">
                 <span className="text-xs text-bw-tertiary">Clear all?</span>
                 <button
+                  aria-label="Confirm clear history"
                   onClick={handleClearHistory}
-                  className="px-3 py-1.5 text-xs font-medium border border-red-400/30 text-red-400 hover:bg-red-500/10 transition-colors duration-300"
+                  className="min-h-11 min-w-11 px-3 py-2 text-xs font-medium border border-red-400/30 text-red-400 hover:bg-red-500/10 transition-colors duration-300"
                 >
                   Yes
                 </button>
                 <button
+                  aria-label="Cancel clear history"
                   onClick={() => setShowClearConfirm(false)}
-                  className="px-3 py-1.5 text-xs font-medium border border-bw-border text-bw-secondary hover:text-bw transition-colors duration-300"
+                  className="min-h-11 min-w-11 px-3 py-2 text-xs font-medium border border-bw-border text-bw-secondary hover:text-bw transition-colors duration-300"
                 >
                   No
                 </button>
               </div>
             ) : (
               <button
+                aria-label="Clear session history"
                 onClick={() => { haptic('error'); setShowClearConfirm(true) }}
-                className="px-3 py-2 text-xs text-bw-tertiary hover:text-red-400 transition-colors duration-300"
+                className="inline-flex min-h-11 min-w-11 items-center justify-center px-3 py-2 text-xs text-bw-tertiary hover:text-red-400 transition-colors duration-300"
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             )}
           </div>
@@ -177,7 +180,7 @@ export function Progress() {
               <button
                 onClick={() => { haptic('selection'); setFilterTechnique('all') }}
                 className={cn(
-                  'text-xs font-medium transition-colors duration-200 shrink-0',
+                  'min-h-11 px-2 text-xs font-medium transition-colors duration-200 shrink-0',
                   filterTechnique === 'all'
                     ? 'text-bw'
                     : 'text-bw-tertiary hover:text-bw-secondary'
@@ -190,7 +193,7 @@ export function Progress() {
                   key={id}
                   onClick={() => { haptic('selection'); setFilterTechnique(id) }}
                   className={cn(
-                    'flex items-center gap-1.5 text-xs font-medium transition-colors duration-200 shrink-0',
+                    'flex min-h-11 items-center gap-1.5 px-2 text-xs font-medium transition-colors duration-200 shrink-0',
                     filterTechnique === id
                       ? 'text-bw'
                       : 'text-bw-tertiary hover:text-bw-secondary'
