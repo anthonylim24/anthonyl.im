@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   xp: 0,
   dailySessionCount: 0,
 }))
+const originalScrollIntoView = Element.prototype.scrollIntoView
 
 vi.mock('@/hooks/useViewTransition', () => ({
   useViewTransitionNavigate: () => mocks.navigate,
@@ -49,6 +50,15 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllMocks()
+  vi.unstubAllGlobals()
+  if (originalScrollIntoView) {
+    Object.defineProperty(Element.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: originalScrollIntoView,
+    })
+  } else {
+    Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
+  }
 })
 
 describe('Home Protocol Lab', () => {
@@ -90,6 +100,27 @@ describe('Home Protocol Lab', () => {
     for (const button of screen.getAllByRole('button', { name: /browse all techniques/i })) {
       expect(button).toHaveClass('min-h-11')
     }
+  })
+
+  it('does not smooth scroll the welcome browse control for reduced-motion users', async () => {
+    const user = userEvent.setup()
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(Element.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    })
+    vi.stubGlobal('matchMedia', vi.fn((query: string) => ({
+      matches: query === '(prefers-reduced-motion: reduce)',
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })))
+
+    renderHome()
+
+    await user.click(screen.getAllByRole('button', { name: /browse all techniques/i })[0])
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'auto' })
   })
 
   it('names the recent sessions shortcut and keeps it at 44px target height', () => {

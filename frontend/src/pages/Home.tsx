@@ -62,7 +62,13 @@ function getStreakMessage(streak: number, dailyGoalMet: boolean): string {
 
 export function Home() {
   const navigate = useViewTransitionNavigate()
-  const { stagger, fadeUp, transition: motionTransition, tap } = useEntranceMotion()
+  const {
+    reducedMotion,
+    stagger,
+    fadeUp,
+    transition: motionTransition,
+    tap,
+  } = useEntranceMotion()
   const currentHour = useMemo(() => new Date().getHours(), [])
   const [selectedGoal, setSelectedGoal] = useState<ProtocolGoal>(() =>
     getDefaultProtocolGoal(currentHour)
@@ -106,6 +112,12 @@ export function Home() {
     suggestedProtocol.id,
     recommendation.primary.rounds
   )
+  const handleBrowseTechniques = () => {
+    haptic('light')
+    document.getElementById('techniques-section')?.scrollIntoView({
+      behavior: reducedMotion ? 'auto' : 'smooth',
+    })
+  }
 
   return (
     <motion.div
@@ -147,10 +159,7 @@ export function Home() {
             </button>
             <button
               type="button"
-              onClick={() => {
-                haptic('light')
-                document.getElementById('techniques-section')?.scrollIntoView({ behavior: 'smooth' })
-              }}
+              onClick={handleBrowseTechniques}
               className="mt-3 flex min-h-11 w-full items-center justify-center py-2 text-xs font-medium text-bw-tertiary transition-colors hover:text-bw-secondary"
             >
               Browse all techniques
@@ -169,10 +178,7 @@ export function Home() {
             </button>
             <button
               type="button"
-              onClick={() => {
-                haptic('light')
-                document.getElementById('techniques-section')?.scrollIntoView({ behavior: 'smooth' })
-              }}
+              onClick={handleBrowseTechniques}
               className="mt-3 inline-flex min-h-11 items-center text-xs font-medium text-bw-tertiary transition-colors hover:text-bw-secondary"
             >
               Or browse all techniques
