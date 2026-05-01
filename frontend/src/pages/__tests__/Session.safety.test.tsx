@@ -60,6 +60,9 @@ describe('Session safety gates', () => {
     for (const button of beginButtons) {
       expect(button).toBeDisabled()
     }
+    expect(screen.getAllByText(/complete the safety check to begin/i)).toHaveLength(2)
+    expect(beginButtons[0]).toHaveAccessibleDescription(/complete the safety check to begin/i)
+    expect(beginButtons[1]).toHaveAccessibleDescription(/complete the safety check to begin/i)
 
     await user.click(beginButtons[0])
     expect(screen.queryByTestId('active-session')).not.toBeInTheDocument()
@@ -74,7 +77,9 @@ describe('Session safety gates', () => {
     const enabledBeginButtons = screen.getAllByRole('button', { name: /^begin/i })
     for (const button of enabledBeginButtons) {
       expect(button).not.toBeDisabled()
+      expect(button).not.toHaveAccessibleDescription(/complete the safety check to begin/i)
     }
+    expect(screen.queryByText(/complete the safety check to begin/i)).not.toBeInTheDocument()
 
     await user.click(enabledBeginButtons[0])
     expect(screen.getByTestId('active-session')).toHaveTextContent(
