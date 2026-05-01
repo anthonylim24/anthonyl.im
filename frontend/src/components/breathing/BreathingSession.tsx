@@ -347,6 +347,8 @@ export function BreathingSession({
 
   const controlsDimmed =
     isActive && !isPaused && !controlsVisible && !controlsFocused && !reducedMotion
+  const canUseAuraMode = auraMode && !reducedMotion
+  const visualizationClickHandler = reducedMotion ? undefined : handleRingsClick
 
   return (
     <div
@@ -369,7 +371,7 @@ export function BreathingSession({
         {sessionAnnouncement}
       </div>
       {/* Aura mode — background layer, behind all UI */}
-      {auraMode && <BreathAuraField />}
+      {canUseAuraMode && <BreathAuraField />}
 
       {/* Round progress indicator */}
       {(() => {
@@ -438,7 +440,7 @@ export function BreathingSession({
             maxHeight: 'min(48vh, 24rem)',
           }}
         >
-          {auraMode ? (
+          {canUseAuraMode ? (
             <button
               type="button"
               className="w-full h-full flex items-center justify-center relative appearance-none border-0 bg-transparent p-0"
@@ -467,7 +469,7 @@ export function BreathingSession({
               techniqueId={config.techniqueId}
               themeColors={selectedOrbTheme.colors}
               className="w-full h-full"
-              onClick={handleRingsClick}
+              onClick={visualizationClickHandler}
             />
           )}
         </div>

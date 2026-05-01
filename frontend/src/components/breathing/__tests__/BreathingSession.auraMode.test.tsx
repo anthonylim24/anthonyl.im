@@ -120,11 +120,34 @@ describe('BreathingSession aura mode', () => {
     vi.spyOn(Date, 'now').mockImplementation(() => (t += 100))
 
     render(<BreathingSession config={CONFIG} />)
+    expect(screen.queryByRole('button', { name: /toggle alternate visual/i })).toBeNull()
+    expect(screen.getByRole('img', { name: /breathing visualization/i })).toBeInTheDocument()
+
     const rings = screen.getByTestId('concentric-rings')
     for (let i = 0; i < 5; i++) {
       await userEvent.click(rings)
     }
 
     expect(screen.queryByTestId('breath-aura-field')).toBeNull()
+  })
+
+  it('hides aura controls while reduced motion is active mid-session', async () => {
+    let t = 0
+    vi.spyOn(Date, 'now').mockImplementation(() => (t += 100))
+
+    const { rerender } = render(<BreathingSession config={CONFIG} />)
+    const rings = screen.getByTestId('concentric-rings')
+
+    for (let i = 0; i < 5; i++) {
+      await userEvent.click(rings)
+    }
+    expect(screen.getByTestId('breath-aura-field')).toBeTruthy()
+
+    vi.mocked(useReducedMotion).mockReturnValue(true)
+    rerender(<BreathingSession config={CONFIG} />)
+
+    expect(screen.queryByTestId('breath-aura-field')).toBeNull()
+    expect(screen.queryByRole('button', { name: /toggle alternate visual/i })).toBeNull()
+    expect(screen.getByRole('img', { name: /breathing visualization/i })).toBeInTheDocument()
   })
 })
