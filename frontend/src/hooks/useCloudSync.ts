@@ -92,6 +92,13 @@ export function normalizeCloudSettings(settings: Record<string, unknown>): Persi
   }
 }
 
+export function hasNonDefaultSettings(settings: PersistedSettingsState): boolean {
+  return settings.theme !== DEFAULT_SETTINGS_STATE.theme ||
+    settings.soundEnabled !== DEFAULT_SETTINGS_STATE.soundEnabled ||
+    settings.soundVolume !== DEFAULT_SETTINGS_STATE.soundVolume ||
+    settings.hapticsEnabled !== DEFAULT_SETTINGS_STATE.hapticsEnabled
+}
+
 // ─── Cloud sync hook ──────────────────────────────────────────────
 
 const DEBOUNCE_MS = 2000
@@ -160,7 +167,8 @@ export function useCloudSync() {
       const hasLocalData =
         localHistory.sessions.length > 0 ||
         localGamification.xp > 0 ||
-        localGamification.earnedBadges.length > 0
+        localGamification.earnedBadges.length > 0 ||
+        hasNonDefaultSettings(localSettings)
 
       if (hasLocalData && !hasMergedRef.current) {
         // First-login merge: merge local into cloud

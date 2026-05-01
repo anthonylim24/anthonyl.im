@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { mergeUserState, mergeSessionHistory, normalizeCloudSettings } from '../useCloudSync'
+import { DEFAULT_SETTINGS_STATE } from '@/stores/settingsStore'
+import {
+  hasNonDefaultSettings,
+  mergeUserState,
+  mergeSessionHistory,
+  normalizeCloudSettings,
+} from '../useCloudSync'
 
 describe('mergeUserState', () => {
   it('takes the higher XP value', () => {
@@ -95,5 +101,18 @@ describe('normalizeCloudSettings', () => {
       soundVolume: 1,
       hapticsEnabled: false,
     })
+  })
+})
+
+describe('hasNonDefaultSettings', () => {
+  it('treats BreathFlow defaults as unchanged', () => {
+    expect(hasNonDefaultSettings(DEFAULT_SETTINGS_STATE)).toBe(false)
+  })
+
+  it('detects local settings changed before first sign-in', () => {
+    expect(hasNonDefaultSettings({ ...DEFAULT_SETTINGS_STATE, theme: 'dark' })).toBe(true)
+    expect(hasNonDefaultSettings({ ...DEFAULT_SETTINGS_STATE, soundEnabled: false })).toBe(true)
+    expect(hasNonDefaultSettings({ ...DEFAULT_SETTINGS_STATE, soundVolume: 0.8 })).toBe(true)
+    expect(hasNonDefaultSettings({ ...DEFAULT_SETTINGS_STATE, hapticsEnabled: false })).toBe(true)
   })
 })
