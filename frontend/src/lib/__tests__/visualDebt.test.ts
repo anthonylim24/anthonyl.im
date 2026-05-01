@@ -6,4 +6,8 @@ describe('visual debt guardrails', () => {
     expect(indexCss).not.toContain('.gradient-text')
     expect(indexCss).not.toMatch(/#7c8aff|#a78bfa|#c4b5fd/i)
   })
+
+  it('does not keep unused glass compatibility surface classes', () => {
+    expect(indexCss).not.toMatch(/\.(glass|card-elevated|sculpted-card|surface-well)\b/)
+  })
 })
