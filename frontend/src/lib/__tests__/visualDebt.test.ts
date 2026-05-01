@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import indexCss from '../../index.css?raw'
+import progressSource from '../../pages/Progress.tsx?raw'
+import settingsSource from '../../pages/Settings.tsx?raw'
 
 describe('visual debt guardrails', () => {
   it('does not keep the old purple gradient text utility in the global stylesheet', () => {
@@ -9,5 +11,11 @@ describe('visual debt guardrails', () => {
 
   it('does not keep unused glass compatibility surface classes', () => {
     expect(indexCss).not.toMatch(/\.(glass|card-elevated|sculpted-card|surface-well)\b/)
+  })
+
+  it('keeps destructive BreathFlow actions on semantic tokens', () => {
+    expect(`${settingsSource}\n${progressSource}`).not.toMatch(
+      /(?:text|bg|border|hover:bg|hover:text)-red-\d{3}/,
+    )
   })
 })

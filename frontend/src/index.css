@@ -380,7 +380,7 @@ body {
     --muted-foreground: 28 11% 45%;
     --accent: 43 89% 38%;
     --accent-foreground: 36 31% 95%;
-    --destructive: 0 84% 60%;
+    --destructive: 4 77% 40%;
     --destructive-foreground: 0 0% 100%;
     --border: 30 15% 83%;
     --input: 30 15% 83%;
@@ -415,6 +415,10 @@ body {
     --bw-accent-subtle: rgba(184, 134, 11, 0.12);
     --bw-accent-foreground: #1C1917;
     --bw-success: #6B8F71;
+    --bw-destructive: #B42318;
+    --bw-destructive-border: rgba(180, 35, 24, 0.24);
+    --bw-destructive-subtle: rgba(180, 35, 24, 0.05);
+    --bw-destructive-hover: rgba(180, 35, 24, 0.10);
   }
 
   /* ── Dark overrides (matches chatbot dark) ── */
@@ -434,7 +438,7 @@ body {
     --muted-foreground: 30 5% 63%;
     --accent: 48 67% 47%;
     --accent-foreground: 30 10% 8%;
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 91% 71%;
     --destructive-foreground: 0 0% 98%;
     --border: 30 5% 18%;
     --input: 30 5% 18%;
@@ -468,6 +472,10 @@ body {
     --bw-accent-subtle: rgba(201, 162, 39, 0.16);
     --bw-accent-foreground: #171613;
     --bw-success: #8DAF92;
+    --bw-destructive: #F87171;
+    --bw-destructive-border: rgba(248, 113, 113, 0.28);
+    --bw-destructive-subtle: rgba(248, 113, 113, 0.08);
+    --bw-destructive-hover: rgba(248, 113, 113, 0.14);
   }
 
   * { @apply border-border; }

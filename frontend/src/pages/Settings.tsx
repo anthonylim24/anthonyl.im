@@ -464,7 +464,7 @@ export function Settings() {
             </p>
           ) : null}
           {importError ? (
-            <p className="py-3 text-xs leading-relaxed text-red-400" role="alert">
+            <p className="py-3 text-xs leading-relaxed text-bw-destructive" role="alert">
               {importError}
             </p>
           ) : null}
@@ -476,14 +476,14 @@ export function Settings() {
             className={cn(
               'flex min-h-11 items-center gap-3 w-full py-4 transition-all duration-300 text-left',
               confirmClear
-                ? 'bg-red-500/5 hover:bg-red-500/10'
+                ? 'bg-bw-destructive-subtle hover:bg-bw-destructive-hover'
                 : 'hover:bg-bw-hover'
             )}
           >
             <Trash2
               className={cn(
                 'h-3.5 w-3.5',
-                confirmClear ? 'text-red-400' : 'text-bw-tertiary'
+                confirmClear ? 'text-bw-destructive' : 'text-bw-tertiary'
               )}
               aria-hidden="true"
             />
@@ -491,7 +491,7 @@ export function Settings() {
               <p
                 className={cn(
                   'text-xs font-medium',
-                  confirmClear ? 'text-red-400' : 'text-bw'
+                  confirmClear ? 'text-bw-destructive' : 'text-bw'
                 )}
               >
                 {confirmClear ? 'Tap again to confirm' : 'Clear All Data'}
