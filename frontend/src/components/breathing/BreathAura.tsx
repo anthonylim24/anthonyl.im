@@ -7,6 +7,14 @@ interface BreathAuraProps {
   className?: string
 }
 
+const auraColors = {
+  surface: 'var(--bw-surface)',
+  accent: 'var(--bw-accent)',
+  accentLight: 'var(--bw-accent-light)',
+  ink: 'var(--bw-text)',
+  inkSecondary: 'var(--bw-text-secondary)',
+} as const
+
 export const BreathAura = memo(function BreathAura({
   size = 100,
   amplitude = 0,
@@ -52,20 +60,20 @@ export const BreathAura = memo(function BreathAura({
       >
         <defs>
           <radialGradient id={`${gradientId}-core`} cx="42%" cy="36%" r="64%">
-            <stop offset="0" stopColor="#FFFEFA" stopOpacity="0.7" />
-            <stop offset="0.46" stopColor="#D6AD47" stopOpacity="0.42" />
-            <stop offset="1" stopColor="#B8860B" stopOpacity="0.82" />
+            <stop offset="0" stopColor={auraColors.surface} stopOpacity="0.7" />
+            <stop offset="0.46" stopColor={auraColors.accentLight} stopOpacity="0.42" />
+            <stop offset="1" stopColor={auraColors.accent} stopOpacity="0.82" />
           </radialGradient>
           <linearGradient id={`${gradientId}-ray`} x1="0" x2="1" y1="0" y2="1">
-            <stop offset="0" stopColor="#D6AD47" stopOpacity="0" />
-            <stop offset="0.5" stopColor="#B8860B" stopOpacity="0.42" />
-            <stop offset="1" stopColor="#5F574F" stopOpacity="0.18" />
+            <stop offset="0" stopColor={auraColors.accentLight} stopOpacity="0" />
+            <stop offset="0.5" stopColor={auraColors.accent} stopOpacity="0.42" />
+            <stop offset="1" stopColor={auraColors.inkSecondary} stopOpacity="0.18" />
           </linearGradient>
         </defs>
 
-        <circle cx="100" cy="100" r="76" fill="#D6AD47" opacity="0.08" />
-        <circle cx="100" cy="100" r="62" stroke="#B8860B" strokeOpacity={ringOpacity} strokeWidth="1.5" />
-        <circle cx="100" cy="100" r="44" stroke="#5F574F" strokeOpacity="0.18" strokeWidth="1" />
+        <circle cx="100" cy="100" r="76" fill={auraColors.accentLight} opacity="0.08" />
+        <circle cx="100" cy="100" r="62" stroke={auraColors.accent} strokeOpacity={ringOpacity} strokeWidth="1.5" />
+        <circle cx="100" cy="100" r="44" stroke={auraColors.inkSecondary} strokeOpacity="0.18" strokeWidth="1" />
 
         <g stroke={`url(#${gradientId}-ray)`} strokeLinecap="round" strokeWidth="2">
           {rays.map((ray) => (
@@ -86,19 +94,19 @@ export const BreathAura = memo(function BreathAura({
           />
           <path
             d="M72 95c13-22 41-22 56 0M70 109c16 18 44 18 60 0"
-            stroke="#1C1917"
+            stroke={auraColors.ink}
             strokeOpacity="0.17"
             strokeWidth="2.5"
             strokeLinecap="round"
           />
-          <ellipse cx="82" cy="78" rx="18" ry="11" fill="#FFFEFA" opacity="0.38" />
+          <ellipse cx="82" cy="78" rx="18" ry="11" fill={auraColors.surface} opacity="0.38" />
         </g>
 
         <g opacity={petalOpacity}>
-          <path d="M100 18c10 18 10 34 0 49-10-15-10-31 0-49Z" fill="#B8860B" />
-          <path d="M182 100c-18 10-34 10-49 0 15-10 31-10 49 0Z" fill="#B8860B" />
-          <path d="M100 182c-10-18-10-34 0-49 10 15 10 31 0 49Z" fill="#B8860B" />
-          <path d="M18 100c18-10 34-10 49 0-15 10-31 10-49 0Z" fill="#B8860B" />
+          <path d="M100 18c10 18 10 34 0 49-10-15-10-31 0-49Z" fill={auraColors.accent} />
+          <path d="M182 100c-18 10-34 10-49 0 15-10 31-10 49 0Z" fill={auraColors.accent} />
+          <path d="M100 182c-10-18-10-34 0-49 10 15 10 31 0 49Z" fill={auraColors.accent} />
+          <path d="M18 100c18-10 34-10 49 0-15 10-31 10-49 0Z" fill={auraColors.accent} />
         </g>
       </svg>
     </div>

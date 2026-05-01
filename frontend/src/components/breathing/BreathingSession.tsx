@@ -51,6 +51,13 @@ interface BreathingSessionProps {
   onCancel?: () => void
 }
 
+const AURA_GLOW_BACKGROUND = [
+  'radial-gradient(circle,',
+  'color-mix(in srgb, var(--bw-accent-light) 28%, transparent) 0%,',
+  'color-mix(in srgb, var(--bw-accent) 12%, transparent) 42%,',
+  'transparent 70%)',
+].join(' ')
+
 function getSessionAnnouncement({
   protocolName,
   currentPhase,
@@ -551,7 +558,7 @@ export function BreathingSession({
               <div
                 className="absolute inset-0 pointer-events-none"
                 style={{
-                  background: 'radial-gradient(circle, rgba(214,173,71,0.28) 0%, rgba(184,134,11,0.12) 42%, transparent 70%)',
+                  background: AURA_GLOW_BACKGROUND,
                   transform: `translateZ(0) scale(${0.7 + amplitude * 0.6})`,
                   opacity: 0.3 + amplitude * 0.7,
                   transition: 'transform 800ms cubic-bezier(0.16, 1, 0.3, 1), opacity 800ms ease-out',
