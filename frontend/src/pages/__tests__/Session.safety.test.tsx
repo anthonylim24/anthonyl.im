@@ -98,4 +98,22 @@ describe('Session safety gates', () => {
       `${TECHNIQUE_IDS.RESONANCE_BREATHING}:12`
     )
   })
+
+  it('renders source-level evidence links for the selected protocol', () => {
+    renderSession(`/breathwork/session?technique=${TECHNIQUE_IDS.CYCLIC_SIGHING}`)
+
+    expect(screen.getAllByText('Evidence Trail').length).toBeGreaterThan(0)
+
+    const citationLinks = screen.getAllByRole('link', {
+      name: /Brief structured respiration practices enhance mood/i,
+    })
+
+    expect(citationLinks.length).toBeGreaterThan(0)
+    expect(citationLinks[0]).toHaveAttribute(
+      'href',
+      'https://doi.org/10.1016/j.xcrm.2022.100895'
+    )
+    expect(citationLinks[0]).toHaveAttribute('target', '_blank')
+    expect(citationLinks[0]).toHaveAttribute('rel', 'noopener noreferrer')
+  })
 })

@@ -39,6 +39,17 @@ describe('breathingProtocols', () => {
       expect(protocol.science.length).toBeGreaterThan(0)
       expect(typeof protocol.evidence).toBe('string')
       expect(['strong', 'promising', 'traditional']).toContain(protocol.evidenceLevel)
+      expect(protocol.citations.length).toBeGreaterThan(0)
+      for (const citation of protocol.citations) {
+        expect(typeof citation.authors).toBe('string')
+        expect(citation.authors.length).toBeGreaterThan(0)
+        expect(typeof citation.title).toBe('string')
+        expect(citation.title.length).toBeGreaterThan(0)
+        expect(typeof citation.source).toBe('string')
+        expect(citation.source.length).toBeGreaterThan(0)
+        expect(citation.year).toBeGreaterThanOrEqual(1900)
+        expect(citation.url).toMatch(/^https:\/\//)
+      }
       expect(typeof protocol.purpose).toBe('string')
       expect(['calm', 'sleep', 'performance', 'recovery', 'focus']).toContain(protocol.category)
       expect(['gentle', 'moderate', 'advanced']).toContain(protocol.intensity)
