@@ -9,6 +9,14 @@ export type ProtocolCategory = 'calm' | 'sleep' | 'performance' | 'recovery' | '
 export type ProtocolIntensity = 'gentle' | 'moderate' | 'advanced'
 export type ProtocolEvidenceLevel = 'strong' | 'promising' | 'traditional'
 
+export interface ProtocolCitation {
+  authors: string
+  title: string
+  source: string
+  year: number
+  url: string
+}
+
 export interface BreathingProtocol {
   id: TechniqueId
   name: string
@@ -17,6 +25,7 @@ export interface BreathingProtocol {
   science: string
   evidence: string
   evidenceLevel: ProtocolEvidenceLevel
+  citations: ProtocolCitation[]
   purpose: string
   category: ProtocolCategory
   intensity: ProtocolIntensity
@@ -42,6 +51,86 @@ export const protocolOrder: TechniqueId[] = [
   TECHNIQUE_IDS.POWER_BREATHING,
 ]
 
+const protocolCitations = {
+  balban2023: {
+    authors: 'Balban et al.',
+    title: 'Brief structured respiration practices enhance mood and reduce physiological arousal',
+    source: 'Cell Reports Medicine',
+    year: 2023,
+    url: 'https://doi.org/10.1016/j.xcrm.2022.100895',
+  },
+  zaccaro2018: {
+    authors: 'Zaccaro et al.',
+    title: 'How Breath-Control Can Change Your Life: A Systematic Review on Psycho-Physiological Correlates of Slow Breathing',
+    source: 'Frontiers in Human Neuroscience',
+    year: 2018,
+    url: 'https://doi.org/10.3389/fnhum.2018.00353',
+  },
+  lehrer2014: {
+    authors: 'Lehrer and Gevirtz',
+    title: 'Heart rate variability biofeedback: how and why does it work?',
+    source: 'Frontiers in Psychology',
+    year: 2014,
+    url: 'https://doi.org/10.3389/fpsyg.2014.00756',
+  },
+  kox2014: {
+    authors: 'Kox et al.',
+    title: 'Voluntary activation of the sympathetic nervous system and attenuation of the innate immune response in humans',
+    source: 'PNAS',
+    year: 2014,
+    url: 'https://doi.org/10.1073/pnas.1322174111',
+  },
+  parkes2006: {
+    authors: 'Parkes',
+    title: 'Breath-holding and its breakpoint',
+    source: 'Experimental Physiology',
+    year: 2006,
+    url: 'https://doi.org/10.1113/expphysiol.2005.031625',
+  },
+  murphey2020: {
+    authors: 'Murphey and Lafrenz',
+    title: 'Effects of nasal only and apnea breathing on performance in trained cyclists',
+    source: 'International Journal of Exercise Science: Conference Proceedings',
+    year: 2020,
+    url: 'https://digitalcommons.wku.edu/ijesab/vol8/iss8/5/',
+  },
+  dogan2026: {
+    authors: 'Dogan and Sungur',
+    title: 'The effect of 4-7-8 breathing exercise training on sleep quality of undergraduate nursing students: A randomized controlled study',
+    source: 'European Journal of Integrative Medicine',
+    year: 2026,
+    url: 'https://doi.org/10.1016/j.eujim.2026.102620',
+  },
+  kirazli2026: {
+    authors: 'Kirazli et al.',
+    title: 'The Effect of 4-7-8 Breathing Exercise Technique on Tinnitus Handicap, Psychological Factors, and Sleep Quality in Tinnitus Patients: A Randomized Controlled Study',
+    source: 'Brain and Behavior',
+    year: 2026,
+    url: 'https://doi.org/10.1002/brb3.70854',
+  },
+  ubolnuar2019: {
+    authors: 'Ubolnuar et al.',
+    title: 'Effects of Breathing Exercises in Patients With Chronic Obstructive Pulmonary Disease: Systematic Review and Meta-Analysis',
+    source: 'Annals of Rehabilitation Medicine',
+    year: 2019,
+    url: 'https://doi.org/10.5535/arm.2019.43.4.509',
+  },
+  burge2024: {
+    authors: 'Burge et al.',
+    title: 'Breathing techniques to reduce symptoms in people with serious respiratory illness: a systematic review',
+    source: 'European Respiratory Review',
+    year: 2024,
+    url: 'https://doi.org/10.1183/16000617.0012-2024',
+  },
+  nield2007: {
+    authors: 'Nield et al.',
+    title: 'Efficacy of pursed-lips breathing: a breathing pattern retraining strategy for dyspnea reduction',
+    source: 'Journal of Cardiopulmonary Rehabilitation and Prevention',
+    year: 2007,
+    url: 'https://doi.org/10.1097/01.HCR.0000281770.82652.cb',
+  },
+} satisfies Record<string, ProtocolCitation>
+
 export const breathingProtocols: Record<TechniqueId, BreathingProtocol> = {
   [TECHNIQUE_IDS.BOX_BREATHING]: {
     id: TECHNIQUE_IDS.BOX_BREATHING,
@@ -51,6 +140,7 @@ export const breathingProtocols: Record<TechniqueId, BreathingProtocol> = {
     science: 'The equal-phase pattern synchronizes respiratory rhythm with the baroreflex, shifting autonomic balance toward parasympathetic dominance. Breath holds raise CO2 slightly, triggering a cardioinhibitory response that lowers heart rate. Studies show reduced cortisol (~23% after 1 month of consistent practice), lower pre-performance anxiety (~35%), and increased heart rate variability.',
     evidence: 'Clinical stress protocol',
     evidenceLevel: 'promising',
+    citations: [protocolCitations.balban2023, protocolCitations.zaccaro2018],
     purpose: 'Calm the nervous system under stress',
     category: 'focus',
     intensity: 'moderate',
@@ -74,6 +164,7 @@ export const breathingProtocols: Record<TechniqueId, BreathingProtocol> = {
     science: 'Holding your breath raises blood CO2, which normally triggers the urge to breathe. Progressive exposure trains chemoreceptors to tolerate higher levels, reducing premature breathing. Via the Bohr effect, higher CO2 tolerance improves oxygen extraction per breath. A study on trained cyclists showed a 23.6W increase in functional threshold power after 6 weeks of nasal/apnea breathing protocols, with CO2 tolerance strongly correlated to lower state anxiety.',
     evidence: 'Performance protocol',
     evidenceLevel: 'promising',
+    citations: [protocolCitations.parkes2006, protocolCitations.murphey2020],
     purpose: 'Build CO2 tolerance for performance and composure',
     category: 'performance',
     intensity: 'advanced',
@@ -105,6 +196,7 @@ export const breathingProtocols: Record<TechniqueId, BreathingProtocol> = {
     science: 'Controlled hyperventilation lowers blood CO2 and shifts pH alkaline, triggering vasoconstriction and adrenaline release. A landmark PNAS trial showed trained practitioners could voluntarily activate the sympathetic nervous system and suppress pro-inflammatory cytokines (TNF-α, IL-6, IL-8) while increasing anti-inflammatory IL-10. This technique increases alertness, pain tolerance, and hypoxia resistance.',
     evidence: 'Clinical trial lineage',
     evidenceLevel: 'promising',
+    citations: [protocolCitations.kox2014],
     purpose: 'Sympathetic activation and immune modulation',
     category: 'performance',
     intensity: 'advanced',
@@ -132,6 +224,7 @@ export const breathingProtocols: Record<TechniqueId, BreathingProtocol> = {
     science: 'The double inhale maximally inflates collapsed alveoli, optimizing CO2 offloading. The prolonged exhale increases venous return and activates vagal baroreceptor pathways, shifting into parasympathetic dominance. In a 111-person randomized controlled trial, 5 min/day of cyclic sighing produced greater improvement in positive affect and lower respiratory rate than box breathing, hyperventilation, or mindfulness meditation — with benefits compounding over consecutive days of practice.',
     evidence: 'Stanford RCT',
     evidenceLevel: 'strong',
+    citations: [protocolCitations.balban2023, protocolCitations.zaccaro2018],
     purpose: 'De-stress and reduce anxiety',
     category: 'calm',
     intensity: 'gentle',
@@ -153,6 +246,7 @@ export const breathingProtocols: Record<TechniqueId, BreathingProtocol> = {
     science: 'Slow paced breathing around 4.5-6.5 breaths/min is the core training range used in resonance-frequency HRV biofeedback. Breathing at this cadence can amplify respiratory sinus arrhythmia, stimulate the baroreflex, and increase heart-rate variability. Systematic reviews of slow breathing report autonomic shifts alongside reduced arousal, anxiety, anger, and confusion in healthy subjects.',
     evidence: 'HRV biofeedback standard',
     evidenceLevel: 'strong',
+    citations: [protocolCitations.lehrer2014, protocolCitations.zaccaro2018],
     purpose: 'Increase HRV and baseline nervous-system flexibility',
     category: 'calm',
     intensity: 'gentle',
@@ -174,6 +268,7 @@ export const breathingProtocols: Record<TechniqueId, BreathingProtocol> = {
     science: 'Slow breathing below 10 breaths/min is associated with increased HRV and respiratory sinus arrhythmia. Research on exhale-heavy ratios is mixed, but multiple studies report stronger cardiac vagal activity when exhalation is longer than inhalation. This protocol keeps the cadence easy while biasing the breath toward a longer, calmer outflow.',
     evidence: 'Slow-breathing research',
     evidenceLevel: 'strong',
+    citations: [protocolCitations.zaccaro2018],
     purpose: 'Fast parasympathetic downshift without breath holds',
     category: 'calm',
     intensity: 'gentle',
@@ -195,6 +290,7 @@ export const breathingProtocols: Record<TechniqueId, BreathingProtocol> = {
     science: 'The 4-7-8 pattern slows respiration to about 3.2 breaths/min with an extended exhale and post-inhale retention. Direct evidence is still emerging, but randomized studies in clinical populations report improvements in anxiety, stress, and sleep-related outcomes. Treat it as a stronger downshift protocol, not a competition to hold longer.',
     evidence: 'Emerging RCT evidence',
     evidenceLevel: 'promising',
+    citations: [protocolCitations.dogan2026, protocolCitations.kirazli2026, protocolCitations.zaccaro2018],
     purpose: 'Sleep onset and cognitive downshift',
     category: 'sleep',
     intensity: 'moderate',
@@ -217,6 +313,7 @@ export const breathingProtocols: Record<TechniqueId, BreathingProtocol> = {
     science: 'Pursed-lip breathing creates light expiratory back-pressure, slows the respiratory cycle, and can improve ventilation efficiency. In pulmonary rehabilitation literature, pursed-lip and diaphragmatic breathing strategies are associated with lower dyspnea and better exercise tolerance in chronic lung disease. In this app it is offered as a gentle recovery cadence, not a medical treatment.',
     evidence: 'Pulmonary rehab literature',
     evidenceLevel: 'strong',
+    citations: [protocolCitations.burge2024, protocolCitations.ubolnuar2019, protocolCitations.nield2007],
     purpose: 'Recover from exertion and reduce shallow breathing',
     category: 'recovery',
     intensity: 'gentle',
