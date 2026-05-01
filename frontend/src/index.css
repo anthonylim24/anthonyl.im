@@ -492,48 +492,6 @@ body {
   border-radius: inherit;
 }
 
-/* ═══════════════════════════════════════════════════════
-   SURFACE SYSTEM — Flat parchment + ink, no glass excess
-   ═══════════════════════════════════════════════════════ */
-
-/* Recessed well — transparent in editorial mode */
-.surface-well {
-  background: transparent;
-  border: none;
-}
-
-/* Standard card — editorial: transparent bg, thin top border */
-.card-elevated {
-  background: transparent;
-  border: none;
-  border-top: 1px solid var(--bw-border, #d8d5cf);
-}
-
-.card-elevated:hover {
-  border-color: var(--bw-text-secondary, #888);
-}
-
-/* Prominent card — same flat editorial treatment */
-.sculpted-card {
-  background: transparent;
-  border: none;
-  border-top: 1px solid var(--bw-border, #d8d5cf);
-}
-
-.sculpted-card:hover {
-  border-color: var(--bw-text-secondary, #888);
-}
-
-/* Generic glass compat — flat editorial */
-.glass {
-  background: transparent;
-  border: none;
-  border-top: 1px solid var(--bw-border, #d8d5cf);
-}
-.glass:hover {
-  border-color: var(--bw-text-secondary, #888);
-}
-
 /* ── Breathwork base — warm parchment + precise sans ── */
 .breathwork {
   background-color: var(--bw-canvas, #F5F2ED);
@@ -543,24 +501,6 @@ body {
 }
 .dark .breathwork {
   background-color: var(--bw-canvas, #171613);
-}
-
-/* ── Dark breathwork surface overrides (editorial) ── */
-.dark .breathwork .surface-well {
-  background: transparent;
-  border: none;
-}
-.dark .breathwork .card-elevated,
-.dark .breathwork .sculpted-card,
-.dark .breathwork .glass {
-  background: transparent;
-  border: none;
-  border-top: 1px solid var(--bw-border);
-}
-.dark .breathwork .card-elevated:hover,
-.dark .breathwork .sculpted-card:hover,
-.dark .breathwork .glass:hover {
-  border-color: var(--bw-text-tertiary);
 }
 
 /* ═══════════════════════════════════════════════════════
