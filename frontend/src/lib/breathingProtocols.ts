@@ -33,6 +33,7 @@ export interface BreathingProtocol {
   breathsPerMinute: number
   caution?: string
   safetyNotice?: string
+  contraindications?: string[]
   safetyChecklist?: string[]
   defaultRounds: number
   phases: PhaseConfig[]
@@ -187,6 +188,10 @@ export const breathingProtocols: Record<TechniqueId, BreathingProtocol> = {
     breathsPerMinute: 1.2,
     caution: 'Practice seated or lying down. Stop immediately if dizzy, tingling, or panicked.',
     safetyNotice: 'This protocol uses progressive breath holds. Confirm a low-risk setting before starting.',
+    contraindications: [
+      'Avoid during pregnancy or with a history of seizures, epilepsy, or fainting.',
+      'Consult a clinician first if you have cardiovascular disease, uncontrolled blood pressure, respiratory disease, or another serious health condition.',
+    ],
     safetyChecklist: [
       'I am seated or lying down.',
       'I am not driving, swimming, bathing, standing, or near water.',
@@ -219,6 +224,10 @@ export const breathingProtocols: Record<TechniqueId, BreathingProtocol> = {
     breathsPerMinute: 15,
     caution: 'Never practice while driving, standing, swimming, or in water. Stop if lightheaded.',
     safetyNotice: 'This protocol uses controlled hyperventilation. Confirm a low-risk setting before starting.',
+    contraindications: [
+      'Avoid during pregnancy or with a history of seizures, epilepsy, or fainting.',
+      'Consult a clinician first if you have cardiovascular disease, uncontrolled blood pressure, respiratory disease, or another serious health condition.',
+    ],
     safetyChecklist: [
       'I am seated or lying down.',
       'I am not driving, swimming, bathing, standing, or near water.',

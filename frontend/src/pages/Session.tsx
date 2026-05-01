@@ -81,8 +81,13 @@ function ProtocolSafetyGate({
 
   const checkboxId = `${idPrefix}-${protocol.id}-safety`
   const noticeId = `${checkboxId}-notice`
+  const contraindicationsId = `${checkboxId}-contraindications`
   const checklistId = `${checkboxId}-checklist`
-  const describedBy = protocol.safetyNotice ? `${noticeId} ${checklistId}` : checklistId
+  const describedBy = [
+    protocol.safetyNotice ? noticeId : null,
+    protocol.contraindications?.length ? contraindicationsId : null,
+    checklistId,
+  ].filter(Boolean).join(' ')
 
   return (
     <div
@@ -103,6 +108,21 @@ function ProtocolSafetyGate({
             <p id={noticeId} className="mt-2 text-xs leading-relaxed text-bw-tertiary">
               {protocol.safetyNotice}
             </p>
+          ) : null}
+          {protocol.contraindications?.length ? (
+            <div id={contraindicationsId} className="mt-3">
+              <h3 className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">
+                Avoid or consult first
+              </h3>
+              <ul className="mt-2 space-y-1.5">
+                {protocol.contraindications.map((item) => (
+                  <li key={item} className="flex gap-2 text-[11px] leading-relaxed text-bw-secondary">
+                    <span className="mt-2 h-1 w-1 shrink-0 bg-bw-tertiary" aria-hidden="true" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : null}
           <ul id={checklistId} className="mt-3 space-y-1.5">
             {checklist.map((item) => (
@@ -125,7 +145,7 @@ function ProtocolSafetyGate({
               className="h-5 w-5 shrink-0 accent-bw-accent"
             />
             <span className="text-xs font-medium leading-relaxed text-bw">
-              I am in a safe setting and can stop immediately if needed.
+              I have reviewed the cautions, am in a safe setting, and can stop immediately if needed.
             </span>
           </label>
         </div>
