@@ -54,6 +54,9 @@ describe('service worker registration', () => {
 
     expect(worker).toContain("CACHE_VERSION = 'breathflow-offline-v1'")
     expect(worker).toContain("'/breathwork'")
+    expect(worker).toContain("'/breathwork/progress'")
+    expect(worker).toContain("'/breathwork/session?technique=cyclic_sighing&rounds=30'")
+    expect(worker).toContain("'/breathwork/session?technique=four_seven_eight&rounds=16'")
     expect(worker).toContain("request.mode === 'navigate'")
     expect(worker).toContain("url.pathname.startsWith('/api/')")
     expect(worker).toContain('Promise.allSettled')

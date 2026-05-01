@@ -3,6 +3,9 @@ const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`
 const APP_SHELL = [
   '/',
   '/breathwork',
+  '/breathwork/progress',
+  '/breathwork/session?technique=cyclic_sighing&rounds=30',
+  '/breathwork/session?technique=four_seven_eight&rounds=16',
   '/site.webmanifest',
   '/favicon-breath.svg',
   '/favicon-chat.svg',
