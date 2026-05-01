@@ -1,4 +1,4 @@
-import { useMemo, useRef, useCallback, type KeyboardEvent } from 'react'
+import { useMemo, useRef, useCallback } from 'react'
 import { BREATH_PHASES, type BreathPhase } from '@/lib/constants'
 import { PHASE, INK_FAINT } from '@/lib/palette'
 import { cn } from '@/lib/utils'
@@ -69,29 +69,21 @@ export function FluidOrb({
     }
   }, [onAuraModeToggle, haptic, reducedMotion])
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault()
-        handleClick()
-      }
-    },
-    [handleClick]
-  )
-
   const transitionStyle = reducedMotion ? 'none' : undefined
   const phaseLabel = phase ? phase.replace('_', ' ') : 'idle'
 
   if (auraMode) {
     return (
-      <div
+      <button
+        type="button"
         data-testid="fluid-orb"
-        role="button"
-        tabIndex={0}
         aria-label={`Breathing orb — ${phaseLabel}`}
-        className={cn('relative flex items-center justify-center', className)}
+        className={cn(
+          'relative flex appearance-none items-center justify-center border-0 bg-transparent p-0',
+          className,
+        )}
         onClick={handleClick}
-        onKeyDown={handleKeyDown}
+        style={{ touchAction: 'manipulation' }}
       >
         <div
           style={{
@@ -101,19 +93,21 @@ export function FluidOrb({
         >
           <BreathAura size={200} amplitude={reducedMotion ? 0 : amplitude} />
         </div>
-      </div>
+      </button>
     )
   }
 
   return (
-    <div
+    <button
+      type="button"
       data-testid="fluid-orb"
-      role="button"
-      tabIndex={0}
       aria-label={`Breathing orb — ${phaseLabel}`}
-      className={cn('relative flex items-center justify-center', className)}
+      className={cn(
+        'relative flex appearance-none items-center justify-center border-0 bg-transparent p-0',
+        className,
+      )}
       onClick={handleClick}
-      onKeyDown={handleKeyDown}
+      style={{ touchAction: 'manipulation' }}
     >
       {/* Main orb */}
       <div
@@ -129,6 +123,6 @@ export function FluidOrb({
           transition: transitionStyle ?? `transform ${transitionDuration} ease-out, border-radius ${transitionDuration} ease-out`,
         }}
       />
-    </div>
+    </button>
   )
 }

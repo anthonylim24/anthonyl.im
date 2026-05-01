@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, type KeyboardEvent } from 'react'
+import { memo, useMemo } from 'react'
 import { BREATH_PHASES, type BreathPhase } from '@/lib/constants'
 import type { TechniqueId } from '@/lib/constants'
 import { getTechniqueRingColor } from '@/lib/techniqueConfig'
@@ -143,24 +143,16 @@ export const ConcentricRings = memo(function ConcentricRings({
     ? `Breathing visualization: ${phase.replace('_', ' ')} phase`
     : 'Breathing visualization: ready'
   const interactiveAriaLabel = `${ariaLabel}. Activate repeatedly to toggle alternate visual.`
-  const handleKeyDown = useCallback((event: KeyboardEvent<SVGSVGElement>) => {
-    if (!onClick) return
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      onClick()
-    }
-  }, [onClick])
 
-  return (
+  const visual = (
     <svg
       viewBox={`0 0 ${VIEW_SIZE} ${VIEW_SIZE}`}
-      role={onClick ? 'button' : 'img'}
-      tabIndex={onClick ? 0 : undefined}
-      aria-label={onClick ? interactiveAriaLabel : ariaLabel}
-      className={cn('text-bw', className)}
-      onClick={onClick}
-      onKeyDown={handleKeyDown}
-      data-testid="concentric-rings"
+      role={onClick ? undefined : 'img'}
+      aria-hidden={onClick ? true : undefined}
+      aria-label={onClick ? undefined : ariaLabel}
+      focusable={onClick ? 'false' : undefined}
+      className={cn('text-bw', onClick ? 'h-full w-full' : className)}
+      data-testid={onClick ? undefined : 'concentric-rings'}
     >
       <defs>
         <radialGradient id="blobGradient" cx="50%" cy="50%" r="50%">
@@ -209,4 +201,24 @@ export const ConcentricRings = memo(function ConcentricRings({
       </g>
     </svg>
   )
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        aria-label={interactiveAriaLabel}
+        className={cn(
+          'flex appearance-none items-center justify-center border-0 bg-transparent p-0 text-bw',
+          className,
+        )}
+        onClick={onClick}
+        data-testid="concentric-rings"
+        style={{ touchAction: 'manipulation' }}
+      >
+        {visual}
+      </button>
+    )
+  }
+
+  return visual
 })
