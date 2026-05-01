@@ -125,4 +125,40 @@ describe('useWakeLock', () => {
 
     await waitFor(() => expect(request).toHaveBeenCalledTimes(2))
   })
+
+  it('reacquires immediately when the browser releases a visible tab lock', async () => {
+    const firstLock = createWakeLock()
+    const secondLock = createWakeLock()
+    const request = vi.fn()
+      .mockResolvedValueOnce(firstLock)
+      .mockResolvedValueOnce(secondLock)
+    installWakeLock(request)
+    setVisibilityState('visible')
+
+    renderHook(() => useWakeLock(true))
+
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(1))
+
+    act(() => {
+      firstLock.emitRelease()
+    })
+
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(2))
+  })
+
+  it('does not reacquire from an intentional unmount release', async () => {
+    const lock = createWakeLock()
+    const request = vi.fn().mockResolvedValue(lock)
+    installWakeLock(request)
+    setVisibilityState('visible')
+
+    const { unmount } = renderHook(() => useWakeLock(true))
+
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(1))
+
+    unmount()
+
+    await waitFor(() => expect(lock.release).toHaveBeenCalledTimes(1))
+    expect(request).toHaveBeenCalledTimes(1)
+  })
 })
