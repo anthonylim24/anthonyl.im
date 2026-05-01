@@ -199,7 +199,10 @@ describe('BreathingSession controls accessibility', () => {
     renderSession()
 
     expect(screen.getByTestId('session-live-region')).toHaveTextContent(
-      'Round 1 of 4. Breathe In phase.'
+      'Round 1 of 4. Breathe In phase. Trace the first side of the box with a measured inhale.'
+    )
+    expect(screen.getByTestId('phase-coach-cue')).toHaveTextContent(
+      'Trace the first side of the box with a measured inhale.'
     )
   })
 
@@ -212,7 +215,7 @@ describe('BreathingSession controls accessibility', () => {
     renderSession()
 
     expect(screen.getByTestId('session-live-region')).toHaveTextContent(
-      'Box Breathing paused. Round 2 of 4. Breathe Out phase.'
+      'Box Breathing paused. Round 2 of 4. Breathe Out phase. Trace the next side with an even exhale.'
     )
   })
 
