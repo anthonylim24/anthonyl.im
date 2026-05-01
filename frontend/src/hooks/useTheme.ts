@@ -8,6 +8,10 @@ export function useTheme() {
   useEffect(() => {
     const root = window.document.documentElement
     root.classList.toggle('dark', theme === 'dark')
+
+    return () => {
+      root.classList.remove('dark')
+    }
   }, [theme])
 
   return { theme, setTheme }

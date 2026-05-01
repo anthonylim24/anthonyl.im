@@ -64,6 +64,17 @@ describe('useTheme', () => {
     expect(document.documentElement.classList.contains('dark')).toBe(true)
   })
 
+  it('cleans up the dark class when BreathFlow unmounts', () => {
+    mockState.theme = 'dark'
+    const { unmount } = render(<Probe />)
+
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
+
+    unmount()
+
+    expect(document.documentElement.classList.contains('dark')).toBe(false)
+  })
+
   it('toggle: class updates when theme changes', async () => {
     const { rerender } = render(<Probe />)
     expect(document.documentElement.classList.contains('dark')).toBe(false)
