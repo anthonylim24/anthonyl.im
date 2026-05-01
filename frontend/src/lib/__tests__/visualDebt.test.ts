@@ -7,6 +7,7 @@ import celebrationParticlesSource from '../../components/breathing/CelebrationPa
 import sessionSummarySource from '../../components/breathing/SessionSummary.tsx?raw'
 import progressSource from '../../pages/Progress.tsx?raw'
 import settingsSource from '../../pages/Settings.tsx?raw'
+import mainSource from '../../main.tsx?raw'
 
 describe('visual debt guardrails', () => {
   it('does not keep the old purple gradient text utility in the global stylesheet', () => {
@@ -53,5 +54,9 @@ describe('visual debt guardrails', () => {
     expect(indexCss).toContain('--bw-dialog-scrim')
     expect(sessionSummarySource).toContain('var(--bw-dialog-scrim)')
     expect(sessionSummarySource).not.toMatch(/bg-black|backdrop-blur/)
+  })
+
+  it('keeps app startup free of routine console noise', () => {
+    expect(mainSource).not.toMatch(/console\.(?:log|debug)\(/)
   })
 })
