@@ -10,6 +10,7 @@ import { useDocumentMetadata } from '@/hooks/useDocumentMetadata'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { CLERK_ENABLED } from '@/lib/clerk'
+import { BREATHFLOW_ROUTE_METADATA } from '@/lib/routeMetadata'
 
 const CloudSync = lazy(() =>
   import('./CloudSync').then((module) => ({ default: module.CloudSync })),
@@ -73,8 +74,8 @@ export function BreathworkLayout() {
   useTheme() // Applies dark class to <html>
   useFavicon()
   useDocumentMetadata({
-    title: 'BreathFlow - Scientific Breathwork',
-    description: 'BreathFlow is a warm, evidence-informed breathwork app for calm, sleep, focus, recovery, and performance training.',
+    title: BREATHFLOW_ROUTE_METADATA.title,
+    description: BREATHFLOW_ROUTE_METADATA.description,
   })
   const reducedMotion = useReducedMotion()
   const { bottomOffset } = useViewportOffset()

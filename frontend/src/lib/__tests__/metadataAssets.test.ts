@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { BREATHFLOW_ROUTE_METADATA } from '../routeMetadata'
 
 const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 
@@ -33,6 +34,16 @@ describe('metadata assets', () => {
     const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8')
 
     expect(html).not.toContain('i.imgur.com')
+  })
+
+  it('bootstraps BreathFlow metadata before React hydrates route hooks', () => {
+    const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8')
+
+    expect(html).toContain('data-route-metadata="breathflow"')
+    expect(html).toContain("location.pathname.startsWith('/breathwork')")
+    expect(html).toContain(`const title = '${BREATHFLOW_ROUTE_METADATA.title}';`)
+    expect(html).toContain(`const description = '${BREATHFLOW_ROUTE_METADATA.description}';`)
+    expect(html).toContain(`favicon.setAttribute('href', '${BREATHFLOW_ROUTE_METADATA.favicon}');`)
   })
 
   it('defines an installable BreathFlow manifest', () => {
