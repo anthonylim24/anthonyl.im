@@ -87,6 +87,18 @@ describe('breathingProtocols', () => {
     expect(power.phases[1].phase).toBe(BREATH_PHASES.EXHALE)
   })
 
+  it('advanced protocols include an active safety checklist', () => {
+    const advancedProtocols = allTechniqueIds
+      .map((id) => breathingProtocols[id])
+      .filter((protocol) => protocol.intensity === 'advanced')
+
+    expect(advancedProtocols.length).toBeGreaterThan(0)
+    for (const protocol of advancedProtocols) {
+      expect(protocol.safetyNotice).toBeTruthy()
+      expect(protocol.safetyChecklist?.length).toBeGreaterThanOrEqual(3)
+    }
+  })
+
   it('cyclic sighing has inhale, deep inhale, and exhale phases', () => {
     const sighing = breathingProtocols[TECHNIQUE_IDS.CYCLIC_SIGHING]
     expect(sighing.phases).toHaveLength(3)

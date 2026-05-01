@@ -7,12 +7,13 @@ import {
   calculateSessionDuration,
   getProtocolCatalog,
   isTechniqueId,
+  type BreathingProtocol,
   type SessionConfig,
 } from '@/lib/breathingProtocols'
 import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
 import { formatTime, cn } from '@/lib/utils'
 import { TechniqueGeometryIcon } from '@/components/ui/TechniqueGeometryIcon'
-import { Clock, Minus, Plus, Play, ChevronLeft, ChevronDown } from 'lucide-react'
+import { Clock, Minus, Plus, Play, ChevronLeft, ChevronDown, ShieldAlert } from 'lucide-react'
 import { useHaptics } from '@/hooks/useHaptics'
 import { useViewTransitionNavigate } from '@/hooks/useViewTransition'
 
@@ -20,6 +21,82 @@ const motionTransition = { type: 'tween' as const, duration: 0.6, ease: [0.33, 0
 const spring = { type: 'spring' as const, stiffness: 300, damping: 30, mass: 1 }
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } }
 const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: motionTransition } }
+
+interface ProtocolSafetyGateProps {
+  protocol: BreathingProtocol
+  acknowledged: boolean
+  onAcknowledgedChange: (acknowledged: boolean) => void
+  idPrefix: string
+  compact?: boolean
+}
+
+function ProtocolSafetyGate({
+  protocol,
+  acknowledged,
+  onAcknowledgedChange,
+  idPrefix,
+  compact = false,
+}: ProtocolSafetyGateProps) {
+  const checklist = protocol.safetyChecklist
+
+  if (!checklist?.length) {
+    return null
+  }
+
+  const checkboxId = `${idPrefix}-${protocol.id}-safety`
+  const noticeId = `${checkboxId}-notice`
+  const checklistId = `${checkboxId}-checklist`
+  const describedBy = protocol.safetyNotice ? `${noticeId} ${checklistId}` : checklistId
+
+  return (
+    <div
+      className={cn(
+        'border-y border-bw-border',
+        compact ? 'mb-3 py-3' : 'pt-5 pb-6'
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center border border-bw-border text-bw-accent">
+          <ShieldAlert className="h-4 w-4" aria-hidden="true" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary">
+            Safety check
+          </h2>
+          {protocol.safetyNotice ? (
+            <p id={noticeId} className="mt-2 text-xs leading-relaxed text-bw-tertiary">
+              {protocol.safetyNotice}
+            </p>
+          ) : null}
+          <ul id={checklistId} className="mt-3 space-y-1.5">
+            {checklist.map((item) => (
+              <li key={item} className="flex gap-2 text-[11px] leading-relaxed text-bw-secondary">
+                <span className="mt-2 h-1 w-1 shrink-0 bg-bw-accent" aria-hidden="true" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+          <label
+            htmlFor={checkboxId}
+            className="mt-3 flex min-h-11 cursor-pointer items-center gap-3 border border-bw-border px-3 py-2 text-left transition-colors hover:bg-bw-hover"
+          >
+            <input
+              id={checkboxId}
+              type="checkbox"
+              checked={acknowledged}
+              onChange={(event) => onAcknowledgedChange(event.currentTarget.checked)}
+              aria-describedby={describedBy}
+              className="h-5 w-5 shrink-0 accent-bw-accent"
+            />
+            <span className="text-xs font-medium leading-relaxed text-bw">
+              I am in a safe setting and can stop immediately if needed.
+            </span>
+          </label>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export function Session() {
   const navigate = useViewTransitionNavigate()
@@ -36,11 +113,14 @@ export function Session() {
   )
   const [sessionStarted, setSessionStarted] = useState(false)
   const [scienceExpanded, setScienceExpanded] = useState(false)
+  const [safetyAcknowledged, setSafetyAcknowledged] = useState(false)
 
   const { trigger: haptic } = useHaptics()
 
   const protocol = breathingProtocols[selectedTechnique]
   const protocols = useMemo(() => getProtocolCatalog(), [])
+  const requiresSafetyCheck = Boolean(protocol.safetyChecklist?.length)
+  const canStartSession = !requiresSafetyCheck || safetyAcknowledged
 
   const sessionConfig: SessionConfig = useMemo(
     () => ({
@@ -56,12 +136,22 @@ export function Session() {
   )
 
   const handleTechniqueChange = (techniqueId: TechniqueId) => {
+    if (techniqueId === selectedTechnique) {
+      return
+    }
+
     haptic(20)
     setSelectedTechnique(techniqueId)
     setRounds(breathingProtocols[techniqueId].defaultRounds)
+    setSafetyAcknowledged(false)
   }
 
   const handleStartSession = () => {
+    if (!canStartSession) {
+      haptic(10)
+      return
+    }
+
     haptic('success')
     setSessionStarted(true)
   }
@@ -88,7 +178,7 @@ export function Session() {
   return (
     <motion.div variants={stagger} initial="hidden" animate="show">
       {/* ═══ MOBILE LAYOUT ═══════════════════════════════ */}
-      <div className="md:hidden flex flex-col h-[calc(100dvh-4rem-3rem)] overflow-hidden">
+      <div className="md:hidden flex h-[calc(100dvh-4rem-3rem)] flex-col overflow-y-auto no-scrollbar pb-4">
         {/* Back button */}
         <motion.button
           variants={fadeUp}
@@ -207,8 +297,20 @@ export function Session() {
           </motion.div>
         )}
 
+        {requiresSafetyCheck ? (
+          <motion.div variants={fadeUp}>
+            <ProtocolSafetyGate
+              protocol={protocol}
+              acknowledged={safetyAcknowledged}
+              onAcknowledgedChange={setSafetyAcknowledged}
+              idPrefix="mobile"
+              compact
+            />
+          </motion.div>
+        ) : null}
+
         {/* Rounds */}
-        <motion.div variants={fadeUp} className="flex-1 flex flex-col items-center justify-center gap-4">
+        <motion.div variants={fadeUp} className="flex min-h-36 flex-1 flex-col items-center justify-center gap-4 pb-24">
           <span className="text-[10px] font-medium text-bw-secondary tracking-[0.07em] uppercase">Rounds</span>
           <div className="flex items-center gap-8">
             <motion.button
@@ -239,10 +341,11 @@ export function Session() {
         </motion.div>
 
         {/* Pinned CTA */}
-        <motion.div variants={fadeUp} className="pt-3 shrink-0">
+        <motion.div variants={fadeUp} className="sticky bottom-0 z-10 shrink-0 bg-bw-canvas pt-3 pb-1">
           <button
             onClick={handleStartSession}
-            className="w-full py-3.5 px-6 border border-bw-accent bg-bw-accent font-medium text-bw-accent-foreground text-sm flex items-center justify-center gap-3 hover:opacity-90 transition-opacity"
+            disabled={!canStartSession}
+            className="w-full py-3.5 px-6 border border-bw-accent bg-bw-accent font-medium text-bw-accent-foreground text-sm flex items-center justify-center gap-3 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:border-bw-border disabled:bg-bw-active disabled:text-bw-tertiary disabled:hover:opacity-100"
           >
             <span>Begin Session</span>
           </button>
@@ -359,6 +462,17 @@ export function Session() {
           </div>
         </motion.div>
 
+        {requiresSafetyCheck ? (
+          <motion.div variants={fadeUp}>
+            <ProtocolSafetyGate
+              protocol={protocol}
+              acknowledged={safetyAcknowledged}
+              onAcknowledgedChange={setSafetyAcknowledged}
+              idPrefix="desktop"
+            />
+          </motion.div>
+        ) : null}
+
         {/* Round Counter */}
         <motion.div variants={fadeUp} className="border-t border-bw-border pt-8">
           <div className="space-y-6">
@@ -408,10 +522,11 @@ export function Session() {
         <motion.button
           variants={fadeUp}
           whileTap={{ scale: 0.98 }}
-          whileHover={{ opacity: 0.8 }}
+          whileHover={canStartSession ? { opacity: 0.8 } : undefined}
           transition={spring}
           onClick={handleStartSession}
-          className="w-full py-4 px-6 border border-bw-accent bg-bw-accent font-medium text-bw-accent-foreground text-sm flex items-center justify-center gap-3 hover:opacity-90 transition-opacity"
+          disabled={!canStartSession}
+          className="w-full py-4 px-6 border border-bw-accent bg-bw-accent font-medium text-bw-accent-foreground text-sm flex items-center justify-center gap-3 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:border-bw-border disabled:bg-bw-active disabled:text-bw-tertiary disabled:hover:opacity-100"
         >
           <Play className="h-4 w-4" />
           <span>Begin {protocol.name}</span>

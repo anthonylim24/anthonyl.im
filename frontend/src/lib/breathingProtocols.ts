@@ -23,6 +23,8 @@ export interface BreathingProtocol {
   bestFor: string[]
   breathsPerMinute: number
   caution?: string
+  safetyNotice?: string
+  safetyChecklist?: string[]
   defaultRounds: number
   phases: PhaseConfig[]
   progressiveHold?: boolean // For CO2 tables - hold times increase each round
@@ -78,6 +80,12 @@ export const breathingProtocols: Record<TechniqueId, BreathingProtocol> = {
     bestFor: ['Stress inoculation', 'Performance composure', 'Breath-hold training'],
     breathsPerMinute: 1.2,
     caution: 'Practice seated or lying down. Stop immediately if dizzy, tingling, or panicked.',
+    safetyNotice: 'This protocol uses progressive breath holds. Confirm a low-risk setting before starting.',
+    safetyChecklist: [
+      'I am seated or lying down.',
+      'I am not driving, swimming, bathing, standing, or near water.',
+      'I will stop immediately if I feel dizzy, tingling, panicked, or uncomfortable.',
+    ],
     defaultRounds: 8, // 8 rounds = 388s ≈ 6.5 min (already above 5 min minimum)
     phases: [
       { phase: BREATH_PHASES.INHALE, duration: 3 },
@@ -103,6 +111,12 @@ export const breathingProtocols: Record<TechniqueId, BreathingProtocol> = {
     bestFor: ['Morning activation', 'Cold exposure prep', 'High-energy focus'],
     breathsPerMinute: 15,
     caution: 'Never practice while driving, standing, swimming, or in water. Stop if lightheaded.',
+    safetyNotice: 'This protocol uses controlled hyperventilation. Confirm a low-risk setting before starting.',
+    safetyChecklist: [
+      'I am seated or lying down.',
+      'I am not driving, swimming, bathing, standing, or near water.',
+      'I will stop immediately if I feel lightheaded, numb, or uncomfortable.',
+    ],
     defaultRounds: 30, // Standard Wim Hof: 30 breaths per round (30 × 4s = 120s = 2 min)
     phases: [
       { phase: BREATH_PHASES.INHALE, duration: 2 },
