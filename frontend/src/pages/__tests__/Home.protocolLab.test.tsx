@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Home } from '../Home'
 import { BREATH_PHASES, TECHNIQUE_IDS } from '@/lib/constants'
@@ -172,6 +172,35 @@ describe('Home Protocol Lab', () => {
 
     expect(mocks.navigate).toHaveBeenCalledWith(
       '/breathwork/session?technique=box_breathing&rounds=3&phase_inhale=6'
+    )
+  })
+
+  it('signals safety checks before replaying advanced recent sessions', async () => {
+    const user = userEvent.setup()
+    mocks.sessions = [
+      {
+        id: 'session-advanced',
+        techniqueId: TECHNIQUE_IDS.CO2_TOLERANCE,
+        date: '2026-05-01T10:00:00.000Z',
+        durationSeconds: 185,
+        rounds: 3,
+        holdTimes: [25, 45],
+        maxHoldTime: 45,
+        avgHoldTime: 35,
+      },
+    ]
+
+    renderHome()
+
+    const repeatButton = screen.getByRole('button', {
+      name: /Review safety check before repeating CO2 Tolerance Table, 3 minutes 5 seconds, 3 rounds/i,
+    })
+    expect(within(repeatButton).getByText(/safety check/i)).toBeInTheDocument()
+
+    await user.click(repeatButton)
+
+    expect(mocks.navigate).toHaveBeenCalledWith(
+      '/breathwork/session?technique=co2_tolerance&rounds=3'
     )
   })
 })
