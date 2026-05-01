@@ -29,18 +29,34 @@ interface GamificationState {
   setSelectedTheme: (id: string) => void
   recordSession: () => void
   checkResets: () => void
+  resetProgress: () => void
+}
+
+function getInitialProgressState(): Pick<
+  GamificationState,
+  | 'xp'
+  | 'earnedBadges'
+  | 'selectedTheme'
+  | 'dailySessionCount'
+  | 'weeklySessionCount'
+  | 'lastDailyReset'
+  | 'lastWeeklyReset'
+> {
+  return {
+    xp: 0,
+    earnedBadges: [],
+    selectedTheme: 'default',
+    dailySessionCount: 0,
+    weeklySessionCount: 0,
+    lastDailyReset: getToday(),
+    lastWeeklyReset: getWeekStart(),
+  }
 }
 
 export const useGamificationStore = create<GamificationState>()(
   persist(
     (set, get) => ({
-      xp: 0,
-      earnedBadges: [],
-      selectedTheme: 'default',
-      dailySessionCount: 0,
-      weeklySessionCount: 0,
-      lastDailyReset: getToday(),
-      lastWeeklyReset: getWeekStart(),
+      ...getInitialProgressState(),
 
       addXP: (amount) => {
         set((state) => ({ xp: state.xp + amount }))
@@ -88,6 +104,10 @@ export const useGamificationStore = create<GamificationState>()(
         if (Object.keys(updates).length > 0) {
           set(updates)
         }
+      },
+
+      resetProgress: () => {
+        set(getInitialProgressState())
       },
     }),
     {

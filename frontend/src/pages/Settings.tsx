@@ -19,6 +19,7 @@ import { useEntranceMotion } from '@/lib/motionPresets'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { DEFAULT_ORB_THEME_ID, getLevelForXP, getUnlockedThemes, ORB_THEMES } from '@/lib/gamification'
 import { buildBreathFlowExportData } from '@/lib/dataExport'
+import { BREATHFLOW_STORAGE_KEYS } from '@/lib/constants'
 
 interface SettingsSwitchProps {
   checked: boolean
@@ -93,8 +94,9 @@ export function Settings() {
     setSoundVolume,
     hapticsEnabled,
     setHapticsEnabled,
+    resetSettings,
   } = useSettingsStore()
-  const { xp, selectedTheme, setSelectedTheme } = useGamificationStore()
+  const { xp, selectedTheme, setSelectedTheme, resetProgress } = useGamificationStore()
   const level = getLevelForXP(xp)
   const unlockedThemeIds = useMemo(
     () => new Set(getUnlockedThemes(level).map((orbTheme) => orbTheme.id)),
@@ -130,6 +132,11 @@ export function Settings() {
     }
     haptic([100, 50, 100])
     clearHistory()
+    resetProgress()
+    resetSettings()
+    for (const key of BREATHFLOW_STORAGE_KEYS) {
+      localStorage.removeItem(key)
+    }
     setConfirmClear(false)
   }
 

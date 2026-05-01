@@ -12,15 +12,20 @@ interface SettingsState {
   setSoundEnabled: (enabled: boolean) => void
   setSoundVolume: (volume: number) => void
   setHapticsEnabled: (enabled: boolean) => void
+  resetSettings: () => void
 }
+
+const DEFAULT_SETTINGS_STATE = {
+  theme: 'light',
+  soundEnabled: true,
+  soundVolume: 0.3,
+  hapticsEnabled: true,
+} satisfies Pick<SettingsState, 'theme' | 'soundEnabled' | 'soundVolume' | 'hapticsEnabled'>
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
-      theme: 'light',
-      soundEnabled: true,
-      soundVolume: 0.3,
-      hapticsEnabled: true,
+      ...DEFAULT_SETTINGS_STATE,
 
       setTheme: (theme) => {
         set({ theme })
@@ -36,6 +41,10 @@ export const useSettingsStore = create<SettingsState>()(
 
       setHapticsEnabled: (enabled) => {
         set({ hapticsEnabled: enabled })
+      },
+
+      resetSettings: () => {
+        set(DEFAULT_SETTINGS_STATE)
       },
     }),
     {

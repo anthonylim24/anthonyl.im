@@ -33,13 +33,22 @@ interface HistoryState {
   getStreak: () => number
 }
 
+function getEmptyHistoryState(): Pick<
+  HistoryState,
+  'sessions' | 'personalBests' | 'vo2MaxManual' | 'vo2MaxHistory'
+> {
+  return {
+    sessions: [],
+    personalBests: {} as Record<TechniqueId, PersonalBest | undefined>,
+    vo2MaxManual: null,
+    vo2MaxHistory: [],
+  }
+}
+
 export const useHistoryStore = create<HistoryState>()(
   persist(
     (set, get) => ({
-      sessions: [],
-      personalBests: {} as Record<TechniqueId, PersonalBest | undefined>,
-      vo2MaxManual: null,
-      vo2MaxHistory: [],
+      ...getEmptyHistoryState(),
 
       addSession: (sessionData) => {
         const session: CompletedSession = {
@@ -68,10 +77,7 @@ export const useHistoryStore = create<HistoryState>()(
       },
 
       clearHistory: () => {
-        set({
-          sessions: [],
-          personalBests: {} as Record<TechniqueId, PersonalBest | undefined>,
-        })
+        set(getEmptyHistoryState())
       },
 
       setVO2Max: (value) => {
