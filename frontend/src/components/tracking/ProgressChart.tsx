@@ -38,6 +38,23 @@ export function ProgressChart({
     }
     return result
   }, [sessions])
+  const chartLabel = useMemo(() => {
+    if (chartData.length === 0) {
+      return `${title}: no hold-time sessions recorded yet.`
+    }
+
+    const firstSession = chartData[0]
+    const latestSession = chartData[chartData.length - 1]
+    const bestHold = Math.max(...chartData.map((entry) => entry.maxHold))
+    const latestAverage = latestSession.avgHold
+    const sessionLabel = `${chartData.length} session${chartData.length === 1 ? '' : 's'}`
+
+    return [
+      `${title}: ${sessionLabel} from ${firstSession.date} to ${latestSession.date}.`,
+      `Best hold ${bestHold} seconds.`,
+      `Latest average ${latestAverage} seconds.`,
+    ].join(' ')
+  }, [chartData, title])
 
   if (chartData.length === 0) {
     return (
@@ -48,7 +65,11 @@ export function ProgressChart({
           </h3>
         </div>
         <div className="pt-4">
-          <div className="h-64 flex items-center justify-center text-bw-tertiary text-sm">
+          <div
+            className="h-64 flex items-center justify-center text-bw-tertiary text-sm"
+            role="status"
+            aria-label={chartLabel}
+          >
             Your hold time trends will appear here after a few sessions.
           </div>
         </div>
@@ -64,7 +85,7 @@ export function ProgressChart({
         </h3>
       </div>
       <div className="pt-4">
-        <div className="h-64">
+        <div className="h-64" role="img" aria-label={chartLabel}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--bw-chart-grid)" />
