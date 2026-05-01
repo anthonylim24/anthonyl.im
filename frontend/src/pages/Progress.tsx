@@ -15,12 +15,10 @@ import { cn } from '@/lib/utils'
 import { TechniqueGeometryIcon } from '@/components/ui/TechniqueGeometryIcon'
 import { Trash2 } from 'lucide-react'
 import { useHaptics } from '@/hooks/useHaptics'
-
-const motionTransition = { type: 'tween' as const, duration: 0.6, ease: [0.33, 0, 0, 1] as const }
-const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } }
-const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: motionTransition } }
+import { useEntranceMotion } from '@/lib/motionPresets'
 
 export function Progress() {
+  const { stagger, fadeUp } = useEntranceMotion()
   const {
     sessions,
     personalBests,

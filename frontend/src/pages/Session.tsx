@@ -16,11 +16,7 @@ import { TechniqueGeometryIcon } from '@/components/ui/TechniqueGeometryIcon'
 import { Clock, Minus, Plus, Play, ChevronLeft, ChevronDown, ShieldAlert } from 'lucide-react'
 import { useHaptics } from '@/hooks/useHaptics'
 import { useViewTransitionNavigate } from '@/hooks/useViewTransition'
-
-const motionTransition = { type: 'tween' as const, duration: 0.6, ease: [0.33, 0, 0, 1] as const }
-const spring = { type: 'spring' as const, stiffness: 300, damping: 30, mass: 1 }
-const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } }
-const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: motionTransition } }
+import { useEntranceMotion } from '@/lib/motionPresets'
 
 function getInitialRounds(requestedRounds: string | null, techniqueId: TechniqueId): number {
   const parsedRounds = Number(requestedRounds)
@@ -108,6 +104,15 @@ function ProtocolSafetyGate({
 
 export function Session() {
   const navigate = useViewTransitionNavigate()
+  const {
+    reducedMotion,
+    stagger,
+    fadeUp,
+    transition: motionTransition,
+    spring,
+    tap,
+    hoverOpacity,
+  } = useEntranceMotion()
   const [searchParams] = useSearchParams()
   const requestedTechnique = searchParams.get('technique')
   const requestedRounds = searchParams.get('rounds')
@@ -283,7 +288,7 @@ export function Session() {
             <motion.div
               initial={false}
               animate={{ height: scienceExpanded ? 'auto' : 0, opacity: scienceExpanded ? 1 : 0 }}
-              transition={{ duration: 0.2 }}
+              transition={reducedMotion ? motionTransition : { duration: 0.2 }}
               className="overflow-hidden"
             >
               <p className="mt-2 text-xs text-bw-tertiary leading-relaxed">{protocol.science}</p>
@@ -323,7 +328,7 @@ export function Session() {
           <span className="text-[10px] font-medium text-bw-secondary tracking-[0.07em] uppercase">Rounds</span>
           <div className="flex items-center gap-8">
             <motion.button
-              whileTap={{ scale: 0.9 }}
+              whileTap={tap(0.9)}
               transition={spring}
               onClick={() => { haptic(15); setRounds((r) => Math.max(1, r - 1)) }}
               disabled={rounds <= 1}
@@ -335,7 +340,7 @@ export function Session() {
               {rounds}
             </span>
             <motion.button
-              whileTap={{ scale: 0.9 }}
+              whileTap={tap(0.9)}
               transition={spring}
               onClick={() => { haptic(15); setRounds((r) => Math.min(40, r + 1)) }}
               disabled={rounds >= 40}
@@ -382,7 +387,7 @@ export function Session() {
               return (
                 <motion.button
                   key={p.id}
-                  whileTap={{ scale: 0.99 }}
+                  whileTap={tap(0.99)}
                   transition={spring}
                   onClick={() => handleTechniqueChange(p.id)}
                   className={cn(
@@ -490,7 +495,7 @@ export function Session() {
             </label>
             <div className="flex items-center justify-center gap-10">
               <motion.button
-                whileTap={{ scale: 0.95 }}
+                whileTap={tap(0.95)}
                 transition={spring}
                 onClick={() => { haptic(15); setRounds((r) => Math.max(1, r - 1)) }}
                 disabled={rounds <= 1}
@@ -507,7 +512,7 @@ export function Session() {
                 </span>
               </div>
               <motion.button
-                whileTap={{ scale: 0.95 }}
+                whileTap={tap(0.95)}
                 transition={spring}
                 onClick={() => { haptic(15); setRounds((r) => Math.min(40, r + 1)) }}
                 disabled={rounds >= 40}
@@ -530,8 +535,8 @@ export function Session() {
         {/* Start Button */}
         <motion.button
           variants={fadeUp}
-          whileTap={{ scale: 0.98 }}
-          whileHover={canStartSession ? { opacity: 0.8 } : undefined}
+          whileTap={tap(0.98)}
+          whileHover={canStartSession ? hoverOpacity(0.8) : undefined}
           transition={spring}
           onClick={handleStartSession}
           disabled={!canStartSession}

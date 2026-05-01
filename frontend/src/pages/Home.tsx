@@ -27,20 +27,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { useHaptics } from '@/hooks/useHaptics'
-
-/* ── Animation ─────────────────────────────────────── */
-
-const motionTransition = { type: 'tween' as const, duration: 0.6, ease: [0.33, 0, 0, 1] as const }
-
-const stagger = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.08 } },
-}
-
-const fadeUp = {
-  hidden: { opacity: 0, y: 8 },
-  show: { opacity: 1, y: 0, transition: motionTransition },
-}
+import { useEntranceMotion } from '@/lib/motionPresets'
 
 const goalIcons = {
   calm: Wind,
@@ -75,6 +62,7 @@ function getStreakMessage(streak: number, dailyGoalMet: boolean): string {
 
 export function Home() {
   const navigate = useViewTransitionNavigate()
+  const { stagger, fadeUp, transition: motionTransition, tap } = useEntranceMotion()
   const currentHour = useMemo(() => new Date().getHours(), [])
   const [selectedGoal, setSelectedGoal] = useState<ProtocolGoal>(() =>
     getDefaultProtocolGoal(currentHour)
@@ -422,7 +410,7 @@ export function Home() {
               return (
                 <motion.button
                   key={id}
-                  whileTap={{ scale: 0.97 }}
+                  whileTap={tap(0.97)}
                   transition={motionTransition}
                   className="border-t border-bw-border pt-4 pb-2 text-left bg-transparent flex-shrink-0"
                   style={{ width: 'calc(50vw - 28px)', scrollSnapAlign: 'start' }}
@@ -467,7 +455,7 @@ export function Home() {
               return (
                 <motion.button
                   key={id}
-                  whileTap={{ scale: 0.99 }}
+                  whileTap={tap(0.99)}
                   transition={motionTransition}
                   className="w-full flex items-center gap-4 py-5 text-left group hover:bg-bw-hover transition-colors duration-200"
                   onClick={() => { haptic('light'); navigate(`/breathwork/session?technique=${id}`) }}
@@ -531,7 +519,7 @@ export function Home() {
               return (
                 <motion.button
                   key={session.id}
-                  whileTap={{ scale: 0.99 }}
+                  whileTap={tap(0.99)}
                   transition={motionTransition}
                   className="w-full flex items-center gap-4 py-4 text-left group hover:bg-bw-hover transition-colors duration-200"
                   onClick={() => { haptic('selection'); navigate('/breathwork/progress') }}
