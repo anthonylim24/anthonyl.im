@@ -9,6 +9,9 @@ export type ProtocolCategory = 'calm' | 'sleep' | 'performance' | 'recovery' | '
 export type ProtocolIntensity = 'gentle' | 'moderate' | 'advanced'
 export type ProtocolEvidenceLevel = 'strong' | 'promising' | 'traditional'
 
+export const MIN_SESSION_ROUNDS = 1
+export const BASE_MAX_SESSION_ROUNDS = 40
+
 export interface ProtocolCitation {
   authors: string
   title: string
@@ -386,6 +389,19 @@ export function getProtocol(id: TechniqueId): BreathingProtocol {
 
 export function getProtocolCatalog(): BreathingProtocol[] {
   return protocolOrder.map((id) => breathingProtocols[id])
+}
+
+export function getProtocolRoundLimit(techniqueId: TechniqueId): number {
+  return Math.max(BASE_MAX_SESSION_ROUNDS, breathingProtocols[techniqueId].defaultRounds)
+}
+
+export function clampProtocolRounds(techniqueId: TechniqueId, rounds: number): number {
+  const roundedRounds = Number.isFinite(rounds) ? Math.round(rounds) : MIN_SESSION_ROUNDS
+
+  return Math.max(
+    MIN_SESSION_ROUNDS,
+    Math.min(getProtocolRoundLimit(techniqueId), roundedRounds),
+  )
 }
 
 export function isTechniqueId(value: string | null): value is TechniqueId {
