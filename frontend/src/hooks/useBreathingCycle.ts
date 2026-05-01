@@ -50,6 +50,13 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
   const audioContextRef = useRef<AudioContext | null>(null)
   const holdStartTimeRef = useRef<number | null>(null)
 
+  const clearTimer = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
+  }, [])
+
   const playBeep = useCallback((frequency: number = 440, duration: number = 100) => {
     if (!enableAudio) return
 
@@ -81,6 +88,10 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
   const start = useCallback((config: SessionConfig) => {
     const protocol = getProtocol(config.techniqueId)
     const firstPhase = getPhaseForRound(protocol, 0, 0, config.customPhaseDurations)
+    holdStartTimeRef.current =
+      firstPhase.phase === BREATH_PHASES.HOLD_IN || firstPhase.phase === BREATH_PHASES.HOLD_OUT
+        ? Date.now()
+        : null
     startSession(config, firstPhase.phase, firstPhase.duration)
     playBeep(660, 150)
   }, [startSession, playBeep])
@@ -90,31 +101,37 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
   }, [togglePause])
 
   const stop = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current)
-      intervalRef.current = null
-    }
+    clearTimer()
+    holdStartTimeRef.current = null
     resetSession()
-  }, [resetSession])
+  }, [clearTimer, resetSession])
+
+  const sessionRunning = Boolean(session && !session.isPaused && !session.isComplete)
 
   // Main timer effect
   useEffect(() => {
-    if (!session || session.isPaused || session.isComplete) {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
-      }
+    if (!sessionRunning) {
+      clearTimer()
       return
     }
 
-    const protocol = getProtocol(session.config.techniqueId)
+    if (intervalRef.current) return
 
     intervalRef.current = setInterval(() => {
-      const currentTime = session.timeRemaining
+      const activeSession = useSessionStore.getState().session
+
+      if (!activeSession || activeSession.isPaused || activeSession.isComplete) {
+        clearTimer()
+        return
+      }
+
+      const protocol = getProtocol(activeSession.config.techniqueId)
+      const currentTime = activeSession.timeRemaining
 
       if (currentTime <= 1) {
         // Phase complete
-        const currentPhaseConfig = protocol.phases[session.currentPhaseIndex]
+        const currentPhaseConfig = protocol.phases[activeSession.currentPhaseIndex]
+        let holdTimesForCompletion = activeSession.holdTimes
 
         // Record hold time if it was a hold phase
         if (
@@ -124,20 +141,21 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
           if (holdStartTimeRef.current) {
             const holdDuration = Math.round((Date.now() - holdStartTimeRef.current) / 1000)
             recordHoldTime(holdDuration)
+            holdTimesForCompletion = [...activeSession.holdTimes, holdDuration]
             holdStartTimeRef.current = null
           }
         }
 
         // Check if there are more phases in this round
-        const nextPhaseIndex = session.currentPhaseIndex + 1
+        const nextPhaseIndex = activeSession.currentPhaseIndex + 1
 
         if (nextPhaseIndex < protocol.phases.length) {
           // Move to next phase
           const nextPhaseConfig = getPhaseForRound(
             protocol,
-            session.currentRound,
+            activeSession.currentRound,
             nextPhaseIndex,
-            session.config.customPhaseDurations
+            activeSession.config.customPhaseDurations
           )
           updatePhase(nextPhaseConfig.phase, nextPhaseIndex, nextPhaseConfig.duration)
           onPhaseChangeRef.current?.(nextPhaseConfig.phase)
@@ -152,10 +170,10 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
           }
         } else {
           // Round complete
-          const nextRoundNum = session.currentRound + 1
-          onRoundCompleteRef.current?.(session.currentRound)
+          const nextRoundNum = activeSession.currentRound + 1
+          onRoundCompleteRef.current?.(activeSession.currentRound)
 
-          if (nextRoundNum >= session.config.rounds) {
+          if (nextRoundNum >= activeSession.config.rounds) {
             // Session complete
             completeSession()
             onSessionCompleteRef.current?.()
@@ -164,24 +182,25 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
             // Save to history
             const endTime = new Date()
             const durationSeconds = Math.round(
-              (endTime.getTime() - session.startTime.getTime()) / 1000
+              (endTime.getTime() - activeSession.startTime.getTime()) / 1000
             )
 
             addSession({
-              techniqueId: session.config.techniqueId,
-              date: session.startTime.toISOString(),
+              techniqueId: activeSession.config.techniqueId,
+              date: activeSession.startTime.toISOString(),
               durationSeconds,
-              rounds: session.config.rounds,
-              holdTimes: session.holdTimes,
-              maxHoldTime: Math.max(...session.holdTimes, 0),
+              rounds: activeSession.config.rounds,
+              holdTimes: holdTimesForCompletion,
+              maxHoldTime: Math.max(...holdTimesForCompletion, 0),
               avgHoldTime:
-                session.holdTimes.length > 0
+                holdTimesForCompletion.length > 0
                   ? Math.round(
-                      session.holdTimes.reduce((a, b) => a + b, 0) /
-                        session.holdTimes.length
+                      holdTimesForCompletion.reduce((a, b) => a + b, 0) /
+                        holdTimesForCompletion.length
                     )
                   : 0,
             })
+            clearTimer()
           } else {
             // Start next round
             nextRound()
@@ -189,11 +208,16 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
               protocol,
               nextRoundNum,
               0,
-              session.config.customPhaseDurations
+              activeSession.config.customPhaseDurations
             )
             updatePhase(firstPhase.phase, 0, firstPhase.duration)
             onPhaseChangeRef.current?.(firstPhase.phase)
             playBeep(660, 150)
+            holdStartTimeRef.current =
+              firstPhase.phase === BREATH_PHASES.HOLD_IN ||
+              firstPhase.phase === BREATH_PHASES.HOLD_OUT
+                ? Date.now()
+                : null
           }
         }
       } else {
@@ -207,14 +231,10 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
       }
     }, 1000)
 
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
-      }
-    }
+    return clearTimer
   }, [
-    session,
+    sessionRunning,
+    clearTimer,
     updatePhase,
     nextRound,
     setTimeRemaining,
@@ -229,11 +249,10 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-      }
+      holdStartTimeRef.current = null
       if (audioContextRef.current) {
         audioContextRef.current.close()
+        audioContextRef.current = null
       }
     }
   }, [])
