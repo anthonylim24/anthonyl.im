@@ -1,5 +1,6 @@
 import { PHASE_LABELS } from '@/lib/constants'
 import type { BreathingProtocol } from '@/lib/breathingProtocols'
+import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { getTechniquePhaseColors } from '@/lib/techniqueConfig'
 import { withAlpha } from '@/lib/palette'
 import { cn } from '@/lib/utils'
@@ -11,6 +12,7 @@ interface BreathPatternStripProps {
   >
   className?: string
   compact?: boolean
+  animated?: boolean
 }
 
 function buildPatternLabel(protocol: BreathPatternStripProps['protocol']) {
@@ -28,9 +30,12 @@ export function BreathPatternStrip({
   protocol,
   className,
   compact = false,
+  animated = false,
 }: BreathPatternStripProps) {
   const totalDuration = protocol.phases.reduce((sum, phase) => sum + phase.duration, 0)
   const phaseColors = getTechniquePhaseColors(protocol.id)
+  const reducedMotion = useReducedMotion()
+  const showCadenceCursor = animated && !reducedMotion && totalDuration > 0
 
   return (
     <div
@@ -41,7 +46,7 @@ export function BreathPatternStrip({
     >
       <div
         className={cn(
-          'flex min-h-3 overflow-hidden border border-bw-border bg-bw-active',
+          'relative flex min-h-3 overflow-hidden border border-bw-border bg-bw-active',
           compact ? 'h-3' : 'h-4'
         )}
       >
@@ -66,6 +71,19 @@ export function BreathPatternStrip({
             </div>
           )
         })}
+        {showCadenceCursor ? (
+          <div
+            aria-hidden="true"
+            className="breath-pattern-cursor absolute inset-y-0 left-0 z-10 w-full"
+            data-testid="breath-pattern-cursor"
+            style={{ animationDuration: `${totalDuration}s` }}
+          >
+            <span
+              className="absolute inset-y-0 left-0 w-px bg-bw-surface"
+              style={{ boxShadow: '0 0 0 1px var(--bw-accent-subtle)' }}
+            />
+          </div>
+        ) : null}
       </div>
 
       {!compact ? (

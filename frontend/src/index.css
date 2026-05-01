@@ -519,6 +519,19 @@ body {
     var(--bw-canvas, #171613);
 }
 
+/* Live cadence preview for protocol timing strips */
+.breath-pattern-cursor {
+  animation-name: breath-pattern-cursor;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  transform: translate3d(0, 0, 0);
+}
+
+@keyframes breath-pattern-cursor {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(calc(100% - 1px), 0, 0); }
+}
+
 /* ═══════════════════════════════════════════════════════
    HORIZONTAL SCROLL (technique carousel)
    ═══════════════════════════════════════════════════════ */
