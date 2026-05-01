@@ -20,23 +20,36 @@ describe('BadgeGrid', () => {
     render(<BadgeGrid earnedBadges={['first_session']} />)
 
     expect(
-      screen.getByRole('list', { name: `1 of ${BADGES.length} achievements earned` })
+      screen.getByRole('list', { name: `1 of ${BADGES.length} milestones earned` })
     ).toBeInTheDocument()
     expect(
       screen.getByRole('listitem', {
-        name: /First Breath earned\. Complete your first breathing session\./i,
+        name: /First Breath earned\. Complete your first guided session\./i,
       })
     ).toBeInTheDocument()
     expect(
       screen.getByRole('listitem', {
-        name: /Week Warrior locked\. Maintain a 7-day streak\./i,
+        name: /Seven-Day Rhythm locked\. Practice for 7 days in a row\./i,
       })
     ).toBeInTheDocument()
   })
 
+  it('renders an icon for every earned milestone', () => {
+    const { container } = render(
+      <BadgeGrid earnedBadges={BADGES.map((badge) => badge.id)} />,
+    )
+
+    const milestonesMissingIcons = BADGES.filter((badge) => {
+      const badgeNode = container.querySelector(`[data-badge="${badge.id}"]`)
+      return !badgeNode?.querySelector('svg')
+    }).map((badge) => badge.id)
+
+    expect(milestonesMissingIcons).toEqual([])
+  })
+
   it('reveals secret badge when earned', () => {
     render(<BadgeGrid earnedBadges={['night_owl']} />)
-    expect(screen.getByText('Night Owl')).toBeTruthy()
+    expect(screen.getByText('Night Practice')).toBeTruthy()
   })
 
   it('shows secret placeholders when not earned', () => {

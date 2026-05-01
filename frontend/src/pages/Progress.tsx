@@ -168,10 +168,10 @@ export function Progress() {
             <ActivityHeatmap sessions={sessionDays} />
           </motion.div>
 
-          {/* Achievements */}
+          {/* Milestones */}
           <motion.div variants={fadeUp} className="border-t border-bw-border pt-5">
             <h2 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary mb-5">
-              Achievements
+              Milestones
             </h2>
             <BadgeGrid earnedBadges={earnedBadges} />
           </motion.div>
