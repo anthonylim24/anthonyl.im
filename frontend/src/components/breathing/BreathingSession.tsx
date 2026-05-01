@@ -35,7 +35,6 @@ import {
   getOrbTheme,
   isOrbThemeUnlocked,
 } from '@/lib/gamification'
-import { DESTRUCTIVE, withAlpha } from '@/lib/palette'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore, type CompletedSession } from '@/stores/historyStore'
 import { useSettingsStore } from '@/stores/settingsStore'
@@ -645,12 +644,7 @@ export function BreathingSession({
               type="button"
               onClick={handleStop}
               aria-label="Stop"
-              className="h-14 w-14 border flex items-center justify-center transition-all duration-300"
-              style={{
-                backgroundColor: withAlpha(DESTRUCTIVE, 0.2),
-                borderColor: withAlpha(DESTRUCTIVE, 0.2),
-                color: DESTRUCTIVE,
-              }}
+              className="h-14 w-14 border border-bw-destructive-border bg-bw-destructive-subtle text-bw-destructive flex items-center justify-center transition-all duration-300 hover:bg-bw-destructive-hover"
             >
               <Square className="h-5 w-5" aria-hidden="true" />
             </button>

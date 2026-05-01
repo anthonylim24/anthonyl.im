@@ -50,6 +50,18 @@ describe('BreathPatternStrip', () => {
     expect(screen.queryByText('Breathe In 5s')).toBeNull()
   })
 
+  it('uses a semantic token for phase dividers', () => {
+    render(
+      <BreathPatternStrip
+        protocol={breathingProtocols[TECHNIQUE_IDS.RESONANCE_BREATHING]}
+      />
+    )
+
+    expect(screen.getAllByTestId('breath-pattern-segment')[0].className).toContain(
+      'border-[color:var(--bw-phase-divider)]'
+    )
+  })
+
   it('can render an animated cadence cursor using the cycle duration', () => {
     render(
       <BreathPatternStrip
