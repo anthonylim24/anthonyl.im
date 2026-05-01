@@ -1,17 +1,23 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
+import { addLocalDays, getLocalDayStart } from '@/lib/localDates'
 import type { PersonalBest } from '../historyStore'
 import { useHistoryStore } from '../historyStore'
 
 describe('historyStore', () => {
   beforeEach(() => {
+    vi.useRealTimers()
     useHistoryStore.setState({
       sessions: [],
       personalBests: {} as Record<TechniqueId, PersonalBest | undefined>,
       vo2MaxManual: null,
       vo2MaxHistory: [],
     })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('clears sessions, personal bests, and VO2 records', () => {
@@ -47,5 +53,53 @@ describe('historyStore', () => {
       vo2MaxManual: null,
       vo2MaxHistory: [],
     })
+  })
+
+  it('calculates streaks from local calendar days', () => {
+    const today = getLocalDayStart(new Date(2026, 4, 2, 12))
+    const yesterday = addLocalDays(today, -1)
+    const twoDaysAgo = addLocalDays(today, -2)
+
+    vi.useFakeTimers()
+    vi.setSystemTime(today)
+
+    useHistoryStore.setState({
+      sessions: [
+        {
+          id: 'late-yesterday',
+          techniqueId: TECHNIQUE_IDS.RESONANCE_BREATHING,
+          date: new Date(
+            yesterday.getFullYear(),
+            yesterday.getMonth(),
+            yesterday.getDate(),
+            23,
+            30
+          ).toISOString(),
+          durationSeconds: 300,
+          rounds: 30,
+          holdTimes: [],
+          maxHoldTime: 0,
+          avgHoldTime: 0,
+        },
+        {
+          id: 'two-days-ago',
+          techniqueId: TECHNIQUE_IDS.CYCLIC_SIGHING,
+          date: new Date(
+            twoDaysAgo.getFullYear(),
+            twoDaysAgo.getMonth(),
+            twoDaysAgo.getDate(),
+            8,
+            0
+          ).toISOString(),
+          durationSeconds: 300,
+          rounds: 30,
+          holdTimes: [],
+          maxHoldTime: 0,
+          avgHoldTime: 0,
+        },
+      ],
+    })
+
+    expect(useHistoryStore.getState().getStreak()).toBe(2)
   })
 })

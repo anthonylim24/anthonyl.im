@@ -2,6 +2,12 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { TechniqueId } from '@/lib/constants'
 import { STORAGE_KEYS } from '@/lib/constants'
+import {
+  addLocalDays,
+  formatLocalDateKey,
+  getLocalDateKey,
+  getLocalDayStart,
+} from '@/lib/localDates'
 
 export interface CompletedSession {
   id: string
@@ -102,28 +108,26 @@ export const useHistoryStore = create<HistoryState>()(
         const sessions = get().sessions
         if (sessions.length === 0) return 0
 
+        const sessionDays = new Set(
+          sessions
+            .map((session) => getLocalDateKey(session.date))
+            .filter((dateKey): dateKey is string => Boolean(dateKey))
+        )
         let streak = 0
-        const today = new Date()
-        today.setHours(0, 0, 0, 0)
-
-        const checkDate = new Date(today)
+        let checkDate = getLocalDayStart()
 
         while (true) {
-          const dateStr = checkDate.toISOString().split('T')[0]
-          const hasSession = sessions.some(
-            (s) => s.date.split('T')[0] === dateStr
-          )
+          const dateStr = formatLocalDateKey(checkDate)
+          const hasSession = sessionDays.has(dateStr)
 
           if (hasSession) {
             streak++
-            checkDate.setDate(checkDate.getDate() - 1)
+            checkDate = addLocalDays(checkDate, -1)
           } else if (streak === 0) {
             // Check if there was a session yesterday (streak might still be valid)
-            checkDate.setDate(checkDate.getDate() - 1)
-            const yesterdayStr = checkDate.toISOString().split('T')[0]
-            const hasYesterdaySession = sessions.some(
-              (s) => s.date.split('T')[0] === yesterdayStr
-            )
+            checkDate = addLocalDays(checkDate, -1)
+            const yesterdayStr = formatLocalDateKey(checkDate)
+            const hasYesterdaySession = sessionDays.has(yesterdayStr)
             if (!hasYesterdaySession) break
           } else {
             break

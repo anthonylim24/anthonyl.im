@@ -11,6 +11,7 @@ import { LevelRing } from '@/components/gamification/LevelRing'
 import { BadgeGrid } from '@/components/gamification/BadgeGrid'
 import { ActivityHeatmap } from '@/components/gamification/ActivityHeatmap'
 import { getProtocolCatalog } from '@/lib/breathingProtocols'
+import { getLocalDateKey } from '@/lib/localDates'
 import type { TechniqueId } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { TechniqueGeometryIcon } from '@/components/ui/TechniqueGeometryIcon'
@@ -54,7 +55,8 @@ export function Progress() {
   const sessionDays = useMemo(() => {
     const dayMap = new Map<string, number>()
     for (const s of sessions) {
-      const key = s.date.split('T')[0]
+      const key = getLocalDateKey(s.date)
+      if (!key) continue
       dayMap.set(key, (dayMap.get(key) ?? 0) + 1)
     }
     return Array.from(dayMap, ([date, count]) => ({ date, count }))

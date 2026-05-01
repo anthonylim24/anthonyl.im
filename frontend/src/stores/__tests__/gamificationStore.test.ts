@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, beforeEach } from 'vitest'
+import { formatLocalDateKey, getLocalWeekStartKey } from '@/lib/localDates'
 import { useGamificationStore } from '../gamificationStore'
 
 describe('gamificationStore', () => {
@@ -11,7 +12,7 @@ describe('gamificationStore', () => {
       selectedTheme: 'default',
       dailySessionCount: 0,
       weeklySessionCount: 0,
-      lastDailyReset: new Date().toISOString().split('T')[0],
+      lastDailyReset: formatLocalDateKey(new Date()),
       lastWeeklyReset: getWeekStart(),
     })
   })
@@ -61,6 +62,24 @@ describe('gamificationStore', () => {
     expect(useGamificationStore.getState().selectedTheme).toBe('aurora')
   })
 
+  it('resets daily and weekly counters using local calendar keys', () => {
+    useGamificationStore.setState({
+      dailySessionCount: 3,
+      weeklySessionCount: 8,
+      lastDailyReset: '2026-04-01',
+      lastWeeklyReset: '2026-03-30',
+    })
+
+    useGamificationStore.getState().checkResets()
+
+    expect(useGamificationStore.getState()).toMatchObject({
+      dailySessionCount: 0,
+      weeklySessionCount: 0,
+      lastDailyReset: formatLocalDateKey(new Date()),
+      lastWeeklyReset: getWeekStart(),
+    })
+  })
+
   it('resets progress and theme unlock state to defaults', () => {
     useGamificationStore.setState({
       xp: 420,
@@ -80,17 +99,12 @@ describe('gamificationStore', () => {
       selectedTheme: 'default',
       dailySessionCount: 0,
       weeklySessionCount: 0,
-      lastDailyReset: new Date().toISOString().split('T')[0],
+      lastDailyReset: formatLocalDateKey(new Date()),
       lastWeeklyReset: getWeekStart(),
     })
   })
 })
 
 function getWeekStart(): string {
-  const now = new Date()
-  const day = now.getDay()
-  const diff = now.getDate() - day + (day === 0 ? -6 : 1) // Monday
-  const monday = new Date(now)
-  monday.setDate(diff)
-  return monday.toISOString().split('T')[0]
+  return getLocalWeekStartKey()
 }

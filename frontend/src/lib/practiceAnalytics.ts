@@ -1,4 +1,5 @@
 import { getProtocol, type ProtocolCategory } from './breathingProtocols'
+import { addLocalDays, getLocalDateKey, getLocalDayStart } from './localDates'
 import type { CompletedSession } from '@/stores/historyStore'
 
 export interface PracticeConsistencyInsight {
@@ -12,18 +13,13 @@ export interface PracticeConsistencyInsight {
   dominantProtocolName: string | null
 }
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000
 const RECENT_WINDOW_DAYS = 7
-
-function dayKey(date: Date): string {
-  return date.toISOString().split('T')[0]
-}
 
 function getRecentSessions(
   sessions: CompletedSession[],
   now: Date,
 ): CompletedSession[] {
-  const windowStart = now.getTime() - (RECENT_WINDOW_DAYS - 1) * MS_PER_DAY
+  const windowStart = addLocalDays(getLocalDayStart(now), -(RECENT_WINDOW_DAYS - 1)).getTime()
   return sessions.filter((session) => {
     const sessionDate = new Date(session.date)
     if (Number.isNaN(sessionDate.getTime())) return false
@@ -119,7 +115,11 @@ export function buildPracticeConsistencyInsight(
   now = new Date(),
 ): PracticeConsistencyInsight {
   const recentSessions = getRecentSessions(sessions, now)
-  const activeDays = new Set(recentSessions.map((session) => dayKey(new Date(session.date)))).size
+  const activeDays = new Set(
+    recentSessions
+      .map((session) => getLocalDateKey(session.date))
+      .filter((dateKey): dateKey is string => Boolean(dateKey))
+  ).size
   const totalMinutes = Math.round(
     recentSessions.reduce((sum, session) => sum + session.durationSeconds, 0) / 60
   )

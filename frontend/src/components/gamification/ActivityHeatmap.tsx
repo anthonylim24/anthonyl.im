@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { formatLocalDateKey, getLocalDateKey } from '@/lib/localDates'
 import { HEATMAP } from '@/lib/palette'
 
 interface SessionDay {
@@ -23,7 +24,8 @@ export function ActivityHeatmap({ sessions }: ActivityHeatmapProps) {
 
     const countMap = new Map<string, number>()
     for (const s of sessions) {
-      const key = s.date.split('T')[0]
+      const key = getLocalDateKey(s.date)
+      if (!key) continue
       countMap.set(key, (countMap.get(key) ?? 0) + s.count)
     }
 
@@ -34,7 +36,7 @@ export function ActivityHeatmap({ sessions }: ActivityHeatmapProps) {
     for (let i = 0; i < totalDays; i++) {
       const d = new Date(startDate)
       d.setDate(d.getDate() + i)
-      const key = d.toISOString().split('T')[0]
+      const key = formatLocalDateKey(d)
       const col = Math.floor(i / 7)
       const row = i % 7
       if (d.getMonth() !== lastMonth) {
