@@ -77,8 +77,15 @@ describe('Settings accessibility', () => {
   it('uses 44px minimum hit areas for theme and feedback controls', () => {
     render(<Settings />)
 
-    expect(screen.getByRole('button', { name: /dark/i })).toHaveClass('min-h-11')
-    expect(screen.getByRole('button', { name: /light/i })).toHaveClass('min-h-11')
+    expect(screen.getByRole('group', { name: /appearance theme/i })).toBeInTheDocument()
+
+    const darkTheme = screen.getByRole('button', { name: /dark/i })
+    const lightTheme = screen.getByRole('button', { name: /light/i })
+
+    expect(darkTheme).toHaveClass('min-h-11')
+    expect(darkTheme).toHaveAttribute('aria-pressed', 'false')
+    expect(lightTheme).toHaveClass('min-h-11')
+    expect(lightTheme).toHaveAttribute('aria-pressed', 'true')
 
     expect(screen.getByRole('switch', { name: /sound/i })).toHaveClass('h-11', 'w-14')
     expect(screen.getByRole('switch', { name: /haptics/i })).toHaveClass('h-11', 'w-14')
@@ -127,11 +134,14 @@ describe('Settings accessibility', () => {
   it('shows unlocked and locked orb palette controls with clear states', () => {
     render(<Settings />)
 
+    expect(screen.getByRole('group', { name: /orb palettes unlocked through level 1/i })).toBeInTheDocument()
+
     const defaultPalette = screen.getByRole('button', { name: /default orb palette/i })
     const tidalPalette = screen.getByRole('button', { name: /tidal orb palette/i })
 
     expect(defaultPalette).toHaveAttribute('aria-pressed', 'true')
     expect(defaultPalette).toHaveClass('min-h-24')
+    expect(tidalPalette).toHaveAttribute('aria-pressed', 'false')
     expect(tidalPalette).toBeDisabled()
     expect(tidalPalette).toHaveAccessibleName(/unlocks at level 5/i)
   })
