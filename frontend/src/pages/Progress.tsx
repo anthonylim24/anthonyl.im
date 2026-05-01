@@ -32,6 +32,7 @@ export function Progress() {
   const { trigger: haptic } = useHaptics()
   const [filterTechnique, setFilterTechnique] = useState<TechniqueId | 'all'>('all')
   const [showClearConfirm, setShowClearConfirm] = useState(false)
+  const [historyStatus, setHistoryStatus] = useState<string | null>(null)
   const protocols = useMemo(() => getProtocolCatalog(), [])
 
   // Gamification derived state
@@ -66,6 +67,7 @@ export function Progress() {
     haptic([100, 50, 100])
     clearHistory()
     setShowClearConfirm(false)
+    setHistoryStatus('Session history cleared.')
   }
 
   return (
@@ -93,7 +95,10 @@ export function Progress() {
                 <button
                   type="button"
                   aria-label="Cancel clear history"
-                  onClick={() => setShowClearConfirm(false)}
+                  onClick={() => {
+                    setShowClearConfirm(false)
+                    setHistoryStatus('Clear history cancelled.')
+                  }}
                   className="min-h-11 min-w-11 px-3 py-2 text-xs font-medium border border-bw-border text-bw-secondary hover:text-bw transition-colors duration-300"
                 >
                   No
@@ -103,7 +108,11 @@ export function Progress() {
               <button
                 type="button"
                 aria-label="Clear session history"
-                onClick={() => { haptic('error'); setShowClearConfirm(true) }}
+                onClick={() => {
+                  haptic('error')
+                  setShowClearConfirm(true)
+                  setHistoryStatus('Clear history requires confirmation.')
+                }}
                 className="inline-flex min-h-11 min-w-11 items-center justify-center px-3 py-2 text-xs text-bw-tertiary hover:text-red-400 transition-colors duration-300"
               >
                 <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
@@ -111,6 +120,11 @@ export function Progress() {
             )}
           </div>
         </motion.div>
+        {historyStatus ? (
+          <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+            {historyStatus}
+          </p>
+        ) : null}
 
         {/* ── Two-column grid on md+ ── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10 sm:gap-12">
@@ -186,7 +200,11 @@ export function Progress() {
           </div>
           <div>
             {/* Filter Buttons */}
-            <div className="flex gap-4 mb-5 sm:mb-6 border-b border-bw-border pb-3 overflow-x-auto no-scrollbar">
+            <div
+              className="flex gap-4 mb-5 sm:mb-6 border-b border-bw-border pb-3 overflow-x-auto no-scrollbar"
+              role="group"
+              aria-label="Session history filters"
+            >
               <button
                 type="button"
                 aria-label="Show all sessions"
