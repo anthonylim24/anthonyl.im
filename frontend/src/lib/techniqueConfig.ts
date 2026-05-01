@@ -10,6 +10,7 @@ import {
   TECHNIQUE_RING_COLORS,
   TECHNIQUE_RING_COLORS_DARK,
   ACCENT_WARM,
+  withAlpha,
 } from './palette'
 
 export type TechniqueGeometry =
@@ -65,8 +66,8 @@ export function techniqueGradientStyle(id: TechniqueId): React.CSSProperties {
 export function techniqueActiveStyle(id: TechniqueId): React.CSSProperties {
   const colors = TECHNIQUE_RING_COLORS[id]
   return {
-    borderColor: `${colors.primary}24`,
-    background: `${colors.primary}0A`,
+    borderColor: withAlpha(colors.primary, 0.14),
+    background: withAlpha(colors.primary, 0.04),
   }
 }
 
@@ -75,7 +76,7 @@ export function techniqueCardGradient(id: TechniqueId): React.CSSProperties {
   const colors = TECHNIQUE_RING_COLORS[id]
   return {
     background: colors.primary,
-    border: `1px solid ${colors.primary}14`,
+    border: `1px solid ${withAlpha(colors.primary, 0.08)}`,
   }
 }
 
