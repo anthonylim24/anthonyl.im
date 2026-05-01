@@ -64,6 +64,14 @@ export function TechniqueGeometryIcon({ techniqueId, className, style, size = 16
         </svg>
       )
     }
+    case 'rings':
+      return (
+        <svg {...decorativeProps} width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none" stroke="currentColor" strokeWidth="1" className={className} style={style}>
+          {[0.18, 0.32, 0.46].map((r) => (
+            <circle key={r} cx={c} cy={c} r={size * r} />
+          ))}
+        </svg>
+      )
     case 'ladder':
       return (
         <svg {...decorativeProps} width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" className={className} style={style}>

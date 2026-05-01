@@ -56,6 +56,7 @@ export const protocolGoalOptions: ProtocolGoalOption[] = [
     categories: ['calm'],
     preferredTechniqueIds: [
       TECHNIQUE_IDS.CYCLIC_SIGHING,
+      TECHNIQUE_IDS.DIAPHRAGMATIC_BREATHING,
       TECHNIQUE_IDS.EXTENDED_EXHALE,
       TECHNIQUE_IDS.RESONANCE_BREATHING,
     ],
@@ -92,6 +93,7 @@ export const protocolGoalOptions: ProtocolGoalOption[] = [
     categories: ['recovery', 'calm'],
     preferredTechniqueIds: [
       TECHNIQUE_IDS.PURSED_LIP_RECOVERY,
+      TECHNIQUE_IDS.DIAPHRAGMATIC_BREATHING,
       TECHNIQUE_IDS.EXTENDED_EXHALE,
       TECHNIQUE_IDS.RESONANCE_BREATHING,
     ],

@@ -16,4 +16,10 @@ describe('TechniqueGeometryIcon', () => {
     expect(document.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
     expect(document.querySelector('svg')).toHaveAttribute('focusable', 'false')
   })
+
+  it('renders the diaphragmatic breathing geometry', () => {
+    render(<TechniqueGeometryIcon techniqueId={TECHNIQUE_IDS.DIAPHRAGMATIC_BREATHING} />)
+
+    expect(document.querySelectorAll('circle')).toHaveLength(3)
+  })
 })
