@@ -95,6 +95,16 @@ describe('SessionSummary', () => {
     expect(screen.getByRole('button', { name: /close session summary/i })).toBeTruthy()
   })
 
+  it('uses a semantic scrim token for the dialog backdrop', () => {
+    render(<SessionSummary {...defaultProps} />)
+
+    const dialog = screen.getByRole('dialog', { name: /session complete/i })
+
+    expect(dialog.className).toContain('bg-[color:var(--bw-dialog-scrim)]')
+    expect(dialog.className).not.toContain('bg-black')
+    expect(dialog.className).not.toContain('backdrop-blur')
+  })
+
   it('uses 44px minimum hit areas for summary actions', () => {
     render(<SessionSummary {...defaultProps} onRepeat={vi.fn()} />)
 

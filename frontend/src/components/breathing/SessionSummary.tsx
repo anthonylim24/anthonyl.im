@@ -190,7 +190,7 @@ export function SessionSummary({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={reducedMotion ? reducedMotionTransition : { duration: 0.3 }}
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto p-4 bg-black/20 backdrop-blur-sm breathwork"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[color:var(--bw-dialog-scrim)] p-4 breathwork"
       style={{ transform: 'translateZ(0)' }}
       role="dialog"
       aria-modal="true"

@@ -409,6 +409,7 @@ body {
     --bw-tooltip-label: rgba(28, 25, 23, 0.88);
     --bw-tooltip-item: rgba(95, 87, 79, 0.9);
     --bw-phase-divider: color-mix(in srgb, var(--bw-surface) 42%, transparent);
+    --bw-dialog-scrim: rgba(28, 25, 23, 0.18);
 
     /* Accent tokens */
     --bw-accent: #B8860B;
@@ -467,6 +468,7 @@ body {
     --bw-tooltip-label: rgba(231, 227, 222, 0.88);
     --bw-tooltip-item: rgba(168, 162, 158, 0.88);
     --bw-phase-divider: color-mix(in srgb, var(--bw-text) 24%, transparent);
+    --bw-dialog-scrim: rgba(0, 0, 0, 0.42);
 
     /* Accent tokens */
     --bw-accent: #C9A227;
