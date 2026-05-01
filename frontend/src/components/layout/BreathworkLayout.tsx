@@ -1,4 +1,4 @@
-import { useRef, useEffect, memo } from 'react'
+import { useRef, useEffect, lazy, memo, Suspense } from 'react'
 import { AnimatedOutlet } from './AnimatedOutlet'
 import type { CSSProperties } from 'react'
 import { Header } from './Header'
@@ -7,15 +7,13 @@ import { useTheme } from '@/hooks/useTheme'
 import { useViewportOffset } from '@/hooks/useViewportOffset'
 import { useFavicon } from '@/hooks/useFavicon'
 import { useDocumentMetadata } from '@/hooks/useDocumentMetadata'
-import { useCloudSync } from '@/hooks/useCloudSync'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { CLERK_ENABLED } from '@/lib/clerk'
 
-function CloudSync() {
-  useCloudSync()
-  return null
-}
+const CloudSync = lazy(() =>
+  import('./CloudSync').then((module) => ({ default: module.CloudSync })),
+)
 
 /**
  * Fully isolated video component — subscribes to the theme store directly
@@ -87,7 +85,11 @@ export function BreathworkLayout() {
 
   return (
     <div className="breathwork-layout">
-      {CLERK_ENABLED && <CloudSync />}
+      {CLERK_ENABLED && (
+        <Suspense fallback={null}>
+          <CloudSync />
+        </Suspense>
+      )}
 
       {/* Leaves video overlay — fully isolated from React re-renders */}
       <LeavesVideo reducedMotion={reducedMotion} />

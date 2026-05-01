@@ -56,7 +56,7 @@ describe('Header navigation', () => {
     }
   })
 
-  it('keeps the signed-out auth control at a 44px target size', () => {
+  it('keeps the signed-out auth control at a 44px target size', async () => {
     clerkState.enabled = true
 
     render(
@@ -65,7 +65,7 @@ describe('Header navigation', () => {
       </MemoryRouter>
     )
 
-    expect(screen.getByRole('button', { name: 'Sign In' })).toHaveClass('min-h-11', 'min-w-11')
+    expect(await screen.findByRole('button', { name: 'Sign In' })).toHaveClass('min-h-11', 'min-w-11')
   })
 
   it('preloads desktop nav routes on pointer intent and keyboard focus', async () => {
