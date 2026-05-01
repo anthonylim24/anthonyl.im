@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, type KeyboardEvent } from 'react'
 import { motion } from 'motion/react'
 import { BADGES } from '@/lib/gamification'
 import { formatTime } from '@/lib/utils'
@@ -63,6 +63,15 @@ function AnimatedCounter({ target, prefix = '', suffix = '', className }: {
   return <span className={className}>{prefix}{displayedValue}{suffix}</span>
 }
 
+const FOCUSABLE_SELECTOR = [
+  'button:not([disabled])',
+  '[href]',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',')
+
 export function SessionSummary({
   techniqueId,
   xpEarned,
@@ -74,6 +83,8 @@ export function SessionSummary({
   onClose,
 }: SessionSummaryProps) {
   const { trigger: haptic } = useHaptics()
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const continueButtonRef = useRef<HTMLButtonElement>(null)
   const { reducedMotion, stagger, fadeUp, spring } = useEntranceMotion({
     offset: 16,
     staggerChildren: 0.1,
@@ -107,8 +118,54 @@ export function SessionSummary({
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    continueButtonRef.current?.focus()
+  }, [])
+
+  const handleDialogKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      onClose()
+      return
+    }
+
+    if (event.key !== 'Tab') {
+      return
+    }
+
+    const dialog = dialogRef.current
+    if (!dialog) return
+
+    const focusable = Array.from(
+      dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
+    )
+
+    if (focusable.length === 0) {
+      event.preventDefault()
+      return
+    }
+
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    const activeElement = document.activeElement
+
+    if (event.shiftKey) {
+      if (activeElement === first || !dialog.contains(activeElement)) {
+        event.preventDefault()
+        last.focus()
+      }
+      return
+    }
+
+    if (activeElement === last) {
+      event.preventDefault()
+      first.focus()
+    }
+  }
+
   return (
     <motion.div
+      ref={dialogRef}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={reducedMotion ? reducedMotionTransition : { duration: 0.3 }}
@@ -117,6 +174,7 @@ export function SessionSummary({
       role="dialog"
       aria-modal="true"
       aria-labelledby="session-summary-title"
+      onKeyDown={handleDialogKeyDown}
     >
       {/* Celebration particles behind the card */}
       <CelebrationParticles count={particleCount} />
@@ -311,6 +369,7 @@ export function SessionSummary({
 
           <motion.div variants={fadeUp} className="px-6 pb-6 sm:px-8">
             <button
+              ref={continueButtonRef}
               type="button"
               onClick={onClose}
               className="min-h-11 w-full border border-bw-accent bg-bw-accent py-3 font-medium text-bw-accent-foreground transition-all duration-200 active:scale-[0.98]"

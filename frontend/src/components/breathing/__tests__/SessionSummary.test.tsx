@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { SessionSummary } from '../SessionSummary'
 import { TECHNIQUE_IDS } from '@/lib/constants'
 
@@ -66,5 +67,41 @@ describe('SessionSummary', () => {
 
     expect(screen.getByRole('button', { name: /close session summary/i })).toHaveClass('h-11', 'w-11')
     expect(screen.getByRole('button', { name: /continue/i })).toHaveClass('min-h-11')
+  })
+
+  it('focuses the primary action when the summary opens', async () => {
+    render(<SessionSummary {...defaultProps} />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /continue/i })).toHaveFocus()
+    })
+  })
+
+  it('closes from the Escape key', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    render(<SessionSummary {...defaultProps} onClose={onClose} />)
+
+    await user.keyboard('{Escape}')
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps keyboard tabbing inside the summary dialog', async () => {
+    const user = userEvent.setup()
+    render(<SessionSummary {...defaultProps} />)
+
+    const closeButton = screen.getByRole('button', { name: /close session summary/i })
+    const continueButton = screen.getByRole('button', { name: /continue/i })
+
+    await waitFor(() => {
+      expect(continueButton).toHaveFocus()
+    })
+
+    await user.tab()
+    expect(closeButton).toHaveFocus()
+
+    await user.tab({ shift: true })
+    expect(continueButton).toHaveFocus()
   })
 })
