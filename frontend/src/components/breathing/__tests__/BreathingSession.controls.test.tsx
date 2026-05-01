@@ -182,6 +182,20 @@ describe('BreathingSession controls accessibility', () => {
     })
   })
 
+  it('styles the stop control with semantic destructive tokens', () => {
+    renderSession()
+
+    const stopButton = screen.getByRole('button', { name: 'Stop' })
+
+    expect(stopButton).toHaveClass(
+      'border-bw-destructive-border',
+      'bg-bw-destructive-subtle',
+      'text-bw-destructive',
+      'hover:bg-bw-destructive-hover'
+    )
+    expect(stopButton).not.toHaveAttribute('style')
+  })
+
   it('uses custom phase duration for waveform timing', () => {
     renderSession({
       config: {

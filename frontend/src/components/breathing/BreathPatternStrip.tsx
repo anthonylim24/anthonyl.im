@@ -56,7 +56,7 @@ export function BreathPatternStrip({
             <div
               key={`${phase.phase}-${index}`}
               data-testid="breath-pattern-segment"
-              className="relative min-w-3 border-r border-[rgba(255,254,250,0.32)] last:border-r-0"
+              className="relative min-w-3 border-r border-[color:var(--bw-phase-divider)] last:border-r-0"
               style={{
                 flexGrow: phase.duration,
                 flexBasis: totalDuration > 0 ? `${(phase.duration / totalDuration) * 100}%` : 0,

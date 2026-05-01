@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import indexCss from '../../index.css?raw'
 import breathAuraSource from '../../components/breathing/BreathAura.tsx?raw'
+import breathPatternStripSource from '../../components/breathing/BreathPatternStrip.tsx?raw'
 import breathingSessionSource from '../../components/breathing/BreathingSession.tsx?raw'
 import celebrationParticlesSource from '../../components/breathing/CelebrationParticles.tsx?raw'
 import progressSource from '../../pages/Progress.tsx?raw'
@@ -37,5 +38,13 @@ describe('visual debt guardrails', () => {
     expect(celebrationParticlesSource).not.toMatch(
       /rgba\((?:184,\s*134,\s*11|214,\s*173,\s*71|107,\s*143,\s*113|120,\s*113,\s*108|28,\s*25,\s*23)/i,
     )
+  })
+
+  it('keeps session control and phase divider colors on semantic tokens', () => {
+    expect(indexCss).toContain('--bw-phase-divider')
+    expect(breathPatternStripSource).toContain('var(--bw-phase-divider)')
+    expect(breathPatternStripSource).not.toContain('border-[rgba')
+    expect(breathingSessionSource).not.toMatch(/DESTRUCTIVE|withAlpha\(DESTRUCTIVE/)
+    expect(breathingSessionSource).toContain('bg-bw-destructive-subtle')
   })
 })
