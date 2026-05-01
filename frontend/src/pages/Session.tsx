@@ -418,6 +418,26 @@ export function Session() {
           </div>
         </motion.div>
 
+        {protocol.caution ? (
+          <motion.div
+            variants={fadeUp}
+            className="mb-3 border-y border-bw-border py-3"
+            data-testid="mobile-protocol-caution"
+          >
+            <div className="flex items-start gap-3">
+              <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-bw-accent" aria-hidden="true" />
+              <div>
+                <div className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">
+                  Caution
+                </div>
+                <p className="mt-1 text-xs leading-relaxed text-bw-tertiary">
+                  {protocol.caution}
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        ) : null}
+
         {/* Science section — collapsible */}
         {protocol.science && (
           <motion.div variants={fadeUp} className="mb-3">
@@ -452,11 +472,6 @@ export function Session() {
                   </span>
                 ))}
               </div>
-              {protocol.caution && (
-                <p className="mt-3 text-[10px] text-bw-tertiary leading-relaxed">
-                  {protocol.caution}
-                </p>
-              )}
               <EvidenceTrail citations={protocol.citations} compact />
             </motion.div>
           </motion.div>
