@@ -48,6 +48,9 @@ describe('Session safety gates', () => {
 
     expect(screen.getAllByText('Safety check')).toHaveLength(2)
     expect(screen.getAllByText(/progressive breath holds/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Avoid or consult first')).toHaveLength(2)
+    expect(screen.getAllByText(/pregnancy or with a history of seizures/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/cardiovascular disease, uncontrolled blood pressure/i).length).toBeGreaterThan(0)
     expect(screen.getAllByRole('heading', { name: 'Hold ladder' })).toHaveLength(2)
     expect(screen.getAllByRole('img', {
       name: /round 1 15 seconds, round 2 20 seconds/,
@@ -61,11 +64,12 @@ describe('Session safety gates', () => {
     await user.click(beginButtons[0])
     expect(screen.queryByTestId('active-session')).not.toBeInTheDocument()
 
-    await user.click(
-      screen.getAllByRole('checkbox', {
-        name: /safe setting and can stop immediately/i,
-      })[0]
-    )
+    const safetyCheckbox = screen.getAllByRole('checkbox', {
+      name: /reviewed the cautions, am in a safe setting/i,
+    })[0]
+    expect(safetyCheckbox.getAttribute('aria-describedby')).toContain('contraindications')
+
+    await user.click(safetyCheckbox)
 
     const enabledBeginButtons = screen.getAllByRole('button', { name: /^begin/i })
     for (const button of enabledBeginButtons) {

@@ -108,6 +108,7 @@ describe('breathingProtocols', () => {
     expect(advancedProtocols.length).toBeGreaterThan(0)
     for (const protocol of advancedProtocols) {
       expect(protocol.safetyNotice).toBeTruthy()
+      expect(protocol.contraindications?.length).toBeGreaterThanOrEqual(2)
       expect(protocol.safetyChecklist?.length).toBeGreaterThanOrEqual(3)
     }
   })
