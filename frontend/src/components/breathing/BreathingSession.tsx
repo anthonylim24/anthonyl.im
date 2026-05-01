@@ -16,6 +16,7 @@ import { SessionSummary } from './SessionSummary'
 import { PhaseIndicator } from './PhaseIndicator'
 import { Timer } from './Timer'
 import { getPhaseCoachCue } from './phaseCoaching'
+import { getActiveSessionSafetyCue } from './sessionSafety'
 import { getInteractiveBreathingVisualizationLabel } from './visualizationLabels'
 import { Play, Pause, Square, RotateCcw } from 'lucide-react'
 import {
@@ -59,6 +60,7 @@ function getSessionAnnouncement({
   isPaused,
   isComplete,
   coachCue,
+  safetyCue,
 }: {
   protocolName: string
   currentPhase: keyof typeof PHASE_LABELS | null
@@ -68,18 +70,21 @@ function getSessionAnnouncement({
   isPaused: boolean
   isComplete: boolean
   coachCue: string
+  safetyCue: string | null
 }): string {
+  const safetyText = safetyCue ? ` Safety reminder: ${safetyCue}` : ''
+
   if (isComplete) {
     return `${protocolName} complete. Review your session summary.`
   }
 
   if (!isActive || !currentPhase) {
-    return `${protocolName} ready. ${coachCue} Press Start when you are ready.`
+    return `${protocolName} ready. ${coachCue}${safetyText} Press Start when you are ready.`
   }
 
   const round = Math.min(currentRound + 1, totalRounds)
   const phaseLabel = PHASE_LABELS[currentPhase]
-  const progress = `Round ${round} of ${totalRounds}. ${phaseLabel} phase. ${coachCue}`
+  const progress = `Round ${round} of ${totalRounds}. ${phaseLabel} phase. ${coachCue}${safetyText}`
 
   if (isPaused) {
     return `${protocolName} paused. ${progress}`
@@ -217,6 +222,7 @@ export function BreathingSession({
 
   const protocol = getProtocol(config.techniqueId)
   const coachCue = getPhaseCoachCue(config.techniqueId, session?.currentPhase)
+  const safetyCue = getActiveSessionSafetyCue(protocol)
   const sessionAnnouncement = useMemo(
     () =>
       getSessionAnnouncement({
@@ -228,6 +234,7 @@ export function BreathingSession({
         isPaused,
         isComplete: isComplete || Boolean(session?.isComplete),
         coachCue,
+        safetyCue,
       }),
     [
       protocol.name,
@@ -239,6 +246,7 @@ export function BreathingSession({
       isPaused,
       isComplete,
       coachCue,
+      safetyCue,
     ]
   )
 
@@ -575,6 +583,15 @@ export function BreathingSession({
         >
           {coachCue}
         </p>
+
+        {safetyCue ? (
+          <p
+            className="relative z-10 mt-3 max-w-xs border border-bw-border px-3 py-2 text-center text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary"
+            data-testid="active-session-safety-cue"
+          >
+            {safetyCue}
+          </p>
+        ) : null}
       </div>
 
       {/* Controls - fade only for pointer users after 3s of active breathing */}
