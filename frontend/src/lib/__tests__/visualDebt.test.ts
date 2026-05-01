@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import indexCss from '../../index.css?raw'
 import breathAuraSource from '../../components/breathing/BreathAura.tsx?raw'
 import breathingSessionSource from '../../components/breathing/BreathingSession.tsx?raw'
+import celebrationParticlesSource from '../../components/breathing/CelebrationParticles.tsx?raw'
 import progressSource from '../../pages/Progress.tsx?raw'
 import settingsSource from '../../pages/Settings.tsx?raw'
 
@@ -28,6 +29,13 @@ describe('visual debt guardrails', () => {
     expect(auraSource).toContain('var(--bw-surface)')
     expect(auraSource).not.toMatch(
       /#(?:fffefa|d6ad47|b8860b|5f574f|1c1917)|rgba\((?:214,\s*173,\s*71|184,\s*134,\s*11)/i,
+    )
+  })
+
+  it('keeps celebration particles on semantic BreathFlow tokens', () => {
+    expect(celebrationParticlesSource).toContain('--bw-accent')
+    expect(celebrationParticlesSource).not.toMatch(
+      /rgba\((?:184,\s*134,\s*11|214,\s*173,\s*71|107,\s*143,\s*113|120,\s*113,\s*108|28,\s*25,\s*23)/i,
     )
   })
 })

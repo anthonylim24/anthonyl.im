@@ -1,5 +1,13 @@
 import { useEffect, useRef } from 'react'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
+import {
+  ACCENT_WARM,
+  ACCENT_WARM_LIGHT,
+  INK,
+  INK_SECONDARY,
+  SUCCESS,
+  withAlpha,
+} from '@/lib/palette'
 
 interface Particle {
   x: number
@@ -12,15 +20,26 @@ interface Particle {
   color: string
 }
 
-const COLORS = [
-  'rgba(184, 134, 11, 0.8)',
-  'rgba(214, 173, 71, 0.72)',
-  'rgba(107, 143, 113, 0.58)',
-  'rgba(120, 113, 108, 0.42)',
-  'rgba(28, 25, 23, 0.34)',
-]
+const HEX_COLOR = /^#[\da-f]{6}$/i
 
-function createParticle(cx: number, cy: number): Particle {
+const PARTICLE_COLOR_SOURCES = [
+  { token: '--bw-accent', fallback: ACCENT_WARM },
+  { token: '--bw-accent-light', fallback: ACCENT_WARM_LIGHT },
+  { token: '--bw-success', fallback: SUCCESS },
+  { token: '--bw-text-secondary', fallback: INK_SECONDARY },
+  { token: '--bw-text', fallback: INK },
+] as const
+
+function resolveParticleColors(element: Element): string[] {
+  const styles = getComputedStyle(element)
+
+  return PARTICLE_COLOR_SOURCES.map(({ token, fallback }) => {
+    const value = styles.getPropertyValue(token).trim()
+    return HEX_COLOR.test(value) ? value : fallback
+  })
+}
+
+function createParticle(cx: number, cy: number, colors: string[]): Particle {
   const angle = Math.random() * Math.PI * 2
   const speed = 0.3 + Math.random() * 1.5
   return {
@@ -31,7 +50,7 @@ function createParticle(cx: number, cy: number): Particle {
     radius: 1.5 + Math.random() * 3,
     opacity: 0.6 + Math.random() * 0.4,
     decay: 0.004 + Math.random() * 0.008,
-    color: COLORS[Math.floor(Math.random() * COLORS.length)],
+    color: colors[Math.floor(Math.random() * colors.length)],
   }
 }
 
@@ -61,10 +80,11 @@ export function CelebrationParticles({ count = 40 }: CelebrationParticlesProps) 
 
     const cx = rect.width / 2
     const cy = rect.height / 2
+    const colors = resolveParticleColors(canvas)
 
     const particles: Particle[] = []
     for (let i = 0; i < count; i++) {
-      particles.push(createParticle(cx, cy))
+      particles.push(createParticle(cx, cy, colors))
     }
 
     let raf: number
@@ -84,7 +104,7 @@ export function CelebrationParticles({ count = 40 }: CelebrationParticlesProps) 
 
         ctx!.beginPath()
         ctx!.arc(p.x, p.y, p.radius, 0, Math.PI * 2)
-        ctx!.fillStyle = p.color.replace(/[\d.]+\)$/, `${Math.max(0, p.opacity)})`)
+        ctx!.fillStyle = withAlpha(p.color, Math.max(0, p.opacity))
         ctx!.fill()
       }
 
