@@ -178,6 +178,8 @@ export function Progress() {
             {/* Filter Buttons */}
             <div className="flex gap-4 mb-5 sm:mb-6 border-b border-bw-border pb-3 overflow-x-auto no-scrollbar">
               <button
+                aria-label="Show all sessions"
+                aria-pressed={filterTechnique === 'all'}
                 onClick={() => { haptic('selection'); setFilterTechnique('all') }}
                 className={cn(
                   'min-h-11 px-2 text-xs font-medium transition-colors duration-200 shrink-0',
@@ -191,6 +193,8 @@ export function Progress() {
               {protocols.map(({ id, shortName }) => (
                 <button
                   key={id}
+                  aria-label={`Show ${shortName} sessions`}
+                  aria-pressed={filterTechnique === id}
                   onClick={() => { haptic('selection'); setFilterTechnique(id) }}
                   className={cn(
                     'flex min-h-11 items-center gap-1.5 px-2 text-xs font-medium transition-colors duration-200 shrink-0',
