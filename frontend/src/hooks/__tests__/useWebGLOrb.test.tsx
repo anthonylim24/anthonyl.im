@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useRef } from 'react'
 import { useWebGLOrb } from '../useWebGLOrb'
 
-function Probe() {
+function Probe({ reducedMotion = false }: { reducedMotion?: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const failed = useWebGLOrb({
     canvasRef,
@@ -11,7 +11,7 @@ function Probe() {
     color1: [0.7, 0.5, 0.1],
     color2: [0.9, 0.7, 0.3],
     isActive: true,
-    reducedMotion: false,
+    reducedMotion,
   })
 
   return (
@@ -44,5 +44,33 @@ describe('useWebGLOrb', () => {
 
     expect(contextLost.defaultPrevented).toBe(true)
     expect(screen.getByTestId('orb-failed')).toHaveTextContent('true')
+  })
+
+  it('does not attach the WebGL loop while reduced motion is active', () => {
+    render(<Probe reducedMotion />)
+
+    const canvas = screen.getByTestId('orb-canvas')
+    const contextLost = new Event('webglcontextlost', { cancelable: true })
+    act(() => {
+      canvas.dispatchEvent(contextLost)
+    })
+
+    expect(contextLost.defaultPrevented).toBe(false)
+    expect(screen.getByTestId('orb-failed')).toHaveTextContent('false')
+  })
+
+  it('tears down the WebGL context listener when reduced motion turns on', () => {
+    const { rerender } = render(<Probe />)
+
+    rerender(<Probe reducedMotion />)
+
+    const canvas = screen.getByTestId('orb-canvas')
+    const contextLost = new Event('webglcontextlost', { cancelable: true })
+    act(() => {
+      canvas.dispatchEvent(contextLost)
+    })
+
+    expect(contextLost.defaultPrevented).toBe(false)
+    expect(screen.getByTestId('orb-failed')).toHaveTextContent('false')
   })
 })

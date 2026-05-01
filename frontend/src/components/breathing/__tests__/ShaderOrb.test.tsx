@@ -33,6 +33,24 @@ describe('ShaderOrb', () => {
     })
   })
 
+  it('keeps the reduced-motion fallback static during active sessions', () => {
+    render(
+      <ShaderOrb
+        phase={BREATH_PHASES.INHALE}
+        amplitude={1}
+        isActive
+        techniqueId={TECHNIQUE_IDS.BOX_BREATHING}
+        themeColors={['#3D9088', '#7AD0C6']}
+      />
+    )
+
+    expect(screen.getByTestId('concentric-rings')).toHaveStyle({
+      background: '#3D9088',
+      opacity: '0.3',
+    })
+    expect(screen.queryByRole('img')).toBeInTheDocument()
+  })
+
   it('uses a native button for interactive reduced-motion fallback', async () => {
     const user = userEvent.setup()
     const onClick = vi.fn()
