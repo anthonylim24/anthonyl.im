@@ -48,6 +48,10 @@ vi.mock('@/components/tracking/PersonalBests', () => ({
   PersonalBests: () => <section aria-label="Personal bests" />,
 }))
 
+vi.mock('@/components/tracking/PracticeConsistency', () => ({
+  PracticeConsistency: () => <section aria-label="Practice signal" />,
+}))
+
 function renderProgress() {
   render(
     <MemoryRouter>
@@ -87,6 +91,7 @@ describe('Progress accessibility', () => {
   it('keeps history filter controls and empty-history CTA at 44px height', () => {
     renderProgress()
 
+    expect(screen.getByRole('region', { name: /practice signal/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /show all sessions/i })).toHaveClass('min-h-11')
     expect(screen.getByRole('button', { name: /show box sessions/i })).toHaveClass('min-h-11')
     expect(screen.getByRole('button', { name: /start your first session/i })).toHaveClass('min-h-11')
