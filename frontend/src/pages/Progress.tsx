@@ -1,6 +1,5 @@
-import { useState, useMemo } from 'react'
+import { lazy, Suspense, useState, useMemo } from 'react'
 import { motion } from 'motion/react'
-import { ProgressChart } from '@/components/tracking/ProgressChart'
 import { SessionHistory } from '@/components/tracking/SessionHistory'
 import { PersonalBests } from '@/components/tracking/PersonalBests'
 import { PracticeConsistency } from '@/components/tracking/PracticeConsistency'
@@ -18,6 +17,33 @@ import { TechniqueGeometryIcon } from '@/components/ui/TechniqueGeometryIcon'
 import { Trash2 } from 'lucide-react'
 import { useHaptics } from '@/hooks/useHaptics'
 import { useEntranceMotion } from '@/lib/motionPresets'
+
+const ProgressChart = lazy(() =>
+  import('@/components/tracking/ProgressChart').then((module) => ({
+    default: module.ProgressChart,
+  })),
+)
+
+function ProgressChartFallback() {
+  return (
+    <div className="overflow-hidden">
+      <div className="pb-4 border-b border-bw-border">
+        <h3 className="font-display text-2xl font-semibold text-bw leading-none">
+          Hold Time Progress
+        </h3>
+      </div>
+      <div className="pt-4">
+        <div
+          className="h-64 flex items-center justify-center text-sm text-bw-tertiary"
+          role="status"
+          aria-label="Loading hold time progress"
+        >
+          Loading hold time trend...
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export function Progress() {
   const { stagger, fadeUp } = useEntranceMotion()
@@ -50,6 +76,10 @@ export function Progress() {
       ? sessions
       : sessions.filter((s) => s.techniqueId === filterTechnique),
     [sessions, filterTechnique]
+  )
+  const holdProgressSessions = useMemo(
+    () => filteredSessions.filter((s) => s.maxHoldTime > 0),
+    [filteredSessions],
   )
 
   // Transform sessions to SessionDay format for heatmap
@@ -186,9 +216,9 @@ export function Progress() {
 
         {/* Progress Chart */}
         <motion.div variants={fadeUp} className="border-t border-bw-border pt-5">
-          <ProgressChart
-            sessions={filteredSessions.filter((s) => s.maxHoldTime > 0)}
-          />
+          <Suspense fallback={<ProgressChartFallback />}>
+            <ProgressChart sessions={holdProgressSessions} />
+          </Suspense>
         </motion.div>
 
         {/* Session History */}
