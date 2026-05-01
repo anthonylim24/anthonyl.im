@@ -123,6 +123,17 @@ function resetStores() {
   useSettingsStore.setState(DEFAULT_SETTINGS_STATE)
 }
 
+function signInAs(userId: string) {
+  clerkMock.auth.isSignedIn = true
+  clerkMock.user.user = {
+    id: userId,
+    primaryEmailAddress: { emailAddress: `${userId}@example.com` },
+    fullName: 'BreathFlow User',
+    imageUrl: 'https://example.com/avatar.png',
+  }
+  clerkMock.session.session = { id: `${userId}_session` }
+}
+
 beforeEach(() => {
   clerkMock.auth.isSignedIn = false
   clerkMock.user.user = null
@@ -257,14 +268,7 @@ describe('useCloudSync', () => {
     const supabase = createSupabaseClientMock({ stateUpsertError: upsertError })
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    clerkMock.auth.isSignedIn = true
-    clerkMock.user.user = {
-      id: 'user_1',
-      primaryEmailAddress: { emailAddress: 'user@example.com' },
-      fullName: 'BreathFlow User',
-      imageUrl: 'https://example.com/avatar.png',
-    }
-    clerkMock.session.session = { id: 'session_1' }
+    signInAs('user_1')
     supabaseMock.createClerkSupabaseClient.mockReturnValue(supabase.client)
     useSettingsStore.setState({ ...DEFAULT_SETTINGS_STATE, theme: 'dark' })
 
@@ -279,5 +283,32 @@ describe('useCloudSync', () => {
     expect(localStorageMock.removeItem).not.toHaveBeenCalledWith(STORAGE_KEYS.SESSION_HISTORY)
     expect(localStorageMock.removeItem).not.toHaveBeenCalledWith(STORAGE_KEYS.GAMIFICATION)
     expect(localStorageMock.removeItem).not.toHaveBeenCalledWith(STORAGE_KEYS.SETTINGS)
+  })
+
+  it('runs the first-login merge separately for each signed-in user', async () => {
+    const supabase = createSupabaseClientMock()
+
+    signInAs('user_1')
+    supabaseMock.createClerkSupabaseClient.mockReturnValue(supabase.client)
+    useSettingsStore.setState({ ...DEFAULT_SETTINGS_STATE, theme: 'dark' })
+
+    const { rerender } = renderHook(() => useCloudSync())
+
+    await waitFor(() => {
+      expect(supabase.userStateUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({ user_id: 'user_1' }),
+        { onConflict: 'user_id' },
+      )
+    })
+
+    signInAs('user_2')
+    rerender()
+
+    await waitFor(() => {
+      expect(supabase.userStateUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({ user_id: 'user_2' }),
+        { onConflict: 'user_id' },
+      )
+    })
   })
 })

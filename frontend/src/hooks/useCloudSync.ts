@@ -110,7 +110,7 @@ export function useCloudSync() {
   const supabaseRef = useRef<SupabaseClient | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isSyncingRef = useRef(false)
-  const hasMergedRef = useRef(false)
+  const mergedUserIdRef = useRef<string | null>(null)
 
   // Create Supabase client when session is available
   useEffect(() => {
@@ -172,8 +172,9 @@ export function useCloudSync() {
         localGamification.xp > 0 ||
         localGamification.earnedBadges.length > 0 ||
         hasNonDefaultSettings(localSettings)
+      const hasMergedCurrentUser = mergedUserIdRef.current === user.id
 
-      if (hasLocalData && !hasMergedRef.current) {
+      if (hasLocalData && !hasMergedCurrentUser) {
         // First-login merge: merge local into cloud
         const localState: CloudUserState = {
           xp: localGamification.xp,
@@ -245,7 +246,7 @@ export function useCloudSync() {
 
         // Mark merge complete before clearing localStorage to prevent
         // re-merge with empty data if a subsequent error occurs
-        hasMergedRef.current = true
+        mergedUserIdRef.current = user.id
 
         // Clear localStorage now that cloud has the merged data
         localStorage.removeItem(STORAGE_KEYS.SESSION_HISTORY)
@@ -260,6 +261,12 @@ export function useCloudSync() {
       console.error('[CloudSync] Failed to fetch/hydrate:', err)
     }
   }, [user])
+
+  useEffect(() => {
+    if (!isSignedIn) {
+      mergedUserIdRef.current = null
+    }
+  }, [isSignedIn])
 
   // ─── Write stores back to Supabase (debounced) ────────────────
   const syncToCloud = useCallback(async () => {
