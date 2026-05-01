@@ -59,6 +59,35 @@ function getStreakMessage(streak: number, dailyGoalMet: boolean): string {
   return 'Ready for today\'s session?'
 }
 
+function formatDurationLabel(seconds: number): string {
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  const parts: string[] = []
+
+  if (minutes > 0) {
+    parts.push(`${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`)
+  }
+
+  if (remainingSeconds > 0) {
+    parts.push(`${remainingSeconds} ${remainingSeconds === 1 ? 'second' : 'seconds'}`)
+  }
+
+  return parts.join(' ') || '0 seconds'
+}
+
+function buildProtocolDetailLabel(
+  protocolName: string,
+  durationSeconds: number,
+  rounds: number,
+) {
+  const roundLabel = rounds === 1 ? 'round' : 'rounds'
+  return `${protocolName}, ${formatDurationLabel(durationSeconds)}, ${rounds} ${roundLabel}`
+}
+
+function buildStartProtocolLabel(protocolName: string, durationSeconds: number, rounds: number) {
+  return `Start ${buildProtocolDetailLabel(protocolName, durationSeconds, rounds)}`
+}
+
 /* ── Component ─────────────────────────────────────── */
 
 export function Home() {
@@ -152,8 +181,13 @@ export function Home() {
             </p>
             <button
               type="button"
+              aria-label={`Start your first session, ${buildProtocolDetailLabel(
+                suggestedProtocol.name,
+                suggestedDuration,
+                recommendation.primary.rounds,
+              )}`}
               onClick={() => { haptic('success'); navigate(suggestedPath) }}
-              className="w-full flex items-center justify-center gap-2.5 border border-bw-accent bg-bw-accent py-4 font-medium text-bw-accent-foreground text-sm transition-all hover:opacity-90"
+              className="flex min-h-11 w-full items-center justify-center gap-2.5 border border-bw-accent bg-bw-accent py-4 font-medium text-bw-accent-foreground text-sm transition-all hover:opacity-90"
             >
               <Play className="h-4 w-4" aria-hidden="true" />
               Start your first session
@@ -171,8 +205,13 @@ export function Home() {
           <motion.div variants={fadeUp} className="hidden md:block pb-16 border-b border-bw-border">
             <button
               type="button"
+              aria-label={`Start your first session, ${buildProtocolDetailLabel(
+                suggestedProtocol.name,
+                suggestedDuration,
+                recommendation.primary.rounds,
+              )}`}
               onClick={() => { haptic('success'); navigate(suggestedPath) }}
-              className="flex items-center gap-3 border border-bw-accent bg-bw-accent px-8 py-4 font-medium text-bw-accent-foreground text-sm transition-all hover:opacity-90"
+              className="flex min-h-11 items-center gap-3 border border-bw-accent bg-bw-accent px-8 py-4 font-medium text-bw-accent-foreground text-sm transition-all hover:opacity-90"
             >
               <Play className="h-4 w-4" aria-hidden="true" />
               Start your first session
@@ -318,7 +357,10 @@ export function Home() {
                         : 'border-bw-border text-bw-tertiary hover:bg-bw-hover hover:text-bw-secondary'
                     )}
                   >
-                    <Icon className={cn('h-3.5 w-3.5', selected ? 'text-bw-accent' : 'text-bw-tertiary')} />
+                    <Icon
+                      className={cn('h-3.5 w-3.5', selected ? 'text-bw-accent' : 'text-bw-tertiary')}
+                      aria-hidden="true"
+                    />
                     <span>{option.shortLabel}</span>
                   </button>
                 )
@@ -361,7 +403,11 @@ export function Home() {
           <button
             type="button"
             onClick={() => { haptic('light'); navigate(suggestedPath) }}
-            aria-label={`Start ${suggestedProtocol.name} for ${formatTime(suggestedDuration)}`}
+            aria-label={buildStartProtocolLabel(
+              suggestedProtocol.name,
+              suggestedDuration,
+              recommendation.primary.rounds,
+            )}
             className="group mt-5 w-full border-t border-bw-border pt-5 text-left transition-colors duration-200 hover:bg-bw-hover"
           >
             <div className="flex items-center gap-4">
@@ -378,7 +424,10 @@ export function Home() {
                   {suggestedProtocol.safetyChecklist?.length ? <span>Safety gated</span> : null}
                 </div>
               </div>
-              <ArrowRight className="h-4 w-4 text-bw-tertiary shrink-0 group-hover:text-bw group-hover:translate-x-0.5 transition-all duration-200" />
+              <ArrowRight
+                className="h-4 w-4 text-bw-tertiary shrink-0 group-hover:text-bw group-hover:translate-x-0.5 transition-all duration-200"
+                aria-hidden="true"
+              />
             </div>
             <div className="mt-4 flex flex-wrap gap-1.5">
               {recommendation.primary.reasons.map((reason) => (
@@ -394,7 +443,11 @@ export function Home() {
               <button
                 key={option.protocol.id}
                 type="button"
-                aria-label={`Start ${option.protocol.name} for ${formatTime(option.estimatedDuration)}`}
+                aria-label={buildStartProtocolLabel(
+                  option.protocol.name,
+                  option.estimatedDuration,
+                  option.rounds,
+                )}
                 onClick={() => {
                   haptic('selection')
                   navigate(buildProtocolSessionPath(option.protocol.id, option.rounds))
@@ -407,7 +460,7 @@ export function Home() {
                     {formatTime(option.estimatedDuration)} · {option.protocol.evidenceLevel}
                   </span>
                 </span>
-                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-bw-tertiary" />
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-bw-tertiary" aria-hidden="true" />
               </button>
             ))}
           </div>
@@ -429,6 +482,7 @@ export function Home() {
                 <motion.button
                   key={id}
                   type="button"
+                  aria-label={`Start ${p.name}`}
                   whileTap={tap(0.97)}
                   transition={motionTransition}
                   className="border-t border-bw-border pt-4 pb-2 text-left bg-transparent flex-shrink-0"
@@ -475,6 +529,7 @@ export function Home() {
                 <motion.button
                   key={id}
                   type="button"
+                  aria-label={`Start ${protocol.name}`}
                   whileTap={tap(0.99)}
                   transition={motionTransition}
                   className="w-full flex items-center gap-4 py-5 text-left group hover:bg-bw-hover transition-colors duration-200"
@@ -511,7 +566,10 @@ export function Home() {
                       </span>
                     ))}
                   </div>
-                  <ArrowRight className="h-3.5 w-3.5 text-bw-tertiary shrink-0 group-hover:text-bw group-hover:translate-x-0.5 transition-all duration-200" />
+                  <ArrowRight
+                    className="h-3.5 w-3.5 text-bw-tertiary shrink-0 group-hover:text-bw group-hover:translate-x-0.5 transition-all duration-200"
+                    aria-hidden="true"
+                  />
                 </motion.button>
               )
             })}
