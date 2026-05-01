@@ -14,6 +14,10 @@ function getDescription() {
   return document.querySelector<HTMLMetaElement>('meta[name="description"]')
 }
 
+function getMeta(attribute: 'name' | 'property', value: string) {
+  return document.querySelector<HTMLMetaElement>(`meta[${attribute}="${value}"]`)
+}
+
 function ensureDescription() {
   const existing = getDescription()
   if (existing) return existing
@@ -33,26 +37,42 @@ afterEach(() => {
 })
 
 describe('useDocumentMetadata', () => {
-  it('sets and restores document title and description', () => {
+  it('sets and restores document title, description, and social metadata', () => {
     document.title = 'Anthony Lim - Software Engineer'
     ensureDescription().setAttribute('content', 'Original description')
+    const ogTitle = document.createElement('meta')
+    ogTitle.setAttribute('property', 'og:title')
+    ogTitle.setAttribute('content', 'Original OG title')
+    document.head.appendChild(ogTitle)
 
     const { unmount } = render(<MetadataProbe />)
 
     expect(document.title).toBe('BreathFlow - Scientific Breathwork')
     expect(getDescription()?.getAttribute('content')).toBe('Evidence-informed breathwork for calm and focus.')
+    expect(getMeta('property', 'og:title')?.getAttribute('content')).toBe('BreathFlow - Scientific Breathwork')
+    expect(getMeta('property', 'og:description')?.getAttribute('content')).toBe('Evidence-informed breathwork for calm and focus.')
+    expect(getMeta('name', 'twitter:title')?.getAttribute('content')).toBe('BreathFlow - Scientific Breathwork')
+    expect(getMeta('name', 'twitter:description')?.getAttribute('content')).toBe('Evidence-informed breathwork for calm and focus.')
 
     unmount()
 
     expect(document.title).toBe('Anthony Lim - Software Engineer')
     expect(getDescription()?.getAttribute('content')).toBe('Original description')
+    expect(getMeta('property', 'og:title')?.getAttribute('content')).toBe('Original OG title')
+    expect(getMeta('property', 'og:description')).toBeNull()
+    expect(getMeta('name', 'twitter:title')).toBeNull()
+    expect(getMeta('name', 'twitter:description')).toBeNull()
   })
 
-  it('creates a description meta tag when one is missing', () => {
+  it('creates metadata tags when they are missing', () => {
     getDescription()?.remove()
 
     render(<MetadataProbe />)
 
     expect(getDescription()?.getAttribute('content')).toBe('Evidence-informed breathwork for calm and focus.')
+    expect(getMeta('property', 'og:title')?.getAttribute('content')).toBe('BreathFlow - Scientific Breathwork')
+    expect(getMeta('property', 'og:description')?.getAttribute('content')).toBe('Evidence-informed breathwork for calm and focus.')
+    expect(getMeta('name', 'twitter:title')?.getAttribute('content')).toBe('BreathFlow - Scientific Breathwork')
+    expect(getMeta('name', 'twitter:description')?.getAttribute('content')).toBe('Evidence-informed breathwork for calm and focus.')
   })
 })
