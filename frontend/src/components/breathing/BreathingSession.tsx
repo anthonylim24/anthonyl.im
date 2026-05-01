@@ -33,12 +33,13 @@ import {
 } from '@/lib/gamification'
 import { DESTRUCTIVE, withAlpha } from '@/lib/palette'
 import { useGamificationStore } from '@/stores/gamificationStore'
-import { useHistoryStore } from '@/stores/historyStore'
+import { useHistoryStore, type CompletedSession } from '@/stores/historyStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useViewportOffset } from '@/hooks/useViewportOffset'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import { useHaptics } from '@/hooks/useHaptics'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
+import type { ActiveSession } from '@/stores/sessionStore'
 
 interface BreathingSessionProps {
   config: SessionConfig
@@ -80,6 +81,29 @@ function getSessionAnnouncement({
   }
 
   return progress
+}
+
+function isStoredCurrentSession(
+  storedSession: CompletedSession,
+  activeSession: ActiveSession,
+  durationSeconds: number
+): boolean {
+  return (
+    storedSession.date === activeSession.startTime.toISOString() &&
+    storedSession.techniqueId === activeSession.config.techniqueId &&
+    storedSession.rounds === activeSession.config.rounds &&
+    storedSession.durationSeconds === durationSeconds
+  )
+}
+
+function getPriorSessions(
+  storedSessions: CompletedSession[],
+  activeSession: ActiveSession,
+  durationSeconds: number
+): CompletedSession[] {
+  return storedSessions.filter(
+    (storedSession) => !isStoredCurrentSession(storedSession, activeSession, durationSeconds)
+  )
 }
 
 export function BreathingSession({
@@ -255,6 +279,7 @@ export function BreathingSession({
     if (showSummary && session && !summaryData && !summaryProcessedRef.current) {
       summaryProcessedRef.current = true
       const durationSeconds = calculateSessionDuration(config)
+      const priorSessions = getPriorSessions(sessions, session, durationSeconds)
 
       const streak = getStreak()
       const xpEarned = calculateXP(config.techniqueId, config.rounds, streak)
@@ -262,11 +287,10 @@ export function BreathingSession({
       recordSession()
 
       // Build context for badge checks matching the actual interface
-      const allSessions = sessions
-      const totalSeconds = allSessions.reduce((sum, s) => sum + s.durationSeconds, 0) + durationSeconds
+      const totalSeconds = priorSessions.reduce((sum, s) => sum + s.durationSeconds, 0) + durationSeconds
       const sessionsByTechnique: Record<string, number> = {}
       const maxHoldByTechnique: Record<string, number> = {}
-      for (const s of allSessions) {
+      for (const s of priorSessions) {
         sessionsByTechnique[s.techniqueId] = (sessionsByTechnique[s.techniqueId] ?? 0) + 1
         maxHoldByTechnique[s.techniqueId] = Math.max(maxHoldByTechnique[s.techniqueId] ?? 0, s.maxHoldTime)
       }
@@ -278,7 +302,7 @@ export function BreathingSession({
       )
 
       const newBadges = checkBadgeUnlocks({
-        totalSessions: allSessions.length + 1,
+        totalSessions: priorSessions.length + 1,
         streak,
         totalSeconds,
         sessionsByTechnique,
@@ -292,7 +316,7 @@ export function BreathingSession({
       unlockBadges(trulyNewBadges)
 
       const isNewPersonalBest = session.holdTimes.length > 0
-        ? Math.max(...session.holdTimes) > Math.max(...sessions.flatMap((s) => s.holdTimes || []), 0)
+        ? Math.max(...session.holdTimes) > Math.max(...priorSessions.flatMap((s) => s.holdTimes || []), 0)
         : false
 
       const frameId = requestAnimationFrame(() => {
