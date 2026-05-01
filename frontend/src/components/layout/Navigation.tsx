@@ -58,6 +58,7 @@ export function Navigation() {
               <Link
                 key={path}
                 to={path}
+                aria-current={active ? 'page' : undefined}
                 onClick={() => { if (i !== activeIndex) haptic('selection') }}
                 className={cn(
                   'flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 text-[10px] font-mono font-medium tracking-[0.07em] uppercase transition-colors duration-300 relative',
