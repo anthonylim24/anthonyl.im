@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { BreathingSession } from '../BreathingSession'
 import { BREATH_PHASES, TECHNIQUE_IDS } from '@/lib/constants'
@@ -104,15 +104,21 @@ vi.mock('../SessionSummary', () => ({
   SessionSummary: ({
     isNewPersonalBest,
     newBadges,
+    onRepeat,
   }: {
     isNewPersonalBest: boolean
     newBadges: string[]
+    onRepeat?: () => void
   }) => (
     <div
       data-testid="session-summary"
       data-new-personal-best={String(isNewPersonalBest)}
       data-new-badges={newBadges.join(',')}
-    />
+    >
+      <button type="button" onClick={onRepeat}>
+        Repeat
+      </button>
+    </div>
   ),
 }))
 
@@ -174,5 +180,26 @@ describe('BreathingSession summary context', () => {
 
     expect(mocks.unlockBadges).toHaveBeenCalledWith([])
     expect(mocks.unlockBadges).not.toHaveBeenCalledWith(expect.arrayContaining(['sessions_100']))
+  })
+
+  it('restarts the same config from the summary repeat action', async () => {
+    render(<BreathingSession config={sessionConfig} />)
+
+    act(() => {
+      mocks.cycleOptions?.onSessionComplete?.()
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('session-summary')).toBeInTheDocument()
+    })
+
+    const summary = screen.getByTestId('session-summary')
+    act(() => {
+      within(summary).getByRole('button', { name: /repeat/i }).click()
+    })
+
+    expect(mocks.cycle.stop).toHaveBeenCalledTimes(1)
+    expect(mocks.cycle.start).toHaveBeenCalledWith(sessionConfig)
+    expect(screen.queryByTestId('session-summary')).not.toBeInTheDocument()
   })
 })

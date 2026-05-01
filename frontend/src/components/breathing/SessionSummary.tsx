@@ -5,7 +5,7 @@ import { formatTime } from '@/lib/utils'
 import { buildSessionInsight } from '@/lib/sessionInsights'
 import type { TechniqueId } from '@/lib/constants'
 import { getProtocol } from '@/lib/breathingProtocols'
-import { Trophy, Zap, Target, Clock, Star, X, Sparkles, Activity, ArrowRight } from 'lucide-react'
+import { Trophy, Zap, Target, Clock, Star, X, Sparkles, Activity, ArrowRight, RotateCcw } from 'lucide-react'
 import { CelebrationParticles } from './CelebrationParticles'
 import { useHaptics } from '@/hooks/useHaptics'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
@@ -20,6 +20,7 @@ interface SessionSummaryProps {
   holdTimes: number[]
   isNewPersonalBest: boolean
   onClose: () => void
+  onRepeat?: () => void
 }
 
 /** Animated counter that counts up from 0 to `target` */
@@ -81,6 +82,7 @@ export function SessionSummary({
   holdTimes,
   isNewPersonalBest,
   onClose,
+  onRepeat,
 }: SessionSummaryProps) {
   const { trigger: haptic } = useHaptics()
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -367,7 +369,21 @@ export function SessionSummary({
             )}
           </div>
 
-          <motion.div variants={fadeUp} className="px-6 pb-6 sm:px-8">
+          <motion.div
+            variants={fadeUp}
+            className="grid gap-2 px-6 pb-6 sm:px-8"
+            style={onRepeat ? { gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)' } : undefined}
+          >
+            {onRepeat ? (
+              <button
+                type="button"
+                onClick={onRepeat}
+                className="inline-flex min-h-11 items-center justify-center gap-2 border border-bw-border py-3 text-sm font-medium text-bw-secondary transition-colors hover:bg-bw-hover hover:text-bw"
+              >
+                <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                Repeat
+              </button>
+            ) : null}
             <button
               ref={continueButtonRef}
               type="button"

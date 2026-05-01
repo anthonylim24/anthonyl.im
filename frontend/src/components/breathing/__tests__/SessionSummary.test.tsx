@@ -63,10 +63,21 @@ describe('SessionSummary', () => {
   })
 
   it('uses 44px minimum hit areas for summary actions', () => {
-    render(<SessionSummary {...defaultProps} />)
+    render(<SessionSummary {...defaultProps} onRepeat={vi.fn()} />)
 
     expect(screen.getByRole('button', { name: /close session summary/i })).toHaveClass('h-11', 'w-11')
+    expect(screen.getByRole('button', { name: /repeat/i })).toHaveClass('min-h-11')
     expect(screen.getByRole('button', { name: /continue/i })).toHaveClass('min-h-11')
+  })
+
+  it('can repeat the completed session', async () => {
+    const user = userEvent.setup()
+    const onRepeat = vi.fn()
+    render(<SessionSummary {...defaultProps} onRepeat={onRepeat} />)
+
+    await user.click(screen.getByRole('button', { name: /repeat/i }))
+
+    expect(onRepeat).toHaveBeenCalledTimes(1)
   })
 
   it('focuses the primary action when the summary opens', async () => {
