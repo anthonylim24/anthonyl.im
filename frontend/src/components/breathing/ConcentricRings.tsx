@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react'
+import { memo, useCallback, useMemo, type KeyboardEvent } from 'react'
 import { BREATH_PHASES, type BreathPhase } from '@/lib/constants'
 import type { TechniqueId } from '@/lib/constants'
 import { getTechniqueRingColor } from '@/lib/techniqueConfig'
@@ -135,18 +135,27 @@ export const ConcentricRings = memo(function ConcentricRings({
     transform: `translate(${CENTER}px, ${CENTER}px) scale(${scale}) translate(${-CENTER}px, ${-CENTER}px)`,
     transition: breathTransition,
   })
+  const ariaLabel = phase
+    ? `Breathing visualization: ${phase.replace('_', ' ')} phase`
+    : 'Breathing visualization: ready'
+  const interactiveAriaLabel = `${ariaLabel}. Activate repeatedly to toggle alternate visual.`
+  const handleKeyDown = useCallback((event: KeyboardEvent<SVGSVGElement>) => {
+    if (!onClick) return
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      onClick()
+    }
+  }, [onClick])
 
   return (
     <svg
       viewBox={`0 0 ${VIEW_SIZE} ${VIEW_SIZE}`}
-      role="img"
-      aria-label={
-        phase
-          ? `Breathing visualization: ${phase.replace('_', ' ')} phase`
-          : 'Breathing visualization: ready'
-      }
+      role={onClick ? 'button' : 'img'}
+      tabIndex={onClick ? 0 : undefined}
+      aria-label={onClick ? interactiveAriaLabel : ariaLabel}
       className={cn('text-bw', className)}
       onClick={onClick}
+      onKeyDown={handleKeyDown}
       data-testid="concentric-rings"
     >
       <defs>

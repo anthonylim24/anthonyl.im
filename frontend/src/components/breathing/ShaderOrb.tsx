@@ -1,4 +1,4 @@
-import { useRef, useMemo } from 'react'
+import { useCallback, useRef, useMemo, type KeyboardEvent } from 'react'
 import type { BreathPhase, TechniqueId } from '@/lib/constants'
 import { getTechniqueRingColor } from '@/lib/techniqueConfig'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
@@ -54,16 +54,26 @@ export function ShaderOrb({
   const ariaLabel = phase
     ? `Breathing visualization: ${phase.replace('_', ' ')} phase`
     : 'Breathing visualization: ready'
+  const interactiveAriaLabel = `${ariaLabel}. Activate repeatedly to toggle alternate visual.`
+  const handleKeyDown = useCallback((event: KeyboardEvent) => {
+    if (!onClick) return
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      onClick()
+    }
+  }, [onClick])
 
   // Fallback: reduced-motion + inactive → static div; no WebGL2 or GL error → SVG ConcentricRings
   if (reducedMotion && !isActive) {
     return (
       <div
-        role="img"
-        aria-label={ariaLabel}
+        role={onClick ? 'button' : 'img'}
+        tabIndex={onClick ? 0 : undefined}
+        aria-label={onClick ? interactiveAriaLabel : ariaLabel}
         className={cn('rounded-full', className)}
         style={{ background: ringColors.primary, opacity: 0.3 }}
         onClick={onClick}
+        onKeyDown={handleKeyDown}
         data-testid="concentric-rings"
       />
     )
@@ -85,10 +95,12 @@ export function ShaderOrb({
   return (
     <canvas
       ref={canvasRef}
-      role="img"
-      aria-label={ariaLabel}
+      role={onClick ? 'button' : 'img'}
+      tabIndex={onClick ? 0 : undefined}
+      aria-label={onClick ? interactiveAriaLabel : ariaLabel}
       className={cn('w-full h-full', className)}
       onClick={onClick}
+      onKeyDown={handleKeyDown}
       data-testid="concentric-rings"
       style={{ touchAction: 'manipulation' }}
     />

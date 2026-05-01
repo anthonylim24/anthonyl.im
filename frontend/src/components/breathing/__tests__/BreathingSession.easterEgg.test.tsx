@@ -75,6 +75,19 @@ describe('BreathingSession easter egg', () => {
     expect(screen.getByTestId('kirby-easter-egg')).toBeTruthy()
   })
 
+  it('shows KirbyEasterEgg after 5 keyboard activations on rings', async () => {
+    let t = 0
+    vi.spyOn(Date, 'now').mockImplementation(() => (t += 100))
+
+    render(<BreathingSession config={CONFIG} />)
+    const rings = screen.getByRole('button', { name: /breathing visualization/i })
+    rings.focus()
+    for (let i = 0; i < 5; i++) {
+      await userEvent.keyboard('{Enter}')
+    }
+    expect(screen.getByTestId('kirby-easter-egg')).toBeTruthy()
+  })
+
   it('hides KirbyEasterEgg after a second set of 5 rapid taps', async () => {
     let t = 0
     vi.spyOn(Date, 'now').mockImplementation(() => (t += 100))

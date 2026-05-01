@@ -301,7 +301,13 @@ export function BreathingSession({
           }}
         >
           {kirbyMode ? (
-            <div className="w-full h-full flex items-center justify-center relative" onClick={handleRingsClick} data-testid="concentric-rings">
+            <button
+              type="button"
+              className="w-full h-full flex items-center justify-center relative appearance-none border-0 bg-transparent p-0"
+              onClick={handleRingsClick}
+              aria-label="Breathing visualization. Activate repeatedly to toggle alternate visual."
+              data-testid="concentric-rings"
+            >
               {/* Radial glow behind Kirby that pulses with breath —
                   uses transform + opacity (both GPU-composited) instead of
                   rebuilding gradient strings every frame */}
@@ -315,7 +321,7 @@ export function BreathingSession({
                 }}
               />
               <KirbyCharacter size={200} puffAmount={amplitude} />
-            </div>
+            </button>
           ) : (
             <ShaderOrb
               phase={session?.currentPhase ?? null}
