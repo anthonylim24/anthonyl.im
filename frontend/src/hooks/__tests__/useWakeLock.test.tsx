@@ -4,6 +4,8 @@ import { useWakeLock } from '../useWakeLock'
 
 type WakeLockMock = WakeLockSentinel & {
   release: ReturnType<typeof vi.fn>
+  addEventListener: ReturnType<typeof vi.fn>
+  removeEventListener: ReturnType<typeof vi.fn>
   emitRelease: () => void
 }
 
@@ -82,6 +84,28 @@ describe('useWakeLock', () => {
 
     unmount()
 
+    expect(lock.release).toHaveBeenCalledTimes(1)
+  })
+
+  it('removes the release listener before intentionally releasing on unmount', async () => {
+    const lock = createWakeLock()
+    const request = vi.fn().mockResolvedValue(lock)
+    installWakeLock(request)
+
+    const { unmount } = renderHook(() => useWakeLock(true))
+
+    await waitFor(() => expect(lock.addEventListener).toHaveBeenCalledWith(
+      'release',
+      expect.any(Function)
+    ))
+
+    const releaseListener = lock.addEventListener.mock.calls.find(
+      ([type]) => type === 'release'
+    )?.[1]
+
+    unmount()
+
+    expect(lock.removeEventListener).toHaveBeenCalledWith('release', releaseListener)
     expect(lock.release).toHaveBeenCalledTimes(1)
   })
 

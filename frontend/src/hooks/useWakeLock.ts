@@ -13,10 +13,15 @@ export function useWakeLock(enabled: boolean) {
     let disposed = false
     let requestVersion = 0
     let acquiring = false
+    let releaseListener: (() => void) | null = null
 
     const releaseCurrent = () => {
       const currentLock = lockRef.current
       lockRef.current = null
+      if (currentLock && releaseListener) {
+        currentLock.removeEventListener('release', releaseListener)
+        releaseListener = null
+      }
       currentLock?.release().catch(() => {})
     }
 
@@ -35,14 +40,16 @@ export function useWakeLock(enabled: boolean) {
 
         releaseCurrent()
         lockRef.current = lock
-        lock.addEventListener('release', () => {
+        releaseListener = () => {
           if (lockRef.current === lock) {
             lockRef.current = null
+            releaseListener = null
             if (!disposed && document.visibilityState === 'visible') {
               void acquire()
             }
           }
-        })
+        }
+        lock.addEventListener('release', releaseListener)
       } catch {
         // Wake lock request failed (e.g. low battery, tab hidden)
       } finally {
