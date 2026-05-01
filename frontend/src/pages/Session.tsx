@@ -408,10 +408,17 @@ export function Session() {
   }
 
   return (
-    <motion.div variants={stagger} initial="hidden" animate="show">
+    <>
       {/* ═══ MOBILE LAYOUT ═══════════════════════════════ */}
-      <div className="md:hidden flex h-[calc(100dvh-4rem-3rem)] flex-col overflow-hidden">
-        <div className="flex-1 overflow-y-auto no-scrollbar pb-4">
+      <div
+        className="md:hidden flex h-[calc(100dvh-4rem-3rem)] flex-col overflow-hidden"
+      >
+        <motion.div
+          variants={stagger}
+          initial="hidden"
+          animate="show"
+          className="flex-1 overflow-y-auto no-scrollbar pb-4"
+        >
           {/* Back button */}
           <motion.button
             variants={fadeUp}
@@ -629,10 +636,15 @@ export function Session() {
             Est. {formatTime(estimatedDuration)}
           </span>
         </motion.div>
-        </div>
+        </motion.div>
 
         {/* Pinned CTA */}
-        <motion.div variants={fadeUp} className="shrink-0 border-t border-bw-border bg-bw-canvas pt-3 pb-1">
+        <motion.div
+          variants={fadeUp}
+          initial="hidden"
+          animate="show"
+          className="shrink-0 border-t border-bw-border bg-bw-canvas pt-3 pb-1"
+        >
           {startSafetyHelpText ? (
             <p
               id="mobile-start-safety-help"
@@ -654,8 +666,15 @@ export function Session() {
       </div>
 
       {/* ═══ DESKTOP LAYOUT ══════════════════════════════ */}
-      <div className="hidden md:flex md:h-[calc(100dvh-4rem-5rem)] md:flex-col max-w-2xl mx-auto">
-        <div className="flex-1 space-y-8 overflow-y-auto no-scrollbar pb-4">
+      <div
+        className="hidden md:flex md:h-[calc(100dvh-4rem-5rem)] md:flex-col max-w-2xl mx-auto"
+      >
+        <motion.div
+          variants={stagger}
+          initial="hidden"
+          animate="show"
+          className="flex-1 space-y-8 overflow-y-auto no-scrollbar pb-4"
+        >
           {/* Header */}
           <motion.div variants={fadeUp}>
             <h1 className="font-display text-4xl font-semibold text-bw leading-none">
@@ -861,10 +880,15 @@ export function Session() {
           </div>
         </motion.div>
 
-        </div>
+        </motion.div>
 
         {/* Pinned Start Button */}
-        <motion.div variants={fadeUp} className="shrink-0 border-t border-bw-border bg-bw-canvas pt-3 pb-1">
+        <motion.div
+          variants={fadeUp}
+          initial="hidden"
+          animate="show"
+          className="shrink-0 border-t border-bw-border bg-bw-canvas pt-3 pb-1"
+        >
           {startSafetyHelpText ? (
             <p
               id="desktop-start-safety-help"
@@ -885,6 +909,6 @@ export function Session() {
           </button>
         </motion.div>
       </div>
-    </motion.div>
+    </>
   )
 }
