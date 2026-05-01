@@ -46,7 +46,7 @@ export function Header() {
               to="/breathwork"
               onPointerEnter={() => preloadBreathworkRoute('/breathwork')}
               onFocus={() => preloadBreathworkRoute('/breathwork')}
-              className="flex items-center gap-2.5 mr-8 group"
+              className="mr-8 flex min-h-11 items-center gap-2.5 group"
             >
               <span className="font-display text-xl font-semibold text-bw leading-none">
                 BreathFlow
@@ -63,7 +63,7 @@ export function Header() {
                   onPointerEnter={() => preloadBreathworkRoute(path)}
                   onFocus={() => preloadBreathworkRoute(path)}
                   className={cn(
-                    'flex items-center gap-2 px-4 py-2 text-[10px] font-mono font-medium tracking-[0.07em] uppercase transition-colors duration-300',
+                    'flex min-h-11 items-center gap-2 px-4 py-2 text-[10px] font-mono font-medium tracking-[0.07em] uppercase transition-colors duration-300',
                     isActive(path)
                       ? 'text-bw'
                       : 'text-bw-secondary hover:text-bw'
@@ -83,7 +83,7 @@ export function Header() {
                 <SignInButton mode="modal">
                   <button
                     type="button"
-                    className="px-4 py-2 rounded-lg text-sm font-semibold text-bw-secondary hover:text-bw hover:bg-bw-hover transition-all duration-300"
+                    className="min-h-11 min-w-11 rounded-lg px-4 py-2 text-sm font-semibold text-bw-secondary hover:text-bw hover:bg-bw-hover transition-all duration-300"
                   >
                     Sign In
                   </button>
@@ -93,7 +93,7 @@ export function Header() {
                 <UserButton
                   appearance={{
                     elements: {
-                      avatarBox: 'h-8 w-8',
+                      avatarBox: 'h-11 w-11',
                     },
                   }}
                 />
