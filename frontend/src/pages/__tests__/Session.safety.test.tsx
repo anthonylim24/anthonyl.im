@@ -21,7 +21,9 @@ vi.mock('@/hooks/useViewTransition', () => ({
 
 vi.mock('@/components/breathing/BreathingSession', () => ({
   BreathingSession: ({ config }: { config: SessionConfig }) => (
-    <div data-testid="active-session">{config.techniqueId}</div>
+    <div data-testid="active-session">
+      {config.techniqueId}:{config.rounds}
+    </div>
   ),
 }))
 
@@ -66,7 +68,7 @@ describe('Session safety gates', () => {
 
     await user.click(enabledBeginButtons[0])
     expect(screen.getByTestId('active-session')).toHaveTextContent(
-      TECHNIQUE_IDS.CO2_TOLERANCE
+      `${TECHNIQUE_IDS.CO2_TOLERANCE}:8`
     )
   })
 
@@ -83,7 +85,17 @@ describe('Session safety gates', () => {
 
     await user.click(beginButtons[0])
     expect(screen.getByTestId('active-session')).toHaveTextContent(
-      TECHNIQUE_IDS.RESONANCE_BREATHING
+      `${TECHNIQUE_IDS.RESONANCE_BREATHING}:30`
+    )
+  })
+
+  it('hydrates the round count from a valid recommendation link', async () => {
+    const user = userEvent.setup()
+    renderSession(`/breathwork/session?technique=${TECHNIQUE_IDS.RESONANCE_BREATHING}&rounds=12`)
+
+    await user.click(screen.getAllByRole('button', { name: /begin/i })[0])
+    expect(screen.getByTestId('active-session')).toHaveTextContent(
+      `${TECHNIQUE_IDS.RESONANCE_BREATHING}:12`
     )
   })
 })

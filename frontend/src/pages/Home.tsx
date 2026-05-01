@@ -1,17 +1,30 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useViewTransitionNavigate } from '@/hooks/useViewTransition'
 import { motion } from 'motion/react'
 import { useHistoryStore } from '@/stores/historyStore'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { getLevelForXP, getXPForLevel, getLevelTitle } from '@/lib/gamification'
-import { breathingProtocols, calculateSessionDuration, getProtocolCatalog } from '@/lib/breathingProtocols'
-import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
-import { formatTime } from '@/lib/utils'
+import { breathingProtocols, getProtocolCatalog } from '@/lib/breathingProtocols'
+import {
+  buildProtocolSessionPath,
+  getDefaultProtocolGoal,
+  getProtocolRecommendation,
+  protocolGoalOptions,
+  sessionWindowOptions,
+  type ProtocolGoal,
+  type SessionWindow,
+} from '@/lib/protocolRecommendations'
+import { formatTime, cn } from '@/lib/utils'
 import { TechniqueGeometryIcon } from '@/components/ui/TechniqueGeometryIcon'
 import {
   ChevronRight,
   ArrowRight,
   Play,
+  Wind,
+  Moon,
+  Target,
+  HeartPulse,
+  Zap,
 } from 'lucide-react'
 import { useHaptics } from '@/hooks/useHaptics'
 
@@ -28,6 +41,14 @@ const fadeUp = {
   hidden: { opacity: 0, y: 8 },
   show: { opacity: 1, y: 0, transition: motionTransition },
 }
+
+const goalIcons = {
+  calm: Wind,
+  sleep: Moon,
+  focus: Target,
+  recovery: HeartPulse,
+  performance: Zap,
+} satisfies Record<ProtocolGoal, typeof Wind>
 
 /* ── Helpers ───────────────────────────────────────── */
 
@@ -50,20 +71,15 @@ function getStreakMessage(streak: number, dailyGoalMet: boolean): string {
   return 'Ready for today\'s session?'
 }
 
-function getSuggestedTechnique(isNewUser: boolean, dailyGoalMet: boolean): TechniqueId {
-  const hour = new Date().getHours()
-
-  if (isNewUser) return TECHNIQUE_IDS.CYCLIC_SIGHING
-  if (hour >= 21 || hour < 5) return TECHNIQUE_IDS.FOUR_SEVEN_EIGHT
-  if (hour >= 5 && hour < 11) return TECHNIQUE_IDS.RESONANCE_BREATHING
-  if (dailyGoalMet) return TECHNIQUE_IDS.EXTENDED_EXHALE
-  return TECHNIQUE_IDS.CYCLIC_SIGHING
-}
-
 /* ── Component ─────────────────────────────────────── */
 
 export function Home() {
   const navigate = useViewTransitionNavigate()
+  const currentHour = useMemo(() => new Date().getHours(), [])
+  const [selectedGoal, setSelectedGoal] = useState<ProtocolGoal>(() =>
+    getDefaultProtocolGoal(currentHour)
+  )
+  const [selectedWindow, setSelectedWindow] = useState<SessionWindow>('standard')
   const { sessions, getStreak } = useHistoryStore()
   const { xp, dailySessionCount } = useGamificationStore()
 
@@ -86,11 +102,22 @@ export function Home() {
   const { trigger: haptic } = useHaptics()
   const isNewUser = sessions.length === 0
   const protocols = useMemo(() => getProtocolCatalog(), [])
-  const suggestedProtocol = breathingProtocols[getSuggestedTechnique(isNewUser, dailyGoalMet)]
-  const suggestedDuration = calculateSessionDuration({
-    techniqueId: suggestedProtocol.id,
-    rounds: suggestedProtocol.defaultRounds,
-  })
+  const recommendation = useMemo(
+    () => getProtocolRecommendation({
+      goal: selectedGoal,
+      sessionWindow: selectedWindow,
+      isNewUser,
+      dailyGoalMet,
+      currentHour,
+    }),
+    [currentHour, dailyGoalMet, isNewUser, selectedGoal, selectedWindow]
+  )
+  const suggestedProtocol = recommendation.primary.protocol
+  const suggestedDuration = recommendation.primary.estimatedDuration
+  const suggestedPath = buildProtocolSessionPath(
+    suggestedProtocol.id,
+    recommendation.primary.rounds
+  )
 
   return (
     <motion.div
@@ -123,7 +150,7 @@ export function Home() {
               Your first session takes about 5 minutes
             </p>
             <button
-              onClick={() => { haptic('success'); navigate(`/breathwork/session?technique=${suggestedProtocol.id}`) }}
+              onClick={() => { haptic('success'); navigate(suggestedPath) }}
               className="w-full flex items-center justify-center gap-2.5 border border-bw-accent bg-bw-accent py-4 font-medium text-bw-accent-foreground text-sm transition-all hover:opacity-90"
             >
               <Play className="h-4 w-4" />
@@ -143,7 +170,7 @@ export function Home() {
           {/* Desktop welcome */}
           <motion.div variants={fadeUp} className="hidden md:block pb-16 border-b border-bw-border">
             <button
-              onClick={() => { haptic('success'); navigate(`/breathwork/session?technique=${suggestedProtocol.id}`) }}
+              onClick={() => { haptic('success'); navigate(suggestedPath) }}
               className="flex items-center gap-3 border border-bw-accent bg-bw-accent px-8 py-4 font-medium text-bw-accent-foreground text-sm transition-all hover:opacity-90"
             >
               <Play className="h-4 w-4" />
@@ -249,36 +276,137 @@ export function Home() {
         </>
       )}
 
-      {/* ── Suggested Protocol ─────────────────────────── */}
-      <motion.div variants={fadeUp} className="pt-3 md:pt-8">
-        <button
-          onClick={() => { haptic('light'); navigate(`/breathwork/session?technique=${suggestedProtocol.id}`) }}
-          className="w-full border-y border-bw-border py-5 text-left group hover:bg-bw-hover transition-colors duration-200"
-        >
-          <div className="flex items-center gap-4">
-            <div className="h-10 w-10 flex items-center justify-center shrink-0 border border-bw-border">
-              <TechniqueGeometryIcon techniqueId={suggestedProtocol.id} className="text-bw-accent" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[10px] text-bw-secondary font-medium tracking-[0.07em] uppercase">
-                Suggested now
-              </div>
+      {/* ── Protocol Lab ───────────────────────────────── */}
+      <motion.section variants={fadeUp} className="pt-3 md:pt-8" aria-labelledby="protocol-lab-heading">
+        <div className="border-y border-bw-border py-5 md:py-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 id="protocol-lab-heading" className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary">
+                Protocol Lab
+              </h2>
               <div className="font-display text-2xl md:text-3xl font-semibold text-bw mt-1 leading-none">
                 {suggestedProtocol.name}
               </div>
-              <p className="text-xs text-bw-tertiary mt-1 line-clamp-2">
-                {suggestedProtocol.purpose}
-              </p>
-              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
-                <span>{suggestedProtocol.evidence}</span>
-                <span>{formatTime(suggestedDuration)}</span>
-                <span>{suggestedProtocol.intensity}</span>
+            </div>
+            <div className="text-right">
+              <div className="font-mono text-sm text-bw tabular-nums">
+                {formatTime(suggestedDuration)}
+              </div>
+              <div className="text-[10px] text-bw-tertiary font-medium uppercase tracking-[0.07em] mt-1">
+                {recommendation.primary.rounds} rounds
               </div>
             </div>
-            <ArrowRight className="h-4 w-4 text-bw-tertiary shrink-0 group-hover:text-bw group-hover:translate-x-0.5 transition-all duration-200" />
           </div>
-        </button>
-      </motion.div>
+
+          <div className="mt-5">
+            <div role="group" aria-label="Breathing goal" className="grid grid-cols-5 gap-1.5 sm:flex sm:w-max sm:gap-2">
+              {protocolGoalOptions.map((option) => {
+                const Icon = goalIcons[option.id]
+                const selected = selectedGoal === option.id
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => {
+                      haptic('selection')
+                      setSelectedGoal(option.id)
+                    }}
+                    className={cn(
+                      'flex min-h-12 flex-col items-center justify-center gap-1 border px-1 text-[10px] font-medium transition-colors duration-200 sm:min-h-11 sm:flex-row sm:gap-2 sm:px-3 sm:text-xs',
+                      selected
+                        ? 'border-bw-accent bg-bw-active text-bw'
+                        : 'border-bw-border text-bw-tertiary hover:bg-bw-hover hover:text-bw-secondary'
+                    )}
+                  >
+                    <Icon className={cn('h-3.5 w-3.5', selected ? 'text-bw-accent' : 'text-bw-tertiary')} />
+                    <span>{option.shortLabel}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div role="group" aria-label="Session length" className="mt-3 grid grid-cols-3 border border-bw-border">
+            {sessionWindowOptions.map((option) => {
+              const selected = selectedWindow === option.id
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => {
+                    haptic('selection')
+                    setSelectedWindow(option.id)
+                  }}
+                  className={cn(
+                    'min-h-11 border-r border-bw-border px-3 text-left transition-colors duration-200 last:border-r-0',
+                    selected ? 'bg-bw-active text-bw' : 'text-bw-tertiary hover:bg-bw-hover hover:text-bw-secondary'
+                  )}
+                >
+                  <span className="block text-xs font-medium">{option.label}</span>
+                  <span className="block text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
+                    {option.shortLabel}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+
+          <button
+            onClick={() => { haptic('light'); navigate(suggestedPath) }}
+            aria-label={`Start ${suggestedProtocol.name} for ${formatTime(suggestedDuration)}`}
+            className="group mt-5 w-full border-t border-bw-border pt-5 text-left transition-colors duration-200 hover:bg-bw-hover"
+          >
+            <div className="flex items-center gap-4">
+              <div className="h-10 w-10 flex items-center justify-center shrink-0 border border-bw-border">
+                <TechniqueGeometryIcon techniqueId={suggestedProtocol.id} className="text-bw-accent" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-bw-tertiary line-clamp-2">
+                  {suggestedProtocol.purpose}
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
+                  <span>{suggestedProtocol.evidence}</span>
+                  <span>{suggestedProtocol.intensity}</span>
+                  {suggestedProtocol.safetyChecklist?.length ? <span>Safety gated</span> : null}
+                </div>
+              </div>
+              <ArrowRight className="h-4 w-4 text-bw-tertiary shrink-0 group-hover:text-bw group-hover:translate-x-0.5 transition-all duration-200" />
+            </div>
+            <div className="mt-4 flex flex-wrap gap-1.5">
+              {recommendation.primary.reasons.map((reason) => (
+                <span key={reason} className="border border-bw-border px-2 py-1 text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
+                  {reason}
+                </span>
+              ))}
+            </div>
+          </button>
+
+          <div className="mt-5 grid gap-2 sm:grid-cols-2">
+            {recommendation.alternatives.map((option) => (
+              <button
+                key={option.protocol.id}
+                type="button"
+                aria-label={`Start ${option.protocol.name} for ${formatTime(option.estimatedDuration)}`}
+                onClick={() => {
+                  haptic('selection')
+                  navigate(buildProtocolSessionPath(option.protocol.id, option.rounds))
+                }}
+                className="flex min-h-11 items-center justify-between gap-3 border-t border-bw-border py-3 text-left transition-colors duration-200 hover:bg-bw-hover sm:border sm:px-3"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-xs font-medium text-bw">{option.protocol.shortName}</span>
+                  <span className="block text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
+                    {formatTime(option.estimatedDuration)} · {option.protocol.evidenceLevel}
+                  </span>
+                </span>
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-bw-tertiary" />
+              </button>
+            ))}
+          </div>
+        </div>
+      </motion.section>
 
       {/* ── Techniques ──────────────────────────────────── */}
       <motion.div variants={fadeUp} className="pt-10 md:pt-16" id="techniques-section">

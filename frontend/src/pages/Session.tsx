@@ -22,6 +22,14 @@ const spring = { type: 'spring' as const, stiffness: 300, damping: 30, mass: 1 }
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } }
 const fadeUp = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: motionTransition } }
 
+function getInitialRounds(requestedRounds: string | null, techniqueId: TechniqueId): number {
+  const parsedRounds = Number(requestedRounds)
+  if (Number.isInteger(parsedRounds) && parsedRounds >= 1 && parsedRounds <= 40) {
+    return parsedRounds
+  }
+  return breathingProtocols[techniqueId].defaultRounds
+}
+
 interface ProtocolSafetyGateProps {
   protocol: BreathingProtocol
   acknowledged: boolean
@@ -102,14 +110,15 @@ export function Session() {
   const navigate = useViewTransitionNavigate()
   const [searchParams] = useSearchParams()
   const requestedTechnique = searchParams.get('technique')
+  const requestedRounds = searchParams.get('rounds')
   const initialTechnique = isTechniqueId(requestedTechnique)
     ? requestedTechnique
     : TECHNIQUE_IDS.CYCLIC_SIGHING
 
   const [selectedTechnique, setSelectedTechnique] =
     useState<TechniqueId>(initialTechnique)
-  const [rounds, setRounds] = useState(
-    breathingProtocols[initialTechnique].defaultRounds
+  const [rounds, setRounds] = useState(() =>
+    getInitialRounds(requestedRounds, initialTechnique)
   )
   const [sessionStarted, setSessionStarted] = useState(false)
   const [scienceExpanded, setScienceExpanded] = useState(false)
