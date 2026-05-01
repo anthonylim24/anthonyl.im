@@ -107,11 +107,16 @@ describe('Session safety gates', () => {
     const user = userEvent.setup()
     renderSession(`/breathwork/session?technique=${TECHNIQUE_IDS.RESONANCE_BREATHING}&rounds=12`)
 
+    expect(screen.getAllByRole('group', { name: /technique choices/i }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('group', { name: /session rounds, 12 selected/i }).length).toBeGreaterThan(0)
+
     const decreaseButtons = screen.getAllByRole('button', { name: /decrease rounds/i })
     const increaseButtons = screen.getAllByRole('button', { name: /increase rounds/i })
 
     expect(decreaseButtons.length).toBeGreaterThan(0)
     expect(increaseButtons.length).toBeGreaterThan(0)
+    expect(decreaseButtons[0]).toHaveAccessibleName(/currently 12 rounds selected/i)
+    expect(increaseButtons[0]).toHaveAccessibleName(/currently 12 rounds selected/i)
     expect(decreaseButtons[0]).toHaveClass('h-11', 'w-11')
     expect(increaseButtons[0]).toHaveClass('h-11', 'w-11')
 
@@ -123,6 +128,8 @@ describe('Session safety gates', () => {
     expect(selectedTechniqueButtons[0]).toHaveClass('min-h-11')
 
     await user.click(decreaseButtons[0])
+    expect(screen.getAllByRole('group', { name: /session rounds, 11 selected/i }).length).toBeGreaterThan(0)
+
     await user.click(screen.getAllByRole('button', { name: /begin/i })[0])
 
     expect(screen.getByTestId('active-session')).toHaveTextContent(

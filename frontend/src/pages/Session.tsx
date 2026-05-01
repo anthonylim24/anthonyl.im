@@ -276,7 +276,12 @@ export function Session() {
 
         {/* Technique rail */}
         <motion.div variants={fadeUp} className="-mx-5 mb-3 overflow-x-auto no-scrollbar">
-          <div className="flex gap-2 px-5" style={{ width: 'max-content' }}>
+          <div
+            className="flex gap-2 px-5"
+            style={{ width: 'max-content' }}
+            role="group"
+            aria-label="Technique choices"
+          >
             {protocols.map((p) => {
               const isSelected = selectedTechnique === p.id
               return (
@@ -382,14 +387,19 @@ export function Session() {
         </motion.div>
 
         {/* Rounds */}
-        <motion.div variants={fadeUp} className="flex min-h-36 flex-1 flex-col items-center justify-center gap-4 pb-24">
+        <motion.div
+          variants={fadeUp}
+          className="flex min-h-36 flex-1 flex-col items-center justify-center gap-4 pb-24"
+          role="group"
+          aria-label={`Session rounds, ${rounds} selected`}
+        >
           <span className="text-[10px] font-medium text-bw-secondary tracking-[0.07em] uppercase">Rounds</span>
           <div className="flex items-center gap-8">
             <motion.button
               whileTap={tap(0.9)}
               transition={spring}
               type="button"
-              aria-label="Decrease rounds"
+              aria-label={`Decrease rounds, currently ${rounds} rounds selected`}
               onClick={() => { haptic(15); setRounds((r) => Math.max(1, r - 1)) }}
               disabled={rounds <= 1}
               className="h-11 w-11 border border-bw-border hover:bg-bw-hover disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all text-bw"
@@ -403,7 +413,7 @@ export function Session() {
               whileTap={tap(0.9)}
               transition={spring}
               type="button"
-              aria-label="Increase rounds"
+              aria-label={`Increase rounds, currently ${rounds} rounds selected`}
               onClick={() => { haptic(15); setRounds((r) => Math.min(40, r + 1)) }}
               disabled={rounds >= 40}
               className="h-11 w-11 border border-bw-border hover:bg-bw-hover disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all text-bw"
@@ -443,7 +453,11 @@ export function Session() {
           <h2 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary mb-4">
             Technique
           </h2>
-          <div className="divide-y divide-bw-border border-t border-bw-border">
+          <div
+            className="divide-y divide-bw-border border-t border-bw-border"
+            role="group"
+            aria-label="Technique choices"
+          >
             {protocols.map((p) => {
               const isSelected = selectedTechnique === p.id
 
@@ -564,12 +578,16 @@ export function Session() {
             <label className="text-[10px] font-medium text-bw-secondary tracking-[0.07em] uppercase">
               Number of Rounds
             </label>
-            <div className="flex items-center justify-center gap-10">
+            <div
+              className="flex items-center justify-center gap-10"
+              role="group"
+              aria-label={`Session rounds, ${rounds} selected`}
+            >
               <motion.button
                 whileTap={tap(0.95)}
                 transition={spring}
                 type="button"
-                aria-label="Decrease rounds"
+                aria-label={`Decrease rounds, currently ${rounds} rounds selected`}
                 onClick={() => { haptic(15); setRounds((r) => Math.max(1, r - 1)) }}
                 disabled={rounds <= 1}
                 className="h-12 w-12 border border-bw-border hover:bg-bw-hover disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 text-bw"
@@ -588,7 +606,7 @@ export function Session() {
                 whileTap={tap(0.95)}
                 transition={spring}
                 type="button"
-                aria-label="Increase rounds"
+                aria-label={`Increase rounds, currently ${rounds} rounds selected`}
                 onClick={() => { haptic(15); setRounds((r) => Math.min(40, r + 1)) }}
                 disabled={rounds >= 40}
                 className="h-12 w-12 border border-bw-border hover:bg-bw-hover disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 text-bw"
@@ -598,7 +616,7 @@ export function Session() {
             </div>
 
             <div className="flex items-center justify-center gap-2 py-3 border-t border-bw-border">
-              <Clock className="h-3.5 w-3.5 text-bw-tertiary" />
+              <Clock className="h-3.5 w-3.5 text-bw-tertiary" aria-hidden="true" />
               <span className="text-xs text-bw-tertiary">Estimated</span>
               <span className="font-mono font-medium text-sm text-bw tabular-nums">
                 {formatTime(estimatedDuration)}
