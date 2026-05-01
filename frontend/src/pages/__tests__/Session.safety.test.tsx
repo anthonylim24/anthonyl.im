@@ -1,14 +1,16 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { Session } from '../Session'
 import { TECHNIQUE_IDS } from '@/lib/constants'
 import type { SessionConfig } from '@/lib/breathingProtocols'
+import type { CompletedSession } from '@/stores/historyStore'
 
 const mocks = vi.hoisted(() => ({
   haptic: vi.fn(),
   navigate: vi.fn(),
+  sessions: [] as CompletedSession[],
 }))
 
 vi.mock('@/hooks/useHaptics', () => ({
@@ -17,6 +19,12 @@ vi.mock('@/hooks/useHaptics', () => ({
 
 vi.mock('@/hooks/useViewTransition', () => ({
   useViewTransitionNavigate: () => mocks.navigate,
+}))
+
+vi.mock('@/stores/historyStore', () => ({
+  useHistoryStore: () => ({
+    sessions: mocks.sessions,
+  }),
 }))
 
 vi.mock('@/components/breathing/BreathingSession', () => ({
@@ -37,8 +45,13 @@ function renderSession(path: string) {
   )
 }
 
+beforeEach(() => {
+  mocks.sessions = []
+})
+
 afterEach(() => {
   vi.clearAllMocks()
+  mocks.sessions = []
 })
 
 describe('Session safety gates', () => {
@@ -85,6 +98,41 @@ describe('Session safety gates', () => {
     expect(screen.getByTestId('active-session')).toHaveTextContent(
       `${TECHNIQUE_IDS.CO2_TOLERANCE}:8`
     )
+  })
+
+  it('blocks advanced protocols during the recovery window after a recent advanced set', async () => {
+    const user = userEvent.setup()
+    mocks.sessions = [
+      {
+        id: 'recent-power',
+        techniqueId: TECHNIQUE_IDS.POWER_BREATHING,
+        date: new Date(Date.now() - 30_000).toISOString(),
+        durationSeconds: 120,
+        rounds: 30,
+        holdTimes: [],
+        maxHoldTime: 0,
+        avgHoldTime: 0,
+      },
+    ]
+
+    renderSession(`/breathwork/session?technique=${TECHNIQUE_IDS.CO2_TOLERANCE}`)
+
+    expect(screen.getAllByTestId('advanced-recovery-window')).toHaveLength(2)
+    expect(screen.getAllByText(/wait .* after Power Breathing before another advanced set/i).length).toBeGreaterThan(0)
+
+    const safetyCheckbox = screen.getAllByRole('checkbox', {
+      name: /reviewed the cautions, am in a safe setting/i,
+    })[0]
+    await user.click(safetyCheckbox)
+
+    const beginButtons = screen.getAllByRole('button', { name: /^begin/i })
+    for (const button of beginButtons) {
+      expect(button).toBeDisabled()
+      expect(button).toHaveAccessibleDescription(/recovery window active/i)
+    }
+
+    await user.click(beginButtons[0])
+    expect(screen.queryByTestId('active-session')).not.toBeInTheDocument()
   })
 
   it('lets gentle protocols start without a safety acknowledgement', async () => {
