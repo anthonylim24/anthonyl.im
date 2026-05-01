@@ -11,6 +11,18 @@
   "theme_color": "#F5F2ED",
   "icons": [
     {
+      "src": "/icons/breathflow-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/breathflow-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
       "src": "/favicon-breath.svg",
       "sizes": "any",
       "type": "image/svg+xml",
@@ -25,10 +37,10 @@
       "url": "/breathwork/session?technique=cyclic_sighing&rounds=30",
       "icons": [
         {
-          "src": "/favicon-breath.svg",
-          "sizes": "any",
-          "type": "image/svg+xml",
-          "purpose": "any maskable"
+          "src": "/icons/breathflow-192.png",
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "any"
         }
       ]
     },
@@ -39,10 +51,10 @@
       "url": "/breathwork/session?technique=four_seven_eight&rounds=16",
       "icons": [
         {
-          "src": "/favicon-breath.svg",
-          "sizes": "any",
-          "type": "image/svg+xml",
-          "purpose": "any maskable"
+          "src": "/icons/breathflow-192.png",
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "any"
         }
       ]
     },
@@ -53,10 +65,10 @@
       "url": "/breathwork/progress",
       "icons": [
         {
-          "src": "/favicon-breath.svg",
-          "sizes": "any",
-          "type": "image/svg+xml",
-          "purpose": "any maskable"
+          "src": "/icons/breathflow-192.png",
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "any"
         }
       ]
     }

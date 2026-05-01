@@ -9,7 +9,11 @@ const APP_SHELL = [
   '/site.webmanifest',
   '/favicon-breath.svg',
   '/favicon-chat.svg',
+  '/apple-touch-icon.png',
+  '/icons/breathflow-192.png',
+  '/icons/breathflow-512.png',
   '/robots.txt',
+  '/sitemap.xml',
 ]
 const CACHEABLE_DESTINATIONS = new Set(['script', 'style', 'font', 'image', 'manifest'])
 
