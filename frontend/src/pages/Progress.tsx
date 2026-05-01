@@ -80,6 +80,7 @@ export function Progress() {
               <div className="flex items-center gap-2">
                 <span className="text-xs text-bw-tertiary">Clear all?</span>
                 <button
+                  type="button"
                   aria-label="Confirm clear history"
                   onClick={handleClearHistory}
                   className="min-h-11 min-w-11 px-3 py-2 text-xs font-medium border border-red-400/30 text-red-400 hover:bg-red-500/10 transition-colors duration-300"
@@ -87,6 +88,7 @@ export function Progress() {
                   Yes
                 </button>
                 <button
+                  type="button"
                   aria-label="Cancel clear history"
                   onClick={() => setShowClearConfirm(false)}
                   className="min-h-11 min-w-11 px-3 py-2 text-xs font-medium border border-bw-border text-bw-secondary hover:text-bw transition-colors duration-300"
@@ -96,6 +98,7 @@ export function Progress() {
               </div>
             ) : (
               <button
+                type="button"
                 aria-label="Clear session history"
                 onClick={() => { haptic('error'); setShowClearConfirm(true) }}
                 className="inline-flex min-h-11 min-w-11 items-center justify-center px-3 py-2 text-xs text-bw-tertiary hover:text-red-400 transition-colors duration-300"
@@ -178,6 +181,7 @@ export function Progress() {
             {/* Filter Buttons */}
             <div className="flex gap-4 mb-5 sm:mb-6 border-b border-bw-border pb-3 overflow-x-auto no-scrollbar">
               <button
+                type="button"
                 aria-label="Show all sessions"
                 aria-pressed={filterTechnique === 'all'}
                 onClick={() => { haptic('selection'); setFilterTechnique('all') }}
@@ -192,6 +196,7 @@ export function Progress() {
               </button>
               {protocols.map(({ id, shortName }) => (
                 <button
+                  type="button"
                   key={id}
                   aria-label={`Show ${shortName} sessions`}
                   aria-pressed={filterTechnique === id}

@@ -159,9 +159,10 @@ export function Settings() {
               </p>
               <SignInButton mode="modal">
                 <button
+                  type="button"
                   className="flex min-h-11 items-center gap-2 px-4 py-2.5 text-xs font-medium transition-all duration-300 border border-bw-border hover:bg-bw-hover text-bw"
                 >
-                  <Cloud className="h-3.5 w-3.5" />
+                  <Cloud className="h-3.5 w-3.5" aria-hidden="true" />
                   Sign in to sync
                 </button>
               </SignInButton>
@@ -178,6 +179,7 @@ export function Settings() {
         <h2 className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary mb-4">Appearance</h2>
         <div className="flex gap-3">
           <motion.button
+            type="button"
             whileTap={tap(0.98)}
             transition={motionTransition}
             onClick={() => { haptic('selection'); setTheme('dark') }}
@@ -188,13 +190,14 @@ export function Settings() {
                 : 'border-bw-border text-bw-tertiary hover:text-bw-secondary hover:border-bw-border'
             )}
           >
-            <Moon className="h-3.5 w-3.5" />
+            <Moon className="h-3.5 w-3.5" aria-hidden="true" />
             <span>Dark</span>
             {theme === 'dark' && (
-              <Check className="h-3 w-3 ml-1" />
+              <Check className="h-3 w-3 ml-1" aria-hidden="true" />
             )}
           </motion.button>
           <motion.button
+            type="button"
             whileTap={tap(0.98)}
             transition={motionTransition}
             onClick={() => { haptic('selection'); setTheme('light') }}
@@ -205,10 +208,10 @@ export function Settings() {
                 : 'border-bw-border text-bw-tertiary hover:text-bw-secondary hover:border-bw-border'
             )}
           >
-            <Sun className="h-3.5 w-3.5" />
+            <Sun className="h-3.5 w-3.5" aria-hidden="true" />
             <span>Light</span>
             {theme === 'light' && (
-              <Check className="h-3 w-3 ml-1" />
+              <Check className="h-3 w-3 ml-1" aria-hidden="true" />
             )}
           </motion.button>
         </div>
@@ -341,12 +344,13 @@ export function Settings() {
         <h2 className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary mb-4">Data</h2>
         <div className="divide-y divide-bw-border">
           <motion.button
+            type="button"
             whileTap={tap(0.99)}
             transition={motionTransition}
             onClick={() => { haptic('light'); handleExportData() }}
             className="flex items-center gap-3 w-full py-4 hover:bg-bw-hover transition-all duration-300 text-left"
           >
-            <Download className="h-3.5 w-3.5 text-bw-tertiary" />
+            <Download className="h-3.5 w-3.5 text-bw-tertiary" aria-hidden="true" />
             <div>
               <p className="text-xs font-medium text-bw">Export Data</p>
               <p className="text-[10px] text-bw-tertiary">
@@ -355,6 +359,7 @@ export function Settings() {
             </div>
           </motion.button>
           <motion.button
+            type="button"
             whileTap={tap(0.99)}
             transition={motionTransition}
             onClick={handleClearData}
@@ -370,6 +375,7 @@ export function Settings() {
                 'h-3.5 w-3.5',
                 confirmClear ? 'text-red-400' : 'text-bw-tertiary'
               )}
+              aria-hidden="true"
             />
             <div>
               <p
@@ -389,6 +395,7 @@ export function Settings() {
           </motion.button>
           {confirmClear && (
             <button
+              type="button"
               onClick={() => setConfirmClear(false)}
               className="min-h-11 text-[10px] text-bw-tertiary hover:text-bw-secondary transition-colors py-3"
             >

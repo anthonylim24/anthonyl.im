@@ -73,6 +73,7 @@ export function Header() {
               <SignedOut>
                 <SignInButton mode="modal">
                   <button
+                    type="button"
                     className="px-4 py-2 rounded-lg text-sm font-semibold text-bw-secondary hover:text-bw hover:bg-bw-hover transition-all duration-300"
                   >
                     Sign In
