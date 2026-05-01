@@ -1,4 +1,4 @@
-import { useCallback, useRef, useMemo, type KeyboardEvent } from 'react'
+import { useRef, useMemo } from 'react'
 import type { BreathPhase, TechniqueId } from '@/lib/constants'
 import { getTechniqueRingColor } from '@/lib/techniqueConfig'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
@@ -59,28 +59,39 @@ export function ShaderOrb({
     ? `Breathing visualization: ${phase.replace('_', ' ')} phase`
     : 'Breathing visualization: ready'
   const interactiveAriaLabel = `${ariaLabel}. Activate repeatedly to toggle alternate visual.`
-  const handleKeyDown = useCallback((event: KeyboardEvent) => {
-    if (!onClick) return
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      onClick()
-    }
-  }, [onClick])
 
   // Fallback: reduced-motion + inactive → static div; no WebGL2 or GL error → SVG ConcentricRings
   if (reducedMotion && !isActive) {
-    return (
+    const visual = (
       <div
-        role={onClick ? 'button' : 'img'}
-        tabIndex={onClick ? 0 : undefined}
-        aria-label={onClick ? interactiveAriaLabel : ariaLabel}
-        className={cn('rounded-full', className)}
+        role={onClick ? undefined : 'img'}
+        aria-hidden={onClick ? true : undefined}
+        aria-label={onClick ? undefined : ariaLabel}
+        className={cn('rounded-full', onClick ? 'h-full w-full' : className)}
         style={{ background: ringColors.primary, opacity: 0.3 }}
-        onClick={onClick}
-        onKeyDown={handleKeyDown}
-        data-testid="concentric-rings"
+        data-testid={onClick ? undefined : 'concentric-rings'}
       />
     )
+
+    if (onClick) {
+      return (
+        <button
+          type="button"
+          aria-label={interactiveAriaLabel}
+          className={cn(
+            'flex appearance-none items-center justify-center border-0 bg-transparent p-0',
+            className,
+          )}
+          onClick={onClick}
+          data-testid="concentric-rings"
+          style={{ touchAction: 'manipulation' }}
+        >
+          {visual}
+        </button>
+      )
+    }
+
+    return visual
   }
 
   if (!webgl2 || glFailed) {
@@ -97,15 +108,36 @@ export function ShaderOrb({
     )
   }
 
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        aria-label={interactiveAriaLabel}
+        className={cn(
+          'flex appearance-none items-center justify-center border-0 bg-transparent p-0',
+          className,
+        )}
+        onClick={onClick}
+        data-testid="concentric-rings"
+        style={{ touchAction: 'manipulation' }}
+      >
+        <canvas
+          ref={canvasRef}
+          aria-hidden="true"
+          className="h-full w-full"
+          data-testid="shader-orb-canvas"
+          style={{ pointerEvents: 'none' }}
+        />
+      </button>
+    )
+  }
+
   return (
     <canvas
       ref={canvasRef}
-      role={onClick ? 'button' : 'img'}
-      tabIndex={onClick ? 0 : undefined}
-      aria-label={onClick ? interactiveAriaLabel : ariaLabel}
+      role="img"
+      aria-label={ariaLabel}
       className={cn('w-full h-full', className)}
-      onClick={onClick}
-      onKeyDown={handleKeyDown}
       data-testid="concentric-rings"
       style={{ touchAction: 'manipulation' }}
     />

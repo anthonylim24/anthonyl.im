@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { FluidOrb } from '../FluidOrb'
 import { BREATH_PHASES } from '@/lib/constants'
@@ -36,6 +36,16 @@ describe('FluidOrb', () => {
       <FluidOrb phase={null} amplitude={0.2} isActive={false} className="custom-class" />
     )
     expect(container.querySelector('.custom-class')).toBeTruthy()
+  })
+
+  it('uses a native button for the tappable orb', () => {
+    render(
+      <FluidOrb phase={BREATH_PHASES.INHALE} amplitude={0.8} isActive={true} />
+    )
+
+    const button = screen.getByRole('button', { name: /breathing orb/i })
+    expect(button.tagName).toBe('BUTTON')
+    expect(button).toHaveAttribute('type', 'button')
   })
 
   it('renders the aura SVG when auraMode is true', () => {

@@ -2,48 +2,32 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { TECHNIQUE_IDS } from '@/lib/constants'
-import { ShaderOrb } from '../ShaderOrb'
+import { ConcentricRings } from '../ConcentricRings'
 
-vi.mock('@/hooks/useReducedMotion', () => ({
-  useReducedMotion: () => true,
-}))
-
-vi.mock('@/hooks/useWebGL2', () => ({
-  useWebGL2: () => false,
-}))
-
-vi.mock('@/hooks/useWebGLOrb', () => ({
-  useWebGLOrb: () => false,
-}))
-
-describe('ShaderOrb', () => {
-  it('uses selected theme colors for the reduced-motion static fallback', () => {
+describe('ConcentricRings', () => {
+  it('renders a labeled image when it is not interactive', () => {
     render(
-      <ShaderOrb
+      <ConcentricRings
         phase={null}
-        amplitude={0.2}
+        amplitude={0.3}
         isActive={false}
         techniqueId={TECHNIQUE_IDS.BOX_BREATHING}
-        themeColors={['#3D9088', '#7AD0C6']}
       />
     )
 
-    expect(screen.getByTestId('concentric-rings')).toHaveStyle({
-      background: '#3D9088',
-    })
+    expect(screen.getByRole('img', { name: /breathing visualization: ready/i })).toBeInTheDocument()
   })
 
-  it('uses a native button for interactive reduced-motion fallback', async () => {
+  it('uses a native button for interactive visual toggles', async () => {
     const user = userEvent.setup()
     const onClick = vi.fn()
 
     render(
-      <ShaderOrb
+      <ConcentricRings
         phase={null}
-        amplitude={0.2}
+        amplitude={0.3}
         isActive={false}
         techniqueId={TECHNIQUE_IDS.BOX_BREATHING}
-        themeColors={['#3D9088', '#7AD0C6']}
         onClick={onClick}
       />
     )
