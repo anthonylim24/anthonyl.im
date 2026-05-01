@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mergeUserState, mergeSessionHistory } from '../useCloudSync'
+import { mergeUserState, mergeSessionHistory, normalizeCloudSettings } from '../useCloudSync'
 
 describe('mergeUserState', () => {
   it('takes the higher XP value', () => {
@@ -70,5 +70,30 @@ describe('mergeSessionHistory', () => {
     const result = mergeSessionHistory(local, cloud)
     expect(result[0].id).toBe('new')
     expect(result[1].id).toBe('old')
+  })
+})
+
+describe('normalizeCloudSettings', () => {
+  it('falls back to BreathFlow light defaults for partial cloud settings', () => {
+    expect(normalizeCloudSettings({ soundVolume: 0.8 })).toEqual({
+      theme: 'light',
+      soundEnabled: true,
+      soundVolume: 0.8,
+      hapticsEnabled: true,
+    })
+  })
+
+  it('rejects malformed cloud settings and clamps volume', () => {
+    expect(normalizeCloudSettings({
+      theme: 'system',
+      soundEnabled: 'yes',
+      soundVolume: 2,
+      hapticsEnabled: false,
+    })).toEqual({
+      theme: 'light',
+      soundEnabled: true,
+      soundVolume: 1,
+      hapticsEnabled: false,
+    })
   })
 })
