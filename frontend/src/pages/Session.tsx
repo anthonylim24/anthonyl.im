@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { motion } from 'motion/react'
 import { BreathingSession } from '@/components/breathing/BreathingSession'
 import { BreathPatternStrip } from '@/components/breathing/BreathPatternStrip'
+import { BreathworkSafetyDisclosure } from '@/components/breathing/BreathworkSafetyDisclosure'
 import { CadenceEditor } from '@/components/breathing/CadenceEditor'
 import { clampCadenceDuration } from '@/lib/cadenceDurations'
 import { ProgressiveHoldLadder } from '@/components/breathing/ProgressiveHoldLadder'
@@ -563,6 +564,10 @@ export function Session() {
         ) : null}
 
         <motion.div variants={fadeUp}>
+          <BreathworkSafetyDisclosure compact />
+        </motion.div>
+
+        <motion.div variants={fadeUp}>
           <AdvancedRecoveryNotice status={recoveryStatus} compact />
         </motion.div>
 
@@ -763,6 +768,10 @@ export function Session() {
               </div>
             </div>
           </div>
+        </motion.div>
+
+        <motion.div variants={fadeUp}>
+          <BreathworkSafetyDisclosure />
         </motion.div>
 
         {requiresSafetyCheck ? (

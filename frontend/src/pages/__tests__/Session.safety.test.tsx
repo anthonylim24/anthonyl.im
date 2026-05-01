@@ -140,6 +140,9 @@ describe('Session safety gates', () => {
     renderSession(`/breathwork/session?technique=${TECHNIQUE_IDS.RESONANCE_BREATHING}`)
 
     expect(screen.queryByText('Safety check')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('note', { name: /breathflow safety disclosure/i })).toHaveLength(2)
+    expect(screen.getAllByText(/wellness education, not medical care/i)).toHaveLength(2)
+    expect(screen.getAllByText(/cardiovascular, respiratory, neurological/i)).toHaveLength(2)
 
     const beginButtons = screen.getAllByRole('button', { name: /^begin/i })
     for (const button of beginButtons) {

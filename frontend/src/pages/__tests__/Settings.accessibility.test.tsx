@@ -146,6 +146,17 @@ describe('Settings accessibility', () => {
     expect(tidalPalette).toHaveAccessibleName(/unlocks at level 5/i)
   })
 
+  it('keeps a persistent breathwork safety disclosure available from settings', () => {
+    render(<Settings />)
+
+    expect(
+      screen.getByRole('note', { name: /breathflow safety disclosure/i }),
+    ).toHaveTextContent(/wellness education, not medical care/i)
+    expect(screen.getByRole('note', { name: /breathflow safety disclosure/i })).toHaveTextContent(
+      /consult a clinician before breath holds or forceful breathing/i,
+    )
+  })
+
   it('requires confirmation before clearing all BreathFlow-owned data', async () => {
     const user = userEvent.setup()
     localStorage.setItem(STORAGE_KEYS.SESSION_HISTORY, 'history')
