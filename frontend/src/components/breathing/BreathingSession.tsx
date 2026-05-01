@@ -315,19 +315,19 @@ export function BreathingSession({
     showControls()
   }
 
-  const handlePause = () => {
+  const handlePause = useCallback(() => {
     haptic(40)
     pause()
     setControlsVisible(true)
     clearControlsTimer()
-  }
+  }, [clearControlsTimer, haptic, pause])
 
-  const handleStop = () => {
+  const handleStop = useCallback(() => {
     summaryProcessedRef.current = false
     haptic('error')
     stop()
     onCancel?.()
-  }
+  }, [haptic, onCancel, stop])
 
   const handleRestart = () => {
     summaryProcessedRef.current = false
@@ -344,6 +344,50 @@ export function BreathingSession({
     stop()
     onComplete?.()
   }
+
+  useEffect(() => {
+    if (!isActive || showSummary) return
+
+    const handleSessionKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      const targetTag = target?.tagName
+      const isEditableTarget =
+        target?.isContentEditable ||
+        targetTag === 'INPUT' ||
+        targetTag === 'TEXTAREA' ||
+        targetTag === 'SELECT'
+      const interactiveSelector = [
+        'button',
+        'a',
+        'input',
+        'textarea',
+        'select',
+        '[role="button"]',
+        '[role="link"]',
+        '[role="switch"]',
+        '[role="slider"]',
+      ].join(', ')
+      const isInteractiveTarget =
+        target instanceof Element && Boolean(target.closest(interactiveSelector))
+
+      if (event.defaultPrevented || event.repeat || isEditableTarget || isInteractiveTarget) {
+        return
+      }
+
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        handleStop()
+      }
+
+      if (event.key === ' ') {
+        event.preventDefault()
+        handlePause()
+      }
+    }
+
+    window.addEventListener('keydown', handleSessionKeyDown)
+    return () => window.removeEventListener('keydown', handleSessionKeyDown)
+  }, [handlePause, handleStop, isActive, showSummary])
 
   const controlsDimmed =
     isActive && !isPaused && !controlsVisible && !controlsFocused && !reducedMotion
