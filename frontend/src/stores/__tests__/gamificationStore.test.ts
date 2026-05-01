@@ -60,6 +60,30 @@ describe('gamificationStore', () => {
     setSelectedTheme('aurora')
     expect(useGamificationStore.getState().selectedTheme).toBe('aurora')
   })
+
+  it('resets progress and theme unlock state to defaults', () => {
+    useGamificationStore.setState({
+      xp: 420,
+      earnedBadges: ['first_session'],
+      selectedTheme: 'tidal',
+      dailySessionCount: 3,
+      weeklySessionCount: 5,
+      lastDailyReset: '2026-04-01',
+      lastWeeklyReset: '2026-03-30',
+    })
+
+    useGamificationStore.getState().resetProgress()
+
+    expect(useGamificationStore.getState()).toMatchObject({
+      xp: 0,
+      earnedBadges: [],
+      selectedTheme: 'default',
+      dailySessionCount: 0,
+      weeklySessionCount: 0,
+      lastDailyReset: new Date().toISOString().split('T')[0],
+      lastWeeklyReset: getWeekStart(),
+    })
+  })
 })
 
 function getWeekStart(): string {
