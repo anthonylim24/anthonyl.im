@@ -12,6 +12,7 @@ export function useWakeLock(enabled: boolean) {
 
     let disposed = false
     let requestVersion = 0
+    let acquiring = false
 
     const releaseCurrent = () => {
       const currentLock = lockRef.current
@@ -20,6 +21,9 @@ export function useWakeLock(enabled: boolean) {
     }
 
     const acquire = async () => {
+      if (lockRef.current || acquiring) return
+
+      acquiring = true
       const version = ++requestVersion
       try {
         const lock = await navigator.wakeLock.request('screen')
@@ -34,10 +38,17 @@ export function useWakeLock(enabled: boolean) {
         lock.addEventListener('release', () => {
           if (lockRef.current === lock) {
             lockRef.current = null
+            if (!disposed && document.visibilityState === 'visible') {
+              void acquire()
+            }
           }
         })
       } catch {
         // Wake lock request failed (e.g. low battery, tab hidden)
+      } finally {
+        if (version === requestVersion) {
+          acquiring = false
+        }
       }
     }
 
