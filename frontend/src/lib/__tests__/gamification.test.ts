@@ -19,23 +19,37 @@ describe('calculateXP', () => {
   it('returns base XP for each technique with default rounds and no streak', () => {
     // box_breathing: base 50, defaultRounds=19, streak=0
     expect(calculateXP(TECHNIQUE_IDS.BOX_BREATHING, 19, 0)).toBe(50)
-    // co2_tolerance: base 75, defaultRounds=8, streak=0
-    expect(calculateXP(TECHNIQUE_IDS.CO2_TOLERANCE, 8, 0)).toBe(75)
-    // power_breathing: base 60, defaultRounds=30, streak=0
-    expect(calculateXP(TECHNIQUE_IDS.POWER_BREATHING, 30, 0)).toBe(60)
+    // co2_tolerance: base 55, defaultRounds=8, streak=0
+    expect(calculateXP(TECHNIQUE_IDS.CO2_TOLERANCE, 8, 0)).toBe(55)
+    // power_breathing: base 50, defaultRounds=30, streak=0
+    expect(calculateXP(TECHNIQUE_IDS.POWER_BREATHING, 30, 0)).toBe(50)
     // cyclic_sighing: base 55, defaultRounds=30, streak=0
     expect(calculateXP(TECHNIQUE_IDS.CYCLIC_SIGHING, 30, 0)).toBe(55)
     expect(calculateXP(TECHNIQUE_IDS.RESONANCE_BREATHING, 30, 0)).toBe(55)
     expect(calculateXP(TECHNIQUE_IDS.EXTENDED_EXHALE, 30, 0)).toBe(50)
-    expect(calculateXP(TECHNIQUE_IDS.FOUR_SEVEN_EIGHT, 16, 0)).toBe(60)
+    expect(calculateXP(TECHNIQUE_IDS.FOUR_SEVEN_EIGHT, 16, 0)).toBe(55)
     expect(calculateXP(TECHNIQUE_IDS.PURSED_LIP_RECOVERY, 50, 0)).toBe(45)
+  })
+
+  it('does not make advanced protocols the highest base XP path', () => {
+    const gentleEvidenceBackedBase = Math.max(
+      calculateXP(TECHNIQUE_IDS.CYCLIC_SIGHING, 30, 0),
+      calculateXP(TECHNIQUE_IDS.RESONANCE_BREATHING, 30, 0),
+    )
+
+    expect(calculateXP(TECHNIQUE_IDS.CO2_TOLERANCE, 8, 0)).toBeLessThanOrEqual(
+      gentleEvidenceBackedBase,
+    )
+    expect(calculateXP(TECHNIQUE_IDS.POWER_BREATHING, 30, 0)).toBeLessThanOrEqual(
+      gentleEvidenceBackedBase,
+    )
   })
 
   it('adds +5 per extra round beyond default', () => {
     // box_breathing default is 19, doing 21 rounds = 50 + 2*5 = 60
     expect(calculateXP(TECHNIQUE_IDS.BOX_BREATHING, 21, 0)).toBe(60)
-    // co2_tolerance default is 8, doing 10 rounds = 75 + 2*5 = 85
-    expect(calculateXP(TECHNIQUE_IDS.CO2_TOLERANCE, 10, 0)).toBe(85)
+    // co2_tolerance default is 8, doing 10 rounds = 55 + 2*5 = 65
+    expect(calculateXP(TECHNIQUE_IDS.CO2_TOLERANCE, 10, 0)).toBe(65)
   })
 
   it('applies streak multiplier', () => {
