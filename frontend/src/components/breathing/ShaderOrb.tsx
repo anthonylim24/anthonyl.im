@@ -62,8 +62,8 @@ export function ShaderOrb({
   const ariaLabel = getBreathingVisualizationLabel(phase)
   const interactiveAriaLabel = getInteractiveBreathingVisualizationLabel(phase)
 
-  // Fallback: reduced-motion + inactive → static div; no WebGL2 or GL error → SVG ConcentricRings
-  if (reducedMotion && !isActive) {
+  // Fallback: reduced-motion → static div; no WebGL2 or GL error → SVG ConcentricRings
+  if (reducedMotion) {
     const visual = (
       <div
         role={onClick ? undefined : 'img'}

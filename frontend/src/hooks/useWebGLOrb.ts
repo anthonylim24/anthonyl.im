@@ -223,6 +223,10 @@ export function useWebGLOrb({
   }, [amplitude, color1, color2, isActive, reducedMotion])
 
   useEffect(() => {
+    if (reducedMotion) {
+      return
+    }
+
     const canvas = canvasRef.current
     if (!canvas) return
 
@@ -344,7 +348,7 @@ export function useWebGLOrb({
       canvas.removeEventListener('webglcontextlost', handleContextLost)
       tearDownGL()
     }
-  }, [canvasRef])
+  }, [canvasRef, reducedMotion])
 
   return failed
 }
