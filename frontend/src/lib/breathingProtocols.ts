@@ -403,6 +403,37 @@ export function calculateSessionDuration(config: SessionConfig): number {
   return totalSeconds
 }
 
+export function hasCustomPhaseDurations(
+  protocol: BreathingProtocol,
+  customDurations?: Partial<Record<BreathPhase, number>>
+): boolean {
+  if (!customDurations) {
+    return false
+  }
+
+  return protocol.phases.some((phaseConfig) => {
+    const customDuration = customDurations[phaseConfig.phase]
+    return customDuration !== undefined && customDuration !== phaseConfig.duration
+  })
+}
+
+export function applyCustomPhaseDurations(
+  protocol: BreathingProtocol,
+  customDurations?: Partial<Record<BreathPhase, number>>
+): BreathingProtocol {
+  if (!hasCustomPhaseDurations(protocol, customDurations)) {
+    return protocol
+  }
+
+  return {
+    ...protocol,
+    phases: protocol.phases.map((phaseConfig) => ({
+      ...phaseConfig,
+      duration: customDurations?.[phaseConfig.phase] ?? phaseConfig.duration,
+    })),
+  }
+}
+
 export function getPhaseForRound(
   protocol: BreathingProtocol,
   round: number,

@@ -22,7 +22,9 @@ vi.mock('@/hooks/useViewTransition', () => ({
 vi.mock('@/components/breathing/BreathingSession', () => ({
   BreathingSession: ({ config }: { config: SessionConfig }) => (
     <div data-testid="active-session">
-      {config.techniqueId}:{config.rounds}
+      {`${config.techniqueId}:${config.rounds}:${
+        config.customPhaseDurations ? JSON.stringify(config.customPhaseDurations) : 'default'
+      }`}
     </div>
   ),
 }))
@@ -100,6 +102,26 @@ describe('Session safety gates', () => {
     await user.click(screen.getAllByRole('button', { name: /^begin/i })[0])
     expect(screen.getByTestId('active-session')).toHaveTextContent(
       `${TECHNIQUE_IDS.RESONANCE_BREATHING}:12`
+    )
+  })
+
+  it('passes customized phase durations into the active session config', async () => {
+    const user = userEvent.setup()
+    renderSession(`/breathwork/session?technique=${TECHNIQUE_IDS.RESONANCE_BREATHING}`)
+
+    await user.click(screen.getAllByRole('button', {
+      name: /Increase Breathe In duration, currently 5 seconds/i,
+    })[0])
+
+    expect(screen.getAllByRole('img', {
+      name: /Breath pattern: Breathe In 6 seconds, Breathe Out 5 seconds/i,
+    }).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('5.5 bpm').length).toBeGreaterThan(0)
+
+    await user.click(screen.getAllByRole('button', { name: /^begin/i })[0])
+
+    expect(screen.getByTestId('active-session')).toHaveTextContent(
+      `${TECHNIQUE_IDS.RESONANCE_BREATHING}:30:{"inhale":6}`
     )
   })
 

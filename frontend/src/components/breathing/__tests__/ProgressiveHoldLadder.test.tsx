@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { ProgressiveHoldLadder } from '../ProgressiveHoldLadder'
 import { getProgressiveHoldDurations } from '../progressiveHold'
 import { breathingProtocols } from '@/lib/breathingProtocols'
-import { TECHNIQUE_IDS } from '@/lib/constants'
+import { BREATH_PHASES, TECHNIQUE_IDS } from '@/lib/constants'
 
 describe('ProgressiveHoldLadder', () => {
   it('calculates increasing hold durations from the protocol table', () => {
@@ -30,6 +30,28 @@ describe('ProgressiveHoldLadder', () => {
     expect(screen.getAllByTestId('progressive-hold-step')).toHaveLength(4)
     expect(screen.getByText('15s')).toBeInTheDocument()
     expect(screen.getByText('30s')).toBeInTheDocument()
+  })
+
+  it('reflects a customized starting hold duration', () => {
+    expect(
+      getProgressiveHoldDurations(
+        breathingProtocols[TECHNIQUE_IDS.CO2_TOLERANCE],
+        3,
+        { [BREATH_PHASES.HOLD_IN]: 20 },
+      )
+    ).toEqual([20, 25, 30])
+
+    render(
+      <ProgressiveHoldLadder
+        protocol={breathingProtocols[TECHNIQUE_IDS.CO2_TOLERANCE]}
+        rounds={3}
+        customPhaseDurations={{ [BREATH_PHASES.HOLD_IN]: 20 }}
+      />
+    )
+
+    expect(screen.getByRole('img', {
+      name: /round 1 20 seconds, round 2 25 seconds, round 3 30 seconds/,
+    })).toBeInTheDocument()
   })
 
   it('does not render for non-progressive protocols', () => {

@@ -1,18 +1,22 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { motion } from 'motion/react'
 import { BreathingSession } from '@/components/breathing/BreathingSession'
 import { BreathPatternStrip } from '@/components/breathing/BreathPatternStrip'
+import { CadenceEditor } from '@/components/breathing/CadenceEditor'
+import { clampCadenceDuration } from '@/components/breathing/cadenceDurations'
 import { ProgressiveHoldLadder } from '@/components/breathing/ProgressiveHoldLadder'
 import {
+  applyCustomPhaseDurations,
   breathingProtocols,
   calculateSessionDuration,
   getProtocolCatalog,
+  hasCustomPhaseDurations,
   isTechniqueId,
   type BreathingProtocol,
   type SessionConfig,
 } from '@/lib/breathingProtocols'
-import { TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
+import { TECHNIQUE_IDS, type BreathPhase, type TechniqueId } from '@/lib/constants'
 import { formatTime, cn } from '@/lib/utils'
 import { TechniqueGeometryIcon } from '@/components/ui/TechniqueGeometryIcon'
 import { Clock, Minus, Plus, Play, ChevronLeft, ChevronDown, ExternalLink, ShieldAlert } from 'lucide-react'
@@ -26,6 +30,31 @@ function getInitialRounds(requestedRounds: string | null, techniqueId: Technique
     return parsedRounds
   }
   return breathingProtocols[techniqueId].defaultRounds
+}
+
+function formatCadenceNumber(cadence: number): string {
+  return cadence.toFixed(1).replace(/\.0$/, '')
+}
+
+function getCadenceLabel(
+  protocol: BreathingProtocol,
+  displayedProtocol: BreathingProtocol,
+  hasCustomCadence: boolean,
+): string {
+  if (protocol.progressiveHold) {
+    return hasCustomCadence ? 'Custom ladder' : `${formatCadenceNumber(protocol.breathsPerMinute)} bpm`
+  }
+
+  const cycleDuration = displayedProtocol.phases.reduce(
+    (sum, phaseConfig) => sum + phaseConfig.duration,
+    0,
+  )
+
+  if (cycleDuration <= 0) {
+    return `${formatCadenceNumber(protocol.breathsPerMinute)} bpm`
+  }
+
+  return `${formatCadenceNumber(60 / cycleDuration)} bpm`
 }
 
 interface ProtocolSafetyGateProps {
@@ -178,6 +207,8 @@ export function Session() {
   const [rounds, setRounds] = useState(() =>
     getInitialRounds(requestedRounds, initialTechnique)
   )
+  const [customPhaseDurations, setCustomPhaseDurations] =
+    useState<Partial<Record<BreathPhase, number>>>({})
   const [sessionStarted, setSessionStarted] = useState(false)
   const [scienceExpanded, setScienceExpanded] = useState(false)
   const [safetyAcknowledged, setSafetyAcknowledged] = useState(false)
@@ -188,13 +219,26 @@ export function Session() {
   const protocols = useMemo(() => getProtocolCatalog(), [])
   const requiresSafetyCheck = Boolean(protocol.safetyChecklist?.length)
   const canStartSession = !requiresSafetyCheck || safetyAcknowledged
+  const hasCustomCadence = useMemo(
+    () => hasCustomPhaseDurations(protocol, customPhaseDurations),
+    [customPhaseDurations, protocol]
+  )
+  const displayedProtocol = useMemo(
+    () => applyCustomPhaseDurations(protocol, customPhaseDurations),
+    [customPhaseDurations, protocol]
+  )
+  const cadenceLabel = useMemo(
+    () => getCadenceLabel(protocol, displayedProtocol, hasCustomCadence),
+    [displayedProtocol, hasCustomCadence, protocol],
+  )
 
   const sessionConfig: SessionConfig = useMemo(
     () => ({
       techniqueId: selectedTechnique,
       rounds,
+      ...(hasCustomCadence ? { customPhaseDurations } : {}),
     }),
-    [selectedTechnique, rounds]
+    [customPhaseDurations, hasCustomCadence, rounds, selectedTechnique]
   )
 
   const estimatedDuration = useMemo(
@@ -210,8 +254,34 @@ export function Session() {
     haptic(20)
     setSelectedTechnique(techniqueId)
     setRounds(breathingProtocols[techniqueId].defaultRounds)
+    setCustomPhaseDurations({})
     setSafetyAcknowledged(false)
   }
+
+  const handleCadenceChange = useCallback((phase: BreathPhase, duration: number) => {
+    haptic(10)
+    setCustomPhaseDurations((currentDurations) => {
+      const defaultDuration = protocol.phases.find((phaseConfig) => phaseConfig.phase === phase)
+        ?.duration
+      const normalizedDuration = clampCadenceDuration(phase, duration)
+
+      if (!defaultDuration || normalizedDuration === defaultDuration) {
+        const nextDurations = { ...currentDurations }
+        delete nextDurations[phase]
+        return nextDurations
+      }
+
+      return {
+        ...currentDurations,
+        [phase]: normalizedDuration,
+      }
+    })
+  }, [haptic, protocol.phases])
+
+  const handleCadenceReset = useCallback(() => {
+    haptic('selection')
+    setCustomPhaseDurations({})
+  }, [haptic])
 
   const handleStartSession = () => {
     if (!canStartSession) {
@@ -307,7 +377,7 @@ export function Session() {
 
         {/* Phase pattern */}
         <motion.div variants={fadeUp} className="border-t border-bw-border py-3 mb-3">
-          <BreathPatternStrip protocol={protocol} compact animated />
+          <BreathPatternStrip protocol={displayedProtocol} compact animated />
         </motion.div>
 
         {/* Protocol metadata */}
@@ -318,7 +388,7 @@ export function Session() {
           </div>
           <div>
             <span className="block text-[9px] text-bw-tertiary font-medium uppercase tracking-[0.07em]">Cadence</span>
-            <span className="block text-[10px] text-bw-secondary mt-0.5">{protocol.breathsPerMinute} bpm</span>
+            <span className="block text-[10px] text-bw-secondary mt-0.5">{cadenceLabel}</span>
           </div>
           <div>
             <span className="block text-[9px] text-bw-tertiary font-medium uppercase tracking-[0.07em]">Intensity</span>
@@ -383,7 +453,22 @@ export function Session() {
         ) : null}
 
         <motion.div variants={fadeUp}>
-          <ProgressiveHoldLadder protocol={protocol} rounds={rounds} compact />
+          <CadenceEditor
+            protocol={protocol}
+            customDurations={customPhaseDurations}
+            onDurationChange={handleCadenceChange}
+            onReset={handleCadenceReset}
+            compact
+          />
+        </motion.div>
+
+        <motion.div variants={fadeUp}>
+          <ProgressiveHoldLadder
+            protocol={protocol}
+            rounds={rounds}
+            customPhaseDurations={customPhaseDurations}
+            compact
+          />
         </motion.div>
 
         {/* Rounds */}
@@ -531,7 +616,7 @@ export function Session() {
               <p className="text-xs text-bw-tertiary leading-relaxed">
                 {protocol.science}
               </p>
-              <BreathPatternStrip protocol={protocol} className="mt-5" animated />
+              <BreathPatternStrip protocol={displayedProtocol} className="mt-5" animated />
               {protocol.caution && (
                 <p className="text-[10px] text-bw-tertiary leading-relaxed mt-3">
                   {protocol.caution}
@@ -544,7 +629,7 @@ export function Session() {
                 {protocol.evidence}
               </div>
               <div className="text-[10px] text-bw-tertiary capitalize mt-1">
-                {protocol.intensity} · {protocol.breathsPerMinute} bpm
+                {protocol.intensity} · {cadenceLabel}
               </div>
               <div className="mt-4 space-y-1.5">
                 {protocol.bestFor.map((item) => (
@@ -569,7 +654,20 @@ export function Session() {
         ) : null}
 
         <motion.div variants={fadeUp}>
-          <ProgressiveHoldLadder protocol={protocol} rounds={rounds} />
+          <CadenceEditor
+            protocol={protocol}
+            customDurations={customPhaseDurations}
+            onDurationChange={handleCadenceChange}
+            onReset={handleCadenceReset}
+          />
+        </motion.div>
+
+        <motion.div variants={fadeUp}>
+          <ProgressiveHoldLadder
+            protocol={protocol}
+            rounds={rounds}
+            customPhaseDurations={customPhaseDurations}
+          />
         </motion.div>
 
         {/* Round Counter */}

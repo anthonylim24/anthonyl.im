@@ -7,6 +7,8 @@ import {
   getProtocol,
   isTechniqueId,
   calculateSessionDuration,
+  applyCustomPhaseDurations,
+  hasCustomPhaseDurations,
   getPhaseForRound,
 } from '../breathingProtocols'
 import { BREATH_PHASES, TECHNIQUE_IDS, type TechniqueId } from '@/lib/constants'
@@ -332,6 +334,29 @@ describe('calculateSessionDuration', () => {
         customPhaseDurations: { [BREATH_PHASES.HOLD_IN]: 20 },
       })
     ).toBe(77)
+  })
+
+  it('applies custom phase durations for display without mutating the source protocol', () => {
+    const resonance = breathingProtocols[TECHNIQUE_IDS.RESONANCE_BREATHING]
+
+    expect(hasCustomPhaseDurations(resonance)).toBe(false)
+    expect(hasCustomPhaseDurations(resonance, {
+      [BREATH_PHASES.INHALE]: 5,
+    })).toBe(false)
+    expect(hasCustomPhaseDurations(resonance, {
+      [BREATH_PHASES.INHALE]: 6,
+    })).toBe(true)
+
+    const customized = applyCustomPhaseDurations(resonance, {
+      [BREATH_PHASES.INHALE]: 6,
+    })
+
+    expect(customized).not.toBe(resonance)
+    expect(customized.phases).toEqual([
+      { phase: BREATH_PHASES.INHALE, duration: 6 },
+      { phase: BREATH_PHASES.EXHALE, duration: 5 },
+    ])
+    expect(resonance.phases[0].duration).toBe(5)
   })
 
   it('returns 0 for 0 rounds', () => {
