@@ -16,8 +16,11 @@ import { SessionSummary } from './SessionSummary'
 import { PhaseIndicator } from './PhaseIndicator'
 import { Timer } from './Timer'
 import { Play, Pause, Square, RotateCcw } from 'lucide-react'
-import type { SessionConfig } from '@/lib/breathingProtocols'
-import { getProtocol } from '@/lib/breathingProtocols'
+import {
+  calculateSessionDuration,
+  getProtocol,
+  type SessionConfig,
+} from '@/lib/breathingProtocols'
 import { PHASE_LABELS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import {
@@ -251,10 +254,7 @@ export function BreathingSession({
   useEffect(() => {
     if (showSummary && session && !summaryData && !summaryProcessedRef.current) {
       summaryProcessedRef.current = true
-      const endTime = new Date()
-      const durationSeconds = Math.round(
-        (endTime.getTime() - session.startTime.getTime()) / 1000
-      )
+      const durationSeconds = calculateSessionDuration(config)
 
       const streak = getStreak()
       const xpEarned = calculateXP(config.techniqueId, config.rounds, streak)

@@ -305,4 +305,41 @@ describe('useBreathingCycle', () => {
       avgHoldTime: 15,
     })
   })
+
+  it('excludes paused time from hold records and completed duration', async () => {
+    render(
+      <Probe
+        config={{ techniqueId: TECHNIQUE_IDS.CO2_TOLERANCE, rounds: 1 }}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
+
+    await advanceSeconds(3)
+    expect(screen.getByTestId('phase')).toHaveTextContent(BREATH_PHASES.HOLD_IN)
+
+    await advanceSeconds(5)
+    expect(screen.getByTestId('time')).toHaveTextContent('10')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pause' }))
+    await advanceSeconds(30)
+    expect(screen.getByTestId('time')).toHaveTextContent('10')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Pause' }))
+    await advanceSeconds(10)
+    expect(screen.getByTestId('phase')).toHaveTextContent(BREATH_PHASES.EXHALE)
+
+    await advanceSeconds(13)
+    expect(screen.getByTestId('complete')).toHaveTextContent('true')
+
+    const [savedSession] = historyMock.getState().sessions
+    expect(savedSession).toMatchObject({
+      techniqueId: TECHNIQUE_IDS.CO2_TOLERANCE,
+      durationSeconds: 31,
+      rounds: 1,
+      holdTimes: [15],
+      maxHoldTime: 15,
+      avgHoldTime: 15,
+    })
+  })
 })
