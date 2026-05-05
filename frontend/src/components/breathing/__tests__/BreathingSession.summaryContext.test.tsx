@@ -1,5 +1,5 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BreathingSession } from '../BreathingSession'
 import { BREATH_PHASES, TECHNIQUE_IDS } from '@/lib/constants'
 import { calculateSessionDuration, type SessionConfig } from '@/lib/breathingProtocols'
@@ -136,6 +136,8 @@ function createPriorSession(index: number): CompletedSession {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date('2026-05-01T20:00:00.000Z'))
   vi.clearAllMocks()
   mocks.cycle.session = {
     config: sessionConfig,
@@ -161,6 +163,10 @@ beforeEach(() => {
       avgHoldTime: 45,
     },
   ]
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 describe('BreathingSession summary context', () => {

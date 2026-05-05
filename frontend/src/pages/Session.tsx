@@ -410,14 +410,12 @@ export function Session() {
   return (
     <>
       {/* ═══ MOBILE LAYOUT ═══════════════════════════════ */}
-      <div
-        className="md:hidden flex h-[calc(100dvh-4rem-3rem)] flex-col overflow-hidden"
-      >
+      <div className="md:hidden flex h-[calc(100svh-8.5rem)] max-h-[calc(100dvh-8.5rem)] max-w-full flex-col overflow-hidden">
         <motion.div
           variants={stagger}
           initial="hidden"
           animate="show"
-          className="flex-1 overflow-y-auto no-scrollbar pb-4"
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain no-scrollbar pb-4"
         >
           {/* Back button */}
           <motion.button
@@ -448,10 +446,9 @@ export function Session() {
         </motion.div>
 
         {/* Technique rail */}
-        <motion.div variants={fadeUp} className="-mx-5 mb-3 overflow-x-auto no-scrollbar">
+        <motion.div variants={fadeUp} className="mb-3 max-w-full overflow-x-auto overscroll-x-contain no-scrollbar">
           <div
-            className="flex gap-2 px-5"
-            style={{ width: 'max-content' }}
+            className="flex w-max min-w-full gap-2"
             role="group"
             aria-label="Technique choices"
           >
@@ -597,54 +594,57 @@ export function Session() {
           />
         </motion.div>
 
-        {/* Rounds */}
-        <motion.div
-          variants={fadeUp}
-          className="flex min-h-36 flex-col items-center justify-center gap-4 pb-6"
-          role="group"
-          aria-label={`Session rounds, ${rounds} selected`}
-        >
-          <span className="text-[10px] font-medium text-bw-secondary tracking-[0.07em] uppercase">Rounds</span>
-          <div className="flex items-center gap-8">
-            <motion.button
-              whileTap={tap(0.9)}
-              transition={spring}
-              type="button"
-              aria-label={`Decrease rounds, currently ${rounds} rounds selected`}
-              onClick={() => { haptic(15); setRounds((r) => Math.max(MIN_SESSION_ROUNDS, r - 1)) }}
-              disabled={rounds <= MIN_SESSION_ROUNDS}
-              className="h-11 w-11 border border-bw-border hover:bg-bw-hover disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all text-bw"
-            >
-              <Minus className="h-4 w-4" aria-hidden="true" />
-            </motion.button>
-            <span className="font-mono text-2xl font-normal tabular-nums text-bw leading-none min-w-[48px] text-center">
-              {rounds}
-            </span>
-            <motion.button
-              whileTap={tap(0.9)}
-              transition={spring}
-              type="button"
-              aria-label={`Increase rounds, currently ${rounds} rounds selected`}
-              onClick={() => { haptic(15); setRounds((r) => Math.min(maxRounds, r + 1)) }}
-              disabled={rounds >= maxRounds}
-              className="h-11 w-11 border border-bw-border hover:bg-bw-hover disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all text-bw"
-            >
-              <Plus className="h-4 w-4" aria-hidden="true" />
-            </motion.button>
-          </div>
-          <span className="text-xs text-bw-tertiary">
-            Est. {formatTime(estimatedDuration)}
-          </span>
-        </motion.div>
         </motion.div>
 
-        {/* Pinned CTA */}
+        {/* Pinned setup controls */}
         <motion.div
           variants={fadeUp}
           initial="hidden"
           animate="show"
-          className="shrink-0 border-t border-bw-border bg-bw-canvas pt-3 pb-1"
+          data-testid="mobile-session-action-bar"
+          className="shrink-0 border-t border-bw-border bg-bw-canvas pt-3 pb-0"
         >
+          <div
+            className="mb-3 flex items-center justify-between gap-3"
+            role="group"
+            aria-label={`Session rounds, ${rounds} selected`}
+          >
+            <div className="min-w-0">
+              <span className="block text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">
+                Rounds
+              </span>
+              <span className="mt-0.5 block text-[11px] text-bw-tertiary">
+                Est. {formatTime(estimatedDuration)}
+              </span>
+            </div>
+            <div className="flex shrink-0 items-center gap-3">
+              <motion.button
+                whileTap={tap(0.9)}
+                transition={spring}
+                type="button"
+                aria-label={`Decrease rounds, currently ${rounds} rounds selected`}
+                onClick={() => { haptic(15); setRounds((r) => Math.max(MIN_SESSION_ROUNDS, r - 1)) }}
+                disabled={rounds <= MIN_SESSION_ROUNDS}
+                className="flex h-11 w-11 items-center justify-center border border-bw-border text-bw transition-all hover:bg-bw-hover disabled:cursor-not-allowed disabled:opacity-25"
+              >
+                <Minus className="h-4 w-4" aria-hidden="true" />
+              </motion.button>
+              <span className="min-w-10 text-center font-mono text-2xl font-normal leading-none tabular-nums text-bw">
+                {rounds}
+              </span>
+              <motion.button
+                whileTap={tap(0.9)}
+                transition={spring}
+                type="button"
+                aria-label={`Increase rounds, currently ${rounds} rounds selected`}
+                onClick={() => { haptic(15); setRounds((r) => Math.min(maxRounds, r + 1)) }}
+                disabled={rounds >= maxRounds}
+                className="flex h-11 w-11 items-center justify-center border border-bw-border text-bw transition-all hover:bg-bw-hover disabled:cursor-not-allowed disabled:opacity-25"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+              </motion.button>
+            </div>
+          </div>
           {startSafetyHelpText ? (
             <p
               id="mobile-start-safety-help"
@@ -658,9 +658,10 @@ export function Session() {
             onClick={handleStartSession}
             disabled={!canStartSession}
             aria-describedby={startSafetyHelpText ? 'mobile-start-safety-help' : undefined}
-            className="w-full py-3.5 px-6 border border-bw-accent bg-bw-accent font-medium text-bw-accent-foreground text-sm flex items-center justify-center gap-3 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:border-bw-border disabled:bg-bw-active disabled:text-bw-tertiary disabled:hover:opacity-100"
+            className="flex min-h-11 w-full items-center justify-center gap-3 border border-bw-accent bg-bw-accent px-6 py-3.5 text-sm font-medium text-bw-accent-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:border-bw-border disabled:bg-bw-active disabled:text-bw-tertiary disabled:hover:opacity-100"
           >
-            <span>Enter Session</span>
+            <Play className="h-4 w-4" aria-hidden="true" />
+            <span>Begin {protocol.name}</span>
           </button>
         </motion.div>
       </div>

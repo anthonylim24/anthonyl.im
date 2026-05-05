@@ -48,4 +48,19 @@ describe('BreathworkLayout reduced motion', () => {
 
     expect(container.querySelector('.leaves-overlay')).toBeNull()
   })
+
+  it('does not reserve bottom navigation space on the session setup route', () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={['/breathwork/session']}>
+        <BreathworkLayout />
+      </MemoryRouter>,
+    )
+
+    const content = container.querySelector<HTMLElement>(
+      '[style*="--mobile-content-bottom-space"]',
+    )
+
+    expect(content?.style.getPropertyValue('--mobile-content-bottom-space')).toContain('1rem')
+    expect(content?.style.getPropertyValue('--mobile-content-bottom-space')).not.toContain('7.5rem')
+  })
 })

@@ -3,10 +3,17 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Progress } from '../Progress'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 const mocks = vi.hoisted(() => ({
   clearHistory: vi.fn(),
   haptic: vi.fn(),
+  navigate: vi.fn(),
   history: {
     sessions: [],
     personalBests: {},
@@ -19,6 +26,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/hooks/useHaptics', () => ({
   useHaptics: () => ({ trigger: mocks.haptic }),
+}))
+
+vi.mock('@/hooks/useViewTransition', () => ({
+  useViewTransitionNavigate: () => mocks.navigate,
 }))
 
 vi.mock('@/stores/historyStore', () => ({
@@ -70,6 +81,17 @@ describe('Progress accessibility', () => {
     mocks.gamification.earnedBadges = []
   })
 
+  it('offers an immediate top-level start CTA', async () => {
+    const user = userEvent.setup()
+    await renderProgress()
+
+    const startButton = screen.getByRole('button', { name: /start a breathing session/i })
+    expect(startButton).toHaveClass('min-h-11', 'w-full', 'bg-bw-accent')
+
+    await user.click(startButton)
+    expect(mocks.navigate).toHaveBeenCalledWith('/breathwork/session?technique=box_breathing')
+  })
+
   it('names the clear-history control and keeps confirmation targets large', async () => {
     const user = userEvent.setup()
     await renderProgress()
@@ -119,5 +141,31 @@ describe('Progress accessibility', () => {
 
     expect(allFilter).toHaveAttribute('aria-pressed', 'false')
     expect(boxFilter).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('contains the horizontally scrollable history filter rail within the page width', async () => {
+    await renderProgress()
+
+    expect(screen.getByRole('group', { name: /session history filters/i })).toHaveClass(
+      'max-w-full',
+      'min-w-0',
+      'overscroll-x-contain',
+    )
+  })
+
+  it('constrains dialog content to the mobile viewport width', () => {
+    render(
+      <Dialog open>
+        <DialogContent>
+          <DialogTitle>Confirm action</DialogTitle>
+          <DialogDescription>Dialog body copy.</DialogDescription>
+        </DialogContent>
+      </Dialog>,
+    )
+
+    expect(screen.getByRole('dialog', { name: /confirm action/i })).toHaveClass(
+      'w-[calc(100vw-2rem)]',
+      'max-w-lg',
+    )
   })
 })

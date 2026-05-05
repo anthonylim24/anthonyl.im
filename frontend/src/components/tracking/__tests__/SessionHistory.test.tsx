@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { SessionHistory } from '../SessionHistory'
@@ -80,6 +80,36 @@ describe('SessionHistory', () => {
         name: /Box Breathing, May 1, 2026, 1 minute 4 seconds, 4 rounds/i,
       })
     ).toBeInTheDocument()
+  })
+
+  it('lets dense history rows wrap without forcing mobile horizontal overflow', () => {
+    render(
+      <SessionHistory
+        sessions={[
+          session({
+            id: 'dense-co2',
+            techniqueId: TECHNIQUE_IDS.CO2_TOLERANCE,
+            durationSeconds: 3605,
+            rounds: 123,
+            holdTimes: [95, 120],
+            maxHoldTime: 120,
+            avgHoldTime: 108,
+          }),
+        ]}
+      />
+    )
+
+    const row = screen.getByRole('listitem', {
+      name: /CO2 Tolerance Table, May 1, 2026, 60 minutes 5 seconds, 123 rounds, best hold 120 seconds/i,
+    })
+    const stats = within(row).getByLabelText(/60 minutes 5 seconds/i, { selector: 'span' }).parentElement
+    const repeatButton = screen.getByRole('button', {
+      name: /Review safety check before repeating CO2 Tolerance Table, 60 minutes 5 seconds, 123 rounds/i,
+    })
+
+    expect(row).toHaveClass('min-w-0', 'max-w-full', 'flex-wrap')
+    expect(stats).toHaveClass('min-w-0', 'flex-wrap')
+    expect(repeatButton).toHaveClass('ml-auto')
   })
 
   it('replays a completed session with rounds and custom cadence', async () => {

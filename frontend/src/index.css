@@ -29,6 +29,19 @@ body {
   padding: 0;
 }
 
+.breathwork-layout,
+.breathwork {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+@supports not (overflow: clip) {
+  .breathwork-layout,
+  .breathwork {
+    overflow-x: hidden;
+  }
+}
+
 :root {
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   line-height: 1.5;
