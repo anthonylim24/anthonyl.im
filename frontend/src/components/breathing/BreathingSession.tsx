@@ -619,7 +619,7 @@ export function BreathingSession({
       <div
         data-testid="session-controls"
         className={cn(
-          'session-controls absolute left-1/2 -translate-x-1/2 z-10 flex items-center gap-4 transition-opacity duration-500 motion-reduce:transition-none focus-within:opacity-100',
+          'session-controls absolute left-1/2 z-10 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-4 transition-opacity duration-500 motion-reduce:transition-none focus-within:opacity-100',
           controlsDimmed ? 'opacity-20 hover:opacity-100' : 'opacity-100'
         )}
         role="toolbar"
@@ -632,7 +632,7 @@ export function BreathingSession({
           <button
             type="button"
             onClick={handleStart}
-            className="flex items-center gap-3 px-10 py-4 font-medium text-lg transition-all duration-300 hover:scale-105 bg-bw-accent text-bw-accent-foreground border border-bw-accent"
+            className="flex min-h-14 max-w-full items-center gap-3 border border-bw-accent bg-bw-accent px-8 py-4 text-base font-medium text-bw-accent-foreground transition-all duration-300 hover:scale-105"
           >
             <Play className="h-5 w-5" aria-hidden="true" />
             Start

@@ -76,6 +76,8 @@ describe('Home Protocol Lab', () => {
     })
 
     expect(startButton).toBeInTheDocument()
+    expect(within(startButton).getByText(/start recommended session/i)).toBeInTheDocument()
+    expect(startButton).toHaveClass('bg-bw-accent')
 
     await user.click(startButton)
     expect(mocks.navigate).toHaveBeenCalledWith(

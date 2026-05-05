@@ -1,4 +1,5 @@
 import { useRef, useEffect, lazy, memo, Suspense } from 'react'
+import { useLocation } from 'react-router-dom'
 import { AnimatedOutlet } from './AnimatedOutlet'
 import type { CSSProperties } from 'react'
 import { Header } from './Header'
@@ -73,6 +74,7 @@ const LeavesVideo = memo(function LeavesVideo({ reducedMotion }: { reducedMotion
 }, (prev, next) => prev.reducedMotion === next.reducedMotion)
 
 export function BreathworkLayout() {
+  const location = useLocation()
   useTheme() // Applies dark class to <html>
   useFavicon()
   useDocumentMetadata({
@@ -81,9 +83,12 @@ export function BreathworkLayout() {
   })
   const reducedMotion = useReducedMotion()
   const { bottomOffset } = useViewportOffset()
+  const isSessionRoute = location.pathname.startsWith('/breathwork/session')
 
   const contentStyle = {
-    '--mobile-content-bottom-space': `calc(7.5rem + env(safe-area-inset-bottom, 0px) + ${bottomOffset}px)`,
+    '--mobile-content-bottom-space': isSessionRoute
+      ? `calc(1rem + env(safe-area-inset-bottom, 0px) + ${bottomOffset}px)`
+      : `calc(7.5rem + env(safe-area-inset-bottom, 0px) + ${bottomOffset}px)`,
   } as CSSProperties
 
   return (

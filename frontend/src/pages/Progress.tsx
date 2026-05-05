@@ -14,9 +14,10 @@ import { getLocalDateKey } from '@/lib/localDates'
 import type { TechniqueId } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { TechniqueGeometryIcon } from '@/components/ui/TechniqueGeometryIcon'
-import { Trash2 } from 'lucide-react'
+import { Play, Trash2 } from 'lucide-react'
 import { useHaptics } from '@/hooks/useHaptics'
 import { useEntranceMotion } from '@/lib/motionPresets'
+import { useViewTransitionNavigate } from '@/hooks/useViewTransition'
 
 const ProgressChart = lazy(() =>
   import('@/components/tracking/ProgressChart').then((module) => ({
@@ -46,6 +47,7 @@ function ProgressChartFallback() {
 }
 
 export function Progress() {
+  const navigate = useViewTransitionNavigate()
   const { stagger, fadeUp } = useEntranceMotion()
   const {
     sessions,
@@ -155,6 +157,19 @@ export function Progress() {
             {historyStatus}
           </p>
         ) : null}
+        <motion.button
+          type="button"
+          variants={fadeUp}
+          onClick={() => {
+            haptic('success')
+            navigate('/breathwork/session?technique=box_breathing')
+          }}
+          aria-label="Start a breathing session"
+          className="flex min-h-11 w-full items-center justify-center gap-2.5 border border-bw-accent bg-bw-accent px-4 py-3 text-sm font-medium text-bw-accent-foreground transition-opacity hover:opacity-90"
+        >
+          <Play className="h-4 w-4" aria-hidden="true" />
+          Start Session
+        </motion.button>
 
         {/* ── Two-column grid on md+ ── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10 sm:gap-12">
@@ -231,7 +246,7 @@ export function Progress() {
           <div>
             {/* Filter Buttons */}
             <div
-              className="flex gap-4 mb-5 sm:mb-6 border-b border-bw-border pb-3 overflow-x-auto no-scrollbar"
+              className="flex max-w-full min-w-0 gap-4 mb-5 sm:mb-6 border-b border-bw-border pb-3 overflow-x-auto overscroll-x-contain no-scrollbar"
               role="group"
               aria-label="Session history filters"
             >

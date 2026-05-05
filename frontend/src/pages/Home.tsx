@@ -462,27 +462,34 @@ export function Home() {
               suggestedDuration,
               recommendation.primary.rounds,
             )}
-            className="group mt-5 w-full border-t border-bw-border pt-5 text-left transition-colors duration-200 hover:bg-bw-hover"
+            className="group mt-5 flex min-h-12 w-full items-center justify-between gap-4 border border-bw-accent bg-bw-accent px-4 py-3 text-left text-bw-accent-foreground transition-opacity duration-200 hover:opacity-90"
           >
-            <div className="flex items-center gap-4">
-              <div className="h-10 w-10 flex items-center justify-center shrink-0 border border-bw-border">
-                <TechniqueGeometryIcon techniqueId={suggestedProtocol.id} className="text-bw-accent" />
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-[color:var(--bw-accent-foreground)]">
+                <TechniqueGeometryIcon techniqueId={suggestedProtocol.id} className="text-bw-accent-foreground" />
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs text-bw-tertiary line-clamp-2">
-                  {suggestedProtocol.purpose}
-                </p>
-                <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
-                  <span>{suggestedProtocol.evidence}</span>
-                  <span>{suggestedProtocol.intensity}</span>
-                  {suggestedProtocol.safetyChecklist?.length ? <span>Safety gated</span> : null}
-                </div>
+              <div className="min-w-0">
+                <span className="block text-[10px] font-medium uppercase tracking-[0.07em] opacity-75">
+                  Start recommended session
+                </span>
+                <span className="mt-0.5 block truncate text-sm font-semibold">
+                  {suggestedProtocol.name}
+                </span>
               </div>
-              <ArrowRight
-                className="h-4 w-4 text-bw-tertiary shrink-0 group-hover:text-bw group-hover:translate-x-0.5 transition-all duration-200"
-                aria-hidden="true"
-              />
             </div>
+            <ArrowRight
+              className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5"
+              aria-hidden="true"
+            />
+          </button>
+          <div className="mt-4 text-xs leading-relaxed text-bw-tertiary">
+            {suggestedProtocol.purpose}
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
+            <span>{suggestedProtocol.evidence}</span>
+            <span>{suggestedProtocol.intensity}</span>
+            {suggestedProtocol.safetyChecklist?.length ? <span>Safety gated</span> : null}
+          </div>
             <div className="mt-4 flex flex-wrap gap-1.5">
               {recommendation.primary.reasons.map((reason) => (
                 <span key={reason} className="border border-bw-border px-2 py-1 text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
@@ -490,7 +497,6 @@ export function Home() {
                 </span>
               ))}
             </div>
-          </button>
 
           <div className="mt-5 grid gap-2 sm:grid-cols-2">
             {recommendation.alternatives.map((option) => (
@@ -528,8 +534,14 @@ export function Home() {
         </h2>
 
         {/* Mobile: horizontal scroll carousel — 2 cards visible */}
-        <div className="md:hidden -mx-4 px-4 overflow-x-auto no-scrollbar" style={{ scrollSnapType: 'x mandatory', scrollPaddingLeft: '1rem' }}>
-          <div className="flex gap-3 pl-4" style={{ width: 'max-content' }}>
+        <div
+          className="scroll-snap-x md:hidden max-w-full overflow-x-auto overscroll-x-contain no-scrollbar"
+          style={{ scrollPaddingLeft: '1rem' }}
+        >
+          <div
+            className="grid grid-flow-col gap-3"
+            style={{ gridAutoColumns: 'minmax(9rem, calc((100% - 0.75rem) / 2))' }}
+          >
             {protocols.map((p) => {
               const id = p.id
               return (
@@ -539,8 +551,8 @@ export function Home() {
                   aria-label={`Start ${p.name}`}
                   whileTap={tap(0.97)}
                   transition={motionTransition}
-                  className="border-t border-bw-border pt-4 pb-2 text-left bg-transparent flex-shrink-0"
-                  style={{ width: 'calc(50vw - 28px)', scrollSnapAlign: 'start' }}
+                  className="border-t border-bw-border pt-4 pb-2 text-left bg-transparent"
+                  style={{ scrollSnapAlign: 'start' }}
                   onClick={() => { haptic('light'); navigate(`/breathwork/session?technique=${id}`) }}
                 >
                   <div

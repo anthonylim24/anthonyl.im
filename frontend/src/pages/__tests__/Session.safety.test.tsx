@@ -69,7 +69,7 @@ describe('Session safety gates', () => {
       name: /round 1 15 seconds, round 2 20 seconds/,
     }).length).toBeGreaterThan(0)
 
-    const enterButtons = screen.getAllByRole('button', { name: /^enter/i })
+    const enterButtons = screen.getAllByRole('button', { name: /^(enter|begin)/i })
     for (const button of enterButtons) {
       expect(button).toBeDisabled()
     }
@@ -91,7 +91,7 @@ describe('Session safety gates', () => {
 
     await user.click(safetyCheckbox)
 
-    const enabledEnterButtons = screen.getAllByRole('button', { name: /^enter/i })
+    const enabledEnterButtons = screen.getAllByRole('button', { name: /^(enter|begin)/i })
     for (const button of enabledEnterButtons) {
       expect(button).not.toBeDisabled()
       expect(button).not.toHaveAccessibleDescription(/complete the safety check to enter/i)
@@ -129,7 +129,7 @@ describe('Session safety gates', () => {
     })[0]
     await user.click(safetyCheckbox)
 
-    const enterButtons = screen.getAllByRole('button', { name: /^enter/i })
+    const enterButtons = screen.getAllByRole('button', { name: /^(enter|begin)/i })
     for (const button of enterButtons) {
       expect(button).toBeDisabled()
       expect(button).toHaveAccessibleDescription(/recovery window active/i)
@@ -148,7 +148,7 @@ describe('Session safety gates', () => {
     expect(screen.getAllByText(/wellness education, not medical care/i)).toHaveLength(2)
     expect(screen.getAllByText(/cardiovascular, respiratory, neurological/i)).toHaveLength(2)
 
-    const enterButtons = screen.getAllByRole('button', { name: /^enter/i })
+    const enterButtons = screen.getAllByRole('button', { name: /^(enter|begin)/i })
     for (const button of enterButtons) {
       expect(button).not.toBeDisabled()
     }
@@ -171,7 +171,7 @@ describe('Session safety gates', () => {
     const user = userEvent.setup()
     renderSession(`/breathwork/session?technique=${TECHNIQUE_IDS.RESONANCE_BREATHING}&rounds=12`)
 
-    await user.click(screen.getAllByRole('button', { name: /^enter/i })[0])
+    await user.click(screen.getAllByRole('button', { name: /^(enter|begin)/i })[0])
     expect(screen.getByTestId('active-session')).toHaveTextContent(
       `${TECHNIQUE_IDS.RESONANCE_BREATHING}:12`
     )
@@ -196,7 +196,7 @@ describe('Session safety gates', () => {
     }
 
     await user.click(increaseButtons[0])
-    await user.click(screen.getAllByRole('button', { name: /^enter/i })[0])
+    await user.click(screen.getAllByRole('button', { name: /^(enter|begin)/i })[0])
 
     expect(screen.getByTestId('active-session')).toHaveTextContent(
       `${TECHNIQUE_IDS.PURSED_LIP_RECOVERY}:50`
@@ -216,7 +216,7 @@ describe('Session safety gates', () => {
     }).length).toBeGreaterThan(0)
     expect(screen.getAllByText('5.5 bpm').length).toBeGreaterThan(0)
 
-    await user.click(screen.getAllByRole('button', { name: /^enter/i })[0])
+    await user.click(screen.getAllByRole('button', { name: /^(enter|begin)/i })[0])
 
     expect(screen.getByTestId('active-session')).toHaveTextContent(
       `${TECHNIQUE_IDS.RESONANCE_BREATHING}:30:{"inhale":6}`
@@ -234,7 +234,7 @@ describe('Session safety gates', () => {
     }).length).toBeGreaterThan(0)
     expect(screen.getAllByText('5.5 bpm').length).toBeGreaterThan(0)
 
-    await user.click(screen.getAllByRole('button', { name: /^enter/i })[0])
+    await user.click(screen.getAllByRole('button', { name: /^(enter|begin)/i })[0])
 
     expect(screen.getByTestId('active-session')).toHaveTextContent(
       `${TECHNIQUE_IDS.RESONANCE_BREATHING}:12:{"inhale":6}`
@@ -268,8 +268,38 @@ describe('Session safety gates', () => {
     await user.click(decreaseButtons[0])
     expect(screen.getAllByRole('group', { name: /session rounds, 11 selected/i }).length).toBeGreaterThan(0)
 
-    await user.click(screen.getAllByRole('button', { name: /^enter/i })[0])
+    await user.click(screen.getAllByRole('button', { name: /^(enter|begin)/i })[0])
 
+    expect(screen.getByTestId('active-session')).toHaveTextContent(
+      `${TECHNIQUE_IDS.RESONANCE_BREATHING}:11`
+    )
+  })
+
+  it('keeps mobile round controls in the pinned action area with a protocol-specific CTA', async () => {
+    const user = userEvent.setup()
+    renderSession(`/breathwork/session?technique=${TECHNIQUE_IDS.RESONANCE_BREATHING}&rounds=12`)
+
+    const mobileActionBar = screen.getByTestId('mobile-session-action-bar')
+
+    expect(
+      within(mobileActionBar).getByRole('group', {
+        name: /session rounds, 12 selected/i,
+      }),
+    ).toBeInTheDocument()
+    expect(
+      within(mobileActionBar).getByRole('button', {
+        name: /begin resonance breathing/i,
+      }),
+    ).toHaveClass('min-h-11', 'w-full')
+
+    await user.click(within(mobileActionBar).getByRole('button', { name: /decrease rounds/i }))
+    expect(
+      within(mobileActionBar).getByRole('group', {
+        name: /session rounds, 11 selected/i,
+      }),
+    ).toBeInTheDocument()
+
+    await user.click(within(mobileActionBar).getByRole('button', { name: /begin resonance breathing/i }))
     expect(screen.getByTestId('active-session')).toHaveTextContent(
       `${TECHNIQUE_IDS.RESONANCE_BREATHING}:11`
     )

@@ -98,7 +98,7 @@ export function SessionHistory({ sessions }: SessionHistoryProps) {
             key={session.id}
             role="listitem"
             aria-label={buildSessionLabel(session)}
-            className="flex items-center gap-3 border-b border-bw-border py-3 hover:bg-bw-hover transition-colors duration-200"
+            className="flex min-w-0 max-w-full flex-wrap items-center gap-3 border-b border-bw-border py-3 hover:bg-bw-hover transition-colors duration-200 sm:flex-nowrap"
           >
             {/* Technique icon */}
             <div className="shrink-0">
@@ -121,7 +121,7 @@ export function SessionHistory({ sessions }: SessionHistoryProps) {
             </div>
 
             {/* Stats */}
-            <div className="flex items-center gap-3 shrink-0 text-xs text-bw-tertiary tabular-nums">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-bw-tertiary tabular-nums sm:shrink-0">
               <span className="flex items-center gap-1" aria-label={formatDurationLabel(session.durationSeconds)}>
                 <Clock className="h-3 w-3" aria-hidden="true" />
                 {formatTime(session.durationSeconds)}
@@ -131,7 +131,7 @@ export function SessionHistory({ sessions }: SessionHistoryProps) {
 
             {/* Best hold (only for CO2 tolerance) */}
             {session.maxHoldTime > 0 && (
-              <div className="shrink-0 text-right pl-2 border-l border-bw-border">
+              <div className="min-w-0 shrink text-right pl-2 border-l border-bw-border sm:shrink-0">
                 <div className="flex items-center gap-1 font-mono text-sm font-normal text-bw tabular-nums">
                   <Trophy className="h-3 w-3 text-bw-secondary" aria-hidden="true" />
                   {session.maxHoldTime}s
@@ -146,7 +146,7 @@ export function SessionHistory({ sessions }: SessionHistoryProps) {
               type="button"
               aria-label={buildRepeatLabel(session)}
               onClick={() => navigate(buildSessionRoutePath(session))}
-              className="flex h-11 w-11 shrink-0 items-center justify-center border border-bw-border text-bw-tertiary transition-colors hover:bg-bw-hover hover:text-bw"
+              className="ml-auto flex h-11 w-11 shrink-0 items-center justify-center border border-bw-border text-bw-tertiary transition-colors hover:bg-bw-hover hover:text-bw"
             >
               <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
