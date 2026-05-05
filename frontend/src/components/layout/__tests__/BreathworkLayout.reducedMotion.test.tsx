@@ -49,7 +49,7 @@ describe('BreathworkLayout reduced motion', () => {
     expect(container.querySelector('.leaves-overlay')).toBeNull()
   })
 
-  it('does not reserve bottom navigation space on the session setup route', () => {
+  it('lets the session setup screen own its footer spacing instead of adding an outer spacer', () => {
     const { container } = render(
       <MemoryRouter initialEntries={['/breathwork/session']}>
         <BreathworkLayout />
@@ -60,7 +60,7 @@ describe('BreathworkLayout reduced motion', () => {
       '[style*="--mobile-content-bottom-space"]',
     )
 
-    expect(content?.style.getPropertyValue('--mobile-content-bottom-space')).toContain('1rem')
+    expect(content?.style.getPropertyValue('--mobile-content-bottom-space')).toBe('0px')
     expect(content?.style.getPropertyValue('--mobile-content-bottom-space')).not.toContain('7.5rem')
   })
 })
