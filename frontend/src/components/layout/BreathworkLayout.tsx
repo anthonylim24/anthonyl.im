@@ -87,7 +87,7 @@ export function BreathworkLayout() {
 
   const contentStyle = {
     '--mobile-content-bottom-space': isSessionRoute
-      ? `calc(1rem + env(safe-area-inset-bottom, 0px) + ${bottomOffset}px)`
+      ? '0px'
       : `calc(7.5rem + env(safe-area-inset-bottom, 0px) + ${bottomOffset}px)`,
   } as CSSProperties
 

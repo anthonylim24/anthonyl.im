@@ -291,6 +291,7 @@ describe('Session safety gates', () => {
         name: /begin resonance breathing/i,
       }),
     ).toHaveClass('min-h-11', 'w-full')
+    expect(mobileActionBar).toHaveClass('pb-[max(1rem,env(safe-area-inset-bottom,0px))]')
 
     await user.click(within(mobileActionBar).getByRole('button', { name: /decrease rounds/i }))
     expect(
