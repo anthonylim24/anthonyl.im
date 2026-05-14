@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 
 const deceleration = [0.33, 0, 0, 1] as const
+const outExpo = [0.16, 1, 0.3, 1] as const
 
 export const entranceTransition = {
   type: 'tween' as const,
@@ -9,11 +10,13 @@ export const entranceTransition = {
   ease: deceleration,
 }
 
+// Replaces the legacy `springTransition`. Spring physics are out per the
+// interface-design system (apothecary's notebook — calibrated, no bounce).
+// Use this tween wherever a snappier confirmation motion is needed.
 export const springTransition = {
-  type: 'spring' as const,
-  stiffness: 300,
-  damping: 30,
-  mass: 1,
+  type: 'tween' as const,
+  duration: 0.24,
+  ease: outExpo,
 }
 
 export const reducedMotionTransition = {

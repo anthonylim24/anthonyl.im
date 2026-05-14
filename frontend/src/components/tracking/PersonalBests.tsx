@@ -4,6 +4,7 @@ import { formatDate } from '@/lib/utils'
 import type { PersonalBest } from '@/stores/historyStore'
 import { TechniqueGeometryIcon } from '@/components/ui/TechniqueGeometryIcon'
 import { TECHNIQUE_RING_COLORS } from '@/lib/palette'
+import { StatNumeral } from '@/components/ui/StatNumeral'
 
 interface PersonalBestsProps {
   personalBests: Record<TechniqueId, PersonalBest | undefined>
@@ -80,9 +81,13 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
                     </div>
                   </div>
                 </div>
-                <div className="font-mono text-2xl font-normal text-bw tabular-nums" aria-label={pluralizeSeconds(best.maxHoldTime)}>
-                  {best.maxHoldTime}s
-                </div>
+                <StatNumeral
+                  value={best.maxHoldTime}
+                  unit="s"
+                  tone="sage"
+                  align="end"
+                  ariaLabel={pluralizeSeconds(best.maxHoldTime)}
+                />
               </div>
             )
           })}

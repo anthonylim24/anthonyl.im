@@ -1,11 +1,11 @@
-import { useEffect, useState, useRef, type KeyboardEvent } from 'react'
+import { useEffect, useState, useRef, type ComponentType, type KeyboardEvent, type ReactNode } from 'react'
 import { motion } from 'motion/react'
 import { BADGES } from '@/lib/gamification'
-import { formatTime } from '@/lib/utils'
+import { formatTime, cn } from '@/lib/utils'
 import { buildSessionInsight } from '@/lib/sessionInsights'
 import type { TechniqueId } from '@/lib/constants'
 import { getProtocol } from '@/lib/breathingProtocols'
-import { Trophy, Zap, Target, Clock, Star, X, Sparkles, Activity, ArrowRight, RotateCcw } from 'lucide-react'
+import { Trophy, Zap, Target, Clock, Star, X, Sparkles, Activity, ArrowRight, RotateCcw, type LucideProps } from 'lucide-react'
 import { CelebrationParticles } from './CelebrationParticles'
 import { useHaptics } from '@/hooks/useHaptics'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
@@ -62,6 +62,35 @@ function AnimatedCounter({ target, prefix = '', suffix = '', className }: {
   const displayedValue = reducedMotion ? target : value
 
   return <span className={className}>{prefix}{displayedValue}{suffix}</span>
+}
+
+interface SessionStatRowProps {
+  icon: ComponentType<LucideProps>
+  label: string
+  value: ReactNode
+  mono?: boolean
+}
+
+/** Editorial stat row — label on the left, brass-underlined numeral on the right. */
+function SessionStatRow({ icon: Icon, label, value, mono = true }: SessionStatRowProps) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 border-t border-bw-border first:border-t-0 py-3">
+      <span className="flex items-center gap-2 text-bw-secondary">
+        <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span className="text-[10px] font-medium uppercase tracking-[0.07em]">{label}</span>
+      </span>
+      <span
+        className={cn(
+          'inline-block leading-none text-bw',
+          mono
+            ? 'font-mono tabular-nums text-base border-b border-bw-accent pb-0.5'
+            : 'text-xs font-medium',
+        )}
+      >
+        {value}
+      </span>
+    </div>
+  )
 }
 
 const FOCUSABLE_SELECTOR = [
@@ -279,52 +308,30 @@ export function SessionSummary({
               </div>
             </motion.div>
 
-            <motion.div variants={fadeUp} className="grid grid-cols-2 gap-x-6 border-b border-bw-border py-4 sm:grid-cols-4">
-              <div>
-                <div className="flex items-center gap-1.5 text-bw-secondary">
-                  <Target className="h-3.5 w-3.5" />
-                  <span className="text-[10px] font-medium uppercase tracking-[0.07em]">Rounds</span>
-                </div>
-                <div className="mt-1 font-mono text-sm font-medium text-bw tabular-nums">{rounds}</div>
-              </div>
-              <div>
-                <div className="flex items-center gap-1.5 text-bw-secondary">
-                  <Clock className="h-3.5 w-3.5" />
-                  <span className="text-[10px] font-medium uppercase tracking-[0.07em]">Duration</span>
-                </div>
-                <div className="mt-1 font-mono text-sm font-medium text-bw tabular-nums">
-                  {formatTime(durationSeconds)}
-                </div>
-              </div>
-              <div>
-                <div className="flex items-center gap-1.5 text-bw-secondary">
-                  <Zap className="h-3.5 w-3.5" />
-                  <span className="text-[10px] font-medium uppercase tracking-[0.07em]">XP</span>
-                </div>
-                <div className="mt-1 font-mono text-sm font-medium text-bw tabular-nums">
-                  +{xpEarned}
-                </div>
-              </div>
-              <div>
-                <div className="flex items-center gap-1.5 text-bw-secondary">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  <span className="text-[10px] font-medium uppercase tracking-[0.07em]">Dose</span>
-                </div>
-                <div className="mt-1 text-xs font-medium text-bw">{insight.doseLabel}</div>
-              </div>
+            {/* Editorial stat ledger — one labeled line per measurement, numerals on brass */}
+            <motion.div variants={fadeUp} className="border-b border-bw-border">
+              <SessionStatRow icon={Target} label="Rounds" value={rounds} />
+              <SessionStatRow icon={Clock} label="Duration" value={formatTime(durationSeconds)} />
+              <SessionStatRow icon={Zap} label="XP" value={`+${xpEarned}`} />
+              <SessionStatRow
+                icon={Sparkles}
+                label="Dose"
+                value={insight.doseLabel}
+                mono={false}
+              />
             </motion.div>
 
             {holdTimes.length > 0 && (
-              <motion.div variants={fadeUp} className="divide-y divide-bw-border">
-                <div className="flex items-center justify-between py-3">
-                  <span className="text-xs font-medium uppercase tracking-wider text-bw-secondary">Best Hold</span>
-                  <span className="text-sm font-mono font-medium text-bw tabular-nums">
+              <motion.div variants={fadeUp}>
+                <div className="flex items-baseline justify-between gap-4 border-t border-bw-border py-3">
+                  <span className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">Best Hold</span>
+                  <span className="inline-block font-mono tabular-nums text-base text-bw leading-none border-b border-bw-accent pb-0.5">
                     <AnimatedCounter target={maxHold} suffix="s" />
                   </span>
                 </div>
-                <div className="flex items-center justify-between py-3">
-                  <span className="text-xs font-medium uppercase tracking-wider text-bw-secondary">Avg Hold</span>
-                  <span className="text-sm font-mono font-medium text-bw tabular-nums">
+                <div className="flex items-baseline justify-between gap-4 border-t border-bw-border py-3">
+                  <span className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">Avg Hold</span>
+                  <span className="inline-block font-mono tabular-nums text-base text-bw leading-none border-b border-bw-accent pb-0.5">
                     <AnimatedCounter target={avgHold} suffix="s" />
                   </span>
                 </div>

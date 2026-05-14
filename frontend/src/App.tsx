@@ -383,7 +383,7 @@ function App() {
                 placeholder="Ask anything..."
                 disabled={isLoading}
                 rows={1}
-                className="chat-input flex-1 bg-transparent border-none outline-none resize-none text-[14px] font-mono leading-[1.7] px-1 py-1.5 max-h-[120px] disabled:opacity-50 transition-colors duration-700"
+                className="chat-input flex-1 bg-transparent border-none resize-none text-[14px] font-mono leading-[1.7] px-1 py-1.5 max-h-[120px] disabled:opacity-50 transition-colors duration-700 focus:outline-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-bw-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bw-canvas rounded-sm"
               />
               <button
                 type="submit"

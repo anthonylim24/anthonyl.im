@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { buildPracticeConsistencyInsight } from '@/lib/practiceAnalytics'
 import type { CompletedSession } from '@/stores/historyStore'
 import { cn } from '@/lib/utils'
+import { StatNumeral } from '@/components/ui/StatNumeral'
 
 interface PracticeConsistencyProps {
   sessions: CompletedSession[]
@@ -13,8 +14,6 @@ export function PracticeConsistency({
   className,
 }: PracticeConsistencyProps) {
   const insight = useMemo(() => buildPracticeConsistencyInsight(sessions), [sessions])
-  const activeDayText = `${insight.activeDays}/7`
-  const minutesText = `${insight.totalMinutes}m`
   const protocolText = insight.dominantProtocolName ?? 'No dominant protocol yet'
 
   return (
@@ -39,20 +38,24 @@ export function PracticeConsistency({
         </div>
         <div className="grid grid-cols-3 gap-3 md:min-w-72">
           <div className="border-l border-bw-border pl-3">
-            <div className="font-mono text-lg text-bw tabular-nums">{activeDayText}</div>
-            <div className="mt-1 text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
+            <StatNumeral
+              size="sm"
+              value={insight.activeDays}
+              unit={<span className="normal-case tracking-normal text-bw-tertiary">/7</span>}
+            />
+            <div className="mt-1.5 text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
               Active days
             </div>
           </div>
           <div className="border-l border-bw-border pl-3">
-            <div className="font-mono text-lg text-bw tabular-nums">{minutesText}</div>
-            <div className="mt-1 text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
+            <StatNumeral size="sm" value={insight.totalMinutes} unit="min" />
+            <div className="mt-1.5 text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
               This week
             </div>
           </div>
           <div className="border-l border-bw-border pl-3">
-            <div className="font-mono text-lg text-bw tabular-nums">{insight.sessionCount}</div>
-            <div className="mt-1 text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
+            <StatNumeral size="sm" value={insight.sessionCount} />
+            <div className="mt-1.5 text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
               Sessions
             </div>
           </div>

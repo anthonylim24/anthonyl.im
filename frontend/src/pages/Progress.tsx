@@ -197,8 +197,11 @@ export function Progress() {
                       }}
                     />
                   </div>
-                  <div className="text-[10px] text-bw-tertiary font-medium tabular-nums">
-                    {xpInLevel} / {xpNeeded} XP
+                  <div className="flex items-baseline gap-1.5 text-[10px] text-bw-tertiary font-medium">
+                    <span className="font-mono tabular-nums border-b border-bw-accent text-bw">
+                      {xpInLevel}
+                    </span>
+                    <span>/ {xpNeeded} XP</span>
                   </div>
                 </div>
               </div>

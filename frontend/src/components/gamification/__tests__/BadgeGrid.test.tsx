@@ -58,13 +58,15 @@ describe('BadgeGrid', () => {
     expect(secrets.length).toBe(3)
   })
 
-  it('removes scale animations for reduced-motion badge states', () => {
+  it('uses calm fade motion (no spring/bounce) per the interface-design system', () => {
     const reducedEarned = getBadgeMotionConfig(true, true)
     expect(reducedEarned.variants.hidden).toEqual({ opacity: 0 })
     expect(reducedEarned.whileHover).toBeUndefined()
 
     const animatedEarned = getBadgeMotionConfig(false, true)
-    expect(animatedEarned.variants.hidden).toEqual({ opacity: 0, scale: 0.8 })
-    expect(animatedEarned.whileHover).toEqual({ scale: 1.05 })
+    // No scale pop — opacity + a small y offset, decel tween.
+    expect(animatedEarned.variants.hidden).toEqual({ opacity: 0, y: 6 })
+    expect(animatedEarned.whileHover).toEqual({ opacity: 0.85 })
+    expect(animatedEarned.transition).toMatchObject({ type: 'tween' })
   })
 })
