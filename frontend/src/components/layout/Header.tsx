@@ -27,20 +27,12 @@ export function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-transparent safe-top" style={{ transform: 'translateZ(0)' }}>
-      {/* Visual layer — absolute child positioned BELOW the safe area so
-          Safari 26 sees transparent in the status bar zone → liquid glass.
-          The backdrop starts after safe-area-inset-top. */}
+    <header className="sticky top-0 z-50 w-full safe-top" style={{ backgroundColor: 'var(--bw-nav-bg)' }}>
+      {/* Hairline edge — system depth strategy is borders-only, no glass. */}
       <div
-        className="absolute left-0 right-0 bottom-0"
+        className="absolute left-0 right-0 bottom-0 pointer-events-none"
         aria-hidden="true"
-        style={{
-          top: 'env(safe-area-inset-top, 0px)',
-          backgroundColor: 'var(--bw-nav-bg)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          borderBottom: '1px solid var(--bw-nav-border)',
-        }}
+        style={{ borderBottom: '1px solid var(--bw-nav-border)' }}
       />
       <div className="relative">
         <div className="container flex h-16 items-center justify-between px-6">

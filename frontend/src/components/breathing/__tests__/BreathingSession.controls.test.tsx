@@ -144,29 +144,33 @@ describe('BreathingSession controls accessibility', () => {
     vi.clearAllMocks()
   })
 
-  it('keeps auto-hidden controls fully visible while keyboard focus is inside the toolbar', async () => {
+  it('dims controls by color (never opacity) and clears the dim while keyboard focus is inside the toolbar', async () => {
     renderSession()
 
     const controls = screen.getByTestId('session-controls')
     const pauseButton = screen.getByRole('button', { name: 'Pause' })
 
+    // Per the interface-design system, idle controls fade to --bw-text-tertiary
+    // via `data-dimmed="true"` — they never drop opacity, so keyboard focus
+    // is always findable and screen readers don't lose context.
+    expect(controls).not.toHaveClass('opacity-20')
+    expect(controls).toHaveClass('transition-colors')
+
     await advance(3500)
-    expect(controls).toHaveClass('opacity-20')
+    expect(controls).toHaveAttribute('data-dimmed', 'true')
 
     fireEvent.focus(pauseButton)
-    expect(controls).toHaveClass('opacity-100')
-    expect(controls).not.toHaveClass('opacity-20')
+    expect(controls).toHaveAttribute('data-dimmed', 'false')
 
     await advance(5000)
-    expect(controls).toHaveClass('opacity-100')
-    expect(controls).not.toHaveClass('opacity-20')
+    expect(controls).toHaveAttribute('data-dimmed', 'false')
 
     fireEvent.blur(pauseButton, { relatedTarget: document.body })
     await advance(3500)
-    expect(controls).toHaveClass('opacity-20')
+    expect(controls).toHaveAttribute('data-dimmed', 'true')
   })
 
-  it('does not auto-hide controls for reduced-motion users', async () => {
+  it('does not auto-dim controls for reduced-motion users', async () => {
     mocks.reducedMotion = true
 
     renderSession()
@@ -174,7 +178,7 @@ describe('BreathingSession controls accessibility', () => {
     const controls = screen.getByTestId('session-controls')
 
     await advance(10000)
-    expect(controls).toHaveClass('opacity-100')
+    expect(controls).toHaveAttribute('data-dimmed', 'false')
     expect(controls).not.toHaveClass('opacity-20')
     expect(mocks.waveformOptions).toMatchObject({
       isActive: false,

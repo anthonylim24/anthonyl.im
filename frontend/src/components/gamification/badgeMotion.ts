@@ -1,4 +1,6 @@
-const spring = { type: 'spring' as const, stiffness: 300, damping: 30, mass: 1 }
+// No springs — system is decel-only ("apothecary's notebook", not a toy).
+const outExpo = [0.16, 1, 0.3, 1] as const
+const decelTween = { type: 'tween' as const, duration: 0.32, ease: outExpo }
 const instant = { type: 'tween' as const, duration: 0.01 }
 
 export const badgeStagger = {
@@ -11,20 +13,20 @@ export const reducedBadgeStagger = {
   show: { transition: { staggerChildren: 0 } },
 }
 
-const badgePop = {
-  hidden: { opacity: 0, scale: 0.8 },
-  show: { opacity: 1, scale: 1, transition: spring },
+const badgeFade = {
+  hidden: { opacity: 0, y: 6 },
+  show: { opacity: 1, y: 0, transition: decelTween },
 }
 
-const reducedBadgePop = {
+const reducedBadgeFade = {
   hidden: { opacity: 0 },
   show: { opacity: 1, transition: instant },
 }
 
 export function getBadgeMotionConfig(reducedMotion: boolean, earned: boolean) {
   return {
-    variants: reducedMotion ? reducedBadgePop : badgePop,
-    transition: reducedMotion ? instant : spring,
-    whileHover: earned && !reducedMotion ? { scale: 1.05 } : undefined,
+    variants: reducedMotion ? reducedBadgeFade : badgeFade,
+    transition: reducedMotion ? instant : decelTween,
+    whileHover: earned && !reducedMotion ? { opacity: 0.85 } : undefined,
   }
 }

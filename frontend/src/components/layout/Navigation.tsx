@@ -35,22 +35,13 @@ export function Navigation() {
 
   return (
     <nav
-      className="md:hidden fixed left-0 right-0 z-50 bg-transparent transition-[bottom] duration-200"
-      style={{ bottom: `${bottomOffset}px` }}
+      className="md:hidden fixed left-0 right-0 z-50 transition-[bottom] duration-200"
+      style={{
+        bottom: `${bottomOffset}px`,
+        backgroundColor: 'var(--bw-nav-bg-mobile)',
+        borderTop: '1px solid var(--bw-nav-border)',
+      }}
     >
-      {/* Visual layer — absolute child that stops ABOVE the bottom safe area
-          so Safari 26 sees transparent in the home indicator zone → liquid glass */}
-      <div
-        className="absolute left-0 right-0 top-0"
-        aria-hidden="true"
-        style={{
-          bottom: 'env(safe-area-inset-bottom, 0px)',
-          backgroundColor: 'var(--bw-nav-bg-mobile)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          borderTop: '1px solid var(--bw-nav-border)',
-        }}
-      />
       <div className="relative mx-auto max-w-md">
         <div className="grid grid-cols-4 h-[64px]">
           {navItems.map(({ path, label, icon: Icon }, i) => {

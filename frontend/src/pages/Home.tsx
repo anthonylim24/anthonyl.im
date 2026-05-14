@@ -35,6 +35,7 @@ import {
 } from 'lucide-react'
 import { useHaptics } from '@/hooks/useHaptics'
 import { useEntranceMotion } from '@/lib/motionPresets'
+import { StatNumeral } from '@/components/ui/StatNumeral'
 
 const goalIcons = {
   calm: Wind,
@@ -266,36 +267,30 @@ export function Home() {
       ) : (
         /* ── Returning User Stats ──────────────────────── */
         <>
-          {/* Mobile: 3 compact bordered chips */}
-          <motion.div variants={fadeUp} className="flex gap-2 pb-6 md:hidden">
-            <div className="flex-1 border-t border-bw-border pt-3">
-              <span className="font-mono text-sm font-normal text-bw tabular-nums leading-none">
-                Lv {level}
-              </span>
-              <span className="block text-[10px] text-bw-tertiary font-medium tracking-[0.07em] uppercase mt-1">
+          {/* Mobile: 3 compact stat lines, brass rule signature */}
+          <motion.div variants={fadeUp} className="grid grid-cols-3 gap-3 pb-3 md:hidden">
+            <div className="border-t border-bw-border pt-3">
+              <StatNumeral size="sm" value={level} unit="Lv" />
+              <span className="mt-1.5 block text-[10px] text-bw-tertiary font-medium tracking-[0.07em] uppercase">
                 Level
               </span>
             </div>
-            <div className="flex-1 border-t border-bw-border pt-3">
-              <span className="font-mono text-sm font-normal text-bw tabular-nums leading-none">
-                {streak}
-              </span>
-              <span className="block text-[10px] text-bw-tertiary font-medium tracking-[0.07em] uppercase mt-1">
+            <div className="border-t border-bw-border pt-3">
+              <StatNumeral size="sm" value={streak} />
+              <span className="mt-1.5 block text-[10px] text-bw-tertiary font-medium tracking-[0.07em] uppercase">
                 Streak
               </span>
             </div>
-            <div className="flex-1 border-t border-bw-border pt-3">
-              <span className="font-mono text-sm font-normal text-bw tabular-nums leading-none">
-                {formatTime(totalPracticeTime)}
-              </span>
-              <span className="block text-[10px] text-bw-tertiary font-medium tracking-[0.07em] uppercase mt-1">
+            <div className="border-t border-bw-border pt-3">
+              <StatNumeral size="sm" value={formatTime(totalPracticeTime)} />
+              <span className="mt-1.5 block text-[10px] text-bw-tertiary font-medium tracking-[0.07em] uppercase">
                 Total
               </span>
             </div>
           </motion.div>
 
-          {/* Desktop: editorial horizontal strip */}
-          <motion.div variants={fadeUp} className="hidden md:flex items-baseline gap-16 pb-16 border-b border-bw-border">
+          {/* Desktop: editorial horizontal strip — title in Cormorant, rest on brass */}
+          <motion.div variants={fadeUp} className="hidden md:flex items-baseline gap-16 pb-12 border-b border-bw-border">
             <div>
               <span className="font-display text-3xl font-semibold text-bw leading-none">
                 {getLevelTitle(level)}
@@ -305,25 +300,19 @@ export function Home() {
               </span>
             </div>
             <div>
-              <span className="font-mono text-2xl font-normal text-bw tabular-nums leading-none">
-                {streak}
-              </span>
+              <StatNumeral value={streak} />
               <span className="block text-[10px] text-bw-secondary font-medium tracking-[0.07em] uppercase mt-1.5">
                 Day streak
               </span>
             </div>
             <div>
-              <span className="font-mono text-2xl font-normal text-bw tabular-nums leading-none">
-                {dailySessionCount}
-              </span>
+              <StatNumeral value={dailySessionCount} />
               <span className="block text-[10px] text-bw-secondary font-medium tracking-[0.07em] uppercase mt-1.5">
                 Today
               </span>
             </div>
             <div>
-              <span className="font-mono text-2xl font-normal text-bw tabular-nums leading-none">
-                {formatTime(totalPracticeTime)}
-              </span>
+              <StatNumeral value={formatTime(totalPracticeTime)} />
               <span className="block text-[10px] text-bw-secondary font-medium tracking-[0.07em] uppercase mt-1.5">
                 Total
               </span>
@@ -331,13 +320,16 @@ export function Home() {
           </motion.div>
 
           {/* ── XP Progress — inline, minimal ────────────────── */}
-          <motion.div variants={fadeUp} className="py-5 sm:py-6">
+          <motion.div variants={fadeUp} className="pt-2 pb-4 sm:py-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[10px] text-bw-secondary font-medium tracking-[0.07em] uppercase">
                 Level {level} progress
               </span>
-              <span className="text-[10px] text-bw-secondary font-medium tabular-nums">
-                {xpInLevel} / {xpNeeded} XP
+              <span className="flex items-baseline gap-1.5 text-[10px] text-bw-secondary font-medium">
+                <span className="font-mono tabular-nums border-b border-bw-accent text-bw">
+                  {xpInLevel}
+                </span>
+                <span>/ {xpNeeded} XP</span>
               </span>
             </div>
             <div className="h-px bg-bw-border overflow-hidden">
@@ -374,11 +366,77 @@ export function Home() {
             </div>
           </div>
 
-          <div className="mt-5">
-            <div role="group" aria-label="Breathing goal" className="grid grid-cols-5 gap-1.5 sm:flex sm:w-max sm:gap-2">
-              {protocolGoalOptions.map((option) => {
-                const Icon = goalIcons[option.id]
-                const selected = selectedGoal === option.id
+          {/* Primary CTA — pulled up under the header so it lives above the fold on small viewports.
+              Goal + window adjustments live below the button as "tune your session." */}
+          <button
+            type="button"
+            onClick={() => { haptic('light'); navigate(suggestedPath) }}
+            aria-label={buildStartProtocolLabel(
+              suggestedProtocol.name,
+              suggestedDuration,
+              recommendation.primary.rounds,
+            )}
+            className="group mt-4 flex min-h-12 w-full items-center justify-between gap-4 border border-bw-accent bg-bw-accent px-4 py-3 text-left text-bw-accent-foreground transition-opacity duration-200 hover:opacity-90"
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-[color:var(--bw-accent-foreground)]">
+                <TechniqueGeometryIcon techniqueId={suggestedProtocol.id} className="text-bw-accent-foreground" />
+              </div>
+              <div className="min-w-0">
+                <span className="block text-[10px] font-medium uppercase tracking-[0.07em] opacity-75">
+                  Start recommended session
+                </span>
+                <span className="mt-0.5 block truncate text-sm font-semibold">
+                  {suggestedProtocol.name}
+                </span>
+              </div>
+            </div>
+            <ArrowRight
+              className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5"
+              aria-hidden="true"
+            />
+          </button>
+
+          {/* Tune the recommendation — secondary controls, below the primary CTA */}
+          <div className="mt-5 border-t border-bw-border pt-4">
+            <h3 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary">
+              Tune session
+            </h3>
+            <div className="mt-3">
+              <div role="group" aria-label="Breathing goal" className="grid grid-cols-5 gap-1.5 sm:flex sm:w-max sm:gap-2">
+                {protocolGoalOptions.map((option) => {
+                  const Icon = goalIcons[option.id]
+                  const selected = selectedGoal === option.id
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => {
+                        haptic('selection')
+                        setSelectedGoal(option.id)
+                      }}
+                      className={cn(
+                        'flex min-h-12 flex-col items-center justify-center gap-1 border px-1 text-[10px] font-medium transition-colors duration-200 sm:min-h-11 sm:flex-row sm:gap-2 sm:px-3 sm:text-xs',
+                        selected
+                          ? 'border-bw-accent bg-bw-active text-bw'
+                          : 'border-bw-border text-bw-tertiary hover:bg-bw-hover hover:text-bw-secondary'
+                      )}
+                    >
+                      <Icon
+                        className={cn('h-3.5 w-3.5', selected ? 'text-bw-accent' : 'text-bw-tertiary')}
+                        aria-hidden="true"
+                      />
+                      <span>{option.shortLabel}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div role="group" aria-label="Session length" className="mt-3 grid grid-cols-3 border border-bw-border">
+              {sessionWindowOptions.map((option) => {
+                const selected = selectedWindow === option.id
                 return (
                   <button
                     key={option.id}
@@ -386,50 +444,21 @@ export function Home() {
                     aria-pressed={selected}
                     onClick={() => {
                       haptic('selection')
-                      setSelectedGoal(option.id)
+                      setSelectedWindow(option.id)
                     }}
                     className={cn(
-                      'flex min-h-12 flex-col items-center justify-center gap-1 border px-1 text-[10px] font-medium transition-colors duration-200 sm:min-h-11 sm:flex-row sm:gap-2 sm:px-3 sm:text-xs',
-                      selected
-                        ? 'border-bw-accent bg-bw-active text-bw'
-                        : 'border-bw-border text-bw-tertiary hover:bg-bw-hover hover:text-bw-secondary'
+                      'min-h-11 border-r border-bw-border px-3 text-left transition-colors duration-200 last:border-r-0',
+                      selected ? 'bg-bw-active text-bw' : 'text-bw-tertiary hover:bg-bw-hover hover:text-bw-secondary'
                     )}
                   >
-                    <Icon
-                      className={cn('h-3.5 w-3.5', selected ? 'text-bw-accent' : 'text-bw-tertiary')}
-                      aria-hidden="true"
-                    />
-                    <span>{option.shortLabel}</span>
+                    <span className="block text-xs font-medium">{option.label}</span>
+                    <span className="block text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
+                      {option.shortLabel}
+                    </span>
                   </button>
                 )
               })}
             </div>
-          </div>
-
-          <div role="group" aria-label="Session length" className="mt-3 grid grid-cols-3 border border-bw-border">
-            {sessionWindowOptions.map((option) => {
-              const selected = selectedWindow === option.id
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => {
-                    haptic('selection')
-                    setSelectedWindow(option.id)
-                  }}
-                  className={cn(
-                    'min-h-11 border-r border-bw-border px-3 text-left transition-colors duration-200 last:border-r-0',
-                    selected ? 'bg-bw-active text-bw' : 'text-bw-tertiary hover:bg-bw-hover hover:text-bw-secondary'
-                  )}
-                >
-                  <span className="block text-xs font-medium">{option.label}</span>
-                  <span className="block text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
-                    {option.shortLabel}
-                  </span>
-                </button>
-              )
-            })}
           </div>
 
           <BreathPatternStrip
@@ -454,34 +483,6 @@ export function Home() {
             </div>
           ) : null}
 
-          <button
-            type="button"
-            onClick={() => { haptic('light'); navigate(suggestedPath) }}
-            aria-label={buildStartProtocolLabel(
-              suggestedProtocol.name,
-              suggestedDuration,
-              recommendation.primary.rounds,
-            )}
-            className="group mt-5 flex min-h-12 w-full items-center justify-between gap-4 border border-bw-accent bg-bw-accent px-4 py-3 text-left text-bw-accent-foreground transition-opacity duration-200 hover:opacity-90"
-          >
-            <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-[color:var(--bw-accent-foreground)]">
-                <TechniqueGeometryIcon techniqueId={suggestedProtocol.id} className="text-bw-accent-foreground" />
-              </div>
-              <div className="min-w-0">
-                <span className="block text-[10px] font-medium uppercase tracking-[0.07em] opacity-75">
-                  Start recommended session
-                </span>
-                <span className="mt-0.5 block truncate text-sm font-semibold">
-                  {suggestedProtocol.name}
-                </span>
-              </div>
-            </div>
-            <ArrowRight
-              className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5"
-              aria-hidden="true"
-            />
-          </button>
           <div className="mt-4 text-xs leading-relaxed text-bw-tertiary">
             {suggestedProtocol.purpose}
           </div>

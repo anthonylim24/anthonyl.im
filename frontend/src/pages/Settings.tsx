@@ -57,7 +57,7 @@ function SettingsSwitch({ checked, label, onClick }: SettingsSwitchProps) {
       >
         <span
           className={cn(
-            'absolute left-1 top-1 h-5 w-5 transform rounded-full shadow-sm transition-transform duration-300',
+            'absolute left-1 top-1 h-5 w-5 transform rounded-full transition-transform duration-300',
             checked ? 'translate-x-5 bg-bw-canvas' : 'translate-x-0 bg-bw-tertiary'
           )}
         />
@@ -335,7 +335,6 @@ export function Settings() {
                     [&::-webkit-slider-runnable-track]:h-px [&::-webkit-slider-runnable-track]:bg-bw-border
                     [&::-webkit-slider-thumb]:mt-[-7.5px] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4
                     [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-bw-accent
-                    [&::-webkit-slider-thumb]:shadow-sm
                     [&::-moz-range-track]:h-px [&::-moz-range-track]:bg-bw-border
                     [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:rounded-full
                     [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-bw-accent"

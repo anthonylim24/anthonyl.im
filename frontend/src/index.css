@@ -94,6 +94,23 @@ body {
   bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px) + var(--viewport-bottom-offset, 0px));
 }
 
+/* Idle dim — desaturate color, never opacity. Keyboard focus is always findable.
+   Stop button preserves its destructive color even when dimmed. */
+.session-controls-fade[data-dimmed="true"] button {
+  color: var(--bw-text-tertiary);
+}
+.session-controls-fade[data-dimmed="true"] button:where(.text-bw-destructive, [class*="destructive"]) {
+  color: var(--bw-destructive);
+}
+.session-controls-fade[data-dimmed="true"]:hover button,
+.session-controls-fade[data-dimmed="true"]:focus-within button {
+  color: var(--bw-text);
+}
+.session-controls-fade[data-dimmed="true"]:hover button:where(.text-bw-destructive, [class*="destructive"]),
+.session-controls-fade[data-dimmed="true"]:focus-within button:where(.text-bw-destructive, [class*="destructive"]) {
+  color: var(--bw-destructive);
+}
+
 
 /* ═══════════════════════════════════════════════════════
    SCROLLBAR
@@ -132,7 +149,7 @@ body {
   pointer-events: none;
   z-index: 1;
   opacity: 0;
-  transition: opacity 700ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: opacity 700ms var(--ease-out-expo);
 }
 
 /* Column fade-in — dany.works entry animation */
@@ -412,8 +429,8 @@ body {
     --bw-border-subtle: rgba(28, 25, 23, 0.05);
     --bw-hover: rgba(184, 134, 11, 0.06);
     --bw-active: rgba(184, 134, 11, 0.1);
-    --bw-nav-bg: rgba(245, 242, 237, 0.92);
-    --bw-nav-bg-mobile: rgba(245, 242, 237, 0.96);
+    --bw-nav-bg: #F5F2ED;
+    --bw-nav-bg-mobile: #F5F2ED;
     --bw-nav-border: rgba(28, 25, 23, 0.08);
     --bw-nav-shadow: 0 16px 40px rgba(28, 25, 23, 0.06);
     --bw-chart-grid: rgba(28, 25, 23, 0.06);
@@ -471,8 +488,8 @@ body {
     --bw-border-subtle: rgba(255, 252, 245, 0.04);
     --bw-hover: rgba(201, 162, 39, 0.08);
     --bw-active: rgba(201, 162, 39, 0.12);
-    --bw-nav-bg: rgba(23, 22, 19, 0.92);
-    --bw-nav-bg-mobile: rgba(23, 22, 19, 0.96);
+    --bw-nav-bg: hsl(40 6% 11%);
+    --bw-nav-bg-mobile: hsl(40 6% 11%);
     --bw-nav-border: rgba(255, 252, 245, 0.06);
     --bw-nav-shadow: 0 16px 40px rgba(0, 0, 0, 0.24);
     --bw-chart-grid: rgba(255, 252, 245, 0.06);

@@ -622,12 +622,14 @@ export function BreathingSession({
         ) : null}
       </div>
 
-      {/* Controls - fade only for pointer users after 3s of active breathing */}
+      {/* Controls — always visible. Idle state fades color only (not opacity) so
+          keyboard users never lose track of focus position. */}
       <div
         data-testid="session-controls"
+        data-dimmed={controlsDimmed ? 'true' : 'false'}
         className={cn(
-          'session-controls absolute left-1/2 z-10 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-4 transition-opacity duration-500 motion-reduce:transition-none focus-within:opacity-100',
-          controlsDimmed ? 'opacity-20 hover:opacity-100' : 'opacity-100'
+          'session-controls session-controls-fade absolute left-1/2 z-10 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-4',
+          'transition-colors duration-500 motion-reduce:transition-none',
         )}
         role="toolbar"
         aria-label="Session controls"
