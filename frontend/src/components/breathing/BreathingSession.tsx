@@ -4,7 +4,6 @@ import {
   useMemo,
   useRef,
   useEffect,
-  type CSSProperties,
   type FocusEvent,
 } from 'react'
 import { useBreathingCycle } from '@/hooks/useBreathingCycle'
@@ -39,7 +38,6 @@ import {
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore, type CompletedSession } from '@/stores/historyStore'
 import { useSettingsStore } from '@/stores/settingsStore'
-import { useViewportOffset } from '@/hooks/useViewportOffset'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import { useHaptics } from '@/hooks/useHaptics'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
@@ -152,11 +150,6 @@ export function BreathingSession({
   const selectedOrbTheme = isOrbThemeUnlocked(selectedTheme, level)
     ? getOrbTheme(selectedTheme)
     : getOrbTheme(DEFAULT_ORB_THEME_ID)
-  const { bottomOffset } = useViewportOffset()
-  const viewportOffsetStyle = {
-    '--viewport-bottom-offset': `${bottomOffset}px`,
-  } as CSSProperties
-
   // Lock document scroll while the session is mounted. iOS Safari rubber-bands
   // the body even when the BreathingSession container is `position: fixed`;
   // the only reliable defense is to pin `body` itself. See useBodyScrollLock.
@@ -469,15 +462,15 @@ export function BreathingSession({
     <div
       role="region"
       aria-label={`Breathing session: ${protocol.name}`}
-      // Sized to the *small* viewport (100svh) — the dimension iOS Safari
-      // exposes when the URL bar is showing. Using `inset: 0` here sized
-      // the element to the *layout* (large) viewport on real iPhones,
-      // pushing the bottom controls behind the URL bar; the user would
-      // touch the screen to reach them and trigger a viewport change,
-      // which made the page feel scrollable. 100svh stays put no matter
-      // how the URL bar animates.
+      // Sized to the *small* viewport (100svh, via the `.session-shell` CSS
+      // class) — the dimension iOS Safari exposes when the URL bar is
+      // showing. Using `inset: 0` here sized the element to the *layout*
+      // (large) viewport on real iPhones, pushing the bottom controls
+      // behind the URL bar; the user would touch the screen to reach them
+      // and trigger a viewport change, which made the page feel scrollable.
+      // 100svh stays put no matter how the URL bar animates.
       className="session-shell fixed left-0 right-0 top-0 z-[60] flex flex-col items-center justify-center overflow-hidden select-none bg-transparent breathwork"
-      style={{ height: '100svh', touchAction: 'none' }}
+      style={{ touchAction: 'none' }}
       onMouseMove={isActive && !isPaused ? showControls : undefined}
       onTouchStart={isActive && !isPaused ? showControls : undefined}
     >
@@ -546,7 +539,6 @@ export function BreathingSession({
       <div
         data-testid="session-content"
         className="session-content relative z-10 flex w-full max-w-md flex-1 flex-col items-center justify-center px-5"
-        style={viewportOffsetStyle}
       >
         {/* Phase text above orb */}
         <div className="relative z-10 mb-3">
@@ -667,7 +659,6 @@ export function BreathingSession({
         aria-label="Session controls"
         onFocusCapture={handleControlsFocus}
         onBlurCapture={handleControlsBlur}
-        style={viewportOffsetStyle}
       >
         <button
           type="button"

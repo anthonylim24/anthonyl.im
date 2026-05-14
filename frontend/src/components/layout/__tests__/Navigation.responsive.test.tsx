@@ -8,10 +8,6 @@ const { preloadBreathworkRoute } = vi.hoisted(() => ({
   preloadBreathworkRoute: vi.fn(),
 }))
 
-vi.mock('@/hooks/useViewportOffset', () => ({
-  useViewportOffset: () => ({ bottomOffset: 24 }),
-}))
-
 vi.mock('@/lib/breathworkRoutePreload', () => ({
   preloadBreathworkRoute,
 }))
@@ -21,7 +17,12 @@ describe('Navigation responsive behavior', () => {
     preloadBreathworkRoute.mockClear()
   })
 
-  it('applies dynamic bottom offset for mobile browser chrome', () => {
+  it('anchors to the visual viewport bottom with safe-area padding for the home indicator', () => {
+    // On iOS Safari 13+, position:fixed elements are positioned relative to
+    // the visual viewport. The standard pattern is `bottom: 0` + a bottom
+    // padding of `env(safe-area-inset-bottom)` so the buttons clear the
+    // home indicator without computing a dynamic offset in JS (which
+    // double-corrected on real devices and hid the nav below the fold).
     render(
       <MemoryRouter initialEntries={['/breathwork']}>
         <Navigation />
@@ -29,7 +30,11 @@ describe('Navigation responsive behavior', () => {
     )
 
     const nav = screen.getByRole('navigation')
-    expect(nav).toHaveStyle({ bottom: '24px' })
+    expect(nav).toHaveClass('fixed', 'bottom-0', 'bw-mobile-nav')
+    // `.bw-mobile-nav` (in index.css) applies `padding-bottom: env(safe-area-
+    // inset-bottom, 0px)` — jsdom can't compute env(), but the class
+    // presence is the contract we care about.
+    expect(nav.style.transform).toBe('translateZ(0)')
   })
 
   it('keeps every mobile tab target at least 44px square', () => {

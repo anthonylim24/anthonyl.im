@@ -5,7 +5,6 @@ import type { CSSProperties } from 'react'
 import { Header } from './Header'
 import { Navigation } from './Navigation'
 import { useTheme } from '@/hooks/useTheme'
-import { useViewportOffset } from '@/hooks/useViewportOffset'
 import { useFavicon } from '@/hooks/useFavicon'
 import { useDocumentMetadata } from '@/hooks/useDocumentMetadata'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
@@ -82,13 +81,19 @@ export function BreathworkLayout() {
     description: BREATHFLOW_ROUTE_METADATA.description,
   })
   const reducedMotion = useReducedMotion()
-  const { bottomOffset } = useViewportOffset()
   const isSessionRoute = location.pathname.startsWith('/breathwork/session')
 
+  // Static bottom space — nav height (4rem) + breathing room (3.5rem) +
+  // safe-area-inset-bottom for the home indicator. The previous formula
+  // added a dynamic `visualViewport`-derived offset, which on real iOS
+  // either left the nav hidden behind the URL bar or, on iOS 13+ (where
+  // position:fixed is anchored to the visual viewport), pushed it
+  // off-screen. The static value pairs cleanly with the Navigation's
+  // standard `bottom: 0 + padding-bottom: env(safe-area-inset-bottom)`.
   const contentStyle = {
     '--mobile-content-bottom-space': isSessionRoute
       ? '0px'
-      : `calc(7.5rem + env(safe-area-inset-bottom, 0px) + ${bottomOffset}px)`,
+      : 'calc(7.5rem + env(safe-area-inset-bottom, 0px))',
   } as CSSProperties
 
   return (

@@ -99,11 +99,28 @@ body {
 }
 
 .session-content {
-  padding-bottom: calc(8.75rem + env(safe-area-inset-bottom, 0px) + var(--viewport-bottom-offset, 0px));
+  padding-bottom: calc(8.75rem + env(safe-area-inset-bottom, 0px));
 }
 
 .session-controls {
-  bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px) + var(--viewport-bottom-offset, 0px));
+  bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* iOS Safari shell: size to the *small* viewport (URL-bar showing) so the
+   container never hides behind the address bar. Fallback to 100% for
+   pre-Safari-15.4. JS in BreathingSession.tsx tags this class on the
+   container; we keep the `height: 100svh` here (rather than inline) because
+   jsdom doesn't parse svh as a valid CSS value. */
+.session-shell {
+  height: 100%;       /* fallback */
+  height: 100svh;
+}
+
+/* Mobile bottom nav — standard pattern: position:fixed bottom-0 with safe-
+   area padding for the home indicator. Class lives here so jsdom doesn't
+   choke on the env() expression in inline styles. */
+.bw-mobile-nav {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* Idle dim — desaturate color, never opacity. Keyboard focus is always findable.
