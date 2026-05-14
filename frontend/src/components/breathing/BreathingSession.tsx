@@ -582,6 +582,7 @@ export function BreathingSession({
               isActive={isActive && !isPaused}
               isPaused={isPaused}
               currentRound={session?.currentRound ?? 0}
+              themeColors={selectedOrbTheme.colors}
               ariaLabel={getInteractiveBreathingVisualizationLabel(
                 session?.currentPhase ?? null,
               )}
