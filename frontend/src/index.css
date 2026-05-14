@@ -17,7 +17,19 @@ body {
   height: 100%;
   margin: 0;
   padding: 0;
+  /* Defensive — these are no-ops on iOS Safari pre-16 and only partially
+     honored 16+ for document-level rubber-band, but they cost nothing and
+     do help every other mobile browser. The real iOS lock is the JS
+     body-scroll-lock applied by `useBodyScrollLock` during active sessions. */
+  overscroll-behavior: none;
+  /* iOS Safari sizes `html, body { height: 100% }` to the layout (large)
+     viewport — meaning the bottom is hidden behind the URL bar when it's
+     showing. Override with svh (small viewport) so the page fits the
+     actually-visible area at first paint. Older Safari ignores svh and
+     falls back to 100%. */
+  min-height: 100svh;
 }
+
 
 /* #root must have a DEFINITE height (not min-height) so flex children
    can compute overflow.  min-height alone lets the element grow past

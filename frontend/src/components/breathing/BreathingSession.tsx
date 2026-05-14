@@ -43,6 +43,7 @@ import { useViewportOffset } from '@/hooks/useViewportOffset'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import { useHaptics } from '@/hooks/useHaptics'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock'
 import type { ActiveSession } from '@/stores/sessionStore'
 
 interface BreathingSessionProps {
@@ -155,6 +156,11 @@ export function BreathingSession({
   const viewportOffsetStyle = {
     '--viewport-bottom-offset': `${bottomOffset}px`,
   } as CSSProperties
+
+  // Lock document scroll while the session is mounted. iOS Safari rubber-bands
+  // the body even when the BreathingSession container is `position: fixed`;
+  // the only reliable defense is to pin `body` itself. See useBodyScrollLock.
+  useBodyScrollLock(true)
 
   const { trigger: haptic } = useHaptics()
 
@@ -463,7 +469,15 @@ export function BreathingSession({
     <div
       role="region"
       aria-label={`Breathing session: ${protocol.name}`}
-      className="fixed inset-0 z-[60] flex flex-col items-center justify-center overflow-hidden select-none bg-transparent breathwork"
+      // Sized to the *small* viewport (100svh) — the dimension iOS Safari
+      // exposes when the URL bar is showing. Using `inset: 0` here sized
+      // the element to the *layout* (large) viewport on real iPhones,
+      // pushing the bottom controls behind the URL bar; the user would
+      // touch the screen to reach them and trigger a viewport change,
+      // which made the page feel scrollable. 100svh stays put no matter
+      // how the URL bar animates.
+      className="session-shell fixed left-0 right-0 top-0 z-[60] flex flex-col items-center justify-center overflow-hidden select-none bg-transparent breathwork"
+      style={{ height: '100svh', touchAction: 'none' }}
       onMouseMove={isActive && !isPaused ? showControls : undefined}
       onTouchStart={isActive && !isPaused ? showControls : undefined}
     >
