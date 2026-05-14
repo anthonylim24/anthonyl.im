@@ -10,15 +10,15 @@ import {
 import { useBreathingCycle } from '@/hooks/useBreathingCycle'
 import { useWaveform } from '@/hooks/useWaveform'
 import { ShaderOrb } from './ShaderOrb'
-import { BreathAuraField } from './BreathAuraField'
-import { BreathAura } from './BreathAura'
+import { KirbyEasterEgg } from './KirbyEasterEgg'
+import { KirbyCharacter } from './KirbyCharacter'
 import { SessionSummary } from './SessionSummary'
 import { PhaseIndicator } from './PhaseIndicator'
 import { Timer } from './Timer'
 import { getPhaseCoachCue } from './phaseCoaching'
 import { getActiveSessionSafetyCue } from './sessionSafety'
 import { getInteractiveBreathingVisualizationLabel } from './visualizationLabels'
-import { Play, Pause, Square, RotateCcw } from 'lucide-react'
+import { Play, Pause, Square, RotateCcw, Volume2, VolumeX } from 'lucide-react'
 import {
   calculateSessionDuration,
   getPhaseForRound,
@@ -50,10 +50,10 @@ interface BreathingSessionProps {
   onCancel?: () => void
 }
 
-const AURA_GLOW_BACKGROUND = [
+const KIRBY_GLOW_BACKGROUND = [
   'radial-gradient(circle,',
-  'color-mix(in srgb, var(--bw-accent-light) 28%, transparent) 0%,',
-  'color-mix(in srgb, var(--bw-accent) 12%, transparent) 42%,',
+  'rgba(255, 150, 170, 0.28) 0%,',
+  'rgba(255, 200, 210, 0.14) 42%,',
   'transparent 70%)',
 ].join(' ')
 
@@ -145,7 +145,7 @@ export function BreathingSession({
   // Gamification stores
   const { addXP, unlockBadges, recordSession, earnedBadges, selectedTheme, xp } = useGamificationStore()
   const { sessions, getStreak } = useHistoryStore()
-  const { soundEnabled, soundVolume } = useSettingsStore()
+  const { soundEnabled, soundVolume, setSoundEnabled } = useSettingsStore()
   const level = getLevelForXP(xp)
   const selectedOrbTheme = isOrbThemeUnlocked(selectedTheme, level)
     ? getOrbTheme(selectedTheme)
@@ -157,9 +157,9 @@ export function BreathingSession({
 
   const { trigger: haptic } = useHaptics()
 
-  // Hidden aura mode: 5 rapid taps on the visualization.
-  const [auraMode, setAuraMode] = useState(false)
-  const toggleAuraMode = useCallback(() => setAuraMode((prev) => !prev), [])
+  // Hidden Kirby mode: 5 rapid taps on the visualization.
+  const [kirbyMode, setKirbyMode] = useState(false)
+  const toggleKirbyMode = useCallback(() => setKirbyMode((prev) => !prev), [])
   const tapTimestampsRef = useRef<number[]>([])
   const handleRingsClick = useCallback(() => {
     if (reducedMotion) return
@@ -171,9 +171,9 @@ export function BreathingSession({
     if (recent.length >= 5) {
       tapTimestampsRef.current = []
       haptic('success')
-      toggleAuraMode()
+      toggleKirbyMode()
     }
-  }, [reducedMotion, toggleAuraMode, haptic])
+  }, [reducedMotion, toggleKirbyMode, haptic])
 
   const clearControlsTimer = useCallback(() => {
     if (controlsTimerRef.current) {
@@ -375,6 +375,11 @@ export function BreathingSession({
     clearControlsTimer()
   }, [clearControlsTimer, haptic, pause])
 
+  const handleSoundToggle = useCallback(() => {
+    haptic('selection')
+    setSoundEnabled(!soundEnabled)
+  }, [haptic, setSoundEnabled, soundEnabled])
+
   const handleStop = useCallback(() => {
     summaryProcessedRef.current = false
     haptic('error')
@@ -450,7 +455,7 @@ export function BreathingSession({
 
   const controlsDimmed =
     isActive && !isPaused && !controlsVisible && !controlsFocused && !reducedMotion
-  const canUseAuraMode = auraMode && !reducedMotion
+  const canUseKirbyMode = kirbyMode && !reducedMotion
   const visualizationClickHandler = reducedMotion ? undefined : handleRingsClick
 
   return (
@@ -473,8 +478,8 @@ export function BreathingSession({
       >
         {sessionAnnouncement}
       </div>
-      {/* Aura mode — background layer, behind all UI */}
-      {canUseAuraMode && <BreathAuraField />}
+      {/* Kirby mode — background layer, behind all UI */}
+      {canUseKirbyMode && <KirbyEasterEgg />}
 
       {/* Round progress indicator */}
       {(() => {
@@ -543,7 +548,7 @@ export function BreathingSession({
             maxHeight: 'min(48vh, 24rem)',
           }}
         >
-          {canUseAuraMode ? (
+          {canUseKirbyMode ? (
             <button
               type="button"
               className="w-full h-full flex items-center justify-center relative appearance-none border-0 bg-transparent p-0"
@@ -553,18 +558,20 @@ export function BreathingSession({
               )}
               data-testid="concentric-rings"
             >
-              {/* Radial glow behind the aura uses transform + opacity instead
+              {/* Radial glow behind Kirby uses transform + opacity instead
                   of rebuilding gradient strings every frame. */}
               <div
                 className="absolute inset-0 pointer-events-none"
                 style={{
-                  background: AURA_GLOW_BACKGROUND,
+                  background: KIRBY_GLOW_BACKGROUND,
                   transform: `translateZ(0) scale(${0.7 + amplitude * 0.6})`,
                   opacity: 0.3 + amplitude * 0.7,
                   transition: 'transform 800ms cubic-bezier(0.16, 1, 0.3, 1), opacity 800ms ease-out',
                 }}
               />
-              <BreathAura size={200} amplitude={amplitude} />
+              <div data-testid="kirby-orb">
+                <KirbyCharacter size={200} puffAmount={amplitude} />
+              </div>
             </button>
           ) : (
             <ShaderOrb
@@ -628,6 +635,22 @@ export function BreathingSession({
         onBlurCapture={handleControlsBlur}
         style={viewportOffsetStyle}
       >
+        <button
+          type="button"
+          onClick={handleSoundToggle}
+          aria-label={soundEnabled ? 'Turn sound off' : 'Turn sound on'}
+          aria-pressed={soundEnabled}
+          className={cn(
+            'h-14 w-14 flex items-center justify-center border border-bw-border text-bw transition-all duration-300',
+            !soundEnabled && 'text-bw-tertiary',
+          )}
+        >
+          {soundEnabled ? (
+            <Volume2 className="h-5 w-5" aria-hidden="true" />
+          ) : (
+            <VolumeX className="h-5 w-5" aria-hidden="true" />
+          )}
+        </button>
         {!isActive && !isComplete ? (
           <button
             type="button"
