@@ -27,13 +27,25 @@ export function Header() {
   }
 
   return (
-    <header className="sticky top-0 z-50 w-full safe-top" style={{ backgroundColor: 'var(--bw-nav-bg)' }}>
-      {/* Hairline edge — system depth strategy is borders-only, no glass. */}
-      <div
-        className="absolute left-0 right-0 bottom-0 pointer-events-none"
-        aria-hidden="true"
-        style={{ borderBottom: '1px solid var(--bw-nav-border)' }}
-      />
+    <header
+      // iOS Safari real-device polish:
+      // - `transform: translateZ(0)` + `will-change: transform` promote the
+      //   header to its own compositor layer. Without this, sticky headers
+      //   jitter on iOS during URL-bar collapse because the header gets
+      //   repainted on every scroll frame.
+      // - Direct `border-bottom` (instead of an absolutely-positioned
+      //   hairline child) means one element to composite, not two.
+      // - `contain: layout paint` further isolates the header's paint work
+      //   from the rest of the document.
+      className="sticky top-0 z-50 w-full safe-top"
+      style={{
+        backgroundColor: 'var(--bw-nav-bg)',
+        borderBottom: '1px solid var(--bw-nav-border)',
+        transform: 'translateZ(0)',
+        willChange: 'transform',
+        contain: 'layout paint',
+      }}
+    >
       <div className="relative">
         <div className="container flex h-16 items-center justify-between px-6">
           <div className="flex items-center">
