@@ -58,7 +58,10 @@ vi.mock('@/stores/settingsStore', () => ({
   }),
 }))
 
-const CONFIG = { techniqueId: TECHNIQUE_IDS.BOX_BREATHING, rounds: 4 }
+// Use a non-box technique here so the visualization is the orb (concentric-rings
+// testid), not the box. The Kirby easter egg works the same for both, but the
+// orb-tap test fixtures predate BoxVisualization.
+const CONFIG = { techniqueId: TECHNIQUE_IDS.CYCLIC_SIGHING, rounds: 4 }
 
 beforeEach(() => {
   vi.mocked(useReducedMotion).mockReturnValue(false)
