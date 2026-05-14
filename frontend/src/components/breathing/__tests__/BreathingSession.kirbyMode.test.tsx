@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
-import { BreathingSession } from '../BreathingSession'
 import { TECHNIQUE_IDS } from '@/lib/constants'
+import { BreathingSession } from '../BreathingSession'
 
 vi.mock('@/hooks/useReducedMotion', () => ({
   useReducedMotion: vi.fn(() => false),
@@ -50,6 +50,13 @@ vi.mock('@/stores/historyStore', () => ({
     getStreak: () => 0,
   }),
 }))
+vi.mock('@/stores/settingsStore', () => ({
+  useSettingsStore: () => ({
+    soundEnabled: true,
+    soundVolume: 0.3,
+    setSoundEnabled: vi.fn(),
+  }),
+}))
 
 const CONFIG = { techniqueId: TECHNIQUE_IDS.BOX_BREATHING, rounds: 4 }
 
@@ -64,57 +71,65 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('BreathingSession aura mode', () => {
-  it('does not show the aura field initially', () => {
+describe('BreathingSession Kirby mode', () => {
+  it('does not show Kirby mode initially', () => {
     render(<BreathingSession config={CONFIG} />)
-    expect(screen.queryByTestId('breath-aura-field')).toBeNull()
+
+    expect(screen.queryByTestId('kirby-easter-egg')).toBeNull()
+    expect(screen.queryByTestId('kirby-orb')).toBeNull()
   })
 
-  it('shows the aura field after 5 rapid taps on rings', async () => {
+  it('shows Kirby mode after 5 rapid taps on the orb', async () => {
     let t = 0
     vi.spyOn(Date, 'now').mockImplementation(() => (t += 100))
 
     render(<BreathingSession config={CONFIG} />)
-    const rings = screen.getByTestId('concentric-rings')
+    const orb = screen.getByTestId('concentric-rings')
     for (let i = 0; i < 5; i++) {
-      await userEvent.click(rings)
+      await userEvent.click(orb)
     }
-    expect(screen.getByTestId('breath-aura-field')).toBeTruthy()
+
+    expect(screen.getByTestId('kirby-easter-egg')).toBeInTheDocument()
+    expect(screen.getByTestId('kirby-orb')).toBeInTheDocument()
   })
 
-  it('shows the aura field after 5 keyboard activations on rings', async () => {
+  it('shows Kirby mode after 5 keyboard activations on the orb', async () => {
     let t = 0
     vi.spyOn(Date, 'now').mockImplementation(() => (t += 100))
 
     render(<BreathingSession config={CONFIG} />)
-    const rings = screen.getByRole('button', { name: /Breathe In phase/i })
-    rings.focus()
+    const orb = screen.getByRole('button', { name: /Breathe In phase/i })
+    orb.focus()
     for (let i = 0; i < 5; i++) {
       await userEvent.keyboard('{Enter}')
     }
-    expect(screen.getByTestId('breath-aura-field')).toBeTruthy()
+
+    expect(screen.getByTestId('kirby-easter-egg')).toBeInTheDocument()
+    expect(screen.getByTestId('kirby-orb')).toBeInTheDocument()
   })
 
-  it('hides the aura field after a second set of 5 rapid taps', async () => {
+  it('hides Kirby mode after a second set of 5 rapid taps', async () => {
     let t = 0
     vi.spyOn(Date, 'now').mockImplementation(() => (t += 100))
 
     render(<BreathingSession config={CONFIG} />)
-    const rings = screen.getByTestId('concentric-rings')
+    const orb = screen.getByTestId('concentric-rings')
 
     for (let i = 0; i < 5; i++) {
-      await userEvent.click(rings)
+      await userEvent.click(orb)
     }
-    expect(screen.getByTestId('breath-aura-field')).toBeTruthy()
+    expect(screen.getByTestId('kirby-easter-egg')).toBeInTheDocument()
 
-    const auraTarget = screen.getByTestId('concentric-rings')
+    const kirbyOrb = screen.getByTestId('concentric-rings')
     for (let i = 0; i < 5; i++) {
-      await userEvent.click(auraTarget)
+      await userEvent.click(kirbyOrb)
     }
-    expect(screen.queryByTestId('breath-aura-field')).toBeNull()
+
+    expect(screen.queryByTestId('kirby-easter-egg')).toBeNull()
+    expect(screen.queryByTestId('kirby-orb')).toBeNull()
   })
 
-  it('does not enable aura mode when reduced motion is requested', async () => {
+  it('does not enable Kirby mode when reduced motion is requested', async () => {
     vi.mocked(useReducedMotion).mockReturnValue(true)
     let t = 0
     vi.spyOn(Date, 'now').mockImplementation(() => (t += 100))
@@ -123,30 +138,32 @@ describe('BreathingSession aura mode', () => {
     expect(screen.queryByRole('button', { name: /toggle alternate visual/i })).toBeNull()
     expect(screen.getByRole('img', { name: /breathing visualization/i })).toBeInTheDocument()
 
-    const rings = screen.getByTestId('concentric-rings')
+    const orb = screen.getByTestId('concentric-rings')
     for (let i = 0; i < 5; i++) {
-      await userEvent.click(rings)
+      await userEvent.click(orb)
     }
 
-    expect(screen.queryByTestId('breath-aura-field')).toBeNull()
+    expect(screen.queryByTestId('kirby-easter-egg')).toBeNull()
+    expect(screen.queryByTestId('kirby-orb')).toBeNull()
   })
 
-  it('hides aura controls while reduced motion is active mid-session', async () => {
+  it('hides Kirby mode while reduced motion is active mid-session', async () => {
     let t = 0
     vi.spyOn(Date, 'now').mockImplementation(() => (t += 100))
 
     const { rerender } = render(<BreathingSession config={CONFIG} />)
-    const rings = screen.getByTestId('concentric-rings')
+    const orb = screen.getByTestId('concentric-rings')
 
     for (let i = 0; i < 5; i++) {
-      await userEvent.click(rings)
+      await userEvent.click(orb)
     }
-    expect(screen.getByTestId('breath-aura-field')).toBeTruthy()
+    expect(screen.getByTestId('kirby-easter-egg')).toBeInTheDocument()
 
     vi.mocked(useReducedMotion).mockReturnValue(true)
     rerender(<BreathingSession config={CONFIG} />)
 
-    expect(screen.queryByTestId('breath-aura-field')).toBeNull()
+    expect(screen.queryByTestId('kirby-easter-egg')).toBeNull()
+    expect(screen.queryByTestId('kirby-orb')).toBeNull()
     expect(screen.queryByRole('button', { name: /toggle alternate visual/i })).toBeNull()
     expect(screen.getByRole('img', { name: /breathing visualization/i })).toBeInTheDocument()
   })

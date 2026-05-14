@@ -38,6 +38,7 @@ const mocks = vi.hoisted(() => {
     settings: {
       soundEnabled: true,
       soundVolume: 0.3,
+      setSoundEnabled: vi.fn(),
     },
   }
 })
@@ -129,6 +130,7 @@ describe('BreathingSession controls accessibility', () => {
     mocks.reducedMotion = false
     mocks.settings.soundEnabled = true
     mocks.settings.soundVolume = 0.3
+    mocks.settings.setSoundEnabled.mockClear()
     mocks.cycle.isActive = true
     mocks.cycle.isPaused = false
     mocks.cycle.isComplete = false
@@ -189,6 +191,26 @@ describe('BreathingSession controls accessibility', () => {
       enableAudio: false,
       audioVolume: 0.42,
     })
+  })
+
+  it('lets users toggle sound from the session controls', () => {
+    renderSession()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Turn sound off' }))
+
+    expect(mocks.settings.setSoundEnabled).toHaveBeenCalledWith(false)
+    expect(mocks.haptic).toHaveBeenCalledWith('selection')
+  })
+
+  it('shows the muted sound action when sound is currently off', () => {
+    mocks.settings.soundEnabled = false
+
+    renderSession()
+
+    expect(screen.getByRole('button', { name: 'Turn sound on' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
   })
 
   it('shows planned duration in the ready state before the phase timer starts', () => {
