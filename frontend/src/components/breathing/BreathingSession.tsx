@@ -10,6 +10,7 @@ import {
 import { useBreathingCycle } from '@/hooks/useBreathingCycle'
 import { useWaveform } from '@/hooks/useWaveform'
 import { ShaderOrb } from './ShaderOrb'
+import { BoxVisualization } from './BoxVisualization'
 import { KirbyEasterEgg } from './KirbyEasterEgg'
 import { KirbyCharacter } from './KirbyCharacter'
 import { SessionSummary } from './SessionSummary'
@@ -25,7 +26,7 @@ import {
   getProtocol,
   type SessionConfig,
 } from '@/lib/breathingProtocols'
-import { PHASE_LABELS } from '@/lib/constants'
+import { PHASE_LABELS, TECHNIQUE_IDS } from '@/lib/constants'
 import { cn, formatTime } from '@/lib/utils'
 import {
   calculateXP,
@@ -573,6 +574,23 @@ export function BreathingSession({
                 <KirbyCharacter size={200} puffAmount={amplitude} />
               </div>
             </button>
+          ) : config.techniqueId === TECHNIQUE_IDS.BOX_BREATHING ? (
+            <BoxVisualization
+              phaseIndex={session?.currentPhaseIndex ?? null}
+              phaseDuration={currentPhaseDuration}
+              timeRemaining={session?.timeRemaining ?? 0}
+              isActive={isActive && !isPaused}
+              isPaused={isPaused}
+              currentRound={session?.currentRound ?? 0}
+              themeColors={selectedOrbTheme.colors}
+              ariaLabel={getInteractiveBreathingVisualizationLabel(
+                session?.currentPhase ?? null,
+              )}
+              interactiveAriaLabel={getInteractiveBreathingVisualizationLabel(
+                session?.currentPhase ?? null,
+              )}
+              onClick={visualizationClickHandler}
+            />
           ) : (
             <ShaderOrb
               phase={session?.currentPhase ?? null}

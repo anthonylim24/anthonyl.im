@@ -316,6 +316,23 @@ body {
 }
 .animate-slide-up { animation: slide-up-fade 0.6s var(--spring-smooth) forwards; }
 
+/* BoxVisualization — gentle pulse on the traveling light's halo. Echoes the
+   orb's breath. Skipped under prefers-reduced-motion (the class is only
+   applied to the inner group when motion is allowed, but we guard here too
+   for belt-and-suspenders). */
+@keyframes box-light-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%      { transform: scale(1.22); opacity: 0.72; }
+}
+.box-light-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: box-light-pulse 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .box-light-pulse { animation: none; }
+}
+
 .stagger-1 { animation-delay: 0.08s; }
 .stagger-2 { animation-delay: 0.16s; }
 .stagger-3 { animation-delay: 0.24s; }
