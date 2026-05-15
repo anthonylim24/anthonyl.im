@@ -91,6 +91,11 @@ export function LiquidGlassOrb({
   const [glassStatus, setGlassStatus] = useState<GlassInitStatus>('pending')
   const [glassError, setGlassError] = useState<string | null>(null)
   const [glassCanvasInfo, setGlassCanvasInfo] = useState<string | null>(null)
+  // TEMP iOS diagnostic — center-pixel sample of the injected shader canvas.
+  // If alpha stays 0 the WebGL output never lands on the visible canvas
+  // (WebGL/drawImage problem). If pixels have color but you still see no
+  // refraction, it's a CSS compositing problem with the stacking context.
+  const [glassPixel, setGlassPixel] = useState<string | null>(null)
 
   useEffect(() => {
     if (reducedMotion) return
@@ -101,6 +106,8 @@ export function LiquidGlassOrb({
     let instance: LiquidGlass | null = null
     let cancelled = false
 
+    let sampleHandle: number | null = null
+
     LiquidGlass.init({ root, glassElements: [glass] })
       .then((inst) => {
         if (cancelled) {
@@ -109,9 +116,6 @@ export function LiquidGlassOrb({
         }
         instance = inst
         setGlassStatus('ready')
-        // Check that the library actually injected its shader canvas.
-        // If init resolved but the canvas is missing or zero-sized, that
-        // tells us something different than init rejecting outright.
         requestAnimationFrame(() => {
           const canvas = glass.querySelector('canvas')
           if (!canvas) {
@@ -122,6 +126,31 @@ export function LiquidGlassOrb({
           setGlassCanvasInfo(
             `canvas ${canvas.width}x${canvas.height} @ ${Math.round(rect.width)}x${Math.round(rect.height)}`,
           )
+
+          // Poll the center pixel of the injected 2D canvas to see if the
+          // library is writing visible content. The library uses a 2D
+          // context (`ctx.drawImage(webglCanvas, …)`) so getImageData is
+          // available without WebGL readPixels gymnastics.
+          const sample = () => {
+            if (cancelled) return
+            const ctx = canvas.getContext('2d', { willReadFrequently: true })
+            if (!ctx) {
+              setGlassPixel('no 2d ctx')
+              return
+            }
+            try {
+              const cx = Math.floor(canvas.width / 2)
+              const cy = Math.floor(canvas.height / 2)
+              const d = ctx.getImageData(cx, cy, 1, 1).data
+              setGlassPixel(`px ${d[0]},${d[1]},${d[2]},${d[3]}`)
+            } catch (err) {
+              setGlassPixel(
+                `px err: ${(err instanceof Error ? err.message : String(err)).slice(0, 40)}`,
+              )
+            }
+            sampleHandle = window.setTimeout(sample, 500)
+          }
+          sample()
         })
       })
       .catch((err) => {
@@ -132,6 +161,7 @@ export function LiquidGlassOrb({
 
     return () => {
       cancelled = true
+      if (sampleHandle !== null) window.clearTimeout(sampleHandle)
       instance?.destroy()
       instance = null
     }
@@ -240,6 +270,7 @@ export function LiquidGlassOrb({
       >
         {`glass: ${glassStatus}`}
         {glassCanvasInfo ? `\n${glassCanvasInfo}` : ''}
+        {glassPixel ? `\n${glassPixel}` : ''}
         {glassError ? `\nerr: ${glassError.slice(0, 80)}` : ''}
       </div>
     </div>
