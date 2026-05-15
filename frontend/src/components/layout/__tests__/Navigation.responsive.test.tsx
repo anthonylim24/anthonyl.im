@@ -35,7 +35,7 @@ describe('Navigation responsive behavior', () => {
     // Floating: gapped from the viewport edge instead of flush, and
     // padded with the safe-area inset so it clears the home indicator
     // without having to compute a JS-side offset.
-    expect(nav).toHaveClass('fixed', 'bottom-3', 'left-1/2', 'md:hidden', 'bw-mobile-nav')
+    expect(nav).toHaveClass('fixed', 'bottom-4', 'left-1/2', 'md:hidden', 'bw-mobile-nav')
   })
 
   it('keeps every mobile tab target at least 44px square', () => {
