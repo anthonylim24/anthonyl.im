@@ -12,29 +12,30 @@ vi.mock('@/lib/breathworkRoutePreload', () => ({
   preloadBreathworkRoute,
 }))
 
+vi.mock('@/hooks/useScrollMappedHide', () => ({
+  // The scroll-mapping hook touches `window.scrollY` and DOM transforms;
+  // we test its outputs in its own unit test. Stub it out here so the
+  // responsive tests stay focused on layout contracts.
+  useScrollMappedHide: vi.fn(),
+}))
+
 describe('Navigation responsive behavior', () => {
   beforeEach(() => {
     preloadBreathworkRoute.mockClear()
   })
 
-  it('anchors to the visual viewport bottom with safe-area padding for the home indicator', () => {
-    // On iOS Safari 13+, position:fixed elements are positioned relative to
-    // the visual viewport. The standard pattern is `bottom: 0` + a bottom
-    // padding of `env(safe-area-inset-bottom)` so the buttons clear the
-    // home indicator without computing a dynamic offset in JS (which
-    // double-corrected on real devices and hid the nav below the fold).
+  it('floats the mobile nav as a glass capsule clear of the home indicator', () => {
     render(
       <MemoryRouter initialEntries={['/breathwork']}>
         <Navigation />
       </MemoryRouter>
     )
 
-    const nav = screen.getByRole('navigation')
-    expect(nav).toHaveClass('fixed', 'bottom-0', 'bw-mobile-nav')
-    // `.bw-mobile-nav` (in index.css) applies `padding-bottom: env(safe-area-
-    // inset-bottom, 0px)` — jsdom can't compute env(), but the class
-    // presence is the contract we care about.
-    expect(nav.style.transform).toBe('translateZ(0)')
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    // Floating: gapped from the viewport edge instead of flush, and
+    // padded with the safe-area inset so it clears the home indicator
+    // without having to compute a JS-side offset.
+    expect(nav).toHaveClass('fixed', 'bottom-3', 'left-1/2', 'md:hidden', 'bw-mobile-nav')
   })
 
   it('keeps every mobile tab target at least 44px square', () => {
@@ -45,7 +46,8 @@ describe('Navigation responsive behavior', () => {
     )
 
     for (const label of ['Home', 'Breathe', 'Progress', 'Settings']) {
-      expect(screen.getByRole('link', { name: label })).toHaveClass('min-h-11', 'min-w-11')
+      const link = screen.getByRole('link', { name: label })
+      expect(link).toHaveClass('h-11', 'w-11')
     }
   })
 
@@ -60,7 +62,7 @@ describe('Navigation responsive behavior', () => {
     expect(screen.getByRole('link', { name: 'Home' })).not.toHaveAttribute('aria-current')
   })
 
-  it('hides mobile nav on session route', () => {
+  it('hides every nav surface on the active session route', () => {
     render(
       <MemoryRouter initialEntries={['/breathwork/session']}>
         <Navigation />
@@ -68,6 +70,20 @@ describe('Navigation responsive behavior', () => {
     )
 
     expect(screen.queryByRole('navigation')).toBeNull()
+  })
+
+  it('renders a distinct desktop quick-launch dock alongside the mobile capsule', () => {
+    render(
+      <MemoryRouter initialEntries={['/breathwork']}>
+        <Navigation />
+      </MemoryRouter>
+    )
+
+    // The desktop variant is a single CTA — different shape, different
+    // anchor, different content from the mobile pill.
+    const desktopDock = screen.getByRole('navigation', { name: 'Quick actions' })
+    expect(desktopDock).toHaveClass('hidden', 'md:block', 'right-8')
+    expect(screen.getByRole('link', { name: /start a session/i })).toBeInTheDocument()
   })
 
   it('preloads mobile nav routes on pointer intent and keyboard focus', async () => {

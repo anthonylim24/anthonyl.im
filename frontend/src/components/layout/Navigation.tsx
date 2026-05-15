@@ -1,28 +1,31 @@
 /**
  * Navigation.tsx
- * Minimal bottom tab bar — parchment + ink aesthetic.
  *
- * iOS Safari positioning notes:
- * - Since iOS 13, `position: fixed; bottom: 0` anchors to the visual viewport
- *   on Safari Mobile, so the bar stays visible whether the URL bar is at the
- *   top, at the bottom, expanded, or collapsed. The previous implementation
- *   tried to compute `bottom: ${innerHeight - visualViewport.height}px` to
- *   "push the nav up past the URL bar" — this was double-correcting and on
- *   modern iOS placed the nav OFF-screen below the visible area.
- * - The home indicator gutter is handled by padding the nav itself with
- *   `env(safe-area-inset-bottom)`. This is the pattern Material UI's
- *   BottomNavigation, Tailwind UI's mobile nav, and every iOS-grade web app
- *   uses. Requires `<meta name="viewport" content="… viewport-fit=cover">`
- *   in index.html — already present.
- * - No `transition` on `bottom` — the property is now static, so there's
- *   nothing for the browser to animate (avoids a class of jitter bugs).
- * - `transform: translateZ(0)` promotes the nav to its own compositor layer
- *   so it doesn't repaint during scroll.
+ * Floating glass tab bar in two responsive variants:
+ *
+ *  • Mobile (<md): an iOS-style capsule centered at the bottom of the
+ *    viewport. Uses `backdrop-filter` for the live-blur glass effect that
+ *    iOS system surfaces have, and scroll-maps its translateY so it
+ *    retracts as the user scrolls down and reveals as they scroll up. The
+ *    mapping is 1:1 with the scroll gesture (see useScrollMappedHide) —
+ *    no easing, no snap, the bar simply tracks the finger.
+ *
+ *  • Desktop (>=md): a compact, always-visible glass dock anchored at
+ *    bottom-right with just the primary "Breathe" CTA. Distinct from the
+ *    mobile pill so desktop doesn't get a stretched mobile UI — primary
+ *    nav on desktop lives in the Header; this dock is a quick-launch
+ *    affordance rather than a full nav.
+ *
+ * Hidden entirely on the active-session route so the breathing visual
+ * has the screen to itself.
  */
+import { useRef } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Wind, BarChart3, Home, Settings } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useHaptics } from '@/hooks/useHaptics'
+import { useReducedMotion } from '@/hooks/useReducedMotion'
+import { useScrollMappedHide } from '@/hooks/useScrollMappedHide'
 import { preloadBreathworkRoute } from '@/lib/breathworkRoutePreload'
 
 const navItems = [
@@ -32,64 +35,139 @@ const navItems = [
   { path: '/breathwork/settings', label: 'Settings', icon: Settings },
 ]
 
+// Pill height (56px) + bottom inset (~24px) + safe area. Slightly over-
+// translate so the pill clears the home indicator gutter when fully
+// hidden, instead of stopping with its bottom edge flush to it.
+const MOBILE_MAX_HIDDEN = 120
+
+// Glass surface shared by both variants — kept as plain inline styles
+// (rather than a Tailwind class) because the vendor-prefixed
+// `WebkitBackdropFilter` needs to ship to iOS Safari.
+const glassSurface = {
+  background:
+    'color-mix(in oklab, var(--bw-surface) 70%, transparent)',
+  backdropFilter: 'blur(22px) saturate(180%)',
+  WebkitBackdropFilter: 'blur(22px) saturate(180%)',
+  border: '1px solid var(--bw-nav-border)',
+  boxShadow:
+    '0 10px 30px -12px rgba(0, 0, 0, 0.25), 0 2px 8px -2px rgba(0, 0, 0, 0.08)',
+}
+
 export function Navigation() {
   const location = useLocation()
   const { trigger: haptic } = useHaptics()
+  const reducedMotion = useReducedMotion()
+  const mobileRef = useRef<HTMLElement>(null)
 
   const activeIndex = navItems.findIndex(({ path }) =>
     path === '/breathwork'
       ? location.pathname === '/breathwork'
-      : location.pathname.startsWith(path)
+      : location.pathname.startsWith(path),
   )
 
-  const shouldHideInSession = location.pathname.startsWith('/breathwork/session')
+  const isSessionRoute = location.pathname.startsWith('/breathwork/session')
 
-  if (shouldHideInSession) {
-    return null
-  }
+  // Scroll-mapped hide on mobile only. Reduced-motion users keep a
+  // static pill — the gesture-tracked transform animates implicitly via
+  // the user's own movement, but disabling it removes any chance of
+  // motion if e.g. momentum scrolling carries the offset past 0.
+  useScrollMappedHide(mobileRef, {
+    translateX: '-50%',
+    maxHidden: MOBILE_MAX_HIDDEN,
+    enabled: !isSessionRoute && !reducedMotion,
+  })
+
+  if (isSessionRoute) return null
 
   return (
-    <nav
-      className="bw-mobile-nav md:hidden fixed bottom-0 left-0 right-0 z-50"
-      style={{
-        backgroundColor: 'var(--bw-nav-bg-mobile)',
-        borderTop: '1px solid var(--bw-nav-border)',
-        transform: 'translateZ(0)',
-        willChange: 'transform',
-        contain: 'layout paint',
-      }}
-    >
-      <div className="mx-auto max-w-md">
-        <div className="grid grid-cols-4 h-16">
+    <>
+      {/* ── Mobile: scroll-aware floating capsule ── */}
+      <nav
+        ref={mobileRef}
+        aria-label="Primary"
+        // `bw-mobile-nav` only carries the env(safe-area-inset-bottom)
+        // padding — kept as a CSS class because jsdom drops env() values
+        // from inline styles, which breaks responsive tests.
+        className="bw-mobile-nav md:hidden fixed bottom-3 left-1/2 z-50 will-change-transform"
+        style={{
+          // The `translateX(-50%)` lives inside the inline transform set
+          // by useScrollMappedHide so centering and scroll offset compose
+          // cleanly in a single matrix.
+          transform: 'translate3d(-50%, 0px, 0)',
+        }}
+      >
+        <div
+          className="flex items-center gap-1 rounded-full px-2 py-1.5"
+          style={glassSurface}
+        >
           {navItems.map(({ path, label, icon: Icon }, i) => {
             const active = i === activeIndex
             return (
               <Link
                 key={path}
                 to={path}
+                aria-label={label}
                 aria-current={active ? 'page' : undefined}
                 onPointerEnter={() => preloadBreathworkRoute(path)}
                 onFocus={() => preloadBreathworkRoute(path)}
-                onClick={() => { if (i !== activeIndex) haptic('selection') }}
+                onClick={() => {
+                  if (!active) haptic('selection')
+                }}
                 className={cn(
-                  'flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 text-[10px] font-mono font-medium tracking-[0.07em] uppercase transition-colors duration-300 relative',
+                  'relative grid h-11 w-11 place-items-center rounded-full transition-colors duration-200',
                   active
-                    ? 'text-bw'
-                    : 'text-bw-secondary hover:text-bw active:scale-95'
+                    ? 'text-bw-accent'
+                    : 'text-bw-secondary hover:text-bw active:scale-95',
                 )}
+                style={
+                  active
+                    ? {
+                        background:
+                          'color-mix(in oklab, var(--bw-accent) 14%, transparent)',
+                      }
+                    : undefined
+                }
               >
-                <div className="relative">
-                  <Icon className={cn(
-                    "relative h-[24px] w-[24px] transition-colors duration-300",
-                    active ? "text-bw-accent" : "text-bw-secondary"
-                  )} />
-                </div>
-                <span>{label}</span>
+                <Icon className="h-5 w-5" strokeWidth={active ? 2.25 : 1.75} />
               </Link>
             )
           })}
         </div>
-      </div>
-    </nav>
+      </nav>
+
+      {/* ── Desktop: compact glass quick-launch dock ── */}
+      <nav
+        aria-label="Quick actions"
+        className="hidden md:block fixed bottom-8 right-8 z-50"
+      >
+        <Link
+          to="/breathwork/session"
+          aria-current={
+            location.pathname.startsWith('/breathwork/session') ? 'page' : undefined
+          }
+          onPointerEnter={() => preloadBreathworkRoute('/breathwork/session')}
+          onFocus={() => preloadBreathworkRoute('/breathwork/session')}
+          className={cn(
+            'group inline-flex items-center gap-2.5 rounded-full px-5 py-3',
+            'text-bw transition-all duration-200 hover:-translate-y-px hover:shadow-lg',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bw-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bw-canvas',
+          )}
+          style={glassSurface}
+        >
+          <span
+            className="grid h-7 w-7 place-items-center rounded-full"
+            style={{
+              background:
+                'color-mix(in oklab, var(--bw-accent) 14%, transparent)',
+            }}
+          >
+            <Wind className="h-4 w-4 text-bw-accent" strokeWidth={2} />
+          </span>
+          <span className="text-[12px] font-mono font-medium uppercase tracking-[0.12em]">
+            Start a session
+          </span>
+        </Link>
+      </nav>
+    </>
   )
 }
