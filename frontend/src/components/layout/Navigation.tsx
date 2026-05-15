@@ -1,33 +1,30 @@
 /**
  * Navigation.tsx
  *
- * Floating glass tab bar in two responsive variants:
+ * Floating glass tab bar in two responsive variants, both powered by
+ * `@ybouane/liquidglass` refracting the page DOM behind them.
  *
- *  • Mobile (<md): an iOS-style capsule centered at the viewport bottom.
- *    TranslateY scroll-maps 1:1 with the gesture (see useScrollMappedHide).
- *  • Desktop (>=md): a compact, always-visible glass dock at bottom-right
- *    with the primary "Breathe" CTA — distinct from the mobile pill.
+ *  • Mobile (<md): centered floating capsule, scroll-maps its translateY
+ *    1:1 with the gesture (see useScrollMappedHide).
+ *  • Desktop (>=md): always-visible glass dock at bottom-right with the
+ *    primary "Breathe" CTA — distinct from the mobile pill.
  *
- * The glass effect comes from `backdrop-filter` (real-time blur +
- * saturation of the rendered DOM behind each pill), not from the
- * `@ybouane/liquidglass` library. The library samples only its own root's
- * children, so it cannot refract page content that lives outside that
- * root — the right tool for "frost the rendered page below the pill" is
- * the browser's built-in backdrop filter, which is what iOS system
- * surfaces use internally.
+ * Architecturally, this component is a *direct child* of the LiquidGlass
+ * root that lives in BreathworkLayout: page content (`.breathwork`) is a
+ * sibling of these navs inside that root, so the library can rasterize
+ * the page via html-to-image and refract it through the glass shader.
+ * The page raster is cached on first render and repositioned per frame
+ * via `getBoundingClientRect`, so scrolling shifts the raster naturally
+ * — we just have to nudge the library with `markChanged()` on each
+ * scroll event so it re-runs the shader at the page's new position.
  *
- * Both variants are rendered through a React Portal anchored to
- * `document.body`. This is load-bearing: `.breathwork`'s `col-fade-in`
- * animation ends with `transform: translateY(0)`, which creates a
- * containing block for `position: fixed` descendants — so a regular
- * fixed-position nav inside `.breathwork` scrolls with the layout
- * instead of staying glued to the viewport bottom. Mounting outside
- * `.breathwork` via portal sidesteps the containing-block trap.
+ * Hidden entirely on the active-session route so the breathing visual
+ * has the screen to itself.
  */
-import { useRef, type CSSProperties } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useRef, type RefObject } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Wind, BarChart3, Home, Settings } from 'lucide-react'
+import { LiquidGlass } from '@ybouane/liquidglass'
 import { cn } from '@/lib/utils'
 import { useHaptics } from '@/hooks/useHaptics'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
@@ -41,41 +38,60 @@ const navItems = [
   { path: '/breathwork/settings', label: 'Settings', icon: Settings },
 ]
 
-// Pill height (≈60px) + bottom inset (16px) + safe-area + buffer. Over-
-// translate slightly so the pill clears the home indicator gutter when
-// fully hidden instead of stopping flush with it.
+// Pill height + bottom inset + safe-area + buffer. Over-translate slightly
+// so the pill clears the home indicator gutter when fully hidden.
 const MOBILE_MAX_HIDDEN = 160
 
-// Shared glass surface. WebkitBackdropFilter must ship to iOS Safari —
-// modern Safari supports the unprefixed property too, but keeping both
-// is the maximum-compatibility shape and matches what iOS-grade web
-// apps actually ship.
-//
-// The `linear-gradient` background gives the pill a subtle top-edge
-// highlight + bottom-edge fade, which is the visual cue that sells "this
-// is a 3D glass surface lit from above" — a flat translucent fill reads
-// as a plain card, not glass.
-const glassSurface: CSSProperties = {
-  background:
-    'linear-gradient(180deg, color-mix(in oklab, var(--bw-surface) 55%, transparent) 0%, color-mix(in oklab, var(--bw-surface) 38%, transparent) 100%)',
-  backdropFilter: 'blur(24px) saturate(180%)',
-  WebkitBackdropFilter: 'blur(24px) saturate(180%)',
-  border: '1px solid color-mix(in oklab, var(--bw-surface) 70%, transparent)',
-  boxShadow:
-    [
-      'inset 0 1px 0 rgba(255, 255, 255, 0.35)', // top-edge specular highlight
-      'inset 0 -1px 0 rgba(0, 0, 0, 0.04)', // bottom-edge contact shadow
-      '0 12px 28px -10px rgba(0, 0, 0, 0.22)', // drop shadow
-      '0 2px 6px -2px rgba(0, 0, 0, 0.10)',
-    ].join(', '),
+// Per-element glass config. Biased toward visible refraction + Fresnel so
+// you can read it as glass, not as a frosted card. Shadows disabled because
+// the library renders the drop shadow into a 20px ring outside the glass
+// element — visual drop shadow lives on the wrapper via filter instead.
+const MOBILE_GLASS_CONFIG = {
+  cornerRadius: 9999,
+  zRadius: 26,
+  refraction: 0.85,
+  chromAberration: 0.12,
+  edgeHighlight: 0.32,
+  specular: 0.45,
+  fresnel: 0.55,
+  distortion: 0.0,
+  blurAmount: 0.06,
+  saturation: 1.05,
+  tintStrength: 0.1,
+  brightness: 0.05,
+  opacity: 1.0,
+  shadowOpacity: 0,
+  shadowSpread: 0,
+  shadowOffsetY: 0,
+  floating: false,
+  button: false,
+  bevelMode: 0,
+} as const
+
+const DESKTOP_GLASS_CONFIG = {
+  ...MOBILE_GLASS_CONFIG,
+  zRadius: 20,
+  refraction: 0.7,
+  chromAberration: 0.10,
+} as const
+
+interface NavigationProps {
+  /**
+   * Ref to the LiquidGlass root element. The navs render as direct
+   * children of that root so the library can see them in
+   * `root.children` and treat them as glass elements that refract the
+   * page-content sibling.
+   */
+  rootRef: RefObject<HTMLElement | null>
 }
 
-export function Navigation() {
+export function Navigation({ rootRef }: NavigationProps) {
   const location = useLocation()
   const { trigger: haptic } = useHaptics()
   const reducedMotion = useReducedMotion()
 
-  const mobileWrapperRef = useRef<HTMLElement>(null)
+  const mobileNavRef = useRef<HTMLElement>(null)
+  const desktopNavRef = useRef<HTMLElement>(null)
 
   const activeIndex = navItems.findIndex(({ path }) =>
     path === '/breathwork'
@@ -86,84 +102,147 @@ export function Navigation() {
   const isSessionRoute = location.pathname.startsWith('/breathwork/session')
   const enabled = !isSessionRoute && !reducedMotion
 
-  useScrollMappedHide(mobileWrapperRef, {
+  useScrollMappedHide(mobileNavRef, {
     translateX: '-50%',
     maxHidden: MOBILE_MAX_HIDDEN,
     enabled,
   })
 
-  if (isSessionRoute) return null
-  if (typeof document === 'undefined') return null
+  // Initialise LiquidGlass with both navs as glass elements of the
+  // layout-level root. The library walks `root.children` to assemble each
+  // glass element's refraction scene — so `.breathwork` (sibling of the
+  // navs inside the root) gets html-to-image-rasterized and becomes the
+  // refraction source, no leaves video needed.
+  //
+  // Without a dynamic contributor (e.g. a <video>) inside the root, the
+  // library's render loop short-circuits when nothing is marked dirty.
+  // The page raster's *cached image* is static, but its position on
+  // screen changes every scroll frame — we listen to scroll and call
+  // `markChanged()` so the shader re-runs and re-samples the cached
+  // raster at its current viewport-relative rect.
+  useEffect(() => {
+    if (!enabled) return
+    const root = rootRef.current
+    const mobile = mobileNavRef.current
+    const desktop = desktopNavRef.current
+    if (!root || !mobile || !desktop) return
 
-  return createPortal(
+    let instance: LiquidGlass | null = null
+    let cancelled = false
+
+    LiquidGlass.init({ root, glassElements: [mobile, desktop] })
+      .then((inst) => {
+        if (cancelled) {
+          inst.destroy()
+          return
+        }
+        instance = inst
+      })
+      .catch((err) => {
+        // Soft failure — without the shader, the navs still render with
+        // their inline-style fallback (translucent gradient surface), so
+        // the user sees a card-like pill rather than nothing.
+        console.warn('Navigation glass init failed', err)
+      })
+
+    const onScroll = () => {
+      instance?.markChanged()
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+
+    return () => {
+      cancelled = true
+      window.removeEventListener('scroll', onScroll)
+      instance?.destroy()
+      instance = null
+    }
+  }, [enabled, rootRef])
+
+  if (isSessionRoute) return null
+
+  return (
     <>
       {/* ── Mobile: scroll-aware floating glass capsule ── */}
       <nav
-        ref={mobileWrapperRef}
+        ref={mobileNavRef}
         aria-label="Primary"
-        // `bw-mobile-nav` carries the env(safe-area-inset-bottom) padding —
-        // kept as a CSS class because jsdom drops env() values from inline
-        // styles, which breaks responsive tests.
-        className="bw-mobile-nav md:hidden fixed bottom-4 left-1/2 z-50 pb-2 will-change-transform"
-        style={{ transform: 'translate3d(-50%, 0px, 0)' }}
+        data-config={JSON.stringify(MOBILE_GLASS_CONFIG)}
+        // `bw-mobile-nav` carries env(safe-area-inset-bottom) padding —
+        // jsdom drops env() from inline styles, so it lives in CSS.
+        className="bw-mobile-nav md:hidden fixed bottom-4 left-1/2 z-50 pb-2 flex items-center gap-1 rounded-full px-2 py-2 will-change-transform"
+        style={{
+          transform: 'translate3d(-50%, 0px, 0)',
+          // Fallback surface that's visible before glass init resolves
+          // and if init fails. The library's injected shader canvas
+          // (z-index: -1) sits behind these element styles, so once it's
+          // running it dominates and we see real refraction instead.
+          background:
+            'color-mix(in oklab, var(--bw-surface) 35%, transparent)',
+          // Drop shadow lives in `filter` (not box-shadow) so the
+          // library's `overflow: visible` doesn't clip it.
+          filter:
+            'drop-shadow(0 12px 28px rgba(0, 0, 0, 0.22)) drop-shadow(0 2px 6px rgba(0, 0, 0, 0.08))',
+        }}
       >
-        <div
-          className="flex items-center gap-1 rounded-full px-2 py-2"
-          style={glassSurface}
-        >
-          {navItems.map(({ path, label, icon: Icon }, i) => {
-            const active = i === activeIndex
-            return (
-              <Link
-                key={path}
-                to={path}
-                aria-label={label}
-                aria-current={active ? 'page' : undefined}
-                onPointerEnter={() => preloadBreathworkRoute(path)}
-                onFocus={() => preloadBreathworkRoute(path)}
-                onClick={() => {
-                  if (!active) haptic('selection')
-                }}
-                className={cn(
-                  'relative grid h-11 w-11 place-items-center rounded-full transition-colors duration-200',
-                  active
-                    ? 'text-bw-accent'
-                    : 'text-bw-secondary hover:text-bw active:scale-95',
-                )}
-                style={
-                  active
-                    ? {
-                        background:
-                          'color-mix(in oklab, var(--bw-accent) 18%, transparent)',
-                      }
-                    : undefined
-                }
-              >
-                <Icon className="h-5 w-5" strokeWidth={active ? 2.25 : 1.75} />
-              </Link>
-            )
-          })}
-        </div>
+        {navItems.map(({ path, label, icon: Icon }, i) => {
+          const active = i === activeIndex
+          return (
+            <Link
+              key={path}
+              to={path}
+              aria-label={label}
+              aria-current={active ? 'page' : undefined}
+              onPointerEnter={() => preloadBreathworkRoute(path)}
+              onFocus={() => preloadBreathworkRoute(path)}
+              onClick={() => {
+                if (!active) haptic('selection')
+              }}
+              className={cn(
+                'relative grid h-11 w-11 place-items-center rounded-full transition-colors duration-200',
+                active
+                  ? 'text-bw-accent'
+                  : 'text-bw-secondary hover:text-bw active:scale-95',
+              )}
+              style={
+                active
+                  ? {
+                      background:
+                        'color-mix(in oklab, var(--bw-accent) 18%, transparent)',
+                    }
+                  : undefined
+              }
+            >
+              <Icon className="h-5 w-5" strokeWidth={active ? 2.25 : 1.75} />
+            </Link>
+          )
+        })}
       </nav>
 
       {/* ── Desktop: glass quick-launch dock ── */}
       <nav
+        ref={desktopNavRef}
         aria-label="Quick actions"
-        className="hidden md:block fixed bottom-8 right-8 z-50"
+        data-config={JSON.stringify(DESKTOP_GLASS_CONFIG)}
+        className="hidden md:flex fixed bottom-8 right-8 z-50 items-center gap-2.5 rounded-full px-5 py-3"
+        style={{
+          background:
+            'color-mix(in oklab, var(--bw-surface) 35%, transparent)',
+          filter:
+            'drop-shadow(0 14px 32px rgba(0, 0, 0, 0.20)) drop-shadow(0 2px 6px rgba(0, 0, 0, 0.08))',
+        }}
       >
         <Link
           to="/breathwork/session"
+          aria-label="Start a session"
           aria-current={
             location.pathname.startsWith('/breathwork/session') ? 'page' : undefined
           }
           onPointerEnter={() => preloadBreathworkRoute('/breathwork/session')}
           onFocus={() => preloadBreathworkRoute('/breathwork/session')}
           className={cn(
-            'group inline-flex items-center gap-2.5 rounded-full px-5 py-3',
-            'text-bw transition-all duration-200 hover:-translate-y-px',
+            'group inline-flex items-center gap-2.5 text-bw transition-all duration-200 hover:-translate-y-px',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bw-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bw-canvas',
           )}
-          style={glassSurface}
         >
           <span
             className="grid h-7 w-7 place-items-center rounded-full"
@@ -179,7 +258,6 @@ export function Navigation() {
           </span>
         </Link>
       </nav>
-    </>,
-    document.body,
+    </>
   )
 }
