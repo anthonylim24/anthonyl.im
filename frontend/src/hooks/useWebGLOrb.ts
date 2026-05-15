@@ -9,69 +9,131 @@ const QUAD_VERTS = new Float32Array([
   -1,  1,  1, -1,   1, 1,
 ])
 
-const FRAG = [
-  '#version 300 es',
-  'precision highp float;',
-  '',
-  'uniform float u_time;',
-  'uniform float u_amplitude;',
-  'uniform vec2 u_resolution;',
-  'uniform vec3 u_color1;',
-  'uniform vec3 u_color2;',
-  '',
-  'out vec4 fragColor;',
-  '',
-  'float hash(vec2 p) {',
-  '  vec3 p3 = fract(vec3(p.xyx) * 0.1031);',
-  '  p3 += dot(p3, p3.yzx + 33.33);',
-  '  return fract((p3.x + p3.y) * p3.z);',
-  '}',
-  '',
-  'float noise(vec2 p) {',
-  '  vec2 i = floor(p);',
-  '  vec2 f = fract(p);',
-  '  f = f * f * (3.0 - 2.0 * f);',
-  '  float a = hash(i);',
-  '  float b = hash(i + vec2(1.0, 0.0));',
-  '  float c = hash(i + vec2(0.0, 1.0));',
-  '  float d = hash(i + vec2(1.0, 1.0));',
-  '  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);',
-  '}',
-  '',
-  'float fbm(vec2 p) {',
-  '  float v = 0.0;',
-  '  float a = 0.5;',
-  '  vec2 shift = vec2(100.0);',
-  '  for (int i = 0; i < 4; i++) {',
-  '    v += a * noise(p);',
-  '    p = p * 2.0 + shift;',
-  '    a *= 0.5;',
-  '  }',
-  '  return v;',
-  '}',
-  '',
-  'void main() {',
-  '  vec2 uv = gl_FragCoord.xy / u_resolution;',
-  '  vec2 center = vec2(0.5);',
-  '  vec2 fromCenter = uv - center;',
-  '  float aspect = u_resolution.x / u_resolution.y;',
-  '  fromCenter.x *= aspect;',
-  '  float dist = length(fromCenter);',
-  '  float baseRadius = 0.16 + u_amplitude * 0.22;',
-  '  float displace = fbm(fromCenter * 3.5 + u_time * 0.15) * 0.08 * (0.3 + u_amplitude * 0.7);',
-  '  float sdf = dist - baseRadius - displace;',
-  '  float edge = smoothstep(0.025, -0.025, sdf);',
-  '  float glow = smoothstep(0.15, -0.05, sdf) * (0.25 + u_amplitude * 0.15);',
-  '  float colorNoise = fbm(fromCenter * 2.0 + u_time * 0.08 + 50.0);',
-  '  vec3 col = mix(u_color1, u_color2, colorNoise);',
-  '  float rim = smoothstep(baseRadius * 0.3, baseRadius, dist) * edge;',
-  '  col += rim * 0.15;',
-  '  float alpha = edge * 0.85 + glow * (1.0 - edge);',
-  '  float edgeFade = smoothstep(0.5, 0.42, dist);',
-  '  alpha *= edgeFade;',
-  '  fragColor = vec4(col * alpha, alpha);',
-  '}',
-].join('\n')
+// Fragment shader — renders the breathing orb as a soft glass body.
+//
+// On top of the original SDF + FBM displacement, this shader adds a simulated
+// physical lighting model so the orb reads as a translucent glass volume:
+//   • A faked hemisphere normal turns the 2D disc into an approximate 3D shape
+//   • High-frequency noise bumps perturb that normal for glass surface texture
+//   • Blinn–Phong specular gives a clean upper-left highlight
+//   • A Fresnel term brightens the rim where light grazes (defining of glass)
+//   • The interior color noise is sampled with a normal-offset UV to fake
+//     refraction of whatever's "inside" the orb
+//   • Wavelength-dependent rim shift produces a subtle chromatic dispersion
+//   • Caustic-like swirls inside hint at light bending through the volume
+const FRAG = `#version 300 es
+precision highp float;
+
+uniform float u_time;
+uniform float u_amplitude;
+uniform vec2 u_resolution;
+uniform vec3 u_color1;
+uniform vec3 u_color2;
+
+out vec4 fragColor;
+
+float hash(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float a = hash(i);
+  float b = hash(i + vec2(1.0, 0.0));
+  float c = hash(i + vec2(0.0, 1.0));
+  float d = hash(i + vec2(1.0, 1.0));
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+float fbm(vec2 p) {
+  float v = 0.0;
+  float a = 0.5;
+  vec2 shift = vec2(100.0);
+  for (int i = 0; i < 4; i++) {
+    v += a * noise(p);
+    p = p * 2.0 + shift;
+    a *= 0.5;
+  }
+  return v;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / u_resolution;
+  vec2 center = vec2(0.5);
+  vec2 fromCenter = uv - center;
+  float aspect = u_resolution.x / u_resolution.y;
+  fromCenter.x *= aspect;
+  float dist = length(fromCenter);
+  float baseRadius = 0.16 + u_amplitude * 0.22;
+
+  // Organic outer displacement (preserved — keeps the breathing wobble).
+  float displace = fbm(fromCenter * 3.5 + u_time * 0.15) * 0.08 * (0.3 + u_amplitude * 0.7);
+  float sdf = dist - baseRadius - displace;
+  float edge = smoothstep(0.025, -0.025, sdf);
+  float glow = smoothstep(0.15, -0.05, sdf) * (0.25 + u_amplitude * 0.15);
+
+  // ── Surface normal: project the 2D disc onto a hemisphere ──
+  float effRadius = max(baseRadius + displace, 0.0001);
+  float ndist = clamp(dist / effRadius, 0.0, 1.0);
+  float sphereZ = sqrt(max(0.0, 1.0 - ndist * ndist));
+  vec3 normal = vec3(fromCenter / effRadius, sphereZ);
+
+  // Micro-bumps — sample noise at offset points to derive a 2D bump gradient.
+  // This perturbs the sphere normal so the surface reads as imperfect glass.
+  vec2 bumpCoord = fromCenter * 12.0 + u_time * 0.10;
+  float bx = noise(bumpCoord + vec2(0.5, 0.0)) - noise(bumpCoord);
+  float by = noise(bumpCoord + vec2(0.0, 0.5)) - noise(bumpCoord);
+  normal.xy += vec2(bx, by) * 0.22;
+  normal = normalize(normal);
+
+  // ── Lighting ──
+  vec3 lightDir = normalize(vec3(-0.45, 0.55, 0.7));
+  vec3 viewDir = vec3(0.0, 0.0, 1.0);
+  vec3 halfVec = normalize(lightDir + viewDir);
+  float NdotV = max(dot(normal, viewDir), 0.0);
+  float NdotH = max(dot(normal, halfVec), 0.0);
+
+  // Tight Blinn–Phong hotspot + softer halo for that "wet glass" sheen.
+  float specular = pow(NdotH, 90.0) * 0.95;
+  float specHalo = pow(NdotH, 22.0) * 0.18;
+  // Fresnel — characteristic edge brightening of any glass body.
+  float fresnel = pow(1.0 - NdotV, 3.2);
+
+  // ── Interior color with simulated refraction ──
+  // Offset the noise lookup by the surface normal — fakes refractive
+  // distortion of the volume "behind" the surface point.
+  vec2 refractUV = fromCenter - normal.xy * 0.07 * (1.0 - ndist * 0.4);
+  float colorNoise = fbm(refractUV * 2.0 + u_time * 0.08 + 50.0);
+  vec3 col = mix(u_color1, u_color2, colorNoise);
+
+  // Caustic-like inner swirls — suggests light bending through the volume.
+  float caustic = fbm(refractUV * 6.5 - u_time * 0.11) * (1.0 - ndist * 0.7);
+  col += vec3(caustic) * 0.15;
+
+  // Subtle chromatic shift at the rim — wavelength-dependent dispersion.
+  col.r += fresnel * 0.04;
+  col.b += fresnel * 0.06 * (1.0 - ndist);
+
+  // ── Composite ──
+  float rim = smoothstep(baseRadius * 0.3, baseRadius, dist) * edge;
+  col += rim * 0.10;
+
+  vec3 highlight = mix(vec3(1.0), mix(u_color1, u_color2, 0.5) + 0.2, 0.3);
+  col = mix(col, highlight, specular);
+  col += highlight * specHalo;
+  col += fresnel * 0.35 * mix(u_color2, vec3(1.0), 0.4);
+
+  float alpha = edge * 0.88 + glow * (1.0 - edge);
+  float edgeFade = smoothstep(0.5, 0.42, dist);
+  alpha *= edgeFade;
+
+  fragColor = vec4(col * alpha, alpha);
+}
+`
 
 // ── Types ────────────────────────────────────────────────────────────
 
