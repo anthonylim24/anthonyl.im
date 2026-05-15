@@ -22,19 +22,25 @@ const GLASS_CONFIG = {
   blurAmount: 0.0,
   saturation: 0.0,
   tintStrength: 0.0,
-  shadowOpacity: 0.16,
-  shadowSpread: 14,
-  shadowOffsetY: 3,
+  // Shadow disabled — the library renders the drop shadow into a 20px
+  // padding ring outside the glass element, which would be visible as a
+  // dark halo past the orb body's edge.
+  shadowOpacity: 0.0,
+  shadowSpread: 0,
+  shadowOffsetY: 0,
   bevelMode: 0,
 } as const
 
-// Mirror ShaderOrb's body diameter so the glass element's bounds land
-// exactly on the visible orb body at the current breath amplitude — making
-// the glass appear to BE the orb instead of a static dome around it. See
-// ShaderOrb's frag shader: `baseRadius = 0.16 + amp * 0.22`, diameter is
-// `2 * baseRadius` in normalized canvas units.
+// Glass element must stay strictly inside the visible orb body so the
+// refraction never extends past the orange edge. ShaderOrb's body radius is
+// `0.16 + amp * 0.22` and wobbles up to ~0.08 outward via FBM displacement;
+// the library also renders Fresnel + edge highlight up to SHADOW_PAD (20px)
+// past the glass element. `INSET_FACTOR` shrinks the glass diameter to ~85%
+// of the body's quiescent edge so the full glass effect — including its
+// outer rim — stays inside the visible body.
+const INSET_FACTOR = 0.85
 const orbScaleForAmplitude = (amplitude: number) =>
-  (0.16 + amplitude * 0.22) * 2
+  (0.16 + amplitude * 0.22) * 2 * INSET_FACTOR
 
 interface LiquidGlassOrbProps {
   phase: BreathPhase | null
