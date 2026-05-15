@@ -13,14 +13,16 @@ const LEAVES_VIDEO_SRC = '/leaves.mp4'
 // dome — see `orbScaleForAmplitude` below.
 const GLASS_CONFIG = {
   cornerRadius: 9999,
-  zRadius: 36,
-  refraction: 0.7,
-  chromAberration: 0.06,
-  edgeHighlight: 0.16,
-  specular: 0.35,
-  fresnel: 0.9,
+  // Deeper bevel + max refraction so the orb reads as a thick glass marble
+  // that bends light dramatically, not a flat lens.
+  zRadius: 96,
+  refraction: 1.4,
+  chromAberration: 0.28,
+  edgeHighlight: 0.22,
+  specular: 0.45,
+  fresnel: 0.0,
   blurAmount: 0.0,
-  saturation: 0.0,
+  saturation: 0.3,
   tintStrength: 0.0,
   // Shadow disabled — the library renders the drop shadow into a 20px
   // padding ring outside the glass element, which would be visible as a
@@ -40,7 +42,7 @@ const GLASS_CONFIG = {
 // outer rim — stays inside the visible body.
 const INSET_FACTOR = 0.85
 const orbScaleForAmplitude = (amplitude: number) =>
-  (0.16 + amplitude * 0.22) * 2 * INSET_FACTOR
+  (0.2 + amplitude * 0.18) * 2 * INSET_FACTOR
 
 interface LiquidGlassOrbProps {
   phase: BreathPhase | null
@@ -140,7 +142,18 @@ export function LiquidGlassOrb({
         playsInline
         preload="auto"
         aria-hidden="true"
-        className="absolute inset-0 h-full w-full object-cover"
+        className="absolute object-cover"
+        style={{ 
+          height: '50%', 
+          width: '50%', 
+          top: '50%', 
+          left: '50%', 
+          position: 'absolute', 
+          transform: 'translate(-50%, -50%)', 
+          borderRadius: '50%' // Make border shape a circle
+        }}
+   
+   
       />
 
       <ShaderOrb
