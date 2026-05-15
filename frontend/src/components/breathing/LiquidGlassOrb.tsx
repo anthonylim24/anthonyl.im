@@ -1,11 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { LiquidGlass } from '@ybouane/liquidglass'
 import type { BreathPhase, TechniqueId } from '@/lib/constants'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { ShaderOrb } from './ShaderOrb'
-
-// TEMP iOS diagnostic — remove once root cause is identified.
-type GlassInitStatus = 'pending' | 'ready' | 'failed'
 
 // Served same-origin so the WebGL texture upload isn't blocked by missing
 // CORS headers from the Cloudflare worker that hosts the original asset.
@@ -85,17 +82,6 @@ export function LiquidGlassOrb({
   const rootRef = useRef<HTMLDivElement>(null)
   const glassRef = useRef<HTMLDivElement>(null)
   const reducedMotion = useReducedMotion()
-  // TEMP iOS diagnostic — surfaces LiquidGlass init result on-screen so we
-  // can disambiguate H1 (init rejects) vs H2 (init succeeds but the shader
-  // canvas is invisible) on a real iPhone without Web Inspector.
-  const [glassStatus, setGlassStatus] = useState<GlassInitStatus>('pending')
-  const [glassError, setGlassError] = useState<string | null>(null)
-  const [glassCanvasInfo, setGlassCanvasInfo] = useState<string | null>(null)
-  // TEMP iOS diagnostic — center-pixel sample of the injected shader canvas.
-  // If alpha stays 0 the WebGL output never lands on the visible canvas
-  // (WebGL/drawImage problem). If pixels have color but you still see no
-  // refraction, it's a CSS compositing problem with the stacking context.
-  const [glassPixel, setGlassPixel] = useState<string | null>(null)
 
   useEffect(() => {
     if (reducedMotion) return
@@ -106,62 +92,19 @@ export function LiquidGlassOrb({
     let instance: LiquidGlass | null = null
     let cancelled = false
 
-    let sampleHandle: number | null = null
-
     LiquidGlass.init({ root, glassElements: [glass] })
       .then((inst) => {
-        if (cancelled) {
-          inst.destroy()
-          return
-        }
-        instance = inst
-        setGlassStatus('ready')
-        requestAnimationFrame(() => {
-          const canvas = glass.querySelector('canvas')
-          if (!canvas) {
-            setGlassCanvasInfo('no canvas injected')
-            return
-          }
-          const rect = canvas.getBoundingClientRect()
-          setGlassCanvasInfo(
-            `canvas ${canvas.width}x${canvas.height} @ ${Math.round(rect.width)}x${Math.round(rect.height)}`,
-          )
-
-          // Poll the center pixel of the injected 2D canvas to see if the
-          // library is writing visible content. The library uses a 2D
-          // context (`ctx.drawImage(webglCanvas, …)`) so getImageData is
-          // available without WebGL readPixels gymnastics.
-          const sample = () => {
-            if (cancelled) return
-            const ctx = canvas.getContext('2d', { willReadFrequently: true })
-            if (!ctx) {
-              setGlassPixel('no 2d ctx')
-              return
-            }
-            try {
-              const cx = Math.floor(canvas.width / 2)
-              const cy = Math.floor(canvas.height / 2)
-              const d = ctx.getImageData(cx, cy, 1, 1).data
-              setGlassPixel(`px ${d[0]},${d[1]},${d[2]},${d[3]}`)
-            } catch (err) {
-              setGlassPixel(
-                `px err: ${(err instanceof Error ? err.message : String(err)).slice(0, 40)}`,
-              )
-            }
-            sampleHandle = window.setTimeout(sample, 500)
-          }
-          sample()
-        })
+        if (cancelled) inst.destroy()
+        else instance = inst
       })
       .catch((err) => {
+        // Don't crash the session if the glass can't initialize — the
+        // underlying ShaderOrb still renders and remains interactive.
         console.warn('LiquidGlass init failed; falling back to plain orb', err)
-        setGlassStatus('failed')
-        setGlassError(err instanceof Error ? err.message : String(err))
       })
 
     return () => {
       cancelled = true
-      if (sampleHandle !== null) window.clearTimeout(sampleHandle)
       instance?.destroy()
       instance = null
     }
@@ -190,9 +133,12 @@ export function LiquidGlassOrb({
       // a circle so the surrounding video doesn't bleed past the orb area.
       className="absolute inset-0 overflow-hidden rounded-full"
     >
+      {/* No crossOrigin attribute: the asset is same-origin, and iOS Safari
+          treats a `crossOrigin="anonymous"` request as cross-origin even
+          for same-origin URLs, tainting the canvas when CORS headers
+          aren't echoed back. */}
       <video
         src={LEAVES_VIDEO_SRC}
-        crossOrigin="anonymous"
         autoPlay
         loop
         muted
@@ -200,17 +146,15 @@ export function LiquidGlassOrb({
         preload="auto"
         aria-hidden="true"
         className="absolute object-cover"
-        style={{ 
-          height: '50%', 
-          width: '50%', 
-          top: '50%', 
-          left: '50%', 
-          position: 'absolute', 
-          transform: 'translate(-50%, -50%)', 
-          borderRadius: '50%' // Make border shape a circle
+        style={{
+          height: '50%',
+          width: '50%',
+          top: '50%',
+          left: '50%',
+          position: 'absolute',
+          transform: 'translate(-50%, -50%)',
+          borderRadius: '50%',
         }}
-   
-   
       />
 
       <ShaderOrb
@@ -239,40 +183,9 @@ export function LiquidGlassOrb({
           left: '50%',
           height: `${(scale * 100).toFixed(3)}%`,
           transform: 'translate(-50%, -50%)',
-          // TEMP iOS diagnostic: confirm glass div is positioned correctly.
-          outline: '2px dashed #00ffcc',
-          outlineOffset: '-2px',
         }}
         data-config={JSON.stringify(GLASS_CONFIG)}
       />
-      {/* TEMP iOS diagnostic badge. */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 8,
-          left: 8,
-          padding: '4px 8px',
-          fontSize: 11,
-          fontFamily: 'monospace',
-          color: '#fff',
-          background:
-            glassStatus === 'ready'
-              ? 'rgba(0, 160, 70, 0.85)'
-              : glassStatus === 'failed'
-                ? 'rgba(200, 40, 40, 0.9)'
-                : 'rgba(60, 60, 60, 0.8)',
-          borderRadius: 4,
-          pointerEvents: 'none',
-          zIndex: 999,
-          whiteSpace: 'pre',
-          maxWidth: 'calc(100% - 16px)',
-        }}
-      >
-        {`glass: ${glassStatus}`}
-        {glassCanvasInfo ? `\n${glassCanvasInfo}` : ''}
-        {glassPixel ? `\n${glassPixel}` : ''}
-        {glassError ? `\nerr: ${glassError.slice(0, 80)}` : ''}
-      </div>
     </div>
   )
 }
