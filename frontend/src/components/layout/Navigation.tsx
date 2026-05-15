@@ -48,17 +48,17 @@ const MOBILE_MAX_HIDDEN = 160
 // element — visual drop shadow lives on the wrapper via filter instead.
 const MOBILE_GLASS_CONFIG = {
   cornerRadius: 9999,
-  zRadius: 26,
+  zRadius: 13,
   refraction: 0.85,
   chromAberration: 0.12,
   edgeHighlight: 0.32,
-  specular: 0.45,
+  specular: 0.15,
   fresnel: 0.55,
-  distortion: 0.0,
+  distortion: 0.9,
   blurAmount: 0.06,
-  saturation: 1.05,
+  saturation: 0.05,
   tintStrength: 0.1,
-  brightness: 0.05,
+  brightness: 0.5,
   opacity: 1.0,
   shadowOpacity: 0,
   shadowSpread: 0,
@@ -169,7 +169,8 @@ export function Navigation({ rootRef }: NavigationProps) {
         data-config={JSON.stringify(MOBILE_GLASS_CONFIG)}
         // `bw-mobile-nav` carries env(safe-area-inset-bottom) padding —
         // jsdom drops env() from inline styles, so it lives in CSS.
-        className="bw-mobile-nav md:hidden fixed bottom-4 left-1/2 z-50 pb-2 flex items-center gap-1 rounded-full px-2 py-2 will-change-transform"
+        className="bw-mobile-nav md:hidden fixed bottom-4 left-1/2 z-50 pb-2 !pb-2 flex items-center gap-1 rounded-full px-2 py-2 will-change-transform"
+   
         style={{
           transform: 'translate3d(-50%, 0px, 0)',
           // Fallback surface that's visible before glass init resolves
