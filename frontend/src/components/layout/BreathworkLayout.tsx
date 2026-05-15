@@ -155,6 +155,7 @@ export function BreathworkLayout() {
   })
   const reducedMotion = useReducedMotion()
   const isSessionRoute = location.pathname.startsWith('/breathwork/session')
+  const glassRootRef = useRef<HTMLDivElement>(null)
 
   // Static bottom space — nav height (4rem) + breathing room (3.5rem) +
   // safe-area-inset-bottom for the home indicator. The previous formula
@@ -177,23 +178,43 @@ export function BreathworkLayout() {
         </Suspense>
       )}
 
-      {/* Leaves video overlay — fully isolated from React re-renders */}
+      {/*
+       * Leaves video lives OUTSIDE the glass root. The asset is served
+       * from a cross-origin Cloudflare worker without CORS headers, so
+       * drawing it into a canvas (which `@ybouane/liquidglass` does
+       * when sampling its root's children) would taint that canvas and
+       * disable the glass effect for the whole root. Keeping it as a
+       * sibling of the glass root preserves the ambient backdrop without
+       * poisoning the texture upload path.
+       */}
       <LeavesVideo reducedMotion={reducedMotion} />
 
-      {/* Content */}
-      <div className="breathwork relative z-0 min-h-screen min-h-[100svh] col-fade-in bg-transparent">
-        <Header />
-        <main>
-          <div
-            className="w-full max-w-3xl mx-auto px-5 sm:px-8 lg:px-12 py-6 sm:py-10 pb-[var(--mobile-content-bottom-space)] md:pb-10 bg-transparent"
-            style={contentStyle}
-          >
-            <AnimatedOutlet />
-          </div>
-        </main>
-        <Navigation />
+      {/*
+       * Glass root: the Navigation pills are direct child glass elements
+       * of this wrapper, and `.breathwork` is a sibling. The library
+       * rasterizes `.breathwork` via html-to-image once, then re-positions
+       * the cached raster per frame via getBoundingClientRect — so
+       * scrolling shifts the page raster naturally and the nav refracts
+       * whatever's behind it without any per-frame DOM capture.
+       *
+       * Plain div, no transform/filter/contain — anything that creates a
+       * containing block here would re-break the nav's `position: fixed`.
+       */}
+      <div ref={glassRootRef}>
+        {/* Content */}
+        <div className="breathwork relative z-0 min-h-screen min-h-[100svh] col-fade-in bg-transparent">
+          <Header />
+          <main>
+            <div
+              className="w-full max-w-3xl mx-auto px-5 sm:px-8 lg:px-12 py-6 sm:py-10 pb-[var(--mobile-content-bottom-space)] md:pb-10 bg-transparent"
+              style={contentStyle}
+            >
+              <AnimatedOutlet />
+            </div>
+          </main>
+        </div>
+        <Navigation rootRef={glassRootRef} />
       </div>
- 
     </div>
   )
 }
