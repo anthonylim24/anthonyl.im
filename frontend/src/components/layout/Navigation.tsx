@@ -92,6 +92,9 @@ export function Navigation({ rootRef }: NavigationProps) {
 
   const mobileNavRef = useRef<HTMLElement>(null)
   const desktopNavRef = useRef<HTMLElement>(null)
+  // Held in a ref so the pathname-change effect can reach the live
+  // instance without remounting the init effect on every navigation.
+  const instanceRef = useRef<LiquidGlass | null>(null)
 
   const activeIndex = navItems.findIndex(({ path }) =>
     path === '/breathwork'
@@ -127,7 +130,6 @@ export function Navigation({ rootRef }: NavigationProps) {
     const desktop = desktopNavRef.current
     if (!root || !mobile || !desktop) return
 
-    let instance: LiquidGlass | null = null
     let cancelled = false
 
     LiquidGlass.init({ root, glassElements: [mobile, desktop] })
@@ -136,7 +138,7 @@ export function Navigation({ rootRef }: NavigationProps) {
           inst.destroy()
           return
         }
-        instance = inst
+        instanceRef.current = inst
       })
       .catch((err) => {
         // Soft failure — without the shader, the navs still render with
@@ -146,17 +148,55 @@ export function Navigation({ rootRef }: NavigationProps) {
       })
 
     const onScroll = () => {
-      instance?.markChanged()
+      instanceRef.current?.markChanged()
     }
     window.addEventListener('scroll', onScroll, { passive: true })
 
     return () => {
       cancelled = true
       window.removeEventListener('scroll', onScroll)
-      instance?.destroy()
-      instance = null
+      instanceRef.current?.destroy()
+      instanceRef.current = null
     }
   }, [enabled, rootRef])
+
+  // Route change: the library captures each non-glass root child via
+  // html-to-image and caches the result keyed off element identity, so
+  // a content swap inside `.breathwork` (same element, different
+  // children) leaves the cached raster stale — the previous route's
+  // page renders inside the glass refraction until the next mutation
+  // the library notices. The library's MutationObserver only watches
+  // the *root's* childList, not subtree mutations inside `.breathwork`,
+  // so we invalidate the cache explicitly here.
+  //
+  // We invalidate three times: immediately (for synchronously-loaded
+  // routes), and again at ~120ms / ~480ms to cover lazy-loaded chunks
+  // and AnimatedOutlet's enter transition — html-to-image is cheap
+  // enough that two redundant captures per navigation is fine, and
+  // it's the only way to guarantee the final visual state lands in the
+  // cache without observing the entire breathwork subtree.
+  useEffect(() => {
+    const invalidate = () => {
+      const inst = instanceRef.current
+      const root = rootRef.current
+      if (!inst || !root) return
+      for (const child of Array.from(root.children)) {
+        if (child === mobileNavRef.current || child === desktopNavRef.current) continue
+        if (child instanceof HTMLElement) {
+          inst.capture.invalidateCache(child)
+        }
+      }
+      inst.markChanged()
+    }
+
+    invalidate()
+    const t1 = window.setTimeout(invalidate, 120)
+    const t2 = window.setTimeout(invalidate, 480)
+    return () => {
+      window.clearTimeout(t1)
+      window.clearTimeout(t2)
+    }
+  }, [location.pathname, rootRef])
 
   if (isSessionRoute) return null
 
