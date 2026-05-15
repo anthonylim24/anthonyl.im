@@ -8,7 +8,7 @@ import {
 } from 'react'
 import { useBreathingCycle } from '@/hooks/useBreathingCycle'
 import { useWaveform } from '@/hooks/useWaveform'
-import { ShaderOrb } from './ShaderOrb'
+import { LiquidGlassOrb } from './LiquidGlassOrb'
 import { BoxVisualization } from './BoxVisualization'
 import { KirbyEasterEgg } from './KirbyEasterEgg'
 import { KirbyCharacter } from './KirbyCharacter'
@@ -598,7 +598,7 @@ export function BreathingSession({
               onClick={visualizationClickHandler}
             />
           ) : (
-            <ShaderOrb
+            <LiquidGlassOrb
               phase={session?.currentPhase ?? null}
               amplitude={amplitude}
               isActive={isActive && !isPaused}

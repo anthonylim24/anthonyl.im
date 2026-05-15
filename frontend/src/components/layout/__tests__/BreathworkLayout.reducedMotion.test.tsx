@@ -33,7 +33,7 @@ describe('BreathworkLayout reduced motion', () => {
     const overlay = container.querySelector<HTMLVideoElement>('.leaves-overlay')
     expect(overlay).toBeTruthy()
     await waitFor(() => {
-      expect(overlay).toHaveStyle({ opacity: '0.08' })
+      expect(overlay).toHaveStyle({ opacity: '0.5' })
     })
   })
 

@@ -16,7 +16,15 @@ const CloudSync = lazy(() =>
   import('./CloudSync').then((module) => ({ default: module.CloudSync })),
 )
 
-const LEAVES_VISIBLE_OPACITY = '0.08'
+const LEAVES_VISIBLE_OPACITY = '0.5'
+
+// Parallax tuning — the video drifts upward at a fraction of the scroll
+// distance, giving the leaves a sense of depth. FACTOR stays well below 0.2
+// to keep the motion ambient rather than theatrical. BUFFER_PX is added on
+// top of the computed height so subpixel rounding and bounce-scroll never
+// expose the viewport edge.
+const PARALLAX_FACTOR = 0.08
+const PARALLAX_BUFFER_PX = 24
 
 /**
  * Fully isolated video component — subscribes to the theme store directly
@@ -56,6 +64,63 @@ const LeavesVideo = memo(function LeavesVideo({ reducedMotion }: { reducedMotion
     return unsubscribe
   }, [reducedMotion])
 
+  // Slight parallax — translate the fixed video against scroll position to
+  // suggest depth. The video element is grown vertically by exactly enough
+  // to absorb the maximum upward translation, so the viewport edge is never
+  // exposed regardless of page length. Both height and transform are mutated
+  // imperatively so React never re-renders on scroll/resize, and this stays
+  // compatible with the memoization above.
+  useEffect(() => {
+    if (reducedMotion) return
+    const video = videoRef.current
+    if (!video) return
+
+    let rafId: number | null = null
+
+    const updateHeight = () => {
+      const viewportHeight = window.innerHeight
+      const documentHeight = document.documentElement.scrollHeight
+      const maxScroll = Math.max(0, documentHeight - viewportHeight)
+      const required = viewportHeight + maxScroll * PARALLAX_FACTOR + PARALLAX_BUFFER_PX
+      video.style.height = `${Math.ceil(required)}px`
+    }
+
+    const applyTransform = () => {
+      rafId = null
+      // Clamp to >= 0 so iOS rubber-band scrolling (scrollY < 0) doesn't push
+      // the video downward and reveal the top edge.
+      const offset = Math.max(0, window.scrollY) * PARALLAX_FACTOR
+      video.style.transform = `translate3d(0, ${-offset}px, 0)`
+    }
+
+    const onScroll = () => {
+      if (rafId !== null) return
+      rafId = requestAnimationFrame(applyTransform)
+    }
+
+    const onResize = () => {
+      updateHeight()
+      applyTransform()
+    }
+
+    updateHeight()
+    applyTransform()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onResize)
+
+    // Document height also changes when content loads/route changes/lazy
+    // images settle — observe it so the video stays tall enough.
+    const resizeObserver = new ResizeObserver(updateHeight)
+    resizeObserver.observe(document.documentElement)
+
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onResize)
+      resizeObserver.disconnect()
+      if (rafId !== null) cancelAnimationFrame(rafId)
+    }
+  }, [reducedMotion])
+
   if (reducedMotion) return null
 
   return (
@@ -68,6 +133,14 @@ const LeavesVideo = memo(function LeavesVideo({ reducedMotion }: { reducedMotion
       preload="auto"
       aria-hidden="true"
       className="leaves-overlay"
+      style={{
+        mixBlendMode: 'multiply',
+        // Anchor top, release bottom so the JS-controlled height isn't
+        // over-constrained against the CSS class's `inset: 0`.
+        top: 0,
+        bottom: 'auto',
+        willChange: 'transform',
+      }}
     />
   )
 }, (prev, next) => prev.reducedMotion === next.reducedMotion)
@@ -108,11 +181,11 @@ export function BreathworkLayout() {
       <LeavesVideo reducedMotion={reducedMotion} />
 
       {/* Content */}
-      <div className="breathwork relative z-10 min-h-screen min-h-[100svh] col-fade-in">
+      <div className="breathwork relative z-0 min-h-screen min-h-[100svh] col-fade-in bg-transparent">
         <Header />
         <main>
           <div
-            className="w-full max-w-3xl mx-auto px-5 sm:px-8 lg:px-12 py-6 sm:py-10 pb-[var(--mobile-content-bottom-space)] md:pb-10"
+            className="w-full max-w-3xl mx-auto px-5 sm:px-8 lg:px-12 py-6 sm:py-10 pb-[var(--mobile-content-bottom-space)] md:pb-10 bg-transparent"
             style={contentStyle}
           >
             <AnimatedOutlet />
@@ -120,6 +193,7 @@ export function BreathworkLayout() {
         </main>
         <Navigation />
       </div>
+ 
     </div>
   )
 }
