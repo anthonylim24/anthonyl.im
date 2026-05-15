@@ -7,17 +7,17 @@
     "dev": "pushd frontend && bun run build && popd && bun --watch server/app.ts"
   },
   "devDependencies": {
-    "@hono/zod-validator": "^0.7.6",
+    "@hono/zod-validator": "^0.8.0",
     "@types/bun": "latest"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "groq-sdk": "^1.1.2",
+    "groq-sdk": "^1.2.0",
     "hono": "^4.12.18",
     "openai": "^6.37.0",
-    "posthog-js": "^1.372.10",
+    "posthog-js": "^1.373.4",
     "zod": "^4.4.3"
   }
 }
