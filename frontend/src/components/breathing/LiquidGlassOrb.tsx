@@ -133,12 +133,15 @@ export function LiquidGlassOrb({
       // a circle so the surrounding video doesn't bleed past the orb area.
       className="absolute inset-0 overflow-hidden rounded-full"
     >
-      {/* No crossOrigin attribute: the asset is same-origin, and iOS Safari
-          treats a `crossOrigin="anonymous"` request as cross-origin even
-          for same-origin URLs, tainting the canvas when CORS headers
-          aren't echoed back. */}
+      {/* `crossOrigin="anonymous"` is required even though the asset is
+          same-origin: drawImage(video, …) → texImage2D(canvas) only stays
+          origin-clean when the video was loaded with explicit CORS
+          credentials. Without it the WebGL texture upload silently
+          produces blank pixels and the leaves disappear from the
+          refraction. */}
       <video
         src={LEAVES_VIDEO_SRC}
+        crossOrigin="anonymous"
         autoPlay
         loop
         muted
