@@ -1,8 +1,11 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { LiquidGlass } from '@ybouane/liquidglass'
 import type { BreathPhase, TechniqueId } from '@/lib/constants'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { ShaderOrb } from './ShaderOrb'
+
+// TEMP iOS diagnostic — remove once root cause is identified.
+type GlassInitStatus = 'pending' | 'ready' | 'failed'
 
 // Served same-origin so the WebGL texture upload isn't blocked by missing
 // CORS headers from the Cloudflare worker that hosts the original asset.
@@ -82,6 +85,12 @@ export function LiquidGlassOrb({
   const rootRef = useRef<HTMLDivElement>(null)
   const glassRef = useRef<HTMLDivElement>(null)
   const reducedMotion = useReducedMotion()
+  // TEMP iOS diagnostic — surfaces LiquidGlass init result on-screen so we
+  // can disambiguate H1 (init rejects) vs H2 (init succeeds but the shader
+  // canvas is invisible) on a real iPhone without Web Inspector.
+  const [glassStatus, setGlassStatus] = useState<GlassInitStatus>('pending')
+  const [glassError, setGlassError] = useState<string | null>(null)
+  const [glassCanvasInfo, setGlassCanvasInfo] = useState<string | null>(null)
 
   useEffect(() => {
     if (reducedMotion) return
@@ -94,13 +103,31 @@ export function LiquidGlassOrb({
 
     LiquidGlass.init({ root, glassElements: [glass] })
       .then((inst) => {
-        if (cancelled) inst.destroy()
-        else instance = inst
+        if (cancelled) {
+          inst.destroy()
+          return
+        }
+        instance = inst
+        setGlassStatus('ready')
+        // Check that the library actually injected its shader canvas.
+        // If init resolved but the canvas is missing or zero-sized, that
+        // tells us something different than init rejecting outright.
+        requestAnimationFrame(() => {
+          const canvas = glass.querySelector('canvas')
+          if (!canvas) {
+            setGlassCanvasInfo('no canvas injected')
+            return
+          }
+          const rect = canvas.getBoundingClientRect()
+          setGlassCanvasInfo(
+            `canvas ${canvas.width}x${canvas.height} @ ${Math.round(rect.width)}x${Math.round(rect.height)}`,
+          )
+        })
       })
       .catch((err) => {
-        // Don't crash the session if the glass can't initialize — the
-        // underlying ShaderOrb still renders and remains interactive.
         console.warn('LiquidGlass init failed; falling back to plain orb', err)
+        setGlassStatus('failed')
+        setGlassError(err instanceof Error ? err.message : String(err))
       })
 
     return () => {
@@ -182,9 +209,39 @@ export function LiquidGlassOrb({
           left: '50%',
           height: `${(scale * 100).toFixed(3)}%`,
           transform: 'translate(-50%, -50%)',
+          // TEMP iOS diagnostic: confirm glass div is positioned correctly.
+          outline: '2px dashed #00ffcc',
+          outlineOffset: '-2px',
         }}
         data-config={JSON.stringify(GLASS_CONFIG)}
       />
+      {/* TEMP iOS diagnostic badge. */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 8,
+          left: 8,
+          padding: '4px 8px',
+          fontSize: 11,
+          fontFamily: 'monospace',
+          color: '#fff',
+          background:
+            glassStatus === 'ready'
+              ? 'rgba(0, 160, 70, 0.85)'
+              : glassStatus === 'failed'
+                ? 'rgba(200, 40, 40, 0.9)'
+                : 'rgba(60, 60, 60, 0.8)',
+          borderRadius: 4,
+          pointerEvents: 'none',
+          zIndex: 999,
+          whiteSpace: 'pre',
+          maxWidth: 'calc(100% - 16px)',
+        }}
+      >
+        {`glass: ${glassStatus}`}
+        {glassCanvasInfo ? `\n${glassCanvasInfo}` : ''}
+        {glassError ? `\nerr: ${glassError.slice(0, 80)}` : ''}
+      </div>
     </div>
   )
 }
