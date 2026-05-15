@@ -81,7 +81,28 @@ export function LiquidGlassOrb({
 }: LiquidGlassOrbProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const glassRef = useRef<HTMLDivElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
   const reducedMotion = useReducedMotion()
+
+  // iOS Safari sometimes ignores the `autoplay` attribute on inline muted
+  // videos — Low Power Mode and slow first-frame decode both leave
+  // `readyState` at 0, so `drawImage(video, …)` in the LiquidGlass scene
+  // walker bails and the refraction samples a pure-white scene (the
+  // library's pre-fill colour). Force `play()` once the element mounts and
+  // retry on visibilitychange in case the user backgrounded the tab during
+  // load. We deliberately swallow the rejection: an unplayable video is a
+  // soft failure — the underlying ShaderOrb still renders.
+  useEffect(() => {
+    if (reducedMotion) return
+    const v = videoRef.current
+    if (!v) return
+    const kick = () => {
+      v.play().catch(() => undefined)
+    }
+    kick()
+    document.addEventListener('visibilitychange', kick)
+    return () => document.removeEventListener('visibilitychange', kick)
+  }, [reducedMotion])
 
   useEffect(() => {
     if (reducedMotion) return
@@ -140,6 +161,7 @@ export function LiquidGlassOrb({
           produces blank pixels and the leaves disappear from the
           refraction. */}
       <video
+        ref={videoRef}
         src={LEAVES_VIDEO_SRC}
         crossOrigin="anonymous"
         autoPlay

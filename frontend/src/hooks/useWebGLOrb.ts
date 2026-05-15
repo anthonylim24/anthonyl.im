@@ -329,12 +329,6 @@ export function useWebGLOrb({
         alpha: true,
         premultipliedAlpha: true,
         antialias: false,
-        // iOS Safari clears the WebGL back-buffer between frames without
-        // this flag, which makes the canvas read as fully transparent when
-        // LiquidGlass's render loop samples it via drawImage from its own
-        // RAF. The library's scene canvas is pre-filled white, so a
-        // transparent orb left the refraction sampling all-white on iPhone.
-        preserveDrawingBuffer: true,
       })
       if (!gl || gl.isContextLost()) {
         setFailed(true)
