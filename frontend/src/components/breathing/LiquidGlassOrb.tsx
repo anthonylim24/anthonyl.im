@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { LiquidGlass } from '@ybouane/liquidglass'
 import type { BreathPhase, TechniqueId } from '@/lib/constants'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
+import { OrbSheen } from './OrbSheen'
 import { ShaderOrb } from './ShaderOrb'
 
 // Served same-origin so the WebGL texture upload isn't blocked by missing
@@ -211,6 +212,13 @@ export function LiquidGlassOrb({
         }}
         data-config={JSON.stringify(GLASS_CONFIG)}
       />
+
+      {/* Sheen MUST render after the glass element so the LiquidGlass
+          scene walker (which iterates children in stacking order and
+          stops at the current glass) skips this canvas — otherwise the
+          highlights would get refracted into mush instead of sitting
+          crisply on top of the orb. */}
+      <OrbSheen amplitude={amplitude} isActive={isActive} />
     </div>
   )
 }
