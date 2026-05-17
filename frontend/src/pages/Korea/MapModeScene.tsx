@@ -37,13 +37,13 @@ const BUBBLE_RADIUS_BY_PRIORITY: Record<RankedPlace["priority"], number> = {
   supplemental: 1.55,
 }
 
-// Bubbles all live at the same elevation as YOU so the scene reads as an
-// isometric "places around you" graph with the user pin as the unambiguous
-// center of mass.
+// Bubbles staggered slightly in Y so the camera tilt translates to readable
+// depth — scheduled closer to YOU's plane, supplemental highest. The user
+// pin is still the geometric + visual center; the depth just adds drama.
 const Y_BY_PRIORITY: Record<RankedPlace["priority"], number> = {
-  scheduled: 1.6,
-  core: 1.6,
-  supplemental: 1.6,
+  scheduled: 1.5,
+  core: 2.6,
+  supplemental: 3.6,
 }
 
 // Camera distance per viewport. Wider default than before so the supplemental
@@ -165,14 +165,14 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
     const scene = new THREE.Scene()
     const camera = new THREE.PerspectiveCamera(38, w / h, 0.1, 400)
 
-    // CAMERA: target world origin so the YOU pin (which lives at the origin)
-    // projects EXACTLY to viewport center. We use a steep top-down isometric
-    // pitch so bubbles distribute as concentric rings around YOU rather than
-    // bunching above YOU.
+    // CAMERA: target world origin. The camera ORBITS around origin (where the
+    // YOU pin lives via the CSS overlay), so the perspective always comes
+    // FROM the center of the screen and the scene visibly rotates around YOU
+    // when the user drags or the auto-rotate ticks.
     const cameraTarget = new THREE.Vector3(0, 0, 0)
     const camYaw = { current: -Math.PI / 6 }
-    const camPitch = { current: 0.85 } // ~49° down — isometric, YOU is the gravity center
-    const camRadius = { current: 90 }
+    const camPitch = { current: 0.5 } // ~29° down — cinematic, dramatic depth
+    const camRadius = { current: 85 }
     const camRadiusTarget = { current: cameraTargetRadiusFor(w) }
 
     function applyCamera() {
@@ -493,10 +493,9 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
         dragLastX = e.clientX
         dragLastY = e.clientY
         camYaw.current -= dx * 0.005
-        // Pitch range tuned for the top-down isometric default; clamp so the
-        // user can't go below horizon (looks weird) or fully overhead (hides
-        // YOU under glow).
-        camPitch.current = Math.max(0.35, Math.min(1.25, camPitch.current + dy * 0.004))
+        // Pitch range allows the user to slide between cinematic-low and
+        // top-down-isometric views.
+        camPitch.current = Math.max(0.18, Math.min(1.25, camPitch.current + dy * 0.004))
         applyCamera()
       }
     }
@@ -552,7 +551,7 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
     const onResetView = () => {
       camRadiusTarget.current = cameraTargetRadiusFor(mount.clientWidth)
       camYaw.current = -Math.PI / 6
-      camPitch.current = 0.85
+      camPitch.current = 0.5
     }
     mount.addEventListener("korea-map-reset", onResetView)
 
@@ -603,12 +602,14 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
 
       if (sceneT < 1.5 && !reducedMotion) {
         const k = easeOutCubic(sceneT / 1.5)
-        camRadius.current = 90 + (camRadiusTarget.current - 90) * k
+        camRadius.current = 85 + (camRadiusTarget.current - 85) * k
       } else {
         camRadius.current += (camRadiusTarget.current - camRadius.current) * 0.09
       }
 
-      // Auto-rotate removed — the user wants YOU truly anchored to viewport center
+      // Slow auto-orbit gives the perspective a sense of life — the camera
+      // sweeps around YOU. Disabled while the user drags.
+      if (!dragging && !reducedMotion) camYaw.current += 0.0006
       applyCamera()
 
       starMat.opacity = 0.7 + Math.sin(t * 0.7) * 0.08
