@@ -161,9 +161,6 @@ export function KoreaDay() {
               <Globe2 className="h-4 w-4 transition group-hover:rotate-12" aria-hidden />
               Enter Map Mode
             </button>
-            <span className="ml-2 align-middle text-[11px] text-stone-500 dark:text-stone-500">
-              3D bubble graph of nearby places · SF test mode available
-            </span>
           </motion.div>
         </div>
       </header>
