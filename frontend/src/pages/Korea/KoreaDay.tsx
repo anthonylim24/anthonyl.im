@@ -168,15 +168,15 @@ export function KoreaDay() {
           ))}
         </div>
 
-        {/* Prev / Next nav */}
-        <nav className="mt-12 flex items-center justify-between gap-3 text-sm">
+        {/* Prev / Next nav: stack vertically on mobile, side-by-side from sm+ */}
+        <nav className="mt-10 flex flex-col gap-2 text-sm sm:mt-12 sm:flex-row sm:items-stretch sm:gap-3">
           {prev ? (
             <Link
               to={`/korea/day/${prev.slug}`}
-              className="group flex flex-1 items-center gap-3 rounded-2xl border border-stone-200 bg-white/60 p-4 transition hover:border-rose-300 hover:bg-rose-50 dark:border-stone-800 dark:bg-stone-900/40 dark:hover:border-rose-700 dark:hover:bg-rose-950/30"
+              className="group flex min-w-0 flex-1 items-center gap-3 rounded-2xl border border-stone-200 bg-white/60 p-4 transition hover:border-rose-300 hover:bg-rose-50 dark:border-stone-800 dark:bg-stone-900/40 dark:hover:border-rose-700 dark:hover:bg-rose-950/30"
             >
               <ChevronLeft className="h-5 w-5 shrink-0 text-stone-500 transition group-hover:-translate-x-0.5 group-hover:text-rose-700 dark:group-hover:text-rose-300" />
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-mono uppercase tracking-widest text-stone-500 dark:text-stone-400">
                   Day {prev.n} · {prev.dayOfWeek}
                 </p>
@@ -186,14 +186,14 @@ export function KoreaDay() {
               </div>
             </Link>
           ) : (
-            <span className="flex-1" />
+            <span className="hidden flex-1 sm:block" />
           )}
           {next ? (
             <Link
               to={`/korea/day/${next.slug}`}
-              className="group flex flex-1 items-center justify-end gap-3 rounded-2xl border border-stone-200 bg-white/60 p-4 text-right transition hover:border-rose-300 hover:bg-rose-50 dark:border-stone-800 dark:bg-stone-900/40 dark:hover:border-rose-700 dark:hover:bg-rose-950/30"
+              className="group flex min-w-0 flex-1 items-center justify-end gap-3 rounded-2xl border border-stone-200 bg-white/60 p-4 text-right transition hover:border-rose-300 hover:bg-rose-50 dark:border-stone-800 dark:bg-stone-900/40 dark:hover:border-rose-700 dark:hover:bg-rose-950/30"
             >
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-mono uppercase tracking-widest text-stone-500 dark:text-stone-400">
                   Day {next.n} · {next.dayOfWeek}
                 </p>
@@ -204,7 +204,7 @@ export function KoreaDay() {
               <ChevronRight className="h-5 w-5 shrink-0 text-stone-500 transition group-hover:translate-x-0.5 group-hover:text-rose-700 dark:group-hover:text-rose-300" />
             </Link>
           ) : (
-            <span className="flex-1" />
+            <span className="hidden flex-1 sm:block" />
           )}
         </nav>
       </div>
