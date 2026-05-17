@@ -2,16 +2,19 @@ import { Link } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
 import type { Day } from "./types"
 import { cityMeta, formatDate } from "./koreaTheme"
+import { isPastDate } from "./koreaUtils"
 
 interface DayCardProps {
   day: Day
   index: number
   reservationsCount: number
+  isToday?: boolean
 }
 
-export function DayCard({ day, index, reservationsCount }: DayCardProps) {
+export function DayCard({ day, index, reservationsCount, isToday = false }: DayCardProps) {
   const reduce = useReducedMotion()
   const tint = cityMeta[day.city] ?? cityMeta.Seoul
+  const isPast = !isToday && isPastDate(day.date)
 
   return (
     <motion.div
@@ -39,12 +42,19 @@ export function DayCard({ day, index, reservationsCount }: DayCardProps) {
       <Link
         to={`/korea/day/${day.slug}`}
         className={
-          "group block h-full overflow-hidden rounded-3xl bg-gradient-to-br ring-1 transition focus:outline-none focus:ring-2 focus:ring-rose-400 " +
+          "group relative block h-full overflow-hidden rounded-3xl bg-gradient-to-br ring-1 transition focus:outline-none focus:ring-2 focus:ring-rose-400 " +
           tint.tint +
           " " +
-          tint.ring
+          tint.ring +
+          (isToday ? " ring-2 ring-emerald-400 dark:ring-emerald-500" : "") +
+          (isPast ? " opacity-70" : "")
         }
       >
+        {isToday && (
+          <span className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white shadow-sm">
+            ✨ Today
+          </span>
+        )}
         <div className="relative flex h-full flex-col gap-3 p-5 sm:p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">

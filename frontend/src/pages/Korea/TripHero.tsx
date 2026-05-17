@@ -24,13 +24,13 @@ export function TripHero({ snapshot }: TripHeroProps) {
       {/* Decorative animated blobs */}
       <motion.div
         aria-hidden
-        className="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-rose-300/30 blur-3xl dark:bg-rose-900/20"
+        className="pointer-events-none absolute -left-32 -top-32 h-72 w-72 rounded-full bg-rose-300/30 sm:h-96 sm:w-96 blur-3xl dark:bg-rose-900/20"
         animate={reduce ? undefined : { x: [0, 30, 0], y: [0, 20, 0] }}
         transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
       />
       <motion.div
         aria-hidden
-        className="pointer-events-none absolute -right-32 -bottom-32 h-96 w-96 rounded-full bg-amber-300/25 blur-3xl dark:bg-amber-900/15"
+        className="pointer-events-none absolute -right-32 -bottom-32 h-72 w-72 rounded-full bg-amber-300/25 sm:h-96 sm:w-96 blur-3xl dark:bg-amber-900/15"
         animate={reduce ? undefined : { x: [0, -25, 0], y: [0, -15, 0] }}
         transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
       />

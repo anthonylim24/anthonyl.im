@@ -3,6 +3,8 @@ import { Link, useLocation } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
 import type { Day } from "./types"
 import { formatDate } from "./koreaTheme"
+import { todayKstIso } from "./koreaUtils"
+import { ThemeToggle } from "./ThemeToggle"
 
 interface DayTreeNavProps {
   days: Pick<Day, "n" | "slug" | "date" | "dayOfWeek" | "emoji" | "title" | "city">[]
@@ -16,15 +18,19 @@ export function DayTreeNav({ days, className }: DayTreeNavProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const reduceMotion = useReducedMotion()
 
+  const today = todayKstIso()
+
   // active = day slug from URL OR "index"
   const match = location.pathname.match(/^\/korea\/day\/([^/]+)/)
   const activeSlug = match ? match[1] : null
   const isIndex = location.pathname === "/korea" || location.pathname === "/korea/"
 
-  // Auto-scroll the active chip into view
+  // Auto-scroll the active (or today's) chip into view
   useEffect(() => {
     if (!scrollRef.current) return
-    const el = scrollRef.current.querySelector<HTMLElement>("[data-active='true']")
+    const el =
+      scrollRef.current.querySelector<HTMLElement>("[data-active='true']") ||
+      scrollRef.current.querySelector<HTMLElement>("[data-today='true']")
     if (el) {
       el.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "nearest", inline: "center" })
     }
@@ -53,6 +59,7 @@ export function DayTreeNav({ days, className }: DayTreeNavProps) {
         >
           {days.map((day, i) => {
             const active = activeSlug === day.slug
+            const isToday = day.date === today
             return (
               <motion.div
                 key={day.slug}
@@ -64,8 +71,14 @@ export function DayTreeNav({ days, className }: DayTreeNavProps) {
                 <Link
                   to={`/korea/day/${day.slug}`}
                   data-active={active}
+                  data-today={isToday}
                   aria-current={active ? "page" : undefined}
-                  className="group relative flex items-center gap-1.5 rounded-full border border-transparent px-3 py-1.5 text-xs font-medium text-stone-600 transition hover:border-stone-300 hover:bg-white hover:text-stone-900 data-[active=true]:border-rose-400 data-[active=true]:bg-rose-100 data-[active=true]:text-rose-900 data-[active=true]:shadow-sm dark:text-stone-400 dark:hover:border-stone-700 dark:hover:bg-stone-900 dark:hover:text-stone-100 dark:data-[active=true]:border-rose-700 dark:data-[active=true]:bg-rose-950/60 dark:data-[active=true]:text-rose-100"
+                  className={
+                    "group relative flex items-center gap-1.5 rounded-full border border-transparent px-3 py-1.5 text-xs font-medium text-stone-600 transition hover:border-stone-300 hover:bg-white hover:text-stone-900 data-[active=true]:border-rose-400 data-[active=true]:bg-rose-100 data-[active=true]:text-rose-900 data-[active=true]:shadow-sm dark:text-stone-400 dark:hover:border-stone-700 dark:hover:bg-stone-900 dark:hover:text-stone-100 dark:data-[active=true]:border-rose-700 dark:data-[active=true]:bg-rose-950/60 dark:data-[active=true]:text-rose-100 " +
+                    (isToday && !active
+                      ? "ring-2 ring-emerald-400/70 dark:ring-emerald-500/60"
+                      : "")
+                  }
                 >
                   <span className="text-base leading-none" aria-hidden>
                     {day.emoji}
@@ -75,11 +88,18 @@ export function DayTreeNav({ days, className }: DayTreeNavProps) {
                     <span className="mx-1">·</span>
                     {formatDate(day.date, { weekday: "short", month: undefined, day: undefined })}
                   </span>
+                  {isToday && (
+                    <span
+                      aria-hidden
+                      className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-stone-950"
+                    />
+                  )}
                 </Link>
               </motion.div>
             )
           })}
         </div>
+        <ThemeToggle />
       </div>
     </nav>
   )

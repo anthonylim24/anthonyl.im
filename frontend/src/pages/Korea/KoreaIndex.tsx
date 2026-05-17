@@ -1,11 +1,17 @@
 import { useOutletContext } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
+import { CalendarPlus, Sparkles } from "lucide-react"
 import type { LoadState } from "./useKoreaData"
 import type { Snapshot } from "./types"
 import { TripHero } from "./TripHero"
 import { DayCard } from "./DayCard"
 import { ReservationCard } from "./ReservationCard"
 import { StatusPanel } from "./StatusPanel"
+import { UpNextCard } from "./UpNextCard"
+import { TodayBanner } from "./TodayBanner"
+import { LinkifiedText } from "./LinkifiedText"
+import { buildIcs, downloadIcs, todayDay } from "./koreaUtils"
+import { mapsSearchUrl } from "./linkify"
 
 export function KoreaIndex() {
   const state = useOutletContext<LoadState<Snapshot>>()
@@ -14,25 +20,51 @@ export function KoreaIndex() {
   if (state.status === "error") return <KoreaError message={state.error.message} />
 
   const snap = state.data
+  const today = todayDay(snap.days)
   const reservationsByDay = (n: number) => snap.reservations.filter((r) => r.dayNumber === n).length
+
+  function exportFullTrip() {
+    const ics = buildIcs(snap.reservations, "South Korea Trip")
+    downloadIcs("korea-trip.ics", ics)
+  }
 
   return (
     <>
       <TripHero snapshot={snap} />
 
+      {today && <TodayBanner today={today} />}
+
+      <UpNextCard snapshot={snap} />
+
       <StatusPanel status={snap.status} />
 
-      <section className="mx-auto max-w-6xl px-4 pt-4 sm:px-6">
+      <section id="days" className="mx-auto max-w-6xl px-4 pt-4 sm:px-6">
         <SectionHeading title="📒 Daily itinerary" subtitle="Tap a day for the full plan" />
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {snap.days.map((day, i) => (
-            <DayCard key={day.slug} day={day} index={i} reservationsCount={reservationsByDay(day.n)} />
+            <DayCard
+              key={day.slug}
+              day={day}
+              index={i}
+              reservationsCount={reservationsByDay(day.n)}
+              isToday={today?.slug === day.slug}
+            />
           ))}
         </div>
       </section>
 
-      <section className="mx-auto mt-16 max-w-6xl px-4 sm:px-6">
-        <SectionHeading title="📌 Reservations" subtitle="Every time-fixed booking, sorted chronologically" />
+      <section id="reservations" className="mx-auto mt-16 max-w-6xl px-4 sm:px-6">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <SectionHeading title="📌 Reservations" subtitle="Every time-fixed booking, sorted chronologically" />
+          <button
+            type="button"
+            onClick={exportFullTrip}
+            className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 shadow-sm transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
+          >
+            <CalendarPlus className="h-3.5 w-3.5" aria-hidden />
+            Download .ics
+          </button>
+        </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {snap.reservations.map((r, i) => (
             <ReservationCard key={r.id} reservation={r} index={i} />
@@ -40,9 +72,38 @@ export function KoreaIndex() {
         </div>
       </section>
 
-      <section className="mx-auto mt-16 max-w-6xl px-4 sm:px-6">
+      <section id="neighborhoods" className="mx-auto mt-16 max-w-6xl px-4 sm:px-6">
         <SectionHeading title="🗺️ Neighborhoods" subtitle="Where you'll spend time and why" />
         <NeighborhoodsTable neighborhoods={snap.neighborhoods} />
+      </section>
+
+      <section id="hotels" className="mx-auto mt-16 max-w-6xl px-4 sm:px-6">
+        <SectionHeading title="🏨 Hotels" subtitle="Tap a hotel to open it in Google Maps" />
+        <ul className="mt-6 grid gap-3 sm:grid-cols-2">
+          {snap.trip.hotels.map((h, i) => (
+            <motion.li
+              key={h.name}
+              initial={{ opacity: 0, y: 10 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{ type: "spring", stiffness: 380, damping: 28, delay: i * 0.05 }}
+            >
+              <a
+                href={mapsSearchUrl(h.name + ", South Korea")}
+                target="_blank"
+                rel="noreferrer"
+                className="group flex items-center gap-3 rounded-2xl border border-stone-200 bg-white/70 p-4 backdrop-blur transition hover:border-rose-300 hover:bg-rose-50 dark:border-stone-800 dark:bg-stone-900/40 dark:hover:border-rose-700 dark:hover:bg-rose-950/30"
+              >
+                <span aria-hidden className="text-2xl">🏨</span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-stone-900 dark:text-stone-100">{h.name}</p>
+                  <p className="text-xs text-stone-500 dark:text-stone-400">{h.nights}</p>
+                </div>
+                <Sparkles className="h-4 w-4 shrink-0 text-stone-400 transition group-hover:text-rose-500" aria-hidden />
+              </a>
+            </motion.li>
+          ))}
+        </ul>
       </section>
 
       <Footer generatedAt={snap.generatedAt} />
@@ -82,13 +143,24 @@ function NeighborhoodsTable({ neighborhoods }: { neighborhoods: Snapshot["neighb
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true, margin: "-30px" }}
             transition={{ type: "spring", stiffness: 360, damping: 28, delay: reduce ? 0 : i * 0.03 }}
-            className="flex flex-col gap-1 px-5 py-4 sm:flex-row sm:items-center sm:gap-6"
+            className="flex flex-col gap-1 px-4 py-4 sm:flex-row sm:items-center sm:gap-6 sm:px-5"
           >
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">{n.name}</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+                <a
+                  href={mapsSearchUrl(n.name + ", South Korea")}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hover:underline"
+                >
+                  {n.name}
+                </a>
+              </p>
               <p className="mt-0.5 text-xs text-stone-500 dark:text-stone-400">Days {n.days}</p>
             </div>
-            <p className="flex-[2] text-sm text-stone-700 dark:text-stone-300">{n.picks}</p>
+            <p className="min-w-0 flex-[2] break-words text-sm text-stone-700 dark:text-stone-300">
+              <LinkifiedText>{n.picks}</LinkifiedText>
+            </p>
           </motion.li>
         ))}
       </ul>
