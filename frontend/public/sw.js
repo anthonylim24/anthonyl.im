@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'breathflow-offline-v2'
+const CACHE_VERSION = 'breathflow-offline-v3'
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`
 const KOREA_API_CACHE = `${CACHE_VERSION}-korea-api`
 const APP_SHELL = [
@@ -60,6 +60,20 @@ self.addEventListener('activate', (event) => {
         )
       )
       .then(() => self.clients.claim())
+      .then(() => {
+        // Force open clients to reload so they pick up the new asset bundle
+        // hashes referenced by the fresh index.html. Without this, an SPA
+        // session loaded under the old SW would keep using stale lazy chunks.
+        return self.clients.matchAll({ type: 'window' }).then((clients) => {
+          clients.forEach((client) => {
+            try {
+              client.navigate(client.url)
+            } catch {
+              /* navigate is restricted on some clients; ignore */
+            }
+          })
+        })
+      })
   )
 })
 
