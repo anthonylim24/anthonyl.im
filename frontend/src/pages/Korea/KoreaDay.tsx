@@ -1,5 +1,5 @@
-import { lazy, Suspense, useState } from "react"
-import { Link, useOutletContext, useParams } from "react-router-dom"
+import { lazy, Suspense, useEffect, useState } from "react"
+import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { ChevronLeft, ChevronRight, MapPin, CalendarPlus, Sparkles, Globe2 } from "lucide-react"
 import type { LoadState } from "./useKoreaData"
@@ -17,10 +17,36 @@ const MapModeOverlay = lazy(() =>
 
 export function KoreaDay() {
   const { slug } = useParams<{ slug: string }>()
+  const navigate = useNavigate()
   const snapshotState = useOutletContext<LoadState<Snapshot>>()
   const dayState = useKoreaDay(slug)
   const reduce = useReducedMotion()
   const [mapModeOpen, setMapModeOpen] = useState(false)
+
+  // Derive prev/next early so the keyboard handler in useEffect has access to
+  // them, regardless of whether dayState has loaded yet (early returns happen
+  // after the effect declaration).
+  const days = snapshotState.status === "success" ? snapshotState.data.days : []
+  const idx = days.findIndex((d) => d.slug === slug)
+  const prev = idx > 0 ? days[idx - 1] : null
+  const next = idx >= 0 && idx < days.length - 1 ? days[idx + 1] : null
+
+  // Keyboard arrow navigation between days. Suppressed when Map Mode is open
+  // (handled by overlay) or when focus is inside an input/textarea.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (mapModeOpen) return
+      const target = e.target as HTMLElement | null
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return
+      if (e.key === "ArrowLeft" && prev) {
+        navigate(`/korea/day/${prev.slug}`)
+      } else if (e.key === "ArrowRight" && next) {
+        navigate(`/korea/day/${next.slug}`)
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [prev, next, navigate, mapModeOpen])
 
   if (dayState.status === "loading") return <DaySkeleton />
   if (dayState.status === "error") return <DayError message={dayState.error.message} />
@@ -28,12 +54,6 @@ export function KoreaDay() {
   const { day, reservations } = dayState.data
   const tint = cityMeta[day.city] ?? cityMeta.Seoul
   const isToday = day.date === todayKstIso()
-
-  // Prev/next nav from snapshot if available
-  const days = snapshotState.status === "success" ? snapshotState.data.days : []
-  const idx = days.findIndex((d) => d.slug === day.slug)
-  const prev = idx > 0 ? days[idx - 1] : null
-  const next = idx >= 0 && idx < days.length - 1 ? days[idx + 1] : null
 
   function exportDayIcs() {
     const ics = buildIcs(reservations, `Day ${day.n} · ${day.title}`)
