@@ -95,11 +95,11 @@ export function TripHero({ snapshot }: TripHeroProps) {
           initial={reduce ? false : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, delay: 0.32 }}
-          className="mt-8 grid gap-2.5 text-sm sm:grid-cols-2"
+          className="mt-6 grid gap-2 text-sm sm:mt-8 sm:grid-cols-2 sm:gap-2.5"
         >
-          <FactRow icon="✈️" label="Flights" value={`${snapshot.trip.flights.out}`} />
+          <FactRow icon="✈️" label="Flights" value={snapshot.trip.flights.out} />
           <FactRow icon="💒" label="Anchor" value={snapshot.trip.anchor} />
-          <FactRow icon="🏨" label="Hotels" value={snapshot.trip.hotels.map((h) => h.name.split(" Seoul")[0].split(" Busan")[0]).join(" → ")} />
+          <FactRow icon="🏨" label="Hotels" value={snapshot.trip.hotels.map((h) => h.name).join(" → ")} />
           <FactRow icon="🪪" label="Conf" value={snapshot.trip.flights.confirmation} mono />
         </motion.div>
       </div>
@@ -115,7 +115,14 @@ function FactRow({ icon, label, value, mono }: { icon: string; label: string; va
       </span>
       <div className="min-w-0 flex-1">
         <p className="text-[10px] font-medium uppercase tracking-wider text-stone-500 dark:text-stone-400">{label}</p>
-        <p className={"truncate text-stone-800 dark:text-stone-200 " + (mono ? "font-mono text-xs" : "text-xs")}>{value}</p>
+        <p
+          className={
+            "break-words leading-snug text-stone-800 dark:text-stone-200 " +
+            (mono ? "font-mono text-xs" : "text-xs")
+          }
+        >
+          {value}
+        </p>
       </div>
     </div>
   )

@@ -49,7 +49,7 @@ export function DayTreeNav({ days, className }: DayTreeNavProps) {
         </Link>
         <div
           ref={scrollRef}
-          className="flex flex-1 gap-1.5 overflow-x-auto pb-0.5 sm:gap-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+          className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto pb-0.5 sm:gap-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
         >
           {days.map((day, i) => {
             const active = activeSlug === day.slug
