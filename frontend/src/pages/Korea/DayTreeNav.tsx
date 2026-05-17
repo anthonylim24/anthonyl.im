@@ -5,6 +5,7 @@ import type { Day } from "./types"
 import { formatDate } from "./koreaTheme"
 import { todayKstIso } from "./koreaUtils"
 import { ThemeToggle } from "./ThemeToggle"
+import { KstClock } from "./KstClock"
 
 interface DayTreeNavProps {
   days: Pick<Day, "n" | "slug" | "date" | "dayOfWeek" | "emoji" | "title" | "city">[]
@@ -99,6 +100,7 @@ export function DayTreeNav({ days, className }: DayTreeNavProps) {
             )
           })}
         </div>
+        <KstClock />
         <ThemeToggle />
       </div>
     </nav>

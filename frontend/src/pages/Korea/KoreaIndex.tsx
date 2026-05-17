@@ -79,7 +79,7 @@ export function KoreaIndex() {
 
       <section id="hotels" className="mx-auto mt-16 max-w-6xl px-4 sm:px-6">
         <SectionHeading title="🏨 Hotels" subtitle="Tap a hotel to open it in Google Maps" />
-        <ul className="mt-6 grid gap-3 sm:grid-cols-2">
+        <ul className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
           {snap.trip.hotels.map((h, i) => (
             <motion.li
               key={h.name}
@@ -87,16 +87,19 @@ export function KoreaIndex() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-50px" }}
               transition={{ type: "spring", stiffness: 380, damping: 28, delay: i * 0.05 }}
+              className="min-w-0"
             >
               <a
                 href={mapsSearchUrl(h.name + ", South Korea")}
                 target="_blank"
                 rel="noreferrer"
-                className="group flex items-center gap-3 rounded-2xl border border-stone-200 bg-white/70 p-4 backdrop-blur transition hover:border-rose-300 hover:bg-rose-50 dark:border-stone-800 dark:bg-stone-900/40 dark:hover:border-rose-700 dark:hover:bg-rose-950/30"
+                className="group flex min-w-0 items-center gap-3 rounded-2xl border border-stone-200 bg-white/70 p-4 backdrop-blur transition hover:border-rose-300 hover:bg-rose-50 dark:border-stone-800 dark:bg-stone-900/40 dark:hover:border-rose-700 dark:hover:bg-rose-950/30"
               >
-                <span aria-hidden className="text-2xl">🏨</span>
+                <span aria-hidden className="shrink-0 text-2xl">🏨</span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-stone-900 dark:text-stone-100">{h.name}</p>
+                  <p className="break-words text-sm font-semibold leading-snug text-stone-900 dark:text-stone-100">
+                    {h.name}
+                  </p>
                   <p className="text-xs text-stone-500 dark:text-stone-400">{h.nights}</p>
                 </div>
                 <Sparkles className="h-4 w-4 shrink-0 text-stone-400 transition group-hover:text-rose-500" aria-hidden />

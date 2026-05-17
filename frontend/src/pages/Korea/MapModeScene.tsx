@@ -24,27 +24,58 @@ export function isWebglSupported(): boolean {
   }
 }
 
-// Visual constants
+// Visual constants — tuned for a cinematic, centered hero view.
 const RADIUS_BY_PRIORITY: Record<RankedPlace["priority"], number> = {
-  scheduled: 9,
-  core: 17,
-  supplemental: 26,
+  scheduled: 8,
+  core: 14.5,
+  supplemental: 21.5,
 }
 
 const BUBBLE_RADIUS_BY_PRIORITY: Record<RankedPlace["priority"], number> = {
   scheduled: 2.4,
-  core: 1.9,
-  supplemental: 1.6,
+  core: 1.8,
+  supplemental: 1.45,
+}
+
+const Y_BY_PRIORITY: Record<RankedPlace["priority"], number> = {
+  scheduled: 1.5,
+  core: 2.6,
+  supplemental: 3.6,
+}
+
+// Camera distance adapts to the viewport so the supplemental ring fits without
+// clipping on narrow phones, while staying cinematic on wide displays.
+function cameraTargetRadiusFor(width: number): number {
+  if (width < 360) return 50
+  if (width < 480) return 46
+  if (width < 768) return 41
+  if (width < 1024) return 36
+  if (width < 1440) return 33
+  return 30
 }
 
 interface BubbleNode {
   place: RankedPlace
   mesh: THREE.Mesh
-  group: THREE.Group
+  glow: THREE.Mesh
   line: THREE.Line
   basePos: THREE.Vector3
   bobOffset: number
+  bobAmplitude: number
   label: HTMLDivElement
+  entryDelay: number
+  bornAt: number
+}
+
+// Easing for the intro animation
+function easeOutCubic(t: number): number {
+  return 1 - Math.pow(1 - t, 3)
+}
+
+function easeOutBack(t: number): number {
+  const c1 = 1.70158
+  const c3 = c1 + 1
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2)
 }
 
 export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWebglError }: MapModeSceneProps) {
@@ -54,145 +85,241 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
   onSelectRef.current = onSelect
   const onWebglErrorRef = useRef(onWebglError)
   onWebglErrorRef.current = onWebglError
+  const selectedIdRef = useRef<string | null>(selectedId ?? null)
+
+  useEffect(() => {
+    selectedIdRef.current = selectedId ?? null
+  }, [selectedId])
 
   useEffect(() => {
     const mount = mountRef.current
     const overlay = overlayRef.current
     if (!mount || !overlay) return
 
-    // Renderer — wrap in try/catch so a missing WebGL context (corp policy,
-    // headless, private mode) escalates to a list-mode fallback rather than
-    // crashing the whole route.
+    // ── Renderer ───────────────────────────────────────────────────
     let renderer: THREE.WebGLRenderer
     try {
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" })
     } catch (err) {
       console.warn("[map-mode] WebGL unavailable:", err)
       onWebglErrorRef.current?.()
       return
     }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-    const sizeFromMount = () => ({ w: mount.clientWidth, h: mount.clientHeight })
+    const sizeFromMount = () => ({ w: mount.clientWidth, h: Math.max(1, mount.clientHeight) })
     let { w, h } = sizeFromMount()
     renderer.setSize(w, h, false)
     renderer.setClearColor(0x000000, 0)
     mount.appendChild(renderer.domElement)
     renderer.domElement.style.touchAction = "none"
+    renderer.domElement.style.display = "block"
 
-    // Scene + camera
+    // ── Scene + Camera ─────────────────────────────────────────────
     const scene = new THREE.Scene()
-    const camera = new THREE.PerspectiveCamera(50, w / h, 0.1, 200)
-    camera.position.set(0, 28, 36)
-    camera.lookAt(0, 0, 0)
+    // A narrower FOV gives more cinematic depth
+    const camera = new THREE.PerspectiveCamera(38, w / h, 0.1, 400)
 
-    // Lights
-    const ambient = new THREE.AmbientLight(0xffffff, 0.7)
+    // Camera state — orbit parameters around the user (origin).
+    // Target the user node directly so YOU sits dead center of the viewport.
+    const cameraTarget = new THREE.Vector3(0, 1.4, 0)
+    const camYaw = { current: -Math.PI / 6 }
+    const camPitch = { current: 0.58 } // ~33° down — gentle perspective
+    const camRadius = { current: 70 } // start far, animate in
+    const camRadiusTarget = { current: cameraTargetRadiusFor(w) }
+
+    function applyCamera() {
+      const cosP = Math.cos(camPitch.current)
+      camera.position.set(
+        cameraTarget.x + Math.sin(camYaw.current) * camRadius.current * cosP,
+        cameraTarget.y + Math.sin(camPitch.current) * camRadius.current,
+        cameraTarget.z + Math.cos(camYaw.current) * camRadius.current * cosP,
+      )
+      camera.lookAt(cameraTarget)
+    }
+    applyCamera()
+
+    // ── Lights ─────────────────────────────────────────────────────
+    const ambient = new THREE.AmbientLight(0xffffff, 0.45)
     scene.add(ambient)
-    const key = new THREE.DirectionalLight(0xfff4e6, 0.9)
-    key.position.set(20, 30, 20)
+    const hemi = new THREE.HemisphereLight(0xfff0d6, 0x1a0e2a, 0.55)
+    scene.add(hemi)
+    const key = new THREE.DirectionalLight(0xfff4e6, 1.0)
+    key.position.set(20, 30, 14)
     scene.add(key)
-    const rim = new THREE.DirectionalLight(0xa3c5ff, 0.6)
-    rim.position.set(-15, 10, -15)
+    const rim = new THREE.DirectionalLight(0xa3c5ff, 0.55)
+    rim.position.set(-18, 12, -16)
     scene.add(rim)
 
-    // Center "user" node
-    const centerGroup = new THREE.Group()
-    const centerGeom = new THREE.SphereGeometry(1.2, 32, 32)
-    const centerMat = new THREE.MeshStandardMaterial({
-      color: 0xff4d6d,
-      emissive: 0xff4d6d,
-      emissiveIntensity: 0.55,
-      metalness: 0.1,
-      roughness: 0.3,
-    })
-    const centerMesh = new THREE.Mesh(centerGeom, centerMat)
-    centerGroup.add(centerMesh)
-    // Pulsing glow ring around the center
-    const ringGeom = new THREE.RingGeometry(1.8, 2.0, 64)
-    const ringMat = new THREE.MeshBasicMaterial({
-      color: 0xff4d6d,
+    // ── Starfield background ──────────────────────────────────────
+    const starCount = reducedMotion ? 300 : 900
+    const starGeom = new THREE.BufferGeometry()
+    const starPositions = new Float32Array(starCount * 3)
+    const starSizes = new Float32Array(starCount)
+    for (let i = 0; i < starCount; i++) {
+      // Distribute on a far sphere shell
+      const r = 90 + Math.random() * 60
+      const theta = Math.random() * Math.PI * 2
+      const phi = Math.acos(2 * Math.random() - 1)
+      starPositions[i * 3] = r * Math.sin(phi) * Math.cos(theta)
+      starPositions[i * 3 + 1] = r * Math.abs(Math.cos(phi)) * 0.6 + 8 // bias up
+      starPositions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta)
+      starSizes[i] = 0.5 + Math.random() * 1.6
+    }
+    starGeom.setAttribute("position", new THREE.BufferAttribute(starPositions, 3))
+    starGeom.setAttribute("size", new THREE.BufferAttribute(starSizes, 1))
+    const starMat = new THREE.PointsMaterial({
+      color: 0xfff5e0,
+      size: 0.7,
       transparent: true,
-      opacity: 0.4,
-      side: THREE.DoubleSide,
+      opacity: 0.85,
+      sizeAttenuation: true,
+      depthWrite: false,
     })
-    const ring = new THREE.Mesh(ringGeom, ringMat)
-    ring.rotation.x = -Math.PI / 2
-    centerGroup.add(ring)
-    scene.add(centerGroup)
+    const stars = new THREE.Points(starGeom, starMat)
+    scene.add(stars)
 
-    // Soft ground disk to give the scene some grounding
-    const groundGeom = new THREE.CircleGeometry(40, 64)
-    const groundMat = new THREE.MeshBasicMaterial({ color: 0xffd9c2, transparent: true, opacity: 0.05 })
+    // ── Ground plane (soft glow disk) ─────────────────────────────
+    const groundGeom = new THREE.CircleGeometry(60, 64)
+    const groundMat = new THREE.MeshBasicMaterial({ color: 0xffd9c2, transparent: true, opacity: 0.04, depthWrite: false })
     const ground = new THREE.Mesh(groundGeom, groundMat)
     ground.rotation.x = -Math.PI / 2
-    ground.position.y = -1
+    ground.position.y = -0.6
     scene.add(ground)
 
-    // Bubble nodes
-    const nodes: BubbleNode[] = []
-
-    // Stable sub-grouping by priority so each ring gets evenly distributed angles
-    const groupedByPriority: Record<string, RankedPlace[]> = {
-      scheduled: [],
-      core: [],
-      supplemental: [],
+    // ── Ground rings (concentric, one per priority) ───────────────
+    const ringMeshes: THREE.Mesh[] = []
+    const ringDefs: { radius: number; color: number; opacity: number }[] = [
+      { radius: RADIUS_BY_PRIORITY.scheduled, color: 0xff4d6d, opacity: 0.4 },
+      { radius: RADIUS_BY_PRIORITY.core, color: 0xfb923c, opacity: 0.28 },
+      { radius: RADIUS_BY_PRIORITY.supplemental, color: 0xa3a3a3, opacity: 0.18 },
+    ]
+    for (const def of ringDefs) {
+      const g = new THREE.RingGeometry(def.radius - 0.18, def.radius + 0.18, 96)
+      const m = new THREE.MeshBasicMaterial({
+        color: def.color,
+        transparent: true,
+        opacity: def.opacity,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      })
+      const ring = new THREE.Mesh(g, m)
+      ring.rotation.x = -Math.PI / 2
+      ring.position.y = -0.55
+      scene.add(ring)
+      ringMeshes.push(ring)
     }
+
+    // ── Center "you" node ─────────────────────────────────────────
+    const youGroup = new THREE.Group()
+    const youCore = new THREE.Mesh(
+      new THREE.SphereGeometry(1.25, 36, 36),
+      new THREE.MeshStandardMaterial({
+        color: 0xff4d6d,
+        emissive: 0xff4d6d,
+        emissiveIntensity: 0.7,
+        metalness: 0.1,
+        roughness: 0.25,
+      }),
+    )
+    youGroup.add(youCore)
+    // Glow shell
+    const youGlow = new THREE.Mesh(
+      new THREE.SphereGeometry(2.2, 32, 32),
+      new THREE.MeshBasicMaterial({ color: 0xff4d6d, transparent: true, opacity: 0.22, depthWrite: false }),
+    )
+    youGroup.add(youGlow)
+    // Pulsing ring on ground
+    const youRing = new THREE.Mesh(
+      new THREE.RingGeometry(2.4, 2.7, 96),
+      new THREE.MeshBasicMaterial({ color: 0xff4d6d, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }),
+    )
+    youRing.rotation.x = -Math.PI / 2
+    youRing.position.y = -0.55
+    youGroup.add(youRing)
+    // Second slower-pulsing ring
+    const youRing2 = new THREE.Mesh(
+      new THREE.RingGeometry(3.6, 3.85, 96),
+      new THREE.MeshBasicMaterial({ color: 0xff4d6d, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false }),
+    )
+    youRing2.rotation.x = -Math.PI / 2
+    youRing2.position.y = -0.55
+    youGroup.add(youRing2)
+    youGroup.position.y = 0.4
+    scene.add(youGroup)
+
+    // ── Bubble nodes ──────────────────────────────────────────────
+    const nodes: BubbleNode[] = []
+    const groupedByPriority: Record<string, RankedPlace[]> = { scheduled: [], core: [], supplemental: [] }
     for (const p of places) groupedByPriority[p.priority].push(p)
 
+    let entryIdx = 0
     for (const priority of ["scheduled", "core", "supplemental"] as const) {
       const groupPlaces = groupedByPriority[priority]
       const ringRadius = RADIUS_BY_PRIORITY[priority]
-      const angleOffset = priority === "scheduled" ? 0 : priority === "core" ? Math.PI / 8 : Math.PI / 12
+      // Phase the rings so bubbles don't line up radially
+      const phase =
+        priority === "scheduled" ? Math.PI / 6 : priority === "core" ? Math.PI / 9 : Math.PI / 12
 
       groupPlaces.forEach((place, i) => {
-        const angle = angleOffset + (i / Math.max(1, groupPlaces.length)) * Math.PI * 2
+        const angle = phase + (i / Math.max(1, groupPlaces.length)) * Math.PI * 2
         const bx = Math.cos(angle) * ringRadius
         const bz = Math.sin(angle) * ringRadius
-        // Add some y-elevation jitter to make it feel 3D
-        const by = priority === "scheduled" ? 1.5 : priority === "core" ? 2.5 : 3.5
-
+        const by = Y_BY_PRIORITY[priority]
         const bubbleRadius = BUBBLE_RADIUS_BY_PRIORITY[priority]
-        const geom = new THREE.SphereGeometry(bubbleRadius, 28, 28)
+
         const color = new THREE.Color(place.color)
         const mat = new THREE.MeshStandardMaterial({
           color,
           emissive: color,
-          emissiveIntensity: priority === "scheduled" ? 0.5 : priority === "core" ? 0.35 : 0.2,
-          metalness: 0.1,
-          roughness: 0.25,
+          emissiveIntensity:
+            priority === "scheduled" ? 0.55 : priority === "core" ? 0.4 : 0.25,
+          metalness: 0.18,
+          roughness: 0.22,
           transparent: true,
-          opacity: 0.92,
+          opacity: 0.95,
         })
-        const mesh = new THREE.Mesh(geom, mat)
+        const mesh = new THREE.Mesh(new THREE.SphereGeometry(bubbleRadius, 28, 28), mat)
         mesh.position.set(bx, by, bz)
         mesh.userData.placeId = place.id
+        mesh.userData.priority = priority
+        mesh.scale.setScalar(0.001) // start invisible, animate in
+        scene.add(mesh)
 
-        const group = new THREE.Group()
-        group.add(mesh)
-        scene.add(group)
+        // Soft outer glow shell
+        const glowMat = new THREE.MeshBasicMaterial({
+          color,
+          transparent: true,
+          opacity: 0.15,
+          depthWrite: false,
+        })
+        const glow = new THREE.Mesh(new THREE.SphereGeometry(bubbleRadius * 1.55, 24, 24), glowMat)
+        glow.position.copy(mesh.position)
+        glow.scale.setScalar(0.001)
+        scene.add(glow)
 
-        // Connecting line from center to bubble
+        // Connecting line from user to bubble
         const lineGeom = new THREE.BufferGeometry().setFromPoints([
-          new THREE.Vector3(0, 0.4, 0),
+          new THREE.Vector3(0, 0.6, 0),
           new THREE.Vector3(bx, by, bz),
         ])
         const lineMat = new THREE.LineBasicMaterial({
-          color: priority === "scheduled" ? 0xff4d6d : priority === "core" ? 0xfb923c : 0xa3a3a3,
+          color: priority === "scheduled" ? 0xff4d6d : priority === "core" ? 0xfb923c : 0x888888,
           transparent: true,
-          opacity: priority === "scheduled" ? 0.7 : priority === "core" ? 0.5 : 0.25,
+          opacity:
+            priority === "scheduled" ? 0.55 : priority === "core" ? 0.35 : 0.18,
         })
         const line = new THREE.Line(lineGeom, lineMat)
         scene.add(line)
 
-        // HTML label
+        // HTML label overlay
         const label = document.createElement("div")
         label.dataset.placeId = place.id
         label.className =
-          "pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 select-none text-center"
+          "pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 select-none text-center opacity-0 transition-opacity duration-500"
         label.innerHTML = `
-          <div class="text-2xl drop-shadow-md leading-none">${place.icon}</div>
-          <div class="mt-0.5 inline-block max-w-[10rem] rounded-full bg-white/85 px-1.5 py-0.5 text-[10px] font-medium text-stone-900 shadow-sm backdrop-blur-sm dark:bg-stone-900/85 dark:text-stone-100">
-            ${place.name.length > 18 ? place.name.slice(0, 17) + "…" : place.name}
+          <div class="text-2xl drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)] leading-none">${place.icon}</div>
+          <div class="mt-0.5 inline-block max-w-[10rem] truncate rounded-full bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold text-stone-900 shadow-md backdrop-blur-md ring-1 ring-stone-200 dark:bg-stone-900/90 dark:text-stone-100 dark:ring-stone-700">
+            ${escapeHtml(place.name).length > 22 ? escapeHtml(place.name).slice(0, 21) + "…" : escapeHtml(place.name)}
           </div>
         `
         overlay.appendChild(label)
@@ -200,29 +327,37 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
         nodes.push({
           place,
           mesh,
-          group,
+          glow,
           line,
           basePos: new THREE.Vector3(bx, by, bz),
           bobOffset: Math.random() * Math.PI * 2,
+          bobAmplitude: priority === "scheduled" ? 0.45 : 0.3,
           label,
+          entryDelay: entryIdx * 0.06,
+          bornAt: 0,
         })
+        entryIdx++
       })
     }
 
     // Center user label
-    const centerLabel = document.createElement("div")
-    centerLabel.className =
-      "pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 select-none text-center"
-    centerLabel.innerHTML = `
-      <div class="text-3xl drop-shadow-md leading-none">📍</div>
-      <div class="mt-0.5 inline-block rounded-full bg-rose-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white shadow-md">You</div>
+    const youLabel = document.createElement("div")
+    youLabel.className = "pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 select-none text-center"
+    youLabel.innerHTML = `
+      <div class="text-3xl drop-shadow-[0_2px_8px_rgba(0,0,0,0.55)] leading-none">📍</div>
+      <div class="mt-0.5 inline-block rounded-full bg-rose-600 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-white shadow-lg ring-1 ring-rose-300/60">You</div>
     `
-    overlay.appendChild(centerLabel)
+    overlay.appendChild(youLabel)
 
-    // Raycaster
+    // ── Raycaster + input handling ────────────────────────────────
     const raycaster = new THREE.Raycaster()
     const pointer = new THREE.Vector2()
     let hovered: BubbleNode | null = null
+    let pointerDownAt = 0
+    let pointerDownPos = { x: 0, y: 0 }
+    let dragging = false
+    let dragLastX = 0
+    let dragLastY = 0
 
     function setPointerFromEvent(clientX: number, clientY: number) {
       const rect = renderer.domElement.getBoundingClientRect()
@@ -245,76 +380,82 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
       setPointerFromEvent(e.clientX, e.clientY)
       const node = pickAtPointer()
       if (hovered && hovered !== node) {
-        hovered.mesh.scale.setScalar(1)
-        hovered.label.style.transform += "" // no-op
+        hovered = null
       }
-      if (node && hovered !== node) {
-        node.mesh.scale.setScalar(1.18)
+      if (node) hovered = node
+      renderer.domElement.style.cursor = node ? "pointer" : dragging ? "grabbing" : "grab"
+
+      if (dragging) {
+        const dx = e.clientX - dragLastX
+        const dy = e.clientY - dragLastY
+        dragLastX = e.clientX
+        dragLastY = e.clientY
+        camYaw.current -= dx * 0.005
+        camPitch.current = Math.max(0.12, Math.min(1.2, camPitch.current + dy * 0.004))
+        applyCamera()
       }
-      hovered = node
-      renderer.domElement.style.cursor = node ? "pointer" : "default"
     }
 
     function onPointerDown(e: PointerEvent) {
       setPointerFromEvent(e.clientX, e.clientY)
+      pointerDownAt = performance.now()
+      pointerDownPos = { x: e.clientX, y: e.clientY }
+      const node = pickAtPointer()
+      if (!node) {
+        // Start drag
+        dragging = true
+        dragLastX = e.clientX
+        dragLastY = e.clientY
+      }
+    }
+
+    function onPointerUp(e: PointerEvent) {
+      const wasDragging = dragging
+      dragging = false
+      setPointerFromEvent(e.clientX, e.clientY)
+      const dt = performance.now() - pointerDownAt
+      const dx = e.clientX - pointerDownPos.x
+      const dy = e.clientY - pointerDownPos.y
+      const movedFar = Math.hypot(dx, dy) > 6
+      if (wasDragging && movedFar) return // it was a real drag
+      if (dt > 600) return // long press, ignore
       const node = pickAtPointer()
       if (node) {
+        // Haptic
+        if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+          try {
+            navigator.vibrate(15)
+          } catch {
+            /* no-op */
+          }
+        }
         onSelectRef.current(node.place)
       }
     }
 
     renderer.domElement.addEventListener("pointermove", onPointerMove)
     renderer.domElement.addEventListener("pointerdown", onPointerDown)
-
-    // Touch + scroll: orbit camera with single finger drag (yaw only — keep
-    // mobile-friendly). Pinch to zoom (modest range).
-    let dragging = false
-    let dragLastX = 0
-    let yaw = 0
-    let radius = Math.sqrt(36 * 36 + 28 * 28)
-    let pitch = Math.atan2(28, 36)
-
-    function applyCamera() {
-      const cosPitch = Math.cos(pitch)
-      camera.position.set(
-        Math.sin(yaw) * radius * cosPitch,
-        Math.sin(pitch) * radius,
-        Math.cos(yaw) * radius * cosPitch,
-      )
-      camera.lookAt(0, 0, 0)
-    }
-    applyCamera()
-
-    const onPointerDownDrag = (e: PointerEvent) => {
-      const target = pickAtPointer()
-      if (target) return // tapping a bubble — don't start drag
-      dragging = true
-      dragLastX = e.clientX
-    }
-    const onPointerMoveDrag = (e: PointerEvent) => {
-      if (!dragging) return
-      const dx = e.clientX - dragLastX
-      dragLastX = e.clientX
-      yaw -= dx * 0.005
-      applyCamera()
-    }
-    const onPointerUpDrag = () => {
+    renderer.domElement.addEventListener("pointerup", onPointerUp)
+    renderer.domElement.addEventListener("pointerleave", () => {
       dragging = false
-    }
-    renderer.domElement.addEventListener("pointerdown", onPointerDownDrag)
-    renderer.domElement.addEventListener("pointermove", onPointerMoveDrag)
-    renderer.domElement.addEventListener("pointerup", onPointerUpDrag)
-    renderer.domElement.addEventListener("pointerleave", onPointerUpDrag)
+    })
 
-    // Wheel zoom (desktop)
+    // Wheel zoom
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
-      radius = Math.max(20, Math.min(70, radius + e.deltaY * 0.05))
-      applyCamera()
+      camRadiusTarget.current = Math.max(20, Math.min(85, camRadiusTarget.current + e.deltaY * 0.06))
     }
     renderer.domElement.addEventListener("wheel", onWheel, { passive: false })
 
-    // Touch pinch zoom
+    // Listen for an external "reset view" event from the overlay controls.
+    const onResetView = () => {
+      camRadiusTarget.current = cameraTargetRadiusFor(mount.clientWidth)
+      camYaw.current = -Math.PI / 6
+      camPitch.current = 0.58
+    }
+    mount.addEventListener("korea-map-reset", onResetView)
+
+    // Pinch zoom (two-finger)
     let pinchDist = 0
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 2) {
@@ -332,8 +473,7 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
         )
         if (pinchDist > 0) {
           const scale = pinchDist / d
-          radius = Math.max(20, Math.min(70, radius * scale))
-          applyCamera()
+          camRadiusTarget.current = Math.max(22, Math.min(75, camRadiusTarget.current * scale))
         }
         pinchDist = d
       }
@@ -341,9 +481,10 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
     renderer.domElement.addEventListener("touchstart", onTouchStart, { passive: true })
     renderer.domElement.addEventListener("touchmove", onTouchMove, { passive: true })
 
-    // Animate
+    // ── Animation loop ─────────────────────────────────────────────
     const clock = new THREE.Clock()
     let running = true
+    const sceneStart = performance.now()
 
     function projectToScreen(v: THREE.Vector3): { x: number; y: number; visible: boolean } {
       const p = v.clone().project(camera)
@@ -358,27 +499,79 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
     function tick() {
       if (!running) return
       const t = clock.getElapsedTime()
+      const sceneT = (performance.now() - sceneStart) / 1000
 
-      // Center pulse
-      const pulse = 1 + Math.sin(t * 2.4) * 0.06
-      centerMesh.scale.setScalar(reducedMotion ? 1 : pulse)
-      ring.scale.setScalar(reducedMotion ? 1 : 1 + Math.sin(t * 1.8) * 0.12)
-      ringMat.opacity = reducedMotion ? 0.4 : 0.35 + Math.sin(t * 1.8) * 0.1
-
-      // Auto-rotate scene very slowly when not actively dragging
-      if (!dragging && !reducedMotion) {
-        yaw += 0.0008
-        applyCamera()
+      // Camera intro: ease radius from initial to target over 1.5s
+      if (sceneT < 1.5 && !reducedMotion) {
+        const k = easeOutCubic(sceneT / 1.5)
+        camRadius.current = 60 + (camRadiusTarget.current - 60) * k
+      } else {
+        // Smoothly settle toward target
+        camRadius.current += (camRadiusTarget.current - camRadius.current) * 0.08
       }
 
-      // Bubbles bob
+      // Auto-rotate slowly when not dragging
+      if (!dragging && !reducedMotion) {
+        camYaw.current += 0.0006
+      }
+      applyCamera()
+
+      // Stars: tiny twinkle by scaling material opacity
+      starMat.opacity = 0.75 + Math.sin(t * 0.7) * 0.08
+
+      // You-node pulse
+      const pulse = 1 + Math.sin(t * 2.4) * 0.06
+      youCore.scale.setScalar(reducedMotion ? 1 : pulse)
+      youGlow.scale.setScalar(reducedMotion ? 1.0 : 1 + Math.sin(t * 1.6) * 0.12)
+      ;(youRing.material as THREE.MeshBasicMaterial).opacity = reducedMotion ? 0.55 : 0.45 + Math.sin(t * 1.8) * 0.15
+      youRing.scale.setScalar(reducedMotion ? 1 : 1 + Math.sin(t * 1.4) * 0.08)
+      ;(youRing2.material as THREE.MeshBasicMaterial).opacity = reducedMotion ? 0.3 : 0.2 + Math.sin(t * 1.1 + 1) * 0.12
+      youRing2.scale.setScalar(reducedMotion ? 1 : 1 + Math.sin(t * 0.9 + 1) * 0.1)
+
+      // Ground rings subtle pulse
+      ringMeshes.forEach((ring, i) => {
+        const mat = ring.material as THREE.MeshBasicMaterial
+        const baseOpacity = ringDefs[i].opacity
+        mat.opacity = reducedMotion ? baseOpacity : baseOpacity + Math.sin(t * 0.8 + i) * 0.05
+      })
+
+      // Bubbles: entry stagger + bob + selection halo
       for (const node of nodes) {
-        const bob = reducedMotion ? 0 : Math.sin(t * 1.3 + node.bobOffset) * 0.35
-        node.mesh.position.y = node.basePos.y + bob
-        const sel = selectedRef.current === node.place.id
-        if (sel) {
-          node.mesh.scale.setScalar(1.25)
+        // Entry animation
+        if (node.bornAt === 0 && sceneT >= node.entryDelay) {
+          node.bornAt = sceneT
         }
+        if (node.bornAt > 0) {
+          const sinceBirth = sceneT - node.bornAt
+          const k = Math.min(1, sinceBirth / 0.7)
+          const scale = reducedMotion ? 1 : easeOutBack(k)
+          node.mesh.scale.setScalar(scale)
+          node.glow.scale.setScalar(scale * 0.9)
+          if (k >= 0.4) node.label.style.opacity = "1"
+        } else {
+          node.mesh.scale.setScalar(0.001)
+          node.glow.scale.setScalar(0.001)
+        }
+
+        // Bob
+        const bob = reducedMotion ? 0 : Math.sin(t * 1.3 + node.bobOffset) * node.bobAmplitude
+        node.mesh.position.y = node.basePos.y + bob
+        node.glow.position.copy(node.mesh.position)
+
+        // Selection emphasis
+        const isSelected = selectedIdRef.current === node.place.id
+        if (isSelected) {
+          const sel = 1 + Math.sin(t * 4) * 0.08
+          node.mesh.scale.setScalar(Math.max(node.mesh.scale.x, 1.25 * sel))
+          node.glow.scale.setScalar(1.5 * sel)
+          ;(node.glow.material as THREE.MeshBasicMaterial).opacity = 0.35
+        } else if (hovered && hovered.place.id === node.place.id) {
+          // Hover
+          ;(node.glow.material as THREE.MeshBasicMaterial).opacity = 0.25
+        } else {
+          ;(node.glow.material as THREE.MeshBasicMaterial).opacity = 0.13
+        }
+
         // Update line endpoint
         const positions = node.line.geometry.attributes.position as THREE.BufferAttribute
         positions.setXYZ(1, node.mesh.position.x, node.mesh.position.y, node.mesh.position.z)
@@ -386,25 +579,22 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
 
         // Update label DOM position
         const worldPos = node.mesh.position.clone()
-        worldPos.y += BUBBLE_RADIUS_BY_PRIORITY[node.place.priority] + 0.8
+        worldPos.y += BUBBLE_RADIUS_BY_PRIORITY[node.place.priority] + 0.9
         const { x, y, visible } = projectToScreen(worldPos)
-        node.label.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`
-        node.label.style.opacity = visible ? "1" : "0"
+        node.label.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, -50%)`
+        node.label.style.visibility = visible ? "visible" : "hidden"
       }
 
-      // Center label projection
-      const cLabelPos = new THREE.Vector3(0, 2.2, 0)
-      const cs = projectToScreen(cLabelPos)
-      centerLabel.style.transform = `translate(${cs.x}px, ${cs.y}px) translate(-50%, -50%)`
+      // You-label projection
+      const cs = projectToScreen(new THREE.Vector3(0, 2.5, 0))
+      youLabel.style.transform = `translate3d(${cs.x.toFixed(1)}px, ${cs.y.toFixed(1)}px, 0) translate(-50%, -50%)`
 
       renderer.render(scene, camera)
       requestAnimationFrame(tick)
     }
-
-    const selectedRef = { current: selectedId ?? null }
     tick()
 
-    // Resize observer
+    // ── Resize observer ────────────────────────────────────────────
     const ro = new ResizeObserver(() => {
       const s = sizeFromMount()
       w = s.w
@@ -412,42 +602,46 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
       renderer.setSize(w, h, false)
       camera.aspect = w / h
       camera.updateProjectionMatrix()
+      // Re-target camera radius for the new viewport so all bubbles stay in frame.
+      camRadiusTarget.current = cameraTargetRadiusFor(w)
     })
     ro.observe(mount)
-
-    // Listen for external selectedId changes via a custom event
-    const onSelectedChange = (e: Event) => {
-      const detail = (e as CustomEvent<string | null>).detail
-      selectedRef.current = detail
-    }
-    mount.addEventListener("korea-map-selected", onSelectedChange)
 
     return () => {
       running = false
       ro.disconnect()
+      mount.removeEventListener("korea-map-reset", onResetView)
       renderer.domElement.removeEventListener("pointermove", onPointerMove)
       renderer.domElement.removeEventListener("pointerdown", onPointerDown)
-      renderer.domElement.removeEventListener("pointerdown", onPointerDownDrag)
-      renderer.domElement.removeEventListener("pointermove", onPointerMoveDrag)
-      renderer.domElement.removeEventListener("pointerup", onPointerUpDrag)
-      renderer.domElement.removeEventListener("pointerleave", onPointerUpDrag)
+      renderer.domElement.removeEventListener("pointerup", onPointerUp)
       renderer.domElement.removeEventListener("wheel", onWheel)
       renderer.domElement.removeEventListener("touchstart", onTouchStart)
       renderer.domElement.removeEventListener("touchmove", onTouchMove)
-      mount.removeEventListener("korea-map-selected", onSelectedChange)
-      // Clean up Three.js resources
+      // Dispose
       for (const node of nodes) {
         node.mesh.geometry.dispose()
         ;(node.mesh.material as THREE.Material).dispose()
+        node.glow.geometry.dispose()
+        ;(node.glow.material as THREE.Material).dispose()
         node.line.geometry.dispose()
         ;(node.line.material as THREE.Material).dispose()
         node.label.remove()
       }
-      centerLabel.remove()
-      centerGeom.dispose()
-      centerMat.dispose()
-      ringGeom.dispose()
-      ringMat.dispose()
+      youLabel.remove()
+      youCore.geometry.dispose()
+      ;(youCore.material as THREE.Material).dispose()
+      youGlow.geometry.dispose()
+      ;(youGlow.material as THREE.Material).dispose()
+      youRing.geometry.dispose()
+      ;(youRing.material as THREE.Material).dispose()
+      youRing2.geometry.dispose()
+      ;(youRing2.material as THREE.Material).dispose()
+      ringMeshes.forEach((r) => {
+        r.geometry.dispose()
+        ;(r.material as THREE.Material).dispose()
+      })
+      starGeom.dispose()
+      starMat.dispose()
       groundGeom.dispose()
       groundMat.dispose()
       renderer.dispose()
@@ -460,17 +654,14 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [places, reducedMotion])
 
-  // When selectedId prop changes, dispatch to the inner ref
-  useEffect(() => {
-    const mount = mountRef.current
-    if (!mount) return
-    mount.dispatchEvent(new CustomEvent("korea-map-selected", { detail: selectedId ?? null }))
-  }, [selectedId])
-
   return (
     <div className="relative h-full w-full overflow-hidden">
       <div ref={mountRef} className="absolute inset-0" />
-      <div ref={overlayRef} className="pointer-events-none absolute inset-0" aria-hidden />
+      <div ref={overlayRef} className="pointer-events-none absolute inset-0 z-10" aria-hidden />
     </div>
   )
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
 }

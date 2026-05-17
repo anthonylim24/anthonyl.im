@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from "react"
 import { motion, AnimatePresence, useReducedMotion } from "motion/react"
-import { X, MapPin, Navigation, FlaskConical, ExternalLink, Loader2 } from "lucide-react"
+import { X, MapPin, Navigation, FlaskConical, Loader2, Crosshair } from "lucide-react"
+import { useRef } from "react"
 import { MapModeScene, isWebglSupported } from "./MapModeScene"
 import { MapModeFallbackList } from "./MapModeFallbackList"
+import { MapModeFilterBar } from "./MapModeFilterBar"
+import { PlaceDetailSheet } from "./PlaceDetailSheet"
 import type { PlacesResponse, RankedPlace, UserLocation } from "./mapModeTypes"
 
 interface MapModeOverlayProps {
@@ -25,6 +28,14 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
   const [state, setState] = useState<LoadState>({ status: "loading" })
   const [selected, setSelected] = useState<RankedPlace | null>(null)
   const [webglFailed, setWebglFailed] = useState<boolean>(() => !isWebglSupported())
+  const [disabledCategories, setDisabledCategories] = useState<Set<string>>(new Set())
+  const sceneContainerRef = useRef<HTMLDivElement>(null)
+
+  function resetView() {
+    sceneContainerRef.current?.firstElementChild?.dispatchEvent(
+      new CustomEvent("korea-map-reset"),
+    )
+  }
 
   // Geolocation fetch
   function requestLocation() {
@@ -44,7 +55,6 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
         setLocating(false)
       },
       () => {
-        // Denied / failed — fall back. If test mode, use Fairmont SF; otherwise hotel.
         setLocation(
           testMode
             ? { lat: 37.7926, lng: -122.4101, source: "test-anchor", label: "Fairmont SF (test fallback)" }
@@ -56,13 +66,11 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
     )
   }
 
-  // Auto-request location on open
   useEffect(() => {
     requestLocation()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Re-anchor when test mode flips: if no real geo, use the appropriate fallback.
   useEffect(() => {
     if (!location) return
     if (location.source !== "geolocation") {
@@ -75,7 +83,30 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [testMode])
 
-  // Fetch places whenever slug, location or testMode changes.
+  // Lock body scroll while the overlay is open
+  useEffect(() => {
+    const previous = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => {
+      document.body.style.overflow = previous
+    }
+  }, [])
+
+  // Escape to close
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (selected) {
+          setSelected(null)
+        } else {
+          onClose()
+        }
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [selected, onClose])
+
   useEffect(() => {
     if (!location) return
     setState({ status: "loading" })
@@ -93,12 +124,30 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
       .catch((err: Error) => setState({ status: "error", message: err.message }))
   }, [daySlug, location, testMode])
 
+  const filteredPlaces = useMemo(() => {
+    if (state.status !== "success") return []
+    if (disabledCategories.size === 0) return state.data.places
+    return state.data.places.filter((p) => !disabledCategories.has(p.category))
+  }, [state, disabledCategories])
+
   const counts = useMemo(() => {
     if (state.status !== "success") return { scheduled: 0, core: 0, supplemental: 0 }
     const acc = { scheduled: 0, core: 0, supplemental: 0 }
-    for (const p of state.data.places) acc[p.priority]++
+    for (const p of filteredPlaces) acc[p.priority]++
     return acc
-  }, [state])
+  }, [state, filteredPlaces])
+
+  function toggleCategory(cat: string) {
+    setDisabledCategories((prev) => {
+      const next = new Set(prev)
+      if (next.has(cat)) next.delete(cat)
+      else next.add(cat)
+      return next
+    })
+  }
+  function resetCategories() {
+    setDisabledCategories(new Set())
+  }
 
   return (
     <motion.div
@@ -106,13 +155,31 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="fixed inset-0 z-50 flex flex-col bg-gradient-to-b from-stone-100 via-rose-50 to-amber-50 dark:from-stone-950 dark:via-stone-950 dark:to-stone-900"
+      className="fixed inset-0 z-50 flex flex-col bg-stone-50 dark:bg-stone-950"
       role="dialog"
       aria-modal="true"
       aria-label="Map Mode"
     >
+      {/* Atmospheric backdrop — radial gradient + faint grain for depth */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 90% 70% at 50% 30%, rgba(255, 220, 200, 0.6) 0%, rgba(255, 220, 200, 0.1) 35%, transparent 70%), radial-gradient(ellipse 110% 80% at 50% 90%, rgba(190, 220, 255, 0.4) 0%, rgba(190, 220, 255, 0.1) 30%, transparent 60%)",
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 hidden dark:block"
+        style={{
+          background:
+            "radial-gradient(ellipse 90% 75% at 50% 25%, rgba(80, 30, 70, 0.55) 0%, rgba(30, 12, 40, 0.4) 35%, transparent 75%), radial-gradient(ellipse 110% 85% at 50% 95%, rgba(20, 30, 70, 0.45) 0%, transparent 60%), radial-gradient(ellipse 40% 30% at 20% 60%, rgba(60, 20, 80, 0.3) 0%, transparent 80%)",
+        }}
+      />
+
       {/* Header */}
-      <header className="relative z-20 flex items-center gap-2 border-b border-stone-200/60 bg-white/60 px-3 py-2.5 backdrop-blur-xl dark:border-stone-800/60 dark:bg-stone-950/70 sm:gap-3 sm:px-5">
+      <header className="relative z-30 flex items-center gap-2 border-b border-stone-200/60 bg-white/70 px-3 py-2.5 backdrop-blur-xl dark:border-stone-800/60 dark:bg-stone-950/70 sm:gap-3 sm:px-5">
         <button
           type="button"
           onClick={onClose}
@@ -128,10 +195,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
           {state.status === "success" && (
             <p className="truncate text-xs text-stone-700 dark:text-stone-300">
               {state.data.meta.city} ·{" "}
-              <span className="text-rose-700 dark:text-rose-300">
-                {counts.scheduled} scheduled
-              </span>{" "}
-              ·{" "}
+              <span className="text-rose-700 dark:text-rose-300">{counts.scheduled} scheduled</span> ·{" "}
               <span className="text-amber-700 dark:text-amber-300">{counts.core} core</span> ·{" "}
               <span className="text-stone-500 dark:text-stone-500">{counts.supplemental} more</span>
             </p>
@@ -172,15 +236,9 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
         </label>
       </header>
 
-      {/* Scene */}
+      {/* Scene region */}
       <div className="relative flex-1 overflow-hidden">
-        {state.status === "loading" && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="rounded-full bg-white/80 px-4 py-2 text-xs font-medium text-stone-700 shadow-sm backdrop-blur dark:bg-stone-900/80 dark:text-stone-300">
-              <Loader2 className="mr-2 inline-block h-3.5 w-3.5 animate-spin" aria-hidden /> Loading places…
-            </div>
-          </div>
-        )}
+        {state.status === "loading" && <LoadingPulse />}
         {state.status === "error" && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="max-w-xs rounded-2xl bg-rose-100 p-4 text-center text-sm text-rose-900 dark:bg-rose-950/60 dark:text-rose-100">
@@ -188,31 +246,94 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
             </div>
           </div>
         )}
+
         {state.status === "success" && !webglFailed && (
-          <MapModeScene
-            places={state.data.places}
-            onSelect={setSelected}
-            selectedId={selected?.id ?? null}
-            reducedMotion={reduce ?? undefined}
-            onWebglError={() => setWebglFailed(true)}
-          />
+          <>
+            <div ref={sceneContainerRef} className="absolute inset-0">
+              <MapModeScene
+                places={filteredPlaces}
+                onSelect={setSelected}
+                selectedId={selected?.id ?? null}
+                reducedMotion={reduce ?? undefined}
+                onWebglError={() => setWebglFailed(true)}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={resetView}
+              title="Reset camera view"
+              aria-label="Reset camera view"
+              className="absolute right-3 top-16 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-stone-700 shadow-md backdrop-blur transition hover:bg-white hover:text-rose-700 dark:bg-stone-900/85 dark:text-stone-300 dark:hover:bg-stone-900 dark:hover:text-rose-200"
+            >
+              <Crosshair className="h-4 w-4" />
+            </button>
+            <MapModeFilterBar
+              places={state.data.places}
+              enabledCategories={
+                disabledCategories.size === 0
+                  ? new Set()
+                  : new Set(
+                      Array.from(new Set(state.data.places.map((p) => p.category))).filter(
+                        (c) => !disabledCategories.has(c),
+                      ),
+                    )
+              }
+              onToggle={toggleCategory}
+              onReset={resetCategories}
+            />
+            {filteredPlaces.length === 0 && (
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <div className="rounded-2xl bg-white/90 px-4 py-3 text-center text-sm text-stone-700 shadow-md backdrop-blur dark:bg-stone-900/90 dark:text-stone-300">
+                  No places match these filters.
+                  <button
+                    type="button"
+                    onClick={resetCategories}
+                    className="pointer-events-auto ml-2 underline decoration-rose-500/60 hover:text-rose-700 dark:hover:text-rose-300"
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
         {state.status === "success" && webglFailed && (
-          <div className="absolute inset-0 overflow-y-auto">
-            <MapModeFallbackList places={state.data.places} onSelect={setSelected} />
-          </div>
+          <>
+            <MapModeFilterBar
+              places={state.data.places}
+              enabledCategories={
+                disabledCategories.size === 0
+                  ? new Set()
+                  : new Set(
+                      Array.from(new Set(state.data.places.map((p) => p.category))).filter(
+                        (c) => !disabledCategories.has(c),
+                      ),
+                    )
+              }
+              onToggle={toggleCategory}
+              onReset={resetCategories}
+            />
+            <div className="absolute inset-0 overflow-y-auto pt-16">
+              <MapModeFallbackList places={filteredPlaces} onSelect={setSelected} />
+            </div>
+          </>
         )}
 
         {/* Legend */}
-        <div className="pointer-events-none absolute bottom-3 left-3 z-10 flex flex-col gap-1.5 rounded-2xl bg-white/80 px-3 py-2 text-[10px] font-medium text-stone-700 shadow-sm backdrop-blur dark:bg-stone-900/80 dark:text-stone-300">
+        <div className="pointer-events-none absolute bottom-3 left-3 z-10 flex flex-col gap-1.5 rounded-2xl bg-white/85 px-3 py-2 text-[10px] font-medium text-stone-700 shadow-md backdrop-blur dark:bg-stone-900/85 dark:text-stone-300">
           <Dot color="#ff4d6d" label="Scheduled · in your plan" />
-          <Dot color="#fb923c" label="Core · on the day's itinerary" />
+          <Dot color="#fb923c" label="Core · on today's itinerary" />
           <Dot color="#a3a3a3" label="Supplemental · nearby extras" />
+          {!webglFailed && (
+            <div className="mt-1 border-t border-stone-200 pt-1 text-[9px] text-stone-500 dark:border-stone-800 dark:text-stone-500">
+              Drag to rotate · pinch to zoom · tap a bubble
+            </div>
+          )}
         </div>
 
         {/* Location pill */}
         {location && (
-          <div className="pointer-events-none absolute bottom-3 right-3 z-10 max-w-[60vw] rounded-full bg-white/80 px-3 py-1.5 text-[10px] font-medium text-stone-700 shadow-sm backdrop-blur dark:bg-stone-900/80 dark:text-stone-300">
+          <div className="pointer-events-none absolute bottom-3 right-3 z-10 max-w-[60vw] truncate rounded-full bg-white/85 px-3 py-1.5 text-[10px] font-medium text-stone-700 shadow-md backdrop-blur dark:bg-stone-900/85 dark:text-stone-300">
             <MapPin className="mr-1 inline-block h-3 w-3" aria-hidden />
             {location.label}
             {location.source === "geolocation" && " · live"}
@@ -245,153 +366,26 @@ function Dot({ color, label }: { color: string; label: string }) {
   )
 }
 
-interface PlaceDetailSheetProps {
-  place: RankedPlace
-  onClose: () => void
-  userLat?: number
-  userLng?: number
-}
-
-function PlaceDetailSheet({ place, onClose, userLat, userLng }: PlaceDetailSheetProps) {
-  const directionsUrl = useMemo(() => {
-    const origin = userLat && userLng ? `${userLat},${userLng}` : ""
-    const destination = `${place.lat},${place.lng}`
-    return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&destination_place_id=${encodeURIComponent(place.name)}`
-  }, [place, userLat, userLng])
-
-  const reduce = useReducedMotion()
-
+// Animated loading state inside the scene area
+function LoadingPulse() {
   return (
-    <motion.div
-      role="dialog"
-      aria-label={place.name}
-      initial={reduce ? { opacity: 0 } : { y: "100%", opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      exit={reduce ? { opacity: 0 } : { y: "100%", opacity: 0 }}
-      transition={{ type: "spring", stiffness: 320, damping: 32 }}
-      className="absolute inset-x-0 bottom-0 z-30 max-h-[70vh] overflow-hidden rounded-t-3xl border-t border-stone-200 bg-white/95 shadow-2xl backdrop-blur-xl dark:border-stone-800 dark:bg-stone-950/95"
-    >
-      <div className="mx-auto h-1.5 w-12 rounded-full bg-stone-300/80 dark:bg-stone-700/80" style={{ marginTop: 8 }} />
-      <div className="max-h-[calc(70vh-1rem)] overflow-y-auto px-4 pb-6 pt-3 sm:px-6">
-        <div className="flex items-start gap-3">
-          <div
-            aria-hidden
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-2xl shadow-inner"
-            style={{ background: place.color + "33" }}
-          >
-            {place.icon}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-baseline gap-x-2">
-              <h2 className="text-base font-semibold text-stone-900 dark:text-stone-100 sm:text-lg">
-                {place.name}
-              </h2>
-              <PriorityPill priority={place.priority} />
-            </div>
-            <p className="mt-0.5 text-xs text-stone-500 dark:text-stone-400">
-              {place.category} · {place.city}
-              {place.distanceLabel ? ` · ${place.distanceLabel} away` : ""}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close details"
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-stone-100 text-stone-700 transition hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Photo */}
-        <div className="relative mt-4 overflow-hidden rounded-2xl bg-stone-200 dark:bg-stone-800" style={{ aspectRatio: "3 / 2" }}>
-          <img
-            src={place.photoUrl}
-            alt={place.name}
-            loading="lazy"
-            className="absolute inset-0 h-full w-full object-cover"
-            onError={(e) => {
-              ;(e.currentTarget as HTMLImageElement).style.display = "none"
-            }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
-        </div>
-
-        {/* Description */}
-        <p className="mt-4 text-sm text-stone-700 dark:text-stone-300">{place.description}</p>
-
-        {/* Meta rows */}
-        <div className="mt-4 space-y-2">
-          {place.address && (
-            <Row icon="📍" label="Address" value={place.address} />
-          )}
-          {place.openingHours && (
-            <Row icon="🕒" label="Hours" value={place.openingHours} />
-          )}
-          {place.notice && (
-            <Row
-              icon="⚠️"
-              label="Notice"
-              value={place.notice}
-              className="text-amber-800 dark:text-amber-200"
-            />
-          )}
-          <Row icon="✨" label="Why" value={place.reason} />
-          {place.reservationTime && (
-            <Row icon="📌" label="Booked" value={place.reservationTime} />
-          )}
-        </div>
-
-        {/* Actions */}
-        <div className="mt-5 flex flex-wrap gap-2">
-          <a
-            href={directionsUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-rose-700 dark:bg-rose-500 dark:hover:bg-rose-400"
-          >
-            <Navigation className="h-4 w-4" aria-hidden />
-            Directions
-          </a>
-          <a
-            href={`https://www.google.com/maps/search/${encodeURIComponent(place.name + ", " + place.city)}`}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
-          >
-            <ExternalLink className="h-4 w-4" aria-hidden />
-            Open in Maps
-          </a>
-        </div>
-      </div>
-    </motion.div>
-  )
-}
-
-function Row({ icon, label, value, className }: { icon: string; label: string; value: string; className?: string }) {
-  return (
-    <div className={"flex items-start gap-2 text-xs " + (className ?? "text-stone-700 dark:text-stone-300")}>
-      <span aria-hidden className="mt-0.5 shrink-0 text-sm">
-        {icon}
-      </span>
-      <div className="min-w-0">
-        <p className="text-[10px] font-medium uppercase tracking-wider text-stone-500 dark:text-stone-500">{label}</p>
-        <p className="break-words">{value}</p>
+    <div className="absolute inset-0 flex items-center justify-center">
+      <div className="relative">
+        <motion.div
+          className="absolute inset-0 -m-8 rounded-full bg-rose-400/20 blur-2xl"
+          animate={{ scale: [0.8, 1.2, 0.8] }}
+          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.div
+          initial={{ scale: 0.7, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 280, damping: 20 }}
+          className="relative flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-xs font-medium text-stone-700 shadow-lg backdrop-blur dark:bg-stone-900/90 dark:text-stone-300"
+        >
+          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          Pulling places + photos…
+        </motion.div>
       </div>
     </div>
-  )
-}
-
-function PriorityPill({ priority }: { priority: RankedPlace["priority"] }) {
-  const map = {
-    scheduled: { label: "Scheduled", cls: "bg-rose-100 text-rose-900 dark:bg-rose-950/50 dark:text-rose-200" },
-    core: { label: "Core", cls: "bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-200" },
-    supplemental: { label: "Extra", cls: "bg-stone-200 text-stone-800 dark:bg-stone-800 dark:text-stone-300" },
-  }
-  const v = map[priority]
-  return (
-    <span className={"shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider " + v.cls}>
-      {v.label}
-    </span>
   )
 }
