@@ -1,6 +1,10 @@
 import { motion, useReducedMotion } from "motion/react"
+import { MapPin, Phone, ExternalLink, CalendarPlus } from "lucide-react"
 import type { Reservation } from "./types"
 import { statusMeta, typeMeta, formatDate } from "./koreaTheme"
+import { mapsSearchUrl, tokenize } from "./linkify"
+import { LinkifiedText } from "./LinkifiedText"
+import { buildIcs, downloadIcs, slugify } from "./koreaUtils"
 
 interface ReservationCardProps {
   reservation: Reservation
@@ -8,10 +12,50 @@ interface ReservationCardProps {
   compact?: boolean
 }
 
+const STATUS_TIPS: Record<string, string> = {
+  confirmed: "Booking is locked in.",
+  tentative: "Soft hold or weather-dependent — confirm before relying on it.",
+  pending: "Not booked yet — needs action.",
+}
+
+function detectContactKind(contact: string): "phone" | "email" | "url" | "other" {
+  if (/^\+?\d[\d\s-]{6,}/.test(contact)) return "phone"
+  if (/@/.test(contact)) return "email"
+  if (/\b(catch table|naver|http|www\.|\.com|\.kr)/i.test(contact)) return "url"
+  return "other"
+}
+
+function urlForContact(contact: string): string | null {
+  const cleaned = contact.split("·")[0].trim()
+  if (/^https?:\/\//i.test(cleaned)) return cleaned
+  const phoneMatch = cleaned.match(/\+82[\s-]?\d[\d\s-]+/)
+  if (phoneMatch) return `tel:${phoneMatch[0].replace(/[\s-]/g, "")}`
+  if (/@/.test(cleaned)) return `mailto:${cleaned.match(/[\w.+-]+@[\w-]+\.[\w.-]+/)?.[0] ?? cleaned}`
+  if (/catch table/i.test(cleaned)) return "https://www.catchtable.co.kr/"
+  if (/\b(\w[\w-]+\.[a-z]{2,})\b/i.test(cleaned)) {
+    const match = cleaned.match(/\b(\w[\w-]+\.[a-z]{2,})\b/i)
+    return match ? `https://${match[0]}` : null
+  }
+  return null
+}
+
 export function ReservationCard({ reservation, index = 0, compact = false }: ReservationCardProps) {
   const reduce = useReducedMotion()
   const s = statusMeta[reservation.status]
   const t = typeMeta[reservation.type]
+
+  const mapHref = reservation.address ? mapsSearchUrl(reservation.address) : null
+  const contactHref = reservation.contact ? urlForContact(reservation.contact) : null
+  const contactKind = reservation.contact ? detectContactKind(reservation.contact) : "other"
+
+  function exportIcs() {
+    const ics = buildIcs([reservation], reservation.title)
+    downloadIcs(`korea-${slugify(reservation.title)}.ics`, ics)
+  }
+
+  // Has any address or content that the linkifier might surface
+  const subtitleHasLinks = reservation.subtitle ? tokenize(reservation.subtitle).some((s) => s.kind === "link") : false
+  void subtitleHasLinks // currently unused; reserved for future "smart" badge
 
   return (
     <motion.article
@@ -34,11 +78,12 @@ export function ReservationCard({ reservation, index = 0, compact = false }: Res
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <h3 className="truncate text-sm font-semibold text-stone-900 dark:text-stone-100">
-              {reservation.title}
+            <h3 className="min-w-0 break-words text-sm font-semibold text-stone-900 dark:text-stone-100">
+              <LinkifiedText>{reservation.title}</LinkifiedText>
             </h3>
             <span
-              className={"shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider " + s.chip}
+              title={STATUS_TIPS[reservation.status]}
+              className={"shrink-0 cursor-help rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider " + s.chip}
             >
               {s.label}
             </span>
@@ -50,17 +95,75 @@ export function ReservationCard({ reservation, index = 0, compact = false }: Res
             </p>
           )}
           {reservation.subtitle && !compact && (
-            <p className="mt-1.5 text-sm text-stone-700 dark:text-stone-300">{reservation.subtitle}</p>
+            <p className="mt-1.5 text-sm text-stone-700 dark:text-stone-300">
+              <LinkifiedText>{reservation.subtitle}</LinkifiedText>
+            </p>
           )}
+
+          {/* Chip row: address, phone/url, .ics */}
+          {!compact && (mapHref || contactHref) && (
+            <div className="mt-2.5 flex flex-wrap gap-1.5">
+              {mapHref && (
+                <a
+                  href={mapHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={`Open in Google Maps: ${reservation.address}`}
+                  className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-medium text-rose-900 transition hover:bg-rose-100 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-200 dark:hover:bg-rose-950/60"
+                >
+                  <MapPin className="h-3 w-3" aria-hidden /> Maps
+                </a>
+              )}
+              {contactHref && (
+                <a
+                  href={contactHref}
+                  target={contactKind === "phone" || contactKind === "email" ? undefined : "_blank"}
+                  rel={contactKind === "phone" || contactKind === "email" ? undefined : "noreferrer"}
+                  title={reservation.contact}
+                  className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-900 transition hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200 dark:hover:bg-emerald-950/60"
+                >
+                  {contactKind === "phone" ? (
+                    <>
+                      <Phone className="h-3 w-3" aria-hidden /> Call
+                    </>
+                  ) : contactKind === "email" ? (
+                    <>
+                      <ExternalLink className="h-3 w-3" aria-hidden /> Email
+                    </>
+                  ) : (
+                    <>
+                      <ExternalLink className="h-3 w-3" aria-hidden /> Book
+                    </>
+                  )}
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={exportIcs}
+                title="Add to calendar (.ics)"
+                className="inline-flex items-center gap-1 rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+              >
+                <CalendarPlus className="h-3 w-3" aria-hidden /> .ics
+              </button>
+            </div>
+          )}
+
+          {/* Sub-details below the chip row */}
           {reservation.address && !compact && (
-            <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">📍 {reservation.address}</p>
+            <p className="mt-1.5 text-xs text-stone-500 dark:text-stone-400">
+              <span aria-hidden>📍 </span>
+              <LinkifiedText>{reservation.address}</LinkifiedText>
+            </p>
           )}
           {reservation.contact && !compact && (
-            <p className="mt-0.5 text-xs text-stone-500 dark:text-stone-400">☎️ {reservation.contact}</p>
+            <p className="mt-0.5 text-xs text-stone-500 dark:text-stone-400">
+              <span aria-hidden>{contactKind === "phone" ? "☎️ " : "🔗 "}</span>
+              <LinkifiedText>{reservation.contact}</LinkifiedText>
+            </p>
           )}
           {reservation.notes && !compact && (
             <p className="mt-2 rounded-md bg-stone-50 px-2.5 py-1.5 text-xs italic text-stone-600 dark:bg-stone-800/60 dark:text-stone-400">
-              {reservation.notes}
+              <LinkifiedText>{reservation.notes}</LinkifiedText>
             </p>
           )}
         </div>
