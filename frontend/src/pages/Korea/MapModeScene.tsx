@@ -37,10 +37,13 @@ const BUBBLE_RADIUS_BY_PRIORITY: Record<RankedPlace["priority"], number> = {
   supplemental: 1.55,
 }
 
+// Bubbles all live at the same elevation as YOU so the scene reads as an
+// isometric "places around you" graph with the user pin as the unambiguous
+// center of mass.
 const Y_BY_PRIORITY: Record<RankedPlace["priority"], number> = {
-  scheduled: 1.5,
-  core: 2.6,
-  supplemental: 3.6,
+  scheduled: 1.6,
+  core: 1.6,
+  supplemental: 1.6,
 }
 
 // Camera distance per viewport. Wider default than before so the supplemental
@@ -162,12 +165,14 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
     const scene = new THREE.Scene()
     const camera = new THREE.PerspectiveCamera(38, w / h, 0.1, 400)
 
-    // CAMERA: target the YOU pin's actual world position so it projects to the
-    // exact visual center of the canvas regardless of pitch.
-    const cameraTarget = new THREE.Vector3(0, 0.6, 0)
+    // CAMERA: target world origin so the YOU pin (which lives at the origin)
+    // projects EXACTLY to viewport center. We use a steep top-down isometric
+    // pitch so bubbles distribute as concentric rings around YOU rather than
+    // bunching above YOU.
+    const cameraTarget = new THREE.Vector3(0, 0, 0)
     const camYaw = { current: -Math.PI / 6 }
-    const camPitch = { current: 0.48 } // ~28° down — gentler, keeps YOU on center
-    const camRadius = { current: 80 }
+    const camPitch = { current: 0.85 } // ~49° down — isometric, YOU is the gravity center
+    const camRadius = { current: 90 }
     const camRadiusTarget = { current: cameraTargetRadiusFor(w) }
 
     function applyCamera() {
@@ -279,7 +284,7 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
     youRing2.rotation.x = -Math.PI / 2
     youRing2.position.y = -0.55
     youGroup.add(youRing2)
-    youGroup.position.y = 0.4
+    youGroup.position.set(0, 0, 0) // at world origin so it projects to screen center
     scene.add(youGroup)
 
     // Texture loader (shared)
@@ -435,14 +440,17 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
       })
     }
 
-    // Center YOU label — pre-positioned to scene center
+    // Center YOU label — anchored to viewport center via CSS so it never
+    // drifts with the camera. The 3D YOU sphere is the "physical" pin in the
+    // scene; this is the user-facing label that always reads as "YOU is here".
     const youLabel = document.createElement("div")
-    youLabel.className = "pointer-events-none absolute left-0 top-0 select-none text-center"
-    youLabel.style.transform = "translate3d(-9999px, -9999px, 0)"
-    youLabel.style.visibility = "hidden"
+    youLabel.className =
+      "pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 select-none text-center"
     youLabel.innerHTML = `
-      <div class="text-3xl drop-shadow-[0_2px_10px_rgba(0,0,0,0.55)] leading-none">📍</div>
-      <div class="-mt-0.5 inline-block rounded-full bg-rose-600 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-white shadow-lg ring-1 ring-rose-300/60">You</div>
+      <div class="flex flex-col items-center gap-0.5">
+        <div class="text-3xl drop-shadow-[0_2px_10px_rgba(0,0,0,0.55)] leading-none">📍</div>
+        <div class="inline-block rounded-full bg-rose-600 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-white shadow-lg ring-1 ring-rose-300/60">You</div>
+      </div>
     `
     overlay.appendChild(youLabel)
 
@@ -485,7 +493,10 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
         dragLastX = e.clientX
         dragLastY = e.clientY
         camYaw.current -= dx * 0.005
-        camPitch.current = Math.max(0.1, Math.min(1.15, camPitch.current + dy * 0.004))
+        // Pitch range tuned for the top-down isometric default; clamp so the
+        // user can't go below horizon (looks weird) or fully overhead (hides
+        // YOU under glow).
+        camPitch.current = Math.max(0.35, Math.min(1.25, camPitch.current + dy * 0.004))
         applyCamera()
       }
     }
@@ -541,7 +552,7 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
     const onResetView = () => {
       camRadiusTarget.current = cameraTargetRadiusFor(mount.clientWidth)
       camYaw.current = -Math.PI / 6
-      camPitch.current = 0.48
+      camPitch.current = 0.85
     }
     mount.addEventListener("korea-map-reset", onResetView)
 
@@ -592,12 +603,12 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
 
       if (sceneT < 1.5 && !reducedMotion) {
         const k = easeOutCubic(sceneT / 1.5)
-        camRadius.current = 80 + (camRadiusTarget.current - 80) * k
+        camRadius.current = 90 + (camRadiusTarget.current - 90) * k
       } else {
         camRadius.current += (camRadiusTarget.current - camRadius.current) * 0.09
       }
 
-      if (!dragging && !reducedMotion) camYaw.current += 0.0005
+      // Auto-rotate removed — the user wants YOU truly anchored to viewport center
       applyCamera()
 
       starMat.opacity = 0.7 + Math.sin(t * 0.7) * 0.08
@@ -670,12 +681,8 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
         }
       }
 
-      // YOU label projection
-      const cs = projectToScreen(new THREE.Vector3(0, 2.5, 0))
-      if (cs.visible) {
-        youLabel.style.transform = `translate3d(${cs.x.toFixed(1)}px, ${cs.y.toFixed(1)}px, 0) translate(-50%, -50%)`
-        youLabel.style.visibility = "visible"
-      }
+      // YOU label is anchored to viewport center via static CSS — nothing to
+      // project per-frame. Camera moves; YOU stays put visually.
 
       renderer.render(scene, camera)
       requestAnimationFrame(tick)
