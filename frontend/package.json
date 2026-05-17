@@ -20,6 +20,7 @@
     "@radix-ui/react-tabs": "^1.1.13",
     "@supabase/supabase-js": "^2.105.4",
     "@testing-library/dom": "^10.4.1",
+    "@types/three": "^0.184.1",
     "@ybouane/liquidglass": "^1.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -34,6 +35,7 @@
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.6.0",
     "tailwindcss-animate": "^1.0.7",
+    "three": "^0.184.0",
     "web-haptics": "^0.0.6",
     "zustand": "^5.0.13"
   },
