@@ -56,7 +56,7 @@
         if (!location.pathname.startsWith('/korea')) return;
 
         const title = 'South Korea Itinerary — Seoul + Busan';
-        const description = 'A 12-day Seoul + Busan trip with reservations, weather, and a day-by-day tree navigator.';
+        const description = 'A 12-day Seoul + Busan trip with reservations, weather, smart links, and a 3D Map Mode that puts you at the center.';
 
         function setRouteMeta(selector, attribute, value, content) {
           let element = document.querySelector(selector);
@@ -70,6 +70,14 @@
 
         const manifest = document.querySelector('link[rel="manifest"]');
         if (manifest) manifest.setAttribute('href', '/korea.webmanifest');
+
+        // Swap favicon to the Korea variant
+        const favicon = document.querySelector('link[rel="icon"][type="image/svg+xml"]');
+        if (favicon) favicon.setAttribute('href', '/favicon-korea.svg');
+
+        // Theme color: warm rose tint
+        const themeColor = document.querySelector('meta[name="theme-color"]');
+        if (themeColor) themeColor.setAttribute('content', '#FBF6EE');
 
         document.title = title;
         setRouteMeta('meta[name="description"]', 'name', 'description', description);

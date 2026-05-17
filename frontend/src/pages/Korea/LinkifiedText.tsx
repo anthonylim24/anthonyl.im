@@ -1,5 +1,6 @@
 import { Fragment } from "react"
 import { tokenize, type LinkifyKind } from "./linkify"
+import { Time } from "./Time"
 
 interface LinkifiedTextProps {
   children: string
@@ -26,6 +27,7 @@ const linkClass: Record<LinkifyKind, string> = {
   stationLine:
     "break-words underline decoration-stone-400/60 underline-offset-2 transition hover:text-stone-900 dark:hover:text-stone-100",
   hashtag: "text-stone-600 dark:text-stone-400",
+  time: "",
 }
 
 const linkPrefix: Partial<Record<LinkifyKind, string>> = {
@@ -40,10 +42,10 @@ export function LinkifiedText({ children, className }: LinkifiedTextProps) {
   const segments = tokenize(children)
   return (
     <span className={className}>
-      {segments.map((seg, i) =>
-        seg.kind === "text" ? (
-          <Fragment key={i}>{seg.value}</Fragment>
-        ) : (
+      {segments.map((seg, i) => {
+        if (seg.kind === "text") return <Fragment key={i}>{seg.value}</Fragment>
+        if (seg.type === "time") return <Time key={i} value={seg.value} />
+        return (
           <a
             key={i}
             href={seg.href}
@@ -59,8 +61,8 @@ export function LinkifiedText({ children, className }: LinkifiedTextProps) {
             )}
             {seg.value}
           </a>
-        ),
-      )}
+        )
+      })}
     </span>
   )
 }

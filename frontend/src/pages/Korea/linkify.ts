@@ -15,6 +15,7 @@ export type LinkifyKind =
   | "map"
   | "stationLine"
   | "hashtag"
+  | "time"
 
 // ---- Patterns ----
 // Order matters: longer / more specific matches first so we don't double-tag.
@@ -125,6 +126,15 @@ const PATTERNS: PatternDef[] = [
       href: `https://www.google.com/search?q=${encodeURIComponent(m[0] + " Seoul Metro")}`,
       tip: "Seoul Metro",
     }),
+  },
+
+  // 24-hour times like 06:33 or 18:00 — the renderer surfaces an AM/PM tooltip
+  // via the <Time> component, no link. Negative lookahead skips matches that
+  // are already labeled with AM/PM in the surrounding text.
+  {
+    kind: "time",
+    rx: /\b([01]?\d|2[0-3]):[0-5]\d\b(?!\s*[AaPp]\.?[Mm]\.?)/g,
+    build: (m) => ({ value: m[0], href: "", tip: "Show AM/PM" }),
   },
 ]
 

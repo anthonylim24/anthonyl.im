@@ -1,5 +1,8 @@
+import { useEffect, useState } from "react"
 import { motion, useReducedMotion } from "motion/react"
+import { Footprints } from "lucide-react"
 import type { RankedPlace } from "./mapModeTypes"
+import { lookupPhoto, formatWalkingTime } from "./placePhoto"
 
 interface MapModeFallbackListProps {
   places: RankedPlace[]
@@ -18,9 +21,9 @@ const priorityRingColor: Record<RankedPlace["priority"], string> = {
   supplemental: "ring-stone-300 dark:ring-stone-700",
 }
 
-// Rendered when WebGL is unavailable (browsers blocking GPU, locked-down corp
-// devices, some headless contexts). Shows the same place data as a tappable
-// list grouped by priority — no 3D, but full functionality.
+// Renders the same data as the 3D bubble graph but as a list. Used as both:
+//   - the WebGL-unavailable fallback
+//   - the user's explicit "List" view mode
 export function MapModeFallbackList({ places, onSelect }: MapModeFallbackListProps) {
   const reduce = useReducedMotion()
 
@@ -33,10 +36,6 @@ export function MapModeFallbackList({ places, onSelect }: MapModeFallbackListPro
 
   return (
     <div className="mx-auto max-w-2xl px-4 pb-28 pt-4 sm:px-6">
-      <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
-        3D view unavailable in this browser — showing a list. The same places, same priorities.
-      </div>
-
       {(Object.keys(groups) as RankedPlace["priority"][]).map((priority) =>
         groups[priority].length > 0 ? (
           <section key={priority} className="mb-5">
@@ -51,34 +50,7 @@ export function MapModeFallbackList({ places, onSelect }: MapModeFallbackListPro
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: reduce ? 0 : i * 0.03 }}
                 >
-                  <button
-                    type="button"
-                    onClick={() => onSelect(p)}
-                    className={
-                      "group flex w-full items-start gap-3 rounded-2xl border border-stone-200 bg-white/80 p-3.5 text-left shadow-sm transition hover:border-rose-300 hover:bg-rose-50 dark:border-stone-800 dark:bg-stone-900/60 dark:hover:border-rose-700 dark:hover:bg-rose-950/30"
-                    }
-                  >
-                    <span
-                      aria-hidden
-                      className={
-                        "flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-2xl shadow-inner ring-2 " +
-                        priorityRingColor[priority]
-                      }
-                      style={{ background: p.color + "22" }}
-                    >
-                      {p.icon}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-stone-900 dark:text-stone-100">{p.name}</p>
-                      <p className="mt-0.5 text-xs text-stone-500 dark:text-stone-400">
-                        {p.category} · {p.distanceLabel ?? p.city}
-                      </p>
-                      <p className="mt-1 line-clamp-2 text-xs text-stone-600 dark:text-stone-400">{p.reason}</p>
-                    </div>
-                    <span aria-hidden className="self-center text-stone-400 transition group-hover:translate-x-0.5 group-hover:text-rose-500">
-                      →
-                    </span>
-                  </button>
+                  <PlaceListRow place={p} onSelect={onSelect} ringClass={priorityRingColor[priority]} />
                 </motion.li>
               ))}
             </ul>
@@ -86,5 +58,86 @@ export function MapModeFallbackList({ places, onSelect }: MapModeFallbackListPro
         ) : null,
       )}
     </div>
+  )
+}
+
+interface PlaceListRowProps {
+  place: RankedPlace
+  onSelect: (place: RankedPlace) => void
+  ringClass: string
+}
+
+function PlaceListRow({ place, onSelect, ringClass }: PlaceListRowProps) {
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
+  const walking = formatWalkingTime(place.distanceMeters)
+
+  useEffect(() => {
+    let cancelled = false
+    lookupPhoto([place.name.split("(")[0].trim(), place.name])
+      .then((url) => {
+        if (!cancelled && url) setPhotoUrl(url)
+      })
+      .catch(() => {
+        /* keep gradient fallback */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [place.name])
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(place)}
+      className="group flex w-full items-start gap-3 rounded-2xl border border-stone-200 bg-white/80 p-3.5 text-left shadow-sm transition hover:border-rose-300 hover:bg-rose-50 dark:border-stone-800 dark:bg-stone-900/60 dark:hover:border-rose-700 dark:hover:bg-rose-950/30"
+    >
+      {/* Thumbnail with photo + category-tinted gradient fallback */}
+      <span
+        aria-hidden
+        className={"relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl text-2xl ring-2 " + ringClass}
+        style={{
+          background: photoUrl
+            ? `linear-gradient(135deg, ${place.color}33, ${place.color}11)`
+            : `linear-gradient(135deg, ${place.color}55, ${place.color}22)`,
+        }}
+      >
+        {photoUrl ? (
+          <img
+            src={photoUrl}
+            alt=""
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : null}
+        <span className={"relative drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] " + (photoUrl ? "absolute right-0.5 bottom-0.5 text-base" : "")}>
+          {place.icon}
+        </span>
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <p className="break-words text-sm font-semibold leading-snug text-stone-900 dark:text-stone-100">
+          {place.name}
+        </p>
+        <p className="mt-0.5 text-xs capitalize text-stone-500 dark:text-stone-400">{place.category}</p>
+        <p className="mt-1 line-clamp-2 text-xs text-stone-600 dark:text-stone-400">{place.reason}</p>
+      </div>
+
+      <div className="flex shrink-0 flex-col items-end gap-0.5">
+        {place.distanceLabel && (
+          <span
+            className="rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums leading-none"
+            style={{ background: place.color + "26", color: place.color }}
+          >
+            {place.distanceLabel}
+          </span>
+        )}
+        {walking && (
+          <span className="inline-flex items-center gap-1 text-[10px] text-stone-500 dark:text-stone-400">
+            <Footprints className="h-3 w-3" aria-hidden />
+            {walking}
+          </span>
+        )}
+      </div>
+    </button>
   )
 }

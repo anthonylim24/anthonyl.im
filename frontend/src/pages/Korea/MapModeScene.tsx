@@ -33,8 +33,8 @@ const RADIUS_BY_PRIORITY: Record<RankedPlace["priority"], number> = {
 
 const BUBBLE_RADIUS_BY_PRIORITY: Record<RankedPlace["priority"], number> = {
   scheduled: 2.4,
-  core: 1.8,
-  supplemental: 1.45,
+  core: 1.85,
+  supplemental: 1.55,
 }
 
 const Y_BY_PRIORITY: Record<RankedPlace["priority"], number> = {
@@ -43,21 +43,22 @@ const Y_BY_PRIORITY: Record<RankedPlace["priority"], number> = {
   supplemental: 3.6,
 }
 
-// Camera distance adapts to the viewport so the supplemental ring fits without
-// clipping on narrow phones, while staying cinematic on wide displays.
+// Camera distance per viewport. Wider default than before so the supplemental
+// ring breathes and YOU clearly anchors the composition.
 function cameraTargetRadiusFor(width: number): number {
-  if (width < 360) return 50
-  if (width < 480) return 46
-  if (width < 768) return 41
-  if (width < 1024) return 36
-  if (width < 1440) return 33
-  return 30
+  if (width < 360) return 62
+  if (width < 480) return 56
+  if (width < 768) return 49
+  if (width < 1024) return 44
+  if (width < 1440) return 39
+  return 36
 }
 
 interface BubbleNode {
   place: RankedPlace
-  mesh: THREE.Mesh
-  glow: THREE.Mesh
+  outer: THREE.Mesh
+  innerBillboard: THREE.Mesh
+  rim: THREE.Mesh
   line: THREE.Line
   basePos: THREE.Vector3
   bobOffset: number
@@ -67,7 +68,6 @@ interface BubbleNode {
   bornAt: number
 }
 
-// Easing for the intro animation
 function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3)
 }
@@ -76,6 +76,47 @@ function easeOutBack(t: number): number {
   const c1 = 1.70158
   const c3 = c1 + 1
   return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2)
+}
+
+// Build a CanvasTexture with a soft circular vignette in the given color so the
+// billboard plane inside each orb feels like it's behind glass even before the
+// real photo loads.
+function makePlaceholderTexture(color: string, icon: string): THREE.CanvasTexture {
+  const canvas = document.createElement("canvas")
+  canvas.width = 256
+  canvas.height = 256
+  const ctx = canvas.getContext("2d")!
+  // Radial gradient
+  const g = ctx.createRadialGradient(128, 128, 30, 128, 128, 120)
+  g.addColorStop(0, color + "ff")
+  g.addColorStop(0.7, color + "aa")
+  g.addColorStop(1, color + "11")
+  ctx.fillStyle = g
+  ctx.beginPath()
+  ctx.arc(128, 128, 120, 0, Math.PI * 2)
+  ctx.fill()
+  // Icon emoji
+  ctx.font = "120px system-ui, 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif"
+  ctx.textAlign = "center"
+  ctx.textBaseline = "middle"
+  ctx.globalAlpha = 0.92
+  ctx.fillText(icon, 128, 138)
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
+
+// Try to fetch a real photo for the place via the Wikipedia REST API (CORS-safe)
+// and replace the placeholder texture asynchronously.
+async function lookupPlacePhoto(query: string): Promise<string | null> {
+  try {
+    const r = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`)
+    if (!r.ok) return null
+    const j = (await r.json()) as { thumbnail?: { source?: string }; originalimage?: { source?: string } }
+    return j.thumbnail?.source ?? j.originalimage?.source ?? null
+  } catch {
+    return null
+  }
 }
 
 export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWebglError }: MapModeSceneProps) {
@@ -106,6 +147,9 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
       return
     }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    renderer.outputColorSpace = THREE.SRGBColorSpace
+    renderer.toneMapping = THREE.ACESFilmicToneMapping
+    renderer.toneMappingExposure = 1.05
     const sizeFromMount = () => ({ w: mount.clientWidth, h: Math.max(1, mount.clientHeight) })
     let { w, h } = sizeFromMount()
     renderer.setSize(w, h, false)
@@ -116,15 +160,14 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
 
     // ── Scene + Camera ─────────────────────────────────────────────
     const scene = new THREE.Scene()
-    // A narrower FOV gives more cinematic depth
     const camera = new THREE.PerspectiveCamera(38, w / h, 0.1, 400)
 
-    // Camera state — orbit parameters around the user (origin).
-    // Target the user node directly so YOU sits dead center of the viewport.
-    const cameraTarget = new THREE.Vector3(0, 1.4, 0)
+    // CAMERA: target the YOU pin's actual world position so it projects to the
+    // exact visual center of the canvas regardless of pitch.
+    const cameraTarget = new THREE.Vector3(0, 0.6, 0)
     const camYaw = { current: -Math.PI / 6 }
-    const camPitch = { current: 0.58 } // ~33° down — gentle perspective
-    const camRadius = { current: 70 } // start far, animate in
+    const camPitch = { current: 0.48 } // ~28° down — gentler, keeps YOU on center
+    const camRadius = { current: 80 }
     const camRadiusTarget = { current: cameraTargetRadiusFor(w) }
 
     function applyCamera() {
@@ -139,46 +182,42 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
     applyCamera()
 
     // ── Lights ─────────────────────────────────────────────────────
-    const ambient = new THREE.AmbientLight(0xffffff, 0.45)
+    const ambient = new THREE.AmbientLight(0xffffff, 0.55)
     scene.add(ambient)
-    const hemi = new THREE.HemisphereLight(0xfff0d6, 0x1a0e2a, 0.55)
+    const hemi = new THREE.HemisphereLight(0xfff0d6, 0x1a0e2a, 0.45)
     scene.add(hemi)
-    const key = new THREE.DirectionalLight(0xfff4e6, 1.0)
+    const key = new THREE.DirectionalLight(0xfff4e6, 1.1)
     key.position.set(20, 30, 14)
     scene.add(key)
-    const rim = new THREE.DirectionalLight(0xa3c5ff, 0.55)
+    const rim = new THREE.DirectionalLight(0xa3c5ff, 0.65)
     rim.position.set(-18, 12, -16)
     scene.add(rim)
 
     // ── Starfield background ──────────────────────────────────────
-    const starCount = reducedMotion ? 300 : 900
+    const starCount = reducedMotion ? 280 : 800
     const starGeom = new THREE.BufferGeometry()
     const starPositions = new Float32Array(starCount * 3)
-    const starSizes = new Float32Array(starCount)
     for (let i = 0; i < starCount; i++) {
-      // Distribute on a far sphere shell
       const r = 90 + Math.random() * 60
       const theta = Math.random() * Math.PI * 2
       const phi = Math.acos(2 * Math.random() - 1)
       starPositions[i * 3] = r * Math.sin(phi) * Math.cos(theta)
-      starPositions[i * 3 + 1] = r * Math.abs(Math.cos(phi)) * 0.6 + 8 // bias up
+      starPositions[i * 3 + 1] = r * Math.abs(Math.cos(phi)) * 0.6 + 8
       starPositions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta)
-      starSizes[i] = 0.5 + Math.random() * 1.6
     }
     starGeom.setAttribute("position", new THREE.BufferAttribute(starPositions, 3))
-    starGeom.setAttribute("size", new THREE.BufferAttribute(starSizes, 1))
     const starMat = new THREE.PointsMaterial({
       color: 0xfff5e0,
       size: 0.7,
       transparent: true,
-      opacity: 0.85,
+      opacity: 0.8,
       sizeAttenuation: true,
       depthWrite: false,
     })
     const stars = new THREE.Points(starGeom, starMat)
     scene.add(stars)
 
-    // ── Ground plane (soft glow disk) ─────────────────────────────
+    // ── Ground plane + priority rings ─────────────────────────────
     const groundGeom = new THREE.CircleGeometry(60, 64)
     const groundMat = new THREE.MeshBasicMaterial({ color: 0xffd9c2, transparent: true, opacity: 0.04, depthWrite: false })
     const ground = new THREE.Mesh(groundGeom, groundMat)
@@ -186,7 +225,6 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
     ground.position.y = -0.6
     scene.add(ground)
 
-    // ── Ground rings (concentric, one per priority) ───────────────
     const ringMeshes: THREE.Mesh[] = []
     const ringDefs: { radius: number; color: number; opacity: number }[] = [
       { radius: RADIUS_BY_PRIORITY.scheduled, color: 0xff4d6d, opacity: 0.4 },
@@ -209,7 +247,7 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
       ringMeshes.push(ring)
     }
 
-    // ── Center "you" node ─────────────────────────────────────────
+    // ── Center YOU node ───────────────────────────────────────────
     const youGroup = new THREE.Group()
     const youCore = new THREE.Mesh(
       new THREE.SphereGeometry(1.25, 36, 36),
@@ -217,18 +255,16 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
         color: 0xff4d6d,
         emissive: 0xff4d6d,
         emissiveIntensity: 0.7,
-        metalness: 0.1,
+        metalness: 0.15,
         roughness: 0.25,
       }),
     )
     youGroup.add(youCore)
-    // Glow shell
     const youGlow = new THREE.Mesh(
       new THREE.SphereGeometry(2.2, 32, 32),
       new THREE.MeshBasicMaterial({ color: 0xff4d6d, transparent: true, opacity: 0.22, depthWrite: false }),
     )
     youGroup.add(youGlow)
-    // Pulsing ring on ground
     const youRing = new THREE.Mesh(
       new THREE.RingGeometry(2.4, 2.7, 96),
       new THREE.MeshBasicMaterial({ color: 0xff4d6d, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }),
@@ -236,7 +272,6 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
     youRing.rotation.x = -Math.PI / 2
     youRing.position.y = -0.55
     youGroup.add(youRing)
-    // Second slower-pulsing ring
     const youRing2 = new THREE.Mesh(
       new THREE.RingGeometry(3.6, 3.85, 96),
       new THREE.MeshBasicMaterial({ color: 0xff4d6d, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false }),
@@ -247,7 +282,11 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
     youGroup.position.y = 0.4
     scene.add(youGroup)
 
-    // ── Bubble nodes ──────────────────────────────────────────────
+    // Texture loader (shared)
+    const textureLoader = new THREE.TextureLoader()
+    textureLoader.setCrossOrigin("anonymous")
+
+    // ── Bubble nodes (glass orbs with refracted image plane inside) ─
     const nodes: BubbleNode[] = []
     const groupedByPriority: Record<string, RankedPlace[]> = { scheduled: [], core: [], supplemental: [] }
     for (const p of places) groupedByPriority[p.priority].push(p)
@@ -256,7 +295,6 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
     for (const priority of ["scheduled", "core", "supplemental"] as const) {
       const groupPlaces = groupedByPriority[priority]
       const ringRadius = RADIUS_BY_PRIORITY[priority]
-      // Phase the rings so bubbles don't line up radially
       const phase =
         priority === "scheduled" ? Math.PI / 6 : priority === "core" ? Math.PI / 9 : Math.PI / 12
 
@@ -268,36 +306,83 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
         const bubbleRadius = BUBBLE_RADIUS_BY_PRIORITY[priority]
 
         const color = new THREE.Color(place.color)
-        const mat = new THREE.MeshStandardMaterial({
-          color,
-          emissive: color,
-          emissiveIntensity:
-            priority === "scheduled" ? 0.55 : priority === "core" ? 0.4 : 0.25,
-          metalness: 0.18,
-          roughness: 0.22,
-          transparent: true,
-          opacity: 0.95,
-        })
-        const mesh = new THREE.Mesh(new THREE.SphereGeometry(bubbleRadius, 28, 28), mat)
-        mesh.position.set(bx, by, bz)
-        mesh.userData.placeId = place.id
-        mesh.userData.priority = priority
-        mesh.scale.setScalar(0.001) // start invisible, animate in
-        scene.add(mesh)
 
-        // Soft outer glow shell
-        const glowMat = new THREE.MeshBasicMaterial({
+        // ── Inner image billboard plane (rendered first so it's behind glass) ──
+        const placeholderTex = makePlaceholderTexture(place.color, place.icon)
+        const innerBillboard = new THREE.Mesh(
+          new THREE.CircleGeometry(bubbleRadius * 0.78, 32),
+          new THREE.MeshBasicMaterial({
+            map: placeholderTex,
+            transparent: true,
+            depthWrite: false,
+          }),
+        )
+        innerBillboard.position.set(bx, by, bz)
+        innerBillboard.userData.placeholderTex = placeholderTex
+        scene.add(innerBillboard)
+
+        // Try to load a real photo asynchronously; replace placeholder when it arrives
+        lookupPlacePhoto(place.name)
+          .then((url) => (url ? url : lookupPlacePhoto(place.name.split("(")[0].trim())))
+          .then((url) => {
+            if (!url) return
+            textureLoader.load(
+              url,
+              (tex) => {
+                tex.colorSpace = THREE.SRGBColorSpace
+                ;(innerBillboard.material as THREE.MeshBasicMaterial).map = tex
+                ;(innerBillboard.material as THREE.MeshBasicMaterial).needsUpdate = true
+              },
+              undefined,
+              () => {
+                /* keep placeholder */
+              },
+            )
+          })
+
+        // ── Outer glass orb ───────────────────────────────────────
+        const outerMat = new THREE.MeshPhysicalMaterial({
           color,
+          transmission: 0.7,
+          thickness: 0.6,
+          roughness: 0.32, // frosted
+          metalness: 0.0,
+          ior: 1.32,
+          clearcoat: 1.0,
+          clearcoatRoughness: 0.18,
+          iridescence: priority === "scheduled" ? 0.35 : 0.18,
+          iridescenceIOR: 1.3,
+          attenuationColor: color,
+          attenuationDistance: 1.5,
           transparent: true,
-          opacity: 0.15,
+          opacity: 0.92,
+          emissive: color,
+          emissiveIntensity: priority === "scheduled" ? 0.18 : 0.1,
+          side: THREE.DoubleSide,
           depthWrite: false,
         })
-        const glow = new THREE.Mesh(new THREE.SphereGeometry(bubbleRadius * 1.55, 24, 24), glowMat)
-        glow.position.copy(mesh.position)
-        glow.scale.setScalar(0.001)
-        scene.add(glow)
+        const outer = new THREE.Mesh(new THREE.SphereGeometry(bubbleRadius, 48, 48), outerMat)
+        outer.position.set(bx, by, bz)
+        outer.userData.placeId = place.id
+        outer.userData.priority = priority
+        outer.scale.setScalar(0.001)
+        scene.add(outer)
 
-        // Connecting line from user to bubble
+        // ── Fresnel rim — a backside shell with emissive that lights up on edges
+        const rimMat = new THREE.MeshBasicMaterial({
+          color,
+          transparent: true,
+          opacity: 0.28,
+          side: THREE.BackSide,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        })
+        const rim = new THREE.Mesh(new THREE.SphereGeometry(bubbleRadius * 1.12, 32, 32), rimMat)
+        rim.position.set(bx, by, bz)
+        rim.scale.setScalar(0.001)
+        scene.add(rim)
+
+        // ── Connecting line ────────────────────────────────────────
         const lineGeom = new THREE.BufferGeometry().setFromPoints([
           new THREE.Vector3(0, 0.6, 0),
           new THREE.Vector3(bx, by, bz),
@@ -305,33 +390,43 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
         const lineMat = new THREE.LineBasicMaterial({
           color: priority === "scheduled" ? 0xff4d6d : priority === "core" ? 0xfb923c : 0x888888,
           transparent: true,
-          opacity:
-            priority === "scheduled" ? 0.55 : priority === "core" ? 0.35 : 0.18,
+          opacity: priority === "scheduled" ? 0.55 : priority === "core" ? 0.35 : 0.18,
         })
         const line = new THREE.Line(lineGeom, lineMat)
         scene.add(line)
 
-        // HTML label overlay
+        // ── HTML label overlay (flicker-free) ─────────────────────
+        const distance = place.distanceLabel ?? ""
         const label = document.createElement("div")
         label.dataset.placeId = place.id
-        label.className =
-          "pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 select-none text-center opacity-0 transition-opacity duration-500"
+        // Start far off-screen so we never see un-projected labels.
+        label.style.transform = "translate3d(-9999px, -9999px, 0)"
+        label.style.visibility = "hidden"
+        label.className = "pointer-events-none absolute left-0 top-0 select-none text-center"
         label.innerHTML = `
-          <div class="text-2xl drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)] leading-none">${place.icon}</div>
-          <div class="mt-0.5 inline-block max-w-[10rem] truncate rounded-full bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold text-stone-900 shadow-md backdrop-blur-md ring-1 ring-stone-200 dark:bg-stone-900/90 dark:text-stone-100 dark:ring-stone-700">
-            ${escapeHtml(place.name).length > 22 ? escapeHtml(place.name).slice(0, 21) + "…" : escapeHtml(place.name)}
+          <div class="-translate-y-2 text-2xl drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)] leading-none">${place.icon}</div>
+          <div class="-mt-0.5 inline-flex max-w-[11rem] flex-col items-center gap-0.5 rounded-2xl bg-white/92 px-2 py-1 shadow-md ring-1 ring-stone-200 backdrop-blur-md dark:bg-stone-900/92 dark:ring-stone-700">
+            <div class="max-w-full truncate text-[10px] font-semibold leading-tight text-stone-900 dark:text-stone-100">
+              ${escapeHtml(place.name).length > 22 ? escapeHtml(place.name).slice(0, 21) + "…" : escapeHtml(place.name)}
+            </div>
+            ${
+              distance
+                ? `<div class="rounded-full px-1.5 py-px text-[10px] font-bold tabular-nums leading-none" style="background:${place.color}26;color:${place.color};">${distance}</div>`
+                : ""
+            }
           </div>
         `
         overlay.appendChild(label)
 
         nodes.push({
           place,
-          mesh,
-          glow,
+          outer,
+          innerBillboard,
+          rim,
           line,
           basePos: new THREE.Vector3(bx, by, bz),
           bobOffset: Math.random() * Math.PI * 2,
-          bobAmplitude: priority === "scheduled" ? 0.45 : 0.3,
+          bobAmplitude: priority === "scheduled" ? 0.4 : 0.28,
           label,
           entryDelay: entryIdx * 0.06,
           bornAt: 0,
@@ -340,16 +435,18 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
       })
     }
 
-    // Center user label
+    // Center YOU label — pre-positioned to scene center
     const youLabel = document.createElement("div")
-    youLabel.className = "pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 select-none text-center"
+    youLabel.className = "pointer-events-none absolute left-0 top-0 select-none text-center"
+    youLabel.style.transform = "translate3d(-9999px, -9999px, 0)"
+    youLabel.style.visibility = "hidden"
     youLabel.innerHTML = `
-      <div class="text-3xl drop-shadow-[0_2px_8px_rgba(0,0,0,0.55)] leading-none">📍</div>
-      <div class="mt-0.5 inline-block rounded-full bg-rose-600 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-white shadow-lg ring-1 ring-rose-300/60">You</div>
+      <div class="text-3xl drop-shadow-[0_2px_10px_rgba(0,0,0,0.55)] leading-none">📍</div>
+      <div class="-mt-0.5 inline-block rounded-full bg-rose-600 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-white shadow-lg ring-1 ring-rose-300/60">You</div>
     `
     overlay.appendChild(youLabel)
 
-    // ── Raycaster + input handling ────────────────────────────────
+    // ── Raycaster + input ─────────────────────────────────────────
     const raycaster = new THREE.Raycaster()
     const pointer = new THREE.Vector2()
     let hovered: BubbleNode | null = null
@@ -368,7 +465,7 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
     function pickAtPointer(): BubbleNode | null {
       raycaster.setFromCamera(pointer, camera)
       const hits = raycaster.intersectObjects(
-        nodes.map((n) => n.mesh),
+        nodes.map((n) => n.outer),
         false,
       )
       if (!hits.length) return null
@@ -379,10 +476,7 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
     function onPointerMove(e: PointerEvent) {
       setPointerFromEvent(e.clientX, e.clientY)
       const node = pickAtPointer()
-      if (hovered && hovered !== node) {
-        hovered = null
-      }
-      if (node) hovered = node
+      hovered = node
       renderer.domElement.style.cursor = node ? "pointer" : dragging ? "grabbing" : "grab"
 
       if (dragging) {
@@ -391,7 +485,7 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
         dragLastX = e.clientX
         dragLastY = e.clientY
         camYaw.current -= dx * 0.005
-        camPitch.current = Math.max(0.12, Math.min(1.2, camPitch.current + dy * 0.004))
+        camPitch.current = Math.max(0.1, Math.min(1.15, camPitch.current + dy * 0.004))
         applyCamera()
       }
     }
@@ -402,7 +496,6 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
       pointerDownPos = { x: e.clientX, y: e.clientY }
       const node = pickAtPointer()
       if (!node) {
-        // Start drag
         dragging = true
         dragLastX = e.clientX
         dragLastY = e.clientY
@@ -417,11 +510,10 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
       const dx = e.clientX - pointerDownPos.x
       const dy = e.clientY - pointerDownPos.y
       const movedFar = Math.hypot(dx, dy) > 6
-      if (wasDragging && movedFar) return // it was a real drag
-      if (dt > 600) return // long press, ignore
+      if (wasDragging && movedFar) return
+      if (dt > 600) return
       const node = pickAtPointer()
       if (node) {
-        // Haptic
         if (typeof navigator !== "undefined" && "vibrate" in navigator) {
           try {
             navigator.vibrate(15)
@@ -440,22 +532,19 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
       dragging = false
     })
 
-    // Wheel zoom
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
-      camRadiusTarget.current = Math.max(20, Math.min(85, camRadiusTarget.current + e.deltaY * 0.06))
+      camRadiusTarget.current = Math.max(20, Math.min(90, camRadiusTarget.current + e.deltaY * 0.07))
     }
     renderer.domElement.addEventListener("wheel", onWheel, { passive: false })
 
-    // Listen for an external "reset view" event from the overlay controls.
     const onResetView = () => {
       camRadiusTarget.current = cameraTargetRadiusFor(mount.clientWidth)
       camYaw.current = -Math.PI / 6
-      camPitch.current = 0.58
+      camPitch.current = 0.48
     }
     mount.addEventListener("korea-map-reset", onResetView)
 
-    // Pinch zoom (two-finger)
     let pinchDist = 0
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 2) {
@@ -473,7 +562,7 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
         )
         if (pinchDist > 0) {
           const scale = pinchDist / d
-          camRadiusTarget.current = Math.max(22, Math.min(75, camRadiusTarget.current * scale))
+          camRadiusTarget.current = Math.max(20, Math.min(90, camRadiusTarget.current * scale))
         }
         pinchDist = d
       }
@@ -501,25 +590,19 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
       const t = clock.getElapsedTime()
       const sceneT = (performance.now() - sceneStart) / 1000
 
-      // Camera intro: ease radius from initial to target over 1.5s
       if (sceneT < 1.5 && !reducedMotion) {
         const k = easeOutCubic(sceneT / 1.5)
-        camRadius.current = 60 + (camRadiusTarget.current - 60) * k
+        camRadius.current = 80 + (camRadiusTarget.current - 80) * k
       } else {
-        // Smoothly settle toward target
-        camRadius.current += (camRadiusTarget.current - camRadius.current) * 0.08
+        camRadius.current += (camRadiusTarget.current - camRadius.current) * 0.09
       }
 
-      // Auto-rotate slowly when not dragging
-      if (!dragging && !reducedMotion) {
-        camYaw.current += 0.0006
-      }
+      if (!dragging && !reducedMotion) camYaw.current += 0.0005
       applyCamera()
 
-      // Stars: tiny twinkle by scaling material opacity
-      starMat.opacity = 0.75 + Math.sin(t * 0.7) * 0.08
+      starMat.opacity = 0.7 + Math.sin(t * 0.7) * 0.08
 
-      // You-node pulse
+      // YOU pin animation
       const pulse = 1 + Math.sin(t * 2.4) * 0.06
       youCore.scale.setScalar(reducedMotion ? 1 : pulse)
       youGlow.scale.setScalar(reducedMotion ? 1.0 : 1 + Math.sin(t * 1.6) * 0.12)
@@ -528,73 +611,77 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
       ;(youRing2.material as THREE.MeshBasicMaterial).opacity = reducedMotion ? 0.3 : 0.2 + Math.sin(t * 1.1 + 1) * 0.12
       youRing2.scale.setScalar(reducedMotion ? 1 : 1 + Math.sin(t * 0.9 + 1) * 0.1)
 
-      // Ground rings subtle pulse
       ringMeshes.forEach((ring, i) => {
         const mat = ring.material as THREE.MeshBasicMaterial
-        const baseOpacity = ringDefs[i].opacity
-        mat.opacity = reducedMotion ? baseOpacity : baseOpacity + Math.sin(t * 0.8 + i) * 0.05
+        const base = ringDefs[i].opacity
+        mat.opacity = reducedMotion ? base : base + Math.sin(t * 0.8 + i) * 0.05
       })
 
-      // Bubbles: entry stagger + bob + selection halo
       for (const node of nodes) {
-        // Entry animation
-        if (node.bornAt === 0 && sceneT >= node.entryDelay) {
-          node.bornAt = sceneT
-        }
+        if (node.bornAt === 0 && sceneT >= node.entryDelay) node.bornAt = sceneT
+
         if (node.bornAt > 0) {
           const sinceBirth = sceneT - node.bornAt
           const k = Math.min(1, sinceBirth / 0.7)
-          const scale = reducedMotion ? 1 : easeOutBack(k)
-          node.mesh.scale.setScalar(scale)
-          node.glow.scale.setScalar(scale * 0.9)
-          if (k >= 0.4) node.label.style.opacity = "1"
-        } else {
-          node.mesh.scale.setScalar(0.001)
-          node.glow.scale.setScalar(0.001)
+          const baseScale = reducedMotion ? 1 : easeOutBack(k)
+
+          node.outer.scale.setScalar(baseScale)
+          node.innerBillboard.scale.setScalar(baseScale * 0.95)
+          node.rim.scale.setScalar(baseScale * 1.0)
         }
 
-        // Bob
         const bob = reducedMotion ? 0 : Math.sin(t * 1.3 + node.bobOffset) * node.bobAmplitude
-        node.mesh.position.y = node.basePos.y + bob
-        node.glow.position.copy(node.mesh.position)
+        const cy = node.basePos.y + bob
+        node.outer.position.y = cy
+        node.innerBillboard.position.y = cy
+        node.rim.position.y = cy
 
-        // Selection emphasis
+        // Billboard always faces camera
+        node.innerBillboard.lookAt(camera.position)
+
+        // Selection emphasis (only effect outer + rim — leave billboard scale alone)
         const isSelected = selectedIdRef.current === node.place.id
+        const rimMat = node.rim.material as THREE.MeshBasicMaterial
         if (isSelected) {
           const sel = 1 + Math.sin(t * 4) * 0.08
-          node.mesh.scale.setScalar(Math.max(node.mesh.scale.x, 1.25 * sel))
-          node.glow.scale.setScalar(1.5 * sel)
-          ;(node.glow.material as THREE.MeshBasicMaterial).opacity = 0.35
+          node.outer.scale.setScalar(Math.max(node.outer.scale.x, 1.2 * sel))
+          node.rim.scale.setScalar(1.35 * sel)
+          rimMat.opacity = 0.55
         } else if (hovered && hovered.place.id === node.place.id) {
-          // Hover
-          ;(node.glow.material as THREE.MeshBasicMaterial).opacity = 0.25
+          rimMat.opacity = 0.4
         } else {
-          ;(node.glow.material as THREE.MeshBasicMaterial).opacity = 0.13
+          rimMat.opacity = 0.22
         }
 
         // Update line endpoint
         const positions = node.line.geometry.attributes.position as THREE.BufferAttribute
-        positions.setXYZ(1, node.mesh.position.x, node.mesh.position.y, node.mesh.position.z)
+        positions.setXYZ(1, node.outer.position.x, node.outer.position.y, node.outer.position.z)
         positions.needsUpdate = true
 
-        // Update label DOM position
-        const worldPos = node.mesh.position.clone()
-        worldPos.y += BUBBLE_RADIUS_BY_PRIORITY[node.place.priority] + 0.9
+        // Update label
+        const worldPos = node.outer.position.clone()
+        worldPos.y += BUBBLE_RADIUS_BY_PRIORITY[node.place.priority] + 1.0
         const { x, y, visible } = projectToScreen(worldPos)
-        node.label.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, -50%)`
-        node.label.style.visibility = visible ? "visible" : "hidden"
+        if (visible) {
+          node.label.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, -50%)`
+          node.label.style.visibility = node.bornAt > 0 ? "visible" : "hidden"
+        } else {
+          node.label.style.visibility = "hidden"
+        }
       }
 
-      // You-label projection
+      // YOU label projection
       const cs = projectToScreen(new THREE.Vector3(0, 2.5, 0))
-      youLabel.style.transform = `translate3d(${cs.x.toFixed(1)}px, ${cs.y.toFixed(1)}px, 0) translate(-50%, -50%)`
+      if (cs.visible) {
+        youLabel.style.transform = `translate3d(${cs.x.toFixed(1)}px, ${cs.y.toFixed(1)}px, 0) translate(-50%, -50%)`
+        youLabel.style.visibility = "visible"
+      }
 
       renderer.render(scene, camera)
       requestAnimationFrame(tick)
     }
     tick()
 
-    // ── Resize observer ────────────────────────────────────────────
     const ro = new ResizeObserver(() => {
       const s = sizeFromMount()
       w = s.w
@@ -602,7 +689,6 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
       renderer.setSize(w, h, false)
       camera.aspect = w / h
       camera.updateProjectionMatrix()
-      // Re-target camera radius for the new viewport so all bubbles stay in frame.
       camRadiusTarget.current = cameraTargetRadiusFor(w)
     })
     ro.observe(mount)
@@ -617,15 +703,20 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
       renderer.domElement.removeEventListener("wheel", onWheel)
       renderer.domElement.removeEventListener("touchstart", onTouchStart)
       renderer.domElement.removeEventListener("touchmove", onTouchMove)
-      // Dispose
       for (const node of nodes) {
-        node.mesh.geometry.dispose()
-        ;(node.mesh.material as THREE.Material).dispose()
-        node.glow.geometry.dispose()
-        ;(node.glow.material as THREE.Material).dispose()
+        node.outer.geometry.dispose()
+        ;(node.outer.material as THREE.Material).dispose()
+        node.innerBillboard.geometry.dispose()
+        const im = node.innerBillboard.material as THREE.MeshBasicMaterial
+        if (im.map) im.map.dispose()
+        im.dispose()
+        node.rim.geometry.dispose()
+        ;(node.rim.material as THREE.Material).dispose()
         node.line.geometry.dispose()
         ;(node.line.material as THREE.Material).dispose()
         node.label.remove()
+        const placeholder = node.innerBillboard.userData.placeholderTex as THREE.CanvasTexture | undefined
+        placeholder?.dispose()
       }
       youLabel.remove()
       youCore.geometry.dispose()

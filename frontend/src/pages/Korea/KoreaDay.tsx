@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react"
 import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
-import { ChevronLeft, ChevronRight, MapPin, CalendarPlus, Sparkles, Globe2 } from "lucide-react"
+import { ChevronLeft, ChevronRight, MapPin, Sparkles, Globe2 } from "lucide-react"
 import type { LoadState } from "./useKoreaData"
 import { useKoreaDay } from "./useKoreaData"
 import type { Snapshot } from "./types"
@@ -9,7 +9,7 @@ import { ReservationCard } from "./ReservationCard"
 import { calloutTone, cityMeta, formatDate } from "./koreaTheme"
 import { LinkifiedText } from "./LinkifiedText"
 import { mapsSearchUrl, smartPlaceUrl } from "./linkify"
-import { buildIcs, downloadIcs, slugify, todayKstIso } from "./koreaUtils"
+import { slugify, todayKstIso } from "./koreaUtils"
 
 const MapModeOverlay = lazy(() =>
   import("./MapModeOverlay").then((m) => ({ default: m.MapModeOverlay })),
@@ -54,11 +54,6 @@ export function KoreaDay() {
   const { day, reservations } = dayState.data
   const tint = cityMeta[day.city] ?? cityMeta.Seoul
   const isToday = day.date === todayKstIso()
-
-  function exportDayIcs() {
-    const ics = buildIcs(reservations, `Day ${day.n} · ${day.title}`)
-    downloadIcs(`korea-day-${day.n}-${slugify(day.title)}.ics`, ics)
-  }
 
   return (
     <article>
@@ -188,19 +183,9 @@ export function KoreaDay() {
       <div className="mx-auto max-w-4xl px-4 pt-8 sm:px-6">
         {reservations.length > 0 && (
           <section id="reservations" className="mb-10 scroll-mt-20">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="font-serif text-xl text-stone-900 dark:text-stone-100" style={{ fontFamily: "'Cormorant Garamond', serif" }}>
-                📌 Reservations
-              </h2>
-              <button
-                type="button"
-                onClick={exportDayIcs}
-                className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 shadow-sm transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
-              >
-                <CalendarPlus className="h-3.5 w-3.5" aria-hidden />
-                .ics
-              </button>
-            </div>
+            <h2 className="font-serif text-xl text-stone-900 dark:text-stone-100" style={{ fontFamily: "'Cormorant Garamond', serif" }}>
+              📌 Reservations
+            </h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {reservations.map((r, i) => (
                 <ReservationCard key={r.id} reservation={r} index={i} />
