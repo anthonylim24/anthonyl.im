@@ -1,6 +1,7 @@
+import { lazy, Suspense, useState } from "react"
 import { Link, useOutletContext, useParams } from "react-router-dom"
-import { motion, useReducedMotion } from "motion/react"
-import { ChevronLeft, ChevronRight, MapPin, CalendarPlus, Sparkles } from "lucide-react"
+import { AnimatePresence, motion, useReducedMotion } from "motion/react"
+import { ChevronLeft, ChevronRight, MapPin, CalendarPlus, Sparkles, Globe2 } from "lucide-react"
 import type { LoadState } from "./useKoreaData"
 import { useKoreaDay } from "./useKoreaData"
 import type { Snapshot } from "./types"
@@ -10,11 +11,16 @@ import { LinkifiedText } from "./LinkifiedText"
 import { mapsSearchUrl, smartPlaceUrl } from "./linkify"
 import { buildIcs, downloadIcs, slugify, todayKstIso } from "./koreaUtils"
 
+const MapModeOverlay = lazy(() =>
+  import("./MapModeOverlay").then((m) => ({ default: m.MapModeOverlay })),
+)
+
 export function KoreaDay() {
   const { slug } = useParams<{ slug: string }>()
   const snapshotState = useOutletContext<LoadState<Snapshot>>()
   const dayState = useKoreaDay(slug)
   const reduce = useReducedMotion()
+  const [mapModeOpen, setMapModeOpen] = useState(false)
 
   if (dayState.status === "loading") return <DaySkeleton />
   if (dayState.status === "error") return <DayError message={dayState.error.message} />
@@ -125,8 +131,39 @@ export function KoreaDay() {
           >
             <LinkifiedText>{day.theme}</LinkifiedText>
           </motion.p>
+
+          <motion.div
+            initial={reduce ? false : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.32 }}
+            className="mt-5"
+          >
+            <button
+              type="button"
+              onClick={() => setMapModeOpen(true)}
+              className="group inline-flex items-center gap-2 rounded-full bg-stone-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-rose-200"
+            >
+              <Globe2 className="h-4 w-4 transition group-hover:rotate-12" aria-hidden />
+              Enter Map Mode
+            </button>
+            <span className="ml-2 align-middle text-[11px] text-stone-500 dark:text-stone-500">
+              3D bubble graph of nearby places · SF test mode available
+            </span>
+          </motion.div>
         </div>
       </header>
+
+      <AnimatePresence>
+        {mapModeOpen && (
+          <Suspense fallback={null}>
+            <MapModeOverlay
+              daySlug={day.slug}
+              dayTitle={day.title}
+              onClose={() => setMapModeOpen(false)}
+            />
+          </Suspense>
+        )}
+      </AnimatePresence>
 
       <div className="mx-auto max-w-4xl px-4 pt-8 sm:px-6">
         {reservations.length > 0 && (

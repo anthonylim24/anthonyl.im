@@ -1,5 +1,6 @@
 import { Hono } from "hono"
 import { koreaSnapshot, type Snapshot } from "../data/koreaSnapshot"
+import placesRouter from "./koreaPlaces"
 
 const korea = new Hono()
 
@@ -99,6 +100,8 @@ korea.get("/day/:slug", async (c) => {
     reservations: data.reservations.filter((r) => r.dayNumber === day.n),
   })
 })
+
+korea.route("/", placesRouter)
 
 korea.get("/reservations", async (c) => {
   const { data, source } = await getSnapshot()
