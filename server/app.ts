@@ -6,6 +6,7 @@ import { prettyJSON } from "hono/pretty-json";
 import { config } from "./src/config";
 import { errorHandler } from "./src/middleware/error";
 import invokeRouter from "./src/routes/invoke";
+import koreaRouter from "./src/routes/korea";
 import { join, resolve } from "path";
 
 const app = new Hono();
@@ -35,6 +36,14 @@ const appPreviews = {
       "https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=1200&h=630&q=80",
     imageAlt: "Person meditating at sunrise with calm natural tones",
   },
+  korea: {
+    title: "South Korea Itinerary — Seoul + Busan, May 26 – Jun 6, 2026",
+    description:
+      "A 12-day Seoul + Busan trip — palaces, hanwoo, fine dining, Sky Capsule, a wedding in Yangju, and a drone show over the Han River.",
+    imagePathOrUrl:
+      "https://images.unsplash.com/photo-1538485399081-7c8970ce9eef?auto=format&fit=crop&w=1200&h=630&q=80",
+    imageAlt: "Seoul cityscape at twilight with Lotte World Tower and the Han River",
+  },
 } as const satisfies Record<string, AppPreviewMeta>;
 
 const escapeHtml = (value: string): string =>
@@ -52,6 +61,7 @@ const resolveImageUrl = (imagePathOrUrl: string): string =>
 
 const getPreviewMetaForPath = (pathname: string): AppPreviewMeta => {
   if (pathname.startsWith("/breathwork")) return appPreviews.breathwork;
+  if (pathname.startsWith("/korea")) return appPreviews.korea;
   return appPreviews.chatbot;
 };
 
@@ -124,6 +134,7 @@ app.use("/api/invoke/*", async (c, next) => {
 
 // API Routes
 app.route("/api/invoke", invokeRouter);
+app.route("/api/korea", koreaRouter);
 
 // Health check
 app.get("/health", (c) =>

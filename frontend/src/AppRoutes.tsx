@@ -24,6 +24,15 @@ const BreathworkNotFound = lazy(() =>
     default: module.BreathworkNotFound,
   })),
 )
+const KoreaLayout = lazy(() =>
+  import('./pages/Korea/KoreaLayout').then((module) => ({ default: module.KoreaLayout })),
+)
+const KoreaIndex = lazy(() =>
+  import('./pages/Korea/KoreaIndex').then((module) => ({ default: module.KoreaIndex })),
+)
+const KoreaDay = lazy(() =>
+  import('./pages/Korea/KoreaDay').then((module) => ({ default: module.KoreaDay })),
+)
 
 const BreathworkShellFallback = () => (
   <div
@@ -47,6 +56,11 @@ export function AppRoutes() {
             <Route path="progress" element={<Progress />} />
             <Route path="settings" element={<Settings />} />
             <Route path="*" element={<BreathworkNotFound />} />
+          </Route>
+
+          <Route path="/korea" element={<KoreaLayout />}>
+            <Route index element={<KoreaIndex />} />
+            <Route path="day/:slug" element={<KoreaDay />} />
           </Route>
         </Routes>
       </Suspense>

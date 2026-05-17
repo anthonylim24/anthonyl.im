@@ -1,0 +1,39 @@
+{
+  "name": "South Korea — Seoul + Busan",
+  "short_name": "Korea Trip",
+  "description": "Anthony's 12-day Seoul + Busan itinerary with reservations, weather, and a tree-style day navigator.",
+  "start_url": "/korea",
+  "scope": "/korea",
+  "display": "standalone",
+  "orientation": "any",
+  "categories": ["travel", "lifestyle"],
+  "background_color": "#FBF6EE",
+  "theme_color": "#FBF6EE",
+  "icons": [
+    {
+      "src": "/favicon-chat.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/breathflow-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/breathflow-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Reservations",
+      "short_name": "Bookings",
+      "url": "/korea#reservations"
+    }
+  ]
+}
