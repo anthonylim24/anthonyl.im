@@ -51,6 +51,35 @@
       })();
     </script>
 
+    <script data-route-metadata="korea">
+      (() => {
+        if (!location.pathname.startsWith('/korea')) return;
+
+        const title = 'South Korea Itinerary — Seoul + Busan';
+        const description = 'A 12-day Seoul + Busan trip with reservations, weather, and a day-by-day tree navigator.';
+
+        function setRouteMeta(selector, attribute, value, content) {
+          let element = document.querySelector(selector);
+          if (!element) {
+            element = document.createElement('meta');
+            element.setAttribute(attribute, value);
+            document.head.appendChild(element);
+          }
+          element.setAttribute('content', content);
+        }
+
+        const manifest = document.querySelector('link[rel="manifest"]');
+        if (manifest) manifest.setAttribute('href', '/korea.webmanifest');
+
+        document.title = title;
+        setRouteMeta('meta[name="description"]', 'name', 'description', description);
+        setRouteMeta('meta[property="og:title"]', 'property', 'og:title', title);
+        setRouteMeta('meta[property="og:description"]', 'property', 'og:description', description);
+        setRouteMeta('meta[name="twitter:title"]', 'name', 'twitter:title', title);
+        setRouteMeta('meta[name="twitter:description"]', 'name', 'twitter:description', description);
+      })();
+    </script>
+
     <style>
       /* html background fills iOS safe areas (status bar, home indicator).
          Must match the page canvas so they blend seamlessly.

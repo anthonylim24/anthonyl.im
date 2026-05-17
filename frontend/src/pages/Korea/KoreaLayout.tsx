@@ -1,0 +1,29 @@
+import { Outlet, useLocation } from "react-router-dom"
+import { AnimatePresence, motion, useReducedMotion } from "motion/react"
+import { DayTreeNav } from "./DayTreeNav"
+import { useKoreaSnapshot } from "./useKoreaData"
+
+export function KoreaLayout() {
+  const location = useLocation()
+  const reduce = useReducedMotion()
+  const state = useKoreaSnapshot()
+
+  return (
+    <div className="korea min-h-screen bg-gradient-to-b from-stone-50 to-amber-50/40 text-stone-900 antialiased selection:bg-rose-200 selection:text-rose-950 dark:from-stone-950 dark:to-stone-900 dark:text-stone-100 dark:selection:bg-rose-900/60 dark:selection:text-rose-100">
+      {state.status === "success" && <DayTreeNav days={state.data.days} />}
+
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.main
+          key={location.pathname}
+          initial={reduce ? false : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={reduce ? undefined : { opacity: 0, y: -8 }}
+          transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+          className="pb-20"
+        >
+          <Outlet context={state} />
+        </motion.main>
+      </AnimatePresence>
+    </div>
+  )
+}

@@ -1,11 +1,14 @@
-const CACHE_VERSION = 'breathflow-offline-v1'
+const CACHE_VERSION = 'breathflow-offline-v2'
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`
+const KOREA_API_CACHE = `${CACHE_VERSION}-korea-api`
 const APP_SHELL = [
   '/',
   '/breathwork',
   '/breathwork/progress',
   '/breathwork/session?technique=cyclic_sighing&rounds=30',
   '/breathwork/session?technique=four_seven_eight&rounds=16',
+  '/korea',
+  '/korea.webmanifest',
   '/site.webmanifest',
   '/favicon-breath.svg',
   '/favicon-chat.svg',
@@ -46,13 +49,34 @@ self.addEventListener('activate', (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((key) => key.startsWith('breathflow-offline-') && key !== CACHE_VERSION && key !== RUNTIME_CACHE)
+            .filter(
+              (key) =>
+                key.startsWith('breathflow-offline-') &&
+                key !== CACHE_VERSION &&
+                key !== RUNTIME_CACHE &&
+                key !== KOREA_API_CACHE,
+            )
             .map((key) => caches.delete(key))
         )
       )
       .then(() => self.clients.claim())
   )
 })
+
+// Stale-while-revalidate for Korea data. Lets the page render instantly from
+// cache while a fresh copy is fetched in the background; falls back to the
+// cached copy when offline.
+async function staleWhileRevalidate(request) {
+  const cache = await caches.open(KOREA_API_CACHE)
+  const cached = await cache.match(request)
+  const networked = fetch(request)
+    .then((response) => {
+      if (response.ok) cachePutSafe(cache, request, response.clone())
+      return response
+    })
+    .catch(() => cached || Response.error())
+  return cached || networked
+}
 
 async function networkFirstNavigation(request) {
   const cache = await caches.open(CACHE_VERSION)
@@ -94,7 +118,17 @@ self.addEventListener('fetch', (event) => {
   }
 
   const url = new URL(request.url)
-  if (url.origin !== self.location.origin || url.pathname.startsWith('/api/')) {
+  if (url.origin !== self.location.origin) {
+    return
+  }
+
+  // Korea API gets a stale-while-revalidate strategy so /korea works offline.
+  if (url.pathname.startsWith('/api/korea')) {
+    event.respondWith(staleWhileRevalidate(request))
+    return
+  }
+
+  if (url.pathname.startsWith('/api/')) {
     return
   }
 
