@@ -31,6 +31,18 @@ export default defineConfig({
           if (id.includes('lucide-react')) {
             return 'icons';
           }
+          // Three.js is heavy and only used by /korea Map Mode. Splitting it
+          // into its own chunk keeps the rest of the app's bundles tight and
+          // lets the Map Mode lazy-import pull just the renderer.
+          if (id.includes('/node_modules/three/')) {
+            return 'three';
+          }
+          // Korea route's static data + components — keep them together so
+          // browsing /korea is one cohesive chunk download instead of many
+          // tiny waterfall requests.
+          if (id.includes('/pages/Korea/MapMode')) {
+            return 'korea-map';
+          }
         }
       }
     }

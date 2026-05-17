@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'breathflow-offline-v3'
+const CACHE_VERSION = 'breathflow-offline-v4'
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`
 const KOREA_API_CACHE = `${CACHE_VERSION}-korea-api`
 const APP_SHELL = [
@@ -40,6 +40,16 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     cacheAppShell().then(() => self.skipWaiting())
   )
+})
+
+// Allow the client (registerServiceWorker.ts) to tell us to skip waiting.
+// This is the second leg of the auto-update flow: when a new SW is installed
+// and waiting, the client posts SKIP_WAITING and we hand control to the new
+// SW immediately. The `controllerchange` listener on the client then reloads.
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting()
+  }
 })
 
 self.addEventListener('activate', (event) => {
@@ -133,6 +143,12 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url)
   if (url.origin !== self.location.origin) {
+    return
+  }
+
+  // Never intercept the SW script itself — the browser uses a special update
+  // path that bypasses the existing SW, but we belt-and-suspender it.
+  if (url.pathname === '/sw.js') {
     return
   }
 
