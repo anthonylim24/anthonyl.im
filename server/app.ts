@@ -148,7 +148,31 @@ app.get("/health", (c) =>
 
 const distPath = resolve(import.meta.dir, "../frontend/dist");
 
-// Serve static assets
+// `/sw.js` MUST be served fresh on every request — the browser only updates
+// the service worker when it detects a byte-difference in the SW script, so
+// a cached SW means deploys never roll out. We route it explicitly before the
+// static-asset middleware so we can set our own headers.
+app.get("/sw.js", async (c) => {
+  const file = Bun.file(join(distPath, "sw.js"));
+  c.header("Cache-Control", "no-cache, no-store, must-revalidate");
+  c.header("Pragma", "no-cache");
+  c.header("Service-Worker-Allowed", "/");
+  c.header("Content-Type", "application/javascript; charset=utf-8");
+  return c.body(await file.text());
+});
+
+// Serve static assets — content-hashed bundles get long-cache so the new
+// bundle hashes (the only files referenced by the fresh index.html) are
+// immutable + browser-cached, while the entry HTML stays no-cache below.
+app.use(
+  "/assets/*",
+  serveStatic({
+    root: distPath,
+    onFound: (_, c) => {
+      c.header("Cache-Control", "public, max-age=31536000, immutable");
+    },
+  }),
+);
 app.use("*", serveStatic({ root: distPath }));
 
 // Serve index.html for all other routes (SPA fallback). The HTML itself must
