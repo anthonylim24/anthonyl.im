@@ -157,7 +157,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      className="fixed inset-0 z-50 flex flex-col bg-stone-50 dark:bg-stone-950"
+      className="fixed inset-0 z-50 bg-stone-50 dark:bg-stone-950"
       role="dialog"
       aria-modal="true"
       aria-label="Map Mode"
@@ -180,8 +180,12 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
         }}
       />
 
-      {/* Header */}
-      <header className="relative z-30 flex items-center gap-2 border-b border-stone-200/60 bg-white/70 px-3 py-2.5 backdrop-blur-xl dark:border-stone-800/60 dark:bg-stone-950/70 sm:gap-3 sm:px-5">
+      {/* Header — floats above the scene so the canvas (and its center) span
+          the full viewport. Without this, the scene region would sit BELOW the
+          header in a flex column and the canvas's geometric center would land
+          below the visible viewport center — making YOU and its orbit ring
+          appear shifted downward. */}
+      <header className="absolute inset-x-0 top-0 z-30 flex items-center gap-2 border-b border-stone-200/60 bg-white/70 px-3 py-2.5 backdrop-blur-xl dark:border-stone-800/60 dark:bg-stone-950/70 sm:gap-3 sm:px-5">
         <button
           type="button"
           onClick={onClose}
@@ -273,8 +277,10 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
         </label>
       </header>
 
-      {/* Scene region */}
-      <div className="relative flex-1 overflow-hidden">
+      {/* Scene region — fills the full viewport so the canvas center coincides
+          with the visible center. The header floats on top via absolute
+          positioning; the filter bar below clears it via a top offset. */}
+      <div className="absolute inset-0 overflow-hidden">
         {state.status === "loading" && <LoadingPulse />}
         {state.status === "error" && (
           <div className="absolute inset-0 flex items-center justify-center">
