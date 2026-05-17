@@ -1,5 +1,39 @@
 import { useEffect, useRef } from "react"
-import * as THREE from "three"
+import {
+  ACESFilmicToneMapping,
+  AdditiveBlending,
+  AmbientLight,
+  BackSide,
+  BufferAttribute,
+  BufferGeometry,
+  CanvasTexture,
+  CircleGeometry,
+  Clock,
+  Color,
+  DirectionalLight,
+  DoubleSide,
+  Group,
+  HemisphereLight,
+  Line,
+  LineBasicMaterial,
+  type Material,
+  Mesh,
+  MeshBasicMaterial,
+  MeshPhysicalMaterial,
+  MeshStandardMaterial,
+  PerspectiveCamera,
+  Points,
+  PointsMaterial,
+  Raycaster,
+  RingGeometry,
+  Scene,
+  SphereGeometry,
+  SRGBColorSpace,
+  TextureLoader,
+  Vector2,
+  Vector3,
+  WebGLRenderer,
+} from "three"
 import type { RankedPlace } from "./mapModeTypes"
 
 interface MapModeSceneProps {
@@ -59,11 +93,11 @@ function cameraTargetRadiusFor(width: number): number {
 
 interface BubbleNode {
   place: RankedPlace
-  outer: THREE.Mesh
-  innerBillboard: THREE.Mesh
-  rim: THREE.Mesh
-  line: THREE.Line
-  basePos: THREE.Vector3
+  outer: Mesh
+  innerBillboard: Mesh
+  rim: Mesh
+  line: Line
+  basePos: Vector3
   bobOffset: number
   bobAmplitude: number
   label: HTMLDivElement
@@ -84,7 +118,7 @@ function easeOutBack(t: number): number {
 // Build a CanvasTexture with a soft circular vignette in the given color so the
 // billboard plane inside each orb feels like it's behind glass even before the
 // real photo loads.
-function makePlaceholderTexture(color: string, icon: string): THREE.CanvasTexture {
+function makePlaceholderTexture(color: string, icon: string): CanvasTexture {
   const canvas = document.createElement("canvas")
   canvas.width = 256
   canvas.height = 256
@@ -104,8 +138,8 @@ function makePlaceholderTexture(color: string, icon: string): THREE.CanvasTextur
   ctx.textBaseline = "middle"
   ctx.globalAlpha = 0.92
   ctx.fillText(icon, 128, 138)
-  const tex = new THREE.CanvasTexture(canvas)
-  tex.colorSpace = THREE.SRGBColorSpace
+  const tex = new CanvasTexture(canvas)
+  tex.colorSpace = SRGBColorSpace
   return tex
 }
 
@@ -141,36 +175,46 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
     if (!mount || !overlay) return
 
     // ── Renderer ───────────────────────────────────────────────────
-    let renderer: THREE.WebGLRenderer
+    let renderer: WebGLRenderer
     try {
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" })
+      renderer = new WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" })
     } catch (err) {
       console.warn("[map-mode] WebGL unavailable:", err)
       onWebglErrorRef.current?.()
       return
     }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-    renderer.outputColorSpace = THREE.SRGBColorSpace
-    renderer.toneMapping = THREE.ACESFilmicToneMapping
+    renderer.outputColorSpace = SRGBColorSpace
+    renderer.toneMapping = ACESFilmicToneMapping
     renderer.toneMappingExposure = 1.05
     const sizeFromMount = () => ({ w: mount.clientWidth, h: Math.max(1, mount.clientHeight) })
     let { w, h } = sizeFromMount()
     renderer.setSize(w, h, false)
     renderer.setClearColor(0x000000, 0)
     mount.appendChild(renderer.domElement)
+    // Pin the canvas to fill the mount exactly. Without explicit CSS dims the
+    // canvas falls back to its HTML width/height attributes (which are the
+    // drawing buffer in device pixels, e.g. 2x with retina) and overflows the
+    // mount, pushing the canvas's geometric center off the viewport center.
+    // 100%/100% guarantees canvas center == mount center == viewport center.
+    renderer.domElement.style.position = "absolute"
+    renderer.domElement.style.top = "0"
+    renderer.domElement.style.left = "0"
+    renderer.domElement.style.width = "100%"
+    renderer.domElement.style.height = "100%"
     renderer.domElement.style.touchAction = "none"
     renderer.domElement.style.display = "block"
 
     // ── Scene + Camera ─────────────────────────────────────────────
-    const scene = new THREE.Scene()
-    const camera = new THREE.PerspectiveCamera(38, w / h, 0.1, 400)
+    const scene = new Scene()
+    const camera = new PerspectiveCamera(38, w / h, 0.1, 400)
 
     // CAMERA: target world origin (where YOU lives, via the CSS overlay) so
     // the camera ORBITS around the visual center of the screen. The default
     // is a top-down isometric pitch so bubbles distribute as concentric
     // rings around YOU rather than bunching above. The orbit is user-driven
     // only — no auto-rotate — so the scene stays put unless dragged.
-    const cameraTarget = new THREE.Vector3(0, 0, 0)
+    const cameraTarget = new Vector3(0, 0, 0)
     const camYaw = { current: -Math.PI / 6 }
     const camPitch = { current: 0.78 } // ~45° down — top-down isometric, YOU centered
     const camRadius = { current: 90 }
@@ -188,20 +232,20 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
     applyCamera()
 
     // ── Lights ─────────────────────────────────────────────────────
-    const ambient = new THREE.AmbientLight(0xffffff, 0.55)
+    const ambient = new AmbientLight(0xffffff, 0.55)
     scene.add(ambient)
-    const hemi = new THREE.HemisphereLight(0xfff0d6, 0x1a0e2a, 0.45)
+    const hemi = new HemisphereLight(0xfff0d6, 0x1a0e2a, 0.45)
     scene.add(hemi)
-    const key = new THREE.DirectionalLight(0xfff4e6, 1.1)
+    const key = new DirectionalLight(0xfff4e6, 1.1)
     key.position.set(20, 30, 14)
     scene.add(key)
-    const rim = new THREE.DirectionalLight(0xa3c5ff, 0.65)
+    const rim = new DirectionalLight(0xa3c5ff, 0.65)
     rim.position.set(-18, 12, -16)
     scene.add(rim)
 
     // ── Starfield background ──────────────────────────────────────
     const starCount = reducedMotion ? 280 : 800
-    const starGeom = new THREE.BufferGeometry()
+    const starGeom = new BufferGeometry()
     const starPositions = new Float32Array(starCount * 3)
     for (let i = 0; i < starCount; i++) {
       const r = 90 + Math.random() * 60
@@ -211,8 +255,8 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
       starPositions[i * 3 + 1] = r * Math.abs(Math.cos(phi)) * 0.6 + 8
       starPositions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta)
     }
-    starGeom.setAttribute("position", new THREE.BufferAttribute(starPositions, 3))
-    const starMat = new THREE.PointsMaterial({
+    starGeom.setAttribute("position", new BufferAttribute(starPositions, 3))
+    const starMat = new PointsMaterial({
       color: 0xfff5e0,
       size: 0.7,
       transparent: true,
@@ -220,33 +264,33 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
       sizeAttenuation: true,
       depthWrite: false,
     })
-    const stars = new THREE.Points(starGeom, starMat)
+    const stars = new Points(starGeom, starMat)
     scene.add(stars)
 
     // ── Ground plane + priority rings ─────────────────────────────
-    const groundGeom = new THREE.CircleGeometry(60, 64)
-    const groundMat = new THREE.MeshBasicMaterial({ color: 0xffd9c2, transparent: true, opacity: 0.04, depthWrite: false })
-    const ground = new THREE.Mesh(groundGeom, groundMat)
+    const groundGeom = new CircleGeometry(60, 64)
+    const groundMat = new MeshBasicMaterial({ color: 0xffd9c2, transparent: true, opacity: 0.04, depthWrite: false })
+    const ground = new Mesh(groundGeom, groundMat)
     ground.rotation.x = -Math.PI / 2
     ground.position.y = -0.6
     scene.add(ground)
 
-    const ringMeshes: THREE.Mesh[] = []
+    const ringMeshes: Mesh[] = []
     const ringDefs: { radius: number; color: number; opacity: number }[] = [
       { radius: RADIUS_BY_PRIORITY.scheduled, color: 0xff4d6d, opacity: 0.4 },
       { radius: RADIUS_BY_PRIORITY.core, color: 0xfb923c, opacity: 0.28 },
       { radius: RADIUS_BY_PRIORITY.supplemental, color: 0xa3a3a3, opacity: 0.18 },
     ]
     for (const def of ringDefs) {
-      const g = new THREE.RingGeometry(def.radius - 0.18, def.radius + 0.18, 96)
-      const m = new THREE.MeshBasicMaterial({
+      const g = new RingGeometry(def.radius - 0.18, def.radius + 0.18, 96)
+      const m = new MeshBasicMaterial({
         color: def.color,
         transparent: true,
         opacity: def.opacity,
-        side: THREE.DoubleSide,
+        side: DoubleSide,
         depthWrite: false,
       })
-      const ring = new THREE.Mesh(g, m)
+      const ring = new Mesh(g, m)
       ring.rotation.x = -Math.PI / 2
       ring.position.y = -0.55
       scene.add(ring)
@@ -254,10 +298,10 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
     }
 
     // ── Center YOU node ───────────────────────────────────────────
-    const youGroup = new THREE.Group()
-    const youCore = new THREE.Mesh(
-      new THREE.SphereGeometry(1.25, 36, 36),
-      new THREE.MeshStandardMaterial({
+    const youGroup = new Group()
+    const youCore = new Mesh(
+      new SphereGeometry(1.25, 36, 36),
+      new MeshStandardMaterial({
         color: 0xff4d6d,
         emissive: 0xff4d6d,
         emissiveIntensity: 0.7,
@@ -266,21 +310,21 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
       }),
     )
     youGroup.add(youCore)
-    const youGlow = new THREE.Mesh(
-      new THREE.SphereGeometry(2.2, 32, 32),
-      new THREE.MeshBasicMaterial({ color: 0xff4d6d, transparent: true, opacity: 0.22, depthWrite: false }),
+    const youGlow = new Mesh(
+      new SphereGeometry(2.2, 32, 32),
+      new MeshBasicMaterial({ color: 0xff4d6d, transparent: true, opacity: 0.22, depthWrite: false }),
     )
     youGroup.add(youGlow)
-    const youRing = new THREE.Mesh(
-      new THREE.RingGeometry(2.4, 2.7, 96),
-      new THREE.MeshBasicMaterial({ color: 0xff4d6d, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }),
+    const youRing = new Mesh(
+      new RingGeometry(2.4, 2.7, 96),
+      new MeshBasicMaterial({ color: 0xff4d6d, transparent: true, opacity: 0.55, side: DoubleSide, depthWrite: false }),
     )
     youRing.rotation.x = -Math.PI / 2
     youRing.position.y = -0.55
     youGroup.add(youRing)
-    const youRing2 = new THREE.Mesh(
-      new THREE.RingGeometry(3.6, 3.85, 96),
-      new THREE.MeshBasicMaterial({ color: 0xff4d6d, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false }),
+    const youRing2 = new Mesh(
+      new RingGeometry(3.6, 3.85, 96),
+      new MeshBasicMaterial({ color: 0xff4d6d, transparent: true, opacity: 0.3, side: DoubleSide, depthWrite: false }),
     )
     youRing2.rotation.x = -Math.PI / 2
     youRing2.position.y = -0.55
@@ -289,7 +333,7 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
     scene.add(youGroup)
 
     // Texture loader (shared)
-    const textureLoader = new THREE.TextureLoader()
+    const textureLoader = new TextureLoader()
     textureLoader.setCrossOrigin("anonymous")
 
     // ── Bubble nodes (glass orbs with refracted image plane inside) ─
@@ -311,13 +355,13 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
         const by = Y_BY_PRIORITY[priority]
         const bubbleRadius = BUBBLE_RADIUS_BY_PRIORITY[priority]
 
-        const color = new THREE.Color(place.color)
+        const color = new Color(place.color)
 
         // ── Inner image billboard plane (rendered first so it's behind glass) ──
         const placeholderTex = makePlaceholderTexture(place.color, place.icon)
-        const innerBillboard = new THREE.Mesh(
-          new THREE.CircleGeometry(bubbleRadius * 0.78, 32),
-          new THREE.MeshBasicMaterial({
+        const innerBillboard = new Mesh(
+          new CircleGeometry(bubbleRadius * 0.78, 32),
+          new MeshBasicMaterial({
             map: placeholderTex,
             transparent: true,
             depthWrite: false,
@@ -335,9 +379,9 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
             textureLoader.load(
               url,
               (tex) => {
-                tex.colorSpace = THREE.SRGBColorSpace
-                ;(innerBillboard.material as THREE.MeshBasicMaterial).map = tex
-                ;(innerBillboard.material as THREE.MeshBasicMaterial).needsUpdate = true
+                tex.colorSpace = SRGBColorSpace
+                ;(innerBillboard.material as MeshBasicMaterial).map = tex
+                ;(innerBillboard.material as MeshBasicMaterial).needsUpdate = true
               },
               undefined,
               () => {
@@ -347,7 +391,7 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
           })
 
         // ── Outer glass orb ───────────────────────────────────────
-        const outerMat = new THREE.MeshPhysicalMaterial({
+        const outerMat = new MeshPhysicalMaterial({
           color,
           transmission: 0.7,
           thickness: 0.6,
@@ -364,10 +408,10 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
           opacity: 0.92,
           emissive: color,
           emissiveIntensity: priority === "scheduled" ? 0.18 : 0.1,
-          side: THREE.DoubleSide,
+          side: DoubleSide,
           depthWrite: false,
         })
-        const outer = new THREE.Mesh(new THREE.SphereGeometry(bubbleRadius, 48, 48), outerMat)
+        const outer = new Mesh(new SphereGeometry(bubbleRadius, 48, 48), outerMat)
         outer.position.set(bx, by, bz)
         outer.userData.placeId = place.id
         outer.userData.priority = priority
@@ -375,30 +419,30 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
         scene.add(outer)
 
         // ── Fresnel rim — a backside shell with emissive that lights up on edges
-        const rimMat = new THREE.MeshBasicMaterial({
+        const rimMat = new MeshBasicMaterial({
           color,
           transparent: true,
           opacity: 0.28,
-          side: THREE.BackSide,
+          side: BackSide,
           depthWrite: false,
-          blending: THREE.AdditiveBlending,
+          blending: AdditiveBlending,
         })
-        const rim = new THREE.Mesh(new THREE.SphereGeometry(bubbleRadius * 1.12, 32, 32), rimMat)
+        const rim = new Mesh(new SphereGeometry(bubbleRadius * 1.12, 32, 32), rimMat)
         rim.position.set(bx, by, bz)
         rim.scale.setScalar(0.001)
         scene.add(rim)
 
         // ── Connecting line ────────────────────────────────────────
-        const lineGeom = new THREE.BufferGeometry().setFromPoints([
-          new THREE.Vector3(0, 0.6, 0),
-          new THREE.Vector3(bx, by, bz),
+        const lineGeom = new BufferGeometry().setFromPoints([
+          new Vector3(0, 0.6, 0),
+          new Vector3(bx, by, bz),
         ])
-        const lineMat = new THREE.LineBasicMaterial({
+        const lineMat = new LineBasicMaterial({
           color: priority === "scheduled" ? 0xff4d6d : priority === "core" ? 0xfb923c : 0x888888,
           transparent: true,
           opacity: priority === "scheduled" ? 0.55 : priority === "core" ? 0.35 : 0.18,
         })
-        const line = new THREE.Line(lineGeom, lineMat)
+        const line = new Line(lineGeom, lineMat)
         scene.add(line)
 
         // ── HTML label overlay (flicker-free) ─────────────────────
@@ -430,7 +474,7 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
           innerBillboard,
           rim,
           line,
-          basePos: new THREE.Vector3(bx, by, bz),
+          basePos: new Vector3(bx, by, bz),
           bobOffset: Math.random() * Math.PI * 2,
           bobAmplitude: priority === "scheduled" ? 0.4 : 0.28,
           label,
@@ -456,8 +500,8 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
     overlay.appendChild(youLabel)
 
     // ── Raycaster + input ─────────────────────────────────────────
-    const raycaster = new THREE.Raycaster()
-    const pointer = new THREE.Vector2()
+    const raycaster = new Raycaster()
+    const pointer = new Vector2()
     let hovered: BubbleNode | null = null
     let pointerDownAt = 0
     let pointerDownPos = { x: 0, y: 0 }
@@ -582,11 +626,11 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
     renderer.domElement.addEventListener("touchmove", onTouchMove, { passive: true })
 
     // ── Animation loop ─────────────────────────────────────────────
-    const clock = new THREE.Clock()
+    const clock = new Clock()
     let running = true
     const sceneStart = performance.now()
 
-    function projectToScreen(v: THREE.Vector3): { x: number; y: number; visible: boolean } {
+    function projectToScreen(v: Vector3): { x: number; y: number; visible: boolean } {
       const p = v.clone().project(camera)
       const rect = renderer.domElement.getBoundingClientRect()
       return {
@@ -618,13 +662,13 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
       const pulse = 1 + Math.sin(t * 2.4) * 0.06
       youCore.scale.setScalar(reducedMotion ? 1 : pulse)
       youGlow.scale.setScalar(reducedMotion ? 1.0 : 1 + Math.sin(t * 1.6) * 0.12)
-      ;(youRing.material as THREE.MeshBasicMaterial).opacity = reducedMotion ? 0.55 : 0.45 + Math.sin(t * 1.8) * 0.15
+      ;(youRing.material as MeshBasicMaterial).opacity = reducedMotion ? 0.55 : 0.45 + Math.sin(t * 1.8) * 0.15
       youRing.scale.setScalar(reducedMotion ? 1 : 1 + Math.sin(t * 1.4) * 0.08)
-      ;(youRing2.material as THREE.MeshBasicMaterial).opacity = reducedMotion ? 0.3 : 0.2 + Math.sin(t * 1.1 + 1) * 0.12
+      ;(youRing2.material as MeshBasicMaterial).opacity = reducedMotion ? 0.3 : 0.2 + Math.sin(t * 1.1 + 1) * 0.12
       youRing2.scale.setScalar(reducedMotion ? 1 : 1 + Math.sin(t * 0.9 + 1) * 0.1)
 
       ringMeshes.forEach((ring, i) => {
-        const mat = ring.material as THREE.MeshBasicMaterial
+        const mat = ring.material as MeshBasicMaterial
         const base = ringDefs[i].opacity
         mat.opacity = reducedMotion ? base : base + Math.sin(t * 0.8 + i) * 0.05
       })
@@ -653,7 +697,7 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
 
         // Selection emphasis (only effect outer + rim — leave billboard scale alone)
         const isSelected = selectedIdRef.current === node.place.id
-        const rimMat = node.rim.material as THREE.MeshBasicMaterial
+        const rimMat = node.rim.material as MeshBasicMaterial
         if (isSelected) {
           const sel = 1 + Math.sin(t * 4) * 0.08
           node.outer.scale.setScalar(Math.max(node.outer.scale.x, 1.2 * sel))
@@ -666,7 +710,7 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
         }
 
         // Update line endpoint
-        const positions = node.line.geometry.attributes.position as THREE.BufferAttribute
+        const positions = node.line.geometry.attributes.position as BufferAttribute
         positions.setXYZ(1, node.outer.position.x, node.outer.position.y, node.outer.position.z)
         positions.needsUpdate = true
 
@@ -713,31 +757,31 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
       renderer.domElement.removeEventListener("touchmove", onTouchMove)
       for (const node of nodes) {
         node.outer.geometry.dispose()
-        ;(node.outer.material as THREE.Material).dispose()
+        ;(node.outer.material as Material).dispose()
         node.innerBillboard.geometry.dispose()
-        const im = node.innerBillboard.material as THREE.MeshBasicMaterial
+        const im = node.innerBillboard.material as MeshBasicMaterial
         if (im.map) im.map.dispose()
         im.dispose()
         node.rim.geometry.dispose()
-        ;(node.rim.material as THREE.Material).dispose()
+        ;(node.rim.material as Material).dispose()
         node.line.geometry.dispose()
-        ;(node.line.material as THREE.Material).dispose()
+        ;(node.line.material as Material).dispose()
         node.label.remove()
-        const placeholder = node.innerBillboard.userData.placeholderTex as THREE.CanvasTexture | undefined
+        const placeholder = node.innerBillboard.userData.placeholderTex as CanvasTexture | undefined
         placeholder?.dispose()
       }
       youLabel.remove()
       youCore.geometry.dispose()
-      ;(youCore.material as THREE.Material).dispose()
+      ;(youCore.material as Material).dispose()
       youGlow.geometry.dispose()
-      ;(youGlow.material as THREE.Material).dispose()
+      ;(youGlow.material as Material).dispose()
       youRing.geometry.dispose()
-      ;(youRing.material as THREE.Material).dispose()
+      ;(youRing.material as Material).dispose()
       youRing2.geometry.dispose()
-      ;(youRing2.material as THREE.Material).dispose()
+      ;(youRing2.material as Material).dispose()
       ringMeshes.forEach((r) => {
         r.geometry.dispose()
-        ;(r.material as THREE.Material).dispose()
+        ;(r.material as Material).dispose()
       })
       starGeom.dispose()
       starMat.dispose()

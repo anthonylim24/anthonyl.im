@@ -10,40 +10,32 @@ export default defineConfig({
     },
   },
   build: {
+    // Three.js is ~600 kB on its own and is the dominant cost of the
+    // /korea Map Mode chunk. The chunk is already lazy-loaded (only
+    // downloaded when a user opens Map Mode), and we split it into its
+    // own chunk so it can be cached independently of our Map Mode glue
+    // code. We lift the warning ceiling to 650 kB to silence the noise
+    // for that one intentionally-large vendor chunk.
+    chunkSizeWarningLimit: 650,
     rollupOptions: {
       output: {
-        manualChunks(id) {
-          if (id.includes('/node_modules/react/') || id.includes('/node_modules/react-dom/') || id.includes('/node_modules/scheduler/')) {
-            return 'react-vendor';
-          }
-          if (id.includes('@supabase/')) {
-            return 'supabase';
-          }
-          if (id.includes('react-router')) {
-            return 'router';
-          }
-          if (id.includes('@radix-ui/')) {
-            return 'radix';
-          }
-          if (id.includes('zustand')) {
-            return 'state';
-          }
-          if (id.includes('lucide-react')) {
-            return 'icons';
-          }
-          // Three.js is heavy and only used by /korea Map Mode. Splitting it
-          // into its own chunk keeps the rest of the app's bundles tight and
-          // lets the Map Mode lazy-import pull just the renderer.
-          if (id.includes('/node_modules/three/')) {
-            return 'three';
-          }
-          // Korea route's static data + components — keep them together so
-          // browsing /korea is one cohesive chunk download instead of many
-          // tiny waterfall requests.
-          if (id.includes('/pages/Korea/MapMode')) {
-            return 'korea-map';
-          }
-        }
+        // Rolldown's advancedChunks is the modern replacement for
+        // manualChunks. Groups force a split even when a chunk has a
+        // single importer (rolldown otherwise merges single-importer
+        // chunks back into their parent). Higher priority wins when
+        // multiple groups match the same module.
+        advancedChunks: {
+          groups: [
+            { name: 'three', test: /[\\/]node_modules[\\/]three[\\/]/, priority: 100 },
+            { name: 'react-vendor', test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/, priority: 90 },
+            { name: 'supabase', test: /[\\/]node_modules[\\/]@supabase[\\/]/, priority: 80 },
+            { name: 'router', test: /[\\/]node_modules[\\/]react-router/, priority: 70 },
+            { name: 'radix', test: /[\\/]node_modules[\\/]@radix-ui[\\/]/, priority: 60 },
+            { name: 'state', test: /[\\/]node_modules[\\/]zustand[\\/]/, priority: 50 },
+            { name: 'icons', test: /[\\/]node_modules[\\/]lucide-react[\\/]/, priority: 40 },
+            { name: 'korea-map', test: /[\\/]pages[\\/]Korea[\\/]MapMode/, priority: 30 },
+          ],
+        },
       }
     }
   },
