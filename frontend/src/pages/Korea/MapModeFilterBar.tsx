@@ -35,7 +35,7 @@ export function MapModeFilterBar({ places, enabledCategories, onToggle, onReset 
   const allEnabled = enabledCategories.size === 0 || enabledCategories.size === cats.length
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex justify-center px-3 pt-3">
+    <div className="pointer-events-none absolute inset-x-0 top-[60px] z-20 flex justify-center px-3 pt-3">
       <motion.nav
         initial={{ opacity: 0, y: -6 }}
         animate={{ opacity: 1, y: 0 }}
