@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, useRef } from "react"
 import { motion, AnimatePresence, useReducedMotion } from "motion/react"
-import { X, MapPin, Navigation, FlaskConical, Loader2, Crosshair } from "lucide-react"
-import { useRef } from "react"
+import { X, MapPin, Navigation, FlaskConical, Loader2, Crosshair, Globe2, List as ListIcon } from "lucide-react"
 import { MapModeScene, isWebglSupported } from "./MapModeScene"
 import { MapModeFallbackList } from "./MapModeFallbackList"
 import { MapModeFilterBar } from "./MapModeFilterBar"
@@ -29,7 +28,10 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
   const [selected, setSelected] = useState<RankedPlace | null>(null)
   const [webglFailed, setWebglFailed] = useState<boolean>(() => !isWebglSupported())
   const [disabledCategories, setDisabledCategories] = useState<Set<string>>(new Set())
+  const [viewMode, setViewMode] = useState<"orb" | "list">("orb")
   const sceneContainerRef = useRef<HTMLDivElement>(null)
+  const showOrbs = viewMode === "orb" && !webglFailed
+  const showList = viewMode === "list" || webglFailed
 
   function resetView() {
     sceneContainerRef.current?.firstElementChild?.dispatchEvent(
@@ -217,6 +219,41 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
           <span className="hidden sm:inline">Locate</span>
         </button>
 
+        {!webglFailed && (
+          <div className="inline-flex shrink-0 overflow-hidden rounded-full border border-stone-300 bg-white text-xs font-medium dark:border-stone-700 dark:bg-stone-900">
+            <button
+              type="button"
+              onClick={() => setViewMode("orb")}
+              aria-pressed={viewMode === "orb"}
+              title="3D bubble view"
+              className={
+                "inline-flex items-center gap-1 px-2.5 py-1.5 transition " +
+                (viewMode === "orb"
+                  ? "bg-rose-600 text-white"
+                  : "text-stone-700 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800")
+              }
+            >
+              <Globe2 className="h-3.5 w-3.5" aria-hidden />
+              <span className="hidden sm:inline">3D</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("list")}
+              aria-pressed={viewMode === "list"}
+              title="List view"
+              className={
+                "inline-flex items-center gap-1 px-2.5 py-1.5 transition " +
+                (viewMode === "list"
+                  ? "bg-rose-600 text-white"
+                  : "text-stone-700 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800")
+              }
+            >
+              <ListIcon className="h-3.5 w-3.5" aria-hidden />
+              <span className="hidden sm:inline">List</span>
+            </button>
+          </div>
+        )}
+
         <label
           className={
             "inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-medium transition " +
@@ -247,26 +284,30 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
           </div>
         )}
 
-        {state.status === "success" && !webglFailed && (
+        {state.status === "success" && (
           <>
-            <div ref={sceneContainerRef} className="absolute inset-0">
-              <MapModeScene
-                places={filteredPlaces}
-                onSelect={setSelected}
-                selectedId={selected?.id ?? null}
-                reducedMotion={reduce ?? undefined}
-                onWebglError={() => setWebglFailed(true)}
-              />
-            </div>
-            <button
-              type="button"
-              onClick={resetView}
-              title="Reset camera view"
-              aria-label="Reset camera view"
-              className="absolute right-3 top-16 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-stone-700 shadow-md backdrop-blur transition hover:bg-white hover:text-rose-700 dark:bg-stone-900/85 dark:text-stone-300 dark:hover:bg-stone-900 dark:hover:text-rose-200"
-            >
-              <Crosshair className="h-4 w-4" />
-            </button>
+            {showOrbs && (
+              <>
+                <div ref={sceneContainerRef} className="absolute inset-0">
+                  <MapModeScene
+                    places={filteredPlaces}
+                    onSelect={setSelected}
+                    selectedId={selected?.id ?? null}
+                    reducedMotion={reduce ?? undefined}
+                    onWebglError={() => setWebglFailed(true)}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={resetView}
+                  title="Reset camera view"
+                  aria-label="Reset camera view"
+                  className="absolute right-3 top-16 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-stone-700 shadow-md backdrop-blur transition hover:bg-white hover:text-rose-700 dark:bg-stone-900/85 dark:text-stone-300 dark:hover:bg-stone-900 dark:hover:text-rose-200"
+                >
+                  <Crosshair className="h-4 w-4" />
+                </button>
+              </>
+            )}
             <MapModeFilterBar
               places={state.data.places}
               enabledCategories={
@@ -281,7 +322,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
               onToggle={toggleCategory}
               onReset={resetCategories}
             />
-            {filteredPlaces.length === 0 && (
+            {showOrbs && filteredPlaces.length === 0 && (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                 <div className="rounded-2xl bg-white/90 px-4 py-3 text-center text-sm text-stone-700 shadow-md backdrop-blur dark:bg-stone-900/90 dark:text-stone-300">
                   No places match these filters.
@@ -295,41 +336,25 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
                 </div>
               </div>
             )}
-          </>
-        )}
-        {state.status === "success" && webglFailed && (
-          <>
-            <MapModeFilterBar
-              places={state.data.places}
-              enabledCategories={
-                disabledCategories.size === 0
-                  ? new Set()
-                  : new Set(
-                      Array.from(new Set(state.data.places.map((p) => p.category))).filter(
-                        (c) => !disabledCategories.has(c),
-                      ),
-                    )
-              }
-              onToggle={toggleCategory}
-              onReset={resetCategories}
-            />
-            <div className="absolute inset-0 overflow-y-auto pt-16">
-              <MapModeFallbackList places={filteredPlaces} onSelect={setSelected} />
-            </div>
+            {showList && (
+              <div className="absolute inset-0 overflow-y-auto pt-16">
+                <MapModeFallbackList places={filteredPlaces} onSelect={setSelected} />
+              </div>
+            )}
           </>
         )}
 
-        {/* Legend */}
-        <div className="pointer-events-none absolute bottom-3 left-3 z-10 flex flex-col gap-1.5 rounded-2xl bg-white/85 px-3 py-2 text-[10px] font-medium text-stone-700 shadow-md backdrop-blur dark:bg-stone-900/85 dark:text-stone-300">
-          <Dot color="#ff4d6d" label="Scheduled · in your plan" />
-          <Dot color="#fb923c" label="Core · on today's itinerary" />
-          <Dot color="#a3a3a3" label="Supplemental · nearby extras" />
-          {!webglFailed && (
+        {/* Legend — only in orb view; list view doesn't need 3D hints */}
+        {showOrbs && (
+          <div className="pointer-events-none absolute bottom-3 left-3 z-10 flex flex-col gap-1.5 rounded-2xl bg-white/85 px-3 py-2 text-[10px] font-medium text-stone-700 shadow-md backdrop-blur dark:bg-stone-900/85 dark:text-stone-300">
+            <Dot color="#ff4d6d" label="Scheduled · in your plan" />
+            <Dot color="#fb923c" label="Core · on today's itinerary" />
+            <Dot color="#a3a3a3" label="Supplemental · nearby extras" />
             <div className="mt-1 border-t border-stone-200 pt-1 text-[9px] text-stone-500 dark:border-stone-800 dark:text-stone-500">
               Drag to rotate · pinch to zoom · tap a bubble
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Location pill */}
         {location && (

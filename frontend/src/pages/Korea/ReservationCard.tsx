@@ -1,10 +1,10 @@
 import { motion, useReducedMotion } from "motion/react"
-import { MapPin, Phone, ExternalLink, CalendarPlus } from "lucide-react"
+import { MapPin, Phone, ExternalLink } from "lucide-react"
 import type { Reservation } from "./types"
 import { statusMeta, typeMeta, formatDate } from "./koreaTheme"
 import { mapsSearchUrl, tokenize } from "./linkify"
 import { LinkifiedText } from "./LinkifiedText"
-import { buildIcs, downloadIcs, slugify } from "./koreaUtils"
+import { Time } from "./Time"
 
 interface ReservationCardProps {
   reservation: Reservation
@@ -48,11 +48,6 @@ export function ReservationCard({ reservation, index = 0, compact = false }: Res
   const contactHref = reservation.contact ? urlForContact(reservation.contact) : null
   const contactKind = reservation.contact ? detectContactKind(reservation.contact) : "other"
 
-  function exportIcs() {
-    const ics = buildIcs([reservation], reservation.title)
-    downloadIcs(`korea-${slugify(reservation.title)}.ics`, ics)
-  }
-
   // Has any address or content that the linkifier might surface
   const subtitleHasLinks = reservation.subtitle ? tokenize(reservation.subtitle).some((s) => s.kind === "link") : false
   void subtitleHasLinks // currently unused; reserved for future "smart" badge
@@ -91,7 +86,12 @@ export function ReservationCard({ reservation, index = 0, compact = false }: Res
           {(reservation.time || reservation.date) && (
             <p className="mt-1 font-mono text-xs text-stone-500 dark:text-stone-400">
               {formatDate(reservation.date)}
-              {reservation.time ? ` · ${reservation.time}` : ""}
+              {reservation.time ? (
+                <>
+                  {" · "}
+                  <Time value={reservation.time} />
+                </>
+              ) : null}
             </p>
           )}
           {reservation.subtitle && !compact && (
@@ -137,14 +137,6 @@ export function ReservationCard({ reservation, index = 0, compact = false }: Res
                   )}
                 </a>
               )}
-              <button
-                type="button"
-                onClick={exportIcs}
-                title="Add to calendar (.ics)"
-                className="inline-flex items-center gap-1 rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
-              >
-                <CalendarPlus className="h-3 w-3" aria-hidden /> .ics
-              </button>
             </div>
           )}
 

@@ -1,6 +1,6 @@
 import { useOutletContext } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
-import { CalendarPlus, Sparkles } from "lucide-react"
+import { Sparkles } from "lucide-react"
 import type { LoadState } from "./useKoreaData"
 import type { Snapshot } from "./types"
 import { TripHero } from "./TripHero"
@@ -10,7 +10,7 @@ import { StatusPanel } from "./StatusPanel"
 import { UpNextCard } from "./UpNextCard"
 import { TodayBanner } from "./TodayBanner"
 import { LinkifiedText } from "./LinkifiedText"
-import { buildIcs, downloadIcs, todayDay } from "./koreaUtils"
+import { todayDay } from "./koreaUtils"
 import { mapsSearchUrl } from "./linkify"
 
 export function KoreaIndex() {
@@ -22,11 +22,6 @@ export function KoreaIndex() {
   const snap = state.data
   const today = todayDay(snap.days)
   const reservationsByDay = (n: number) => snap.reservations.filter((r) => r.dayNumber === n).length
-
-  function exportFullTrip() {
-    const ics = buildIcs(snap.reservations, "South Korea Trip")
-    downloadIcs("korea-trip.ics", ics)
-  }
 
   return (
     <>
@@ -54,17 +49,7 @@ export function KoreaIndex() {
       </section>
 
       <section id="reservations" className="mx-auto mt-16 max-w-6xl px-4 sm:px-6">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <SectionHeading title="📌 Reservations" subtitle="Every time-fixed booking, sorted chronologically" />
-          <button
-            type="button"
-            onClick={exportFullTrip}
-            className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 bg-white px-3 py-1.5 text-xs font-medium text-stone-700 shadow-sm transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
-          >
-            <CalendarPlus className="h-3.5 w-3.5" aria-hidden />
-            Download .ics
-          </button>
-        </div>
+        <SectionHeading title="📌 Reservations" subtitle="Every time-fixed booking, sorted chronologically" />
         <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {snap.reservations.map((r, i) => (
             <ReservationCard key={r.id} reservation={r} index={i} />
