@@ -151,10 +151,15 @@ const distPath = resolve(import.meta.dir, "../frontend/dist");
 // Serve static assets
 app.use("*", serveStatic({ root: distPath }));
 
-// Serve index.html for all other routes (SPA fallback)
+// Serve index.html for all other routes (SPA fallback). The HTML itself must
+// never be long-cached — it references hashed asset filenames that change on
+// every build, so a stale index.html would point at deleted bundles.
 app.get("*", async (c) => {
   const baseHtml = await Bun.file(join(distPath, "index.html")).text();
   const withMeta = injectPreviewMeta(baseHtml, c.req.path);
+  c.header("Cache-Control", "no-cache, no-store, must-revalidate");
+  c.header("Pragma", "no-cache");
+  c.header("Expires", "0");
   return c.html(withMeta);
 });
 
