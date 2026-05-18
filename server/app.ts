@@ -7,6 +7,7 @@ import { config } from "./src/config";
 import { errorHandler } from "./src/middleware/error";
 import invokeRouter from "./src/routes/invoke";
 import koreaRouter from "./src/routes/korea";
+import entityRouter from "./src/routes/entity";
 import { join, resolve } from "path";
 
 const app = new Hono();
@@ -135,6 +136,7 @@ app.use("/api/invoke/*", async (c, next) => {
 // API Routes
 app.route("/api/invoke", invokeRouter);
 app.route("/api/korea", koreaRouter);
+app.route("/api/entity", entityRouter);
 
 // Health check
 app.get("/health", (c) =>

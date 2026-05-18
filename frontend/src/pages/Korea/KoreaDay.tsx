@@ -8,8 +8,8 @@ import type { Snapshot } from "./types"
 import { ReservationCard } from "./ReservationCard"
 import { calloutTone, cityMeta, formatDate } from "./koreaTheme"
 import { LinkifiedText } from "./LinkifiedText"
-import { mapsSearchUrl } from "./linkify"
 import { slugify, todayKstIso } from "./koreaUtils"
+import { SmartEntity } from "./SmartEntity"
 
 const MapModeOverlay = lazy(() =>
   import("./MapModeOverlay").then((m) => ({ default: m.MapModeOverlay })),
@@ -118,24 +118,10 @@ export function KoreaDay() {
             className="mt-8 grid grid-cols-1 gap-x-10 gap-y-5 border-t border-stone-200/80 pt-6 sm:grid-cols-2 lg:grid-cols-3 dark:border-stone-800/80"
           >
             <DayMetaRow label="City">
-              <a
-                href={mapsSearchUrl(day.city + ", South Korea")}
-                target="_blank"
-                rel="noreferrer"
-                className="hover:text-rose-700 dark:hover:text-rose-300"
-              >
-                {day.city}
-              </a>
+              <SmartEntity name={day.city} type="city" />
             </DayMetaRow>
             <DayMetaRow label="Hotel">
-              <a
-                href={mapsSearchUrl(day.hotel + ", South Korea")}
-                target="_blank"
-                rel="noreferrer"
-                className="hover:text-rose-700 dark:hover:text-rose-300"
-              >
-                {day.hotel}
-              </a>
+              <SmartEntity name={day.hotel} type="hotel" city={day.city} />
             </DayMetaRow>
             {day.weather && (
               <DayMetaRow label="Weather">
@@ -147,7 +133,12 @@ export function KoreaDay() {
             )}
             {day.neighborhoods.length > 0 && (
               <DayMetaRow label="Neighborhoods" wide>
-                {day.neighborhoods.join("  ·  ")}
+                {day.neighborhoods.map((n, i) => (
+                  <span key={n}>
+                    {i > 0 && <span aria-hidden className="mx-1.5 text-stone-400 dark:text-stone-600">·</span>}
+                    <SmartEntity name={n} type="neighborhood" city={day.city} />
+                  </span>
+                ))}
               </DayMetaRow>
             )}
           </motion.dl>
