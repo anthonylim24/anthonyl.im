@@ -15,7 +15,13 @@
 import { CanvasTexture, SRGBColorSpace } from "three"
 
 const TILE_SIZE = 256
-const GRID_SIZE = 3 // 3x3 tile composite so the user is comfortably inside
+// 5×5 tile composite — at the same target span this lets `pickZoom` land
+// on a finer zoom level (roughly half the meters-per-pixel of a 3×3
+// composite), so the map reads sharply when the camera pitches down.
+// 25 tiles × ~50 KB each is well within the network + memory budget for
+// the trip's expected day sizes, and the resulting 1280×1280 RGBA
+// canvas (~6 MB on the GPU) sits comfortably on mobile.
+const GRID_SIZE = 5
 const EARTH_CIRCUMFERENCE_M = 40075016.7
 const TILE_URL = (z: number, x: number, y: number) =>
   `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`
