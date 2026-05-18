@@ -5,7 +5,9 @@ import { MapModeScene, isWebglSupported } from "./MapModeScene"
 import { MapModeFallbackList } from "./MapModeFallbackList"
 import { MapModeFilterBar } from "./MapModeFilterBar"
 import { PlaceDetailSheet } from "./PlaceDetailSheet"
-import type { PlacesResponse, RankedPlace, UserLocation } from "./mapModeTypes"
+import type { PlacePriority, PlacesResponse, RankedPlace, UserLocation } from "./mapModeTypes"
+
+const ALL_PRIORITIES: ReadonlyArray<PlacePriority> = ["scheduled", "core", "supplemental"]
 
 interface MapModeOverlayProps {
   daySlug: string
@@ -28,6 +30,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
   const [selected, setSelected] = useState<RankedPlace | null>(null)
   const [webglFailed, setWebglFailed] = useState<boolean>(() => !isWebglSupported())
   const [disabledCategories, setDisabledCategories] = useState<Set<string>>(new Set())
+  const [disabledPriorities, setDisabledPriorities] = useState<Set<PlacePriority>>(new Set())
   const [viewMode, setViewMode] = useState<"orb" | "list">("orb")
   const sceneContainerRef = useRef<HTMLDivElement>(null)
   const showOrbs = viewMode === "orb" && !webglFailed
@@ -128,9 +131,11 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
 
   const filteredPlaces = useMemo(() => {
     if (state.status !== "success") return []
-    if (disabledCategories.size === 0) return state.data.places
-    return state.data.places.filter((p) => !disabledCategories.has(p.category))
-  }, [state, disabledCategories])
+    if (disabledCategories.size === 0 && disabledPriorities.size === 0) return state.data.places
+    return state.data.places.filter(
+      (p) => !disabledCategories.has(p.category) && !disabledPriorities.has(p.priority),
+    )
+  }, [state, disabledCategories, disabledPriorities])
 
   const counts = useMemo(() => {
     if (state.status !== "success") return { scheduled: 0, core: 0, supplemental: 0 }
@@ -155,8 +160,22 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
       return next
     })
   }
+  // Solo-select a priority bucket. Same toggle semantics as soloSelect.
+  function soloPriority(priority: PlacePriority) {
+    setDisabledPriorities((prev) => {
+      const enabled =
+        prev.size === 0 ? new Set(ALL_PRIORITIES) : new Set(ALL_PRIORITIES.filter((p) => !prev.has(p)))
+      const isAlreadySolo = enabled.size === 1 && enabled.has(priority)
+      if (isAlreadySolo) return new Set()
+      const next = new Set<PlacePriority>(ALL_PRIORITIES)
+      next.delete(priority)
+      return next
+    })
+  }
+
   function resetCategories() {
     setDisabledCategories(new Set())
+    setDisabledPriorities(new Set())
   }
 
 
@@ -336,7 +355,13 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
                       ),
                     )
               }
+              enabledPriorities={
+                disabledPriorities.size === 0
+                  ? new Set()
+                  : new Set(ALL_PRIORITIES.filter((p) => !disabledPriorities.has(p)))
+              }
               onSoloSelect={soloSelect}
+              onSoloPriority={soloPriority}
               onReset={resetCategories}
             />
             {showOrbs && filteredPlaces.length === 0 && (

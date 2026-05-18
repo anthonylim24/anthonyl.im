@@ -176,6 +176,9 @@ interface BubbleNode {
   // is `clusterBasePos + fanOffset * openness`.
   parentClusterId?: string
   fanOffset?: Vector3
+  // Per-frame cache. Written once during the renderOrder pass and read
+  // back by the label z-index pass to avoid re-computing.
+  distToCamera?: number
 }
 
 function easeOutCubic(t: number): number {
@@ -421,6 +424,33 @@ export function MapModeScene({
     const textureLoader = new TextureLoader()
     textureLoader.setCrossOrigin("anonymous")
 
+    // Photo-fetch concurrency limiter. Without this, 30+ bubbles all
+    // fire their Wikipedia search in parallel on mount, spiking network
+    // and CPU. Four concurrent fetches keeps the queue moving without
+    // overwhelming low-end devices.
+    const PHOTO_CONCURRENCY = 4
+    let activePhotoFetches = 0
+    const photoQueue: { queries: string[]; resolve: (url: string | null) => void }[] = []
+    function pumpPhotoQueue() {
+      while (activePhotoFetches < PHOTO_CONCURRENCY && photoQueue.length > 0) {
+        const job = photoQueue.shift()!
+        activePhotoFetches++
+        void lookupPhoto(job.queries)
+          .then((url) => job.resolve(url))
+          .catch(() => job.resolve(null))
+          .finally(() => {
+            activePhotoFetches--
+            pumpPhotoQueue()
+          })
+      }
+    }
+    function queuePhotoLookup(queries: string[]): Promise<string | null> {
+      return new Promise((resolve) => {
+        photoQueue.push({ queries, resolve })
+        pumpPhotoQueue()
+      })
+    }
+
     // ── Bubble nodes (glass orbs with refracted image plane inside) ─
     //
     // Position rules:
@@ -463,7 +493,9 @@ export function MapModeScene({
     // as a flat printed map.
     const METERS_PER_UNIT = dMin / WORLD_RING_MIN
     const TERRAIN_PLANE_UNITS = WORLD_RING_MAX * 3.0 // diameter in world units
-    const terrainGeom = new PlaneGeometry(TERRAIN_PLANE_UNITS, TERRAIN_PLANE_UNITS, 96, 96)
+    // 64×64 segments gives smooth displacement without exploding vertex
+    // count for a backdrop element (≈4k verts).
+    const terrainGeom = new PlaneGeometry(TERRAIN_PLANE_UNITS, TERRAIN_PLANE_UNITS, 64, 64)
     // Subtle procedural displacement so the terrain reads as 3D when the
     // user pitches the camera. Real DEM data would be ideal but isn't
     // worth the round-trip for a backdrop — sin/cos sums look enough like
@@ -700,11 +732,14 @@ export function MapModeScene({
       // shimmer at the silhouette, not a full-coverage wash.
       const placeholderTex = makePlaceholderTexture(place.color, place.icon)
       const innerBillboard = new Mesh(
-        new CircleGeometry(bubbleRadius * 0.92, 36),
+        new CircleGeometry(bubbleRadius * 0.92, 24),
         new MeshBasicMaterial({
           map: placeholderTex,
           transparent: true,
           depthWrite: false,
+          // Fog dims the photo with distance — for a photo we want
+          // visual fidelity over atmospheric integration.
+          fog: false,
         }),
       )
       innerBillboard.position.set(bx, by, bz)
@@ -726,14 +761,22 @@ export function MapModeScene({
           base,
           place.name,
         ].filter((s, idx, arr) => s && arr.indexOf(s) === idx)
-        void lookupPhoto(photoQueries).then((url) => {
+        void queuePhotoLookup(photoQueries).then((url) => {
           if (!url) return
           textureLoader.load(
             url,
             (tex) => {
               tex.colorSpace = SRGBColorSpace
-              ;(innerBillboard.material as MeshBasicMaterial).map = tex
-              ;(innerBillboard.material as MeshBasicMaterial).needsUpdate = true
+              const mat = innerBillboard.material as MeshBasicMaterial
+              // Free the placeholder texture immediately when the real
+              // photo arrives — keeps GPU memory flat for long sessions.
+              const old = innerBillboard.userData.placeholderTex as CanvasTexture | undefined
+              if (old) {
+                old.dispose()
+                delete innerBillboard.userData.placeholderTex
+              }
+              mat.map = tex
+              mat.needsUpdate = true
             },
             undefined,
             () => {
@@ -770,7 +813,10 @@ export function MapModeScene({
         side: DoubleSide,
         depthWrite: true,
       })
-      const outer = new Mesh(new SphereGeometry(bubbleRadius, 56, 56), outerMat)
+      // Sphere segments tuned for the bubble's screen size — at this scale
+      // 32×32 (~1k verts) is visually indistinguishable from 56×56 and
+      // cuts GPU work by ~3×. With up to ~50 orbs on screen that adds up.
+      const outer = new Mesh(new SphereGeometry(bubbleRadius, 32, 32), outerMat)
       outer.position.set(bx, by, bz)
       outer.userData.placeId = place.id
       outer.userData.priority = priority
@@ -789,7 +835,7 @@ export function MapModeScene({
         depthWrite: false,
         blending: AdditiveBlending,
       })
-      const rim = new Mesh(new SphereGeometry(bubbleRadius * (isCluster ? 1.18 : 1.12), 32, 32), rimMat)
+      const rim = new Mesh(new SphereGeometry(bubbleRadius * (isCluster ? 1.18 : 1.12), 24, 24), rimMat)
       rim.position.set(bx, by, bz)
       rim.scale.setScalar(0.001)
       scene.add(rim)
@@ -1149,13 +1195,18 @@ export function MapModeScene({
     let running = true
     const sceneStart = performance.now()
 
+    // Reused per-frame scratch buffer + cached canvas rect — eliminates
+    // ~3N Vector3 allocs and N getBoundingClientRect calls per frame
+    // (where N is the bubble count). Both matter on long sessions.
+    const tmpVec3 = new Vector3()
+    let cachedRect = renderer.domElement.getBoundingClientRect()
+
     function projectToScreen(v: Vector3): { x: number; y: number; visible: boolean } {
-      const p = v.clone().project(camera)
-      const rect = renderer.domElement.getBoundingClientRect()
+      tmpVec3.copy(v).project(camera)
       return {
-        x: ((p.x + 1) / 2) * rect.width,
-        y: ((-p.y + 1) / 2) * rect.height,
-        visible: p.z > -1 && p.z < 1,
+        x: ((tmpVec3.x + 1) / 2) * cachedRect.width,
+        y: ((-tmpVec3.y + 1) / 2) * cachedRect.height,
+        visible: tmpVec3.z > -1 && tmpVec3.z < 1,
       }
     }
 
@@ -1176,15 +1227,15 @@ export function MapModeScene({
       applyCamera()
 
       // Sort transparent bubble parts by camera distance so closer orbs
-      // occlude farther ones. We use negative distance as renderOrder so
-      // farther meshes get drawn first (smaller renderOrder), then nearer
-      // ones blend on top. Inner billboard and rim get small offsets so
-      // each orb's stack stays consistent (billboard → outer → rim).
+      // occlude farther ones. We compute the distance ONCE and stash it
+      // on the node (reused below for label z-index) — keeps the per-
+      // frame cost linear instead of paying for two passes.
       //
       // When a cluster is exploded, that cluster's MEMBERS get a giant
       // boost so they paint above every other bubble — the user's focus.
       for (const n of nodes) {
         const d = camera.position.distanceTo(n.outer.position)
+        n.distToCamera = d
         const inExpandedCluster =
           expandedClusterId !== null &&
           (n.parentClusterId === expandedClusterId || n.clusterId === expandedClusterId)
@@ -1332,9 +1383,10 @@ export function MapModeScene({
           node.kind === "cluster"
             ? (node.outer.geometry as SphereGeometry).parameters.radius + 1.2
             : BUBBLE_RADIUS_BY_PRIORITY[node.place.priority] + 1.0
-        const worldPos = node.outer.position.clone()
-        worldPos.y += labelOffsetY
-        const { x, y, visible } = projectToScreen(worldPos)
+        // Reuse the scratch vector instead of cloning every frame.
+        tmpVec3.copy(node.outer.position)
+        tmpVec3.y += labelOffsetY
+        const { x, y, visible } = projectToScreen(tmpVec3)
         let labelOpacity = 1
         if (node.kind === "cluster" && node.clusterId) {
           labelOpacity = 1 - (clusterOpenness.get(node.clusterId) ?? 0)
@@ -1348,9 +1400,8 @@ export function MapModeScene({
           node.label.style.visibility = "visible"
           node.label.style.opacity = labelOpacity.toFixed(2)
           // CSS z-index so the closer label paints over farther ones.
-          // Distance from camera → integer z-index inverted (closer ⇒
-          // larger value). Clamp to keep the integer in a sane range.
-          const dToCamera = camera.position.distanceTo(node.outer.position)
+          // Reuse the cached distance computed during the renderOrder pass.
+          const dToCamera = node.distToCamera ?? camera.position.distanceTo(node.outer.position)
           const labelZ = Math.max(1, Math.round(10000 - dToCamera * 50))
           node.label.style.zIndex = String(labelZ)
         } else {
@@ -1374,6 +1425,8 @@ export function MapModeScene({
       camera.aspect = w / h
       camera.updateProjectionMatrix()
       camRadiusTarget.current = cameraTargetRadiusFor(w)
+      // Re-cache the canvas rect — projectToScreen reads it every frame.
+      cachedRect = renderer.domElement.getBoundingClientRect()
     })
     ro.observe(mount)
 
