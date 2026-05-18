@@ -327,7 +327,16 @@ export function MapModeScene({
     const prefersDark =
       typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)")?.matches
     const FOG_COLOR = prefersDark ? 0x1d1426 : 0xfde0c6
-    scene.fog = new Fog(FOG_COLOR, 35, 130)
+    // Fog near/far easing pair. Default near=35/far=130 reads as
+    // atmospheric depth in the survey view; in focus mode we push both
+    // out so the satellite and the YOU→destination line stay clear
+    // edge to edge. Tick lerps the live fog values toward these.
+    const FOG_NEAR_DEFAULT = 35
+    const FOG_FAR_DEFAULT = 130
+    const FOG_NEAR_FOCUS = 120
+    const FOG_FAR_FOCUS = 320
+    scene.fog = new Fog(FOG_COLOR, FOG_NEAR_DEFAULT, FOG_FAR_DEFAULT)
+    const sceneFog = scene.fog as Fog
     const camera = new PerspectiveCamera(38, w / h, 0.1, 400)
 
     // CAMERA: target world origin (where YOU lives, via the CSS overlay) so
@@ -862,29 +871,28 @@ export function MapModeScene({
       }
 
       // ── Outer glass orb. Tuned so the photo inside reads clearly:
-      // - Very high transmission + low roughness lets the image come
-      //   through the front face without color wash.
-      // - Iridescence kept subtle so the fresnel rainbow only fires at
-      //   the silhouette (not across the photo).
-      // - Attenuation distance pushed long so the bubble color tints
-      //   the silhouette but doesn't dye the image at center.
+      // - White base + no attenuation tint so the inner photo isn't
+      //   washed in the category color. The rim still picks up the
+      //   color via the fresnel `rim` mesh below.
+      // - Very high transmission + low roughness for clear glass.
+      // - Low opacity so the front face barely veils the photo at all.
+      // - Iridescence kept subtle so the rainbow only fires at the
+      //   silhouette.
       const outerMat = new MeshPhysicalMaterial({
-        color,
-        transmission: 0.98,
-        thickness: 0.6,
-        roughness: 0.08,
+        color: 0xffffff,
+        transmission: 1.0,
+        thickness: 0.4,
+        roughness: 0.05,
         metalness: 0.0,
-        ior: 1.45,
+        ior: 1.4,
         clearcoat: 1.0,
         clearcoatRoughness: 0.06,
-        iridescence: priority === "scheduled" ? 0.22 : 0.12,
+        iridescence: priority === "scheduled" ? 0.2 : 0.1,
         iridescenceIOR: 1.3,
-        attenuationColor: color,
-        attenuationDistance: 4.0,
+        attenuationColor: 0xffffff,
+        attenuationDistance: 100,
         transparent: true,
-        opacity: 0.6,
-        emissive: color,
-        emissiveIntensity: priority === "scheduled" ? 0.08 : 0.04,
+        opacity: 0.18,
         side: DoubleSide,
         depthWrite: true,
       })
@@ -1497,6 +1505,14 @@ export function MapModeScene({
       // Publish the live yaw to whoever's listening (the React compass).
       if (yawRefProp) yawRefProp.current = camYaw.current
 
+      // Fog ease — pushed out during selection focus so the satellite
+      // and the YOU→destination line stay visible far past the orbit.
+      const fogActive = selectedIdRef.current !== null
+      const fogNearTarget = fogActive ? FOG_NEAR_FOCUS : FOG_NEAR_DEFAULT
+      const fogFarTarget = fogActive ? FOG_FAR_FOCUS : FOG_FAR_DEFAULT
+      sceneFog.near += (fogNearTarget - sceneFog.near) * 0.08
+      sceneFog.far += (fogFarTarget - sceneFog.far) * 0.08
+
       // ── Selection-change handling. Runs once per selection event,
       // not every frame: builds the YOU→destination line + label,
       // animates the camera to frame the segment, and shrinks the
@@ -1786,7 +1802,7 @@ export function MapModeScene({
         // not assign, so the underlying material opacity (which sets the
         // glass look) is preserved when nothing is dimmed.
         const outerMat = node.outer.material as MeshPhysicalMaterial
-        outerMat.opacity = 0.6 * focusDim
+        outerMat.opacity = 0.18 * focusDim
         const billboardMat = node.innerBillboard.material as MeshBasicMaterial
         billboardMat.opacity = focusDim
         const shadowMat = node.shadow.material as MeshBasicMaterial
