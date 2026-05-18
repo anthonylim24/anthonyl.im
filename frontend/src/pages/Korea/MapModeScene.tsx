@@ -465,7 +465,10 @@ export function MapModeScene({
       while (activePhotoFetches < PHOTO_CONCURRENCY && photoQueue.length > 0) {
         const job = photoQueue.shift()!
         activePhotoFetches++
-        void lookupPhoto(job.queries)
+        // Orb billboards render at ~100 px square inside the glass orb.
+        // A 320 px thumbnail is sharp at 2× DPR and keeps each photo
+        // under ~80 KB on the wire.
+        void lookupPhoto(job.queries, { size: 320 })
           .then((url) => job.resolve(url))
           .catch(() => job.resolve(null))
           .finally(() => {

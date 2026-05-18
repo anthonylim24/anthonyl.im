@@ -5,6 +5,7 @@ import { DayTreeNav } from "./DayTreeNav"
 import { useKoreaSnapshot } from "./useKoreaData"
 import { KoreaAuthGate } from "./KoreaAuthGate"
 import { applyTheme, getInitialTheme } from "./koreaUtils"
+import { startImageBudgetMonitor } from "./imageBudget"
 
 export function KoreaLayout() {
   const location = useLocation()
@@ -14,6 +15,13 @@ export function KoreaLayout() {
   // Apply theme as early as possible so dark mode kicks in before paint.
   useEffect(() => {
     applyTheme(getInitialTheme())
+  }, [])
+
+  // Dev-only image budget watchdog. Warns in the console whenever any
+  // <img> resource transfers more than 1 MB — a guard against future
+  // regressions in `placePhoto` size caps. No-op in production builds.
+  useEffect(() => {
+    return startImageBudgetMonitor()
   }, [])
 
   return (

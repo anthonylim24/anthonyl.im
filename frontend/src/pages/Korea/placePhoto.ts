@@ -16,6 +16,19 @@
 //
 // Reference: https://www.mediawiki.org/wiki/API:Pageimages
 
+// Image budget: every photo lookup returns a SIZE-CAPPED thumbnail URL,
+// never the original full-resolution image. The Wikipedia REST/Action API
+// `pithumbsize` parameter caps width server-side, so the bytes we
+// download scale with the requested size — typical results:
+//
+//   - size 320 → 20-60 KB JPEG (orb billboards rendering at ~100 px)
+//   - size 800 → 80-300 KB JPEG (bottom-sheet hero image at ~600 px)
+//
+// Previously this module asked for `original|thumbnail` and preferred
+// `original.source`, which is uncapped — a single Gyeongbokgung photo
+// could come down as 12 MB. Asking only for `thumbnail` removes that
+// foot-gun entirely.
+
 const cache = new Map<string, string | null>()
 const inflight = new Map<string, Promise<string | null>>()
 
@@ -24,19 +37,20 @@ const ENDPOINTS = [
   "https://en.wikipedia.org/w/api.php",
 ]
 
+const DEFAULT_PHOTO_SIZE = 480
+
 interface PageImagesResponse {
   query?: {
     pages?: Record<
       string,
       {
         thumbnail?: { source?: string }
-        original?: { source?: string }
       }
     >
   }
 }
 
-async function searchOne(endpoint: string, query: string): Promise<string | null> {
+async function searchOne(endpoint: string, query: string, size: number): Promise<string | null> {
   const url =
     endpoint +
     "?" +
@@ -47,8 +61,10 @@ async function searchOne(endpoint: string, query: string): Promise<string | null
       generator: "search",
       gsrsearch: query,
       gsrlimit: "1",
-      piprop: "original|thumbnail",
-      pithumbsize: "480",
+      // `thumbnail` only — never `original`. The API caps the thumbnail
+      // at `pithumbsize` pixels wide, so transfer size is predictable.
+      piprop: "thumbnail",
+      pithumbsize: String(size),
       origin: "*",
     }).toString()
 
@@ -59,45 +75,61 @@ async function searchOne(endpoint: string, query: string): Promise<string | null
   if (!pages) return null
   for (const key of Object.keys(pages)) {
     const p = pages[key]
-    const src = p.original?.source ?? p.thumbnail?.source
+    const src = p.thumbnail?.source
     if (src) return src
   }
   return null
 }
 
-async function fetchOne(query: string): Promise<string | null> {
-  const cached = cache.get(query)
+async function fetchOne(query: string, size: number): Promise<string | null> {
+  // Cache key includes size — a 320 px request and an 800 px request for
+  // the same place produce different URLs and we want to keep both.
+  const cacheKey = `${query}@${size}`
+  const cached = cache.get(cacheKey)
   if (cached !== undefined) return cached
-  const existing = inflight.get(query)
+  const existing = inflight.get(cacheKey)
   if (existing) return existing
 
   const promise = (async () => {
     for (const endpoint of ENDPOINTS) {
       try {
-        const url = await searchOne(endpoint, query)
+        const url = await searchOne(endpoint, query, size)
         if (url) {
-          cache.set(query, url)
+          cache.set(cacheKey, url)
           return url
         }
       } catch {
         /* try next endpoint */
       }
     }
-    cache.set(query, null)
+    cache.set(cacheKey, null)
     return null
   })().finally(() => {
-    inflight.delete(query)
+    inflight.delete(cacheKey)
   })
 
-  inflight.set(query, promise)
+  inflight.set(cacheKey, promise)
   return promise
 }
 
+export interface PhotoLookupOptions {
+  /**
+   * Max width in pixels of the returned thumbnail. The Wikipedia API
+   * caps the served image at this width, so transfer size scales
+   * accordingly. Defaults to 480.
+   */
+  size?: number
+}
+
 // Try a series of search terms; return the first photo URL we find.
-export async function lookupPhoto(candidates: string[]): Promise<string | null> {
+export async function lookupPhoto(
+  candidates: string[],
+  options?: PhotoLookupOptions,
+): Promise<string | null> {
+  const size = options?.size ?? DEFAULT_PHOTO_SIZE
   for (const c of candidates) {
     if (!c) continue
-    const url = await fetchOne(c)
+    const url = await fetchOne(c, size)
     if (url) return url
   }
   return null
@@ -130,13 +162,23 @@ export interface GooglePlaceLookupArgs {
   city: string
   lat: number
   lng: number
+  /**
+   * Max width in pixels of the served photo. Google's photo media
+   * endpoint caps the response at this width, so transfer size scales
+   * predictably. Defaults to 800 — sufficient for the bottom-sheet
+   * hero image without dragging multi-MB files over the wire.
+   */
+  maxWidth?: number
 }
+
+const DEFAULT_GOOGLE_MAX_WIDTH = 800
 
 export async function lookupGooglePlacePhoto(args: GooglePlaceLookupArgs): Promise<string | null> {
   const key = import.meta.env.VITE_GOOGLE_PLACES_API_KEY as string | undefined
   if (!key) return null
 
-  const cacheKey = `${args.name}|${args.city}|${args.lat.toFixed(4)},${args.lng.toFixed(4)}`
+  const maxWidth = args.maxWidth ?? DEFAULT_GOOGLE_MAX_WIDTH
+  const cacheKey = `${args.name}|${args.city}|${args.lat.toFixed(4)},${args.lng.toFixed(4)}@${maxWidth}`
   const cached = googleCache.get(cacheKey)
   if (cached !== undefined) return cached
   const existing = googleInflight.get(cacheKey)
@@ -175,7 +217,7 @@ export async function lookupGooglePlacePhoto(args: GooglePlaceLookupArgs): Promi
       // Photo media endpoint redirects to the actual image URL. The
       // browser follows the redirect transparently when this URL is set
       // as <img src=...>, so we can hand the string straight to the UI.
-      return `https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=1200&key=${encodeURIComponent(key)}`
+      return `https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=${maxWidth}&key=${encodeURIComponent(key)}`
     } catch {
       return null
     }

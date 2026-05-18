@@ -73,7 +73,9 @@ function PlaceListRow({ place, onSelect, ringClass }: PlaceListRowProps) {
 
   useEffect(() => {
     let cancelled = false
-    lookupPhoto([place.name.split("(")[0].trim(), place.name])
+    // List rows render the photo at ~64 px square — a 240 px thumbnail
+    // is more than enough for retina without bloating transfer size.
+    lookupPhoto([place.name.split("(")[0].trim(), place.name], { size: 240 })
       .then((url) => {
         if (!cancelled && url) setPhotoUrl(url)
       })
