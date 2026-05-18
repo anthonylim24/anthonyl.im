@@ -51,6 +51,10 @@ interface MapModeSceneProps {
   // bubbles fall back to a synthetic angular layout.
   userLat?: number
   userLng?: number
+  // Optional ref the scene writes the live camera yaw into each tick.
+  // Consumed by <MapModeCompass> in the overlay so the React tree can
+  // rotate the compass without re-rendering on every frame.
+  yawRef?: { current: number }
 }
 
 export function isWebglSupported(): boolean {
@@ -151,16 +155,22 @@ function realWorldXZ(
   }
 }
 
-// Camera distance per viewport. Wider default than before so the supplemental
-// ring breathes and YOU clearly anchors the composition.
+// Camera distance per viewport. Tuned wider than the previous defaults so
+// the trip opens at more of a bird's-eye altitude — the satellite terrain
+// reads first, the bubbles second.
 function cameraTargetRadiusFor(width: number): number {
-  if (width < 360) return 62
-  if (width < 480) return 56
-  if (width < 768) return 49
-  if (width < 1024) return 44
-  if (width < 1440) return 39
-  return 36
+  if (width < 360) return 82
+  if (width < 480) return 75
+  if (width < 768) return 65
+  if (width < 1024) return 58
+  if (width < 1440) return 52
+  return 48
 }
+
+// Default camera pitch (radians from horizon). Bumped from ~0.78 (45° down)
+// to ~1.05 (60° down) for a more top-down survey view. The user can still
+// drag pitch lower for a cinematic angle; this is just the open shot.
+const DEFAULT_PITCH = 1.05
 
 type NodeKind = "place" | "cluster" | "member"
 
@@ -257,6 +267,7 @@ export function MapModeScene({
   onWebglError,
   userLat,
   userLng,
+  yawRef: yawRefProp,
 }: MapModeSceneProps) {
   const mountRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
@@ -326,7 +337,11 @@ export function MapModeScene({
     // only — no auto-rotate — so the scene stays put unless dragged.
     const cameraTarget = new Vector3(0, 0, 0)
     const camYaw = { current: -Math.PI / 6 }
-    const camPitch = { current: 0.78 } // ~45° down — top-down isometric, YOU centered
+    const camPitch = { current: DEFAULT_PITCH }
+    // Optional target for an animated yaw return (used by the compass
+    // "orient north" affordance). Set to a target angle; the tick loop
+    // lerps toward it and clears once reached.
+    const camYawTarget = { current: null as number | null }
     const camRadius = { current: 90 }
     const camRadiusTarget = { current: cameraTargetRadiusFor(w) }
 
@@ -525,7 +540,10 @@ export function MapModeScene({
     // PlaneGeometry so the terrain has subtle relief instead of reading
     // as a flat printed map.
     const METERS_PER_UNIT = dMin / WORLD_RING_MIN
-    const TERRAIN_PLANE_UNITS = WORLD_RING_MAX * 3.0 // diameter in world units
+    // Diameter of the satellite plane in world units. Bumped from 3× to
+    // 4.5× the outer ring so there's terrain visible past every bubble
+    // (no abrupt parchment cut-off near the edge of the view).
+    const TERRAIN_PLANE_UNITS = WORLD_RING_MAX * 4.5
     const TERRAIN_BASE_Y = -3.2
 
     // Shared procedural height function used both for the terrain
@@ -1206,6 +1224,8 @@ export function MapModeScene({
         dragging = true
         dragLastX = e.clientX
         dragLastY = e.clientY
+        // Cancel any in-flight compass orient animation — manual gesture wins.
+        camYawTarget.current = null
       }
     }
 
@@ -1265,9 +1285,25 @@ export function MapModeScene({
     const onResetView = () => {
       camRadiusTarget.current = cameraTargetRadiusFor(mount.clientWidth)
       camYaw.current = -Math.PI / 6
-      camPitch.current = 0.78
+      camPitch.current = DEFAULT_PITCH
+      camYawTarget.current = null
     }
     mount.addEventListener("korea-map-reset", onResetView)
+
+    // Compass "orient north" — animate yaw back to 0 (the convention is
+    // world -Z = north, and camYaw = 0 places that direction at the top
+    // of the screen). The tick loop reads camYawTarget and lerps.
+    const onOrientNorth = () => {
+      // Pick the equivalent angle nearest the current yaw so we don't
+      // spin the long way around.
+      const twoPi = Math.PI * 2
+      const current = camYaw.current
+      let target = 0
+      const delta = ((target - current) % twoPi + twoPi + Math.PI) % twoPi - Math.PI
+      target = current + delta
+      camYawTarget.current = target
+    }
+    mount.addEventListener("korea-map-orient-north", onOrientNorth)
 
     let pinchDist = 0
     const onTouchStart = (e: TouchEvent) => {
@@ -1325,6 +1361,21 @@ export function MapModeScene({
       } else {
         camRadius.current += (camRadiusTarget.current - camRadius.current) * 0.09
       }
+
+      // Yaw ease toward camYawTarget (set by the compass "orient north"
+      // affordance). User drag clears the target via the pointer-down
+      // handler so the manual gesture wins.
+      if (camYawTarget.current !== null) {
+        const target = camYawTarget.current
+        camYaw.current += (target - camYaw.current) * 0.14
+        if (Math.abs(target - camYaw.current) < 1e-3) {
+          camYaw.current = target
+          camYawTarget.current = null
+        }
+      }
+
+      // Publish the live yaw to whoever's listening (the React compass).
+      if (yawRefProp) yawRefProp.current = camYaw.current
 
       // No auto-rotate — the scene stays still so YOU stays centered. The
       // camera orbits around YOU only when the user drags.
@@ -1559,6 +1610,7 @@ export function MapModeScene({
       terrainCancelled = true
       ro.disconnect()
       mount.removeEventListener("korea-map-reset", onResetView)
+      mount.removeEventListener("korea-map-orient-north", onOrientNorth)
       renderer.domElement.removeEventListener("pointermove", onPointerMove)
       renderer.domElement.removeEventListener("pointerdown", onPointerDown)
       renderer.domElement.removeEventListener("pointerup", onPointerUp)

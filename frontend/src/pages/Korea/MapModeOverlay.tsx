@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useRef } from "react"
 import { motion, AnimatePresence, useReducedMotion } from "motion/react"
 import { X, MapPin, Navigation, Bug, Loader2, Crosshair, Globe2, List as ListIcon } from "lucide-react"
 import { MapModeScene, isWebglSupported } from "./MapModeScene"
+import { MapModeCompass } from "./MapModeCompass"
 import { MapModeFallbackList } from "./MapModeFallbackList"
 import { MapModeFilterBar } from "./MapModeFilterBar"
 import { PlaceDetailSheet } from "./PlaceDetailSheet"
@@ -55,13 +56,21 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
   const [disabledPriorities, setDisabledPriorities] = useState<Set<PlacePriority>>(new Set())
   const [viewMode, setViewMode] = useState<"orb" | "list">("orb")
   const sceneContainerRef = useRef<HTMLDivElement>(null)
+  // Live camera yaw, written by the Three.js tick loop, read by the
+  // compass each frame. Ref so the React tree doesn't re-render every
+  // time the user drags.
+  const yawRef = useRef<number>(0)
   const showOrbs = viewMode === "orb" && !webglFailed
   const showList = viewMode === "list" || webglFailed
 
+  function dispatchSceneEvent(name: string) {
+    sceneContainerRef.current?.firstElementChild?.dispatchEvent(new CustomEvent(name))
+  }
   function resetView() {
-    sceneContainerRef.current?.firstElementChild?.dispatchEvent(
-      new CustomEvent("korea-map-reset"),
-    )
+    dispatchSceneEvent("korea-map-reset")
+  }
+  function orientNorth() {
+    dispatchSceneEvent("korea-map-orient-north")
   }
 
   // Geolocation fetch. Honors the two debug toggles: when `mockHotel` is
@@ -444,6 +453,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
                     onWebglError={() => setWebglFailed(true)}
                     userLat={location?.lat}
                     userLng={location?.lng}
+                    yawRef={yawRef}
                   />
                 </div>
                 <button
@@ -455,6 +465,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
                 >
                   <Crosshair className="h-4 w-4" />
                 </button>
+                <MapModeCompass yawRef={yawRef} onOrientNorth={orientNorth} />
               </>
             )}
             <MapModeFilterBar
