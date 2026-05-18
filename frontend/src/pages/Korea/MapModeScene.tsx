@@ -127,6 +127,30 @@ function bearingToSceneAngle(bearing: number): number {
   return Math.PI / 2 - bearing
 }
 
+// Convert a place's real lat/lng to world XZ in the LINEAR (satellite-
+// matching) coordinate system. Bubble world XZ is warped by
+// `radiusForRatio` for readability, but the satellite plane is real-
+// scale — so the bubble's SHADOW lands at this linear XZ even when the
+// bubble itself floats above a different spot. metersPerUnit comes from
+// the bubble scale (dMin / WORLD_RING_MIN) so 1 unit ↔ the same meters
+// everywhere.
+function realWorldXZ(
+  userLat: number,
+  userLng: number,
+  placeLat: number,
+  placeLng: number,
+  metersPerUnit: number,
+): { x: number; z: number } {
+  const METERS_PER_DEG_LAT = 111000
+  const cosUserLat = Math.cos((userLat * Math.PI) / 180)
+  const eastMeters = (placeLng - userLng) * METERS_PER_DEG_LAT * cosUserLat
+  const northMeters = (placeLat - userLat) * METERS_PER_DEG_LAT
+  return {
+    x: eastMeters / metersPerUnit,
+    z: -northMeters / metersPerUnit, // north → -Z in our scene convention
+  }
+}
+
 // Camera distance per viewport. Wider default than before so the supplemental
 // ring breathes and YOU clearly anchors the composition.
 function cameraTargetRadiusFor(width: number): number {
@@ -155,12 +179,18 @@ interface BubbleNode {
   outer: Mesh
   innerBillboard: Mesh
   rim: Mesh
-  // Soft dark disc on the ground plane directly below the orb — sells
-  // the "floating above the ground" feel without resorting to real-time
-  // shadow maps (too costly on mobile).
+  // Dark shadow disc that sits ON the satellite terrain at the place's
+  // REAL lat/lng — not directly under the bubble, because the bubble's
+  // world position is warped by `radiusForRatio` for layout readability.
+  // The shadow is the "pinpoint": it tells the user where the place
+  // actually is on the map.
   shadow: Mesh
-  // The connecting line is omitted for "member" nodes — the cluster's
-  // line is the visible spoke; members orbit around the cluster center.
+  // Thin diagonal tether from bubble down to its shadow so the user can
+  // visually trace the bubble's floating position to its map pinpoint.
+  tether: Line | null
+  // The connecting line from YOU at world origin to the bubble.
+  // Omitted for "member" nodes — the cluster's line is the visible spoke;
+  // members orbit around the cluster center.
   line: Line | null
   basePos: Vector3
   bobOffset: number
@@ -493,23 +523,35 @@ export function MapModeScene({
     // as a flat printed map.
     const METERS_PER_UNIT = dMin / WORLD_RING_MIN
     const TERRAIN_PLANE_UNITS = WORLD_RING_MAX * 3.0 // diameter in world units
+    const TERRAIN_BASE_Y = -3.2
+
+    // Shared procedural height function used both for the terrain
+    // displacement AND for placing bubble shadows at the right Y so they
+    // sit ON the surface of the map (not floating above it). The plane
+    // is rotated -π/2 around X, which maps local (px, py) → world
+    // (px, h, -py), so the height function takes world XZ in and remaps
+    // back to plane-local XY.
+    function terrainHeightAt(worldX: number, worldZ: number): number {
+      const px = worldX
+      const py = -worldZ
+      return (
+        Math.sin(px * 0.08) * Math.cos(py * 0.08) * 0.9 +
+        Math.sin(px * 0.21 + 1.7) * Math.cos(py * 0.17 + 0.4) * 0.45 +
+        Math.sin(px * 0.41 + 2.3) * Math.cos(py * 0.37 - 1.2) * 0.22
+      )
+    }
+
     // 64×64 segments gives smooth displacement without exploding vertex
     // count for a backdrop element (≈4k verts).
     const terrainGeom = new PlaneGeometry(TERRAIN_PLANE_UNITS, TERRAIN_PLANE_UNITS, 64, 64)
-    // Subtle procedural displacement so the terrain reads as 3D when the
-    // user pitches the camera. Real DEM data would be ideal but isn't
-    // worth the round-trip for a backdrop — sin/cos sums look enough like
-    // gentle rolling terrain at this scale.
     {
       const pos = terrainGeom.attributes.position as BufferAttribute
       for (let i = 0; i < pos.count; i++) {
+        // Plane-local (x, y) maps to world (x, h, -y); flip y to pull the
+        // same world XZ that we feed `terrainHeightAt` elsewhere.
         const px = pos.getX(i)
         const py = pos.getY(i)
-        const h =
-          Math.sin(px * 0.08) * Math.cos(py * 0.08) * 0.9 +
-          Math.sin(px * 0.21 + 1.7) * Math.cos(py * 0.17 + 0.4) * 0.45 +
-          Math.sin(px * 0.41 + 2.3) * Math.cos(py * 0.37 - 1.2) * 0.22
-        pos.setZ(i, h)
+        pos.setZ(i, terrainHeightAt(px, -py))
       }
       pos.needsUpdate = true
       terrainGeom.computeVertexNormals()
@@ -525,7 +567,7 @@ export function MapModeScene({
     })
     const terrain = new Mesh(terrainGeom, terrainMat)
     terrain.rotation.x = -Math.PI / 2
-    terrain.position.y = -3.2
+    terrain.position.y = TERRAIN_BASE_Y
     // Renders before everything else (decorative rings, bubbles, etc.).
     terrain.renderOrder = -10000
     scene.add(terrain)
@@ -711,6 +753,11 @@ export function MapModeScene({
       bubbleRadius: number
       x: number
       z: number
+      // Pin position = where the place actually sits on the satellite
+      // terrain (real geographic XZ). Bubble x/z is warped for layout;
+      // pin x/z is the truth. Shadow + tether use the pin.
+      pinX: number
+      pinZ: number
       isCluster: boolean
       isMember: boolean
       clusterMemberCount: number | null
@@ -721,8 +768,9 @@ export function MapModeScene({
       line: Line | null
       label: HTMLDivElement
       shadow: Mesh
+      tether: Line | null
     } {
-      const { place, bubbleRadius, x: bx, z: bz, isCluster, isMember, clusterMemberCount } = opts
+      const { place, bubbleRadius, x: bx, z: bz, pinX, pinZ, isCluster, isMember, clusterMemberCount } = opts
       const by = BUBBLE_Y
       const priority = place.priority
       const color = new Color(place.color)
@@ -893,33 +941,74 @@ export function MapModeScene({
       }
       overlay!.appendChild(label)
 
-      // Ground shadow disc — a soft dark circle on the ground plane.
-      // Lives slightly above the ring meshes so it always paints on top
-      // of them without flickering.
+      // Shadow / pinpoint on the satellite terrain. We compute the
+      // surface Y by sampling the same procedural height function the
+      // terrain geometry uses, then sit the disc fractionally above it
+      // so it doesn't z-fight. The disc itself is colored toward the
+      // bubble's category tint with a dark vignette underneath — reads
+      // as both "shadow cast by floating orb" AND "map pin for the
+      // place's real location".
+      const pinY = TERRAIN_BASE_Y + terrainHeightAt(pinX, pinZ) + 0.06
       const shadowMat = new MeshBasicMaterial({
-        color: 0x000000,
+        color,
         transparent: true,
-        opacity: isCluster ? 0.28 : 0.22,
+        opacity: isCluster ? 0.62 : 0.5,
         depthWrite: false,
+        depthTest: true,
+        fog: false,
       })
-      const shadow = new Mesh(new CircleGeometry(bubbleRadius * 1.05, 32), shadowMat)
+      const shadow = new Mesh(new CircleGeometry(bubbleRadius * 0.85, 28), shadowMat)
       shadow.rotation.x = -Math.PI / 2
-      shadow.position.set(bx, -0.49, bz)
+      shadow.position.set(pinX, pinY, pinZ)
+      // Sort the shadow between the terrain (very negative renderOrder)
+      // and the bubbles (per-frame distance-based renderOrder, near 0).
+      shadow.renderOrder = -500
       shadow.scale.setScalar(0.001)
       scene.add(shadow)
 
-      return { outer, innerBillboard, rim, line, label, shadow }
+      // Tether: thin diagonal line from the bubble down to its pinpoint.
+      // Sells the connection between the floating orb and where the
+      // place actually sits on the map.
+      const tetherGeom = new BufferGeometry().setFromPoints([
+        new Vector3(bx, by, bz),
+        new Vector3(pinX, pinY, pinZ),
+      ])
+      const tetherMat = new LineBasicMaterial({
+        color,
+        transparent: true,
+        opacity: isCluster ? 0.4 : 0.32,
+        depthWrite: false,
+        fog: false,
+      })
+      const tether = new Line(tetherGeom, tetherMat)
+      tether.renderOrder = -400
+      scene.add(tether)
+
+      return { outer, innerBillboard, rim, line, label, shadow, tether }
+    }
+
+    // Helper: get a place's REAL XZ on the linear satellite plane. Falls
+    // back to the bubble's own warped XZ when no user location is known
+    // (so the shadow sits directly under the bubble in that case).
+    function pinFor(place: RankedPlace, fallbackX: number, fallbackZ: number): { x: number; z: number } {
+      if (typeof userLat !== "number" || typeof userLng !== "number") {
+        return { x: fallbackX, z: fallbackZ }
+      }
+      return realWorldXZ(userLat, userLng, place.lat, place.lng, METERS_PER_UNIT)
     }
 
     let nodeIdx = 0
     slots.forEach((slot) => {
       if (slot.kind === "place") {
         const place = slot.anchor.place
+        const pin = pinFor(place, slot.x, slot.z)
         const built = buildOrbMesh({
           place,
           bubbleRadius: slot.bubbleRadius,
           x: slot.x,
           z: slot.z,
+          pinX: pin.x,
+          pinZ: pin.z,
           isCluster: false,
           isMember: false,
           clusterMemberCount: null,
@@ -938,15 +1027,24 @@ export function MapModeScene({
         return
       }
 
-      // Cluster slot — build the synthetic group orb at the centroid,
-      // then build hidden member orbs that fan out around it on expand.
+      // Cluster slot. Cluster's pinpoint = centroid of its members' real
+      // lat/lng positions (in linear world space) — gives a single
+      // shadow that visually represents "this neighborhood has X
+      // restaurants" without picking an arbitrary member.
       const members = slot.members ?? []
       const clusterId = slot.clusterId ?? `cluster-${nodeIdx}`
+      const memberPins = members.map((m) => pinFor(m.place, m.x, m.z))
+      const clusterPinX =
+        memberPins.reduce((s, p) => s + p.x, 0) / Math.max(1, memberPins.length)
+      const clusterPinZ =
+        memberPins.reduce((s, p) => s + p.z, 0) / Math.max(1, memberPins.length)
       const built = buildOrbMesh({
         place: slot.anchor.place,
         bubbleRadius: slot.bubbleRadius,
         x: slot.x,
         z: slot.z,
+        pinX: clusterPinX,
+        pinZ: clusterPinZ,
         isCluster: true,
         isMember: false,
         clusterMemberCount: members.length,
@@ -975,11 +1073,14 @@ export function MapModeScene({
         const a = (i / members.length) * Math.PI * 2 - Math.PI / 2
         const fx = Math.cos(a) * fanR
         const fz = -Math.sin(a) * fanR
+        const memberPin = memberPins[i]
         const memberBuilt = buildOrbMesh({
           place: m.place,
           bubbleRadius: m.bubbleRadius,
           x: slot.x,
           z: slot.z,
+          pinX: memberPin.x,
+          pinZ: memberPin.z,
           isCluster: false,
           isMember: true,
           clusterMemberCount: null,
@@ -1298,9 +1399,9 @@ export function MapModeScene({
           node.innerBillboard.position.z = memberZ
           node.rim.position.x = memberX
           node.rim.position.z = memberZ
-          // Shadow tracks the orb's XZ but stays on the ground plane.
-          node.shadow.position.x = memberX
-          node.shadow.position.z = memberZ
+          // Shadow stays at its pinpoint on the terrain — that's the
+          // whole point. The tether is what connects the moving orb to
+          // the fixed shadow.
         }
 
         if (node.bornAt > 0) {
@@ -1368,7 +1469,6 @@ export function MapModeScene({
         const billboardMat = node.innerBillboard.material as MeshBasicMaterial
         billboardMat.opacity = focusDim
         const shadowMat = node.shadow.material as MeshBasicMaterial
-        shadowMat.opacity = (node.kind === "cluster" ? 0.28 : 0.22) * focusDim
 
         // Update line endpoint (members don't own a line — cluster does)
         if (node.line) {
@@ -1376,6 +1476,27 @@ export function MapModeScene({
           positions.setXYZ(1, node.outer.position.x, node.outer.position.y, node.outer.position.z)
           positions.needsUpdate = true
         }
+
+        // Update tether: point 0 follows the bubble; point 1 stays
+        // pinned to the shadow on the terrain. The tether also dims
+        // with the focus state and fades for members of a collapsed
+        // cluster (openness 0).
+        if (node.tether) {
+          const tpos = node.tether.geometry.attributes.position as BufferAttribute
+          tpos.setXYZ(0, node.outer.position.x, node.outer.position.y, node.outer.position.z)
+          tpos.needsUpdate = true
+          const tmat = node.tether.material as LineBasicMaterial
+          let tetherOpacity = node.kind === "cluster" ? 0.4 : 0.32
+          if (node.kind === "member") tetherOpacity *= openness
+          tmat.opacity = tetherOpacity * focusDim
+        }
+
+        // Match the shadow's opacity multiplier to the focus dim and
+        // member openness, but never drag in the (now-large) base alpha
+        // we set at construction.
+        let shadowAlpha = node.kind === "cluster" ? 0.62 : 0.5
+        if (node.kind === "member") shadowAlpha *= openness
+        shadowMat.opacity = shadowAlpha * focusDim
 
         // Update label position. Member labels only show when their cluster
         // is mostly open; cluster labels fade out as they expand.
@@ -1456,6 +1577,10 @@ export function MapModeScene({
         }
         node.shadow.geometry.dispose()
         ;(node.shadow.material as Material).dispose()
+        if (node.tether) {
+          node.tether.geometry.dispose()
+          ;(node.tether.material as Material).dispose()
+        }
         node.label.remove()
         const placeholder = node.innerBillboard.userData.placeholderTex as CanvasTexture | undefined
         placeholder?.dispose()
