@@ -98,7 +98,7 @@ export function KoreaDay() {
             className="mt-5 flex flex-wrap items-center gap-2"
           >
             {isToday && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-white shadow-sm">
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-700 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-50 shadow-sm dark:bg-emerald-600 dark:text-emerald-50">
                 <Sparkles className="h-3 w-3" aria-hidden /> Today
               </span>
             )}
@@ -106,7 +106,7 @@ export function KoreaDay() {
               href={mapsSearchUrl(day.city + ", South Korea")}
               target="_blank"
               rel="noreferrer"
-              className="max-w-full break-words rounded-full bg-white/70 px-3 py-1 text-xs font-medium text-stone-700 backdrop-blur transition hover:bg-white dark:bg-stone-900/50 dark:text-stone-300 dark:hover:bg-stone-900 [overflow-wrap:anywhere]"
+              className="max-w-full break-words rounded-full bg-white/70 px-3 py-1 text-xs font-medium text-stone-700 backdrop-blur transition hover:bg-stone-50 dark:bg-stone-900/50 dark:text-stone-300 dark:hover:bg-stone-900 [overflow-wrap:anywhere]"
             >
               📍 {day.city}
             </a>
@@ -116,7 +116,7 @@ export function KoreaDay() {
                 href={smartPlaceUrl(n, day.city)}
                 target="_blank"
                 rel="noreferrer"
-                className="max-w-full break-words rounded-full bg-white/60 px-3 py-1 text-xs text-stone-700 backdrop-blur transition hover:bg-white dark:bg-stone-900/40 dark:text-stone-300 dark:hover:bg-stone-900 [overflow-wrap:anywhere]"
+                className="max-w-full break-words rounded-full bg-white/60 px-3 py-1 text-xs text-stone-700 backdrop-blur transition hover:bg-stone-50 dark:bg-stone-900/40 dark:text-stone-300 dark:hover:bg-stone-900 [overflow-wrap:anywhere]"
               >
                 {n}
               </a>
@@ -130,7 +130,7 @@ export function KoreaDay() {
               href={mapsSearchUrl(day.hotel + ", South Korea")}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex max-w-full items-center gap-1 break-words rounded-full bg-white/70 px-3 py-1 text-xs text-stone-700 backdrop-blur transition hover:bg-white dark:bg-stone-900/50 dark:text-stone-300 dark:hover:bg-stone-900 [overflow-wrap:anywhere]"
+              className="inline-flex max-w-full items-center gap-1 break-words rounded-full bg-white/70 px-3 py-1 text-xs text-stone-700 backdrop-blur transition hover:bg-stone-50 dark:bg-stone-900/50 dark:text-stone-300 dark:hover:bg-stone-900 [overflow-wrap:anywhere]"
             >
               <span aria-hidden>🏨</span>
               <span className="min-w-0 break-words">{day.hotel}</span>

@@ -263,7 +263,7 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng }: PlaceDeta
             href={searchUrl}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
+            className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 bg-stone-50 px-4 py-2 text-sm font-medium text-stone-700 transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
           >
             <ExternalLink className="h-4 w-4" aria-hidden />
             Open in Maps
@@ -271,7 +271,7 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng }: PlaceDeta
           <button
             type="button"
             onClick={onShare}
-            className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
+            className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 bg-stone-50 px-4 py-2 text-sm font-medium text-stone-700 transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
           >
             <Share2 className="h-4 w-4" aria-hidden />
             {shared ? "Shared!" : "Share"}

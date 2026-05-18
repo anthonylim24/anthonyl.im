@@ -275,7 +275,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
           type="button"
           onClick={onClose}
           aria-label="Close Map Mode"
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-stone-300 bg-white text-stone-700 transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-stone-300 bg-stone-50 text-stone-700 transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
         >
           <X className="h-4 w-4" />
         </button>
@@ -298,7 +298,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
           onClick={requestLocation}
           disabled={locating}
           title="Re-fetch your location"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-stone-300 bg-white px-2.5 py-1.5 text-xs font-medium text-stone-700 transition hover:border-rose-300 hover:text-rose-700 disabled:opacity-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-stone-300 bg-stone-50 px-2.5 py-1.5 text-xs font-medium text-stone-700 transition hover:border-rose-300 hover:text-rose-700 disabled:opacity-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
         >
           {locating ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
@@ -309,7 +309,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
         </button>
 
         {!webglFailed && (
-          <div className="inline-flex shrink-0 overflow-hidden rounded-full border border-stone-300 bg-white text-xs font-medium dark:border-stone-700 dark:bg-stone-900">
+          <div className="inline-flex shrink-0 overflow-hidden rounded-full border border-stone-300 bg-stone-50 text-xs font-medium dark:border-stone-700 dark:bg-stone-900">
             <button
               type="button"
               onClick={() => setViewMode("orb")}
@@ -354,7 +354,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
               "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-medium transition " +
               (testMode || mockHotel
                 ? "border-violet-400 bg-violet-100 text-violet-900 dark:border-violet-700 dark:bg-violet-950/60 dark:text-violet-100"
-                : "border-stone-300 bg-white text-stone-700 hover:border-violet-300 hover:text-violet-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-violet-700 dark:hover:text-violet-200")
+                : "border-stone-300 bg-stone-50 text-stone-700 hover:border-violet-300 hover:text-violet-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-violet-700 dark:hover:text-violet-200")
             }
           >
             <Bug className="h-3.5 w-3.5" aria-hidden />
@@ -378,7 +378,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.96, y: -4 }}
                 transition={{ duration: 0.14 }}
-                className="absolute right-0 top-[calc(100%+8px)] z-40 w-64 origin-top-right rounded-2xl border border-stone-200 bg-white p-1.5 shadow-xl ring-1 ring-stone-200 dark:border-stone-800 dark:bg-stone-950 dark:ring-stone-800"
+                className="absolute right-0 top-[calc(100%+8px)] z-40 w-64 origin-top-right rounded-2xl border border-stone-200 bg-stone-50 p-1.5 shadow-xl ring-1 ring-stone-200 dark:border-stone-800 dark:bg-stone-950 dark:ring-stone-800"
               >
                 <label className="flex cursor-pointer items-start gap-2 rounded-xl p-2 transition hover:bg-stone-50 dark:hover:bg-stone-900">
                   <input
@@ -451,7 +451,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
                   onClick={resetView}
                   title="Reset camera view"
                   aria-label="Reset camera view"
-                  className="absolute right-3 top-16 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-stone-700 shadow-md backdrop-blur transition hover:bg-white hover:text-rose-700 dark:bg-stone-900/85 dark:text-stone-300 dark:hover:bg-stone-900 dark:hover:text-rose-200"
+                  className="absolute right-3 top-16 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-stone-700 shadow-md backdrop-blur transition hover:bg-stone-50 hover:text-rose-700 dark:bg-stone-900/85 dark:text-stone-300 dark:hover:bg-stone-900 dark:hover:text-rose-200"
                 >
                   <Crosshair className="h-4 w-4" />
                 </button>
