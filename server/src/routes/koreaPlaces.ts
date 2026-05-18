@@ -230,4 +230,139 @@ function enrichWithDistance(
     })
 }
 
+// ── GET /api/korea/entities ────────────────────────────────────────────
+//
+// Aggregates EVERY named thing in the trip into one flat dictionary,
+// so the frontend can match these substrings inline (across themes,
+// bullets, notes, callouts) and wrap each match in <SmartEntity>.
+//
+// Sources:
+//   1. koreaPlaces — 50 hand-curated POIs with category + aliases.
+//      Covers palaces, restaurants, cafés, shopping, markets, etc.
+//   2. snapshot.trip.hotels — base camps. May overlap with koreaPlaces
+//      but we dedupe by lowercased name.
+//   3. snapshot.neighborhoods — district names with their day ranges.
+//   4. snapshot.days[].city — city tags (Seoul, Busan, Yangju, Incheon).
+//   5. snapshot.reservations — booked items (flights, meals, events).
+//
+// Returned dictionary is read-mostly: the frontend fetches once per
+// session and matches substrings client-side via a regex built from
+// all names + aliases.
+
+type EntityType =
+  | "flight"
+  | "hotel"
+  | "restaurant"
+  | "cafe"
+  | "bar"
+  | "city"
+  | "neighborhood"
+  | "palace"
+  | "museum"
+  | "shrine"
+  | "market"
+  | "shopping"
+  | "park"
+  | "viewpoint"
+  | "experience"
+  | "venue"
+  | "station"
+  | "transit"
+  | "airport"
+  | "place"
+  | "person"
+
+interface EntityRef {
+  name: string
+  type: EntityType
+  city?: string
+  aliases?: string[]
+}
+
+const PLACE_CATEGORY_TO_ENTITY: Record<PlaceCategory, EntityType> = {
+  hotel: "hotel",
+  palace: "palace",
+  museum: "museum",
+  shrine: "shrine",
+  market: "market",
+  shopping: "shopping",
+  cafe: "cafe",
+  restaurant: "restaurant",
+  bar: "bar",
+  park: "park",
+  viewpoint: "viewpoint",
+  experience: "experience",
+  transit: "transit",
+  neighborhood: "neighborhood",
+  venue: "venue",
+}
+
+const RESERVATION_TYPE_TO_ENTITY: Record<string, EntityType> = {
+  flight: "flight",
+  hotel: "hotel",
+  meal: "restaurant",
+  bar: "bar",
+  experience: "experience",
+  transit: "transit",
+  event: "experience",
+  appointment: "place",
+  wedding: "venue",
+}
+
+places.get("/entities", (c) => {
+  // Build the dictionary. Last writer wins on name conflict — koreaPlaces
+  // entries have the richest data (category + aliases + city) so they go
+  // first; snapshot-only entries (hotels, neighborhoods, reservations)
+  // fill in only if there's no koreaPlaces match.
+  const byKey = new Map<string, EntityRef>()
+  const put = (entity: EntityRef) => {
+    const key = entity.name.trim().toLowerCase()
+    if (!key) return
+    if (byKey.has(key)) return
+    byKey.set(key, entity)
+  }
+
+  // 1. koreaPlaces
+  for (const p of koreaPlaces) {
+    put({
+      name: p.name,
+      type: PLACE_CATEGORY_TO_ENTITY[p.category] ?? "place",
+      city: p.city !== "Other" ? p.city : undefined,
+      aliases: p.aliases,
+    })
+  }
+
+  // 2. Hotels from the trip metadata
+  for (const h of koreaSnapshot.trip.hotels) {
+    put({ name: h.name, type: "hotel" })
+  }
+
+  // 3. Neighborhoods
+  for (const n of koreaSnapshot.neighborhoods) {
+    put({ name: n.name, type: "neighborhood" })
+  }
+
+  // 4. Cities (one entry per unique city across all days)
+  const cities = new Set<string>()
+  for (const day of koreaSnapshot.days) {
+    if (day.city) cities.add(day.city)
+    for (const nb of day.neighborhoods ?? []) put({ name: nb, type: "neighborhood", city: day.city })
+  }
+  for (const c2 of cities) {
+    put({ name: c2, type: "city" })
+  }
+
+  // 5. Reservations — useful for things mentioned by name elsewhere
+  // (e.g. a meal at "Cornerstone" referenced in a bullet on the day
+  // before the reservation).
+  for (const r of koreaSnapshot.reservations) {
+    const type = RESERVATION_TYPE_TO_ENTITY[r.type] ?? "place"
+    const day = koreaSnapshot.days.find((d) => d.n === r.dayNumber)
+    put({ name: r.title, type, city: day?.city })
+  }
+
+  c.header("Cache-Control", "public, max-age=60, s-maxage=300, stale-while-revalidate=86400")
+  return c.json(Array.from(byKey.values()))
+})
+
 export default places
