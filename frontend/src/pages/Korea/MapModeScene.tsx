@@ -37,12 +37,16 @@ import {
   WebGLRenderer,
 } from "three"
 import type { RankedPlace } from "./mapModeTypes"
-import { lookupPhoto } from "./placePhoto"
+import { lookupPhoto, lookupGooglePlacePhoto } from "./placePhoto"
 import { fetchSatelliteTexture } from "./satelliteTerrain"
 
 interface MapModeSceneProps {
   places: RankedPlace[]
   onSelect: (place: RankedPlace) => void
+  // Tapping empty map space while a place is selected. Used by the
+  // parent to clear the selection (which collapses the place sheet
+  // and the focus-mode visualization).
+  onDeselect?: () => void
   selectedId?: string | null
   reducedMotion?: boolean
   onWebglError?: () => void
@@ -269,6 +273,7 @@ function makePlaceholderTexture(color: string, icon: string): CanvasTexture {
 export function MapModeScene({
   places,
   onSelect,
+  onDeselect,
   selectedId,
   reducedMotion,
   onWebglError,
@@ -280,6 +285,8 @@ export function MapModeScene({
   const overlayRef = useRef<HTMLDivElement>(null)
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
+  const onDeselectRef = useRef(onDeselect)
+  onDeselectRef.current = onDeselect
   const onWebglErrorRef = useRef(onWebglError)
   onWebglErrorRef.current = onWebglError
   const selectedIdRef = useRef<string | null>(selectedId ?? null)
@@ -492,31 +499,64 @@ export function MapModeScene({
     textureLoader.setCrossOrigin("anonymous")
 
     // Photo-fetch concurrency limiter. Without this, 30+ bubbles all
-    // fire their Wikipedia search in parallel on mount, spiking network
-    // and CPU. Four concurrent fetches keeps the queue moving without
+    // fire photo lookups in parallel on mount, spiking network + CPU.
+    // Four concurrent fetches keeps the queue moving without
     // overwhelming low-end devices.
+    //
+    // Source cascade per orb:
+    //   1. Google Places Photos (real photo of the actual business —
+    //      the right thing for restaurants, bars, hotels). 160 px wide
+    //      so each thumbnail is ~15-25 KB on the wire.
+    //   2. Wikipedia (landmarks, parks, temples). 160 px wide.
+    //   3. Placeholder texture stays if both fail.
     const PHOTO_CONCURRENCY = 4
+    const ORB_PHOTO_SIZE = 160
     let activePhotoFetches = 0
-    const photoQueue: { queries: string[]; resolve: (url: string | null) => void }[] = []
+    interface OrbPhotoJob {
+      place: RankedPlace
+      resolve: (url: string | null) => void
+    }
+    const photoQueue: OrbPhotoJob[] = []
     function pumpPhotoQueue() {
       while (activePhotoFetches < PHOTO_CONCURRENCY && photoQueue.length > 0) {
         const job = photoQueue.shift()!
         activePhotoFetches++
-        // Orb billboards render at ~100 px square inside the glass orb.
-        // A 320 px thumbnail is sharp at 2× DPR and keeps each photo
-        // under ~80 KB on the wire.
-        void lookupPhoto(job.queries, { size: 320 })
-          .then((url) => job.resolve(url))
-          .catch(() => job.resolve(null))
-          .finally(() => {
-            activePhotoFetches--
-            pumpPhotoQueue()
-          })
+        const release = () => {
+          activePhotoFetches--
+          pumpPhotoQueue()
+        }
+        void (async () => {
+          try {
+            const google = await lookupGooglePlacePhoto({
+              name: job.place.name,
+              city: job.place.city,
+              lat: job.place.lat,
+              lng: job.place.lng,
+              maxWidth: ORB_PHOTO_SIZE,
+            })
+            if (google) {
+              job.resolve(google)
+              return
+            }
+            const base = job.place.name.split("(")[0].trim()
+            const wikiQueries = [
+              `${base} ${job.place.city}`,
+              base,
+              job.place.name,
+            ].filter((s, i, arr) => s && arr.indexOf(s) === i)
+            const wiki = await lookupPhoto(wikiQueries, { size: ORB_PHOTO_SIZE })
+            job.resolve(wiki ?? null)
+          } catch {
+            job.resolve(null)
+          } finally {
+            release()
+          }
+        })()
       }
     }
-    function queuePhotoLookup(queries: string[]): Promise<string | null> {
+    function queuePhotoLookup(place: RankedPlace): Promise<string | null> {
       return new Promise((resolve) => {
-        photoQueue.push({ queries, resolve })
+        photoQueue.push({ place, resolve })
         pumpPhotoQueue()
       })
     }
@@ -619,19 +659,78 @@ export function MapModeScene({
     // placeholder color stays put. `terrainCancelled` guards against
     // the cleanup unmounting the scene while the fetch is in flight.
     let terrainCancelled = false
+    // Track the originally-fetched texture so we can restore it on
+    // deselect without re-downloading. Also track the current loaded
+    // span in PLANE UNITS so we can decide whether a wider re-fetch
+    // is needed.
+    let originalSatelliteTex: CanvasTexture | null = null
+    let currentTerrainUnits = TERRAIN_PLANE_UNITS
+    let pendingExpandKey: string | null = null
+    function applyTerrainTexture(tex: CanvasTexture, result: { userU: number; userV: number }) {
+      tex.center.set(0.5, 0.5)
+      tex.offset.set(result.userU - 0.5, 0.5 - result.userV)
+      terrainMat.map = tex
+      terrainMat.color.setHex(0xffffff)
+      terrainMat.opacity = 0.85
+      terrainMat.needsUpdate = true
+    }
     if (typeof userLat === "number" && typeof userLng === "number") {
       const realSpanMeters = TERRAIN_PLANE_UNITS * METERS_PER_UNIT
       void fetchSatelliteTexture(userLat, userLng, realSpanMeters).then((result) => {
         if (!result || terrainCancelled) return
-        // Offset the texture's UV so the user's geographic position lands
-        // at the geometric center of the plane.
-        const tex = result.texture
-        tex.center.set(0.5, 0.5)
-        tex.offset.set(result.userU - 0.5, 0.5 - result.userV)
-        terrainMat.map = tex
-        terrainMat.color.setHex(0xffffff)
-        terrainMat.opacity = 0.85
-        terrainMat.needsUpdate = true
+        originalSatelliteTex = result.texture
+        applyTerrainTexture(result.texture, result)
+      })
+    }
+
+    // Dynamically grow the satellite plane + re-fetch tiles when the
+    // selection focus is on a place outside the current coverage. The
+    // scene-space distance `targetUnits` is the largest signed half-
+    // extent we want to keep visible (typically the distance from YOU
+    // origin to the destination pin, in scene units).
+    function ensureTerrainCoversUnits(targetUnits: number) {
+      if (typeof userLat !== "number" || typeof userLng !== "number") return
+      // Required full plane width in units, with a 25 % margin so
+      // the pin isn't right at the visible edge.
+      const requiredUnits = Math.max(TERRAIN_PLANE_UNITS, targetUnits * 2 * 1.25)
+      // Round to a small set of fetch keys so we don't refetch on
+      // every tiny distance change.
+      const stepped = Math.ceil(requiredUnits / 40) * 40
+      const factor = stepped / TERRAIN_PLANE_UNITS
+      const desiredKey = factor <= 1 ? "default" : String(stepped)
+      const currentKey = currentTerrainUnits === TERRAIN_PLANE_UNITS ? "default" : String(currentTerrainUnits)
+      if (desiredKey === currentKey || pendingExpandKey === desiredKey) return
+      pendingExpandKey = desiredKey
+      // Default key — instant swap back to the cached original (no
+      // network), keeps survey view crisp.
+      if (desiredKey === "default") {
+        if (originalSatelliteTex && terrainMat.map !== originalSatelliteTex) {
+          const prev = terrainMat.map
+          if (prev && prev !== originalSatelliteTex) prev.dispose()
+          terrainMat.map = originalSatelliteTex
+          terrainMat.needsUpdate = true
+        }
+        terrain.scale.set(1, 1, 1)
+        currentTerrainUnits = TERRAIN_PLANE_UNITS
+        pendingExpandKey = null
+        return
+      }
+      // Async fetch at the wider real-meter span. While loading, the
+      // current (smaller) texture stays — once the wider tiles arrive
+      // we swap + scale the plane to match.
+      const wideSpanMeters = stepped * METERS_PER_UNIT
+      void fetchSatelliteTexture(userLat, userLng, wideSpanMeters).then((result) => {
+        if (terrainCancelled || pendingExpandKey !== desiredKey) return
+        if (!result) {
+          pendingExpandKey = null
+          return
+        }
+        const prev = terrainMat.map
+        if (prev && prev !== originalSatelliteTex) prev.dispose()
+        applyTerrainTexture(result.texture, result)
+        terrain.scale.set(factor, factor, 1)
+        currentTerrainUnits = stepped
+        pendingExpandKey = null
       })
     }
 
@@ -818,14 +917,18 @@ export function MapModeScene({
       const priority = place.priority
       const color = new Color(place.color)
 
-      // Inner image billboard. Sized to fill ~92 % of the orb so the photo
-      // is the dominant visual element; the glass shell adds the refraction
-      // shimmer at the silhouette, not a full-coverage wash.
+      // Inner image billboard. Sized to fill ~92 % of the orb so the
+      // photo is the dominant visual element; the glass shell adds the
+      // refraction shimmer at the silhouette. The base color tints the
+      // texture darker so a glassy photo doesn't look like a printed
+      // sticker — feels like the image is sitting INSIDE tinted glass
+      // rather than glowing on top of it.
       const placeholderTex = makePlaceholderTexture(place.color, place.icon)
       const innerBillboard = new Mesh(
         new CircleGeometry(bubbleRadius * 0.92, 24),
         new MeshBasicMaterial({
           map: placeholderTex,
+          color: 0xb8b3ac, // ~70 % multiplier so photos read calmer
           transparent: true,
           depthWrite: false,
           // Fog dims the photo with distance — for a photo we want
@@ -845,14 +948,7 @@ export function MapModeScene({
       // the MediaWiki search doesn't drift into a same-named place
       // elsewhere in the world.
       if (!isCluster) {
-        const base = place.name.split("(")[0].trim()
-        const photoQueries = [
-          `${base} ${place.city}`,
-          `${base} ${place.category} ${place.city}`,
-          base,
-          place.name,
-        ].filter((s, idx, arr) => s && arr.indexOf(s) === idx)
-        void queuePhotoLookup(photoQueries).then((url) => {
+        void queuePhotoLookup(place).then((url) => {
           if (!url) return
           textureLoader.load(
             url,
@@ -894,14 +990,18 @@ export function MapModeScene({
       //   mesh below carries the silhouette color.
       const outerMat = new MeshPhysicalMaterial({
         color: 0xffffff,
-        roughness: 0.18,
+        transmission: 0.25,         // visible refraction at the rim
+        thickness: 0.6,
+        ior: 1.45,                  // glass IOR
+        roughness: 0.06,            // smooth specular highlights
         metalness: 0,
-        clearcoat: 0.7,
-        clearcoatRoughness: 0.08,
-        iridescence: priority === "scheduled" ? 0.22 : 0.12,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.05,
+        iridescence: priority === "scheduled" ? 0.32 : 0.2,
         iridescenceIOR: 1.3,
+        specularIntensity: 1.0,
         transparent: true,
-        opacity: 0.22,
+        opacity: 0.32,
         side: DoubleSide,
         depthWrite: false,
       })
@@ -1357,10 +1457,17 @@ export function MapModeScene({
       if (dt > 600) return
       const node = pickAtPointer()
       if (!node) {
-        // Tap on empty space — collapse any open cluster instead of clearing
-        // the selected place. (Selection is handled by the parent.)
+        // Tap on empty space:
+        //  1. If a cluster is open, collapse it (most local "undo").
+        //  2. Else if a place is selected, clear the selection so the
+        //     focus mode dismisses (parent collapses the place sheet,
+        //     scene unwires the line + ring).
         if (expandedClusterId !== null) {
           expandedClusterId = null
+          return
+        }
+        if (selectedIdRef.current !== null) {
+          onDeselectRef.current?.()
         }
         return
       }
@@ -1545,6 +1652,9 @@ export function MapModeScene({
             const pinX = sel.shadow.position.x
             const pinZ = sel.shadow.position.z
             const visDist = Math.hypot(pinX, pinZ)
+            // Make sure the satellite covers from YOU to the
+            // destination pin — refetches wider imagery if needed.
+            ensureTerrainCoversUnits(visDist)
             // Update the line geometry. Both line meshes share the
             // same buffer.
             const lpos = selLineGeom.attributes.position as BufferAttribute
@@ -1604,17 +1714,40 @@ export function MapModeScene({
             // doesn't immediately snap if the user wheels.
             camRadiusTarget.current = Math.min(ZOOM_OUT_MAX, Math.max(defaultR, fitR))
 
-            // Populate label.
+            // Populate label — distance pill + optional address pill +
+            // a "Maps ↗" link to Google Maps for the place.
             const distLabel = sel.place.distanceLabel ?? ""
-            selectionLabel.innerHTML = distLabel
-              ? `
-              <div class="inline-flex items-center gap-1.5 rounded-full bg-rose-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white shadow-lg ring-1 ring-rose-300/60">
-                <span aria-hidden>↔</span>
-                <span class="tabular-nums">${escapeHtml(distLabel)}</span>
+            const addr = sel.place.address ?? ""
+            const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+              sel.place.name + ", " + sel.place.city,
+            )}`
+            selectionLabel.innerHTML = `
+              <div class="flex flex-col items-center gap-1">
+                ${
+                  distLabel
+                    ? `<div class="inline-flex items-center gap-1.5 rounded-full bg-rose-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white shadow-lg ring-1 ring-rose-300/60">
+                        <span aria-hidden>↔</span>
+                        <span class="tabular-nums">${escapeHtml(distLabel)}</span>
+                      </div>`
+                    : ""
+                }
+                ${
+                  addr
+                    ? `<div class="max-w-[14rem] truncate rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-medium text-stone-700 shadow-md ring-1 ring-stone-200 dark:bg-stone-900/95 dark:text-stone-300 dark:ring-stone-700" title="${escapeHtml(addr)}">${escapeHtml(addr)}</div>`
+                    : ""
+                }
+                <a
+                  href="${mapsUrl}"
+                  target="_blank"
+                  rel="noreferrer"
+                  class="pointer-events-auto inline-flex items-center gap-1 rounded-full border border-stone-300 bg-stone-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-stone-700 shadow-md transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
+                >
+                  Maps
+                  <span aria-hidden>↗</span>
+                </a>
               </div>
             `
-              : ""
-            selectionLabel.style.visibility = distLabel ? "visible" : "hidden"
+            selectionLabel.style.visibility = "visible"
           }
         } else {
           // Deselect → fade out the selection visualization and ease
@@ -1624,6 +1757,9 @@ export function MapModeScene({
           selectionLabel.style.visibility = "hidden"
           camPitchTarget.current = DEFAULT_PITCH
           camRadiusTarget.current = cameraTargetRadiusFor(w)
+          // Snap the satellite back to default coverage (uses the
+          // cached original texture — no network).
+          ensureTerrainCoversUnits(0)
         }
         lastSelectedId = curSelected
       }
@@ -1789,7 +1925,7 @@ export function MapModeScene({
         // not assign, so the underlying material opacity (which sets the
         // glass look) is preserved when nothing is dimmed.
         const outerMat = node.outer.material as MeshPhysicalMaterial
-        outerMat.opacity = 0.22 * focusDim
+        outerMat.opacity = 0.32 * focusDim
         const billboardMat = node.innerBillboard.material as MeshBasicMaterial
         billboardMat.opacity = focusDim
         const shadowMat = node.shadow.material as MeshBasicMaterial
@@ -2001,7 +2137,10 @@ export function MapModeScene({
       groundGeom.dispose()
       groundMat.dispose()
       terrainGeom.dispose()
-      if (terrainMat.map) terrainMat.map.dispose()
+      // Dispose both the original cached texture and (if different)
+      // the currently-applied wide-coverage texture.
+      if (terrainMat.map && terrainMat.map !== originalSatelliteTex) terrainMat.map.dispose()
+      if (originalSatelliteTex) originalSatelliteTex.dispose()
       terrainMat.dispose()
       renderer.dispose()
       try {
