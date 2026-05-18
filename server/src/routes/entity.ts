@@ -160,7 +160,10 @@ Output: {"description": "Former industrial district east of Hannam now full of c
 Input: type="flight", name="UA 893"
 Output: {"description": "United's daily nonstop SFO to Incheon on a 777-300ER. Roughly 13 hours westbound, 11 hours back."}`;
 
-const GROQ_MODEL = "llama-3.1-8b-instant";
+// Free on Groq's developer tier at the rates we generate (a few hundred
+// requests per trip), so we keep the bigger model — its output reads
+// noticeably better for dossier prose than the 8B instant variant.
+const GROQ_MODEL = "openai/gpt-oss-120b";
 
 async function generateDescription(req: EntityAboutRequest): Promise<string | null> {
   const apiKey = process.env.GROQ_API_KEY;
@@ -184,7 +187,7 @@ async function generateDescription(req: EntityAboutRequest): Promise<string | nu
       ],
       response_format: { type: "json_object" },
       temperature: 0.4,
-      max_tokens: 160,
+      max_tokens: 200,
     });
     const raw = completion.choices[0]?.message?.content ?? "";
     if (!raw) return null;
