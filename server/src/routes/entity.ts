@@ -271,6 +271,14 @@ entity.get("/about/_stats", (c) =>
     memoryCacheSize: memoryCache.size,
     supabaseAvailable: supabaseAvailable(),
     model: GROQ_MODEL,
+    // Diagnostic: shows which env vars the *server process* sees right
+    // now. Helps debug missing-env issues without revealing values.
+    env: {
+      SUPABASE_URL: Boolean(process.env.SUPABASE_URL),
+      VITE_SUPABASE_URL: Boolean(process.env.VITE_SUPABASE_URL),
+      SUPABASE_SERVICE_ROLE_KEY: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+      GROQ_API_KEY: Boolean(process.env.GROQ_API_KEY),
+    },
   }),
 );
 
