@@ -178,20 +178,48 @@ async function generateDescription(req: EntityAboutRequest): Promise<string | nu
   if (req.context) userParts.push(`context="${req.context}"`);
   const userPrompt = userParts.join(", ");
 
+  // gpt-oss-120b is a reasoning model: its internal "thinking" tokens
+  // count against max_tokens. With a tight cap (≤200) the model gets
+  // cut off mid-thought and Groq returns a 400 with json_validate_failed
+  // and empty failed_generation. `reasoning_effort: "low"` tells gpt-oss
+  // to skip the deep chain-of-thought for this simple lookup; the bumped
+  // cap gives whatever's left enough headroom to finish the JSON.
+  //
+  // The SDK type doesn't yet expose `reasoning_effort`, but the Groq API
+  // accepts it for gpt-oss-120b — pass via Record<string, unknown> cast.
+  const createParams: Record<string, unknown> = {
+    model: GROQ_MODEL,
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: userPrompt },
+    ],
+    response_format: { type: "json_object" },
+    temperature: 0.4,
+    max_tokens: 1024,
+    reasoning_effort: "low",
+  }
+
   try {
-    const completion = await groq.chat.completions.create({
-      model: GROQ_MODEL,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userPrompt },
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.4,
-      max_tokens: 200,
-    });
+    const completion = (await groq.chat.completions.create(
+      createParams as unknown as Parameters<typeof groq.chat.completions.create>[0] & { stream?: false },
+    )) as Awaited<ReturnType<typeof groq.chat.completions.create>>
+    if (!("choices" in completion)) return null;
     const raw = completion.choices[0]?.message?.content ?? "";
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as { description?: string | null };
+    let parsed: { description?: string | null };
+    try {
+      parsed = JSON.parse(raw) as { description?: string | null };
+    } catch {
+      // Model occasionally emits a stray prefix despite JSON mode.
+      // Try to recover the first JSON object substring.
+      const match = raw.match(/\{[^{}]*"description"[^{}]*\}/);
+      if (!match) return null;
+      try {
+        parsed = JSON.parse(match[0]) as { description?: string | null };
+      } catch {
+        return null;
+      }
+    }
     let desc = parsed.description?.trim() ?? null;
     if (!desc) return null;
     // Defensive cleanup. Strip stray em dashes, collapse whitespace,
@@ -204,7 +232,10 @@ async function generateDescription(req: EntityAboutRequest): Promise<string | nu
     }
     return desc;
   } catch (err) {
-    console.warn("[entity/about] groq error:", err);
+    // Log just the message so the warnings stay readable; the SDK's
+    // stringified error pollutes logs with stack + headers otherwise.
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn("[entity/about] groq error:", message);
     return null;
   }
 }
