@@ -100,7 +100,9 @@ export function ReservationCard({ reservation, index = 0, compact = false }: Res
             </p>
           )}
 
-          {/* Chip row: address, phone/url, .ics */}
+          {/* Chip row: address, phone/url. One chip style — ink on stone
+              with rose hover. Maps and Call/Book read as the same kind
+              of affordance because they are. */}
           {!compact && (mapHref || contactHref) && (
             <div className="mt-2.5 flex flex-wrap gap-1.5">
               {mapHref && (
@@ -109,7 +111,7 @@ export function ReservationCard({ reservation, index = 0, compact = false }: Res
                   target="_blank"
                   rel="noreferrer"
                   title={`Open in Google Maps: ${reservation.address}`}
-                  className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-medium text-rose-900 transition hover:bg-rose-100 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-200 dark:hover:bg-rose-950/60"
+                  className="inline-flex items-center gap-1 rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] font-medium text-stone-800 transition hover:border-stone-300 hover:text-rose-700 dark:border-stone-800 dark:bg-stone-900/60 dark:text-stone-200 dark:hover:border-stone-700 dark:hover:text-rose-300"
                 >
                   <MapPin className="h-3 w-3" aria-hidden /> Maps
                 </a>
@@ -120,7 +122,7 @@ export function ReservationCard({ reservation, index = 0, compact = false }: Res
                   target={contactKind === "phone" || contactKind === "email" ? undefined : "_blank"}
                   rel={contactKind === "phone" || contactKind === "email" ? undefined : "noreferrer"}
                   title={reservation.contact}
-                  className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-900 transition hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200 dark:hover:bg-emerald-950/60"
+                  className="inline-flex items-center gap-1 rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] font-medium text-stone-800 transition hover:border-stone-300 hover:text-rose-700 dark:border-stone-800 dark:bg-stone-900/60 dark:text-stone-200 dark:hover:border-stone-700 dark:hover:text-rose-300"
                 >
                   {contactKind === "phone" ? (
                     <>

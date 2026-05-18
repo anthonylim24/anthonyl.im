@@ -3,16 +3,21 @@
 
 import type { ReservationStatus, ReservationType } from "./types"
 
+// Ink + rose status system. The previous trio was a rose / amber / emerald
+// color zoo that read as "AI-tagged severity." Emerald earns its place
+// because "confirmed" is a real semantic moment in a travel dossier (the
+// booking is locked in). Tentative and pending share rose/stone — pending
+// is the loud one, tentative the muted one.
 export const statusMeta: Record<ReservationStatus, { label: string; chip: string; dot: string }> = {
   confirmed: {
     label: "Confirmed",
     chip: "bg-emerald-50 text-emerald-900 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-100 dark:border-emerald-900/60",
-    dot: "bg-emerald-500",
+    dot: "bg-emerald-600",
   },
   tentative: {
     label: "Tentative",
-    chip: "bg-amber-50 text-amber-900 border-amber-200 dark:bg-amber-950/40 dark:text-amber-100 dark:border-amber-900/60",
-    dot: "bg-amber-500",
+    chip: "bg-stone-100 text-stone-700 border-stone-300 dark:bg-stone-900/60 dark:text-stone-300 dark:border-stone-700",
+    dot: "bg-stone-400 dark:bg-stone-500",
   },
   pending: {
     label: "Book now",
@@ -33,23 +38,31 @@ export const typeMeta: Record<ReservationType, { icon: string; label: string }> 
   wedding: { icon: "💒", label: "Wedding" },
 }
 
-export const cityMeta: Record<string, { tint: string; ring: string }> = {
-  Seoul: { tint: "from-rose-100 to-amber-50 dark:from-rose-950/40 dark:to-amber-950/30", ring: "ring-rose-200/60 dark:ring-rose-900/40" },
-  Busan: { tint: "from-sky-100 to-cyan-50 dark:from-sky-950/40 dark:to-cyan-950/30", ring: "ring-sky-200/60 dark:ring-sky-900/40" },
-  Yangju: { tint: "from-emerald-100 to-lime-50 dark:from-emerald-950/40 dark:to-lime-950/30", ring: "ring-emerald-200/60 dark:ring-emerald-900/40" },
-  Incheon: { tint: "from-violet-100 to-fuchsia-50 dark:from-violet-950/40 dark:to-fuchsia-950/30", ring: "ring-violet-200/60 dark:ring-violet-900/40" },
+// Cities differentiate by typography, not hue. Each city gets a short
+// two-letter tag we render in `font-mono` against the warm parchment.
+// Previously every city had its own gradient family (rose / sky /
+// emerald / violet) — the dominant AI-tell on the route. Now the four
+// cities share one parchment surface.
+export const cityMeta: Record<string, { tag: string }> = {
+  Seoul: { tag: "SE" },
+  Busan: { tag: "BU" },
+  Yangju: { tag: "YJ" },
+  Incheon: { tag: "IC" },
 }
 
+// Callouts collapse from a 4-tone severity zoo (sky / amber / emerald /
+// rose) to an ink-and-rose system. Confirmed-style "success" keeps
+// emerald — it's the one place that earns a real semantic hue.
 export function calloutTone(tone: "info" | "warn" | "success" | "alert"): string {
   switch (tone) {
     case "info":
-      return "border-sky-200 bg-sky-50 dark:bg-sky-950/30 dark:border-sky-900/50"
+      return "border-stone-200 bg-stone-50 dark:bg-stone-900/40 dark:border-stone-800"
     case "warn":
-      return "border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-900/50"
+      return "border-rose-200 bg-rose-50/70 dark:bg-rose-950/25 dark:border-rose-900/50"
     case "success":
-      return "border-emerald-200 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-900/50"
+      return "border-emerald-200 bg-emerald-50/70 dark:bg-emerald-950/25 dark:border-emerald-900/50"
     case "alert":
-      return "border-rose-300 bg-rose-50 dark:bg-rose-950/30 dark:border-rose-900/60"
+      return "border-rose-300 bg-rose-100/70 dark:bg-rose-950/40 dark:border-rose-900/60"
   }
 }
 

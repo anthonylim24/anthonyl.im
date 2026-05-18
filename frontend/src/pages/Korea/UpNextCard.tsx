@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
+import { ArrowUpRight } from "lucide-react"
 import type { Snapshot } from "./types"
 import { countdownTo, formatCountdown, makeKstDate, upcomingReservations } from "./koreaUtils"
 import { statusMeta, typeMeta, formatDate } from "./koreaTheme"
@@ -9,6 +10,12 @@ interface UpNextCardProps {
   snapshot: Snapshot
 }
 
+/**
+ * Up-next row — what was a filled rose card now reads as a hairline
+ * editorial line, paired with the countdown. The rose moment in the
+ * route is the hero numeral; this is the supporting line, not a
+ * second rose card competing for attention.
+ */
 export function UpNextCard({ snapshot }: UpNextCardProps) {
   const reduce = useReducedMotion()
   const [now, setNow] = useState(() => new Date())
@@ -28,53 +35,68 @@ export function UpNextCard({ snapshot }: UpNextCardProps) {
   const t = typeMeta[next.type]
   const dayLink = next.dayNumber ? snapshot.days.find((d) => d.n === next.dayNumber)?.slug : undefined
 
+  const detailLine = [
+    formatDate(next.date, { weekday: "short", month: "short", day: "numeric" }),
+    next.time,
+    next.address,
+  ]
+    .filter(Boolean)
+    .join("  ·  ")
+
+  const Wrapper: React.ElementType = dayLink ? Link : "div"
+  const wrapperProps: Record<string, unknown> = dayLink ? { to: `/korea/day/${dayLink}` } : {}
+
   return (
     <motion.section
-      initial={reduce ? false : { opacity: 0, y: 10 }}
+      initial={reduce ? false : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ type: "spring", stiffness: 280, damping: 26, delay: 0.4 }}
-      className="mx-auto mt-8 max-w-6xl px-4 sm:px-6"
+      transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: 0.25 }}
+      className="mx-auto mt-10 max-w-6xl px-4 sm:px-6"
     >
-      <div className="rounded-2xl border border-rose-200/70 bg-rose-50/70 p-5 dark:border-rose-900/40 dark:bg-rose-950/20">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-          <div className="flex items-start gap-3 sm:items-center">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-stone-50 text-2xl ring-1 ring-stone-200/80 dark:bg-stone-900 dark:ring-stone-800/80">
-              {t.icon}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-mono uppercase tracking-widest text-rose-700 dark:text-rose-300">
-                Up next · {formatCountdown(cd)}
-              </p>
-              <p className="text-lg font-semibold text-stone-900 dark:text-stone-100">
-                {next.title}
-              </p>
-              <p className="text-xs text-stone-600 dark:text-stone-400">
-                {formatDate(next.date, { weekday: "short", month: "short", day: "numeric" })}
-                {next.time ? ` · ${next.time}` : ""}
-                {next.address ? ` · ${next.address}` : ""}
-              </p>
-            </div>
-          </div>
+      <Wrapper
+        {...wrapperProps}
+        className="group block border-y border-stone-200/80 py-5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/50 dark:border-stone-800/80"
+      >
+        <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+          {/* Eyebrow with rose dot + countdown */}
+          <p className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.24em] text-rose-700 dark:text-rose-300">
+            <span aria-hidden className="inline-block h-1.5 w-1.5 rounded-full bg-rose-500 dark:bg-rose-400" />
+            Up next
+            <span aria-hidden className="text-stone-300 dark:text-stone-700">·</span>
+            <span className="tabular-nums">{formatCountdown(cd)}</span>
+          </p>
 
-          <div className="flex shrink-0 items-center gap-2 sm:ml-auto">
-            <span
-              className={
-                "rounded-full border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wider " + s.chip
-              }
-            >
-              {s.label}
-            </span>
-            {dayLink && (
-              <Link
-                to={`/korea/day/${dayLink}`}
-                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-rose-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-rose-700 dark:bg-rose-500 dark:hover:bg-rose-400"
-              >
-                Open day →
-              </Link>
-            )}
-          </div>
+          {/* Status label as a typographic mark, not a colored pill */}
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
+            <span aria-hidden className={"mr-1.5 inline-block h-1.5 w-1.5 rounded-full " + s.dot} />
+            {s.label}
+          </p>
         </div>
-      </div>
+
+        <div className="mt-3 flex items-baseline gap-3">
+          <span aria-hidden className="text-lg leading-none" title={t.label}>
+            {t.icon}
+          </span>
+          <p
+            className="min-w-0 flex-1 break-words font-serif text-2xl font-medium leading-snug tracking-[-0.01em] text-stone-900 transition-colors group-hover:text-rose-800 sm:text-[1.6rem] dark:text-stone-100 dark:group-hover:text-rose-200"
+            style={{ fontFamily: "'Cormorant Garamond', serif" }}
+          >
+            {next.title}
+          </p>
+          {dayLink && (
+            <ArrowUpRight
+              aria-hidden
+              className="h-4 w-4 shrink-0 self-center text-stone-400 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-rose-600 dark:group-hover:text-rose-400"
+            />
+          )}
+        </div>
+
+        {detailLine && (
+          <p className="mt-2 break-words text-[13px] leading-relaxed text-stone-600 dark:text-stone-400">
+            {detailLine}
+          </p>
+        )}
+      </Wrapper>
     </motion.section>
   )
 }

@@ -223,7 +223,6 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng }: PlaceDeta
               {place.icon}
             </div>
           )}
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
         </div>
 
         {/* Description */}
@@ -311,14 +310,34 @@ function Row({
 }
 
 function PriorityPill({ priority }: { priority: RankedPlace["priority"] }) {
+  // Priority differentiation through typographic weight + a leading dot,
+  // not through a 3-color chip family. Scheduled is the loud rose; core
+  // is the quieter ink dot; extra fades to stone.
   const map = {
-    scheduled: { label: "Scheduled", cls: "bg-rose-100 text-rose-900 dark:bg-rose-950/50 dark:text-rose-200" },
-    core: { label: "Core", cls: "bg-amber-100 text-amber-900 dark:bg-amber-950/50 dark:text-amber-200" },
-    supplemental: { label: "Extra", cls: "bg-stone-200 text-stone-800 dark:bg-stone-800 dark:text-stone-300" },
+    scheduled: {
+      label: "Scheduled",
+      dot: "bg-rose-500 dark:bg-rose-400",
+      text: "text-rose-700 dark:text-rose-300",
+    },
+    core: {
+      label: "Core",
+      dot: "bg-stone-700 dark:bg-stone-300",
+      text: "text-stone-700 dark:text-stone-300",
+    },
+    supplemental: {
+      label: "Extra",
+      dot: "bg-stone-400 dark:bg-stone-600",
+      text: "text-stone-500 dark:text-stone-500",
+    },
   }
   const v = map[priority]
   return (
-    <span className={"shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider " + v.cls}>
+    <span
+      className={
+        "inline-flex shrink-0 items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] " + v.text
+      }
+    >
+      <span aria-hidden className={"inline-block h-1.5 w-1.5 rounded-full " + v.dot} />
       {v.label}
     </span>
   )

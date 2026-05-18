@@ -92,7 +92,7 @@ export function DayTreeNav({ days, className }: DayTreeNavProps) {
                   {isToday && (
                     <span
                       aria-hidden
-                      className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-stone-950"
+                      className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-stone-50 dark:bg-rose-400 dark:ring-stone-950"
                     />
                   )}
                 </Link>

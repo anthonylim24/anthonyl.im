@@ -44,11 +44,12 @@ export function TripHero({ snapshot }: TripHeroProps) {
 
   return (
     <header className="relative overflow-hidden">
-      {/* Single quiet wash: warm parchment in light, mauve nightscape in dark.
-          No animated blobs — the countdown numeral IS the focal moment. */}
+      {/* Single rose wash — no amber, no second radial. The Cormorant
+          countdown numeral IS the focal color event; the wash is the
+          quiet halo behind it. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(244,63,94,0.10),_transparent_55%),radial-gradient(ellipse_at_bottom_left,_rgba(245,158,11,0.08),_transparent_60%)] dark:bg-[radial-gradient(ellipse_at_top_right,_rgba(251,113,133,0.18),_transparent_55%),radial-gradient(ellipse_at_bottom_left,_rgba(120,53,15,0.14),_transparent_60%)]"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(244,63,94,0.08),_transparent_60%)] dark:bg-[radial-gradient(ellipse_at_top_right,_rgba(251,113,133,0.14),_transparent_60%)]"
       />
 
       <div className="relative mx-auto max-w-6xl px-4 pb-12 pt-14 sm:px-6 sm:pt-20 lg:pb-16 lg:pt-24">
