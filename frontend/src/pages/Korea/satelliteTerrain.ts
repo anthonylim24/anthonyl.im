@@ -12,7 +12,7 @@
 // standard:
 //   https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames
 
-import { CanvasTexture, SRGBColorSpace } from "three"
+import { CanvasTexture, LinearFilter, SRGBColorSpace } from "three"
 
 const TILE_SIZE = 256
 // 7×7 tile composite. The Map Mode terrain plane now spans
@@ -66,14 +66,40 @@ function latToTileY(lat: number, n: number): number {
   return (n * (1 - Math.asinh(Math.tan(latRad)) / Math.PI)) / 2
 }
 
-function loadImage(url: string): Promise<HTMLImageElement | null> {
-  return new Promise((resolve) => {
-    const img = new Image()
-    img.crossOrigin = "anonymous"
-    img.onload = () => resolve(img)
-    img.onerror = () => resolve(null)
-    img.src = url
-  })
+// Prefer `createImageBitmap` when available — it decodes off the main
+// thread and returns a GPU-friendly bitmap that drawImage() blits more
+// cheaply than HTMLImageElement. The hints (`premultiplyAlpha:"none"`,
+// `colorSpaceConversion:"none"`) skip work we don't need: satellite
+// tiles have no alpha and we don't want the browser interpreting
+// arbitrary tile color profiles. Falls back to `Image` on Safari < 15.
+async function loadTile(
+  url: string,
+): Promise<ImageBitmap | HTMLImageElement | null> {
+  try {
+    const res = await fetch(url, { mode: "cors", credentials: "omit" })
+    if (!res.ok) return null
+    const blob = await res.blob()
+    if (typeof createImageBitmap === "function") {
+      try {
+        return await createImageBitmap(blob, {
+          imageOrientation: "none",
+          premultiplyAlpha: "none",
+          colorSpaceConversion: "none",
+        })
+      } catch {
+        /* fall through */
+      }
+    }
+    return await new Promise<HTMLImageElement | null>((resolve) => {
+      const img = new Image()
+      img.crossOrigin = "anonymous"
+      img.onload = () => resolve(img)
+      img.onerror = () => resolve(null)
+      img.src = URL.createObjectURL(blob)
+    })
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -118,8 +144,11 @@ export async function fetchSatelliteTexture(
       const drawX = (dx + half) * TILE_SIZE
       const drawY = (dy + half) * TILE_SIZE
       fetches.push(
-        loadImage(url).then((img) => {
+        loadTile(url).then((img) => {
           if (img) ctx.drawImage(img, drawX, drawY, TILE_SIZE, TILE_SIZE)
+          // Release the bitmap immediately after blit; the pixels live
+          // in the canvas now. Frees decode memory promptly on mobile.
+          if (img && "close" in img) (img as ImageBitmap).close()
         }),
       )
     }
@@ -128,6 +157,14 @@ export async function fetchSatelliteTexture(
 
   const texture = new CanvasTexture(canvas)
   texture.colorSpace = SRGBColorSpace
+  // Mipmaps for a 1792² composite cost ~25 % extra VRAM (1.6 MB) and
+  // force a chain rebuild on each dynamic re-fetch. The plane mostly
+  // fills the viewport at Map Mode camera distances — bilinear at the
+  // base level looks identical without the cost.
+  texture.generateMipmaps = false
+  texture.minFilter = LinearFilter
+  // Satellite imagery is opaque — skip the implicit premultiply pass.
+  texture.premultiplyAlpha = false
   // Slightly soften the satellite so it doesn't overpower the bubbles
   // (which carry the actual information). Darkening happens in shader
   // via material color/opacity at the caller — the texture itself stays

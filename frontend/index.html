@@ -7,6 +7,11 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- Short label shown under the icon when added to iOS Home Screen.
+         Each route's metadata script overrides this with its own
+         app-flavored title (Korea Trip, BreathFlow, ...). -->
+    <meta name="apple-mobile-web-app-title" content="Anthony Lim" />
+    <meta name="application-name" content="Anthony Lim" />
     <meta name="description" content="Anthony Lim - Software Engineer. Ask me anything about my experience, skills, and background." />
     <meta property="og:site_name" content="Anthony Lim" />
     <meta property="og:type" content="website" />
@@ -48,6 +53,9 @@
         setRouteMeta('meta[property="og:description"]', 'property', 'og:description', description);
         setRouteMeta('meta[name="twitter:title"]', 'name', 'twitter:title', title);
         setRouteMeta('meta[name="twitter:description"]', 'name', 'twitter:description', description);
+        // iOS Home Screen short label (read at Add-to-Home-Screen time)
+        setRouteMeta('meta[name="apple-mobile-web-app-title"]', 'name', 'apple-mobile-web-app-title', 'BreathFlow');
+        setRouteMeta('meta[name="application-name"]', 'name', 'application-name', 'BreathFlow');
       })();
     </script>
 
@@ -85,6 +93,9 @@
         setRouteMeta('meta[property="og:description"]', 'property', 'og:description', description);
         setRouteMeta('meta[name="twitter:title"]', 'name', 'twitter:title', title);
         setRouteMeta('meta[name="twitter:description"]', 'name', 'twitter:description', description);
+        // iOS Home Screen short label (read at Add-to-Home-Screen time)
+        setRouteMeta('meta[name="apple-mobile-web-app-title"]', 'name', 'apple-mobile-web-app-title', 'Korea Trip');
+        setRouteMeta('meta[name="application-name"]', 'name', 'application-name', 'Korea Trip');
       })();
     </script>
 
