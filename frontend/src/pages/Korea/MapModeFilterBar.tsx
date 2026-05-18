@@ -4,7 +4,11 @@ import type { RankedPlace } from "./mapModeTypes"
 interface MapModeFilterBarProps {
   places: RankedPlace[]
   enabledCategories: Set<string>
-  onToggle: (cat: string) => void
+  // Solo-select a category: clicking a chip should enable ONLY that
+  // category and disable the rest. Clicking the already-solo'd chip
+  // reverts to all-enabled. Parent decides how to map this to its
+  // disabledCategories state.
+  onSoloSelect: (cat: string) => void
   onReset: () => void
 }
 
@@ -27,7 +31,7 @@ const CATEGORY_ICON: Record<string, string> = {
   venue: "💒",
 }
 
-export function MapModeFilterBar({ places, enabledCategories, onToggle, onReset }: MapModeFilterBarProps) {
+export function MapModeFilterBar({ places, enabledCategories, onSoloSelect, onReset }: MapModeFilterBarProps) {
   const counts = new Map<string, number>()
   for (const p of places) counts.set(p.category, (counts.get(p.category) ?? 0) + 1)
   const cats = Array.from(counts.entries()).sort((a, b) => b[1] - a[1])
@@ -62,7 +66,7 @@ export function MapModeFilterBar({ places, enabledCategories, onToggle, onReset 
             <button
               key={cat}
               type="button"
-              onClick={() => onToggle(cat)}
+              onClick={() => onSoloSelect(cat)}
               aria-pressed={enabled}
               title={`${cat} · ${count}`}
               className={

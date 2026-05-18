@@ -12,6 +12,7 @@ import {
   Color,
   DirectionalLight,
   DoubleSide,
+  Fog,
   Group,
   HemisphereLight,
   Line,
@@ -22,6 +23,7 @@ import {
   MeshPhysicalMaterial,
   MeshStandardMaterial,
   PerspectiveCamera,
+  PlaneGeometry,
   Points,
   PointsMaterial,
   Raycaster,
@@ -35,6 +37,8 @@ import {
   WebGLRenderer,
 } from "three"
 import type { RankedPlace } from "./mapModeTypes"
+import { lookupPhoto } from "./placePhoto"
+import { fetchSatelliteTexture } from "./satelliteTerrain"
 
 interface MapModeSceneProps {
   places: RankedPlace[]
@@ -42,6 +46,11 @@ interface MapModeSceneProps {
   selectedId?: string | null
   reducedMotion?: boolean
   onWebglError?: () => void
+  // World coordinates of the "YOU" anchor. Used to compute each place's real
+  // bearing (angle around YOU) and distance for ring placement. If omitted,
+  // bubbles fall back to a synthetic angular layout.
+  userLat?: number
+  userLng?: number
 }
 
 export function isWebglSupported(): boolean {
@@ -58,26 +67,64 @@ export function isWebglSupported(): boolean {
   }
 }
 
-// Visual constants — tuned for a cinematic, centered hero view.
-const RADIUS_BY_PRIORITY: Record<RankedPlace["priority"], number> = {
-  scheduled: 8,
-  core: 14.5,
-  supplemental: 21.5,
-}
-
+// Bubble world-radius is now derived from a place's real distance from the
+// user (see `distanceToWorldRadius`). Priority still drives bubble size and
+// color, but no longer locks a place to a fixed ring.
 const BUBBLE_RADIUS_BY_PRIORITY: Record<RankedPlace["priority"], number> = {
-  scheduled: 2.4,
-  core: 1.85,
-  supplemental: 1.55,
+  scheduled: 2.0,
+  core: 1.55,
+  supplemental: 1.3,
 }
 
-// Bubbles all live on the same Y plane. Combined with the top-down isometric
-// camera, this gives a "places around you" map where YOU is unambiguously
-// the geometric center and the camera orbits around that center.
-const Y_BY_PRIORITY: Record<RankedPlace["priority"], number> = {
-  scheduled: 1.6,
-  core: 1.6,
-  supplemental: 1.6,
+// All bubbles share the same Y plane. Depth-from-camera comes from camera
+// pitch + horizontal offset, not from staggered elevations — keeps YOU as
+// the unambiguous geometric center.
+const BUBBLE_Y = 1.6
+
+// Inner / outer world-space radii for the bubble placement ring band.
+// The CLOSEST visible place always lands on the inner ring; every other
+// place sits on a ring proportional to (d / dMin), clamped to the outer
+// ring. This keeps the layout legible regardless of how far the user is
+// from their day's POIs — a Busan-from-Seoul day with 50 km minimum
+// distance composes the same way as a 500 m walking day.
+const WORLD_RING_MIN = 6
+const WORLD_RING_MAX = 26
+// Hard cap on the relative ratio. A place 10× farther than the closest
+// gets clamped to the outer ring; anything beyond looks identical.
+const MAX_RELATIVE_RATIO = 10
+
+function radiusForRatio(ratio: number): number {
+  if (!isFinite(ratio) || ratio < 1) return WORLD_RING_MIN
+  if (ratio >= MAX_RELATIVE_RATIO) return WORLD_RING_MAX
+  // Linear map [1, MAX_RELATIVE_RATIO] → [WORLD_RING_MIN, WORLD_RING_MAX].
+  const t = (ratio - 1) / (MAX_RELATIVE_RATIO - 1)
+  return WORLD_RING_MIN + (WORLD_RING_MAX - WORLD_RING_MIN) * t
+}
+
+// Decorative concentric rings on the ground plane. Rings are evenly spaced
+// between the inner and outer placement radii — they read as "you are
+// here" / "nearby" / "farther" bands without committing to specific meter
+// values (because the meter scale is now per-day-relative).
+const DECORATIVE_RING_RATIOS = [1, 2.5, 5, MAX_RELATIVE_RATIO] as const
+
+// Compute the great-circle bearing (radians, 0 = north, +clockwise) from
+// a→b. Used to place each bubble at its REAL geographic direction around
+// YOU instead of an arbitrary index-based angle.
+function bearingRad(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const φ1 = (aLat * Math.PI) / 180
+  const φ2 = (bLat * Math.PI) / 180
+  const Δλ = ((bLng - aLng) * Math.PI) / 180
+  const y = Math.sin(Δλ) * Math.cos(φ2)
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ)
+  return Math.atan2(y, x)
+}
+
+// Convert a compass bearing (0 = north) to scene-space angle around the Y
+// axis. Scene convention: angle 0 places a bubble at (+X, 0, 0); +angle
+// rotates CCW when looking down. We map north→-Z and east→+X so the visual
+// "up on screen" corresponds to north when the camera yaw is at zero.
+function bearingToSceneAngle(bearing: number): number {
+  return Math.PI / 2 - bearing
 }
 
 // Camera distance per viewport. Wider default than before so the supplemental
@@ -91,18 +138,44 @@ function cameraTargetRadiusFor(width: number): number {
   return 36
 }
 
+type NodeKind = "place" | "cluster" | "member"
+
 interface BubbleNode {
+  // Logical kind:
+  //   - "place"   → standalone bubble for a single place
+  //   - "cluster" → synthetic bubble representing N same-category places
+  //   - "member"  → individual place bubble that lives inside a cluster;
+  //                 hidden when the parent cluster is collapsed, fanned
+  //                 out around the cluster center when it's open
+  kind: NodeKind
+  // For "cluster" nodes this is members[0].place (used for icon/color
+  // fallbacks); the visible label is rebuilt with the count. For "place"
+  // and "member" nodes this is the underlying place.
   place: RankedPlace
   outer: Mesh
   innerBillboard: Mesh
   rim: Mesh
-  line: Line
+  // Soft dark disc on the ground plane directly below the orb — sells
+  // the "floating above the ground" feel without resorting to real-time
+  // shadow maps (too costly on mobile).
+  shadow: Mesh
+  // The connecting line is omitted for "member" nodes — the cluster's
+  // line is the visible spoke; members orbit around the cluster center.
+  line: Line | null
   basePos: Vector3
   bobOffset: number
   bobAmplitude: number
   label: HTMLDivElement
   entryDelay: number
   bornAt: number
+  // Cluster-specific
+  clusterId?: string
+  members?: BubbleNode[]
+  // Member-specific: offset from the cluster center to this member's
+  // fan position when the cluster is fully expanded. Per-frame position
+  // is `clusterBasePos + fanOffset * openness`.
+  parentClusterId?: string
+  fanOffset?: Vector3
 }
 
 function easeOutCubic(t: number): number {
@@ -143,20 +216,15 @@ function makePlaceholderTexture(color: string, icon: string): CanvasTexture {
   return tex
 }
 
-// Try to fetch a real photo for the place via the Wikipedia REST API (CORS-safe)
-// and replace the placeholder texture asynchronously.
-async function lookupPlacePhoto(query: string): Promise<string | null> {
-  try {
-    const r = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`)
-    if (!r.ok) return null
-    const j = (await r.json()) as { thumbnail?: { source?: string }; originalimage?: { source?: string } }
-    return j.thumbnail?.source ?? j.originalimage?.source ?? null
-  } catch {
-    return null
-  }
-}
-
-export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWebglError }: MapModeSceneProps) {
+export function MapModeScene({
+  places,
+  onSelect,
+  selectedId,
+  reducedMotion,
+  onWebglError,
+  userLat,
+  userLng,
+}: MapModeSceneProps) {
   const mountRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const onSelectRef = useRef(onSelect)
@@ -207,6 +275,15 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
 
     // ── Scene + Camera ─────────────────────────────────────────────
     const scene = new Scene()
+    // Distance fog reads as atmospheric depth — far rings, stars, and
+    // outer-band bubbles haze toward the backdrop tone so the eye anchors
+    // on whatever's closest to YOU. We sample prefers-color-scheme once so
+    // light vs dark mode get appropriately tinted fog (warm cream vs deep
+    // plum) without having to re-render the scene on theme toggle.
+    const prefersDark =
+      typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)")?.matches
+    const FOG_COLOR = prefersDark ? 0x1d1426 : 0xfde0c6
+    scene.fog = new Fog(FOG_COLOR, 35, 130)
     const camera = new PerspectiveCamera(38, w / h, 0.1, 400)
 
     // CAMERA: target world origin (where YOU lives, via the CSS overlay) so
@@ -231,15 +308,17 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
     }
     applyCamera()
 
-    // ── Lights ─────────────────────────────────────────────────────
-    const ambient = new AmbientLight(0xffffff, 0.55)
+    // ── Lights — slightly more directional contrast to read as "scene
+    // with depth" rather than evenly-lit set piece. Ambient dropped, key
+    // raised, rim push a bit cooler so silhouettes feel three-dimensional.
+    const ambient = new AmbientLight(0xffffff, 0.42)
     scene.add(ambient)
-    const hemi = new HemisphereLight(0xfff0d6, 0x1a0e2a, 0.45)
+    const hemi = new HemisphereLight(0xfff0d6, 0x1a0e2a, 0.42)
     scene.add(hemi)
-    const key = new DirectionalLight(0xfff4e6, 1.1)
-    key.position.set(20, 30, 14)
+    const key = new DirectionalLight(0xfff4e6, 1.35)
+    key.position.set(22, 34, 16)
     scene.add(key)
-    const rim = new DirectionalLight(0xa3c5ff, 0.65)
+    const rim = new DirectionalLight(0x9bbaf2, 0.78)
     rim.position.set(-18, 12, -16)
     scene.add(rim)
 
@@ -275,14 +354,20 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
     ground.position.y = -0.6
     scene.add(ground)
 
+    // Decorative concentric rings — visual reference for the relative
+    // distance bands. The innermost ring sits where the closest place will
+    // land; outer rings step out at 2.5×, 5×, and 10× the closest distance.
     const ringMeshes: Mesh[] = []
-    const ringDefs: { radius: number; color: number; opacity: number }[] = [
-      { radius: RADIUS_BY_PRIORITY.scheduled, color: 0xff4d6d, opacity: 0.4 },
-      { radius: RADIUS_BY_PRIORITY.core, color: 0xfb923c, opacity: 0.28 },
-      { radius: RADIUS_BY_PRIORITY.supplemental, color: 0xa3a3a3, opacity: 0.18 },
-    ]
+    const ringDefs: { radius: number; color: number; opacity: number }[] = DECORATIVE_RING_RATIOS.map(
+      (ratio, i) => ({
+        radius: radiusForRatio(ratio),
+        // Innermost band is the warmest; outer rings cool toward stone-gray.
+        color: i === 0 ? 0xff4d6d : i === 1 ? 0xfb923c : i === 2 ? 0xfbbf24 : 0xa3a3a3,
+        opacity: 0.4 - i * 0.06,
+      }),
+    )
     for (const def of ringDefs) {
-      const g = new RingGeometry(def.radius - 0.18, def.radius + 0.18, 96)
+      const g = new RingGeometry(def.radius - 0.14, def.radius + 0.14, 96)
       const m = new MeshBasicMaterial({
         color: def.color,
         transparent: true,
@@ -337,102 +422,382 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
     textureLoader.setCrossOrigin("anonymous")
 
     // ── Bubble nodes (glass orbs with refracted image plane inside) ─
+    //
+    // Position rules:
+    //   - WORLD-RADIUS is RELATIVE to the closest visible place. The closest
+    //     bubble lands on the inner ring; every other bubble sits at a
+    //     radius proportional to (d / dMin), clamped at 10×. Practical
+    //     effect: a Seoul-only day and a Seoul→Busan day both compose with
+    //     the closest place near YOU and the furthest at the edge.
+    //   - ANGULAR POSITION comes from each place's real geographic bearing
+    //     from the user. If the user location is unknown we degrade to a
+    //     deterministic index-based angle so bubbles still spread evenly.
+    //
+    // Bubbles are sorted by priority for stable z-fighting tie-breaks and
+    // entry-animation order. Priority no longer pins them to a ring.
     const nodes: BubbleNode[] = []
-    const groupedByPriority: Record<string, RankedPlace[]> = { scheduled: [], core: [], supplemental: [] }
-    for (const p of places) groupedByPriority[p.priority].push(p)
+    const sortedPlaces = [...places].sort((a, b) => {
+      const order: Record<RankedPlace["priority"], number> = { scheduled: 0, core: 1, supplemental: 2 }
+      return order[a.priority] - order[b.priority]
+    })
 
-    let entryIdx = 0
-    for (const priority of ["scheduled", "core", "supplemental"] as const) {
-      const groupPlaces = groupedByPriority[priority]
-      const ringRadius = RADIUS_BY_PRIORITY[priority]
-      const phase =
-        priority === "scheduled" ? Math.PI / 6 : priority === "core" ? Math.PI / 9 : Math.PI / 12
+    // Find the closest place's distance to anchor the relative scale.
+    // Places without a distance are treated as far for purposes of dMin
+    // (so a single missing-distance place doesn't collapse the layout).
+    let dMin = Infinity
+    for (const p of sortedPlaces) {
+      if (typeof p.distanceMeters === "number" && p.distanceMeters > 0 && p.distanceMeters < dMin) {
+        dMin = p.distanceMeters
+      }
+    }
+    if (!isFinite(dMin)) dMin = 1
 
-      groupPlaces.forEach((place, i) => {
-        const angle = phase + (i / Math.max(1, groupPlaces.length)) * Math.PI * 2
-        const bx = Math.cos(angle) * ringRadius
-        const bz = Math.sin(angle) * ringRadius
-        const by = Y_BY_PRIORITY[priority]
-        const bubbleRadius = BUBBLE_RADIUS_BY_PRIORITY[priority]
+    // ── Satellite-terrain backdrop. Sits well below the bubble plane so
+    // the orbs read as floating above the ground. Sized so the closest
+    // place's true geographic distance from YOU corresponds to the inner
+    // ring radius — gives a "looking down on the neighborhood" feel.
+    //
+    // We use ESRI World Imagery (no key, CORS-friendly) and stitch a 3×3
+    // tile composite centered on the user, then map it onto a displaced
+    // PlaneGeometry so the terrain has subtle relief instead of reading
+    // as a flat printed map.
+    const METERS_PER_UNIT = dMin / WORLD_RING_MIN
+    const TERRAIN_PLANE_UNITS = WORLD_RING_MAX * 3.0 // diameter in world units
+    const terrainGeom = new PlaneGeometry(TERRAIN_PLANE_UNITS, TERRAIN_PLANE_UNITS, 96, 96)
+    // Subtle procedural displacement so the terrain reads as 3D when the
+    // user pitches the camera. Real DEM data would be ideal but isn't
+    // worth the round-trip for a backdrop — sin/cos sums look enough like
+    // gentle rolling terrain at this scale.
+    {
+      const pos = terrainGeom.attributes.position as BufferAttribute
+      for (let i = 0; i < pos.count; i++) {
+        const px = pos.getX(i)
+        const py = pos.getY(i)
+        const h =
+          Math.sin(px * 0.08) * Math.cos(py * 0.08) * 0.9 +
+          Math.sin(px * 0.21 + 1.7) * Math.cos(py * 0.17 + 0.4) * 0.45 +
+          Math.sin(px * 0.41 + 2.3) * Math.cos(py * 0.37 - 1.2) * 0.22
+        pos.setZ(i, h)
+      }
+      pos.needsUpdate = true
+      terrainGeom.computeVertexNormals()
+    }
+    // Placeholder material until the satellite texture loads.
+    const terrainMat = new MeshStandardMaterial({
+      color: 0x2a2520,
+      roughness: 0.92,
+      metalness: 0.0,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+    })
+    const terrain = new Mesh(terrainGeom, terrainMat)
+    terrain.rotation.x = -Math.PI / 2
+    terrain.position.y = -3.2
+    // Renders before everything else (decorative rings, bubbles, etc.).
+    terrain.renderOrder = -10000
+    scene.add(terrain)
 
-        const color = new Color(place.color)
+    // Async fetch + texture swap. Bail silently on network failure — the
+    // placeholder color stays put. `terrainCancelled` guards against
+    // the cleanup unmounting the scene while the fetch is in flight.
+    let terrainCancelled = false
+    if (typeof userLat === "number" && typeof userLng === "number") {
+      const realSpanMeters = TERRAIN_PLANE_UNITS * METERS_PER_UNIT
+      void fetchSatelliteTexture(userLat, userLng, realSpanMeters).then((result) => {
+        if (!result || terrainCancelled) return
+        // Offset the texture's UV so the user's geographic position lands
+        // at the geometric center of the plane.
+        const tex = result.texture
+        tex.center.set(0.5, 0.5)
+        tex.offset.set(result.userU - 0.5, 0.5 - result.userV)
+        terrainMat.map = tex
+        terrainMat.color.setHex(0xffffff)
+        terrainMat.opacity = 0.85
+        terrainMat.needsUpdate = true
+      })
+    }
 
-        // ── Inner image billboard plane (rendered first so it's behind glass) ──
-        const placeholderTex = makePlaceholderTexture(place.color, place.icon)
-        const innerBillboard = new Mesh(
-          new CircleGeometry(bubbleRadius * 0.78, 32),
-          new MeshBasicMaterial({
-            map: placeholderTex,
-            transparent: true,
-            depthWrite: false,
-          }),
-        )
-        innerBillboard.position.set(bx, by, bz)
-        innerBillboard.userData.placeholderTex = placeholderTex
-        scene.add(innerBillboard)
+    // Fallback angle: spread places that share an undefined location evenly
+    // around the user. Use a stable seed so the layout doesn't shuffle on
+    // re-mount.
+    const fallbackSpread = Math.max(1, sortedPlaces.length)
+    const haveUserLoc = typeof userLat === "number" && typeof userLng === "number"
 
-        // Try to load a real photo asynchronously; replace placeholder when it arrives
-        lookupPlacePhoto(place.name)
-          .then((url) => (url ? url : lookupPlacePhoto(place.name.split("(")[0].trim())))
-          .then((url) => {
-            if (!url) return
-            textureLoader.load(
-              url,
-              (tex) => {
-                tex.colorSpace = SRGBColorSpace
-                ;(innerBillboard.material as MeshBasicMaterial).map = tex
-                ;(innerBillboard.material as MeshBasicMaterial).needsUpdate = true
-              },
-              undefined,
-              () => {
-                /* keep placeholder */
-              },
-            )
-          })
+    // ── Position pass 1: initial placement from bearing + relative distance.
+    interface PlacedPlace {
+      place: RankedPlace
+      x: number
+      z: number
+      bubbleRadius: number
+    }
+    const placed: PlacedPlace[] = sortedPlaces.map((place, i) => {
+      const placeDist =
+        typeof place.distanceMeters === "number" && place.distanceMeters > 0
+          ? place.distanceMeters
+          : dMin * MAX_RELATIVE_RATIO
+      const ringRadius = radiusForRatio(placeDist / dMin)
+      const angle = haveUserLoc
+        ? bearingToSceneAngle(bearingRad(userLat as number, userLng as number, place.lat, place.lng))
+        : (i / fallbackSpread) * Math.PI * 2
+      // Tiny deterministic angular jitter (≈ ±0.3°) so two places with
+      // identical lat/lng or perfectly-matching bearings don't share the
+      // exact same position — without jitter, repulsion can't pick a
+      // separation direction (gradient is zero).
+      const jitter = (((i * 2654435761) >>> 0) / 0xffffffff - 0.5) * 0.01
+      const a = angle + jitter
+      return {
+        place,
+        x: Math.cos(a) * ringRadius,
+        z: -Math.sin(a) * ringRadius,
+        bubbleRadius: BUBBLE_RADIUS_BY_PRIORITY[place.priority],
+      }
+    })
 
-        // ── Outer glass orb ───────────────────────────────────────
-        const outerMat = new MeshPhysicalMaterial({
-          color,
-          transmission: 0.7,
-          thickness: 0.6,
-          roughness: 0.32, // frosted
-          metalness: 0.0,
-          ior: 1.32,
-          clearcoat: 1.0,
-          clearcoatRoughness: 0.18,
-          iridescence: priority === "scheduled" ? 0.35 : 0.18,
-          iridescenceIOR: 1.3,
-          attenuationColor: color,
-          attenuationDistance: 1.5,
-          transparent: true,
-          opacity: 0.92,
-          emissive: color,
-          emissiveIntensity: priority === "scheduled" ? 0.18 : 0.1,
-          side: DoubleSide,
-          depthWrite: false,
+    // ── Cluster detection: group same-category places whose initial
+    // positions would visibly overlap. Union-find by pairwise XZ proximity
+    // among matching categories. Singletons stay as plain place slots;
+    // clusters become a single representative slot at the centroid.
+    const CLUSTER_PROXIMITY = 1.45 // (rA + rB) * this → considered overlapping
+    const parent = placed.map((_, i) => i)
+    function find(x: number): number {
+      while (parent[x] !== x) {
+        parent[x] = parent[parent[x]]
+        x = parent[x]
+      }
+      return x
+    }
+    function union(a: number, b: number) {
+      const ra = find(a)
+      const rb = find(b)
+      if (ra !== rb) parent[ra] = rb
+    }
+    for (let a = 0; a < placed.length; a++) {
+      for (let b = a + 1; b < placed.length; b++) {
+        if (placed[a].place.category !== placed[b].place.category) continue
+        const dx = placed[b].x - placed[a].x
+        const dz = placed[b].z - placed[a].z
+        const minDist = (placed[a].bubbleRadius + placed[b].bubbleRadius) * CLUSTER_PROXIMITY
+        if (Math.hypot(dx, dz) < minDist) union(a, b)
+      }
+    }
+    const groupsByRoot = new Map<number, number[]>()
+    placed.forEach((_, i) => {
+      const root = find(i)
+      const list = groupsByRoot.get(root) ?? []
+      list.push(i)
+      groupsByRoot.set(root, list)
+    })
+
+    // ── Layout slots: clusters + singletons. We layout-relax this set
+    // (not the individual cluster members) so the map's spacing reflects
+    // logical entities the user can click.
+    interface LayoutSlot {
+      kind: NodeKind
+      clusterId?: string
+      members?: PlacedPlace[]
+      anchor: PlacedPlace
+      x: number
+      z: number
+      bubbleRadius: number
+    }
+    const slots: LayoutSlot[] = []
+    groupsByRoot.forEach((indices, root) => {
+      if (indices.length === 1) {
+        const p = placed[indices[0]]
+        slots.push({
+          kind: "place",
+          anchor: p,
+          x: p.x,
+          z: p.z,
+          bubbleRadius: p.bubbleRadius,
         })
-        const outer = new Mesh(new SphereGeometry(bubbleRadius, 48, 48), outerMat)
-        outer.position.set(bx, by, bz)
-        outer.userData.placeId = place.id
-        outer.userData.priority = priority
-        outer.scale.setScalar(0.001)
-        scene.add(outer)
+        return
+      }
+      // Cluster: centroid of members, slightly enlarged radius so the
+      // group orb visually contains a count.
+      const members = indices.map((i) => placed[i])
+      const cx = members.reduce((s, m) => s + m.x, 0) / members.length
+      const cz = members.reduce((s, m) => s + m.z, 0) / members.length
+      const baseRadius = Math.max(...members.map((m) => m.bubbleRadius))
+      slots.push({
+        kind: "cluster",
+        clusterId: `cluster-${root}-${members.length}`,
+        members,
+        anchor: members[0],
+        x: cx,
+        z: cz,
+        bubbleRadius: baseRadius * 1.35,
+      })
+    })
 
-        // ── Fresnel rim — a backside shell with emissive that lights up on edges
-        const rimMat = new MeshBasicMaterial({
-          color,
+    // ── Repulsion relaxation, now operating on the slot set. Clusters
+    // and singletons all participate; cluster members do NOT (they live
+    // INSIDE their cluster's slot).
+    const SEPARATION = 1.18
+    const RELAX_ITERATIONS = 24
+    for (let iter = 0; iter < RELAX_ITERATIONS; iter++) {
+      let movedThisIter = false
+      for (let a = 0; a < slots.length; a++) {
+        for (let b = a + 1; b < slots.length; b++) {
+          const A = slots[a]
+          const B = slots[b]
+          const dx = B.x - A.x
+          const dz = B.z - A.z
+          const dist = Math.hypot(dx, dz)
+          const minDist = (A.bubbleRadius + B.bubbleRadius) * SEPARATION
+          if (dist < minDist) {
+            const overlap = (minDist - dist) / 2
+            let ux: number
+            let uz: number
+            if (dist < 1e-4) {
+              const seed = (((a * 0x9e3779b1) ^ (b * 0x7f4a7c15)) >>> 0) / 0xffffffff
+              const theta = seed * Math.PI * 2
+              ux = Math.cos(theta)
+              uz = Math.sin(theta)
+            } else {
+              ux = dx / dist
+              uz = dz / dist
+            }
+            A.x -= ux * overlap
+            A.z -= uz * overlap
+            B.x += ux * overlap
+            B.z += uz * overlap
+            movedThisIter = true
+          }
+        }
+      }
+      if (!movedThisIter) break
+    }
+
+    // ── Mesh construction. Walks the slot set (clusters + singletons) and
+    // creates the corresponding nodes; cluster members are created as
+    // hidden child nodes that fan out around the cluster center when the
+    // cluster is opened.
+    function buildOrbMesh(opts: {
+      place: RankedPlace
+      bubbleRadius: number
+      x: number
+      z: number
+      isCluster: boolean
+      isMember: boolean
+      clusterMemberCount: number | null
+    }): {
+      outer: Mesh
+      innerBillboard: Mesh
+      rim: Mesh
+      line: Line | null
+      label: HTMLDivElement
+      shadow: Mesh
+    } {
+      const { place, bubbleRadius, x: bx, z: bz, isCluster, isMember, clusterMemberCount } = opts
+      const by = BUBBLE_Y
+      const priority = place.priority
+      const color = new Color(place.color)
+
+      // Inner image billboard. Sized to fill ~92 % of the orb so the photo
+      // is the dominant visual element; the glass shell adds the refraction
+      // shimmer at the silhouette, not a full-coverage wash.
+      const placeholderTex = makePlaceholderTexture(place.color, place.icon)
+      const innerBillboard = new Mesh(
+        new CircleGeometry(bubbleRadius * 0.92, 36),
+        new MeshBasicMaterial({
+          map: placeholderTex,
           transparent: true,
-          opacity: 0.28,
-          side: BackSide,
           depthWrite: false,
-          blending: AdditiveBlending,
-        })
-        const rim = new Mesh(new SphereGeometry(bubbleRadius * 1.12, 32, 32), rimMat)
-        rim.position.set(bx, by, bz)
-        rim.scale.setScalar(0.001)
-        scene.add(rim)
+        }),
+      )
+      innerBillboard.position.set(bx, by, bz)
+      innerBillboard.userData.placeholderTex = placeholderTex
+      scene.add(innerBillboard)
 
-        // ── Connecting line ────────────────────────────────────────
+      // Real photo lookup (skipped for clusters — the cluster orb shows the
+      // category icon + count, not a single member's photo).
+      //
+      // Candidate cascade: most-specific → least-specific. We bias toward
+      // queries that pin down the place (name + city, name + category) so
+      // the MediaWiki search doesn't drift into a same-named place
+      // elsewhere in the world.
+      if (!isCluster) {
+        const base = place.name.split("(")[0].trim()
+        const photoQueries = [
+          `${base} ${place.city}`,
+          `${base} ${place.category} ${place.city}`,
+          base,
+          place.name,
+        ].filter((s, idx, arr) => s && arr.indexOf(s) === idx)
+        void lookupPhoto(photoQueries).then((url) => {
+          if (!url) return
+          textureLoader.load(
+            url,
+            (tex) => {
+              tex.colorSpace = SRGBColorSpace
+              ;(innerBillboard.material as MeshBasicMaterial).map = tex
+              ;(innerBillboard.material as MeshBasicMaterial).needsUpdate = true
+            },
+            undefined,
+            () => {
+              /* keep placeholder */
+            },
+          )
+        })
+      }
+
+      // ── Outer glass orb. Tuned so the photo inside reads clearly:
+      // - Very high transmission + low roughness lets the image come
+      //   through the front face without color wash.
+      // - Iridescence kept subtle so the fresnel rainbow only fires at
+      //   the silhouette (not across the photo).
+      // - Attenuation distance pushed long so the bubble color tints
+      //   the silhouette but doesn't dye the image at center.
+      const outerMat = new MeshPhysicalMaterial({
+        color,
+        transmission: 0.98,
+        thickness: 0.6,
+        roughness: 0.08,
+        metalness: 0.0,
+        ior: 1.45,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.06,
+        iridescence: priority === "scheduled" ? 0.22 : 0.12,
+        iridescenceIOR: 1.3,
+        attenuationColor: color,
+        attenuationDistance: 4.0,
+        transparent: true,
+        opacity: 0.6,
+        emissive: color,
+        emissiveIntensity: priority === "scheduled" ? 0.08 : 0.04,
+        side: DoubleSide,
+        depthWrite: true,
+      })
+      const outer = new Mesh(new SphereGeometry(bubbleRadius, 56, 56), outerMat)
+      outer.position.set(bx, by, bz)
+      outer.userData.placeId = place.id
+      outer.userData.priority = priority
+      outer.userData.isCluster = isCluster
+      outer.userData.isMember = isMember
+      outer.scale.setScalar(0.001)
+      scene.add(outer)
+
+      // Fresnel rim — backside shell with additive emissive at the
+      // silhouette. Slightly bigger ring for cluster orbs to suggest mass.
+      const rimMat = new MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: isCluster ? 0.38 : 0.28,
+        side: BackSide,
+        depthWrite: false,
+        blending: AdditiveBlending,
+      })
+      const rim = new Mesh(new SphereGeometry(bubbleRadius * (isCluster ? 1.18 : 1.12), 32, 32), rimMat)
+      rim.position.set(bx, by, bz)
+      rim.scale.setScalar(0.001)
+      scene.add(rim)
+
+      // Spoke from YOU. Members don't get their own spoke (the cluster's
+      // spoke is the visible one).
+      let line: Line | null = null
+      if (!isMember) {
         const lineGeom = new BufferGeometry().setFromPoints([
           new Vector3(0, 0.6, 0),
           new Vector3(bx, by, bz),
@@ -442,17 +807,30 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
           transparent: true,
           opacity: priority === "scheduled" ? 0.55 : priority === "core" ? 0.35 : 0.18,
         })
-        const line = new Line(lineGeom, lineMat)
+        line = new Line(lineGeom, lineMat)
         scene.add(line)
+      }
 
-        // ── HTML label overlay (flicker-free) ─────────────────────
-        const distance = place.distanceLabel ?? ""
-        const label = document.createElement("div")
-        label.dataset.placeId = place.id
-        // Start far off-screen so we never see un-projected labels.
-        label.style.transform = "translate3d(-9999px, -9999px, 0)"
-        label.style.visibility = "hidden"
-        label.className = "pointer-events-none absolute left-0 top-0 select-none text-center"
+      // HTML label.
+      const distance = place.distanceLabel ?? ""
+      const label = document.createElement("div")
+      label.dataset.placeId = place.id
+      label.style.transform = "translate3d(-9999px, -9999px, 0)"
+      label.style.visibility = "hidden"
+      label.className = "pointer-events-none absolute left-0 top-0 select-none text-center"
+      if (isCluster && clusterMemberCount && clusterMemberCount > 1) {
+        label.innerHTML = `
+          <div class="-translate-y-2 text-2xl drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)] leading-none">${place.icon}</div>
+          <div class="-mt-0.5 inline-flex max-w-[12rem] flex-col items-center gap-0.5 rounded-2xl bg-white/95 px-2 py-1 shadow-md ring-1 ring-stone-200 backdrop-blur-md dark:bg-stone-900/95 dark:ring-stone-700">
+            <div class="text-[10px] font-semibold uppercase tracking-wide leading-tight text-stone-900 dark:text-stone-100">
+              ${clusterMemberCount} ${escapeHtml(place.category)}s
+            </div>
+            <div class="rounded-full px-1.5 py-px text-[9px] font-bold uppercase tracking-widest leading-none" style="background:${place.color}26;color:${place.color};">
+              tap to expand
+            </div>
+          </div>
+        `
+      } else {
         label.innerHTML = `
           <div class="-translate-y-2 text-2xl drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)] leading-none">${place.icon}</div>
           <div class="-mt-0.5 inline-flex max-w-[11rem] flex-col items-center gap-0.5 rounded-2xl bg-white/92 px-2 py-1 shadow-md ring-1 ring-stone-200 backdrop-blur-md dark:bg-stone-900/92 dark:ring-stone-700">
@@ -466,24 +844,118 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
             }
           </div>
         `
-        overlay.appendChild(label)
+      }
+      overlay!.appendChild(label)
 
-        nodes.push({
+      // Ground shadow disc — a soft dark circle on the ground plane.
+      // Lives slightly above the ring meshes so it always paints on top
+      // of them without flickering.
+      const shadowMat = new MeshBasicMaterial({
+        color: 0x000000,
+        transparent: true,
+        opacity: isCluster ? 0.28 : 0.22,
+        depthWrite: false,
+      })
+      const shadow = new Mesh(new CircleGeometry(bubbleRadius * 1.05, 32), shadowMat)
+      shadow.rotation.x = -Math.PI / 2
+      shadow.position.set(bx, -0.49, bz)
+      shadow.scale.setScalar(0.001)
+      scene.add(shadow)
+
+      return { outer, innerBillboard, rim, line, label, shadow }
+    }
+
+    let nodeIdx = 0
+    slots.forEach((slot) => {
+      if (slot.kind === "place") {
+        const place = slot.anchor.place
+        const built = buildOrbMesh({
           place,
-          outer,
-          innerBillboard,
-          rim,
-          line,
-          basePos: new Vector3(bx, by, bz),
+          bubbleRadius: slot.bubbleRadius,
+          x: slot.x,
+          z: slot.z,
+          isCluster: false,
+          isMember: false,
+          clusterMemberCount: null,
+        })
+        nodes.push({
+          kind: "place",
+          place,
+          ...built,
+          basePos: new Vector3(slot.x, BUBBLE_Y, slot.z),
           bobOffset: Math.random() * Math.PI * 2,
-          bobAmplitude: priority === "scheduled" ? 0.4 : 0.28,
-          label,
-          entryDelay: entryIdx * 0.06,
+          bobAmplitude: place.priority === "scheduled" ? 0.4 : 0.28,
+          entryDelay: nodeIdx * 0.06,
           bornAt: 0,
         })
-        entryIdx++
+        nodeIdx++
+        return
+      }
+
+      // Cluster slot — build the synthetic group orb at the centroid,
+      // then build hidden member orbs that fan out around it on expand.
+      const members = slot.members ?? []
+      const clusterId = slot.clusterId ?? `cluster-${nodeIdx}`
+      const built = buildOrbMesh({
+        place: slot.anchor.place,
+        bubbleRadius: slot.bubbleRadius,
+        x: slot.x,
+        z: slot.z,
+        isCluster: true,
+        isMember: false,
+        clusterMemberCount: members.length,
       })
-    }
+      built.outer.userData.clusterId = clusterId
+      const clusterNode: BubbleNode = {
+        kind: "cluster",
+        place: slot.anchor.place,
+        ...built,
+        basePos: new Vector3(slot.x, BUBBLE_Y, slot.z),
+        bobOffset: Math.random() * Math.PI * 2,
+        bobAmplitude: 0.32,
+        entryDelay: nodeIdx * 0.06,
+        bornAt: 0,
+        clusterId,
+        members: [],
+      }
+      nodes.push(clusterNode)
+      nodeIdx++
+
+      // Fan radius = enough to space members past the cluster's outline.
+      // Members orbit around the cluster's center in a tidy ring.
+      const memberRadius = Math.max(...members.map((m) => m.bubbleRadius))
+      const fanR = slot.bubbleRadius + memberRadius * 1.45
+      members.forEach((m, i) => {
+        const a = (i / members.length) * Math.PI * 2 - Math.PI / 2
+        const fx = Math.cos(a) * fanR
+        const fz = -Math.sin(a) * fanR
+        const memberBuilt = buildOrbMesh({
+          place: m.place,
+          bubbleRadius: m.bubbleRadius,
+          x: slot.x,
+          z: slot.z,
+          isCluster: false,
+          isMember: true,
+          clusterMemberCount: null,
+        })
+        memberBuilt.outer.userData.parentClusterId = clusterId
+        const memberNode: BubbleNode = {
+          kind: "member",
+          place: m.place,
+          ...memberBuilt,
+          basePos: new Vector3(slot.x, BUBBLE_Y, slot.z),
+          bobOffset: Math.random() * Math.PI * 2,
+          bobAmplitude: 0.2,
+          entryDelay: nodeIdx * 0.04,
+          bornAt: 0,
+          parentClusterId: clusterId,
+          fanOffset: new Vector3(fx, 0, fz),
+        }
+        nodes.push(memberNode)
+        clusterNode.members!.push(memberNode)
+        nodeIdx++
+      })
+    })
 
     // Center YOU label — anchored to viewport center via CSS so it never
     // drifts with the camera. The 3D YOU sphere is the "physical" pin in the
@@ -515,15 +987,45 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
       pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1
     }
 
+    // Cluster expansion state — lives inside the effect so it resets on
+    // every scene rebuild. Drives per-frame member position/scale lerp.
+    let expandedClusterId: string | null = null
+    // Per-cluster openness (0 collapsed → 1 fully expanded). Stored on
+    // the cluster node so we can lerp toward target each frame.
+    const clusterOpenness = new Map<string, number>()
+    for (const n of nodes) {
+      if (n.kind === "cluster" && n.clusterId) clusterOpenness.set(n.clusterId, 0)
+    }
+
     function pickAtPointer(): BubbleNode | null {
       raycaster.setFromCamera(pointer, camera)
-      const hits = raycaster.intersectObjects(
-        nodes.map((n) => n.outer),
-        false,
-      )
+      // Hidden cluster members are excluded — when their parent cluster
+      // is collapsed, their scale tween is ~0 and they shouldn't intercept
+      // clicks even if the geometry is still in the scene.
+      const candidates: Mesh[] = []
+      for (const n of nodes) {
+        if (n.kind === "member" && n.parentClusterId && expandedClusterId !== n.parentClusterId) {
+          continue
+        }
+        candidates.push(n.outer)
+      }
+      const hits = raycaster.intersectObjects(candidates, false)
       if (!hits.length) return null
-      const placeId = hits[0].object.userData.placeId as string | undefined
-      return nodes.find((n) => n.place.id === placeId) ?? null
+      const obj = hits[0].object
+      // Cluster-aware lookup: prefer cluster-id match for cluster orbs,
+      // member-id match for members, place-id otherwise.
+      const clusterId = obj.userData.clusterId as string | undefined
+      if (clusterId) return nodes.find((n) => n.kind === "cluster" && n.clusterId === clusterId) ?? null
+      const parentClusterId = obj.userData.parentClusterId as string | undefined
+      const placeId = obj.userData.placeId as string | undefined
+      if (parentClusterId && placeId) {
+        return (
+          nodes.find(
+            (n) => n.kind === "member" && n.place.id === placeId && n.parentClusterId === parentClusterId,
+          ) ?? null
+        )
+      }
+      return nodes.find((n) => n.kind === "place" && n.place.id === placeId) ?? null
     }
 
     function onPointerMove(e: PointerEvent) {
@@ -557,6 +1059,16 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
       }
     }
 
+    function buzz() {
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+        try {
+          navigator.vibrate(15)
+        } catch {
+          /* no-op */
+        }
+      }
+    }
+
     function onPointerUp(e: PointerEvent) {
       const wasDragging = dragging
       dragging = false
@@ -568,16 +1080,23 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
       if (wasDragging && movedFar) return
       if (dt > 600) return
       const node = pickAtPointer()
-      if (node) {
-        if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-          try {
-            navigator.vibrate(15)
-          } catch {
-            /* no-op */
-          }
+      if (!node) {
+        // Tap on empty space — collapse any open cluster instead of clearing
+        // the selected place. (Selection is handled by the parent.)
+        if (expandedClusterId !== null) {
+          expandedClusterId = null
         }
-        onSelectRef.current(node.place)
+        return
       }
+      buzz()
+      if (node.kind === "cluster" && node.clusterId) {
+        // Toggle: clicking the open cluster collapses; clicking another
+        // cluster swaps to the new one.
+        expandedClusterId = expandedClusterId === node.clusterId ? null : node.clusterId
+        return
+      }
+      // place or member → drill in
+      onSelectRef.current(node.place)
     }
 
     renderer.domElement.addEventListener("pointermove", onPointerMove)
@@ -656,6 +1175,26 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
       // camera orbits around YOU only when the user drags.
       applyCamera()
 
+      // Sort transparent bubble parts by camera distance so closer orbs
+      // occlude farther ones. We use negative distance as renderOrder so
+      // farther meshes get drawn first (smaller renderOrder), then nearer
+      // ones blend on top. Inner billboard and rim get small offsets so
+      // each orb's stack stays consistent (billboard → outer → rim).
+      //
+      // When a cluster is exploded, that cluster's MEMBERS get a giant
+      // boost so they paint above every other bubble — the user's focus.
+      for (const n of nodes) {
+        const d = camera.position.distanceTo(n.outer.position)
+        const inExpandedCluster =
+          expandedClusterId !== null &&
+          (n.parentClusterId === expandedClusterId || n.clusterId === expandedClusterId)
+        const focusBoost = inExpandedCluster ? 1000 : 0
+        const base = -d + focusBoost
+        n.innerBillboard.renderOrder = base - 0.01
+        n.outer.renderOrder = base
+        n.rim.renderOrder = base + 0.01
+      }
+
       starMat.opacity = 0.7 + Math.sin(t * 0.7) * 0.08
 
       // YOU pin animation
@@ -673,17 +1212,70 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
         mat.opacity = reducedMotion ? base : base + Math.sin(t * 0.8 + i) * 0.05
       })
 
+      // ── Cluster openness lerp. Each cluster eases its 0↔1 openness
+      // toward the current target (1 if it's the expanded cluster, else
+      // 0). reduced-motion users snap immediately.
+      for (const [cid, val] of clusterOpenness) {
+        const target = cid === expandedClusterId ? 1 : 0
+        if (reducedMotion) {
+          clusterOpenness.set(cid, target)
+        } else {
+          const next = val + (target - val) * 0.18
+          clusterOpenness.set(cid, Math.abs(next - target) < 0.001 ? target : next)
+        }
+      }
+
       for (const node of nodes) {
         if (node.bornAt === 0 && sceneT >= node.entryDelay) node.bornAt = sceneT
+
+        // ── Member visibility / position: lerp from cluster center
+        // (collapsed) to fan position (expanded). Scale follows openness
+        // so the orbs grow into existence on expand and shrink to a dot
+        // on collapse.
+        let openness = 1
+        if (node.kind === "member" && node.parentClusterId) {
+          openness = clusterOpenness.get(node.parentClusterId) ?? 0
+        }
+        let memberX = node.basePos.x
+        let memberZ = node.basePos.z
+        if (node.kind === "member" && node.fanOffset) {
+          memberX = node.basePos.x + node.fanOffset.x * openness
+          memberZ = node.basePos.z + node.fanOffset.z * openness
+          node.outer.position.x = memberX
+          node.outer.position.z = memberZ
+          node.innerBillboard.position.x = memberX
+          node.innerBillboard.position.z = memberZ
+          node.rim.position.x = memberX
+          node.rim.position.z = memberZ
+          // Shadow tracks the orb's XZ but stays on the ground plane.
+          node.shadow.position.x = memberX
+          node.shadow.position.z = memberZ
+        }
 
         if (node.bornAt > 0) {
           const sinceBirth = sceneT - node.bornAt
           const k = Math.min(1, sinceBirth / 0.7)
           const baseScale = reducedMotion ? 1 : easeOutBack(k)
 
-          node.outer.scale.setScalar(baseScale)
-          node.innerBillboard.scale.setScalar(baseScale * 0.95)
-          node.rim.scale.setScalar(baseScale * 1.0)
+          // Cluster shrinks toward the inner ring of its members as it
+          // expands — a small "core" remains so the cluster keeps a
+          // pickable hit target.
+          let kindScale = 1
+          if (node.kind === "cluster" && node.clusterId) {
+            const o = clusterOpenness.get(node.clusterId) ?? 0
+            kindScale = 1 - o * 0.6
+          } else if (node.kind === "member") {
+            kindScale = openness
+          }
+
+          const outerScale = baseScale * kindScale
+          node.outer.scale.setScalar(outerScale)
+          node.innerBillboard.scale.setScalar(outerScale * 0.95)
+          node.rim.scale.setScalar(outerScale * 1.0)
+          // Shadow: scale shrinks with the bubble + a touch by bob height
+          // so floating-higher reads as "lifting off the ground".
+          const shadowScale = Math.max(0, outerScale * (1 - 0.18 * Math.abs(Math.sin(t * 1.3 + node.bobOffset))))
+          node.shadow.scale.setScalar(shadowScale)
         }
 
         const bob = reducedMotion ? 0 : Math.sin(t * 1.3 + node.bobOffset) * node.bobAmplitude
@@ -695,32 +1287,72 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
         // Billboard always faces camera
         node.innerBillboard.lookAt(camera.position)
 
+        // ── Focus-dim when a cluster is exploded: every bubble that is
+        // NOT the open cluster or one of its members gets a heavy
+        // opacity drop so the user's focus stays on the exploded group.
+        const inExpandedScope =
+          expandedClusterId !== null &&
+          (node.parentClusterId === expandedClusterId || node.clusterId === expandedClusterId)
+        const focusDim = expandedClusterId !== null && !inExpandedScope ? 0.25 : 1
+
         // Selection emphasis (only effect outer + rim — leave billboard scale alone)
-        const isSelected = selectedIdRef.current === node.place.id
+        const isSelected = node.kind !== "cluster" && selectedIdRef.current === node.place.id
         const rimMat = node.rim.material as MeshBasicMaterial
         if (isSelected) {
           const sel = 1 + Math.sin(t * 4) * 0.08
           node.outer.scale.setScalar(Math.max(node.outer.scale.x, 1.2 * sel))
           node.rim.scale.setScalar(1.35 * sel)
-          rimMat.opacity = 0.55
-        } else if (hovered && hovered.place.id === node.place.id) {
-          rimMat.opacity = 0.4
+          rimMat.opacity = 0.55 * focusDim
+        } else if (hovered && hovered === node) {
+          rimMat.opacity = 0.4 * focusDim
         } else {
-          rimMat.opacity = 0.22
+          rimMat.opacity = (node.kind === "cluster" ? 0.32 : 0.22) * focusDim
         }
 
-        // Update line endpoint
-        const positions = node.line.geometry.attributes.position as BufferAttribute
-        positions.setXYZ(1, node.outer.position.x, node.outer.position.y, node.outer.position.z)
-        positions.needsUpdate = true
+        // Outer + billboard opacity follow the dim too. We multiply,
+        // not assign, so the underlying material opacity (which sets the
+        // glass look) is preserved when nothing is dimmed.
+        const outerMat = node.outer.material as MeshPhysicalMaterial
+        outerMat.opacity = 0.6 * focusDim
+        const billboardMat = node.innerBillboard.material as MeshBasicMaterial
+        billboardMat.opacity = focusDim
+        const shadowMat = node.shadow.material as MeshBasicMaterial
+        shadowMat.opacity = (node.kind === "cluster" ? 0.28 : 0.22) * focusDim
 
-        // Update label
+        // Update line endpoint (members don't own a line — cluster does)
+        if (node.line) {
+          const positions = node.line.geometry.attributes.position as BufferAttribute
+          positions.setXYZ(1, node.outer.position.x, node.outer.position.y, node.outer.position.z)
+          positions.needsUpdate = true
+        }
+
+        // Update label position. Member labels only show when their cluster
+        // is mostly open; cluster labels fade out as they expand.
+        const labelOffsetY =
+          node.kind === "cluster"
+            ? (node.outer.geometry as SphereGeometry).parameters.radius + 1.2
+            : BUBBLE_RADIUS_BY_PRIORITY[node.place.priority] + 1.0
         const worldPos = node.outer.position.clone()
-        worldPos.y += BUBBLE_RADIUS_BY_PRIORITY[node.place.priority] + 1.0
+        worldPos.y += labelOffsetY
         const { x, y, visible } = projectToScreen(worldPos)
-        if (visible) {
+        let labelOpacity = 1
+        if (node.kind === "cluster" && node.clusterId) {
+          labelOpacity = 1 - (clusterOpenness.get(node.clusterId) ?? 0)
+        } else if (node.kind === "member") {
+          labelOpacity = openness > 0.4 ? (openness - 0.4) / 0.6 : 0
+        }
+        labelOpacity *= focusDim
+        const showLabel = visible && node.bornAt > 0 && labelOpacity > 0.02
+        if (showLabel) {
           node.label.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, -50%)`
-          node.label.style.visibility = node.bornAt > 0 ? "visible" : "hidden"
+          node.label.style.visibility = "visible"
+          node.label.style.opacity = labelOpacity.toFixed(2)
+          // CSS z-index so the closer label paints over farther ones.
+          // Distance from camera → integer z-index inverted (closer ⇒
+          // larger value). Clamp to keep the integer in a sane range.
+          const dToCamera = camera.position.distanceTo(node.outer.position)
+          const labelZ = Math.max(1, Math.round(10000 - dToCamera * 50))
+          node.label.style.zIndex = String(labelZ)
         } else {
           node.label.style.visibility = "hidden"
         }
@@ -747,6 +1379,7 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
 
     return () => {
       running = false
+      terrainCancelled = true
       ro.disconnect()
       mount.removeEventListener("korea-map-reset", onResetView)
       renderer.domElement.removeEventListener("pointermove", onPointerMove)
@@ -764,8 +1397,12 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
         im.dispose()
         node.rim.geometry.dispose()
         ;(node.rim.material as Material).dispose()
-        node.line.geometry.dispose()
-        ;(node.line.material as Material).dispose()
+        if (node.line) {
+          node.line.geometry.dispose()
+          ;(node.line.material as Material).dispose()
+        }
+        node.shadow.geometry.dispose()
+        ;(node.shadow.material as Material).dispose()
         node.label.remove()
         const placeholder = node.innerBillboard.userData.placeholderTex as CanvasTexture | undefined
         placeholder?.dispose()
@@ -787,6 +1424,9 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
       starMat.dispose()
       groundGeom.dispose()
       groundMat.dispose()
+      terrainGeom.dispose()
+      if (terrainMat.map) terrainMat.map.dispose()
+      terrainMat.dispose()
       renderer.dispose()
       try {
         mount.removeChild(renderer.domElement)
@@ -795,7 +1435,7 @@ export function MapModeScene({ places, onSelect, selectedId, reducedMotion, onWe
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [places, reducedMotion])
+  }, [places, reducedMotion, userLat, userLng])
 
   return (
     <div className="relative h-full w-full overflow-hidden">

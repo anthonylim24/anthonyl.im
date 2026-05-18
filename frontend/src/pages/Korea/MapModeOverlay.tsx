@@ -139,17 +139,26 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
     return acc
   }, [state, filteredPlaces])
 
-  function toggleCategory(cat: string) {
+  // Solo-select a category: click → only that category visible. Click the
+  // already-solo'd one → reset to all visible. The disabledCategories set
+  // is "everything that is NOT the solo'd category"; "all enabled" is
+  // represented as an empty set.
+  function soloSelect(cat: string) {
+    if (state.status !== "success") return
+    const allCats = new Set(state.data.places.map((p) => p.category))
     setDisabledCategories((prev) => {
-      const next = new Set(prev)
-      if (next.has(cat)) next.delete(cat)
-      else next.add(cat)
+      const enabled = prev.size === 0 ? allCats : new Set(Array.from(allCats).filter((c) => !prev.has(c)))
+      const isAlreadySolo = enabled.size === 1 && enabled.has(cat)
+      if (isAlreadySolo) return new Set()
+      const next = new Set(allCats)
+      next.delete(cat)
       return next
     })
   }
   function resetCategories() {
     setDisabledCategories(new Set())
   }
+
 
   return (
     <motion.div
@@ -301,6 +310,8 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
                     selectedId={selected?.id ?? null}
                     reducedMotion={reduce ?? undefined}
                     onWebglError={() => setWebglFailed(true)}
+                    userLat={location?.lat}
+                    userLng={location?.lng}
                   />
                 </div>
                 <button
@@ -325,7 +336,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
                       ),
                     )
               }
-              onToggle={toggleCategory}
+              onSoloSelect={soloSelect}
               onReset={resetCategories}
             />
             {showOrbs && filteredPlaces.length === 0 && (

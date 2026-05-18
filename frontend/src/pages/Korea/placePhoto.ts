@@ -1,32 +1,95 @@
-// Real-photo lookup using the Wikipedia REST summary endpoint. CORS-friendly,
-// no API key. Falls back gracefully when nothing matches.
+// Real-photo lookup using MediaWiki's pageimages + generator=search endpoint.
+//
+// The old approach hit `/api/rest_v1/page/summary/{title}` directly. That
+// endpoint 404s when no exact page title matches — fine semantically, but it
+// spammed the Network panel and missed every Korean POI that doesn't have a
+// dedicated Wikipedia page. The Action API search variant below:
+//
+//   - never 404s (search returns an empty `pages` object on no match)
+//   - finds the best fuzzy match across titles (covers redirects + lemma
+//     drift, e.g. "Gyeongbokgung Palace" vs "Gyeongbokgung")
+//   - returns the page's thumbnail in the same request via pageimages
+//   - works from the browser (origin=*) without an API key
+//
+// We try ko.wikipedia first for Korean place names (much better coverage of
+// neighborhoods, palaces, restaurants), then fall back to en.wikipedia.
+//
+// Reference: https://www.mediawiki.org/wiki/API:Pageimages
 
 const cache = new Map<string, string | null>()
 const inflight = new Map<string, Promise<string | null>>()
 
-const WIKI_BASE = "https://en.wikipedia.org/api/rest_v1/page/summary/"
+const ENDPOINTS = [
+  "https://ko.wikipedia.org/w/api.php",
+  "https://en.wikipedia.org/w/api.php",
+]
 
-async function fetchOne(title: string): Promise<string | null> {
-  const cached = cache.get(title)
+interface PageImagesResponse {
+  query?: {
+    pages?: Record<
+      string,
+      {
+        thumbnail?: { source?: string }
+        original?: { source?: string }
+      }
+    >
+  }
+}
+
+async function searchOne(endpoint: string, query: string): Promise<string | null> {
+  const url =
+    endpoint +
+    "?" +
+    new URLSearchParams({
+      action: "query",
+      format: "json",
+      prop: "pageimages",
+      generator: "search",
+      gsrsearch: query,
+      gsrlimit: "1",
+      piprop: "original|thumbnail",
+      pithumbsize: "480",
+      origin: "*",
+    }).toString()
+
+  const r = await fetch(url)
+  if (!r.ok) return null
+  const j = (await r.json()) as PageImagesResponse
+  const pages = j.query?.pages
+  if (!pages) return null
+  for (const key of Object.keys(pages)) {
+    const p = pages[key]
+    const src = p.original?.source ?? p.thumbnail?.source
+    if (src) return src
+  }
+  return null
+}
+
+async function fetchOne(query: string): Promise<string | null> {
+  const cached = cache.get(query)
   if (cached !== undefined) return cached
-  const existing = inflight.get(title)
+  const existing = inflight.get(query)
   if (existing) return existing
 
-  const promise = fetch(WIKI_BASE + encodeURIComponent(title))
-    .then((r) => (r.ok ? r.json() : null))
-    .then((j: { thumbnail?: { source?: string }; originalimage?: { source?: string } } | null) => {
-      const url = j?.originalimage?.source || j?.thumbnail?.source || null
-      cache.set(title, url)
-      return url
-    })
-    .catch(() => {
-      cache.set(title, null)
-      return null
-    })
-    .finally(() => {
-      inflight.delete(title)
-    })
-  inflight.set(title, promise)
+  const promise = (async () => {
+    for (const endpoint of ENDPOINTS) {
+      try {
+        const url = await searchOne(endpoint, query)
+        if (url) {
+          cache.set(query, url)
+          return url
+        }
+      } catch {
+        /* try next endpoint */
+      }
+    }
+    cache.set(query, null)
+    return null
+  })().finally(() => {
+    inflight.delete(query)
+  })
+
+  inflight.set(query, promise)
   return promise
 }
 
