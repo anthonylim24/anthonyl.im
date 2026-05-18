@@ -1288,7 +1288,11 @@ export function MapModeScene({
       camPitch.current = DEFAULT_PITCH
       camYawTarget.current = null
     }
-    mount.addEventListener("korea-map-reset", onResetView)
+    // Window-level events so the React overlay can fire them from any
+    // ancestor without depending on the DOM structure of the scene
+    // mount. (Dispatching on `mount`'s parent doesn't reach mount —
+    // events don't propagate from parent to child.)
+    window.addEventListener("korea-map-reset", onResetView)
 
     // Compass "orient north" — animate yaw back to 0 (the convention is
     // world -Z = north, and camYaw = 0 places that direction at the top
@@ -1303,7 +1307,7 @@ export function MapModeScene({
       target = current + delta
       camYawTarget.current = target
     }
-    mount.addEventListener("korea-map-orient-north", onOrientNorth)
+    window.addEventListener("korea-map-orient-north", onOrientNorth)
 
     let pinchDist = 0
     const onTouchStart = (e: TouchEvent) => {
@@ -1340,6 +1344,14 @@ export function MapModeScene({
     // (where N is the bubble count). Both matter on long sessions.
     const tmpVec3 = new Vector3()
     let cachedRect = renderer.domElement.getBoundingClientRect()
+
+    // Per-tick caches to skip O(N) work when the camera hasn't moved.
+    // With ~100 bubbles, the renderOrder sort + billboard.lookAt per
+    // frame was a measurable cost when nothing on screen was changing.
+    let lastCamX = NaN
+    let lastCamY = NaN
+    let lastCamZ = NaN
+    let lastExpandedClusterId: string | null = null
 
     function projectToScreen(v: Vector3): { x: number; y: number; visible: boolean } {
       tmpVec3.copy(v).project(camera)
@@ -1382,24 +1394,33 @@ export function MapModeScene({
       applyCamera()
 
       // Sort transparent bubble parts by camera distance so closer orbs
-      // occlude farther ones. We compute the distance ONCE and stash it
-      // on the node (reused below for label z-index) — keeps the per-
-      // frame cost linear instead of paying for two passes.
-      //
-      // When a cluster is exploded, that cluster's MEMBERS get a giant
-      // boost so they paint above every other bubble — the user's focus.
-      for (const n of nodes) {
-        const d = camera.position.distanceTo(n.outer.position)
-        n.distToCamera = d
-        const inExpandedCluster =
-          expandedClusterId !== null &&
-          (n.parentClusterId === expandedClusterId || n.clusterId === expandedClusterId)
-        const focusBoost = inExpandedCluster ? 1000 : 0
-        const base = -d + focusBoost
-        n.innerBillboard.renderOrder = base - 0.01
-        n.outer.renderOrder = base
-        n.rim.renderOrder = base + 0.01
+      // occlude farther ones. We only re-sort when the camera has moved
+      // OR a cluster's expansion state changed — distance-from-camera
+      // doesn't shift frame-to-frame when neither does, and with ~100
+      // bubbles the per-tick cost adds up.
+      const cameraMoved =
+        Math.abs(camera.position.x - lastCamX) > 1e-3 ||
+        Math.abs(camera.position.y - lastCamY) > 1e-3 ||
+        Math.abs(camera.position.z - lastCamZ) > 1e-3
+      const needsRenderOrderResort = cameraMoved || expandedClusterId !== lastExpandedClusterId
+      if (needsRenderOrderResort) {
+        for (const n of nodes) {
+          const d = camera.position.distanceTo(n.outer.position)
+          n.distToCamera = d
+          const inExpandedCluster =
+            expandedClusterId !== null &&
+            (n.parentClusterId === expandedClusterId || n.clusterId === expandedClusterId)
+          const focusBoost = inExpandedCluster ? 1000 : 0
+          const base = -d + focusBoost
+          n.innerBillboard.renderOrder = base - 0.01
+          n.outer.renderOrder = base
+          n.rim.renderOrder = base + 0.01
+        }
+        lastExpandedClusterId = expandedClusterId
       }
+      lastCamX = camera.position.x
+      lastCamY = camera.position.y
+      lastCamZ = camera.position.z
 
       starMat.opacity = 0.7 + Math.sin(t * 0.7) * 0.08
 
@@ -1490,8 +1511,13 @@ export function MapModeScene({
         node.innerBillboard.position.y = cy
         node.rim.position.y = cy
 
-        // Billboard always faces camera
-        node.innerBillboard.lookAt(camera.position)
+        // Billboard always faces camera. lookAt is a matrix recompute
+        // per call; with ~100 bubbles we only do it when the camera has
+        // actually moved or this orb's own position has shifted (e.g.
+        // a cluster member fanning out during expansion).
+        if (cameraMoved || node.kind === "member") {
+          node.innerBillboard.lookAt(camera.position)
+        }
 
         // ── Focus-dim when a cluster is exploded: every bubble that is
         // NOT the open cluster or one of its members gets a heavy
@@ -1609,8 +1635,8 @@ export function MapModeScene({
       running = false
       terrainCancelled = true
       ro.disconnect()
-      mount.removeEventListener("korea-map-reset", onResetView)
-      mount.removeEventListener("korea-map-orient-north", onOrientNorth)
+      window.removeEventListener("korea-map-reset", onResetView)
+      window.removeEventListener("korea-map-orient-north", onOrientNorth)
       renderer.domElement.removeEventListener("pointermove", onPointerMove)
       renderer.domElement.removeEventListener("pointerdown", onPointerDown)
       renderer.domElement.removeEventListener("pointerup", onPointerUp)

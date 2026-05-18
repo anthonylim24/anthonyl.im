@@ -15,13 +15,16 @@
 import { CanvasTexture, SRGBColorSpace } from "three"
 
 const TILE_SIZE = 256
-// 5×5 tile composite — at the same target span this lets `pickZoom` land
-// on a finer zoom level (roughly half the meters-per-pixel of a 3×3
-// composite), so the map reads sharply when the camera pitches down.
-// 25 tiles × ~50 KB each is well within the network + memory budget for
-// the trip's expected day sizes, and the resulting 1280×1280 RGBA
-// canvas (~6 MB on the GPU) sits comfortably on mobile.
-const GRID_SIZE = 5
+// 7×7 tile composite. The Map Mode terrain plane now spans
+// WORLD_RING_MAX * 4.5 (was 3.0) so the previous 5×5 grid forced
+// pickZoom to drop a level to cover the wider area, blurring the
+// imagery. 7×7 = 49 tiles brings pickZoom back up by ~1 level, so the
+// satellite reads sharply again on a wider plane.
+//
+// Cost: 49 ESRI tiles × ~50 KB each ≈ 2.5 MB on first load (browser
+// cache absorbs repeats); 1792×1792 RGBA = ~12 MB GPU. Comfortable
+// on mobile.
+const GRID_SIZE = 7
 const EARTH_CIRCUMFERENCE_M = 40075016.7
 const TILE_URL = (z: number, x: number, y: number) =>
   `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`

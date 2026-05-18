@@ -64,7 +64,9 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
   const showList = viewMode === "list" || webglFailed
 
   function dispatchSceneEvent(name: string) {
-    sceneContainerRef.current?.firstElementChild?.dispatchEvent(new CustomEvent(name))
+    // Window-level event channel — the scene listens on window so the
+    // dispatch path doesn't depend on the DOM structure of MapModeScene.
+    window.dispatchEvent(new CustomEvent(name))
   }
   function resetView() {
     dispatchSceneEvent("korea-map-reset")
