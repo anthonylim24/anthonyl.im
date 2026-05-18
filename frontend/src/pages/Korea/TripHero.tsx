@@ -7,6 +7,15 @@ interface TripHeroProps {
   snapshot: Snapshot
 }
 
+/**
+ * Editorial hero — a printed-dossier opening spread rather than a SaaS card.
+ *
+ * Type carries the hierarchy: Cormorant headline at its breath-it-in scale,
+ * a tabular numeral countdown set big enough to be the day's one vivid
+ * moment per viewport, and a thin meta strip that lists trip facts in prose
+ * instead of a card grid. The background is a single quiet wash; no
+ * drifting blobs or glassmorphic chrome.
+ */
 export function TripHero({ snapshot }: TripHeroProps) {
   const reduce = useReducedMotion()
   const [countdown, setCountdown] = useState(() => daysUntil(snapshot.trip.startDate))
@@ -16,114 +25,142 @@ export function TripHero({ snapshot }: TripHeroProps) {
     return () => clearInterval(id)
   }, [snapshot.trip.startDate])
 
-  const countdownLabel =
-    countdown > 1 ? `${countdown} days to go` : countdown === 1 ? "Tomorrow!" : countdown === 0 ? "Today!" : `Day ${-countdown + 1} of the trip`
+  const numeral =
+    countdown > 0 ? String(countdown) : countdown === 0 ? "0" : String(-countdown + 1)
+  const numeralLabel =
+    countdown > 1
+      ? "days to go"
+      : countdown === 1
+        ? "day to go"
+        : countdown === 0
+          ? "departing today"
+          : `of twelve · in trip`
+  const numeralAria =
+    countdown >= 0
+      ? `${numeral} ${numeralLabel}`
+      : `Day ${numeral} of twelve, currently on the trip`
+
+  const hotelTrail = snapshot.trip.hotels.map((h) => h.name).join("  →  ")
 
   return (
-    <header className="relative overflow-hidden border-b border-stone-200/60 dark:border-stone-800/60">
-      {/* Decorative animated blobs */}
-      <motion.div
+    <header className="relative overflow-hidden">
+      {/* Single quiet wash: warm parchment in light, mauve nightscape in dark.
+          No animated blobs — the countdown numeral IS the focal moment. */}
+      <div
         aria-hidden
-        className="pointer-events-none absolute -left-32 -top-32 h-72 w-72 rounded-full bg-rose-300/30 sm:h-96 sm:w-96 blur-3xl dark:bg-rose-900/20"
-        animate={reduce ? undefined : { x: [0, 30, 0], y: [0, 20, 0] }}
-        transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <motion.div
-        aria-hidden
-        className="pointer-events-none absolute -right-32 -bottom-32 h-72 w-72 rounded-full bg-amber-300/25 sm:h-96 sm:w-96 blur-3xl dark:bg-amber-900/15"
-        animate={reduce ? undefined : { x: [0, -25, 0], y: [0, -15, 0] }}
-        transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(244,63,94,0.10),_transparent_55%),radial-gradient(ellipse_at_bottom_left,_rgba(245,158,11,0.08),_transparent_60%)] dark:bg-[radial-gradient(ellipse_at_top_right,_rgba(251,113,133,0.18),_transparent_55%),radial-gradient(ellipse_at_bottom_left,_rgba(120,53,15,0.14),_transparent_60%)]"
       />
 
-      <div className="relative mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16 lg:py-20">
-        <motion.div
-          initial={reduce ? false : { opacity: 0, y: 8 }}
+      <div className="relative mx-auto max-w-6xl px-4 pb-12 pt-14 sm:px-6 sm:pt-20 lg:pb-16 lg:pt-24">
+        {/* Eyebrow — Inter all-caps, almost a printer's mark */}
+        <motion.p
+          initial={reduce ? false : { opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: "easeOut" }}
+          transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+          className="font-mono text-[11px] uppercase tracking-[0.32em] text-stone-500 dark:text-stone-400"
         >
-          <p className="font-mono text-xs uppercase tracking-[0.2em] text-stone-500 dark:text-stone-400">
-            12-day trip · {formatDate(snapshot.trip.startDate)} → {formatDate(snapshot.trip.endDate)}
-          </p>
-        </motion.div>
-
-        <motion.h1
-          initial={reduce ? false : { opacity: 0, y: 16, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ type: "spring", stiffness: 280, damping: 24, delay: reduce ? 0 : 0.08 }}
-          className="mt-3 font-serif text-4xl font-medium leading-tight text-stone-900 sm:text-5xl lg:text-6xl dark:text-stone-100"
-          style={{ fontFamily: "'Cormorant Garamond', serif" }}
-        >
-          <span className="block">South Korea</span>
-          <span className="block text-stone-500 dark:text-stone-400">Seoul · Busan</span>
-        </motion.h1>
-
-        <motion.div
-          initial={reduce ? false : { opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, delay: 0.16 }}
-          className="mt-6 flex flex-wrap items-center gap-3"
-        >
-          <motion.span
-            animate={
-              reduce
-                ? undefined
-                : {
-                    scale: [1, 1.04, 1],
-                  }
-            }
-            transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-            className="inline-flex items-center gap-2 rounded-full border border-rose-300/60 bg-rose-100/70 px-4 py-1.5 text-sm font-medium text-rose-900 shadow-sm dark:border-rose-700/40 dark:bg-rose-950/40 dark:text-rose-100"
-          >
-            <span aria-hidden>⏳</span>
-            {countdownLabel}
-          </motion.span>
-          <span className="inline-flex items-center gap-2 rounded-full bg-stone-100 px-3 py-1.5 text-xs font-medium text-stone-700 dark:bg-stone-800 dark:text-stone-300">
-            T-{snapshot.status.tMinus} status · {snapshot.status.asOf}
+          The dossier
+          <span aria-hidden className="mx-2 text-stone-300 dark:text-stone-700">
+            ·
           </span>
-        </motion.div>
+          12 days
+          <span aria-hidden className="mx-2 text-stone-300 dark:text-stone-700">
+            ·
+          </span>
+          {formatDate(snapshot.trip.startDate)}
+          <span aria-hidden className="mx-1.5 text-stone-300 dark:text-stone-700">→</span>
+          {formatDate(snapshot.trip.endDate)}
+        </motion.p>
 
+        {/* Headline + countdown — paired in a magazine spread. On mobile they
+            stack with the numeral leading; on desktop the headline holds the
+            left column and the numeral pulls the eye to the right. */}
+        <div className="mt-10 grid grid-cols-1 items-end gap-10 sm:mt-14 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
+          <motion.div
+            initial={reduce ? false : { opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1], delay: 0.05 }}
+          >
+            <h1
+              className="font-serif text-stone-900 dark:text-stone-100"
+              style={{ fontFamily: "'Cormorant Garamond', serif" }}
+            >
+              <span className="block text-[clamp(3.25rem,11vw,7.5rem)] font-medium leading-[0.95] tracking-[-0.02em]">
+                South Korea
+              </span>
+              <span className="mt-2 block text-[clamp(1.5rem,4vw,2.5rem)] italic font-light leading-tight text-stone-500 dark:text-stone-400">
+                a Seoul &amp; Busan dossier
+              </span>
+            </h1>
+          </motion.div>
+
+          <motion.div
+            initial={reduce ? false : { opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1], delay: 0.12 }}
+            className="flex items-end justify-start gap-5 lg:justify-end"
+          >
+            {/* Countdown numeral. Designed, not labeled — the digit is
+                the focal element. */}
+            <span
+              aria-label={numeralAria}
+              className="font-serif text-[clamp(5rem,18vw,11rem)] font-light leading-[0.85] tracking-[-0.04em] tabular-nums text-rose-600 dark:text-rose-400"
+              style={{ fontFamily: "'Cormorant Garamond', serif", fontFeatureSettings: '"tnum"' }}
+            >
+              {numeral}
+            </span>
+            <span className="mb-2 inline-flex flex-col gap-1 pb-2 text-left sm:mb-3 sm:pb-3">
+              <span className="h-px w-10 bg-rose-400/60 dark:bg-rose-400/50" aria-hidden />
+              <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-stone-700 dark:text-stone-300">
+                {numeralLabel}
+              </span>
+            </span>
+          </motion.div>
+        </div>
+
+        {/* Status headline (editorial sentence, not a card) */}
         <motion.p
           initial={reduce ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.24 }}
-          className="mt-6 max-w-2xl text-base text-stone-700 dark:text-stone-300"
+          transition={{ duration: 0.5, delay: 0.22 }}
+          className="mt-12 max-w-[60ch] text-base leading-relaxed text-stone-700 sm:text-lg dark:text-stone-300"
         >
           {snapshot.status.headline}
         </motion.p>
 
-        <motion.div
+        {/* Meta strip — replaces the 2x2 fact card grid with a single
+            hairline-separated row that reads like a manifest. Wraps
+            gracefully; no nested cards. */}
+        <motion.dl
           initial={reduce ? false : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.45, delay: 0.32 }}
-          className="mt-6 grid gap-2 text-sm sm:mt-8 sm:grid-cols-2 sm:gap-2.5"
+          transition={{ duration: 0.5, delay: 0.3 }}
+          className="mt-10 grid grid-cols-1 gap-x-10 gap-y-5 border-t border-stone-200/80 pt-6 sm:grid-cols-2 lg:grid-cols-4 dark:border-stone-800/80"
         >
-          <FactRow icon="✈️" label="Flights" value={snapshot.trip.flights.out} />
-          <FactRow icon="💒" label="Anchor" value={snapshot.trip.anchor} />
-          <FactRow icon="🏨" label="Hotels" value={snapshot.trip.hotels.map((h) => h.name).join(" → ")} />
-          <FactRow icon="🪪" label="Conf" value={snapshot.trip.flights.confirmation} mono />
-        </motion.div>
+          <MetaRow label="Flights" value={snapshot.trip.flights.out} />
+          <MetaRow label="Anchor" value={snapshot.trip.anchor} />
+          <MetaRow label="Hotels" value={hotelTrail} />
+          <MetaRow label="Confirmation" value={snapshot.trip.flights.confirmation} mono />
+        </motion.dl>
       </div>
     </header>
   )
 }
 
-function FactRow({ icon, label, value, mono }: { icon: string; label: string; value: string; mono?: boolean }) {
+function MetaRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div className="flex items-start gap-2.5 rounded-xl bg-white/60 px-3 py-2 backdrop-blur dark:bg-stone-900/40">
-      <span aria-hidden className="text-base leading-snug">
-        {icon}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-medium uppercase tracking-wider text-stone-500 dark:text-stone-400">{label}</p>
-        <p
-          className={
-            "break-words leading-snug text-stone-800 dark:text-stone-200 " +
-            (mono ? "font-mono text-xs" : "text-xs")
-          }
-        >
-          {value}
-        </p>
-      </div>
+    <div className="min-w-0">
+      <dt className="font-mono text-[10px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
+        {label}
+      </dt>
+      <dd
+        className={
+          "mt-1.5 break-words text-sm leading-snug text-stone-800 dark:text-stone-200 " +
+          (mono ? "font-mono text-xs tracking-wide" : "")
+        }
+      >
+        {value}
+      </dd>
     </div>
   )
 }
