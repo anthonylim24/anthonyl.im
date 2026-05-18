@@ -13,13 +13,23 @@ export type EntityType =
   | "flight"
   | "hotel"
   | "restaurant"
+  | "cafe"
+  | "bar"
   | "city"
   | "neighborhood"
   | "palace"
   | "museum"
-  | "place"
+  | "shrine"
+  | "market"
+  | "shopping"
+  | "park"
+  | "viewpoint"
+  | "experience"
+  | "venue"
+  | "station"
   | "transit"
   | "airport"
+  | "place"
   | "person"
 
 export type LinkKind =
@@ -160,6 +170,28 @@ export function resolveLinks(name: string, type: EntityType, opts: ResolveOption
       ]
     }
 
+    case "cafe": {
+      // Cafes overlap with restaurants but skew specialty-coffee; Naver is
+      // dominant for café discovery in Korea. No Catch Table (cafes
+      // generally aren't reserved); include an Instagram search since
+      // most Seoul cafés market through IG.
+      return [
+        mapsLink(qWithCity),
+        naverLink(name),
+        { label: "Instagram", url: `https://www.instagram.com/explore/tags/${enc(name.replace(/\s+/g, "").toLowerCase())}/`, kind: "search" },
+        googleSearchLink(`${name} ${city ?? "Seoul"} cafe`),
+      ]
+    }
+
+    case "bar": {
+      return [
+        mapsLink(qWithCity),
+        naverLink(name),
+        { label: "Catch Table", url: `https://app.catchtable.co.kr/ct/search?keyword=${enc(name)}`, kind: "reservation" },
+        googleSearchLink(`${name} ${city ?? "Seoul"} bar`),
+      ]
+    }
+
     case "city":
     case "neighborhood": {
       const display = type === "neighborhood" && city ? `${name}, ${city}` : qWithCity
@@ -171,6 +203,7 @@ export function resolveLinks(name: string, type: EntityType, opts: ResolveOption
     }
 
     case "palace":
+    case "shrine":
     case "museum": {
       return [
         mapsLink(qWithCity),
@@ -180,8 +213,50 @@ export function resolveLinks(name: string, type: EntityType, opts: ResolveOption
       ]
     }
 
+    case "market":
+    case "shopping": {
+      return [
+        mapsLink(qWithCity),
+        naverLink(name),
+        { label: "Visit Korea", url: `https://english.visitkorea.or.kr/svc/search/sch.do?keyword=${enc(name)}`, kind: "official" },
+        wikipediaLink(name),
+      ]
+    }
+
+    case "park":
+    case "viewpoint": {
+      return [
+        mapsLink(qWithCity),
+        wikipediaLink(name),
+        naverLink(name),
+      ]
+    }
+
+    case "experience":
+    case "venue": {
+      // Tours, performances, weddings, special events. Usually has an
+      // event site or ticketing partner; without that, fall back to a
+      // targeted search.
+      return [
+        mapsLink(qWithCity),
+        googleSearchLink(`${name} ${city ?? "Seoul"} tickets`),
+        wikipediaLink(name),
+        naverLink(name),
+      ]
+    }
+
+    case "station": {
+      // Subway / KTX station. Naver Map is the de-facto Korean transit
+      // tool; pair it with the Korail timetable for KTX/SRT stations.
+      const links: EntityLink[] = [naverLink(name), mapsLink(qWithCity)]
+      if (/\b(seoul|busan|daejeon|daegu|gwangju|ulsan|incheon)\s*station\b/i.test(name) || /\bktx\b/i.test(name)) {
+        links.push({ label: "Korail timetable", url: "https://www.letskorail.com/ebizprd/EbizPrdTicketpr21100/main.do", kind: "official" })
+      }
+      links.push(wikipediaLink(name))
+      return links
+    }
+
     case "transit": {
-      // Often KTX trains or subway lines
       const links: EntityLink[] = []
       if (/\bktx\b|\bsrt\b/i.test(name)) {
         links.push({ label: "Korail (KTX)", url: "https://www.letskorail.com/", kind: "official" })

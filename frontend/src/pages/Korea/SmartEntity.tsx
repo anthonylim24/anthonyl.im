@@ -4,15 +4,20 @@
 // city, restaurant) and gives the reader two things:
 //
 //   1. A concise dossier-voice description, generated server-side by
-//      /api/entity/about (Groq, JSON mode). Loaded lazily on open.
+//      /api/entity/about (Groq llama-3.1-8b-instant, JSON mode, with
+//      L1 in-memory + L2 Supabase cache so a unique entity only hits
+//      the LLM once per project). Loaded lazily on open.
 //   2. A curated list of external destinations (Google Maps, Wikipedia,
 //      Naver Place, brand sites, FlightAware, etc.) built per type.
 //
-// Visually quiet by default — the entity name reads as normal text with
-// a thin rose underline + small chevron mark. Click opens the popover
-// anchored to the trigger. Esc and click-outside close it.
+// Rendering: the popover is portalled to document.body and uses
+// position: fixed so it escapes parent overflow / transform / stacking
+// contexts (e.g. the modal Map Mode overlay, the drag-sheet, scroll
+// containers). Before this, the popover was caught by ancestor
+// overflow:hidden and got clipped.
 
-import { useEffect, useRef, useState, useId, useLayoutEffect, useCallback } from "react"
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { motion, AnimatePresence, useReducedMotion } from "motion/react"
 import { ExternalLink, Loader2 } from "lucide-react"
 import { resolveLinks, type EntityLink, type EntityType } from "./entityLinks"
@@ -36,9 +41,9 @@ interface AboutCacheEntry {
   fetchedAt: number
 }
 
-// Module-level cache. The trip's entity corpus is ~50 items; we keep
-// every result we ever fetch in this session so re-opening a popover
-// (or rendering the same entity in multiple places) is free.
+// Frontend module-level cache. The trip's entity corpus is small (~50);
+// every result we ever fetch in this session stays here so re-opening a
+// popover (or rendering the same entity in multiple places) is free.
 const aboutCache = new Map<string, AboutCacheEntry>()
 const inflight = new Map<string, Promise<string | null>>()
 
@@ -79,6 +84,21 @@ async function fetchAbout(name: string, type: EntityType, city?: string): Promis
   return promise
 }
 
+// Visual constants
+const POPOVER_WIDTH = 320
+const POPOVER_HEIGHT_ESTIMATE = 220
+const POPOVER_MARGIN = 10
+
+interface PopoverPosition {
+  top: number
+  left: number
+  placement: "below" | "above"
+  // Where the caret (small triangle pointing back at the trigger) lives,
+  // expressed as an x offset within the popover. Lets the caret follow
+  // the trigger even when the popover is clamped to the viewport edge.
+  caretLeft: number
+}
+
 export function SmartEntity({
   name,
   type,
@@ -97,8 +117,7 @@ export function SmartEntity({
 
   const links: EntityLink[] = resolveLinks(name, type, { city })
 
-  // Lazy-fetch the description when the popover first opens. If a result
-  // is already cached, hydrate immediately to skip the loading state.
+  // Lazy-fetch description on first open. Hydrate immediately on cache hit.
   useEffect(() => {
     if (!open) return
     const cached = aboutCache.get(aboutKey(name, type, city))
@@ -149,47 +168,71 @@ export function SmartEntity({
     return () => document.removeEventListener("keydown", onKey)
   }, [open])
 
-  // Position the popover. Uses the trigger's bounding box and flips up
-  // when there's not enough room below. Recomputes on resize / scroll
-  // while open.
-  const [position, setPosition] = useState<{ top: number; left: number; placement: "below" | "above" } | null>(null)
+  // Position the popover. position:fixed in the portal, so coordinates
+  // are viewport-relative (no scrollX/scrollY offsets). The caret tracks
+  // the trigger's center even when the popover is clamped against the
+  // viewport edges.
+  const [position, setPosition] = useState<PopoverPosition | null>(null)
   const recomputePosition = useCallback(() => {
     const trig = triggerRef.current
     if (!trig) return
     const rect = trig.getBoundingClientRect()
-    const popoverWidth = 320
-    const popoverHeightEstimate = 200
-    const margin = 8
     const viewportH = window.innerHeight
     const viewportW = window.innerWidth
+
+    // Flip up when not enough room below. Use the actual measured popover
+    // height once we have one; otherwise estimate.
+    const popoverHeight = popoverRef.current?.offsetHeight ?? POPOVER_HEIGHT_ESTIMATE
     const spaceBelow = viewportH - rect.bottom
+    const spaceAbove = rect.top
     const placement: "below" | "above" =
-      spaceBelow >= popoverHeightEstimate || spaceBelow > rect.top ? "below" : "above"
-    const top = placement === "below" ? rect.bottom + margin : Math.max(margin, rect.top - popoverHeightEstimate - margin)
-    let left = rect.left + rect.width / 2 - popoverWidth / 2
-    left = Math.max(margin, Math.min(viewportW - popoverWidth - margin, left))
-    setPosition({ top: top + window.scrollY, left: left + window.scrollX, placement })
+      spaceBelow >= popoverHeight + POPOVER_MARGIN || spaceBelow >= spaceAbove ? "below" : "above"
+
+    const top =
+      placement === "below"
+        ? rect.bottom + POPOVER_MARGIN
+        : Math.max(POPOVER_MARGIN, rect.top - popoverHeight - POPOVER_MARGIN)
+
+    const triggerCenter = rect.left + rect.width / 2
+    let left = triggerCenter - POPOVER_WIDTH / 2
+    left = Math.max(POPOVER_MARGIN, Math.min(viewportW - POPOVER_WIDTH - POPOVER_MARGIN, left))
+
+    // Caret X within the popover. Clamp so it never overruns the popover's
+    // own padding (8px on each side).
+    let caretLeft = triggerCenter - left
+    caretLeft = Math.max(16, Math.min(POPOVER_WIDTH - 16, caretLeft))
+
+    setPosition({ top, left, placement, caretLeft })
   }, [])
   useLayoutEffect(() => {
     if (!open) return
     recomputePosition()
-    const onResize = () => recomputePosition()
-    window.addEventListener("resize", onResize)
-    window.addEventListener("scroll", onResize, true)
+    // Recompute on any layout shift while open. Use `true` for capture so
+    // we hear about scrolls inside inner containers (the Map Mode overlay
+    // scrolls, for instance).
+    const onMove = () => recomputePosition()
+    window.addEventListener("resize", onMove)
+    window.addEventListener("scroll", onMove, true)
     return () => {
-      window.removeEventListener("resize", onResize)
-      window.removeEventListener("scroll", onResize, true)
+      window.removeEventListener("resize", onMove)
+      window.removeEventListener("scroll", onMove, true)
     }
   }, [open, recomputePosition])
+
+  // Once the popover renders we can re-measure its actual height (the
+  // first pass uses an estimate). Second pass corrects placement when
+  // the content is shorter or taller than expected.
+  useEffect(() => {
+    if (!open || !position) return
+    const id = requestAnimationFrame(() => recomputePosition())
+    return () => cancelAnimationFrame(id)
+  }, [open, description, recomputePosition, position])
 
   return (
     <>
       <button
         ref={triggerRef}
         type="button"
-        // Stop propagation so SmartEntity works inside a wrapping <a>
-        // (e.g. the reservation row, which is itself a link to Maps).
-        // The popover is the user's intent here, not the row's action.
         onClick={(e) => {
           e.preventDefault()
           e.stopPropagation()
@@ -214,84 +257,107 @@ export function SmartEntity({
         )}
       </button>
 
-      <AnimatePresence>
-        {open && position && (
-          <motion.div
-            ref={popoverRef}
-            id={popoverId}
-            role="dialog"
-            aria-label={`Quick info about ${name}`}
-            initial={reduce ? { opacity: 0 } : { opacity: 0, y: position.placement === "below" ? -4 : 4, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={reduce ? { opacity: 0 } : { opacity: 0, y: position.placement === "below" ? -4 : 4, scale: 0.98 }}
-            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-            style={{
-              position: "absolute",
-              top: position.top,
-              left: position.left,
-              width: 320,
-              zIndex: 60,
-            }}
-            className="origin-top rounded-2xl border border-stone-200 bg-stone-50 p-4 shadow-xl ring-1 ring-stone-200 dark:border-stone-800 dark:bg-stone-950 dark:ring-stone-800"
-          >
-            <header className="flex items-baseline justify-between gap-3 border-b border-stone-200/80 pb-2.5 dark:border-stone-800/80">
-              <div className="min-w-0">
-                <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
-                  {type}
-                  {city ? (
-                    <>
-                      <span aria-hidden className="mx-1.5 text-stone-300 dark:text-stone-700">·</span>
-                      {city}
-                    </>
-                  ) : null}
-                </p>
-                <p
-                  className="mt-0.5 break-words font-serif text-lg font-medium leading-tight text-stone-900 dark:text-stone-100"
-                  style={{ fontFamily: "'Cormorant Garamond', serif" }}
-                >
-                  {name}
-                </p>
-              </div>
-            </header>
+      {/* Portal to body so the popover escapes every ancestor's overflow,
+          transform, and z-index stacking context. Without this the
+          popover was being clipped under the next ancestor with
+          `overflow: hidden` (e.g. the Map Mode modal, the day header). */}
+      {typeof document !== "undefined" &&
+        createPortal(
+          <AnimatePresence>
+            {open && position && (
+              <motion.div
+                ref={popoverRef}
+                id={popoverId}
+                role="dialog"
+                aria-label={`Quick info about ${name}`}
+                initial={reduce ? { opacity: 0 } : { opacity: 0, y: position.placement === "below" ? -4 : 4, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={reduce ? { opacity: 0 } : { opacity: 0, y: position.placement === "below" ? -4 : 4, scale: 0.98 }}
+                transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                style={{
+                  position: "fixed",
+                  top: position.top,
+                  left: position.left,
+                  width: POPOVER_WIDTH,
+                  zIndex: 9999,
+                }}
+                className="rounded-2xl border border-stone-200 bg-stone-50 p-4 shadow-2xl shadow-stone-900/15 ring-1 ring-stone-200 dark:border-stone-800 dark:bg-stone-950 dark:shadow-black/40 dark:ring-stone-800"
+              >
+                {/* Caret pointing back at the trigger */}
+                <span
+                  aria-hidden
+                  className={
+                    "absolute h-3 w-3 rotate-45 border bg-stone-50 dark:bg-stone-950 " +
+                    (position.placement === "below"
+                      ? "-top-1.5 border-l border-t border-stone-200 dark:border-stone-800"
+                      : "-bottom-1.5 border-b border-r border-stone-200 dark:border-stone-800")
+                  }
+                  style={{ left: position.caretLeft - 6 }}
+                />
 
-            <div className="min-h-[44px] pb-1 pt-3">
-              {description === "loading" ? (
-                <p className="inline-flex items-center gap-2 text-[13px] italic leading-snug text-stone-500 dark:text-stone-500">
-                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-                  Looking it up…
-                </p>
-              ) : description ? (
-                <p className="text-[13px] leading-relaxed text-stone-700 dark:text-stone-300">{description}</p>
-              ) : (
-                <p className="text-[13px] italic leading-relaxed text-stone-500 dark:text-stone-500">
-                  No description yet. Try one of the links below.
-                </p>
-              )}
-            </div>
+                <header className="flex items-baseline justify-between gap-3 border-b border-stone-200/80 pb-2.5 dark:border-stone-800/80">
+                  <div className="min-w-0">
+                    <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
+                      {type}
+                      {city ? (
+                        <>
+                          <span aria-hidden className="mx-1.5 text-stone-300 dark:text-stone-700">·</span>
+                          {city}
+                        </>
+                      ) : null}
+                    </p>
+                    <p
+                      className="mt-0.5 break-words font-serif text-lg font-medium leading-tight text-stone-900 dark:text-stone-100"
+                      style={{ fontFamily: "'Cormorant Garamond', serif" }}
+                    >
+                      {name}
+                    </p>
+                  </div>
+                </header>
 
-            <ul className="mt-2 flex flex-col gap-px border-t border-stone-200/80 pt-2 dark:border-stone-800/80">
-              {links.map((l) => (
-                <li key={l.url}>
-                  <a
-                    href={l.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-[13px] text-stone-700 transition-colors hover:bg-stone-100 hover:text-rose-700 focus-visible:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/40 dark:text-stone-300 dark:hover:bg-stone-900 dark:hover:text-rose-300"
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <span aria-hidden className="font-mono text-[9px] uppercase tracking-[0.18em] text-stone-400 dark:text-stone-600">
-                        {kindGlyph(l.kind)}
-                      </span>
-                      <span>{l.label}</span>
-                    </span>
-                    <ExternalLink className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </motion.div>
+                <div className="min-h-[44px] pb-1 pt-3">
+                  {description === "loading" ? (
+                    <p className="inline-flex items-center gap-2 text-[13px] italic leading-snug text-stone-500 dark:text-stone-500">
+                      <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                      Looking it up…
+                    </p>
+                  ) : description ? (
+                    <p className="text-[13px] leading-relaxed text-stone-700 dark:text-stone-300">{description}</p>
+                  ) : (
+                    <p className="text-[13px] italic leading-relaxed text-stone-500 dark:text-stone-500">
+                      No description yet. Try one of the links below.
+                    </p>
+                  )}
+                </div>
+
+                <ul className="mt-2 flex flex-col gap-px border-t border-stone-200/80 pt-2 dark:border-stone-800/80">
+                  {links.map((l) => (
+                    <li key={l.url}>
+                      <a
+                        href={l.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-[13px] text-stone-700 transition-colors hover:bg-stone-100 hover:text-rose-700 focus-visible:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/40 dark:text-stone-300 dark:hover:bg-stone-900 dark:hover:text-rose-300"
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          <span
+                            aria-hidden
+                            className="font-mono text-[9px] uppercase tracking-[0.18em] text-stone-400 dark:text-stone-600"
+                          >
+                            {kindGlyph(l.kind)}
+                          </span>
+                          <span>{l.label}</span>
+                        </span>
+                        <ExternalLink className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body,
         )}
-      </AnimatePresence>
     </>
   )
 }
