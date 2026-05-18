@@ -19,7 +19,7 @@ export function TodayBanner({ today }: TodayBannerProps) {
     >
       <Link
         to={`/korea/day/${today.slug}`}
-        className="group flex items-center gap-3 rounded-full border border-emerald-300/70 bg-gradient-to-r from-emerald-50 to-lime-50 px-4 py-2.5 shadow-sm transition hover:border-emerald-400 hover:from-emerald-100 hover:to-lime-100 dark:border-emerald-900/50 dark:from-emerald-950/40 dark:to-lime-950/30 dark:hover:from-emerald-950/60"
+        className="group flex items-center gap-3 rounded-full border border-emerald-300/70 bg-emerald-50/80 px-4 py-2.5 transition hover:border-emerald-400 hover:bg-emerald-100/80 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/50"
       >
         <motion.span
           aria-hidden

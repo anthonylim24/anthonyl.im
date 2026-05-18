@@ -18,7 +18,7 @@ export function KoreaLayout() {
 
   return (
     <KoreaAuthGate>
-      <div className="korea min-h-screen bg-gradient-to-b from-stone-50 to-amber-50/40 text-stone-900 antialiased selection:bg-rose-200 selection:text-rose-950 dark:from-stone-950 dark:to-stone-900 dark:text-stone-100 dark:selection:bg-rose-900/60 dark:selection:text-rose-100">
+      <div className="korea min-h-screen bg-stone-50 text-stone-900 antialiased selection:bg-rose-200 selection:text-rose-950 dark:bg-stone-950 dark:text-stone-100 dark:selection:bg-rose-900/60 dark:selection:text-rose-100">
         {state.status === "success" && <DayTreeNav days={state.data.days} />}
 
         <AnimatePresence mode="wait" initial={false}>

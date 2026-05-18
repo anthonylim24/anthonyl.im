@@ -35,16 +35,10 @@ export function UpNextCard({ snapshot }: UpNextCardProps) {
       transition={{ type: "spring", stiffness: 280, damping: 26, delay: 0.4 }}
       className="mx-auto mt-8 max-w-6xl px-4 sm:px-6"
     >
-      <div className="relative overflow-hidden rounded-2xl border border-rose-200/70 bg-gradient-to-br from-rose-50 via-amber-50 to-stone-50 p-5 shadow-sm dark:border-rose-900/40 dark:from-rose-950/30 dark:via-amber-950/20 dark:to-stone-950">
-        <motion.div
-          aria-hidden
-          className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-rose-300/30 blur-2xl dark:bg-rose-700/20"
-          animate={reduce ? undefined : { scale: [1, 1.15, 1] }}
-          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-        />
-        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center">
+      <div className="rounded-2xl border border-rose-200/70 bg-rose-50/70 p-5 dark:border-rose-900/40 dark:bg-rose-950/20">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <div className="flex items-start gap-3 sm:items-center">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm dark:bg-stone-900">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-stone-50 text-2xl ring-1 ring-stone-200/80 dark:bg-stone-900 dark:ring-stone-800/80">
               {t.icon}
             </div>
             <div className="min-w-0 flex-1">

@@ -49,7 +49,7 @@ export function ThemeToggle() {
       aria-label={`Theme: ${labels[theme]} (click for ${labels[next]})`}
       whileTap={{ scale: 0.9, rotate: -10 }}
       whileHover={{ scale: 1.06 }}
-      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-stone-300/70 bg-white text-stone-700 transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
+      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-stone-300/70 bg-stone-50 text-stone-700 transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
     >
       <Icon className="h-4 w-4" />
     </motion.button>

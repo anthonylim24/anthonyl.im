@@ -51,7 +51,7 @@ export function DayCard({ day, index, reservationsCount, isToday = false }: DayC
         }
       >
         {isToday && (
-          <span className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white shadow-sm">
+          <span className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-emerald-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-50 shadow-sm dark:bg-emerald-600 dark:text-emerald-50">
             ✨ Today
           </span>
         )}
