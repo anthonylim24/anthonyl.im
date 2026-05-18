@@ -6,6 +6,7 @@ import { useKoreaSnapshot } from "./useKoreaData"
 import { KoreaAuthGate } from "./KoreaAuthGate"
 import { applyTheme, getInitialTheme } from "./koreaUtils"
 import { startImageBudgetMonitor } from "./imageBudget"
+import { EntityIndexProvider } from "./entityIndex"
 
 export function KoreaLayout() {
   const location = useLocation()
@@ -26,22 +27,24 @@ export function KoreaLayout() {
 
   return (
     <KoreaAuthGate>
-      <div className="korea min-h-screen bg-stone-50 text-stone-900 antialiased selection:bg-stone-900 selection:text-stone-50 dark:bg-stone-950 dark:text-stone-100 dark:selection:bg-stone-100 dark:selection:text-stone-900">
-        {state.status === "success" && <DayTreeNav days={state.data.days} />}
+      <EntityIndexProvider>
+        <div className="korea min-h-screen bg-stone-50 text-stone-900 antialiased selection:bg-stone-900 selection:text-stone-50 dark:bg-stone-950 dark:text-stone-100 dark:selection:bg-stone-100 dark:selection:text-stone-900">
+          {state.status === "success" && <DayTreeNav days={state.data.days} />}
 
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.main
-            key={location.pathname}
-            initial={reduce ? false : { opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={reduce ? undefined : { opacity: 0, y: -8 }}
-            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="pb-20"
-          >
-            <Outlet context={state} />
-          </motion.main>
-        </AnimatePresence>
-      </div>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.main
+              key={location.pathname}
+              initial={reduce ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={reduce ? undefined : { opacity: 0, y: -8 }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="pb-20"
+            >
+              <Outlet context={state} />
+            </motion.main>
+          </AnimatePresence>
+        </div>
+      </EntityIndexProvider>
     </KoreaAuthGate>
   )
 }
