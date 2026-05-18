@@ -5,6 +5,8 @@ import { statusMeta, typeMeta, formatDate } from "./koreaTheme"
 import { mapsSearchUrl, tokenize } from "./linkify"
 import { LinkifiedText } from "./LinkifiedText"
 import { Time } from "./Time"
+import { SmartEntity } from "./SmartEntity"
+import { reservationEntityType } from "./entityForReservation"
 
 interface ReservationCardProps {
   reservation: Reservation
@@ -74,7 +76,7 @@ export function ReservationCard({ reservation, index = 0, compact = false }: Res
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <h3 className="min-w-0 break-words text-sm font-semibold text-stone-900 dark:text-stone-100">
-              <LinkifiedText>{reservation.title}</LinkifiedText>
+              <SmartEntity name={reservation.title} type={reservationEntityType(reservation.type)} />
             </h3>
             <span
               title={STATUS_TIPS[reservation.status]}

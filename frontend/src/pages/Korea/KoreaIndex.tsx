@@ -13,6 +13,8 @@ import { Time } from "./Time"
 import { statusMeta, typeMeta } from "./koreaTheme"
 import { todayDay } from "./koreaUtils"
 import { mapsSearchUrl } from "./linkify"
+import { SmartEntity } from "./SmartEntity"
+import { reservationEntityType } from "./entityForReservation"
 
 export function KoreaIndex() {
   const state = useOutletContext<LoadState<Snapshot>>()
@@ -221,7 +223,7 @@ function ReservationRow({ reservation: r }: { reservation: Reservation }) {
             {t.icon}
           </span>
           <h3 className="break-words text-[15px] font-semibold leading-snug text-stone-900 sm:text-base dark:text-stone-100">
-            {r.title}
+            <SmartEntity name={r.title} type={reservationEntityType(r.type)} />
           </h3>
         </div>
         {r.subtitle && (
@@ -304,14 +306,7 @@ function NeighborhoodSpread({ neighborhoods }: { neighborhoods: Snapshot["neighb
               className="mt-1.5 font-serif text-2xl font-medium leading-tight tracking-[-0.01em] text-stone-900 sm:text-3xl dark:text-stone-100"
               style={{ fontFamily: "'Cormorant Garamond', serif" }}
             >
-              <a
-                href={mapsSearchUrl(n.name + ", South Korea")}
-                target="_blank"
-                rel="noreferrer"
-                className="transition-colors duration-200 hover:text-rose-700 focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-rose-500/50 dark:hover:text-rose-300"
-              >
-                {n.name}
-              </a>
+              <SmartEntity name={n.name} type="neighborhood" />
             </h3>
           </div>
           <p className="min-w-0 max-w-[65ch] break-words text-[15px] leading-relaxed text-stone-700 dark:text-stone-300">
@@ -338,29 +333,19 @@ function HotelLedger({ hotels }: { hotels: Snapshot["trip"]["hotels"] }) {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-30px" }}
           transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1], delay: reduce ? 0 : i * 0.04 }}
+          className="flex items-center justify-between gap-6 py-5 sm:py-6"
         >
-          <a
-            href={mapsSearchUrl(h.name + ", South Korea")}
-            target="_blank"
-            rel="noreferrer"
-            className="group -mx-2 flex items-center justify-between gap-6 rounded-2xl px-2 py-5 outline-none transition-colors hover:bg-stone-100/60 focus-visible:ring-2 focus-visible:ring-rose-500/40 sm:py-6 dark:hover:bg-stone-900/40"
-          >
-            <div className="min-w-0 flex-1">
-              <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
-                {h.nights}
-              </p>
-              <p
-                className="mt-1.5 break-words font-serif text-xl font-medium leading-snug tracking-[-0.01em] text-stone-900 sm:text-2xl dark:text-stone-100"
-                style={{ fontFamily: "'Cormorant Garamond', serif" }}
-              >
-                {h.name}
-              </p>
-            </div>
-            <ArrowUpRight
-              aria-hidden
-              className="h-5 w-5 shrink-0 text-stone-300 transition-all duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-rose-500 dark:text-stone-700 dark:group-hover:text-rose-400"
-            />
-          </a>
+          <div className="min-w-0 flex-1">
+            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
+              {h.nights}
+            </p>
+            <p
+              className="mt-1.5 break-words font-serif text-xl font-medium leading-snug tracking-[-0.01em] text-stone-900 sm:text-2xl dark:text-stone-100"
+              style={{ fontFamily: "'Cormorant Garamond', serif" }}
+            >
+              <SmartEntity name={h.name} type="hotel" />
+            </p>
+          </div>
         </motion.li>
       ))}
     </ul>

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { motion, useReducedMotion } from "motion/react"
 import type { Snapshot } from "./types"
 import { daysUntil, formatDate } from "./koreaTheme"
+import { SmartEntity } from "./SmartEntity"
 
 interface TripHeroProps {
   snapshot: Snapshot
@@ -42,7 +43,11 @@ export function TripHero({ snapshot }: TripHeroProps) {
       ? `${numeral} ${numeralLabel}`
       : `Day ${numeral} of twelve, currently on the trip`
 
-  const hotelTrail = snapshot.trip.hotels.map((h) => h.name).join("  →  ")
+  // First flight identifier in the "out" string ("UA 893" etc) — first
+  // 2-letter + digits match wins. Used as the SmartEntity name so the
+  // popover hits FlightAware with the right ID.
+  const flightIdMatch = snapshot.trip.flights.out.match(/\b[A-Z]{2}\s?\d{1,5}\b/)
+  const flightId = flightIdMatch?.[0]
 
   return (
     <header className="relative overflow-hidden">
@@ -80,24 +85,10 @@ export function TripHero({ snapshot }: TripHeroProps) {
           {formatDate(snapshot.trip.endDate)}
         </motion.p>
 
-        {/* Italic Cormorant epigraph — pull-quote-style line above the
-            main headline. Magazine-spread opener. */}
-        <motion.p
-          initial={reduce ? false : { opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: 0.04 }}
-          className="mt-6 max-w-[40ch] font-serif text-[1.05rem] italic leading-snug text-stone-600 sm:text-lg dark:text-stone-400"
-          style={{ fontFamily: "'Cormorant Garamond', serif" }}
-        >
-          <span aria-hidden className="text-rose-500/70 dark:text-rose-400/70">“ </span>
-          Twelve days, two cities, one map.
-          <span aria-hidden className="text-rose-500/70 dark:text-rose-400/70"> ”</span>
-        </motion.p>
-
         {/* Headline + countdown — paired in a magazine spread. On mobile they
             stack with the headline leading; on desktop the headline holds the
             left column and the numeral pulls the eye to the right. */}
-        <div className="mt-8 grid grid-cols-1 items-end gap-10 sm:mt-12 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
+        <div className="mt-10 grid grid-cols-1 items-end gap-10 sm:mt-14 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
           <motion.div
             initial={reduce ? false : { opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
@@ -159,17 +150,47 @@ export function TripHero({ snapshot }: TripHeroProps) {
           transition={{ duration: 0.5, delay: 0.32 }}
           className="mt-10 grid grid-cols-1 gap-x-10 gap-y-5 border-t border-stone-200/80 pt-6 sm:grid-cols-2 lg:grid-cols-4 dark:border-stone-800/80"
         >
-          <MetaRow label="Flights" value={snapshot.trip.flights.out} />
-          <MetaRow label="Anchor" value={snapshot.trip.anchor} />
-          <MetaRow label="Hotels" value={hotelTrail} />
-          <MetaRow label="Confirmation" value={snapshot.trip.flights.confirmation} mono />
+          <MetaRow label="Flights">
+            {flightId ? (
+              <>
+                <SmartEntity name={flightId} type="flight" />
+                <span className="text-stone-500 dark:text-stone-500">
+                  {snapshot.trip.flights.out.replace(flightId, "").trim()}
+                </span>
+              </>
+            ) : (
+              snapshot.trip.flights.out
+            )}
+          </MetaRow>
+          <MetaRow label="Anchor">{snapshot.trip.anchor}</MetaRow>
+          <MetaRow label="Hotels">
+            {snapshot.trip.hotels.map((h, i) => (
+              <span key={h.name}>
+                {i > 0 && (
+                  <span aria-hidden className="mx-1.5 text-stone-400 dark:text-stone-600">→</span>
+                )}
+                <SmartEntity name={h.name} type="hotel" />
+              </span>
+            ))}
+          </MetaRow>
+          <MetaRow label="Confirmation" mono>
+            {snapshot.trip.flights.confirmation}
+          </MetaRow>
         </motion.dl>
       </div>
     </header>
   )
 }
 
-function MetaRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function MetaRow({
+  label,
+  children,
+  mono,
+}: {
+  label: string
+  children: React.ReactNode
+  mono?: boolean
+}) {
   return (
     <div className="min-w-0">
       <dt className="font-mono text-[10px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
@@ -181,7 +202,7 @@ function MetaRow({ label, value, mono }: { label: string; value: string; mono?: 
           (mono ? "font-mono text-xs tracking-wide" : "")
         }
       >
-        {value}
+        {children}
       </dd>
     </div>
   )
