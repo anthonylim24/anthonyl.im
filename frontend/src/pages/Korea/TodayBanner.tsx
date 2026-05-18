@@ -35,14 +35,37 @@ export function TodayBanner({ today }: TodayBannerProps) {
               {formatDate(today.date, { weekday: "long", month: "short", day: "numeric" })}
             </span>
           </p>
+          {/* Title + amber marginalia underline. The route is otherwise
+              ink-and-rose; this is the ONE amber moment, reserved for
+              the most active state in the app. Reads like a yellow
+              highlighter mark on a printed itinerary. */}
           <p
-            className="break-words font-serif text-lg font-medium leading-snug text-stone-900 transition-colors group-hover:text-rose-800 sm:text-xl dark:text-stone-100 dark:group-hover:text-rose-200"
+            className="relative break-words font-serif text-lg font-medium leading-snug text-stone-900 transition-colors group-hover:text-rose-800 sm:text-xl dark:text-stone-100 dark:group-hover:text-rose-200"
             style={{ fontFamily: "'Cormorant Garamond', serif" }}
           >
             <span aria-hidden className="mr-2 text-base opacity-90">
               {today.emoji}
             </span>
-            Day {today.n}, {today.title}
+            <span className="relative inline-block">
+              Day {today.n}, {today.title}
+              <svg
+                aria-hidden
+                className="pointer-events-none absolute left-0 right-0 -bottom-1 h-1.5 w-full text-amber-500/85 dark:text-amber-400/80"
+                viewBox="0 0 200 8"
+                preserveAspectRatio="none"
+              >
+                {/* Hand-drawn squiggle. Two near-overlapping strokes
+                    with slight imperfection so it reads as ink on
+                    paper, not a CSS underline. */}
+                <path
+                  d="M 2,5 Q 25,1 60,4 T 130,3 T 198,5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </span>
           </p>
           <span aria-hidden className="ml-auto hidden font-mono text-[11px] uppercase tracking-[0.22em] text-stone-500 transition-colors group-hover:text-rose-700 sm:inline dark:text-stone-500 dark:group-hover:text-rose-300">
             Open →

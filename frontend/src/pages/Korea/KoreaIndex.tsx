@@ -57,13 +57,19 @@ export function KoreaIndex() {
         </div>
       </SectionShell>
 
+      <Fleuron />
+
       <SectionShell number="02" eyebrow="Every booked moment" title="Reservations" subtitle="Sorted chronologically. Tap a row to open in Maps." id="reservations">
         <ReservationLedger reservations={reservations} />
       </SectionShell>
 
+      <Fleuron />
+
       <SectionShell number="03" eyebrow="The map, by district" title="Neighborhoods" subtitle="Where you'll spend time, and why." id="neighborhoods">
         <NeighborhoodSpread neighborhoods={snap.neighborhoods} />
       </SectionShell>
+
+      <Fleuron />
 
       <SectionShell number="04" eyebrow="Base camps" title="Hotels" subtitle="Tap a hotel to open it in Google Maps." id="hotels">
         <HotelLedger hotels={snap.trip.hotels} />
@@ -71,6 +77,35 @@ export function KoreaIndex() {
 
       <Footer generatedAt={snap.generatedAt} />
     </>
+  )
+}
+
+/**
+ * Editorial asterism between section shells. Three Cormorant asterisks
+ * centered on a thin hairline rule — the printed-program signal that
+ * one chapter has closed and another is about to open. Quiet, but a
+ * tactile flourish that hairlines alone don't give you.
+ */
+function Fleuron() {
+  const reduce = useReducedMotion()
+  return (
+    <motion.div
+      aria-hidden
+      initial={reduce ? false : { opacity: 0 }}
+      whileInView={{ opacity: 1 }}
+      viewport={{ once: true, margin: "-60px" }}
+      transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+      className="mx-auto mt-20 flex max-w-6xl items-center gap-6 px-4 sm:mt-24 sm:px-6"
+    >
+      <span className="h-px flex-1 bg-stone-200 dark:bg-stone-800" />
+      <span
+        className="select-none font-serif text-2xl leading-none tracking-[0.6em] text-stone-400 dark:text-stone-600"
+        style={{ fontFamily: "'Cormorant Garamond', serif" }}
+      >
+        ·  ·  ·
+      </span>
+      <span className="h-px flex-1 bg-stone-200 dark:bg-stone-800" />
+    </motion.div>
   )
 }
 

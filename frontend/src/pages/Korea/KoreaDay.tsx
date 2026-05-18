@@ -162,9 +162,17 @@ export function KoreaDay() {
             <button
               type="button"
               onClick={() => setMapModeOpen(true)}
-              className="group inline-flex items-center gap-2 rounded-full bg-stone-900 px-5 py-2.5 text-sm font-medium text-stone-50 transition hover:bg-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-rose-200"
+              className="group relative inline-flex items-center gap-2 overflow-visible rounded-full bg-stone-900 px-5 py-2.5 text-sm font-medium text-stone-50 transition hover:bg-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-rose-200"
             >
-              <Globe2 className="h-4 w-4" aria-hidden />
+              {/* Ink-stamp halo: a rose ring scales out from the button on
+                  hover, like a wax seal being pressed. Hidden on touch
+                  devices (no hover) and respects prefers-reduced-motion
+                  via the no-op end state. */}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0 rounded-full border-2 border-rose-500/70 opacity-0 scale-100 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:opacity-100 group-hover:scale-[1.18] motion-reduce:hidden"
+              />
+              <Globe2 className="h-4 w-4 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:rotate-[14deg]" aria-hidden />
               Enter Map Mode
             </button>
           </motion.div>
