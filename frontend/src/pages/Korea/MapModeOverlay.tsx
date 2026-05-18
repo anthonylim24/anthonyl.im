@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from "react"
 import { motion, AnimatePresence, useReducedMotion } from "motion/react"
-import { X, MapPin, Navigation, FlaskConical, Loader2, Crosshair, Globe2, List as ListIcon } from "lucide-react"
+import { X, MapPin, Navigation, Bug, Loader2, Crosshair, Globe2, List as ListIcon } from "lucide-react"
 import { MapModeScene, isWebglSupported } from "./MapModeScene"
 import { MapModeFallbackList } from "./MapModeFallbackList"
 import { MapModeFilterBar } from "./MapModeFilterBar"
@@ -8,6 +8,25 @@ import { PlaceDetailSheet } from "./PlaceDetailSheet"
 import type { PlacePriority, PlacesResponse, RankedPlace, UserLocation } from "./mapModeTypes"
 
 const ALL_PRIORITIES: ReadonlyArray<PlacePriority> = ["scheduled", "core", "supplemental"]
+
+// Park Hyatt Seoul — the trip's base hotel. Used as both the geolocation
+// fallback AND as the "mock my location" debug target so we can verify
+// the Map Mode behaves correctly from the hotel without actually being
+// there.
+const HOTEL_LOCATION: UserLocation = {
+  lat: 37.5093,
+  lng: 127.0578,
+  source: "hotel",
+  label: "Park Hyatt Seoul",
+}
+
+// SF test anchor for the synthetic Fairmont demo data.
+const SF_TEST_LOCATION: UserLocation = {
+  lat: 37.7926,
+  lng: -122.4101,
+  source: "test-anchor",
+  label: "Fairmont SF (test anchor)",
+}
 
 interface MapModeOverlayProps {
   daySlug: string
@@ -24,8 +43,11 @@ type LoadState =
 export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayProps) {
   const reduce = useReducedMotion()
   const [testMode, setTestMode] = useState(false)
+  const [mockHotel, setMockHotel] = useState(false)
+  const [debugOpen, setDebugOpen] = useState(false)
   const [location, setLocation] = useState<UserLocation | null>(null)
   const [locating, setLocating] = useState(false)
+  const debugRef = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<LoadState>({ status: "loading" })
   const [selected, setSelected] = useState<RankedPlace | null>(null)
   const [webglFailed, setWebglFailed] = useState<boolean>(() => !isWebglSupported())
@@ -42,10 +64,18 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
     )
   }
 
-  // Geolocation fetch
+  // Geolocation fetch. Honors the two debug toggles: when `mockHotel` is
+  // on, we skip the browser API entirely and pin to Park Hyatt Seoul;
+  // when `testMode` is on with no real geolocation, we anchor to the
+  // Fairmont SF synthetic dataset.
   function requestLocation() {
+    if (mockHotel) {
+      setLocation(HOTEL_LOCATION)
+      setLocating(false)
+      return
+    }
     if (!("geolocation" in navigator)) {
-      setLocation({ lat: 37.5093, lng: 127.0578, source: "hotel", label: "Park Hyatt Seoul (fallback)" })
+      setLocation(testMode ? SF_TEST_LOCATION : HOTEL_LOCATION)
       return
     }
     setLocating(true)
@@ -60,11 +90,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
         setLocating(false)
       },
       () => {
-        setLocation(
-          testMode
-            ? { lat: 37.7926, lng: -122.4101, source: "test-anchor", label: "Fairmont SF (test fallback)" }
-            : { lat: 37.5093, lng: 127.0578, source: "hotel", label: "Park Hyatt Seoul (fallback)" },
-        )
+        setLocation(testMode ? SF_TEST_LOCATION : HOTEL_LOCATION)
         setLocating(false)
       },
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 300_000 },
@@ -76,14 +102,25 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // React to debug-toggle changes. The mock-hotel toggle takes precedence
+  // (always swaps to the hotel coords); the SF test toggle only swaps
+  // when we're NOT on a real geolocation source.
   useEffect(() => {
-    if (!location) return
+    if (mockHotel) {
+      setLocation(HOTEL_LOCATION)
+      return
+    }
+    // Mock just turned off → re-fetch the real geolocation.
+    if (location?.source === "hotel" && !mockHotel) {
+      requestLocation()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mockHotel])
+
+  useEffect(() => {
+    if (!location || mockHotel) return
     if (location.source !== "geolocation") {
-      setLocation(
-        testMode
-          ? { lat: 37.7926, lng: -122.4101, source: "test-anchor", label: "Fairmont SF (test anchor)" }
-          : { lat: 37.5093, lng: 127.0578, source: "hotel", label: "Park Hyatt Seoul (fallback)" },
-      )
+      setLocation(testMode ? SF_TEST_LOCATION : HOTEL_LOCATION)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [testMode])
@@ -97,11 +134,13 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
     }
   }, [])
 
-  // Escape to close
+  // Escape to close (selection → debug dropdown → overlay)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        if (selected) {
+        if (debugOpen) {
+          setDebugOpen(false)
+        } else if (selected) {
           setSelected(null)
         } else {
           onClose()
@@ -110,7 +149,25 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [selected, onClose])
+  }, [selected, onClose, debugOpen])
+
+  // Click outside the debug dropdown to close it.
+  useEffect(() => {
+    if (!debugOpen) return
+    const onDown = (e: MouseEvent | TouchEvent) => {
+      const node = debugRef.current
+      if (!node) return
+      const target = e.target as Node | null
+      if (target && node.contains(target)) return
+      setDebugOpen(false)
+    }
+    document.addEventListener("mousedown", onDown)
+    document.addEventListener("touchstart", onDown)
+    return () => {
+      document.removeEventListener("mousedown", onDown)
+      document.removeEventListener("touchstart", onDown)
+    }
+  }, [debugOpen])
 
   useEffect(() => {
     if (!location) return
@@ -286,23 +343,79 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
           </div>
         )}
 
-        <label
-          className={
-            "inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-medium transition " +
-            (testMode
-              ? "border-violet-400 bg-violet-100 text-violet-900 dark:border-violet-700 dark:bg-violet-950/60 dark:text-violet-100"
-              : "border-stone-300 bg-white text-stone-700 hover:border-violet-300 hover:text-violet-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-violet-700 dark:hover:text-violet-200")
-          }
-        >
-          <FlaskConical className="h-3.5 w-3.5" aria-hidden />
-          <span>SF Test</span>
-          <input
-            type="checkbox"
-            className="sr-only"
-            checked={testMode}
-            onChange={(e) => setTestMode(e.target.checked)}
-          />
-        </label>
+        <div ref={debugRef} className="relative shrink-0">
+          <button
+            type="button"
+            onClick={() => setDebugOpen((v) => !v)}
+            aria-haspopup="menu"
+            aria-expanded={debugOpen}
+            aria-label="Debug options"
+            className={
+              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-medium transition " +
+              (testMode || mockHotel
+                ? "border-violet-400 bg-violet-100 text-violet-900 dark:border-violet-700 dark:bg-violet-950/60 dark:text-violet-100"
+                : "border-stone-300 bg-white text-stone-700 hover:border-violet-300 hover:text-violet-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-violet-700 dark:hover:text-violet-200")
+            }
+          >
+            <Bug className="h-3.5 w-3.5" aria-hidden />
+            <span>Debug</span>
+            {(testMode || mockHotel) && (
+              <span
+                aria-hidden
+                className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-violet-600 px-1 text-[9px] font-bold leading-none text-white"
+              >
+                {(testMode ? 1 : 0) + (mockHotel ? 1 : 0)}
+              </span>
+            )}
+          </button>
+
+          <AnimatePresence>
+            {debugOpen && (
+              <motion.div
+                role="menu"
+                aria-label="Debug options"
+                initial={{ opacity: 0, scale: 0.96, y: -4 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96, y: -4 }}
+                transition={{ duration: 0.14 }}
+                className="absolute right-0 top-[calc(100%+8px)] z-40 w-64 origin-top-right rounded-2xl border border-stone-200 bg-white p-1.5 shadow-xl ring-1 ring-stone-200 dark:border-stone-800 dark:bg-stone-950 dark:ring-stone-800"
+              >
+                <label className="flex cursor-pointer items-start gap-2 rounded-xl p-2 transition hover:bg-stone-50 dark:hover:bg-stone-900">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-violet-600"
+                    checked={testMode}
+                    onChange={(e) => setTestMode(e.target.checked)}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[12px] font-semibold text-stone-900 dark:text-stone-100">
+                      SF Test
+                    </div>
+                    <div className="text-[11px] leading-snug text-stone-500 dark:text-stone-400">
+                      Anchor on the Fairmont SF synthetic dataset.
+                    </div>
+                  </div>
+                </label>
+                <label className="flex cursor-pointer items-start gap-2 rounded-xl p-2 transition hover:bg-stone-50 dark:hover:bg-stone-900">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-violet-600"
+                    checked={mockHotel}
+                    onChange={(e) => setMockHotel(e.target.checked)}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[12px] font-semibold text-stone-900 dark:text-stone-100">
+                      Mock location: Park Hyatt Seoul
+                    </div>
+                    <div className="text-[11px] leading-snug text-stone-500 dark:text-stone-400">
+                      Override geolocation with the trip's base hotel.
+                    </div>
+                  </div>
+                </label>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </header>
 
       {/* Scene region — fills the full viewport so the canvas center coincides
