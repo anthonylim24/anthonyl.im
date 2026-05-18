@@ -344,6 +344,12 @@ export function MapModeScene({
     const camYawTarget = { current: null as number | null }
     const camRadius = { current: 90 }
     const camRadiusTarget = { current: cameraTargetRadiusFor(w) }
+    // Optional target for an animated pitch shift (used when a place is
+    // selected — we tilt toward bird's-eye to make the YOU→destination
+    // line read as a flat distance on the satellite). Null when no
+    // animation is in flight; manual drag clears it so the user-set
+    // pitch sticks.
+    const camPitchTarget = { current: null as number | null }
 
     function applyCamera() {
       const cosP = Math.cos(camPitch.current)
@@ -1139,6 +1145,87 @@ export function MapModeScene({
     `
     overlay.appendChild(youLabel)
 
+    // ── Selection focus state ─────────────────────────────────────
+    // When the user taps a bubble we draw a flat "bird's-eye" line on
+    // the satellite plane from YOU (world origin) to the selected
+    // place's REAL pinpoint, plus a label at the midpoint showing the
+    // distance. Everything else dims so the eye reads the segment
+    // unambiguously. The camera rotates so the destination sits toward
+    // the top of the screen and pitches more top-down for a clearer
+    // map-like reading.
+    const SEL_LINE_Y = TERRAIN_BASE_Y + 0.22
+    const selectionGroup = new Group()
+    selectionGroup.visible = false
+    selectionGroup.renderOrder = 2000
+    const selLineGeom = new BufferGeometry().setFromPoints([
+      new Vector3(0, SEL_LINE_Y, 0),
+      new Vector3(0, SEL_LINE_Y, 0),
+    ])
+    const selLineMat = new LineBasicMaterial({
+      color: 0xff4d6d,
+      transparent: true,
+      opacity: 0.92,
+      depthTest: false,
+      depthWrite: false,
+      fog: false,
+    })
+    const selLine = new Line(selLineGeom, selLineMat)
+    selLine.renderOrder = 2000
+    selectionGroup.add(selLine)
+    // Wider companion line behind for a soft halo so the route reads
+    // crisply against busy satellite imagery.
+    const selLineHaloMat = new LineBasicMaterial({
+      color: 0xff4d6d,
+      transparent: true,
+      opacity: 0.32,
+      depthTest: false,
+      depthWrite: false,
+      fog: false,
+    })
+    const selLineHalo = new Line(selLineGeom.clone(), selLineHaloMat)
+    selLineHalo.renderOrder = 1999
+    selectionGroup.add(selLineHalo)
+    // Pulsing ring at the destination pinpoint — "this is where the
+    // selected place actually sits on the map."
+    const selPinMat = new MeshBasicMaterial({
+      color: 0xff4d6d,
+      transparent: true,
+      opacity: 0.85,
+      side: DoubleSide,
+      depthTest: false,
+      depthWrite: false,
+      fog: false,
+    })
+    const selPin = new Mesh(new RingGeometry(0.9, 1.35, 36), selPinMat)
+    selPin.rotation.x = -Math.PI / 2
+    selPin.renderOrder = 2001
+    selectionGroup.add(selPin)
+    // Small inner dot at YOU's ground projection so the line clearly
+    // starts AT YOU and isn't an orphaned segment floating on the map.
+    const selOriginMat = new MeshBasicMaterial({
+      color: 0xff4d6d,
+      transparent: true,
+      opacity: 0.85,
+      side: DoubleSide,
+      depthTest: false,
+      depthWrite: false,
+      fog: false,
+    })
+    const selOrigin = new Mesh(new RingGeometry(0.4, 0.7, 28), selOriginMat)
+    selOrigin.rotation.x = -Math.PI / 2
+    selOrigin.position.set(0, SEL_LINE_Y + 0.01, 0)
+    selOrigin.renderOrder = 2001
+    selectionGroup.add(selOrigin)
+    scene.add(selectionGroup)
+
+    // Midpoint distance label.
+    const selectionLabel = document.createElement("div")
+    selectionLabel.style.transform = "translate3d(-9999px,-9999px,0)"
+    selectionLabel.style.visibility = "hidden"
+    selectionLabel.className =
+      "pointer-events-none absolute left-0 top-0 select-none"
+    overlay.appendChild(selectionLabel)
+
     // ── Raycaster + input ─────────────────────────────────────────
     const raycaster = new Raycaster()
     const pointer = new Vector2()
@@ -1224,8 +1311,10 @@ export function MapModeScene({
         dragging = true
         dragLastX = e.clientX
         dragLastY = e.clientY
-        // Cancel any in-flight compass orient animation — manual gesture wins.
+        // Cancel any in-flight compass orient OR selection-reframe
+        // animation — manual gesture always wins.
         camYawTarget.current = null
+        camPitchTarget.current = null
       }
     }
 
@@ -1352,6 +1441,9 @@ export function MapModeScene({
     let lastCamY = NaN
     let lastCamZ = NaN
     let lastExpandedClusterId: string | null = null
+    // Selection change tracker — used to reframe the camera + populate
+    // the selection line once per selection event, not every frame.
+    let lastSelectedId: string | null = selectedIdRef.current
 
     function projectToScreen(v: Vector3): { x: number; y: number; visible: boolean } {
       tmpVec3.copy(v).project(camera)
@@ -1375,8 +1467,8 @@ export function MapModeScene({
       }
 
       // Yaw ease toward camYawTarget (set by the compass "orient north"
-      // affordance). User drag clears the target via the pointer-down
-      // handler so the manual gesture wins.
+      // affordance OR by a selection reframe). User drag clears the
+      // target via the pointer-down handler so the manual gesture wins.
       if (camYawTarget.current !== null) {
         const target = camYawTarget.current
         camYaw.current += (target - camYaw.current) * 0.14
@@ -1386,8 +1478,101 @@ export function MapModeScene({
         }
       }
 
+      // Pitch ease toward camPitchTarget. Same shape as yaw — this is
+      // how the selection reframe transitions to a more top-down view
+      // and how deselection returns to the open-shot pitch. Cleared
+      // once we reach the target so manual drag isn't fought.
+      if (camPitchTarget.current !== null) {
+        const pt = camPitchTarget.current
+        camPitch.current += (pt - camPitch.current) * 0.12
+        if (Math.abs(pt - camPitch.current) < 1e-3) {
+          camPitch.current = pt
+          camPitchTarget.current = null
+        }
+      }
+
       // Publish the live yaw to whoever's listening (the React compass).
       if (yawRefProp) yawRefProp.current = camYaw.current
+
+      // ── Selection-change handling. Runs once per selection event,
+      // not every frame: builds the YOU→destination line + label,
+      // animates the camera to frame the segment, and shrinks the
+      // pin/origin markers from 0 so they pop in.
+      const curSelected = selectedIdRef.current
+      if (curSelected !== lastSelectedId) {
+        if (curSelected) {
+          const sel = nodes.find(
+            (n) =>
+              (n.kind === "place" || n.kind === "member") && n.place.id === curSelected,
+          )
+          if (sel) {
+            const pinX = sel.shadow.position.x
+            const pinZ = sel.shadow.position.z
+            // Update the line geometry to go from origin to the pin.
+            // Both line meshes share the geometry buffer; setting once
+            // updates both.
+            const lpos = selLineGeom.attributes.position as BufferAttribute
+            lpos.setXYZ(0, 0, SEL_LINE_Y, 0)
+            lpos.setXYZ(1, pinX, SEL_LINE_Y, pinZ)
+            lpos.needsUpdate = true
+            const hpos = (selLineHalo.geometry as BufferGeometry).attributes
+              .position as BufferAttribute
+            hpos.setXYZ(0, 0, SEL_LINE_Y, 0)
+            hpos.setXYZ(1, pinX, SEL_LINE_Y, pinZ)
+            hpos.needsUpdate = true
+            selPin.position.set(pinX, SEL_LINE_Y + 0.01, pinZ)
+            selectionGroup.visible = true
+
+            // Reframe camera so the line points toward the top of the
+            // screen. With the camera orbiting world origin, a place at
+            // scene XZ (px, pz) lands at screen-top when the camera
+            // yaw = atan2(-px, -pz). Pick the equivalent yaw nearest
+            // the current yaw so we don't spin the long way around.
+            const targetYaw = Math.atan2(-pinX, -pinZ)
+            const twoPi = Math.PI * 2
+            const delta =
+              (((targetYaw - camYaw.current) % twoPi) + twoPi + Math.PI) % twoPi -
+              Math.PI
+            camYawTarget.current = camYaw.current + delta
+            // Tilt closer to top-down so the line reads as ground
+            // distance, not a foreshortened spoke.
+            camPitchTarget.current = 1.22
+            // Adaptive radius: only zoom OUT if the pin can't fit at
+            // the default radius. The perspective camera has 38°
+            // vertical FOV (~tan = 0.344), so the visible vertical
+            // span at the focus plane is ~2·R·0.344. With YOU at the
+            // geometric center and the pin at screen-top, we need
+            // R·0.344 ≳ pinDist plus margin. Capped at the global max
+            // (90) so very-far pins still trigger the dim + label
+            // even when they overflow the frame.
+            const defaultR = cameraTargetRadiusFor(w)
+            const pinDist = Math.hypot(pinX, pinZ)
+            const desiredR = pinDist / (0.344 * 0.62)
+            camRadiusTarget.current = Math.min(90, Math.max(defaultR, desiredR))
+
+            // Populate label.
+            const distLabel = sel.place.distanceLabel ?? ""
+            selectionLabel.innerHTML = distLabel
+              ? `
+              <div class="inline-flex items-center gap-1.5 rounded-full bg-rose-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white shadow-lg ring-1 ring-rose-300/60">
+                <span aria-hidden>↔</span>
+                <span class="tabular-nums">${escapeHtml(distLabel)}</span>
+              </div>
+            `
+              : ""
+            selectionLabel.style.visibility = distLabel ? "visible" : "hidden"
+          }
+        } else {
+          // Deselect → fade out the selection visualization and ease
+          // pitch back to the survey angle. We keep the user's manual
+          // yaw + zoom so deselection doesn't whip the view around.
+          selectionGroup.visible = false
+          selectionLabel.style.visibility = "hidden"
+          camPitchTarget.current = DEFAULT_PITCH
+          camRadiusTarget.current = cameraTargetRadiusFor(w)
+        }
+        lastSelectedId = curSelected
+      }
 
       // No auto-rotate — the scene stays still so YOU stays centered. The
       // camera orbits around YOU only when the user drags.
@@ -1519,18 +1704,23 @@ export function MapModeScene({
           node.innerBillboard.lookAt(camera.position)
         }
 
-        // ── Focus-dim when a cluster is exploded: every bubble that is
-        // NOT the open cluster or one of its members gets a heavy
-        // opacity drop so the user's focus stays on the exploded group.
+        // ── Focus-dim: cluster-expansion dim AND selection dim both
+        // push non-focused bubbles to a low opacity so the user's eye
+        // reads the focused subset. Selection dim is stronger so a
+        // single picked place really pops against the rest.
         const inExpandedScope =
           expandedClusterId !== null &&
           (node.parentClusterId === expandedClusterId || node.clusterId === expandedClusterId)
-        const focusDim = expandedClusterId !== null && !inExpandedScope ? 0.25 : 1
+        const selId = selectedIdRef.current
+        const isSelectedNode =
+          selId !== null && node.kind !== "cluster" && node.place.id === selId
+        let focusDim = 1
+        if (expandedClusterId !== null && !inExpandedScope) focusDim = 0.25
+        if (selId !== null && !isSelectedNode) focusDim = Math.min(focusDim, 0.12)
 
         // Selection emphasis (only effect outer + rim — leave billboard scale alone)
-        const isSelected = node.kind !== "cluster" && selectedIdRef.current === node.place.id
         const rimMat = node.rim.material as MeshBasicMaterial
-        if (isSelected) {
+        if (isSelectedNode) {
           const sel = 1 + Math.sin(t * 4) * 0.08
           node.outer.scale.setScalar(Math.max(node.outer.scale.x, 1.2 * sel))
           node.rim.scale.setScalar(1.35 * sel)
@@ -1613,6 +1803,35 @@ export function MapModeScene({
       // YOU label is anchored to viewport center via static CSS — nothing to
       // project per-frame. Camera moves; YOU stays put visually.
 
+      // ── Selection line + midpoint label position. Updated every
+      // frame because the camera may still be lerping toward the
+      // reframe targets.
+      if (selectionGroup.visible) {
+        const sel = nodes.find(
+          (n) =>
+            (n.kind === "place" || n.kind === "member") &&
+            n.place.id === selectedIdRef.current,
+        )
+        if (sel) {
+          const pinX = sel.shadow.position.x
+          const pinZ = sel.shadow.position.z
+          // Subtle pulse on the destination ring so the eye lands there.
+          const pulse = reducedMotion ? 1 : 1 + Math.sin(t * 3.2) * 0.12
+          selPin.scale.setScalar(pulse)
+          // Midpoint label projection. Lift slightly above the line so
+          // depth-sorting against the bubbles behaves sanely.
+          tmpVec3.set(pinX / 2, SEL_LINE_Y + 1.2, pinZ / 2)
+          const projMid = projectToScreen(tmpVec3)
+          if (projMid.visible) {
+            selectionLabel.style.transform = `translate3d(${projMid.x.toFixed(1)}px, ${projMid.y.toFixed(1)}px, 0) translate(-50%, -50%)`
+            selectionLabel.style.zIndex = "30000"
+            selectionLabel.style.opacity = "1"
+          } else {
+            selectionLabel.style.opacity = "0"
+          }
+        }
+      }
+
       renderer.render(scene, camera)
       requestAnimationFrame(tick)
     }
@@ -1679,6 +1898,15 @@ export function MapModeScene({
         r.geometry.dispose()
         ;(r.material as Material).dispose()
       })
+      selLineGeom.dispose()
+      ;(selLineHalo.geometry as BufferGeometry).dispose()
+      selLineMat.dispose()
+      selLineHaloMat.dispose()
+      selPin.geometry.dispose()
+      selPinMat.dispose()
+      selOrigin.geometry.dispose()
+      selOriginMat.dispose()
+      selectionLabel.remove()
       starGeom.dispose()
       starMat.dispose()
       groundGeom.dispose()
