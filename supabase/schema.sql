@@ -68,3 +68,25 @@ create policy "Users manage own state"
   on public.user_state for all to authenticated
   using ((select auth.jwt()->>'sub') = user_id)
   with check ((select auth.jwt()->>'sub') = user_id);
+
+-- ============================================================
+-- Korea entity-about cache
+-- Shared read-mostly cache backing the /api/entity/about popover.
+-- The server writes new descriptions on first lookup; subsequent
+-- visits across the trip planner read straight from this table so
+-- we only pay the LLM cost once per unique (type, name, city).
+-- ============================================================
+create table if not exists public.korea_entity_about (
+  key         text primary key,
+  description text,
+  created_at  timestamptz default now()
+);
+
+alter table public.korea_entity_about enable row level security;
+
+-- Only the server (service-role key) writes. Reads are open to the
+-- authenticated app so we could front-load descriptions client-side
+-- in the future without re-hitting the server.
+create policy "Anyone signed in can read entity cache"
+  on public.korea_entity_about for select to authenticated
+  using (true);
