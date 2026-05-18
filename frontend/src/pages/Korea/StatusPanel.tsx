@@ -17,12 +17,15 @@ interface StatusPanelProps {
 export function StatusPanel({ status }: StatusPanelProps) {
   const reduce = useReducedMotion()
 
+  // Ink + rose + emerald only. Weather and corrections are stone (neutral
+  // dispatch); book-now is the one urgent moment (rose); adds keeps
+  // emerald because "new locked-in items" parallels confirmed status.
   const groups = (
     [
-      { id: "weather", label: "Weather", tone: "amber", items: status.weather },
+      { id: "weather", label: "Weather", tone: "stone", items: status.weather },
       { id: "book", label: "Book now", tone: "rose", items: status.bookActions.map((a) => a.label) },
       { id: "adds", label: "Adds", tone: "emerald", items: status.adds },
-      { id: "corrections", label: "Corrections", tone: "sky", items: status.corrections },
+      { id: "corrections", label: "Corrections", tone: "stone", items: status.corrections },
     ] as const
   ).filter((g) => g.items.length > 0)
 
@@ -38,7 +41,7 @@ export function StatusPanel({ status }: StatusPanelProps) {
         className="border-b border-stone-200/80 pb-5 dark:border-stone-800/80"
       >
         <p className="flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.28em] text-stone-500 dark:text-stone-500">
-          <span className="tabular-nums text-rose-600/90 dark:text-rose-400/90">T−{status.tMinus}</span>
+          <span className="tabular-nums text-rose-600 dark:text-rose-400">T−{status.tMinus}</span>
           <span aria-hidden className="h-px w-10 bg-stone-300 dark:bg-stone-700" />
           <span>Dispatch · as of {status.asOf}</span>
         </p>
@@ -59,15 +62,14 @@ export function StatusPanel({ status }: StatusPanelProps) {
   )
 }
 
-type Tone = "amber" | "rose" | "emerald" | "sky"
+type Tone = "stone" | "rose" | "emerald"
 
 function StatusGroup({ label, items, tone }: { label: string; items: string[]; tone: Tone }) {
   const reduce = useReducedMotion()
   const markerCls = {
-    amber: "bg-amber-500 dark:bg-amber-400",
+    stone: "bg-stone-400 dark:bg-stone-500",
     rose: "bg-rose-500 dark:bg-rose-400",
-    emerald: "bg-emerald-500 dark:bg-emerald-400",
-    sky: "bg-sky-500 dark:bg-sky-400",
+    emerald: "bg-emerald-600 dark:bg-emerald-500",
   }[tone]
 
   return (

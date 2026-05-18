@@ -13,101 +13,97 @@ interface DayCardProps {
 
 export function DayCard({ day, index, reservationsCount, isToday = false }: DayCardProps) {
   const reduce = useReducedMotion()
-  const tint = cityMeta[day.city] ?? cityMeta.Seoul
+  const cityTag = cityMeta[day.city]?.tag ?? day.city.slice(0, 2).toUpperCase()
   const isPast = !isToday && isPastDate(day.date)
 
   return (
     <motion.div
-      initial={reduce ? false : { opacity: 0, y: 24, scale: 0.96 }}
-      whileInView={{ opacity: 1, y: 0, scale: 1 }}
+      initial={reduce ? false : { opacity: 0, y: 14 }}
+      whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-40px" }}
       transition={{
         type: "spring",
         stiffness: 280,
-        damping: 24,
-        mass: 0.8,
-        delay: reduce ? 0 : index * 0.05,
+        damping: 26,
+        delay: reduce ? 0 : index * 0.04,
       }}
-      whileHover={
-        reduce
-          ? undefined
-          : {
-              y: -6,
-              scale: 1.015,
-              transition: { type: "spring", stiffness: 400, damping: 20 },
-            }
-      }
-      whileTap={reduce ? undefined : { scale: 0.985 }}
+      whileHover={reduce ? undefined : { y: -2, transition: { duration: 0.18 } }}
+      whileTap={reduce ? undefined : { scale: 0.99 }}
     >
       <Link
         to={`/korea/day/${day.slug}`}
         className={
-          "group relative block h-full overflow-hidden rounded-3xl bg-gradient-to-br ring-1 transition focus:outline-none focus:ring-2 focus:ring-rose-400 " +
-          tint.tint +
-          " " +
-          tint.ring +
-          (isToday ? " ring-2 ring-emerald-400 dark:ring-emerald-500" : "") +
-          (isPast ? " opacity-70" : "")
+          "group relative block h-full overflow-hidden rounded-3xl border bg-stone-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/50 dark:bg-stone-900/40 " +
+          (isToday
+            ? "border-rose-400/70 dark:border-rose-500/60"
+            : "border-stone-200/80 hover:border-stone-300 dark:border-stone-800/80 dark:hover:border-stone-700") +
+          (isPast ? " opacity-60" : "")
         }
       >
         {isToday && (
-          <span className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-emerald-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-50 shadow-sm dark:bg-emerald-600 dark:text-emerald-50">
-            ✨ Today
+          <span className="absolute right-4 top-4 z-10 inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-rose-700 dark:text-rose-300">
+            <span aria-hidden className="inline-block h-1.5 w-1.5 rounded-full bg-rose-500 dark:bg-rose-400" />
+            Today
           </span>
         )}
-        <div className="relative flex h-full flex-col gap-3 p-5 sm:p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-[11px] uppercase tracking-widest text-stone-500 dark:text-stone-400">
-                Day {day.n}
+
+        <div className="relative flex h-full flex-col gap-4 p-5 sm:p-6">
+          {/* Header row: city tag + day numeral + date. Type carries the
+              identity now that the gradient hue is gone. */}
+          <div className="flex items-baseline justify-between gap-3">
+            <div className="flex items-baseline gap-2.5">
+              <span
+                aria-label={day.city}
+                title={day.city}
+                className="font-mono text-[11px] font-semibold tracking-[0.18em] text-stone-500 dark:text-stone-400"
+              >
+                {cityTag}
               </span>
-              <span className="text-stone-400 dark:text-stone-600">·</span>
-              <span className="font-mono text-[11px] uppercase tracking-widest text-stone-500 dark:text-stone-400">
-                {formatDate(day.date, { month: "short", day: "numeric", weekday: "short" })}
+              <span aria-hidden className="text-stone-300 dark:text-stone-700">·</span>
+              <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
+                Day {String(day.n).padStart(2, "0")}
               </span>
             </div>
-            <motion.span
-              aria-hidden
-              className="text-3xl"
-              animate={reduce ? undefined : { rotate: [0, -4, 4, 0] }}
-              transition={{
-                duration: 4,
-                repeat: Infinity,
-                ease: "easeInOut",
-                delay: index * 0.3,
-              }}
-            >
+            <span aria-hidden className="text-2xl leading-none opacity-90">
               {day.emoji}
-            </motion.span>
+            </span>
           </div>
 
-          <h3 className="text-lg font-semibold leading-snug text-stone-900 dark:text-stone-100">
+          {/* Headline */}
+          <h3
+            className="break-words font-serif text-2xl font-medium leading-tight tracking-[-0.01em] text-stone-900 sm:text-[1.7rem] dark:text-stone-100"
+            style={{ fontFamily: "'Cormorant Garamond', serif" }}
+          >
             {day.title}
           </h3>
 
-          <p className="text-sm text-stone-700 dark:text-stone-300">{day.theme}</p>
+          {/* Theme */}
+          <p className="text-sm leading-relaxed text-stone-700 dark:text-stone-300">{day.theme}</p>
 
-          <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-2">
-            {day.neighborhoods.slice(0, 3).map((n) => (
-              <span
-                key={n}
-                className="rounded-full bg-white/60 px-2 py-0.5 text-[10px] font-medium text-stone-700 backdrop-blur dark:bg-stone-900/50 dark:text-stone-300"
-              >
-                {n}
-              </span>
-            ))}
-          </div>
+          {/* Neighborhoods — inline prose with `·` separators, no chip
+              ring. Less noise. */}
+          {day.neighborhoods.length > 0 && (
+            <p className="text-xs text-stone-500 dark:text-stone-500">
+              {day.neighborhoods.slice(0, 3).join("  ·  ")}
+            </p>
+          )}
 
-          <div className="flex items-center justify-between border-t border-stone-300/40 pt-3 text-xs text-stone-600 dark:border-stone-700/40 dark:text-stone-400">
-            <span className="font-medium">{day.city}</span>
-            <span className="flex items-center gap-1.5">
+          {/* Meta footer — single hairline rule. Date + reservations
+              count + weather. Reservation count is a small rose mark
+              (not a pill). */}
+          <div className="mt-auto flex items-center justify-between gap-3 border-t border-stone-200/80 pt-3 text-[11px] text-stone-500 dark:border-stone-800/80 dark:text-stone-500">
+            <span className="font-mono uppercase tracking-[0.16em]">
+              {formatDate(day.date, { month: "short", day: "numeric", weekday: "short" })}
+            </span>
+            <span className="flex items-center gap-3">
               {reservationsCount > 0 && (
-                <span className="rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-medium text-rose-700 dark:text-rose-300">
-                  {reservationsCount} 📌
+                <span className="inline-flex items-center gap-1.5 text-rose-700 dark:text-rose-300">
+                  <span aria-hidden className="inline-block h-1 w-1 rounded-full bg-rose-500 dark:bg-rose-400" />
+                  {reservationsCount} booked
                 </span>
               )}
               {day.weather && (
-                <span className="font-mono">
+                <span className="font-mono tabular-nums text-stone-500 dark:text-stone-500">
                   {day.weather.highC}° / {day.weather.lowC}°
                 </span>
               )}

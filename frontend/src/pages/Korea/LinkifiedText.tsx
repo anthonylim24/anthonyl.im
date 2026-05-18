@@ -11,21 +11,32 @@ interface LinkifiedTextProps {
 // (Korean addresses, station IDs) shrink instead of pushing their parent flex.
 const baseChip = "max-w-full align-baseline [overflow-wrap:anywhere] [word-break:break-word]"
 
+// Monochrome link family. Previously every link type had its own
+// Tailwind hue (sky / purple / emerald / amber / rose / stone) — the
+// most visible color-zoo on the route, because every reservation
+// subtitle and neighborhood paragraph rendered it. Now all links read
+// as the same ink-with-rose-decoration treatment; type is conveyed by
+// the leading emoji + underline style, not hue.
+const baseLink =
+  "break-words underline decoration-rose-500/50 underline-offset-2 decoration-1 transition hover:decoration-rose-500 hover:text-rose-700 dark:hover:text-rose-300"
+const baseChipLink =
+  `inline-flex items-center gap-0.5 rounded bg-stone-100 px-1.5 py-0.5 font-medium text-stone-800 transition hover:bg-stone-200 hover:text-stone-900 dark:bg-stone-900/60 dark:text-stone-200 dark:hover:bg-stone-800 dark:hover:text-stone-50 ${baseChip}`
+
 const linkClass: Record<LinkifyKind, string> = {
-  flight:
-    `inline-flex items-center gap-0.5 rounded bg-sky-100 px-1.5 py-0.5 font-medium text-sky-900 underline decoration-sky-500/40 underline-offset-2 transition hover:bg-sky-200 dark:bg-sky-950/50 dark:text-sky-100 dark:hover:bg-sky-900/60 ${baseChip}`,
-  ktx:
-    `inline-flex items-center gap-0.5 rounded bg-purple-100 px-1.5 py-0.5 font-medium text-purple-900 underline decoration-purple-500/40 underline-offset-2 transition hover:bg-purple-200 dark:bg-purple-950/50 dark:text-purple-100 dark:hover:bg-purple-900/60 ${baseChip}`,
-  phone:
-    "break-words underline decoration-emerald-500/50 underline-offset-2 transition hover:text-emerald-700 dark:hover:text-emerald-300",
-  email:
-    "break-all underline decoration-amber-500/50 underline-offset-2 transition hover:text-amber-700 dark:hover:text-amber-300",
-  url:
-    "break-all underline decoration-rose-500/50 underline-offset-2 transition hover:text-rose-700 dark:hover:text-rose-300",
-  map:
-    `inline-flex items-center gap-0.5 rounded bg-rose-100 px-1.5 py-0.5 font-medium text-rose-900 transition hover:bg-rose-200 dark:bg-rose-950/40 dark:text-rose-100 dark:hover:bg-rose-900/60 ${baseChip}`,
+  // Inline reference links — flight / KTX / map render as small chips
+  // so the prefix glyph stays legible. Stone chip, ink text. No hue
+  // family per type.
+  flight: baseChipLink,
+  ktx: baseChipLink,
+  map: baseChipLink,
+  // Free-form links inherit the rose-underline inline treatment.
+  phone: baseLink,
+  email: `${baseLink} break-all`,
+  url: `${baseLink} break-all`,
+  // Subway station refs are quieter (dashed decoration) so they don't
+  // compete with primary booking links in the same paragraph.
   stationLine:
-    "break-words underline decoration-stone-400/60 underline-offset-2 transition hover:text-stone-900 dark:hover:text-stone-100",
+    "break-words underline decoration-stone-400/60 decoration-dashed underline-offset-2 transition hover:text-stone-900 dark:hover:text-stone-100",
   hashtag: "text-stone-600 dark:text-stone-400",
   time: "",
 }

@@ -106,7 +106,7 @@ function SectionShell({
         className="border-b border-stone-200/80 pb-5 dark:border-stone-800/80"
       >
         <p className="flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.28em] text-stone-500 dark:text-stone-500">
-          <span className="tabular-nums text-rose-600/90 dark:text-rose-400/90">{number}</span>
+          <span className="tabular-nums text-rose-600 dark:text-rose-400">{number}</span>
           <span aria-hidden className="h-px w-10 bg-stone-300 dark:bg-stone-700" />
           <span>{eyebrow}</span>
         </p>
