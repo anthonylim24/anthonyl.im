@@ -239,21 +239,28 @@ function makePlaceholderTexture(color: string, icon: string): CanvasTexture {
   canvas.width = 256
   canvas.height = 256
   const ctx = canvas.getContext("2d")!
-  // Radial gradient
-  const g = ctx.createRadialGradient(128, 128, 30, 128, 128, 120)
-  g.addColorStop(0, color + "ff")
-  g.addColorStop(0.7, color + "aa")
-  g.addColorStop(1, color + "11")
-  ctx.fillStyle = g
+  // Solid colored disc + subtle radial brightening so the orb still
+  // has a sense of volume but reads as a confident colored "tile"
+  // even when no Wikipedia photo loads. Previously the gradient
+  // faded to 7 % alpha at the edge, which made placeholder orbs
+  // appear as a barely-visible washed halo.
+  ctx.fillStyle = color
   ctx.beginPath()
   ctx.arc(128, 128, 120, 0, Math.PI * 2)
   ctx.fill()
-  // Icon emoji
-  ctx.font = "120px system-ui, 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif"
+  const sheen = ctx.createRadialGradient(128, 128, 30, 128, 128, 120)
+  sheen.addColorStop(0, "rgba(255,255,255,0.28)")
+  sheen.addColorStop(0.7, "rgba(255,255,255,0)")
+  ctx.fillStyle = sheen
+  ctx.beginPath()
+  ctx.arc(128, 128, 120, 0, Math.PI * 2)
+  ctx.fill()
+  // Icon emoji — bigger, fully opaque, so it reads at a glance.
+  ctx.font = "130px system-ui, 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif"
   ctx.textAlign = "center"
   ctx.textBaseline = "middle"
-  ctx.globalAlpha = 0.92
-  ctx.fillText(icon, 128, 138)
+  ctx.globalAlpha = 1
+  ctx.fillText(icon, 128, 142)
   const tex = new CanvasTexture(canvas)
   tex.colorSpace = SRGBColorSpace
   return tex
@@ -870,31 +877,33 @@ export function MapModeScene({
         })
       }
 
-      // ── Outer glass orb. Tuned so the photo inside reads clearly:
-      // - White base + no attenuation tint so the inner photo isn't
-      //   washed in the category color. The rim still picks up the
-      //   color via the fresnel `rim` mesh below.
-      // - Very high transmission + low roughness for clear glass.
-      // - Low opacity so the front face barely veils the photo at all.
-      // - Iridescence kept subtle so the rainbow only fires at the
-      //   silhouette.
+      // ── Outer glass orb. The inner billboard carries the photo +
+      // placeholder; the outer is a faint clear shell that gives the
+      // orb its "in a bubble" volume without veiling the image.
+      //
+      // - depthWrite OFF so the outer sphere never z-blocks the inner
+      //   billboard plane that sits at its center. (With depthWrite
+      //   on, the front face of the sphere occludes the billboard in
+      //   the depth buffer and the photo never appears.)
+      // - transmission OFF — the transmission pass samples the scene
+      //   backbuffer, which doesn't reliably include the billboard,
+      //   and we don't need real refraction for such a transparent
+      //   shell. Lower opacity does the work.
+      // - No attenuation tint and no place-colored body so the
+      //   billboard photo isn't washed in category color. The rim
+      //   mesh below carries the silhouette color.
       const outerMat = new MeshPhysicalMaterial({
         color: 0xffffff,
-        transmission: 1.0,
-        thickness: 0.4,
-        roughness: 0.05,
-        metalness: 0.0,
-        ior: 1.4,
-        clearcoat: 1.0,
-        clearcoatRoughness: 0.06,
-        iridescence: priority === "scheduled" ? 0.2 : 0.1,
+        roughness: 0.18,
+        metalness: 0,
+        clearcoat: 0.7,
+        clearcoatRoughness: 0.08,
+        iridescence: priority === "scheduled" ? 0.22 : 0.12,
         iridescenceIOR: 1.3,
-        attenuationColor: 0xffffff,
-        attenuationDistance: 100,
         transparent: true,
-        opacity: 0.18,
+        opacity: 0.22,
         side: DoubleSide,
-        depthWrite: true,
+        depthWrite: false,
       })
       // Sphere segments tuned for the bubble's screen size — at this scale
       // 32×32 (~1k verts) is visually indistinguishable from 56×56 and
@@ -1525,39 +1534,17 @@ export function MapModeScene({
               (n.kind === "place" || n.kind === "member") && n.place.id === curSelected,
           )
           if (sel) {
-            // Real geo pin coordinates and the bubble's (warped)
-            // position. We use the bubble's projected XZ for the line
-            // + destination ring because:
-            //   1. The bubble is always on the satellite (capped at
-            //      WORLD_RING_MAX = 26 units) so the visualization
-            //      stays visible.
-            //   2. The bubble shares the place's real geographic
-            //      bearing from YOU, so direction is honest.
-            //   3. The destination ring sits directly under the
-            //      selected bubble — the user can clearly see "this
-            //      bubble is the destination" without the ring
-            //      drifting past it.
-            // The label still reports the real distance, so far
-            // places like Incheon (55 km from Seoul) are visually
-            // compressed onto the satellite but their km value is
-            // truthful.
-            const realX = sel.shadow.position.x
-            const realZ = sel.shadow.position.z
-            const realDist = Math.hypot(realX, realZ)
-            const bubbleX = sel.outer.position.x
-            const bubbleZ = sel.outer.position.z
-            const bubbleDist = Math.hypot(bubbleX, bubbleZ)
-            // Prefer the bubble position; only fall back to the real
-            // pin when it's actually closer (e.g. a place sitting at
-            // YOU's own coordinates would have realDist ≈ 0).
-            let pinX = bubbleX
-            let pinZ = bubbleZ
-            let visDist = bubbleDist
-            if (realDist > 0 && realDist < bubbleDist) {
-              pinX = realX
-              pinZ = realZ
-              visDist = realDist
-            }
+            // Destination pin = the place's REAL geographic position
+            // on the satellite plane. The line runs from YOU's ground
+            // projection (world origin) to that real pin so the user
+            // gets a literal "this is where the place is on the map"
+            // reference. Far places (e.g. Incheon from Seoul) will
+            // place the pin outside the satellite — that's the honest
+            // visualization; the camera framing math caps the radius
+            // so the pin is fit when possible.
+            const pinX = sel.shadow.position.x
+            const pinZ = sel.shadow.position.z
+            const visDist = Math.hypot(pinX, pinZ)
             // Update the line geometry. Both line meshes share the
             // same buffer.
             const lpos = selLineGeom.attributes.position as BufferAttribute
@@ -1802,7 +1789,7 @@ export function MapModeScene({
         // not assign, so the underlying material opacity (which sets the
         // glass look) is preserved when nothing is dimmed.
         const outerMat = node.outer.material as MeshPhysicalMaterial
-        outerMat.opacity = 0.18 * focusDim
+        outerMat.opacity = 0.22 * focusDim
         const billboardMat = node.innerBillboard.material as MeshBasicMaterial
         billboardMat.opacity = focusDim
         const shadowMat = node.shadow.material as MeshBasicMaterial
@@ -1874,26 +1861,64 @@ export function MapModeScene({
       // frame because the camera may still be lerping toward the
       // reframe targets.
       if (selectionGroup.visible) {
-        // Use the (possibly capped) visualization position set on
-        // selPin during the selection-change reframe — not the real
-        // geo pin, which can be far off the satellite for distant
-        // places like Incheon from Seoul.
+        // Destination ring sits at the place's real lat/lng on the
+        // satellite — see selectedId-change block for the source.
         const pinX = selPin.position.x
         const pinZ = selPin.position.z
         // Subtle pulse on the destination ring so the eye lands there.
         const pulse = reducedMotion ? 1 : 1 + Math.sin(t * 3.2) * 0.12
         selPin.scale.setScalar(pulse)
-        // Midpoint label projection. Lift slightly above the line so
-        // depth-sorting against the bubbles behaves sanely.
+        // Midpoint label projection. For very-far places (pin beyond
+        // satellite + camera frame) the midpoint can land outside the
+        // viewport; we then clamp the projected position to the
+        // screen edge along the line direction so the distance pill
+        // always remains legible.
         tmpVec3.set(pinX / 2, SEL_LINE_Y + 1.2, pinZ / 2)
         const projMid = projectToScreen(tmpVec3)
-        if (projMid.visible) {
-          selectionLabel.style.transform = `translate3d(${projMid.x.toFixed(1)}px, ${projMid.y.toFixed(1)}px, 0) translate(-50%, -50%)`
-          selectionLabel.style.zIndex = "30000"
-          selectionLabel.style.opacity = "1"
-        } else {
-          selectionLabel.style.opacity = "0"
+        // Origin (YOU) projection — used to clamp the midpoint along
+        // the visible portion of the line.
+        const youOnScreenZ = new Vector3(0, SEL_LINE_Y + 1.2, 0)
+        const projYou = projectToScreen(youOnScreenZ)
+        const W = cachedRect.width
+        const H = cachedRect.height
+        // Inset the visible region from the canvas edges so the pill
+        // doesn't kiss the header.
+        const PAD_TOP = 80
+        const PAD_BOTTOM = 240
+        const PAD_X = 24
+        let labelX = projMid.x
+        let labelY = projMid.y
+        if (
+          !projMid.visible ||
+          labelX < PAD_X ||
+          labelX > W - PAD_X ||
+          labelY < PAD_TOP ||
+          labelY > H - PAD_BOTTOM
+        ) {
+          // Walk from YOU toward the midpoint and find where the
+          // segment first exits the safe rectangle. Place the label
+          // there so it's visible and on the line direction.
+          const dx = projMid.x - projYou.x
+          const dy = projMid.y - projYou.y
+          // Compute parameter t in [0,1] such that (projYou + t*dxdy)
+          // lies on the safe-rectangle border closest to projMid.
+          let tHit = 1
+          const candidates: number[] = []
+          if (dx !== 0) {
+            candidates.push((PAD_X - projYou.x) / dx, (W - PAD_X - projYou.x) / dx)
+          }
+          if (dy !== 0) {
+            candidates.push((PAD_TOP - projYou.y) / dy, (H - PAD_BOTTOM - projYou.y) / dy)
+          }
+          for (const c of candidates) {
+            if (c > 0 && c <= 1 && c < tHit) tHit = c
+          }
+          labelX = projYou.x + dx * tHit
+          labelY = projYou.y + dy * tHit
         }
+        selectionLabel.style.transform = `translate3d(${labelX.toFixed(1)}px, ${labelY.toFixed(1)}px, 0) translate(-50%, -50%)`
+        selectionLabel.style.zIndex = "30000"
+        selectionLabel.style.opacity = "1"
       }
 
       renderer.render(scene, camera)
