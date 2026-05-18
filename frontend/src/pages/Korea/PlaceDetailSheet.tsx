@@ -69,11 +69,15 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng }: PlaceDeta
 
     void (async () => {
       try {
+        // Bottom-sheet hero renders at ~600 px wide. Both sources serve
+        // an 800 px-wide thumbnail (sharp at retina without exceeding
+        // the 1 MB byte budget).
         const googleUrl = await lookupGooglePlacePhoto({
           name: place.name,
           city: place.city,
           lat: place.lat,
           lng: place.lng,
+          maxWidth: 800,
         })
         if (cancelled) return
         if (googleUrl) {
@@ -81,7 +85,7 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng }: PlaceDeta
           setPhotoLoading(false)
           return
         }
-        const wikiUrl = await lookupPhoto(titles)
+        const wikiUrl = await lookupPhoto(titles, { size: 800 })
         if (cancelled) return
         setPhotoUrl(wikiUrl ?? place.photoUrl)
         setPhotoLoading(false)
