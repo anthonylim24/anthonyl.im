@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { motion, useDragControls, useMotionValue, useReducedMotion, type PanInfo } from "motion/react"
-import { Navigation, ExternalLink, X, Share2, Footprints } from "lucide-react"
+import {
+  motion,
+  AnimatePresence,
+  useDragControls,
+  useMotionValue,
+  useReducedMotion,
+  type PanInfo,
+} from "motion/react"
+import { Navigation, ExternalLink, X, Share2, Footprints, ChevronUp, ChevronDown } from "lucide-react"
 import type { RankedPlace } from "./mapModeTypes"
 import { lookupGooglePlacePhoto, lookupPhoto, formatWalkingTime } from "./placePhoto"
 
@@ -11,14 +18,34 @@ interface PlaceDetailSheetProps {
   userLng?: number
 }
 
+type SheetMode = "compact" | "expanded"
+
+// Sheet heights — compact peeks just enough to preserve the Map Mode
+// focus state (line + distance + dim) above; expanded reclaims most of
+// the viewport for the full details.
+const SHEET_MAX_HEIGHT = {
+  compact: "26vh",
+  expanded: "78vh",
+} as const
+
 export function PlaceDetailSheet({ place, onClose, userLat, userLng }: PlaceDetailSheetProps) {
   const reduce = useReducedMotion()
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const [photoLoading, setPhotoLoading] = useState(true)
   const [photoFailed, setPhotoFailed] = useState(false)
   const [shared, setShared] = useState(false)
+  // Sheet always opens in the compact peek so the focus mode (the line
+  // + distance + dim built in MapModeScene) stays visible above. The
+  // user explicitly expands to view full details.
+  const [mode, setMode] = useState<SheetMode>("compact")
 
-  // ── Drag-to-close ────────────────────────────────────────────────────
+  // Reset mode when a new place is selected — the user's previous
+  // "expanded" state shouldn't leak across selections.
+  useEffect(() => {
+    setMode("compact")
+  }, [place.id])
+
+  // ── Drag-to-close / drag-to-collapse ─────────────────────────────────
   //
   // Motion's drag layer is driven by a useDragControls instance so we can
   // gate it: drag only starts when the inner scroll container is at top
@@ -43,10 +70,22 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng }: PlaceDeta
   }
 
   function onDragEnd(_e: PointerEvent | MouseEvent | TouchEvent, info: PanInfo) {
-    // Threshold: ~120px pulled OR a hard flick (>500 px/s) closes; else
-    // snap back. Motion lerp-resets the y motion value automatically.
-    if (info.offset.y > 120 || info.velocity.y > 500) {
-      onClose()
+    // Down-drag thresholds: ~110 px OR hard flick (>500 px/s).
+    // - In expanded mode, a soft pull-down collapses to compact (a
+    //   second pull from compact closes); a hard flick closes
+    //   immediately.
+    // - In compact mode, any qualifying down-drag closes.
+    // Up-drag from compact expands to full at ~60 px / >400 px/s.
+    if (info.offset.y > 110 || info.velocity.y > 500) {
+      if (mode === "expanded" && info.velocity.y < 1000 && info.offset.y < 220) {
+        setMode("compact")
+      } else {
+        onClose()
+      }
+      return
+    }
+    if (mode === "compact" && (info.offset.y < -60 || info.velocity.y < -400)) {
+      setMode("expanded")
     }
   }
 
@@ -132,12 +171,20 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng }: PlaceDeta
     }
   }
 
+  function toggleMode() {
+    setMode((m) => (m === "compact" ? "expanded" : "compact"))
+  }
+
   return (
     <motion.div
       role="dialog"
       aria-label={place.name}
       initial={reduce ? { opacity: 0 } : { y: "100%", opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
+      animate={{
+        y: 0,
+        opacity: 1,
+        maxHeight: SHEET_MAX_HEIGHT[mode],
+      }}
       exit={reduce ? { opacity: 0 } : { y: "100%", opacity: 0 }}
       transition={{ type: "spring", stiffness: 340, damping: 32 }}
       style={{ y, touchAction: "pan-y" }}
@@ -145,11 +192,13 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng }: PlaceDeta
       dragListener={false}
       dragControls={dragControls}
       dragConstraints={{ top: 0, bottom: 0 }}
-      dragElastic={{ top: 0, bottom: 0.6 }}
+      // Allow a touch of upward elastic in compact so the gesture to
+      // expand reads naturally.
+      dragElastic={mode === "compact" ? { top: 0.4, bottom: 0.6 } : { top: 0, bottom: 0.6 }}
       dragMomentum={false}
       onDragEnd={onDragEnd}
       onPointerDown={reduce ? undefined : maybeStartDrag}
-      className="absolute inset-x-0 bottom-0 z-30 max-h-[78vh] overflow-hidden rounded-t-3xl border-t border-stone-200 bg-white/95 shadow-2xl backdrop-blur-xl dark:border-stone-800 dark:bg-stone-950/95"
+      className="absolute inset-x-0 bottom-0 z-30 overflow-hidden rounded-t-3xl border-t border-stone-200 bg-white/95 shadow-2xl backdrop-blur-xl dark:border-stone-800 dark:bg-stone-950/95"
     >
       {/* Drag handle — larger touch target than the visible pill, so a
           tap-down anywhere in the top strip can pull the sheet down. */}
@@ -160,128 +209,237 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng }: PlaceDeta
       >
         <div className="h-1.5 w-12 rounded-full bg-stone-300/80 dark:bg-stone-700/80" />
       </div>
-      <div ref={scrollRef} className="max-h-[calc(78vh-0.5rem)] overflow-y-auto px-4 pb-6 pt-3 sm:px-6">
-        <div className="flex items-start gap-3">
-          <div
-            aria-hidden
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-2xl shadow-inner"
-            style={{ background: place.color + "33" }}
+      <AnimatePresence mode="wait" initial={false}>
+        {mode === "compact" ? (
+          <motion.div
+            key="compact"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.14 }}
+            className="px-4 pb-4 pt-1 sm:px-6"
           >
-            {place.icon}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-baseline gap-x-2">
-              <h2 className="break-words text-base font-semibold text-stone-900 dark:text-stone-100 sm:text-lg">
-                {place.name}
-              </h2>
-              <PriorityPill priority={place.priority} />
-            </div>
-            <p className="mt-0.5 break-words text-xs text-stone-500 dark:text-stone-400">
-              <span className="capitalize">{place.category}</span> · {place.city}
-              {place.distanceLabel ? ` · ${place.distanceLabel}` : ""}
-              {walking ? ` · ${walking}` : ""}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close details"
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-stone-100 text-stone-700 transition hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Photo */}
-        <div
-          className="relative mt-4 overflow-hidden rounded-2xl bg-stone-200 dark:bg-stone-800"
-          style={{ aspectRatio: "3 / 2" }}
-        >
-          {photoLoading && (
-            <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-stone-200 via-stone-100 to-stone-200 dark:from-stone-800 dark:via-stone-900 dark:to-stone-800" />
-          )}
-          {photoUrl && !photoFailed && (
-            <img
-              src={photoUrl}
-              alt={place.name}
-              loading="lazy"
-              className="absolute inset-0 h-full w-full object-cover"
-              onLoad={() => setPhotoLoading(false)}
-              onError={() => {
-                setPhotoFailed(true)
-                setPhotoLoading(false)
-              }}
+            <CompactBody
+              place={place}
+              walking={walking}
+              directionsUrl={directionsUrl}
+              onExpand={toggleMode}
+              onClose={onClose}
             />
-          )}
-          {photoFailed && (
+          </motion.div>
+        ) : (
+          <motion.div
+            key="expanded"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.14 }}
+            ref={scrollRef}
+            className="max-h-[calc(78vh-1.5rem)] overflow-y-auto px-4 pb-6 pt-3 sm:px-6"
+          >
+            <div className="flex items-start gap-3">
+              <div
+                aria-hidden
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-2xl shadow-inner"
+                style={{ background: place.color + "33" }}
+              >
+                {place.icon}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-baseline gap-x-2">
+                  <h2 className="break-words text-base font-semibold text-stone-900 dark:text-stone-100 sm:text-lg">
+                    {place.name}
+                  </h2>
+                  <PriorityPill priority={place.priority} />
+                </div>
+                <p className="mt-0.5 break-words text-xs text-stone-500 dark:text-stone-400">
+                  <span className="capitalize">{place.category}</span> · {place.city}
+                  {place.distanceLabel ? ` · ${place.distanceLabel}` : ""}
+                  {walking ? ` · ${walking}` : ""}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={toggleMode}
+                  aria-label="Collapse details"
+                  title="Collapse details"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-stone-100 text-stone-700 transition hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+                >
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  aria-label="Close details"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-stone-100 text-stone-700 transition hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Photo */}
             <div
-              className="absolute inset-0 flex items-center justify-center text-6xl"
-              style={{
-                background: `linear-gradient(135deg, ${place.color}55 0%, ${place.color}22 100%)`,
-              }}
+              className="relative mt-4 overflow-hidden rounded-2xl bg-stone-200 dark:bg-stone-800"
+              style={{ aspectRatio: "3 / 2" }}
             >
-              {place.icon}
+              {photoLoading && (
+                <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-stone-200 via-stone-100 to-stone-200 dark:from-stone-800 dark:via-stone-900 dark:to-stone-800" />
+              )}
+              {photoUrl && !photoFailed && (
+                <img
+                  src={photoUrl}
+                  alt={place.name}
+                  loading="lazy"
+                  className="absolute inset-0 h-full w-full object-cover"
+                  onLoad={() => setPhotoLoading(false)}
+                  onError={() => {
+                    setPhotoFailed(true)
+                    setPhotoLoading(false)
+                  }}
+                />
+              )}
+              {photoFailed && (
+                <div
+                  className="absolute inset-0 flex items-center justify-center text-6xl"
+                  style={{
+                    background: `linear-gradient(135deg, ${place.color}55 0%, ${place.color}22 100%)`,
+                  }}
+                >
+                  {place.icon}
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Description */}
-        <p className="mt-4 break-words text-sm text-stone-700 dark:text-stone-300">{place.description}</p>
+            {/* Description */}
+            <p className="mt-4 break-words text-sm text-stone-700 dark:text-stone-300">{place.description}</p>
 
-        {/* Meta rows */}
-        <div className="mt-4 space-y-2.5">
-          {place.address && <Row icon="📍" label="Address" value={place.address} />}
-          {place.openingHours && <Row icon="🕒" label="Hours" value={place.openingHours} />}
-          {place.notice && (
-            <Row
-              icon="⚠️"
-              label="Notice"
-              value={place.notice}
-              className="text-amber-800 dark:text-amber-200"
-            />
-          )}
-          {walking && (
-            <Row
-              icon={<Footprints className="h-3.5 w-3.5" aria-hidden />}
-              label="Walking"
-              value={`${walking}${place.distanceLabel ? ` · ${place.distanceLabel}` : ""}`}
-            />
-          )}
-          <Row icon="✨" label="Why" value={place.reason} />
-          {place.reservationTime && <Row icon="📌" label="Booked" value={place.reservationTime} />}
-        </div>
+            {/* Meta rows */}
+            <div className="mt-4 space-y-2.5">
+              {place.address && <Row icon="📍" label="Address" value={place.address} />}
+              {place.openingHours && <Row icon="🕒" label="Hours" value={place.openingHours} />}
+              {place.notice && (
+                <Row
+                  icon="⚠️"
+                  label="Notice"
+                  value={place.notice}
+                  className="text-amber-800 dark:text-amber-200"
+                />
+              )}
+              {walking && (
+                <Row
+                  icon={<Footprints className="h-3.5 w-3.5" aria-hidden />}
+                  label="Walking"
+                  value={`${walking}${place.distanceLabel ? ` · ${place.distanceLabel}` : ""}`}
+                />
+              )}
+              <Row icon="✨" label="Why" value={place.reason} />
+              {place.reservationTime && <Row icon="📌" label="Booked" value={place.reservationTime} />}
+            </div>
 
-        {/* Actions */}
-        <div className="mt-5 flex flex-wrap gap-2">
-          <a
-            href={directionsUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-rose-700 dark:bg-rose-500 dark:hover:bg-rose-400"
-          >
-            <Navigation className="h-4 w-4" aria-hidden />
-            Directions
-          </a>
-          <a
-            href={searchUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 bg-stone-50 px-4 py-2 text-sm font-medium text-stone-700 transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
-          >
-            <ExternalLink className="h-4 w-4" aria-hidden />
-            Open in Maps
-          </a>
-          <button
-            type="button"
-            onClick={onShare}
-            className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 bg-stone-50 px-4 py-2 text-sm font-medium text-stone-700 transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
-          >
-            <Share2 className="h-4 w-4" aria-hidden />
-            {shared ? "Shared!" : "Share"}
-          </button>
-        </div>
-      </div>
+            {/* Actions */}
+            <div className="mt-5 flex flex-wrap gap-2">
+              <a
+                href={directionsUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-rose-700 dark:bg-rose-500 dark:hover:bg-rose-400"
+              >
+                <Navigation className="h-4 w-4" aria-hidden />
+                Directions
+              </a>
+              <a
+                href={searchUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 bg-stone-50 px-4 py-2 text-sm font-medium text-stone-700 transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
+              >
+                <ExternalLink className="h-4 w-4" aria-hidden />
+                Open in Maps
+              </a>
+              <button
+                type="button"
+                onClick={onShare}
+                className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 bg-stone-50 px-4 py-2 text-sm font-medium text-stone-700 transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
+              >
+                <Share2 className="h-4 w-4" aria-hidden />
+                {shared ? "Shared!" : "Share"}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
+  )
+}
+
+function CompactBody({
+  place,
+  walking,
+  directionsUrl,
+  onExpand,
+  onClose,
+}: {
+  place: RankedPlace
+  walking: string | null
+  directionsUrl: string
+  onExpand: () => void
+  onClose: () => void
+}) {
+  return (
+    <>
+      <div className="flex items-start gap-3">
+        <div
+          aria-hidden
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-2xl shadow-inner"
+          style={{ background: place.color + "33" }}
+        >
+          {place.icon}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-baseline gap-x-2">
+            <h2 className="break-words text-[15px] font-semibold leading-tight text-stone-900 dark:text-stone-100">
+              {place.name}
+            </h2>
+            <PriorityPill priority={place.priority} />
+          </div>
+          <p className="mt-0.5 break-words text-[11px] text-stone-500 dark:text-stone-400">
+            <span className="capitalize">{place.category}</span> · {place.city}
+            {place.distanceLabel ? ` · ${place.distanceLabel}` : ""}
+            {walking ? ` · ${walking}` : ""}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close details"
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-stone-100 text-stone-700 transition hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="mt-3 flex items-center gap-2">
+        <a
+          href={directionsUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 px-3.5 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-rose-700 dark:bg-rose-500 dark:hover:bg-rose-400"
+        >
+          <Navigation className="h-3.5 w-3.5" aria-hidden />
+          Directions
+        </a>
+        <button
+          type="button"
+          onClick={onExpand}
+          aria-label="View full details"
+          className="ml-auto inline-flex items-center gap-1 rounded-full border border-stone-300 bg-stone-50 px-3 py-1.5 text-xs font-medium text-stone-700 transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
+        >
+          <ChevronUp className="h-3.5 w-3.5" aria-hidden />
+          Details
+        </button>
+      </div>
+    </>
   )
 }
 
