@@ -1365,9 +1365,12 @@ export function MapModeScene({
       dragging = false
     })
 
+    // Manual zoom cap matches the selection-framing cap so a selection
+    // reframe to a far place doesn't snap back when the user wheels.
+    const ZOOM_OUT_MAX = 240
     const onWheel = (e: WheelEvent) => {
       e.preventDefault()
-      camRadiusTarget.current = Math.max(20, Math.min(90, camRadiusTarget.current + e.deltaY * 0.07))
+      camRadiusTarget.current = Math.max(20, Math.min(ZOOM_OUT_MAX, camRadiusTarget.current + e.deltaY * 0.07))
     }
     renderer.domElement.addEventListener("wheel", onWheel, { passive: false })
 
@@ -1415,7 +1418,7 @@ export function MapModeScene({
         )
         if (pinchDist > 0) {
           const scale = pinchDist / d
-          camRadiusTarget.current = Math.max(20, Math.min(90, camRadiusTarget.current * scale))
+          camRadiusTarget.current = Math.max(20, Math.min(ZOOM_OUT_MAX, camRadiusTarget.current * scale))
         }
         pinchDist = d
       }
@@ -1506,11 +1509,41 @@ export function MapModeScene({
               (n.kind === "place" || n.kind === "member") && n.place.id === curSelected,
           )
           if (sel) {
-            const pinX = sel.shadow.position.x
-            const pinZ = sel.shadow.position.z
-            // Update the line geometry to go from origin to the pin.
-            // Both line meshes share the geometry buffer; setting once
-            // updates both.
+            // Real geo pin coordinates and the bubble's (warped)
+            // position. We use the bubble's projected XZ for the line
+            // + destination ring because:
+            //   1. The bubble is always on the satellite (capped at
+            //      WORLD_RING_MAX = 26 units) so the visualization
+            //      stays visible.
+            //   2. The bubble shares the place's real geographic
+            //      bearing from YOU, so direction is honest.
+            //   3. The destination ring sits directly under the
+            //      selected bubble — the user can clearly see "this
+            //      bubble is the destination" without the ring
+            //      drifting past it.
+            // The label still reports the real distance, so far
+            // places like Incheon (55 km from Seoul) are visually
+            // compressed onto the satellite but their km value is
+            // truthful.
+            const realX = sel.shadow.position.x
+            const realZ = sel.shadow.position.z
+            const realDist = Math.hypot(realX, realZ)
+            const bubbleX = sel.outer.position.x
+            const bubbleZ = sel.outer.position.z
+            const bubbleDist = Math.hypot(bubbleX, bubbleZ)
+            // Prefer the bubble position; only fall back to the real
+            // pin when it's actually closer (e.g. a place sitting at
+            // YOU's own coordinates would have realDist ≈ 0).
+            let pinX = bubbleX
+            let pinZ = bubbleZ
+            let visDist = bubbleDist
+            if (realDist > 0 && realDist < bubbleDist) {
+              pinX = realX
+              pinZ = realZ
+              visDist = realDist
+            }
+            // Update the line geometry. Both line meshes share the
+            // same buffer.
             const lpos = selLineGeom.attributes.position as BufferAttribute
             lpos.setXYZ(0, 0, SEL_LINE_Y, 0)
             lpos.setXYZ(1, pinX, SEL_LINE_Y, pinZ)
@@ -1524,10 +1557,12 @@ export function MapModeScene({
             selectionGroup.visible = true
 
             // Reframe camera so the line points toward the top of the
-            // screen. With the camera orbiting world origin, a place at
-            // scene XZ (px, pz) lands at screen-top when the camera
-            // yaw = atan2(-px, -pz). Pick the equivalent yaw nearest
-            // the current yaw so we don't spin the long way around.
+            // screen. Yaw uses the (capped) visualization position so
+            // the framing always matches what's drawn on screen. With
+            // the camera orbiting world origin, a place at scene XZ
+            // (px, pz) lands at screen-top when the camera yaw =
+            // atan2(-px, -pz). Pick the equivalent yaw nearest the
+            // current yaw so we don't spin the long way around.
             const targetYaw = Math.atan2(-pinX, -pinZ)
             const twoPi = Math.PI * 2
             const delta =
@@ -1537,18 +1572,34 @@ export function MapModeScene({
             // Tilt closer to top-down so the line reads as ground
             // distance, not a foreshortened spoke.
             camPitchTarget.current = 1.22
-            // Adaptive radius: only zoom OUT if the pin can't fit at
-            // the default radius. The perspective camera has 38°
-            // vertical FOV (~tan = 0.344), so the visible vertical
-            // span at the focus plane is ~2·R·0.344. With YOU at the
-            // geometric center and the pin at screen-top, we need
-            // R·0.344 ≳ pinDist plus margin. Capped at the global max
-            // (90) so very-far pins still trigger the dim + label
-            // even when they overflow the frame.
+            // Adaptive radius — pitch-aware framing so the destination
+            // pin lands inside the viewport (not past the top edge)
+            // and YOU stays at the geometric center.
+            //
+            // For a ground point at horizontal distance d from origin
+            // (oriented toward screen-up), pitch P from horizon, and
+            // camera radius R, the projected screen-y in NDC is
+            //   y = d·sin(P) / ((R + d·cos(P))·tan(fov_v/2))
+            // Solving for R given a target screen-y t:
+            //   R = d · (sin(P)/(t·tan(fov_v/2)) - cos(P))
+            //
+            // We pick t = 0.70 so the destination sits ~30% in from
+            // the top edge (room for the label + a bit of breathing
+            // room). YOU at world origin always projects to viewport
+            // center (cameraTarget = origin). Floor at the default
+            // radius so close pins don't trigger an unnecessary zoom.
             const defaultR = cameraTargetRadiusFor(w)
-            const pinDist = Math.hypot(pinX, pinZ)
-            const desiredR = pinDist / (0.344 * 0.62)
-            camRadiusTarget.current = Math.min(90, Math.max(defaultR, desiredR))
+            // Use the visualization distance (capped to the satellite
+            // extent) so the camera frames what's actually drawn.
+            const pinDist = visDist
+            const sinP = Math.sin(1.22)
+            const cosP = Math.cos(1.22)
+            const tanFov = Math.tan((38 * Math.PI) / 180 / 2)
+            const TARGET_NDC = 0.7
+            const fitR = pinDist * (sinP / (TARGET_NDC * tanFov) - cosP)
+            // Cap matches the manual ZOOM_OUT_MAX so the framing
+            // doesn't immediately snap if the user wheels.
+            camRadiusTarget.current = Math.min(ZOOM_OUT_MAX, Math.max(defaultR, fitR))
 
             // Populate label.
             const distLabel = sel.place.distanceLabel ?? ""
@@ -1807,28 +1858,25 @@ export function MapModeScene({
       // frame because the camera may still be lerping toward the
       // reframe targets.
       if (selectionGroup.visible) {
-        const sel = nodes.find(
-          (n) =>
-            (n.kind === "place" || n.kind === "member") &&
-            n.place.id === selectedIdRef.current,
-        )
-        if (sel) {
-          const pinX = sel.shadow.position.x
-          const pinZ = sel.shadow.position.z
-          // Subtle pulse on the destination ring so the eye lands there.
-          const pulse = reducedMotion ? 1 : 1 + Math.sin(t * 3.2) * 0.12
-          selPin.scale.setScalar(pulse)
-          // Midpoint label projection. Lift slightly above the line so
-          // depth-sorting against the bubbles behaves sanely.
-          tmpVec3.set(pinX / 2, SEL_LINE_Y + 1.2, pinZ / 2)
-          const projMid = projectToScreen(tmpVec3)
-          if (projMid.visible) {
-            selectionLabel.style.transform = `translate3d(${projMid.x.toFixed(1)}px, ${projMid.y.toFixed(1)}px, 0) translate(-50%, -50%)`
-            selectionLabel.style.zIndex = "30000"
-            selectionLabel.style.opacity = "1"
-          } else {
-            selectionLabel.style.opacity = "0"
-          }
+        // Use the (possibly capped) visualization position set on
+        // selPin during the selection-change reframe — not the real
+        // geo pin, which can be far off the satellite for distant
+        // places like Incheon from Seoul.
+        const pinX = selPin.position.x
+        const pinZ = selPin.position.z
+        // Subtle pulse on the destination ring so the eye lands there.
+        const pulse = reducedMotion ? 1 : 1 + Math.sin(t * 3.2) * 0.12
+        selPin.scale.setScalar(pulse)
+        // Midpoint label projection. Lift slightly above the line so
+        // depth-sorting against the bubbles behaves sanely.
+        tmpVec3.set(pinX / 2, SEL_LINE_Y + 1.2, pinZ / 2)
+        const projMid = projectToScreen(tmpVec3)
+        if (projMid.visible) {
+          selectionLabel.style.transform = `translate3d(${projMid.x.toFixed(1)}px, ${projMid.y.toFixed(1)}px, 0) translate(-50%, -50%)`
+          selectionLabel.style.zIndex = "30000"
+          selectionLabel.style.opacity = "1"
+        } else {
+          selectionLabel.style.opacity = "0"
         }
       }
 
