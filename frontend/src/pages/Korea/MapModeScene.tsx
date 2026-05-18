@@ -309,7 +309,16 @@ export function MapModeScene({
       onWebglErrorRef.current?.()
       return
     }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    // DPR is the single largest fragment-shader knob on retina mobile.
+    // 1.5 is the documented sweet spot — visually indistinguishable from
+    // 2.0/3.0 on Apple-grade panels at the orb sizes we render, ~4×
+    // cheaper. (Three.js Discourse + Codrops 2025 efficiency guide.)
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
+    // Skip the per-frame O(n log n) transparent sort — we drive
+    // ordering ourselves via renderOrder buckets (terrain at -10000,
+    // shadows at -500, bubbles around 0, selection line at 2000).
+    // Saves measurable CPU with ~100 transparent objects.
+    renderer.sortObjects = false
     renderer.outputColorSpace = SRGBColorSpace
     renderer.toneMapping = ACESFilmicToneMapping
     renderer.toneMappingExposure = 1.05
@@ -421,6 +430,9 @@ export function MapModeScene({
       depthWrite: false,
     })
     const stars = new Points(starGeom, starMat)
+    // Static — bake the world matrix once.
+    stars.matrixAutoUpdate = false
+    stars.updateMatrix()
     scene.add(stars)
 
     // ── Ground plane + priority rings ─────────────────────────────
@@ -429,6 +441,8 @@ export function MapModeScene({
     const ground = new Mesh(groundGeom, groundMat)
     ground.rotation.x = -Math.PI / 2
     ground.position.y = -0.6
+    ground.matrixAutoUpdate = false
+    ground.updateMatrix()
     scene.add(ground)
 
     // Decorative concentric rings — visual reference for the relative
@@ -455,6 +469,8 @@ export function MapModeScene({
       const ring = new Mesh(g, m)
       ring.rotation.x = -Math.PI / 2
       ring.position.y = -0.55
+      ring.matrixAutoUpdate = false
+      ring.updateMatrix()
       scene.add(ring)
       ringMeshes.push(ring)
     }
@@ -653,6 +669,11 @@ export function MapModeScene({
     terrain.position.y = TERRAIN_BASE_Y
     // Renders before everything else (decorative rings, bubbles, etc.).
     terrain.renderOrder = -10000
+    // Terrain transforms only change on dynamic expansion / scale —
+    // skip the per-frame matrixWorld recompute. We bump manually
+    // inside `ensureTerrainCoversUnits`.
+    terrain.matrixAutoUpdate = false
+    terrain.updateMatrix()
     scene.add(terrain)
 
     // Async fetch + texture swap. Bail silently on network failure — the
@@ -666,9 +687,16 @@ export function MapModeScene({
     let originalSatelliteTex: CanvasTexture | null = null
     let currentTerrainUnits = TERRAIN_PLANE_UNITS
     let pendingExpandKey: string | null = null
+    // Anisotropy is honoured on most mobile GPUs. 4× is the
+    // diminishing-returns sweet spot — the displaced terrain is viewed
+    // at grazing angles at low pitch, so anisotropic filtering buys
+    // noticeable sharpness on the foreshortened edges. The driver
+    // silently clamps to whatever it actually supports.
+    const TERRAIN_ANISO = Math.min(4, renderer.capabilities.getMaxAnisotropy?.() ?? 1)
     function applyTerrainTexture(tex: CanvasTexture, result: { userU: number; userV: number }) {
       tex.center.set(0.5, 0.5)
       tex.offset.set(result.userU - 0.5, 0.5 - result.userV)
+      tex.anisotropy = TERRAIN_ANISO
       terrainMat.map = tex
       terrainMat.color.setHex(0xffffff)
       terrainMat.opacity = 0.85
@@ -711,6 +739,7 @@ export function MapModeScene({
           terrainMat.needsUpdate = true
         }
         terrain.scale.set(1, 1, 1)
+        terrain.updateMatrix()
         currentTerrainUnits = TERRAIN_PLANE_UNITS
         pendingExpandKey = null
         return
@@ -729,6 +758,7 @@ export function MapModeScene({
         if (prev && prev !== originalSatelliteTex) prev.dispose()
         applyTerrainTexture(result.texture, result)
         terrain.scale.set(factor, factor, 1)
+        terrain.updateMatrix()
         currentTerrainUnits = stepped
         pendingExpandKey = null
       })
@@ -988,15 +1018,19 @@ export function MapModeScene({
       // - No attenuation tint and no place-colored body so the
       //   billboard photo isn't washed in category color. The rim
       //   mesh below carries the silhouette color.
+      // ── Outer glass orb material.
+      // Performance: transmission triggers an extra full-scene render
+      // pass per frame on mobile — measured 5-15 ms cost with this
+      // many orbs (Three.js Discourse). Iridescence carries 80 % of
+      // the "glass" feel by itself; we keep iridescence and lean on a
+      // high specular + clearcoat-light roughness for the rim shimmer
+      // without the transmission backbuffer.
       const outerMat = new MeshPhysicalMaterial({
         color: 0xffffff,
-        transmission: 0.25,         // visible refraction at the rim
-        thickness: 0.6,
-        ior: 1.45,                  // glass IOR
-        roughness: 0.06,            // smooth specular highlights
+        roughness: 0.08,
         metalness: 0,
-        clearcoat: 1.0,
         clearcoatRoughness: 0.05,
+        clearcoat: 0.4,
         iridescence: priority === "scheduled" ? 0.32 : 0.2,
         iridescenceIOR: 1.3,
         specularIntensity: 1.0,
@@ -1005,10 +1039,12 @@ export function MapModeScene({
         side: DoubleSide,
         depthWrite: false,
       })
-      // Sphere segments tuned for the bubble's screen size — at this scale
-      // 32×32 (~1k verts) is visually indistinguishable from 56×56 and
-      // cuts GPU work by ~3×. With up to ~50 orbs on screen that adds up.
-      const outer = new Mesh(new SphereGeometry(bubbleRadius, 32, 32), outerMat)
+      // Sphere segments tuned for the bubble's on-screen size — at
+      // Map Mode camera distances 24×16 (~384 verts) is visually
+      // indistinguishable from 32×32 and roughly 60 % fewer verts. The
+      // Three.js default itself is 32×16. With up to ~100 orbs the
+      // saved vertex shader work adds up.
+      const outer = new Mesh(new SphereGeometry(bubbleRadius, 24, 16), outerMat)
       outer.position.set(bx, by, bz)
       outer.userData.placeId = place.id
       outer.userData.priority = priority
@@ -1027,7 +1063,7 @@ export function MapModeScene({
         depthWrite: false,
         blending: AdditiveBlending,
       })
-      const rim = new Mesh(new SphereGeometry(bubbleRadius * (isCluster ? 1.18 : 1.12), 24, 24), rimMat)
+      const rim = new Mesh(new SphereGeometry(bubbleRadius * (isCluster ? 1.18 : 1.12), 16, 12), rimMat)
       rim.position.set(bx, by, bz)
       rim.scale.setScalar(0.001)
       scene.add(rim)
