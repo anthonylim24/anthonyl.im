@@ -1,10 +1,11 @@
 // Service worker registration + auto-update flow.
 //
-// Toggled by VITE_ENABLE_SERVICE_WORKER (default: off). When the flag is off
-// we additionally unregister any existing SW and delete its caches so a
-// previously-installed worker cannot keep serving stale bundles. This is the
-// escape hatch for the classic PWA staleness trap: deploying a fix and
-// finding users still pinned to old asset hashes.
+// Toggled by VITE_ENABLE_SERVICE_WORKER (default: on). Set the flag to
+// "false" / "0" / "no" / "off" to disable; doing so additionally unregisters
+// any existing SW and deletes its caches so a previously-installed worker
+// cannot keep serving stale bundles. This is the escape hatch for the
+// classic PWA staleness trap: deploying a fix and finding users still pinned
+// to old asset hashes.
 //
 // When the flag is on we:
 //   1. Register `/sw.js`.
@@ -40,12 +41,16 @@ interface CacheGlobal {
 
 function isEnabled(env: ServiceWorkerEnv): boolean {
   const raw = env.VITE_ENABLE_SERVICE_WORKER
+  // Unset → on (PWA caching + auto-update is the default behavior).
+  if (raw === undefined || raw === null || raw === "") return true
   if (raw === true) return true
+  if (raw === false) return false
   if (typeof raw === "string") {
     const v = raw.trim().toLowerCase()
-    return v === "true" || v === "1" || v === "yes" || v === "on"
+    if (v === "false" || v === "0" || v === "no" || v === "off") return false
+    return true
   }
-  return false
+  return true
 }
 
 // Wipe SW + cache state. Safe to call when nothing is registered. Returns

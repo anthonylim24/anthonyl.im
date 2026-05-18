@@ -39,7 +39,7 @@ describe('service worker registration', () => {
     expect(register).not.toHaveBeenCalled()
   })
 
-  it('does not register when the toggle is off (default) and clears any existing SW + caches', async () => {
+  it('does not register when the toggle is explicitly off and clears any existing SW + caches', async () => {
     const register = vi.fn().mockResolvedValue(undefined)
     const unregister = vi.fn().mockResolvedValue(true)
     const cacheDelete = vi.fn().mockResolvedValue(true)
@@ -102,6 +102,28 @@ describe('service worker registration', () => {
     await Promise.resolve()
 
     expect(register).toHaveBeenCalledWith('/sw.js')
+  })
+
+  it('registers when the toggle is unset (default on)', async () => {
+    const register = vi.fn().mockResolvedValue({
+      waiting: null,
+      installing: null,
+      addEventListener: vi.fn(),
+      update: vi.fn().mockResolvedValue(undefined),
+    })
+    const addEventListener = vi.fn()
+
+    expect(
+      registerServiceWorker(
+        // VITE_ENABLE_SERVICE_WORKER intentionally omitted — exercises the
+        // default-on path.
+        { PROD: true },
+        { serviceWorker: makeContainer(register) },
+        { addEventListener: addEventListener as Window['addEventListener'] },
+      ),
+    ).toBe(true)
+
+    expect(addEventListener).toHaveBeenCalledWith('load', expect.any(Function), { once: true })
   })
 
   it('unregisterServiceWorker tolerates a missing serviceWorker container', async () => {
