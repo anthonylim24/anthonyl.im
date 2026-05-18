@@ -450,6 +450,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
                   <MapModeScene
                     places={filteredPlaces}
                     onSelect={setSelected}
+                    onDeselect={() => setSelected(null)}
                     selectedId={selected?.id ?? null}
                     reducedMotion={reduce ?? undefined}
                     onWebglError={() => setWebglFailed(true)}
