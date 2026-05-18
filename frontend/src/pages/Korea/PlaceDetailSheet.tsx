@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react"
-import { motion, useReducedMotion } from "motion/react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { motion, useDragControls, useMotionValue, useReducedMotion, type PanInfo } from "motion/react"
 import { Navigation, ExternalLink, X, Share2, Footprints } from "lucide-react"
 import type { RankedPlace } from "./mapModeTypes"
-import { lookupPhoto, formatWalkingTime } from "./placePhoto"
+import { lookupGooglePlacePhoto, lookupPhoto, formatWalkingTime } from "./placePhoto"
 
 interface PlaceDetailSheetProps {
   place: RankedPlace
@@ -18,42 +18,84 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng }: PlaceDeta
   const [photoFailed, setPhotoFailed] = useState(false)
   const [shared, setShared] = useState(false)
 
+  // ── Drag-to-close ────────────────────────────────────────────────────
+  //
+  // Motion's drag layer is driven by a useDragControls instance so we can
+  // gate it: drag only starts when the inner scroll container is at top
+  // (native iOS sheet feel — scroll first, then continued downward swipe
+  // pulls the sheet down).
+  const dragControls = useDragControls()
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const y = useMotionValue(0)
+
+  function maybeStartDrag(e: React.PointerEvent<HTMLDivElement>) {
+    const el = scrollRef.current
+    // Always allow drag from the visible handle (the small pill at the
+    // top). Otherwise, only start a drag when the scroll is at top.
+    const handle = (e.target as HTMLElement | null)?.closest("[data-sheet-handle]")
+    if (handle) {
+      dragControls.start(e, { snapToCursor: false })
+      return
+    }
+    if (el && el.scrollTop <= 0) {
+      dragControls.start(e, { snapToCursor: false })
+    }
+  }
+
+  function onDragEnd(_e: PointerEvent | MouseEvent | TouchEvent, info: PanInfo) {
+    // Threshold: ~120px pulled OR a hard flick (>500 px/s) closes; else
+    // snap back. Motion lerp-resets the y motion value automatically.
+    if (info.offset.y > 120 || info.velocity.y > 500) {
+      onClose()
+    }
+  }
+
   const walking = useMemo(() => formatWalkingTime(place.distanceMeters), [place.distanceMeters])
 
-  // Look up a real Wikipedia photo
+  // Photo lookup cascade. Google Places is the primary source (real
+  // user-submitted photos of the actual business); Wikipedia is the
+  // fallback for landmarks and a final resort when Google isn't
+  // configured or doesn't find the place; the server-provided
+  // place.photoUrl is the last-line backup.
   useEffect(() => {
     let cancelled = false
     setPhotoLoading(true)
     setPhotoFailed(false)
     const titles = [
-      // primary name (e.g. "Gyeongbokgung Palace")
       place.name.replace(/\s*\([^)]+\)\s*/g, "").trim(),
-      // first-word strip
       place.name.split("·")[0].trim(),
       place.name.split("(")[0].trim(),
-      // photoQuery is a Wikipedia-friendly query already
-      // (set by the server from PlaceDef.photoQuery)
     ].filter(Boolean)
-    lookupPhoto(titles)
-      .then((url) => {
+
+    void (async () => {
+      try {
+        const googleUrl = await lookupGooglePlacePhoto({
+          name: place.name,
+          city: place.city,
+          lat: place.lat,
+          lng: place.lng,
+        })
         if (cancelled) return
-        if (url) {
-          setPhotoUrl(url)
-        } else {
-          // Fallback: Unsplash placeholder
-          setPhotoUrl(place.photoUrl)
+        if (googleUrl) {
+          setPhotoUrl(googleUrl)
+          setPhotoLoading(false)
+          return
         }
+        const wikiUrl = await lookupPhoto(titles)
+        if (cancelled) return
+        setPhotoUrl(wikiUrl ?? place.photoUrl)
         setPhotoLoading(false)
-      })
-      .catch(() => {
+      } catch {
         if (cancelled) return
         setPhotoUrl(place.photoUrl)
         setPhotoLoading(false)
-      })
+      }
+    })()
+
     return () => {
       cancelled = true
     }
-  }, [place.id, place.name, place.photoUrl])
+  }, [place.id, place.name, place.city, place.lat, place.lng, place.photoUrl])
 
   const directionsUrl = useMemo(() => {
     const origin = userLat && userLng ? `${userLat},${userLng}` : ""
@@ -94,10 +136,27 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng }: PlaceDeta
       animate={{ y: 0, opacity: 1 }}
       exit={reduce ? { opacity: 0 } : { y: "100%", opacity: 0 }}
       transition={{ type: "spring", stiffness: 340, damping: 32 }}
+      style={{ y, touchAction: "pan-y" }}
+      drag={reduce ? false : "y"}
+      dragListener={false}
+      dragControls={dragControls}
+      dragConstraints={{ top: 0, bottom: 0 }}
+      dragElastic={{ top: 0, bottom: 0.6 }}
+      dragMomentum={false}
+      onDragEnd={onDragEnd}
+      onPointerDown={reduce ? undefined : maybeStartDrag}
       className="absolute inset-x-0 bottom-0 z-30 max-h-[78vh] overflow-hidden rounded-t-3xl border-t border-stone-200 bg-white/95 shadow-2xl backdrop-blur-xl dark:border-stone-800 dark:bg-stone-950/95"
     >
-      <div className="mx-auto mt-2 h-1.5 w-12 rounded-full bg-stone-300/80 dark:bg-stone-700/80" />
-      <div className="max-h-[calc(78vh-0.5rem)] overflow-y-auto px-4 pb-6 pt-3 sm:px-6">
+      {/* Drag handle — larger touch target than the visible pill, so a
+          tap-down anywhere in the top strip can pull the sheet down. */}
+      <div
+        data-sheet-handle
+        aria-hidden
+        className="mx-auto flex h-6 w-full cursor-grab items-center justify-center pt-2 active:cursor-grabbing"
+      >
+        <div className="h-1.5 w-12 rounded-full bg-stone-300/80 dark:bg-stone-700/80" />
+      </div>
+      <div ref={scrollRef} className="max-h-[calc(78vh-0.5rem)] overflow-y-auto px-4 pb-6 pt-3 sm:px-6">
         <div className="flex items-start gap-3">
           <div
             aria-hidden
