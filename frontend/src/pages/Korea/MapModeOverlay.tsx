@@ -470,26 +470,41 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
                 <MapModeCompass yawRef={yawRef} onOrientNorth={orientNorth} />
               </>
             )}
-            <MapModeFilterBar
-              places={state.data.places}
-              enabledCategories={
-                disabledCategories.size === 0
-                  ? new Set()
-                  : new Set(
-                      Array.from(new Set(state.data.places.map((p) => p.category))).filter(
-                        (c) => !disabledCategories.has(c),
-                      ),
-                    )
-              }
-              enabledPriorities={
-                disabledPriorities.size === 0
-                  ? new Set()
-                  : new Set(ALL_PRIORITIES.filter((p) => !disabledPriorities.has(p)))
-              }
-              onSoloSelect={soloSelect}
-              onSoloPriority={soloPriority}
-              onReset={resetCategories}
-            />
+            {/* Filter bar — hidden while a place is selected so the
+                focus state (YOU + line + destination) gets the full
+                upper viewport. */}
+            <AnimatePresence>
+              {!selected && (
+                <motion.div
+                  key="filter-bar"
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.18 }}
+                >
+                  <MapModeFilterBar
+                    places={state.data.places}
+                    enabledCategories={
+                      disabledCategories.size === 0
+                        ? new Set()
+                        : new Set(
+                            Array.from(new Set(state.data.places.map((p) => p.category))).filter(
+                              (c) => !disabledCategories.has(c),
+                            ),
+                          )
+                    }
+                    enabledPriorities={
+                      disabledPriorities.size === 0
+                        ? new Set()
+                        : new Set(ALL_PRIORITIES.filter((p) => !disabledPriorities.has(p)))
+                    }
+                    onSoloSelect={soloSelect}
+                    onSoloPriority={soloPriority}
+                    onReset={resetCategories}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
             {showOrbs && filteredPlaces.length === 0 && (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                 <div className="rounded-2xl bg-white/90 px-4 py-3 text-center text-sm text-stone-700 shadow-md backdrop-blur dark:bg-stone-900/90 dark:text-stone-300">
