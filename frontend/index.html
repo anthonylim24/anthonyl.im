@@ -8,17 +8,23 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <!-- Short label shown under the icon when added to iOS Home Screen.
-         Each route's metadata script overrides this with its own
-         app-flavored title (Korea Trip, BreathFlow, ...). -->
-    <meta name="apple-mobile-web-app-title" content="Anthony Lim" />
-    <meta name="application-name" content="Anthony Lim" />
+         The PWA we install is the Korea trip dossier — the only app on
+         the site that benefits from a standalone shell. iOS Safari
+         reads these synchronously at page load, BEFORE any route
+         script runs, so the default has to be the desired install
+         identity (not chatbot or BreathFlow). -->
+    <meta name="apple-mobile-web-app-title" content="Korea Trip" />
+    <meta name="application-name" content="Korea Trip" />
     <meta name="description" content="Anthony Lim - Software Engineer. Ask me anything about my experience, skills, and background." />
     <meta property="og:site_name" content="Anthony Lim" />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary" />
 
     <link rel="icon" type="image/svg+xml" href="/favicon-chat.svg" />
-    <link rel="manifest" href="/site.webmanifest" />
+    <!-- iOS reads the manifest synchronously at page load. The default
+         here is the Korea trip — the only PWA on the site. (Per-route
+         scripts below are now idempotent.) -->
+    <link rel="manifest" href="/korea.webmanifest" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/breathflow-192.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -53,9 +59,10 @@
         setRouteMeta('meta[property="og:description"]', 'property', 'og:description', description);
         setRouteMeta('meta[name="twitter:title"]', 'name', 'twitter:title', title);
         setRouteMeta('meta[name="twitter:description"]', 'name', 'twitter:description', description);
-        // iOS Home Screen short label (read at Add-to-Home-Screen time)
-        setRouteMeta('meta[name="apple-mobile-web-app-title"]', 'name', 'apple-mobile-web-app-title', 'BreathFlow');
-        setRouteMeta('meta[name="application-name"]', 'name', 'application-name', 'BreathFlow');
+        // BreathFlow is intentionally NOT a PWA — we don't expose the
+        // manifest, apple-mobile-web-app-title, or application-name
+        // here so iOS's Add-to-Home-Screen flow defaults to the Korea
+        // identity set in the base head.
       })();
     </script>
 
@@ -76,6 +83,10 @@
           element.setAttribute('content', content);
         }
 
+        // Manifest is already /korea.webmanifest by default — this
+        // line is now a defensive no-op in case any other code swaps
+        // it. (iOS Safari reads the manifest at page load and may
+        // ignore JS-driven changes.)
         const manifest = document.querySelector('link[rel="manifest"]');
         if (manifest) manifest.setAttribute('href', '/korea.webmanifest');
 
