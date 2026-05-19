@@ -69,6 +69,7 @@ function makeJob(overrides: Partial<Job> = {}): Job {
     post_id: null,
     places: [],
     logs: [],
+    post_preview: null,
     ...overrides,
   }
 }

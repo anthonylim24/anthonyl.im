@@ -276,6 +276,25 @@ export async function listJobsForUser(userId: string, limit = 20) {
     }
   }
 
+  // Fetch a small preview of each post (caption, transcript) so the UI can
+  // show users *what* the LLM saw when 0 places were extracted. Cheap query —
+  // we already need post_ids for places.
+  const postsById: Record<number, { caption: string | null; transcript: string | null; ocr_text: string | null; location_tag: unknown | null }> = {};
+  if (postIds.length) {
+    const postsUrl = `${supabaseUrl}/rest/v1/instagram_posts?id=in.(${postIds.join(',')})` +
+      `&select=id,caption,transcript,ocr_text,location_tag`;
+    const r = await fetch(postsUrl, {
+      headers: {
+        apikey: supabaseServiceKey,
+        Authorization: `Bearer ${supabaseServiceKey}`,
+      },
+    });
+    if (r.ok) {
+      const rows = await r.json() as Array<{ id: number; caption: string | null; transcript: string | null; ocr_text: string | null; location_tag: unknown | null }>;
+      for (const p of rows) postsById[p.id] = p;
+    }
+  }
+
   let logsByJob: Record<number, unknown[]> = {};
   const jobIds = jobs.map(j => j.id);
   if (jobIds.length) {
@@ -295,9 +314,23 @@ export async function listJobsForUser(userId: string, limit = 20) {
     }
   }
 
-  return jobs.map(j => ({
-    ...j,
-    places: j.post_id != null ? (placesByPost[j.post_id] ?? []) : [],
-    logs: logsByJob[j.id] ?? [],
-  }));
+  return jobs.map(j => {
+    const post = j.post_id != null ? postsById[j.post_id] : undefined;
+    return {
+      ...j,
+      places: j.post_id != null ? (placesByPost[j.post_id] ?? []) : [],
+      logs: logsByJob[j.id] ?? [],
+      // Trim large strings so the polling payload stays small but the user
+      // can see what the LLM was looking at. Truncated previews are clearly
+      // marked client-side.
+      post_preview: post ? {
+        caption: post.caption ? post.caption.slice(0, 500) : null,
+        caption_truncated: !!post.caption && post.caption.length > 500,
+        transcript: post.transcript ? post.transcript.slice(0, 800) : null,
+        transcript_truncated: !!post.transcript && post.transcript.length > 800,
+        has_ocr: !!post.ocr_text,
+        location_tag: post.location_tag,
+      } : null,
+    };
+  });
 }
