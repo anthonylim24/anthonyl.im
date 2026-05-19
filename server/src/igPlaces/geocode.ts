@@ -23,9 +23,25 @@ export interface KakaoResult {
   url: string;
 }
 
+/** Query context passed to a geocoding adapter. Adapters use whichever
+ *  fields make sense — the Korean name typically wins on Kakao, the English
+ *  on Google. Adapters can also use category as a hint (e.g., to disambiguate
+ *  a restaurant from a tourist attraction with the same name). */
+export interface LookupQuery {
+  /** Primary (English) name as extracted by the LLM. */
+  name: string;
+  /** Local-script name (Korean Hangul, etc.) when the source was non-English. */
+  nameRomanized?: string | null;
+  city: string | null;
+  /** LLM-extracted address if present — used as a fuzzy hint for the search. */
+  address?: string | null;
+  /** Place category — helps disambiguate. */
+  category?: string;
+}
+
 export interface GeocoderDeps {
-  googleLookup: (name: string, city: string | null) => Promise<GoogleResult | null>;
-  kakaoLookup:  (name: string, city: string | null) => Promise<KakaoResult | null>;
+  googleLookup: (q: LookupQuery) => Promise<GoogleResult | null>;
+  kakaoLookup:  (q: LookupQuery) => Promise<KakaoResult | null>;
 }
 
 export type Geocoder = (place: VotedPlace, tag: LocationTag | undefined) => Promise<EnrichedPlace>;
@@ -70,11 +86,23 @@ export function createGeocoder(deps: GeocoderDeps): Geocoder {
     }
 
     const [googleRaw, kakao] = await Promise.all([
-      deps.googleLookup(place.name, place.city).catch(err => {
+      deps.googleLookup({
+        name: place.name,
+        nameRomanized: place.name_romanized,
+        city: place.city,
+        address: place.address,
+        category: place.category,
+      }).catch(err => {
         console.warn('[ig:geocode] google failed:', err?.message ?? err);
         return null;
       }),
-      deps.kakaoLookup(place.name, place.city).catch(err => {
+      deps.kakaoLookup({
+        name: place.name,
+        nameRomanized: place.name_romanized,
+        city: place.city,
+        address: place.address,
+        category: place.category,
+      }).catch(err => {
         console.warn('[ig:geocode] kakao failed:', err?.message ?? err);
         return null;
       }),
@@ -126,59 +154,128 @@ export function createGeocoder(deps: GeocoderDeps): Geocoder {
 }
 
 // Real adapters — used in production. Tests inject mocks.
+
+/** Build the ordered list of query strings to try against Google Places. */
+function googleQueries(q: LookupQuery): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const push = (s: string) => {
+    const v = s.trim();
+    if (v && !seen.has(v)) {
+      out.push(v);
+      seen.add(v);
+    }
+  };
+  // 1. English name + city — most precise for travelers
+  if (q.city) push(`${q.name}, ${q.city}`);
+  // 2. English name + LLM-supplied address (great hint when present)
+  if (q.address) push(`${q.name}, ${q.address}`);
+  // 3. Local-script name (Korean Hangul) + city — sometimes Google indexes
+  //    a venue under its Korean name first
+  if (q.nameRomanized) {
+    push(q.city ? `${q.nameRomanized}, ${q.city}` : q.nameRomanized);
+  }
+  // 4. Bare English name — last resort
+  push(q.name);
+  return out;
+}
+
+/** Build the ordered list of query strings to try against Kakao Local. */
+function kakaoQueries(q: LookupQuery): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const push = (s: string) => {
+    const v = s.trim();
+    if (v && !seen.has(v)) {
+      out.push(v);
+      seen.add(v);
+    }
+  };
+  // Kakao is a KR-native API — Korean name wins here.
+  if (q.nameRomanized) {
+    push(q.city ? `${q.nameRomanized} ${q.city}` : q.nameRomanized);
+  }
+  if (q.city) push(`${q.name} ${q.city}`);
+  if (q.address) push(q.address);
+  push(q.name);
+  return out;
+}
+
 export function realGoogleLookup(apiKey: string, f = fetch) {
-  return async (name: string, city: string | null): Promise<GoogleResult | null> => {
-    const query = `${name}${city ? ', ' + city : ''}`;
+  return async (q: LookupQuery): Promise<GoogleResult | null> => {
+    if (!apiKey) {
+      console.warn('[ig:geocode:google] no GOOGLE_MAPS_API_KEY configured');
+      return null;
+    }
     const searchUrl = 'https://places.googleapis.com/v1/places:searchText';
-    const r1 = await f(searchUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': apiKey,
-        'X-Goog-FieldMask':
-          'places.id,places.displayName,places.formattedAddress,places.location,places.types,' +
-          'places.rating,places.userRatingCount,places.internationalPhoneNumber',
-      },
-      body: JSON.stringify({ textQuery: query, regionCode: 'KR', languageCode: 'en' }),
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!r1.ok) return null;
-    const data = (await r1.json()) as { places?: any[] };
-    const top = data.places?.[0];
-    if (!top) return null;
-    return {
-      place_id: String(top.id),
-      name: top.displayName?.text ?? '',
-      address: top.formattedAddress ?? '',
-      lat: top.location?.latitude ?? 0,
-      lng: top.location?.longitude ?? 0,
-      types: top.types ?? [],
-      rating: top.rating ?? null,
-      userRatingCount: top.userRatingCount ?? 0,
-      phone: top.internationalPhoneNumber ?? null,
+    const headers = {
+      'Content-Type': 'application/json',
+      'X-Goog-Api-Key': apiKey,
+      'X-Goog-FieldMask':
+        'places.id,places.displayName,places.formattedAddress,places.location,places.types,' +
+        'places.rating,places.userRatingCount,places.internationalPhoneNumber',
     };
+    for (const textQuery of googleQueries(q)) {
+      const r = await f(searchUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ textQuery, regionCode: 'KR', languageCode: 'en' }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!r.ok) {
+        const body = await r.text().catch(() => '');
+        console.warn(`[ig:geocode:google] ${r.status} for query="${textQuery}": ${body.slice(0, 200)}`);
+        // Don't bail on the whole place — try the next query variant.
+        continue;
+      }
+      const data = (await r.json()) as { places?: any[] };
+      const top = data.places?.[0];
+      if (!top) continue;
+      return {
+        place_id: String(top.id),
+        name: top.displayName?.text ?? '',
+        address: top.formattedAddress ?? '',
+        lat: top.location?.latitude ?? 0,
+        lng: top.location?.longitude ?? 0,
+        types: top.types ?? [],
+        rating: top.rating ?? null,
+        userRatingCount: top.userRatingCount ?? 0,
+        phone: top.internationalPhoneNumber ?? null,
+      };
+    }
+    return null;
   };
 }
 
 export function realKakaoLookup(apiKey: string, f = fetch) {
-  return async (name: string, city: string | null): Promise<KakaoResult | null> => {
-    const url = new URL('https://dapi.kakao.com/v2/local/search/keyword.json');
-    url.searchParams.set('query', `${name}${city ? ' ' + city : ''}`);
-    const r = await f(url.toString(), { headers: { Authorization: `KakaoAK ${apiKey}` }, signal: AbortSignal.timeout(15_000) });
-    if (!r.ok) return null;
-    const data = (await r.json()) as { documents?: Array<{
-      id: string; place_name: string; road_address_name?: string; address_name: string;
-      x: string; y: string; place_url: string;
-    }>; };
-    const d = data.documents?.[0];
-    if (!d) return null;
-    return {
-      id: d.id,
-      name: d.place_name,
-      address: d.road_address_name || d.address_name,
-      lat: Number(d.y),
-      lng: Number(d.x),
-      url: d.place_url,
-    };
+  return async (q: LookupQuery): Promise<KakaoResult | null> => {
+    if (!apiKey) return null;
+    for (const query of kakaoQueries(q)) {
+      const url = new URL('https://dapi.kakao.com/v2/local/search/keyword.json');
+      url.searchParams.set('query', query);
+      const r = await f(url.toString(), {
+        headers: { Authorization: `KakaoAK ${apiKey}` },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!r.ok) {
+        console.warn(`[ig:geocode:kakao] ${r.status} for query="${query}"`);
+        continue;
+      }
+      const data = (await r.json()) as { documents?: Array<{
+        id: string; place_name: string; road_address_name?: string; address_name: string;
+        x: string; y: string; place_url: string;
+      }>; };
+      const d = data.documents?.[0];
+      if (!d) continue;
+      return {
+        id: d.id,
+        name: d.place_name,
+        address: d.road_address_name || d.address_name,
+        lat: Number(d.y),
+        lng: Number(d.x),
+        url: d.place_url,
+      };
+    }
+    return null;
   };
 }

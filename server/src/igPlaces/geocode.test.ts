@@ -104,4 +104,122 @@ describe('createGeocoder', () => {
     expect(out.lat).toBeNull();
     expect(out.address).toBe('12 Insadong-gil, Jongno-gu, Seoul');
   });
+
+  test('googleLookup receives the full query context (name + nameRomanized + city + address + category)', async () => {
+    const captured: any[] = [];
+    const place: VotedPlace = {
+      ...base,
+      name: 'Seoseoul Museum of Art',
+      name_romanized: '서울시립 서서울미술관',
+      city: 'Seoul',
+      address: null,
+      category: 'landmark',
+    };
+    const g = createGeocoder({
+      googleLookup: mock(async (q: any) => {
+        captured.push(q);
+        return null;
+      }),
+      kakaoLookup: mock(async () => null),
+    });
+    await g(place, undefined);
+    expect(captured).toHaveLength(1);
+    expect(captured[0].name).toBe('Seoseoul Museum of Art');
+    expect(captured[0].nameRomanized).toBe('서울시립 서서울미술관');
+    expect(captured[0].city).toBe('Seoul');
+    expect(captured[0].category).toBe('landmark');
+  });
+});
+
+import { realGoogleLookup, realKakaoLookup } from './geocode';
+
+describe('realGoogleLookup multi-query fallback', () => {
+  test('falls back to nameRomanized when the English query returns no places', async () => {
+    const queries: string[] = [];
+    const fetchMock = mock(async (_url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body));
+      queries.push(body.textQuery);
+      // First two queries (English + city, then with address) → empty.
+      // Third (Korean name + city) → return a hit.
+      if (body.textQuery.includes('서울시립')) {
+        return new Response(JSON.stringify({
+          places: [{
+            id: 'GP1',
+            displayName: { text: '서울시립 서서울미술관' },
+            formattedAddress: '서울특별시 금천구 시흥대로79길 65',
+            location: { latitude: 37.4571, lng: 126.9012, latitude: 37.4571, longitude: 126.9012 },
+            types: ['museum'],
+            rating: 4.5,
+            userRatingCount: 200,
+            internationalPhoneNumber: '+82 2-2124-8800',
+          }],
+        }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ places: [] }), { status: 200 });
+    });
+    const lookup = realGoogleLookup('test-key', fetchMock as any);
+    const r = await lookup({
+      name: 'Seoseoul Museum of Art',
+      nameRomanized: '서울시립 서서울미술관',
+      city: 'Seoul',
+      address: null,
+    });
+    expect(r).not.toBeNull();
+    expect(r?.address).toBe('서울특별시 금천구 시흥대로79길 65');
+    // Should have tried English + city first, then escalated to Korean + city.
+    expect(queries[0]).toContain('Seoseoul Museum of Art');
+    expect(queries.some(q => q.includes('서울시립'))).toBe(true);
+  });
+
+  test('returns null when ALL query variants fail', async () => {
+    const fetchMock = mock(async () => new Response(JSON.stringify({ places: [] }), { status: 200 }));
+    const lookup = realGoogleLookup('test-key', fetchMock as any);
+    const r = await lookup({
+      name: 'Definitely Not A Real Place 9000',
+      nameRomanized: null,
+      city: 'Seoul',
+    });
+    expect(r).toBeNull();
+  });
+
+  test('no API key → returns null without making any requests', async () => {
+    const fetchMock = mock(async () => new Response('{}', { status: 200 }));
+    const lookup = realGoogleLookup('', fetchMock as any);
+    const r = await lookup({ name: 'X', city: null });
+    expect(r).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('realKakaoLookup multi-query fallback', () => {
+  test('queries Korean name first, then English', async () => {
+    const queries: string[] = [];
+    const fetchMock = mock(async (url: string) => {
+      const u = new URL(url);
+      queries.push(u.searchParams.get('query') ?? '');
+      // Korean query miss → English hit
+      if (queries.length === 1) {
+        return new Response(JSON.stringify({ documents: [] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({
+        documents: [{
+          id: 'K1',
+          place_name: 'Sample Place',
+          road_address_name: '서울 강남구 테헤란로 152',
+          address_name: '',
+          x: '127.0297', y: '37.4979',
+          place_url: 'https://place.kakao.com/abc',
+        }],
+      }), { status: 200 });
+    });
+    const lookup = realKakaoLookup('kakao-key', fetchMock as any);
+    const r = await lookup({
+      name: 'Sample Place',
+      nameRomanized: '샘플 장소',
+      city: 'Seoul',
+    });
+    expect(r).not.toBeNull();
+    expect(r?.address).toContain('테헤란로');
+    expect(queries[0]).toContain('샘플 장소'); // Korean first
+  });
 });
