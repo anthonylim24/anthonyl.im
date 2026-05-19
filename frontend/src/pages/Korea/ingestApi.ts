@@ -76,7 +76,7 @@ export async function submitUrl(
   url: string,
 ): Promise<SubmitResult> {
   const headers = await authHeaders(getToken)
-  const res = await fetch(BASE + '/', {
+  const res = await fetch(BASE, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify({ url }),
