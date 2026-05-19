@@ -17,6 +17,8 @@ export type PlaceResult = {
   lng: number | null
   geocode_source: string | null
   geocode_disagree: boolean
+  signal_source: 'caption' | 'transcript' | 'ocr' | 'location_tag' | 'multiple' | null
+  vote_count: number
 }
 
 export type JobStatus = 'pending' | 'running' | 'done' | 'failed' | 'dead'

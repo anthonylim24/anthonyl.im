@@ -27,7 +27,7 @@ describe('buildBundle', () => {
     expect(b.caption).toBe('No video here');
     expect(transcribe).not.toHaveBeenCalled();
     expect(downloadImage).toHaveBeenCalledTimes(1);
-    expect(downloadImage).toHaveBeenCalledWith('i.jpg');
+    expect((downloadImage.mock.calls[0] as any[])[0]).toBe('i.jpg');
     expect(ocr).toHaveBeenCalledTimes(1);    // OCR DID run on the one image
     expect(ocr).toHaveBeenCalledWith('/tmp/img.jpg');
   });
@@ -50,6 +50,8 @@ describe('buildBundle', () => {
     };
     const b = await build(carouselPost);
     expect(downloadImage).toHaveBeenCalledTimes(2);
+    expect((downloadImage.mock.calls[0] as any[])[0]).toBe('a.jpg');
+    expect((downloadImage.mock.calls[1] as any[])[0]).toBe('b.jpg');
     expect(ocr).toHaveBeenCalledWith('/tmp/a.jpg');
     expect(ocr).toHaveBeenCalledWith('/tmp/b.jpg');
     expect(b.ocr).toContain('[image 1] OCR-of-a.jpg');

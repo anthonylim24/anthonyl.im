@@ -6,7 +6,7 @@ import type { Queue } from './queue';
 export interface ProcessorDeps {
   fetchPost:   (url: string, cached: PostPayload | null) => Promise<PostPayload>;
   upsertPost:  (dedupeKey: string, url: string, p: PostPayload, transcript: string | undefined, ocr: string | undefined) => Promise<number>;
-  buildBundle: (p: PostPayload) => Promise<ExtractionBundle>;
+  buildBundle: (p: PostPayload, opts?: { log?: (level: 'info'|'warn'|'error', message: string) => Promise<void> | void }) => Promise<ExtractionBundle>;
   extract:     (b: ExtractionBundle) => Promise<VotedPlace[]>;
   geocode:     (p: VotedPlace, tag: LocationTag | undefined) => Promise<EnrichedPlace>;
   savePlaces:  (postId: number, userId: string, places: EnrichedPlace[]) => Promise<void>;
@@ -32,7 +32,9 @@ export function createProcessor(deps: ProcessorDeps) {
       lastStep = 'bundling';
       await deps.setStep(job.id, 'bundling');
       await deps.log(job.id, 'bundling', 'info', 'building extraction bundle').catch(() => {});
-      const bundle = await deps.buildBundle(payload);
+      const bundle = await deps.buildBundle(payload, {
+        log: (level, message) => deps.log(job.id, 'bundling', level, message).catch(() => {}),
+      });
       await deps.log(job.id, 'bundling', 'info',
         `caption=${bundle.caption.length} chars` +
         `; transcript=${bundle.transcript ? bundle.transcript.length + ' chars' : 'none'}` +

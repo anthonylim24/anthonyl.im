@@ -177,6 +177,8 @@ create index if not exists instagram_places_user_idx
 create unique index if not exists instagram_places_user_google_uq
   on public.instagram_places (user_id, google_place_id)
   where google_place_id is not null;
+create unique index if not exists instagram_places_post_user_name_uq
+  on public.instagram_places (post_id, user_id, name);
 
 alter table public.instagram_jobs   enable row level security;
 alter table public.instagram_posts  enable row level security;
@@ -257,18 +259,14 @@ end $$;
 -- IG job step tracking (per-stage progress for the live UI)
 -- ============================================================
 
-create type ig_job_step as enum
-  ('queued','fetching','bundling','extracting','geocoding','saving','done');
+do $$ begin
+  create type ig_job_step as enum
+    ('queued','fetching','bundling','extracting','geocoding','saving','done');
+exception when duplicate_object then null;
+end $$;
 
 alter table public.instagram_jobs
   add column if not exists step ig_job_step not null default 'queued';
-
-create or replace function public.ig_set_job_step(
-  p_job_id bigint, p_step ig_job_step
-) returns void language sql security definer as $$
-  update public.instagram_jobs set step = p_step, updated_at = now()
-   where id = p_job_id;
-$$;
 
 -- ============================================================
 -- IG retry: reset a dead/failed job back to pending so the worker
@@ -302,10 +300,10 @@ end $$;
 -- IG job per-step logs + step-start timestamp
 -- ============================================================
 
--- NOTE: if this schema has been partially applied and ig_log_level already
--- exists, wrap the create type in a do $$ begin ... exception when
--- duplicate_object then null; end $$; block before re-running.
-create type ig_log_level as enum ('info','warn','error');
+do $$ begin
+  create type ig_log_level as enum ('info','warn','error');
+exception when duplicate_object then null;
+end $$;
 
 create table if not exists public.instagram_job_logs (
   id         bigserial primary key,

@@ -1,6 +1,11 @@
 // server/src/igPlaces/extractPlaces.ts
 import type Groq from 'groq-sdk';
 import type { ExtractionBundle, RawExtractedPlace, VotedPlace, IgSignalSource } from './types';
+import { RetryableError } from './types';
+import { canonicalize, levenshteinDistance, fuzzyEq as _fuzzyEq } from './textMatch';
+export { canonicalize, levenshteinDistance };
+/** @deprecated Use levenshteinDistance from textMatch.ts */
+export const levenshteinNormalized = levenshteinDistance;
 
 export const SYSTEM_PROMPT = `You extract real-world places from a social-media post about Korea.
 
@@ -60,19 +65,30 @@ export function createExtractor(deps: ExtractorDeps): Extractor {
   const temperature = deps.temperature ?? 0.5;
   return async function extract(bundle) {
     const userMsg = renderBundle(bundle);
-    const calls = await Promise.all(Array.from({ length: runs }, () =>
-      deps.groq.chat.completions.create({
-        model: 'openai/gpt-oss-120b',
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user',   content: userMsg },
-        ],
-        response_format: { type: 'json_schema', json_schema: SCHEMA } as any,
-        temperature,
-        max_completion_tokens: 2048,
-        reasoning_effort: 'low',
-        reasoning_format: 'hidden',
-      } as any).then(parseRun).catch(() => [] as RawExtractedPlace[])));
+    const calls = await Promise.all(Array.from({ length: runs }, async () => {
+      try {
+        return parseRun(await deps.groq.chat.completions.create({
+          model: 'openai/gpt-oss-120b',
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            { role: 'user',   content: userMsg },
+          ],
+          response_format: { type: 'json_schema', json_schema: SCHEMA } as any,
+          temperature,
+          max_completion_tokens: 2048,
+          reasoning_effort: 'low',
+          reasoning_format: 'hidden',
+        } as any));
+      } catch (err: any) {
+        const status = err?.status ?? err?.response?.status;
+        if (status === 429) {
+          const retryAfterMs = Number(err?.headers?.['retry-after'] ?? 30) * 1000;
+          throw new RetryableError('groq extract rate-limited', retryAfterMs);
+        }
+        console.warn('[ig:extract] groq call failed:', err?.message ?? err);
+        return [] as RawExtractedPlace[];
+      }
+    }));
     const source = sourceText(bundle);
     return voteMerge(calls, source);
   };
@@ -99,33 +115,7 @@ function sourceText(b: ExtractionBundle): string {
     .filter(Boolean).join('\n');
 }
 
-export function canonicalize(s: string): string {
-  // NFD decomposes accented chars (é → e + combining acute), then strip combining marks,
-  // then NFC re-normalizes the result before lowercasing and stripping punctuation/whitespace.
-  return s.normalize('NFD').replace(/\p{M}/gu, '').normalize('NFC')
-    .toLowerCase().replace(/[\s\p{P}\p{S}]/gu, '');
-}
-
-export function levenshteinNormalized(a: string, b: string): number {
-  if (a === b) return 0;
-  const m = a.length, n = b.length;
-  if (!m) return n; if (!n) return m;
-  const dp = Array.from({ length: m + 1 }, () => new Array<number>(n + 1).fill(0));
-  for (let i = 0; i <= m; i++) dp[i][0] = i;
-  for (let j = 0; j <= n; j++) dp[0][j] = j;
-  for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) {
-    const cost = a[i-1] === b[j-1] ? 0 : 1;
-    dp[i][j] = Math.min(dp[i-1][j] + 1, dp[i][j-1] + 1, dp[i-1][j-1] + cost);
-  }
-  return dp[m][n];
-}
-
-function fuzzyEq(a: string, b: string): boolean {
-  const ca = canonicalize(a), cb = canonicalize(b);
-  if (ca === cb) return true;
-  if (ca.includes(cb) || cb.includes(ca)) return true;
-  return levenshteinNormalized(ca, cb) <= 2;
-}
+const fuzzyEq = _fuzzyEq;
 
 interface Bucket { reps: RawExtractedPlace[]; signals: Set<IgSignalSource>; }
 

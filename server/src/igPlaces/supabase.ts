@@ -31,8 +31,8 @@ export function createSupabaseClient(cfg: SupabaseConfig): SupabaseClient {
     'Content-Type': 'application/json',
   };
 
-  async function call(path: string, init: RequestInit): Promise<Response> {
-    const r = await f(`${cfg.url}/rest/v1${path}`, init);
+  async function call(path: string, init: RequestInit, timeoutMs = 10_000): Promise<Response> {
+    const r = await f(`${cfg.url}/rest/v1${path}`, { ...init, signal: AbortSignal.timeout(timeoutMs) });
     if (!r.ok) {
       const body = await r.text().catch(() => '');
       throw new Error(`supabase ${init.method ?? 'GET'} ${path} → ${r.status}: ${body.slice(0, 200)}`);

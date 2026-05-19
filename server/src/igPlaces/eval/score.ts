@@ -1,5 +1,5 @@
 // server/src/igPlaces/eval/score.ts
-import { canonicalize, levenshteinNormalized } from '../extractPlaces';
+import { fuzzyEq as _fuzzyEq } from '../textMatch';
 import { haversineMeters } from '../geocode';
 import type { EnrichedPlace, IgPlaceCategory } from '../types';
 
@@ -21,11 +21,7 @@ export interface FixtureScore {
   expected: number;
 }
 
-function fuzzyEq(a: string, b: string): boolean {
-  const ca = canonicalize(a), cb = canonicalize(b);
-  if (ca === cb || ca.includes(cb) || cb.includes(ca)) return true;
-  return levenshteinNormalized(ca, cb) <= 2;
-}
+const fuzzyEq = _fuzzyEq;
 
 export function scoreFixture(got: EnrichedPlace[], expected: ExpectedPlace[]): FixtureScore {
   let catHits = 0, geoHits = 0, matched = 0;

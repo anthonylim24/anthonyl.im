@@ -16,19 +16,30 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir, hostname } from 'node:os';
 import { join } from 'node:path';
 
-async function downloadVideo(url: string): Promise<string> {
+// Instagram's CDN throttles or 403s fetches with an empty / generic UA.
+// Pretending to be a recent Chrome on macOS keeps the download fast + reliable.
+const CDN_FETCH_HEADERS = {
+  'User-Agent':
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
+    '(KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36',
+  Accept: '*/*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  Referer: 'https://www.instagram.com/',
+};
+
+async function downloadVideo(url: string, signal?: AbortSignal): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'ig-video-'));
   const out = join(dir, 'video.mp4');
-  const r = await fetch(url);
+  const r = await fetch(url, { signal, headers: CDN_FETCH_HEADERS });
   if (!r.ok || !r.body) throw new Error(`video download ${r.status}`);
   await Bun.write(out, r);
   return out;
 }
 
-async function downloadImage(url: string): Promise<string> {
+async function downloadImage(url: string, signal?: AbortSignal): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'ig-image-'));
   const out = join(dir, 'image.jpg');
-  const r = await fetch(url);
+  const r = await fetch(url, { signal, headers: CDN_FETCH_HEADERS });
   if (!r.ok || !r.body) throw new Error(`image download ${r.status}`);
   await Bun.write(out, r);
   return out;
@@ -111,7 +122,75 @@ export function bootIgWorker() {
 }
 
 export function getQueue() {
-  return booted?.queue ?? buildWorld().queue;
+  if (booted) return booted.queue;
+  // Lazy build: only the queue is needed (e.g., the worker is disabled but the
+  // endpoint still has to enqueue). Reuse the booted instance if buildWorld
+  // succeeds so subsequent calls don't rebuild.
+  const built = buildWorld();
+  booted = built;
+  return built.queue;
+}
+
+export type ExtractedPlacesOpts = {
+  userId: string;
+  limit?: number;
+  offset?: number;
+  category?: string;
+  band?: string;
+  q?: string;
+};
+
+export async function listExtractedPlaces(opts: ExtractedPlacesOpts) {
+  const supabaseUrl = config.supabaseUrl;
+  const supabaseServiceKey = config.supabaseServiceKey;
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return { places: [], total: 0, hasMore: false };
+  }
+
+  const { userId, limit = 50, offset = 0, category, band, q } = opts;
+
+  const params = new URLSearchParams();
+  params.set('select', '*,post:instagram_posts(id,url,shortcode,owner_username,caption,fetched_at)');
+  params.set('user_id', `eq.${userId}`);
+  params.set('status', 'neq.rejected');
+  params.set('order', 'created_at.desc');
+
+  if (category) {
+    params.set('category', `eq.${encodeURIComponent(category)}`);
+  }
+  if (band) {
+    params.set('confidence_band', `eq.${encodeURIComponent(band)}`);
+  }
+  if (q) {
+    params.set('or', `(name.ilike.*${encodeURIComponent(q)}*,supporting_quote.ilike.*${encodeURIComponent(q)}`+ '*)');
+  }
+
+  const url = `${supabaseUrl}/rest/v1/instagram_places?${params.toString()}`;
+  const rangeEnd = offset + limit - 1;
+
+  const r = await fetch(url, {
+    headers: {
+      apikey: supabaseServiceKey,
+      Authorization: `Bearer ${supabaseServiceKey}`,
+      'Range-Unit': 'items',
+      Range: `${offset}-${rangeEnd}`,
+      Prefer: 'count=exact',
+    },
+  });
+
+  if (!r.ok) {
+    return { places: [], total: 0, hasMore: false };
+  }
+
+  const places = await r.json() as unknown[];
+  const contentRange = r.headers.get('Content-Range') ?? '';
+  // Format: "0-49/123" or "*/0"
+  const total = Number(contentRange.split('/')[1] ?? 0) || 0;
+  return {
+    places,
+    total,
+    hasMore: offset + places.length < total,
+  };
 }
 
 export async function listJobsForUser(userId: string, limit = 20) {
@@ -138,7 +217,8 @@ export async function listJobsForUser(userId: string, limit = 20) {
   if (postIds.length) {
     const url = `${supabaseUrl}/rest/v1/instagram_places?post_id=in.(${postIds.join(',')})` +
       `&select=id,post_id,name,name_romanized,city,category,confidence,confidence_band,` +
-      `is_subject,supporting_quote,address,lat,lng,geocode_source,geocode_disagree`;
+      `is_subject,supporting_quote,address,lat,lng,geocode_source,geocode_disagree,` +
+      `signal_source,vote_count,geocode_kakao_id`;
     const r = await fetch(url, {
       headers: {
         apikey: supabaseServiceKey,

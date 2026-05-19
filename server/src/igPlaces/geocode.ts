@@ -1,6 +1,6 @@
 // server/src/igPlaces/geocode.ts
 import type { EnrichedPlace, LocationTag, VotedPlace, IgConfidenceBand } from './types';
-import { canonicalize, levenshteinNormalized } from './extractPlaces';
+import { canonicalize, levenshteinDistance, fuzzyEq } from './textMatch';
 
 export interface GoogleResult {
   place_id: string;
@@ -34,12 +34,6 @@ export function withinKoreaBbox(lat: number, lng: number): boolean {
   return lat >= 33 && lat <= 39 && lng >= 124 && lng <= 132;
 }
 
-function fuzzyEq(a: string, b: string): boolean {
-  const ca = canonicalize(a), cb = canonicalize(b);
-  if (ca === cb || ca.includes(cb) || cb.includes(ca)) return true;
-  return levenshteinNormalized(ca, cb) <= 2;
-}
-
 export function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6_371_000;
   const φ1 = lat1 * Math.PI/180, φ2 = lat2 * Math.PI/180;
@@ -55,7 +49,7 @@ function bumpBand(b: IgConfidenceBand): IgConfidenceBand {
 function googlePassesQualityBar(p: VotedPlace, g: GoogleResult): boolean {
   if (!withinKoreaBbox(g.lat, g.lng)) return false;
   if (p.category === 'restaurant' || p.category === 'cafe' || p.category === 'bar') {
-    if (g.userRatingCount < 10 && levenshteinNormalized(canonicalize(p.name), canonicalize(g.name)) > 1) {
+    if (g.userRatingCount < 10 && levenshteinDistance(canonicalize(p.name), canonicalize(g.name)) > 1) {
       return false;
     }
   }
@@ -76,8 +70,14 @@ export function createGeocoder(deps: GeocoderDeps): Geocoder {
     }
 
     const [googleRaw, kakao] = await Promise.all([
-      deps.googleLookup(place.name, place.city).catch(() => null),
-      deps.kakaoLookup(place.name, place.city).catch(() => null),
+      deps.googleLookup(place.name, place.city).catch(err => {
+        console.warn('[ig:geocode] google failed:', err?.message ?? err);
+        return null;
+      }),
+      deps.kakaoLookup(place.name, place.city).catch(err => {
+        console.warn('[ig:geocode] kakao failed:', err?.message ?? err);
+        return null;
+      }),
     ]);
     const google = googleRaw && googlePassesQualityBar(place, googleRaw) ? googleRaw : null;
 
@@ -137,6 +137,7 @@ export function realGoogleLookup(apiKey: string, f = fetch) {
           'places.rating,places.userRatingCount,places.internationalPhoneNumber',
       },
       body: JSON.stringify({ textQuery: query, regionCode: 'KR', languageCode: 'en' }),
+      signal: AbortSignal.timeout(15_000),
     });
     if (!r1.ok) return null;
     const data = (await r1.json()) as { places?: any[] };
@@ -160,7 +161,7 @@ export function realKakaoLookup(apiKey: string, f = fetch) {
   return async (name: string, city: string | null): Promise<KakaoResult | null> => {
     const url = new URL('https://dapi.kakao.com/v2/local/search/keyword.json');
     url.searchParams.set('query', `${name}${city ? ' ' + city : ''}`);
-    const r = await f(url.toString(), { headers: { Authorization: `KakaoAK ${apiKey}` } });
+    const r = await f(url.toString(), { headers: { Authorization: `KakaoAK ${apiKey}` }, signal: AbortSignal.timeout(15_000) });
     if (!r.ok) return null;
     const data = (await r.json()) as { documents?: Array<{
       id: string; place_name: string; road_address_name?: string; address_name: string;
