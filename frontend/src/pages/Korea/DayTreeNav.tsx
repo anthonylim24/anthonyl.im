@@ -45,7 +45,16 @@ export function DayTreeNav({ days, className }: DayTreeNavProps) {
         (className ?? "")
       }
     >
-      <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-6">
+      <div
+        className="mx-auto flex max-w-6xl items-center gap-2 px-3 sm:gap-3 sm:px-6"
+        style={{
+          // Reserve room for the iOS dynamic island / status bar when
+          // launched standalone from Home Screen. env(safe-area-inset-top)
+          // resolves to 0 on non-iOS.
+          paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)",
+          paddingBottom: "10px",
+        }}
+      >
         <Link
           to="/korea"
           data-active={isIndex}

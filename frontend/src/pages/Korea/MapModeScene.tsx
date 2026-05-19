@@ -1790,29 +1790,34 @@ export function MapModeScene({
             // room). YOU at world origin always projects to viewport
             // center (cameraTarget = origin). Floor at the default
             // radius so close pins don't trigger an unnecessary zoom.
-            const defaultR = cameraTargetRadiusFor(w)
-            // Use the visualization distance (capped to the satellite
-            // extent) so the camera frames what's actually drawn.
-            const pinDist = visDist
-            const sinP = Math.sin(1.22)
-            const cosP = Math.cos(1.22)
-            const tanFov = Math.tan((38 * Math.PI) / 180 / 2)
-            const TARGET_NDC = 0.7
-            const fitR = pinDist * (sinP / (TARGET_NDC * tanFov) - cosP)
-            // Cap matches the manual ZOOM_OUT_MAX so the framing
-            // doesn't immediately snap if the user wheels.
-            camRadiusTarget.current = Math.min(ZOOM_OUT_MAX, Math.max(defaultR, fitR))
-
             // Adaptive viewport framing — slide the cameraTarget
             // toward the destination so YOU appears in the LOWER
             // portion of the viewport and the destination toward
             // the TOP. Bias is aspect-aware:
             //   portrait: bias 0.5 → YOU near bottom, dest near top
             //   landscape: bias 0.2 → YOU near center, dest in upper
-            // We move along the (origin → visualization pin) ray.
             const aspect = w / h
             const targetBias = aspect < 1 ? 0.5 : 0.2
             camTargetGoal.set(pinX * targetBias, 0, pinZ * targetBias)
+
+            // Camera radius (zoom-out) is computed so the FURTHER of
+            // the two endpoints lands at ~70 % NDC from the chosen
+            // cameraTarget. After the target shift the line is split
+            // by `targetBias`, so halfRun = max(α, 1-α) * pinDist —
+            // i.e., the longer half of the segment.
+            const defaultR = cameraTargetRadiusFor(w)
+            const pinDist = visDist
+            const halfRun = Math.max(targetBias, 1 - targetBias) * pinDist
+            const sinP = Math.sin(1.22)
+            const cosP = Math.cos(1.22)
+            const tanFov = Math.tan((38 * Math.PI) / 180 / 2)
+            const TARGET_NDC = 0.7
+            const fitR = halfRun * (sinP / (TARGET_NDC * tanFov) - cosP)
+            // Cap matches the manual ZOOM_OUT_MAX so the framing
+            // doesn't immediately snap if the user wheels. Floor at
+            // the default radius so a close pin doesn't zoom IN past
+            // the survey view.
+            camRadiusTarget.current = Math.min(ZOOM_OUT_MAX, Math.max(defaultR, fitR))
 
             // Populate label — distance pill + optional address pill +
             // a "Maps ↗" link to Google Maps for the place.
