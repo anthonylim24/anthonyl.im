@@ -45,3 +45,24 @@ curl -X POST https://anthonyl.im/api/korea/places/from-instagram \
 ```
 
 Returns `202` and a job id. Poll the `instagram_jobs` table or `_stats` for state.
+
+## Dev shortcut: static bearer
+
+For local testing without juggling short-lived Clerk JWTs, set:
+
+```
+IG_DEV_BEARER=any-long-random-string
+IG_DEV_USER_ID=dev-user        # optional, default 'dev-user'
+```
+
+Then curl with that static string:
+
+```bash
+curl -X POST http://localhost:3000/api/korea/places/from-instagram \
+  -H "Authorization: Bearer $IG_DEV_BEARER" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://www.instagram.com/p/ABC123"}'
+```
+
+**Never set `IG_DEV_BEARER` in production.** When unset (the default in
+prod), the endpoint requires a real Clerk JWT.

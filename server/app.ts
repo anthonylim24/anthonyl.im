@@ -142,8 +142,12 @@ app.route("/api/korea", koreaRouter);
 app.route("/api/entity", entityRouter);
 
 // IG place extractor — Clerk-gated route + in-process worker
-const clerkAuth = config.clerkSecretKey
-  ? createClerkAuth({ secretKey: config.clerkSecretKey })
+const clerkAuth = (config.clerkSecretKey || config.igDevBearer)
+  ? createClerkAuth({
+      secretKey: config.clerkSecretKey,
+      devBearer: config.igDevBearer,
+      devUserId: config.igDevUserId,
+    })
   : null;
 
 if (clerkAuth) {
@@ -161,7 +165,7 @@ if (clerkAuth) {
   app.use('/api/korea/places/from-instagram/*', clerkAuth);
   app.route('/api/korea/places/from-instagram', igPlacesRouter);
 } else {
-  console.warn('[ig-places] CLERK_SECRET_KEY missing; endpoint not mounted');
+  console.warn('[ig-places] CLERK_SECRET_KEY and IG_DEV_BEARER both missing; endpoint not mounted');
 }
 
 bootIgWorker();

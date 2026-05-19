@@ -22,6 +22,8 @@ export const config = {
   igWorkerConcurrency: Number(process.env.IG_WORKER_CONCURRENCY ?? 3),
   igWorkerPollMs: Number(process.env.IG_WORKER_POLL_MS ?? 3_000),
   igWorkerStaleSec: Number(process.env.IG_WORKER_STALE_SEC ?? 600),
+  igDevBearer: process.env.IG_DEV_BEARER,
+  igDevUserId: process.env.IG_DEV_USER_ID ?? 'dev-user',
 } as const;
 
 // Validate required env vars — only enforce keys for features that are enabled.

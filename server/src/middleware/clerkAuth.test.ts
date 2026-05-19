@@ -29,4 +29,24 @@ describe('createClerkAuth', () => {
     const res = await app.request('/x', { headers: { Authorization: 'Bearer X' } });
     expect(res.status).toBe(401);
   });
+
+  test('dev bearer match → accepts request with configured userId, no Clerk call', async () => {
+    const verifyToken = mock(async () => { throw new Error('should not be called'); });
+    const auth = createClerkAuth({ verifyToken, devBearer: 'SECRET', devUserId: 'anthony' });
+    const app = new Hono().use('*', auth).get('/x', (c) => c.text(c.get('userId') as string));
+    const res = await app.request('/x', { headers: { Authorization: 'Bearer SECRET' } });
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe('anthony');
+    expect(verifyToken).not.toHaveBeenCalled();
+  });
+
+  test('dev bearer mismatch → falls through to Clerk verification', async () => {
+    const verifyToken = mock(async () => ({ sub: 'real-user' }));
+    const auth = createClerkAuth({ verifyToken, devBearer: 'SECRET' });
+    const app = new Hono().use('*', auth).get('/x', (c) => c.text(c.get('userId') as string));
+    const res = await app.request('/x', { headers: { Authorization: 'Bearer WRONG' } });
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe('real-user');
+    expect(verifyToken).toHaveBeenCalled();
+  });
 });

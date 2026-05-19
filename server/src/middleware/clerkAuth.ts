@@ -4,6 +4,8 @@ import { verifyToken as clerkVerify } from '@clerk/backend';
 export interface ClerkAuthDeps {
   verifyToken?: (token: string) => Promise<{ sub: string }>;
   secretKey?: string;
+  devBearer?: string;       // if set, a request bearing exactly this string is accepted
+  devUserId?: string;       // userId to set when devBearer matches; defaults to 'dev-user'
 }
 
 export function createClerkAuth(deps: ClerkAuthDeps = {}): MiddlewareHandler {
@@ -17,6 +19,11 @@ export function createClerkAuth(deps: ClerkAuthDeps = {}): MiddlewareHandler {
       return c.json({ error: 'missing or malformed Authorization header' }, 401);
     }
     const token = header.slice('Bearer '.length).trim();
+    if (deps.devBearer && token === deps.devBearer) {
+      c.set('userId' as never, (deps.devUserId ?? 'dev-user') as never);
+      await next();
+      return;
+    }
     try {
       const { sub } = await verify(token);
       c.set('userId' as never, sub as never);
