@@ -125,6 +125,68 @@ export function getQueue() {
   return booted?.queue ?? buildWorld().queue;
 }
 
+export type ExtractedPlacesOpts = {
+  userId: string;
+  limit?: number;
+  offset?: number;
+  category?: string;
+  band?: string;
+  q?: string;
+};
+
+export async function listExtractedPlaces(opts: ExtractedPlacesOpts) {
+  const supabaseUrl = config.supabaseUrl;
+  const supabaseServiceKey = config.supabaseServiceKey;
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return { places: [], total: 0, hasMore: false };
+  }
+
+  const { userId, limit = 50, offset = 0, category, band, q } = opts;
+
+  const params = new URLSearchParams();
+  params.set('select', '*,post:instagram_posts(id,url,shortcode,owner_username,caption,fetched_at)');
+  params.set('user_id', `eq.${userId}`);
+  params.set('status', 'neq.rejected');
+  params.set('order', 'created_at.desc');
+
+  if (category) {
+    params.set('category', `eq.${encodeURIComponent(category)}`);
+  }
+  if (band) {
+    params.set('confidence_band', `eq.${encodeURIComponent(band)}`);
+  }
+  if (q) {
+    params.set('or', `(name.ilike.*${encodeURIComponent(q)}*,supporting_quote.ilike.*${encodeURIComponent(q)}`+ '*)');
+  }
+
+  const url = `${supabaseUrl}/rest/v1/instagram_places?${params.toString()}`;
+  const rangeEnd = offset + limit - 1;
+
+  const r = await fetch(url, {
+    headers: {
+      apikey: supabaseServiceKey,
+      Authorization: `Bearer ${supabaseServiceKey}`,
+      'Range-Unit': 'items',
+      Range: `${offset}-${rangeEnd}`,
+      Prefer: 'count=exact',
+    },
+  });
+
+  if (!r.ok) {
+    return { places: [], total: 0, hasMore: false };
+  }
+
+  const places = await r.json() as unknown[];
+  const contentRange = r.headers.get('Content-Range') ?? '';
+  // Format: "0-49/123" or "*/0"
+  const total = Number(contentRange.split('/')[1] ?? 0) || 0;
+  return {
+    places,
+    total,
+    hasMore: offset + places.length < total,
+  };
+}
+
 export async function listJobsForUser(userId: string, limit = 20) {
   const supabaseUrl = config.supabaseUrl;
   const supabaseServiceKey = config.supabaseServiceKey;

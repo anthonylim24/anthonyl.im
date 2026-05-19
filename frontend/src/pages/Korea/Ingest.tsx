@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
 import { motion, useReducedMotion } from 'motion/react'
 import { CheckCircle2, Circle, Loader2 } from 'lucide-react'
@@ -813,7 +814,15 @@ export function Ingest() {
               Submit an Instagram post URL and watch the worker extract places in real time.
             </p>
           </div>
-          <StatsLine stats={stats} />
+          <div className="flex items-center gap-4">
+            <StatsLine stats={stats} />
+            <Link
+              to="/korea/places"
+              className="text-[12px] text-stone-400 transition hover:text-rose-700 dark:text-stone-500 dark:hover:text-rose-400"
+            >
+              Browse extracted places →
+            </Link>
+          </div>
         </div>
 
         {ago && (

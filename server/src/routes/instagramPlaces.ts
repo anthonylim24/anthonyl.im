@@ -3,12 +3,14 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { isInstagramUrl } from '../igPlaces/normalizeUrl';
 import type { Queue } from '../igPlaces/queue';
+import type { ExtractedPlacesOpts } from '../igPlaces/wire';
 
 export interface InstagramPlacesDeps {
   enqueue: Queue['enqueue'];
   statsHandler: () => Promise<unknown> | unknown;
   listJobs: (userId: string, limit?: number) => Promise<unknown>;
   retryJob: (jobId: number, userId: string) => Promise<boolean>;
+  listExtractedPlaces: (opts: ExtractedPlacesOpts) => Promise<{ places: unknown[]; total: number; hasMore: boolean }>;
 }
 
 const igUrl = z.string().refine(isInstagramUrl, 'not an instagram url');
@@ -55,6 +57,28 @@ export function createInstagramPlacesRouter(deps: InstagramPlacesDeps) {
     const ok = await deps.retryJob(id, userId);
     if (!ok) return c.json({ error: 'job not found or not in retryable state' }, 404);
     return c.json({ ok: true });
+  });
+
+  r.get('/extracted', async (c) => {
+    const userId = c.get('userId' as never) as string;
+    const limit = Math.min(Math.max(1, Number(c.req.query('limit') ?? 50)), 200);
+    const offset = Math.max(0, Number(c.req.query('offset') ?? 0));
+    const category = c.req.query('category');
+    const band = c.req.query('band');
+    const q = c.req.query('q');
+
+    const validCategories = ['restaurant', 'cafe', 'bar', 'shopping', 'activity', 'hotel', 'landmark', 'other'];
+    if (category && !validCategories.includes(category)) {
+      return c.json({ error: `invalid category: ${category}` }, 400);
+    }
+
+    const validBands = ['high', 'medium', 'low'];
+    if (band && !validBands.includes(band)) {
+      return c.json({ error: `invalid band: ${band}` }, 400);
+    }
+
+    const data = await deps.listExtractedPlaces({ userId, limit, offset, category, band, q });
+    return c.json(data);
   });
 
   return r;
