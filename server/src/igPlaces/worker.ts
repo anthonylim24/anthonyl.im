@@ -31,10 +31,6 @@ export function createWorkerLoop(deps: WorkerDeps): WorkerLoop {
         const p = deps.process(job).finally(() => { slots.delete(p); });
         slots.add(p);
       }
-      // Probe once more when at capacity to drain the queue sentinel
-      if (!stopped && slots.size >= deps.concurrency) {
-        await deps.claim(deps.workerId).catch(() => null);
-      }
     },
     stop() { stopped = true; },
     inflight() { return slots.size; },

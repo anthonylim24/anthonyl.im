@@ -10,7 +10,7 @@ describe('createWorkerLoop', () => {
     const reapStale = mock(async () => 0);
     const wl = createWorkerLoop({ claim, process, reapStale, concurrency: 3, workerId: 'w' });
     await wl.tick();
-    expect(claim).toHaveBeenCalledTimes(4); // 3 successful + 1 null
+    expect(claim).toHaveBeenCalledTimes(3); // 3 successful claims, then loop exits because slots full
     expect(process).toHaveBeenCalledTimes(3);
   });
 
