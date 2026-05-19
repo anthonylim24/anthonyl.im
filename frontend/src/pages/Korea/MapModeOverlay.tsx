@@ -1,8 +1,13 @@
-import { useEffect, useMemo, useState, useRef } from "react"
+import { lazy, Suspense, useEffect, useMemo, useState, useRef } from "react"
 import { motion, AnimatePresence, useReducedMotion } from "motion/react"
 import { X, MapPin, Navigation, Bug, Loader2, Crosshair, Globe2, List as ListIcon } from "lucide-react"
 import { MapModeScene, isWebglSupported } from "./MapModeScene"
 import { MapModeCompass } from "./MapModeCompass"
+// Detailed3DScene pulls in 3DTilesRendererJS (~160 kB gz) — load it
+// only when the user actually flips the debug toggle.
+const Detailed3DScene = lazy(() =>
+  import("./Detailed3DScene").then((m) => ({ default: m.Detailed3DScene })),
+)
 import { MapModeFallbackList } from "./MapModeFallbackList"
 import { MapModeFilterBar } from "./MapModeFilterBar"
 import { PlaceDetailSheet } from "./PlaceDetailSheet"
@@ -46,6 +51,13 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
   const [testMode, setTestMode] = useState(false)
   const [mockHotel, setMockHotel] = useState(false)
   const [debugOpen, setDebugOpen] = useState(false)
+  // "Detailed 3D" debug toggle — streams Google Photorealistic 3D
+  // Tiles for Seoul/Busan via 3DTilesRendererJS in place of the
+  // orbital bubble scene. Behind the existing Debug dropdown because
+  // (1) it requires VITE_GOOGLE_MAP_TILES_API_KEY, (2) it eats more
+  // bandwidth (~25-60 MB initial), and (3) the orbital view remains
+  // the canonical Map Mode.
+  const [detailed3D, setDetailed3D] = useState(false)
   const [location, setLocation] = useState<UserLocation | null>(null)
   const [locating, setLocating] = useState(false)
   const debugRef = useRef<HTMLDivElement>(null)
@@ -363,19 +375,19 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
             aria-label="Debug options"
             className={
               "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-medium transition " +
-              (testMode || mockHotel
+              (testMode || mockHotel || detailed3D
                 ? "border-violet-400 bg-violet-100 text-violet-900 dark:border-violet-700 dark:bg-violet-950/60 dark:text-violet-100"
                 : "border-stone-300 bg-stone-50 text-stone-700 hover:border-violet-300 hover:text-violet-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-violet-700 dark:hover:text-violet-200")
             }
           >
             <Bug className="h-3.5 w-3.5" aria-hidden />
             <span>Debug</span>
-            {(testMode || mockHotel) && (
+            {(testMode || mockHotel || detailed3D) && (
               <span
                 aria-hidden
                 className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-violet-600 px-1 text-[9px] font-bold leading-none text-white"
               >
-                {(testMode ? 1 : 0) + (mockHotel ? 1 : 0)}
+                {(testMode ? 1 : 0) + (mockHotel ? 1 : 0) + (detailed3D ? 1 : 0)}
               </span>
             )}
           </button>
@@ -423,6 +435,23 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
                     </div>
                   </div>
                 </label>
+                <label className="flex cursor-pointer items-start gap-2 rounded-xl p-2 transition hover:bg-stone-50 dark:hover:bg-stone-900">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-violet-600"
+                    checked={detailed3D}
+                    onChange={(e) => setDetailed3D(e.target.checked)}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[12px] font-semibold text-stone-900 dark:text-stone-100">
+                      Detailed 3D (Google Photorealistic)
+                    </div>
+                    <div className="text-[11px] leading-snug text-stone-500 dark:text-stone-400">
+                      Swap the orbital bubbles for a Google Earth-style 3D
+                      mesh of Seoul. Requires the Map Tiles API key.
+                    </div>
+                  </div>
+                </label>
               </motion.div>
             )}
           </AnimatePresence>
@@ -447,28 +476,50 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
             {showOrbs && (
               <>
                 <div ref={sceneContainerRef} className="absolute inset-0">
-                  <MapModeScene
-                    places={filteredPlaces}
-                    onSelect={setSelected}
-                    onDeselect={() => setSelected(null)}
-                    selectedId={selected?.id ?? null}
-                    reducedMotion={reduce ?? undefined}
-                    onWebglError={() => setWebglFailed(true)}
-                    userLat={location?.lat}
-                    userLng={location?.lng}
-                    yawRef={yawRef}
-                  />
+                  {detailed3D ? (
+                    <Suspense fallback={<LoadingPulse />}>
+                      <Detailed3DScene
+                        places={filteredPlaces}
+                        onSelect={setSelected}
+                        onDeselect={() => setSelected(null)}
+                        selectedId={selected?.id ?? null}
+                        reducedMotion={reduce ?? undefined}
+                        onWebglError={() => setWebglFailed(true)}
+                        userLat={location?.lat}
+                        userLng={location?.lng}
+                      />
+                    </Suspense>
+                  ) : (
+                    <MapModeScene
+                      places={filteredPlaces}
+                      onSelect={setSelected}
+                      onDeselect={() => setSelected(null)}
+                      selectedId={selected?.id ?? null}
+                      reducedMotion={reduce ?? undefined}
+                      onWebglError={() => setWebglFailed(true)}
+                      userLat={location?.lat}
+                      userLng={location?.lng}
+                      yawRef={yawRef}
+                    />
+                  )}
                 </div>
-                <button
-                  type="button"
-                  onClick={resetView}
-                  title="Reset camera view"
-                  aria-label="Reset camera view"
-                  className="absolute right-3 top-16 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-stone-700 shadow-md backdrop-blur transition hover:bg-stone-50 hover:text-rose-700 dark:bg-stone-900/85 dark:text-stone-300 dark:hover:bg-stone-900 dark:hover:text-rose-200"
-                >
-                  <Crosshair className="h-4 w-4" />
-                </button>
-                <MapModeCompass yawRef={yawRef} onOrientNorth={orientNorth} />
+                {/* Reset + compass are orbital-mode-specific (they
+                    use yawRef + the camera reset event). The 3D
+                    detailed scene owns its own controls. */}
+                {!detailed3D && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={resetView}
+                      title="Reset camera view"
+                      aria-label="Reset camera view"
+                      className="absolute right-3 top-16 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-stone-700 shadow-md backdrop-blur transition hover:bg-stone-50 hover:text-rose-700 dark:bg-stone-900/85 dark:text-stone-300 dark:hover:bg-stone-900 dark:hover:text-rose-200"
+                    >
+                      <Crosshair className="h-4 w-4" />
+                    </button>
+                    <MapModeCompass yawRef={yawRef} onOrientNorth={orientNorth} />
+                  </>
+                )}
               </>
             )}
             {/* Filter bar — hidden while a place is selected so the

@@ -16,7 +16,11 @@ export default defineConfig({
     // own chunk so it can be cached independently of our Map Mode glue
     // code. We lift the warning ceiling to 650 kB to silence the noise
     // for that one intentionally-large vendor chunk.
-    chunkSizeWarningLimit: 650,
+    // The "three" chunk now also carries the GLTF / DRACO / KTX2
+    // loaders + OrbitControls used by the Detailed-3D scene. It's
+    // still gz<200 KB and is cached aggressively under our service
+    // worker contract — lift the noisy warning ceiling.
+    chunkSizeWarningLimit: 720,
     rollupOptions: {
       output: {
         // Rolldown's advancedChunks is the modern replacement for
@@ -27,6 +31,10 @@ export default defineConfig({
         advancedChunks: {
           groups: [
             { name: 'three', test: /[\\/]node_modules[\\/]three[\\/]/, priority: 100 },
+            // 3DTilesRendererJS only loads when the Detailed-3D debug
+            // toggle is on — keep it in its own chunk so the default
+            // Map Mode bundle stays slim.
+            { name: 'tiles3d', test: /[\\/]node_modules[\\/]3d-tiles-renderer[\\/]/, priority: 95 },
             { name: 'react-vendor', test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/, priority: 90 },
             { name: 'supabase', test: /[\\/]node_modules[\\/]@supabase[\\/]/, priority: 80 },
             { name: 'router', test: /[\\/]node_modules[\\/]react-router/, priority: 70 },
