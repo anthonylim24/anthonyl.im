@@ -191,3 +191,64 @@ create policy "Users read own places"
 create policy "Any authed read posts"
   on public.instagram_posts for select to authenticated
   using (true);
+
+-- ============================================================
+-- IG worker queue helpers (server uses these via PostgREST /rpc/)
+-- ============================================================
+
+create or replace function public.ig_enqueue_job(
+  p_user_id text, p_url text, p_dedupe_key text
+) returns table (id bigint, status ig_job_status, inserted boolean)
+language sql security definer as $$
+  insert into public.instagram_jobs (user_id, url, dedupe_key)
+  values (p_user_id, p_url, p_dedupe_key)
+  on conflict (dedupe_key) do update set updated_at = now()
+  returning instagram_jobs.id, instagram_jobs.status, (xmax = 0) as inserted;
+$$;
+
+create or replace function public.ig_claim_job(p_worker text)
+returns setof public.instagram_jobs
+language sql security definer as $$
+  with claimed as (
+    select id from public.instagram_jobs
+     where status = 'pending' and scheduled_for <= now()
+     order by scheduled_for
+     for update skip locked
+     limit 1
+  )
+  update public.instagram_jobs j
+     set status='running', attempts=attempts+1,
+         locked_at=now(), locked_by=p_worker, updated_at=now()
+    from claimed
+   where j.id = claimed.id
+  returning j.*;
+$$;
+
+create or replace function public.ig_fail_job(
+  p_job_id bigint, p_error text, p_retryable boolean
+) returns void language sql security definer as $$
+  update public.instagram_jobs
+     set status = case
+                    when attempts >= max_attempts then 'dead'::ig_job_status
+                    when p_retryable = false      then 'dead'::ig_job_status
+                    else 'pending'::ig_job_status
+                  end,
+         scheduled_for = now() + (interval '1 second'
+                                  * power(2, attempts) * 30 * (0.5 + random())),
+         last_error = p_error,
+         locked_at = null, locked_by = null,
+         updated_at = now()
+   where id = p_job_id;
+$$;
+
+create or replace function public.ig_reap_stale(p_threshold_sec int)
+returns int language plpgsql security definer as $$
+declare n int;
+begin
+  update public.instagram_jobs
+     set status='pending', locked_at=null, locked_by=null,
+         last_error='reaped: stale lock', updated_at=now()
+   where status='running' and locked_at < now() - (p_threshold_sec * interval '1 second');
+  get diagnostics n = row_count;
+  return n;
+end $$;
