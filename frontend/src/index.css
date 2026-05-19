@@ -718,3 +718,9 @@ body {
 .session-item { content-visibility: auto; contain-intrinsic-size: 0 80px; }
 .session-history-item { content-visibility: auto; contain-intrinsic-size: 0 100px; }
 .transform-gpu { transform: translateZ(0); }
+
+/* IG ingest dashboard — running-job sweep animation */
+@keyframes ig-sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}

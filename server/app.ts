@@ -8,6 +8,9 @@ import { errorHandler } from "./src/middleware/error";
 import invokeRouter from "./src/routes/invoke";
 import koreaRouter from "./src/routes/korea";
 import entityRouter from "./src/routes/entity";
+import { createInstagramPlacesRouter } from "./src/routes/instagramPlaces";
+import { createClerkAuth } from "./src/middleware/clerkAuth";
+import { bootIgWorker, getQueue, listJobsForUser } from "./src/igPlaces/wire";
 import { join, resolve } from "path";
 
 const app = new Hono();
@@ -137,6 +140,37 @@ app.use("/api/invoke/*", async (c, next) => {
 app.route("/api/invoke", invokeRouter);
 app.route("/api/korea", koreaRouter);
 app.route("/api/entity", entityRouter);
+
+// IG place extractor — Clerk-gated route + in-process worker
+const clerkAuth = (config.clerkSecretKey || config.igDevBearer)
+  ? createClerkAuth({
+      secretKey: config.clerkSecretKey,
+      devBearer: config.igDevBearer,
+      devUserId: config.igDevUserId,
+    })
+  : null;
+
+if (clerkAuth) {
+  const igPlacesRouter = createInstagramPlacesRouter({
+    enqueue: (userId, url) => getQueue().enqueue(userId, url),
+    statsHandler: async () => {
+      try {
+        const counts = await getQueue().stats();
+        return { enabled: config.igWorkerEnabled, ...counts };
+      } catch (err) {
+        return { enabled: config.igWorkerEnabled, error: 'stats unavailable' };
+      }
+    },
+    listJobs: listJobsForUser,
+    retryJob: (jobId, userId) => getQueue().retryJob(jobId, userId),
+  });
+  app.use('/api/korea/places/from-instagram/*', clerkAuth);
+  app.route('/api/korea/places/from-instagram', igPlacesRouter);
+} else {
+  console.warn('[ig-places] CLERK_SECRET_KEY and IG_DEV_BEARER both missing; endpoint not mounted');
+}
+
+bootIgWorker();
 
 // Health check
 app.get("/health", (c) =>

@@ -4,7 +4,10 @@
   "type": "module",
   "scripts": {
     "start": "bun run server/app.ts",
-    "dev": "pushd frontend && bun run build && popd && bun --watch server/app.ts"
+    "dev": "pushd frontend && bun run build && popd && bun --watch server/app.ts",
+    "test": "bun test --bail",
+    "test:int": "INTEGRATION=1 bun test --bail",
+    "test:eval": "bun run server/src/igPlaces/eval/run.ts"
   },
   "devDependencies": {
     "@hono/zod-validator": "^0.8.0",
@@ -14,6 +17,7 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
+    "@clerk/backend": "^3.4.11",
     "groq-sdk": "^1.2.0",
     "hono": "^4.12.18",
     "openai": "^6.37.0",

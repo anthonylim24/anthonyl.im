@@ -33,6 +33,9 @@ const KoreaIndex = lazy(() =>
 const KoreaDay = lazy(() =>
   import('./pages/Korea/KoreaDay').then((module) => ({ default: module.KoreaDay })),
 )
+const Ingest = lazy(() =>
+  import('./pages/Korea/Ingest').then((module) => ({ default: module.Ingest })),
+)
 
 const BreathworkShellFallback = () => (
   <div
@@ -61,6 +64,7 @@ export function AppRoutes() {
           <Route path="/korea" element={<KoreaLayout />}>
             <Route index element={<KoreaIndex />} />
             <Route path="day/:slug" element={<KoreaDay />} />
+            <Route path="ingest" element={<Ingest />} />
           </Route>
         </Routes>
       </Suspense>
