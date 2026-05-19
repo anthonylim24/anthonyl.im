@@ -694,9 +694,13 @@ function EmptyExtractionPanel({ preview }: { preview: PostPreview }) {
   )
 }
 
-function LogsViewer({ logs }: { logs: LogLine[] }) {
+function LogsViewer({ logs, defaultOpen = false }: { logs: LogLine[]; defaultOpen?: boolean }) {
   const listRef = useRef<HTMLOListElement | null>(null)
-  const [isOpen, setIsOpen] = useState(false)
+  // Uncontrolled-ish: defaultOpen seeds the initial state; subsequent user
+  // toggles take over and persist. Done that way (rather than `open={...}`
+  // controlled) so a freshly-submitted job opens immediately, but the user
+  // can still collapse it without us re-opening on the next poll.
+  const [isOpen, setIsOpen] = useState(defaultOpen)
 
   useEffect(() => {
     if (isOpen && listRef.current) {
@@ -706,6 +710,7 @@ function LogsViewer({ logs }: { logs: LogLine[] }) {
 
   return (
     <details
+      open={isOpen}
       className="mt-3 rounded-xl border border-stone-200/60 dark:border-stone-800/60"
       onToggle={(e) => setIsOpen(e.currentTarget.open)}
     >
@@ -905,7 +910,7 @@ function JobCard({
       )}
 
       {/* Logs viewer */}
-      <LogsViewer logs={job.logs} />
+      <LogsViewer logs={job.logs} defaultOpen={job.status === 'pending' || job.status === 'running'} />
     </motion.div>
   )
 }
