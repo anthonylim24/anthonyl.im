@@ -4,8 +4,8 @@ import { createGeocoder, haversineMeters, withinKoreaBbox } from './geocode';
 import type { VotedPlace, LocationTag } from './types';
 
 const base: VotedPlace = {
-  name: '어니언 성수', name_romanized: 'Onion Seongsu', city: 'Seoul', category: 'cafe',
-  confidence: 0.9, is_subject: true, supporting_quote: '어니언 성수',
+  name: 'Cafe Onion Seongsu', name_romanized: '어니언 성수', city: 'Seoul', address: null,
+  category: 'cafe', confidence: 0.9, is_subject: true, supporting_quote: '어니언 성수',
   signal_source: 'caption', vote_count: 3, confidence_band: 'high',
 };
 
@@ -25,7 +25,10 @@ describe('helpers', () => {
 
 describe('createGeocoder', () => {
   test('apify-tag short-circuit: fuzzy-match + has lat/lng → skip APIs', async () => {
-    const tag: LocationTag = { name: '어니언 성수', lat: 37.5447, lng: 127.0556 };
+    // Match against base.name ("Cafe Onion Seongsu"); the tag uses the same
+    // English form here, but in production it can be the original Korean —
+    // either matches via canonicalize+Levenshtein when they're close.
+    const tag: LocationTag = { name: 'Cafe Onion Seongsu', lat: 37.5447, lng: 127.0556 };
     const google = mock(async () => null);
     const kakao = mock(async () => null);
     const g = createGeocoder({ googleLookup: google, kakaoLookup: kakao });
@@ -89,5 +92,16 @@ describe('createGeocoder', () => {
     const out = await g(base, undefined);
     expect(out.geocode_source).toBeNull();
     expect(out.lat).toBeNull();
+  });
+
+  test('both fail BUT LLM extracted address → address preserved', async () => {
+    const withAddr: VotedPlace = { ...base, address: '12 Insadong-gil, Jongno-gu, Seoul' };
+    const g = createGeocoder({
+      googleLookup: mock(async () => null), kakaoLookup: mock(async () => null),
+    });
+    const out = await g(withAddr, undefined);
+    expect(out.geocode_source).toBeNull();
+    expect(out.lat).toBeNull();
+    expect(out.address).toBe('12 Insadong-gil, Jongno-gu, Seoul');
   });
 });

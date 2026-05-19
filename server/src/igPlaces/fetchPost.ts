@@ -45,11 +45,11 @@ async function tryYtDlp(url: string, spawn: NonNullable<FetchPostDeps['spawn']>)
     try { await new Response(proc.stderr).text(); } catch {}
     if (!text.trim()) return null;
     const json = JSON.parse(text) as Record<string, unknown>;
-    return normalizeYtDlp(json);
+    return normalizeYtDlp(json, url);
   } catch { return null; }
 }
 
-function normalizeYtDlp(j: Record<string, unknown>): PostPayload | null {
+function normalizeYtDlp(j: Record<string, unknown>, url: string): PostPayload | null {
   const id = String(j.id ?? j.display_id ?? '');
   if (!id) return null;
   const caption = String(j.description ?? j.title ?? '');
@@ -61,6 +61,7 @@ function normalizeYtDlp(j: Record<string, unknown>): PostPayload | null {
   if (!items.length) return null;
   return {
     shortcode: id,
+    url,
     ownerUsername: typeof j.uploader_id === 'string' ? j.uploader_id : undefined,
     caption,
     mediaItems: items,
@@ -115,6 +116,7 @@ function normalizeApify(it: ApifyItem, url: string): PostPayload {
     : undefined;
   return {
     shortcode: it.shortCode ?? url.split('/').filter(Boolean).pop() ?? '',
+    url,
     ownerUsername: it.ownerUsername,
     caption: it.caption ?? '',
     mediaItems: items,

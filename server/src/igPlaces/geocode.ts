@@ -113,9 +113,12 @@ export function createGeocoder(deps: GeocoderDeps): Geocoder {
         geocode_source: 'kakao', geocode_kakao_id: kakao.id, geocode_disagree: false,
       };
     }
+    // Both geocoders failed — but if the LLM extracted an explicit address from
+    // the source text, surface it. Better than dropping the only useful field.
     return {
       ...place,
-      address: null, lat: null, lng: null,
+      address: place.address ?? null,
+      lat: null, lng: null,
       google_place_id: null, phone: null, rating: null, business_types: [],
       geocode_source: null, geocode_kakao_id: null, geocode_disagree: false,
     };
