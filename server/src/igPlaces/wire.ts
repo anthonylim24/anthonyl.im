@@ -65,10 +65,14 @@ async function probeYtDlpOnce(): Promise<boolean> {
     ytDlpAvailable = false;
   }
   if (!ytDlpAvailable) {
+    const installHint = process.platform === 'darwin'
+      ? '`brew install yt-dlp`'
+      : '`apt install yt-dlp` or `pip install yt-dlp`';
     console.warn(
       '[ig:bundle] yt-dlp NOT in $PATH. Video downloads will use direct CDN ' +
       'fetch only (slower, often hits the 60s timeout on cloud IPs). Install ' +
-      'with: `apt install yt-dlp` or `pip install yt-dlp`.'
+      `with: ${installHint}. If already installed, make sure the bun process's ` +
+      'PATH includes the install dir (e.g. /opt/homebrew/bin on Apple Silicon).'
     );
   } else {
     console.log('[ig:bundle] yt-dlp available');
