@@ -48,7 +48,17 @@ Rules:
 8. category is one of: restaurant, cafe, bar, shopping, activity, hotel, landmark, other.
 
 9. signal_source is which input the supporting_quote came from:
-   caption | transcript | ocr | location_tag.
+   caption | transcript | ocr | location_tag | comment.
+
+SIGNAL SOURCE WEIGHTING (high → low):
+- caption (creator-authored, highest trust)
+- transcript (audio content)
+- ocr (text rendered onto the video)
+- location_tag (platform metadata)
+- comment (user-generated, lowest trust — only emit a place from a comment
+  if the comment names a SPECIFIC venue with at least one corroborating
+  detail (neighborhood, full name, address). Skip if the comment is vague,
+  off-topic, or contradicts the caption.)
 
 Output JSON only, matching the provided schema.`;
 
@@ -74,7 +84,7 @@ const SCHEMA = {
             confidence:       { type: 'number', minimum: 0, maximum: 1 },
             is_subject:       { type: 'boolean' },
             supporting_quote: { type: 'string', maxLength: 160 },
-            signal_source:    { enum: ['caption','transcript','ocr','location_tag'] },
+            signal_source:    { enum: ['caption','transcript','ocr','location_tag','comment'] },
           },
         },
       },
@@ -221,13 +231,14 @@ function renderBundle(b: ExtractionBundle): string {
   if (b.transcript) parts.push(`[transcript]\n${b.transcript}`);
   if (b.ocr)        parts.push(`[ocr]\n${b.ocr}`);
   if (b.locationTagName) parts.push(`[location_tag]\n${b.locationTagName}`);
+  if (b.comments)   parts.push(`[comments — user-generated, lowest confidence]\n${b.comments}`);
   if (b.hashtags.length) parts.push(`[hashtags]\n${b.hashtags.join(' ')}`);
   if (b.mentions.length) parts.push(`[mentions]\n${b.mentions.join(' ')}`);
   return parts.join('\n\n');
 }
 
 function sourceText(b: ExtractionBundle): string {
-  return [b.caption, b.transcript ?? '', b.ocr ?? '', b.locationTagName ?? '']
+  return [b.caption, b.transcript ?? '', b.ocr ?? '', b.locationTagName ?? '', b.comments ?? '']
     .filter(Boolean).join('\n');
 }
 

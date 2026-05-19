@@ -2,6 +2,8 @@
 import type { IgJob, IgJobStep, PostPayload, ExtractionBundle, VotedPlace, EnrichedPlace, LocationTag } from './types';
 import { NonRetryableError } from './types';
 import type { Queue } from './queue';
+import type { ApifyComment } from './fetchComments';
+import { renderCommentsForBundle } from './fetchComments';
 
 export interface ProcessorDeps {
   fetchPost:   (url: string, cached: PostPayload | null) => Promise<PostPayload>;
@@ -14,6 +16,10 @@ export interface ProcessorDeps {
   fail:        (jobId: number, error: Error, retryable: boolean) => Promise<void>;
   setStep:     (jobId: number, step: IgJobStep) => Promise<void>;
   log:         Queue['log'];
+  /** Optional: fetches top-liked comments for a post URL. When present and
+   *  primary extraction yields 0 places, comments are appended to the bundle
+   *  and extraction is retried once. */
+  fetchComments?: (igUrl: string, opts?: { limit?: number; signal?: AbortSignal }) => Promise<ApifyComment[]>;
 }
 
 export function createProcessor(deps: ProcessorDeps) {
@@ -45,9 +51,42 @@ export function createProcessor(deps: ProcessorDeps) {
       lastStep = 'extracting';
       await deps.setStep(job.id, 'extracting');
       await deps.log(job.id, 'extracting', 'info', 'calling gpt-oss-120b ×3 in parallel').catch(() => {});
-      const voted = await deps.extract(bundle, {
+
+      let voted = await deps.extract(bundle, {
         log: (level, message) => deps.log(job.id, 'extracting', level, message).catch(() => {}),
       });
+
+      // LATE-STAGE FALLBACK: when no place extracted from primary signals,
+      // fetch comments and re-extract. Only triggers on full 0-result to keep
+      // Apify quota usage bounded.
+      if (voted.length === 0 && deps.fetchComments && payload.url) {
+        await deps.log(job.id, 'extracting', 'info',
+          'no places from primary signals; fetching comments as fallback'
+        ).catch(() => {});
+        try {
+          const comments = await deps.fetchComments(payload.url, { limit: 50 });
+          if (comments.length === 0) {
+            await deps.log(job.id, 'extracting', 'info',
+              'no comments available — staying at 0 places'
+            ).catch(() => {});
+          } else {
+            const rendered = renderCommentsForBundle(comments);
+            await deps.log(job.id, 'extracting', 'info',
+              `${comments.length} comments fetched, ${rendered.split('\n').length} after filter; re-extracting`
+            ).catch(() => {});
+            bundle.comments = rendered;
+            voted = await deps.extract(bundle, {
+              log: (l, m) => deps.log(job.id, 'extracting', l, m).catch(() => {}),
+            });
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          await deps.log(job.id, 'extracting', 'warn',
+            `comments fetch failed: ${msg}`
+          ).catch(() => {});
+        }
+      }
+
       if (voted.length === 0) {
         // No places. This is usually a CORRECT outcome (the post is about an
         // unnamed activity, a generic vibe, a person, etc.). Log a clear note

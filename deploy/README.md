@@ -148,6 +148,17 @@ grep -oE '/assets/index-[A-Za-z0-9_-]+\.js' /tmp/i.html | head -1 \
 # Expect: 1
 ```
 
+## One-time SQL: enable 'comment' signal source
+
+Run in the Supabase SQL editor BEFORE deploying the matching code:
+
+```sql
+alter type ig_signal_source add value if not exists 'comment';
+```
+
+This cannot be wrapped in a transaction alongside data DML, which is why
+it lives outside the regular schema.sql append. Safe to re-apply.
+
 ## Rollback
 
 The workflow does a `rm -rf ~/anthonyl.im` + `git clone` — there's no kept-around previous version. To roll back: revert the bad commit on `main`, push, and the workflow re-runs with the prior code. The build-and-deploy takes ~2-3 minutes from `git push`.

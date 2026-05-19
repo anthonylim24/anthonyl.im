@@ -2,6 +2,7 @@
 import { test, expect, describe, mock } from 'bun:test';
 import { createProcessor } from './process';
 import type { PostPayload, VotedPlace, EnrichedPlace } from './types';
+import type { ApifyComment } from './fetchComments';
 
 const payload: PostPayload = {
   shortcode: 'A', caption: 'cap', mediaItems: [{ type: 'image', url: 'i.jpg' }],
@@ -84,5 +85,151 @@ describe('process', () => {
     });
     await proc({ id: 1, userId: 'u', url: 'x', dedupeKey: 'd' } as any);
     expect(fail).toHaveBeenCalledWith(1, expect.any(Error), false);
+  });
+
+  test('comment fallback: fetchComments called when primary extract returns []', async () => {
+    const payloadWithUrl: PostPayload = {
+      ...payload,
+      url: 'https://www.instagram.com/p/DX0KioDtDz_/',
+    };
+    const comments: ApifyComment[] = [
+      { id: '1', text: 'Food section at the basement of Hyundai dept store (Gangnam) was a solid 10/10 too', ownerUsername: 'user1', likesCount: 160 },
+    ];
+    const fetchComments = mock(async () => comments);
+    // First extract returns [], second returns the voted place
+    let extractCallCount = 0;
+    const extract = mock(async () => {
+      extractCallCount++;
+      return extractCallCount === 1 ? [] : [voted];
+    });
+    const geocode = mock(async () => enriched);
+    const savePlaces = mock(async () => undefined);
+    const complete = mock(async () => undefined);
+    const fail = mock(async () => undefined);
+    const log = mock(async () => undefined);
+
+    const proc = createProcessor({
+      fetchPost: mock(async () => payloadWithUrl),
+      upsertPost: mock(async () => 99),
+      buildBundle: mock(async () => ({ caption: 'cap', hashtags: [], mentions: [] })),
+      extract,
+      geocode,
+      savePlaces,
+      complete,
+      fail,
+      setStep: mock(async () => undefined),
+      log,
+      fetchComments,
+    });
+    await proc({ id: 1, userId: 'u', url: payloadWithUrl.url!, dedupeKey: 'd' } as any);
+
+    // fetchComments must have been called with the post URL
+    expect(fetchComments).toHaveBeenCalledWith(
+      'https://www.instagram.com/p/DX0KioDtDz_/',
+      expect.objectContaining({ limit: 50 }),
+    );
+    // extract called twice: once for primary, once for comment-enriched bundle
+    expect(extract).toHaveBeenCalledTimes(2);
+    // Final result: the comment-path voted place was saved
+    expect(savePlaces).toHaveBeenCalledWith(99, 'u', [enriched]);
+    expect(complete).toHaveBeenCalledWith(1, 99);
+    expect(fail).not.toHaveBeenCalled();
+  });
+
+  test('comment fallback: skipped when primary extract returns results', async () => {
+    const payloadWithUrl: PostPayload = {
+      ...payload,
+      url: 'https://www.instagram.com/p/abc/',
+    };
+    const fetchComments = mock(async () => []);
+    const extract = mock(async () => [voted]);
+    const proc = createProcessor({
+      fetchPost: mock(async () => payloadWithUrl),
+      upsertPost: mock(async () => 99),
+      buildBundle: mock(async () => ({ caption: 'cap', hashtags: [], mentions: [] })),
+      extract,
+      geocode: mock(async () => enriched),
+      savePlaces: mock(async () => undefined),
+      complete: mock(async () => undefined),
+      fail: mock(async () => undefined),
+      setStep: mock(async () => undefined),
+      log: mock(async () => undefined),
+      fetchComments,
+    });
+    await proc({ id: 1, userId: 'u', url: 'https://www.instagram.com/p/abc/', dedupeKey: 'd' } as any);
+    // fetchComments should NOT be called since primary extract succeeded
+    expect(fetchComments).not.toHaveBeenCalled();
+    expect(extract).toHaveBeenCalledTimes(1);
+  });
+
+  test('comment fallback: skipped when no fetchComments dep provided', async () => {
+    const payloadWithUrl: PostPayload = { ...payload, url: 'https://www.instagram.com/p/abc/' };
+    let extractCallCount = 0;
+    const extract = mock(async () => { extractCallCount++; return []; });
+    const proc = createProcessor({
+      fetchPost: mock(async () => payloadWithUrl),
+      upsertPost: mock(async () => 99),
+      buildBundle: mock(async () => ({ caption: 'cap', hashtags: [], mentions: [] })),
+      extract,
+      geocode: mock(async () => enriched),
+      savePlaces: mock(async () => undefined),
+      complete: mock(async () => undefined),
+      fail: mock(async () => undefined),
+      setStep: mock(async () => undefined),
+      log: mock(async () => undefined),
+      // no fetchComments
+    });
+    await proc({ id: 1, userId: 'u', url: 'https://www.instagram.com/p/abc/', dedupeKey: 'd' } as any);
+    // extract called exactly once — no retry
+    expect(extractCallCount).toBe(1);
+  });
+
+  test('comment fallback: fetchComments error is swallowed, job completes with 0 places', async () => {
+    const payloadWithUrl: PostPayload = { ...payload, url: 'https://www.instagram.com/p/abc/' };
+    const fetchComments = mock(async () => { throw new Error('network error'); });
+    const extract = mock(async () => []);
+    const complete = mock(async () => undefined);
+    const fail = mock(async () => undefined);
+    const proc = createProcessor({
+      fetchPost: mock(async () => payloadWithUrl),
+      upsertPost: mock(async () => 99),
+      buildBundle: mock(async () => ({ caption: 'cap', hashtags: [], mentions: [] })),
+      extract,
+      geocode: mock(async () => enriched),
+      savePlaces: mock(async () => undefined),
+      complete,
+      fail,
+      setStep: mock(async () => undefined),
+      log: mock(async () => undefined),
+      fetchComments,
+    });
+    await proc({ id: 1, userId: 'u', url: 'https://www.instagram.com/p/abc/', dedupeKey: 'd' } as any);
+    // Error from fetchComments must not propagate — job should complete normally
+    expect(complete).toHaveBeenCalled();
+    expect(fail).not.toHaveBeenCalled();
+  });
+
+  test('comment fallback: empty comments array → no second extract', async () => {
+    const payloadWithUrl: PostPayload = { ...payload, url: 'https://www.instagram.com/p/abc/' };
+    const fetchComments = mock(async () => [] as ApifyComment[]);
+    let extractCallCount = 0;
+    const extract = mock(async () => { extractCallCount++; return []; });
+    const proc = createProcessor({
+      fetchPost: mock(async () => payloadWithUrl),
+      upsertPost: mock(async () => 99),
+      buildBundle: mock(async () => ({ caption: 'cap', hashtags: [], mentions: [] })),
+      extract,
+      geocode: mock(async () => enriched),
+      savePlaces: mock(async () => undefined),
+      complete: mock(async () => undefined),
+      fail: mock(async () => undefined),
+      setStep: mock(async () => undefined),
+      log: mock(async () => undefined),
+      fetchComments,
+    });
+    await proc({ id: 1, userId: 'u', url: 'https://www.instagram.com/p/abc/', dedupeKey: 'd' } as any);
+    // fetchComments was called, but returned 0 comments → extract only once
+    expect(fetchComments).toHaveBeenCalled();
+    expect(extractCallCount).toBe(1);
   });
 });

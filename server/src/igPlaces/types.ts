@@ -3,7 +3,7 @@ export type IgJobStatus = 'pending' | 'running' | 'done' | 'failed' | 'dead';
 export type IgJobStep = 'queued'|'fetching'|'bundling'|'extracting'|'geocoding'|'saving'|'done';
 export type IgPlaceCategory = 'restaurant'|'cafe'|'bar'|'shopping'|'activity'
                             | 'hotel'|'landmark'|'other';
-export type IgSignalSource = 'caption'|'transcript'|'ocr'|'location_tag'|'multiple';
+export type IgSignalSource = 'caption'|'transcript'|'ocr'|'location_tag'|'multiple'|'comment';
 export type IgConfidenceBand = 'high'|'medium'|'low';
 
 export interface IgJob {
@@ -52,6 +52,8 @@ export interface ExtractionBundle {
   transcript?: string;
   ocr?: string;
   locationTagName?: string;
+  /** Top-N comments by likesCount, fetched as a late-stage fallback. */
+  comments?: string;
   hashtags: string[];
   mentions: string[];
 }

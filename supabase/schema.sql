@@ -470,3 +470,15 @@ begin
 
   return copied;
 end $$;
+
+-- ============================================================
+-- Migration: add 'comment' to ig_signal_source enum
+-- ============================================================
+-- NOTE: `alter type … add value` cannot run inside a transaction block
+-- alongside data DML. Run this statement in the Supabase SQL editor as a
+-- standalone one-time step BEFORE deploying the matching server code.
+-- See deploy/README.md § "One-time SQL: enable 'comment' signal source".
+-- Safe to re-run (the `if not exists` guard is a no-op on subsequent runs).
+do $$ begin
+  alter type ig_signal_source add value if not exists 'comment';
+exception when undefined_object then null; end $$;
