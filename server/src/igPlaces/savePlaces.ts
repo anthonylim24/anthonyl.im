@@ -33,40 +33,61 @@ export function upsertPostFactory(sb: SupabaseClient) {
 }
 
 export function createSavePlaces(sb: SupabaseClient) {
+  // Adaptive insert: prefer `on_conflict` so a watchdog-triggered retry is
+  // idempotent. If the (post_id, user_id, name) unique index hasn't been
+  // applied yet, Postgres returns 42P10 — fall back to a plain insert and
+  // remember that the index is missing so subsequent saves skip the retry.
+  let indexMissing = false;
+
   return async function savePlaces(
     postId: number,
     userId: string,
     places: EnrichedPlace[],
   ): Promise<void> {
     for (const p of places) {
-      await sb.insert(
-        'instagram_places',
-        {
-          post_id: postId,
-          user_id: userId,
-          name: p.name,
-          name_romanized: p.name_romanized,
-          city: p.city,
-          category: p.category,
-          address: p.address,
-          lat: p.lat,
-          lng: p.lng,
-          google_place_id: p.google_place_id,
-          phone: p.phone,
-          rating: p.rating,
-          business_types: p.business_types,
-          is_subject: p.is_subject,
-          confidence: p.confidence,
-          confidence_band: p.confidence_band,
-          supporting_quote: p.supporting_quote,
-          signal_source: p.signal_source,
-          vote_count: p.vote_count,
-          geocode_source: p.geocode_source,
-          geocode_kakao_id: p.geocode_kakao_id,
-          geocode_disagree: p.geocode_disagree,
-        },
-        { onConflict: 'post_id,user_id,name' },
-      );
+      const row = {
+        post_id: postId,
+        user_id: userId,
+        name: p.name,
+        name_romanized: p.name_romanized,
+        city: p.city,
+        category: p.category,
+        address: p.address,
+        lat: p.lat,
+        lng: p.lng,
+        google_place_id: p.google_place_id,
+        phone: p.phone,
+        rating: p.rating,
+        business_types: p.business_types,
+        is_subject: p.is_subject,
+        confidence: p.confidence,
+        confidence_band: p.confidence_band,
+        supporting_quote: p.supporting_quote,
+        signal_source: p.signal_source,
+        vote_count: p.vote_count,
+        geocode_source: p.geocode_source,
+        geocode_kakao_id: p.geocode_kakao_id,
+        geocode_disagree: p.geocode_disagree,
+      };
+      if (indexMissing) {
+        await sb.insert('instagram_places', row);
+        continue;
+      }
+      try {
+        await sb.insert('instagram_places', row, { onConflict: 'post_id,user_id,name' });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes('42P10')) {
+          console.warn(
+            '[ig:save] (post_id,user_id,name) unique index missing — falling back to plain insert. ' +
+            'Apply the latest schema migration to enable retry-idempotency.'
+          );
+          indexMissing = true;
+          await sb.insert('instagram_places', row);
+        } else {
+          throw err;
+        }
+      }
     }
   };
 }
