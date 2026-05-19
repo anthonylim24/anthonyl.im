@@ -2,11 +2,11 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { isInstagramUrl } from '../igPlaces/normalizeUrl';
-import type { Queue } from '../igPlaces/queue';
+import type { Queue, EnqueueResult } from '../igPlaces/queue';
 import type { ExtractedPlacesOpts } from '../igPlaces/wire';
 
 export interface InstagramPlacesDeps {
-  enqueue: Queue['enqueue'];
+  enqueue: (userId: string, url: string, opts?: { skipVideo?: boolean }) => Promise<EnqueueResult>;
   statsHandler: () => Promise<unknown> | unknown;
   listJobs: (userId: string, limit?: number) => Promise<unknown>;
   retryJob: (jobId: number, userId: string) => Promise<boolean>;
@@ -17,8 +17,8 @@ export interface InstagramPlacesDeps {
 const igUrl = z.string().refine(isInstagramUrl, 'not an instagram url');
 
 const submitSchema = z.union([
-  z.object({ url: igUrl }),
-  z.object({ urls: z.array(igUrl).min(1).max(50) }),
+  z.object({ url: igUrl, skipVideo: z.boolean().optional() }),
+  z.object({ urls: z.array(igUrl).min(1).max(50), skipVideo: z.boolean().optional() }),
 ]);
 
 export function createInstagramPlacesRouter(deps: InstagramPlacesDeps) {
@@ -28,9 +28,10 @@ export function createInstagramPlacesRouter(deps: InstagramPlacesDeps) {
     const userId = c.get('userId' as never) as string;
     const body = (await c.req.json()) as z.infer<typeof submitSchema>;
     const urls = 'url' in body ? [body.url] : body.urls;
+    const skipVideo = body.skipVideo;
     const jobs = [];
     for (const url of urls) {
-      const result = await deps.enqueue(userId, url);
+      const result = await deps.enqueue(userId, url, { skipVideo });
       jobs.push(result);
     }
     return c.json({ jobs }, 202);

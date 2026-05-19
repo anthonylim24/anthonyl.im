@@ -31,6 +31,25 @@ describe('queue.enqueue', () => {
     expect(r.reused).toBe(true);
     expect(r.status).toBe('running');
   });
+  test('passes p_skip_video=true to ig_enqueue_job rpc', async () => {
+    const rpc = mock(async () => [{ id: 8, status: 'pending', inserted: true }]);
+    const sb = stubSupabase({ rpc });
+    const q = createQueue(sb, { normalize: (u) => u });
+    await q.enqueue('user-1', 'https://www.instagram.com/p/A', { skipVideo: true });
+    expect(rpc).toHaveBeenCalledWith('ig_enqueue_job', {
+      p_user_id: 'user-1',
+      p_url: 'https://www.instagram.com/p/A',
+      p_dedupe_key: 'https://www.instagram.com/p/A',
+      p_skip_video: true,
+    });
+  });
+  test('passes p_skip_video=false when opts omitted', async () => {
+    const rpc = mock(async () => [{ id: 9, status: 'pending', inserted: true }]);
+    const sb = stubSupabase({ rpc });
+    const q = createQueue(sb, { normalize: (u) => u });
+    await q.enqueue('user-2', 'https://www.instagram.com/p/B');
+    expect(rpc).toHaveBeenCalledWith('ig_enqueue_job', expect.objectContaining({ p_skip_video: false }));
+  });
 });
 
 describe('queue.claim', () => {

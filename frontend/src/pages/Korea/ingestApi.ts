@@ -123,12 +123,15 @@ async function throwOnError(res: Response): Promise<void> {
 export async function submitUrl(
   getToken: () => Promise<string | null>,
   url: string,
+  opts?: { skipVideo?: boolean },
 ): Promise<SubmitResult> {
   const headers = await authHeaders(getToken)
+  const body: Record<string, unknown> = { url }
+  if (opts?.skipVideo) body.skipVideo = true
   const res = await fetch(BASE, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...headers },
-    body: JSON.stringify({ url }),
+    body: JSON.stringify(body),
   })
   await throwOnError(res)
   return res.json() as Promise<SubmitResult>

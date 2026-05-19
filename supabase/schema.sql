@@ -482,3 +482,27 @@ end $$;
 do $$ begin
   alter type ig_signal_source add value if not exists 'comment';
 exception when undefined_object then null; end $$;
+
+-- ============================================================
+-- Migration: skip_video column + updated ig_enqueue_job
+-- ============================================================
+-- Allow the submitter to skip the video pipeline. When true, the worker
+-- skips downloadVideo + transcribe + frame extraction + OCR. Cuts job
+-- runtime from ~90s to ~10s when the location is already in caption +
+-- comments, at the cost of dropping ~15% of extractions whose only
+-- signal is audio transcript or burned-in frame text.
+alter table public.instagram_jobs
+  add column if not exists skip_video boolean not null default false;
+
+-- Update ig_enqueue_job to accept skip_video.
+create or replace function public.ig_enqueue_job(
+  p_user_id text, p_url text, p_dedupe_key text, p_skip_video boolean default false
+) returns table (id bigint, status ig_job_status, inserted boolean)
+language sql security definer as $$
+  insert into public.instagram_jobs (user_id, url, dedupe_key, skip_video)
+  values (p_user_id, p_url, p_dedupe_key, p_skip_video)
+  on conflict (user_id, dedupe_key) do update set
+    updated_at = now(),
+    skip_video = excluded.skip_video    -- honor latest preference on resubmit
+  returning instagram_jobs.id, instagram_jobs.status, (xmax = 0) as inserted;
+$$;

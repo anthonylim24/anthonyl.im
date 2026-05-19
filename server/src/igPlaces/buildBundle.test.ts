@@ -161,4 +161,33 @@ describe('buildBundle', () => {
     expect(b.transcript).toBeUndefined();
     expect(transcribe).not.toHaveBeenCalled();
   });
+
+  test('skipVideo: skips entire video/image pipeline; returns caption + locationTag only', async () => {
+    const downloadVideo = mock(async () => '/tmp/v.mp4');
+    const downloadVideoFallback = mock(async () => '/tmp/v-yt.mp4');
+    const downloadVideoApify = mock(async () => '/tmp/v-apify.mp4');
+    const transcribe = mock(async () => 'should not be called');
+    const ocr = mock(async () => 'should not be called');
+    const extractFrames = mock(async () => ['/tmp/f1.jpg']);
+    const downloadImage = mock(async () => '/tmp/img.jpg');
+    const build = createBundleBuilder({
+      transcribe, ocr, downloadVideo, downloadVideoFallback, downloadVideoApify,
+      downloadImage, extractFrames,
+    });
+    const postWithLocation = {
+      ...videoPost,
+      url: 'https://www.instagram.com/p/abc/',
+      locationTag: { name: 'Test Cafe' },
+    };
+    const b = await build(postWithLocation, { skipVideo: true });
+    expect(b.caption).toBe('Caption with #tag and @owner');
+    expect(b.locationTagName).toBe('Test Cafe');
+    expect(b.transcript).toBeUndefined();
+    expect(b.ocr).toBeUndefined();
+    expect(downloadVideo).not.toHaveBeenCalled();
+    expect(downloadVideoFallback).not.toHaveBeenCalled();
+    expect(downloadVideoApify).not.toHaveBeenCalled();
+    expect(transcribe).not.toHaveBeenCalled();
+    expect(extractFrames).not.toHaveBeenCalled();
+  });
 });

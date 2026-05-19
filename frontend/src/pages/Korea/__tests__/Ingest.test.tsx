@@ -393,6 +393,28 @@ describe('Ingest page', () => {
     })
   })
 
+  it('skip video checkbox toggles submitUrl arg', async () => {
+    const user = userEvent.setup()
+    await renderIngest()
+
+    // Checkbox should be unchecked by default
+    const checkbox = screen.getByRole('checkbox') as HTMLInputElement
+    expect(checkbox.checked).toBe(false)
+
+    // Check the box, then submit a URL — skipVideo should be true
+    await act(async () => { await user.click(checkbox) })
+    await waitFor(() => expect(checkbox.checked).toBe(true))
+
+    await setUrlValue(screen.getByLabelText('Instagram URL'), 'https://www.instagram.com/p/DEF/')
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /submit/i }))
+      await new Promise((r) => setTimeout(r, 20))
+    })
+    await waitFor(() => expect(mockSubmitUrl).toHaveBeenCalledOnce())
+    const callOpts = mockSubmitUrl.mock.calls[0][2] as { skipVideo?: boolean } | undefined
+    expect(callOpts?.skipVideo).toBe(true)
+  })
+
   it('splits jobs into Recent and Older sections by 7-day cutoff', async () => {
     const recentJob = makeJob({ id: 1, url: 'https://www.instagram.com/p/A/', created_at: new Date().toISOString() })
     const oldJob = makeJob({

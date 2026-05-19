@@ -928,6 +928,7 @@ function IngestImpl() {
 
   // Form state
   const [url, setUrl] = useState('')
+  const [skipVideo, setSkipVideo] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitNotice, setSubmitNotice] = useState<SubmitNotice | null>(null)
@@ -1016,7 +1017,7 @@ function IngestImpl() {
     setSubmitNotice(null)
 
     try {
-      const result = await submitUrl(getTokenRef.current, url)
+      const result = await submitUrl(getTokenRef.current, url, { skipVideo })
       setUrl('')
 
       // Determine what notice to show, if any
@@ -1171,6 +1172,16 @@ function IngestImpl() {
               <ValidationHint value={url} />
             )}
           </div>
+
+          <label className="mt-3 inline-flex items-center gap-2 text-[12px] text-stone-600 dark:text-stone-400 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={skipVideo}
+              onChange={(e) => setSkipVideo(e.target.checked)}
+              className="h-3.5 w-3.5 rounded border-stone-300 text-rose-600 focus:ring-rose-500 dark:border-stone-700"
+            />
+            <span>Skip video download <span className="text-stone-400">— faster, caption + comments only</span></span>
+          </label>
 
           {/* Submit result notice */}
           {submitNotice && (

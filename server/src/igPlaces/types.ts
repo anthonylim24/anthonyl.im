@@ -21,6 +21,9 @@ export interface IgJob {
   lockedAt: string | null;
   lockedBy: string | null;
   postId: number | null;
+  /** When true the worker skips the video pipeline (download, transcribe,
+   *  frame extraction, OCR). Set by the submitter at enqueue time. */
+  skipVideo: boolean;
 }
 
 export interface MediaItem {

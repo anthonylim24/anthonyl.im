@@ -7,6 +7,10 @@ export type BundleLog = (level: 'info'|'warn'|'error', message: string) => Promi
 
 export interface BundleOpts {
   log?: BundleLog;
+  /** When true, skip the entire video/image pipeline (download, transcribe,
+   *  frame extraction, OCR). The bundle contains caption + locationTag +
+   *  hashtags + mentions only. Cuts job runtime from ~90s to ~10s. */
+  skipVideo?: boolean;
 }
 
 export interface BundleDeps {
@@ -30,7 +34,7 @@ export type BundleBuilder = (post: PostPayload, opts?: BundleOpts) => Promise<Ex
 const HASHTAG_RE = /#([\p{L}\p{N}_]+)/gu;
 const MENTION_RE = /@([a-zA-Z0-9_.]+)/g;
 
-const TIMEOUT_DOWNLOAD_MS = 60_000;
+const TIMEOUT_DOWNLOAD_MS = 120_000;
 const TIMEOUT_TRANSCRIBE_MS = 90_000;
 const TIMEOUT_FFMPEG_MS = 60_000;
 const TIMEOUT_OCR_MS = 20_000;
@@ -55,6 +59,18 @@ export function createBundleBuilder(deps: BundleDeps): BundleBuilder {
     const log = opts.log ?? (async () => {});
     const hashtags = [...post.caption.matchAll(HASHTAG_RE)].map(m => m[1]);
     const mentions = [...post.caption.matchAll(MENTION_RE)].map(m => m[1]);
+
+    // Fast-path: user opted out of the video pipeline entirely.
+    if (opts.skipVideo) {
+      await log('info', 'video pipeline skipped per user request');
+      return {
+        caption: post.caption,
+        locationTagName: post.locationTag?.name,
+        hashtags,
+        mentions,
+      };
+    }
+
     const video = post.mediaItems.find(m => m.type === 'video');
     const images = post.mediaItems.filter(m => m.type === 'image');
 
