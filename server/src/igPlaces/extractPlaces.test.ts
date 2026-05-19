@@ -84,4 +84,68 @@ describe('createExtractor', () => {
     expect((calls[0] as any).response_format.type).toBe('json_schema');
     expect(out[0].vote_count).toBe(3);
   });
+
+  test('Groq 429 + Cerebras key set → falls back to Cerebras for that call', async () => {
+    let groqCalls = 0;
+    const groq = { chat: { completions: { create: mock(async () => {
+      groqCalls++;
+      // 1st of 3 parallel calls rate-limits; the other 2 succeed.
+      if (groqCalls === 1) {
+        const err: any = new Error('rate limited');
+        err.status = 429;
+        err.headers = { 'retry-after': '5' };
+        throw err;
+      }
+      return { choices: [{ message: { content: JSON.stringify({ places: [placeFactory()] }) } }] };
+    })}}} as any;
+
+    const cerebrasFetch = mock(async (url: string, init: any) => {
+      expect(url).toBe('https://api.cerebras.ai/v1/chat/completions');
+      const body = JSON.parse(init.body);
+      expect(body.model).toBe('gpt-oss-120b');
+      expect(init.headers.Authorization).toBe('Bearer cb-key');
+      return new Response(JSON.stringify({
+        choices: [{ message: { content: JSON.stringify({ places: [placeFactory()] }) } }],
+      }), { status: 200 });
+    });
+
+    const logMessages: string[] = [];
+    const extract = createExtractor({
+      groq, cerebrasApiKey: 'cb-key', cerebrasFetch: cerebrasFetch as any,
+    });
+    const bundle: ExtractionBundle = { caption: 'Cafe Onion in Seongsu', hashtags: [], mentions: [] };
+    const out = await extract(bundle, {
+      log: (_l, m) => { logMessages.push(m); },
+    });
+    expect(cerebrasFetch).toHaveBeenCalledTimes(1);
+    expect(out).toHaveLength(1);
+    expect(out[0].vote_count).toBe(3);
+    expect(logMessages.some(m => m.includes('Cerebras'))).toBe(true);
+  });
+
+  test('Groq 429 + no Cerebras key → throws RetryableError as before', async () => {
+    const groq = { chat: { completions: { create: mock(async () => {
+      const err: any = new Error('rate limited');
+      err.status = 429;
+      err.headers = { 'retry-after': '5' };
+      throw err;
+    })}}} as any;
+    const extract = createExtractor({ groq });
+    const bundle: ExtractionBundle = { caption: 'Cafe Onion in Seongsu', hashtags: [], mentions: [] };
+    await expect(extract(bundle)).rejects.toThrow(/rate-limited/);
+  });
+
+  test('Groq 429 + Cerebras 429 → still throws RetryableError', async () => {
+    const groq = { chat: { completions: { create: mock(async () => {
+      const err: any = new Error('rate limited');
+      err.status = 429;
+      err.headers = { 'retry-after': '5' };
+      throw err;
+    })}}} as any;
+    const cerebrasFetch = mock(async () =>
+      new Response('', { status: 429, headers: { 'retry-after': '10' } })) as any;
+    const extract = createExtractor({ groq, cerebrasApiKey: 'cb-key', cerebrasFetch });
+    const bundle: ExtractionBundle = { caption: 'Cafe Onion in Seongsu', hashtags: [], mentions: [] };
+    await expect(extract(bundle)).rejects.toThrow(/both rate-limited/);
+  });
 });

@@ -7,7 +7,7 @@ export interface ProcessorDeps {
   fetchPost:   (url: string, cached: PostPayload | null) => Promise<PostPayload>;
   upsertPost:  (dedupeKey: string, url: string, p: PostPayload, transcript: string | undefined, ocr: string | undefined) => Promise<number>;
   buildBundle: (p: PostPayload, opts?: { log?: (level: 'info'|'warn'|'error', message: string) => Promise<void> | void }) => Promise<ExtractionBundle>;
-  extract:     (b: ExtractionBundle) => Promise<VotedPlace[]>;
+  extract:     (b: ExtractionBundle, opts?: { log?: (level: 'info'|'warn'|'error', message: string) => Promise<void> | void }) => Promise<VotedPlace[]>;
   geocode:     (p: VotedPlace, tag: LocationTag | undefined) => Promise<EnrichedPlace>;
   savePlaces:  (postId: number, userId: string, places: EnrichedPlace[]) => Promise<void>;
   complete:    (jobId: number, postId: number) => Promise<void>;
@@ -45,7 +45,9 @@ export function createProcessor(deps: ProcessorDeps) {
       lastStep = 'extracting';
       await deps.setStep(job.id, 'extracting');
       await deps.log(job.id, 'extracting', 'info', 'calling gpt-oss-120b ×3 in parallel').catch(() => {});
-      const voted = await deps.extract(bundle);
+      const voted = await deps.extract(bundle, {
+        log: (level, message) => deps.log(job.id, 'extracting', level, message).catch(() => {}),
+      });
       if (voted.length === 0) {
         // No places. This is usually a CORRECT outcome (the post is about an
         // unnamed activity, a generic vibe, a person, etc.). Log a clear note
