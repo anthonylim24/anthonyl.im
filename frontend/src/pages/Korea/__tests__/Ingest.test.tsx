@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
@@ -107,6 +107,11 @@ describe('Ingest page', () => {
     mockFetchStats.mockResolvedValue({ enabled: true, pending: 0, running: 0, done: 0 })
     mockSubmitUrl.mockResolvedValue({ jobs: [{ jobId: 1, status: 'pending', reused: false }] })
     mockRetryJob.mockResolvedValue(undefined)
+  })
+
+  afterEach(() => {
+    // Restore real timers if a test used fake ones without restoring
+    vi.useRealTimers()
   })
 
   it('renders the submission form with label and submit button', async () => {
@@ -265,6 +270,87 @@ describe('Ingest page', () => {
     })
   })
 
+  it('shows slow-step warning when elapsed exceeds 2× estimate', async () => {
+    // bundling estimate is 25s; set step_started_at to 60s ago (2× + exceeded)
+    const stepStartedAt = new Date(Date.now() - 60_000).toISOString()
+    const job = makeJob({
+      status: 'running',
+      step: 'bundling',
+      step_started_at: stepStartedAt,
+    })
+    mockListJobs.mockResolvedValue([job])
+
+    await renderIngest()
+
+    await waitFor(() => {
+      expect(screen.getByText(/taking longer than expected/i)).toBeTruthy()
+    })
+  })
+
+  it('shows fetch-failure banner after 3 consecutive listJobs failures', async () => {
+    // Make listJobs always reject so every poll increments the failure counter
+    mockListJobs.mockRejectedValue(new Error('network error'))
+
+    await renderIngest()
+
+    // The initial fetch already triggered 1 failure; trigger 2 more by
+    // directly calling doFetchJobs — we do that by firing the visibilitychange
+    // event which triggers a poll cycle, or by advancing the polling interval.
+    // Simplest: just wait for the polling interval to fire 3+ times.
+    // The polling interval is 2000ms, so wait with a generous timeout.
+    await waitFor(
+      () => {
+        expect(screen.getByText(/reconnecting/i)).toBeTruthy()
+      },
+      { timeout: 10_000 },
+    )
+  }, 15_000)
+
+  it('extracted places show vote_count, signal_source, and address when present', async () => {
+    const place = {
+      id: 10,
+      name: '성수동카페',
+      name_romanized: 'Seongsu Cafe',
+      city: 'Seoul',
+      category: 'cafe' as const,
+      confidence: 0.85,
+      confidence_band: 'high' as const,
+      is_subject: false,
+      supporting_quote: null,
+      address: '서울 성동구 아차산로 123',
+      lat: 37.5,
+      lng: 127.0,
+      geocode_source: 'google' as const,
+      geocode_disagree: false,
+      signal_source: 'multiple' as const,
+      vote_count: 3,
+    }
+
+    const job = makeJob({
+      status: 'done',
+      step: 'done',
+      places: [place],
+    })
+    mockListJobs.mockResolvedValue([job])
+
+    await renderIngest()
+
+    // Expand the places list
+    const expandBtn = await screen.findByRole('button', { name: /1 place extracted/i })
+    await act(async () => {
+      fireEvent.click(expandBtn)
+    })
+
+    await waitFor(() => {
+      // vote_count
+      expect(screen.getByText(/voted 3×/i)).toBeTruthy()
+      // signal_source (rendered as "from multiple signals")
+      expect(screen.getByText(/from multiple signals/i)).toBeTruthy()
+      // address
+      expect(screen.getByText('서울 성동구 아차산로 123')).toBeTruthy()
+    })
+  })
+
   it('renders log lines for a job', async () => {
     const logs = [
       { id: 1, job_id: 1, step: 'fetching' as const, level: 'info' as const, message: 'starting fetch', created_at: new Date().toISOString() },
@@ -284,10 +370,10 @@ describe('Ingest page', () => {
       fireEvent.click(summary)
     })
 
-    // Log messages should now be visible
+    // Log messages should now be visible (may appear in log list + step popover)
     await waitFor(() => {
-      expect(screen.getByText('starting fetch')).toBeTruthy()
-      expect(screen.getByText(/got payload via apify/)).toBeTruthy()
+      expect(screen.getAllByText('starting fetch').length).toBeGreaterThan(0)
+      expect(screen.getAllByText(/got payload via apify/).length).toBeGreaterThan(0)
     })
   })
 })

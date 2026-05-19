@@ -2,16 +2,16 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
 import { motion, useReducedMotion } from 'motion/react'
-import { CheckCircle2, Circle, Loader2 } from 'lucide-react'
+import { CheckCircle2, Circle, Loader2, XCircle } from 'lucide-react'
 import { isInstagramUrl } from './isInstagramUrl'
 import { fetchStats, listJobs, retryJob, submitUrl } from './ingestApi'
 import type { Job, JobStep, LogLine, Stats } from './ingestApi'
 
 // ─── Step pipeline ────────────────────────────────────────────────────────────
 
-const PIPELINE_STEPS: JobStep[] = ['fetching', 'bundling', 'extracting', 'geocoding', 'saving']
+const PIPELINE_STEPS = ['fetching', 'bundling', 'extracting', 'geocoding', 'saving'] as const satisfies JobStep[]
 
-type UiStep = 'fetching' | 'bundling' | 'extracting' | 'geocoding' | 'saving'
+type UiStep = (typeof PIPELINE_STEPS)[number]
 
 interface StepInfo {
   summary: string
@@ -43,7 +43,7 @@ const STEP_DESCRIPTIONS: Record<UiStep, StepInfo> = {
     stack: [
       'Groq openai/gpt-oss-120b (3× parallel, temperature 0.5)',
       'Strict JSON schema (token-constrained decoding)',
-      'Hallucination filter: drop places whose verbatim quote isn’t in the source',
+      "Hallucination filter: drop places whose verbatim quote isn’t in the source",
       'Vote merge + canonicalize (NFD strip-marks + Levenshtein ≤ 2)',
     ],
   },
@@ -72,29 +72,48 @@ const STEP_DURATIONS: Record<UiStep, number> = {
   fetching: 8, bundling: 25, extracting: 4, geocoding: 3, saving: 1,
 }
 
+// ─── Shared hooks ─────────────────────────────────────────────────────────────
+
+function useNow(intervalMs: number, active: boolean): number {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!active) return
+    const t = setInterval(() => setNow(Date.now()), intervalMs)
+    return () => clearInterval(t)
+  }, [intervalMs, active])
+  return now
+}
+
+// ─── Step utilities ───────────────────────────────────────────────────────────
+
 function formatLogTime(iso: string): string {
   const d = new Date(iso)
   return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
 }
 
-function computeEta(job: Job): { label: string; tone: 'live' | 'done' } | null {
+function computeEta(job: Job, now: number): { label: string; tone: 'live' | 'done' | 'slow' } | null {
   if (job.status === 'done' || job.step === 'done') {
     const ms = new Date(job.updated_at).getTime() - new Date(job.created_at).getTime()
     return { label: `completed in ${Math.max(1, Math.round(ms / 1000))}s`, tone: 'done' }
   }
   if (job.status !== 'running' && job.status !== 'pending') return null
-  const order: UiStep[] = ['fetching', 'bundling', 'extracting', 'geocoding', 'saving']
-  const current = order.includes(job.step as UiStep) ? job.step as UiStep : null
+  const current = PIPELINE_STEPS.includes(job.step as UiStep) ? job.step as UiStep : null
   if (!current) {
-    const total = order.reduce((a, s) => a + STEP_DURATIONS[s], 0)
+    const total = PIPELINE_STEPS.reduce((a, s) => a + STEP_DURATIONS[s], 0)
     return { label: `~${total}s left`, tone: 'live' }
   }
-  const currentIdx = order.indexOf(current)
+  const currentIdx = PIPELINE_STEPS.indexOf(current)
   const elapsedInStep = job.step_started_at
-    ? (Date.now() - new Date(job.step_started_at).getTime()) / 1000
+    ? (now - new Date(job.step_started_at).getTime()) / 1000
     : 0
+
+  // Slow-step fallback: if elapsed > 2× the estimate, surface a warning
+  if (elapsedInStep > 2 * STEP_DURATIONS[current]) {
+    return { label: 'taking longer than expected', tone: 'slow' }
+  }
+
   const currentRemaining = Math.max(0, STEP_DURATIONS[current] - elapsedInStep)
-  const futureRemaining = order.slice(currentIdx + 1).reduce((a, s) => a + STEP_DURATIONS[s], 0)
+  const futureRemaining = PIPELINE_STEPS.slice(currentIdx + 1).reduce((a, s) => a + STEP_DURATIONS[s], 0)
   const total = Math.round(currentRemaining + futureRemaining)
   return { label: `~${Math.max(1, total)}s left`, tone: 'live' }
 }
@@ -161,6 +180,7 @@ function liveStepInfo(
   job: Job,
   step: UiStep,
   state: 'past' | 'current' | 'errored' | 'future',
+  now: number,
 ): { latestLog: LogLine | null; timingLabel: string | null } {
   if (state === 'future') return { latestLog: null, timingLabel: null }
   const stepLogs = job.logs.filter((l) => l.step === step)
@@ -172,8 +192,7 @@ function liveStepInfo(
     // next step (or to job.updated_at if this is the last step).
     if (stepLogs.length) {
       const start = new Date(stepLogs[0].created_at).getTime()
-      const order = ['fetching', 'bundling', 'extracting', 'geocoding', 'saving'] as const
-      const nextStep = order[order.indexOf(step) + 1]
+      const nextStep = PIPELINE_STEPS[PIPELINE_STEPS.indexOf(step) + 1]
       const nextStepLogs = nextStep ? job.logs.filter((l) => l.step === nextStep) : []
       const end = nextStepLogs.length
         ? new Date(nextStepLogs[0].created_at).getTime()
@@ -183,7 +202,7 @@ function liveStepInfo(
   } else if (state === 'current') {
     const startIso = job.step_started_at ?? (stepLogs[0]?.created_at ?? null)
     if (startIso) {
-      const elapsed = (Date.now() - new Date(startIso).getTime()) / 1000
+      const elapsed = (now - new Date(startIso).getTime()) / 1000
       timingLabel = `${formatDuration(elapsed)} elapsed`
     }
   } else if (state === 'errored') {
@@ -265,7 +284,7 @@ function StatusPill({ status }: { status: Job['status'] }) {
   )
 }
 
-function StepTimeline({ job, reduce }: { job: Job; reduce: boolean | null }) {
+function StepTimeline({ job, reduce, etaNow }: { job: Job; reduce: boolean | null; etaNow: number }) {
   const stepStates = deriveStepStates(job)
   const stepLabels: Record<string, string> = {
     fetching: 'Fetch',
@@ -277,8 +296,24 @@ function StepTimeline({ job, reduce }: { job: Job; reduce: boolean | null }) {
 
   const currentStep = PIPELINE_STEPS.find((s) => stepStates[s] === 'current') ?? null
 
+  const [expandedStep, setExpandedStep] = useState<UiStep | null>(null)
+  const timelineRef = useRef<HTMLDivElement>(null)
+
+  // Click-outside closes the expanded popover
+  useEffect(() => {
+    if (!expandedStep) return
+    const handler = (e: MouseEvent) => {
+      if (timelineRef.current && !timelineRef.current.contains(e.target as Node)) {
+        setExpandedStep(null)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [expandedStep])
+
   return (
     <div
+      ref={timelineRef}
       aria-live="polite"
       aria-label={currentStep ? `Current step: ${currentStep}` : undefined}
       className="flex items-center gap-0 overflow-x-auto"
@@ -288,6 +323,7 @@ function StepTimeline({ job, reduce }: { job: Job; reduce: boolean | null }) {
         const isLast = i === PIPELINE_STEPS.length - 1
         const info = STEP_DESCRIPTIONS[step as UiStep]
         const ariaSummary = `${stepLabels[step]}: ${info.summary} Stack: ${info.stack.join('; ')}.`
+        const isExpanded = expandedStep === step
 
         return (
           <div key={step} className="flex min-w-0 items-center">
@@ -295,7 +331,8 @@ function StepTimeline({ job, reduce }: { job: Job; reduce: boolean | null }) {
             <button
               type="button"
               aria-label={ariaSummary}
-              className="flex flex-col items-center gap-1 cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 rounded"
+              onClick={() => setExpandedStep(isExpanded ? null : step as UiStep)}
+              className="flex min-h-[44px] min-w-[44px] flex-col items-center justify-center gap-1 px-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 rounded"
             >
               {/* Circle indicator */}
               {state === 'past' ? (
@@ -309,9 +346,7 @@ function StepTimeline({ job, reduce }: { job: Job; reduce: boolean | null }) {
                   <span className="h-2 w-2 rounded-full bg-white" aria-hidden />
                 </span>
               ) : state === 'errored' ? (
-                <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-500">
-                  <span className="h-2 w-2 rounded-full bg-white" aria-hidden />
-                </span>
+                <XCircle className="h-5 w-5 shrink-0 text-red-600 dark:text-red-400" aria-hidden />
               ) : (
                 <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-stone-300 dark:border-stone-600">
                   <Circle className="h-2.5 w-2.5 text-stone-300 dark:text-stone-600" aria-hidden />
@@ -333,12 +368,16 @@ function StepTimeline({ job, reduce }: { job: Job; reduce: boolean | null }) {
               </span>
             </button>
 
-            {/* Hover/focus popover with live status + summary + tech stack */}
+            {/* Hover/focus popover + tap-to-expand on mobile */}
             <div
               role="tooltip"
-              className="pointer-events-none absolute left-1/2 top-[calc(100%+8px)] z-20 w-72 -translate-x-1/2 rounded-xl border border-stone-200/80 bg-white p-3 text-left opacity-0 shadow-lg ring-1 ring-stone-900/5 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 dark:border-stone-700/80 dark:bg-stone-900 dark:ring-stone-100/5"
+              className={`absolute left-1/2 top-[calc(100%+8px)] z-20 w-72 -translate-x-1/2 rounded-xl border border-stone-200/80 bg-white p-3 text-left shadow-lg ring-1 ring-stone-900/5 transition-opacity duration-150 dark:border-stone-700/80 dark:bg-stone-900 dark:ring-stone-100/5 ${
+                isExpanded
+                  ? 'pointer-events-auto opacity-100'
+                  : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100'
+              }`}
             >
-              <StepPopoverContent step={step as UiStep} state={state} info={info} job={job} />
+              <StepPopoverContent step={step as UiStep} state={state} info={info} job={job} etaNow={etaNow} />
             </div>
             </div>
 
@@ -363,13 +402,15 @@ function StepPopoverContent({
   state,
   info,
   job,
+  etaNow,
 }: {
   step: UiStep
   state: 'past' | 'current' | 'errored' | 'future'
   info: StepInfo
   job: Job
+  etaNow: number
 }) {
-  const { latestLog, timingLabel } = liveStepInfo(job, step, state)
+  const { latestLog, timingLabel } = liveStepInfo(job, step, state, etaNow)
   const stateLabel =
     state === 'current' ? 'Running now' :
     state === 'past' ? 'Completed' :
@@ -434,14 +475,15 @@ function StepPopoverContent({
   )
 }
 
-function ConfidenceBadge({ band }: { band: 'high' | 'medium' | 'low' }) {
+function ConfidenceBadge({ band, confidence }: { band: 'high' | 'medium' | 'low'; confidence?: number }) {
   const styles = {
     high: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400',
     medium: 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400',
     low: 'bg-stone-100 text-stone-500 dark:bg-stone-800 dark:text-stone-400',
   }
+  const title = confidence != null ? `Confidence: ${(confidence * 100).toFixed(0)}%` : undefined
   return (
-    <span className={`rounded px-1 py-0.5 text-[10px] font-medium ${styles[band]}`}>
+    <span className={`rounded px-1 py-0.5 text-[10px] font-medium ${styles[band]}`} title={title}>
       {band}
     </span>
   )
@@ -453,6 +495,14 @@ function CategoryBadge({ category }: { category: string }) {
       {category}
     </span>
   )
+}
+
+const SIGNAL_SOURCE_LABELS: Record<string, string> = {
+  caption: 'from caption',
+  transcript: 'from transcript',
+  ocr: 'from OCR',
+  location_tag: 'from location tag',
+  multiple: 'from multiple signals',
 }
 
 function PlacesList({ places }: { places: Job['places'] }) {
@@ -478,25 +528,64 @@ function PlacesList({ places }: { places: Job['places'] }) {
       </button>
 
       {expanded && (
-        <ul className="mt-2 space-y-2">
+        <ul className="mt-2 space-y-3">
           {places.map((p) => (
             <li
               key={p.id}
-              className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-[13px] text-stone-700 dark:text-stone-300"
+              className="flex flex-col gap-1 text-[13px] text-stone-700 dark:text-stone-300"
             >
-              <span className="font-medium">{p.name}</span>
-              {p.name_romanized && p.name_romanized !== p.name && (
-                <span className="text-stone-400 dark:text-stone-500">({p.name_romanized})</span>
+              {/* Name row */}
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                <span className="font-medium">{p.name}</span>
+                {p.name_romanized && p.name_romanized !== p.name && (
+                  <span className="text-stone-400 dark:text-stone-500">{p.name_romanized}</span>
+                )}
+                {p.city && (
+                  <span className="text-stone-400 dark:text-stone-500">· {p.city}</span>
+                )}
+              </div>
+
+              {/* Badges row */}
+              <div className="flex flex-wrap items-center gap-1">
+                <CategoryBadge category={p.category} />
+                <ConfidenceBadge band={p.confidence_band} confidence={p.confidence} />
+                {p.is_subject && (
+                  <span className="rounded bg-rose-50 px-1 py-0.5 text-[10px] font-medium text-rose-600 dark:bg-rose-950/30 dark:text-rose-400">
+                    subject
+                  </span>
+                )}
+                {p.vote_count > 0 && (
+                  <span className="rounded bg-stone-100 px-1 py-0.5 text-[10px] font-medium text-stone-500 dark:bg-stone-800 dark:text-stone-400">
+                    voted {p.vote_count}×
+                  </span>
+                )}
+                {p.signal_source && (
+                  <span className="rounded bg-stone-100 px-1 py-0.5 text-[10px] font-medium text-stone-500 dark:bg-stone-800 dark:text-stone-400">
+                    {SIGNAL_SOURCE_LABELS[p.signal_source] ?? p.signal_source}
+                  </span>
+                )}
+              </div>
+
+              {/* Address */}
+              {p.address && (
+                <p className="text-[12px] text-stone-500 dark:text-stone-400">{p.address}</p>
               )}
-              <CategoryBadge category={p.category} />
-              <ConfidenceBadge band={p.confidence_band} />
-              {p.is_subject && (
-                <span className="rounded bg-rose-50 px-1 py-0.5 text-[10px] font-medium text-rose-600 dark:bg-rose-950/30 dark:text-rose-400">
-                  subject
+
+              {/* Geocode disagree */}
+              {p.geocode_disagree && (
+                <span
+                  className="w-fit rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-600 dark:bg-red-950/30 dark:text-red-400"
+                  title="The two geocoders returned coordinates more than 200 m apart — manual review needed"
+                >
+                  Coordinates disagree
                 </span>
               )}
-              {p.city && (
-                <span className="text-stone-400 dark:text-stone-500">{p.city}</span>
+
+              {/* Supporting quote */}
+              {p.supporting_quote && (
+                <p className="text-[12px] italic text-stone-500 dark:text-stone-400">
+                  "{p.supporting_quote}"
+                </p>
               )}
             </li>
           ))}
@@ -507,21 +596,20 @@ function PlacesList({ places }: { places: Job['places'] }) {
 }
 
 function LogsViewer({ logs }: { logs: LogLine[] }) {
-  const listRef = useRef<HTMLOListElement>(null)
-  const prevLenRef = useRef(logs.length)
+  const listRef = useRef<HTMLOListElement | null>(null)
+  const [isOpen, setIsOpen] = useState(false)
 
   useEffect(() => {
-    const el = listRef.current
-    if (!el) return
-    const wasAtBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 4
-    if (wasAtBottom && logs.length > prevLenRef.current) {
-      el.scrollTop = el.scrollHeight
+    if (isOpen && listRef.current) {
+      listRef.current.scrollTop = listRef.current.scrollHeight
     }
-    prevLenRef.current = logs.length
-  }, [logs.length])
+  }, [isOpen, logs.length])
 
   return (
-    <details className="mt-3 rounded-xl border border-stone-200/60 dark:border-stone-800/60">
+    <details
+      className="mt-3 rounded-xl border border-stone-200/60 dark:border-stone-800/60"
+      onToggle={(e) => setIsOpen(e.currentTarget.open)}
+    >
       <summary className="cursor-pointer select-none px-3 py-2 text-[12px] font-medium text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-200">
         Logs ({logs.length})
       </summary>
@@ -557,10 +645,12 @@ function JobCard({
   job,
   reduce,
   onRetry,
+  etaNow,
 }: {
   job: Job
   reduce: boolean | null
   onRetry: () => Promise<void>
+  etaNow: number
 }) {
   const shortUrl = job.url.replace(/^https?:\/\/(www\.)?instagram\.com/, 'instagram.com')
 
@@ -579,7 +669,7 @@ function JobCard({
     }
   }
 
-  const eta = computeEta(job)
+  const eta = computeEta(job, etaNow)
 
   return (
     <motion.div
@@ -619,7 +709,7 @@ function JobCard({
 
       {/* Step timeline */}
       <div className="mt-4">
-        <StepTimeline job={job} reduce={reduce} />
+        <StepTimeline job={job} reduce={reduce} etaNow={etaNow} />
       </div>
 
       {/* Meta row */}
@@ -634,7 +724,9 @@ function JobCard({
             className={`ml-2 rounded-full px-2 py-0.5 text-[11px] font-medium ${
               eta.tone === 'done'
                 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400'
-                : 'bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400'
+                : eta.tone === 'slow'
+                  ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300'
+                  : 'bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400'
             }`}
           >
             {eta.label}
@@ -642,9 +734,10 @@ function JobCard({
         )}
       </p>
 
-      {/* Error message */}
+      {/* Error message with step context */}
       {job.last_error && (
         <p className="mt-2 break-words rounded-lg bg-red-50 px-3 py-2 text-[12px] text-red-700 dark:bg-red-950/30 dark:text-red-400">
+          <span className="font-semibold capitalize">{job.step === 'queued' ? 'unknown' : job.step}:</span>{' '}
           {job.last_error}
         </p>
       )}
@@ -686,15 +779,22 @@ export function Ingest() {
   const [url, setUrl] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [submitNotice, setSubmitNotice] = useState<string | null>(null)
 
   // Data state
   const [jobs, setJobs] = useState<Job[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
-  const [refreshTick, setRefreshTick] = useState(0) // forces re-render for time-ago
+  const [fetchFailures, setFetchFailures] = useState(0)
 
   const getTokenRef = useRef(getToken)
   getTokenRef.current = getToken
+
+  // ── Time ticks ─────────────────────────────────────────────────────────────
+
+  const hasRunningJob = jobs.some((j) => j.status === 'running')
+  const etaNow = useNow(1000, hasRunningJob)
+  const stalenessNow = useNow(5000, true)
 
   // ── Fetch helpers ──────────────────────────────────────────────────────────
 
@@ -703,8 +803,9 @@ export function Ingest() {
       const data = await listJobs(getTokenRef.current)
       setJobs(data)
       setLastRefreshed(new Date())
+      setFetchFailures(0)
     } catch {
-      // silently ignore — we'll retry on the next interval
+      setFetchFailures((n) => n + 1)
     }
   }, [])
 
@@ -743,25 +844,6 @@ export function Ingest() {
     }
   }, [doFetchJobs, doFetchStats])
 
-  // ── Tick for "refreshed X ago" ─────────────────────────────────────────────
-
-  useEffect(() => {
-    const id = setInterval(() => setRefreshTick((t) => t + 1), 5000)
-    return () => clearInterval(id)
-  }, [])
-
-  // ── Tick for ETA countdown (1s, only while a job is running) ──────────────
-
-  const [etaTick, setEtaTick] = useState(0)
-  useEffect(() => {
-    const hasRunning = jobs.some((j) => j.status === 'running')
-    if (!hasRunning) return
-    const id = setInterval(() => setEtaTick((t) => t + 1), 1000)
-    return () => clearInterval(id)
-  }, [jobs])
-  // etaTick drives re-renders for ETA countdown — consumed via Date.now() in computeEta
-  void etaTick
-
   // ── Submit ─────────────────────────────────────────────────────────────────
 
   async function handleSubmit(e: React.FormEvent) {
@@ -770,10 +852,18 @@ export function Ingest() {
 
     setSubmitting(true)
     setSubmitError(null)
+    setSubmitNotice(null)
 
     try {
-      await submitUrl(getTokenRef.current, url)
+      const result = await submitUrl(getTokenRef.current, url)
       setUrl('')
+
+      const reusedCount = result.jobs.filter((j) => j.reused).length
+      if (reusedCount > 0) {
+        setSubmitNotice('Already in queue — showing existing results below.')
+        setTimeout(() => setSubmitNotice(null), 5000)
+      }
+
       // Immediately refresh so the new job appears
       await doFetchJobs()
       await doFetchStats()
@@ -785,9 +875,10 @@ export function Ingest() {
   }
 
   const canSubmit = isInstagramUrl(url) && !submitting
-  const ago = lastRefreshed ? timeAgo(lastRefreshed) : null
-  // refreshTick used only to re-render "X ago" string — no-op usage satisfies linter
-  void refreshTick
+  // stalenessNow forces a re-render every 5s so the "X ago" label stays fresh
+  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+  void stalenessNow
+  const agoLabel = lastRefreshed ? timeAgo(lastRefreshed) : null
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
@@ -825,9 +916,17 @@ export function Ingest() {
           </div>
         </div>
 
-        {ago && (
+        {agoLabel && (
           <p className="mt-3 font-mono text-[11px] text-stone-400 dark:text-stone-500">
-            Refreshed {ago}
+            Refreshed {agoLabel}
+          </p>
+        )}
+
+        {/* Fetch-failure reconnecting banner */}
+        {fetchFailures >= 3 && (
+          <p role="status" className="mt-2 inline-flex items-center gap-2 rounded-md bg-amber-50 px-3 py-1.5 text-[12px] text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+            <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+            Reconnecting… polling has failed {fetchFailures} times
           </p>
         )}
       </motion.header>
@@ -887,6 +986,13 @@ export function Ingest() {
               <ValidationHint value={url} />
             )}
           </div>
+
+          {/* Reused-post notice */}
+          {submitNotice && (
+            <p className="mt-1.5 text-[12px] text-rose-600 dark:text-rose-400">
+              {submitNotice}
+            </p>
+          )}
         </form>
       </motion.section>
 
@@ -914,7 +1020,7 @@ export function Ingest() {
             </motion.div>
           ) : (
             jobs.map((job) => (
-              <JobCard key={job.id} job={job} reduce={reduce} onRetry={async () => {
+              <JobCard key={job.id} job={job} reduce={reduce} etaNow={etaNow} onRetry={async () => {
                 await retryJob(getTokenRef.current, job.id)
                 void doFetchJobs()
               }} />
@@ -922,6 +1028,7 @@ export function Ingest() {
           )}
         </div>
       </section>
+
     </div>
   )
 }

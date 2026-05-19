@@ -33,6 +33,14 @@ const BAND_LABELS: Record<Band, string> = {
 
 const PAGE_SIZE = 50
 
+const SIGNAL_SOURCE_LABELS: Record<string, string> = {
+  caption: 'from caption',
+  transcript: 'from transcript',
+  ocr: 'from OCR',
+  location_tag: 'from location tag',
+  multiple: 'from multiple signals',
+}
+
 // ── Badge components ──────────────────────────────────────────────────────────
 
 function CategoryBadge({ category }: { category: Category }) {
@@ -154,6 +162,11 @@ function PlaceCard({ place, reduce }: { place: ExtractedPlace; reduce: boolean |
           {place.is_subject && (
             <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-700 dark:bg-rose-950/30 dark:text-rose-400">
               Subject
+            </span>
+          )}
+          {place.signal_source && (
+            <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-medium text-stone-500 dark:bg-stone-800 dark:text-stone-400">
+              {SIGNAL_SOURCE_LABELS[place.signal_source] ?? place.signal_source}
             </span>
           )}
         </div>
