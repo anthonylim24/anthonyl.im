@@ -8,6 +8,9 @@ import { errorHandler } from "./src/middleware/error";
 import invokeRouter from "./src/routes/invoke";
 import koreaRouter from "./src/routes/korea";
 import entityRouter from "./src/routes/entity";
+import { createInstagramPlacesRouter } from "./src/routes/instagramPlaces";
+import { createClerkAuth } from "./src/middleware/clerkAuth";
+import { bootIgWorker, getQueue } from "./src/igPlaces/wire";
 import { join, resolve } from "path";
 
 const app = new Hono();
@@ -137,6 +140,24 @@ app.use("/api/invoke/*", async (c, next) => {
 app.route("/api/invoke", invokeRouter);
 app.route("/api/korea", koreaRouter);
 app.route("/api/entity", entityRouter);
+
+// IG place extractor — Clerk-gated route + in-process worker
+const clerkAuth = config.clerkSecretKey
+  ? createClerkAuth({ secretKey: config.clerkSecretKey })
+  : null;
+
+if (clerkAuth) {
+  const igPlacesRouter = createInstagramPlacesRouter({
+    enqueue: (userId, url) => getQueue().enqueue(userId, url),
+    statsHandler: async () => ({ enabled: config.igWorkerEnabled }),
+  });
+  app.use('/api/korea/places/from-instagram/*', clerkAuth);
+  app.route('/api/korea/places/from-instagram', igPlacesRouter);
+} else {
+  console.warn('[ig-places] CLERK_SECRET_KEY missing; endpoint not mounted');
+}
+
+bootIgWorker();
 
 // Health check
 app.get("/health", (c) =>
