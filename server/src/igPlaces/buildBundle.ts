@@ -71,46 +71,51 @@ export function createBundleBuilder(deps: BundleDeps): BundleBuilder {
 
     try {
       if (video) {
-        // 1. Download video
-        const host = (() => { try { return new URL(video.url).hostname; } catch { return video.url.slice(0, 40); } })();
-        await log('info', `downloading video from ${host}…`);
+        // 1. Download video.
+        //
+        // Empirically the Apify-supplied CDN URL throttles cloud-IP fetches —
+        // we hit the 60s timeout on essentially every reel. yt-dlp resolves
+        // its own CDN URL against the canonical IG post and consistently
+        // returns the file in 3-5s, so we use it as the primary path when
+        // available. Direct `fetch` stays as a fallback for the edge case
+        // where the post's canonical URL is unavailable.
         const t0 = Date.now();
-        const dlCtrl = new AbortController();
-        let localPath: string;
-        try {
-          localPath = await withTimeout(
-            deps.downloadVideo(video.url, dlCtrl.signal),
-            TIMEOUT_DOWNLOAD_MS, 'video download', dlCtrl,
-          );
-          trackTmpDir(localPath);
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          // Primary CDN download failed. If a yt-dlp fallback is wired and the
-          // post carries its canonical IG URL, give yt-dlp a shot — it handles
-          // CDN cookies / signing that raw fetch doesn't.
-          if (deps.downloadVideoFallback && post.url) {
-            await log('warn', `primary download failed (${msg}); retrying via yt-dlp on ${post.url}`);
-            const fbCtrl = new AbortController();
-            try {
-              localPath = await withTimeout(
-                deps.downloadVideoFallback(post.url, fbCtrl.signal),
-                TIMEOUT_DOWNLOAD_MS, 'yt-dlp download', fbCtrl,
-              );
-              trackTmpDir(localPath);
-              await log('info', `yt-dlp download succeeded`);
-            } catch (err2) {
-              const msg2 = err2 instanceof Error ? err2.message : String(err2);
-              await log('warn', `yt-dlp also failed: ${msg2} — bundle will have no transcript/frames`);
-              return { caption: post.caption, transcript, ocr,
-                       locationTagName: post.locationTag?.name, hashtags, mentions };
-            }
-          } else {
+        let localPath: string | null = null;
+
+        if (deps.downloadVideoFallback && post.url) {
+          await log('info', `downloading video via yt-dlp from ${post.url}…`);
+          const ytCtrl = new AbortController();
+          try {
+            localPath = await withTimeout(
+              deps.downloadVideoFallback(post.url, ytCtrl.signal),
+              TIMEOUT_DOWNLOAD_MS, 'yt-dlp download', ytCtrl,
+            );
+            trackTmpDir(localPath);
+            await log('info', `video saved via yt-dlp (${Date.now() - t0}ms)`);
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            await log('warn', `yt-dlp download failed: ${msg}; trying direct CDN fetch`);
+          }
+        }
+
+        if (!localPath) {
+          const host = (() => { try { return new URL(video.url).hostname; } catch { return video.url.slice(0, 40); } })();
+          await log('info', `downloading video from ${host}…`);
+          const dlCtrl = new AbortController();
+          try {
+            localPath = await withTimeout(
+              deps.downloadVideo(video.url, dlCtrl.signal),
+              TIMEOUT_DOWNLOAD_MS, 'video download', dlCtrl,
+            );
+            trackTmpDir(localPath);
+            await log('info', `video saved via direct fetch (${Date.now() - t0}ms)`);
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
             await log('warn', `video download failed: ${msg} — bundle will have no transcript/frames`);
             return { caption: post.caption, transcript, ocr,
                      locationTagName: post.locationTag?.name, hashtags, mentions };
           }
         }
-        await log('info', `video saved (${Date.now() - t0}ms)`);
 
         // 2. Transcribe + frames in parallel, each with its own timeout
         const tCtrl = new AbortController();
