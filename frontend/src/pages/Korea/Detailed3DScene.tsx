@@ -480,16 +480,38 @@ export function Detailed3DScene({
     let focusing = false
     let lastSelectedId: string | null = selectedIdRef.current
     function planFocus(destX: number, destZ: number) {
-      const mid = new Vector3((0 + destX) / 2, 0, (0 + destZ) / 2)
+      const aspect = w / h
+      const portrait = aspect < 1
       const dist = Math.hypot(destX, destZ)
-      // Camera at ~0.9× distance height, slightly back from the
-      // midpoint along +Z (south of midpoint) so the bearing axis
-      // reads roughly screen-up. Clamp height so a sub-100 m place
-      // doesn't put the camera underground.
-      const height = Math.max(dist * 0.9 + 300, 450)
-      const back = Math.max(dist * 0.55, 200)
-      focusTarget.copy(mid)
-      focusCamPos.set(mid.x, mid.y + height, mid.z + back)
+      // Bias the cameraTarget along the (YOU → dest) line. On portrait
+      // a 0.5 bias puts YOU at the bottom and dest at the top, fully
+      // using the tall viewport. On landscape we ease back to ~0.35
+      // so YOU stays a little closer to center and the dest doesn't
+      // disappear off-top in a short viewport.
+      const alpha = portrait ? 0.5 : 0.35
+      const tx = destX * alpha
+      const tz = destZ * alpha
+      // Camera position math: yaw the camera so the line (origin →
+      // dest) projects onto screen-up. We orbit on a circle of
+      // radius `back` from the target in the direction OPPOSITE to
+      // dest, then lift by `height` so the view is a 3/4 bird's-eye.
+      // Distance from target to dest in scene units:
+      const halfRun = Math.hypot(destX - tx, destZ - tz)
+      const heightMult = portrait ? 1.05 : 1.2
+      const backMult = portrait ? 0.45 : 0.6
+      const height = Math.max(halfRun * heightMult + 250, 420)
+      const back = Math.max(dist * backMult, 180)
+      // Camera sits along the OPPOSITE of (destDir from origin). In
+      // scene XZ, dest is at (destX, destZ) and origin at (0,0). The
+      // bearing from target to origin is normalize(origin - target)
+      // = normalize(-tx, -tz). Camera offset = bearing * back.
+      const bx = -tx
+      const bz = -tz
+      const blen = Math.hypot(bx, bz) || 1
+      const ux = bx / blen
+      const uz = bz / blen
+      focusTarget.set(tx, 0, tz)
+      focusCamPos.set(tx + ux * back, height, tz + uz * back)
       focusing = true
     }
     function planHome() {
