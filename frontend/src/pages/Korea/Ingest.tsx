@@ -182,15 +182,12 @@ function liveStepInfo(
   step: UiStep,
   state: 'past' | 'current' | 'errored' | 'future',
   now: number,
-): { latestLog: LogLine | null; timingLabel: string | null } {
-  if (state === 'future') return { latestLog: null, timingLabel: null }
+): { stepLogs: LogLine[]; timingLabel: string | null } {
+  if (state === 'future') return { stepLogs: [], timingLabel: null }
   const stepLogs = job.logs.filter((l) => l.step === step)
-  const latestLog = stepLogs.length ? stepLogs[stepLogs.length - 1] : null
 
   let timingLabel: string | null = null
   if (state === 'past') {
-    // Duration is from the first log of this step to the first log of the
-    // next step (or to job.updated_at if this is the last step).
     if (stepLogs.length) {
       const start = new Date(stepLogs[0].created_at).getTime()
       const nextStep = PIPELINE_STEPS[PIPELINE_STEPS.indexOf(step) + 1]
@@ -213,7 +210,7 @@ function liveStepInfo(
       timingLabel = `failed after ${formatDuration((end - start) / 1000)}`
     }
   }
-  return { latestLog, timingLabel }
+  return { stepLogs, timingLabel }
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -317,7 +314,11 @@ function StepTimeline({ job, reduce, etaNow }: { job: Job; reduce: boolean | nul
       ref={timelineRef}
       aria-live="polite"
       aria-label={currentStep ? `Current step: ${currentStep}` : undefined}
-      className="flex items-center gap-0 overflow-x-auto"
+      // overflow-visible (not overflow-x-auto) so the per-step popover can
+      // escape the timeline's clipping rect. The step pills themselves are
+      // narrow enough to fit on the smallest expected viewport (mobile) so
+      // horizontal scrolling isn't actually needed.
+      className="flex items-center gap-0 overflow-visible"
     >
       {PIPELINE_STEPS.map((step, i) => {
         const state = stepStates[step]
@@ -411,7 +412,7 @@ function StepPopoverContent({
   job: Job
   etaNow: number
 }) {
-  const { latestLog, timingLabel } = liveStepInfo(job, step, state, etaNow)
+  const { stepLogs, timingLabel } = liveStepInfo(job, step, state, etaNow)
   const stateLabel =
     state === 'current' ? 'Running now' :
     state === 'past' ? 'Completed' :
@@ -423,6 +424,10 @@ function StepPopoverContent({
     state === 'past' ? 'text-emerald-700 dark:text-emerald-400' :
     state === 'errored' ? 'text-red-700 dark:text-red-400' :
     'text-stone-500 dark:text-stone-400'
+
+  // Compute per-log relative offset from the first line of this step — useful
+  // for seeing where time is being spent within a stage.
+  const stepStartMs = stepLogs.length ? new Date(stepLogs[0].created_at).getTime() : 0
 
   return (
     <>
@@ -438,27 +443,51 @@ function StepPopoverContent({
         )}
       </div>
 
-      {/* Latest log line for this step (per job) */}
-      {latestLog && (
-        <p
-          className={`mt-1 break-words text-[12px] leading-relaxed ${
-            latestLog.level === 'error'
-              ? 'text-red-700 dark:text-red-400'
-              : latestLog.level === 'warn'
-                ? 'text-amber-700 dark:text-amber-300'
-                : 'text-stone-700 dark:text-stone-200'
-          }`}
+      {/* Full per-step log breakdown — auto-scrolls when many lines */}
+      {stepLogs.length > 0 && (
+        <ol
+          className="mt-2 max-h-40 space-y-0.5 overflow-y-auto rounded-md bg-stone-50 px-2 py-1.5 dark:bg-stone-950/50"
+          aria-label={`Activity log for ${stateLabel.toLowerCase()} step`}
         >
-          {latestLog.message}
+          {stepLogs.map((l, idx) => {
+            const offsetSec = idx === 0
+              ? 0
+              : Math.max(0, (new Date(l.created_at).getTime() - stepStartMs) / 1000)
+            const color =
+              l.level === 'error'
+                ? 'text-red-700 dark:text-red-400'
+                : l.level === 'warn'
+                  ? 'text-amber-700 dark:text-amber-300'
+                  : 'text-stone-700 dark:text-stone-200'
+            return (
+              <li key={l.id} className="flex gap-2 text-[11px] leading-snug">
+                <span className="shrink-0 font-mono text-[10px] tabular-nums text-stone-400 dark:text-stone-500">
+                  {idx === 0 ? 'start' : `+${formatDuration(offsetSec)}`}
+                </span>
+                <span className={`break-words ${color}`}>{l.message}</span>
+              </li>
+            )
+          })}
+        </ol>
+      )}
+
+      {state === 'current' && stepLogs.length === 0 && (
+        <p className="mt-2 text-[12px] italic text-stone-500 dark:text-stone-400">
+          Starting…
         </p>
       )}
 
-      {/* Static description — what the step does in general */}
-      <p
-        className={`text-[12px] leading-relaxed ${latestLog ? 'mt-2 border-t border-stone-200/60 pt-2 text-stone-500 dark:border-stone-700/60 dark:text-stone-400' : 'mt-1 text-stone-700 dark:text-stone-200'}`}
+      {/* Static "what this step does in general" — divider only when log present */}
+      <div
+        className={`${stepLogs.length ? 'mt-2 border-t border-stone-200/60 pt-2 dark:border-stone-700/60' : 'mt-2'}`}
       >
-        {info.summary}
-      </p>
+        <p className="text-[10px] font-medium uppercase tracking-wider text-stone-400 dark:text-stone-500">
+          What this step does
+        </p>
+        <p className="mt-1 text-[12px] leading-relaxed text-stone-600 dark:text-stone-300">
+          {info.summary}
+        </p>
+      </div>
 
       {/* Tech stack */}
       <p className="mt-2 text-[10px] font-medium uppercase tracking-wider text-stone-400 dark:text-stone-500">
