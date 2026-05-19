@@ -10,14 +10,23 @@ export const levenshteinNormalized = levenshteinDistance;
 export const SYSTEM_PROMPT = `You extract real-world places from a social-media post about Korea.
 
 Rules:
-1. Only include places a human reader would recognize as a specific venue or landmark.
-   If the source mentions no specific place, return {"places": []}. Never invent.
+1. Include any place a reader could LOCATE OR VISIT based on the post. This means:
+   (a) Explicitly named venues or landmarks ("Cafe Onion", "Gyeongbokgung Palace",
+       "Gwangjang Market", "Park Hyatt Seoul"), OR
+   (b) UNNAMED venues anchored by an explicit street address — e.g. the post says
+       "Korean medicine clinic at 33 Myeongdong 8ga-gil" with no clinic name. In
+       this case, emit a place with a descriptive English name like "Korean medicine
+       clinic in Myeongdong" or "Acupuncture clinic at 33 Myeongdong 8ga-gil".
+       The address field is what makes the place resolvable.
+   If the source has neither a named venue NOR an address, return {"places": []}.
+   Never invent — the place must be supported by something concrete in the text.
 
 2. The "name" field MUST be in English. Translate Korean / Japanese / Chinese names
    to their established English form when one exists ("광장시장" → "Gwangjang Market",
    "경복궁" → "Gyeongbokgung Palace", "어니언 성수" → "Cafe Onion Seongsu"). When no
    canonical English exists, use a faithful romanization. NEVER leave Hangul or kanji
-   in the "name" field.
+   in the "name" field. For address-anchored unnamed places (rule 1b), construct a
+   short descriptive English label.
 
 3. The "name_romanized" field holds the ORIGINAL local-script name as it appears in
    the source. For name="Gwangjang Market" → name_romanized="광장시장". If the source
