@@ -27,6 +27,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-bun-
 
+      # Test gate: red tests block the deploy. Server tests don't need any
+      # external env to run — all third-party calls are mocked.
+      - name: Install root deps
+        run: bun install
+
+      - name: Run server tests
+        env:
+          # Stub values so config.ts's required-env check passes during tests.
+          KLUSTER_API_KEY: ci-stub
+          KLUSTER_API_BASE_URL: https://example.invalid
+          IG_WORKER_ENABLED: 'false'
+        run: bun test --bail server/src
+
       - name: Build frontend
         working-directory: frontend
         run: |
@@ -52,6 +65,22 @@ jobs:
               curl -fsSL https://bun.sh/install | bash
             fi
             ~/.bun/bin/bun install
+
+            # System tools the IG places worker needs at runtime. Idempotent —
+            # apt-get install is a no-op when already at the latest version.
+            if ! command -v yt-dlp >/dev/null 2>&1; then
+              echo "[deploy] yt-dlp missing — installing latest standalone binary"
+              sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
+                -o /usr/local/bin/yt-dlp
+              sudo chmod a+rx /usr/local/bin/yt-dlp
+            fi
+            if ! command -v ffmpeg >/dev/null 2>&1; then
+              echo "[deploy] ffmpeg missing — installing via apt"
+              sudo apt-get update -qq
+              sudo apt-get install -y -qq ffmpeg
+            fi
+            echo "[deploy] yt-dlp: $(yt-dlp --version 2>/dev/null || echo MISSING)"
+            echo "[deploy] ffmpeg: $(ffmpeg -version 2>/dev/null | head -1 || echo MISSING)"
 
       # Upload the CI-built dist — server never builds, so no OOM risk on 1GB droplet
       # scp-action preserves the full source path, so source "frontend/dist" + target "anthonyl.im"
