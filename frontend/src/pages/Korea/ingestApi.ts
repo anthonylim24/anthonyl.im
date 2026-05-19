@@ -71,7 +71,7 @@ export type Stats = {
 }
 
 type SubmitResult = {
-  jobs: Array<{ jobId: number; status: string; reused: boolean }>
+  jobs: Array<{ jobId: number; status: string; reused: boolean; shared_from_other_user?: number }>
 }
 
 const BASE = '/api/korea/places/from-instagram'
@@ -136,7 +136,7 @@ export async function submitUrl(
 
 export async function listJobs(
   getToken: () => Promise<string | null>,
-  limit = 50,
+  limit = 200,
 ): Promise<Job[]> {
   const headers = await authHeaders(getToken)
   const res = await fetch(`${BASE}/jobs?limit=${limit}`, { headers })
@@ -150,6 +150,25 @@ export async function retryJob(
 ): Promise<void> {
   const token = await getToken()
   const r = await fetch(`${BASE}/jobs/${jobId}/retry`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token ?? ''}` },
+  })
+  if (!r.ok) {
+    let msg = `HTTP ${r.status}`
+    try {
+      const body = await r.json() as { error?: string }
+      if (body.error) msg = body.error
+    } catch {}
+    throw new Error(msg)
+  }
+}
+
+export async function reextractJob(
+  getToken: () => Promise<string | null>,
+  jobId: number,
+): Promise<void> {
+  const token = await getToken()
+  const r = await fetch(`${BASE}/jobs/${jobId}/reextract`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token ?? ''}` },
   })

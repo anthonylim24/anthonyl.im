@@ -38,6 +38,7 @@ const mockSubmitUrl = vi.fn()
 const mockListJobs = vi.fn()
 const mockFetchStats = vi.fn()
 const mockRetryJob = vi.fn()
+const mockReextractJob = vi.fn()
 
 vi.mock('../ingestApi', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../ingestApi')>()
@@ -47,6 +48,7 @@ vi.mock('../ingestApi', async (importOriginal) => {
     listJobs: (...args: unknown[]) => mockListJobs(...args),
     fetchStats: (...args: unknown[]) => mockFetchStats(...args),
     retryJob: (...args: unknown[]) => mockRetryJob(...args),
+    reextractJob: (...args: unknown[]) => mockReextractJob(...args),
   }
 })
 
@@ -109,6 +111,7 @@ describe('Ingest page', () => {
     mockFetchStats.mockResolvedValue({ enabled: true, pending: 0, running: 0, done: 0 })
     mockSubmitUrl.mockResolvedValue({ jobs: [{ jobId: 1, status: 'pending', reused: false }] })
     mockRetryJob.mockResolvedValue(undefined)
+    mockReextractJob.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
@@ -350,6 +353,60 @@ describe('Ingest page', () => {
       expect(screen.getByText(/from multiple signals/i)).toBeTruthy()
       // address
       expect(screen.getByText('서울 성동구 아차산로 123')).toBeTruthy()
+    })
+  })
+
+  it('shows "Re-run extraction" button when submit returns reused=true, status=done and calls reextractJob on click', async () => {
+    mockSubmitUrl.mockResolvedValueOnce({
+      jobs: [{ jobId: 42, status: 'done', reused: true }],
+    })
+
+    await renderIngest()
+    const input = screen.getByLabelText('Instagram URL')
+    await setUrlValue(input, 'https://www.instagram.com/reel/ABC123/')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /submit/i }))
+      await new Promise((r) => setTimeout(r, 20))
+    })
+
+    // The re-run extraction button should appear
+    const rerunBtn = await screen.findByRole('button', { name: /re-run extraction/i })
+    expect(rerunBtn).toBeTruthy()
+
+    // Click it
+    await act(async () => {
+      await userEvent.click(rerunBtn)
+      await new Promise((r) => setTimeout(r, 20))
+    })
+
+    // reextractJob should have been called with the job id
+    await waitFor(() => {
+      expect(mockReextractJob).toHaveBeenCalledOnce()
+    })
+    expect(mockReextractJob.mock.calls[0][1]).toBe(42)
+
+    // Notice should have been dismissed
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: /re-run extraction/i })).toBeNull()
+    })
+  })
+
+  it('splits jobs into Recent and Older sections by 7-day cutoff', async () => {
+    const recentJob = makeJob({ id: 1, url: 'https://www.instagram.com/p/A/', created_at: new Date().toISOString() })
+    const oldJob = makeJob({
+      id: 2,
+      url: 'https://www.instagram.com/p/B/',
+      created_at: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
+    })
+    mockListJobs.mockResolvedValue([recentJob, oldJob])
+
+    await renderIngest()
+
+    // Both sections should be present
+    await waitFor(() => {
+      expect(screen.getByRole('region', { name: /recent jobs/i })).toBeTruthy()
+      expect(screen.getByRole('region', { name: /older jobs/i })).toBeTruthy()
     })
   })
 

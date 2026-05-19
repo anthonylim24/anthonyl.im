@@ -4,7 +4,7 @@ import { useGetToken } from '@/lib/safeAuth'
 import { motion, useReducedMotion } from 'motion/react'
 import { CheckCircle2, Circle, Loader2, XCircle } from 'lucide-react'
 import { isInstagramUrl } from './isInstagramUrl'
-import { ApiNotConfiguredError, fetchStats, listJobs, retryJob, submitUrl } from './ingestApi'
+import { ApiNotConfiguredError, fetchStats, listJobs, reextractJob, retryJob, submitUrl } from './ingestApi'
 import type { Job, JobStep, LogLine, PostPreview, Stats } from './ingestApi'
 
 // ─── Step pipeline ────────────────────────────────────────────────────────────
@@ -872,11 +872,17 @@ export function Ingest() {
   const getToken = useGetToken()
   const reduce = useReducedMotion()
 
+  // ── Submit notice — rich state for re-extract / shared-data variations ──────
+  type SubmitNotice =
+    | { kind: 'text'; message: string }
+    | { kind: 'reused-done'; jobId: number }
+    | { kind: 'shared'; count: number }
+
   // Form state
   const [url, setUrl] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const [submitNotice, setSubmitNotice] = useState<string | null>(null)
+  const [submitNotice, setSubmitNotice] = useState<SubmitNotice | null>(null)
 
   // Data state
   const [jobs, setJobs] = useState<Job[]>([])
@@ -965,10 +971,23 @@ export function Ingest() {
       const result = await submitUrl(getTokenRef.current, url)
       setUrl('')
 
-      const reusedCount = result.jobs.filter((j) => j.reused).length
-      if (reusedCount > 0) {
-        setSubmitNotice('Already in queue — showing existing results below.')
-        setTimeout(() => setSubmitNotice(null), 5000)
+      // Determine what notice to show, if any
+      for (const j of result.jobs) {
+        if ((j.shared_from_other_user ?? 0) > 0) {
+          setSubmitNotice({ kind: 'shared', count: j.shared_from_other_user! })
+          setTimeout(() => setSubmitNotice(null), 6000)
+          break
+        }
+        if (j.reused) {
+          if (j.status === 'done') {
+            setSubmitNotice({ kind: 'reused-done', jobId: j.jobId })
+            // no auto-dismiss — user may want to click the button
+          } else {
+            setSubmitNotice({ kind: 'text', message: 'Already in queue — showing existing results below.' })
+            setTimeout(() => setSubmitNotice(null), 5000)
+          }
+          break
+        }
       }
 
       // Immediately refresh so the new job appears
@@ -1105,47 +1124,115 @@ export function Ingest() {
             )}
           </div>
 
-          {/* Reused-post notice */}
+          {/* Submit result notice */}
           {submitNotice && (
-            <p className="mt-1.5 text-[12px] text-rose-600 dark:text-rose-400">
-              {submitNotice}
-            </p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+              {submitNotice.kind === 'text' && (
+                <p className="text-[12px] text-rose-600 dark:text-rose-400">
+                  {submitNotice.message}
+                </p>
+              )}
+              {submitNotice.kind === 'shared' && (
+                <p className="text-[12px] text-emerald-600 dark:text-emerald-400">
+                  Found shared data from another user — added {submitNotice.count} {submitNotice.count === 1 ? 'place' : 'places'} to your collection.
+                </p>
+              )}
+              {submitNotice.kind === 'reused-done' && (
+                <>
+                  <p className="text-[12px] text-rose-600 dark:text-rose-400">
+                    Already extracted — showing existing results below.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setSubmitNotice(null)
+                      await reextractJob(getTokenRef.current, submitNotice.jobId)
+                      void doFetchJobs()
+                    }}
+                    className="inline-flex min-h-[28px] items-center rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-medium text-rose-700 transition hover:bg-rose-100 dark:border-rose-900/40 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/40"
+                  >
+                    Re-run extraction
+                  </button>
+                </>
+              )}
+            </div>
           )}
         </form>
       </motion.section>
 
-      {/* Jobs list */}
-      <section aria-label="Recent jobs" className="mt-12">
-        <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
-          Recent jobs
-          <span aria-hidden className="mx-2 text-stone-300 dark:text-stone-700">·</span>
-          auto-refresh
-        </p>
+      {/* Jobs list — split into Recent (≤7 days) and Older */}
+      {(() => {
+        const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000
+        const recentJobs = jobs.filter((j) => new Date(j.created_at).getTime() >= cutoff)
+        const olderJobs = jobs.filter((j) => new Date(j.created_at).getTime() < cutoff)
 
-        <div className="mt-4 space-y-4">
-          {jobs.length === 0 ? (
-            <motion.div
-              initial={reduce ? false : { opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.4 }}
-              className="flex min-h-[140px] items-center justify-center rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 dark:border-stone-800 dark:bg-stone-900/30"
-            >
-              <p className="text-center text-sm text-stone-400 dark:text-stone-600">
-                No ingested links yet.
-                <br />
-                Paste one above to begin.
+        const makeJobCard = (job: Job) => (
+          <JobCard key={job.id} job={job} reduce={reduce} etaNow={etaNow} onRetry={async () => {
+            await retryJob(getTokenRef.current, job.id)
+            void doFetchJobs()
+          }} />
+        )
+
+        if (jobs.length === 0) {
+          return (
+            <section aria-label="Jobs" className="mt-12">
+              <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
+                Recent jobs
+                <span aria-hidden className="mx-2 text-stone-300 dark:text-stone-700">·</span>
+                auto-refresh
               </p>
-            </motion.div>
-          ) : (
-            jobs.map((job) => (
-              <JobCard key={job.id} job={job} reduce={reduce} etaNow={etaNow} onRetry={async () => {
-                await retryJob(getTokenRef.current, job.id)
-                void doFetchJobs()
-              }} />
-            ))
-          )}
-        </div>
-      </section>
+              <div className="mt-4">
+                <motion.div
+                  initial={reduce ? false : { opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.4 }}
+                  className="flex min-h-[140px] items-center justify-center rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 dark:border-stone-800 dark:bg-stone-900/30"
+                >
+                  <p className="text-center text-sm text-stone-400 dark:text-stone-600">
+                    No ingested links yet.
+                    <br />
+                    Paste one above to begin.
+                  </p>
+                </motion.div>
+              </div>
+            </section>
+          )
+        }
+
+        return (
+          <>
+            {recentJobs.length > 0 && (
+              <section aria-label="Recent jobs" className="mt-12">
+                <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
+                  Recent
+                  <span aria-hidden className="mx-2 text-stone-300 dark:text-stone-700">·</span>
+                  auto-refresh
+                </p>
+                <div className="mt-4 space-y-4">
+                  {recentJobs.map(makeJobCard)}
+                </div>
+              </section>
+            )}
+
+            {olderJobs.length > 0 && (
+              <section aria-label="Older jobs" className="mt-10">
+                <p
+                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-stone-400 dark:text-stone-600"
+                  style={{ fontFamily: "'Cormorant Garamond', serif" }}
+                >
+                  Older
+                  <span aria-hidden className="mx-1.5 text-stone-300 dark:text-stone-700">·</span>
+                  <span className="text-stone-400 dark:text-stone-600 normal-case tracking-normal">{olderJobs.length} more</span>
+                </p>
+                <div className="mt-4 space-y-4">
+                  {olderJobs.map(makeJobCard)}
+                </div>
+              </section>
+            )}
+
+          </>
+        )
+      })()}
 
     </div>
   )
