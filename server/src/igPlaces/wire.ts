@@ -122,7 +122,13 @@ export function bootIgWorker() {
 }
 
 export function getQueue() {
-  return booted?.queue ?? buildWorld().queue;
+  if (booted) return booted.queue;
+  // Lazy build: only the queue is needed (e.g., the worker is disabled but the
+  // endpoint still has to enqueue). Reuse the booted instance if buildWorld
+  // succeeds so subsequent calls don't rebuild.
+  const built = buildWorld();
+  booted = built;
+  return built.queue;
 }
 
 export type ExtractedPlacesOpts = {
@@ -211,7 +217,8 @@ export async function listJobsForUser(userId: string, limit = 20) {
   if (postIds.length) {
     const url = `${supabaseUrl}/rest/v1/instagram_places?post_id=in.(${postIds.join(',')})` +
       `&select=id,post_id,name,name_romanized,city,category,confidence,confidence_band,` +
-      `is_subject,supporting_quote,address,lat,lng,geocode_source,geocode_disagree`;
+      `is_subject,supporting_quote,address,lat,lng,geocode_source,geocode_disagree,` +
+      `signal_source,vote_count,geocode_kakao_id`;
     const r = await fetch(url, {
       headers: {
         apikey: supabaseServiceKey,

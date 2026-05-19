@@ -42,6 +42,7 @@ async function tryYtDlp(url: string, spawn: NonNullable<FetchPostDeps['spawn']>)
     if (code !== 0) return null;
     if (!proc.stdout) return null;
     const text = await new Response(proc.stdout).text();
+    try { await new Response(proc.stderr).text(); } catch {}
     if (!text.trim()) return null;
     const json = JSON.parse(text) as Record<string, unknown>;
     return normalizeYtDlp(json);
@@ -92,6 +93,7 @@ async function tryApify(url: string, f: typeof fetch, token: string | undefined)
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ directUrls: [url], resultsLimit: 1 }),
+        signal: AbortSignal.timeout(180_000),
       });
     if (r.status === 429) return { error: new RetryableError('apify rate-limited', 300_000) };
     if (!r.ok) return { error: new Error(`apify ${r.status}`) };
