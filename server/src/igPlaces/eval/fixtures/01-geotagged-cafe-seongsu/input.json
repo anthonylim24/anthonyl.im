@@ -1,0 +1,10 @@
+{
+  "shortcode": "ABC123",
+  "caption": "성수동에서 가장 좋아하는 카페! 어니언 Onion. 빵도 맛있고 분위기도 좋아요. #seoulcafe #seongsu",
+  "mediaItems": [
+    { "type": "video", "url": "https://example.invalid/video.mp4", "thumbnail": "https://example.invalid/thumb.jpg" }
+  ],
+  "locationTag": { "name": "Cafe Onion Seongsu", "lat": 37.5447, "lng": 127.0556 },
+  "source": "apify",
+  "raw": {}
+}

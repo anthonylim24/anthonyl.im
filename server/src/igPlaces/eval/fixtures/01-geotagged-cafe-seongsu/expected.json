@@ -1,0 +1,11 @@
+{
+  "places": [
+    {
+      "name": "어니언 성수",
+      "is_subject": true,
+      "category": "cafe",
+      "lat": 37.5447,
+      "lng": 127.0556
+    }
+  ]
+}
