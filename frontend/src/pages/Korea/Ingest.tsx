@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useGetToken } from '@/lib/safeAuth'
+import { clerkEnabled, useGetToken } from '@/lib/safeAuth'
 import { motion, useReducedMotion } from 'motion/react'
 import { CheckCircle2, Circle, Loader2, XCircle } from 'lucide-react'
 import { isInstagramUrl } from './isInstagramUrl'
@@ -869,6 +869,46 @@ function JobCard({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export function Ingest() {
+  // Short-circuit: if this build doesn't have VITE_CLERK_PUBLISHABLE_KEY,
+  // we have NO way to authenticate against the API — every poll will 401.
+  // Render a clear config-issue banner instead of looping forever.
+  if (!clerkEnabled) {
+    return <ClerkNotConfiguredPage />
+  }
+  return <IngestImpl />
+}
+
+function ClerkNotConfiguredPage() {
+  return (
+    <div className="korea mx-auto max-w-2xl px-5 py-16">
+      <h1
+        className="font-serif text-3xl text-stone-900 dark:text-stone-100"
+        style={{ fontFamily: "'Cormorant Garamond', serif" }}
+      >
+        Ingest
+      </h1>
+      <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-5 text-stone-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-stone-200">
+        <p className="font-semibold text-red-800 dark:text-red-300">
+          Frontend build is missing Clerk configuration
+        </p>
+        <p className="mt-2 text-[13px] leading-relaxed">
+          This build was produced without <code className="font-mono text-[12px]">VITE_CLERK_PUBLISHABLE_KEY</code>,
+          so the page can&apos;t sign requests against the API. Every poll would 401.
+        </p>
+        <p className="mt-3 text-[13px] leading-relaxed">
+          <span className="font-semibold">Fix:</span> set
+          {' '}<code className="font-mono text-[12px]">VITE_CLERK_PUBLISHABLE_KEY=pk_live_…</code>{' '}
+          in the build environment (not just the runtime env — Vite bakes
+          variables at build time) and rebuild the frontend
+          (<code className="font-mono text-[12px]">cd frontend &amp;&amp; bun run build</code>).
+          Then restart the server.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function IngestImpl() {
   const getToken = useGetToken()
   const reduce = useReducedMotion()
 

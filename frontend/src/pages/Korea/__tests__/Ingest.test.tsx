@@ -9,6 +9,7 @@ import { MemoryRouter } from 'react-router-dom'
 // directly so it doesn't crash builds without VITE_CLERK_PUBLISHABLE_KEY.
 vi.mock('@/lib/safeAuth', () => ({
   useGetToken: () => vi.fn().mockResolvedValue('test-token'),
+  clerkEnabled: true,
 }))
 
 // Mock motion/react to remove animation side-effects in tests

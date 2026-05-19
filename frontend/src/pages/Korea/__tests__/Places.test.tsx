@@ -7,6 +7,7 @@ import { MemoryRouter } from 'react-router-dom'
 
 vi.mock('@/lib/safeAuth', () => ({
   useGetToken: () => vi.fn().mockResolvedValue('test-token'),
+  clerkEnabled: true,
 }))
 
 vi.mock('motion/react', async () => {

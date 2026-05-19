@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useGetToken } from '@/lib/safeAuth'
+import { clerkEnabled, useGetToken } from '@/lib/safeAuth'
 import { motion, useReducedMotion } from 'motion/react'
 import { ExternalLink, MapPin, Phone, Star, AlertTriangle, ArrowLeft } from 'lucide-react'
 import { fetchExtractedPlaces } from './placesApi'
@@ -294,6 +294,37 @@ function FilterChip({
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function Places() {
+  // Short-circuit if Clerk wasn't baked into this build — no token, no API.
+  if (!clerkEnabled) {
+    return (
+      <div className="korea mx-auto max-w-2xl px-5 py-16">
+        <h1
+          className="font-serif text-3xl text-stone-900 dark:text-stone-100"
+          style={{ fontFamily: "'Cormorant Garamond', serif" }}
+        >
+          Places
+        </h1>
+        <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-5 text-[13px] leading-relaxed text-stone-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-stone-200">
+          <p className="font-semibold text-red-800 dark:text-red-300">
+            Frontend build is missing Clerk configuration
+          </p>
+          <p className="mt-2">
+            This build was produced without <code className="font-mono text-[12px]">VITE_CLERK_PUBLISHABLE_KEY</code>,
+            so the page can&apos;t sign requests against the API.
+          </p>
+          <p className="mt-3">
+            Set <code className="font-mono text-[12px]">VITE_CLERK_PUBLISHABLE_KEY=pk_live_…</code> in
+            the build environment and rebuild the frontend
+            (<code className="font-mono text-[12px]">cd frontend &amp;&amp; bun run build</code>).
+          </p>
+        </div>
+      </div>
+    )
+  }
+  return <PlacesImpl />
+}
+
+function PlacesImpl() {
   const getToken = useGetToken()
   const reduce = useReducedMotion()
 
