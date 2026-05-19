@@ -13,6 +13,9 @@ export interface BundleDeps {
   transcribe: (input: { filePath: string; biasPrompt: string; signal?: AbortSignal }) => Promise<string>;
   ocr: (imagePath: string) => Promise<string>;
   downloadVideo: (url: string, signal?: AbortSignal) => Promise<string>;
+  /** Optional secondary downloader, used when `downloadVideo` (CDN fetch) fails.
+   *  Receives the canonical IG post URL (not the CDN URL) so it can re-resolve. */
+  downloadVideoFallback?: (igUrl: string, signal?: AbortSignal) => Promise<string>;
   downloadImage: (url: string, signal?: AbortSignal) => Promise<string>;
   extractFrames: (videoPath: string, count?: number, signal?: AbortSignal) => Promise<string[]>;
   biasPrompt?: string;
@@ -82,9 +85,30 @@ export function createBundleBuilder(deps: BundleDeps): BundleBuilder {
           trackTmpDir(localPath);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          await log('warn', `video download failed: ${msg} — bundle will have no transcript/frames`);
-          return { caption: post.caption, transcript, ocr,
-                   locationTagName: post.locationTag?.name, hashtags, mentions };
+          // Primary CDN download failed. If a yt-dlp fallback is wired and the
+          // post carries its canonical IG URL, give yt-dlp a shot — it handles
+          // CDN cookies / signing that raw fetch doesn't.
+          if (deps.downloadVideoFallback && post.url) {
+            await log('warn', `primary download failed (${msg}); retrying via yt-dlp on ${post.url}`);
+            const fbCtrl = new AbortController();
+            try {
+              localPath = await withTimeout(
+                deps.downloadVideoFallback(post.url, fbCtrl.signal),
+                TIMEOUT_DOWNLOAD_MS, 'yt-dlp download', fbCtrl,
+              );
+              trackTmpDir(localPath);
+              await log('info', `yt-dlp download succeeded`);
+            } catch (err2) {
+              const msg2 = err2 instanceof Error ? err2.message : String(err2);
+              await log('warn', `yt-dlp also failed: ${msg2} — bundle will have no transcript/frames`);
+              return { caption: post.caption, transcript, ocr,
+                       locationTagName: post.locationTag?.name, hashtags, mentions };
+            }
+          } else {
+            await log('warn', `video download failed: ${msg} — bundle will have no transcript/frames`);
+            return { caption: post.caption, transcript, ocr,
+                     locationTagName: post.locationTag?.name, hashtags, mentions };
+          }
         }
         await log('info', `video saved (${Date.now() - t0}ms)`);
 

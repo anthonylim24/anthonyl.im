@@ -45,6 +45,44 @@ async function downloadImage(url: string, signal?: AbortSignal): Promise<string>
   return out;
 }
 
+/**
+ * Fallback video download via yt-dlp using the canonical IG post URL. yt-dlp
+ * handles Instagram CDN signing / cookies that raw `fetch` doesn't, and often
+ * succeeds when the direct CDN URL throttles. Takes the IG post URL (not the
+ * signed CDN URL), since yt-dlp re-resolves the media URL itself.
+ */
+async function downloadVideoYtDlp(igUrl: string, signal?: AbortSignal): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'ig-video-ytdlp-'));
+  const out = join(dir, 'video.%(ext)s');
+  const proc = Bun.spawn(
+    ['yt-dlp',
+      '-f', 'best[ext=mp4]/best',
+      '-o', out,
+      '--no-warnings', '--quiet', '--no-playlist',
+      '--socket-timeout', '15',
+      igUrl,
+    ],
+    { stdout: 'ignore', stderr: 'pipe' },
+  );
+  const onAbort = () => { try { proc.kill(); } catch {} };
+  signal?.addEventListener('abort', onAbort);
+  try {
+    const code = await proc.exited;
+    if (signal?.aborted) throw new Error('yt-dlp aborted');
+    if (code !== 0) {
+      let err = '';
+      try { err = await new Response(proc.stderr as ReadableStream<Uint8Array>).text(); } catch {}
+      throw new Error(`yt-dlp exit ${code}: ${err.slice(0, 200)}`);
+    }
+    const { readdir } = await import('node:fs/promises');
+    const files = (await readdir(dir)).filter(f => f.startsWith('video.'));
+    if (!files.length) throw new Error('yt-dlp produced no output file');
+    return join(dir, files[0]);
+  } finally {
+    signal?.removeEventListener('abort', onAbort);
+  }
+}
+
 export function buildWorld() {
   if (!config.supabaseUrl || !config.supabaseServiceKey || !config.groqApiKey) {
     throw new Error('ig-worker: missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / GROQ_API_KEY');
@@ -59,7 +97,12 @@ export function buildWorld() {
   const ocr = createOcr({ apiKey: config.googleVisionApiKey ?? '' });
   const buildBundle = createBundleBuilder({
     transcribe: (input) => transcribe({ ...input, biasPrompt: BIAS_PROMPT }),
-    ocr, downloadVideo, downloadImage, extractFrames, biasPrompt: BIAS_PROMPT,
+    ocr,
+    downloadVideo,
+    downloadVideoFallback: downloadVideoYtDlp,
+    downloadImage,
+    extractFrames,
+    biasPrompt: BIAS_PROMPT,
   });
   const extract = createExtractor({ groq });
   const geocode = createGeocoder({

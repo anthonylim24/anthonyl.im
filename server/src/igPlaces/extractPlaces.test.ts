@@ -4,7 +4,7 @@ import { createExtractor, levenshteinNormalized, canonicalize, voteMerge } from 
 import type { RawExtractedPlace, ExtractionBundle } from './types';
 
 const placeFactory = (over: Partial<RawExtractedPlace> = {}): RawExtractedPlace => ({
-  name: 'Cafe Onion', name_romanized: 'Cafe Onion', city: 'Seoul',
+  name: 'Cafe Onion', name_romanized: '어니언 성수', city: 'Seoul', address: null,
   category: 'cafe', confidence: 0.9, is_subject: true,
   supporting_quote: 'Cafe Onion in Seongsu', signal_source: 'caption',
   ...over,
@@ -57,6 +57,15 @@ describe('voteMerge', () => {
     ];
     const out = voteMerge(runs, 'Cafe Onion in Seongsu');
     expect(out[0].signal_source).toBe('multiple');
+  });
+  test('merges address — longest non-null wins across votes', () => {
+    const runs = [
+      [placeFactory({ address: null })],
+      [placeFactory({ address: '12 Insadong-gil' })],
+      [placeFactory({ address: '12 Insadong-gil, Jongno-gu, Seoul' })],
+    ];
+    const out = voteMerge(runs, 'Cafe Onion in Seongsu');
+    expect(out[0].address).toBe('12 Insadong-gil, Jongno-gu, Seoul');
   });
 });
 

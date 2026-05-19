@@ -37,6 +37,8 @@ export interface LocationTag {
 
 export interface PostPayload {
   shortcode: string;
+  /** Canonical IG post URL; used as a yt-dlp fallback target when CDN download stalls. */
+  url?: string;
   ownerUsername?: string;
   caption: string;
   mediaItems: MediaItem[];
@@ -58,6 +60,8 @@ export interface RawExtractedPlace {
   name: string;
   name_romanized: string | null;
   city: string | null;
+  /** Explicit street address pulled from caption/transcript/ocr, if mentioned. Null otherwise. */
+  address: string | null;
   category: IgPlaceCategory;
   confidence: number;          // 0..1
   is_subject: boolean;

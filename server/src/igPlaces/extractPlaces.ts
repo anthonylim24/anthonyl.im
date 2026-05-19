@@ -12,15 +12,35 @@ export const SYSTEM_PROMPT = `You extract real-world places from a social-media 
 Rules:
 1. Only include places a human reader would recognize as a specific venue or landmark.
    If the source mentions no specific place, return {"places": []}. Never invent.
-2. For each place, copy a verbatim supporting_quote (≤120 chars) from the source.
-   Korean stays in Hangul, English stays in English. Do not translate or romanize the
-   name field; if the source writes "광장시장", name="광장시장" — put any romanization in name_romanized.
-3. is_subject=true only if the place is the main topic of the post. Passing mentions
+
+2. The "name" field MUST be in English. Translate Korean / Japanese / Chinese names
+   to their established English form when one exists ("광장시장" → "Gwangjang Market",
+   "경복궁" → "Gyeongbokgung Palace", "어니언 성수" → "Cafe Onion Seongsu"). When no
+   canonical English exists, use a faithful romanization. NEVER leave Hangul or kanji
+   in the "name" field.
+
+3. The "name_romanized" field holds the ORIGINAL local-script name as it appears in
+   the source. For name="Gwangjang Market" → name_romanized="광장시장". If the source
+   itself is English (no non-Latin original exists), set name_romanized=null.
+
+4. The "address" field holds an EXPLICIT street address pulled verbatim from the
+   source — e.g. "서울 종로구 인사동길 12", "12 Insadong-gil, Jongno-gu, Seoul",
+   "강남구 테헤란로 152". If only a neighborhood, district, or city is given
+   (no street/building number), set address=null. Do NOT invent or guess addresses.
+
+5. For each place, copy a verbatim supporting_quote (≤120 chars) from the source.
+   Korean stays in Hangul, English stays in English. Do not translate the quote.
+
+6. is_subject=true only if the place is the main topic of the post. Passing mentions
    ("near 강남", "on the way to Busan") are is_subject=false.
-4. confidence ∈ [0,1] reflects how sure you are this is a real, resolvable venue.
-5. category is one of: restaurant, cafe, bar, shopping, activity, hotel, landmark, other.
-6. signal_source is which input the supporting_quote came from:
+
+7. confidence ∈ [0,1] reflects how sure you are this is a real, resolvable venue.
+
+8. category is one of: restaurant, cafe, bar, shopping, activity, hotel, landmark, other.
+
+9. signal_source is which input the supporting_quote came from:
    caption | transcript | ocr | location_tag.
+
 Output JSON only, matching the provided schema.`;
 
 const SCHEMA = {
@@ -33,12 +53,13 @@ const SCHEMA = {
         type: 'array',
         items: {
           type: 'object', additionalProperties: false,
-          required: ['name','name_romanized','city','category','confidence',
+          required: ['name','name_romanized','city','address','category','confidence',
                      'is_subject','supporting_quote','signal_source'],
           properties: {
             name:             { type: 'string' },
             name_romanized:   { type: ['string','null'] },
             city:             { type: ['string','null'] },
+            address:          { type: ['string','null'] },
             category:         { enum: ['restaurant','cafe','bar','shopping',
                                        'activity','hotel','landmark','other'] },
             confidence:       { type: 'number', minimum: 0, maximum: 1 },
@@ -156,8 +177,15 @@ export function voteMerge(runs: RawExtractedPlace[][], source: string): VotedPla
       c.supporting_quote.length - a.supporting_quote.length)[0];
     const signal_source: IgSignalSource = b.signals.size > 1 ? 'multiple' : longest.signal_source;
 
+    // Address: prefer the longest non-null address across runs (most detail wins).
+    const bestAddress = b.reps
+      .map(r => r.address ?? null)
+      .filter((a): a is string => Boolean(a))
+      .sort((a, c) => c.length - a.length)[0] ?? null;
+
     out.push({
       ...longest,
+      address: bestAddress,
       signal_source,
       vote_count: voteCount,
       confidence_band: band,
