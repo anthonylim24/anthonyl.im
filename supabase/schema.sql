@@ -372,13 +372,24 @@ create or replace function public.ig_reextract_job(p_id bigint, p_user_id text)
 returns boolean language plpgsql security definer as $$
 declare matched int;
 begin
+  -- 1. Clear out the user's previously-extracted places for this post.
   delete from public.instagram_places
    where user_id = p_user_id
      and post_id in (select post_id from public.instagram_jobs where id = p_id);
 
+  -- 2. Wipe the per-job log history so the popovers / log viewer reflect ONLY
+  --    the new run. Without this, stale "yt-dlp not installed" / "Google 403"
+  --    lines from earlier attempts pollute the live view and make debugging
+  --    a fresh attempt confusing.
+  delete from public.instagram_job_logs
+   where job_id = p_id;
+
+  -- 3. Reset job state. step_started_at is cleared so the UI ETA recomputes
+  --    cleanly from the next setStep() call (which sets it to now()).
   update public.instagram_jobs
      set status='pending'::ig_job_status,
          step='queued'::ig_job_step,
+         step_started_at=null,
          attempts=0,
          last_error=null,
          locked_at=null, locked_by=null,

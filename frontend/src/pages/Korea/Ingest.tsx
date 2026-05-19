@@ -94,7 +94,15 @@ function formatLogTime(iso: string): string {
 
 function computeEta(job: Job, now: number): { label: string; tone: 'live' | 'done' | 'slow' } | null {
   if (job.status === 'done' || job.step === 'done') {
-    const ms = new Date(job.updated_at).getTime() - new Date(job.created_at).getTime()
+    // Use the first log entry's timestamp as the run start — `created_at`
+    // would be stale after a re-extract (the job row was created on the
+    // original submission, but the actual processing happened later when
+    // the user clicked "Re-run extraction"). Reextract wipes logs, so the
+    // earliest log entry is fresh.
+    const start = job.logs.length > 0
+      ? new Date(job.logs[0].created_at).getTime()
+      : new Date(job.created_at).getTime()
+    const ms = new Date(job.updated_at).getTime() - start
     return { label: `completed in ${Math.max(1, Math.round(ms / 1000))}s`, tone: 'done' }
   }
   if (job.status !== 'running' && job.status !== 'pending') return null
