@@ -51,13 +51,10 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
   const [testMode, setTestMode] = useState(false)
   const [mockHotel, setMockHotel] = useState(false)
   const [debugOpen, setDebugOpen] = useState(false)
-  // "Detailed 3D" debug toggle — streams Google Photorealistic 3D
-  // Tiles for Seoul/Busan via 3DTilesRendererJS in place of the
-  // orbital bubble scene. Behind the existing Debug dropdown because
-  // (1) it requires VITE_GOOGLE_MAP_TILES_API_KEY, (2) it eats more
-  // bandwidth (~25-60 MB initial), and (3) the orbital view remains
-  // the canonical Map Mode.
-  const [detailed3D, setDetailed3D] = useState(false)
+  // Detailed 3D = the default Map Mode now. The orbital bubble view
+  // remains accessible via the Debug menu (uncheck to switch back),
+  // but the photorealistic Google 3D city is what the user sees first.
+  const [detailed3D, setDetailed3D] = useState(true)
   const [location, setLocation] = useState<UserLocation | null>(null)
   const [locating, setLocating] = useState(false)
   const debugRef = useRef<HTMLDivElement>(null)
@@ -497,6 +494,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
                         onWebglError={() => setWebglFailed(true)}
                         userLat={location?.lat}
                         userLng={location?.lng}
+                        yawRef={yawRef}
                       />
                     </Suspense>
                   ) : (
@@ -513,24 +511,23 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
                     />
                   )}
                 </div>
-                {/* Reset + compass are orbital-mode-specific (they
-                    use yawRef + the camera reset event). The 3D
-                    detailed scene owns its own controls. */}
-                {!detailed3D && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={resetView}
-                      title="Reset camera view"
-                      aria-label="Reset camera view"
-                      className="absolute right-3 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-stone-700 shadow-md backdrop-blur transition hover:bg-stone-50 hover:text-rose-700 dark:bg-stone-900/85 dark:text-stone-300 dark:hover:bg-stone-900 dark:hover:text-rose-200"
-                      style={{ top: "calc(env(safe-area-inset-top, 0px) + 64px)" }}
-                    >
-                      <Crosshair className="h-4 w-4" />
-                    </button>
-                    <MapModeCompass yawRef={yawRef} onOrientNorth={orientNorth} />
-                  </>
-                )}
+                {/* Reset + compass live above both scenes. Both
+                    scenes write to `yawRef` so the compass dial
+                    points correctly regardless of which mode is
+                    active, and the `korea-map-reset` /
+                    `korea-map-orient-north` window events are
+                    handled by whichever scene is mounted. */}
+                <button
+                  type="button"
+                  onClick={resetView}
+                  title="Reset camera view"
+                  aria-label="Reset camera view"
+                  className="absolute right-3 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-stone-700 shadow-md backdrop-blur transition hover:bg-stone-50 hover:text-rose-700 dark:bg-stone-900/85 dark:text-stone-300 dark:hover:bg-stone-900 dark:hover:text-rose-200"
+                  style={{ top: "calc(env(safe-area-inset-top, 0px) + 64px)" }}
+                >
+                  <Crosshair className="h-4 w-4" />
+                </button>
+                <MapModeCompass yawRef={yawRef} onOrientNorth={orientNorth} />
               </>
             )}
             {/* Filter bar — hidden while a place is selected so the
