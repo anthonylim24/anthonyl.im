@@ -15,10 +15,10 @@ import type { PlacePriority, PlacesResponse, RankedPlace, UserLocation } from ".
 
 const ALL_PRIORITIES: ReadonlyArray<PlacePriority> = ["scheduled", "core", "supplemental"]
 
-// Park Hyatt Seoul — the trip's base hotel. Used as both the geolocation
-// fallback AND as the "mock my location" debug target so we can verify
-// the Map Mode behaves correctly from the hotel without actually being
-// there.
+// Last-resort fallback when we don't yet know the day's hotel (e.g.
+// while the day-places fetch is in flight). Park Hyatt Seoul is the
+// trip's main hotel; the day-specific hotel from the server response
+// overrides this as soon as it arrives.
 const HOTEL_LOCATION: UserLocation = {
   lat: 37.5093,
   lng: 127.0578,
@@ -72,6 +72,22 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
   const showOrbs = viewMode === "orb" && !webglFailed
   const showList = viewMode === "list" || webglFailed
 
+  // The day's hotel from the server response — Grand InterContinental
+  // Seoul Parnas on days 1-2, Park Hyatt Seoul on 3-8, Signiel Busan
+  // on 9+. Falls back to the Park Hyatt constant while the fetch is
+  // pending so the first frame has SOMETHING to render against.
+  const dayHotelLocation: UserLocation = useMemo(() => {
+    if (state.status === "success" && state.data.meta.center) {
+      return {
+        lat: state.data.meta.center.lat,
+        lng: state.data.meta.center.lng,
+        source: "hotel",
+        label: state.data.meta.center.label,
+      }
+    }
+    return HOTEL_LOCATION
+  }, [state])
+
   function dispatchSceneEvent(name: string) {
     // Window-level event channel — the scene listens on window so the
     // dispatch path doesn't depend on the DOM structure of MapModeScene.
@@ -90,12 +106,12 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
   // Fairmont SF synthetic dataset.
   function requestLocation() {
     if (mockHotel) {
-      setLocation(HOTEL_LOCATION)
+      setLocation(dayHotelLocation)
       setLocating(false)
       return
     }
     if (!("geolocation" in navigator)) {
-      setLocation(testMode ? SF_TEST_LOCATION : HOTEL_LOCATION)
+      setLocation(testMode ? SF_TEST_LOCATION : dayHotelLocation)
       return
     }
     setLocating(true)
@@ -110,7 +126,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
         setLocating(false)
       },
       () => {
-        setLocation(testMode ? SF_TEST_LOCATION : HOTEL_LOCATION)
+        setLocation(testMode ? SF_TEST_LOCATION : dayHotelLocation)
         setLocating(false)
       },
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 300_000 },
@@ -127,7 +143,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
   // when we're NOT on a real geolocation source.
   useEffect(() => {
     if (mockHotel) {
-      setLocation(HOTEL_LOCATION)
+      setLocation(dayHotelLocation)
       return
     }
     // Mock just turned off → re-fetch the real geolocation.
@@ -135,15 +151,25 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
       requestLocation()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mockHotel])
+  }, [mockHotel, dayHotelLocation])
 
   useEffect(() => {
     if (!location || mockHotel) return
     if (location.source !== "geolocation") {
-      setLocation(testMode ? SF_TEST_LOCATION : HOTEL_LOCATION)
+      setLocation(testMode ? SF_TEST_LOCATION : dayHotelLocation)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [testMode])
+  }, [testMode, dayHotelLocation])
+
+  // When the day's hotel coords arrive from the server (or the day
+  // changes via SPA navigation), update any "hotel-source" location
+  // to the new day's hotel. Real geolocation + test-anchor stay put.
+  useEffect(() => {
+    if (location?.source === "hotel" && (location.lat !== dayHotelLocation.lat || location.lng !== dayHotelLocation.lng)) {
+      setLocation(dayHotelLocation)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dayHotelLocation])
 
   // Lock body scroll while the overlay is open
   useEffect(() => {
