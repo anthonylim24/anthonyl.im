@@ -46,12 +46,49 @@ async function downloadImage(url: string, signal?: AbortSignal): Promise<string>
 }
 
 /**
+ * Cached `which yt-dlp` result. Probed once at boot. If the binary isn't on
+ * PATH (operator hasn't installed it on the VPS), every job would otherwise
+ * waste a Bun.spawn attempt before falling back to direct fetch — and that
+ * exception log noise made the real error invisible.
+ */
+let ytDlpAvailable: boolean | null = null;
+
+async function probeYtDlpOnce(): Promise<boolean> {
+  if (ytDlpAvailable !== null) return ytDlpAvailable;
+  try {
+    const proc = Bun.spawn(['yt-dlp', '--version'], {
+      stdout: 'pipe', stderr: 'ignore',
+    });
+    const exit = await proc.exited;
+    ytDlpAvailable = exit === 0;
+  } catch {
+    ytDlpAvailable = false;
+  }
+  if (!ytDlpAvailable) {
+    console.warn(
+      '[ig:bundle] yt-dlp NOT in $PATH. Video downloads will use direct CDN ' +
+      'fetch only (slower, often hits the 60s timeout on cloud IPs). Install ' +
+      'with: `apt install yt-dlp` or `pip install yt-dlp`.'
+    );
+  } else {
+    console.log('[ig:bundle] yt-dlp available');
+  }
+  return ytDlpAvailable;
+}
+
+/**
  * Fallback video download via yt-dlp using the canonical IG post URL. yt-dlp
  * handles Instagram CDN signing / cookies that raw `fetch` doesn't, and often
  * succeeds when the direct CDN URL throttles. Takes the IG post URL (not the
  * signed CDN URL), since yt-dlp re-resolves the media URL itself.
+ *
+ * Throws an `ENOYTDLP` Error if yt-dlp isn't installed — callers can skip the
+ * download attempt entirely on subsequent jobs.
  */
 async function downloadVideoYtDlp(igUrl: string, signal?: AbortSignal): Promise<string> {
+  if (!(await probeYtDlpOnce())) {
+    throw new Error('ENOYTDLP: yt-dlp not installed on server');
+  }
   const dir = await mkdtemp(join(tmpdir(), 'ig-video-ytdlp-'));
   const out = join(dir, 'video.%(ext)s');
   const proc = Bun.spawn(
@@ -141,6 +178,9 @@ export function bootIgWorker() {
   if (booted) return booted;
   try {
     booted = buildWorld();
+    // Probe yt-dlp once at boot so the operator sees the warning during
+    // start-up rather than after submitting the first job. Fire-and-forget.
+    void probeYtDlpOnce();
     pollInterval = setInterval(() => { void booted!.loop.tick(); }, config.igWorkerPollMs);
     console.log(`[ig-worker] started concurrency=${config.igWorkerConcurrency} poll=${config.igWorkerPollMs}ms`);
 
