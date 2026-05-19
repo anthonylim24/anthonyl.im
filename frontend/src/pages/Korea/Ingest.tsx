@@ -12,12 +12,59 @@ const PIPELINE_STEPS: JobStep[] = ['fetching', 'bundling', 'extracting', 'geocod
 
 type UiStep = 'fetching' | 'bundling' | 'extracting' | 'geocoding' | 'saving'
 
-const STEP_DESCRIPTIONS: Record<UiStep, string> = {
-  fetching:   'Pulls the post from Instagram via yt-dlp (local) or Apify (cloud fallback). Captures caption, media, and location tag.',
-  bundling:   'Transcribes audio with Whisper (Korean + auto-detect dual-pass) and OCRs frames + carousel images with Google Vision.',
-  extracting: "Runs gpt-oss-120b 3× in parallel with self-consistency voting. Drops hallucinations whose quote isn't in the source.",
-  geocoding:  'Looks each place up in Google Places + Kakao in parallel. Reconciles disagreements and flags them for review.',
-  saving:     'Writes the post and extracted places into Supabase under your user.',
+interface StepInfo {
+  summary: string
+  stack: string[]
+}
+
+const STEP_DESCRIPTIONS: Record<UiStep, StepInfo> = {
+  fetching: {
+    summary:
+      "Pulls the Instagram post — caption, media URLs, owner, and the post's location tag if any.",
+    stack: [
+      'yt-dlp CLI (Bun.spawn)',
+      'Apify instagram-scraper actor (cloud fallback)',
+      'Hono fetch + JSON normalizer',
+    ],
+  },
+  bundling: {
+    summary:
+      'Builds the multimodal evidence bundle the extractor will read — caption + transcript + on-screen text.',
+    stack: [
+      'ffmpeg (download, frame extraction at 1/5 fps)',
+      'Groq Whisper-large-v3-turbo (dual-pass: ko + auto-detect, merged by avg_logprob)',
+      'Google Cloud Vision DOCUMENT_TEXT_DETECTION (Korean + English OCR)',
+    ],
+  },
+  extracting: {
+    summary:
+      'Identifies the real-world places mentioned, with confidence bands derived from self-consistency voting.',
+    stack: [
+      'Groq openai/gpt-oss-120b (3× parallel, temperature 0.5)',
+      'Strict JSON schema (token-constrained decoding)',
+      'Hallucination filter: drop places whose verbatim quote isn’t in the source',
+      'Vote merge + canonicalize (NFD strip-marks + Levenshtein ≤ 2)',
+    ],
+  },
+  geocoding: {
+    summary:
+      'Resolves each extracted place to a canonical address + lat/lng, cross-checking two providers.',
+    stack: [
+      'Google Places (New) — Text Search → Place Details (Pro tier)',
+      'Kakao Local — /v2/local/search/keyword (Korean side-streets)',
+      'Reconciliation: haversine ≤ 200 m + fuzzy-match name → agree/disagree',
+      'Quality bar: Korea bbox guard + rating-count floor on restaurants/cafes/bars',
+    ],
+  },
+  saving: {
+    summary:
+      'Writes the cached post payload + extracted places into Supabase, scoped to your user.',
+    stack: [
+      'Supabase PostgREST (REST + RPC, service-role)',
+      'instagram_posts (shared cache, dedupe_key)',
+      'instagram_places (per-user, soft-dedupe on google_place_id)',
+    ],
+  },
 }
 
 const STEP_DURATIONS: Record<UiStep, number> = {
@@ -187,14 +234,15 @@ function StepTimeline({ job, reduce }: { job: Job; reduce: boolean | null }) {
       {PIPELINE_STEPS.map((step, i) => {
         const state = stepStates[step]
         const isLast = i === PIPELINE_STEPS.length - 1
-        const description = STEP_DESCRIPTIONS[step as UiStep]
+        const info = STEP_DESCRIPTIONS[step as UiStep]
+        const ariaSummary = `${stepLabels[step]}: ${info.summary} Stack: ${info.stack.join('; ')}.`
 
         return (
           <div key={step} className="flex min-w-0 items-center">
+            <div className="group relative">
             <button
               type="button"
-              title={description}
-              aria-label={`${stepLabels[step]}: ${description}`}
+              aria-label={ariaSummary}
               className="flex flex-col items-center gap-1 cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 rounded"
             >
               {/* Circle indicator */}
@@ -232,6 +280,28 @@ function StepTimeline({ job, reduce }: { job: Job; reduce: boolean | null }) {
                 {stepLabels[step]}
               </span>
             </button>
+
+            {/* Hover/focus popover with summary + tech stack */}
+            <div
+              role="tooltip"
+              className="pointer-events-none absolute left-1/2 top-[calc(100%+8px)] z-20 w-64 -translate-x-1/2 rounded-xl border border-stone-200/80 bg-white p-3 text-left opacity-0 shadow-lg ring-1 ring-stone-900/5 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 dark:border-stone-700/80 dark:bg-stone-900 dark:ring-stone-100/5"
+            >
+              <p className="text-[12px] leading-relaxed text-stone-700 dark:text-stone-200">
+                {info.summary}
+              </p>
+              <p className="mt-2 text-[10px] font-medium uppercase tracking-wider text-stone-400 dark:text-stone-500">
+                Stack
+              </p>
+              <ul className="mt-1 space-y-0.5 text-[11px] leading-snug text-stone-600 dark:text-stone-300">
+                {info.stack.map((t) => (
+                  <li key={t} className="flex gap-1.5">
+                    <span aria-hidden className="mt-1 inline-block h-1 w-1 shrink-0 rounded-full bg-amber-500" />
+                    <span>{t}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            </div>
 
             {/* Connector line */}
             {!isLast && (
