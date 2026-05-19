@@ -66,21 +66,49 @@ jobs:
             fi
             ~/.bun/bin/bun install
 
-            # System tools the IG places worker needs at runtime. Idempotent —
-            # apt-get install is a no-op when already at the latest version.
+            # System tools the IG places worker needs at runtime. Each
+            # installer is idempotent + non-fatal — a broken apt sources.list
+            # or a transient mirror outage shouldn't fail the whole deploy.
+            # The worker degrades gracefully (caption-only bundle) when these
+            # are missing, so the website still goes live.
+
             if ! command -v yt-dlp >/dev/null 2>&1; then
               echo "[deploy] yt-dlp missing — installing latest standalone binary"
-              sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
-                -o /usr/local/bin/yt-dlp
-              sudo chmod a+rx /usr/local/bin/yt-dlp
+              sudo curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
+                -o /usr/local/bin/yt-dlp \
+                && sudo chmod a+rx /usr/local/bin/yt-dlp \
+                || echo "[deploy] WARN: yt-dlp install failed; video pipeline will fall back to direct CDN fetch"
             fi
+
             if ! command -v ffmpeg >/dev/null 2>&1; then
-              echo "[deploy] ffmpeg missing — installing via apt"
-              sudo apt-get update -qq
-              sudo apt-get install -y -qq ffmpeg
+              echo "[deploy] ffmpeg missing — trying apt first, static binary as fallback"
+              # apt path. Use `apt-get install` (no update) so we use the
+              # already-cached package lists. If the local cache is empty OR
+              # the install itself fails (e.g., apt sources.list is broken),
+              # fall through to the static-binary path.
+              (sudo apt-get install -y -qq ffmpeg 2>&1 \
+                | grep -v -E '^E: The repository' || true) >/dev/null
+              if ! command -v ffmpeg >/dev/null 2>&1; then
+                echo "[deploy] apt install of ffmpeg failed — fetching static binary"
+                # John Van Sickle hosts canonical Linux x86_64 static builds.
+                TMPF=$(mktemp -d)
+                if curl -fsSL https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz \
+                     -o "$TMPF/ffmpeg.tar.xz" \
+                   && tar -xf "$TMPF/ffmpeg.tar.xz" -C "$TMPF" \
+                   && FFBIN=$(find "$TMPF" -name ffmpeg -type f | head -1) \
+                   && [ -n "$FFBIN" ]; then
+                  sudo mv "$FFBIN" /usr/local/bin/ffmpeg
+                  sudo chmod a+rx /usr/local/bin/ffmpeg
+                  rm -rf "$TMPF"
+                else
+                  echo "[deploy] WARN: ffmpeg static-binary install also failed; transcription/frame-OCR will be skipped per-job"
+                  rm -rf "$TMPF"
+                fi
+              fi
             fi
-            echo "[deploy] yt-dlp: $(yt-dlp --version 2>/dev/null || echo MISSING)"
-            echo "[deploy] ffmpeg: $(ffmpeg -version 2>/dev/null | head -1 || echo MISSING)"
+
+            echo "[deploy] yt-dlp: $(command -v yt-dlp >/dev/null 2>&1 && yt-dlp --version 2>/dev/null || echo MISSING)"
+            echo "[deploy] ffmpeg: $(command -v ffmpeg >/dev/null 2>&1 && ffmpeg -version 2>/dev/null | head -1 || echo MISSING)"
 
       # Upload the CI-built dist — server never builds, so no OOM risk on 1GB droplet
       # scp-action preserves the full source path, so source "frontend/dist" + target "anthonyl.im"

@@ -96,13 +96,33 @@ curl -fsSL https://bun.sh/install | bash
 
 ### 4. yt-dlp + ffmpeg
 
-Auto-installed by the deploy step (idempotent). If you want to pre-install:
+Auto-installed by the deploy step. Each installer is idempotent + **non-fatal** — if apt sources are broken or a mirror is down, the workflow falls back to a static binary, and if everything fails it logs a WARN but continues so the site still goes live (the worker degrades to caption-only extraction).
+
+If you want to pre-install or repair manually:
 
 ```bash
 sudo apt-get install -y ffmpeg
 sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
 sudo chmod a+rx /usr/local/bin/yt-dlp
 ```
+
+If `apt-get` itself is broken with messages like `The repository 'http://ubuntu.com plucky Release' does not have a Release file`, your `/etc/apt/sources.list` is pointing at a non-existent mirror (the hostname `ubuntu.com` is a website, not an APT mirror). Fix:
+
+```bash
+# Inspect what's there
+cat /etc/apt/sources.list
+
+# Replace ubuntu.com with the canonical archive mirror
+sudo sed -i 's|http://ubuntu.com|http://archive.ubuntu.com/ubuntu|g' /etc/apt/sources.list
+
+# Or use the DigitalOcean mirror (faster):
+sudo sed -i 's|http://ubuntu.com|http://mirrors.digitalocean.com/ubuntu|g' /etc/apt/sources.list
+
+# Then refresh
+sudo apt-get update
+```
+
+For Ubuntu 24.04+ the apt sources may live in `/etc/apt/sources.list.d/ubuntu.sources` instead. Use the equivalent edit there.
 
 ### 5. Reverse proxy / TLS
 
