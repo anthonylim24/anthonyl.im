@@ -152,7 +152,7 @@ const clerkAuth = (config.clerkSecretKey || config.igDevBearer)
 
 if (clerkAuth) {
   const igPlacesRouter = createInstagramPlacesRouter({
-    enqueue: (userId, url) => getQueue().enqueue(userId, url),
+    enqueue: (userId, url, opts) => getQueue().enqueue(userId, url, opts),
     statsHandler: async () => {
       try {
         const counts = await getQueue().stats();

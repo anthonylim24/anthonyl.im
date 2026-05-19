@@ -40,6 +40,7 @@ export function createProcessor(deps: ProcessorDeps) {
       await deps.log(job.id, 'bundling', 'info', 'building extraction bundle').catch(() => {});
       const bundle = await deps.buildBundle(payload, {
         log: (level, message) => deps.log(job.id, 'bundling', level, message).catch(() => {}),
+        skipVideo: job.skipVideo,
       });
       await deps.log(job.id, 'bundling', 'info',
         `caption=${bundle.caption.length} chars` +

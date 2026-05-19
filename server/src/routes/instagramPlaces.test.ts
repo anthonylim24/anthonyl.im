@@ -57,6 +57,23 @@ describe('POST /api/korea/places/from-instagram', () => {
     const body = await res.json();
     expect(body.jobs).toHaveLength(2);
   });
+
+  test('202 with skipVideo:true passes {skipVideo:true} to enqueue', async () => {
+    let capturedOpts: { skipVideo?: boolean } | undefined;
+    const enqueue = mock(async (_userId: string, _url: string, opts?: { skipVideo?: boolean }) => {
+      capturedOpts = opts;
+      return { jobId: 1, dedupeKey: 'd', status: 'pending', reused: false };
+    });
+    const router = createInstagramPlacesRouter({ enqueue, statsHandler: () => ({}) as any, listJobs: noopListJobs, retryJob: noopRetryJob, reextractJob: noopReextractJob, listExtractedPlaces: noopListExtractedPlaces });
+    const app = new Hono().use('*', withAuth('u')).route('/', router);
+    const res = await app.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: 'https://www.instagram.com/p/ABC', skipVideo: true }),
+    });
+    expect(res.status).toBe(202);
+    expect(capturedOpts?.skipVideo).toBe(true);
+  });
 });
 
 describe('GET /_stats', () => {

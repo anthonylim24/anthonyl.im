@@ -11,7 +11,7 @@ export interface EnqueueResult {
 }
 
 export interface Queue {
-  enqueue(userId: string, url: string): Promise<EnqueueResult>;
+  enqueue(userId: string, url: string, opts?: { skipVideo?: boolean }): Promise<EnqueueResult>;
   claim(workerId: string): Promise<IgJob | null>;
   complete(jobId: number, postId: number): Promise<void>;
   fail(jobId: number, error: Error, retryable: boolean): Promise<void>;
@@ -34,6 +34,7 @@ interface JobRow {
   attempts: number; max_attempts: number;
   last_error: string | null; scheduled_for: string;
   locked_at: string | null; locked_by: string | null; post_id: number | null;
+  skip_video: boolean;
 }
 
 function fromRow(r: JobRow): IgJob {
@@ -43,6 +44,7 @@ function fromRow(r: JobRow): IgJob {
     attempts: r.attempts, maxAttempts: r.max_attempts,
     lastError: r.last_error, scheduledFor: r.scheduled_for,
     lockedAt: r.locked_at, lockedBy: r.locked_by, postId: r.post_id,
+    skipVideo: r.skip_video ?? false,
   };
 }
 
@@ -50,10 +52,10 @@ export function createQueue(sb: SupabaseClient, deps: QueueDeps = {}): Queue {
   const normalize = deps.normalize ?? normalizeInstagramUrl;
 
   return {
-    async enqueue(userId, url) {
+    async enqueue(userId, url, opts = {}) {
       const dedupeKey = normalize(url);
       const rows = await sb.rpc<Array<{ id: number; status: IgJob['status']; inserted: boolean }>>(
-        'ig_enqueue_job', { p_user_id: userId, p_url: url, p_dedupe_key: dedupeKey });
+        'ig_enqueue_job', { p_user_id: userId, p_url: url, p_dedupe_key: dedupeKey, p_skip_video: opts.skipVideo ?? false });
       const row = rows[0];
       const reused = !row.inserted;
       const result: EnqueueResult = { jobId: row.id, dedupeKey, status: row.status, reused };

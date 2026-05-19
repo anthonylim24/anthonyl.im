@@ -126,40 +126,36 @@ async function downloadVideoYtDlp(igUrl: string, signal?: AbortSignal): Promise<
 }
 
 /**
- * Tertiary video downloader: re-call Apify with `apify/instagram-reel-scraper`
- * (NOT the default `instagram-scraper` — the reel scraper exposes
- * `includeDownloadedVideo: true` which produces an Apify KV-store URL valid
- * for 3 days, vs. the basic scraper's CDN URL that may already be expired).
- * Used as the absolute-last-resort when yt-dlp AND direct CDN both fail.
+ * Tertiary video downloader: re-calls `apify/instagram-scraper` (the same
+ * actor used for the initial metadata fetch — works for /p/, /reel/, /tv/)
+ * to get a FRESH signed CDN URL, then streams from that URL. This replaces
+ * the old `instagram-reel-scraper` approach which only accepted /reel/ URLs
+ * and would 400 on regular /p/ feed posts.
+ *
+ * Rationale: the initial Apify metadata call gives us a signed CDN URL, but
+ * it may have expired by the time the worker reaches the bundling step
+ * (especially on retries or after a transient failure). Re-calling Apify gets
+ * a brand-new signed URL. Cheaper than `reel-scraper` (one /api/v2 call, no
+ * `includeDownloadedVideo` MB charge) and works for all post types.
  */
-async function downloadVideoApify(igUrl: string, signal?: AbortSignal): Promise<string> {
+async function downloadVideoApifyFresh(igUrl: string, signal?: AbortSignal): Promise<string> {
   if (!config.apifyToken) throw new Error('APIFY_TOKEN missing — cannot use Apify fallback');
   const r = await fetch(
-    `https://api.apify.com/v2/acts/apify~instagram-reel-scraper/run-sync-get-dataset-items?token=${config.apifyToken}`,
+    `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${config.apifyToken}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        directUrls: [igUrl],
-        resultsLimit: 1,
-        includeDownloadedVideo: true,
-      }),
+      body: JSON.stringify({ directUrls: [igUrl], resultsLimit: 1 }),
       signal,
     });
-  if (!r.ok) throw new Error(`apify reel-scraper ${r.status}`);
-  const items = await r.json() as Array<{ downloadedVideo?: string; videoUrl?: string }>;
-  if (!items.length) throw new Error('apify reel-scraper returned empty');
-  const item = items[0];
-  // downloadedVideo is the Apify-hosted URL (3-day TTL). Fall back to
-  // videoUrl if for some reason includeDownloadedVideo didn't kick in.
-  const url = item.downloadedVideo ?? item.videoUrl;
-  if (!url) throw new Error('apify reel-scraper produced no video URL');
+  if (!r.ok) throw new Error(`apify metadata refresh ${r.status}`);
+  const items = await r.json() as Array<{ videoUrl?: string }>;
+  if (!items.length || !items[0].videoUrl) throw new Error('apify refresh: no videoUrl');
 
-  // Stream to disk just like downloadVideo does.
-  const dir = await mkdtemp(join(tmpdir(), 'ig-video-apify-'));
+  const dir = await mkdtemp(join(tmpdir(), 'ig-video-apify-fresh-'));
   const out = join(dir, 'video.mp4');
-  const dl = await fetch(url, { signal, headers: CDN_FETCH_HEADERS });
-  if (!dl.ok || !dl.body) throw new Error(`apify video stream ${dl.status}`);
+  const dl = await fetch(items[0].videoUrl, { signal, headers: CDN_FETCH_HEADERS });
+  if (!dl.ok || !dl.body) throw new Error(`apify-fresh stream ${dl.status}`);
   await Bun.write(out, dl);
   return out;
 }
@@ -181,7 +177,7 @@ export function buildWorld() {
     ocr,
     downloadVideo,
     downloadVideoFallback: downloadVideoYtDlp,
-    downloadVideoApify,
+    downloadVideoApify: downloadVideoApifyFresh,
     downloadImage,
     extractFrames,
     biasPrompt: BIAS_PROMPT,

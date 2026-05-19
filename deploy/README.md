@@ -159,6 +159,37 @@ alter type ig_signal_source add value if not exists 'comment';
 This cannot be wrapped in a transaction alongside data DML, which is why
 it lives outside the regular schema.sql append. Safe to re-apply.
 
+## One-time SQL: skip_video column + updated ig_enqueue_job
+
+Run in the Supabase SQL editor after deploying the matching server code
+(the `ALTER TABLE … IF NOT EXISTS` and `CREATE OR REPLACE FUNCTION` are
+both idempotent — safe to re-apply):
+
+```sql
+-- Add the skip_video flag to instagram_jobs.
+alter table public.instagram_jobs
+  add column if not exists skip_video boolean not null default false;
+
+-- Replace ig_enqueue_job to accept the new p_skip_video parameter.
+create or replace function public.ig_enqueue_job(
+  p_user_id text, p_url text, p_dedupe_key text, p_skip_video boolean default false
+) returns table (id bigint, status ig_job_status, inserted boolean)
+language sql security definer as $$
+  insert into public.instagram_jobs (user_id, url, dedupe_key, skip_video)
+  values (p_user_id, p_url, p_dedupe_key, p_skip_video)
+  on conflict (user_id, dedupe_key) do update set
+    updated_at = now(),
+    skip_video = excluded.skip_video
+  returning instagram_jobs.id, instagram_jobs.status, (xmax = 0) as inserted;
+$$;
+```
+
+Effect: when a user submits a URL with "Skip video download" checked, the
+worker skips the entire download → transcribe → frame extraction → OCR
+pipeline. Job runtime drops from ~90 s to ~10 s. Only caption, location tag,
+and comments are available as extraction signals. Existing jobs with no
+`skip_video` column get `false` via the column default.
+
 ## Rollback
 
 The workflow does a `rm -rf ~/anthonyl.im` + `git clone` — there's no kept-around previous version. To roll back: revert the bad commit on `main`, push, and the workflow re-runs with the prior code. The build-and-deploy takes ~2-3 minutes from `git push`.
