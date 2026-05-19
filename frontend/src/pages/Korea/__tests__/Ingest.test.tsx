@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
@@ -35,6 +36,7 @@ vi.mock('motion/react', async () => {
 const mockSubmitUrl = vi.fn()
 const mockListJobs = vi.fn()
 const mockFetchStats = vi.fn()
+const mockRetryJob = vi.fn()
 
 vi.mock('../ingestApi', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../ingestApi')>()
@@ -43,6 +45,7 @@ vi.mock('../ingestApi', async (importOriginal) => {
     submitUrl: (...args: unknown[]) => mockSubmitUrl(...args),
     listJobs: (...args: unknown[]) => mockListJobs(...args),
     fetchStats: (...args: unknown[]) => mockFetchStats(...args),
+    retryJob: (...args: unknown[]) => mockRetryJob(...args),
   }
 })
 
@@ -101,6 +104,7 @@ describe('Ingest page', () => {
     mockListJobs.mockResolvedValue([])
     mockFetchStats.mockResolvedValue({ enabled: true, pending: 0, running: 0, done: 0 })
     mockSubmitUrl.mockResolvedValue({ jobs: [{ jobId: 1, status: 'pending', reused: false }] })
+    mockRetryJob.mockResolvedValue(undefined)
   })
 
   it('renders the submission form with label and submit button', async () => {
@@ -215,5 +219,28 @@ describe('Ingest page', () => {
     mockListJobs.mockResolvedValue([])
     await renderIngest()
     expect(screen.getByText(/no ingested links yet/i)).toBeTruthy()
+  })
+
+  it('shows Retry button for dead jobs and calls retryJob on click', async () => {
+    const job = makeJob({ id: 42, status: 'dead', last_error: 'boom' })
+    mockListJobs.mockResolvedValue([job])
+
+    await renderIngest()
+
+    // Retry button should be visible for dead job
+    const retryBtn = screen.getByRole('button', { name: /retry/i })
+    expect(retryBtn).toBeTruthy()
+
+    // Click the retry button
+    await act(async () => {
+      await userEvent.click(retryBtn)
+      await new Promise((r) => setTimeout(r, 20))
+    })
+
+    // retryJob should have been called with the job's id
+    await waitFor(() => {
+      expect(mockRetryJob).toHaveBeenCalledOnce()
+    })
+    expect(mockRetryJob.mock.calls[0][1]).toBe(42)
   })
 })

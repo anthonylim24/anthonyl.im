@@ -8,6 +8,7 @@ export interface InstagramPlacesDeps {
   enqueue: Queue['enqueue'];
   statsHandler: () => Promise<unknown> | unknown;
   listJobs: (userId: string, limit?: number) => Promise<unknown>;
+  retryJob: (jobId: number, userId: string) => Promise<boolean>;
 }
 
 const igUrl = z.string().refine(isInstagramUrl, 'not an instagram url');
@@ -43,6 +44,17 @@ export function createInstagramPlacesRouter(deps: InstagramPlacesDeps) {
     const limit = limitParam ? Math.min(100, Math.max(1, Number(limitParam))) : 20;
     const data = await deps.listJobs(userId, limit);
     return c.json(data);
+  });
+
+  r.post('/jobs/:id/retry', async (c) => {
+    const userId = c.get('userId' as never) as string;
+    const id = Number(c.req.param('id'));
+    if (!Number.isInteger(id) || id <= 0) {
+      return c.json({ error: 'invalid job id' }, 400);
+    }
+    const ok = await deps.retryJob(id, userId);
+    if (!ok) return c.json({ error: 'job not found or not in retryable state' }, 404);
+    return c.json({ ok: true });
   });
 
   return r;

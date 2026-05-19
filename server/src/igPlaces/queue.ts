@@ -17,6 +17,7 @@ export interface Queue {
   reapStale(thresholdSec: number): Promise<number>;
   setStep(jobId: number, step: IgJobStep): Promise<void>;
   stats(): Promise<{ pending: number; running: number; failed: number; dead: number; done: number }>;
+  retryJob(jobId: number, userId: string): Promise<boolean>;
 }
 
 export interface QueueDeps {
@@ -87,6 +88,11 @@ export function createQueue(sb: SupabaseClient, deps: QueueDeps = {}): Queue {
       const counts = { pending: 0, running: 0, failed: 0, dead: 0, done: 0 } as Record<string, number>;
       for (const r of rows) counts[r.status] = (counts[r.status] ?? 0) + 1;
       return counts as { pending: number; running: number; failed: number; dead: number; done: number };
+    },
+
+    async retryJob(jobId, userId) {
+      const result = await sb.rpc<boolean>('ig_retry_job', { p_id: jobId, p_user_id: userId });
+      return Boolean(result);
     },
   };
 }

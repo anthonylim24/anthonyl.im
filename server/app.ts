@@ -162,6 +162,7 @@ if (clerkAuth) {
       }
     },
     listJobs: listJobsForUser,
+    retryJob: (jobId, userId) => getQueue().retryJob(jobId, userId),
   });
   app.use('/api/korea/places/from-instagram/*', clerkAuth);
   app.route('/api/korea/places/from-instagram', igPlacesRouter);

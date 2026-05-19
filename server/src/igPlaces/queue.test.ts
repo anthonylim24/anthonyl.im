@@ -93,3 +93,14 @@ describe('queue.stats', () => {
     expect(s.failed).toBe(0);
   });
 });
+
+describe('queue.retryJob', () => {
+  test('passes id + userId to rpc and returns boolean', async () => {
+    const rpc = mock(async () => true);
+    const sb = stubSupabase({ rpc });
+    const q = createQueue(sb, { normalize: (u) => u });
+    const r = await q.retryJob(42, 'u-1');
+    expect(rpc).toHaveBeenCalledWith('ig_retry_job', { p_id: 42, p_user_id: 'u-1' });
+    expect(r).toBe(true);
+  });
+});

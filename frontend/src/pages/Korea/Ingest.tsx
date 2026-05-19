@@ -3,7 +3,7 @@ import { useAuth } from '@clerk/clerk-react'
 import { motion, useReducedMotion } from 'motion/react'
 import { CheckCircle2, Circle, Loader2 } from 'lucide-react'
 import { isInstagramUrl } from './isInstagramUrl'
-import { fetchStats, listJobs, submitUrl } from './ingestApi'
+import { fetchStats, listJobs, retryJob, submitUrl } from './ingestApi'
 import type { Job, JobStep, Stats } from './ingestApi'
 
 // ─── Step pipeline ────────────────────────────────────────────────────────────
@@ -274,8 +274,31 @@ function PlacesList({ places }: { places: Job['places'] }) {
   )
 }
 
-function JobCard({ job, reduce }: { job: Job; reduce: boolean | null }) {
+function JobCard({
+  job,
+  reduce,
+  onRetry,
+}: {
+  job: Job
+  reduce: boolean | null
+  onRetry: () => Promise<void>
+}) {
   const shortUrl = job.url.replace(/^https?:\/\/(www\.)?instagram\.com/, 'instagram.com')
+
+  const [retrying, setRetrying] = useState(false)
+  const [retryError, setRetryError] = useState<string | null>(null)
+
+  const handleRetry = async () => {
+    setRetrying(true)
+    setRetryError(null)
+    try {
+      await onRetry()
+    } catch (err) {
+      setRetryError(err instanceof Error ? err.message : 'retry failed')
+    } finally {
+      setRetrying(false)
+    }
+  }
 
   return (
     <motion.div
@@ -287,12 +310,15 @@ function JobCard({ job, reduce }: { job: Job; reduce: boolean | null }) {
     >
       {/* Header row */}
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-        <p
-          className="min-w-0 break-all font-mono text-[12px] text-stone-600 dark:text-stone-400"
+        <a
+          href={job.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="min-w-0 break-all font-mono text-[12px] text-stone-600 underline-offset-2 hover:text-rose-700 hover:underline dark:text-stone-400 dark:hover:text-rose-400"
           title={job.url}
         >
-          {shortUrl}
-        </p>
+          {shortUrl} ↗
+        </a>
         <StatusPill status={job.status} />
       </div>
 
@@ -315,6 +341,24 @@ function JobCard({ job, reduce }: { job: Job; reduce: boolean | null }) {
         <p className="mt-2 break-words rounded-lg bg-red-50 px-3 py-2 text-[12px] text-red-700 dark:bg-red-950/30 dark:text-red-400">
           {job.last_error}
         </p>
+      )}
+
+      {/* Retry button for dead/failed jobs */}
+      {(job.status === 'dead' || job.status === 'failed') && (
+        <div className="mt-3 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleRetry}
+            disabled={retrying}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-[12px] font-medium text-rose-700 transition hover:bg-rose-100 disabled:opacity-50 dark:border-rose-900/40 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/40"
+            aria-busy={retrying}
+          >
+            {retrying ? 'Retrying…' : 'Retry'}
+          </button>
+          {retryError && (
+            <span className="text-[11px] text-red-700 dark:text-red-400">{retryError}</span>
+          )}
+        </div>
       )}
 
       {/* Places */}
@@ -541,7 +585,10 @@ export function Ingest() {
             </motion.div>
           ) : (
             jobs.map((job) => (
-              <JobCard key={job.id} job={job} reduce={reduce} />
+              <JobCard key={job.id} job={job} reduce={reduce} onRetry={async () => {
+                await retryJob(getTokenRef.current, job.id)
+                void doFetchJobs()
+              }} />
             ))
           )}
         </div>

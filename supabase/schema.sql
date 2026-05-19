@@ -269,3 +269,31 @@ create or replace function public.ig_set_job_step(
   update public.instagram_jobs set step = p_step, updated_at = now()
    where id = p_job_id;
 $$;
+
+-- ============================================================
+-- IG retry: reset a dead/failed job back to pending so the worker
+-- picks it up again. Scoped by user_id so the caller can only
+-- retry their own jobs (defense-in-depth on top of RLS, since the
+-- server uses the service-role key which bypasses RLS).
+-- Returns true if the row was matched + updated, false otherwise.
+-- ============================================================
+
+create or replace function public.ig_retry_job(p_id bigint, p_user_id text)
+returns boolean language plpgsql security definer as $$
+declare matched int;
+begin
+  update public.instagram_jobs
+     set status        = 'pending'::ig_job_status,
+         step          = 'queued'::ig_job_step,
+         attempts      = 0,
+         last_error    = null,
+         locked_at     = null,
+         locked_by     = null,
+         scheduled_for = now(),
+         updated_at    = now()
+   where id = p_id
+     and user_id = p_user_id
+     and status in ('dead'::ig_job_status, 'failed'::ig_job_status);
+  get diagnostics matched = row_count;
+  return matched > 0;
+end $$;

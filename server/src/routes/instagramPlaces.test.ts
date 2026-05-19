@@ -8,10 +8,12 @@ function withAuth(userId: string) {
 
 const noopListJobs = mock(async () => []);
 
+const noopRetryJob = mock(async () => true);
+
 describe('POST /api/korea/places/from-instagram', () => {
   test('400 on non-instagram url', async () => {
     const enqueue = mock(async () => ({ jobId: 1, dedupeKey: 'd', status: 'pending', reused: false }));
-    const router = createInstagramPlacesRouter({ enqueue, statsHandler: () => ({}) as any, listJobs: noopListJobs });
+    const router = createInstagramPlacesRouter({ enqueue, statsHandler: () => ({}) as any, listJobs: noopListJobs, retryJob: noopRetryJob });
     const app = new Hono().use('*', withAuth('u')).route('/', router);
     const res = await app.request('/', {
       method: 'POST',
@@ -23,7 +25,7 @@ describe('POST /api/korea/places/from-instagram', () => {
 
   test('202 single url returns one job', async () => {
     const enqueue = mock(async () => ({ jobId: 7, dedupeKey: 'd', status: 'pending', reused: false }));
-    const router = createInstagramPlacesRouter({ enqueue, statsHandler: () => ({}) as any, listJobs: noopListJobs });
+    const router = createInstagramPlacesRouter({ enqueue, statsHandler: () => ({}) as any, listJobs: noopListJobs, retryJob: noopRetryJob });
     const app = new Hono().use('*', withAuth('u')).route('/', router);
     const res = await app.request('/', {
       method: 'POST',
@@ -39,7 +41,7 @@ describe('POST /api/korea/places/from-instagram', () => {
   test('202 urls[] enqueues each', async () => {
     let counter = 0;
     const enqueue = mock(async () => ({ jobId: ++counter, dedupeKey: `d${counter}`, status: 'pending', reused: false }));
-    const router = createInstagramPlacesRouter({ enqueue, statsHandler: () => ({}) as any, listJobs: noopListJobs });
+    const router = createInstagramPlacesRouter({ enqueue, statsHandler: () => ({}) as any, listJobs: noopListJobs, retryJob: noopRetryJob });
     const app = new Hono().use('*', withAuth('u')).route('/', router);
     const res = await app.request('/', {
       method: 'POST',
@@ -61,6 +63,7 @@ describe('GET /_stats', () => {
       enqueue: mock(async () => ({} as any)),
       statsHandler: mock(async () => ({ pending: 3, running: 1, dead: 0 })),
       listJobs: noopListJobs,
+      retryJob: noopRetryJob,
     });
     const app = new Hono().use('*', withAuth('u')).route('/', router);
     const res = await app.request('/_stats');
@@ -82,6 +85,7 @@ describe('GET /jobs', () => {
       enqueue: mock(async () => ({} as any)),
       statsHandler: () => ({}),
       listJobs,
+      retryJob: noopRetryJob,
     });
     const app = new Hono().use('*', withAuth('user-123')).route('/', router);
     const res = await app.request('/jobs');
@@ -103,6 +107,7 @@ describe('GET /jobs', () => {
       enqueue: mock(async () => ({} as any)),
       statsHandler: () => ({}),
       listJobs,
+      retryJob: noopRetryJob,
     });
     const app = new Hono().use('*', withAuth('user-abc')).route('/', router);
 
@@ -118,5 +123,43 @@ describe('GET /jobs', () => {
     // no limit defaults to 20
     await app.request('/jobs');
     expect(capturedLimit).toBe(20);
+  });
+});
+
+describe('POST /jobs/:id/retry', () => {
+  test('200 ok when retry succeeds', async () => {
+    const retry = mock(async () => true);
+    const router = createInstagramPlacesRouter({
+      enqueue: mock(async () => ({} as any)),
+      statsHandler: mock(async () => ({})),
+      listJobs: mock(async () => []),
+      retryJob: retry,
+    });
+    const app = new Hono().use('*', withAuth('u')).route('/', router);
+    const res = await app.request('/jobs/7/retry', { method: 'POST' });
+    expect(res.status).toBe(200);
+    expect(retry).toHaveBeenCalledWith(7, 'u');
+  });
+  test('404 when retry returns false', async () => {
+    const router = createInstagramPlacesRouter({
+      enqueue: mock(async () => ({} as any)),
+      statsHandler: mock(async () => ({})),
+      listJobs: mock(async () => []),
+      retryJob: mock(async () => false),
+    });
+    const app = new Hono().use('*', withAuth('u')).route('/', router);
+    const res = await app.request('/jobs/7/retry', { method: 'POST' });
+    expect(res.status).toBe(404);
+  });
+  test('400 on non-numeric id', async () => {
+    const router = createInstagramPlacesRouter({
+      enqueue: mock(async () => ({} as any)),
+      statsHandler: mock(async () => ({})),
+      listJobs: mock(async () => []),
+      retryJob: mock(async () => true),
+    });
+    const app = new Hono().use('*', withAuth('u')).route('/', router);
+    const res = await app.request('/jobs/abc/retry', { method: 'POST' });
+    expect(res.status).toBe(400);
   });
 });
