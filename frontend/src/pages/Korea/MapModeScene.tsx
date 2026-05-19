@@ -223,6 +223,10 @@ interface BubbleNode {
   // Per-frame cache. Written once during the renderOrder pass and read
   // back by the label z-index pass to avoid re-computing.
   distToCamera?: number
+  // Per-frame label projection cache — first pass populates it, the
+  // declutter pass after the node loop reads + finalizes styles.
+  // null means "hide".
+  labelProj?: { x: number; y: number; opacity: number; camDist: number } | null
 }
 
 function easeOutCubic(t: number): number {
@@ -1405,6 +1409,38 @@ export function MapModeScene({
       if (n.kind === "cluster" && n.clusterId) clusterOpenness.set(n.clusterId, 0)
     }
 
+    // ── Make labels themselves clickable. Without this, tapping a
+    // label was a no-op (canvas-level pointer event missed the orb
+    // mesh entirely). pointer-events:auto on the label only; the
+    // parent overlay stays pointer-events:none so the map remains
+    // draggable through the gaps between labels.
+    const labelClickHandlers: Array<{ el: HTMLDivElement; fn: (e: MouseEvent) => void }> = []
+    function selectNode(node: BubbleNode) {
+      if (node.kind === "cluster" && node.clusterId) {
+        expandedClusterId = expandedClusterId === node.clusterId ? null : node.clusterId
+        return
+      }
+      onSelectRef.current(node.place)
+    }
+    for (const node of nodes) {
+      node.label.style.pointerEvents = "auto"
+      node.label.style.cursor = "pointer"
+      const fn = (e: MouseEvent) => {
+        e.stopPropagation()
+        // Members of a collapsed cluster shouldn't be tappable.
+        if (
+          node.kind === "member" &&
+          node.parentClusterId &&
+          expandedClusterId !== node.parentClusterId
+        ) {
+          return
+        }
+        selectNode(node)
+      }
+      node.label.addEventListener("click", fn)
+      labelClickHandlers.push({ el: node.label, fn })
+    }
+
     function pickAtPointer(): BubbleNode | null {
       raycaster.setFromCamera(pointer, camera)
       // Hidden cluster members are excluded — when their parent cluster
@@ -2012,18 +2048,69 @@ export function MapModeScene({
         }
         labelOpacity *= focusDim
         const showLabel = visible && node.bornAt > 0 && labelOpacity > 0.02
-        if (showLabel) {
-          node.label.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0) translate(-50%, -50%)`
-          node.label.style.visibility = "visible"
-          node.label.style.opacity = labelOpacity.toFixed(2)
-          // CSS z-index so the closer label paints over farther ones.
-          // Reuse the cached distance computed during the renderOrder pass.
-          const dToCamera = node.distToCamera ?? camera.position.distanceTo(node.outer.position)
-          const labelZ = Math.max(1, Math.round(10000 - dToCamera * 50))
-          node.label.style.zIndex = String(labelZ)
-        } else {
-          node.label.style.visibility = "hidden"
+        // Cache the projection for the declutter pass that runs
+        // after this loop ends.
+        node.labelProj = showLabel
+          ? {
+              x,
+              y,
+              opacity: labelOpacity,
+              camDist: node.distToCamera ?? camera.position.distanceTo(node.outer.position),
+            }
+          : null
+      }
+
+      // ── Label declutter pass. When two labels' bounding boxes
+      // overlap on screen, the lower-priority / further-from-camera
+      // one is faded so the higher-priority one reads clean.
+      // Priority order: selected first → scheduled → core →
+      // supplemental, ties broken by camera distance.
+      const declutterCandidates = nodes
+        .map((n) => ({ n, p: n.labelProj }))
+        .filter((e): e is { n: BubbleNode; p: NonNullable<BubbleNode["labelProj"]> } => !!e.p)
+        .sort((a, b) => {
+          const aSel = selectedIdRef.current && a.n.place.id === selectedIdRef.current ? -1 : 0
+          const bSel = selectedIdRef.current && b.n.place.id === selectedIdRef.current ? -1 : 0
+          if (aSel !== bSel) return aSel - bSel
+          const aRank =
+            a.n.place.priority === "scheduled"
+              ? 0
+              : a.n.place.priority === "core"
+                ? 1
+                : 2
+          const bRank =
+            b.n.place.priority === "scheduled"
+              ? 0
+              : b.n.place.priority === "core"
+                ? 1
+                : 2
+          if (aRank !== bRank) return aRank - bRank
+          return a.p.camDist - b.p.camDist
+        })
+      // Walk in priority order; for each label, dim if it overlaps a
+      // previously-placed (higher-priority) label's bbox.
+      const taken: Array<{ x: number; y: number }> = []
+      const HALF_W = 70
+      const HALF_H = 22
+      for (const { n, p } of declutterCandidates) {
+        let occluded = false
+        for (const t of taken) {
+          if (Math.abs(p.x - t.x) < HALF_W * 1.3 && Math.abs(p.y - t.y) < HALF_H * 1.6) {
+            occluded = true
+            break
+          }
         }
+        const finalOpacity = occluded ? Math.min(p.opacity, 0.18) : p.opacity
+        n.label.style.transform = `translate3d(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px, 0) translate(-50%, -50%)`
+        n.label.style.visibility = "visible"
+        n.label.style.opacity = finalOpacity.toFixed(2)
+        n.label.style.pointerEvents = occluded ? "none" : "auto"
+        n.label.style.zIndex = String(Math.max(1, Math.round(10000 - p.camDist * 50)))
+        if (!occluded) taken.push({ x: p.x, y: p.y })
+      }
+      // Hide labels that the cache marked invisible.
+      for (const node of nodes) {
+        if (!node.labelProj) node.label.style.visibility = "hidden"
       }
 
       // YOU label is anchored to viewport center via static CSS — nothing to
@@ -2146,6 +2233,7 @@ export function MapModeScene({
         const placeholder = node.innerBillboard.userData.placeholderTex as CanvasTexture | undefined
         placeholder?.dispose()
       }
+      for (const h of labelClickHandlers) h.el.removeEventListener("click", h.fn)
       youLabel.remove()
       youCore.geometry.dispose()
       ;(youCore.material as Material).dispose()

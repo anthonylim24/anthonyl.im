@@ -223,6 +223,8 @@ export function Detailed3DScene({
       beam: Mesh
       label: HTMLDivElement
       basePos: { x: number; z: number }
+      priorityRank: number
+      onLabelClick: (e: MouseEvent) => void
     }
     const markers: PlaceMarker[] = []
     for (const p of places) {
@@ -265,13 +267,18 @@ export function Detailed3DScene({
       scene.add(beam)
 
       // HTML label — same data-place-id contract as the orbital
-      // scene so external code can introspect.
+      // scene so external code can introspect. Made clickable so
+      // tapping the label fires the same focus flow as tapping the
+      // orb; pointer-events:auto on the label itself, the
+      // surrounding overlay div remains pointer-events:none so the
+      // map underneath stays draggable.
       const label = document.createElement("div")
       label.dataset.placeId = p.id
       label.style.transform = "translate3d(-9999px,-9999px,0)"
       label.style.visibility = "hidden"
+      label.style.cursor = "pointer"
       label.className =
-        "pointer-events-none absolute left-0 top-0 select-none text-center"
+        "pointer-events-auto absolute left-0 top-0 select-none text-center"
       const distLabel = p.distanceLabel ?? ""
       label.innerHTML = `
         <div class="-translate-y-1 text-xl drop-shadow-[0_2px_8px_rgba(0,0,0,0.55)] leading-none">${p.icon}</div>
@@ -286,9 +293,22 @@ export function Detailed3DScene({
           }
         </div>
       `
+      const onLabelClick = (e: MouseEvent) => {
+        e.stopPropagation()
+        onSelectRef.current(p)
+      }
+      label.addEventListener("click", onLabelClick)
       overlay.appendChild(label)
 
-      markers.push({ place: p, mesh, beam, label, basePos: { x: localX, z: localZ } })
+      markers.push({
+        place: p,
+        mesh,
+        beam,
+        label,
+        basePos: { x: localX, z: localZ },
+        priorityRank: p.priority === "scheduled" ? 0 : p.priority === "core" ? 1 : 2,
+        onLabelClick,
+      })
     }
 
     // YOU label — CSS-anchored to viewport center via translate so
@@ -629,18 +649,73 @@ export function Detailed3DScene({
         }
       }
 
-      // Project marker labels each frame. CSS-anchor the YOU label
-      // to where the origin projects on screen.
+      // Project all marker labels first; then run an overlap-
+      // declutter pass that fades out lower-priority labels whose
+      // screen bounding box overlaps a higher-priority neighbor's.
+      // Scheduled > Core > Supplemental, ties broken by closer-to-
+      // camera; the selected marker always wins.
+      interface ProjectedLabel {
+        m: PlaceMarker
+        x: number
+        y: number
+        visible: boolean
+        camDist: number
+        rank: number
+      }
+      const projected: ProjectedLabel[] = []
+      const cam = camera.position
       for (const m of markers) {
-        const proj = projectToScreen(new Vector3(m.basePos.x, 100, m.basePos.z))
-        const dim = sel && m.place.id !== sel ? 0.15 : 1
-        if (proj.visible && dim > 0.05) {
-          m.label.style.transform = `translate3d(${proj.x.toFixed(1)}px, ${proj.y.toFixed(1)}px, 0) translate(-50%, -50%)`
-          m.label.style.opacity = String(dim)
-          m.label.style.visibility = "visible"
-        } else {
-          m.label.style.visibility = "hidden"
+        const world = new Vector3(m.basePos.x, 100, m.basePos.z)
+        const proj = projectToScreen(world)
+        projected.push({
+          m,
+          x: proj.x,
+          y: proj.y,
+          visible: proj.visible,
+          camDist: cam.distanceTo(new Vector3(m.basePos.x, 0, m.basePos.z)),
+          rank: m.priorityRank,
+        })
+      }
+      // Sort: selected first (rank -1), then by priority, then by
+      // camera distance so closer wins ties.
+      projected.sort((a, b) => {
+        const aSel = sel && a.m.place.id === sel ? -1 : a.rank
+        const bSel = sel && b.m.place.id === sel ? -1 : b.rank
+        if (aSel !== bSel) return aSel - bSel
+        return a.camDist - b.camDist
+      })
+      // Walk through; for each label that's visible, mark its
+      // bounding box; later labels that intersect get faded.
+      const HALF_W = 60 // approximate label half-width in px
+      const HALF_H = 20 // approximate label half-height in px
+      const taken: Array<{ x: number; y: number }> = []
+      for (const p of projected) {
+        const dim = sel && p.m.place.id !== sel ? 0.15 : 1
+        if (!p.visible || dim < 0.05) {
+          p.m.label.style.visibility = "hidden"
+          continue
         }
+        // Check overlap with previously-placed (higher-priority)
+        // labels. We use point-in-rectangle on the label center
+        // against each taken bbox — quick + good enough for
+        // bubble-label avoidance.
+        let occluded = false
+        for (const t of taken) {
+          if (
+            Math.abs(p.x - t.x) < HALF_W * 1.4 &&
+            Math.abs(p.y - t.y) < HALF_H * 1.6
+          ) {
+            occluded = true
+            break
+          }
+        }
+        const visualDim = occluded ? dim * 0.25 : dim
+        p.m.label.style.transform = `translate3d(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px, 0) translate(-50%, -50%)`
+        p.m.label.style.opacity = String(visualDim)
+        p.m.label.style.visibility = "visible"
+        // Closer / higher-priority labels paint on top.
+        p.m.label.style.zIndex = String(Math.max(1, Math.round(10000 - p.camDist)))
+        if (!occluded) taken.push({ x: p.x, y: p.y })
       }
       const youProj = projectToScreen(new Vector3(0, 4, 0))
       if (youProj.visible) {
@@ -704,6 +779,7 @@ export function Detailed3DScene({
         ;(m.mesh.material as MeshStandardMaterial).dispose()
         m.beam.geometry.dispose()
         ;(m.beam.material as MeshBasicMaterial).dispose()
+        m.label.removeEventListener("click", m.onLabelClick)
         m.label.remove()
       }
       youLabel.remove()
