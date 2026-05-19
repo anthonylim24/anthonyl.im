@@ -198,12 +198,26 @@ places.get("/day/:slug/places", (c) => {
   if (!day) return c.json({ error: "Day not found" }, 404)
 
   const ranked = rankDayPlaces(slug)
+  // Look up the day's hotel coordinates so the client can anchor
+  // Map Mode at the correct base camp for the day (Grand
+  // InterContinental Parnas days 1-2, Park Hyatt Seoul 3-8, Signiel
+  // Busan 9+). Without this the scene always centers on the
+  // hardcoded mock-hotel — wrong for any day where the hotel isn't
+  // Park Hyatt Seoul.
+  const hotelPlace = koreaPlaces.find(
+    (p) => p.category === "hotel" && matchesAlias(p, day.hotel),
+  )
+  const center = hotelPlace
+    ? { lat: hotelPlace.lat, lng: hotelPlace.lng, label: hotelPlace.name }
+    : undefined
+
   return c.json({
     meta: {
       slug,
       testMode: false,
       city: day.city,
       day: { n: day.n, title: day.title, hotel: day.hotel },
+      center,
     },
     places: enrichWithDistance(ranked, userLat, userLng).slice(0, 25),
   })
