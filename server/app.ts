@@ -149,7 +149,14 @@ const clerkAuth = config.clerkSecretKey
 if (clerkAuth) {
   const igPlacesRouter = createInstagramPlacesRouter({
     enqueue: (userId, url) => getQueue().enqueue(userId, url),
-    statsHandler: async () => ({ enabled: config.igWorkerEnabled }),
+    statsHandler: async () => {
+      try {
+        const counts = await getQueue().stats();
+        return { enabled: config.igWorkerEnabled, ...counts };
+      } catch (err) {
+        return { enabled: config.igWorkerEnabled, error: 'stats unavailable' };
+      }
+    },
   });
   app.use('/api/korea/places/from-instagram/*', clerkAuth);
   app.route('/api/korea/places/from-instagram', igPlacesRouter);

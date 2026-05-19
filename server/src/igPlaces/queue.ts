@@ -15,6 +15,7 @@ export interface Queue {
   complete(jobId: number, postId: number): Promise<void>;
   fail(jobId: number, error: Error, retryable: boolean): Promise<void>;
   reapStale(thresholdSec: number): Promise<number>;
+  stats(): Promise<{ pending: number; running: number; failed: number; dead: number; done: number }>;
 }
 
 export interface QueueDeps {
@@ -72,6 +73,15 @@ export function createQueue(sb: SupabaseClient, deps: QueueDeps = {}): Queue {
     async reapStale(thresholdSec) {
       const n = await sb.rpc<number>('ig_reap_stale', { p_threshold_sec: thresholdSec });
       return typeof n === 'number' ? n : 0;
+    },
+
+    async stats() {
+      const rows = await sb.select<{ status: string; count: string }>(
+        'instagram_jobs', { select: 'status' });
+      // PostgREST: we count by status in app code since aggregation API is more verbose
+      const counts = { pending: 0, running: 0, failed: 0, dead: 0, done: 0 } as Record<string, number>;
+      for (const r of rows) counts[r.status] = (counts[r.status] ?? 0) + 1;
+      return counts as { pending: number; running: number; failed: number; dead: number; done: number };
     },
   };
 }

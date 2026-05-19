@@ -56,4 +56,20 @@ describe('process', () => {
     await proc({ id: 1, userId: 'u', url: 'x', dedupeKey: 'd' } as any);
     expect(fail).toHaveBeenCalledWith(1, expect.any(Error), true);
   });
+
+  test('NonRetryableError → fail called with retryable=false', async () => {
+    const fail = mock(async () => undefined);
+    const proc = createProcessor({
+      fetchPost: mock(async () => { throw new (await import('./types')).NonRetryableError('bad url'); }),
+      upsertPost: mock(async () => 0),
+      buildBundle: mock(async () => ({} as any)),
+      extract: mock(async () => []),
+      geocode: mock(async () => ({} as any)),
+      savePlaces: mock(async () => undefined),
+      complete: mock(async () => undefined),
+      fail,
+    });
+    await proc({ id: 1, userId: 'u', url: 'x', dedupeKey: 'd' } as any);
+    expect(fail).toHaveBeenCalledWith(1, expect.any(Error), false);
+  });
 });

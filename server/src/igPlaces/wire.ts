@@ -25,6 +25,15 @@ async function downloadVideo(url: string): Promise<string> {
   return out;
 }
 
+async function downloadImage(url: string): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'ig-image-'));
+  const out = join(dir, 'image.jpg');
+  const r = await fetch(url);
+  if (!r.ok || !r.body) throw new Error(`image download ${r.status}`);
+  await Bun.write(out, r);
+  return out;
+}
+
 export function buildWorld() {
   if (!config.supabaseUrl || !config.supabaseServiceKey || !config.groqApiKey) {
     throw new Error('ig-worker: missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / GROQ_API_KEY');
@@ -39,7 +48,7 @@ export function buildWorld() {
   const ocr = createOcr({ apiKey: config.googleVisionApiKey ?? '' });
   const buildBundle = createBundleBuilder({
     transcribe: (input) => transcribe({ ...input, biasPrompt: BIAS_PROMPT }),
-    ocr, downloadVideo, extractFrames, biasPrompt: BIAS_PROMPT,
+    ocr, downloadVideo, downloadImage, extractFrames, biasPrompt: BIAS_PROMPT,
   });
   const extract = createExtractor({ groq });
   const geocode = createGeocoder({

@@ -64,3 +64,21 @@ describe('queue.fail', () => {
       { p_job_id: 42, p_error: 'bad', p_retryable: false });
   });
 });
+
+describe('queue.stats', () => {
+  test('aggregates row counts by status', async () => {
+    const sb = stubSupabase({
+      select: mock(async () => [
+        { status: 'pending' }, { status: 'pending' }, { status: 'running' },
+        { status: 'done' }, { status: 'dead' },
+      ]),
+    });
+    const q = createQueue(sb, { normalize: (u) => u });
+    const s = await q.stats();
+    expect(s.pending).toBe(2);
+    expect(s.running).toBe(1);
+    expect(s.done).toBe(1);
+    expect(s.dead).toBe(1);
+    expect(s.failed).toBe(0);
+  });
+});

@@ -4,6 +4,7 @@ export interface BundleDeps {
   transcribe: (input: { filePath: string; biasPrompt: string }) => Promise<string>;
   ocr: (imagePath: string) => Promise<string>;
   downloadVideo: (url: string) => Promise<string>;        // returns local path
+  downloadImage: (url: string) => Promise<string>;        // returns local path
   extractFrames: (videoPath: string, count?: number) => Promise<string[]>;
   biasPrompt?: string;
 }
@@ -38,8 +39,11 @@ export function createBundleBuilder(deps: BundleDeps): BundleBuilder {
         if (joined) ocr = joined;
       }
     } else if (images.length) {
-      const texts = await Promise.all(images.map((img, i) =>
-        deps.ocr(img.url).then(t => t ? `[image ${i+1}] ${t}` : '').catch(() => '')));
+      const texts = await Promise.all(images.map(async (img, i) => {
+        const localPath = await deps.downloadImage(img.url).catch(() => null);
+        if (!localPath) return '';
+        return deps.ocr(localPath).then(t => t ? `[image ${i+1}] ${t}` : '').catch(() => '');
+      }));
       const joined = texts.filter(Boolean).join('\n');
       if (joined) ocr = joined;
     }

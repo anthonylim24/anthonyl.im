@@ -27,6 +27,15 @@ async function downloadVideo(url: string): Promise<string> {
   return out;
 }
 
+async function downloadImage(url: string): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), 'ig-cli-img-'));
+  const out = join(dir, 'image.jpg');
+  const r = await fetch(url);
+  if (!r.ok || !r.body) throw new Error(`image download ${r.status}`);
+  await Bun.write(out, r);
+  return out;
+}
+
 async function main() {
   const url = process.argv[2];
   if (!url) { console.error('usage: bun run cli.ts <instagram-url>'); process.exit(1); }
@@ -39,7 +48,7 @@ async function main() {
   const ocr = createOcr({ apiKey: config.googleVisionApiKey ?? '' });
   const buildBundle = createBundleBuilder({
     transcribe: (i) => transcribe({ ...i, biasPrompt: BIAS_PROMPT }),
-    ocr, downloadVideo, extractFrames, biasPrompt: BIAS_PROMPT,
+    ocr, downloadVideo, downloadImage, extractFrames, biasPrompt: BIAS_PROMPT,
   });
   const extract = createExtractor({ groq });
   const geocode = createGeocoder({
