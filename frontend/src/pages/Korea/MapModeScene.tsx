@@ -386,6 +386,12 @@ export function MapModeScene({
     // animation is in flight; manual drag clears it so the user-set
     // pitch sticks.
     const camPitchTarget = { current: null as number | null }
+    // Optional offset for the camera target so YOU isn't strictly
+    // pinned at the geometric center of the viewport during focus.
+    // Used on portrait phone where we want YOU near the bottom and
+    // the destination near the top to fully utilize the tall screen.
+    // Null means "ease back to (0,0,0)" — the survey default.
+    const camTargetGoal = new Vector3(0, 0, 0)
 
     function applyCamera() {
       const cosP = Math.cos(camPitch.current)
@@ -1292,8 +1298,12 @@ export function MapModeScene({
     // drifts with the camera. The 3D YOU sphere is the "physical" pin in the
     // scene; this is the user-facing label that always reads as "YOU is here".
     const youLabel = document.createElement("div")
-    youLabel.className =
-      "pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 select-none text-center"
+    // No CSS center anchor — we project YOU's world position each
+    // frame inside tick so the label follows the 3D YOU sphere when
+    // cameraTarget shifts off origin during focus-mode framing.
+    youLabel.className = "pointer-events-none absolute left-0 top-0 select-none text-center"
+    youLabel.style.transform = "translate3d(-9999px,-9999px,0)"
+    youLabel.style.visibility = "hidden"
     youLabel.innerHTML = `
       <div class="flex flex-col items-center gap-0.5">
         <div class="text-3xl drop-shadow-[0_2px_10px_rgba(0,0,0,0.55)] leading-none">📍</div>
@@ -1690,6 +1700,13 @@ export function MapModeScene({
         }
       }
 
+      // Camera-target lerp. Lets the focus reframe slide YOU off
+      // viewport-center to make room for the destination — see the
+      // selection-change block for how camTargetGoal is computed.
+      // When camTargetGoal == (0,0,0) this no-ops (already there).
+      cameraTarget.x += (camTargetGoal.x - cameraTarget.x) * 0.12
+      cameraTarget.z += (camTargetGoal.z - cameraTarget.z) * 0.12
+
       // Publish the live yaw to whoever's listening (the React compass).
       if (yawRefProp) yawRefProp.current = camYaw.current
 
@@ -1786,6 +1803,17 @@ export function MapModeScene({
             // doesn't immediately snap if the user wheels.
             camRadiusTarget.current = Math.min(ZOOM_OUT_MAX, Math.max(defaultR, fitR))
 
+            // Adaptive viewport framing — slide the cameraTarget
+            // toward the destination so YOU appears in the LOWER
+            // portion of the viewport and the destination toward
+            // the TOP. Bias is aspect-aware:
+            //   portrait: bias 0.5 → YOU near bottom, dest near top
+            //   landscape: bias 0.2 → YOU near center, dest in upper
+            // We move along the (origin → visualization pin) ray.
+            const aspect = w / h
+            const targetBias = aspect < 1 ? 0.5 : 0.2
+            camTargetGoal.set(pinX * targetBias, 0, pinZ * targetBias)
+
             // Populate label — distance pill + optional address pill +
             // a "Maps ↗" link to Google Maps for the place.
             const distLabel = sel.place.distanceLabel ?? ""
@@ -1829,6 +1857,8 @@ export function MapModeScene({
           selectionLabel.style.visibility = "hidden"
           camPitchTarget.current = DEFAULT_PITCH
           camRadiusTarget.current = cameraTargetRadiusFor(w)
+          // Restore YOU to viewport center (CLAUDE.md default).
+          camTargetGoal.set(0, 0, 0)
           // Snap the satellite back to default coverage (uses the
           // cached original texture — no network).
           ensureTerrainCoversUnits(0)
@@ -2113,8 +2143,17 @@ export function MapModeScene({
         if (!node.labelProj) node.label.style.visibility = "hidden"
       }
 
-      // YOU label is anchored to viewport center via static CSS — nothing to
-      // project per-frame. Camera moves; YOU stays put visually.
+      // Project YOU's world position (0, 0.6, 0) to the screen so the
+      // CSS label follows the 3D YOU sphere even when cameraTarget
+      // is biased toward the destination during focus mode.
+      tmpVec3.set(0, 0.6, 0)
+      const { x: youX, y: youY, visible: youVisible } = projectToScreen(tmpVec3)
+      if (youVisible) {
+        youLabel.style.transform = `translate3d(${youX.toFixed(1)}px, ${youY.toFixed(1)}px, 0) translate(-50%, -50%)`
+        youLabel.style.visibility = "visible"
+      } else {
+        youLabel.style.visibility = "hidden"
+      }
 
       // ── Selection line + midpoint label position. Updated every
       // frame because the camera may still be lerping toward the
