@@ -744,17 +744,21 @@ function JobCard({
   job,
   reduce,
   onRetry,
+  onReextract,
   etaNow,
 }: {
   job: Job
   reduce: boolean | null
   onRetry: () => Promise<void>
+  onReextract: () => Promise<void>
   etaNow: number
 }) {
   const shortUrl = job.url.replace(/^https?:\/\/(www\.)?instagram\.com/, 'instagram.com')
 
   const [retrying, setRetrying] = useState(false)
   const [retryError, setRetryError] = useState<string | null>(null)
+  const [reextracting, setReextracting] = useState(false)
+  const [reextractError, setReextractError] = useState<string | null>(null)
 
   const handleRetry = async () => {
     setRetrying(true)
@@ -765,6 +769,18 @@ function JobCard({
       setRetryError(err instanceof Error ? err.message : 'retry failed')
     } finally {
       setRetrying(false)
+    }
+  }
+
+  const handleReextract = async () => {
+    setReextracting(true)
+    setReextractError(null)
+    try {
+      await onReextract()
+    } catch (err) {
+      setReextractError(err instanceof Error ? err.message : 're-extract failed')
+    } finally {
+      setReextracting(false)
     }
   }
 
@@ -859,6 +875,26 @@ function JobCard({
         </div>
       )}
 
+      {/* Re-extract button for done jobs — works for both fresh runs and
+          places copied from another user (cross-user share). Triggers a
+          full pipeline re-run that wipes the user's per-job places + logs. */}
+      {(job.status === 'done' || job.step === 'done') && (
+        <div className="mt-3 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleReextract}
+            disabled={reextracting}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 text-[12px] font-medium text-stone-700 transition hover:bg-stone-100 disabled:opacity-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:bg-stone-800"
+            aria-busy={reextracting}
+          >
+            {reextracting ? 'Re-extracting…' : 'Re-extract'}
+          </button>
+          {reextractError && (
+            <span className="text-[11px] text-red-700 dark:text-red-400">{reextractError}</span>
+          )}
+        </div>
+      )}
+
       {/* Places — either the extracted list or the "0 found" empty state */}
       {job.places.length > 0 ? (
         <PlacesList places={job.places} />
@@ -924,7 +960,7 @@ function IngestImpl() {
   type SubmitNotice =
     | { kind: 'text'; message: string }
     | { kind: 'reused-done'; jobId: number }
-    | { kind: 'shared'; count: number }
+    | { kind: 'shared'; count: number; jobId: number }
 
   // Form state
   const [url, setUrl] = useState('')
@@ -1023,8 +1059,8 @@ function IngestImpl() {
       // Determine what notice to show, if any
       for (const j of result.jobs) {
         if ((j.shared_from_other_user ?? 0) > 0) {
-          setSubmitNotice({ kind: 'shared', count: j.shared_from_other_user! })
-          setTimeout(() => setSubmitNotice(null), 6000)
+          setSubmitNotice({ kind: 'shared', count: j.shared_from_other_user!, jobId: j.jobId })
+          // no auto-dismiss — the inline "Re-extract" button needs to stay reachable
           break
         }
         if (j.reused) {
@@ -1192,9 +1228,22 @@ function IngestImpl() {
                 </p>
               )}
               {submitNotice.kind === 'shared' && (
-                <p className="text-[12px] text-emerald-600 dark:text-emerald-400">
-                  Found shared data from another user — added {submitNotice.count} {submitNotice.count === 1 ? 'place' : 'places'} to your collection.
-                </p>
+                <>
+                  <p className="text-[12px] text-emerald-600 dark:text-emerald-400">
+                    Found shared data from another user — added {submitNotice.count} {submitNotice.count === 1 ? 'place' : 'places'} to your collection.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setSubmitNotice(null)
+                      await reextractJob(getTokenRef.current, submitNotice.jobId)
+                      void doFetchJobs()
+                    }}
+                    className="inline-flex min-h-[28px] items-center rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:bg-stone-800"
+                  >
+                    Re-extract anyway
+                  </button>
+                </>
               )}
               {submitNotice.kind === 'reused-done' && (
                 <>
@@ -1226,10 +1275,20 @@ function IngestImpl() {
         const olderJobs = jobs.filter((j) => new Date(j.created_at).getTime() < cutoff)
 
         const makeJobCard = (job: Job) => (
-          <JobCard key={job.id} job={job} reduce={reduce} etaNow={etaNow} onRetry={async () => {
-            await retryJob(getTokenRef.current, job.id)
-            void doFetchJobs()
-          }} />
+          <JobCard
+            key={job.id}
+            job={job}
+            reduce={reduce}
+            etaNow={etaNow}
+            onRetry={async () => {
+              await retryJob(getTokenRef.current, job.id)
+              void doFetchJobs()
+            }}
+            onReextract={async () => {
+              await reextractJob(getTokenRef.current, job.id)
+              void doFetchJobs()
+            }}
+          />
         )
 
         if (jobs.length === 0) {
