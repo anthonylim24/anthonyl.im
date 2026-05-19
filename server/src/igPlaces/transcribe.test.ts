@@ -1,5 +1,25 @@
-import { test, expect, describe, mock } from 'bun:test';
+import { test, expect, describe, mock, beforeAll, afterAll } from 'bun:test';
 import { createTranscriber, mergeSegments } from './transcribe';
+import { writeFile, rm, mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+// transcribe.ts calls `createReadStream(filePath)`. Node opens the file lazily,
+// so a non-existent path slips past `await t({...})` but throws ENOENT after
+// the test ends — surfacing as "Unhandled error between tests" and tipping
+// bun's exit code non-zero in CI. We point the test at a real empty file
+// instead so the stream constructor succeeds.
+let tmpDir = '';
+let audioPath = '';
+
+beforeAll(async () => {
+  tmpDir = await mkdtemp(join(tmpdir(), 'igplaces-transcribe-test-'));
+  audioPath = join(tmpDir, 'x.m4a');
+  await writeFile(audioPath, '');
+});
+afterAll(async () => {
+  if (tmpDir) await rm(tmpDir, { recursive: true, force: true });
+});
 
 describe('mergeSegments', () => {
   test('picks higher avg_logprob per overlapping span', () => {
@@ -28,7 +48,7 @@ describe('createTranscriber', () => {
       })}}
     } as any;
     const t = createTranscriber({ groq });
-    const out = await t({ filePath: '/tmp/x.m4a', biasPrompt: 'BIAS' });
+    const out = await t({ filePath: audioPath, biasPrompt: 'BIAS' });
     expect(calls).toBe(2);
     expect(out).toBe('AUTO');
   });
