@@ -95,9 +95,13 @@ export function createBundleBuilder(deps: BundleDeps): BundleBuilder {
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             if (msg.includes('ENOYTDLP')) {
+              const hint = process.platform === 'darwin'
+                ? '`brew install yt-dlp`'
+                : '`apt install yt-dlp`';
               await log('warn',
-                'yt-dlp not installed on server — falling back to direct CDN fetch. ' +
-                'Install with `apt install yt-dlp` for faster, more reliable video downloads.');
+                `yt-dlp not in the server's $PATH — falling back to direct CDN fetch. ` +
+                `If already installed (try ${hint}), make sure the bun process's PATH ` +
+                'includes the install dir AND restart bun (the yt-dlp probe is cached at boot).');
             } else {
               await log('warn', `yt-dlp download failed: ${msg}; trying direct CDN fetch`);
             }
