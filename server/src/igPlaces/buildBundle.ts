@@ -94,7 +94,13 @@ export function createBundleBuilder(deps: BundleDeps): BundleBuilder {
             await log('info', `video saved via yt-dlp (${Date.now() - t0}ms)`);
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            await log('warn', `yt-dlp download failed: ${msg}; trying direct CDN fetch`);
+            if (msg.includes('ENOYTDLP')) {
+              await log('warn',
+                'yt-dlp not installed on server — falling back to direct CDN fetch. ' +
+                'Install with `apt install yt-dlp` for faster, more reliable video downloads.');
+            } else {
+              await log('warn', `yt-dlp download failed: ${msg}; trying direct CDN fetch`);
+            }
           }
         }
 

@@ -44,7 +44,13 @@ export interface GeocoderDeps {
   kakaoLookup:  (q: LookupQuery) => Promise<KakaoResult | null>;
 }
 
-export type Geocoder = (place: VotedPlace, tag: LocationTag | undefined) => Promise<EnrichedPlace>;
+export type GeocodeLog = (level: 'info'|'warn'|'error', message: string) => Promise<void> | void;
+
+export interface GeocodeOpts {
+  log?: GeocodeLog;
+}
+
+export type Geocoder = (place: VotedPlace, tag: LocationTag | undefined, opts?: GeocodeOpts) => Promise<EnrichedPlace>;
 
 export function withinKoreaBbox(lat: number, lng: number): boolean {
   return lat >= 33 && lat <= 39 && lng >= 124 && lng <= 132;
@@ -73,7 +79,8 @@ function googlePassesQualityBar(p: VotedPlace, g: GoogleResult): boolean {
 }
 
 export function createGeocoder(deps: GeocoderDeps): Geocoder {
-  return async function geocode(place, tag) {
+  return async function geocode(place, tag, opts = {}) {
+    const log = opts.log ?? (async () => {});
     // Apify location tag short-circuit: if tag has coordinates and name fuzzy-matches, trust it
     if (tag && tag.lat != null && tag.lng != null && fuzzyEq(place.name, tag.name)) {
       return {
@@ -92,8 +99,10 @@ export function createGeocoder(deps: GeocoderDeps): Geocoder {
         city: place.city,
         address: place.address,
         category: place.category,
-      }).catch(err => {
-        console.warn('[ig:geocode] google failed:', err?.message ?? err);
+      }).catch(async (err) => {
+        const msg = err?.message ?? String(err);
+        console.warn('[ig:geocode] google failed:', msg);
+        await log('warn', `Google Places lookup failed for "${place.name}": ${msg}`);
         return null;
       }),
       deps.kakaoLookup({
@@ -102,8 +111,10 @@ export function createGeocoder(deps: GeocoderDeps): Geocoder {
         city: place.city,
         address: place.address,
         category: place.category,
-      }).catch(err => {
-        console.warn('[ig:geocode] kakao failed:', err?.message ?? err);
+      }).catch(async (err) => {
+        const msg = err?.message ?? String(err);
+        console.warn('[ig:geocode] kakao failed:', msg);
+        await log('warn', `Kakao Local lookup failed for "${place.name}": ${msg}`);
         return null;
       }),
     ]);
@@ -204,8 +215,7 @@ function kakaoQueries(q: LookupQuery): string[] {
 export function realGoogleLookup(apiKey: string, f = fetch) {
   return async (q: LookupQuery): Promise<GoogleResult | null> => {
     if (!apiKey) {
-      console.warn('[ig:geocode:google] no GOOGLE_MAPS_API_KEY configured');
-      return null;
+      throw new Error('GOOGLE_MAPS_API_KEY not configured');
     }
     const searchUrl = 'https://places.googleapis.com/v1/places:searchText';
     const headers = {
@@ -215,6 +225,10 @@ export function realGoogleLookup(apiKey: string, f = fetch) {
         'places.id,places.displayName,places.formattedAddress,places.location,places.types,' +
         'places.rating,places.userRatingCount,places.internationalPhoneNumber',
     };
+    // Capture the FIRST persistent API error (e.g. 403 referrer-blocked) so
+    // we can re-throw it if no query variant succeeds. "Place not found" (200
+    // with empty places[]) is treated as a soft miss — keep trying variants.
+    let persistentError: { status: number; reason?: string; message: string } | null = null;
     for (const textQuery of googleQueries(q)) {
       const r = await f(searchUrl, {
         method: 'POST',
@@ -224,8 +238,17 @@ export function realGoogleLookup(apiKey: string, f = fetch) {
       });
       if (!r.ok) {
         const body = await r.text().catch(() => '');
-        console.warn(`[ig:geocode:google] ${r.status} for query="${textQuery}": ${body.slice(0, 200)}`);
-        // Don't bail on the whole place — try the next query variant.
+        // Parse the Google error envelope to expose a clean message
+        let reason: string | undefined;
+        try {
+          const parsed = JSON.parse(body) as { error?: { details?: Array<{ reason?: string }>; message?: string } };
+          reason = parsed.error?.details?.[0]?.reason;
+        } catch { /* not JSON */ }
+        const msg = `${r.status} ${reason ?? 'http error'}`;
+        console.warn(`[ig:geocode:google] ${msg} for query="${textQuery}"`);
+        if (!persistentError) persistentError = { status: r.status, reason, message: msg };
+        // 403 (auth / referrer / billing) won't be fixed by another query — bail fast
+        if (r.status === 403 || r.status === 401) break;
         continue;
       }
       const data = (await r.json()) as { places?: any[] };
@@ -242,6 +265,17 @@ export function realGoogleLookup(apiKey: string, f = fetch) {
         userRatingCount: top.userRatingCount ?? 0,
         phone: top.internationalPhoneNumber ?? null,
       };
+    }
+    if (persistentError) {
+      // Re-throw so the per-job logger can surface it. Returning null here
+      // would hide config issues (referrer-blocked key, no billing, etc.).
+      const e = new Error(`Google Places ${persistentError.message}` +
+        (persistentError.reason === 'API_KEY_HTTP_REFERRER_BLOCKED'
+          ? ' — your GOOGLE_MAPS_API_KEY is restricted to HTTP referrers. ' +
+            'Server-side calls need an IP-restricted or unrestricted key. ' +
+            'Fix in Google Cloud Console → Credentials.'
+          : ''));
+      throw e;
     }
     return null;
   };

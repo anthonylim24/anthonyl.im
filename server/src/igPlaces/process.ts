@@ -8,7 +8,7 @@ export interface ProcessorDeps {
   upsertPost:  (dedupeKey: string, url: string, p: PostPayload, transcript: string | undefined, ocr: string | undefined) => Promise<number>;
   buildBundle: (p: PostPayload, opts?: { log?: (level: 'info'|'warn'|'error', message: string) => Promise<void> | void }) => Promise<ExtractionBundle>;
   extract:     (b: ExtractionBundle, opts?: { log?: (level: 'info'|'warn'|'error', message: string) => Promise<void> | void }) => Promise<VotedPlace[]>;
-  geocode:     (p: VotedPlace, tag: LocationTag | undefined) => Promise<EnrichedPlace>;
+  geocode:     (p: VotedPlace, tag: LocationTag | undefined, opts?: { log?: (level: 'info'|'warn'|'error', message: string) => Promise<void> | void }) => Promise<EnrichedPlace>;
   savePlaces:  (postId: number, userId: string, places: EnrichedPlace[]) => Promise<void>;
   complete:    (jobId: number, postId: number) => Promise<void>;
   fail:        (jobId: number, error: Error, retryable: boolean) => Promise<void>;
@@ -65,7 +65,9 @@ export function createProcessor(deps: ProcessorDeps) {
       lastStep = 'geocoding';
       await deps.setStep(job.id, 'geocoding');
       await deps.log(job.id, 'geocoding', 'info', 'querying Google Places + Kakao in parallel').catch(() => {});
-      const enriched = await Promise.all(voted.map(v => deps.geocode(v, payload.locationTag)));
+      const enriched = await Promise.all(voted.map(v => deps.geocode(v, payload.locationTag, {
+        log: (level, message) => deps.log(job.id, 'geocoding', level, message).catch(() => {}),
+      })));
       const srcCounts = enriched.reduce((m, p) => {
         const k = p.geocode_source ?? 'none';
         m[k] = (m[k] ?? 0) + 1;

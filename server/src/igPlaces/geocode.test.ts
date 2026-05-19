@@ -182,12 +182,28 @@ describe('realGoogleLookup multi-query fallback', () => {
     expect(r).toBeNull();
   });
 
-  test('no API key → returns null without making any requests', async () => {
+  test('no API key → throws (surfaces config issue) without making any requests', async () => {
     const fetchMock = mock(async () => new Response('{}', { status: 200 }));
     const lookup = realGoogleLookup('', fetchMock as any);
-    const r = await lookup({ name: 'X', city: null });
-    expect(r).toBeNull();
+    await expect(lookup({ name: 'X', city: null })).rejects.toThrow(/not configured/);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test('403 API_KEY_HTTP_REFERRER_BLOCKED → throws with remediation hint', async () => {
+    const fetchMock = mock(async () => new Response(
+      JSON.stringify({
+        error: {
+          code: 403,
+          message: 'Requests from referer <empty> are blocked.',
+          status: 'PERMISSION_DENIED',
+          details: [{ reason: 'API_KEY_HTTP_REFERRER_BLOCKED' }],
+        },
+      }),
+      { status: 403 },
+    ));
+    const lookup = realGoogleLookup('test-key', fetchMock as any);
+    await expect(lookup({ name: 'X', city: 'Seoul' }))
+      .rejects.toThrow(/HTTP referrers/);
   });
 });
 
