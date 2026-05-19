@@ -119,10 +119,15 @@ describe('GET /jobs', () => {
     });
     const app = new Hono().use('*', withAuth('user-abc')).route('/', router);
 
-    // limit=200 should be clamped to 100
+    // limit=200 passes through (cap is now 500). Used by the FE for the
+    // Recent/Older split.
     await app.request('/jobs?limit=200');
     expect(capturedUserId).toBe('user-abc');
-    expect(capturedLimit).toBe(100);
+    expect(capturedLimit).toBe(200);
+
+    // Above the cap is still clamped.
+    await app.request('/jobs?limit=10000');
+    expect(capturedLimit).toBe(500);
 
     // limit=0 should be clamped to 1
     await app.request('/jobs?limit=0');
