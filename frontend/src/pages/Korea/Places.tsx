@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth } from '@clerk/clerk-react'
+import { useGetToken } from '@/lib/safeAuth'
 import { motion, useReducedMotion } from 'motion/react'
 import { ExternalLink, MapPin, Phone, Star, AlertTriangle, ArrowLeft } from 'lucide-react'
 import { fetchExtractedPlaces } from './placesApi'
@@ -294,7 +294,7 @@ function FilterChip({
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function Places() {
-  const { getToken } = useAuth()
+  const getToken = useGetToken()
   const reduce = useReducedMotion()
 
   const [places, setPlaces] = useState<ExtractedPlace[]>([])
