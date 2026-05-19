@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth } from '@clerk/clerk-react'
+import { useGetToken } from '@/lib/safeAuth'
 import { motion, useReducedMotion } from 'motion/react'
 import { CheckCircle2, Circle, Loader2, XCircle } from 'lucide-react'
 import { isInstagramUrl } from './isInstagramUrl'
@@ -840,7 +840,7 @@ function JobCard({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export function Ingest() {
-  const { getToken } = useAuth()
+  const getToken = useGetToken()
   const reduce = useReducedMotion()
 
   // Form state
