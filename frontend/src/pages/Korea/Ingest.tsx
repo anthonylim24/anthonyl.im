@@ -22,8 +22,8 @@ const STEP_DESCRIPTIONS: Record<UiStep, StepInfo> = {
     summary:
       "Pulls the Instagram post — caption, media URLs, owner, and the post's location tag if any.",
     stack: [
-      'yt-dlp CLI (Bun.spawn)',
-      'Apify instagram-scraper actor (cloud fallback)',
+      'Apify instagram-scraper actor (primary; surfaces location tag + lat/lng)',
+      'yt-dlp CLI via Bun.spawn (free backup when Apify is unavailable)',
       'Hono fetch + JSON normalizer',
     ],
   },

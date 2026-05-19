@@ -19,9 +19,17 @@ export function createFetchPost(deps: FetchPostDeps): FetchPost {
 
   return async function fetchPost(url, cached) {
     if (cached) return cached;
+    // Apify first — more reliable from cloud IPs, and it's the only path
+    // that surfaces the post's location tag. yt-dlp is the free backup
+    // when Apify is unavailable (token missing, quota hit, transient error).
+    const apify = await tryApify(url, f, deps.apifyToken);
+    if (apify.payload) return apify.payload;
     const local = await tryYtDlp(url, spawn);
     if (local) return local;
-    return tryApify(url, f, deps.apifyToken);
+    // Both extractors failed. Surface the Apify error — typically more
+    // informative than yt-dlp's silent null.
+    if (apify.error) throw apify.error;
+    throw new NonRetryableError('no payload from any extractor');
   };
 }
 
@@ -73,20 +81,26 @@ interface ApifyItem {
   type?: string;
 }
 
-async function tryApify(url: string, f: typeof fetch, token: string | undefined): Promise<PostPayload> {
-  if (!token) throw new NonRetryableError('APIFY_TOKEN missing');
-  const r = await f(
-    `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${token}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ directUrls: [url], resultsLimit: 1 }),
-    });
-  if (r.status === 429) throw new RetryableError('apify rate-limited', 300_000);
-  if (!r.ok) throw new Error(`apify ${r.status}`);
-  const items = (await r.json()) as ApifyItem[];
-  if (!items.length) throw new NonRetryableError('apify returned empty');
-  return normalizeApify(items[0], url);
+interface ApifyAttempt { payload?: PostPayload; error?: Error }
+
+async function tryApify(url: string, f: typeof fetch, token: string | undefined): Promise<ApifyAttempt> {
+  if (!token) return { error: new NonRetryableError('APIFY_TOKEN missing') };
+  try {
+    const r = await f(
+      `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${token}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ directUrls: [url], resultsLimit: 1 }),
+      });
+    if (r.status === 429) return { error: new RetryableError('apify rate-limited', 300_000) };
+    if (!r.ok) return { error: new Error(`apify ${r.status}`) };
+    const items = (await r.json()) as ApifyItem[];
+    if (!items.length) return { error: new NonRetryableError('apify returned empty') };
+    return { payload: normalizeApify(items[0], url) };
+  } catch (err) {
+    return { error: err instanceof Error ? err : new Error(String(err)) };
+  }
 }
 
 function normalizeApify(it: ApifyItem, url: string): PostPayload {
