@@ -14,17 +14,37 @@ const videoPost: PostPayload = {
 };
 
 describe('buildBundle', () => {
-  test('image-only post: no transcript, no frames', async () => {
+  test('image-only post: no transcript, no frames; OCR runs on each image', async () => {
     const transcribe = mock(async () => 'should not be called');
-    const ocr = mock(async () => 'should not be called');
+    const ocr = mock(async () => '');  // returns empty so b.ocr stays undefined
     const downloadVideo = mock(async () => 'unused');
     const extractFrames = mock(async () => []);
     const build = createBundleBuilder({ transcribe, ocr, downloadVideo, extractFrames });
     const b = await build(imagePost);
     expect(b.transcript).toBeUndefined();
-    expect(b.ocr).toBeUndefined();
+    expect(b.ocr).toBeUndefined();           // empty OCR collapses to undefined
     expect(b.caption).toBe('No video here');
     expect(transcribe).not.toHaveBeenCalled();
+    expect(ocr).toHaveBeenCalledTimes(1);    // OCR DID run on the one image
+    expect(ocr).toHaveBeenCalledWith('i.jpg');
+  });
+  test('image-only post: OCR text from images is concatenated', async () => {
+    const build = createBundleBuilder({
+      transcribe: mock(async () => 'should not be called'),
+      ocr: mock(async (url: string) => `OCR-of-${url}`),
+      downloadVideo: mock(async () => 'unused'),
+      extractFrames: mock(async () => []),
+    });
+    const carouselPost = {
+      ...imagePost,
+      mediaItems: [
+        { type: 'image' as const, url: 'a.jpg' },
+        { type: 'image' as const, url: 'b.jpg' },
+      ],
+    };
+    const b = await build(carouselPost);
+    expect(b.ocr).toContain('[image 1] OCR-of-a.jpg');
+    expect(b.ocr).toContain('[image 2] OCR-of-b.jpg');
   });
   test('parses hashtags and @mentions', async () => {
     const build = createBundleBuilder({

@@ -37,6 +37,11 @@ export function createBundleBuilder(deps: BundleDeps): BundleBuilder {
         const joined = texts.filter(Boolean).join('\n');
         if (joined) ocr = joined;
       }
+    } else if (images.length) {
+      const texts = await Promise.all(images.map((img, i) =>
+        deps.ocr(img.url).then(t => t ? `[image ${i+1}] ${t}` : '').catch(() => '')));
+      const joined = texts.filter(Boolean).join('\n');
+      if (joined) ocr = joined;
     }
 
     return {
