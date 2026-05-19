@@ -172,7 +172,11 @@ export function Detailed3DScene({
     controls.rotateSpeed = 0.4
     controls.zoomSpeed = 0.8
     controls.minDistance = 60
-    controls.maxDistance = 8000
+    // High max so focus mode can fit far destinations (Incheon
+    // airport ~55 km from the hotel) without clamping the auto-
+    // zoom. Tiles streaming gracefully degrades quality at that
+    // distance — better than cropping the destination.
+    controls.maxDistance = 80000
     controls.maxPolarAngle = Math.PI / 2 - 0.05 // can't roll past horizon
     controls.minPolarAngle = 0.1
 
@@ -493,36 +497,46 @@ export function Detailed3DScene({
     function planFocus(destX: number, destZ: number) {
       const aspect = w / h
       const portrait = aspect < 1
-      const dist = Math.hypot(destX, destZ)
-      // Bias the cameraTarget along the (YOU → dest) line. On portrait
-      // a 0.5 bias puts YOU at the bottom and dest at the top, fully
-      // using the tall viewport. On landscape we ease back to ~0.35
-      // so YOU stays a little closer to center and the dest doesn't
-      // disappear off-top in a short viewport.
+      const pinDist = Math.hypot(destX, destZ)
+      // Bias the cameraTarget along the (YOU → dest) line. On
+      // portrait, 0.5 puts both endpoints symmetrically around the
+      // viewport vertical center; on landscape 0.35 keeps YOU
+      // closer to viewport center.
       const alpha = portrait ? 0.5 : 0.35
       const tx = destX * alpha
       const tz = destZ * alpha
-      // Camera position math: yaw the camera so the line (origin →
-      // dest) projects onto screen-up. We orbit on a circle of
-      // radius `back` from the target in the direction OPPOSITE to
-      // dest, then lift by `height` so the view is a 3/4 bird's-eye.
-      // Distance from target to dest in scene units:
-      const halfRun = Math.hypot(destX - tx, destZ - tz)
-      const heightMult = portrait ? 1.05 : 1.2
-      const backMult = portrait ? 0.45 : 0.6
-      const height = Math.max(halfRun * heightMult + 250, 420)
-      const back = Math.max(dist * backMult, 180)
-      // Camera sits along the OPPOSITE of (destDir from origin). In
-      // scene XZ, dest is at (destX, destZ) and origin at (0,0). The
-      // bearing from target to origin is normalize(origin - target)
-      // = normalize(-tx, -tz). Camera offset = bearing * back.
-      const bx = -tx
-      const bz = -tz
-      const blen = Math.hypot(bx, bz) || 1
-      const ux = bx / blen
-      const uz = bz / blen
       focusTarget.set(tx, 0, tz)
-      focusCamPos.set(tx + ux * back, height, tz + uz * back)
+      // FOV-aware zoom-out so BOTH endpoints land at ≤ |NDC| 0.7.
+      // YOU is the closer-to-camera endpoint (signed ground distance
+      // = -alpha·pinDist from target), so it projects a LARGER NDC
+      // magnitude per world unit due to perspective foreshortening
+      // — it's the binding constraint. Solving the perspective
+      // projection for R given a target NDC:
+      //   R = (alpha · pinDist) · (cosP + sinP / (TARGET_NDC · tanFov))
+      // and the dest-side constraint:
+      //   R = ((1-alpha) · pinDist) · (sinP / (TARGET_NDC · tanFov) - cosP)
+      // Take the larger of the two so both endpoints fit.
+      const TARGET_NDC = 0.7
+      // 45° camera pitch reads as classic isometric — same camera
+      // tilt whether the destination is 500 m or 50 km away, so the
+      // visual language stays consistent.
+      const pitch = Math.PI / 4
+      const sinP = Math.sin(pitch)
+      const cosP = Math.cos(pitch)
+      const tanFovV = Math.tan((55 * Math.PI) / 180 / 2)
+      const youHalf = alpha * pinDist
+      const destHalf = (1 - alpha) * pinDist
+      const R_you = youHalf * (cosP + sinP / (TARGET_NDC * tanFovV))
+      const R_dest = destHalf * (sinP / (TARGET_NDC * tanFovV) - cosP)
+      const R = Math.max(R_you, R_dest, 600)
+      // Camera at -pinDir from target at distance R (decomposed
+      // into back + height by pitch).
+      const back = R * cosP
+      const height = R * sinP
+      const pinLen = pinDist || 1
+      const pdx = destX / pinLen
+      const pdz = destZ / pinLen
+      focusCamPos.set(tx - pdx * back, height, tz - pdz * back)
       focusing = true
     }
     function planHome() {
