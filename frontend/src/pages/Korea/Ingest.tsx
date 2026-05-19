@@ -5,7 +5,7 @@ import { motion, useReducedMotion } from 'motion/react'
 import { CheckCircle2, Circle, Loader2, XCircle } from 'lucide-react'
 import { isInstagramUrl } from './isInstagramUrl'
 import { fetchStats, listJobs, retryJob, submitUrl } from './ingestApi'
-import type { Job, JobStep, LogLine, Stats } from './ingestApi'
+import type { Job, JobStep, LogLine, PostPreview, Stats } from './ingestApi'
 
 // ─── Step pipeline ────────────────────────────────────────────────────────────
 
@@ -595,6 +595,67 @@ function PlacesList({ places }: { places: Job['places'] }) {
   )
 }
 
+/**
+ * Friendly empty-state shown on a `done` job when 0 places were extracted.
+ * Surfaces the source content (caption / transcript snippet) so the user can
+ * see WHAT the LLM was looking at and why no place was named.
+ */
+function EmptyExtractionPanel({ preview }: { preview: PostPreview }) {
+  const hasLocationTag = preview.location_tag && (preview.location_tag as { name?: string }).name
+  return (
+    <div className="mt-4 rounded-2xl border border-amber-200/70 bg-amber-50/60 p-4 dark:border-amber-900/40 dark:bg-amber-950/20">
+      <div className="flex items-start gap-2">
+        <Circle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden />
+        <div className="min-w-0 flex-1">
+          <p className="text-[13px] font-semibold text-amber-800 dark:text-amber-300">
+            No places extracted from this post
+          </p>
+          <p className="mt-0.5 text-[12px] leading-relaxed text-stone-600 dark:text-stone-300">
+            The LLM didn&apos;t find any specific named venue or landmark in the source
+            text — this usually means the post is about an activity, person, or product
+            rather than a place.
+          </p>
+
+          {hasLocationTag && (
+            <p className="mt-2 text-[12px] text-stone-600 dark:text-stone-300">
+              <span className="font-medium text-stone-500 dark:text-stone-400">Location tag from IG:</span>{' '}
+              {(preview.location_tag as { name?: string }).name}
+            </p>
+          )}
+
+          {preview.caption && (
+            <details className="mt-2 group">
+              <summary className="cursor-pointer text-[11px] font-medium uppercase tracking-wide text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200">
+                Caption ({preview.caption_truncated ? '500+' : preview.caption.length} chars)
+              </summary>
+              <p className="mt-1.5 whitespace-pre-wrap break-words rounded-md bg-white/70 px-2.5 py-2 text-[12px] leading-relaxed text-stone-700 dark:bg-stone-900/40 dark:text-stone-200">
+                {preview.caption}{preview.caption_truncated && '…'}
+              </p>
+            </details>
+          )}
+
+          {preview.transcript && (
+            <details className="mt-2 group">
+              <summary className="cursor-pointer text-[11px] font-medium uppercase tracking-wide text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200">
+                Transcript ({preview.transcript_truncated ? '800+' : preview.transcript.length} chars)
+              </summary>
+              <p className="mt-1.5 whitespace-pre-wrap break-words rounded-md bg-white/70 px-2.5 py-2 text-[12px] leading-relaxed text-stone-700 dark:bg-stone-900/40 dark:text-stone-200">
+                {preview.transcript}{preview.transcript_truncated && '…'}
+              </p>
+            </details>
+          )}
+
+          {!preview.caption && !preview.transcript && (
+            <p className="mt-2 text-[12px] italic text-stone-500 dark:text-stone-400">
+              No caption or transcript was available.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function LogsViewer({ logs }: { logs: LogLine[] }) {
   const listRef = useRef<HTMLOListElement | null>(null)
   const [isOpen, setIsOpen] = useState(false)
@@ -760,8 +821,14 @@ function JobCard({
         </div>
       )}
 
-      {/* Places */}
-      {job.places.length > 0 && <PlacesList places={job.places} />}
+      {/* Places — either the extracted list or the "0 found" empty state */}
+      {job.places.length > 0 ? (
+        <PlacesList places={job.places} />
+      ) : (
+        (job.status === 'done' || job.step === 'done') && job.post_preview && (
+          <EmptyExtractionPanel preview={job.post_preview} />
+        )
+      )}
 
       {/* Logs viewer */}
       <LogsViewer logs={job.logs} />

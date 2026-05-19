@@ -33,6 +33,15 @@ export interface LogLine {
   created_at: string
 }
 
+export interface PostPreview {
+  caption: string | null
+  caption_truncated: boolean
+  transcript: string | null
+  transcript_truncated: boolean
+  has_ocr: boolean
+  location_tag: { name?: string; lat?: number; lng?: number } | null
+}
+
 export type Job = {
   id: number
   url: string
@@ -46,6 +55,9 @@ export type Job = {
   post_id: number | null
   places: PlaceResult[]
   logs: LogLine[]
+  /** Truncated preview of the cached post — caption, transcript, location tag.
+   *  Lets the UI explain "no places found" with the source the LLM actually saw. */
+  post_preview: PostPreview | null
 }
 
 export type Stats = {

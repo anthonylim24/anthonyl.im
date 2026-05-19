@@ -46,10 +46,19 @@ export function createProcessor(deps: ProcessorDeps) {
       await deps.setStep(job.id, 'extracting');
       await deps.log(job.id, 'extracting', 'info', 'calling gpt-oss-120b ×3 in parallel').catch(() => {});
       const voted = await deps.extract(bundle);
-      await deps.log(job.id, 'extracting', 'info',
-        `voted ${voted.length} place(s); bands: ` +
-        voted.map(p => p.confidence_band).join(', '))
-        .catch(() => {});
+      if (voted.length === 0) {
+        // No places. This is usually a CORRECT outcome (the post is about an
+        // unnamed activity, a generic vibe, a person, etc.). Log a clear note
+        // explaining the absence so the user doesn't think the worker broke.
+        const why = explainEmptyExtraction(bundle);
+        await deps.log(job.id, 'extracting', 'info',
+          `extracted 0 places — ${why}`).catch(() => {});
+      } else {
+        await deps.log(job.id, 'extracting', 'info',
+          `voted ${voted.length} place(s); bands: ` +
+          voted.map(p => p.confidence_band).join(', '))
+          .catch(() => {});
+      }
 
       lastStep = 'geocoding';
       await deps.setStep(job.id, 'geocoding');
@@ -80,4 +89,27 @@ export function createProcessor(deps: ProcessorDeps) {
       await deps.fail(job.id, e, retryable);
     }
   };
+}
+
+/**
+ * Heuristic explanation for a zero-place extraction. Surfaced in the worker
+ * logs so the user understands WHY nothing was saved — usually the post is
+ * about an activity or a person, not a specific venue.
+ */
+function explainEmptyExtraction(b: ExtractionBundle): string {
+  const total =
+    (b.caption?.length ?? 0) +
+    (b.transcript?.length ?? 0) +
+    (b.ocr?.length ?? 0);
+  if (total < 30) {
+    return 'the post has almost no text content (no caption, transcript, or readable on-screen text).';
+  }
+  if (!b.transcript && !b.ocr) {
+    return 'only the caption was available and it did not name any specific venue or landmark.';
+  }
+  if (b.transcript && !b.locationTagName) {
+    return 'the source mentions no specific named venue or landmark — likely a personal experience, ' +
+           'product, or activity rather than a place. The transcript was reviewed.';
+  }
+  return 'no specific named venue or landmark could be confidently extracted from the available text.';
 }
