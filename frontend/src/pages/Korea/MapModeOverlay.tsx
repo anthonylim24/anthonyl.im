@@ -74,18 +74,22 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
 
   // The day's hotel from the server response — Grand InterContinental
   // Seoul Parnas on days 1-2, Park Hyatt Seoul on 3-8, Signiel Busan
-  // on 9+. Falls back to the Park Hyatt constant while the fetch is
-  // pending so the first frame has SOMETHING to render against.
-  const dayHotelLocation: UserLocation = useMemo(() => {
-    if (state.status === "success" && state.data.meta.center) {
-      return {
-        lat: state.data.meta.center.lat,
-        lng: state.data.meta.center.lng,
-        source: "hotel",
-        label: state.data.meta.center.label,
+  // on 9+. Held as state with a *stable* reference: we only assign a
+  // new object when the lat/lng actually change. Without this stable
+  // identity, the location → fetch → state → memo → location chain
+  // oscillates each render and the 3D scene re-fetches Google tiles
+  // on every cycle (an "infinite loop" of API calls).
+  const [dayHotelLocation, setDayHotelLocation] = useState<UserLocation>(HOTEL_LOCATION)
+  useEffect(() => {
+    if (state.status !== "success") return
+    const c = state.data.meta.center
+    if (!c) return
+    setDayHotelLocation((prev) => {
+      if (prev.lat === c.lat && prev.lng === c.lng && prev.label === c.label) {
+        return prev
       }
-    }
-    return HOTEL_LOCATION
+      return { lat: c.lat, lng: c.lng, source: "hotel", label: c.label }
+    })
   }, [state])
 
   function dispatchSceneEvent(name: string) {
@@ -141,9 +145,23 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
   // React to debug-toggle changes. The mock-hotel toggle takes precedence
   // (always swaps to the hotel coords); the SF test toggle only swaps
   // when we're NOT on a real geolocation source.
+  // Helper: only update `location` when the lat/lng actually change.
+  // Without this guard the fetch effect retriggers on every render
+  // (even when the underlying coords are identical) and the 3D
+  // scene re-mounts → re-requests Google's root tileset → API
+  // request storm.
+  function setLocationIfCoordsChanged(next: UserLocation) {
+    setLocation((prev) => {
+      if (prev && prev.lat === next.lat && prev.lng === next.lng && prev.source === next.source) {
+        return prev
+      }
+      return next
+    })
+  }
+
   useEffect(() => {
     if (mockHotel) {
-      setLocation(dayHotelLocation)
+      setLocationIfCoordsChanged(dayHotelLocation)
       return
     }
     // Mock just turned off → re-fetch the real geolocation.
@@ -156,7 +174,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
   useEffect(() => {
     if (!location || mockHotel) return
     if (location.source !== "geolocation") {
-      setLocation(testMode ? SF_TEST_LOCATION : dayHotelLocation)
+      setLocationIfCoordsChanged(testMode ? SF_TEST_LOCATION : dayHotelLocation)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [testMode, dayHotelLocation])
@@ -165,8 +183,8 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
   // changes via SPA navigation), update any "hotel-source" location
   // to the new day's hotel. Real geolocation + test-anchor stay put.
   useEffect(() => {
-    if (location?.source === "hotel" && (location.lat !== dayHotelLocation.lat || location.lng !== dayHotelLocation.lng)) {
-      setLocation(dayHotelLocation)
+    if (location?.source === "hotel") {
+      setLocationIfCoordsChanged(dayHotelLocation)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dayHotelLocation])
