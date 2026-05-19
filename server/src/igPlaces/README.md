@@ -9,6 +9,9 @@
   - `GOOGLE_VISION_API_KEY` (or reuse Maps key if Vision is enabled on the same project)
   - `KAKAO_REST_API_KEY` (optional)
   - `GROQ_API_KEY`
+  - `CEREBRAS_API_KEY` (optional) — Cerebras Inference fallback used when Groq returns 429
+    on the place extractor. Same `gpt-oss-120b` model, OpenAI-compatible API. Job logs
+    show "Groq rate-limited; N/3 call(s) ran on Cerebras instead" when fallback fires.
   - `CLERK_SECRET_KEY`
   - `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`
 - `IG_WORKER_ENABLED=true` (default) to run the worker

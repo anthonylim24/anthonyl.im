@@ -42,6 +42,7 @@ const STEP_DESCRIPTIONS: Record<UiStep, StepInfo> = {
       'Identifies the real-world places mentioned, with confidence bands derived from self-consistency voting.',
     stack: [
       'Groq openai/gpt-oss-120b (3× parallel, temperature 0.5)',
+      'Cerebras Inference gpt-oss-120b (fallback when Groq is rate-limited)',
       'Strict JSON schema (token-constrained decoding)',
       "Hallucination filter: drop places whose verbatim quote isn’t in the source",
       'Vote merge + canonicalize (NFD strip-marks + Levenshtein ≤ 2)',

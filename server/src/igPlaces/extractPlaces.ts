@@ -73,43 +73,129 @@ const SCHEMA = {
   },
 } as const;
 
+export type ExtractLog = (level: 'info'|'warn'|'error', message: string) => Promise<void> | void;
+
+export interface ExtractorOpts {
+  log?: ExtractLog;
+}
+
 export interface ExtractorDeps {
   groq: Pick<Groq, 'chat'>;
+  /** Optional Cerebras API key. When set, a Groq 429 falls back to the same
+   *  prompt against Cerebras Inference (also hosts gpt-oss-120b, OpenAI-
+   *  compatible API). Only if Cerebras also 429s do we re-queue the job. */
+  cerebrasApiKey?: string;
+  /** Override for Cerebras's HTTP fetch — used by tests. */
+  cerebrasFetch?: typeof fetch;
   runs?: number;
   temperature?: number;
 }
 
-export type Extractor = (bundle: ExtractionBundle) => Promise<VotedPlace[]>;
+export type Extractor = (bundle: ExtractionBundle, opts?: ExtractorOpts) => Promise<VotedPlace[]>;
+
+const CEREBRAS_URL = 'https://api.cerebras.ai/v1/chat/completions';
+
+async function callCerebras(
+  body: Record<string, unknown>,
+  apiKey: string,
+  f: typeof fetch,
+): Promise<{ choices?: Array<{ message?: { content?: string } }> }> {
+  const r = await f(CEREBRAS_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (r.status === 429) {
+    const err = new Error('cerebras rate-limited') as Error & { status: number; retryAfter?: number };
+    err.status = 429;
+    const ra = r.headers.get('retry-after');
+    if (ra) err.retryAfter = Number(ra);
+    throw err;
+  }
+  if (!r.ok) {
+    const body = await r.text().catch(() => '');
+    throw new Error(`cerebras ${r.status}: ${body.slice(0, 200)}`);
+  }
+  return r.json() as Promise<{ choices?: Array<{ message?: { content?: string } }> }>;
+}
 
 export function createExtractor(deps: ExtractorDeps): Extractor {
   const runs = deps.runs ?? 3;
   const temperature = deps.temperature ?? 0.5;
-  return async function extract(bundle) {
+  const cerebrasFetch = deps.cerebrasFetch ?? fetch;
+
+  return async function extract(bundle, opts = {}) {
+    const log = opts.log ?? (async () => {});
     const userMsg = renderBundle(bundle);
+
+    // Shared params between Groq + Cerebras. Cerebras's gpt-oss-120b uses the
+    // bare "gpt-oss-120b" model id (no "openai/" prefix) and the same JSON-
+    // schema / reasoning controls.
+    const groqParams = {
+      model: 'openai/gpt-oss-120b',
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user',   content: userMsg },
+      ],
+      response_format: { type: 'json_schema', json_schema: SCHEMA } as any,
+      temperature,
+      max_completion_tokens: 2048,
+      reasoning_effort: 'low',
+      reasoning_format: 'hidden',
+    } as const;
+    const cerebrasParams = {
+      ...groqParams,
+      model: 'gpt-oss-120b',
+    };
+
+    let cerebrasFallbacksUsed = 0;
+
     const calls = await Promise.all(Array.from({ length: runs }, async () => {
+      // Primary: Groq
       try {
-        return parseRun(await deps.groq.chat.completions.create({
-          model: 'openai/gpt-oss-120b',
-          messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
-            { role: 'user',   content: userMsg },
-          ],
-          response_format: { type: 'json_schema', json_schema: SCHEMA } as any,
-          temperature,
-          max_completion_tokens: 2048,
-          reasoning_effort: 'low',
-          reasoning_format: 'hidden',
-        } as any));
+        return parseRun(await deps.groq.chat.completions.create(groqParams as any));
       } catch (err: any) {
         const status = err?.status ?? err?.response?.status;
-        if (status === 429) {
-          const retryAfterMs = Number(err?.headers?.['retry-after'] ?? 30) * 1000;
-          throw new RetryableError('groq extract rate-limited', retryAfterMs);
+        if (status !== 429) {
+          console.warn('[ig:extract] groq call failed:', err?.message ?? err);
+          return [] as RawExtractedPlace[];
         }
-        console.warn('[ig:extract] groq call failed:', err?.message ?? err);
-        return [] as RawExtractedPlace[];
+
+        // Groq 429 — try Cerebras if configured.
+        if (deps.cerebrasApiKey) {
+          try {
+            cerebrasFallbacksUsed += 1;
+            const c = await callCerebras(cerebrasParams, deps.cerebrasApiKey, cerebrasFetch);
+            return parseRun(c);
+          } catch (err2: any) {
+            const status2 = err2?.status;
+            if (status2 === 429) {
+              // Both providers rate-limited — re-queue.
+              const retryAfterMs = Math.max(
+                Number(err?.headers?.['retry-after'] ?? 30),
+                Number(err2?.retryAfter ?? 30),
+              ) * 1000;
+              throw new RetryableError('groq + cerebras both rate-limited', retryAfterMs);
+            }
+            console.warn('[ig:extract] cerebras fallback failed:', err2?.message ?? err2);
+            return [] as RawExtractedPlace[];
+          }
+        }
+
+        // No Cerebras fallback configured — Groq 429 alone re-queues the job.
+        const retryAfterMs = Number(err?.headers?.['retry-after'] ?? 30) * 1000;
+        throw new RetryableError('groq extract rate-limited', retryAfterMs);
       }
     }));
+
+    if (cerebrasFallbacksUsed > 0) {
+      await log('info', `Groq rate-limited; ${cerebrasFallbacksUsed}/${runs} call(s) ran on Cerebras instead`);
+    }
+
     const source = sourceText(bundle);
     return voteMerge(calls, source);
   };

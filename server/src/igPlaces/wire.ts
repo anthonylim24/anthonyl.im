@@ -104,7 +104,7 @@ export function buildWorld() {
     extractFrames,
     biasPrompt: BIAS_PROMPT,
   });
-  const extract = createExtractor({ groq });
+  const extract = createExtractor({ groq, cerebrasApiKey: config.cerebrasApiKey });
   const geocode = createGeocoder({
     googleLookup: realGoogleLookup(config.googleMapsApiKey ?? ''),
     kakaoLookup:  config.kakaoRestApiKey ? realKakaoLookup(config.kakaoRestApiKey) : async () => null,

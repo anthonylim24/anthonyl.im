@@ -10,6 +10,10 @@ export const config = {
   supabaseServiceKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
 
   groqApiKey: process.env.GROQ_API_KEY,
+  // Optional Cerebras Inference fallback. When set, a Groq 429 on the place
+  // extractor retries the same call against Cerebras (same gpt-oss-120b model,
+  // OpenAI-compatible API). Only if Cerebras also 429s do we re-queue the job.
+  cerebrasApiKey: process.env.CEREBRAS_API_KEY,
   apifyToken: process.env.APIFY_TOKEN,
   googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
   googleVisionApiKey: process.env.GOOGLE_VISION_API_KEY ?? process.env.GOOGLE_MAPS_API_KEY,
