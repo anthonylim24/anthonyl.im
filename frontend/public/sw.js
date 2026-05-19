@@ -1,6 +1,6 @@
 // Korea is now the only installable PWA — bump cache version so iOS
 // clients drop the previously-precached BreathFlow manifest.
-const CACHE_VERSION = 'korea-offline-v6'
+const CACHE_VERSION = 'korea-offline-v7'
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`
 const KOREA_API_CACHE = `${CACHE_VERSION}-korea-api`
 const APP_SHELL = [
@@ -150,6 +150,21 @@ self.addEventListener('fetch', (event) => {
   // Never intercept the SW script itself — the browser uses a special update
   // path that bypasses the existing SW, but we belt-and-suspender it.
   if (url.pathname === '/sw.js') {
+    return
+  }
+
+  // Neuter Cloudflare's Speed Brain. CF injects `Speculation-Rules:
+  // "/cdn-cgi/speculation"` on every HTML response, telling Chrome to fetch
+  // that URL for a rule list. The CF-served rules tell Chrome to prefetch
+  // every same-origin `<a href>` on hover. For list pages like /korea/places
+  // (many cards, many links) this saturates the per-origin connection pool
+  // and competes with real subresource loads — the user sees the tab
+  // spinner hang and the page take seconds to settle. Returning empty
+  // rules makes Chrome skip speculation entirely.
+  if (url.pathname === '/cdn-cgi/speculation') {
+    event.respondWith(new Response('{"prefetch":[]}', {
+      headers: { 'Content-Type': 'application/speculationrules+json' },
+    }))
     return
   }
 
