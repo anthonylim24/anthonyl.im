@@ -293,7 +293,17 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
           header in a flex column and the canvas's geometric center would land
           below the visible viewport center — making YOU and its orbit ring
           appear shifted downward. */}
-      <header className="absolute inset-x-0 top-0 z-30 flex items-center gap-2 border-b border-stone-200/60 bg-white/70 px-3 py-2.5 backdrop-blur-xl dark:border-stone-800/60 dark:bg-stone-950/70 sm:gap-3 sm:px-5">
+      <header
+        className="absolute inset-x-0 top-0 z-30 flex items-center gap-2 border-b border-stone-200/60 bg-white/70 px-3 backdrop-blur-xl dark:border-stone-800/60 dark:bg-stone-950/70 sm:gap-3 sm:px-5"
+        style={{
+          // Reserve room for the iOS dynamic island / status bar
+          // when the app is launched standalone from Home Screen.
+          // env(safe-area-inset-top) resolves to 0 on non-iOS — the
+          // calc fallback keeps the desktop padding consistent.
+          paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)",
+          paddingBottom: "10px",
+        }}
+      >
         <button
           type="button"
           onClick={onClose}
@@ -513,7 +523,8 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
                       onClick={resetView}
                       title="Reset camera view"
                       aria-label="Reset camera view"
-                      className="absolute right-3 top-16 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-stone-700 shadow-md backdrop-blur transition hover:bg-stone-50 hover:text-rose-700 dark:bg-stone-900/85 dark:text-stone-300 dark:hover:bg-stone-900 dark:hover:text-rose-200"
+                      className="absolute right-3 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-stone-700 shadow-md backdrop-blur transition hover:bg-stone-50 hover:text-rose-700 dark:bg-stone-900/85 dark:text-stone-300 dark:hover:bg-stone-900 dark:hover:text-rose-200"
+                      style={{ top: "calc(env(safe-area-inset-top, 0px) + 64px)" }}
                     >
                       <Crosshair className="h-4 w-4" />
                     </button>
