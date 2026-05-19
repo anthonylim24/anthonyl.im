@@ -168,7 +168,17 @@ if (clerkAuth) {
   app.use('/api/korea/places/from-instagram/*', clerkAuth);
   app.route('/api/korea/places/from-instagram', igPlacesRouter);
 } else {
-  console.warn('[ig-places] CLERK_SECRET_KEY and IG_DEV_BEARER both missing; endpoint not mounted');
+  // Always answer JSON on this path so the SPA fallback can't intercept and
+  // serve index.html with status 200 — which silently breaks the polling FE.
+  console.warn('[ig-places] CLERK_SECRET_KEY and IG_DEV_BEARER both missing; route will 503 with a JSON error');
+  app.all('/api/korea/places/from-instagram', (c) => c.json({
+    error: 'ig_places_not_configured',
+    message: 'Server is missing CLERK_SECRET_KEY (or IG_DEV_BEARER for dev). Set it and restart.',
+  }, 503));
+  app.all('/api/korea/places/from-instagram/*', (c) => c.json({
+    error: 'ig_places_not_configured',
+    message: 'Server is missing CLERK_SECRET_KEY (or IG_DEV_BEARER for dev). Set it and restart.',
+  }, 503));
 }
 
 bootIgWorker();

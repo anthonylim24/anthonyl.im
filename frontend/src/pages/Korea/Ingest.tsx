@@ -4,7 +4,7 @@ import { useGetToken } from '@/lib/safeAuth'
 import { motion, useReducedMotion } from 'motion/react'
 import { CheckCircle2, Circle, Loader2, XCircle } from 'lucide-react'
 import { isInstagramUrl } from './isInstagramUrl'
-import { fetchStats, listJobs, retryJob, submitUrl } from './ingestApi'
+import { ApiNotConfiguredError, fetchStats, listJobs, retryJob, submitUrl } from './ingestApi'
 import type { Job, JobStep, LogLine, PostPreview, Stats } from './ingestApi'
 
 // ─── Step pipeline ────────────────────────────────────────────────────────────
@@ -854,6 +854,7 @@ export function Ingest() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
   const [fetchFailures, setFetchFailures] = useState(0)
+  const [apiNotConfigured, setApiNotConfigured] = useState<string | null>(null)
 
   const getTokenRef = useRef(getToken)
   getTokenRef.current = getToken
@@ -872,7 +873,13 @@ export function Ingest() {
       setJobs(data)
       setLastRefreshed(new Date())
       setFetchFailures(0)
-    } catch {
+      setApiNotConfigured(null)
+    } catch (err) {
+      if (err instanceof ApiNotConfiguredError) {
+        // Sticky banner — this is a server-config issue that won't fix itself.
+        setApiNotConfigured(err.message)
+        return
+      }
       setFetchFailures((n) => n + 1)
     }
   }, [])
@@ -881,8 +888,11 @@ export function Ingest() {
     try {
       const data = await fetchStats(getTokenRef.current)
       setStats(data)
-    } catch {
-      // silently hide stats on error — per spec
+    } catch (err) {
+      if (err instanceof ApiNotConfiguredError) {
+        setApiNotConfigured(err.message)
+      }
+      // otherwise hide stats silently — per spec
     }
   }, [])
 
@@ -990,8 +1000,19 @@ export function Ingest() {
           </p>
         )}
 
-        {/* Fetch-failure reconnecting banner */}
-        {fetchFailures >= 3 && (
+        {/* API-not-configured banner — sticky, no spinner. Server-side fix needed. */}
+        {apiNotConfigured && (
+          <div
+            role="alert"
+            className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300"
+          >
+            <p className="font-semibold">Server config issue</p>
+            <p className="mt-0.5 leading-relaxed">{apiNotConfigured}</p>
+          </div>
+        )}
+
+        {/* Fetch-failure reconnecting banner — transient network glitches only */}
+        {!apiNotConfigured && fetchFailures >= 3 && (
           <p role="status" className="mt-2 inline-flex items-center gap-2 rounded-md bg-amber-50 px-3 py-1.5 text-[12px] text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
             <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
             Reconnecting… polling has failed {fetchFailures} times
