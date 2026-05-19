@@ -56,6 +56,10 @@ interface Detailed3DSceneProps {
   onWebglError?: () => void
   userLat?: number
   userLng?: number
+  // Optional ref the scene writes the live "yaw from north-up" into
+  // each tick. Consumed by MapModeCompass so the compass dial
+  // rotates as the user orbits the camera.
+  yawRef?: { current: number }
 }
 
 function escapeHtml(s: string): string {
@@ -76,6 +80,7 @@ export function Detailed3DScene({
   onWebglError,
   userLat,
   userLng,
+  yawRef: yawRefProp,
 }: Detailed3DSceneProps) {
   const mountRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
@@ -140,9 +145,13 @@ export function Detailed3DScene({
     // ── Scene + camera + lights ──────────────────────────────────
     const scene = new Scene()
     const camera = new PerspectiveCamera(55, w / h, 1, 100000)
-    // Initial vantage point: 800 m up, 1200 m south, looking at YOU.
-    // Gives a Google-Earth-like 3/4 view of the immediate neighborhood.
-    camera.position.set(0, 800, 1200)
+    // Initial vantage point: a more zoomed-out, slightly isometric
+    // 3/4 view of the neighborhood. ReorientationPlugin parks the
+    // user's lat/lng at world origin with +Z = north and +X = west,
+    // so we sit the camera SOUTHWEST of origin (+X, -Z), elevated.
+    // This gives an angled "isometric"-feeling view that reveals
+    // two cardinal directions instead of pure-south.
+    camera.position.set(1100, 1700, -1500)
     camera.lookAt(0, 0, 0)
     // Hemisphere fill so building shadows don't crush to black on
     // mobile where the GPU can't afford a real shadow pass.
@@ -474,7 +483,9 @@ export function Detailed3DScene({
     // destination + reposition the camera at a height proportional
     // to the distance so both endpoints land in frame.
     const HOME_TARGET = new Vector3(0, 0, 0)
-    const HOME_POS = new Vector3(0, 800, 1200)
+    // Same wider/isometric vantage as the initial camera setup so
+    // deselect + reset both return to the same composed view.
+    const HOME_POS = new Vector3(1100, 1700, -1500)
     const focusTarget = new Vector3()
     const focusCamPos = new Vector3()
     let focusing = false
@@ -551,6 +562,32 @@ export function Detailed3DScene({
       }
     }
 
+    // ── Reset + orient-north window events. Wired identically to
+    // the orbital scene so the same Reset and Compass UI in the
+    // overlay drives whichever mode is mounted. Compass yawRef is
+    // updated each tick below.
+    const onResetView = () => {
+      focusTarget.copy(HOME_TARGET)
+      focusCamPos.copy(HOME_POS)
+      focusing = true
+    }
+    const onOrientNorth = () => {
+      // North-up = camera SOUTH of target looking NORTH.
+      // ReorientationPlugin puts +Z = north; "south" in scene units
+      // is -Z. Preserve current radius + polar so the user keeps
+      // their zoom + tilt — only the azimuth changes.
+      const radius = camera.position.distanceTo(controls.target)
+      const polar = controls.getPolarAngle()
+      const sin = Math.sin(polar)
+      const cos = Math.cos(polar)
+      const t = controls.target
+      focusTarget.copy(t)
+      focusCamPos.set(t.x, t.y + radius * cos, t.z - radius * sin)
+      focusing = true
+    }
+    window.addEventListener("korea-map-reset", onResetView)
+    window.addEventListener("korea-map-orient-north", onOrientNorth)
+
     // ── Animation loop ────────────────────────────────────────────
     let running = true
     let lastAttrAt = 0
@@ -559,6 +596,22 @@ export function Detailed3DScene({
       if (!running) return
       controls.update()
       tiles.update()
+
+      // Publish the live "yaw from north-up" to the parent compass.
+      // OrbitControls.getAzimuthalAngle() returns the camera's angle
+      // around the up axis from +Z (so theta=0 = camera at +Z =
+      // looking south; theta=π = camera at -Z = looking north).
+      // Our compass treats yaw=0 as north-up, so subtract π and
+      // wrap into (-π, π].
+      if (yawRefProp) {
+        let yaw = controls.getAzimuthalAngle() - Math.PI
+        while (yaw > Math.PI) yaw -= 2 * Math.PI
+        while (yaw <= -Math.PI) yaw += 2 * Math.PI
+        // Compass dial expects clockwise camera rotation → clockwise
+        // dial rotation. Flip sign to match the orbital scene's
+        // convention.
+        yawRefProp.current = -yaw
+      }
 
       // Camera focus lerp — eases controls.target and camera.position
       // toward the planned focus. OrbitControls re-derives its
@@ -790,6 +843,8 @@ export function Detailed3DScene({
     return () => {
       running = false
       ro.disconnect()
+      window.removeEventListener("korea-map-reset", onResetView)
+      window.removeEventListener("korea-map-orient-north", onOrientNorth)
       renderer.domElement.removeEventListener("pointerdown", onPointerDown)
       renderer.domElement.removeEventListener("pointerup", onPointerUp)
       tiles.dispose()
