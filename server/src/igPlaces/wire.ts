@@ -16,19 +16,30 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir, hostname } from 'node:os';
 import { join } from 'node:path';
 
-async function downloadVideo(url: string): Promise<string> {
+// Instagram's CDN throttles or 403s fetches with an empty / generic UA.
+// Pretending to be a recent Chrome on macOS keeps the download fast + reliable.
+const CDN_FETCH_HEADERS = {
+  'User-Agent':
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
+    '(KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36',
+  Accept: '*/*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  Referer: 'https://www.instagram.com/',
+};
+
+async function downloadVideo(url: string, signal?: AbortSignal): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'ig-video-'));
   const out = join(dir, 'video.mp4');
-  const r = await fetch(url);
+  const r = await fetch(url, { signal, headers: CDN_FETCH_HEADERS });
   if (!r.ok || !r.body) throw new Error(`video download ${r.status}`);
   await Bun.write(out, r);
   return out;
 }
 
-async function downloadImage(url: string): Promise<string> {
+async function downloadImage(url: string, signal?: AbortSignal): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'ig-image-'));
   const out = join(dir, 'image.jpg');
-  const r = await fetch(url);
+  const r = await fetch(url, { signal, headers: CDN_FETCH_HEADERS });
   if (!r.ok || !r.body) throw new Error(`image download ${r.status}`);
   await Bun.write(out, r);
   return out;

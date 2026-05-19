@@ -65,7 +65,10 @@ export function createSavePlaces(sb: SupabaseClient) {
           geocode_kakao_id: p.geocode_kakao_id,
           geocode_disagree: p.geocode_disagree,
         },
-        { onConflict: 'user_id,google_place_id' },
+        // No on_conflict: the unique index on (user_id, google_place_id) is
+        // PARTIAL (where google_place_id is not null), and Postgres can't use
+        // partial indexes as ON CONFLICT targets via PostgREST. Cross-post
+        // dedupe is a UI concern we can apply on read instead of insert.
       );
     }
   };

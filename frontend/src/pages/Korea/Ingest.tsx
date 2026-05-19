@@ -144,6 +144,57 @@ function formatTimestamp(iso: string): string {
   return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
 }
 
+function formatDuration(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds))
+  if (s < 60) return `${s}s`
+  const m = Math.floor(s / 60)
+  const r = s % 60
+  return r === 0 ? `${m}m` : `${m}m ${r}s`
+}
+
+/**
+ * Live per-step view for the popover: for the past, current or errored step
+ * find the latest log line and how long the step has taken (or is taking).
+ */
+function liveStepInfo(
+  job: Job,
+  step: UiStep,
+  state: 'past' | 'current' | 'errored' | 'future',
+): { latestLog: LogLine | null; timingLabel: string | null } {
+  if (state === 'future') return { latestLog: null, timingLabel: null }
+  const stepLogs = job.logs.filter((l) => l.step === step)
+  const latestLog = stepLogs.length ? stepLogs[stepLogs.length - 1] : null
+
+  let timingLabel: string | null = null
+  if (state === 'past') {
+    // Duration is from the first log of this step to the first log of the
+    // next step (or to job.updated_at if this is the last step).
+    if (stepLogs.length) {
+      const start = new Date(stepLogs[0].created_at).getTime()
+      const order = ['fetching', 'bundling', 'extracting', 'geocoding', 'saving'] as const
+      const nextStep = order[order.indexOf(step) + 1]
+      const nextStepLogs = nextStep ? job.logs.filter((l) => l.step === nextStep) : []
+      const end = nextStepLogs.length
+        ? new Date(nextStepLogs[0].created_at).getTime()
+        : new Date(stepLogs[stepLogs.length - 1].created_at).getTime()
+      timingLabel = `took ${formatDuration((end - start) / 1000)}`
+    }
+  } else if (state === 'current') {
+    const startIso = job.step_started_at ?? (stepLogs[0]?.created_at ?? null)
+    if (startIso) {
+      const elapsed = (Date.now() - new Date(startIso).getTime()) / 1000
+      timingLabel = `${formatDuration(elapsed)} elapsed`
+    }
+  } else if (state === 'errored') {
+    if (stepLogs.length) {
+      const start = new Date(stepLogs[0].created_at).getTime()
+      const end = new Date(stepLogs[stepLogs.length - 1].created_at).getTime()
+      timingLabel = `failed after ${formatDuration((end - start) / 1000)}`
+    }
+  }
+  return { latestLog, timingLabel }
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function StatsLine({ stats }: { stats: Stats | null }) {
@@ -281,25 +332,12 @@ function StepTimeline({ job, reduce }: { job: Job; reduce: boolean | null }) {
               </span>
             </button>
 
-            {/* Hover/focus popover with summary + tech stack */}
+            {/* Hover/focus popover with live status + summary + tech stack */}
             <div
               role="tooltip"
-              className="pointer-events-none absolute left-1/2 top-[calc(100%+8px)] z-20 w-64 -translate-x-1/2 rounded-xl border border-stone-200/80 bg-white p-3 text-left opacity-0 shadow-lg ring-1 ring-stone-900/5 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 dark:border-stone-700/80 dark:bg-stone-900 dark:ring-stone-100/5"
+              className="pointer-events-none absolute left-1/2 top-[calc(100%+8px)] z-20 w-72 -translate-x-1/2 rounded-xl border border-stone-200/80 bg-white p-3 text-left opacity-0 shadow-lg ring-1 ring-stone-900/5 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 dark:border-stone-700/80 dark:bg-stone-900 dark:ring-stone-100/5"
             >
-              <p className="text-[12px] leading-relaxed text-stone-700 dark:text-stone-200">
-                {info.summary}
-              </p>
-              <p className="mt-2 text-[10px] font-medium uppercase tracking-wider text-stone-400 dark:text-stone-500">
-                Stack
-              </p>
-              <ul className="mt-1 space-y-0.5 text-[11px] leading-snug text-stone-600 dark:text-stone-300">
-                {info.stack.map((t) => (
-                  <li key={t} className="flex gap-1.5">
-                    <span aria-hidden className="mt-1 inline-block h-1 w-1 shrink-0 rounded-full bg-amber-500" />
-                    <span>{t}</span>
-                  </li>
-                ))}
-              </ul>
+              <StepPopoverContent step={step as UiStep} state={state} info={info} job={job} />
             </div>
             </div>
 
@@ -316,6 +354,82 @@ function StepTimeline({ job, reduce }: { job: Job; reduce: boolean | null }) {
         )
       })}
     </div>
+  )
+}
+
+function StepPopoverContent({
+  step,
+  state,
+  info,
+  job,
+}: {
+  step: UiStep
+  state: 'past' | 'current' | 'errored' | 'future'
+  info: StepInfo
+  job: Job
+}) {
+  const { latestLog, timingLabel } = liveStepInfo(job, step, state)
+  const stateLabel =
+    state === 'current' ? 'Running now' :
+    state === 'past' ? 'Completed' :
+    state === 'errored' ? 'Failed here' :
+    'Up next'
+
+  const stateColor =
+    state === 'current' ? 'text-rose-700 dark:text-rose-300' :
+    state === 'past' ? 'text-emerald-700 dark:text-emerald-400' :
+    state === 'errored' ? 'text-red-700 dark:text-red-400' :
+    'text-stone-500 dark:text-stone-400'
+
+  return (
+    <>
+      {/* Live status header (per job) */}
+      <div className="flex items-center justify-between gap-2">
+        <span className={`text-[10px] font-medium uppercase tracking-wider ${stateColor}`}>
+          {stateLabel}
+        </span>
+        {timingLabel && (
+          <span className="font-mono text-[10px] tabular-nums text-stone-500 dark:text-stone-400">
+            {timingLabel}
+          </span>
+        )}
+      </div>
+
+      {/* Latest log line for this step (per job) */}
+      {latestLog && (
+        <p
+          className={`mt-1 break-words text-[12px] leading-relaxed ${
+            latestLog.level === 'error'
+              ? 'text-red-700 dark:text-red-400'
+              : latestLog.level === 'warn'
+                ? 'text-amber-700 dark:text-amber-300'
+                : 'text-stone-700 dark:text-stone-200'
+          }`}
+        >
+          {latestLog.message}
+        </p>
+      )}
+
+      {/* Static description — what the step does in general */}
+      <p
+        className={`text-[12px] leading-relaxed ${latestLog ? 'mt-2 border-t border-stone-200/60 pt-2 text-stone-500 dark:border-stone-700/60 dark:text-stone-400' : 'mt-1 text-stone-700 dark:text-stone-200'}`}
+      >
+        {info.summary}
+      </p>
+
+      {/* Tech stack */}
+      <p className="mt-2 text-[10px] font-medium uppercase tracking-wider text-stone-400 dark:text-stone-500">
+        Stack
+      </p>
+      <ul className="mt-1 space-y-0.5 text-[11px] leading-snug text-stone-600 dark:text-stone-300">
+        {info.stack.map((t) => (
+          <li key={t} className="flex gap-1.5">
+            <span aria-hidden className="mt-1 inline-block h-1 w-1 shrink-0 rounded-full bg-amber-500" />
+            <span>{t}</span>
+          </li>
+        ))}
+      </ul>
+    </>
   )
 }
 
