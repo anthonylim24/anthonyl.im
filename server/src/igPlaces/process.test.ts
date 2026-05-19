@@ -20,6 +20,7 @@ const enriched: EnrichedPlace = {
 
 describe('process', () => {
   test('happy path: fetch → bundle → extract → enrich → save → complete', async () => {
+    const stepLog: string[] = [];
     const fetchPost = mock(async () => payload);
     const upsertPost = mock(async () => 99);
     const buildBundle = mock(async () => ({ caption: 'cap', hashtags: [], mentions: [] }));
@@ -28,9 +29,10 @@ describe('process', () => {
     const savePlaces = mock(async () => undefined);
     const complete = mock(async () => undefined);
     const fail = mock(async () => undefined);
+    const setStep = mock(async (_id: number, step: string) => { stepLog.push(step); });
 
     const proc = createProcessor({
-      fetchPost, upsertPost, buildBundle, extract, geocode, savePlaces, complete, fail,
+      fetchPost, upsertPost, buildBundle, extract, geocode, savePlaces, complete, fail, setStep,
     });
     await proc({ id: 1, userId: 'u', url: 'https://i', dedupeKey: 'd' } as any);
 
@@ -39,6 +41,7 @@ describe('process', () => {
     expect(savePlaces).toHaveBeenCalledWith(99, 'u', [enriched]);
     expect(complete).toHaveBeenCalledWith(1, 99);
     expect(fail).not.toHaveBeenCalled();
+    expect(stepLog).toEqual(['fetching', 'bundling', 'extracting', 'geocoding', 'saving']);
   });
 
   test('error path: fail invoked with retryable=true on generic error', async () => {
@@ -52,6 +55,7 @@ describe('process', () => {
       savePlaces: mock(async () => undefined),
       complete: mock(async () => undefined),
       fail,
+      setStep: mock(async () => undefined),
     });
     await proc({ id: 1, userId: 'u', url: 'x', dedupeKey: 'd' } as any);
     expect(fail).toHaveBeenCalledWith(1, expect.any(Error), true);
@@ -68,6 +72,7 @@ describe('process', () => {
       savePlaces: mock(async () => undefined),
       complete: mock(async () => undefined),
       fail,
+      setStep: mock(async () => undefined),
     });
     await proc({ id: 1, userId: 'u', url: 'x', dedupeKey: 'd' } as any);
     expect(fail).toHaveBeenCalledWith(1, expect.any(Error), false);

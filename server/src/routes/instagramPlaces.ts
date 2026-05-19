@@ -7,6 +7,7 @@ import type { Queue } from '../igPlaces/queue';
 export interface InstagramPlacesDeps {
   enqueue: Queue['enqueue'];
   statsHandler: () => Promise<unknown> | unknown;
+  listJobs: (userId: string, limit?: number) => Promise<unknown>;
 }
 
 const igUrl = z.string().refine(isInstagramUrl, 'not an instagram url');
@@ -34,6 +35,14 @@ export function createInstagramPlacesRouter(deps: InstagramPlacesDeps) {
   r.get('/_stats', async (c) => {
     const stats = await deps.statsHandler();
     return c.json(stats);
+  });
+
+  r.get('/jobs', async (c) => {
+    const userId = c.get('userId' as never) as string;
+    const limitParam = c.req.query('limit');
+    const limit = limitParam ? Math.min(100, Math.max(1, Number(limitParam))) : 20;
+    const data = await deps.listJobs(userId, limit);
+    return c.json(data);
   });
 
   return r;

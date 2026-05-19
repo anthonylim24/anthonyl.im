@@ -252,3 +252,20 @@ begin
   get diagnostics n = row_count;
   return n;
 end $$;
+
+-- ============================================================
+-- IG job step tracking (per-stage progress for the live UI)
+-- ============================================================
+
+create type ig_job_step as enum
+  ('queued','fetching','bundling','extracting','geocoding','saving','done');
+
+alter table public.instagram_jobs
+  add column if not exists step ig_job_step not null default 'queued';
+
+create or replace function public.ig_set_job_step(
+  p_job_id bigint, p_step ig_job_step
+) returns void language sql security definer as $$
+  update public.instagram_jobs set step = p_step, updated_at = now()
+   where id = p_job_id;
+$$;

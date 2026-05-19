@@ -43,7 +43,7 @@ describe('queue.claim', () => {
     const sb = stubSupabase({
       rpc: mock(async () => [{
         id: 1, user_id: 'u', url: 'https://i', dedupe_key: 'd',
-        status: 'running', attempts: 1, max_attempts: 5, last_error: null,
+        status: 'running', step: 'queued', attempts: 1, max_attempts: 5, last_error: null,
         scheduled_for: 'x', locked_at: 'y', locked_by: 'w1', post_id: null,
       }]),
     });
@@ -51,6 +51,7 @@ describe('queue.claim', () => {
     const j = await q.claim('w1');
     expect(j?.id).toBe(1);
     expect(j?.lockedBy).toBe('w1');
+    expect(j?.step).toBe('queued');
   });
 });
 
@@ -62,6 +63,16 @@ describe('queue.fail', () => {
     await q.fail(42, new Error('bad'), false);
     expect(rpc).toHaveBeenCalledWith('ig_fail_job',
       { p_job_id: 42, p_error: 'bad', p_retryable: false });
+  });
+});
+
+describe('queue.setStep', () => {
+  test('calls ig_set_job_step rpc with correct args', async () => {
+    const rpc = mock(async () => null);
+    const sb = stubSupabase({ rpc });
+    const q = createQueue(sb, { normalize: (u) => u });
+    await q.setStep(42, 'extracting');
+    expect(rpc).toHaveBeenCalledWith('ig_set_job_step', { p_job_id: 42, p_step: 'extracting' });
   });
 });
 

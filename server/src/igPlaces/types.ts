@@ -1,5 +1,6 @@
 // server/src/igPlaces/types.ts
 export type IgJobStatus = 'pending' | 'running' | 'done' | 'failed' | 'dead';
+export type IgJobStep = 'queued'|'fetching'|'bundling'|'extracting'|'geocoding'|'saving'|'done';
 export type IgPlaceCategory = 'restaurant'|'cafe'|'bar'|'shopping'|'activity'
                             | 'hotel'|'landmark'|'other';
 export type IgSignalSource = 'caption'|'transcript'|'ocr'|'location_tag'|'multiple';
@@ -11,6 +12,7 @@ export interface IgJob {
   url: string;
   dedupeKey: string;
   status: IgJobStatus;
+  step: IgJobStep;
   attempts: number;
   maxAttempts: number;
   lastError: string | null;

@@ -1,4 +1,4 @@
-import type { IgJob } from './types';
+import type { IgJob, IgJobStep } from './types';
 import type { SupabaseClient } from './supabase';
 import { normalizeInstagramUrl } from './normalizeUrl';
 
@@ -15,6 +15,7 @@ export interface Queue {
   complete(jobId: number, postId: number): Promise<void>;
   fail(jobId: number, error: Error, retryable: boolean): Promise<void>;
   reapStale(thresholdSec: number): Promise<number>;
+  setStep(jobId: number, step: IgJobStep): Promise<void>;
   stats(): Promise<{ pending: number; running: number; failed: number; dead: number; done: number }>;
 }
 
@@ -24,7 +25,7 @@ export interface QueueDeps {
 
 interface JobRow {
   id: number; user_id: string; url: string; dedupe_key: string;
-  status: IgJob['status']; attempts: number; max_attempts: number;
+  status: IgJob['status']; step: IgJobStep; attempts: number; max_attempts: number;
   last_error: string | null; scheduled_for: string;
   locked_at: string | null; locked_by: string | null; post_id: number | null;
 }
@@ -32,7 +33,7 @@ interface JobRow {
 function fromRow(r: JobRow): IgJob {
   return {
     id: r.id, userId: r.user_id, url: r.url, dedupeKey: r.dedupe_key,
-    status: r.status, attempts: r.attempts, maxAttempts: r.max_attempts,
+    status: r.status, step: r.step, attempts: r.attempts, maxAttempts: r.max_attempts,
     lastError: r.last_error, scheduledFor: r.scheduled_for,
     lockedAt: r.locked_at, lockedBy: r.locked_by, postId: r.post_id,
   };
@@ -57,9 +58,13 @@ export function createQueue(sb: SupabaseClient, deps: QueueDeps = {}): Queue {
 
     async complete(jobId, postId) {
       await sb.update('instagram_jobs',
-        { status: 'done', post_id: postId, locked_at: null, locked_by: null,
+        { status: 'done', step: 'done', post_id: postId, locked_at: null, locked_by: null,
           last_error: null, updated_at: new Date().toISOString() },
         { id: jobId });
+    },
+
+    async setStep(jobId, step) {
+      await sb.rpc('ig_set_job_step', { p_job_id: jobId, p_step: step });
     },
 
     async fail(jobId, error, retryable) {

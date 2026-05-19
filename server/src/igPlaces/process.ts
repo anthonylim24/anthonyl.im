@@ -1,5 +1,5 @@
 // server/src/igPlaces/process.ts
-import type { IgJob, PostPayload, ExtractionBundle, VotedPlace, EnrichedPlace, LocationTag } from './types';
+import type { IgJob, IgJobStep, PostPayload, ExtractionBundle, VotedPlace, EnrichedPlace, LocationTag } from './types';
 import { NonRetryableError } from './types';
 
 export interface ProcessorDeps {
@@ -11,17 +11,28 @@ export interface ProcessorDeps {
   savePlaces:  (postId: number, userId: string, places: EnrichedPlace[]) => Promise<void>;
   complete:    (jobId: number, postId: number) => Promise<void>;
   fail:        (jobId: number, error: Error, retryable: boolean) => Promise<void>;
+  setStep:     (jobId: number, step: IgJobStep) => Promise<void>;
 }
 
 export function createProcessor(deps: ProcessorDeps) {
   return async function process(job: IgJob): Promise<void> {
     try {
+      await deps.setStep(job.id, 'fetching');
       const payload  = await deps.fetchPost(job.url, null);
+
+      await deps.setStep(job.id, 'bundling');
       const bundle   = await deps.buildBundle(payload);
       const postId   = await deps.upsertPost(job.dedupeKey, job.url, payload, bundle.transcript, bundle.ocr);
+
+      await deps.setStep(job.id, 'extracting');
       const voted    = await deps.extract(bundle);
+
+      await deps.setStep(job.id, 'geocoding');
       const enriched = await Promise.all(voted.map(v => deps.geocode(v, payload.locationTag)));
+
+      await deps.setStep(job.id, 'saving');
       await deps.savePlaces(postId, job.userId, enriched);
+
       await deps.complete(job.id, postId);
       console.log(`[ig-worker] complete id=${job.id} places=${enriched.length} source=${payload.source}`);
     } catch (err) {

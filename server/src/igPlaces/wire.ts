@@ -60,7 +60,7 @@ export function buildWorld() {
 
   const processor = createProcessor({
     fetchPost, upsertPost, buildBundle, extract, geocode, savePlaces,
-    complete: queue.complete, fail: queue.fail,
+    complete: queue.complete, fail: queue.fail, setStep: queue.setStep,
   });
 
   const workerId = `${process.pid}@${hostname()}`;
@@ -112,4 +112,46 @@ export function bootIgWorker() {
 
 export function getQueue() {
   return booted?.queue ?? buildWorld().queue;
+}
+
+export async function listJobsForUser(userId: string, limit = 20) {
+  const supabaseUrl = config.supabaseUrl;
+  const supabaseServiceKey = config.supabaseServiceKey;
+  if (!supabaseUrl || !supabaseServiceKey) {
+    return [];
+  }
+  const supabase = createSupabaseClient({ url: supabaseUrl, serviceKey: supabaseServiceKey });
+
+  const jobs = await supabase.select<{
+    id: number; url: string; status: string; step: string; attempts: number;
+    last_error: string | null; created_at: string; updated_at: string; post_id: number | null;
+  }>('instagram_jobs', {
+    eq: { user_id: userId },
+    select: 'id,url,status,step,attempts,last_error,created_at,updated_at,post_id',
+    order: 'created_at.desc',
+    limit,
+  });
+
+  const postIds = jobs.map(j => j.post_id).filter((x): x is number => x != null);
+  let placesByPost: Record<number, unknown[]> = {};
+
+  if (postIds.length) {
+    const url = `${supabaseUrl}/rest/v1/instagram_places?post_id=in.(${postIds.join(',')})` +
+      `&select=id,post_id,name,name_romanized,city,category,confidence,confidence_band,` +
+      `is_subject,supporting_quote,address,lat,lng,geocode_source,geocode_disagree`;
+    const r = await fetch(url, {
+      headers: {
+        apikey: supabaseServiceKey,
+        Authorization: `Bearer ${supabaseServiceKey}`,
+      },
+    });
+    if (r.ok) {
+      const rows = await r.json() as Array<{ post_id: number; [key: string]: unknown }>;
+      for (const p of rows) {
+        (placesByPost[p.post_id] ??= []).push(p);
+      }
+    }
+  }
+
+  return jobs.map(j => ({ ...j, places: j.post_id != null ? (placesByPost[j.post_id] ?? []) : [] }));
 }
