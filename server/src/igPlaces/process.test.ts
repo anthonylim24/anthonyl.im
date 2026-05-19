@@ -30,9 +30,10 @@ describe('process', () => {
     const complete = mock(async () => undefined);
     const fail = mock(async () => undefined);
     const setStep = mock(async (_id: number, step: string) => { stepLog.push(step); });
+    const log = mock(async () => undefined);
 
     const proc = createProcessor({
-      fetchPost, upsertPost, buildBundle, extract, geocode, savePlaces, complete, fail, setStep,
+      fetchPost, upsertPost, buildBundle, extract, geocode, savePlaces, complete, fail, setStep, log,
     });
     await proc({ id: 1, userId: 'u', url: 'https://i', dedupeKey: 'd' } as any);
 
@@ -42,10 +43,12 @@ describe('process', () => {
     expect(complete).toHaveBeenCalledWith(1, 99);
     expect(fail).not.toHaveBeenCalled();
     expect(stepLog).toEqual(['fetching', 'bundling', 'extracting', 'geocoding', 'saving']);
+    expect(log).toHaveBeenCalled();
   });
 
   test('error path: fail invoked with retryable=true on generic error', async () => {
     const fail = mock(async () => undefined);
+    const log = mock(async () => undefined);
     const proc = createProcessor({
       fetchPost: mock(async () => { throw new Error('network'); }),
       upsertPost: mock(async () => 0),
@@ -56,13 +59,17 @@ describe('process', () => {
       complete: mock(async () => undefined),
       fail,
       setStep: mock(async () => undefined),
+      log,
     });
     await proc({ id: 1, userId: 'u', url: 'x', dedupeKey: 'd' } as any);
     expect(fail).toHaveBeenCalledWith(1, expect.any(Error), true);
+    // error log should have been emitted
+    expect(log).toHaveBeenCalledWith(1, 'fetching', 'error', 'network');
   });
 
   test('NonRetryableError → fail called with retryable=false', async () => {
     const fail = mock(async () => undefined);
+    const log = mock(async () => undefined);
     const proc = createProcessor({
       fetchPost: mock(async () => { throw new (await import('./types')).NonRetryableError('bad url'); }),
       upsertPost: mock(async () => 0),
@@ -73,6 +80,7 @@ describe('process', () => {
       complete: mock(async () => undefined),
       fail,
       setStep: mock(async () => undefined),
+      log,
     });
     await proc({ id: 1, userId: 'u', url: 'x', dedupeKey: 'd' } as any);
     expect(fail).toHaveBeenCalledWith(1, expect.any(Error), false);

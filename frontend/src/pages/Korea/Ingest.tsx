@@ -4,11 +4,52 @@ import { motion, useReducedMotion } from 'motion/react'
 import { CheckCircle2, Circle, Loader2 } from 'lucide-react'
 import { isInstagramUrl } from './isInstagramUrl'
 import { fetchStats, listJobs, retryJob, submitUrl } from './ingestApi'
-import type { Job, JobStep, Stats } from './ingestApi'
+import type { Job, JobStep, LogLine, Stats } from './ingestApi'
 
 // ─── Step pipeline ────────────────────────────────────────────────────────────
 
 const PIPELINE_STEPS: JobStep[] = ['fetching', 'bundling', 'extracting', 'geocoding', 'saving']
+
+type UiStep = 'fetching' | 'bundling' | 'extracting' | 'geocoding' | 'saving'
+
+const STEP_DESCRIPTIONS: Record<UiStep, string> = {
+  fetching:   'Pulls the post from Instagram via yt-dlp (local) or Apify (cloud fallback). Captures caption, media, and location tag.',
+  bundling:   'Transcribes audio with Whisper (Korean + auto-detect dual-pass) and OCRs frames + carousel images with Google Vision.',
+  extracting: "Runs gpt-oss-120b 3× in parallel with self-consistency voting. Drops hallucinations whose quote isn't in the source.",
+  geocoding:  'Looks each place up in Google Places + Kakao in parallel. Reconciles disagreements and flags them for review.',
+  saving:     'Writes the post and extracted places into Supabase under your user.',
+}
+
+const STEP_DURATIONS: Record<UiStep, number> = {
+  fetching: 8, bundling: 25, extracting: 4, geocoding: 3, saving: 1,
+}
+
+function formatLogTime(iso: string): string {
+  const d = new Date(iso)
+  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+}
+
+function computeEta(job: Job): { label: string; tone: 'live' | 'done' } | null {
+  if (job.status === 'done' || job.step === 'done') {
+    const ms = new Date(job.updated_at).getTime() - new Date(job.created_at).getTime()
+    return { label: `completed in ${Math.max(1, Math.round(ms / 1000))}s`, tone: 'done' }
+  }
+  if (job.status !== 'running' && job.status !== 'pending') return null
+  const order: UiStep[] = ['fetching', 'bundling', 'extracting', 'geocoding', 'saving']
+  const current = order.includes(job.step as UiStep) ? job.step as UiStep : null
+  if (!current) {
+    const total = order.reduce((a, s) => a + STEP_DURATIONS[s], 0)
+    return { label: `~${total}s left`, tone: 'live' }
+  }
+  const currentIdx = order.indexOf(current)
+  const elapsedInStep = job.step_started_at
+    ? (Date.now() - new Date(job.step_started_at).getTime()) / 1000
+    : 0
+  const currentRemaining = Math.max(0, STEP_DURATIONS[current] - elapsedInStep)
+  const futureRemaining = order.slice(currentIdx + 1).reduce((a, s) => a + STEP_DURATIONS[s], 0)
+  const total = Math.round(currentRemaining + futureRemaining)
+  return { label: `~${Math.max(1, total)}s left`, tone: 'live' }
+}
 
 type StepState = 'past' | 'current' | 'future' | 'errored'
 
@@ -146,10 +187,16 @@ function StepTimeline({ job, reduce }: { job: Job; reduce: boolean | null }) {
       {PIPELINE_STEPS.map((step, i) => {
         const state = stepStates[step]
         const isLast = i === PIPELINE_STEPS.length - 1
+        const description = STEP_DESCRIPTIONS[step as UiStep]
 
         return (
           <div key={step} className="flex min-w-0 items-center">
-            <div className="flex flex-col items-center gap-1">
+            <button
+              type="button"
+              title={description}
+              aria-label={`${stepLabels[step]}: ${description}`}
+              className="flex flex-col items-center gap-1 cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 rounded"
+            >
               {/* Circle indicator */}
               {state === 'past' ? (
                 <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-500">
@@ -184,7 +231,7 @@ function StepTimeline({ job, reduce }: { job: Job; reduce: boolean | null }) {
               >
                 {stepLabels[step]}
               </span>
-            </div>
+            </button>
 
             {/* Connector line */}
             {!isLast && (
@@ -274,6 +321,53 @@ function PlacesList({ places }: { places: Job['places'] }) {
   )
 }
 
+function LogsViewer({ logs }: { logs: LogLine[] }) {
+  const listRef = useRef<HTMLOListElement>(null)
+  const prevLenRef = useRef(logs.length)
+
+  useEffect(() => {
+    const el = listRef.current
+    if (!el) return
+    const wasAtBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 4
+    if (wasAtBottom && logs.length > prevLenRef.current) {
+      el.scrollTop = el.scrollHeight
+    }
+    prevLenRef.current = logs.length
+  }, [logs.length])
+
+  return (
+    <details className="mt-3 rounded-xl border border-stone-200/60 dark:border-stone-800/60">
+      <summary className="cursor-pointer select-none px-3 py-2 text-[12px] font-medium text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-200">
+        Logs ({logs.length})
+      </summary>
+      <ol
+        ref={listRef}
+        className="max-h-48 overflow-y-auto px-3 py-2 font-mono text-[11px]"
+        aria-live="polite"
+        aria-label="Job log lines"
+      >
+        {logs.map((l) => (
+          <li key={l.id} className="flex gap-2 py-0.5">
+            <span className="shrink-0 text-stone-400">{formatLogTime(l.created_at)}</span>
+            <span
+              className={`shrink-0 uppercase tracking-wide ${
+                l.level === 'error'
+                  ? 'text-red-600 dark:text-red-400'
+                  : l.level === 'warn'
+                    ? 'text-amber-600 dark:text-amber-400'
+                    : 'text-rose-700 dark:text-rose-400'
+              }`}
+            >
+              {l.step}
+            </span>
+            <span className="break-all text-stone-700 dark:text-stone-300">{l.message}</span>
+          </li>
+        ))}
+      </ol>
+    </details>
+  )
+}
+
 function JobCard({
   job,
   reduce,
@@ -300,14 +394,30 @@ function JobCard({
     }
   }
 
+  const eta = computeEta(job)
+
   return (
     <motion.div
       layout
       initial={reduce ? false : { opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-      className="rounded-2xl border border-stone-200/80 bg-white p-5 dark:border-stone-800/80 dark:bg-stone-900/60"
+      className="relative rounded-2xl border border-stone-200/80 bg-white p-5 dark:border-stone-800/80 dark:bg-stone-900/60"
     >
+      {/* Running sweep animation */}
+      {job.status === 'running' && (
+        <div
+          aria-hidden
+          className="absolute inset-x-0 top-0 h-[2px] overflow-hidden rounded-t-2xl"
+        >
+          <div
+            className={`h-full w-1/3 bg-gradient-to-r from-transparent via-rose-500 to-transparent${
+              reduce ? '' : ' animate-[ig-sweep_1.6s_linear_infinite]'
+            }`}
+          />
+        </div>
+      )}
+
       {/* Header row */}
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <a
@@ -334,6 +444,17 @@ function JobCard({
         Updated {formatTimestamp(job.updated_at)}
         <span aria-hidden className="mx-1.5">·</span>
         {job.attempts} {job.attempts === 1 ? 'attempt' : 'attempts'}
+        {eta && (
+          <span
+            className={`ml-2 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+              eta.tone === 'done'
+                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400'
+                : 'bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400'
+            }`}
+          >
+            {eta.label}
+          </span>
+        )}
       </p>
 
       {/* Error message */}
@@ -363,6 +484,9 @@ function JobCard({
 
       {/* Places */}
       {job.places.length > 0 && <PlacesList places={job.places} />}
+
+      {/* Logs viewer */}
+      <LogsViewer logs={job.logs} />
     </motion.div>
   )
 }
@@ -440,6 +564,18 @@ export function Ingest() {
     const id = setInterval(() => setRefreshTick((t) => t + 1), 5000)
     return () => clearInterval(id)
   }, [])
+
+  // ── Tick for ETA countdown (1s, only while a job is running) ──────────────
+
+  const [etaTick, setEtaTick] = useState(0)
+  useEffect(() => {
+    const hasRunning = jobs.some((j) => j.status === 'running')
+    if (!hasRunning) return
+    const id = setInterval(() => setEtaTick((t) => t + 1), 1000)
+    return () => clearInterval(id)
+  }, [jobs])
+  // etaTick drives re-renders for ETA countdown — consumed via Date.now() in computeEta
+  void etaTick
 
   // ── Submit ─────────────────────────────────────────────────────────────────
 

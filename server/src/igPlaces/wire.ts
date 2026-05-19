@@ -60,7 +60,7 @@ export function buildWorld() {
 
   const processor = createProcessor({
     fetchPost, upsertPost, buildBundle, extract, geocode, savePlaces,
-    complete: queue.complete, fail: queue.fail, setStep: queue.setStep,
+    complete: queue.complete, fail: queue.fail, setStep: queue.setStep, log: queue.log,
   });
 
   const workerId = `${process.pid}@${hostname()}`;
@@ -123,11 +123,11 @@ export async function listJobsForUser(userId: string, limit = 20) {
   const supabase = createSupabaseClient({ url: supabaseUrl, serviceKey: supabaseServiceKey });
 
   const jobs = await supabase.select<{
-    id: number; url: string; status: string; step: string; attempts: number;
-    last_error: string | null; created_at: string; updated_at: string; post_id: number | null;
+    id: number; url: string; status: string; step: string; step_started_at: string | null;
+    attempts: number; last_error: string | null; created_at: string; updated_at: string; post_id: number | null;
   }>('instagram_jobs', {
     eq: { user_id: userId },
-    select: 'id,url,status,step,attempts,last_error,created_at,updated_at,post_id',
+    select: 'id,url,status,step,step_started_at,attempts,last_error,created_at,updated_at,post_id',
     order: 'created_at.desc',
     limit,
   });
@@ -153,5 +153,28 @@ export async function listJobsForUser(userId: string, limit = 20) {
     }
   }
 
-  return jobs.map(j => ({ ...j, places: j.post_id != null ? (placesByPost[j.post_id] ?? []) : [] }));
+  let logsByJob: Record<number, unknown[]> = {};
+  const jobIds = jobs.map(j => j.id);
+  if (jobIds.length) {
+    const logsUrl = `${supabaseUrl}/rest/v1/instagram_job_logs?` +
+      `job_id=in.(${jobIds.join(',')})` +
+      `&select=id,job_id,step,level,message,created_at` +
+      `&order=id.asc&limit=2000`;
+    const r = await fetch(logsUrl, {
+      headers: {
+        apikey: supabaseServiceKey,
+        Authorization: `Bearer ${supabaseServiceKey}`,
+      },
+    });
+    if (r.ok) {
+      const rows = await r.json() as Array<{ job_id: number; [key: string]: unknown }>;
+      for (const l of rows) (logsByJob[l.job_id] ??= []).push(l);
+    }
+  }
+
+  return jobs.map(j => ({
+    ...j,
+    places: j.post_id != null ? (placesByPost[j.post_id] ?? []) : [],
+    logs: logsByJob[j.id] ?? [],
+  }));
 }

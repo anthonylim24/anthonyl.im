@@ -22,17 +22,28 @@ export type PlaceResult = {
 export type JobStatus = 'pending' | 'running' | 'done' | 'failed' | 'dead'
 export type JobStep = 'queued' | 'fetching' | 'bundling' | 'extracting' | 'geocoding' | 'saving' | 'done'
 
+export interface LogLine {
+  id: number
+  job_id: number
+  step: JobStep
+  level: 'info' | 'warn' | 'error'
+  message: string
+  created_at: string
+}
+
 export type Job = {
   id: number
   url: string
   status: JobStatus
   step: JobStep
+  step_started_at: string | null
   attempts: number
   last_error: string | null
   created_at: string
   updated_at: string
   post_id: number | null
   places: PlaceResult[]
+  logs: LogLine[]
 }
 
 export type Stats = {

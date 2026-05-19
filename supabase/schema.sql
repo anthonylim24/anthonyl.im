@@ -297,3 +297,50 @@ begin
   get diagnostics matched = row_count;
   return matched > 0;
 end $$;
+
+-- ============================================================
+-- IG job per-step logs + step-start timestamp
+-- ============================================================
+
+-- NOTE: if this schema has been partially applied and ig_log_level already
+-- exists, wrap the create type in a do $$ begin ... exception when
+-- duplicate_object then null; end $$; block before re-running.
+create type ig_log_level as enum ('info','warn','error');
+
+create table if not exists public.instagram_job_logs (
+  id         bigserial primary key,
+  job_id     bigint not null references public.instagram_jobs(id) on delete cascade,
+  step       ig_job_step not null,
+  level      ig_log_level not null default 'info',
+  message    text not null,
+  created_at timestamptz not null default now()
+);
+create index if not exists instagram_job_logs_job_idx
+  on public.instagram_job_logs (job_id, id);
+
+alter table public.instagram_job_logs enable row level security;
+create policy "Users read logs of their jobs"
+  on public.instagram_job_logs for select to authenticated
+  using (exists (
+    select 1 from public.instagram_jobs j
+     where j.id = job_id and j.user_id = (select auth.jwt()->>'sub')
+  ));
+
+create or replace function public.ig_log_job(
+  p_job_id bigint, p_step ig_job_step, p_level ig_log_level, p_message text
+) returns void language sql security definer as $$
+  insert into public.instagram_job_logs (job_id, step, level, message)
+  values (p_job_id, p_step, p_level, p_message);
+$$;
+
+-- step_started_at: bumped each time step changes; used for ETA on the UI.
+alter table public.instagram_jobs
+  add column if not exists step_started_at timestamptz;
+
+create or replace function public.ig_set_job_step(
+  p_job_id bigint, p_step ig_job_step
+) returns void language sql security definer as $$
+  update public.instagram_jobs
+     set step = p_step, step_started_at = now(), updated_at = now()
+   where id = p_job_id;
+$$;

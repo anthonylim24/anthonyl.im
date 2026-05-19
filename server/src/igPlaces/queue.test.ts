@@ -104,3 +104,15 @@ describe('queue.retryJob', () => {
     expect(r).toBe(true);
   });
 });
+
+describe('queue.log', () => {
+  test('passes args to ig_log_job rpc; never throws', async () => {
+    const rpc = mock(async () => { throw new Error('db down'); });
+    const sb = stubSupabase({ rpc });
+    const q = createQueue(sb, { normalize: (u) => u });
+    await q.log(7, 'fetching', 'info', 'hello'); // must not throw
+    expect(rpc).toHaveBeenCalledWith('ig_log_job', {
+      p_job_id: 7, p_step: 'fetching', p_level: 'info', p_message: 'hello',
+    });
+  });
+});

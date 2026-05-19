@@ -13,6 +13,7 @@ export interface IgJob {
   dedupeKey: string;
   status: IgJobStatus;
   step: IgJobStep;
+  stepStartedAt: string | null;
   attempts: number;
   maxAttempts: number;
   lastError: string | null;

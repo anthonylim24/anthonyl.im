@@ -61,12 +61,14 @@ function makeJob(overrides: Partial<Job> = {}): Job {
     url: 'https://www.instagram.com/reel/ABC123/',
     status: 'running',
     step: 'extracting',
+    step_started_at: new Date().toISOString(),
     attempts: 1,
     last_error: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     post_id: null,
     places: [],
+    logs: [],
     ...overrides,
   }
 }
@@ -242,5 +244,50 @@ describe('Ingest page', () => {
       expect(mockRetryJob).toHaveBeenCalledOnce()
     })
     expect(mockRetryJob.mock.calls[0][1]).toBe(42)
+  })
+
+  it('shows ETA pill for a running job', async () => {
+    // step_started_at 2 seconds ago so there is some elapsed time
+    const stepStartedAt = new Date(Date.now() - 2000).toISOString()
+    const job = makeJob({
+      status: 'running',
+      step: 'extracting',
+      step_started_at: stepStartedAt,
+    })
+    mockListJobs.mockResolvedValue([job])
+
+    await renderIngest()
+
+    // ETA pill should show "~Xs left" (remaining time for extracting=4s minus ~2s elapsed = ~2s,
+    // plus geocoding=3s + saving=1s = ~6s total, but clamped to at least 1)
+    await waitFor(() => {
+      expect(screen.getByText(/~\d+s left/)).toBeTruthy()
+    })
+  })
+
+  it('renders log lines for a job', async () => {
+    const logs = [
+      { id: 1, job_id: 1, step: 'fetching' as const, level: 'info' as const, message: 'starting fetch', created_at: new Date().toISOString() },
+      { id: 2, job_id: 1, step: 'fetching' as const, level: 'info' as const, message: 'got payload via apify; 1 media item(s)', created_at: new Date().toISOString() },
+    ]
+    const job = makeJob({ logs })
+    mockListJobs.mockResolvedValue([job])
+
+    await renderIngest()
+
+    // Logs accordion summary should show count
+    const summary = screen.getByText(/Logs \(2\)/)
+    expect(summary).toBeTruthy()
+
+    // Expand the details element
+    await act(async () => {
+      fireEvent.click(summary)
+    })
+
+    // Log messages should now be visible
+    await waitFor(() => {
+      expect(screen.getByText('starting fetch')).toBeTruthy()
+      expect(screen.getByText(/got payload via apify/)).toBeTruthy()
+    })
   })
 })
