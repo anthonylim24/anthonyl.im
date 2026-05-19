@@ -83,7 +83,26 @@ async function authHeaders(
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
+/** Common error type so callers can branch on infrastructure misconfig. */
+export class ApiNotConfiguredError extends Error {
+  constructor(message = 'The Instagram places API is not configured on the server.') {
+    super(message)
+    this.name = 'ApiNotConfiguredError'
+  }
+}
+
 async function throwOnError(res: Response): Promise<void> {
+  // If a server-side SPA fallback caught the request (route not mounted),
+  // we get a 200 with content-type text/html instead of JSON. That's almost
+  // certainly a server-config issue, not a programming error. Detect it
+  // before trying to parse JSON, so the UI can surface a clear message.
+  const ct = res.headers.get('content-type') ?? ''
+  if (res.ok && !ct.includes('application/json')) {
+    throw new ApiNotConfiguredError(
+      `Server returned ${ct || 'no content-type'} instead of JSON — the IG places ` +
+      `endpoint is not mounted. Set CLERK_SECRET_KEY (or IG_DEV_BEARER) on the server.`,
+    )
+  }
   if (res.ok) return
   let message = `HTTP ${res.status}`
   try {
@@ -92,6 +111,11 @@ async function throwOnError(res: Response): Promise<void> {
     else if (body && typeof body.message === 'string') message = body.message
   } catch {
     // ignore parse failures — keep the status-based message
+  }
+  // 503 with our specific error code → upgrade to ApiNotConfiguredError so
+  // the page can show a one-time banner rather than a transient retry spinner.
+  if (res.status === 503 && message.toLowerCase().includes('not_configured')) {
+    throw new ApiNotConfiguredError(message)
   }
   throw new Error(message)
 }
