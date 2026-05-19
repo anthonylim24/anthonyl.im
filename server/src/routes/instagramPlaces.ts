@@ -44,7 +44,7 @@ export function createInstagramPlacesRouter(deps: InstagramPlacesDeps) {
   r.get('/jobs', async (c) => {
     const userId = c.get('userId' as never) as string;
     const limitParam = c.req.query('limit');
-    const limit = limitParam ? Math.min(100, Math.max(1, Number(limitParam))) : 20;
+    const limit = limitParam ? Math.min(500, Math.max(1, Number(limitParam))) : 20;
     const data = await deps.listJobs(userId, limit);
     return c.json(data);
   });
