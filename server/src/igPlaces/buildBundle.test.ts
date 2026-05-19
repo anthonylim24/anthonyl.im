@@ -94,4 +94,71 @@ describe('buildBundle', () => {
     const b = await build({ ...videoPost, locationTag: { name: 'Cafe Onion' } });
     expect(b.locationTagName).toBe('Cafe Onion');
   });
+
+  test('Apify video fallback: invoked when both yt-dlp and CDN fail', async () => {
+    const downloadVideoFallback = mock(async () => { throw new Error('yt-dlp failed'); });
+    const downloadVideo = mock(async () => { throw new Error('CDN failed'); });
+    const downloadVideoApify = mock(async () => '/tmp/apify/video.mp4');
+    const transcribe = mock(async () => 'APIFY_TRANSCRIPT');
+    const ocr = mock(async () => '');
+    const extractFrames = mock(async () => []);
+    const build = createBundleBuilder({
+      transcribe,
+      ocr,
+      downloadVideo,
+      downloadVideoFallback,
+      downloadVideoApify,
+      downloadImage: mock(async () => '/tmp/img.jpg'),
+      extractFrames,
+    });
+    const postWithUrl = { ...videoPost, url: 'https://www.instagram.com/p/abc/' };
+    const b = await build(postWithUrl);
+    expect(downloadVideoApify).toHaveBeenCalledWith(
+      'https://www.instagram.com/p/abc/',
+      expect.anything(),
+    );
+    expect(b.transcript).toBe('APIFY_TRANSCRIPT');
+  });
+
+  test('Apify video fallback: not invoked if dep is absent', async () => {
+    const downloadVideoFallback = mock(async () => { throw new Error('yt-dlp failed'); });
+    const downloadVideo = mock(async () => { throw new Error('CDN failed'); });
+    const transcribe = mock(async () => 'should not be called');
+    const build = createBundleBuilder({
+      transcribe,
+      ocr: mock(async () => ''),
+      downloadVideo,
+      downloadVideoFallback,
+      // no downloadVideoApify
+      downloadImage: mock(async () => '/tmp/img.jpg'),
+      extractFrames: mock(async () => []),
+    });
+    const postWithUrl = { ...videoPost, url: 'https://www.instagram.com/p/abc/' };
+    const b = await build(postWithUrl);
+    // Should return caption-only bundle since all downloaders failed
+    expect(b.caption).toBe('Caption with #tag and @owner');
+    expect(b.transcript).toBeUndefined();
+    expect(transcribe).not.toHaveBeenCalled();
+  });
+
+  test('Apify video fallback: returns caption-only if Apify also fails', async () => {
+    const downloadVideoFallback = mock(async () => { throw new Error('yt-dlp failed'); });
+    const downloadVideo = mock(async () => { throw new Error('CDN failed'); });
+    const downloadVideoApify = mock(async () => { throw new Error('apify failed'); });
+    const transcribe = mock(async () => 'should not be called');
+    const build = createBundleBuilder({
+      transcribe,
+      ocr: mock(async () => ''),
+      downloadVideo,
+      downloadVideoFallback,
+      downloadVideoApify,
+      downloadImage: mock(async () => '/tmp/img.jpg'),
+      extractFrames: mock(async () => []),
+    });
+    const postWithUrl = { ...videoPost, url: 'https://www.instagram.com/p/abc/' };
+    const b = await build(postWithUrl);
+    expect(b.caption).toBe('Caption with #tag and @owner');
+    expect(b.transcript).toBeUndefined();
+    expect(transcribe).not.toHaveBeenCalled();
+  });
 });

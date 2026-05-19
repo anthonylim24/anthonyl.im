@@ -16,6 +16,10 @@ export interface BundleDeps {
   /** Optional secondary downloader, used when `downloadVideo` (CDN fetch) fails.
    *  Receives the canonical IG post URL (not the CDN URL) so it can re-resolve. */
   downloadVideoFallback?: (igUrl: string, signal?: AbortSignal) => Promise<string>;
+  /** Optional tertiary downloader: re-calls Apify's instagram-reel-scraper with
+   *  `includeDownloadedVideo: true` to obtain a 3-day-valid KV-store URL.
+   *  Used as the absolute-last-resort when both yt-dlp and direct CDN fail. */
+  downloadVideoApify?: (igUrl: string, signal?: AbortSignal) => Promise<string>;
   downloadImage: (url: string, signal?: AbortSignal) => Promise<string>;
   extractFrames: (videoPath: string, count?: number, signal?: AbortSignal) => Promise<string[]>;
   biasPrompt?: string;
@@ -121,7 +125,28 @@ export function createBundleBuilder(deps: BundleDeps): BundleBuilder {
             await log('info', `video saved via direct fetch (${Date.now() - t0}ms)`);
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            await log('warn', `video download failed: ${msg} — bundle will have no transcript/frames`);
+            await log('warn', `direct CDN download failed: ${msg}; trying Apify reel-scraper fallback…`);
+          }
+        }
+
+        if (!localPath) {
+          // 3rd path: re-call Apify for a freshly signed URL via the reel-scraper
+          if (deps.downloadVideoApify && post.url) {
+            await log('info', 'direct CDN download failed too; trying Apify reel-scraper fallback…');
+            const apCtrl = new AbortController();
+            try {
+              localPath = await withTimeout(
+                deps.downloadVideoApify(post.url, apCtrl.signal),
+                TIMEOUT_DOWNLOAD_MS, 'Apify video download', apCtrl,
+              );
+              trackTmpDir(localPath);
+              await log('info', `video saved via Apify (${Date.now() - t0}ms)`);
+            } catch (err3) {
+              const msg3 = err3 instanceof Error ? err3.message : String(err3);
+              await log('warn', `Apify video download also failed: ${msg3} — bundle will have no transcript/frames`);
+            }
+          }
+          if (!localPath) {
             return { caption: post.caption, transcript, ocr,
                      locationTagName: post.locationTag?.name, hashtags, mentions };
           }
