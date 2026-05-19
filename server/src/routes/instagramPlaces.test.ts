@@ -10,11 +10,12 @@ const noopListJobs = mock(async () => []);
 const noopListExtractedPlaces = mock(async () => ({ places: [], total: 0, hasMore: false }));
 
 const noopRetryJob = mock(async () => true);
+const noopReextractJob = mock(async () => true);
 
 describe('POST /api/korea/places/from-instagram', () => {
   test('400 on non-instagram url', async () => {
     const enqueue = mock(async () => ({ jobId: 1, dedupeKey: 'd', status: 'pending', reused: false }));
-    const router = createInstagramPlacesRouter({ enqueue, statsHandler: () => ({}) as any, listJobs: noopListJobs, retryJob: noopRetryJob, listExtractedPlaces: noopListExtractedPlaces });
+    const router = createInstagramPlacesRouter({ enqueue, statsHandler: () => ({}) as any, listJobs: noopListJobs, retryJob: noopRetryJob, reextractJob: noopReextractJob, listExtractedPlaces: noopListExtractedPlaces });
     const app = new Hono().use('*', withAuth('u')).route('/', router);
     const res = await app.request('/', {
       method: 'POST',
@@ -26,7 +27,7 @@ describe('POST /api/korea/places/from-instagram', () => {
 
   test('202 single url returns one job', async () => {
     const enqueue = mock(async () => ({ jobId: 7, dedupeKey: 'd', status: 'pending', reused: false }));
-    const router = createInstagramPlacesRouter({ enqueue, statsHandler: () => ({}) as any, listJobs: noopListJobs, retryJob: noopRetryJob, listExtractedPlaces: noopListExtractedPlaces });
+    const router = createInstagramPlacesRouter({ enqueue, statsHandler: () => ({}) as any, listJobs: noopListJobs, retryJob: noopRetryJob, reextractJob: noopReextractJob, listExtractedPlaces: noopListExtractedPlaces });
     const app = new Hono().use('*', withAuth('u')).route('/', router);
     const res = await app.request('/', {
       method: 'POST',
@@ -42,7 +43,7 @@ describe('POST /api/korea/places/from-instagram', () => {
   test('202 urls[] enqueues each', async () => {
     let counter = 0;
     const enqueue = mock(async () => ({ jobId: ++counter, dedupeKey: `d${counter}`, status: 'pending', reused: false }));
-    const router = createInstagramPlacesRouter({ enqueue, statsHandler: () => ({}) as any, listJobs: noopListJobs, retryJob: noopRetryJob, listExtractedPlaces: noopListExtractedPlaces });
+    const router = createInstagramPlacesRouter({ enqueue, statsHandler: () => ({}) as any, listJobs: noopListJobs, retryJob: noopRetryJob, reextractJob: noopReextractJob, listExtractedPlaces: noopListExtractedPlaces });
     const app = new Hono().use('*', withAuth('u')).route('/', router);
     const res = await app.request('/', {
       method: 'POST',
@@ -65,6 +66,7 @@ describe('GET /_stats', () => {
       statsHandler: mock(async () => ({ pending: 3, running: 1, dead: 0 })),
       listJobs: noopListJobs,
       retryJob: noopRetryJob,
+      reextractJob: noopReextractJob,
       listExtractedPlaces: noopListExtractedPlaces,
     });
     const app = new Hono().use('*', withAuth('u')).route('/', router);
@@ -88,6 +90,7 @@ describe('GET /jobs', () => {
       statsHandler: () => ({}),
       listJobs,
       retryJob: noopRetryJob,
+      reextractJob: noopReextractJob,
       listExtractedPlaces: noopListExtractedPlaces,
     });
     const app = new Hono().use('*', withAuth('user-123')).route('/', router);
@@ -111,6 +114,7 @@ describe('GET /jobs', () => {
       statsHandler: () => ({}),
       listJobs,
       retryJob: noopRetryJob,
+      reextractJob: noopReextractJob,
       listExtractedPlaces: noopListExtractedPlaces,
     });
     const app = new Hono().use('*', withAuth('user-abc')).route('/', router);
@@ -138,6 +142,7 @@ describe('POST /jobs/:id/retry', () => {
       statsHandler: mock(async () => ({})),
       listJobs: mock(async () => []),
       retryJob: retry,
+      reextractJob: noopReextractJob,
       listExtractedPlaces: noopListExtractedPlaces,
     });
     const app = new Hono().use('*', withAuth('u')).route('/', router);
@@ -151,6 +156,7 @@ describe('POST /jobs/:id/retry', () => {
       statsHandler: mock(async () => ({})),
       listJobs: mock(async () => []),
       retryJob: mock(async () => false),
+      reextractJob: noopReextractJob,
       listExtractedPlaces: noopListExtractedPlaces,
     });
     const app = new Hono().use('*', withAuth('u')).route('/', router);
@@ -163,6 +169,7 @@ describe('POST /jobs/:id/retry', () => {
       statsHandler: mock(async () => ({})),
       listJobs: mock(async () => []),
       retryJob: mock(async () => true),
+      reextractJob: noopReextractJob,
       listExtractedPlaces: noopListExtractedPlaces,
     });
     const app = new Hono().use('*', withAuth('u')).route('/', router);
@@ -179,6 +186,7 @@ describe('GET /extracted', () => {
       statsHandler: () => ({}),
       listJobs: noopListJobs,
       retryJob: noopRetryJob,
+      reextractJob: noopReextractJob,
       listExtractedPlaces,
     });
     const app = new Hono().use('*', withAuth('user-42')).route('/', router);
@@ -201,6 +209,7 @@ describe('GET /extracted', () => {
       statsHandler: () => ({}),
       listJobs: noopListJobs,
       retryJob: noopRetryJob,
+      reextractJob: noopReextractJob,
       listExtractedPlaces: listExtractedPlaces as any,
     });
     const app = new Hono().use('*', withAuth('u')).route('/', router);
@@ -217,10 +226,57 @@ describe('GET /extracted', () => {
       statsHandler: () => ({}),
       listJobs: noopListJobs,
       retryJob: noopRetryJob,
+      reextractJob: noopReextractJob,
       listExtractedPlaces: noopListExtractedPlaces,
     });
     const app = new Hono().use('*', withAuth('u')).route('/', router);
     const res = await app.request('/extracted?category=badvalue');
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('POST /jobs/:id/reextract', () => {
+  test('200 ok when reextract succeeds', async () => {
+    const reextract = mock(async () => true);
+    const router = createInstagramPlacesRouter({
+      enqueue: mock(async () => ({} as any)),
+      statsHandler: mock(async () => ({})),
+      listJobs: mock(async () => []),
+      retryJob: noopRetryJob,
+      reextractJob: reextract,
+      listExtractedPlaces: noopListExtractedPlaces,
+    });
+    const app = new Hono().use('*', withAuth('u')).route('/', router);
+    const res = await app.request('/jobs/9/reextract', { method: 'POST' });
+    expect(res.status).toBe(200);
+    expect(reextract).toHaveBeenCalledWith(9, 'u');
+  });
+
+  test('404 when reextract returns false', async () => {
+    const router = createInstagramPlacesRouter({
+      enqueue: mock(async () => ({} as any)),
+      statsHandler: mock(async () => ({})),
+      listJobs: mock(async () => []),
+      retryJob: noopRetryJob,
+      reextractJob: mock(async () => false),
+      listExtractedPlaces: noopListExtractedPlaces,
+    });
+    const app = new Hono().use('*', withAuth('u')).route('/', router);
+    const res = await app.request('/jobs/9/reextract', { method: 'POST' });
+    expect(res.status).toBe(404);
+  });
+
+  test('400 on non-numeric id', async () => {
+    const router = createInstagramPlacesRouter({
+      enqueue: mock(async () => ({} as any)),
+      statsHandler: mock(async () => ({})),
+      listJobs: mock(async () => []),
+      retryJob: noopRetryJob,
+      reextractJob: mock(async () => true),
+      listExtractedPlaces: noopListExtractedPlaces,
+    });
+    const app = new Hono().use('*', withAuth('u')).route('/', router);
+    const res = await app.request('/jobs/abc/reextract', { method: 'POST' });
     expect(res.status).toBe(400);
   });
 });

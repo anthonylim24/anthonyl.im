@@ -116,3 +116,72 @@ describe('queue.log', () => {
     });
   });
 });
+
+describe('queue.reextractJob', () => {
+  test('passes id + userId to ig_reextract_job rpc and returns boolean', async () => {
+    const rpc = mock(async () => true);
+    const sb = stubSupabase({ rpc });
+    const q = createQueue(sb, { normalize: (u) => u });
+    const r = await q.reextractJob(55, 'u-2');
+    expect(rpc).toHaveBeenCalledWith('ig_reextract_job', { p_id: 55, p_user_id: 'u-2' });
+    expect(r).toBe(true);
+  });
+
+  test('returns false when rpc returns false', async () => {
+    const rpc = mock(async () => false);
+    const sb = stubSupabase({ rpc });
+    const q = createQueue(sb, { normalize: (u) => u });
+    const r = await q.reextractJob(55, 'u-2');
+    expect(r).toBe(false);
+  });
+});
+
+describe('queue.shareFromOtherUser', () => {
+  test('calls ig_share_places_from_other_user and returns count', async () => {
+    const rpc = mock(async () => 3);
+    const sb = stubSupabase({ rpc });
+    const q = createQueue(sb, { normalize: (u) => u });
+    const n = await q.shareFromOtherUser('u-1', 'https://www.instagram.com/p/A');
+    expect(rpc).toHaveBeenCalledWith('ig_share_places_from_other_user', {
+      p_user_id: 'u-1', p_dedupe_key: 'https://www.instagram.com/p/A',
+    });
+    expect(n).toBe(3);
+  });
+
+  test('returns 0 when rpc returns null/undefined', async () => {
+    const rpc = mock(async () => null);
+    const sb = stubSupabase({ rpc });
+    const q = createQueue(sb, { normalize: (u) => u });
+    const n = await q.shareFromOtherUser('u-1', 'key');
+    expect(n).toBe(0);
+  });
+});
+
+describe('queue.enqueue with cross-user sharing', () => {
+  test('sets status=done and shared_from_other_user when sharing returns > 0 on fresh insert', async () => {
+    // First rpc call: ig_enqueue_job; second: ig_share_places_from_other_user
+    let callCount = 0;
+    const rpc = mock(async () => {
+      callCount++;
+      if (callCount === 1) return [{ id: 10, status: 'pending', inserted: true }];
+      return 2; // 2 places shared
+    });
+    const sb = stubSupabase({ rpc });
+    const q = createQueue(sb, { normalize: (u) => u });
+    const r = await q.enqueue('user-b', 'https://www.instagram.com/p/X');
+    expect(r.status).toBe('done');
+    expect(r.shared_from_other_user).toBe(2);
+    expect(r.reused).toBe(false);
+  });
+
+  test('does not call shareFromOtherUser when job is reused', async () => {
+    const rpc = mock(async () => [{ id: 10, status: 'running', inserted: false }]);
+    const sb = stubSupabase({ rpc });
+    const q = createQueue(sb, { normalize: (u) => u });
+    const r = await q.enqueue('user-b', 'https://www.instagram.com/p/X');
+    expect(r.reused).toBe(true);
+    // rpc called only once (the enqueue RPC, not the share one)
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(r.shared_from_other_user).toBeUndefined();
+  });
+});

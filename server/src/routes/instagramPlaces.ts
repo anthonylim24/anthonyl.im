@@ -10,6 +10,7 @@ export interface InstagramPlacesDeps {
   statsHandler: () => Promise<unknown> | unknown;
   listJobs: (userId: string, limit?: number) => Promise<unknown>;
   retryJob: (jobId: number, userId: string) => Promise<boolean>;
+  reextractJob: (jobId: number, userId: string) => Promise<boolean>;
   listExtractedPlaces: (opts: ExtractedPlacesOpts) => Promise<{ places: unknown[]; total: number; hasMore: boolean }>;
 }
 
@@ -56,6 +57,17 @@ export function createInstagramPlacesRouter(deps: InstagramPlacesDeps) {
     }
     const ok = await deps.retryJob(id, userId);
     if (!ok) return c.json({ error: 'job not found or not in retryable state' }, 404);
+    return c.json({ ok: true });
+  });
+
+  r.post('/jobs/:id/reextract', async (c) => {
+    const userId = c.get('userId' as never) as string;
+    const id = Number(c.req.param('id'));
+    if (!Number.isInteger(id) || id <= 0) {
+      return c.json({ error: 'invalid job id' }, 400);
+    }
+    const ok = await deps.reextractJob(id, userId);
+    if (!ok) return c.json({ error: 'job not found' }, 404);
     return c.json({ ok: true });
   });
 

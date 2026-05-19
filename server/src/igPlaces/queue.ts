@@ -7,6 +7,7 @@ export interface EnqueueResult {
   dedupeKey: string;
   status: IgJob['status'];
   reused: boolean;
+  shared_from_other_user?: number;
 }
 
 export interface Queue {
@@ -19,6 +20,8 @@ export interface Queue {
   log(jobId: number, step: IgJobStep, level: 'info' | 'warn' | 'error', message: string): Promise<void>;
   stats(): Promise<{ pending: number; running: number; failed: number; dead: number; done: number }>;
   retryJob(jobId: number, userId: string): Promise<boolean>;
+  reextractJob(jobId: number, userId: string): Promise<boolean>;
+  shareFromOtherUser(userId: string, dedupeKey: string): Promise<number>;
 }
 
 export interface QueueDeps {
@@ -52,7 +55,20 @@ export function createQueue(sb: SupabaseClient, deps: QueueDeps = {}): Queue {
       const rows = await sb.rpc<Array<{ id: number; status: IgJob['status']; inserted: boolean }>>(
         'ig_enqueue_job', { p_user_id: userId, p_url: url, p_dedupe_key: dedupeKey });
       const row = rows[0];
-      return { jobId: row.id, dedupeKey, status: row.status, reused: !row.inserted };
+      const reused = !row.inserted;
+      const result: EnqueueResult = { jobId: row.id, dedupeKey, status: row.status, reused };
+
+      // For a brand-new job (not a re-use), check if another user already
+      // has done this URL and copy their places instantly.
+      if (!reused) {
+        const shared = await this.shareFromOtherUser(userId, dedupeKey);
+        if (shared > 0) {
+          result.status = 'done';
+          result.shared_from_other_user = shared;
+        }
+      }
+
+      return result;
     },
 
     async claim(workerId) {
@@ -104,6 +120,18 @@ export function createQueue(sb: SupabaseClient, deps: QueueDeps = {}): Queue {
     async retryJob(jobId, userId) {
       const result = await sb.rpc<boolean>('ig_retry_job', { p_id: jobId, p_user_id: userId });
       return Boolean(result);
+    },
+
+    async reextractJob(jobId, userId) {
+      const result = await sb.rpc<boolean>('ig_reextract_job', { p_id: jobId, p_user_id: userId });
+      return Boolean(result);
+    },
+
+    async shareFromOtherUser(userId, dedupeKey) {
+      const result = await sb.rpc<number>('ig_share_places_from_other_user', {
+        p_user_id: userId, p_dedupe_key: dedupeKey,
+      });
+      return typeof result === 'number' ? result : 0;
     },
   };
 }
