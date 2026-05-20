@@ -1,6 +1,5 @@
 import { useEffect } from "react"
-import { Outlet, useLocation } from "react-router-dom"
-import { AnimatePresence, motion, useReducedMotion } from "motion/react"
+import { Outlet } from "react-router-dom"
 import { DayTreeNav } from "./DayTreeNav"
 import { useKoreaSnapshot } from "./useKoreaData"
 import { KoreaAuthGate } from "./KoreaAuthGate"
@@ -9,8 +8,6 @@ import { startImageBudgetMonitor } from "./imageBudget"
 import { EntityIndexProvider } from "./entityIndex"
 
 export function KoreaLayout() {
-  const location = useLocation()
-  const reduce = useReducedMotion()
   const state = useKoreaSnapshot()
 
   // Apply theme as early as possible so dark mode kicks in before paint.
@@ -25,24 +22,22 @@ export function KoreaLayout() {
     return startImageBudgetMonitor()
   }, [])
 
+  // No AnimatePresence/motion wrapper on <main> here. Previously this layout
+  // ran a fade+slide via `<AnimatePresence mode="wait">` keyed on
+  // `location.pathname`, which under motion@12 + react@19 occasionally
+  // stalled the initial opacity-0 → 1 transition on cross-route SPA-nav
+  // (notably /ingest → /places). The new page mounted at opacity 0 and
+  // never animated back to 1 until a viewport resize kicked the motion
+  // queue. The transition was nice-to-have; visibility is non-negotiable.
   return (
     <KoreaAuthGate>
       <EntityIndexProvider>
         <div className="korea min-h-screen bg-stone-50 text-stone-900 antialiased selection:bg-stone-900 selection:text-stone-50 dark:bg-stone-950 dark:text-stone-100 dark:selection:bg-stone-100 dark:selection:text-stone-900">
           {state.status === "success" && <DayTreeNav days={state.data.days} />}
 
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.main
-              key={location.pathname}
-              initial={reduce ? false : { opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={reduce ? undefined : { opacity: 0, y: -8 }}
-              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-              className="pb-20"
-            >
-              <Outlet context={state} />
-            </motion.main>
-          </AnimatePresence>
+          <main className="pb-20">
+            <Outlet context={state} />
+          </main>
         </div>
       </EntityIndexProvider>
     </KoreaAuthGate>
