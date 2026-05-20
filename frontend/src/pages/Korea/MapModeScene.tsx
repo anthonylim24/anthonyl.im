@@ -1658,7 +1658,10 @@ export function MapModeScene({
     let lastExpandedClusterId: string | null = null
     // Selection change tracker — used to reframe the camera + populate
     // the selection line once per selection event, not every frame.
-    let lastSelectedId: string | null = selectedIdRef.current
+    // Initialized to null (not the current selection) so the first tick
+    // reframes onto a pre-existing selection — e.g. when Map Mode opens
+    // with an initialFocusPlaceId from an Instagram save card.
+    let lastSelectedId: string | null = null
 
     function projectToScreen(v: Vector3): { x: number; y: number; visible: boolean } {
       tmpVec3.copy(v).project(camera)

@@ -478,6 +478,15 @@ function IgSaveCard({ save, onOpenInMap }: { save: IgSave; onOpenInMap: () => vo
         >
           <IgIcon className="h-3.5 w-3.5" aria-hidden />
         </a>
+        {hasCoords && (
+          <span
+            aria-hidden
+            title="Opens in Map Mode"
+            className="ml-auto inline-flex items-center text-stone-400 transition group-hover:translate-x-0.5 group-hover:text-rose-600 dark:text-stone-500 dark:group-hover:text-rose-400"
+          >
+            <Globe2 className="h-3.5 w-3.5" />
+          </span>
+        )}
       </div>
       {save.name_romanized && save.name_romanized !== save.name && (
         <p className="mt-0.5 text-[12px] text-stone-500 dark:text-stone-400">{save.name_romanized}</p>
@@ -502,12 +511,6 @@ function IgSaveCard({ save, onOpenInMap }: { save: IgSave; onOpenInMap: () => vo
       {save.captionSnippet && (
         <p className="mt-2 line-clamp-2 text-[12px] italic leading-relaxed text-stone-500 dark:text-stone-400">
           "{save.captionSnippet}"
-        </p>
-      )}
-      {hasCoords && (
-        <p className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-rose-600 transition group-hover:gap-1.5 dark:text-rose-400">
-          <Globe2 className="h-3 w-3" aria-hidden />
-          Open in Map Mode
         </p>
       )}
     </div>

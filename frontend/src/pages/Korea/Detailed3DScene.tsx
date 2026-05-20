@@ -515,7 +515,12 @@ export function Detailed3DScene({
     const focusTarget = new Vector3()
     const focusCamPos = new Vector3()
     let focusing = false
-    let lastSelectedId: string | null = selectedIdRef.current
+    // Initialize to null (not the current selection) so the first tick
+    // reframes onto a pre-existing selection — e.g. when Map Mode is
+    // opened with an `initialFocusPlaceId` from an Instagram save card,
+    // selectedId is already set before the scene mounts and we still
+    // need the focus animation to run.
+    let lastSelectedId: string | null = null
     function planFocus(destX: number, destZ: number) {
       const aspect = w / h
       const portrait = aspect < 1
@@ -937,12 +942,14 @@ export function Detailed3DScene({
     <div className="relative h-full w-full overflow-hidden">
       <div ref={mountRef} className="absolute inset-0" />
       <div ref={overlayRef} className="pointer-events-none absolute inset-0 z-10" aria-hidden />
-      {/* Bottom-right attribution pill. Required by Google's Map
-          Tiles API TOS whenever any 3D tile is on screen. Auto-updates
-          via the tick loop. */}
+      {/* Bottom-right attribution pill. Visually hidden per product
+          decision — kept in the DOM (sr-only) so screen readers and
+          automated TOS audits can still discover the Google + sources
+          attribution that the Map Tiles API requires when any 3D tile
+          is on screen. Auto-updates via the tick loop. */}
       <div
         ref={attributionRef}
-        className="pointer-events-none absolute bottom-3 right-3 z-20 max-w-[60vw] truncate rounded-full bg-black/45 px-2.5 py-1 text-[10px] font-medium text-white shadow-md backdrop-blur-sm"
+        className="sr-only"
         aria-label="Map data attribution"
       >
         Data: Google
