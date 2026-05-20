@@ -46,7 +46,7 @@ export interface PostPayload {
   caption: string;
   mediaItems: MediaItem[];
   locationTag?: LocationTag;
-  source: 'yt-dlp' | 'apify';
+  source: 'yt-dlp' | 'bright-data';
   raw: unknown;
 }
 
@@ -92,7 +92,7 @@ export interface EnrichedPlace extends VotedPlace {
   phone: string | null;
   rating: number | null;
   business_types: string[];
-  geocode_source: 'apify-tag'|'google'|'kakao'|'google+kakao'|null;
+  geocode_source: 'ig-tag'|'google'|'kakao'|'google+kakao'|null;
   geocode_kakao_id: string | null;
   geocode_disagree: boolean;
 }

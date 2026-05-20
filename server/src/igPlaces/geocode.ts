@@ -81,13 +81,16 @@ function googlePassesQualityBar(p: VotedPlace, g: GoogleResult): boolean {
 export function createGeocoder(deps: GeocoderDeps): Geocoder {
   return async function geocode(place, tag, opts = {}) {
     const log = opts.log ?? (async () => {});
-    // Apify location tag short-circuit: if tag has coordinates and name fuzzy-matches, trust it
+    // IG location-tag short-circuit: if the post's embedded location tag
+    // (surfaced by the metadata scraper — Bright Data or yt-dlp) has
+    // coordinates and the place name fuzzy-matches, trust it without
+    // a downstream Google/Kakao lookup.
     if (tag && tag.lat != null && tag.lng != null && fuzzyEq(place.name, tag.name)) {
       return {
         ...place,
         address: tag.name, lat: tag.lat, lng: tag.lng,
         google_place_id: null, phone: null, rating: null, business_types: [],
-        geocode_source: 'apify-tag', geocode_kakao_id: null, geocode_disagree: false,
+        geocode_source: 'ig-tag', geocode_kakao_id: null, geocode_disagree: false,
         confidence_band: bumpBand(place.confidence_band),
       };
     }
