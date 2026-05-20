@@ -32,12 +32,14 @@ vi.mock('motion/react', async () => {
 })
 
 const mockFetchExtractedPlaces = vi.fn()
+const mockSetExtractedPlaceDays = vi.fn().mockResolvedValue(undefined)
 
 vi.mock('../placesApi', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../placesApi')>()
   return {
     ...actual,
     fetchExtractedPlaces: (...args: unknown[]) => mockFetchExtractedPlaces(...args),
+    setExtractedPlaceDays: (...args: unknown[]) => mockSetExtractedPlaceDays(...args),
   }
 })
 
@@ -72,6 +74,7 @@ function makePlace(overrides: Partial<ExtractedPlace> = {}): ExtractedPlace {
     google_place_id: 'ChIJplace123',
     status: 'extracted',
     created_at: new Date().toISOString(),
+    days: [],
     post: {
       id: 10,
       url: 'https://www.instagram.com/reel/ABC/',
@@ -170,6 +173,40 @@ describe('Places page', () => {
     // The second call should have category=cafe
     const secondCall = mockFetchExtractedPlaces.mock.calls[1] as [unknown, Record<string, unknown>]
     expect(secondCall[1].category).toBe('cafe')
+  })
+
+  it('renders "Add to days" button for each place card', async () => {
+    const place = makePlace()
+    mockFetchExtractedPlaces.mockResolvedValue({ places: [place], total: 1, hasMore: false })
+
+    await renderPlaces()
+
+    await waitFor(() => {
+      const btn = screen.getByRole('button', { name: /add to days/i })
+      expect(btn).toBeTruthy()
+    })
+  })
+
+  it('"Add to days" button opens day-select popover', async () => {
+    const place = makePlace()
+    mockFetchExtractedPlaces.mockResolvedValue({ places: [place], total: 1, hasMore: false })
+
+    await renderPlaces()
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /add to days/i })).toBeTruthy()
+    })
+
+    const btn = screen.getByRole('button', { name: /add to days/i })
+    await act(async () => {
+      await userEvent.click(btn)
+      await Promise.resolve()
+    })
+
+    // Day 1 checkbox should appear
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: /assign.*to itinerary days/i })).toBeTruthy()
+    })
   })
 
   it('search box is debounced — does not call API immediately', async () => {

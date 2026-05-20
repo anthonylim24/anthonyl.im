@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { clerkEnabled, useGetToken } from '@/lib/safeAuth'
-import { motion, useReducedMotion } from 'motion/react'
-import { ExternalLink, MapPin, Phone, Star, AlertTriangle, ArrowLeft } from 'lucide-react'
-import { fetchExtractedPlaces } from './placesApi'
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react'
+import { ExternalLink, MapPin, Phone, Star, AlertTriangle, ArrowLeft, CalendarDays, Check, Loader2 } from 'lucide-react'
+import { IgIcon } from './IgIcon'
+import { fetchExtractedPlaces, setExtractedPlaceDays } from './placesApi'
 import type { ExtractedPlace } from './placesApi'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -32,6 +33,23 @@ const BAND_LABELS: Record<Band, string> = {
 }
 
 const PAGE_SIZE = 50
+
+// Static day index for the Korea trip (May 26 – June 6, 2026).
+// Embedded here to avoid an extra /api/korea fetch just for day labels.
+const KOREA_DAYS: Array<{ n: number; date: string; label: string }> = [
+  { n: 1,  date: '2026-05-26', label: 'Day 1 · May 26 · Tue' },
+  { n: 2,  date: '2026-05-27', label: 'Day 2 · May 27 · Wed' },
+  { n: 3,  date: '2026-05-28', label: 'Day 3 · May 28 · Thu' },
+  { n: 4,  date: '2026-05-29', label: 'Day 4 · May 29 · Fri' },
+  { n: 5,  date: '2026-05-30', label: 'Day 5 · May 30 · Sat' },
+  { n: 6,  date: '2026-05-31', label: 'Day 6 · May 31 · Sun' },
+  { n: 7,  date: '2026-06-01', label: 'Day 7 · Jun 1 · Mon' },
+  { n: 8,  date: '2026-06-02', label: 'Day 8 · Jun 2 · Tue' },
+  { n: 9,  date: '2026-06-03', label: 'Day 9 · Jun 3 · Wed' },
+  { n: 10, date: '2026-06-04', label: 'Day 10 · Jun 4 · Thu' },
+  { n: 11, date: '2026-06-05', label: 'Day 11 · Jun 5 · Fri' },
+  { n: 12, date: '2026-06-06', label: 'Day 12 · Jun 6 · Sat' },
+]
 
 const SIGNAL_SOURCE_LABELS: Record<string, string> = {
   caption: 'from caption',
@@ -109,9 +127,176 @@ function formatDate(iso: string): string {
   }
 }
 
+// ── Day assignment button ─────────────────────────────────────────────────────
+
+interface DayAssignButtonProps {
+  place: ExtractedPlace
+  getToken: () => Promise<string | null>
+  onUpdated: (placeId: number, days: number[]) => void
+}
+
+function DayAssignButton({ place, getToken, onUpdated }: DayAssignButtonProps) {
+  const [open, setOpen] = useState(false)
+  const [pendingDays, setPendingDays] = useState<Set<number>>(new Set(place.days))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  // Sync external changes (e.g. re-fetch)
+  useEffect(() => {
+    if (!open) setPendingDays(new Set(place.days))
+  }, [place.days, open])
+
+  // Close on Escape
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open])
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent | TouchEvent) => {
+      const node = dialogRef.current
+      if (node && !node.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('touchstart', onDown)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('touchstart', onDown)
+    }
+  }, [open])
+
+  async function handleSave() {
+    setSaving(true)
+    setError(null)
+    try {
+      const days = [...pendingDays].sort((a, b) => a - b)
+      await setExtractedPlaceDays(getToken, place.id, days)
+      onUpdated(place.id, days)
+      setOpen(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function toggleDay(n: number) {
+    setPendingDays((prev) => {
+      const next = new Set(prev)
+      if (next.has(n)) next.delete(n)
+      else next.add(n)
+      return next
+    })
+  }
+
+  const assignedDays = [...place.days].sort((a, b) => a - b)
+  const hasAssignment = assignedDays.length > 0
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => { setPendingDays(new Set(place.days)); setOpen((v) => !v) }}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={hasAssignment ? `Assigned to ${assignedDays.map(n => `Day ${n}`).join(', ')}. Change days` : 'Add to days'}
+        className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 ${
+          hasAssignment
+            ? 'border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-700/60 dark:bg-rose-950/40 dark:text-rose-400'
+            : 'border-stone-200 bg-stone-50 text-stone-600 hover:border-stone-300 hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-800/60 dark:text-stone-300 dark:hover:bg-stone-800'
+        }`}
+      >
+        <CalendarDays className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        {hasAssignment ? `Day ${assignedDays.join(', ')}` : 'Add to days'}
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            ref={dialogRef}
+            role="dialog"
+            aria-label={`Assign ${place.name} to itinerary days`}
+            aria-modal="true"
+            initial={{ opacity: 0, scale: 0.96, y: -4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: -4 }}
+            transition={{ duration: 0.14 }}
+            className="absolute left-0 top-[calc(100%+6px)] z-40 w-64 origin-top-left rounded-2xl border border-stone-200 bg-white p-3 shadow-xl ring-1 ring-stone-200/60 dark:border-stone-800 dark:bg-stone-950 dark:ring-stone-800"
+          >
+            <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
+              Assign to days
+            </p>
+            <fieldset>
+              <legend className="sr-only">Select days for {place.name}</legend>
+              <div className="max-h-48 space-y-0.5 overflow-y-auto">
+                {KOREA_DAYS.map((day) => {
+                  const checked = pendingDays.has(day.n)
+                  return (
+                    <label
+                      key={day.n}
+                      className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 transition hover:bg-stone-50 dark:hover:bg-stone-900"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleDay(day.n)}
+                        className="h-4 w-4 shrink-0 accent-rose-600"
+                        aria-label={day.label}
+                      />
+                      <span className="text-[12px] text-stone-800 dark:text-stone-200">{day.label}</span>
+                      {checked && <Check className="ml-auto h-3 w-3 shrink-0 text-rose-600 dark:text-rose-400" aria-hidden />}
+                    </label>
+                  )
+                })}
+              </div>
+            </fieldset>
+            {error && (
+              <p role="alert" className="mt-2 text-[11px] text-red-600 dark:text-red-400">{error}</p>
+            )}
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                aria-busy={saving}
+                className="inline-flex min-h-[36px] flex-1 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-rose-700 disabled:opacity-60 dark:bg-rose-500 dark:hover:bg-rose-400"
+              >
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="inline-flex min-h-[36px] items-center justify-center rounded-lg border border-stone-200 px-3 py-1.5 text-[12px] font-medium text-stone-600 transition hover:bg-stone-50 dark:border-stone-700 dark:text-stone-400 dark:hover:bg-stone-900"
+              >
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 // ── PlaceCard ─────────────────────────────────────────────────────────────────
 
-function PlaceCard({ place }: { place: ExtractedPlace; reduce?: boolean | null }) {
+function PlaceCard({
+  place,
+  getToken,
+  onUpdated,
+}: {
+  place: ExtractedPlace
+  getToken: () => Promise<string | null>
+  onUpdated: (placeId: number, days: number[]) => void
+}) {
   const gmUrl = googleMapsUrl(place)
   const kakaoUrl = kakaoMapsUrl(place)
 
@@ -139,10 +324,21 @@ function PlaceCard({ place }: { place: ExtractedPlace; reduce?: boolean | null }
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="min-w-0">
           <h2
-            className="break-words text-[1.125rem] font-medium leading-snug text-stone-900 dark:text-stone-100"
+            className="inline-flex flex-wrap items-baseline gap-x-1.5 break-words text-[1.125rem] font-medium leading-snug text-stone-900 dark:text-stone-100"
             style={{ fontFamily: "'Cormorant Garamond', serif" }}
           >
-            {place.name}
+            <span>{place.name}</span>
+            {place.post && (
+              <a
+                href={place.post.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`View ${place.name} on Instagram (opens in new tab)`}
+                className="inline-flex items-center text-stone-400 transition hover:text-rose-600 dark:text-stone-500 dark:hover:text-rose-400"
+              >
+                <IgIcon className="h-4 w-4" aria-hidden />
+              </a>
+            )}
           </h2>
           {place.name_romanized && place.name_romanized !== place.name && (
             <p className="mt-0.5 text-[13px] text-stone-500 dark:text-stone-400">
@@ -223,6 +419,7 @@ function PlaceCard({ place }: { place: ExtractedPlace; reduce?: boolean | null }
 
       {/* Action links */}
       <div className="mt-4 flex flex-wrap items-center gap-2">
+        <DayAssignButton place={place} getToken={getToken} onUpdated={onUpdated} />
         {place.post && (
           <a
             href={place.post.url}
@@ -231,7 +428,7 @@ function PlaceCard({ place }: { place: ExtractedPlace; reduce?: boolean | null }
             className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 text-[12px] font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-800/60 dark:text-stone-300 dark:hover:bg-stone-800"
             aria-label={`View source post on Instagram (opens in new tab)`}
           >
-            <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+            <IgIcon className="h-3.5 w-3.5" aria-hidden />
             View on Instagram
           </a>
         )}
@@ -573,7 +770,16 @@ function PlacesImpl() {
         {!loading && places.length > 0 && (
           <div className="space-y-4">
             {places.map((place) => (
-              <PlaceCard key={place.id} place={place} />
+              <PlaceCard
+                key={place.id}
+                place={place}
+                getToken={getToken}
+                onUpdated={(placeId, days) => {
+                  setPlaces((prev) =>
+                    prev.map((p) => p.id === placeId ? { ...p, days } : p)
+                  )
+                }}
+              />
             ))}
           </div>
         )}

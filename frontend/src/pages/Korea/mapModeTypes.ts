@@ -20,6 +20,24 @@ export interface RankedPlace {
   reservationTime?: string
   distanceMeters?: number
   distanceLabel?: string
+  subcategory?: "instagram"
+  instagramUrl?: string
+  instagramShortcode?: string
+}
+
+export interface IgSave {
+  id: number
+  name: string
+  name_romanized?: string | null
+  category: string
+  address?: string | null
+  lat?: number | null
+  lng?: number | null
+  confidence_band: "high" | "medium" | "low"
+  instagramUrl: string
+  instagramShortcode?: string | null
+  ownerUsername?: string | null
+  captionSnippet?: string | null
 }
 
 export interface PlacesResponse {
@@ -31,6 +49,7 @@ export interface PlacesResponse {
     center?: { lat: number; lng: number; label: string }
   }
   places: RankedPlace[]
+  igSaves: IgSave[]
 }
 
 export interface UserLocation {

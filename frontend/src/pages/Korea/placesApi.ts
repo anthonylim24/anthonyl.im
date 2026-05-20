@@ -24,6 +24,8 @@ export type ExtractedPlace = {
   google_place_id: string | null;
   status: 'extracted' | 'verified' | 'rejected';
   created_at: string;
+  /** Day numbers (1-12) this place is assigned to on the Korea itinerary */
+  days: number[];
   post: {
     id: number;
     url: string;
@@ -80,4 +82,29 @@ export async function fetchExtractedPlaces(
     throw new Error(message);
   }
   return res.json() as Promise<ExtractedPlacesResponse>;
+}
+
+/**
+ * Replaces the day-assignment set for an IG-extracted place.
+ * Pass an empty array to remove all assignments.
+ */
+export async function setExtractedPlaceDays(
+  getToken: () => Promise<string | null>,
+  placeId: number,
+  days: number[],
+): Promise<void> {
+  const headers = await authHeaders(getToken);
+  const res = await fetch(`${BASE}/extracted/${placeId}/days`, {
+    method: 'PUT',
+    headers: { ...headers, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ days }),
+  });
+  if (!res.ok && res.status !== 204) {
+    let message = `HTTP ${res.status}`;
+    try {
+      const body = await res.json() as { error?: string };
+      if (body.error) message = body.error;
+    } catch { /* ignore */ }
+    throw new Error(message);
+  }
 }

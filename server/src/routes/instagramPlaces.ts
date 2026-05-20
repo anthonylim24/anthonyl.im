@@ -12,6 +12,8 @@ export interface InstagramPlacesDeps {
   retryJob: (jobId: number, userId: string) => Promise<boolean>;
   reextractJob: (jobId: number, userId: string) => Promise<boolean>;
   listExtractedPlaces: (opts: ExtractedPlacesOpts) => Promise<{ places: unknown[]; total: number; hasMore: boolean }>;
+  listIgPlaceDays: (opts: { userId: string; placeId: number }) => Promise<number[]>;
+  setIgPlaceDays: (opts: { userId: string; placeId: number; days: number[] }) => Promise<void>;
 }
 
 const igUrl = z.string().refine(isInstagramUrl, 'not an instagram url');
@@ -92,6 +94,43 @@ export function createInstagramPlacesRouter(deps: InstagramPlacesDeps) {
 
     const data = await deps.listExtractedPlaces({ userId, limit, offset, category, band, q });
     return c.json(data);
+  });
+
+  // GET /extracted/:id/days — returns { days: number[] } sorted ascending
+  r.get('/extracted/:id/days', async (c) => {
+    const userId = c.get('userId' as never) as string;
+    const id = Number(c.req.param('id'));
+    if (!Number.isInteger(id) || id <= 0) {
+      return c.json({ error: 'invalid place id' }, 400);
+    }
+    const days = await deps.listIgPlaceDays({ userId, placeId: id });
+    return c.json({ days });
+  });
+
+  const daysSchema = z.object({
+    days: z.array(z.number().int().min(1).max(12)).max(12),
+  });
+
+  // PUT /extracted/:id/days — body { days: number[] }, replaces the assignment set
+  r.put('/extracted/:id/days', zValidator('json', daysSchema), async (c) => {
+    const userId = c.get('userId' as never) as string;
+    const id = Number(c.req.param('id'));
+    if (!Number.isInteger(id) || id <= 0) {
+      return c.json({ error: 'invalid place id' }, 400);
+    }
+    const { days } = c.req.valid('json');
+    // Dedupe and sort
+    const deduped = [...new Set(days)].sort((a, b) => a - b);
+    try {
+      await deps.setIgPlaceDays({ userId, placeId: id, days: deduped });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'unknown error';
+      if (msg.includes('not found or not owned')) {
+        return c.json({ error: 'place not found' }, 404);
+      }
+      return c.json({ error: msg }, 500);
+    }
+    return new Response(null, { status: 204 });
   });
 
   return r;

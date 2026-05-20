@@ -8,6 +8,7 @@ import {
   type PanInfo,
 } from "motion/react"
 import { Navigation, ExternalLink, X, Share2, Footprints, ChevronUp, ChevronDown } from "lucide-react"
+import { IgIcon } from "./IgIcon"
 import type { RankedPlace } from "./mapModeTypes"
 import { lookupGooglePlacePhoto, lookupPhoto, formatWalkingTime } from "./placePhoto"
 
@@ -250,6 +251,17 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng }: PlaceDeta
                   <h2 className="break-words text-base font-semibold text-stone-900 dark:text-stone-100 sm:text-lg">
                     {place.name}
                   </h2>
+                  {place.instagramUrl && (
+                    <a
+                      href={place.instagramUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`View ${place.name} on Instagram (opens in new tab)`}
+                      className="inline-flex items-center text-stone-400 transition hover:text-rose-600 dark:text-stone-500 dark:hover:text-rose-400"
+                    >
+                      <IgIcon className="h-3.5 w-3.5" aria-hidden />
+                    </a>
+                  )}
                   <PriorityPill priority={place.priority} />
                 </div>
                 <p className="mt-0.5 break-words text-xs text-stone-500 dark:text-stone-400">
@@ -257,6 +269,11 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng }: PlaceDeta
                   {place.distanceLabel ? ` · ${place.distanceLabel}` : ""}
                   {walking ? ` · ${walking}` : ""}
                 </p>
+                {place.subcategory === "instagram" && (
+                  <p className="mt-0.5 text-[11px] font-medium text-rose-600 dark:text-rose-400">
+                    From Instagram{place.instagramShortcode ? ` · @${place.instagramShortcode}` : ""}
+                  </p>
+                )}
               </div>
               <div className="flex shrink-0 items-center gap-1.5">
                 <button
@@ -358,6 +375,18 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng }: PlaceDeta
                 <ExternalLink className="h-4 w-4" aria-hidden />
                 Open in Maps
               </a>
+              {place.instagramUrl && (
+                <a
+                  href={place.instagramUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`View source post on Instagram (opens in new tab)`}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 bg-stone-50 px-4 py-2 text-sm font-medium text-stone-700 transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
+                >
+                  <IgIcon className="h-4 w-4" aria-hidden />
+                  Instagram
+                </a>
+              )}
               <button
                 type="button"
                 onClick={onShare}
@@ -402,6 +431,17 @@ function CompactBody({
             <h2 className="break-words text-[15px] font-semibold leading-tight text-stone-900 dark:text-stone-100">
               {place.name}
             </h2>
+            {place.instagramUrl && (
+              <a
+                href={place.instagramUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`View ${place.name} on Instagram (opens in new tab)`}
+                className="inline-flex items-center text-stone-400 transition hover:text-rose-600 dark:text-stone-500 dark:hover:text-rose-400"
+              >
+                <IgIcon className="h-3 w-3" aria-hidden />
+              </a>
+            )}
             <PriorityPill priority={place.priority} />
           </div>
           <p className="mt-0.5 break-words text-[11px] text-stone-500 dark:text-stone-400">

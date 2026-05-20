@@ -10,7 +10,7 @@ import koreaRouter from "./src/routes/korea";
 import entityRouter from "./src/routes/entity";
 import { createInstagramPlacesRouter } from "./src/routes/instagramPlaces";
 import { createClerkAuth } from "./src/middleware/clerkAuth";
-import { bootIgWorker, getQueue, listJobsForUser, listExtractedPlaces } from "./src/igPlaces/wire";
+import { bootIgWorker, getQueue, listJobsForUser, listExtractedPlaces, listIgPlaceDays, setIgPlaceDays } from "./src/igPlaces/wire";
 import { join, resolve } from "path";
 
 const app = new Hono();
@@ -165,6 +165,8 @@ if (clerkAuth) {
     retryJob: (jobId, userId) => getQueue().retryJob(jobId, userId),
     reextractJob: (jobId, userId) => getQueue().reextractJob(jobId, userId),
     listExtractedPlaces,
+    listIgPlaceDays,
+    setIgPlaceDays,
   });
   app.use('/api/korea/places/from-instagram/*', clerkAuth);
   app.route('/api/korea/places/from-instagram', igPlacesRouter);

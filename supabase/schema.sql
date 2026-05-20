@@ -506,3 +506,49 @@ language sql security definer as $$
     skip_video = excluded.skip_video    -- honor latest preference on resubmit
   returning instagram_jobs.id, instagram_jobs.status, (xmax = 0) as inserted;
 $$;
+
+-- ============================================================
+-- IG place → itinerary day assignment
+-- Allows a user to assign their extracted IG places to one or
+-- more specific days of the Korea trip (day_n: 1-12).
+-- ============================================================
+
+create table if not exists public.instagram_place_day_assignments (
+  id          bigserial primary key,
+  place_id    bigint not null references public.instagram_places(id) on delete cascade,
+  user_id     text   not null,
+  day_n       smallint not null check (day_n between 1 and 12),
+  created_at  timestamptz not null default now()
+);
+
+create unique index if not exists instagram_place_day_assignments_uq
+  on public.instagram_place_day_assignments (place_id, user_id, day_n);
+
+create index if not exists instagram_place_day_assignments_user_day_idx
+  on public.instagram_place_day_assignments (user_id, day_n);
+
+alter table public.instagram_place_day_assignments enable row level security;
+
+create policy "Users read own ig day assignments"
+  on public.instagram_place_day_assignments for select to authenticated
+  using ((select auth.jwt()->>'sub') = user_id);
+
+-- Replace the day set for a place. Empty array = unassign all.
+create or replace function public.ig_set_place_days(
+  p_user_id text, p_place_id bigint, p_days smallint[]
+) returns void language plpgsql security definer as $$
+begin
+  -- Guard: place must belong to the user.
+  if not exists (
+    select 1 from public.instagram_places
+     where id = p_place_id and user_id = p_user_id
+  ) then
+    raise exception 'place not found or not owned by user';
+  end if;
+  delete from public.instagram_place_day_assignments
+   where user_id = p_user_id and place_id = p_place_id;
+  if array_length(p_days, 1) is not null then
+    insert into public.instagram_place_day_assignments (place_id, user_id, day_n)
+    select p_place_id, p_user_id, unnest(p_days);
+  end if;
+end $$;

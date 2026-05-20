@@ -1,6 +1,8 @@
 import { lazy, Suspense, useEffect, useMemo, useState, useRef } from "react"
 import { motion, AnimatePresence, useReducedMotion } from "motion/react"
 import { X, MapPin, Navigation, Bug, Loader2, Crosshair, Globe2, List as ListIcon } from "lucide-react"
+import { IgIcon } from "./IgIcon"
+import { useGetToken } from "@/lib/safeAuth"
 import { MapModeScene, isWebglSupported } from "./MapModeScene"
 import { MapModeCompass } from "./MapModeCompass"
 // Detailed3DScene pulls in 3DTilesRendererJS (~160 kB gz) — load it
@@ -48,6 +50,7 @@ type LoadState =
 
 export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayProps) {
   const reduce = useReducedMotion()
+  const getToken = useGetToken()
   const [testMode, setTestMode] = useState(false)
   const [mockHotel, setMockHotel] = useState(false)
   const [debugOpen, setDebugOpen] = useState(false)
@@ -241,14 +244,23 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
       lng: String(location.lng),
     })
     if (testMode) qs.set("test", "sf")
-    fetch(`/api/korea/day/${encodeURIComponent(daySlug)}/places?${qs.toString()}`)
-      .then((r) => {
+    void (async () => {
+      try {
+        const token = await getToken()
+        const headers: Record<string, string> = {}
+        if (token) headers["Authorization"] = `Bearer ${token}`
+        const r = await fetch(
+          `/api/korea/day/${encodeURIComponent(daySlug)}/places?${qs.toString()}`,
+          { headers },
+        )
         if (!r.ok) throw new Error(`Places fetch ${r.status}`)
-        return r.json() as Promise<PlacesResponse>
-      })
-      .then((data) => setState({ status: "success", data }))
-      .catch((err: Error) => setState({ status: "error", message: err.message }))
-  }, [daySlug, location, testMode])
+        const data = await r.json() as PlacesResponse
+        setState({ status: "success", data })
+      } catch (err) {
+        setState({ status: "error", message: err instanceof Error ? err.message : String(err) })
+      }
+    })()
+  }, [daySlug, location, testMode, getToken])
 
   const filteredPlaces = useMemo(() => {
     if (state.status !== "success") return []
@@ -637,6 +649,12 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
             <Dot color="#ff4d6d" label="Scheduled · in your plan" />
             <Dot color="#fb923c" label="Core · on today's itinerary" />
             <Dot color="#a3a3a3" label="Supplemental · nearby extras" />
+            {state.status === "success" && state.data.places.some((p) => p.subcategory === "instagram") && (
+              <div className="flex items-center gap-1.5">
+                <IgIcon className="h-3 w-3 text-rose-500" aria-hidden />
+                <span>Instagram save</span>
+              </div>
+            )}
             <div className="mt-1 border-t border-stone-200 pt-1 text-[9px] text-stone-500 dark:border-stone-800 dark:text-stone-500">
               Drag to rotate · pinch to zoom · tap a bubble
             </div>
