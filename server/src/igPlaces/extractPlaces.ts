@@ -242,14 +242,23 @@ function sourceText(b: ExtractionBundle): string {
     .filter(Boolean).join('\n');
 }
 
+function normalizeWhitespace(s: string): string {
+  return s.replace(/\s+/g, ' ').trim();
+}
+
 const fuzzyEq = _fuzzyEq;
 
 interface Bucket { reps: RawExtractedPlace[]; signals: Set<IgSignalSource>; }
 
 export function voteMerge(runs: RawExtractedPlace[][], source: string): VotedPlace[] {
-  // 1. filter by substring-quote
+  // 1. filter by substring-quote. Normalize whitespace on both sides — the
+  //    LLM frequently collapses newlines/multiple spaces in its quote even
+  //    when the source has them, which would otherwise drop legitimate
+  //    extractions (e.g. a caption with venue name + address on separate
+  //    lines vs. a quote joining them with spaces).
+  const normalizedSource = normalizeWhitespace(source);
   const filtered: RawExtractedPlace[][] = runs.map(r =>
-    r.filter(p => p.supporting_quote && source.includes(p.supporting_quote)));
+    r.filter(p => p.supporting_quote && normalizedSource.includes(normalizeWhitespace(p.supporting_quote))));
 
   // 2. bucket fuzzy-matched places across runs (one entry per run per bucket)
   const buckets: Bucket[] = [];

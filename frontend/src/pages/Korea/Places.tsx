@@ -111,14 +111,14 @@ function formatDate(iso: string): string {
 
 // ── PlaceCard ─────────────────────────────────────────────────────────────────
 
-function PlaceCard({ place, reduce }: { place: ExtractedPlace; reduce: boolean | null }) {
+function PlaceCard({ place }: { place: ExtractedPlace; reduce?: boolean | null }) {
   const gmUrl = googleMapsUrl(place)
   const kakaoUrl = kakaoMapsUrl(place)
 
   return (
     <motion.article
       layout
-      initial={reduce ? false : { opacity: 0, y: 6 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
       className="relative rounded-2xl border border-stone-200/80 bg-white p-5 dark:border-stone-800/80 dark:bg-stone-900/60"
@@ -573,7 +573,7 @@ function PlacesImpl() {
         {!loading && places.length > 0 && (
           <div className="space-y-4">
             {places.map((place) => (
-              <PlaceCard key={place.id} place={place} reduce={reduce} />
+              <PlaceCard key={place.id} place={place} />
             ))}
           </div>
         )}

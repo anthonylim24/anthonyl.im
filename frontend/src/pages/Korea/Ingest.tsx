@@ -794,7 +794,7 @@ function JobCard({
   return (
     <motion.div
       layout
-      initial={reduce ? false : { opacity: 0, y: 6 }}
+      initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
       className="relative rounded-2xl border border-stone-200/80 bg-white p-5 dark:border-stone-800/80 dark:bg-stone-900/60"
@@ -1310,7 +1310,7 @@ function IngestImpl() {
               </p>
               <div className="mt-4">
                 <motion.div
-                  initial={reduce ? false : { opacity: 0 }}
+                  initial={false}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.4 }}
                   className="flex min-h-[140px] items-center justify-center rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 dark:border-stone-800 dark:bg-stone-900/30"
