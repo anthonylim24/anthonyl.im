@@ -225,7 +225,7 @@ function parseRun(c: any): RawExtractedPlace[] {
   try { return (JSON.parse(txt).places ?? []) as RawExtractedPlace[]; } catch { return []; }
 }
 
-function renderBundle(b: ExtractionBundle): string {
+export function renderBundle(b: ExtractionBundle): string {
   const parts: string[] = [];
   parts.push(`[caption]\n${b.caption || '(none)'}`);
   if (b.transcript) parts.push(`[transcript]\n${b.transcript}`);

@@ -20,6 +20,9 @@ export interface ProcessorDeps {
    *  primary extraction yields 0 places, comments are appended to the bundle
    *  and extraction is retried once. */
   fetchComments?: (igUrl: string, opts?: { limit?: number; signal?: AbortSignal }) => Promise<ApifyComment[]>;
+  /** Optional last-resort extractor (Gemini with Maps grounding). Called
+   *  only when the primary (+comments) chain yields 0 places. */
+  geminiExtract?: (b: ExtractionBundle) => Promise<VotedPlace[]>;
 }
 
 export function createProcessor(deps: ProcessorDeps) {
@@ -84,6 +87,35 @@ export function createProcessor(deps: ProcessorDeps) {
           const msg = err instanceof Error ? err.message : String(err);
           await deps.log(job.id, 'extracting', 'warn',
             `comments fetch failed: ${msg}`
+          ).catch(() => {});
+        }
+      }
+
+      // GEMINI LAST-RESORT FALLBACK: primary + comments retry both came back
+      // with 0 places. Try Gemini 3.1 Flash Lite with Maps grounding before
+      // giving up — Maps grounding can sometimes resolve a vague mention
+      // ("the chicken place near Hannam") to a real venue.
+      if (voted.length === 0 && deps.geminiExtract) {
+        await deps.log(job.id, 'extracting', 'info',
+          'primary chain returned 0 places; trying Gemini with Maps grounding'
+        ).catch(() => {});
+        try {
+          const geminiPlaces = await deps.geminiExtract(bundle);
+          if (geminiPlaces.length > 0) {
+            voted = geminiPlaces;
+            await deps.log(job.id, 'extracting', 'info',
+              `gemini fallback found ${voted.length} place(s); bands: ` +
+              voted.map(p => p.confidence_band).join(', ')
+            ).catch(() => {});
+          } else {
+            await deps.log(job.id, 'extracting', 'info',
+              'gemini fallback also returned 0 places'
+            ).catch(() => {});
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          await deps.log(job.id, 'extracting', 'warn',
+            `gemini fallback failed: ${msg}`
           ).catch(() => {});
         }
       }

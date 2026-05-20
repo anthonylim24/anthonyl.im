@@ -14,6 +14,11 @@ export const config = {
   // extractor retries the same call against Cerebras (same gpt-oss-120b model,
   // OpenAI-compatible API). Only if Cerebras also 429s do we re-queue the job.
   cerebrasApiKey: process.env.CEREBRAS_API_KEY,
+  // Optional Gemini fallback. When set, used as (a) last-resort text extractor
+  // when Groq + Cerebras + comments retry all yield 0 places (gemini-3.1-flash-lite
+  // with Maps grounding), and (b) video transcription fallback when Groq Whisper
+  // returns 429 (gemini-3.5-flash via the Files API).
+  geminiApiKey: process.env.GEMINI_API_KEY,
   apifyToken: process.env.APIFY_TOKEN,
   googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
   googleVisionApiKey: process.env.GOOGLE_VISION_API_KEY ?? process.env.GOOGLE_MAPS_API_KEY,
