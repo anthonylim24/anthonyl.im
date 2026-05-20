@@ -82,6 +82,33 @@ describe('createGeminiExtractor', () => {
     await expect(extract(baseBundle)).rejects.toThrow(/rate-limited/);
   });
 
+  test('transient 500 → retries once and succeeds on the 2nd attempt', async () => {
+    let calls = 0;
+    const okResponse = {
+      candidates: [{ content: { parts: [{ text: '{"places":[{"name":"X","confidence":0.9,"category":"cafe","is_subject":true}]}' }] } }],
+    };
+    const fetch = mock(async () => {
+      calls++;
+      if (calls === 1) return new Response(JSON.stringify({ error: { code: 500, message: 'Internal error encountered.' } }), { status: 500 });
+      return new Response(JSON.stringify(okResponse), { status: 200 });
+    }) as unknown as typeof globalThis.fetch;
+    const extract = createGeminiExtractor({ apiKey: 'k', fetch });
+    const out = await extract(baseBundle);
+    expect(calls).toBe(2);
+    expect(out.length).toBe(1);
+  });
+
+  test('persistent 500 → throws after retry exhausts', async () => {
+    let calls = 0;
+    const fetch = mock(async () => {
+      calls++;
+      return new Response(JSON.stringify({ error: { code: 500 } }), { status: 500 });
+    }) as unknown as typeof globalThis.fetch;
+    const extract = createGeminiExtractor({ apiKey: 'k', fetch });
+    await expect(extract(baseBundle)).rejects.toThrow(/gemini extract 500/);
+    expect(calls).toBe(2);
+  });
+
   test('uses google maps grounding tool in request', async () => {
     let captured: any = null;
     const fetch = mock(async (_input: string, init: RequestInit) => {
