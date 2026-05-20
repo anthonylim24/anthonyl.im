@@ -24,7 +24,7 @@ describe('helpers', () => {
 });
 
 describe('createGeocoder', () => {
-  test('apify-tag short-circuit: fuzzy-match + has lat/lng → skip APIs', async () => {
+  test('ig-tag short-circuit: fuzzy-match + has lat/lng → skip APIs', async () => {
     // Match against base.name ("Cafe Onion Seongsu"); the tag uses the same
     // English form here, but in production it can be the original Korean —
     // either matches via canonicalize+Levenshtein when they're close.
@@ -33,7 +33,7 @@ describe('createGeocoder', () => {
     const kakao = mock(async () => null);
     const g = createGeocoder({ googleLookup: google, kakaoLookup: kakao });
     const out = await g(base, tag);
-    expect(out.geocode_source).toBe('apify-tag');
+    expect(out.geocode_source).toBe('ig-tag');
     expect(out.lat).toBe(37.5447);
     expect(google).not.toHaveBeenCalled();
   });

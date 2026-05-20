@@ -5,7 +5,7 @@ import type { EnrichedPlace, PostPayload } from './types';
 
 const payload: PostPayload = {
   shortcode: 'A', caption: 'C', mediaItems: [{ type: 'image', url: 'i.jpg' }],
-  source: 'apify', raw: { x: 1 },
+  source: 'bright-data', raw: { x: 1 },
 };
 const place = (over: Partial<EnrichedPlace> = {}): EnrichedPlace => ({
   name: '어니언', name_romanized: 'Onion', city: 'Seoul', category: 'cafe',

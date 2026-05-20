@@ -1,0 +1,14 @@
+[{
+  "url": "https://www.instagram.com/reel/ABC123",
+  "shortcode": "ABC123",
+  "user_posted": "anonfoodie",
+  "description": "성수동에서 가장 좋아하는 카페! Onion 어니언",
+  "videos": ["https://scontent.cdninstagram.com/video.mp4"],
+  "photos": [],
+  "thumbnail": "https://scontent.cdninstagram.com/thumb.jpg",
+  "content_type": "Reel",
+  "product_type": "clips",
+  "location_name": "Cafe Onion Seongsu",
+  "latitude": 37.5447,
+  "longitude": 127.0556
+}]

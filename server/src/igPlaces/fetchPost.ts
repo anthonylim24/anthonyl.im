@@ -8,7 +8,7 @@ export interface FetchPostDeps {
     exited: Promise<number>;
   };
   fetch?: typeof fetch;
-  apifyToken: string | undefined;
+  brightDataApiKey: string | undefined;
 }
 
 export type FetchPost = (url: string, cached: PostPayload | null) => Promise<PostPayload>;
@@ -19,16 +19,15 @@ export function createFetchPost(deps: FetchPostDeps): FetchPost {
 
   return async function fetchPost(url, cached) {
     if (cached) return cached;
-    // Apify first — more reliable from cloud IPs, and it's the only path
-    // that surfaces the post's location tag. yt-dlp is the free backup
-    // when Apify is unavailable (token missing, quota hit, transient error).
-    const apify = await tryApify(url, f, deps.apifyToken);
-    if (apify.payload) return apify.payload;
+    // Bright Data first — more reliable from cloud IPs, surfaces the
+    // location tag + richer metadata than yt-dlp. yt-dlp is the free
+    // backup when Bright Data is unavailable (key missing, quota hit,
+    // transient error).
+    const bd = await tryBrightData(url, f, deps.brightDataApiKey);
+    if (bd.payload) return bd.payload;
     const local = await tryYtDlp(url, spawn);
     if (local) return local;
-    // Both extractors failed. Surface the Apify error — typically more
-    // informative than yt-dlp's silent null.
-    if (apify.error) throw apify.error;
+    if (bd.error) throw bd.error;
     throw new NonRetryableError('no payload from any extractor');
   };
 }
@@ -70,58 +69,95 @@ function normalizeYtDlp(j: Record<string, unknown>, url: string): PostPayload | 
   };
 }
 
-interface ApifyItem {
-  shortCode?: string;
-  ownerUsername?: string;
-  caption?: string;
-  videoUrl?: string;
-  displayUrl?: string;
-  images?: string[];
-  locationName?: string;
+/** Subset of fields Bright Data returns for the IG Posts dataset
+ *  (`gd_lk5ns7kz21pck8jpis`). The actor returns many more fields — see
+ *  https://docs.brightdata.com/datasets/scrapers/instagram — but these are
+ *  the only ones we map into PostPayload. */
+interface BrightDataItem {
+  url?: string;
+  shortcode?: string;
+  user_posted?: string;
+  description?: string;
+  videos?: string[];
+  photos?: string[];
+  thumbnail?: string;
+  content_type?: string;
+  product_type?: string;
+  location_name?: string;
+  location_id?: string | number;
   latitude?: number;
   longitude?: number;
-  type?: string;
+  coordinates?: { latitude?: number; longitude?: number } | { lat?: number; lng?: number };
+  hashtags?: string[];
 }
 
-interface ApifyAttempt { payload?: PostPayload; error?: Error }
+interface BrightDataAttempt { payload?: PostPayload; error?: Error }
 
-async function tryApify(url: string, f: typeof fetch, token: string | undefined): Promise<ApifyAttempt> {
-  if (!token) return { error: new NonRetryableError('APIFY_TOKEN missing') };
+const BRIGHT_DATA_POSTS_DATASET = 'gd_lk5ns7kz21pck8jpis';
+
+async function tryBrightData(url: string, f: typeof fetch, apiKey: string | undefined): Promise<BrightDataAttempt> {
+  if (!apiKey) return { error: new NonRetryableError('BRIGHT_DATA_API_KEY missing') };
   try {
     const r = await f(
-      `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${token}`,
+      `https://api.brightdata.com/datasets/v3/scrape?dataset_id=${BRIGHT_DATA_POSTS_DATASET}&format=json`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ directUrls: [url], resultsLimit: 1 }),
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify([{ url }]),
         signal: AbortSignal.timeout(180_000),
       });
-    if (r.status === 429) return { error: new RetryableError('apify rate-limited', 300_000) };
-    if (!r.ok) return { error: new Error(`apify ${r.status}`) };
-    const items = (await r.json()) as ApifyItem[];
-    if (!items.length) return { error: new NonRetryableError('apify returned empty') };
-    return { payload: normalizeApify(items[0], url) };
+    if (r.status === 429) return { error: new RetryableError('bright-data rate-limited', 300_000) };
+    if (!r.ok) {
+      const body = await r.text().catch(() => '');
+      return { error: new Error(`bright-data ${r.status}: ${body.slice(0, 200)}`) };
+    }
+    const items = (await r.json()) as BrightDataItem[];
+    if (!Array.isArray(items) || !items.length) {
+      return { error: new NonRetryableError('bright-data returned empty array') };
+    }
+    return { payload: normalizeBrightData(items[0], url) };
   } catch (err) {
     return { error: err instanceof Error ? err : new Error(String(err)) };
   }
 }
 
-function normalizeApify(it: ApifyItem, url: string): PostPayload {
+function normalizeBrightData(it: BrightDataItem, url: string): PostPayload {
   const items: MediaItem[] = [];
-  if (it.videoUrl) items.push({ type: 'video', url: it.videoUrl, thumbnail: it.displayUrl });
-  if (it.images?.length) for (const img of it.images) items.push({ type: 'image', url: img });
-  if (!items.length && it.displayUrl) items.push({ type: 'image', url: it.displayUrl });
-  const locationTag: LocationTag | undefined = it.locationName
-    ? { name: it.locationName, lat: it.latitude, lng: it.longitude }
+  // videos[] is the array of signed CDN URLs; first one is the primary
+  // playable. thumbnail is the displayUrl-equivalent (~poster frame).
+  if (it.videos?.length && it.videos[0]) {
+    items.push({ type: 'video', url: it.videos[0], thumbnail: it.thumbnail });
+  }
+  if (it.photos?.length) {
+    for (const img of it.photos) if (img) items.push({ type: 'image', url: img });
+  }
+  if (!items.length && it.thumbnail) {
+    items.push({ type: 'image', url: it.thumbnail });
+  }
+
+  // Bright Data may surface location either as flat `location_name` /
+  // `latitude` / `longitude`, OR nested under `coordinates`. Normalize both.
+  const lat = it.latitude
+    ?? (it.coordinates && 'latitude' in it.coordinates ? it.coordinates.latitude : undefined)
+    ?? (it.coordinates && 'lat' in it.coordinates ? it.coordinates.lat : undefined);
+  const lng = it.longitude
+    ?? (it.coordinates && 'longitude' in it.coordinates ? it.coordinates.longitude : undefined)
+    ?? (it.coordinates && 'lng' in it.coordinates ? it.coordinates.lng : undefined);
+  const locationTag: LocationTag | undefined = it.location_name
+    ? { name: it.location_name, lat, lng }
     : undefined;
+
   return {
-    shortcode: it.shortCode ?? url.split('/').filter(Boolean).pop() ?? '',
+    shortcode: it.shortcode ?? url.split('/').filter(Boolean).pop() ?? '',
     url,
-    ownerUsername: it.ownerUsername,
-    caption: it.caption ?? '',
+    ownerUsername: it.user_posted,
+    caption: it.description ?? '',
     mediaItems: items,
     locationTag,
-    source: 'apify',
+    source: 'bright-data',
     raw: it,
   };
 }

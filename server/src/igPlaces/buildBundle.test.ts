@@ -4,13 +4,13 @@ import type { PostPayload } from './types';
 
 const imagePost: PostPayload = {
   shortcode: 'A', caption: 'No video here', mediaItems: [{ type: 'image', url: 'i.jpg' }],
-  source: 'apify', raw: {},
+  source: 'bright-data', raw: {},
 };
 
 const videoPost: PostPayload = {
   shortcode: 'A', caption: 'Caption with #tag and @owner',
   mediaItems: [{ type: 'video', url: 'v.mp4', thumbnail: 't.jpg' }],
-  source: 'apify', raw: {},
+  source: 'bright-data', raw: {},
 };
 
 describe('buildBundle', () => {

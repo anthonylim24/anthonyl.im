@@ -6,7 +6,7 @@ import type { ApifyComment } from './fetchComments';
 
 const payload: PostPayload = {
   shortcode: 'A', caption: 'cap', mediaItems: [{ type: 'image', url: 'i.jpg' }],
-  source: 'apify', raw: {},
+  source: 'bright-data', raw: {},
 };
 const voted: VotedPlace = {
   name: '어니언', name_romanized: 'Onion', city: 'Seoul', category: 'cafe',

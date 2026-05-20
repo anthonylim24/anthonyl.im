@@ -2,7 +2,10 @@ import { NonRetryableError, RetryableError } from './types';
 // Re-export so callers don't need to import from types for these.
 export { NonRetryableError, RetryableError };
 
-export interface ApifyComment {
+/** Normalized comment shape — same fields whether the source is Bright Data
+ *  or (historically) Apify. Named generically so callers don't couple to a
+ *  particular vendor. */
+export interface IgComment {
   id: string;
   text: string;
   ownerUsername?: string;
@@ -11,35 +14,69 @@ export interface ApifyComment {
   repliesCount?: number;
 }
 
+/** @deprecated Use IgComment. Alias retained for one release while existing
+ *  imports are migrated. */
+export type ApifyComment = IgComment;
+
 export interface FetchCommentsDeps {
   fetch?: typeof fetch;
-  apifyToken: string | undefined;
+  brightDataApiKey: string | undefined;
 }
 
-export type CommentsFetcher = (igUrl: string, opts?: { limit?: number; signal?: AbortSignal }) => Promise<ApifyComment[]>;
+export type CommentsFetcher = (igUrl: string, opts?: { limit?: number; signal?: AbortSignal }) => Promise<IgComment[]>;
+
+const BRIGHT_DATA_COMMENTS_DATASET = 'gd_ltppn085pokosxh13';
+
+/** Raw Bright Data comments-dataset shape. We rename fields into IgComment
+ *  via `normalizeBrightDataComment`. */
+interface BrightDataCommentItem {
+  comment_id?: string;
+  comment?: string;
+  comment_user?: string;
+  likes_number?: number;
+  replies_number?: number;
+  comment_date?: string;
+}
 
 export function createCommentsFetcher(deps: FetchCommentsDeps): CommentsFetcher {
   const f = deps.fetch ?? fetch;
   return async function fetchComments(igUrl, opts = {}) {
-    if (!deps.apifyToken) {
-      // Soft-fail: no token configured → no comments. Caller treats this
+    if (!deps.brightDataApiKey) {
+      // Soft-fail: no key configured → no comments. Caller treats this
       // as "no comments available" rather than an error.
       return [];
     }
-    const limit = opts.limit ?? 50;
     const r = await f(
-      `https://api.apify.com/v2/acts/apify~instagram-comment-scraper/run-sync-get-dataset-items?token=${deps.apifyToken}`,
+      `https://api.brightdata.com/datasets/v3/scrape?dataset_id=${BRIGHT_DATA_COMMENTS_DATASET}&format=json`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ directUrls: [igUrl], resultsLimit: limit }),
+        headers: {
+          'Authorization': `Bearer ${deps.brightDataApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify([{ url: igUrl }]),
         signal: opts.signal,
       });
-    if (r.status === 429) throw new RetryableError('apify comments rate-limited', 300_000);
-    if (!r.ok) throw new Error(`apify comments ${r.status}`);
-    const items = await r.json() as ApifyComment[];
+    if (r.status === 429) throw new RetryableError('bright-data comments rate-limited', 300_000);
+    if (!r.ok) {
+      const body = await r.text().catch(() => '');
+      throw new Error(`bright-data comments ${r.status}: ${body.slice(0, 200)}`);
+    }
+    const items = await r.json() as BrightDataCommentItem[];
     if (!Array.isArray(items)) return [];
-    return items;
+    const limit = opts.limit ?? 50;
+    return items.slice(0, limit).map(normalizeBrightDataComment);
+  };
+}
+
+function normalizeBrightDataComment(it: BrightDataCommentItem): IgComment {
+  return {
+    id: it.comment_id ?? '',
+    text: it.comment ?? '',
+    ownerUsername: it.comment_user,
+    likesCount: it.likes_number,
+    repliesCount: it.replies_number,
+    timestamp: it.comment_date,
   };
 }
 
@@ -49,7 +86,7 @@ export function createCommentsFetcher(deps: FetchCommentsDeps): CommentsFetcher 
  * truncates per-comment to 200 chars, and caps the joined string at 2000
  * chars total so the LLM token budget stays reasonable.
  */
-export function renderCommentsForBundle(comments: ApifyComment[], topN = 30): string {
+export function renderCommentsForBundle(comments: IgComment[], topN = 30): string {
   const sorted = [...comments].sort((a, b) => (b.likesCount ?? 0) - (a.likesCount ?? 0)).slice(0, topN);
   const lines: string[] = [];
   let total = 0;

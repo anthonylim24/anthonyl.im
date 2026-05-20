@@ -181,7 +181,7 @@ describe('createGeminiVideoTranscriber', () => {
       }) as unknown as typeof globalThis.fetch;
 
       const analyze = createGeminiVideoAnalyzer({ apiKey: 'k', fetch });
-      const post = { shortcode: 'abc', url: 'https://x', caption: 'cap', mediaItems: [{ type: 'video' as const, url: 'x' }], source: 'apify' as const };
+      const post = { shortcode: 'abc', url: 'https://x', caption: 'cap', mediaItems: [{ type: 'video' as const, url: 'x' }], source: 'bright-data' as const };
       const result = await analyze(post, path);
       expect(result.transcript).toContain('Hannam-dong');
       expect(result.ocrText).toContain('한남동한방통닭');
@@ -215,7 +215,7 @@ describe('createGeminiVideoTranscriber', () => {
         throw new Error(`unexpected: ${url}`);
       }) as unknown as typeof globalThis.fetch;
       const analyze = createGeminiVideoAnalyzer({ apiKey: 'k', fetch });
-      const post = { shortcode: 'abc', url: 'https://x', caption: '', mediaItems: [{ type: 'video' as const, url: 'x' }], source: 'apify' as const };
+      const post = { shortcode: 'abc', url: 'https://x', caption: '', mediaItems: [{ type: 'video' as const, url: 'x' }], source: 'bright-data' as const };
       const result = await analyze(post, path);
       expect(result.places).toEqual([]);
       expect(result.transcript).toBe('');
