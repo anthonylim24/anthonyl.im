@@ -243,12 +243,24 @@ export function Detailed3DScene({
     // neighborhoods until the camera frames them.
     const cosUserLat = Math.cos(userLat * DEG2RAD)
     interface NeighborhoodMesh {
-      mesh: Mesh
+      fill: Mesh
+      outline: Line
       vertexCount: number
       worldXZ: Array<{ x: number; z: number }>
       conformed: boolean[]
+      /** Per-vertex raycast attempt counter. After WATER_FALLBACK_TRIES
+       *  frames without a hit, we assume the vertex sits over water or a
+       *  region with no tile coverage and pin it at sea level — keeps
+       *  coastal polygons (Haeundae, Gwangalli) from trailing strokes
+       *  down to the sky-level fallback height. */
+      tries: number[]
       allDone: boolean
     }
+    // ~60 frames @ 60 fps ≈ 1 s. Long enough to give tiles a chance to
+    // stream in for the polygon footprint; short enough that the trailing
+    // stroke artifact resolves before the user has time to notice.
+    const WATER_FALLBACK_TRIES = 60
+    const WATER_FALLBACK_Y = 2
     const neighborhoodMeshes: NeighborhoodMesh[] = []
     if (neighborhoods && neighborhoods.length > 0) {
       for (const n of neighborhoods) {
@@ -282,10 +294,10 @@ export function Detailed3DScene({
         for (let i = 0; i < contour.length; i++) {
           const v = contour[i]
           positions[i * 3 + 0] = v.x
-          // Initial Y sits well ABOVE the typical Seoul terrain (Namsan
-          // peaks at ~250m above the user anchor) so the polygon is
+          // Initial Y sits well above typical Seoul terrain (Namsan
+          // peaks ~250m above the user anchor) so the polygon is
           // visible from frame 1. The per-tick raycast then pulls each
-          // vertex down to terrain_y + 1.5 as tiles stream in.
+          // vertex down to ground level as tiles stream in.
           positions[i * 3 + 1] = 500
           positions[i * 3 + 2] = v.y
           worldXZ.push({ x: v.x, z: v.y })
@@ -300,29 +312,54 @@ export function Detailed3DScene({
         geo.setAttribute('position', new BufferAttribute(positions, 3))
         geo.setIndex(new BufferAttribute(indices, 1))
         geo.computeVertexNormals()
-        const mesh = new Mesh(
+        const fill = new Mesh(
           geo,
           new MeshBasicMaterial({
             color: 0xf43f5e,
             transparent: true,
-            opacity: 0.30,
-            // Don't write to depth so building tops in nearby tiles still
-            // sort above the polygon. depthTest stays ON so the polygon
-            // doesn't draw through unrelated geometry.
+            opacity: 0.22,
             depthWrite: false,
             side: 2, // DoubleSide
           }),
         )
-        // renderOrder > 0 keeps the highlight visible even before tile
-        // raycasts pull vertices down to the terrain — otherwise the
-        // tile drawn-on-top hides the floating polygon.
-        mesh.renderOrder = 1
-        scene.add(mesh)
+        fill.renderOrder = 1
+        scene.add(fill)
+
+        // Outline stroke — shares the same position buffer so a single
+        // terrain-conformance pass updates both fill and outline. The
+        // outline is what makes the highlight legible at a glance; the
+        // fill is just a tint behind it.
+        const outlinePositions = new Float32Array((contour.length + 1) * 3)
+        outlinePositions.set(positions)
+        // Close the line by duplicating the first vertex at the tail.
+        outlinePositions[contour.length * 3 + 0] = positions[0]
+        outlinePositions[contour.length * 3 + 1] = positions[1]
+        outlinePositions[contour.length * 3 + 2] = positions[2]
+        const outlineGeo = new BufferGeometry()
+        outlineGeo.setAttribute('position', new BufferAttribute(outlinePositions, 3))
+        const outline = new Line(
+          outlineGeo,
+          new LineBasicMaterial({
+            color: 0xf43f5e,
+            transparent: true,
+            opacity: 0.95,
+            depthTest: false,
+            depthWrite: false,
+          }),
+        )
+        // depthTest:false + high renderOrder keeps the stroke visible
+        // even when buildings would otherwise occlude it — the line is
+        // the most important visual signal so it always paints on top.
+        outline.renderOrder = 2
+        scene.add(outline)
+
         neighborhoodMeshes.push({
-          mesh,
+          fill,
+          outline,
           vertexCount: contour.length,
           worldXZ,
           conformed: new Array(contour.length).fill(false),
+          tries: new Array(contour.length).fill(0),
           allDone: false,
         })
       }
@@ -331,11 +368,11 @@ export function Detailed3DScene({
     // Per-frame terrain conformance for the neighborhood polygons.
     // Tile loading is async; we re-raycast on each tick until every
     // vertex has at least one successful intersection (then bail out).
-    // The raycaster instance is shared with snapBuildingHighlight below.
     function conformNeighborhoodsToTerrain(rc: Raycaster) {
       for (const nm of neighborhoodMeshes) {
         if (nm.allDone) continue
-        const pos = nm.mesh.geometry.attributes.position as BufferAttribute
+        const fillPos = nm.fill.geometry.attributes.position as BufferAttribute
+        const outlinePos = nm.outline.geometry.attributes.position as BufferAttribute
         let dirty = false
         let allHit = true
         for (let i = 0; i < nm.vertexCount; i++) {
@@ -344,16 +381,34 @@ export function Detailed3DScene({
           rc.set(new Vector3(x, 5000, z), new Vector3(0, -1, 0))
           rc.far = 8000
           const hits = rc.intersectObject(tiles.group, true)
-          if (!hits.length) { allHit = false; continue }
-          // Lift slightly above the surface so the polygon doesn't
-          // z-fight with the building/ground tile geometry.
-          pos.setY(i, hits[0].point.y + 1.5)
+          let groundY: number
+          if (hits.length) {
+            // Downward rays through dense urban tiles hit building
+            // rooftops first; take the LAST hit (= actual ground level)
+            // so the polygon drapes onto streets, not climbs buildings.
+            // Lift slightly above to avoid z-fighting.
+            groundY = hits[hits.length - 1].point.y + 1.5
+          } else {
+            nm.tries[i]++
+            // Vertex sits over water or over tiles that aren't loaded.
+            // After enough tries, give up and pin to sea level so the
+            // polygon stops trailing a vertical edge down from y=500.
+            if (nm.tries[i] < WATER_FALLBACK_TRIES) {
+              allHit = false
+              continue
+            }
+            groundY = WATER_FALLBACK_Y
+          }
+          fillPos.setY(i, groundY)
+          outlinePos.setY(i, groundY)
+          if (i === 0) outlinePos.setY(nm.vertexCount, groundY)
           nm.conformed[i] = true
           dirty = true
         }
         if (dirty) {
-          pos.needsUpdate = true
-          nm.mesh.geometry.computeVertexNormals()
+          fillPos.needsUpdate = true
+          outlinePos.needsUpdate = true
+          nm.fill.geometry.computeVertexNormals()
         }
         if (allHit) nm.allDone = true
       }
@@ -1028,6 +1083,12 @@ export function Detailed3DScene({
       selectionPill.remove()
       youMarker.geometry.dispose()
       ;(youMarker.material as MeshStandardMaterial).dispose()
+      for (const nm of neighborhoodMeshes) {
+        nm.fill.geometry.dispose()
+        ;(nm.fill.material as MeshBasicMaterial).dispose()
+        nm.outline.geometry.dispose()
+        ;(nm.outline.material as LineBasicMaterial).dispose()
+      }
       renderer.dispose()
       try {
         mount.removeChild(renderer.domElement)
