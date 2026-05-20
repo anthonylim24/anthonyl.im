@@ -23,6 +23,19 @@ export interface SupabaseClient {
   rpc<T = unknown>(fn: string, args?: object): Promise<T>;
 }
 
+/** Parse Supabase response bodies defensively. PostgREST normally returns
+ *  valid JSON, but an upstream proxy occasionally returns an HTML error
+ *  page; throwing a SyntaxError there would bypass the higher-level error
+ *  path. Treat any parse failure as the typed fallback + warn. */
+function safeJson<T>(txt: string, label: string, fallback: T): T {
+  if (!txt) return fallback;
+  try { return JSON.parse(txt) as T; }
+  catch (err) {
+    console.warn(`[supabase] ${label}: non-JSON response (${(err as Error).message}); body=${txt.slice(0, 120)}`);
+    return fallback;
+  }
+}
+
 export function createSupabaseClient(cfg: SupabaseConfig): SupabaseClient {
   const f = cfg.fetch ?? fetch;
   const baseHeaders = {
@@ -72,8 +85,7 @@ export function createSupabaseClient(cfg: SupabaseConfig): SupabaseClient {
         headers: { ...baseHeaders, Prefer: prefer.join(',') },
         body: JSON.stringify(row),
       });
-      const txt = await r.text();
-      return (txt ? JSON.parse(txt) : []) as T[];
+      return safeJson<T[]>(await r.text(), `insert ${table}`, []);
     },
 
     async update<T = unknown>(table: string, patch: object, eq: Record<string, unknown>) {
@@ -83,8 +95,7 @@ export function createSupabaseClient(cfg: SupabaseConfig): SupabaseClient {
         headers: { ...baseHeaders, Prefer: 'return=representation' },
         body: JSON.stringify(patch),
       });
-      const txt = await r.text();
-      return (txt ? JSON.parse(txt) : []) as T[];
+      return safeJson<T[]>(await r.text(), `update ${table}`, []);
     },
 
     async rpc<T = unknown>(fn: string, args: object = {}) {
@@ -93,8 +104,7 @@ export function createSupabaseClient(cfg: SupabaseConfig): SupabaseClient {
         headers: { ...baseHeaders },
         body: JSON.stringify(args),
       });
-      const txt = await r.text();
-      return (txt ? JSON.parse(txt) : null) as T;
+      return safeJson<T>(await r.text(), `rpc ${fn}`, null as T);
     },
   };
 }

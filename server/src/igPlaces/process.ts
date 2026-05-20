@@ -128,7 +128,7 @@ export function createProcessor(deps: ProcessorDeps) {
 
       // LATE-STAGE FALLBACK: when no place extracted from primary signals,
       // fetch comments and re-extract. Only triggers on full 0-result to keep
-      // Apify quota usage bounded.
+      // Bright Data quota usage bounded.
       if (voted.length === 0 && deps.fetchComments && payload.url) {
         await deps.log(job.id, 'extracting', 'info',
           'no places from primary signals; fetching comments as fallback'

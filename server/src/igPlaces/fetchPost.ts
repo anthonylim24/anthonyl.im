@@ -1,6 +1,12 @@
 import { type PostPayload, type MediaItem, type LocationTag,
          RetryableError, NonRetryableError } from './types';
 
+/** Extract the post shortcode from any IG URL form: /p/, /reel/, /tv/.
+ *  Handles trailing slashes + query strings without choking. */
+function parseShortcode(url: string): string {
+  return url.match(/\/(p|reel|tv)\/([^/?#]+)/)?.[2] ?? '';
+}
+
 export interface FetchPostDeps {
   spawn?: (cmd: string[], opts?: { timeout?: number }) => {
     stdout: ReadableStream<Uint8Array> | null;
@@ -151,7 +157,7 @@ function normalizeBrightData(it: BrightDataItem, url: string): PostPayload {
     : undefined;
 
   return {
-    shortcode: it.shortcode ?? url.split('/').filter(Boolean).pop() ?? '',
+    shortcode: it.shortcode ?? parseShortcode(url),
     url,
     ownerUsername: it.user_posted,
     caption: it.description ?? '',

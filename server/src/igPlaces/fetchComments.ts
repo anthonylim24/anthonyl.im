@@ -2,9 +2,8 @@ import { NonRetryableError, RetryableError } from './types';
 // Re-export so callers don't need to import from types for these.
 export { NonRetryableError, RetryableError };
 
-/** Normalized comment shape — same fields whether the source is Bright Data
- *  or (historically) Apify. Named generically so callers don't couple to a
- *  particular vendor. */
+/** Source-agnostic normalized comment shape, decoupling callers from
+ *  whichever scraper vendor is in use today. */
 export interface IgComment {
   id: string;
   text: string;
