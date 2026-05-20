@@ -266,6 +266,122 @@ export type ExtractedPlacesOpts = {
   q?: string;
 };
 
+// ── IG place day assignment helpers ───────────────────────────────────────────
+
+/**
+ * Returns the sorted list of day numbers (1-12) that this IG place has been
+ * assigned to for the given user. Returns [] if none.
+ */
+export async function listIgPlaceDays(opts: { userId: string; placeId: number }): Promise<number[]> {
+  const supabaseUrl = config.supabaseUrl;
+  const supabaseServiceKey = config.supabaseServiceKey;
+  if (!supabaseUrl || !supabaseServiceKey) return [];
+
+  const { userId, placeId } = opts;
+  const params = new URLSearchParams({
+    select: 'day_n',
+    place_id: `eq.${placeId}`,
+    user_id: `eq.${userId}`,
+    order: 'day_n.asc',
+  });
+  const url = `${supabaseUrl}/rest/v1/instagram_place_day_assignments?${params.toString()}`;
+  const r = await fetch(url, {
+    headers: {
+      apikey: supabaseServiceKey,
+      Authorization: `Bearer ${supabaseServiceKey}`,
+    },
+  });
+  if (!r.ok) return [];
+  const rows = await r.json() as Array<{ day_n: number }>;
+  return rows.map((row) => row.day_n);
+}
+
+/**
+ * Atomically replaces the day-assignment set for a place. Passing an empty
+ * array removes all assignments. Throws if the place doesn't belong to the user.
+ */
+export async function setIgPlaceDays(opts: { userId: string; placeId: number; days: number[] }): Promise<void> {
+  const supabaseUrl = config.supabaseUrl;
+  const supabaseServiceKey = config.supabaseServiceKey;
+  if (!supabaseUrl || !supabaseServiceKey) throw new Error('Supabase not configured');
+
+  const { userId, placeId, days } = opts;
+  const supabase = createSupabaseClient({ url: supabaseUrl, serviceKey: supabaseServiceKey });
+  await supabase.rpc('ig_set_place_days', {
+    p_user_id: userId,
+    p_place_id: placeId,
+    p_days: days,
+  });
+}
+
+/**
+ * Fetches IG places assigned to a specific day_n for a user, joined with
+ * their source post data. Returns an array ready for the IgSave shape.
+ */
+export type IgPlaceForDay = {
+  id: number;
+  name: string;
+  name_romanized: string | null;
+  category: string;
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
+  confidence_band: 'high' | 'medium' | 'low';
+  supporting_quote: string | null;
+  post: {
+    url: string;
+    shortcode: string | null;
+    owner_username: string | null;
+    caption: string | null;
+  };
+};
+
+export async function listIgPlacesForDay(opts: { userId: string; dayN: number }): Promise<IgPlaceForDay[]> {
+  const supabaseUrl = config.supabaseUrl;
+  const supabaseServiceKey = config.supabaseServiceKey;
+  if (!supabaseUrl || !supabaseServiceKey) return [];
+
+  const { userId, dayN } = opts;
+  // Join assignments → places → posts
+  const params = new URLSearchParams({
+    select: 'place_id,instagram_places!inner(id,name,name_romanized,category,address,lat,lng,confidence_band,supporting_quote,post:instagram_posts!inner(url,shortcode,owner_username,caption))',
+    user_id: `eq.${userId}`,
+    day_n: `eq.${dayN}`,
+  });
+  const url = `${supabaseUrl}/rest/v1/instagram_place_day_assignments?${params.toString()}`;
+  const r = await fetch(url, {
+    headers: {
+      apikey: supabaseServiceKey,
+      Authorization: `Bearer ${supabaseServiceKey}`,
+    },
+  });
+  if (!r.ok) return [];
+  const rows = await r.json() as Array<{
+    place_id: number;
+    instagram_places: {
+      id: number;
+      name: string;
+      name_romanized: string | null;
+      category: string;
+      address: string | null;
+      lat: number | null;
+      lng: number | null;
+      confidence_band: 'high' | 'medium' | 'low';
+      supporting_quote: string | null;
+      post: {
+        url: string;
+        shortcode: string | null;
+        owner_username: string | null;
+        caption: string | null;
+      };
+    };
+  }>;
+  return rows.map((row) => ({
+    ...row.instagram_places,
+    post: row.instagram_places.post,
+  }));
+}
+
 export async function listExtractedPlaces(opts: ExtractedPlacesOpts) {
   const supabaseUrl = config.supabaseUrl;
   const supabaseServiceKey = config.supabaseServiceKey;
@@ -308,12 +424,38 @@ export async function listExtractedPlaces(opts: ExtractedPlacesOpts) {
     return { places: [], total: 0, hasMore: false };
   }
 
-  const places = await r.json() as unknown[];
+  const places = await r.json() as Array<{ id: number; [key: string]: unknown }>;
   const contentRange = r.headers.get('Content-Range') ?? '';
   // Format: "0-49/123" or "*/0"
   const total = Number(contentRange.split('/')[1] ?? 0) || 0;
+
+  // Fetch day assignments for all returned places in one query.
+  let daysByPlaceId: Record<number, number[]> = {};
+  if (places.length > 0) {
+    const placeIds = places.map((p) => p.id);
+    const assignParams = new URLSearchParams({
+      select: 'place_id,day_n',
+      user_id: `eq.${userId}`,
+      place_id: `in.(${placeIds.join(',')})`,
+      order: 'day_n.asc',
+    });
+    const assignUrl = `${supabaseUrl}/rest/v1/instagram_place_day_assignments?${assignParams.toString()}`;
+    const assignR = await fetch(assignUrl, {
+      headers: {
+        apikey: supabaseServiceKey,
+        Authorization: `Bearer ${supabaseServiceKey}`,
+      },
+    });
+    if (assignR.ok) {
+      const rows = await assignR.json() as Array<{ place_id: number; day_n: number }>;
+      for (const row of rows) {
+        (daysByPlaceId[row.place_id] ??= []).push(row.day_n);
+      }
+    }
+  }
+
   return {
-    places,
+    places: places.map((p) => ({ ...p, days: daysByPlaceId[p.id] ?? [] })),
     total,
     hasMore: offset + places.length < total,
   };

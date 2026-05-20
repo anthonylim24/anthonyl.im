@@ -33,3 +33,33 @@ export function createClerkAuth(deps: ClerkAuthDeps = {}): MiddlewareHandler {
     }
   };
 }
+
+/**
+ * Optional auth helper: verifies a Bearer token when present but does NOT
+ * reject the request when missing. Returns the userId (sub) or null.
+ *
+ * Used by routes that serve public data but can augment the response with
+ * user-specific data when the caller is authenticated (e.g. Korea day places
+ * route that appends IG-assigned saves when a valid JWT is supplied).
+ */
+export async function verifyClerkOptional(
+  authHeader: string | undefined,
+  deps: ClerkAuthDeps = {},
+): Promise<string | null> {
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  const token = authHeader.slice('Bearer '.length).trim();
+  if (!token) return null;
+  if (deps.devBearer && token === deps.devBearer) {
+    return deps.devUserId ?? 'dev-user';
+  }
+  try {
+    const verify = deps.verifyToken ?? (async (t: string) => {
+      const payload = await clerkVerify(t, { secretKey: deps.secretKey });
+      return { sub: payload.sub };
+    });
+    const { sub } = await verify(token);
+    return sub;
+  } catch {
+    return null;
+  }
+}

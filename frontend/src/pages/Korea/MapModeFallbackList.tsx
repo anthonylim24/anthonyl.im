@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { motion, useReducedMotion } from "motion/react"
 import { Footprints } from "lucide-react"
+import { IgIcon } from "./IgIcon"
 import type { RankedPlace } from "./mapModeTypes"
 import { lookupPhoto, formatWalkingTime } from "./placePhoto"
 
@@ -117,9 +118,23 @@ function PlaceListRow({ place, onSelect, ringClass }: PlaceListRowProps) {
       </span>
 
       <div className="min-w-0 flex-1">
-        <p className="break-words text-sm font-semibold leading-snug text-stone-900 dark:text-stone-100">
-          {place.name}
-        </p>
+        <span className="flex flex-wrap items-baseline gap-x-1.5">
+          <p className="break-words text-sm font-semibold leading-snug text-stone-900 dark:text-stone-100">
+            {place.name}
+          </p>
+          {place.instagramUrl && (
+            <a
+              href={place.instagramUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`View ${place.name} on Instagram (opens in new tab)`}
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center text-stone-400 transition hover:text-rose-600 dark:text-stone-500 dark:hover:text-rose-400"
+            >
+              <IgIcon className="h-3 w-3" aria-hidden />
+            </a>
+          )}
+        </span>
         <p className="mt-0.5 text-xs capitalize text-stone-500 dark:text-stone-400">{place.category}</p>
         <p className="mt-1 line-clamp-2 text-xs text-stone-600 dark:text-stone-400">{place.reason}</p>
       </div>

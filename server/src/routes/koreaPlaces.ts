@@ -10,6 +10,9 @@ import {
 } from "../data/koreaPlaces"
 import { sfTestPlaces } from "../data/sfTestPlaces"
 import { koreaSnapshot } from "../data/koreaSnapshot"
+import { verifyClerkOptional } from "../middleware/clerkAuth"
+import { listIgPlacesForDay } from "../igPlaces/wire"
+import { config } from "../config"
 
 const places = new Hono()
 
@@ -35,6 +38,36 @@ interface RankedPlace {
   reservationTime?: string
   distanceMeters?: number
   distanceLabel?: string
+  subcategory?: "instagram"
+  instagramUrl?: string
+  instagramShortcode?: string
+}
+
+// IG place_category → PlaceCategory mapping
+const IG_CATEGORY_MAP: Record<string, PlaceCategory> = {
+  restaurant: "restaurant",
+  cafe: "cafe",
+  bar: "bar",
+  shopping: "shopping",
+  activity: "experience",
+  hotel: "hotel",
+  landmark: "landmark",
+  other: "landmark",
+}
+
+export interface IgSave {
+  id: number
+  name: string
+  name_romanized?: string | null
+  category: string
+  address?: string | null
+  lat?: number | null
+  lng?: number | null
+  confidence_band: "high" | "medium" | "low"
+  instagramUrl: string
+  instagramShortcode?: string | null
+  ownerUsername?: string | null
+  captionSnippet?: string | null
 }
 
 function photoUrlFor(query: string): string {
@@ -167,13 +200,21 @@ function rankDayPlaces(slug: string): RankedPlace[] {
   return out
 }
 
-places.get("/day/:slug/places", (c) => {
+places.get("/day/:slug/places", async (c) => {
   const slug = c.req.param("slug")
   const testMode = (c.req.query("test") || c.req.query("testMode")) === "sf"
   const userLatStr = c.req.query("lat")
   const userLngStr = c.req.query("lng")
   const userLat = userLatStr ? parseFloat(userLatStr) : undefined
   const userLng = userLngStr ? parseFloat(userLngStr) : undefined
+
+  // Optional auth — doesn't reject unauthenticated requests but enables
+  // user-specific IG saves when a valid Clerk JWT is provided.
+  const userId = await verifyClerkOptional(c.req.header("Authorization"), {
+    secretKey: config.clerkSecretKey,
+    devBearer: config.igDevBearer,
+    devUserId: config.igDevUserId,
+  })
 
   if (testMode) {
     // SF synthetic day — treat first place as scheduled, next 4 as core, rest supplemental.
@@ -191,6 +232,7 @@ places.get("/day/:slug/places", (c) => {
         center: { lat: 37.7926, lng: -122.4101, label: "Fairmont San Francisco (test anchor)" },
       },
       places: enrichWithDistance(ranked, userLat, userLng).slice(0, 25),
+      igSaves: [] as IgSave[],
     })
   }
 
@@ -211,6 +253,60 @@ places.get("/day/:slug/places", (c) => {
     ? { lat: hotelPlace.lat, lng: hotelPlace.lng, label: hotelPlace.name }
     : undefined
 
+  // Fetch IG-assigned places for this day when the user is authenticated.
+  let igSaves: IgSave[] = []
+  let igRankedPlaces: RankedPlace[] = []
+  if (userId) {
+    try {
+      const igPlaces = await listIgPlacesForDay({ userId, dayN: day.n })
+      igSaves = igPlaces.map((p) => ({
+        id: p.id,
+        name: p.name,
+        name_romanized: p.name_romanized,
+        category: p.category,
+        address: p.address,
+        lat: p.lat,
+        lng: p.lng,
+        confidence_band: p.confidence_band,
+        instagramUrl: p.post.url,
+        instagramShortcode: p.post.shortcode,
+        ownerUsername: p.post.owner_username,
+        captionSnippet: p.post.caption ? p.post.caption.slice(0, 200) : null,
+      }))
+
+      // Build RankedPlace entries for IG places that have coordinates
+      igRankedPlaces = igPlaces
+        .filter((p) => p.lat != null && p.lng != null)
+        .map((p): RankedPlace => {
+          const mappedCategory = (IG_CATEGORY_MAP[p.category] ?? "landmark") as PlaceCategory
+          return {
+            id: `ig-${p.id}`,
+            name: p.name,
+            category: mappedCategory,
+            icon: categoryIcon[mappedCategory],
+            color: categoryColor[mappedCategory],
+            lat: p.lat as number,
+            lng: p.lng as number,
+            city: day.city,
+            address: p.address ?? undefined,
+            description: p.post.caption ? p.post.caption.slice(0, 200) : `Saved from Instagram`,
+            photoUrl: `https://source.unsplash.com/featured/1200x800/?${encodeURIComponent(p.name)}&sig=${p.id}`,
+            priority: "scheduled",
+            reason: `Saved from Instagram${p.post.owner_username ? ` (@${p.post.owner_username})` : ""}`,
+            subcategory: "instagram",
+            instagramUrl: p.post.url,
+            instagramShortcode: p.post.shortcode ?? undefined,
+          }
+        })
+    } catch (err) {
+      // Non-fatal: log and continue with no IG saves
+      console.warn("[korea/places] failed to load IG saves:", err)
+    }
+  }
+
+  // Merge IG places into ranked list (IG places first as they are 'scheduled')
+  const allRanked = [...igRankedPlaces, ...ranked]
+
   return c.json({
     meta: {
       slug,
@@ -219,7 +315,8 @@ places.get("/day/:slug/places", (c) => {
       day: { n: day.n, title: day.title, hotel: day.hotel },
       center,
     },
-    places: enrichWithDistance(ranked, userLat, userLng).slice(0, 25),
+    places: enrichWithDistance(allRanked, userLat, userLng).slice(0, 30),
+    igSaves,
   })
 })
 

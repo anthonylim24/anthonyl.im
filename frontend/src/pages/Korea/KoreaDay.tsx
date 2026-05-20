@@ -1,7 +1,8 @@
 import { lazy, Suspense, useEffect, useState } from "react"
 import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
-import { ArrowUpRight, Globe2 } from "lucide-react"
+import { ArrowUpRight, Globe2, MapPin } from "lucide-react"
+import { IgIcon } from "./IgIcon"
 import type { LoadState } from "./useKoreaData"
 import { useKoreaDay } from "./useKoreaData"
 import type { Snapshot } from "./types"
@@ -10,10 +11,39 @@ import { calloutTone, cityMeta, formatDate } from "./koreaTheme"
 import { LinkifiedText } from "./LinkifiedText"
 import { slugify, todayKstIso } from "./koreaUtils"
 import { SmartEntity } from "./SmartEntity"
+import { clerkEnabled, useGetToken } from "@/lib/safeAuth"
+import type { IgSave } from "./mapModeTypes"
 
 const MapModeOverlay = lazy(() =>
   import("./MapModeOverlay").then((m) => ({ default: m.MapModeOverlay })),
 )
+
+/** Fetches IG saves for this day from the same /api/korea/day/:slug/places endpoint. */
+function useDayIgSaves(slug: string | undefined): IgSave[] {
+  const getToken = useGetToken()
+  const [igSaves, setIgSaves] = useState<IgSave[]>([])
+
+  useEffect(() => {
+    if (!slug || !clerkEnabled) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const token = await getToken()
+        if (!token) return
+        const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
+        const r = await fetch(`/api/korea/day/${encodeURIComponent(slug)}/places`, { headers })
+        if (!r.ok || cancelled) return
+        const data = await r.json() as { igSaves?: IgSave[] }
+        if (!cancelled) setIgSaves(data.igSaves ?? [])
+      } catch {
+        // Non-fatal — day page works without IG saves
+      }
+    })()
+    return () => { cancelled = true }
+  }, [slug, getToken])
+
+  return igSaves
+}
 
 export function KoreaDay() {
   const { slug } = useParams<{ slug: string }>()
@@ -22,6 +52,7 @@ export function KoreaDay() {
   const dayState = useKoreaDay(slug)
   const reduce = useReducedMotion()
   const [mapModeOpen, setMapModeOpen] = useState(false)
+  const igSaves = useDayIgSaves(slug)
 
   // Derive prev/next early so the keyboard handler in useEffect has access to
   // them, regardless of whether dayState has loaded yet (early returns happen
@@ -188,6 +219,16 @@ export function KoreaDay() {
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               {reservations.map((r, i) => (
                 <ReservationCard key={r.id} reservation={r} index={i} />
+              ))}
+            </div>
+          </DaySection>
+        )}
+
+        {igSaves.length > 0 && (
+          <DaySection number={reservations.length > 0 ? "02" : "01"} eyebrow="From your Instagram saves" title="Instagram Saves" id="ig-saves">
+            <div className="mt-6 space-y-3">
+              {igSaves.map((save) => (
+                <IgSaveCard key={save.id} save={save} />
               ))}
             </div>
           </DaySection>
@@ -384,6 +425,66 @@ function DayMetaRow({
       </dt>
       <dd className="mt-1.5 break-words text-sm leading-snug text-stone-800 dark:text-stone-200">{children}</dd>
     </div>
+  )
+}
+
+function IgSaveCard({ save }: { save: IgSave }) {
+  const BAND_STYLES: Record<IgSave["confidence_band"], string> = {
+    high: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400",
+    medium: "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400",
+    low: "bg-stone-100 text-stone-500 dark:bg-stone-800 dark:text-stone-400",
+  }
+
+  return (
+    <article
+      className="flex flex-wrap items-start gap-3 rounded-2xl border border-stone-200/80 bg-white/80 p-4 dark:border-stone-800/80 dark:bg-stone-900/60"
+      aria-label={`Instagram save: ${save.name}`}
+    >
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1">
+          <h3
+            className="break-words text-[15px] font-medium leading-snug text-stone-900 dark:text-stone-100"
+            style={{ fontFamily: "'Cormorant Garamond', serif" }}
+          >
+            {save.name}
+          </h3>
+          <a
+            href={save.instagramUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`View ${save.name} on Instagram (opens in new tab)`}
+            className="inline-flex items-center text-stone-400 transition hover:text-rose-600 dark:text-stone-500 dark:hover:text-rose-400"
+          >
+            <IgIcon className="h-3.5 w-3.5" aria-hidden />
+          </a>
+        </div>
+        {save.name_romanized && save.name_romanized !== save.name && (
+          <p className="mt-0.5 text-[12px] text-stone-500 dark:text-stone-400">{save.name_romanized}</p>
+        )}
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          <span className="inline-flex items-center rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-stone-600 dark:bg-stone-800 dark:text-stone-400">
+            {save.category}
+          </span>
+          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${BAND_STYLES[save.confidence_band]}`}>
+            {save.confidence_band} confidence
+          </span>
+          {save.ownerUsername && (
+            <span className="text-[11px] text-stone-400 dark:text-stone-500">@{save.ownerUsername}</span>
+          )}
+        </div>
+        {save.address && (
+          <p className="mt-2 flex items-start gap-1.5 text-[12px] text-stone-600 dark:text-stone-400">
+            <MapPin className="mt-0.5 h-3 w-3 shrink-0 text-stone-400" aria-hidden />
+            <span className="break-words">{save.address}</span>
+          </p>
+        )}
+        {save.captionSnippet && (
+          <p className="mt-2 line-clamp-2 text-[12px] italic leading-relaxed text-stone-500 dark:text-stone-400">
+            "{save.captionSnippet}"
+          </p>
+        )}
+      </div>
+    </article>
   )
 }
 

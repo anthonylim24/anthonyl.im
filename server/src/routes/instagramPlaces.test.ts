@@ -11,11 +11,13 @@ const noopListExtractedPlaces = mock(async () => ({ places: [], total: 0, hasMor
 
 const noopRetryJob = mock(async () => true);
 const noopReextractJob = mock(async () => true);
+const noopListIgPlaceDays = mock(async () => [] as number[]);
+const noopSetIgPlaceDays = mock(async () => {});
 
 describe('POST /api/korea/places/from-instagram', () => {
   test('400 on non-instagram url', async () => {
     const enqueue = mock(async () => ({ jobId: 1, dedupeKey: 'd', status: 'pending', reused: false }));
-    const router = createInstagramPlacesRouter({ enqueue, statsHandler: () => ({}) as any, listJobs: noopListJobs, retryJob: noopRetryJob, reextractJob: noopReextractJob, listExtractedPlaces: noopListExtractedPlaces });
+    const router = createInstagramPlacesRouter({ enqueue, statsHandler: () => ({}) as any, listJobs: noopListJobs, retryJob: noopRetryJob, reextractJob: noopReextractJob, listExtractedPlaces: noopListExtractedPlaces, listIgPlaceDays: noopListIgPlaceDays, setIgPlaceDays: noopSetIgPlaceDays });
     const app = new Hono().use('*', withAuth('u')).route('/', router);
     const res = await app.request('/', {
       method: 'POST',
@@ -27,7 +29,7 @@ describe('POST /api/korea/places/from-instagram', () => {
 
   test('202 single url returns one job', async () => {
     const enqueue = mock(async () => ({ jobId: 7, dedupeKey: 'd', status: 'pending', reused: false }));
-    const router = createInstagramPlacesRouter({ enqueue, statsHandler: () => ({}) as any, listJobs: noopListJobs, retryJob: noopRetryJob, reextractJob: noopReextractJob, listExtractedPlaces: noopListExtractedPlaces });
+    const router = createInstagramPlacesRouter({ enqueue, statsHandler: () => ({}) as any, listJobs: noopListJobs, retryJob: noopRetryJob, reextractJob: noopReextractJob, listExtractedPlaces: noopListExtractedPlaces, listIgPlaceDays: noopListIgPlaceDays, setIgPlaceDays: noopSetIgPlaceDays });
     const app = new Hono().use('*', withAuth('u')).route('/', router);
     const res = await app.request('/', {
       method: 'POST',
@@ -43,7 +45,7 @@ describe('POST /api/korea/places/from-instagram', () => {
   test('202 urls[] enqueues each', async () => {
     let counter = 0;
     const enqueue = mock(async () => ({ jobId: ++counter, dedupeKey: `d${counter}`, status: 'pending', reused: false }));
-    const router = createInstagramPlacesRouter({ enqueue, statsHandler: () => ({}) as any, listJobs: noopListJobs, retryJob: noopRetryJob, reextractJob: noopReextractJob, listExtractedPlaces: noopListExtractedPlaces });
+    const router = createInstagramPlacesRouter({ enqueue, statsHandler: () => ({}) as any, listJobs: noopListJobs, retryJob: noopRetryJob, reextractJob: noopReextractJob, listExtractedPlaces: noopListExtractedPlaces, listIgPlaceDays: noopListIgPlaceDays, setIgPlaceDays: noopSetIgPlaceDays });
     const app = new Hono().use('*', withAuth('u')).route('/', router);
     const res = await app.request('/', {
       method: 'POST',
@@ -64,7 +66,7 @@ describe('POST /api/korea/places/from-instagram', () => {
       capturedOpts = opts;
       return { jobId: 1, dedupeKey: 'd', status: 'pending', reused: false };
     });
-    const router = createInstagramPlacesRouter({ enqueue, statsHandler: () => ({}) as any, listJobs: noopListJobs, retryJob: noopRetryJob, reextractJob: noopReextractJob, listExtractedPlaces: noopListExtractedPlaces });
+    const router = createInstagramPlacesRouter({ enqueue, statsHandler: () => ({}) as any, listJobs: noopListJobs, retryJob: noopRetryJob, reextractJob: noopReextractJob, listExtractedPlaces: noopListExtractedPlaces, listIgPlaceDays: noopListIgPlaceDays, setIgPlaceDays: noopSetIgPlaceDays });
     const app = new Hono().use('*', withAuth('u')).route('/', router);
     const res = await app.request('/', {
       method: 'POST',
@@ -85,6 +87,8 @@ describe('GET /_stats', () => {
       retryJob: noopRetryJob,
       reextractJob: noopReextractJob,
       listExtractedPlaces: noopListExtractedPlaces,
+      listIgPlaceDays: noopListIgPlaceDays,
+      setIgPlaceDays: noopSetIgPlaceDays,
     });
     const app = new Hono().use('*', withAuth('u')).route('/', router);
     const res = await app.request('/_stats');
@@ -109,6 +113,8 @@ describe('GET /jobs', () => {
       retryJob: noopRetryJob,
       reextractJob: noopReextractJob,
       listExtractedPlaces: noopListExtractedPlaces,
+      listIgPlaceDays: noopListIgPlaceDays,
+      setIgPlaceDays: noopSetIgPlaceDays,
     });
     const app = new Hono().use('*', withAuth('user-123')).route('/', router);
     const res = await app.request('/jobs');
@@ -133,6 +139,8 @@ describe('GET /jobs', () => {
       retryJob: noopRetryJob,
       reextractJob: noopReextractJob,
       listExtractedPlaces: noopListExtractedPlaces,
+      listIgPlaceDays: noopListIgPlaceDays,
+      setIgPlaceDays: noopSetIgPlaceDays,
     });
     const app = new Hono().use('*', withAuth('user-abc')).route('/', router);
 
@@ -166,6 +174,8 @@ describe('POST /jobs/:id/retry', () => {
       retryJob: retry,
       reextractJob: noopReextractJob,
       listExtractedPlaces: noopListExtractedPlaces,
+      listIgPlaceDays: noopListIgPlaceDays,
+      setIgPlaceDays: noopSetIgPlaceDays,
     });
     const app = new Hono().use('*', withAuth('u')).route('/', router);
     const res = await app.request('/jobs/7/retry', { method: 'POST' });
@@ -180,6 +190,8 @@ describe('POST /jobs/:id/retry', () => {
       retryJob: mock(async () => false),
       reextractJob: noopReextractJob,
       listExtractedPlaces: noopListExtractedPlaces,
+      listIgPlaceDays: noopListIgPlaceDays,
+      setIgPlaceDays: noopSetIgPlaceDays,
     });
     const app = new Hono().use('*', withAuth('u')).route('/', router);
     const res = await app.request('/jobs/7/retry', { method: 'POST' });
@@ -193,6 +205,8 @@ describe('POST /jobs/:id/retry', () => {
       retryJob: mock(async () => true),
       reextractJob: noopReextractJob,
       listExtractedPlaces: noopListExtractedPlaces,
+      listIgPlaceDays: noopListIgPlaceDays,
+      setIgPlaceDays: noopSetIgPlaceDays,
     });
     const app = new Hono().use('*', withAuth('u')).route('/', router);
     const res = await app.request('/jobs/abc/retry', { method: 'POST' });
@@ -250,6 +264,8 @@ describe('GET /extracted', () => {
       retryJob: noopRetryJob,
       reextractJob: noopReextractJob,
       listExtractedPlaces: noopListExtractedPlaces,
+      listIgPlaceDays: noopListIgPlaceDays,
+      setIgPlaceDays: noopSetIgPlaceDays,
     });
     const app = new Hono().use('*', withAuth('u')).route('/', router);
     const res = await app.request('/extracted?category=badvalue');
@@ -267,6 +283,8 @@ describe('POST /jobs/:id/reextract', () => {
       retryJob: noopRetryJob,
       reextractJob: reextract,
       listExtractedPlaces: noopListExtractedPlaces,
+      listIgPlaceDays: noopListIgPlaceDays,
+      setIgPlaceDays: noopSetIgPlaceDays,
     });
     const app = new Hono().use('*', withAuth('u')).route('/', router);
     const res = await app.request('/jobs/9/reextract', { method: 'POST' });
@@ -282,6 +300,8 @@ describe('POST /jobs/:id/reextract', () => {
       retryJob: noopRetryJob,
       reextractJob: mock(async () => false),
       listExtractedPlaces: noopListExtractedPlaces,
+      listIgPlaceDays: noopListIgPlaceDays,
+      setIgPlaceDays: noopSetIgPlaceDays,
     });
     const app = new Hono().use('*', withAuth('u')).route('/', router);
     const res = await app.request('/jobs/9/reextract', { method: 'POST' });
@@ -296,9 +316,138 @@ describe('POST /jobs/:id/reextract', () => {
       retryJob: noopRetryJob,
       reextractJob: mock(async () => true),
       listExtractedPlaces: noopListExtractedPlaces,
+      listIgPlaceDays: noopListIgPlaceDays,
+      setIgPlaceDays: noopSetIgPlaceDays,
+      listIgPlaceDays: mock(async () => []),
+      setIgPlaceDays: mock(async () => {}),
     });
     const app = new Hono().use('*', withAuth('u')).route('/', router);
     const res = await app.request('/jobs/abc/reextract', { method: 'POST' });
     expect(res.status).toBe(400);
+  });
+});
+
+// ── Day assignment routes ──────────────────────────────────────────────────────
+
+function makeDepsWithDays(
+  listIgPlaceDays: (opts: { userId: string; placeId: number }) => Promise<number[]>,
+  setIgPlaceDays: (opts: { userId: string; placeId: number; days: number[] }) => Promise<void>,
+) {
+  return {
+    enqueue: mock(async () => ({} as any)),
+    statsHandler: () => ({}),
+    listJobs: noopListJobs,
+    retryJob: noopRetryJob,
+    reextractJob: noopReextractJob,
+    listExtractedPlaces: noopListExtractedPlaces,
+    listIgPlaceDays,
+    setIgPlaceDays,
+  };
+}
+
+describe('GET /extracted/:id/days', () => {
+  test('200 returns days array', async () => {
+    const listIgPlaceDays = mock(async () => [1, 3, 5]);
+    const router = createInstagramPlacesRouter(makeDepsWithDays(listIgPlaceDays, mock(async () => {})));
+    const app = new Hono().use('*', withAuth('user-1')).route('/', router);
+    const res = await app.request('/extracted/42/days');
+    expect(res.status).toBe(200);
+    const body = await res.json() as { days: number[] };
+    expect(body.days).toEqual([1, 3, 5]);
+    expect(listIgPlaceDays).toHaveBeenCalledWith({ userId: 'user-1', placeId: 42 });
+  });
+
+  test('400 on non-numeric id', async () => {
+    const router = createInstagramPlacesRouter(makeDepsWithDays(mock(async () => []), mock(async () => {})));
+    const app = new Hono().use('*', withAuth('u')).route('/', router);
+    const res = await app.request('/extracted/abc/days');
+    expect(res.status).toBe(400);
+  });
+
+  test('returns empty days array when none assigned', async () => {
+    const listIgPlaceDays = mock(async () => []);
+    const router = createInstagramPlacesRouter(makeDepsWithDays(listIgPlaceDays, mock(async () => {})));
+    const app = new Hono().use('*', withAuth('u')).route('/', router);
+    const res = await app.request('/extracted/1/days');
+    expect(res.status).toBe(200);
+    const body = await res.json() as { days: number[] };
+    expect(body.days).toEqual([]);
+  });
+});
+
+describe('PUT /extracted/:id/days', () => {
+  test('204 on valid days array', async () => {
+    const setIgPlaceDays = mock(async () => {});
+    const router = createInstagramPlacesRouter(makeDepsWithDays(mock(async () => []), setIgPlaceDays));
+    const app = new Hono().use('*', withAuth('user-2')).route('/', router);
+    const res = await app.request('/extracted/7/days', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ days: [2, 5, 8] }),
+    });
+    expect(res.status).toBe(204);
+    expect(setIgPlaceDays).toHaveBeenCalledWith({ userId: 'user-2', placeId: 7, days: [2, 5, 8] });
+  });
+
+  test('204 on empty days array (unassigns all)', async () => {
+    const setIgPlaceDays = mock(async () => {});
+    const router = createInstagramPlacesRouter(makeDepsWithDays(mock(async () => [3]), setIgPlaceDays));
+    const app = new Hono().use('*', withAuth('u')).route('/', router);
+    const res = await app.request('/extracted/3/days', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ days: [] }),
+    });
+    expect(res.status).toBe(204);
+    expect(setIgPlaceDays).toHaveBeenCalledWith({ userId: 'u', placeId: 3, days: [] });
+  });
+
+  test('400 on day number out of range', async () => {
+    const router = createInstagramPlacesRouter(makeDepsWithDays(mock(async () => []), mock(async () => {})));
+    const app = new Hono().use('*', withAuth('u')).route('/', router);
+    const res = await app.request('/extracted/1/days', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ days: [0, 13] }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  test('400 on invalid body (not array)', async () => {
+    const router = createInstagramPlacesRouter(makeDepsWithDays(mock(async () => []), mock(async () => {})));
+    const app = new Hono().use('*', withAuth('u')).route('/', router);
+    const res = await app.request('/extracted/1/days', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ days: 'bad' }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  test('404 when place not found or not owned', async () => {
+    const setIgPlaceDays = mock(async () => { throw new Error('place not found or not owned by user'); });
+    const router = createInstagramPlacesRouter(makeDepsWithDays(mock(async () => []), setIgPlaceDays));
+    const app = new Hono().use('*', withAuth('u')).route('/', router);
+    const res = await app.request('/extracted/99/days', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ days: [1] }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  test('deduplicates and sorts days before saving', async () => {
+    let capturedDays: number[] | undefined;
+    const setIgPlaceDays = mock(async (opts: { userId: string; placeId: number; days: number[] }) => {
+      capturedDays = opts.days;
+    });
+    const router = createInstagramPlacesRouter(makeDepsWithDays(mock(async () => []), setIgPlaceDays));
+    const app = new Hono().use('*', withAuth('u')).route('/', router);
+    await app.request('/extracted/1/days', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ days: [5, 2, 5, 3, 2] }),
+    });
+    expect(capturedDays).toEqual([2, 3, 5]);
   });
 });

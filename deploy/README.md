@@ -190,6 +190,55 @@ pipeline. Job runtime drops from ~90 s to ~10 s. Only caption, location tag,
 and comments are available as extraction signals. Existing jobs with no
 `skip_video` column get `false` via the column default.
 
+## One-time SQL: IG place day assignment
+
+Run in the Supabase SQL editor after deploying the matching server code
+(all statements use `IF NOT EXISTS` / `CREATE OR REPLACE` — safe to re-apply):
+
+```sql
+create table if not exists public.instagram_place_day_assignments (
+  id          bigserial primary key,
+  place_id    bigint not null references public.instagram_places(id) on delete cascade,
+  user_id     text   not null,
+  day_n       smallint not null check (day_n between 1 and 12),
+  created_at  timestamptz not null default now()
+);
+
+create unique index if not exists instagram_place_day_assignments_uq
+  on public.instagram_place_day_assignments (place_id, user_id, day_n);
+
+create index if not exists instagram_place_day_assignments_user_day_idx
+  on public.instagram_place_day_assignments (user_id, day_n);
+
+alter table public.instagram_place_day_assignments enable row level security;
+
+create policy "Users read own ig day assignments"
+  on public.instagram_place_day_assignments for select to authenticated
+  using ((select auth.jwt()->>'sub') = user_id);
+
+create or replace function public.ig_set_place_days(
+  p_user_id text, p_place_id bigint, p_days smallint[]
+) returns void language plpgsql security definer as $$
+begin
+  if not exists (
+    select 1 from public.instagram_places
+     where id = p_place_id and user_id = p_user_id
+  ) then
+    raise exception 'place not found or not owned by user';
+  end if;
+  delete from public.instagram_place_day_assignments
+   where user_id = p_user_id and place_id = p_place_id;
+  if array_length(p_days, 1) is not null then
+    insert into public.instagram_place_day_assignments (place_id, user_id, day_n)
+    select p_place_id, p_user_id, unnest(p_days);
+  end if;
+end $$;
+```
+
+Effect: users can pin their IG-extracted places to specific Korea trip days.
+Assigned places appear in the day page's "From your Instagram saves" section
+and in Map Mode as `priority: 'scheduled'` markers.
+
 ## Rollback
 
 The workflow does a `rm -rf ~/anthonyl.im` + `git clone` — there's no kept-around previous version. To roll back: revert the bad commit on `main`, push, and the workflow re-runs with the prior code. The build-and-deploy takes ~2-3 minutes from `git push`.
