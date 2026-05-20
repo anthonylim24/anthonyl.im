@@ -98,3 +98,10 @@ export class RetryableError extends Error {
 export class NonRetryableError extends Error {
   constructor(message: string) { super(message); }
 }
+
+/** Sentinel on the "dev-browser binary missing" error message. buildBundle's
+ *  downloader chain inspects thrown errors for this token to differentiate
+ *  "binary not installed, show install hint" from a real extraction failure.
+ *  Lives in types.ts so wire.ts and buildBundle.ts share it without a
+ *  circular import. */
+export const ENODEVBROWSER = 'ENODEVBROWSER';

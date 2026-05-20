@@ -1,4 +1,4 @@
-import type { ExtractionBundle, PostPayload } from './types';
+import { ENODEVBROWSER, type ExtractionBundle, type PostPayload } from './types';
 import { rm, stat } from 'node:fs/promises';
 import { dirname, sep } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -131,8 +131,8 @@ export function createBundleBuilder(deps: BundleDeps): BundleBuilder {
         }
 
         if (!localPath) {
-          // 2nd path: direct fetch of the videoUrl from the initial Apify
-          // metadata call. Cheap when the URL is still fresh.
+          // 2nd path: direct CDN fetch of the videoUrl we already have. Cheap
+          // when it hasn't expired yet (IG signs URLs for ~10-30 min).
           const host = (() => { try { return new URL(video.url).hostname; } catch { return video.url.slice(0, 40); } })();
           await log('info', `downloading video from ${host}…`);
           const dlCtrl = new AbortController();
@@ -163,7 +163,7 @@ export function createBundleBuilder(deps: BundleDeps): BundleBuilder {
             await log('info', `video saved via headless extraction (${Date.now() - t0}ms)`);
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            if (msg.includes('ENODEVBROWSER')) {
+            if (msg.includes(ENODEVBROWSER)) {
               await log('warn',
                 `dev-browser not on server PATH — headless fallback skipped. ` +
                 'Install once: `npm install -g dev-browser && dev-browser install`');
