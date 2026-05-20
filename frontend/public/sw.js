@@ -1,6 +1,6 @@
 // Korea is now the only installable PWA — bump cache version so iOS
 // clients drop the previously-precached BreathFlow manifest.
-const CACHE_VERSION = 'korea-offline-v7'
+const CACHE_VERSION = 'korea-offline-v8'
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`
 const KOREA_API_CACHE = `${CACHE_VERSION}-korea-api`
 const APP_SHELL = [
@@ -150,35 +150,6 @@ self.addEventListener('fetch', (event) => {
   // Never intercept the SW script itself — the browser uses a special update
   // path that bypasses the existing SW, but we belt-and-suspender it.
   if (url.pathname === '/sw.js') {
-    return
-  }
-
-  // Neuter Cloudflare's Speed Brain. CF injects `Speculation-Rules:
-  // "/cdn-cgi/speculation"` on every HTML response, telling Chrome to fetch
-  // that URL for a rule list. The CF-served rules tell Chrome to prefetch
-  // every same-origin `<a href>` on hover. For list pages like /korea/places
-  // (many cards, many links) this saturates the per-origin connection pool
-  // and competes with real subresource loads — the user sees the tab
-  // spinner hang and the page take seconds to settle. Returning empty
-  // rules makes Chrome skip speculation entirely.
-  if (url.pathname === '/cdn-cgi/speculation') {
-    event.respondWith(new Response('{"prefetch":[]}', {
-      headers: { 'Content-Type': 'application/speculationrules+json' },
-    }))
-    return
-  }
-
-  // Don't intercept browser speculation prefetches. Cloudflare's Speed Brain
-  // injects `Speculation-Rules: /cdn-cgi/speculation` headers that tell Chrome
-  // to prefetch hovered same-origin links. For dynamic responses
-  // (Cache-Control: no-store), Cloudflare refuses those prefetches with
-  // `503 + Cf-Speculation-Refused: not eligible`. If we let networkFirstNavigation
-  // proxy the prefetch, we forward the 503 to the browser, which then surfaces
-  // it in DevTools and can short-circuit the real navigation. Letting the
-  // browser handle speculation directly keeps the 503 in the speculation layer
-  // (where it belongs) instead of the navigation layer.
-  const secPurpose = request.headers.get('sec-purpose') || ''
-  if (secPurpose.includes('prefetch') || secPurpose.includes('prerender')) {
     return
   }
 
