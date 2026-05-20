@@ -122,6 +122,9 @@ export function Detailed3DScene({
     const overlay = overlayRef.current
     const attribution = attributionRef.current
     if (!mount || !overlay) return
+    // Capture the narrowed overlay into a local so TypeScript keeps the
+    // non-null narrowing across the nested closures defined later.
+    const overlayEl: HTMLDivElement = overlay
 
     // ── Renderer ─────────────────────────────────────────────────
     // logarithmicDepthBuffer is essential — Google tiles cover a 10+
@@ -442,6 +445,9 @@ export function Detailed3DScene({
     // the cursor is currently over. Hidden by default. pointer-events:
     // none so it never eats the pointerup that triggers focus/deselect.
     const neighborhoodTooltip = document.createElement("div")
+    // data-neighborhood-tooltip is the tag we use below to exclude the
+    // tooltip itself from its own collision check.
+    neighborhoodTooltip.dataset.neighborhoodTooltip = "1"
     neighborhoodTooltip.className =
       "pointer-events-none absolute select-none rounded-full bg-rose-600/95 px-2.5 py-1 text-[11px] font-semibold text-white shadow-lg ring-1 ring-rose-300/40 backdrop-blur-sm"
     neighborhoodTooltip.style.transform = "translate3d(-9999px,-9999px,0)"
@@ -492,14 +498,103 @@ export function Detailed3DScene({
       return namesAtLngLat(allDongs, lng, lat)
     }
 
+    /** Place the tooltip near the cursor while avoiding overlap with the
+     *  place bubble labels + YOU label + selection pill that share the
+     *  overlay layer.
+     *
+     *  Algorithm: measure the tooltip's dimensions (with the new text
+     *  laid out), measure every currently-visible obstacle label, then
+     *  score 8 candidate positions arranged around the cursor. The
+     *  scoring function penalises pixel-area overlap with any obstacle
+     *  and any off-canvas portion. Lowest score wins; on ties we keep
+     *  the higher-priority position (bottom-right first). */
     function showTooltip(text: string, clientX: number, clientY: number) {
-      const rect = renderer.domElement.getBoundingClientRect()
-      const x = clientX - rect.left
-      const y = clientY - rect.top
-      neighborhoodTooltip.textContent = text
-      // Offset +12/+12 from the cursor so the tooltip never sits under
-      // the pointer arrow (would clip the hit region on some browsers).
-      neighborhoodTooltip.style.transform = `translate3d(${(x + 14).toFixed(1)}px, ${(y + 14).toFixed(1)}px, 0)`
+      const canvasRect = renderer.domElement.getBoundingClientRect()
+      const px = clientX - canvasRect.left
+      const py = clientY - canvasRect.top
+
+      // Update text in place so measurement reflects the final string.
+      // Reads `textContent` first to skip a layout flush when the text
+      // hasn't actually changed (e.g. same dong on consecutive frames).
+      if (neighborhoodTooltip.textContent !== text) {
+        neighborhoodTooltip.textContent = text
+      }
+      // getBoundingClientRect() returns layout dimensions even at
+      // opacity 0, so we don't need to flash the tooltip into view to
+      // measure it.
+      const ttRect = neighborhoodTooltip.getBoundingClientRect()
+      const ttW = ttRect.width
+      const ttH = ttRect.height
+
+      // Collect obstacle rects. Direct children of `overlay` are place
+      // labels, the YOU label, the selection pill, and the tooltip
+      // itself; skip the tooltip + anything currently hidden.
+      const obstacles: Array<{ x: number; y: number; w: number; h: number }> = []
+      for (const child of overlayEl.children) {
+        if (!(child instanceof HTMLElement)) continue
+        if (child.dataset.neighborhoodTooltip === "1") continue
+        if (child.style.visibility === "hidden") continue
+        // CSS opacity:0 elements (the selection pill while no place is
+        // selected) shouldn't count as obstacles either.
+        if (child.style.opacity === "0") continue
+        const r = child.getBoundingClientRect()
+        if (r.width === 0 || r.height === 0) continue
+        obstacles.push({
+          x: r.left - canvasRect.left,
+          y: r.top - canvasRect.top,
+          w: r.width,
+          h: r.height,
+        })
+      }
+
+      const GAP = 14
+      // Candidates: ordered by visual preference. We try bottom-right
+      // first because it's the cursor-tooltip convention users expect;
+      // every entry after that is a fallback if the preferred spot
+      // collides.
+      const candidates: Array<[number, number]> = [
+        [px + GAP, py + GAP],                 // bottom-right (default)
+        [px - GAP - ttW, py + GAP],           // bottom-left
+        [px + GAP, py - GAP - ttH],           // top-right
+        [px - GAP - ttW, py - GAP - ttH],     // top-left
+        [px + GAP, py - ttH / 2],             // right, vertically centered
+        [px - GAP - ttW, py - ttH / 2],       // left, vertically centered
+        [px - ttW / 2, py + GAP + 6],         // straight below, extra gap
+        [px - ttW / 2, py - GAP - 6 - ttH],   // straight above, extra gap
+      ]
+
+      function scoreAt(x: number, y: number): number {
+        // Off-canvas penalty: pixels that fall outside the renderer's
+        // rect. Multiplied so any off-canvas spill outranks all overlap.
+        let off = 0
+        if (x < 0) off += -x
+        if (y < 0) off += -y
+        if (x + ttW > canvasRect.width) off += x + ttW - canvasRect.width
+        if (y + ttH > canvasRect.height) off += y + ttH - canvasRect.height
+
+        // Overlap area against every obstacle.
+        let overlap = 0
+        for (const o of obstacles) {
+          const ix = Math.max(0, Math.min(x + ttW, o.x + o.w) - Math.max(x, o.x))
+          const iy = Math.max(0, Math.min(y + ttH, o.y + o.h) - Math.max(y, o.y))
+          overlap += ix * iy
+        }
+        return off * 10000 + overlap
+      }
+
+      let bestX = candidates[0][0]
+      let bestY = candidates[0][1]
+      let bestScore = scoreAt(bestX, bestY)
+      for (let i = 1; i < candidates.length; i++) {
+        const [cx, cy] = candidates[i]
+        const s = scoreAt(cx, cy)
+        if (s < bestScore) {
+          bestScore = s
+          bestX = cx
+          bestY = cy
+        }
+      }
+      neighborhoodTooltip.style.transform = `translate3d(${bestX.toFixed(1)}px, ${bestY.toFixed(1)}px, 0)`
       neighborhoodTooltip.style.opacity = "1"
     }
     function hideTooltip() {
