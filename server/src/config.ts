@@ -14,10 +14,11 @@ export const config = {
   // extractor retries the same call against Cerebras (same gpt-oss-120b model,
   // OpenAI-compatible API). Only if Cerebras also 429s do we re-queue the job.
   cerebrasApiKey: process.env.CEREBRAS_API_KEY,
-  // Optional Gemini fallback. When set, used as (a) last-resort text extractor
-  // when Groq + Cerebras + comments retry all yield 0 places (gemini-3.1-flash-lite
-  // with Maps grounding), and (b) video transcription fallback when Groq Whisper
-  // returns 429 (gemini-3.5-flash via the Files API).
+  // Optional Gemini API key. Powers (a) the primary video analyzer
+  // (transcript + OCR + place extraction with Maps grounding in one call),
+  // (b) the skip-video text extractor, (c) the Groq-Whisper 429 fallback,
+  // and (d) the last-resort text extractor when the primary chain yields
+  // 0 places. Model is set app-wide in gemini.ts → GEMINI_MODEL.
   geminiApiKey: process.env.GEMINI_API_KEY,
   // Bright Data Web Scraper API — initial Instagram post metadata fetch
   // (caption + videoUrl + locationTag) + comments fallback. Synchronous

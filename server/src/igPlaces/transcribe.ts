@@ -7,7 +7,7 @@ interface VerboseTranscription { segments?: VerboseSegment[]; text?: string; }
 export interface TranscriberDeps {
   groq: Pick<Groq, 'audio'>;
   /** Optional fallback: when Groq Whisper returns 429, transcribe the
-   *  video via Gemini 3.5 Flash's video understanding API. ~30s overhead
+   *  video via Gemini's video understanding API. ~30s overhead
    *  vs Groq's ~5s, but only fires on rate-limit. */
   geminiVideoTranscriber?: (videoPath: string, signal?: AbortSignal) => Promise<string>;
 }

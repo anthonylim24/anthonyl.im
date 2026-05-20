@@ -7,7 +7,8 @@
 //      Hannam") via the live Maps index.
 //
 //   2. `createGeminiVideoTranscriber` — uploads the downloaded video via
-//      Gemini's resumable Files API and asks gemini-3.5-flash for a
+//      Gemini's resumable Files API and asks the configured Gemini model
+//      (see GEMINI_MODEL) for a
 //      transcript. Wired into transcribe.ts as the 429 fallback when
 //      Groq Whisper rate-limits.
 //
@@ -19,8 +20,14 @@ import { renderBundle, SYSTEM_PROMPT } from './extractPlaces';
 import { readFile, stat } from 'node:fs/promises';
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
-const DEFAULT_EXTRACT_MODEL = 'gemini-3.1-flash-lite';
-const DEFAULT_VIDEO_MODEL = 'gemini-3.5-flash';
+
+/** Single source of truth for which Gemini model every factory in this
+ *  module uses (text extraction, video understanding, video transcription).
+ *  Flash Lite handles all three workloads (multimodal: text + image + video
+ *  + audio + PDF) at $0.25/1M-in / $1.50/1M-out, vs ~6× pricier Flash. To
+ *  swap app-wide, change this one line. Per-call `model` overrides on the
+ *  factories still work if a specific surface needs a different tier. */
+export const GEMINI_MODEL = 'gemini-3.1-flash-lite';
 
 export interface GeminiExtractorDeps {
   apiKey: string;
@@ -39,7 +46,7 @@ export type GeminiExtractor = (bundle: ExtractionBundle) => Promise<VotedPlace[]
  */
 export function createGeminiExtractor(deps: GeminiExtractorDeps): GeminiExtractor {
   const f = deps.fetch ?? fetch;
-  const model = deps.model ?? DEFAULT_EXTRACT_MODEL;
+  const model = deps.model ?? GEMINI_MODEL;
   return async (bundle) => {
     const userMsg = renderBundle(bundle);
     const r = await f(`${GEMINI_BASE}/models/${model}:generateContent`, {
@@ -151,7 +158,7 @@ export type GeminiVideoTranscriber = (videoPath: string, signal?: AbortSignal) =
  */
 export function createGeminiVideoTranscriber(deps: GeminiVideoTranscriberDeps): GeminiVideoTranscriber {
   const f = deps.fetch ?? fetch;
-  const model = deps.model ?? DEFAULT_VIDEO_MODEL;
+  const model = deps.model ?? GEMINI_MODEL;
 
   return async (videoPath, signal) => {
     const fileUri = await uploadFile(deps.apiKey, videoPath, 'video/mp4', f, signal);
@@ -274,8 +281,9 @@ export type GeminiVideoAnalyzer = (
 
 /**
  * One-shot video understanding: uploads the local video file and asks
- * gemini-3.5-flash for transcript + on-screen text (OCR) + structured
- * places in a single generateContent call, with Maps grounding enabled.
+ * the configured Gemini model (see GEMINI_MODEL) for transcript +
+ * on-screen text (OCR) + structured places in a single generateContent
+ * call, with Maps grounding enabled.
  *
  * Wired as the PRIMARY video-processing path in buildBundle.ts. If this
  * call succeeds, we skip the Groq Whisper + ffmpeg-frames + Google Vision
@@ -289,7 +297,7 @@ export type GeminiVideoAnalyzer = (
  */
 export function createGeminiVideoAnalyzer(deps: GeminiVideoAnalyzerDeps): GeminiVideoAnalyzer {
   const f = deps.fetch ?? fetch;
-  const model = deps.model ?? DEFAULT_VIDEO_MODEL;
+  const model = deps.model ?? GEMINI_MODEL;
   return async (post, videoPath, signal) => {
     const fileUri = await uploadFile(deps.apiKey, videoPath, 'video/mp4', f, signal);
 
