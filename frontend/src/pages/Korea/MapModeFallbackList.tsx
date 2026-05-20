@@ -10,13 +10,19 @@ interface MapModeFallbackListProps {
   onSelect: (place: RankedPlace) => void
 }
 
-const priorityLabel: Record<RankedPlace["priority"], string> = {
+type GroupKey = "instagram" | "scheduled" | "core" | "supplemental"
+
+const groupOrder: GroupKey[] = ["instagram", "scheduled", "core", "supplemental"]
+
+const groupLabel: Record<GroupKey, string> = {
+  instagram: "From Instagram",
   scheduled: "Scheduled",
   core: "Core",
   supplemental: "Nearby",
 }
 
-const priorityRingColor: Record<RankedPlace["priority"], string> = {
+const groupRingColor: Record<GroupKey, string> = {
+  instagram: "ring-rose-400 dark:ring-rose-500",
   scheduled: "ring-rose-400 dark:ring-rose-500",
   core: "ring-amber-400 dark:ring-amber-500",
   supplemental: "ring-stone-300 dark:ring-stone-700",
@@ -28,30 +34,37 @@ const priorityRingColor: Record<RankedPlace["priority"], string> = {
 export function MapModeFallbackList({ places, onSelect }: MapModeFallbackListProps) {
   const reduce = useReducedMotion()
 
-  const groups: Record<RankedPlace["priority"], RankedPlace[]> = {
+  const groups: Record<GroupKey, RankedPlace[]> = {
+    instagram: [],
     scheduled: [],
     core: [],
     supplemental: [],
   }
-  for (const p of places) groups[p.priority].push(p)
+  for (const p of places) {
+    // IG-saved places have their own bucket so they don't drown the
+    // reservation-anchored Scheduled section.
+    if (p.subcategory === "instagram") groups.instagram.push(p)
+    else groups[p.priority].push(p)
+  }
 
   return (
     <div className="mx-auto max-w-2xl px-4 pb-28 pt-4 sm:px-6">
-      {(Object.keys(groups) as RankedPlace["priority"][]).map((priority) =>
-        groups[priority].length > 0 ? (
-          <section key={priority} className="mb-5">
-            <h3 className="mb-2 text-[10px] font-mono uppercase tracking-widest text-stone-500 dark:text-stone-400">
-              {priorityLabel[priority]} · {groups[priority].length}
+      {groupOrder.map((key) =>
+        groups[key].length > 0 ? (
+          <section key={key} className="mb-5">
+            <h3 className="mb-2 inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-stone-500 dark:text-stone-400">
+              {key === "instagram" && <IgIcon className="h-3 w-3 text-rose-500" aria-hidden />}
+              {groupLabel[key]} · {groups[key].length}
             </h3>
             <ul className="space-y-2">
-              {groups[priority].map((p, i) => (
+              {groups[key].map((p, i) => (
                 <motion.li
                   key={p.id}
                   initial={reduce ? false : { opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: reduce ? 0 : i * 0.03 }}
                 >
-                  <PlaceListRow place={p} onSelect={onSelect} ringClass={priorityRingColor[priority]} />
+                  <PlaceListRow place={p} onSelect={onSelect} ringClass={groupRingColor[key]} />
                 </motion.li>
               ))}
             </ul>

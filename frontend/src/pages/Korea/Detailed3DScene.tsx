@@ -21,7 +21,6 @@ import {
   MeshBasicMaterial,
   MeshStandardMaterial,
   PerspectiveCamera,
-  Plane,
   Raycaster,
   RingGeometry,
   Scene,
@@ -40,7 +39,6 @@ import {
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js"
 import { KTX2Loader } from "three/examples/jsm/loaders/KTX2Loader.js"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
-import { loadAllKoreaDongs, namesAtLngLat } from "./allKoreaDongs"
 import type { NeighborhoodCenter, RankedPlace } from "./mapModeTypes"
 
 const DEG2RAD = Math.PI / 180
@@ -122,9 +120,6 @@ export function Detailed3DScene({
     const overlay = overlayRef.current
     const attribution = attributionRef.current
     if (!mount || !overlay) return
-    // Capture the narrowed overlay into a local so TypeScript keeps the
-    // non-null narrowing across the nested closures defined later.
-    const overlayEl: HTMLDivElement = overlay
 
     // ── Renderer ─────────────────────────────────────────────────
     // logarithmicDepthBuffer is essential — Google tiles cover a 10+
@@ -241,16 +236,6 @@ export function Detailed3DScene({
     scene.add(youMarker)
 
     const cosUserLat = Math.cos(anchorLat * DEG2RAD)
-
-    // ── Neighborhood tooltip data. The all-Korea dong dataset is
-    // fetched lazily — first Map Mode mount triggers the fetch, every
-    // subsequent mount uses the module-scope cache. While in-flight, the
-    // tooltip just stays hidden. ~84 KB gzipped, served with a
-    // year-immutable Cache-Control.
-    let allDongs: Awaited<ReturnType<typeof loadAllKoreaDongs>> = []
-    void loadAllKoreaDongs().then((d) => {
-      allDongs = d
-    })
 
     // ── Place markers. We compute local (X=west, Z=north) meters
     // from delta lat/lng around the user, matching the
@@ -440,29 +425,6 @@ export function Detailed3DScene({
     let pointerDownAt = 0
     let pointerDownPos = { x: 0, y: 0 }
 
-    // Neighborhood tooltip — floats next to the cursor on hover (or
-    // briefly on click), showing the name of whichever original polygon
-    // the cursor is currently over. Hidden by default. pointer-events:
-    // none so it never eats the pointerup that triggers focus/deselect.
-    const neighborhoodTooltip = document.createElement("div")
-    // data-neighborhood-tooltip is the tag we use below to exclude the
-    // tooltip itself from its own collision check.
-    neighborhoodTooltip.dataset.neighborhoodTooltip = "1"
-    neighborhoodTooltip.className =
-      "pointer-events-none absolute select-none rounded-full bg-rose-600/95 px-2.5 py-1 text-[11px] font-semibold text-white shadow-lg ring-1 ring-rose-300/40 backdrop-blur-sm"
-    neighborhoodTooltip.style.transform = "translate3d(-9999px,-9999px,0)"
-    neighborhoodTooltip.style.opacity = "0"
-    neighborhoodTooltip.style.transition = "opacity 120ms ease"
-    overlay.appendChild(neighborhoodTooltip)
-
-    // Reused infinite ground plane for pointer→world hit tests. y=0
-    // matches the user-anchor surface (ReorientationPlugin sets origin
-    // there); polygon raycasts then convert hits back to lng/lat for
-    // point-in-polygon lookup. Using a plane rather than tile geometry
-    // means the tooltip works even over not-yet-loaded tiles.
-    const groundPlane = new Plane(new Vector3(0, 1, 0), 0)
-    const groundHit = new Vector3()
-
     function pickMarker(): PlaceMarker | null {
       raycaster.setFromCamera(pointer, camera)
       const hits = raycaster.intersectObjects(
@@ -472,145 +434,6 @@ export function Detailed3DScene({
       if (!hits.length) return null
       const obj = hits[0].object
       return markers.find((m) => m.mesh === obj) ?? null
-    }
-
-    /** Cast a ray from the current pointer to the ground plane and
-     *  return the matching lng/lat (or null if the ray misses the
-     *  plane — happens when the camera looks above horizon). */
-    function pickGroundLngLat(): { lng: number; lat: number } | null {
-      raycaster.setFromCamera(pointer, camera)
-      const intersected = raycaster.ray.intersectPlane(groundPlane, groundHit)
-      if (!intersected) return null
-      // Inverse of lngLatToSceneXZ: x = -eastM → eastM = -x; northM = z.
-      const eastM = -groundHit.x
-      const northM = groundHit.z
-      const lat = anchorLat + northM / M_PER_DEG_LAT
-      const lng = anchorLng + eastM / (cosUserLat * M_PER_DEG_LAT)
-      return { lng, lat }
-    }
-
-    /** Find every dong containing (lng, lat). Delegates to the
-     *  all-Korea hit-tester, which uses a per-polygon bbox pre-filter
-     *  + inline ray-casting point-in-polygon (no Turf at runtime).
-     *  Returns an empty array if the dataset hasn't finished loading
-     *  yet — the tooltip will silently no-op for those few frames. */
-    function namesAt(lng: number, lat: number): string[] {
-      return namesAtLngLat(allDongs, lng, lat)
-    }
-
-    /** Place the tooltip near the cursor while avoiding overlap with
-     *  every other label on the overlay layer (place bubbles, YOU pin,
-     *  selection pill).
-     *
-     *  Algorithm:
-     *    1. Measure the tooltip with the new text laid out.
-     *    2. Snapshot every visible overlay child as an obstacle rect,
-     *       inflated by OBSTACLE_MARGIN px so the tooltip keeps visual
-     *       breathing room rather than just-barely-not-touching.
-     *    3. Generate candidate positions in three concentric tiers
-     *       (close → medium → far) around the cursor: 8 positions per
-     *       tier = 24 total. Far tiers exist so dense label clusters
-     *       (the user-reported scenario where the cursor sits between
-     *       two pills) can still find a clean spot rather than picking
-     *       the least-bad collision.
-     *    4. Score: large multiplier on off-canvas spill, large
-     *       multiplier on overlap area, small tiebreaker for distance
-     *       from cursor (closer wins among equally-clear positions).
-     *    5. Lowest score wins; bottom-right of the closest tier breaks
-     *       ties so the default placement stays predictable in open
-     *       space. */
-    function showTooltip(text: string, clientX: number, clientY: number) {
-      const canvasRect = renderer.domElement.getBoundingClientRect()
-      const px = clientX - canvasRect.left
-      const py = clientY - canvasRect.top
-
-      if (neighborhoodTooltip.textContent !== text) {
-        neighborhoodTooltip.textContent = text
-      }
-      const ttRect = neighborhoodTooltip.getBoundingClientRect()
-      const ttW = ttRect.width
-      const ttH = ttRect.height
-
-      // Visual breathing room around each obstacle. The bubble labels
-      // have a soft drop-shadow + the icon glyph sticks ~4 px above
-      // the pill's bounding box (CSS -translate-y); 10 px catches both
-      // and leaves a small visible gap between the tooltip and any
-      // adjacent pill.
-      const OBSTACLE_MARGIN = 10
-      const obstacles: Array<{ x: number; y: number; w: number; h: number }> = []
-      for (const child of overlayEl.children) {
-        if (!(child instanceof HTMLElement)) continue
-        if (child.dataset.neighborhoodTooltip === "1") continue
-        if (child.style.visibility === "hidden") continue
-        if (child.style.opacity === "0") continue
-        const r = child.getBoundingClientRect()
-        if (r.width === 0 || r.height === 0) continue
-        obstacles.push({
-          x: r.left - canvasRect.left - OBSTACLE_MARGIN,
-          y: r.top - canvasRect.top - OBSTACLE_MARGIN,
-          w: r.width + 2 * OBSTACLE_MARGIN,
-          h: r.height + 2 * OBSTACLE_MARGIN,
-        })
-      }
-
-      // Three distance tiers. The close tier matches the conventional
-      // "right next to the cursor" feel; the far tier exists for the
-      // rare dense-cluster case where every close candidate collides.
-      const TIERS = [14, 32, 64]
-      const candidates: Array<[number, number]> = []
-      for (const gap of TIERS) {
-        candidates.push(
-          [px + gap, py + gap],                   // bottom-right
-          [px - gap - ttW, py + gap],             // bottom-left
-          [px + gap, py - gap - ttH],             // top-right
-          [px - gap - ttW, py - gap - ttH],       // top-left
-          [px + gap, py - ttH / 2],               // right, vertically centered
-          [px - gap - ttW, py - ttH / 2],         // left, vertically centered
-          [px - ttW / 2, py + gap],               // straight below
-          [px - ttW / 2, py - gap - ttH],         // straight above
-        )
-      }
-
-      function scoreAt(x: number, y: number, tierGap: number): number {
-        // Off-canvas penalty: pixels that fall outside the renderer's
-        // rect. The 1e6 multiplier means any off-canvas spill outranks
-        // any reasonable overlap area.
-        let off = 0
-        if (x < 0) off += -x
-        if (y < 0) off += -y
-        if (x + ttW > canvasRect.width) off += x + ttW - canvasRect.width
-        if (y + ttH > canvasRect.height) off += y + ttH - canvasRect.height
-
-        // Overlap area against every (inflated) obstacle.
-        let overlap = 0
-        for (const o of obstacles) {
-          const ix = Math.max(0, Math.min(x + ttW, o.x + o.w) - Math.max(x, o.x))
-          const iy = Math.max(0, Math.min(y + ttH, o.y + o.h) - Math.max(y, o.y))
-          overlap += ix * iy
-        }
-        // Small tiebreaker so among equally-clear positions we prefer
-        // the one closest to the cursor.
-        return off * 1_000_000 + overlap * 1_000 + tierGap
-      }
-
-      let bestX = candidates[0][0]
-      let bestY = candidates[0][1]
-      let bestScore = scoreAt(bestX, bestY, TIERS[0])
-      for (let i = 1; i < candidates.length; i++) {
-        const [cx, cy] = candidates[i]
-        const tierGap = TIERS[Math.floor(i / 8)]
-        const s = scoreAt(cx, cy, tierGap)
-        if (s < bestScore) {
-          bestScore = s
-          bestX = cx
-          bestY = cy
-        }
-      }
-      neighborhoodTooltip.style.transform = `translate3d(${bestX.toFixed(1)}px, ${bestY.toFixed(1)}px, 0)`
-      neighborhoodTooltip.style.opacity = "1"
-    }
-    function hideTooltip() {
-      neighborhoodTooltip.style.opacity = "0"
     }
 
     function setPointerFromEvent(clientX: number, clientY: number) {
@@ -634,50 +457,13 @@ export function Detailed3DScene({
         onSelectRef.current(hit.place)
         return
       }
-      // No marker hit — check if the click landed in a neighborhood
-      // polygon. If so, surface the name. If not and we currently have
-      // a selection, treat as a click-out / deselect.
-      const ll = pickGroundLngLat()
-      if (ll) {
-        const names = namesAt(ll.lng, ll.lat)
-        if (names.length) {
-          showTooltip(names.join(" · "), e.clientX, e.clientY)
-          return
-        }
+      // No marker hit on an active selection → click-out / deselect.
+      if (selectedIdRef.current) {
+        onDeselectRef.current?.()
       }
-      if (selectedIdRef.current) onDeselectRef.current?.()
-    }
-    function onPointerMove(e: PointerEvent) {
-      // Skip during an active drag — OrbitControls owns the gesture and
-      // showing a tooltip while panning is jittery.
-      if (pointerDownAt > 0 && performance.now() - pointerDownAt < 600) {
-        const dx = e.clientX - pointerDownPos.x
-        const dy = e.clientY - pointerDownPos.y
-        if (Math.hypot(dx, dy) > 6) {
-          hideTooltip()
-          return
-        }
-      }
-      setPointerFromEvent(e.clientX, e.clientY)
-      const ll = pickGroundLngLat()
-      if (!ll) {
-        hideTooltip()
-        return
-      }
-      const names = namesAt(ll.lng, ll.lat)
-      if (names.length) {
-        showTooltip(names.join(" · "), e.clientX, e.clientY)
-      } else {
-        hideTooltip()
-      }
-    }
-    function onPointerLeave() {
-      hideTooltip()
     }
     renderer.domElement.addEventListener("pointerdown", onPointerDown)
     renderer.domElement.addEventListener("pointerup", onPointerUp)
-    renderer.domElement.addEventListener("pointermove", onPointerMove)
-    renderer.domElement.addEventListener("pointerleave", onPointerLeave)
 
     // ── Attribution overlay. Google's TOS requires the "Data:
     // Google + sources" line to render whenever any 3D tile is on
@@ -1097,9 +883,6 @@ export function Detailed3DScene({
       window.removeEventListener("korea-map-orient-north", onOrientNorth)
       renderer.domElement.removeEventListener("pointerdown", onPointerDown)
       renderer.domElement.removeEventListener("pointerup", onPointerUp)
-      renderer.domElement.removeEventListener("pointermove", onPointerMove)
-      renderer.domElement.removeEventListener("pointerleave", onPointerLeave)
-      neighborhoodTooltip.remove()
       tiles.dispose()
       controls.dispose()
       draco.dispose()
