@@ -21,10 +21,10 @@ import {
   MeshBasicMaterial,
   MeshStandardMaterial,
   PerspectiveCamera,
+  Plane,
   Raycaster,
   RingGeometry,
   Scene,
-  ShapeUtils,
   SphereGeometry,
   Vector2,
   Vector3,
@@ -40,6 +40,7 @@ import {
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js"
 import { KTX2Loader } from "three/examples/jsm/loaders/KTX2Loader.js"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
+import { loadAllKoreaDongs, namesAtLngLat } from "./allKoreaDongs"
 import type { NeighborhoodCenter, RankedPlace } from "./mapModeTypes"
 
 const DEG2RAD = Math.PI / 180
@@ -50,9 +51,10 @@ const M_PER_DEG_LAT = 111000
 
 interface Detailed3DSceneProps {
   places: RankedPlace[]
-  /** Day-itinerary neighborhood centers + polygons, rendered as mild
-   *  rose-tinted ground areas conformed to the 3D-tile terrain so the
-   *  user can see today's "footprint" at a glance. */
+  /** Day-itinerary neighborhood centers — accepted for backward-compat
+   *  with the call site but unused. Polygon highlights were removed in
+   *  favor of an on-hover tooltip that reads from the all-Korea dong
+   *  dataset; see {@link loadAllKoreaDongs}. */
   neighborhoods?: NeighborhoodCenter[]
   onSelect: (place: RankedPlace) => void
   onDeselect?: () => void
@@ -78,7 +80,7 @@ function readApiKey(): string | undefined {
 
 export function Detailed3DScene({
   places,
-  neighborhoods,
+  neighborhoods: _neighborhoods,
   onSelect,
   onDeselect,
   selectedId,
@@ -112,6 +114,10 @@ export function Detailed3DScene({
       return
     }
     if (typeof userLat !== "number" || typeof userLng !== "number") return
+    // Capture into locals so TypeScript keeps the narrowing inside the
+    // nested helper closures defined later in this effect.
+    const anchorLat = userLat
+    const anchorLng = userLng
     const mount = mountRef.current
     const overlay = overlayRef.current
     const attribution = attributionRef.current
@@ -205,8 +211,8 @@ export function Detailed3DScene({
     tiles.registerPlugin(new TileCompressionPlugin())
     tiles.registerPlugin(
       new ReorientationPlugin({
-        lat: userLat * DEG2RAD,
-        lon: userLng * DEG2RAD,
+        lat: anchorLat * DEG2RAD,
+        lon: anchorLng * DEG2RAD,
         height: 0,
       }),
     )
@@ -231,133 +237,17 @@ export function Detailed3DScene({
     youMarker.position.set(0, 6, 0)
     scene.add(youMarker)
 
-    // ── Neighborhood highlights. The server resolves the day's
-    // snapshot neighborhood names (e.g. "Hannam", "Itaewon") to
-    // GeoJSON polygons (OSM Nominatim where available, synthetic
-    // 32-vertex circles otherwise). We triangulate each polygon
-    // into a Three.js BufferGeometry directly in scene-XZ, then
-    // conform each vertex to the Google 3D Tile terrain via a
-    // downward raycast. Re-raycast on the next animation frame
-    // until every vertex has hit a tile — tiles stream in async,
-    // so initial mount usually has 0% hit rate for off-screen
-    // neighborhoods until the camera frames them.
-    const cosUserLat = Math.cos(userLat * DEG2RAD)
-    interface NeighborhoodMesh {
-      mesh: Mesh
-      vertexCount: number
-      worldXZ: Array<{ x: number; z: number }>
-      conformed: boolean[]
-      allDone: boolean
-    }
-    const neighborhoodMeshes: NeighborhoodMesh[] = []
-    if (neighborhoods && neighborhoods.length > 0) {
-      for (const n of neighborhoods) {
-        // Defensive: old API responses or partial cached entries can land
-        // here without a polygon field. Skip rather than crash.
-        if (!n.polygon || n.polygon.length < 4) continue
-        // Convert ring [lng, lat][] → scene-XZ Vector2[] (we drop the
-        // closing duplicate vertex — ShapeUtils handles open contours).
-        const contour: Vector2[] = []
-        const seen = new Set<string>()
-        for (let i = 0; i < n.polygon.length - 1; i++) {
-          const [lng, lat] = n.polygon[i]
-          const eastM = (lng - userLng) * cosUserLat * M_PER_DEG_LAT
-          const northM = (lat - userLat) * M_PER_DEG_LAT
-          const x = -eastM
-          const z = northM
-          // Dedupe near-coincident vertices (OSM rings occasionally have
-          // sub-meter doubles that crash earcut).
-          const key = `${x.toFixed(1)},${z.toFixed(1)}`
-          if (seen.has(key)) continue
-          seen.add(key)
-          contour.push(new Vector2(x, z))
-        }
-        if (contour.length < 3) continue
+    const cosUserLat = Math.cos(anchorLat * DEG2RAD)
 
-        const triangles = ShapeUtils.triangulateShape(contour, [])
-        if (!triangles.length) continue
-
-        const positions = new Float32Array(contour.length * 3)
-        const worldXZ: Array<{ x: number; z: number }> = []
-        for (let i = 0; i < contour.length; i++) {
-          const v = contour[i]
-          positions[i * 3 + 0] = v.x
-          // Initial Y sits well ABOVE the typical Seoul terrain (Namsan
-          // peaks at ~250m above the user anchor) so the polygon is
-          // visible from frame 1. The per-tick raycast then pulls each
-          // vertex down to terrain_y + 1.5 as tiles stream in.
-          positions[i * 3 + 1] = 500
-          positions[i * 3 + 2] = v.y
-          worldXZ.push({ x: v.x, z: v.y })
-        }
-        const indices = new Uint32Array(triangles.length * 3)
-        for (let t = 0; t < triangles.length; t++) {
-          indices[t * 3 + 0] = triangles[t][0]
-          indices[t * 3 + 1] = triangles[t][1]
-          indices[t * 3 + 2] = triangles[t][2]
-        }
-        const geo = new BufferGeometry()
-        geo.setAttribute('position', new BufferAttribute(positions, 3))
-        geo.setIndex(new BufferAttribute(indices, 1))
-        geo.computeVertexNormals()
-        const mesh = new Mesh(
-          geo,
-          new MeshBasicMaterial({
-            color: 0xf43f5e,
-            transparent: true,
-            opacity: 0.30,
-            // Don't write to depth so building tops in nearby tiles still
-            // sort above the polygon. depthTest stays ON so the polygon
-            // doesn't draw through unrelated geometry.
-            depthWrite: false,
-            side: 2, // DoubleSide
-          }),
-        )
-        // renderOrder > 0 keeps the highlight visible even before tile
-        // raycasts pull vertices down to the terrain — otherwise the
-        // tile drawn-on-top hides the floating polygon.
-        mesh.renderOrder = 1
-        scene.add(mesh)
-        neighborhoodMeshes.push({
-          mesh,
-          vertexCount: contour.length,
-          worldXZ,
-          conformed: new Array(contour.length).fill(false),
-          allDone: false,
-        })
-      }
-    }
-
-    // Per-frame terrain conformance for the neighborhood polygons.
-    // Tile loading is async; we re-raycast on each tick until every
-    // vertex has at least one successful intersection (then bail out).
-    // The raycaster instance is shared with snapBuildingHighlight below.
-    function conformNeighborhoodsToTerrain(rc: Raycaster) {
-      for (const nm of neighborhoodMeshes) {
-        if (nm.allDone) continue
-        const pos = nm.mesh.geometry.attributes.position as BufferAttribute
-        let dirty = false
-        let allHit = true
-        for (let i = 0; i < nm.vertexCount; i++) {
-          if (nm.conformed[i]) continue
-          const { x, z } = nm.worldXZ[i]
-          rc.set(new Vector3(x, 5000, z), new Vector3(0, -1, 0))
-          rc.far = 8000
-          const hits = rc.intersectObject(tiles.group, true)
-          if (!hits.length) { allHit = false; continue }
-          // Lift slightly above the surface so the polygon doesn't
-          // z-fight with the building/ground tile geometry.
-          pos.setY(i, hits[0].point.y + 1.5)
-          nm.conformed[i] = true
-          dirty = true
-        }
-        if (dirty) {
-          pos.needsUpdate = true
-          nm.mesh.geometry.computeVertexNormals()
-        }
-        if (allHit) nm.allDone = true
-      }
-    }
+    // ── Neighborhood tooltip data. The all-Korea dong dataset is
+    // fetched lazily — first Map Mode mount triggers the fetch, every
+    // subsequent mount uses the module-scope cache. While in-flight, the
+    // tooltip just stays hidden. ~84 KB gzipped, served with a
+    // year-immutable Cache-Control.
+    let allDongs: Awaited<ReturnType<typeof loadAllKoreaDongs>> = []
+    void loadAllKoreaDongs().then((d) => {
+      allDongs = d
+    })
 
     // ── Place markers. We compute local (X=west, Z=north) meters
     // from delta lat/lng around the user, matching the
@@ -376,8 +266,8 @@ export function Detailed3DScene({
     }
     const markers: PlaceMarker[] = []
     for (const p of places) {
-      const eastM = (p.lng - userLng) * cosUserLat * M_PER_DEG_LAT
-      const northM = (p.lat - userLat) * M_PER_DEG_LAT
+      const eastM = (p.lng - anchorLng) * cosUserLat * M_PER_DEG_LAT
+      const northM = (p.lat - anchorLat) * M_PER_DEG_LAT
       const localX = -eastM
       const localZ = northM
       const radius =
@@ -547,6 +437,26 @@ export function Detailed3DScene({
     let pointerDownAt = 0
     let pointerDownPos = { x: 0, y: 0 }
 
+    // Neighborhood tooltip — floats next to the cursor on hover (or
+    // briefly on click), showing the name of whichever original polygon
+    // the cursor is currently over. Hidden by default. pointer-events:
+    // none so it never eats the pointerup that triggers focus/deselect.
+    const neighborhoodTooltip = document.createElement("div")
+    neighborhoodTooltip.className =
+      "pointer-events-none absolute select-none rounded-full bg-rose-600/95 px-2.5 py-1 text-[11px] font-semibold text-white shadow-lg ring-1 ring-rose-300/40 backdrop-blur-sm"
+    neighborhoodTooltip.style.transform = "translate3d(-9999px,-9999px,0)"
+    neighborhoodTooltip.style.opacity = "0"
+    neighborhoodTooltip.style.transition = "opacity 120ms ease"
+    overlay.appendChild(neighborhoodTooltip)
+
+    // Reused infinite ground plane for pointer→world hit tests. y=0
+    // matches the user-anchor surface (ReorientationPlugin sets origin
+    // there); polygon raycasts then convert hits back to lng/lat for
+    // point-in-polygon lookup. Using a plane rather than tile geometry
+    // means the tooltip works even over not-yet-loaded tiles.
+    const groundPlane = new Plane(new Vector3(0, 1, 0), 0)
+    const groundHit = new Vector3()
+
     function pickMarker(): PlaceMarker | null {
       raycaster.setFromCamera(pointer, camera)
       const hits = raycaster.intersectObjects(
@@ -556,6 +466,44 @@ export function Detailed3DScene({
       if (!hits.length) return null
       const obj = hits[0].object
       return markers.find((m) => m.mesh === obj) ?? null
+    }
+
+    /** Cast a ray from the current pointer to the ground plane and
+     *  return the matching lng/lat (or null if the ray misses the
+     *  plane — happens when the camera looks above horizon). */
+    function pickGroundLngLat(): { lng: number; lat: number } | null {
+      raycaster.setFromCamera(pointer, camera)
+      const intersected = raycaster.ray.intersectPlane(groundPlane, groundHit)
+      if (!intersected) return null
+      // Inverse of lngLatToSceneXZ: x = -eastM → eastM = -x; northM = z.
+      const eastM = -groundHit.x
+      const northM = groundHit.z
+      const lat = anchorLat + northM / M_PER_DEG_LAT
+      const lng = anchorLng + eastM / (cosUserLat * M_PER_DEG_LAT)
+      return { lng, lat }
+    }
+
+    /** Find every dong containing (lng, lat). Delegates to the
+     *  all-Korea hit-tester, which uses a per-polygon bbox pre-filter
+     *  + inline ray-casting point-in-polygon (no Turf at runtime).
+     *  Returns an empty array if the dataset hasn't finished loading
+     *  yet — the tooltip will silently no-op for those few frames. */
+    function namesAt(lng: number, lat: number): string[] {
+      return namesAtLngLat(allDongs, lng, lat)
+    }
+
+    function showTooltip(text: string, clientX: number, clientY: number) {
+      const rect = renderer.domElement.getBoundingClientRect()
+      const x = clientX - rect.left
+      const y = clientY - rect.top
+      neighborhoodTooltip.textContent = text
+      // Offset +12/+12 from the cursor so the tooltip never sits under
+      // the pointer arrow (would clip the hit region on some browsers).
+      neighborhoodTooltip.style.transform = `translate3d(${(x + 14).toFixed(1)}px, ${(y + 14).toFixed(1)}px, 0)`
+      neighborhoodTooltip.style.opacity = "1"
+    }
+    function hideTooltip() {
+      neighborhoodTooltip.style.opacity = "0"
     }
 
     function setPointerFromEvent(clientX: number, clientY: number) {
@@ -577,12 +525,52 @@ export function Detailed3DScene({
       const hit = pickMarker()
       if (hit) {
         onSelectRef.current(hit.place)
-      } else if (selectedIdRef.current) {
-        onDeselectRef.current?.()
+        return
       }
+      // No marker hit — check if the click landed in a neighborhood
+      // polygon. If so, surface the name. If not and we currently have
+      // a selection, treat as a click-out / deselect.
+      const ll = pickGroundLngLat()
+      if (ll) {
+        const names = namesAt(ll.lng, ll.lat)
+        if (names.length) {
+          showTooltip(names.join(" · "), e.clientX, e.clientY)
+          return
+        }
+      }
+      if (selectedIdRef.current) onDeselectRef.current?.()
+    }
+    function onPointerMove(e: PointerEvent) {
+      // Skip during an active drag — OrbitControls owns the gesture and
+      // showing a tooltip while panning is jittery.
+      if (pointerDownAt > 0 && performance.now() - pointerDownAt < 600) {
+        const dx = e.clientX - pointerDownPos.x
+        const dy = e.clientY - pointerDownPos.y
+        if (Math.hypot(dx, dy) > 6) {
+          hideTooltip()
+          return
+        }
+      }
+      setPointerFromEvent(e.clientX, e.clientY)
+      const ll = pickGroundLngLat()
+      if (!ll) {
+        hideTooltip()
+        return
+      }
+      const names = namesAt(ll.lng, ll.lat)
+      if (names.length) {
+        showTooltip(names.join(" · "), e.clientX, e.clientY)
+      } else {
+        hideTooltip()
+      }
+    }
+    function onPointerLeave() {
+      hideTooltip()
     }
     renderer.domElement.addEventListener("pointerdown", onPointerDown)
     renderer.domElement.addEventListener("pointerup", onPointerUp)
+    renderer.domElement.addEventListener("pointermove", onPointerMove)
+    renderer.domElement.addEventListener("pointerleave", onPointerLeave)
 
     // ── Attribution overlay. Google's TOS requires the "Data:
     // Google + sources" line to render whenever any 3D tile is on
@@ -751,10 +739,6 @@ export function Detailed3DScene({
       if (!running) return
       controls.update()
       tiles.update()
-      // Polygon vertices that haven't yet hit terrain get re-raycast each
-      // frame until they land or the polygon is fully conformed. Cheap
-      // (≤ ~50 raycasts/frame max across all polygons) until tiles load.
-      conformNeighborhoodsToTerrain(downRay)
 
       // Publish the live "yaw from north-up" to the parent compass.
       // OrbitControls.getAzimuthalAngle() returns the camera's angle
@@ -1006,6 +990,9 @@ export function Detailed3DScene({
       window.removeEventListener("korea-map-orient-north", onOrientNorth)
       renderer.domElement.removeEventListener("pointerdown", onPointerDown)
       renderer.domElement.removeEventListener("pointerup", onPointerUp)
+      renderer.domElement.removeEventListener("pointermove", onPointerMove)
+      renderer.domElement.removeEventListener("pointerleave", onPointerLeave)
+      neighborhoodTooltip.remove()
       tiles.dispose()
       controls.dispose()
       draco.dispose()

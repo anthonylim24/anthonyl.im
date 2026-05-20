@@ -16,7 +16,13 @@
   },
   "devDependencies": {
     "@hono/zod-validator": "^0.8.0",
-    "@types/bun": "latest"
+    "@turf/boolean-valid": "^7.3.5",
+    "@turf/kinks": "^7.3.5",
+    "@turf/simplify": "^7.3.5",
+    "@turf/turf": "^7.3.5",
+    "@turf/union": "^7.3.5",
+    "@types/bun": "latest",
+    "mapshaper": "^0.7.19"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
