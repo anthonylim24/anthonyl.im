@@ -8,12 +8,13 @@ import { createFrameExtractor } from './extractFrames';
 import { createOcr } from './ocr';
 import { createBundleBuilder } from './buildBundle';
 import { createExtractor } from './extractPlaces';
+import { ENODEVBROWSER } from './types';
 import { createGeocoder, realGoogleLookup, realKakaoLookup } from './geocode';
 import { upsertPostFactory, createSavePlaces } from './savePlaces';
 import { createProcessor } from './process';
 import { createWorkerLoop } from './worker';
 import { createCommentsFetcher } from './fetchComments';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir, hostname } from 'node:os';
 import { join } from 'node:path';
 
@@ -52,20 +53,29 @@ async function downloadImage(url: string, signal?: AbortSignal): Promise<string>
  * waste a Bun.spawn attempt before falling back to direct fetch — and that
  * exception log noise made the real error invisible.
  */
-let ytDlpAvailable: boolean | null = null;
+// Cache of `<cmd> --version` probes so we only spawn each binary once per
+// process. Concurrent first-callers may both race the spawn; the call is
+// idempotent so the duplicate work is harmless.
+const binaryProbeCache: Record<string, boolean | undefined> = {};
+
+async function probeBinaryOnce(cmd: string, onMiss?: () => void): Promise<boolean> {
+  if (binaryProbeCache[cmd] !== undefined) return binaryProbeCache[cmd]!;
+  let ok = false;
+  try {
+    const proc = Bun.spawn([cmd, '--version'], { stdout: 'pipe', stderr: 'ignore' });
+    const exit = await proc.exited;
+    ok = exit === 0;
+  } catch {
+    ok = false;
+  }
+  binaryProbeCache[cmd] = ok;
+  if (ok) console.log(`[ig:bundle] ${cmd} available`);
+  else onMiss?.();
+  return ok;
+}
 
 async function probeYtDlpOnce(): Promise<boolean> {
-  if (ytDlpAvailable !== null) return ytDlpAvailable;
-  try {
-    const proc = Bun.spawn(['yt-dlp', '--version'], {
-      stdout: 'pipe', stderr: 'ignore',
-    });
-    const exit = await proc.exited;
-    ytDlpAvailable = exit === 0;
-  } catch {
-    ytDlpAvailable = false;
-  }
-  if (!ytDlpAvailable) {
+  return probeBinaryOnce('yt-dlp', () => {
     const installHint = process.platform === 'darwin'
       ? '`brew install yt-dlp`'
       : '`apt install yt-dlp` or `pip install yt-dlp`';
@@ -75,10 +85,7 @@ async function probeYtDlpOnce(): Promise<boolean> {
       `with: ${installHint}. If already installed, make sure the bun process's ` +
       'PATH includes the install dir (e.g. /opt/homebrew/bin on Apple Silicon).'
     );
-  } else {
-    console.log('[ig:bundle] yt-dlp available');
-  }
-  return ytDlpAvailable;
+  });
 }
 
 /**
@@ -96,17 +103,10 @@ async function downloadVideoYtDlp(igUrl: string, signal?: AbortSignal): Promise<
   }
   const dir = await mkdtemp(join(tmpdir(), 'ig-video-ytdlp-'));
   const out = join(dir, 'video.%(ext)s');
-  // Hardened flag set targeting Instagram rate-limiting from VPS IPs:
-  //  - extractor-retries 5 + exponential back-off: ride out transient 429s
-  //  - sleep-requests 1: throttles the intra-extraction burst that IG
-  //    fingerprints on
-  //  - socket-timeout 30: DO → IG CDN egress is sometimes slow on first byte
-  //  - throttled-rate 50K: re-extract if the CDN throttles us below 50 KB/s
-  //    (returns a corrupt file otherwise)
-  // YT_DLP_COOKIES_FILE (optional, server-only): Netscape-format cookies.txt
-  // exported from a desktop browser session. The single biggest reliability
-  // improvement on cloud IPs — but ToS-sensitive, so opt-in via env. The
-  // file lives at the path the operator chooses; if unset we skip the flag.
+  // Flags target IG rate-limiting from VPS IPs. throttled-rate 50K re-extracts
+  // if the CDN throttles us below 50 KB/s (otherwise returns a corrupt file).
+  // YT_DLP_COOKIES_FILE: optional Netscape cookies.txt — single biggest VPS
+  // reliability bump, but ToS-sensitive, so opt-in.
   const cookiesFile = process.env.YT_DLP_COOKIES_FILE;
   const args = [
     'yt-dlp',
@@ -165,7 +165,7 @@ async function downloadVideoYtDlp(igUrl: string, signal?: AbortSignal): Promise<
  */
 async function downloadVideoHeadless(igUrl: string, signal?: AbortSignal): Promise<string> {
   if (!(await probeDevBrowserOnce())) {
-    throw new Error('ENODEVBROWSER: dev-browser not installed on server');
+    throw new Error(`${ENODEVBROWSER}: dev-browser not installed on server`);
   }
   const shortcode = igUrl.match(/\/(p|reel|tv)\/([^/?#]+)/)?.[2];
   if (!shortcode) throw new Error(`headless: cannot parse shortcode from ${igUrl}`);
@@ -173,13 +173,14 @@ async function downloadVideoHeadless(igUrl: string, signal?: AbortSignal): Promi
   const embedUrl = `https://www.instagram.com/p/${shortcode}/embed/`;
   const scriptDir = await mkdtemp(join(tmpdir(), 'ig-headless-script-'));
   const scriptPath = join(scriptDir, 'extract.js');
-  // The script body runs inside dev-browser's QuickJS sandbox. We pull the
-  // <video src> via DOM, optionally fall back to a regex match against the
-  // page HTML for posts where IG hides the tag behind JS-only rendering.
+  // domcontentloaded (vs networkidle): IG's embed page keeps the network
+  // busy with tracking pixels well after the <video src> is rendered; waiting
+  // for idle adds 5-10s of dead time. The video tag is in the server-rendered
+  // HTML; the JS-fallback regex covers the rare JS-rendered case.
   const script = `
 const page = await browser.newPage()
 try {
-  await page.goto(${JSON.stringify(embedUrl)}, { waitUntil: 'networkidle', timeout: 25000 })
+  await page.goto(${JSON.stringify(embedUrl)}, { waitUntil: 'domcontentloaded', timeout: 25000 })
   const result = await page.evaluate(() => {
     if (document.querySelector('a[href*="login"]')) return { loginWall: true }
     const v = document.querySelector('video')
@@ -228,20 +229,19 @@ try {
     return outPath;
   } finally {
     signal?.removeEventListener('abort', onAbort);
+    // Always clean up the script-dir; the video-output dir is tracked
+    // separately by buildBundle's trackTmpDir for post-bundling cleanup.
+    void rm(scriptDir, { recursive: true, force: true }).catch(() => {});
   }
 }
 
-let devBrowserProbeCache: boolean | null = null;
 async function probeDevBrowserOnce(): Promise<boolean> {
-  if (devBrowserProbeCache !== null) return devBrowserProbeCache;
-  try {
-    const proc = Bun.spawn(['dev-browser', '--version'], { stdout: 'ignore', stderr: 'ignore' });
-    const code = await proc.exited;
-    devBrowserProbeCache = code === 0;
-  } catch {
-    devBrowserProbeCache = false;
-  }
-  return devBrowserProbeCache;
+  return probeBinaryOnce('dev-browser', () => {
+    console.warn(
+      '[ig:bundle] dev-browser NOT in $PATH. Headless video fallback ' +
+      'will be skipped. Install with `npm install -g dev-browser && dev-browser install`.'
+    );
+  });
 }
 
 export function buildWorld() {
@@ -305,9 +305,10 @@ export function bootIgWorker() {
   if (booted) return booted;
   try {
     booted = buildWorld();
-    // Probe yt-dlp once at boot so the operator sees the warning during
-    // start-up rather than after submitting the first job. Fire-and-forget.
+    // Probe binaries at boot so the operator sees missing-tool warnings
+    // during start-up rather than after submitting the first job.
     void probeYtDlpOnce();
+    void probeDevBrowserOnce();
     pollInterval = setInterval(() => { void booted!.loop.tick(); }, config.igWorkerPollMs);
     console.log(`[ig-worker] started concurrency=${config.igWorkerConcurrency} poll=${config.igWorkerPollMs}ms`);
 
