@@ -62,6 +62,12 @@ export function KoreaDay() {
   const prev = idx > 0 ? days[idx - 1] : null
   const next = idx >= 0 && idx < days.length - 1 ? days[idx + 1] : null
 
+  // Scroll to top whenever the viewed day changes so the new day's header is
+  // immediately visible and doesn't inherit the previous day's scroll position.
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "instant" })
+  }, [slug])
+
   // Keyboard arrow navigation between days. Suppressed when Map Mode is open
   // (handled by overlay) or when focus is inside an input/textarea.
   useEffect(() => {

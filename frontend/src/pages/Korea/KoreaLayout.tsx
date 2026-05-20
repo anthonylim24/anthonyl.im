@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { Suspense, useEffect } from "react"
 import { Outlet } from "react-router-dom"
 import { DayTreeNav } from "./DayTreeNav"
 import { useKoreaSnapshot } from "./useKoreaData"
@@ -36,7 +36,13 @@ export function KoreaLayout() {
           {state.status === "success" && <DayTreeNav days={state.data.days} />}
 
           <main className="pb-20">
-            <Outlet context={state} />
+            {/* Local Suspense boundary keeps lazy Korea pages from bubbling up
+                to the outer BreathworkShellFallback. React Router's startTransition
+                means the old page stays visible during transitions; null fallback
+                only shows for non-transition scenarios (e.g. direct URL landing). */}
+            <Suspense fallback={null}>
+              <Outlet context={state} />
+            </Suspense>
           </main>
         </div>
       </EntityIndexProvider>
