@@ -9,6 +9,7 @@
     "codex:maintenance": "bash .codex/maintenance.sh",
     "codex:dev": "bash .codex/dev.sh",
     "codex:check": "bash .codex/check.sh",
+    "codex:test": "bash .codex/cloud-setup.test.sh",
     "test": "bun test --bail",
     "test:int": "INTEGRATION=1 bun test --bail",
     "test:eval": "bun run server/src/igPlaces/eval/run.ts"

@@ -6,6 +6,9 @@ BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
 BUN_BIN="$BUN_INSTALL/bin/bun"
 BASHRC="$HOME/.bashrc"
 
+# shellcheck source=.codex/lib.sh
+source "$ROOT_DIR/.codex/lib.sh"
+
 append_once() {
   local line="$1"
   local file="$2"
@@ -75,13 +78,7 @@ seed_env_files() {
 }
 
 install_dependencies() {
-  cd "$ROOT_DIR"
-  echo "[codex-setup] installing root dependencies"
-  bun install --frozen-lockfile
-
-  cd "$ROOT_DIR/frontend"
-  echo "[codex-setup] installing frontend dependencies"
-  bun install --frozen-lockfile
+  install_dependency_roots
 }
 
 echo "[codex-setup] preparing $ROOT_DIR"

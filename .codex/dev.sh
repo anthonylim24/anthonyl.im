@@ -6,6 +6,9 @@ BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
 export BUN_INSTALL
 export PATH="$BUN_INSTALL/bin:$PATH"
 
+# shellcheck source=.codex/lib.sh
+source "$ROOT_DIR/.codex/lib.sh"
+
 if [ -f "$ROOT_DIR/.nvmrc" ] && [ -s "$HOME/.nvm/nvm.sh" ]; then
   # shellcheck disable=SC1091
   source "$HOME/.nvm/nvm.sh"
@@ -37,6 +40,8 @@ fi
 if [ ! -f "$ROOT_DIR/frontend/.env.local" ]; then
   cp "$ROOT_DIR/.codex/frontend.env.local.example" "$ROOT_DIR/frontend/.env.local"
 fi
+
+ensure_dependencies
 
 pids=()
 
