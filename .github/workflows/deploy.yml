@@ -107,8 +107,26 @@ jobs:
               fi
             fi
 
+            # dev-browser: drives a headless Chromium for the IG video
+            # extraction fallback (when yt-dlp is rate-limited AND direct
+            # CDN download fails). First install grabs ~200 MB of headless
+            # Chromium; subsequent runs are no-ops. ~190 MB RSS at runtime.
+            if ! command -v dev-browser >/dev/null 2>&1; then
+              echo "[deploy] dev-browser missing — installing globally"
+              # Try global install; fall back to a non-fatal warn so the
+              # deploy still ships if npm is unavailable.
+              if sudo npm install -g dev-browser 2>&1 | tail -3; then
+                # Trigger the one-time browser-binary download
+                dev-browser install 2>&1 | tail -3 \
+                  || echo "[deploy] WARN: dev-browser install (binary download) failed; headless fallback will be skipped"
+              else
+                echo "[deploy] WARN: dev-browser global install failed; headless fallback will be skipped"
+              fi
+            fi
+
             echo "[deploy] yt-dlp: $(command -v yt-dlp >/dev/null 2>&1 && yt-dlp --version 2>/dev/null || echo MISSING)"
             echo "[deploy] ffmpeg: $(command -v ffmpeg >/dev/null 2>&1 && ffmpeg -version 2>/dev/null | head -1 || echo MISSING)"
+            echo "[deploy] dev-browser: $(command -v dev-browser >/dev/null 2>&1 && dev-browser --version 2>/dev/null || echo MISSING)"
 
       # Upload the CI-built dist — server never builds, so no OOM risk on 1GB droplet
       # scp-action preserves the full source path, so source "frontend/dist" + target "anthonyl.im"

@@ -20,16 +20,12 @@ export interface BundleDeps {
   /** Primary downloader: yt-dlp against the canonical IG post URL. Fast
    *  (3-5s) when not rate-limited from the host's IP. */
   downloadVideoFallback?: (igUrl: string, signal?: AbortSignal) => Promise<string>;
-  /** Secondary fallback: `apify/instagram-reel-scraper` with
-   *  `includeDownloadedVideo: true`. Apify hosts the downloaded file in
-   *  their KV store (3-day cache) and returns a stable URL. Only accepts
-   *  /reel/ URLs — 400s on /p/ feed posts, which the chain catches and
-   *  falls through to `downloadVideoApify`. */
-  downloadVideoApifyReel?: (igUrl: string, signal?: AbortSignal) => Promise<string>;
-  /** Last-resort downloader: re-calls Apify's instagram-scraper for a
-   *  fresh signed CDN URL, then streams from there. Works for /p/, /reel/,
-   *  /tv/. Used when both yt-dlp and the reel-scraper path fail. */
-  downloadVideoApify?: (igUrl: string, signal?: AbortSignal) => Promise<string>;
+  /** Tertiary downloader: headless-browser extraction of the
+   *  `/p/SHORTCODE/embed/` iframe. Bypasses IG's login wall for datacenter
+   *  IPs by hitting the embed endpoint (designed for third-party blog
+   *  embeds). ~10-30s/fetch, free, ~190 MB RAM. Requires dev-browser on
+   *  the server's PATH; skipped cleanly if not installed. */
+  downloadVideoHeadless?: (igUrl: string, signal?: AbortSignal) => Promise<string>;
   downloadImage: (url: string, signal?: AbortSignal) => Promise<string>;
   extractFrames: (videoPath: string, count?: number, signal?: AbortSignal) => Promise<string[]>;
   biasPrompt?: string;
@@ -134,27 +130,8 @@ export function createBundleBuilder(deps: BundleDeps): BundleBuilder {
           }
         }
 
-        if (!localPath && deps.downloadVideoApifyReel && post.url) {
-          // 2nd path: apify/instagram-reel-scraper with includeDownloadedVideo.
-          // Apify hosts the file in their KV store (3-day cache) → stable URL.
-          // Only handles /reel/; falls through on /p/ feed posts.
-          await log('info', 'trying Apify reel-scraper (includeDownloadedVideo)…');
-          const reelCtrl = new AbortController();
-          try {
-            localPath = await withTimeout(
-              deps.downloadVideoApifyReel(post.url, reelCtrl.signal),
-              TIMEOUT_DOWNLOAD_MS, 'Apify reel-scraper', reelCtrl,
-            );
-            trackTmpDir(localPath);
-            await log('info', `video saved via Apify reel-scraper (${Date.now() - t0}ms)`);
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
-            await log('warn', `Apify reel-scraper failed: ${msg}; trying direct CDN fetch`);
-          }
-        }
-
         if (!localPath) {
-          // 3rd path: direct fetch of the videoUrl from the initial Apify
+          // 2nd path: direct fetch of the videoUrl from the initial Apify
           // metadata call. Cheap when the URL is still fresh.
           const host = (() => { try { return new URL(video.url).hostname; } catch { return video.url.slice(0, 40); } })();
           await log('info', `downloading video from ${host}…`);
@@ -168,32 +145,37 @@ export function createBundleBuilder(deps: BundleDeps): BundleBuilder {
             await log('info', `video saved via direct fetch (${Date.now() - t0}ms)`);
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            await log('warn', `direct CDN download failed: ${msg}; trying Apify fresh-URL fallback…`);
+            await log('warn', `direct CDN download failed: ${msg}; trying headless extraction…`);
+          }
+        }
+
+        if (!localPath && deps.downloadVideoHeadless && post.url) {
+          // 3rd path: headless-browser extraction of /embed/ iframe.
+          // Works anonymously, bypasses datacenter-IP login walls, and
+          // pulls a fresh <video src> from the rendered DOM.
+          const hlCtrl = new AbortController();
+          try {
+            localPath = await withTimeout(
+              deps.downloadVideoHeadless(post.url, hlCtrl.signal),
+              TIMEOUT_DOWNLOAD_MS, 'headless extraction', hlCtrl,
+            );
+            trackTmpDir(localPath);
+            await log('info', `video saved via headless extraction (${Date.now() - t0}ms)`);
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            if (msg.includes('ENODEVBROWSER')) {
+              await log('warn',
+                `dev-browser not on server PATH — headless fallback skipped. ` +
+                'Install once: `npm install -g dev-browser && dev-browser install`');
+            } else {
+              await log('warn', `headless extraction failed: ${msg} — bundle will have no transcript/frames`);
+            }
           }
         }
 
         if (!localPath) {
-          // 4th path: re-call Apify's instagram-scraper for a freshly signed
-          // videoUrl, then direct-fetch from that. Works for /p/ posts that
-          // reel-scraper rejected.
-          if (deps.downloadVideoApify && post.url) {
-            const apCtrl = new AbortController();
-            try {
-              localPath = await withTimeout(
-                deps.downloadVideoApify(post.url, apCtrl.signal),
-                TIMEOUT_DOWNLOAD_MS, 'Apify fresh-URL', apCtrl,
-              );
-              trackTmpDir(localPath);
-              await log('info', `video saved via Apify fresh-URL (${Date.now() - t0}ms)`);
-            } catch (err3) {
-              const msg3 = err3 instanceof Error ? err3.message : String(err3);
-              await log('warn', `Apify fresh-URL also failed: ${msg3} — bundle will have no transcript/frames`);
-            }
-          }
-          if (!localPath) {
-            return { caption: post.caption, transcript, ocr,
-                     locationTagName: post.locationTag?.name, hashtags, mentions };
-          }
+          return { caption: post.caption, transcript, ocr,
+                   locationTagName: post.locationTag?.name, hashtags, mentions };
         }
 
         // 2. Transcribe + frames in parallel, each with its own timeout
