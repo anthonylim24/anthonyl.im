@@ -2,22 +2,38 @@ import { useAuth } from '@clerk/clerk-react'
 import { CLERK_ENABLED } from './clerk'
 
 /**
+ * Frontend dev-bearer escape hatch. When the build is made with
+ * `VITE_DEV_BEARER` set, the `useGetToken` hook hands out that bearer
+ * instead of going through Clerk. The backend's `IG_DEV_BEARER` env var
+ * must be set to the same value — the existing clerkAuth middleware
+ * accepts any token matching IG_DEV_BEARER as a real authed request
+ * with userId = IG_DEV_USER_ID (default "dev-user").
+ *
+ * Dev bearer takes precedence over Clerk when both are configured, so
+ * automated testing can short-circuit interactive sign-in without
+ * touching the Clerk env vars. Keep VITE_DEV_BEARER unset (and
+ * IG_DEV_BEARER unset on the server) in production deploys.
+ */
+const DEV_BEARER: string | null =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_DEV_BEARER) || null
+
+/**
  * Safe Clerk JWT-fetcher hook.
  *
- * - When Clerk is enabled (`VITE_CLERK_PUBLISHABLE_KEY` is set at build time
- *   AND `<ClerkProvider>` is mounted), returns the real `useAuth().getToken`.
- * - Otherwise returns a shim that resolves to `null`. Callers should check
- *   `clerkEnabled` from this module FIRST and skip the network entirely when
- *   it's false — otherwise the request fires without an Authorization header
- *   and the server returns 401, which looks like a transient failure even
- *   though it's a permanent build-config issue.
+ * Resolution order:
+ *   1. `VITE_DEV_BEARER` set → return that bearer (dev/test escape hatch)
+ *   2. Clerk enabled → real `useAuth().getToken`
+ *   3. Neither → no-op that resolves to `null`
  *
- * Calling `useAuth()` outside a `<ClerkProvider>` throws synchronously during
- * render. `CLERK_ENABLED` is a module-level constant derived from a Vite env
- * var at build time, so the conditional hook order is stable across renders
- * (React's rules-of-hooks invariant holds).
+ * Calling `useAuth()` outside a `<ClerkProvider>` throws synchronously
+ * during render. `CLERK_ENABLED` is a module-level constant derived from
+ * a Vite env var at build time, so the conditional hook order is stable
+ * across renders (React's rules-of-hooks invariant holds).
  */
 export function useGetToken(): () => Promise<string | null> {
+  if (DEV_BEARER) {
+    return devGetToken
+  }
   if (!CLERK_ENABLED) {
     return noopGetToken
   }
@@ -26,11 +42,11 @@ export function useGetToken(): () => Promise<string | null> {
 }
 
 const noopGetToken = async (): Promise<string | null> => null
+const devGetToken = async (): Promise<string | null> => DEV_BEARER
 
 /**
- * Whether this build has Clerk auth wired up. False = the build was made
- * without `VITE_CLERK_PUBLISHABLE_KEY`, so no Authorization header can be
- * generated. Re-exported for pages that need to render a config-issue
- * banner instead of polling endpoints that will always 401.
+ * Whether this build has SOME form of auth wired up. True when a dev
+ * bearer is configured OR Clerk is enabled. Pages use this to decide
+ * whether to fire authed network calls or render a config-issue banner.
  */
-export const clerkEnabled = CLERK_ENABLED
+export const clerkEnabled = DEV_BEARER !== null || CLERK_ENABLED

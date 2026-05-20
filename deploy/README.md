@@ -128,6 +128,32 @@ For Ubuntu 24.04+ the apt sources may live in `/etc/apt/sources.list.d/ubuntu.so
 
 Out of scope for this README — the droplet should already have nginx or caddy fronting `https://anthonyl.im` and forwarding to `localhost:3000` where the bun server listens.
 
+## Local dev / automated testing without Clerk
+
+The IG-places routes and the Korea auth gate normally require a Clerk session. For local development + browser automation, set a matching pair of dev bearers and the entire Clerk path is bypassed:
+
+1. **Server side** — already supported by `server/src/middleware/clerkAuth.ts`. Set in repo-root `.env`:
+   ```
+   IG_DEV_BEARER=<random-48-char-token>
+   IG_DEV_USER_ID=dev-user        # optional; defaults to "dev-user"
+   ```
+   Requests bearing `Authorization: Bearer <IG_DEV_BEARER>` are accepted as if they were authed with `userId = IG_DEV_USER_ID`.
+
+2. **Frontend side** — set at build time (shell env or `frontend/.env.local`):
+   ```
+   VITE_DEV_BEARER=<same value as IG_DEV_BEARER>
+   ```
+   When set, `useGetToken()` returns the dev bearer and `KoreaAuthGate` is a pass-through. Dev bearer takes precedence over Clerk — leave `VITE_CLERK_PUBLISHABLE_KEY` untouched.
+
+3. Build the frontend and run the server:
+   ```bash
+   cd frontend && VITE_DEV_BEARER=$IG_DEV_BEARER bun run build
+   cd .. && bun run server/app.ts
+   # Open http://localhost:3000/korea/places — no sign-in required
+   ```
+
+**Production safety:** the deploy workflow's `FRONTEND_ENV` secret must NOT include `VITE_DEV_BEARER`. The droplet's `.env` SHOULD NOT include `IG_DEV_BEARER` in production deploys — or if it does, the value must be cryptographically random and treated as a master credential.
+
 ## Verify a deploy
 
 After a successful workflow run:

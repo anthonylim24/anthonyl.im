@@ -4,16 +4,22 @@ import { Lock } from "lucide-react"
 import { SignedIn, SignedOut, SignInButton } from "@clerk/clerk-react"
 import { CLERK_ENABLED } from "@/lib/clerk"
 
+const DEV_BEARER: string | null =
+  (typeof import.meta !== "undefined" && import.meta.env?.VITE_DEV_BEARER) || null
+
 interface KoreaAuthGateProps {
   children: ReactNode
 }
 
-// Wraps the Korea routes in a Clerk sign-in gate. When Clerk is not configured
-// (no VITE_CLERK_PUBLISHABLE_KEY), the gate is a no-op so dev environments
-// without auth still work. The actual Clerk components are still imported at
-// module top so the call graph is statically analyzable; render is short-
-// circuited via CLERK_ENABLED before they're rendered.
+// Wraps the Korea routes in a Clerk sign-in gate. Pass-through cases:
+//   1. VITE_DEV_BEARER is set → bypass Clerk entirely for local automated
+//      testing (the token comes from safeAuth.useGetToken instead).
+//   2. CLERK_ENABLED is false → no Clerk in this build, no gate to apply.
+// The actual Clerk components are still imported at module top so the
+// call graph is statically analyzable; render is short-circuited before
+// they're rendered.
 export function KoreaAuthGate({ children }: KoreaAuthGateProps) {
+  if (DEV_BEARER) return <>{children}</>
   if (!CLERK_ENABLED) return <>{children}</>
 
   return (
