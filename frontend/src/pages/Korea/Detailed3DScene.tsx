@@ -49,6 +49,9 @@ const M_PER_DEG_LAT = 111000
 
 interface Detailed3DSceneProps {
   places: RankedPlace[]
+  /** Day-itinerary neighborhood centers, rendered as mild rose-tinted
+   *  ground discs so the user can see today's "footprint" at a glance. */
+  neighborhoods?: { name: string; lat: number; lng: number; radiusM: number }[]
   onSelect: (place: RankedPlace) => void
   onDeselect?: () => void
   selectedId?: string | null
@@ -73,6 +76,7 @@ function readApiKey(): string | undefined {
 
 export function Detailed3DScene({
   places,
+  neighborhoods,
   onSelect,
   onDeselect,
   selectedId,
@@ -145,13 +149,15 @@ export function Detailed3DScene({
     // ── Scene + camera + lights ──────────────────────────────────
     const scene = new Scene()
     const camera = new PerspectiveCamera(55, w / h, 1, 100000)
-    // Initial vantage point: a more zoomed-out, slightly isometric
-    // 3/4 view of the neighborhood. ReorientationPlugin parks the
-    // user's lat/lng at world origin with +Z = north and +X = west,
-    // so we sit the camera SOUTHWEST of origin (+X, -Z), elevated.
-    // This gives an angled "isometric"-feeling view that reveals
-    // two cardinal directions instead of pure-south.
-    camera.position.set(1100, 1700, -1500)
+    // Initial vantage point: zoomed-out bird's-eye-ish 3/4 view.
+    // ReorientationPlugin parks the user's lat/lng at world origin with
+    // +Z = north and +X = west, so we sit the camera SOUTHWEST of origin
+    // (+X, -Z), elevated. The Y/horizontal ratio is ~1.8 (≈61° pitch)
+    // so the view leans toward bird's-eye while still showing some 3D
+    // depth — the user can see today's neighborhood footprint without
+    // tilting upward. Bumped to a larger overall radius so adjacent
+    // hotel + neighborhoods fit in-frame without panning.
+    camera.position.set(900, 2700, -1200)
     camera.lookAt(0, 0, 0)
     // Hemisphere fill so building shadows don't crush to black on
     // mobile where the GPU can't afford a real shadow pass.
@@ -223,13 +229,48 @@ export function Detailed3DScene({
     youMarker.position.set(0, 6, 0)
     scene.add(youMarker)
 
+    // ── Neighborhood highlights. The day's snapshot lists 2-4
+    // neighborhood names (e.g. "Hannam", "Itaewon", "Seongsu"); the
+    // server resolves them to lat/lng centers + a radius in meters.
+    // We draw each as a flat rose-tinted disc at ground level so the
+    // user can see today's "footprint" at a glance without the same
+    // overlay competing with the place markers above it.
+    const cosUserLat = Math.cos(userLat * DEG2RAD)
+    if (neighborhoods && neighborhoods.length > 0) {
+      for (const n of neighborhoods) {
+        const eastM = (n.lng - userLng) * cosUserLat * M_PER_DEG_LAT
+        const northM = (n.lat - userLat) * M_PER_DEG_LAT
+        const disc = new Mesh(
+          new RingGeometry(0, n.radiusM, 64),
+          new MeshBasicMaterial({
+            // Rose accent from the Korea palette, kept faint so place
+            // markers above stay readable. Double-sided so the disc
+            // renders whether the camera is above or below the ground
+            // plane (the latter shouldn't happen but is cheap to support).
+            color: 0xf43f5e,
+            transparent: true,
+            opacity: 0.18,
+            depthWrite: false,
+            side: 2,  // THREE.DoubleSide
+          }),
+        )
+        disc.rotation.x = -Math.PI / 2
+        // Sit a few meters above the terrain so the disc draws on top
+        // of the photorealistic tiles without z-fighting.
+        disc.position.set(-eastM, 2, northM)
+        // renderOrder under the place orbs (default 0) keeps the
+        // marker silhouettes punching through the highlight.
+        disc.renderOrder = -1
+        scene.add(disc)
+      }
+    }
+
     // ── Place markers. We compute local (X=west, Z=north) meters
     // from delta lat/lng around the user, matching the
     // ReorientationPlugin's frame. Each marker is a small floating
     // orb with a beam shooting down to the ground (so the marker
     // reads as "this exact spot on the map") plus a CSS label
     // projected each frame.
-    const cosUserLat = Math.cos(userLat * DEG2RAD)
     interface PlaceMarker {
       place: RankedPlace
       mesh: Mesh
@@ -493,9 +534,9 @@ export function Detailed3DScene({
     // destination + reposition the camera at a height proportional
     // to the distance so both endpoints land in frame.
     const HOME_TARGET = new Vector3(0, 0, 0)
-    // Same wider/isometric vantage as the initial camera setup so
+    // Same wider/birds-eye vantage as the initial camera setup so
     // deselect + reset both return to the same composed view.
-    const HOME_POS = new Vector3(1100, 1700, -1500)
+    const HOME_POS = new Vector3(900, 2700, -1200)
     const focusTarget = new Vector3()
     const focusCamPos = new Vector3()
     let focusing = false

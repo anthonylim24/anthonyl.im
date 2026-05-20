@@ -40,6 +40,13 @@ export interface IgSave {
   captionSnippet?: string | null
 }
 
+export interface NeighborhoodCenter {
+  name: string
+  lat: number
+  lng: number
+  radiusM: number
+}
+
 export interface PlacesResponse {
   meta: {
     slug: string
@@ -50,6 +57,11 @@ export interface PlacesResponse {
   }
   places: RankedPlace[]
   igSaves: IgSave[]
+  /** Neighborhoods the day's itinerary covers. Map Mode renders a mild
+   *  ground highlight around each so the user can see at a glance which
+   *  parts of the city today is centered on. May be empty if the day's
+   *  neighborhoods aren't in the lookup table (e.g. a rural site). */
+  neighborhoods: NeighborhoodCenter[]
 }
 
 export interface UserLocation {
