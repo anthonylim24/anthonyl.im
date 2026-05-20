@@ -2,6 +2,218 @@
 
 This repo hosts three distinct experiences under one shell: a personal AI chatbot, the **BreathFlow** wellness app, and the **Korea Trip** itinerary app. Each has its own visual identity; all share the underlying craft principles below.
 
+---
+
+## Codebase Structure
+
+```
+anthonyl.im/
+├── frontend/          # React 19 + TypeScript SPA (Vite 8)
+│   ├── src/
+│   │   ├── App.tsx              # AI chatbot interface (SSE streaming)
+│   │   ├── AppRoutes.tsx        # React Router v7 route tree
+│   │   ├── main.tsx             # Entry point — Clerk provider + SW registration
+│   │   ├── components/
+│   │   │   ├── breathing/       # Session visualizations (orb, timer, phases)
+│   │   │   ├── gamification/    # XP / badges / streaks UI
+│   │   │   ├── layout/          # BreathworkLayout, Header, Navigation, CloudSync
+│   │   │   ├── tracking/        # SessionHistory, ProgressChart, PersonalBests
+│   │   │   └── ui/              # Radix primitives + custom shadcn/ui
+│   │   ├── hooks/               # useBreathingCycle, useWebGLOrb, useReducedMotion, …
+│   │   ├── lib/                 # breathingProtocols, gamification, apiService, …
+│   │   ├── pages/
+│   │   │   ├── Home.tsx         # BreathFlow home + protocol picker
+│   │   │   ├── Session.tsx      # Active session controller
+│   │   │   ├── Progress.tsx     # Charts + session history
+│   │   │   ├── Settings.tsx     # Theme, sound, haptics, data export
+│   │   │   └── Korea/           # Korea itinerary system (see below)
+│   │   ├── stores/              # Zustand: sessionStore, settingsStore, gamificationStore, historyStore
+│   │   └── index.css            # Global styles + design tokens (Tailwind v4)
+│   ├── public/
+│   │   ├── sw.js                # Service worker (cache-first + stale-while-revalidate)
+│   │   ├── site.webmanifest     # Default PWA manifest
+│   │   └── korea.webmanifest    # Korea PWA manifest
+│   ├── index.html               # SPA shell — dynamic OG tags / favicon / manifest swap per route
+│   ├── vite.config.ts           # Chunk splitting: three, tiles3d, react-vendor, motion, supabase, …
+│   └── tailwind.config.js       # Custom bw-* tokens + shadcn/ui HSL variables
+├── server/
+│   ├── app.ts                   # Hono server: static serving, SPA fallback, OG-tag injection
+│   └── src/
+│       ├── config.ts            # Env-var schema (throws on missing required keys)
+│       ├── routes/
+│       │   ├── invoke.ts        # POST /api/invoke — LLM SSE streaming (Deepseek via Kluster)
+│       │   ├── korea.ts         # GET /api/korea/* — itinerary endpoints
+│       │   ├── koreaPlaces.ts   # GET /api/korea/places/*
+│       │   ├── entity.ts        # GET /api/entity/:id
+│       │   └── instagramPlaces.ts  # Instagram extraction worker queue API
+│       ├── igPlaces/            # Instagram → place extraction pipeline
+│       │   ├── worker.ts        # Job orchestration
+│       │   ├── fetchPost.ts     # Bright Data API
+│       │   ├── extractFrames.ts # ffmpeg frame extraction
+│       │   ├── transcribe.ts    # Groq Whisper (Gemini fallback)
+│       │   ├── extractPlaces.ts # Gemini Vision place detection
+│       │   ├── geocode.ts       # Google Maps geocoding
+│       │   └── savePlaces.ts    # Supabase write
+│       ├── data/
+│       │   ├── koreaPlaces.ts   # Hard-coded itinerary place data
+│       │   └── koreaSnapshot.ts # Static data snapshot
+│       └── middleware/
+│           ├── clerkAuth.ts     # Clerk JWT verification
+│           └── error.ts         # Error handler
+├── supabase/
+│   └── schema.sql               # Database schema
+├── .github/workflows/deploy.yml # CI/CD pipeline (test → build → SSH deploy)
+├── index.ts                     # Root Bun entry point (wraps server/app.ts)
+└── package.json                 # Root workspace (Hono, Clerk, Groq, OpenAI, Zod)
+```
+
+### Korea Pages (`frontend/src/pages/Korea/`)
+
+| File | Purpose |
+|------|---------|
+| `KoreaLayout.tsx` | Shell with auth gate, theme toggle, KST clock |
+| `KoreaIndex.tsx` | Trip hero, day list, Map Mode entry |
+| `KoreaDay.tsx` | Day detail — reservations, places, timeline |
+| `MapModeScene.tsx` | Three.js 3D orbital scene |
+| `MapModeOverlay.tsx` | Overlay UI: YOU pin, filter bar, compass |
+| `PlaceDetailSheet.tsx` | Slide-up detail panel for a place |
+| `Places.tsx` | Full places list with skeleton loaders |
+| `Ingest.tsx` | Instagram URL ingestion UI |
+| `LinkifiedText.tsx` | Auto-links flight #s, addresses, phones |
+| `SmartEntity.tsx` | Entity cards with linked metadata |
+
+---
+
+## Development Commands
+
+```bash
+# Backend only (hot-reload)
+bun --watch server/app.ts
+
+# Frontend dev server (proxies /api → localhost:3000)
+cd frontend && bun run dev
+
+# Full stack (builds frontend then watches backend)
+bun run dev
+
+# Build frontend
+cd frontend && bun run build
+
+# Run server tests (mocked, no external deps)
+bun test --bail server/src
+
+# Run frontend unit tests
+cd frontend && bun run test:run
+
+# Typecheck frontend
+cd frontend && bun run typecheck
+
+# Lint frontend
+cd frontend && bun run lint
+
+# Run IG places eval harness
+bun run test:eval
+
+# Integration tests (needs real env vars)
+INTEGRATION=1 bun test --bail
+```
+
+**Dev server proxy:** `vite.config.ts` proxies `/api/*` → `http://localhost:3000` so you only need the Vite dev server in the browser. Start the Hono server separately when you need live API responses.
+
+---
+
+## Routing
+
+Routes are lazy-loaded. All three apps share the same SPA entry point (`index.html`), with the server injecting per-route OG tags / favicon / manifest at request time.
+
+| Path | App | Auth |
+|------|-----|------|
+| `/` | AI Chatbot | Public |
+| `/chatbot` | AI Chatbot | Public |
+| `/breathwork` | BreathFlow home | Public |
+| `/breathwork/session` | BreathFlow session | Public |
+| `/breathwork/progress` | BreathFlow progress | Public |
+| `/breathwork/settings` | BreathFlow settings | Public |
+| `/korea` | Korea index | Clerk-gated |
+| `/korea/day/:slug` | Day detail | Clerk-gated |
+| `/korea/places` | Places list | Clerk-gated |
+| `/korea/ingest` | IG ingestion | Clerk-gated |
+
+---
+
+## State Management
+
+All stores use **Zustand v5**. Persisted stores write to `localStorage` under the keys in `frontend/src/lib/constants.ts`:
+
+| Store | Key | Contents |
+|-------|-----|----------|
+| `settingsStore` | `breathwork-settings` | theme, sound, haptics |
+| `gamificationStore` | `breathwork-gamification` | XP, badges, streaks |
+| `historyStore` | `breathwork-session-history` | session log |
+| `sessionStore` | — (ephemeral) | active breath phase/round |
+
+Cloud sync (Supabase) is managed by `useCloudSync` + `CloudSync` component — authenticated users sync settings and history.
+
+---
+
+## Environment Variables
+
+Backend requires (server throws on startup if missing):
+- `KLUSTER_API_KEY` + `KLUSTER_API_BASE_URL` — LLM provider (Deepseek)
+- `CLERK_SECRET_KEY` — Clerk JWT verification
+- `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` — database
+- `GOOGLE_MAPS_API_KEY` — geocoding
+- `BRIGHT_DATA_*` — Instagram post fetching
+- `GROQ_API_KEY` — Whisper transcription
+- `GEMINI_API_KEY` — Vision extraction
+
+Frontend (set in `frontend/.env` from CI secret `FRONTEND_ENV`):
+- `VITE_CLERK_PUBLISHABLE_KEY`
+- `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`
+- `VITE_POSTHOG_KEY`
+
+See `frontend/.env.example` and `server/src/config.ts` for the full list.
+
+---
+
+## Deployment
+
+**Trigger:** Push to `main` → GitHub Actions.
+
+**Pipeline:**
+1. Server tests run as gate (`bun test --bail server/src`) — all external calls are mocked.
+2. Frontend builds on CI (`bun run build` in `frontend/`) with secrets injected as `.env`.
+3. Backend deployed to Digital Ocean via SSH: repo re-cloned, `bun install`, system tools checked (yt-dlp, ffmpeg, dev-browser).
+4. Frontend `dist/` uploaded via SCP.
+5. PM2 restarted (`pm2 start bun --name anthonyl.im -- run index.ts`).
+
+**Server:** Digital Ocean droplet (1 GB RAM). PM2 manages the Bun process. Frontend is static files served by Hono.
+
+**Never build the frontend on the droplet** — 1 GB RAM is not enough for Vite + Tailwind. CI always builds and SCPs the dist.
+
+---
+
+## Bundle Splitting Strategy
+
+`vite.config.ts` uses `advancedChunks` (Rolldown) to keep initial load fast:
+
+| Chunk | Contents | Why |
+|-------|----------|-----|
+| `three` | three.js + loaders + OrbitControls | ~600 KB; only loaded in Map Mode |
+| `tiles3d` | 3d-tiles-renderer | Only loaded in Detailed-3D debug mode |
+| `react-vendor` | react + react-dom + scheduler | Stable cache |
+| `motion` | motion/framer-motion | Used by both Places and MapMode — split prevents Places from pulling in three.js |
+| `supabase` | @supabase/* | Auth + sync |
+| `router` | react-router | Routing |
+| `radix` | @radix-ui/* | UI primitives |
+| `state` | zustand | State |
+| `icons` | lucide-react | Icons |
+| `korea-map` | Korea MapMode source | 3D scene code |
+
+Chunk size warning ceiling is 720 KB (intentional — the `three` chunk is large but lazily loaded and cached by SW).
+
+---
+
 ## Shared Design Principles (apply to every route)
 
 1. **Craft over convention.** Prefer custom, considered solutions over generic component-library defaults. Spacing, typography weight contrast, surface hierarchy, and motion should feel intentionally designed, not assembled.
@@ -21,9 +233,9 @@ This repo hosts three distinct experiences under one shell: a personal AI chatbo
 
 ## Shared Tech Stack
 
-- React 19 + TypeScript + Vite 8
+- React 19 + TypeScript 6 + Vite 8
 - Tailwind CSS 4.2 + shadcn/ui (Radix primitives)
-- Zustand (state), Motion (animation), Lucide (icons)
+- Zustand v5 (state), Motion v12 (animation), Lucide v1 (icons)
 - Bun + Hono (server), Clerk (auth), Supabase (sync), PostHog (analytics)
 - Three.js (Korea Map Mode only)
 
@@ -173,89 +385,29 @@ The app is a PWA. Every deploy must keep these invariants:
 
 ---
 
-## Design Audit (March 2025) — BreathFlow
+## Design Audit Status (Originally March 2025)
 
-Comprehensive audit of the BreathFlow frontend. Use these findings to guide any design or accessibility work.
+### Resolved
 
-### Anti-Pattern Verdict: FAIL (8/10 AI slop tells)
+- ✅ `user-scalable=no` removed — viewport meta now uses `width=device-width, initial-scale=1.0, viewport-fit=cover`
+- ✅ Light theme built — `color-scheme: light dark` in `index.css`; both light and dark token sets exist
+- ✅ `prefers-reduced-motion` hook added (`useReducedMotion.ts`); CSS media queries present in `index.css`
+- ✅ ARIA partially added to `BreathingSession.tsx` (`role="region"`, keyboard focus management)
 
-The current UI reads as AI-generated. Specific tells:
-- Indigo-on-navy gradient palette (the "AI color palette")
-- Dark mode with glowing accents as the only theme
-- Glassmorphism everywhere (38 occurrences across 8 files, 8 redundant glass CSS classes)
-- Gradient text on headings (`App.tsx:258,353`, `Header.tsx:56`)
-- Hero metric layout on dashboard (big number + small label, repeated 4x)
-- Identical technique card grid (4 same-sized cards, same layout)
-- Cards nested inside cards throughout
-- `--spring-bounce` easing used (`KirbyCharacter.tsx:40,69,79`)
+### Still Open
 
-### Critical Issues (Fix First)
-
-1. **No light theme exists.** Only dark tokens in `:root` and `.breathwork` (index.css:325-370). Only 2 files use `dark:` variants. `color-scheme: dark` hardcoded (index.css:29). Must build entire light token system from scratch.
-
-2. **Zero `prefers-reduced-motion` support.** 0 occurrences in entire codebase. 15+ CSS animations and spring-based Framer Motion animations. The breathing orb is large, continuous, and central — dangerous for vestibular disorders.
-
-3. **Zero ARIA in breathing components.** No `aria-live`, `aria-label`, or `role` attributes in BreathingSession.tsx, Timer.tsx, PhaseIndicator.tsx, or FluidOrb.tsx. Phase transitions and countdown are invisible to screen readers. This is the core product feature.
-
-4. **`user-scalable=no` in viewport meta** (index.html:5). Blocks pinch-to-zoom. WCAG 1.4.4 violation. Remove `maximum-scale=1.0, user-scalable=no`.
-
-### High-Severity Issues
-
-5. **Hard-coded colors bypass tokens.** Inline styles with hex/rgba throughout: Settings.tsx (7), App.tsx (15+), FluidOrb.tsx phase colors, BadgeGrid.tsx gradients. These won't respond to theme changes.
-
-6. **Invalid hex opacity syntax.** PhaseIndicator.tsx and BreathingSession.tsx append opacity hex digits to strings (`${color}1A`). Fragile and non-standard.
-
-7. **FluidOrb is a div with onClick, not a button.** Not keyboard-accessible (no tabIndex, no keyboard handler, no ARIA role). WCAG 2.1.1 violation.
-
-8. **Session controls auto-hide risks keyboard trap.** Controls fade to 20% opacity but remain in DOM. Users tabbing can't see focused element. WCAG 2.1.2 risk.
-
-9. **Touch targets below 44px.** Nav icons: 38x38px. Settings toggle thumbs: 20x20px.
-
-10. **No `robots.txt`.** Returns HTML page (SPA fallback). Lighthouse Best Practices: 77.
-
-11. **Font becoming generic.** DM Sans increasingly common in AI outputs. Display font (Anybody) is distinctive but underused.
-
-### Medium Issues
-
-12. Gradient text on headings (anti-pattern)
-13. Hero metric layout pattern repeated on dashboard
-14. Center-aligned everything (should use asymmetric left-aligned layouts)
-15. No container queries (`@container`) — all responsive via viewport breakpoints
-16. Monotonous spacing (same `gap-4`, `p-6` everywhere, no rhythm)
-17. No fluid typography (fixed Tailwind classes, no `clamp()`)
-18. `background-position` animation on breath gradient — non-GPU property, CPU repaints every frame for 15s
-19. Excessive `will-change` (12+ elements) — remove and let browser auto-optimize
-
-### Low Issues
-
-20. Pure `#fff` in LevelRing (Home.tsx:138) — should tint
-21. Orphaned `App.css` with unused `--text-color` variable
-22. Dead code: `frontend/src/lib/colors.ts` exports unused color object
-23. PostHog API key hardcoded in App.tsx:100 (move to env var)
-24. Profile image in Settings missing `loading="lazy"`
-
-### Lighthouse Scores
-
-| Metric | Desktop | Mobile |
-|--------|---------|--------|
-| Accessibility | 89 | 82 |
-| Best Practices | 77 | 77 |
-| SEO | 91 | 91 |
+- ❌ `robots.txt` missing — `public/robots.txt` does not exist; requests fall through to SPA
+- ❌ `ShaderOrb.tsx` / `LiquidGlassOrb.tsx` do not consume `useReducedMotion` — large continuous WebGL animation still runs for vestibular-sensitive users
+- ❌ Some inline hex colors remain in `Settings.tsx`, `BadgeGrid.tsx` — not fully tokenized
+- ❌ Touch targets on nav icons may still be below 44 px — verify after any nav changes
 
 ### Positive Findings (Preserve These)
 
 - **Solid engineering:** Zustand stores, well-structured hooks, proper code-splitting with `lazy()`, clean TypeScript
-- **Token system infrastructure exists:** shadcn/ui HSL CSS variables in tailwind.config.js — just needs light values added
+- **Token system infrastructure exists:** shadcn/ui HSL CSS variables + Tailwind custom tokens
 - **Safe area handling is thorough:** `env(safe-area-inset-*)`, visual viewport API for keyboard avoidance
 - **Performance-conscious:** `content-visibility: auto` on session items, GPU-accelerated transforms, RAF-based pointer tracking
 - **Good animation foundation:** Custom easing curves, spring physics, staggered reveals — technically solid
-
-### Remediation Priority
-
-1. **Immediate:** Remove `user-scalable=no`, add `prefers-reduced-motion`, add ARIA to breathing components, add `robots.txt`
-2. **Short-term (design overhaul):** Build light-mode token set, strip glassmorphism/glow excess, normalize all colors to tokens, rebuild visual identity with distinctive typography and asymmetric layouts
-3. **Medium-term:** Container queries, fluid typography, redesign technique cards with hierarchy, rethink stats away from hero metric pattern
-4. **Long-term:** Full WCAG AA audit post-overhaul, evaluate Clerk cookies, consider body font replacement
 
 ---
 
