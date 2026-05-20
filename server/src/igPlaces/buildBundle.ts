@@ -17,12 +17,18 @@ export interface BundleDeps {
   transcribe: (input: { filePath: string; biasPrompt: string; signal?: AbortSignal }) => Promise<string>;
   ocr: (imagePath: string) => Promise<string>;
   downloadVideo: (url: string, signal?: AbortSignal) => Promise<string>;
-  /** Optional secondary downloader, used when `downloadVideo` (CDN fetch) fails.
-   *  Receives the canonical IG post URL (not the CDN URL) so it can re-resolve. */
+  /** Primary downloader: yt-dlp against the canonical IG post URL. Fast
+   *  (3-5s) when not rate-limited from the host's IP. */
   downloadVideoFallback?: (igUrl: string, signal?: AbortSignal) => Promise<string>;
-  /** Optional tertiary downloader: re-calls Apify's instagram-reel-scraper with
-   *  `includeDownloadedVideo: true` to obtain a 3-day-valid KV-store URL.
-   *  Used as the absolute-last-resort when both yt-dlp and direct CDN fail. */
+  /** Secondary fallback: `apify/instagram-reel-scraper` with
+   *  `includeDownloadedVideo: true`. Apify hosts the downloaded file in
+   *  their KV store (3-day cache) and returns a stable URL. Only accepts
+   *  /reel/ URLs — 400s on /p/ feed posts, which the chain catches and
+   *  falls through to `downloadVideoApify`. */
+  downloadVideoApifyReel?: (igUrl: string, signal?: AbortSignal) => Promise<string>;
+  /** Last-resort downloader: re-calls Apify's instagram-scraper for a
+   *  fresh signed CDN URL, then streams from there. Works for /p/, /reel/,
+   *  /tv/. Used when both yt-dlp and the reel-scraper path fail. */
   downloadVideoApify?: (igUrl: string, signal?: AbortSignal) => Promise<string>;
   downloadImage: (url: string, signal?: AbortSignal) => Promise<string>;
   extractFrames: (videoPath: string, count?: number, signal?: AbortSignal) => Promise<string[]>;
@@ -128,7 +134,28 @@ export function createBundleBuilder(deps: BundleDeps): BundleBuilder {
           }
         }
 
+        if (!localPath && deps.downloadVideoApifyReel && post.url) {
+          // 2nd path: apify/instagram-reel-scraper with includeDownloadedVideo.
+          // Apify hosts the file in their KV store (3-day cache) → stable URL.
+          // Only handles /reel/; falls through on /p/ feed posts.
+          await log('info', 'trying Apify reel-scraper (includeDownloadedVideo)…');
+          const reelCtrl = new AbortController();
+          try {
+            localPath = await withTimeout(
+              deps.downloadVideoApifyReel(post.url, reelCtrl.signal),
+              TIMEOUT_DOWNLOAD_MS, 'Apify reel-scraper', reelCtrl,
+            );
+            trackTmpDir(localPath);
+            await log('info', `video saved via Apify reel-scraper (${Date.now() - t0}ms)`);
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            await log('warn', `Apify reel-scraper failed: ${msg}; trying direct CDN fetch`);
+          }
+        }
+
         if (!localPath) {
+          // 3rd path: direct fetch of the videoUrl from the initial Apify
+          // metadata call. Cheap when the URL is still fresh.
           const host = (() => { try { return new URL(video.url).hostname; } catch { return video.url.slice(0, 40); } })();
           await log('info', `downloading video from ${host}…`);
           const dlCtrl = new AbortController();
@@ -141,25 +168,26 @@ export function createBundleBuilder(deps: BundleDeps): BundleBuilder {
             await log('info', `video saved via direct fetch (${Date.now() - t0}ms)`);
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
-            await log('warn', `direct CDN download failed: ${msg}; trying Apify reel-scraper fallback…`);
+            await log('warn', `direct CDN download failed: ${msg}; trying Apify fresh-URL fallback…`);
           }
         }
 
         if (!localPath) {
-          // 3rd path: re-call Apify for a freshly signed URL via the reel-scraper
+          // 4th path: re-call Apify's instagram-scraper for a freshly signed
+          // videoUrl, then direct-fetch from that. Works for /p/ posts that
+          // reel-scraper rejected.
           if (deps.downloadVideoApify && post.url) {
-            await log('info', 'direct CDN download failed too; trying Apify reel-scraper fallback…');
             const apCtrl = new AbortController();
             try {
               localPath = await withTimeout(
                 deps.downloadVideoApify(post.url, apCtrl.signal),
-                TIMEOUT_DOWNLOAD_MS, 'Apify video download', apCtrl,
+                TIMEOUT_DOWNLOAD_MS, 'Apify fresh-URL', apCtrl,
               );
               trackTmpDir(localPath);
-              await log('info', `video saved via Apify (${Date.now() - t0}ms)`);
+              await log('info', `video saved via Apify fresh-URL (${Date.now() - t0}ms)`);
             } catch (err3) {
               const msg3 = err3 instanceof Error ? err3.message : String(err3);
-              await log('warn', `Apify video download also failed: ${msg3} — bundle will have no transcript/frames`);
+              await log('warn', `Apify fresh-URL also failed: ${msg3} — bundle will have no transcript/frames`);
             }
           }
           if (!localPath) {

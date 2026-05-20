@@ -95,8 +95,37 @@ describe('buildBundle', () => {
     expect(b.locationTagName).toBe('Cafe Onion');
   });
 
-  test('Apify video fallback: invoked when both yt-dlp and CDN fail', async () => {
+  test('Apify reel-scraper is tried as 2nd path (after yt-dlp, before CDN)', async () => {
     const downloadVideoFallback = mock(async () => { throw new Error('yt-dlp failed'); });
+    const downloadVideoApifyReel = mock(async () => '/tmp/apify-reel/video.mp4');
+    const downloadVideo = mock(async () => '/tmp/cdn/video.mp4');
+    const downloadVideoApify = mock(async () => '/tmp/apify/video.mp4');
+    const transcribe = mock(async () => 'REEL_TRANSCRIPT');
+    const build = createBundleBuilder({
+      transcribe,
+      ocr: mock(async () => ''),
+      downloadVideo,
+      downloadVideoFallback,
+      downloadVideoApifyReel,
+      downloadVideoApify,
+      downloadImage: mock(async () => '/tmp/img.jpg'),
+      extractFrames: mock(async () => []),
+    });
+    const postWithUrl = { ...videoPost, url: 'https://www.instagram.com/reel/abc/' };
+    const b = await build(postWithUrl);
+    expect(downloadVideoApifyReel).toHaveBeenCalledWith(
+      'https://www.instagram.com/reel/abc/',
+      expect.anything(),
+    );
+    // CDN and Apify-fresh should NOT be called once reel-scraper succeeds.
+    expect(downloadVideo).not.toHaveBeenCalled();
+    expect(downloadVideoApify).not.toHaveBeenCalled();
+    expect(b.transcript).toBe('REEL_TRANSCRIPT');
+  });
+
+  test('Apify fresh-URL fallback: invoked when reel-scraper and CDN both fail', async () => {
+    const downloadVideoFallback = mock(async () => { throw new Error('yt-dlp failed'); });
+    const downloadVideoApifyReel = mock(async () => { throw new Error('apify reel-scraper 400'); });
     const downloadVideo = mock(async () => { throw new Error('CDN failed'); });
     const downloadVideoApify = mock(async () => '/tmp/apify/video.mp4');
     const transcribe = mock(async () => 'APIFY_TRANSCRIPT');
@@ -107,6 +136,7 @@ describe('buildBundle', () => {
       ocr,
       downloadVideo,
       downloadVideoFallback,
+      downloadVideoApifyReel,
       downloadVideoApify,
       downloadImage: mock(async () => '/tmp/img.jpg'),
       extractFrames,
