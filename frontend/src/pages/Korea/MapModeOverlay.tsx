@@ -52,7 +52,10 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
   const reduce = useReducedMotion()
   const getToken = useGetToken()
   const [testMode, setTestMode] = useState(false)
-  const [mockHotel, setMockHotel] = useState(false)
+  // Default to mock-location ON during pre-trip testing — geolocation from
+  // anywhere outside Korea anchors the camera in the wrong place and breaks
+  // the neighborhood-highlight framing. User can flip off in the debug menu.
+  const [mockHotel, setMockHotel] = useState(true)
   const [debugOpen, setDebugOpen] = useState(false)
   // Detailed 3D = the default Map Mode now. The orbital bubble view
   // remains accessible via the Debug menu (uncheck to switch back),
