@@ -36,6 +36,12 @@ export default defineConfig({
             // Map Mode bundle stays slim.
             { name: 'tiles3d', test: /[\\/]node_modules[\\/]3d-tiles-renderer[\\/]/, priority: 95 },
             { name: 'react-vendor', test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/, priority: 90 },
+            // motion/react is used by both Places (text-only) and MapMode
+            // (heavy 3D). Without this group, rolldown buries motion inside
+            // the korea-map chunk, which static-imports three.js (~685 KB).
+            // The Places page would then drag in 800 KB+ of 3D code it
+            // never renders. Splitting motion out keeps Places lean.
+            { name: 'motion', test: /[\\/]node_modules[\\/](motion|framer-motion)[\\/]/, priority: 85 },
             { name: 'supabase', test: /[\\/]node_modules[\\/]@supabase[\\/]/, priority: 80 },
             { name: 'router', test: /[\\/]node_modules[\\/]react-router/, priority: 70 },
             { name: 'radix', test: /[\\/]node_modules[\\/]@radix-ui[\\/]/, priority: 60 },
