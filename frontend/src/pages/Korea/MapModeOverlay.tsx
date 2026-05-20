@@ -65,7 +65,10 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
   const [selected, setSelected] = useState<RankedPlace | null>(null)
   const [webglFailed, setWebglFailed] = useState<boolean>(() => !isWebglSupported())
   const [disabledCategories, setDisabledCategories] = useState<Set<string>>(new Set())
-  const [disabledPriorities, setDisabledPriorities] = useState<Set<PlacePriority>>(new Set())
+  // Hide "Extra" / supplemental pins by default — they recur on every
+  // day's map and add noise. The user can re-enable them via the filter
+  // bar. Scheduled + core pins (the day's actual itinerary) stay visible.
+  const [disabledPriorities, setDisabledPriorities] = useState<Set<PlacePriority>>(() => new Set(['supplemental']))
   const [viewMode, setViewMode] = useState<"orb" | "list">("orb")
   const sceneContainerRef = useRef<HTMLDivElement>(null)
   // Live camera yaw, written by the Three.js tick loop, read by the
@@ -543,6 +546,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
                     <Suspense fallback={<LoadingPulse />}>
                       <Detailed3DScene
                         places={filteredPlaces}
+                        neighborhoods={state.data.neighborhoods ?? []}
                         onSelect={setSelected}
                         onDeselect={() => setSelected(null)}
                         selectedId={selected?.id ?? null}

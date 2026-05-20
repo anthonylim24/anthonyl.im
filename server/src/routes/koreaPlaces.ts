@@ -10,6 +10,7 @@ import {
 } from "../data/koreaPlaces"
 import { sfTestPlaces } from "../data/sfTestPlaces"
 import { koreaSnapshot } from "../data/koreaSnapshot"
+import { resolveNeighborhoodCenters } from "../data/koreaNeighborhoods"
 import { verifyClerkOptional } from "../middleware/clerkAuth"
 import { listIgPlacesForDay } from "../igPlaces/wire"
 import { config } from "../config"
@@ -305,6 +306,10 @@ places.get("/day/:slug/places", async (c) => {
   // Merge IG places into ranked list (IG places first as they are 'scheduled')
   const allRanked = [...igRankedPlaces, ...ranked]
 
+  // Resolve the day's neighborhood list to coordinate centers so the 3D
+  // scene can render a mild ground highlight around them.
+  const neighborhoods = resolveNeighborhoodCenters(day.neighborhoods)
+
   return c.json({
     meta: {
       slug,
@@ -315,6 +320,7 @@ places.get("/day/:slug/places", async (c) => {
     },
     places: enrichWithDistance(allRanked, userLat, userLng).slice(0, 30),
     igSaves,
+    neighborhoods,
   })
 })
 
