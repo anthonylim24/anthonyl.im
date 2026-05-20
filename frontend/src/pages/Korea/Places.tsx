@@ -137,14 +137,14 @@ interface DayAssignButtonProps {
 
 function DayAssignButton({ place, getToken, onUpdated }: DayAssignButtonProps) {
   const [open, setOpen] = useState(false)
-  const [pendingDays, setPendingDays] = useState<Set<number>>(new Set(place.days))
+  const [pendingDays, setPendingDays] = useState<Set<number>>(new Set(place.days ?? []))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
 
   // Sync external changes (e.g. re-fetch)
   useEffect(() => {
-    if (!open) setPendingDays(new Set(place.days))
+    if (!open) setPendingDays(new Set(place.days ?? []))
   }, [place.days, open])
 
   // Close on Escape
@@ -196,14 +196,14 @@ function DayAssignButton({ place, getToken, onUpdated }: DayAssignButtonProps) {
     })
   }
 
-  const assignedDays = [...place.days].sort((a, b) => a - b)
+  const assignedDays = [...(place.days ?? [])].sort((a, b) => a - b)
   const hasAssignment = assignedDays.length > 0
 
   return (
     <div className="relative">
       <button
         type="button"
-        onClick={() => { setPendingDays(new Set(place.days)); setOpen((v) => !v) }}
+        onClick={() => { setPendingDays(new Set(place.days ?? [])); setOpen((v) => !v) }}
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={hasAssignment ? `Assigned to ${assignedDays.map(n => `Day ${n}`).join(', ')}. Change days` : 'Add to days'}
