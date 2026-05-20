@@ -232,4 +232,87 @@ describe('process', () => {
     expect(fetchComments).toHaveBeenCalled();
     expect(extractCallCount).toBe(1);
   });
+
+  test('skipVideo: geminiPrimaryExtract runs FIRST, gpt-oss-120b not called when Gemini returns places', async () => {
+    const geminiPrimaryExtract = mock(async () => [voted]);
+    const extract = mock(async () => [voted]);
+    const proc = createProcessor({
+      fetchPost: mock(async () => payload),
+      upsertPost: mock(async () => 99),
+      buildBundle: mock(async () => ({ caption: 'cap', hashtags: [], mentions: [] })),
+      extract,
+      geminiPrimaryExtract,
+      geocode: mock(async () => enriched),
+      savePlaces: mock(async () => undefined),
+      complete: mock(async () => undefined),
+      fail: mock(async () => undefined),
+      setStep: mock(async () => undefined),
+      log: mock(async () => undefined),
+    });
+    await proc({ id: 1, userId: 'u', url: 'x', dedupeKey: 'd', skipVideo: true } as any);
+    expect(geminiPrimaryExtract).toHaveBeenCalledTimes(1);
+    expect(extract).not.toHaveBeenCalled();
+  });
+
+  test('skipVideo: when geminiPrimaryExtract returns [], gpt-oss-120b backup is called', async () => {
+    const geminiPrimaryExtract = mock(async () => []);
+    const extract = mock(async () => [voted]);
+    const proc = createProcessor({
+      fetchPost: mock(async () => payload),
+      upsertPost: mock(async () => 99),
+      buildBundle: mock(async () => ({ caption: 'cap', hashtags: [], mentions: [] })),
+      extract,
+      geminiPrimaryExtract,
+      geocode: mock(async () => enriched),
+      savePlaces: mock(async () => undefined),
+      complete: mock(async () => undefined),
+      fail: mock(async () => undefined),
+      setStep: mock(async () => undefined),
+      log: mock(async () => undefined),
+    });
+    await proc({ id: 1, userId: 'u', url: 'x', dedupeKey: 'd', skipVideo: true } as any);
+    expect(geminiPrimaryExtract).toHaveBeenCalledTimes(1);
+    expect(extract).toHaveBeenCalledTimes(1);
+  });
+
+  test('skipVideo: when geminiPrimaryExtract throws, gpt-oss-120b backup is called', async () => {
+    const geminiPrimaryExtract = mock(async () => { throw new Error('gemini 500'); });
+    const extract = mock(async () => [voted]);
+    const proc = createProcessor({
+      fetchPost: mock(async () => payload),
+      upsertPost: mock(async () => 99),
+      buildBundle: mock(async () => ({ caption: 'cap', hashtags: [], mentions: [] })),
+      extract,
+      geminiPrimaryExtract,
+      geocode: mock(async () => enriched),
+      savePlaces: mock(async () => undefined),
+      complete: mock(async () => undefined),
+      fail: mock(async () => undefined),
+      setStep: mock(async () => undefined),
+      log: mock(async () => undefined),
+    });
+    await proc({ id: 1, userId: 'u', url: 'x', dedupeKey: 'd', skipVideo: true } as any);
+    expect(extract).toHaveBeenCalledTimes(1);
+  });
+
+  test('skipVideo=false: gpt-oss-120b runs as before; geminiPrimaryExtract NOT called', async () => {
+    const geminiPrimaryExtract = mock(async () => [voted]);
+    const extract = mock(async () => [voted]);
+    const proc = createProcessor({
+      fetchPost: mock(async () => payload),
+      upsertPost: mock(async () => 99),
+      buildBundle: mock(async () => ({ caption: 'cap', hashtags: [], mentions: [] })),
+      extract,
+      geminiPrimaryExtract,
+      geocode: mock(async () => enriched),
+      savePlaces: mock(async () => undefined),
+      complete: mock(async () => undefined),
+      fail: mock(async () => undefined),
+      setStep: mock(async () => undefined),
+      log: mock(async () => undefined),
+    });
+    await proc({ id: 1, userId: 'u', url: 'x', dedupeKey: 'd', skipVideo: false } as any);
+    expect(geminiPrimaryExtract).not.toHaveBeenCalled();
+    expect(extract).toHaveBeenCalledTimes(1);
+  });
 });

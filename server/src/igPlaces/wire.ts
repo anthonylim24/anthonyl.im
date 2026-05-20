@@ -266,6 +266,12 @@ export function buildWorld() {
   const geminiExtract = config.geminiApiKey
     ? createGeminiExtractor({ apiKey: config.geminiApiKey })
     : undefined;
+  // Heavier-but-stronger text extractor used as the PRIMARY when the user
+  // chose "skip video" on the submit form — Gemini 3.5 Flash with Maps
+  // grounding outperforms gpt-oss-120b on caption-only inputs.
+  const geminiPrimaryExtract = config.geminiApiKey
+    ? createGeminiExtractor({ apiKey: config.geminiApiKey, model: 'gemini-3.5-flash' })
+    : undefined;
   const transcribe = createTranscriber({ groq, geminiVideoTranscriber });
   const extractFrames = createFrameExtractor();
   const ocr = createOcr({ apiKey: config.googleVisionApiKey ?? '' });
@@ -293,6 +299,7 @@ export function buildWorld() {
     fetchPost, upsertPost, buildBundle, extract, geocode, savePlaces,
     fetchComments,
     geminiExtract,
+    geminiPrimaryExtract,
     complete: queue.complete, fail: queue.fail, setStep: queue.setStep, log: queue.log,
   });
 
