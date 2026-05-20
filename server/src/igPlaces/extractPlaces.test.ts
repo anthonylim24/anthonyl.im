@@ -49,6 +49,25 @@ describe('voteMerge', () => {
     const out = voteMerge(runs, 'Cafe Onion in Seongsu');
     expect(out).toEqual([]);
   });
+  test('substring-quote filter normalizes whitespace — newlines in source vs spaces in quote', () => {
+    // Mirrors the DXVfTIljtrD bug: caption has venue name + address on
+    // separate lines, but the LLM joins them with single spaces in its
+    // quote. Strict substring would (incorrectly) drop it.
+    const source = '📍 한남동한방통닭 \n(Han-nam-dong Hanbang Tongdak)\n12 Daesagwan-ro 34-gil, Yongsan District, Seoul, South Korea';
+    const runs = [
+      [placeFactory({
+        supporting_quote: '📍 한남동한방통닭 (Han-nam-dong Hanbang Tongdak) 12 Daesagwan-ro 34-gil, Yongsan District, Seoul, South Korea',
+        confidence: 0.99,
+      })],
+      [placeFactory({
+        supporting_quote: '12 Daesagwan-ro 34-gil, Yongsan District, Seoul, South Korea',
+        confidence: 0.95,
+      })],
+    ];
+    const out = voteMerge(runs, source);
+    expect(out.length).toBe(1);
+    expect(out[0].vote_count).toBe(2);
+  });
   test('different signals → signal_source=multiple', () => {
     const runs = [
       [placeFactory({ signal_source: 'caption' })],
