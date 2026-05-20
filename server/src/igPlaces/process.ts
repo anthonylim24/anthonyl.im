@@ -20,9 +20,15 @@ export interface ProcessorDeps {
    *  primary extraction yields 0 places, comments are appended to the bundle
    *  and extraction is retried once. */
   fetchComments?: (igUrl: string, opts?: { limit?: number; signal?: AbortSignal }) => Promise<IgComment[]>;
-  /** Optional last-resort extractor (Gemini with Maps grounding). Called
-   *  only when the primary (+comments) chain yields 0 places. */
+  /** Optional last-resort extractor (Gemini 3.1 Flash Lite with Maps
+   *  grounding). Called only when the primary (+comments) chain yields
+   *  0 places. */
   geminiExtract?: (b: ExtractionBundle) => Promise<VotedPlace[]>;
+  /** Optional skip-video primary extractor (Gemini 3.5 Flash with Maps
+   *  grounding). When a job has `skipVideo: true` the bundle never gets
+   *  a video signal — Gemini handles the caption-only extraction directly
+   *  with grounding, before the gpt-oss-120b 3-vote backup. */
+  geminiPrimaryExtract?: (b: ExtractionBundle) => Promise<VotedPlace[]>;
 }
 
 export function createProcessor(deps: ProcessorDeps) {
@@ -64,6 +70,36 @@ export function createProcessor(deps: ProcessorDeps) {
         await deps.log(job.id, 'extracting', 'info',
           `using Gemini primary extraction (${voted.length} place(s); bands: ` +
           voted.map(p => p.confidence_band).join(', ') + ')').catch(() => {});
+      } else if (job.skipVideo && deps.geminiPrimaryExtract) {
+        // Skip-video runs never get a video signal, so the gpt-oss-120b
+        // 3-vote extractor has only the caption to work with. Gemini 3.5
+        // Flash with Maps grounding is a strictly better primary in that
+        // mode — single call, grounded against the live Maps index.
+        // gpt-oss-120b stays as the backup when Gemini returns 0.
+        await deps.log(job.id, 'extracting', 'info',
+          'skipVideo=true → trying Gemini 3.5 Flash w/ Maps grounding (caption-only primary)'
+        ).catch(() => {});
+        try {
+          voted = await deps.geminiPrimaryExtract(bundle);
+          if (voted.length > 0) {
+            await deps.log(job.id, 'extracting', 'info',
+              `Gemini primary returned ${voted.length} place(s); bands: ` +
+              voted.map(p => p.confidence_band).join(', ')
+            ).catch(() => {});
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          await deps.log(job.id, 'extracting', 'warn',
+            `Gemini skip-video primary failed: ${msg}; falling back to gpt-oss-120b`
+          ).catch(() => {});
+          voted = [];
+        }
+        if (voted.length === 0) {
+          await deps.log(job.id, 'extracting', 'info', 'Gemini returned 0 places; calling gpt-oss-120b ×3 backup').catch(() => {});
+          voted = await deps.extract(bundle, {
+            log: (level, message) => deps.log(job.id, 'extracting', level, message).catch(() => {}),
+          });
+        }
       } else {
         await deps.log(job.id, 'extracting', 'info', 'calling gpt-oss-120b ×3 in parallel').catch(() => {});
         voted = await deps.extract(bundle, {
