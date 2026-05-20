@@ -9,8 +9,9 @@ import { createFrameExtractor } from './extractFrames';
 import { createOcr } from './ocr';
 import { createBundleBuilder } from './buildBundle';
 import { createExtractor } from './extractPlaces';
-import { ENODEVBROWSER } from './types';
+import { ENODEVBROWSER, type PostPayload } from './types';
 import { createGeocoder, realGoogleLookup, realKakaoLookup } from './geocode';
+import { LRU, memoLRU } from './lru';
 import { upsertPostFactory, createSavePlaces } from './savePlaces';
 import { createProcessor } from './process';
 import { createWorkerLoop } from './worker';
@@ -288,19 +289,30 @@ export function buildWorld() {
     geminiVideoAnalyzer,
   });
   const extract = createExtractor({ groq, cerebrasApiKey: config.cerebrasApiKey });
+  // Geocode lookups for the same name+address are deterministic over short
+  // timescales — wrap with an in-process LRU. 7-day TTL is conservative
+  // (closures are rare). null misses get a shorter TTL (default 1/10) so
+  // transient API failures reattempt within minutes.
+  const lookupKey = (q: { name: string; nameRomanized?: string | null; city: string | null; address: string | null }) =>
+    `${q.name}|${q.nameRomanized ?? ''}|${q.city ?? ''}|${q.address ?? ''}`.toLowerCase();
+  const googleLookupRaw = realGoogleLookup(config.googleMapsApiKey ?? '');
+  const kakaoLookupRaw = config.kakaoRestApiKey ? realKakaoLookup(config.kakaoRestApiKey) : async () => null;
   const geocode = createGeocoder({
-    googleLookup: realGoogleLookup(config.googleMapsApiKey ?? ''),
-    kakaoLookup:  config.kakaoRestApiKey ? realKakaoLookup(config.kakaoRestApiKey) : async () => null,
+    googleLookup: memoLRU(googleLookupRaw, { keyFn: lookupKey, max: 2000, ttlMs: 7 * 24 * 60 * 60_000 }),
+    kakaoLookup:  memoLRU(kakaoLookupRaw,  { keyFn: lookupKey, max: 2000, ttlMs: 7 * 24 * 60 * 60_000 }),
   });
   const upsertPost = upsertPostFactory(supabase);
   const savePlaces = createSavePlaces(supabase);
   const fetchComments = createCommentsFetcher({ brightDataApiKey: config.brightDataApiKey });
+
+  const findCachedPost = createCachedPostLookup(supabase);
 
   const processor = createProcessor({
     fetchPost, upsertPost, buildBundle, extract, geocode, savePlaces,
     fetchComments,
     geminiExtract,
     geminiPrimaryExtract,
+    findCachedPost,
     complete: queue.complete, fail: queue.fail, setStep: queue.setStep, log: queue.log,
   });
 
@@ -377,6 +389,53 @@ export type ExtractedPlacesOpts = {
 // ── IG place day assignment helpers ───────────────────────────────────────────
 
 /**
+ * Lookup helper passed to processor.findCachedPost. Reads instagram_posts
+ * by dedupe_key and reconstructs a PostPayload. Returns null on miss so
+ * the worker falls through to the live Bright Data fetch.
+ *
+ * NB: the cached media URLs may be expired CDN-signed URLs. The video
+ * download chain (yt-dlp → direct CDN → headless) handles that — yt-dlp
+ * + headless both resolve a fresh URL from the canonical post URL, and
+ * the direct-CDN attempt simply fails fast on expired tokens.
+ */
+function createCachedPostLookup(supabase: ReturnType<typeof createSupabaseClient>) {
+  return async function findCachedPost(dedupeKey: string) {
+    type Row = {
+      shortcode: string | null;
+      url: string;
+      owner_username: string | null;
+      caption: string | null;
+      media_urls: unknown;
+      location_tag: unknown;
+      raw: unknown;
+      source: string;
+    };
+    const rows = await supabase.select<Row>('instagram_posts', {
+      select: 'shortcode,url,owner_username,caption,media_urls,location_tag,raw,source',
+      eq: { dedupe_key: dedupeKey },
+      limit: 1,
+    }).catch(() => [] as Row[]);
+    const row = rows[0];
+    if (!row) return null;
+    const mediaItems = Array.isArray(row.media_urls)
+      ? row.media_urls as Array<{ type: 'video' | 'image'; url: string; thumbnail?: string }>
+      : [];
+    return {
+      shortcode: row.shortcode ?? '',
+      url: row.url,
+      ownerUsername: row.owner_username ?? undefined,
+      caption: row.caption ?? '',
+      mediaItems,
+      locationTag: (row.location_tag ?? undefined) as PostPayload['locationTag'],
+      // Tag the cached payload distinctly so logs make the cache hit
+      // visible: "got payload via bright-data" vs "got payload via cached".
+      source: 'bright-data' as const,
+      raw: row.raw,
+    } satisfies PostPayload;
+  };
+}
+
+/**
  * Returns the sorted list of day numbers (1-12) that this IG place has been
  * assigned to for the given user. Returns [] if none.
  */
@@ -415,6 +474,11 @@ export async function setIgPlaceDays(opts: { userId: string; placeId: number; da
 
   const { userId, placeId, days } = opts;
   const supabase = createSupabaseClient({ url: supabaseUrl, serviceKey: supabaseServiceKey });
+  // We invalidate the previous day-set AND the new day-set — without this,
+  // unchecking a day would leave the cached list still containing the place.
+  // The current state (pre-change) requires a read; rather than do that
+  // round-trip, blast all 12 days for this user. Cheap (12 map deletes).
+  invalidateDayPlacesCache(userId, Array.from({ length: 12 }, (_, i) => i + 1));
   await supabase.rpc('ig_set_place_days', {
     p_user_id: userId,
     p_place_id: placeId,
@@ -444,12 +508,28 @@ export type IgPlaceForDay = {
   };
 };
 
+// 60-second in-process cache for the day-saves enrichment. Map Mode polls
+// /day/:slug/places repeatedly while the user pans/filters; the underlying
+// assignments only change when the user explicitly hits "Add to days" on a
+// place, which already invalidates from elsewhere via setIgPlaceDays.
+const dayPlacesCache = new LRU<string, IgPlaceForDay[]>({ max: 200, ttlMs: 60_000 });
+
+/** Invalidate the day-saves cache for a (user, day) pair. Called from
+ *  setIgPlaceDays when an assignment changes. */
+function invalidateDayPlacesCache(userId: string, dayNs: number[]) {
+  for (const dayN of dayNs) dayPlacesCache.delete(`${userId}|${dayN}`);
+}
+
 export async function listIgPlacesForDay(opts: { userId: string; dayN: number }): Promise<IgPlaceForDay[]> {
   const supabaseUrl = config.supabaseUrl;
   const supabaseServiceKey = config.supabaseServiceKey;
   if (!supabaseUrl || !supabaseServiceKey) return [];
 
   const { userId, dayN } = opts;
+  const cacheKey = `${userId}|${dayN}`;
+  const cached = dayPlacesCache.get(cacheKey);
+  if (cached) return cached;
+
   // Join assignments → places → posts
   const params = new URLSearchParams({
     select: 'place_id,instagram_places!inner(id,name,name_romanized,category,address,lat,lng,confidence_band,supporting_quote,post:instagram_posts!inner(url,shortcode,owner_username,caption))',
@@ -484,10 +564,12 @@ export async function listIgPlacesForDay(opts: { userId: string; dayN: number })
       };
     };
   }>;
-  return rows.map((row) => ({
+  const result = rows.map((row) => ({
     ...row.instagram_places,
     post: row.instagram_places.post,
   }));
+  dayPlacesCache.set(cacheKey, result);
+  return result;
 }
 
 export async function listExtractedPlaces(opts: ExtractedPlacesOpts) {

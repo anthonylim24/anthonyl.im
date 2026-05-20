@@ -48,6 +48,10 @@ const MENTION_RE = /@([a-zA-Z0-9_.]+)/g;
 
 const TIMEOUT_DOWNLOAD_MS = 120_000;
 const TIMEOUT_TRANSCRIBE_MS = 90_000;
+// Tight cap on the Gemini one-shot video call. Live runs are 15-45s end-to-
+// end; anything longer is a stuck request — fail fast so the Whisper+OCR
+// backup chain still has budget within the worker job timeout.
+const TIMEOUT_GEMINI_ANALYZER_MS = 60_000;
 const TIMEOUT_FFMPEG_MS = 60_000;
 const TIMEOUT_OCR_MS = 20_000;
 
@@ -199,7 +203,7 @@ export function createBundleBuilder(deps: BundleDeps): BundleBuilder {
           try {
             const result = await withTimeout(
               deps.geminiVideoAnalyzer(post, localPath, gCtrl.signal),
-              TIMEOUT_TRANSCRIBE_MS + TIMEOUT_FFMPEG_MS + TIMEOUT_OCR_MS,
+              TIMEOUT_GEMINI_ANALYZER_MS,
               'Gemini video analyzer', gCtrl,
             );
             await log('info',

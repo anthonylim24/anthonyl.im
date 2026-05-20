@@ -30,6 +30,13 @@ export interface ProcessorDeps {
    *  grounding, before the gpt-oss-120b 3-vote backup. Model in use:
    *  see gemini.ts → GEMINI_MODEL. */
   geminiPrimaryExtract?: (b: ExtractionBundle) => Promise<VotedPlace[]>;
+  /** Optional cache hook: if a previous job already fetched + stored this
+   *  URL's PostPayload in instagram_posts, return it here so we skip the
+   *  3-9s Bright Data round-trip. Returning null means "no cache hit;
+   *  go fetch fresh". The cached row's media URLs may be expired — the
+   *  downstream video chain (yt-dlp / direct CDN / headless) handles that
+   *  by re-resolving from the canonical post URL. */
+  findCachedPost?: (dedupeKey: string) => Promise<PostPayload | null>;
 }
 
 export function createProcessor(deps: ProcessorDeps) {
@@ -39,7 +46,15 @@ export function createProcessor(deps: ProcessorDeps) {
       lastStep = 'fetching';
       await deps.setStep(job.id, 'fetching');
       await deps.log(job.id, 'fetching', 'info', 'starting fetch').catch(() => {});
-      const payload = await deps.fetchPost(job.url, null);
+      // Short-circuit when we've already scraped this URL: the
+      // instagram_posts table is keyed on dedupe_key and already holds
+      // caption + media_urls + location_tag from the first fetch. Saves
+      // a 3-9s Bright Data round-trip on resubmits / cross-user shares.
+      const cached = deps.findCachedPost ? await deps.findCachedPost(job.dedupeKey).catch(() => null) : null;
+      if (cached) {
+        await deps.log(job.id, 'fetching', 'info', 'cache hit: reusing stored post payload').catch(() => {});
+      }
+      const payload = await deps.fetchPost(job.url, cached);
       await deps.log(job.id, 'fetching', 'info',
         `got payload via ${payload.source}; ${payload.mediaItems.length} media item(s)` +
         (payload.locationTag ? `; location_tag="${payload.locationTag.name}"` : ''))
@@ -57,7 +72,10 @@ export function createProcessor(deps: ProcessorDeps) {
         `; transcript=${bundle.transcript ? bundle.transcript.length + ' chars' : 'none'}` +
         `; ocr=${bundle.ocr ? bundle.ocr.length + ' chars' : 'none'}`)
         .catch(() => {});
-      const postId = await deps.upsertPost(job.dedupeKey, job.url, payload, bundle.transcript, bundle.ocr);
+      // Kick off the post upsert in parallel with extraction — the postId
+      // isn't needed until savePlaces (5 phases later). This overlaps a
+      // Supabase round-trip (~200-500ms) with the extract LLM call.
+      const postIdPromise = deps.upsertPost(job.dedupeKey, job.url, payload, bundle.transcript, bundle.ocr);
 
       lastStep = 'extracting';
       await deps.setStep(job.id, 'extracting');
@@ -199,6 +217,10 @@ export function createProcessor(deps: ProcessorDeps) {
 
       lastStep = 'saving';
       await deps.setStep(job.id, 'saving');
+      // postIdPromise was kicked off in parallel with extraction — await
+      // it here. If the extract phase took longer than the upsert (the
+      // common case), this resolves instantly.
+      const postId = await postIdPromise;
       await deps.log(job.id, 'saving', 'info', `saving ${enriched.length} place(s) to post #${postId}`).catch(() => {});
       await deps.savePlaces(postId, job.userId, enriched);
 

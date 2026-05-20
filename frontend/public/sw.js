@@ -1,6 +1,6 @@
 // Korea is now the only installable PWA — bump cache version so iOS
 // clients drop the previously-precached BreathFlow manifest.
-const CACHE_VERSION = 'korea-offline-v9'
+const CACHE_VERSION = 'korea-offline-v10'
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`
 const KOREA_API_CACHE = `${CACHE_VERSION}-korea-api`
 const APP_SHELL = [
@@ -156,6 +156,10 @@ self.addEventListener('fetch', (event) => {
 
   // Korea API gets a stale-while-revalidate strategy so /korea works offline.
   if (url.pathname.startsWith('/api/korea')) {
+    // Honor `cache: 'no-store'` on the client side — used by the Places
+    // page to force a live read of /extracted on navigation so newly-
+    // extracted places appear without a manual reload.
+    if (request.cache === 'no-store') return
     event.respondWith(staleWhileRevalidate(request))
     return
   }

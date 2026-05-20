@@ -72,7 +72,12 @@ export async function fetchExtractedPlaces(
   if (opts.q) params.set('q', opts.q);
 
   const qs = params.toString();
-  const res = await fetch(`${BASE}/extracted${qs ? `?${qs}` : ''}`, { headers });
+  // `cache: 'no-store'` opts this request out of the service worker's
+  // stale-while-revalidate strategy (see frontend/public/sw.js). Without
+  // it the SW returns the previously-cached list on every navigation to
+  // /korea/places — so a freshly-extracted place wouldn't appear until
+  // the user reloaded. The SW honors the cache mode via request.cache.
+  const res = await fetch(`${BASE}/extracted${qs ? `?${qs}` : ''}`, { headers, cache: 'no-store' });
   if (!res.ok) {
     let message = `HTTP ${res.status}`;
     try {
