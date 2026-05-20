@@ -24,6 +24,7 @@
 import simplify from "@turf/simplify"
 import booleanValid from "@turf/boolean-valid"
 import { polygon as turfPolygon } from "@turf/helpers"
+import { romanizeAdmName } from "./romanize"
 
 type LngLat = [number, number]
 
@@ -83,6 +84,13 @@ function shortName(admNm: string): string {
   return admNm.replace(/^(서울특별시|부산광역시)\s+/, "")
 }
 
+/** Final display name shipped to the client. Uses Revised Romanization
+ *  with admin-suffix hyphens (Gangnam-gu, Cheongdam-dong) so tooltips
+ *  stay readable for non-Korean readers. */
+function displayName(admNm: string): string {
+  return romanizeAdmName(shortName(admNm))
+}
+
 async function loadFc(path: string): Promise<GeoJSON.FeatureCollection> {
   return JSON.parse(await Bun.file(path).text())
 }
@@ -125,7 +133,7 @@ for (const path of datasets) {
       flat[i * 2 + 0] = +ring[i][0].toFixed(COORD_DECIMALS)
       flat[i * 2 + 1] = +ring[i][1].toFixed(COORD_DECIMALS)
     }
-    out.push({ n: shortName(adm), p: flat, b: bbox(ring) })
+    out.push({ n: displayName(adm), p: flat, b: bbox(ring) })
   }
 }
 

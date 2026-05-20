@@ -33,7 +33,12 @@ let inflight: Promise<Dong[]> | null = null
 export function loadAllKoreaDongs(): Promise<Dong[]> {
   if (cache) return Promise.resolve(cache)
   if (inflight) return inflight
-  inflight = fetch("/api/korea/dongs")
+  // Cache-bust query is bumped whenever the upstream dataset format
+  // changes (v1 shipped Hangul names; v2+ ships Revised Romanization).
+  // The server ignores the query string and serves the current JSON,
+  // but a fresh URL forces clients with the year-immutable cached v1
+  // response to re-fetch instead of reusing the stale entry.
+  inflight = fetch("/api/korea/dongs?v=2")
     .then((r) => {
       if (!r.ok) throw new Error(`/api/korea/dongs ${r.status}`)
       return r.json()
