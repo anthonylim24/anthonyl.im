@@ -2,7 +2,7 @@
 import type { IgJob, IgJobStep, PostPayload, ExtractionBundle, VotedPlace, EnrichedPlace, LocationTag } from './types';
 import { NonRetryableError } from './types';
 import type { Queue } from './queue';
-import type { ApifyComment } from './fetchComments';
+import type { IgComment } from './fetchComments';
 import { renderCommentsForBundle } from './fetchComments';
 
 export interface ProcessorDeps {
@@ -19,7 +19,7 @@ export interface ProcessorDeps {
   /** Optional: fetches top-liked comments for a post URL. When present and
    *  primary extraction yields 0 places, comments are appended to the bundle
    *  and extraction is retried once. */
-  fetchComments?: (igUrl: string, opts?: { limit?: number; signal?: AbortSignal }) => Promise<ApifyComment[]>;
+  fetchComments?: (igUrl: string, opts?: { limit?: number; signal?: AbortSignal }) => Promise<IgComment[]>;
   /** Optional last-resort extractor (Gemini with Maps grounding). Called
    *  only when the primary (+comments) chain yields 0 places. */
   geminiExtract?: (b: ExtractionBundle) => Promise<VotedPlace[]>;

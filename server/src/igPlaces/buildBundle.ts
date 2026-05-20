@@ -105,7 +105,7 @@ export function createBundleBuilder(deps: BundleDeps): BundleBuilder {
       if (video) {
         // 1. Download video.
         //
-        // Empirically the Apify-supplied CDN URL throttles cloud-IP fetches —
+        // Empirically the scraper-supplied CDN URL throttles cloud-IP fetches —
         // we hit the 60s timeout on essentially every reel. yt-dlp resolves
         // its own CDN URL against the canonical IG post and consistently
         // returns the file in 3-5s, so we use it as the primary path when
