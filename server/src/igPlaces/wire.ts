@@ -126,17 +126,67 @@ async function downloadVideoYtDlp(igUrl: string, signal?: AbortSignal): Promise<
 }
 
 /**
- * Tertiary video downloader: re-calls `apify/instagram-scraper` (the same
+ * Secondary video downloader: `apify/instagram-reel-scraper` with
+ * `includeDownloadedVideo: true`. Apify downloads the video themselves
+ * and surfaces a 3-day-cached KV-store URL via `downloadedVideo`, which
+ * is far more stable than any IG-hosted CDN URL we could fetch ourselves
+ * (those typically expire within minutes).
+ *
+ * Caveat: this actor ONLY accepts /reel/ URLs. /p/ URLs (regular feed
+ * posts that happen to embed video) get a 400 — the buildBundle chain
+ * catches that and falls through to `downloadVideoApifyFresh`.
+ */
+async function downloadVideoApifyReel(igUrl: string, signal?: AbortSignal): Promise<string> {
+  if (!config.apifyToken) throw new Error('APIFY_TOKEN missing — cannot use Apify reel-scraper');
+  // The actor's input schema renames `directUrls` to `username` — but the
+  // field actually accepts mixed inputs including a fully-qualified reel
+  // URL. Apify's own docs: "Add Instagram usernames, profile URLs, IDs,
+  // or direct reel URLs. Each item will be processed individually."
+  // For non-reel URLs (/p/, /tv/, etc.) the actor returns
+  // { error: 'no_items', errorDescription: 'Empty or private data' }
+  // — we surface that as a thrown error so buildBundle falls through.
+  const r = await fetch(
+    `https://api.apify.com/v2/acts/apify~instagram-reel-scraper/run-sync-get-dataset-items?token=${config.apifyToken}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: [igUrl], resultsLimit: 1, includeDownloadedVideo: true }),
+      signal,
+    });
+  if (!r.ok) throw new Error(`apify reel-scraper ${r.status}`);
+  const items = await r.json() as Array<{
+    downloadedVideo?: string;
+    videoUrl?: string;
+    error?: string;
+    errorDescription?: string;
+  }>;
+  if (!items.length) throw new Error('apify reel-scraper: no items returned');
+  if (items[0].error) {
+    throw new Error(`apify reel-scraper: ${items[0].error} (${items[0].errorDescription ?? 'no description'})`);
+  }
+  // Prefer Apify-hosted KV download (3-day cache, stable); fall back to the
+  // IG CDN URL on the off chance Apify omitted the downloaded variant.
+  const videoSrc = items[0].downloadedVideo ?? items[0].videoUrl;
+  if (!videoSrc) throw new Error('apify reel-scraper: no downloadedVideo or videoUrl');
+
+  const dir = await mkdtemp(join(tmpdir(), 'ig-video-apify-reel-'));
+  const out = join(dir, 'video.mp4');
+  const dl = await fetch(videoSrc, { signal, headers: CDN_FETCH_HEADERS });
+  if (!dl.ok || !dl.body) throw new Error(`apify reel-scraper stream ${dl.status}`);
+  await Bun.write(out, dl);
+  return out;
+}
+
+/**
+ * Quaternary video downloader: re-calls `apify/instagram-scraper` (the same
  * actor used for the initial metadata fetch — works for /p/, /reel/, /tv/)
- * to get a FRESH signed CDN URL, then streams from that URL. This replaces
- * the old `instagram-reel-scraper` approach which only accepted /reel/ URLs
- * and would 400 on regular /p/ feed posts.
+ * to get a FRESH signed CDN URL, then streams from that URL. Use as the
+ * last fallback for /p/ video posts (where reel-scraper 400s).
  *
  * Rationale: the initial Apify metadata call gives us a signed CDN URL, but
  * it may have expired by the time the worker reaches the bundling step
  * (especially on retries or after a transient failure). Re-calling Apify gets
- * a brand-new signed URL. Cheaper than `reel-scraper` (one /api/v2 call, no
- * `includeDownloadedVideo` MB charge) and works for all post types.
+ * a brand-new signed URL.
  */
 async function downloadVideoApifyFresh(igUrl: string, signal?: AbortSignal): Promise<string> {
   if (!config.apifyToken) throw new Error('APIFY_TOKEN missing — cannot use Apify fallback');
@@ -177,6 +227,7 @@ export function buildWorld() {
     ocr,
     downloadVideo,
     downloadVideoFallback: downloadVideoYtDlp,
+    downloadVideoApifyReel,
     downloadVideoApify: downloadVideoApifyFresh,
     downloadImage,
     extractFrames,
