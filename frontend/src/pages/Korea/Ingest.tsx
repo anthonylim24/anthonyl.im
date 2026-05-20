@@ -6,6 +6,7 @@ import { CheckCircle2, Circle, Loader2, XCircle } from 'lucide-react'
 import { isInstagramUrl } from './isInstagramUrl'
 import { ApiNotConfiguredError, fetchStats, listJobs, reextractJob, retryJob, submitUrl } from './ingestApi'
 import type { Job, JobStep, LogLine, PostPreview, Stats } from './ingestApi'
+import { JobCardSkeleton } from './skeletons'
 
 // ─── Step pipeline ────────────────────────────────────────────────────────────
 
@@ -976,6 +977,7 @@ function IngestImpl() {
 
   // Data state
   const [jobs, setJobs] = useState<Job[]>([])
+  const [jobsLoaded, setJobsLoaded] = useState(false)
   const [stats, setStats] = useState<Stats | null>(null)
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null)
   const [fetchFailures, setFetchFailures] = useState(0)
@@ -1006,6 +1008,10 @@ function IngestImpl() {
         return
       }
       setFetchFailures((n) => n + 1)
+    } finally {
+      // Mark first-load complete whether it succeeded or failed — the empty-state
+      // / skeleton render branches need to know to stop showing skeletons.
+      setJobsLoaded(true)
     }
   }, [])
 
@@ -1299,6 +1305,24 @@ function IngestImpl() {
             }}
           />
         )
+
+        // Before the first fetch resolves, show skeleton cards instead of
+        // the "no jobs yet" empty state — otherwise a fresh page render
+        // briefly flashes the empty-state banner before real data arrives.
+        if (!jobsLoaded && jobs.length === 0) {
+          return (
+            <section aria-label="Jobs" className="mt-12">
+              <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
+                Recent jobs
+                <span aria-hidden className="mx-2 text-stone-300 dark:text-stone-700">·</span>
+                loading
+              </p>
+              <div className="mt-4 space-y-4" aria-busy="true">
+                {Array.from({ length: 3 }).map((_, i) => <JobCardSkeleton key={i} />)}
+              </div>
+            </section>
+          )
+        }
 
         if (jobs.length === 0) {
           return (

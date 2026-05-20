@@ -4,6 +4,7 @@ import { clerkEnabled, useGetToken } from '@/lib/safeAuth'
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react'
 import { ExternalLink, MapPin, Phone, Star, AlertTriangle, ArrowLeft, CalendarDays, Check, Loader2 } from 'lucide-react'
 import { IgIcon } from './IgIcon'
+import { PlaceCardSkeleton } from './skeletons'
 import { fetchExtractedPlaces, setExtractedPlaceDays } from './placesApi'
 import type { ExtractedPlace } from './placesApi'
 
@@ -598,6 +599,19 @@ function PlacesImpl() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCategory, activeBand, debouncedSearch, load])
 
+  // Refresh when the tab regains focus — covers the common case of
+  // submitting a URL on /korea/ingest, switching back to /korea/places, and
+  // expecting newly-extracted places to appear without a manual reload.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      void load({ category: activeCategory, band: activeBand, q: debouncedSearch, offset: 0, append: false })
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCategory, activeBand, debouncedSearch, load])
+
   function handleLoadMore() {
     const nextOffset = offset + places.length
     setOffset(nextOffset)
@@ -735,10 +749,10 @@ function PlacesImpl() {
         )}
 
         {loading && !error && (
-          <div className="flex min-h-[140px] items-center justify-center">
-            <p className="text-[13px] text-stone-400 dark:text-stone-600" aria-live="polite" aria-busy="true">
-              Loading places…
-            </p>
+          <div className="space-y-3" aria-busy="true" aria-live="polite">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <PlaceCardSkeleton key={i} />
+            ))}
           </div>
         )}
 
