@@ -24,10 +24,11 @@ export interface ProcessorDeps {
    *  grounding). Called only when the primary (+comments) chain yields
    *  0 places. */
   geminiExtract?: (b: ExtractionBundle) => Promise<VotedPlace[]>;
-  /** Optional skip-video primary extractor (Gemini 3.5 Flash with Maps
-   *  grounding). When a job has `skipVideo: true` the bundle never gets
-   *  a video signal — Gemini handles the caption-only extraction directly
-   *  with grounding, before the gpt-oss-120b 3-vote backup. */
+  /** Optional skip-video primary extractor (Gemini with Maps grounding).
+   *  When a job has `skipVideo: true` the bundle never gets a video
+   *  signal — Gemini handles the caption-only extraction directly with
+   *  grounding, before the gpt-oss-120b 3-vote backup. Model in use:
+   *  see gemini.ts → GEMINI_MODEL. */
   geminiPrimaryExtract?: (b: ExtractionBundle) => Promise<VotedPlace[]>;
 }
 
@@ -72,12 +73,12 @@ export function createProcessor(deps: ProcessorDeps) {
           voted.map(p => p.confidence_band).join(', ') + ')').catch(() => {});
       } else if (job.skipVideo && deps.geminiPrimaryExtract) {
         // Skip-video runs never get a video signal, so the gpt-oss-120b
-        // 3-vote extractor has only the caption to work with. Gemini 3.5
-        // Flash with Maps grounding is a strictly better primary in that
-        // mode — single call, grounded against the live Maps index.
-        // gpt-oss-120b stays as the backup when Gemini returns 0.
+        // 3-vote extractor has only the caption to work with. Gemini with
+        // Maps grounding is a strictly better primary in that mode —
+        // single call, grounded against the live Maps index. gpt-oss-120b
+        // stays as the backup when Gemini returns 0.
         await deps.log(job.id, 'extracting', 'info',
-          'skipVideo=true → trying Gemini 3.5 Flash w/ Maps grounding (caption-only primary)'
+          'skipVideo=true → trying Gemini w/ Maps grounding (caption-only primary)'
         ).catch(() => {});
         try {
           voted = await deps.geminiPrimaryExtract(bundle);

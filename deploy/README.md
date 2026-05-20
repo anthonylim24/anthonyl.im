@@ -69,12 +69,13 @@ SUPABASE_SERVICE_ROLE_KEY=eyJh...
 KAKAO_REST_API_KEY=KakaoAK ...
 CEREBRAS_API_KEY=csk_...
 
-# Gemini API — optional last-resort fallbacks. Two surfaces:
-#   1. gemini-3.1-flash-lite (text extraction with Maps grounding) when
-#      Groq + Cerebras + comments retry all yield 0 places.
-#   2. gemini-3.5-flash (video transcription via Files API) when Groq
-#      Whisper rate-limits.
-# Pricing: $0.25/1M input + $1.50/1M output tokens on flash-lite.
+# Gemini API key. One key powers four surfaces:
+#   1. Primary video analyzer (transcript + OCR + places in one call)
+#   2. Skip-video text extractor (caption-only primary)
+#   3. Groq Whisper 429 fallback (video transcription)
+#   4. Last-resort text extractor when the primary chain yields 0 places
+# Model is set app-wide in `server/src/igPlaces/gemini.ts` → GEMINI_MODEL
+# (currently gemini-3.1-flash-lite at $0.25/1M-in + $1.50/1M-out).
 GEMINI_API_KEY=AIza...
 IG_DEV_BEARER=...                       # alt auth path for curl testing
 KLUSTER_API_KEY=...

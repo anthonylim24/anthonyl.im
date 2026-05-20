@@ -266,11 +266,12 @@ export function buildWorld() {
   const geminiExtract = config.geminiApiKey
     ? createGeminiExtractor({ apiKey: config.geminiApiKey })
     : undefined;
-  // Heavier-but-stronger text extractor used as the PRIMARY when the user
-  // chose "skip video" on the submit form — Gemini 3.5 Flash with Maps
-  // grounding outperforms gpt-oss-120b on caption-only inputs.
+  // Text extractor used as the PRIMARY when the user chose "skip video"
+  // on the submit form. Gemini with Maps grounding outperforms gpt-oss-120b
+  // on caption-only inputs — see gemini.ts:GEMINI_MODEL for the model
+  // currently being used (Flash Lite by default for cost).
   const geminiPrimaryExtract = config.geminiApiKey
-    ? createGeminiExtractor({ apiKey: config.geminiApiKey, model: 'gemini-3.5-flash' })
+    ? createGeminiExtractor({ apiKey: config.geminiApiKey })
     : undefined;
   const transcribe = createTranscriber({ groq, geminiVideoTranscriber });
   const extractFrames = createFrameExtractor();

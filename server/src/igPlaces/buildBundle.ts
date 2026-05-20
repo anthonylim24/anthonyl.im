@@ -29,7 +29,7 @@ export interface BundleDeps {
   downloadImage: (url: string, signal?: AbortSignal) => Promise<string>;
   extractFrames: (videoPath: string, count?: number, signal?: AbortSignal) => Promise<string[]>;
   biasPrompt?: string;
-  /** PRIMARY video analysis: one-shot Gemini 3.5 Flash call returning
+  /** PRIMARY video analysis: one-shot Gemini call returning
    *  transcript + OCR text + extracted places (with Maps grounding) in a
    *  single API trip. Skips the Groq Whisper + ffmpeg-frames + Vision OCR
    *  pipeline when it succeeds; that pipeline is the fallback when this
@@ -188,12 +188,12 @@ export function createBundleBuilder(deps: BundleDeps): BundleBuilder {
                    locationTagName: post.locationTag?.name, hashtags, mentions };
         }
 
-        // PRIMARY: Gemini 3.5 Flash one-shot — uploads the video and returns
+        // PRIMARY: Gemini one-shot — uploads the video and returns
         // transcript + OCR + extracted places (with Maps grounding) in a
         // single call. Subsumes the Whisper + frames + Vision OCR chain
         // when it succeeds.
         if (deps.geminiVideoAnalyzer) {
-          await log('info', 'analyzing video via Gemini 3.5 Flash (transcript + OCR + places + Maps grounding)…');
+          await log('info', 'analyzing video via Gemini (transcript + OCR + places + Maps grounding)…');
           const gCtrl = new AbortController();
           const tGem = Date.now();
           try {
