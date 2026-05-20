@@ -96,16 +96,32 @@ async function downloadVideoYtDlp(igUrl: string, signal?: AbortSignal): Promise<
   }
   const dir = await mkdtemp(join(tmpdir(), 'ig-video-ytdlp-'));
   const out = join(dir, 'video.%(ext)s');
-  const proc = Bun.spawn(
-    ['yt-dlp',
-      '-f', 'best[ext=mp4]/best',
-      '-o', out,
-      '--no-warnings', '--quiet', '--no-playlist',
-      '--socket-timeout', '15',
-      igUrl,
-    ],
-    { stdout: 'ignore', stderr: 'pipe' },
-  );
+  // Hardened flag set targeting Instagram rate-limiting from VPS IPs:
+  //  - extractor-retries 5 + exponential back-off: ride out transient 429s
+  //  - sleep-requests 1: throttles the intra-extraction burst that IG
+  //    fingerprints on
+  //  - socket-timeout 30: DO → IG CDN egress is sometimes slow on first byte
+  //  - throttled-rate 50K: re-extract if the CDN throttles us below 50 KB/s
+  //    (returns a corrupt file otherwise)
+  // YT_DLP_COOKIES_FILE (optional, server-only): Netscape-format cookies.txt
+  // exported from a desktop browser session. The single biggest reliability
+  // improvement on cloud IPs — but ToS-sensitive, so opt-in via env. The
+  // file lives at the path the operator chooses; if unset we skip the flag.
+  const cookiesFile = process.env.YT_DLP_COOKIES_FILE;
+  const args = [
+    'yt-dlp',
+    '-f', 'best[ext=mp4]/best',
+    '-o', out,
+    '--no-warnings', '--quiet', '--no-playlist',
+    '--socket-timeout', '30',
+    '--extractor-retries', '5',
+    '--retry-sleep', 'extractor:exp=1:16:2',
+    '--sleep-requests', '1',
+    '--throttled-rate', '50K',
+    ...(cookiesFile ? ['--cookies', cookiesFile] : []),
+    igUrl,
+  ];
+  const proc = Bun.spawn(args, { stdout: 'ignore', stderr: 'pipe' });
   const onAbort = () => { try { proc.kill(); } catch {} };
   signal?.addEventListener('abort', onAbort);
   try {
@@ -126,88 +142,106 @@ async function downloadVideoYtDlp(igUrl: string, signal?: AbortSignal): Promise<
 }
 
 /**
- * Secondary video downloader: `apify/instagram-reel-scraper` with
- * `includeDownloadedVideo: true`. Apify downloads the video themselves
- * and surfaces a 3-day-cached KV-store URL via `downloadedVideo`, which
- * is far more stable than any IG-hosted CDN URL we could fetch ourselves
- * (those typically expire within minutes).
+ * Headless-browser video downloader: drives `dev-browser` (Playwright under
+ * the hood) at Instagram's embed iframe URL —
+ * `https://www.instagram.com/p/SHORTCODE/embed/` — and extracts the
+ * `<video src>` from the rendered DOM, then streams the CDN URL to disk.
  *
- * Caveat: this actor ONLY accepts /reel/ URLs. /p/ URLs (regular feed
- * posts that happen to embed video) get a 400 — the buildBundle chain
- * catches that and falls through to `downloadVideoApifyFresh`.
+ * Why the embed URL: the canonical /p/ and /reel/ pages serve a login wall
+ * to datacenter IPs. The embed iframe (intended for third-party blogs)
+ * renders the actual video tag without authentication for video posts.
+ *
+ * Requires `dev-browser` on the server's PATH. Install once:
+ *   npm install -g dev-browser && dev-browser install
+ *
+ * Memory footprint: ~190-220 MB RSS for the headless Chromium shell.
+ * The browser daemon persists between calls so subsequent fetches reuse
+ * the existing process (~8-15s warm vs ~20-35s cold).
+ *
+ * Throws ENODEVBROWSER if dev-browser isn't on PATH so the chain can
+ * skip cleanly. Surfaces LOGIN_WALL when IG intercepts the embed for
+ * the datacenter IP — when that starts happening, the chain should
+ * fall through (eventually we'd need a residential proxy here).
  */
-async function downloadVideoApifyReel(igUrl: string, signal?: AbortSignal): Promise<string> {
-  if (!config.apifyToken) throw new Error('APIFY_TOKEN missing — cannot use Apify reel-scraper');
-  // The actor's input schema renames `directUrls` to `username` — but the
-  // field actually accepts mixed inputs including a fully-qualified reel
-  // URL. Apify's own docs: "Add Instagram usernames, profile URLs, IDs,
-  // or direct reel URLs. Each item will be processed individually."
-  // For non-reel URLs (/p/, /tv/, etc.) the actor returns
-  // { error: 'no_items', errorDescription: 'Empty or private data' }
-  // — we surface that as a thrown error so buildBundle falls through.
-  const r = await fetch(
-    `https://api.apify.com/v2/acts/apify~instagram-reel-scraper/run-sync-get-dataset-items?token=${config.apifyToken}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: [igUrl], resultsLimit: 1, includeDownloadedVideo: true }),
-      signal,
-    });
-  if (!r.ok) throw new Error(`apify reel-scraper ${r.status}`);
-  const items = await r.json() as Array<{
-    downloadedVideo?: string;
-    videoUrl?: string;
-    error?: string;
-    errorDescription?: string;
-  }>;
-  if (!items.length) throw new Error('apify reel-scraper: no items returned');
-  if (items[0].error) {
-    throw new Error(`apify reel-scraper: ${items[0].error} (${items[0].errorDescription ?? 'no description'})`);
+async function downloadVideoHeadless(igUrl: string, signal?: AbortSignal): Promise<string> {
+  if (!(await probeDevBrowserOnce())) {
+    throw new Error('ENODEVBROWSER: dev-browser not installed on server');
   }
-  // Prefer Apify-hosted KV download (3-day cache, stable); fall back to the
-  // IG CDN URL on the off chance Apify omitted the downloaded variant.
-  const videoSrc = items[0].downloadedVideo ?? items[0].videoUrl;
-  if (!videoSrc) throw new Error('apify reel-scraper: no downloadedVideo or videoUrl');
+  const shortcode = igUrl.match(/\/(p|reel|tv)\/([^/?#]+)/)?.[2];
+  if (!shortcode) throw new Error(`headless: cannot parse shortcode from ${igUrl}`);
 
-  const dir = await mkdtemp(join(tmpdir(), 'ig-video-apify-reel-'));
-  const out = join(dir, 'video.mp4');
-  const dl = await fetch(videoSrc, { signal, headers: CDN_FETCH_HEADERS });
-  if (!dl.ok || !dl.body) throw new Error(`apify reel-scraper stream ${dl.status}`);
-  await Bun.write(out, dl);
-  return out;
+  const embedUrl = `https://www.instagram.com/p/${shortcode}/embed/`;
+  const scriptDir = await mkdtemp(join(tmpdir(), 'ig-headless-script-'));
+  const scriptPath = join(scriptDir, 'extract.js');
+  // The script body runs inside dev-browser's QuickJS sandbox. We pull the
+  // <video src> via DOM, optionally fall back to a regex match against the
+  // page HTML for posts where IG hides the tag behind JS-only rendering.
+  const script = `
+const page = await browser.newPage()
+try {
+  await page.goto(${JSON.stringify(embedUrl)}, { waitUntil: 'networkidle', timeout: 25000 })
+  const result = await page.evaluate(() => {
+    if (document.querySelector('a[href*="login"]')) return { loginWall: true }
+    const v = document.querySelector('video')
+    const src = v ? (v.getAttribute('src') || v.currentSrc) : null
+    if (src) return { src }
+    const html = document.documentElement.outerHTML
+    const m = html.match(/"video_url":"(https:[^"]+)"/)
+    if (m) return { src: m[1].replace(/\\\\u0026/g, '&').replace(/\\\\\\//g, '/') }
+    return { src: null }
+  })
+  if (result.loginWall) console.error('LOGIN_WALL')
+  else if (!result.src) console.error('NO_SRC')
+  else console.log(result.src)
+} catch (err) {
+  console.error('NAV_ERR:' + (err && err.message ? err.message : String(err)))
+}
+`;
+  await Bun.write(scriptPath, script);
+
+  const proc = Bun.spawn(
+    ['dev-browser', 'run', scriptPath],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+  const onAbort = () => { try { proc.kill(); } catch {} };
+  signal?.addEventListener('abort', onAbort);
+  try {
+    const code = await proc.exited;
+    if (signal?.aborted) throw new Error('headless aborted');
+    const stdout = await new Response(proc.stdout as ReadableStream<Uint8Array>).text();
+    const stderr = await new Response(proc.stderr as ReadableStream<Uint8Array>).text();
+
+    if (stderr.includes('LOGIN_WALL')) throw new Error('headless: IG login wall intercepted (datacenter IP flagged?)');
+    if (stderr.includes('NO_SRC')) throw new Error('headless: no <video src> in embed DOM');
+    const navErr = stderr.match(/NAV_ERR:(.+)/)?.[1];
+    if (navErr) throw new Error(`headless nav: ${navErr.slice(0, 200)}`);
+    if (code !== 0) throw new Error(`headless exit ${code}: ${stderr.slice(0, 200)}`);
+
+    const videoSrc = stdout.trim().split('\n').pop() || '';
+    if (!videoSrc.startsWith('http')) throw new Error(`headless: unexpected output: ${videoSrc.slice(0, 80)}`);
+
+    const dir = await mkdtemp(join(tmpdir(), 'ig-video-headless-'));
+    const outPath = join(dir, 'video.mp4');
+    const dl = await fetch(videoSrc, { signal, headers: CDN_FETCH_HEADERS });
+    if (!dl.ok || !dl.body) throw new Error(`headless CDN stream ${dl.status}`);
+    await Bun.write(outPath, dl);
+    return outPath;
+  } finally {
+    signal?.removeEventListener('abort', onAbort);
+  }
 }
 
-/**
- * Quaternary video downloader: re-calls `apify/instagram-scraper` (the same
- * actor used for the initial metadata fetch — works for /p/, /reel/, /tv/)
- * to get a FRESH signed CDN URL, then streams from that URL. Use as the
- * last fallback for /p/ video posts (where reel-scraper 400s).
- *
- * Rationale: the initial Apify metadata call gives us a signed CDN URL, but
- * it may have expired by the time the worker reaches the bundling step
- * (especially on retries or after a transient failure). Re-calling Apify gets
- * a brand-new signed URL.
- */
-async function downloadVideoApifyFresh(igUrl: string, signal?: AbortSignal): Promise<string> {
-  if (!config.apifyToken) throw new Error('APIFY_TOKEN missing — cannot use Apify fallback');
-  const r = await fetch(
-    `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${config.apifyToken}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ directUrls: [igUrl], resultsLimit: 1 }),
-      signal,
-    });
-  if (!r.ok) throw new Error(`apify metadata refresh ${r.status}`);
-  const items = await r.json() as Array<{ videoUrl?: string }>;
-  if (!items.length || !items[0].videoUrl) throw new Error('apify refresh: no videoUrl');
-
-  const dir = await mkdtemp(join(tmpdir(), 'ig-video-apify-fresh-'));
-  const out = join(dir, 'video.mp4');
-  const dl = await fetch(items[0].videoUrl, { signal, headers: CDN_FETCH_HEADERS });
-  if (!dl.ok || !dl.body) throw new Error(`apify-fresh stream ${dl.status}`);
-  await Bun.write(out, dl);
-  return out;
+let devBrowserProbeCache: boolean | null = null;
+async function probeDevBrowserOnce(): Promise<boolean> {
+  if (devBrowserProbeCache !== null) return devBrowserProbeCache;
+  try {
+    const proc = Bun.spawn(['dev-browser', '--version'], { stdout: 'ignore', stderr: 'ignore' });
+    const code = await proc.exited;
+    devBrowserProbeCache = code === 0;
+  } catch {
+    devBrowserProbeCache = false;
+  }
+  return devBrowserProbeCache;
 }
 
 export function buildWorld() {
@@ -227,8 +261,7 @@ export function buildWorld() {
     ocr,
     downloadVideo,
     downloadVideoFallback: downloadVideoYtDlp,
-    downloadVideoApifyReel,
-    downloadVideoApify: downloadVideoApifyFresh,
+    downloadVideoHeadless,
     downloadImage,
     extractFrames,
     biasPrompt: BIAS_PROMPT,

@@ -94,9 +94,35 @@ curl -fsSL https://bun.sh/install | bash
 ~/.bun/bin/bun add -g pm2
 ```
 
-### 4. yt-dlp + ffmpeg
+### 4. yt-dlp + ffmpeg + dev-browser
 
 Auto-installed by the deploy step. Each installer is idempotent + **non-fatal** — if apt sources are broken or a mirror is down, the workflow falls back to a static binary, and if everything fails it logs a WARN but continues so the site still goes live (the worker degrades to caption-only extraction).
+
+The IG video download chain is **three-tier**:
+
+1. **yt-dlp** (primary, ~3-5s when working) — `--socket-timeout 30 --extractor-retries 5 --retry-sleep extractor:exp=1:16:2 --sleep-requests 1 --throttled-rate 50K`. Optional Netscape-format cookies file (single biggest reliability bump for VPS IPs) via `YT_DLP_COOKIES_FILE` env var.
+2. **Direct CDN fetch** (~2-5s) — uses the videoUrl returned by the initial Apify metadata call. Works while the signed URL is fresh (~10-30 min).
+3. **Headless dev-browser** (~10-30s) — drives Chromium at `https://www.instagram.com/p/SHORTCODE/embed/` and extracts the `<video src>`. Bypasses datacenter-IP login walls.
+
+After all three fail the bundle degrades to caption-only (`renderBundle` still produces a useful prompt).
+
+### Optional: yt-dlp cookies for higher VPS reliability
+
+yt-dlp gets aggressively rate-limited from datacenter IPs (DigitalOcean's ASN). The single biggest reliability bump (~40% → ~85% success rate) is supplying a session cookie from a desktop IG login:
+
+```bash
+# 1. On your desktop, install a Chrome/Firefox extension like
+#    "Get cookies.txt LOCALLY", visit instagram.com (logged in),
+#    and export cookies.txt.
+# 2. SCP to the droplet:
+scp ~/Downloads/instagram.cookies.txt root@droplet:/etc/yt-dlp/instagram.cookies
+sudo chmod 600 /etc/yt-dlp/instagram.cookies
+
+# 3. Add to ~/.env:
+YT_DLP_COOKIES_FILE=/etc/yt-dlp/instagram.cookies
+```
+
+Trade-off: technically against IG ToS (§3, no automated access). At our 1-50 fetches/day this is below the threshold that triggers enforcement, but accept that the account may get a checkpoint/2FA challenge eventually — when that happens, re-export the cookies. Use a personal account (aged accounts are less suspicious than burners).
 
 If you want to pre-install or repair manually:
 
