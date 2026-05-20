@@ -45,6 +45,9 @@ export interface NeighborhoodCenter {
   lat: number
   lng: number
   radiusM: number
+  /** Closed outer ring as [lng, lat][] (GeoJSON convention; first === last).
+   *  Drawn by Map Mode as a terrain-conforming polygon highlight. */
+  polygon: [number, number][]
 }
 
 export interface PlacesResponse {

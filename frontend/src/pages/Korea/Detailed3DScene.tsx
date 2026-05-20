@@ -24,6 +24,7 @@ import {
   Raycaster,
   RingGeometry,
   Scene,
+  ShapeUtils,
   SphereGeometry,
   Vector2,
   Vector3,
@@ -39,7 +40,7 @@ import {
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js"
 import { KTX2Loader } from "three/examples/jsm/loaders/KTX2Loader.js"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
-import type { RankedPlace } from "./mapModeTypes"
+import type { NeighborhoodCenter, RankedPlace } from "./mapModeTypes"
 
 const DEG2RAD = Math.PI / 180
 // Approx meters per degree latitude (constant); per-longitude scales
@@ -49,9 +50,10 @@ const M_PER_DEG_LAT = 111000
 
 interface Detailed3DSceneProps {
   places: RankedPlace[]
-  /** Day-itinerary neighborhood centers, rendered as mild rose-tinted
-   *  ground discs so the user can see today's "footprint" at a glance. */
-  neighborhoods?: { name: string; lat: number; lng: number; radiusM: number }[]
+  /** Day-itinerary neighborhood centers + polygons, rendered as mild
+   *  rose-tinted ground areas conformed to the 3D-tile terrain so the
+   *  user can see today's "footprint" at a glance. */
+  neighborhoods?: NeighborhoodCenter[]
   onSelect: (place: RankedPlace) => void
   onDeselect?: () => void
   selectedId?: string | null
@@ -229,39 +231,121 @@ export function Detailed3DScene({
     youMarker.position.set(0, 6, 0)
     scene.add(youMarker)
 
-    // ── Neighborhood highlights. The day's snapshot lists 2-4
-    // neighborhood names (e.g. "Hannam", "Itaewon", "Seongsu"); the
-    // server resolves them to lat/lng centers + a radius in meters.
-    // We draw each as a flat rose-tinted disc at ground level so the
-    // user can see today's "footprint" at a glance without the same
-    // overlay competing with the place markers above it.
+    // ── Neighborhood highlights. The server resolves the day's
+    // snapshot neighborhood names (e.g. "Hannam", "Itaewon") to
+    // GeoJSON polygons (OSM Nominatim where available, synthetic
+    // 32-vertex circles otherwise). We triangulate each polygon
+    // into a Three.js BufferGeometry directly in scene-XZ, then
+    // conform each vertex to the Google 3D Tile terrain via a
+    // downward raycast. Re-raycast on the next animation frame
+    // until every vertex has hit a tile — tiles stream in async,
+    // so initial mount usually has 0% hit rate for off-screen
+    // neighborhoods until the camera frames them.
     const cosUserLat = Math.cos(userLat * DEG2RAD)
+    interface NeighborhoodMesh {
+      mesh: Mesh
+      vertexCount: number
+      worldXZ: Array<{ x: number; z: number }>
+      conformed: boolean[]
+      allDone: boolean
+    }
+    const neighborhoodMeshes: NeighborhoodMesh[] = []
     if (neighborhoods && neighborhoods.length > 0) {
       for (const n of neighborhoods) {
-        const eastM = (n.lng - userLng) * cosUserLat * M_PER_DEG_LAT
-        const northM = (n.lat - userLat) * M_PER_DEG_LAT
-        const disc = new Mesh(
-          new RingGeometry(0, n.radiusM, 64),
+        // Convert ring [lng, lat][] → scene-XZ Vector2[] (we drop the
+        // closing duplicate vertex — ShapeUtils handles open contours).
+        const contour: Vector2[] = []
+        const seen = new Set<string>()
+        for (let i = 0; i < n.polygon.length - 1; i++) {
+          const [lng, lat] = n.polygon[i]
+          const eastM = (lng - userLng) * cosUserLat * M_PER_DEG_LAT
+          const northM = (lat - userLat) * M_PER_DEG_LAT
+          const x = -eastM
+          const z = northM
+          // Dedupe near-coincident vertices (OSM rings occasionally have
+          // sub-meter doubles that crash earcut).
+          const key = `${x.toFixed(1)},${z.toFixed(1)}`
+          if (seen.has(key)) continue
+          seen.add(key)
+          contour.push(new Vector2(x, z))
+        }
+        if (contour.length < 3) continue
+
+        const triangles = ShapeUtils.triangulateShape(contour, [])
+        if (!triangles.length) continue
+
+        const positions = new Float32Array(contour.length * 3)
+        const worldXZ: Array<{ x: number; z: number }> = []
+        for (let i = 0; i < contour.length; i++) {
+          const v = contour[i]
+          positions[i * 3 + 0] = v.x
+          positions[i * 3 + 1] = 2 // initial flat-ground guess
+          positions[i * 3 + 2] = v.y
+          worldXZ.push({ x: v.x, z: v.y })
+        }
+        const indices = new Uint32Array(triangles.length * 3)
+        for (let t = 0; t < triangles.length; t++) {
+          indices[t * 3 + 0] = triangles[t][0]
+          indices[t * 3 + 1] = triangles[t][1]
+          indices[t * 3 + 2] = triangles[t][2]
+        }
+        const geo = new BufferGeometry()
+        geo.setAttribute('position', new BufferAttribute(positions, 3))
+        geo.setIndex(new BufferAttribute(indices, 1))
+        geo.computeVertexNormals()
+        const mesh = new Mesh(
+          geo,
           new MeshBasicMaterial({
-            // Rose accent from the Korea palette, kept faint so place
-            // markers above stay readable. Double-sided so the disc
-            // renders whether the camera is above or below the ground
-            // plane (the latter shouldn't happen but is cheap to support).
             color: 0xf43f5e,
             transparent: true,
-            opacity: 0.18,
+            opacity: 0.22,
             depthWrite: false,
-            side: 2,  // THREE.DoubleSide
+            side: 2, // DoubleSide
           }),
         )
-        disc.rotation.x = -Math.PI / 2
-        // Sit a few meters above the terrain so the disc draws on top
-        // of the photorealistic tiles without z-fighting.
-        disc.position.set(-eastM, 2, northM)
-        // renderOrder under the place orbs (default 0) keeps the
-        // marker silhouettes punching through the highlight.
-        disc.renderOrder = -1
-        scene.add(disc)
+        // Render BEFORE the photorealistic tiles do their alpha pass so
+        // the highlight reads as a ground stain, with the place orbs
+        // (renderOrder default 0) punching through cleanly.
+        mesh.renderOrder = -1
+        scene.add(mesh)
+        neighborhoodMeshes.push({
+          mesh,
+          vertexCount: contour.length,
+          worldXZ,
+          conformed: new Array(contour.length).fill(false),
+          allDone: false,
+        })
+      }
+    }
+
+    // Per-frame terrain conformance for the neighborhood polygons.
+    // Tile loading is async; we re-raycast on each tick until every
+    // vertex has at least one successful intersection (then bail out).
+    // The raycaster instance is shared with snapBuildingHighlight below.
+    function conformNeighborhoodsToTerrain(rc: Raycaster) {
+      for (const nm of neighborhoodMeshes) {
+        if (nm.allDone) continue
+        const pos = nm.mesh.geometry.attributes.position as BufferAttribute
+        let dirty = false
+        let allHit = true
+        for (let i = 0; i < nm.vertexCount; i++) {
+          if (nm.conformed[i]) continue
+          const { x, z } = nm.worldXZ[i]
+          rc.set(new Vector3(x, 5000, z), new Vector3(0, -1, 0))
+          rc.far = 8000
+          const hits = rc.intersectObject(tiles.group, true)
+          if (!hits.length) { allHit = false; continue }
+          // Lift slightly above the surface so the polygon doesn't
+          // z-fight with the building/ground tile geometry.
+          pos.setY(i, hits[0].point.y + 1.5)
+          nm.conformed[i] = true
+          dirty = true
+        }
+        if (dirty) {
+          pos.needsUpdate = true
+          nm.mesh.geometry.computeVertexNormals()
+        }
+        if (allHit) nm.allDone = true
       }
     }
 
@@ -657,6 +741,10 @@ export function Detailed3DScene({
       if (!running) return
       controls.update()
       tiles.update()
+      // Polygon vertices that haven't yet hit terrain get re-raycast each
+      // frame until they land or the polygon is fully conformed. Cheap
+      // (≤ ~50 raycasts/frame max across all polygons) until tiles load.
+      conformNeighborhoodsToTerrain(downRay)
 
       // Publish the live "yaw from north-up" to the parent compass.
       // OrbitControls.getAzimuthalAngle() returns the camera's angle
