@@ -25,15 +25,11 @@ import {
   Raycaster,
   RingGeometry,
   Scene,
-  ShapeUtils,
   SphereGeometry,
   Vector2,
   Vector3,
   WebGLRenderer,
 } from "three"
-import { Line2 } from "three/examples/jsm/lines/Line2.js"
-import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js"
-import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js"
 import { TilesRenderer } from "3d-tiles-renderer"
 import {
   GoogleCloudAuthPlugin,
@@ -44,9 +40,7 @@ import {
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js"
 import { KTX2Loader } from "three/examples/jsm/loaders/KTX2Loader.js"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
-import union from "@turf/union"
-import booleanPointInPolygon from "@turf/boolean-point-in-polygon"
-import { featureCollection, polygon as turfPolygon, point as turfPoint } from "@turf/helpers"
+import { loadAllKoreaDongs, namesAtLngLat } from "./allKoreaDongs"
 import type { NeighborhoodCenter, RankedPlace } from "./mapModeTypes"
 
 const DEG2RAD = Math.PI / 180
@@ -57,9 +51,10 @@ const M_PER_DEG_LAT = 111000
 
 interface Detailed3DSceneProps {
   places: RankedPlace[]
-  /** Day-itinerary neighborhood centers + polygons, rendered as mild
-   *  rose-tinted ground areas conformed to the 3D-tile terrain so the
-   *  user can see today's "footprint" at a glance. */
+  /** Day-itinerary neighborhood centers — accepted for backward-compat
+   *  with the call site but unused. Polygon highlights were removed in
+   *  favor of an on-hover tooltip that reads from the all-Korea dong
+   *  dataset; see {@link loadAllKoreaDongs}. */
   neighborhoods?: NeighborhoodCenter[]
   onSelect: (place: RankedPlace) => void
   onDeselect?: () => void
@@ -85,7 +80,7 @@ function readApiKey(): string | undefined {
 
 export function Detailed3DScene({
   places,
-  neighborhoods,
+  neighborhoods: _neighborhoods,
   onSelect,
   onDeselect,
   selectedId,
@@ -242,287 +237,17 @@ export function Detailed3DScene({
     youMarker.position.set(0, 6, 0)
     scene.add(youMarker)
 
-    // ── Neighborhood highlights. The server resolves the day's
-    // snapshot neighborhood names (e.g. "Hannam", "Itaewon") to
-    // GeoJSON polygons (OSM Nominatim where available, synthetic
-    // 32-vertex circles otherwise). We triangulate each polygon
-    // into a Three.js BufferGeometry directly in scene-XZ, then
-    // conform each vertex to the Google 3D Tile terrain via a
-    // downward raycast. Re-raycast on the next animation frame
-    // until every vertex has hit a tile — tiles stream in async,
-    // so initial mount usually has 0% hit rate for off-screen
-    // neighborhoods until the camera frames them.
     const cosUserLat = Math.cos(anchorLat * DEG2RAD)
 
-    // ── Neighborhood overlay. Two-stage pipeline:
-    //   1. Union all of today's polygons via Turf so overlapping
-    //      neighborhoods (e.g. Bukchon contains Samcheong) draw as one
-    //      cohesive shape with no doubled-up strokes or fills.
-    //   2. Render each component of the union as a fill mesh + Line2
-    //      outline. Line2 gives proper screen-space thickness — plain
-    //      THREE.Line ignores `linewidth` on every WebGL driver, so the
-    //      stroke was rendering at 1 px regardless of distance.
-    //   3. Keep the ORIGINAL (un-unioned) polygons in a separate lookup
-    //      keyed by neighborhood name for tooltip hit-testing.
-    interface NeighborhoodMesh {
-      fill: Mesh
-      outline: Line2
-      vertexCount: number
-      worldXZ: Array<{ x: number; z: number }>
-      conformed: boolean[]
-      tries: number[]
-      allDone: boolean
-    }
-    // ~60 frames @ 60 fps ≈ 1 s. Long enough to give tiles a chance to
-    // stream in for the polygon footprint; short enough that the trailing
-    // stroke artifact resolves before the user has time to notice.
-    const WATER_FALLBACK_TRIES = 60
-    const WATER_FALLBACK_Y = 2
-    const neighborhoodMeshes: NeighborhoodMesh[] = []
-    /** Lng/lat polygon (closed outer ring) + the neighborhood it
-     *  belongs to. Used by the pointer-move/click tooltip handler — we
-     *  raycast pointer→ground plane, convert hit back to lng/lat, then
-     *  point-in-polygon test against this list. Originals are kept
-     *  rather than the unioned shape so the tooltip can name the
-     *  specific neighborhood under the cursor (Bukchon vs. Samcheong)
-     *  even though they merge visually. */
-    const nameLookup: Array<{ name: string; polygon: [number, number][] }> = []
-
-    /** Project a [lng, lat] vertex into scene-XZ meters. ReorientationPlugin
-     *  puts +X = west and +Z = north, hence the negation on east-meters. */
-    function lngLatToSceneXZ(lng: number, lat: number): { x: number; z: number } {
-      const eastM = (lng - anchorLng) * cosUserLat * M_PER_DEG_LAT
-      const northM = (lat - anchorLat) * M_PER_DEG_LAT
-      return { x: -eastM, z: northM }
-    }
-
-    /** Dedupe near-coincident ring vertices (OSM rings sometimes have
-     *  sub-meter doubles that crash earcut). Drops the closing duplicate
-     *  too — ShapeUtils accepts open contours. */
-    function ringToContour(ring: number[][]): Vector2[] {
-      const out: Vector2[] = []
-      const seen = new Set<string>()
-      for (let i = 0; i < ring.length - 1; i++) {
-        const [lng, lat] = ring[i]
-        const { x, z } = lngLatToSceneXZ(lng, lat)
-        if (!Number.isFinite(x) || !Number.isFinite(z)) continue
-        const key = `${x.toFixed(1)},${z.toFixed(1)}`
-        if (seen.has(key)) continue
-        seen.add(key)
-        out.push(new Vector2(x, z))
-      }
-      return out
-    }
-
-    /** Build one fill + outline pair for a single ring. Returns null if
-     *  the ring couldn't be triangulated (e.g. too few unique points). */
-    function buildRingMeshes(contour: Vector2[]): NeighborhoodMesh | null {
-      if (contour.length < 3) return null
-      const triangles = ShapeUtils.triangulateShape(contour, [])
-      if (!triangles.length) return null
-
-      const positions = new Float32Array(contour.length * 3)
-      const worldXZ: Array<{ x: number; z: number }> = []
-      for (let i = 0; i < contour.length; i++) {
-        const v = contour[i]
-        positions[i * 3 + 0] = v.x
-        // Start near sea level so the polygon never floats high above
-        // terrain. The per-tick raycast then lifts each vertex UP to
-        // ground+1.5m as tile geometry streams in. Net visual: the
-        // overlay sits flush on the streets from the moment terrain
-        // tiles load, with no sky-floating intermediate state.
-        positions[i * 3 + 1] = 2
-        positions[i * 3 + 2] = v.y
-        worldXZ.push({ x: v.x, z: v.y })
-      }
-      const indices = new Uint32Array(triangles.length * 3)
-      for (let t = 0; t < triangles.length; t++) {
-        indices[t * 3 + 0] = triangles[t][0]
-        indices[t * 3 + 1] = triangles[t][1]
-        indices[t * 3 + 2] = triangles[t][2]
-      }
-      const geo = new BufferGeometry()
-      geo.setAttribute("position", new BufferAttribute(positions, 3))
-      geo.setIndex(new BufferAttribute(indices, 1))
-      // Bounding sphere drives frustum culling. Compute once now; we
-      // recompute on conformance updates below.
-      geo.computeBoundingSphere()
-      const fill = new Mesh(
-        geo,
-        new MeshBasicMaterial({
-          color: 0xf43f5e,
-          transparent: true,
-          opacity: 0.25,
-          depthWrite: false,
-          side: 2, // DoubleSide
-        }),
-      )
-      fill.renderOrder = 1
-      scene.add(fill)
-
-      // Line2 outline. The position buffer is (n+1)·3 — the trailing
-      // duplicate closes the ring. setPositions takes a flat Float32Array.
-      const outlineFlat = new Float32Array((contour.length + 1) * 3)
-      for (let i = 0; i < contour.length; i++) {
-        outlineFlat[i * 3 + 0] = positions[i * 3 + 0]
-        outlineFlat[i * 3 + 1] = positions[i * 3 + 1]
-        outlineFlat[i * 3 + 2] = positions[i * 3 + 2]
-      }
-      outlineFlat[contour.length * 3 + 0] = positions[0]
-      outlineFlat[contour.length * 3 + 1] = positions[1]
-      outlineFlat[contour.length * 3 + 2] = positions[2]
-      const lineGeo = new LineGeometry()
-      lineGeo.setPositions(outlineFlat)
-      const lineMat = new LineMaterial({
-        color: 0xf43f5e,
-        // Width is in screen pixels when worldUnits=false (default).
-        // 3 px reads cleanly at all zoom levels without overwhelming
-        // small polygons like Cheongsapo / Mipo.
-        linewidth: 3,
-        transparent: true,
-        opacity: 0.95,
-        depthTest: false,
-        depthWrite: false,
-      })
-      // LineMaterial needs to know the canvas resolution to size the
-      // pixel-width quads correctly. Initialize now; update on resize.
-      lineMat.resolution.set(w, h)
-      const outline = new Line2(lineGeo, lineMat)
-      outline.computeLineDistances()
-      outline.renderOrder = 2
-      scene.add(outline)
-
-      return {
-        fill,
-        outline,
-        vertexCount: contour.length,
-        worldXZ,
-        conformed: new Array(contour.length).fill(false),
-        tries: new Array(contour.length).fill(0),
-        allDone: false,
-      }
-    }
-
-    if (neighborhoods && neighborhoods.length > 0) {
-      // Build the name-lookup table FIRST so tooltips work even if the
-      // union step rejects a polygon (turf can return null for empty
-      // collections or single-feature inputs).
-      for (const n of neighborhoods) {
-        if (!n.polygon || n.polygon.length < 4) continue
-        nameLookup.push({ name: n.name, polygon: n.polygon })
-      }
-
-      // Union all polygons into a single MultiPolygon. Touching or
-      // overlapping shapes merge into shared rings — fixes the doubled-
-      // outline artifact when two neighborhoods share a border.
-      const features = nameLookup
-        .map((n) => {
-          try {
-            return turfPolygon([n.polygon as number[][]])
-          } catch {
-            return null
-          }
-        })
-        .filter((x): x is NonNullable<typeof x> => x !== null)
-      let merged: GeoJSON.Feature | null = null
-      if (features.length === 1) {
-        merged = features[0]
-      } else if (features.length > 1) {
-        try {
-          merged = union(featureCollection(features) as never) as GeoJSON.Feature | null
-        } catch (err) {
-          console.warn("[detailed3d] polygon union failed:", err)
-          merged = null
-        }
-      }
-
-      // Iterate components: a Polygon has one outer ring; a MultiPolygon
-      // has multiple. Each becomes its own fill + outline pair. We
-      // ignore inner holes for the visual overlay — neighborhoods don't
-      // realistically contain holes at this scale.
-      const components: number[][][] = []
-      if (merged?.geometry.type === "Polygon") {
-        components.push((merged.geometry.coordinates as number[][][])[0])
-      } else if (merged?.geometry.type === "MultiPolygon") {
-        for (const poly of merged.geometry.coordinates as number[][][][]) {
-          if (poly[0]) components.push(poly[0])
-        }
-      } else if (!merged) {
-        // Union failed — fall back to rendering each original polygon.
-        for (const n of nameLookup) components.push(n.polygon as number[][])
-      }
-
-      for (const ring of components) {
-        const contour = ringToContour(ring)
-        const nm = buildRingMeshes(contour)
-        if (nm) neighborhoodMeshes.push(nm)
-      }
-    }
-
-    // Per-frame terrain conformance for the neighborhood polygons.
-    // Tile loading is async; we re-raycast on each tick until every
-    // vertex has at least one successful intersection (then bail out).
-    function conformNeighborhoodsToTerrain(rc: Raycaster) {
-      for (const nm of neighborhoodMeshes) {
-        if (nm.allDone) continue
-        const fillPos = nm.fill.geometry.attributes.position as BufferAttribute
-        const outlineGeo = nm.outline.geometry as LineGeometry
-        // LineGeometry stores positions as an "instanceStart" buffer
-        // (one Vector3 per segment endpoint); we re-derive a flat
-        // Float32Array, mutate it, and call setPositions() to push
-        // the change back. Cheaper than rebuilding the geometry.
-        const outlineFlat = new Float32Array((nm.vertexCount + 1) * 3)
-        for (let i = 0; i < nm.vertexCount; i++) {
-          outlineFlat[i * 3 + 0] = fillPos.getX(i)
-          outlineFlat[i * 3 + 1] = fillPos.getY(i)
-          outlineFlat[i * 3 + 2] = fillPos.getZ(i)
-        }
-        let dirty = false
-        let allHit = true
-        for (let i = 0; i < nm.vertexCount; i++) {
-          if (nm.conformed[i]) continue
-          const { x, z } = nm.worldXZ[i]
-          rc.set(new Vector3(x, 5000, z), new Vector3(0, -1, 0))
-          rc.far = 8000
-          const hits = rc.intersectObject(tiles.group, true)
-          let groundY: number
-          if (hits.length) {
-            // Downward rays through dense urban tiles hit building
-            // rooftops first; take the LAST hit (= actual ground level)
-            // so the polygon drapes onto streets, not climbs buildings.
-            // Lift slightly above to avoid z-fighting.
-            groundY = hits[hits.length - 1].point.y + 1.5
-          } else {
-            nm.tries[i]++
-            if (nm.tries[i] < WATER_FALLBACK_TRIES) {
-              allHit = false
-              continue
-            }
-            groundY = WATER_FALLBACK_Y
-          }
-          if (!Number.isFinite(groundY)) {
-            // Defensive: a degenerate hit (very rare) would put NaN
-            // into the position buffer and trip a
-            // "BufferGeometry.computeBoundingSphere(): Computed radius
-            //  is NaN" warning. Skip and retry next frame.
-            allHit = false
-            continue
-          }
-          fillPos.setY(i, groundY)
-          outlineFlat[i * 3 + 1] = groundY
-          if (i === 0) outlineFlat[nm.vertexCount * 3 + 1] = groundY
-          nm.conformed[i] = true
-          dirty = true
-        }
-        if (dirty) {
-          fillPos.needsUpdate = true
-          nm.fill.geometry.computeBoundingSphere()
-          outlineGeo.setPositions(outlineFlat)
-          nm.outline.computeLineDistances()
-        }
-        if (allHit) nm.allDone = true
-      }
-    }
+    // ── Neighborhood tooltip data. The all-Korea dong dataset is
+    // fetched lazily — first Map Mode mount triggers the fetch, every
+    // subsequent mount uses the module-scope cache. While in-flight, the
+    // tooltip just stays hidden. ~84 KB gzipped, served with a
+    // year-immutable Cache-Control.
+    let allDongs: Awaited<ReturnType<typeof loadAllKoreaDongs>> = []
+    void loadAllKoreaDongs().then((d) => {
+      allDongs = d
+    })
 
     // ── Place markers. We compute local (X=west, Z=north) meters
     // from delta lat/lng around the user, matching the
@@ -758,29 +483,13 @@ export function Detailed3DScene({
       return { lng, lat }
     }
 
-    /** Find every neighborhood polygon containing (lng, lat). Multiple
-     *  matches are possible when polygons overlap (e.g. Bukchon's
-     *  Bukchon-dong contour contains Samcheong-dong). Returns names
-     *  ordered by polygon size ascending — the smallest (most specific)
-     *  comes first, which reads more naturally as "Samcheong · Bukchon"
-     *  than the other way round. */
+    /** Find every dong containing (lng, lat). Delegates to the
+     *  all-Korea hit-tester, which uses a per-polygon bbox pre-filter
+     *  + inline ray-casting point-in-polygon (no Turf at runtime).
+     *  Returns an empty array if the dataset hasn't finished loading
+     *  yet — the tooltip will silently no-op for those few frames. */
     function namesAt(lng: number, lat: number): string[] {
-      if (!nameLookup.length) return []
-      const matches: Array<{ name: string; size: number }> = []
-      const pt = turfPoint([lng, lat])
-      for (const n of nameLookup) {
-        try {
-          const poly = turfPolygon([n.polygon as number[][]])
-          if (booleanPointInPolygon(pt, poly)) {
-            matches.push({ name: n.name, size: n.polygon.length })
-          }
-        } catch {
-          // Skip malformed polygons silently — booleanPointInPolygon
-          // throws on degenerate rings.
-        }
-      }
-      matches.sort((a, b) => a.size - b.size)
-      return matches.map((m) => m.name)
+      return namesAtLngLat(allDongs, lng, lat)
     }
 
     function showTooltip(text: string, clientX: number, clientY: number) {
@@ -898,12 +607,6 @@ export function Detailed3DScene({
       camera.aspect = w / h
       camera.updateProjectionMatrix()
       tiles.setResolutionFromRenderer(camera, renderer)
-      // Line2 stroke width is computed in screen-pixel space — push the
-      // new canvas resolution to each outline's material so the line
-      // doesn't visually shrink/grow on viewport changes.
-      for (const nm of neighborhoodMeshes) {
-        ;(nm.outline.material as LineMaterial).resolution.set(w, h)
-      }
     })
     ro.observe(mount)
 
@@ -1036,10 +739,6 @@ export function Detailed3DScene({
       if (!running) return
       controls.update()
       tiles.update()
-      // Polygon vertices that haven't yet hit terrain get re-raycast each
-      // frame until they land or the polygon is fully conformed. Cheap
-      // (≤ ~50 raycasts/frame max across all polygons) until tiles load.
-      conformNeighborhoodsToTerrain(downRay)
 
       // Publish the live "yaw from north-up" to the parent compass.
       // OrbitControls.getAzimuthalAngle() returns the camera's angle
@@ -1316,12 +1015,6 @@ export function Detailed3DScene({
       selectionPill.remove()
       youMarker.geometry.dispose()
       ;(youMarker.material as MeshStandardMaterial).dispose()
-      for (const nm of neighborhoodMeshes) {
-        nm.fill.geometry.dispose()
-        ;(nm.fill.material as MeshBasicMaterial).dispose()
-        nm.outline.geometry.dispose()
-        ;(nm.outline.material as LineMaterial).dispose()
-      }
       renderer.dispose()
       try {
         mount.removeChild(renderer.domElement)

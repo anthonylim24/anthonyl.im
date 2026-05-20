@@ -11,6 +11,7 @@ import {
 import { sfTestPlaces } from "../data/sfTestPlaces"
 import { koreaSnapshot } from "../data/koreaSnapshot"
 import { resolveNeighborhoodCenters } from "../data/koreaNeighborhoods"
+import allKoreaDongs from "../data/polygons/allKoreaDongs.json" with { type: "json" }
 import { verifyClerkOptional } from "../middleware/clerkAuth"
 import { listIgPlacesForDay } from "../igPlaces/wire"
 import { config } from "../config"
@@ -423,6 +424,18 @@ const RESERVATION_TYPE_TO_ENTITY: Record<string, EntityType> = {
   appointment: "place",
   wedding: "venue",
 }
+
+// All Seoul + Busan administrative dong polygons, simplified to ~20
+// verts each and shipped as JSON for the Map Mode tooltip's point-in-
+// polygon lookup. ~84 KB gzipped; the immutable Cache-Control header
+// lets the browser + service worker reuse the response indefinitely
+// (the file is content-addressed by deploy hash and we rebuild it any
+// time the upstream HangJeongDong dataset changes).
+places.get("/dongs", (c) => {
+  c.header("Cache-Control", "public, max-age=31536000, immutable")
+  c.header("Content-Type", "application/json; charset=utf-8")
+  return c.body(JSON.stringify(allKoreaDongs))
+})
 
 places.get("/entities", (c) => {
   // Build the dictionary. Last writer wins on name conflict — koreaPlaces
