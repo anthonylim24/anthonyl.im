@@ -59,6 +59,11 @@ export interface ExtractionBundle {
   comments?: string;
   hashtags: string[];
   mentions: string[];
+  /** When the Gemini primary video analyzer ran successfully, this holds
+   *  the places it extracted directly from the video (transcript + frames
+   *  + caption + Maps grounding, single call). When present, process.ts
+   *  uses these instead of running the secondary Groq 3-vote extractor. */
+  preExtractedPlaces?: VotedPlace[];
 }
 
 export interface RawExtractedPlace {

@@ -29,6 +29,16 @@ export interface BundleDeps {
   downloadImage: (url: string, signal?: AbortSignal) => Promise<string>;
   extractFrames: (videoPath: string, count?: number, signal?: AbortSignal) => Promise<string[]>;
   biasPrompt?: string;
+  /** PRIMARY video analysis: one-shot Gemini 3.5 Flash call returning
+   *  transcript + OCR text + extracted places (with Maps grounding) in a
+   *  single API trip. Skips the Groq Whisper + ffmpeg-frames + Vision OCR
+   *  pipeline when it succeeds; that pipeline is the fallback when this
+   *  function throws (rate-limit, parse error, content policy, etc.). */
+  geminiVideoAnalyzer?: (
+    post: PostPayload,
+    videoPath: string,
+    signal?: AbortSignal,
+  ) => Promise<{ transcript: string; ocrText: string; places: import('./types').VotedPlace[] }>;
 }
 
 export type BundleBuilder = (post: PostPayload, opts?: BundleOpts) => Promise<ExtractionBundle>;
@@ -176,6 +186,39 @@ export function createBundleBuilder(deps: BundleDeps): BundleBuilder {
         if (!localPath) {
           return { caption: post.caption, transcript, ocr,
                    locationTagName: post.locationTag?.name, hashtags, mentions };
+        }
+
+        // PRIMARY: Gemini 3.5 Flash one-shot — uploads the video and returns
+        // transcript + OCR + extracted places (with Maps grounding) in a
+        // single call. Subsumes the Whisper + frames + Vision OCR chain
+        // when it succeeds.
+        if (deps.geminiVideoAnalyzer) {
+          await log('info', 'analyzing video via Gemini 3.5 Flash (transcript + OCR + places + Maps grounding)…');
+          const gCtrl = new AbortController();
+          const tGem = Date.now();
+          try {
+            const result = await withTimeout(
+              deps.geminiVideoAnalyzer(post, localPath, gCtrl.signal),
+              TIMEOUT_TRANSCRIBE_MS + TIMEOUT_FFMPEG_MS + TIMEOUT_OCR_MS,
+              'Gemini video analyzer', gCtrl,
+            );
+            await log('info',
+              `Gemini analyzer done (${Date.now() - tGem}ms): transcript=${result.transcript.length} chars, ` +
+              `ocr=${result.ocrText.length} chars, ${result.places.length} place(s)`);
+            return {
+              caption: post.caption,
+              transcript: result.transcript || undefined,
+              ocr: result.ocrText || undefined,
+              locationTagName: post.locationTag?.name,
+              hashtags,
+              mentions,
+              preExtractedPlaces: result.places,
+            };
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            await log('warn',
+              `Gemini analyzer failed (${msg.slice(0, 120)}); falling back to Whisper + Vision OCR pipeline`);
+          }
         }
 
         // 2. Transcribe + frames in parallel, each with its own timeout

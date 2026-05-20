@@ -54,11 +54,22 @@ export function createProcessor(deps: ProcessorDeps) {
 
       lastStep = 'extracting';
       await deps.setStep(job.id, 'extracting');
-      await deps.log(job.id, 'extracting', 'info', 'calling gpt-oss-120b ×3 in parallel').catch(() => {});
 
-      let voted = await deps.extract(bundle, {
-        log: (level, message) => deps.log(job.id, 'extracting', level, message).catch(() => {}),
-      });
+      // If Gemini's primary video analyzer already produced places, skip the
+      // Groq 3-vote extractor — the analyzer's output is what we'd ask the
+      // secondary chain to confirm anyway, and re-running adds latency + cost.
+      let voted: VotedPlace[];
+      if (bundle.preExtractedPlaces && bundle.preExtractedPlaces.length > 0) {
+        voted = bundle.preExtractedPlaces;
+        await deps.log(job.id, 'extracting', 'info',
+          `using Gemini primary extraction (${voted.length} place(s); bands: ` +
+          voted.map(p => p.confidence_band).join(', ') + ')').catch(() => {});
+      } else {
+        await deps.log(job.id, 'extracting', 'info', 'calling gpt-oss-120b ×3 in parallel').catch(() => {});
+        voted = await deps.extract(bundle, {
+          log: (level, message) => deps.log(job.id, 'extracting', level, message).catch(() => {}),
+        });
+      }
 
       // LATE-STAGE FALLBACK: when no place extracted from primary signals,
       // fetch comments and re-extract. Only triggers on full 0-result to keep

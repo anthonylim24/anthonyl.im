@@ -4,7 +4,7 @@ import { createSupabaseClient } from './supabase';
 import { createQueue } from './queue';
 import { createFetchPost } from './fetchPost';
 import { createTranscriber, BIAS_PROMPT } from './transcribe';
-import { createGeminiExtractor, createGeminiVideoTranscriber } from './gemini';
+import { createGeminiExtractor, createGeminiVideoAnalyzer, createGeminiVideoTranscriber } from './gemini';
 import { createFrameExtractor } from './extractFrames';
 import { createOcr } from './ocr';
 import { createBundleBuilder } from './buildBundle';
@@ -260,6 +260,9 @@ export function buildWorld() {
   const geminiVideoTranscriber = config.geminiApiKey
     ? createGeminiVideoTranscriber({ apiKey: config.geminiApiKey })
     : undefined;
+  const geminiVideoAnalyzer = config.geminiApiKey
+    ? createGeminiVideoAnalyzer({ apiKey: config.geminiApiKey })
+    : undefined;
   const geminiExtract = config.geminiApiKey
     ? createGeminiExtractor({ apiKey: config.geminiApiKey })
     : undefined;
@@ -275,6 +278,7 @@ export function buildWorld() {
     downloadImage,
     extractFrames,
     biasPrompt: BIAS_PROMPT,
+    geminiVideoAnalyzer,
   });
   const extract = createExtractor({ groq, cerebrasApiKey: config.cerebrasApiKey });
   const geocode = createGeocoder({

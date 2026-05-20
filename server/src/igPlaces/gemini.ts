@@ -13,7 +13,7 @@
 //
 // Both functions need only GEMINI_API_KEY — no separate Google Maps key
 // (grounding is bundled), no SDK dependency (raw fetch is enough).
-import type { ExtractionBundle, RawExtractedPlace, VotedPlace } from './types';
+import type { ExtractionBundle, PostPayload, RawExtractedPlace, VotedPlace } from './types';
 import { RetryableError } from './types';
 import { renderBundle, SYSTEM_PROMPT } from './extractPlaces';
 import { readFile, stat } from 'node:fs/promises';
@@ -250,4 +250,161 @@ async function uploadFile(
   }
   if (state !== 'ACTIVE') throw new Error(`gemini upload: unexpected file state ${state}`);
   return meta.file.uri;
+}
+
+// ─── Video analyzer (primary path for video posts) ─────────────────────────
+
+export interface GeminiVideoAnalyzeResult {
+  transcript: string;
+  ocrText: string;
+  places: VotedPlace[];
+}
+
+export interface GeminiVideoAnalyzerDeps {
+  apiKey: string;
+  model?: string;
+  fetch?: typeof fetch;
+}
+
+export type GeminiVideoAnalyzer = (
+  post: PostPayload,
+  videoPath: string,
+  signal?: AbortSignal,
+) => Promise<GeminiVideoAnalyzeResult>;
+
+/**
+ * One-shot video understanding: uploads the local video file and asks
+ * gemini-3.5-flash for transcript + on-screen text (OCR) + structured
+ * places in a single generateContent call, with Maps grounding enabled.
+ *
+ * Wired as the PRIMARY video-processing path in buildBundle.ts. If this
+ * call succeeds, we skip the Groq Whisper + ffmpeg-frames + Google Vision
+ * OCR pipeline entirely. On failure (429, quota, parse error), the
+ * existing pipeline takes over.
+ *
+ * Latency budget: 15-45s end-to-end (upload + processing + generation).
+ * Slower per-call than running the legacy pipeline in parallel, but
+ * delivers richer extraction quality — the model sees the video + audio
+ * + caption together and can ground place names against Maps.
+ */
+export function createGeminiVideoAnalyzer(deps: GeminiVideoAnalyzerDeps): GeminiVideoAnalyzer {
+  const f = deps.fetch ?? fetch;
+  const model = deps.model ?? DEFAULT_VIDEO_MODEL;
+  return async (post, videoPath, signal) => {
+    const fileUri = await uploadFile(deps.apiKey, videoPath, 'video/mp4', f, signal);
+
+    const prompt = buildAnalyzerPrompt(post);
+    const r = await f(`${GEMINI_BASE}/models/${model}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': deps.apiKey },
+      body: JSON.stringify({
+        contents: [{
+          role: 'user',
+          parts: [
+            { text: prompt },
+            { file_data: { mime_type: 'video/mp4', file_uri: fileUri } },
+          ],
+        }],
+        tools: [{ googleMaps: {} }],
+        generationConfig: {
+          temperature: 0.3,
+          // 1024-token reasoning budget so the model can plan across the
+          // multimodal inputs (audio + frames + caption + grounding). At
+          // 256 it occasionally short-circuits OCR; at 1024 it consistently
+          // produces all three sections.
+          thinkingConfig: { thinkingBudget: 1024 },
+        },
+      }),
+      signal: signal ?? AbortSignal.timeout(180_000),
+    });
+    if (r.status === 429) {
+      const retryAfter = Number(r.headers.get('retry-after')) * 1000 || 60_000;
+      throw new RetryableError('gemini video analyzer rate-limited', retryAfter);
+    }
+    if (!r.ok) {
+      const body = await r.text().catch(() => '');
+      throw new Error(`gemini video analyzer ${r.status}: ${body.slice(0, 200)}`);
+    }
+    const j = await r.json() as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    };
+    const text = j.candidates?.[0]?.content?.parts?.map((p) => p.text).filter(Boolean).join('') ?? '';
+    return parseAnalyzerOutput(text);
+  };
+}
+
+function buildAnalyzerPrompt(post: PostPayload): string {
+  const captionSection = post.caption ? `\n\nCAPTION:\n${post.caption}` : '';
+  const locationSection = post.locationTag?.name ? `\n\nLOCATION TAG: ${post.locationTag.name}` : '';
+  return `${SYSTEM_PROMPT}
+
+You are analyzing an Instagram video. Watch every frame, listen to every spoken word, and read every on-screen text overlay. Then return a single JSON object with EXACTLY these three fields:
+
+{
+  "transcript": "<verbatim transcript of every spoken word, English where spoken English, Hangul where spoken Korean>",
+  "ocrText": "<every readable text overlay, store sign, menu, or burned-in caption visible in any frame, joined by newlines>",
+  "places": [
+    {
+      "name": "<English-first venue name; see SYSTEM_PROMPT rule 2>",
+      "name_romanized": "<original-script name from rule 3>",
+      "city": "<Seoul | Busan | …>",
+      "address": "<verbatim address from caption / transcript / on-screen text; null if not stated>",
+      "category": "<restaurant | cafe | bar | shopping | activity | hotel | landmark | other>",
+      "confidence": <0..1>,
+      "is_subject": <bool>,
+      "supporting_quote": "<verbatim ≤120-char quote from transcript, OCR, or caption that grounds this place>",
+      "signal_source": "<transcript | ocr | caption | location_tag>"
+    }
+  ]
+}
+
+Use Google Maps grounding to confirm place names exist and to add structure. If no places can be confidently extracted, return places: []. Output ONLY the JSON object, no fencing, no preamble.${captionSection}${locationSection}`;
+}
+
+interface AnalyzerJson {
+  transcript?: string;
+  ocrText?: string;
+  ocr?: string;
+  places?: Array<Partial<RawExtractedPlace> & { confidence?: number | string }>;
+}
+
+function parseAnalyzerOutput(text: string): GeminiVideoAnalyzeResult {
+  const empty: GeminiVideoAnalyzeResult = { transcript: '', ocrText: '', places: [] };
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) return empty;
+  let parsed: AnalyzerJson;
+  try {
+    parsed = JSON.parse(match[0]);
+  } catch {
+    return empty;
+  }
+  const raw = parsed.places ?? [];
+  const places: VotedPlace[] = raw
+    .filter((p) => p.name && typeof p.name === 'string')
+    .map((p) => {
+      const confidence = typeof p.confidence === 'number'
+        ? p.confidence
+        : confidenceFromWord(String(p.confidence ?? 'medium'));
+      const band: VotedPlace['confidence_band'] =
+        confidence >= 0.8 ? 'high' : confidence >= 0.5 ? 'medium' : 'low';
+      return {
+        name: p.name!,
+        name_romanized: p.name_romanized ?? null,
+        city: p.city ?? null,
+        address: p.address ?? null,
+        category: (p.category ?? 'other') as RawExtractedPlace['category'],
+        confidence,
+        is_subject: Boolean(p.is_subject),
+        supporting_quote: p.supporting_quote ?? '',
+        signal_source: p.signal_source ?? 'transcript',
+        vote_count: 1,
+        confidence_band: band,
+      } as VotedPlace;
+    });
+  return {
+    transcript: typeof parsed.transcript === 'string' ? parsed.transcript : '',
+    ocrText: typeof parsed.ocrText === 'string' ? parsed.ocrText
+      : typeof parsed.ocr === 'string' ? parsed.ocr : '',
+    places,
+  };
 }
