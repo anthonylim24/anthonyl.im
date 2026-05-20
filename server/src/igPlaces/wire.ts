@@ -4,6 +4,7 @@ import { createSupabaseClient } from './supabase';
 import { createQueue } from './queue';
 import { createFetchPost } from './fetchPost';
 import { createTranscriber, BIAS_PROMPT } from './transcribe';
+import { createGeminiExtractor, createGeminiVideoTranscriber } from './gemini';
 import { createFrameExtractor } from './extractFrames';
 import { createOcr } from './ocr';
 import { createBundleBuilder } from './buildBundle';
@@ -253,7 +254,16 @@ export function buildWorld() {
 
   const queue = createQueue(supabase);
   const fetchPost = createFetchPost({ apifyToken: config.apifyToken });
-  const transcribe = createTranscriber({ groq });
+  // Gemini fallbacks fire when their primary chain is exhausted. Both are
+  // optional — if GEMINI_API_KEY is unset, the deps stay undefined and the
+  // primary code paths surface their own failures.
+  const geminiVideoTranscriber = config.geminiApiKey
+    ? createGeminiVideoTranscriber({ apiKey: config.geminiApiKey })
+    : undefined;
+  const geminiExtract = config.geminiApiKey
+    ? createGeminiExtractor({ apiKey: config.geminiApiKey })
+    : undefined;
+  const transcribe = createTranscriber({ groq, geminiVideoTranscriber });
   const extractFrames = createFrameExtractor();
   const ocr = createOcr({ apiKey: config.googleVisionApiKey ?? '' });
   const buildBundle = createBundleBuilder({
@@ -278,6 +288,7 @@ export function buildWorld() {
   const processor = createProcessor({
     fetchPost, upsertPost, buildBundle, extract, geocode, savePlaces,
     fetchComments,
+    geminiExtract,
     complete: queue.complete, fail: queue.fail, setStep: queue.setStep, log: queue.log,
   });
 

@@ -6,6 +6,10 @@ interface VerboseTranscription { segments?: VerboseSegment[]; text?: string; }
 
 export interface TranscriberDeps {
   groq: Pick<Groq, 'audio'>;
+  /** Optional fallback: when Groq Whisper returns 429, transcribe the
+   *  video via Gemini 3.5 Flash's video understanding API. ~30s overhead
+   *  vs Groq's ~5s, but only fires on rate-limit. */
+  geminiVideoTranscriber?: (videoPath: string, signal?: AbortSignal) => Promise<string>;
 }
 
 export interface TranscribeInput {
@@ -27,15 +31,25 @@ export function createTranscriber(deps: TranscriberDeps): Transcriber {
       prompt: biasPrompt,
       temperature: 0,
     } as const;
-    const [koRes, autoRes] = await Promise.all([
-      deps.groq.audio.transcriptions.create({
-        ...baseParams, file: createReadStream(filePath) as any, language: 'ko',
-      } as any),
-      deps.groq.audio.transcriptions.create({
-        ...baseParams, file: createReadStream(filePath) as any,
-      } as any),
-    ]);
-    return mergeSegments(koRes as VerboseTranscription, autoRes as VerboseTranscription);
+    try {
+      const [koRes, autoRes] = await Promise.all([
+        deps.groq.audio.transcriptions.create({
+          ...baseParams, file: createReadStream(filePath) as any, language: 'ko',
+        } as any),
+        deps.groq.audio.transcriptions.create({
+          ...baseParams, file: createReadStream(filePath) as any,
+        } as any),
+      ]);
+      return mergeSegments(koRes as VerboseTranscription, autoRes as VerboseTranscription);
+    } catch (err) {
+      const status = (err as { status?: number })?.status;
+      if (status === 429 && deps.geminiVideoTranscriber) {
+        // Groq rate-limited. Try Gemini's video understanding (slower but
+        // gets us a transcript without an hour-long retry wait).
+        return deps.geminiVideoTranscriber(filePath);
+      }
+      throw err;
+    }
   };
 }
 
