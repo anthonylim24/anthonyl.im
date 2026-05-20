@@ -3,15 +3,17 @@ import type { PlacePriority, RankedPlace } from "./mapModeTypes"
 
 interface MapModeFilterBarProps {
   places: RankedPlace[]
+  // The currently-enabled multi-select sets. Visibility is UNION:
+  // a place shows if its category is in enabledCategories OR its
+  // priority is in enabledPriorities. Selecting "Shopping" surfaces
+  // ALL shopping places regardless of priority.
   enabledCategories: Set<string>
   enabledPriorities: Set<PlacePriority>
-  // Solo-select a category: clicking a chip should enable ONLY that
-  // category and disable the rest. Clicking the already-solo'd chip
-  // reverts to all-enabled. Parent decides how to map this to its
-  // disabledCategories state.
+  // Toggle: add the category if absent, remove if present.
   onSoloSelect: (cat: string) => void
-  // Same solo-select behavior, but for the three priority buckets.
+  // Toggle: add the priority if absent, remove if present.
   onSoloPriority: (priority: PlacePriority) => void
+  // Reset to defaults (priorities = {scheduled, core}, categories = {}).
   onReset: () => void
 }
 
@@ -56,9 +58,14 @@ export function MapModeFilterBar({
   const priorityCounts = new Map<PlacePriority, number>()
   for (const p of places) priorityCounts.set(p.priority, (priorityCounts.get(p.priority) ?? 0) + 1)
 
-  const allCategoriesEnabled = enabledCategories.size === 0 || enabledCategories.size === cats.length
-  const allPrioritiesEnabled = enabledPriorities.size === 0 || enabledPriorities.size === 3
-  const allEnabled = allCategoriesEnabled && allPrioritiesEnabled
+  // "Default" reset state = no extra categories, priorities = {scheduled, core}.
+  // The "All" chip lights up when we're at this default so the user knows
+  // resetCategories() is a no-op at the moment.
+  const atDefault =
+    enabledCategories.size === 0 &&
+    enabledPriorities.size === 2 &&
+    enabledPriorities.has('scheduled') &&
+    enabledPriorities.has('core')
 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-[60px] z-20 flex justify-center px-3 pt-3">
@@ -72,10 +79,10 @@ export function MapModeFilterBar({
         <button
           type="button"
           onClick={onReset}
-          aria-pressed={allEnabled}
+          aria-pressed={atDefault}
           className={
             "shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold transition " +
-            (allEnabled
+            (atDefault
               ? "bg-rose-600 text-white shadow-sm"
               : "bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700")
           }
@@ -89,7 +96,7 @@ export function MapModeFilterBar({
         {PRIORITY_META.map((meta) => {
           const count = priorityCounts.get(meta.id) ?? 0
           if (count === 0) return null
-          const enabled = enabledPriorities.size === 0 || enabledPriorities.has(meta.id)
+          const enabled = enabledPriorities.has(meta.id)
           return (
             <button
               key={meta.id}
@@ -117,7 +124,7 @@ export function MapModeFilterBar({
         <span aria-hidden className="mx-0.5 h-5 w-px shrink-0 bg-stone-300 dark:bg-stone-700" />
 
         {cats.map(([cat, count]) => {
-          const enabled = enabledCategories.size === 0 || enabledCategories.has(cat)
+          const enabled = enabledCategories.has(cat)
           return (
             <button
               key={cat}

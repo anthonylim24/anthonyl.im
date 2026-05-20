@@ -15,7 +15,6 @@ import { MapModeFilterBar } from "./MapModeFilterBar"
 import { PlaceDetailSheet } from "./PlaceDetailSheet"
 import type { PlacePriority, PlacesResponse, RankedPlace, UserLocation } from "./mapModeTypes"
 
-const ALL_PRIORITIES: ReadonlyArray<PlacePriority> = ["scheduled", "core", "supplemental"]
 
 // Last-resort fallback when we don't yet know the day's hotel (e.g.
 // while the day-places fetch is in flight). Park Hyatt Seoul is the
@@ -67,11 +66,14 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
   const [state, setState] = useState<LoadState>({ status: "loading" })
   const [selected, setSelected] = useState<RankedPlace | null>(null)
   const [webglFailed, setWebglFailed] = useState<boolean>(() => !isWebglSupported())
-  const [disabledCategories, setDisabledCategories] = useState<Set<string>>(new Set())
-  // Hide "Extra" / supplemental pins by default — they recur on every
-  // day's map and add noise. The user can re-enable them via the filter
-  // bar. Scheduled + core pins (the day's actual itinerary) stay visible.
-  const [disabledPriorities, setDisabledPriorities] = useState<Set<PlacePriority>>(() => new Set(['supplemental']))
+  // Multi-select filter state — UNION semantics. A place is visible if its
+  // category is in `enabledCategories` OR its priority is in `enabledPriorities`.
+  // Both sets are independently toggled. By default only the day's
+  // scheduled + core pins are visible (supplemental hidden — same nearby
+  // extras across every day, mostly noise). Selecting an explicit category
+  // like "Shopping" surfaces ALL shopping places regardless of priority.
+  const [enabledCategories, setEnabledCategories] = useState<Set<string>>(() => new Set())
+  const [enabledPriorities, setEnabledPriorities] = useState<Set<PlacePriority>>(() => new Set(['scheduled', 'core']))
   const [viewMode, setViewMode] = useState<"orb" | "list">("orb")
   const sceneContainerRef = useRef<HTMLDivElement>(null)
   // Live camera yaw, written by the Three.js tick loop, read by the
@@ -270,11 +272,14 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
 
   const filteredPlaces = useMemo(() => {
     if (state.status !== "success") return []
-    if (disabledCategories.size === 0 && disabledPriorities.size === 0) return state.data.places
-    return state.data.places.filter(
-      (p) => !disabledCategories.has(p.category) && !disabledPriorities.has(p.priority),
+    // Union semantics: visible if category OR priority matches. When BOTH
+    // sets are empty (the "reset" state), show nothing — the reset button
+    // re-applies the default (scheduled + core priorities enabled).
+    if (enabledCategories.size === 0 && enabledPriorities.size === 0) return []
+    return state.data.places.filter((p) =>
+      enabledCategories.has(p.category) || enabledPriorities.has(p.priority),
     )
-  }, [state, disabledCategories, disabledPriorities])
+  }, [state, enabledCategories, enabledPriorities])
 
   const counts = useMemo(() => {
     if (state.status !== "success") return { scheduled: 0, core: 0, supplemental: 0 }
@@ -283,38 +288,29 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
     return acc
   }, [state, filteredPlaces])
 
-  // Solo-select a category: click → only that category visible. Click the
-  // already-solo'd one → reset to all visible. The disabledCategories set
-  // is "everything that is NOT the solo'd category"; "all enabled" is
-  // represented as an empty set.
-  function soloSelect(cat: string) {
-    if (state.status !== "success") return
-    const allCats = new Set(state.data.places.map((p) => p.category))
-    setDisabledCategories((prev) => {
-      const enabled = prev.size === 0 ? allCats : new Set(Array.from(allCats).filter((c) => !prev.has(c)))
-      const isAlreadySolo = enabled.size === 1 && enabled.has(cat)
-      if (isAlreadySolo) return new Set()
-      const next = new Set(allCats)
-      next.delete(cat)
+  // Toggle a category in/out of the enabled set. Multi-select friendly —
+  // clicking "Shopping" then "Cafe" enables both; clicking "Shopping" a
+  // second time removes it.
+  function toggleCategory(cat: string) {
+    setEnabledCategories((prev) => {
+      const next = new Set(prev)
+      if (next.has(cat)) next.delete(cat)
+      else next.add(cat)
       return next
     })
   }
-  // Solo-select a priority bucket. Same toggle semantics as soloSelect.
-  function soloPriority(priority: PlacePriority) {
-    setDisabledPriorities((prev) => {
-      const enabled =
-        prev.size === 0 ? new Set(ALL_PRIORITIES) : new Set(ALL_PRIORITIES.filter((p) => !prev.has(p)))
-      const isAlreadySolo = enabled.size === 1 && enabled.has(priority)
-      if (isAlreadySolo) return new Set()
-      const next = new Set<PlacePriority>(ALL_PRIORITIES)
-      next.delete(priority)
+  function togglePriority(priority: PlacePriority) {
+    setEnabledPriorities((prev) => {
+      const next = new Set(prev)
+      if (next.has(priority)) next.delete(priority)
+      else next.add(priority)
       return next
     })
   }
 
   function resetCategories() {
-    setDisabledCategories(new Set())
-    setDisabledPriorities(new Set())
+    setEnabledCategories(new Set())
+    setEnabledPriorities(new Set(['scheduled', 'core']))
   }
 
 
@@ -607,22 +603,10 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
                 >
                   <MapModeFilterBar
                     places={state.data.places}
-                    enabledCategories={
-                      disabledCategories.size === 0
-                        ? new Set()
-                        : new Set(
-                            Array.from(new Set(state.data.places.map((p) => p.category))).filter(
-                              (c) => !disabledCategories.has(c),
-                            ),
-                          )
-                    }
-                    enabledPriorities={
-                      disabledPriorities.size === 0
-                        ? new Set()
-                        : new Set(ALL_PRIORITIES.filter((p) => !disabledPriorities.has(p)))
-                    }
-                    onSoloSelect={soloSelect}
-                    onSoloPriority={soloPriority}
+                    enabledCategories={enabledCategories}
+                    enabledPriorities={enabledPriorities}
+                    onSoloSelect={toggleCategory}
+                    onSoloPriority={togglePriority}
                     onReset={resetCategories}
                   />
                 </motion.div>
