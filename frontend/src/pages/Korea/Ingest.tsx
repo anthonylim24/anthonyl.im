@@ -664,7 +664,7 @@ function EmptyExtractionPanel({ preview }: { preview: PostPreview }) {
           {preview.caption && (
             <details className="mt-2 group">
               <summary className="cursor-pointer text-[11px] font-medium uppercase tracking-wide text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200">
-                Caption ({preview.caption_truncated ? '500+' : preview.caption.length} chars)
+                Caption ({preview.caption.length} chars)
               </summary>
               <p className="mt-1.5 whitespace-pre-wrap break-words rounded-md bg-white/70 px-2.5 py-2 text-[12px] leading-relaxed text-stone-700 dark:bg-stone-900/40 dark:text-stone-200">
                 {preview.caption}{preview.caption_truncated && '…'}
@@ -675,7 +675,7 @@ function EmptyExtractionPanel({ preview }: { preview: PostPreview }) {
           {preview.transcript && (
             <details className="mt-2 group">
               <summary className="cursor-pointer text-[11px] font-medium uppercase tracking-wide text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200">
-                Transcript ({preview.transcript_truncated ? '800+' : preview.transcript.length} chars)
+                Transcript ({preview.transcript_truncated ? '5000+' : preview.transcript.length} chars)
               </summary>
               <p className="mt-1.5 whitespace-pre-wrap break-words rounded-md bg-white/70 px-2.5 py-2 text-[12px] leading-relaxed text-stone-700 dark:bg-stone-900/40 dark:text-stone-200">
                 {preview.transcript}{preview.transcript_truncated && '…'}
@@ -1098,9 +1098,13 @@ function IngestImpl() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
-      {/* Page header */}
+      {/* Page header — no entry animation: motion-12 + react-19 can stall
+          opacity-0 mounts under tab-restore / fast-paint conditions, and a
+          blank header with the rest of the page hidden behind it is worse
+          than no animation. Per-card animations below are fine since one
+          stalled card is unnoticeable. */}
       <motion.header
-        initial={reduce ? false : { opacity: 0, y: 8 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
       >
@@ -1164,7 +1168,7 @@ function IngestImpl() {
       {/* Submission form */}
       <motion.section
         aria-label="Submit new URL"
-        initial={reduce ? false : { opacity: 0, y: 6 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1], delay: reduce ? 0 : 0.05 }}
         className="mt-8"

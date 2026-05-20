@@ -403,14 +403,16 @@ export async function listJobsForUser(userId: string, limit = 20) {
       ...j,
       places: j.post_id != null ? (placesByPost[j.post_id] ?? []) : [],
       logs: logsByJob[j.id] ?? [],
-      // Trim large strings so the polling payload stays small but the user
-      // can see what the LLM was looking at. Truncated previews are clearly
-      // marked client-side.
+      // Preview the same caption + transcript the LLM saw, so the user can
+      // verify what the model was looking at. Instagram caps captions at
+      // 2200 chars; transcripts can be long for multi-minute reels, so we
+      // still cap transcript previews to keep the polling payload reasonable.
+      // (The full transcript is still what the LLM extracted from.)
       post_preview: post ? {
-        caption: post.caption ? post.caption.slice(0, 500) : null,
-        caption_truncated: !!post.caption && post.caption.length > 500,
-        transcript: post.transcript ? post.transcript.slice(0, 800) : null,
-        transcript_truncated: !!post.transcript && post.transcript.length > 800,
+        caption: post.caption ?? null,
+        caption_truncated: false,
+        transcript: post.transcript ? post.transcript.slice(0, 5000) : null,
+        transcript_truncated: !!post.transcript && post.transcript.length > 5000,
         has_ocr: !!post.ocr_text,
         location_tag: post.location_tag,
       } : null,
