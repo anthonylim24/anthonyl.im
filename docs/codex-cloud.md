@@ -11,7 +11,7 @@ In Codex web, create an environment for `anthonylim24/anthonyl.im` and set:
 - **Maintenance script:** `bash .codex/maintenance.sh`
 - **Internet access:** setup needs internet for Bun and dependency installs. Agent-phase internet can stay off unless a task explicitly needs docs or external APIs.
 
-Codex setup scripts run in a separate Bash session, so `.codex/setup.sh` also writes the Bun path and nvm loader to `~/.bashrc`.
+Codex setup scripts run in a separate Bash session, so `.codex/setup.sh` also writes the Bun path and nvm loader to `~/.bashrc`. The scripts force Bun/npm to use `https://registry.npmjs.org/` so an inherited private `.npmrc` does not send public package installs to a registry that returns HTTP 403.
 
 ## Safe Default Environment
 
@@ -35,12 +35,12 @@ Do not put production secrets in these files. For tasks that genuinely need live
 Setup installs both dependency roots with lockfile enforcement:
 
 ```bash
-bun install --frozen-lockfile
+bun install --frozen-lockfile --registry=https://registry.npmjs.org/
 cd frontend
-bun install --frozen-lockfile
+bun install --frozen-lockfile --registry=https://registry.npmjs.org/
 ```
 
-The maintenance script repeats the same installs when Codex resumes a cached container on a newer branch.
+The setup script also verifies that representative root and frontend packages resolve after install. The maintenance script repeats the same installs when Codex resumes a cached container on a newer branch. If dependencies are missing when `codex:dev` or `codex:check` runs, those commands invoke maintenance before building, which catches the "missing react/vite/types" failure before TypeScript emits a wall of missing-module errors.
 
 ## Running Dev Servers
 

@@ -6,6 +6,9 @@ BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
 export BUN_INSTALL
 export PATH="$BUN_INSTALL/bin:$PATH"
 
+# shellcheck source=.codex/lib.sh
+source "$ROOT_DIR/.codex/lib.sh"
+
 if [ -f "$ROOT_DIR/.nvmrc" ] && [ -s "$HOME/.nvm/nvm.sh" ]; then
   # shellcheck disable=SC1091
   source "$HOME/.nvm/nvm.sh"
@@ -27,12 +30,6 @@ if [ ! -f "$ROOT_DIR/frontend/.env.local" ]; then
   cp "$ROOT_DIR/.codex/frontend.env.local.example" "$ROOT_DIR/frontend/.env.local"
 fi
 
-cd "$ROOT_DIR"
-echo "[codex-maintenance] refreshing root dependencies"
-bun install --frozen-lockfile
-
-cd "$ROOT_DIR/frontend"
-echo "[codex-maintenance] refreshing frontend dependencies"
-bun install --frozen-lockfile
+install_dependency_roots
 
 echo "[codex-maintenance] ready"

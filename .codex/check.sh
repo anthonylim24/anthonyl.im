@@ -6,6 +6,9 @@ BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
 export BUN_INSTALL
 export PATH="$BUN_INSTALL/bin:$PATH"
 
+# shellcheck source=.codex/lib.sh
+source "$ROOT_DIR/.codex/lib.sh"
+
 if [ -f "$ROOT_DIR/.nvmrc" ] && [ -s "$HOME/.nvm/nvm.sh" ]; then
   # shellcheck disable=SC1091
   source "$HOME/.nvm/nvm.sh"
@@ -24,6 +27,8 @@ if ! command -v bun >/dev/null 2>&1; then
   echo "[codex-check] ERROR: bun is not on PATH. Run .codex/setup.sh first." >&2
   exit 1
 fi
+
+ensure_dependencies
 
 cd "$ROOT_DIR"
 echo "[codex-check] running server tests"
