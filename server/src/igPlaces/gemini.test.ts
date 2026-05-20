@@ -1,5 +1,5 @@
 import { test, expect, describe, mock } from 'bun:test';
-import { createGeminiExtractor, createGeminiVideoTranscriber } from './gemini';
+import { createGeminiExtractor, createGeminiVideoAnalyzer, createGeminiVideoTranscriber } from './gemini';
 import type { ExtractionBundle } from './types';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -137,6 +137,89 @@ describe('createGeminiVideoTranscriber', () => {
       const result = await transcriber(path);
       expect(result).toBe('spoken transcript here.');
       expect(pollCount).toBeGreaterThanOrEqual(1);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('analyzer: returns transcript + ocrText + places in one call', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gemini-test-'));
+    const path = join(dir, 'video.mp4');
+    await writeFile(path, new Uint8Array(128));
+    try {
+      const analyzerResponse = {
+        transcript: 'Hannam-dong Hanbang Tongdak — best chicken in Seoul.',
+        ocrText: '한남동한방통닭\n12 Daesagwan-ro 34-gil',
+        places: [{
+          name: 'Hanbang Tongdak',
+          name_romanized: '한남동한방통닭',
+          city: 'Seoul',
+          address: '12 Daesagwan-ro 34-gil, Yongsan District, Seoul',
+          category: 'restaurant',
+          confidence: 0.95,
+          is_subject: true,
+          supporting_quote: '한남동한방통닭',
+          signal_source: 'caption',
+        }],
+      };
+      let capturedBody: any = null;
+      const fetch = mock(async (input: string, init?: RequestInit) => {
+        const url = typeof input === 'string' ? input : (input as Request).url;
+        if (url.endsWith('/upload/v1beta/files') && init?.method === 'POST') {
+          return new Response(null, { status: 200, headers: { 'x-goog-upload-url': 'https://upload.example/u3' } });
+        }
+        if (url === 'https://upload.example/u3') {
+          return new Response(JSON.stringify({ file: { name: 'files/y', uri: 'gs://y', state: 'ACTIVE' } }), { status: 200 });
+        }
+        if (url.endsWith(':generateContent')) {
+          if (init?.body) capturedBody = JSON.parse(init.body as string);
+          return new Response(JSON.stringify({
+            candidates: [{ content: { parts: [{ text: JSON.stringify(analyzerResponse) }] } }],
+          }), { status: 200 });
+        }
+        throw new Error(`unexpected: ${url}`);
+      }) as unknown as typeof globalThis.fetch;
+
+      const analyze = createGeminiVideoAnalyzer({ apiKey: 'k', fetch });
+      const post = { shortcode: 'abc', url: 'https://x', caption: 'cap', mediaItems: [{ type: 'video' as const, url: 'x' }], source: 'apify' as const };
+      const result = await analyze(post, path);
+      expect(result.transcript).toContain('Hannam-dong');
+      expect(result.ocrText).toContain('한남동한방통닭');
+      expect(result.places.length).toBe(1);
+      expect(result.places[0].confidence_band).toBe('high');
+      // Maps grounding tool MUST be enabled
+      expect(capturedBody.tools).toEqual([{ googleMaps: {} }]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('analyzer: returns empty result if Gemini output is non-JSON', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'gemini-test-'));
+    const path = join(dir, 'video.mp4');
+    await writeFile(path, new Uint8Array(64));
+    try {
+      const fetch = mock(async (input: string, init?: RequestInit) => {
+        const url = typeof input === 'string' ? input : (input as Request).url;
+        if (url.endsWith('/upload/v1beta/files') && init?.method === 'POST') {
+          return new Response(null, { status: 200, headers: { 'x-goog-upload-url': 'https://upload.example/u4' } });
+        }
+        if (url === 'https://upload.example/u4') {
+          return new Response(JSON.stringify({ file: { name: 'files/z', uri: 'gs://z', state: 'ACTIVE' } }), { status: 200 });
+        }
+        if (url.endsWith(':generateContent')) {
+          return new Response(JSON.stringify({
+            candidates: [{ content: { parts: [{ text: 'no JSON here' }] } }],
+          }), { status: 200 });
+        }
+        throw new Error(`unexpected: ${url}`);
+      }) as unknown as typeof globalThis.fetch;
+      const analyze = createGeminiVideoAnalyzer({ apiKey: 'k', fetch });
+      const post = { shortcode: 'abc', url: 'https://x', caption: '', mediaItems: [{ type: 'video' as const, url: 'x' }], source: 'apify' as const };
+      const result = await analyze(post, path);
+      expect(result.places).toEqual([]);
+      expect(result.transcript).toBe('');
+      expect(result.ocrText).toBe('');
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
