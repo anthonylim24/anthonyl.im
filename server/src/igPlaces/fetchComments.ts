@@ -14,10 +14,6 @@ export interface IgComment {
   repliesCount?: number;
 }
 
-/** @deprecated Use IgComment. Alias retained for one release while existing
- *  imports are migrated. */
-export type ApifyComment = IgComment;
-
 export interface FetchCommentsDeps {
   fetch?: typeof fetch;
   brightDataApiKey: string | undefined;
@@ -55,7 +51,9 @@ export function createCommentsFetcher(deps: FetchCommentsDeps): CommentsFetcher 
           'Content-Type': 'application/json',
         },
         body: JSON.stringify([{ url: igUrl }]),
-        signal: opts.signal,
+        // 3-min default cap so a hung Bright Data response can't pin a worker
+        // job indefinitely; mirrors tryBrightData's timeout in fetchPost.ts.
+        signal: opts.signal ?? AbortSignal.timeout(180_000),
       });
     if (r.status === 429) throw new RetryableError('bright-data comments rate-limited', 300_000);
     if (!r.ok) {

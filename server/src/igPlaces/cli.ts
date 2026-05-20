@@ -42,7 +42,7 @@ async function main() {
   if (!config.groqApiKey) throw new Error('GROQ_API_KEY required');
 
   const groq = new Groq({ apiKey: config.groqApiKey });
-  const fetchPost = createFetchPost({ apifyToken: config.apifyToken });
+  const fetchPost = createFetchPost({ brightDataApiKey: config.brightDataApiKey });
   const transcribe = createTranscriber({ groq });
   const extractFrames = createFrameExtractor();
   const ocr = createOcr({ apiKey: config.googleVisionApiKey ?? '' });

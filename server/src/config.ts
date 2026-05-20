@@ -19,11 +19,9 @@ export const config = {
   // with Maps grounding), and (b) video transcription fallback when Groq Whisper
   // returns 429 (gemini-3.5-flash via the Files API).
   geminiApiKey: process.env.GEMINI_API_KEY,
-  // Bright Data Web Scraper API — replaces APIFY_TOKEN. Used for the
-  // initial Instagram post metadata fetch (caption + videoUrl + locationTag
-  // via dataset gd_lk5ns7kz21pck8jpis) and the comments fallback
-  // (gd_ltppn085pokosxh13). Synchronous /datasets/v3/scrape endpoint —
-  // returns results in a single HTTP round-trip.
+  // Bright Data Web Scraper API — initial Instagram post metadata fetch
+  // (caption + videoUrl + locationTag) + comments fallback. Synchronous
+  // /datasets/v3/scrape endpoint, one HTTP round-trip per call.
   brightDataApiKey: process.env.BRIGHT_DATA_API_KEY,
   googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY,
   googleVisionApiKey: process.env.GOOGLE_VISION_API_KEY ?? process.env.GOOGLE_MAPS_API_KEY,
@@ -47,7 +45,7 @@ for (const v of requiredAlways) {
 }
 
 if (config.igWorkerEnabled) {
-  const required = ['APIFY_TOKEN', 'GOOGLE_MAPS_API_KEY', 'GROQ_API_KEY', 'CLERK_SECRET_KEY',
+  const required = ['BRIGHT_DATA_API_KEY', 'GOOGLE_MAPS_API_KEY', 'GROQ_API_KEY', 'CLERK_SECRET_KEY',
                     'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'] as const;
   for (const v of required) {
     if (!process.env[v] && !(v === 'SUPABASE_URL' && process.env.VITE_SUPABASE_URL)) {
