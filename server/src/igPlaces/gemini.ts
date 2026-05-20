@@ -29,6 +29,28 @@ const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
  *  factories still work if a specific surface needs a different tier. */
 export const GEMINI_MODEL = 'gemini-3.1-flash-lite';
 
+/** Status codes Google documents as transient on Generative Language API.
+ *  https://ai.google.dev/gemini-api/docs/troubleshooting */
+const TRANSIENT_5XX = new Set([500, 502, 503, 504]);
+
+/** Wraps a generateContent fetch with one retry on transient 5xx. Google's
+ *  own "Internal error encountered" 500 is intermittent and the recommended
+ *  client behavior is a short backoff + retry rather than failing through
+ *  to a slower backup. 429 is NOT retried here — the caller maps it to a
+ *  RetryableError so the worker requeues the whole job. */
+async function fetchGeminiGenerate(
+  f: typeof fetch,
+  url: string,
+  init: RequestInit,
+): Promise<Response> {
+  const first = await f(url, init);
+  if (!TRANSIENT_5XX.has(first.status)) return first;
+  // Drain the first body so the socket can be reused, then back off briefly.
+  await first.text().catch(() => {});
+  await new Promise((r) => setTimeout(r, 1500));
+  return f(url, init);
+}
+
 export interface GeminiExtractorDeps {
   apiKey: string;
   model?: string;
@@ -49,7 +71,7 @@ export function createGeminiExtractor(deps: GeminiExtractorDeps): GeminiExtracto
   const model = deps.model ?? GEMINI_MODEL;
   return async (bundle) => {
     const userMsg = renderBundle(bundle);
-    const r = await f(`${GEMINI_BASE}/models/${model}:generateContent`, {
+    const r = await fetchGeminiGenerate(f, `${GEMINI_BASE}/models/${model}:generateContent`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -163,7 +185,7 @@ export function createGeminiVideoTranscriber(deps: GeminiVideoTranscriberDeps): 
   return async (videoPath, signal) => {
     const fileUri = await uploadFile(deps.apiKey, videoPath, 'video/mp4', f, signal);
 
-    const r = await f(`${GEMINI_BASE}/models/${model}:generateContent`, {
+    const r = await fetchGeminiGenerate(f, `${GEMINI_BASE}/models/${model}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': deps.apiKey },
       body: JSON.stringify({
@@ -302,7 +324,7 @@ export function createGeminiVideoAnalyzer(deps: GeminiVideoAnalyzerDeps): Gemini
     const fileUri = await uploadFile(deps.apiKey, videoPath, 'video/mp4', f, signal);
 
     const prompt = buildAnalyzerPrompt(post);
-    const r = await f(`${GEMINI_BASE}/models/${model}:generateContent`, {
+    const r = await fetchGeminiGenerate(f, `${GEMINI_BASE}/models/${model}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': deps.apiKey },
       body: JSON.stringify({
