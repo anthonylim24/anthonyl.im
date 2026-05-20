@@ -4,8 +4,6 @@ import type { ExtractionBundle, RawExtractedPlace, VotedPlace, IgSignalSource } 
 import { RetryableError } from './types';
 import { canonicalize, levenshteinDistance, fuzzyEq as _fuzzyEq } from './textMatch';
 export { canonicalize, levenshteinDistance };
-/** @deprecated Use levenshteinDistance from textMatch.ts */
-export const levenshteinNormalized = levenshteinDistance;
 
 export const SYSTEM_PROMPT = `You extract real-world places from a social-media post about Korea.
 

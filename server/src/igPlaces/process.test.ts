@@ -2,7 +2,7 @@
 import { test, expect, describe, mock } from 'bun:test';
 import { createProcessor } from './process';
 import type { PostPayload, VotedPlace, EnrichedPlace } from './types';
-import type { ApifyComment } from './fetchComments';
+import type { IgComment } from './fetchComments';
 
 const payload: PostPayload = {
   shortcode: 'A', caption: 'cap', mediaItems: [{ type: 'image', url: 'i.jpg' }],
@@ -92,7 +92,7 @@ describe('process', () => {
       ...payload,
       url: 'https://www.instagram.com/p/DX0KioDtDz_/',
     };
-    const comments: ApifyComment[] = [
+    const comments: IgComment[] = [
       { id: '1', text: 'Food section at the basement of Hyundai dept store (Gangnam) was a solid 10/10 too', ownerUsername: 'user1', likesCount: 160 },
     ];
     const fetchComments = mock(async () => comments);
@@ -211,7 +211,7 @@ describe('process', () => {
 
   test('comment fallback: empty comments array → no second extract', async () => {
     const payloadWithUrl: PostPayload = { ...payload, url: 'https://www.instagram.com/p/abc/' };
-    const fetchComments = mock(async () => [] as ApifyComment[]);
+    const fetchComments = mock(async () => [] as IgComment[]);
     let extractCallCount = 0;
     const extract = mock(async () => { extractCallCount++; return []; });
     const proc = createProcessor({

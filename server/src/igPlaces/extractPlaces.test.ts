@@ -1,6 +1,6 @@
 // server/src/igPlaces/extractPlaces.test.ts
 import { test, expect, describe, mock } from 'bun:test';
-import { createExtractor, levenshteinNormalized, canonicalize, voteMerge } from './extractPlaces';
+import { createExtractor, levenshteinDistance, canonicalize, voteMerge } from './extractPlaces';
 import type { RawExtractedPlace, ExtractionBundle } from './types';
 
 const placeFactory = (over: Partial<RawExtractedPlace> = {}): RawExtractedPlace => ({
@@ -16,12 +16,12 @@ describe('canonicalize', () => {
   });
 });
 
-describe('levenshteinNormalized', () => {
+describe('levenshteinDistance', () => {
   test('exact match → 0', () => {
-    expect(levenshteinNormalized('abc', 'abc')).toBe(0);
+    expect(levenshteinDistance('abc', 'abc')).toBe(0);
   });
   test('off by one', () => {
-    expect(levenshteinNormalized('abc', 'abd')).toBe(1);
+    expect(levenshteinDistance('abc', 'abd')).toBe(1);
   });
 });
 

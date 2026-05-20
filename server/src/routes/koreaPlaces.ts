@@ -159,7 +159,6 @@ function rankDayPlaces(slug: string): RankedPlace[] {
   // 4. Scan section bullets and theme text for any matched place → "core" if
   //    the place appears in a bullet, otherwise "supplemental".
   const sectionText = day.sections.flatMap((s) => [s.heading, ...s.bullets]).join(" \n ")
-  const themeText = day.theme + " " + day.callouts?.map((c) => c.body).join(" ")
   const bulletHits = new Map<string, string>()
 
   for (const place of koreaPlaces) {
@@ -196,7 +195,6 @@ function rankDayPlaces(slug: string): RankedPlace[] {
     if (out.length > 30) break
   }
 
-  void themeText
   return out
 }
 
