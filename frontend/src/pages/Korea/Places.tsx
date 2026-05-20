@@ -419,9 +419,9 @@ function PlacesImpl() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
-      {/* Page header */}
+      {/* Page header — see Ingest.tsx note on initial={false}. */}
       <motion.header
-        initial={reduce ? false : { opacity: 0, y: 8 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
       >
@@ -489,7 +489,7 @@ function PlacesImpl() {
       {/* Filter chips */}
       <motion.section
         aria-label="Filter by category and confidence"
-        initial={reduce ? false : { opacity: 0, y: 4 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1], delay: reduce ? 0 : 0.05 }}
         className="mt-5 space-y-2.5"
