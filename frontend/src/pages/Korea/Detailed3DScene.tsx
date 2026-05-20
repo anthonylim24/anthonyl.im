@@ -252,6 +252,9 @@ export function Detailed3DScene({
     const neighborhoodMeshes: NeighborhoodMesh[] = []
     if (neighborhoods && neighborhoods.length > 0) {
       for (const n of neighborhoods) {
+        // Defensive: old API responses or partial cached entries can land
+        // here without a polygon field. Skip rather than crash.
+        if (!n.polygon || n.polygon.length < 4) continue
         // Convert ring [lng, lat][] → scene-XZ Vector2[] (we drop the
         // closing duplicate vertex — ShapeUtils handles open contours).
         const contour: Vector2[] = []
@@ -279,7 +282,11 @@ export function Detailed3DScene({
         for (let i = 0; i < contour.length; i++) {
           const v = contour[i]
           positions[i * 3 + 0] = v.x
-          positions[i * 3 + 1] = 2 // initial flat-ground guess
+          // Initial Y sits well ABOVE the typical Seoul terrain (Namsan
+          // peaks at ~250m above the user anchor) so the polygon is
+          // visible from frame 1. The per-tick raycast then pulls each
+          // vertex down to terrain_y + 1.5 as tiles stream in.
+          positions[i * 3 + 1] = 500
           positions[i * 3 + 2] = v.y
           worldXZ.push({ x: v.x, z: v.y })
         }
@@ -298,15 +305,18 @@ export function Detailed3DScene({
           new MeshBasicMaterial({
             color: 0xf43f5e,
             transparent: true,
-            opacity: 0.22,
+            opacity: 0.30,
+            // Don't write to depth so building tops in nearby tiles still
+            // sort above the polygon. depthTest stays ON so the polygon
+            // doesn't draw through unrelated geometry.
             depthWrite: false,
             side: 2, // DoubleSide
           }),
         )
-        // Render BEFORE the photorealistic tiles do their alpha pass so
-        // the highlight reads as a ground stain, with the place orbs
-        // (renderOrder default 0) punching through cleanly.
-        mesh.renderOrder = -1
+        // renderOrder > 0 keeps the highlight visible even before tile
+        // raycasts pull vertices down to the terrain — otherwise the
+        // tile drawn-on-top hides the floating polygon.
+        mesh.renderOrder = 1
         scene.add(mesh)
         neighborhoodMeshes.push({
           mesh,
