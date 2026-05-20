@@ -11,15 +11,20 @@ import { Navigation, ExternalLink, X, Share2, Footprints, ChevronUp, ChevronDown
 import { IgIcon } from "./IgIcon"
 import type { RankedPlace } from "./mapModeTypes"
 import { lookupGooglePlacePhoto, lookupPhoto, formatWalkingTime } from "./placePhoto"
+import { useNeighborhoodLabel } from "./allKoreaDongs"
+
+type SheetMode = "compact" | "expanded"
 
 interface PlaceDetailSheetProps {
   place: RankedPlace
   onClose: () => void
   userLat?: number
   userLng?: number
+  /** Initial mode the sheet opens in. Default "compact" so the orb focus
+   *  state stays visible; the list view passes "expanded" since there's
+   *  no focus state behind it to preserve. */
+  initialMode?: SheetMode
 }
-
-type SheetMode = "compact" | "expanded"
 
 // Sheet heights — compact peeks just enough to preserve the Map Mode
 // focus state (line + distance + dim) above; expanded reclaims most of
@@ -29,22 +34,23 @@ const SHEET_MAX_HEIGHT = {
   expanded: "78vh",
 } as const
 
-export function PlaceDetailSheet({ place, onClose, userLat, userLng }: PlaceDetailSheetProps) {
+export function PlaceDetailSheet({ place, onClose, userLat, userLng, initialMode = "compact" }: PlaceDetailSheetProps) {
   const reduce = useReducedMotion()
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const [photoLoading, setPhotoLoading] = useState(true)
   const [photoFailed, setPhotoFailed] = useState(false)
   const [shared, setShared] = useState(false)
-  // Sheet always opens in the compact peek so the focus mode (the line
-  // + distance + dim built in MapModeScene) stays visible above. The
-  // user explicitly expands to view full details.
-  const [mode, setMode] = useState<SheetMode>("compact")
+  // Sheet opens in the initialMode the caller chose: "compact" (default)
+  // so the orb focus state stays visible above the peek; "expanded" when
+  // the selection came from the list view, where there's no focus state
+  // behind the sheet to preserve.
+  const [mode, setMode] = useState<SheetMode>(initialMode)
 
   // Reset mode when a new place is selected — the user's previous
-  // "expanded" state shouldn't leak across selections.
+  // expanded/compact state shouldn't leak across selections.
   useEffect(() => {
-    setMode("compact")
-  }, [place.id])
+    setMode(initialMode)
+  }, [place.id, initialMode])
 
   // ── Drag-to-close / drag-to-collapse ─────────────────────────────────
   //
@@ -91,6 +97,9 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng }: PlaceDeta
   }
 
   const walking = useMemo(() => formatWalkingTime(place.distanceMeters), [place.distanceMeters])
+  // Dong-level neighborhood (e.g. "강남구 압구정동"). Resolved from the
+  // place's lat/lng via the all-Seoul+Busan dong dataset.
+  const placeNeighborhood = useNeighborhoodLabel(place.lat, place.lng)
 
   // Photo lookup cascade. Google Places is the primary source (real
   // user-submitted photos of the actual business); Wikipedia is the
@@ -334,6 +343,7 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng }: PlaceDeta
 
             {/* Meta rows */}
             <div className="mt-4 space-y-2.5">
+              {placeNeighborhood && <Row icon="🧭" label="Neighborhood" value={placeNeighborhood} />}
               {place.address && <Row icon="📍" label="Address" value={place.address} />}
               {place.openingHours && <Row icon="🕒" label="Hours" value={place.openingHours} />}
               {place.notice && (

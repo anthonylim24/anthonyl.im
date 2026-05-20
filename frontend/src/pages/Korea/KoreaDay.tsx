@@ -52,6 +52,9 @@ export function KoreaDay() {
   const dayState = useKoreaDay(slug)
   const reduce = useReducedMotion()
   const [mapModeOpen, setMapModeOpen] = useState(false)
+  // Place id Map Mode should auto-focus on when next opened. Set by
+  // clicking an Instagram save card; cleared on close.
+  const [mapModeFocusId, setMapModeFocusId] = useState<string | undefined>(undefined)
   const igSaves = useDayIgSaves(slug)
 
   // Derive prev/next early so the keyboard handler in useEffect has access to
@@ -213,7 +216,11 @@ export function KoreaDay() {
             <MapModeOverlay
               daySlug={day.slug}
               dayTitle={day.title}
-              onClose={() => setMapModeOpen(false)}
+              onClose={() => {
+                setMapModeOpen(false)
+                setMapModeFocusId(undefined)
+              }}
+              initialFocusPlaceId={mapModeFocusId}
             />
           </Suspense>
         )}
@@ -234,7 +241,14 @@ export function KoreaDay() {
           <DaySection number={reservations.length > 0 ? "02" : "01"} eyebrow="From your Instagram saves" title="Instagram Saves" id="ig-saves">
             <div className="mt-6 space-y-3">
               {igSaves.map((save) => (
-                <IgSaveCard key={save.id} save={save} />
+                <IgSaveCard
+                  key={save.id}
+                  save={save}
+                  onOpenInMap={() => {
+                    setMapModeFocusId(`ig-${save.id}`)
+                    setMapModeOpen(true)
+                  }}
+                />
               ))}
             </div>
           </DaySection>
@@ -434,63 +448,100 @@ function DayMetaRow({
   )
 }
 
-function IgSaveCard({ save }: { save: IgSave }) {
+function IgSaveCard({ save, onOpenInMap }: { save: IgSave; onOpenInMap: () => void }) {
   const BAND_STYLES: Record<IgSave["confidence_band"], string> = {
     high: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400",
     medium: "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400",
     low: "bg-stone-100 text-stone-500 dark:bg-stone-800 dark:text-stone-400",
   }
+  // Geocoded saves can be focused in Map Mode. Saves without coords
+  // don't have a 3D bubble to fly to, so we render them as a static
+  // article instead of a button.
+  const hasCoords = save.lat != null && save.lng != null
 
-  return (
-    <article
-      className="flex flex-wrap items-start gap-3 rounded-2xl border border-stone-200/80 bg-white/80 p-4 dark:border-stone-800/80 dark:bg-stone-900/60"
-      aria-label={`Instagram save: ${save.name}`}
-    >
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1">
-          <h3
-            className="break-words text-[15px] font-medium leading-snug text-stone-900 dark:text-stone-100"
-            style={{ fontFamily: "'Cormorant Garamond', serif" }}
-          >
-            {save.name}
-          </h3>
-          <a
-            href={save.instagramUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={`View ${save.name} on Instagram (opens in new tab)`}
-            className="inline-flex items-center text-stone-400 transition hover:text-rose-600 dark:text-stone-500 dark:hover:text-rose-400"
-          >
-            <IgIcon className="h-3.5 w-3.5" aria-hidden />
-          </a>
-        </div>
-        {save.name_romanized && save.name_romanized !== save.name && (
-          <p className="mt-0.5 text-[12px] text-stone-500 dark:text-stone-400">{save.name_romanized}</p>
-        )}
-        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-          <span className="inline-flex items-center rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-stone-600 dark:bg-stone-800 dark:text-stone-400">
-            {save.category}
-          </span>
-          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${BAND_STYLES[save.confidence_band]}`}>
-            {save.confidence_band} confidence
-          </span>
-          {save.ownerUsername && (
-            <span className="text-[11px] text-stone-400 dark:text-stone-500">@{save.ownerUsername}</span>
-          )}
-        </div>
-        {save.address && (
-          <p className="mt-2 flex items-start gap-1.5 text-[12px] text-stone-600 dark:text-stone-400">
-            <MapPin className="mt-0.5 h-3 w-3 shrink-0 text-stone-400" aria-hidden />
-            <span className="break-words">{save.address}</span>
-          </p>
-        )}
-        {save.captionSnippet && (
-          <p className="mt-2 line-clamp-2 text-[12px] italic leading-relaxed text-stone-500 dark:text-stone-400">
-            "{save.captionSnippet}"
-          </p>
+  const inner = (
+    <div className="min-w-0 flex-1 text-left">
+      <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1">
+        <h3
+          className="break-words text-[15px] font-medium leading-snug text-stone-900 dark:text-stone-100"
+          style={{ fontFamily: "'Cormorant Garamond', serif" }}
+        >
+          {save.name}
+        </h3>
+        <a
+          href={save.instagramUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`View ${save.name} on Instagram (opens in new tab)`}
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center text-stone-400 transition hover:text-rose-600 dark:text-stone-500 dark:hover:text-rose-400"
+        >
+          <IgIcon className="h-3.5 w-3.5" aria-hidden />
+        </a>
+      </div>
+      {save.name_romanized && save.name_romanized !== save.name && (
+        <p className="mt-0.5 text-[12px] text-stone-500 dark:text-stone-400">{save.name_romanized}</p>
+      )}
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <span className="inline-flex items-center rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-stone-600 dark:bg-stone-800 dark:text-stone-400">
+          {save.category}
+        </span>
+        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${BAND_STYLES[save.confidence_band]}`}>
+          {save.confidence_band} confidence
+        </span>
+        {save.ownerUsername && (
+          <span className="text-[11px] text-stone-400 dark:text-stone-500">@{save.ownerUsername}</span>
         )}
       </div>
-    </article>
+      {save.address && (
+        <p className="mt-2 flex items-start gap-1.5 text-[12px] text-stone-600 dark:text-stone-400">
+          <MapPin className="mt-0.5 h-3 w-3 shrink-0 text-stone-400" aria-hidden />
+          <span className="break-words">{save.address}</span>
+        </p>
+      )}
+      {save.captionSnippet && (
+        <p className="mt-2 line-clamp-2 text-[12px] italic leading-relaxed text-stone-500 dark:text-stone-400">
+          "{save.captionSnippet}"
+        </p>
+      )}
+      {hasCoords && (
+        <p className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-rose-600 transition group-hover:gap-1.5 dark:text-rose-400">
+          <Globe2 className="h-3 w-3" aria-hidden />
+          Open in Map Mode
+        </p>
+      )}
+    </div>
+  )
+
+  if (!hasCoords) {
+    return (
+      <article
+        className="flex flex-wrap items-start gap-3 rounded-2xl border border-stone-200/80 bg-white/80 p-4 dark:border-stone-800/80 dark:bg-stone-900/60"
+        aria-label={`Instagram save: ${save.name}`}
+      >
+        {inner}
+      </article>
+    )
+  }
+
+  // role="button" instead of <button> so the nested Instagram <a>
+  // remains valid (anchors aren't allowed inside button elements).
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onOpenInMap}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          onOpenInMap()
+        }
+      }}
+      aria-label={`Open ${save.name} in Map Mode`}
+      className="group flex w-full flex-wrap items-start gap-3 rounded-2xl border border-stone-200/80 bg-white/80 p-4 text-left transition hover:border-rose-300 hover:bg-rose-50/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 dark:border-stone-800/80 dark:bg-stone-900/60 dark:hover:border-rose-800 dark:hover:bg-rose-950/20"
+    >
+      {inner}
+    </div>
   )
 }
 

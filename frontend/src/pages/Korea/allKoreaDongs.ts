@@ -1,5 +1,6 @@
 // Lazy loader + hit-tester for the every-dong-in-Seoul-and-Busan
-// dataset that powers the Map Mode neighborhood tooltip.
+// dataset. Powers the current-location and per-place neighborhood
+// labels in Map Mode and the detail sheet.
 //
 // The data file (~84 KB gzipped) is served by GET /api/korea/dongs with
 // a year-long immutable Cache-Control header. We fetch it the first time
@@ -87,4 +88,37 @@ export function namesAtLngLat(dongs: Dong[], lng: number, lat: number): string[]
     if (pointInRing(lng, lat, d.p)) out.push(d.n)
   }
   return out
+}
+
+// ── React hook ───────────────────────────────────────────────────────
+import { useEffect, useState } from "react"
+
+/** Returns the dong dataset, lazily loaded on first call. Returns null
+ *  while in-flight (or if the fetch failed); shares the module-level
+ *  cache so additional callers don't trigger another fetch. */
+export function useAllKoreaDongs(): Dong[] | null {
+  // Lazy initializer reads the module-level cache, so a remount after
+  // first load returns immediately with the dataset.
+  const [dongs, setDongs] = useState<Dong[] | null>(() => cache)
+  useEffect(() => {
+    if (cache) return
+    let cancelled = false
+    void loadAllKoreaDongs().then((d) => {
+      if (!cancelled) setDongs(d)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  return dongs
+}
+
+/** Resolve a lat/lng to a single neighborhood label, or null when the
+ *  dongs haven't loaded yet / the point isn't inside the Seoul+Busan
+ *  coverage. Joins multiple-polygon hits with " · ". */
+export function useNeighborhoodLabel(lat: number | undefined, lng: number | undefined): string | null {
+  const dongs = useAllKoreaDongs()
+  if (!dongs || lat == null || lng == null) return null
+  const names = namesAtLngLat(dongs, lng, lat)
+  return names.length ? names.join(" · ") : null
 }

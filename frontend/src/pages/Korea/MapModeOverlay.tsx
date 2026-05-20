@@ -13,6 +13,7 @@ const Detailed3DScene = lazy(() =>
 import { MapModeFallbackList } from "./MapModeFallbackList"
 import { MapModeFilterBar } from "./MapModeFilterBar"
 import { PlaceDetailSheet } from "./PlaceDetailSheet"
+import { useNeighborhoodLabel } from "./allKoreaDongs"
 import type { PlacePriority, PlacesResponse, RankedPlace, UserLocation } from "./mapModeTypes"
 
 
@@ -39,6 +40,11 @@ interface MapModeOverlayProps {
   daySlug: string
   dayTitle: string
   onClose: () => void
+  /** When set, the overlay auto-selects this place once the day's
+   *  places have loaded — entering focus mode on it. Used by the
+   *  itinerary's Instagram Saves cards to deep-link into Map Mode
+   *  centered on a specific save. */
+  initialFocusPlaceId?: string
 }
 
 type LoadState =
@@ -47,7 +53,7 @@ type LoadState =
   | { status: "success"; data: PlacesResponse }
   | { status: "error"; message: string }
 
-export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayProps) {
+export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId }: MapModeOverlayProps) {
   const reduce = useReducedMotion()
   const getToken = useGetToken()
   const [testMode, setTestMode] = useState(false)
@@ -65,7 +71,34 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
   const debugRef = useRef<HTMLDivElement>(null)
   const [state, setState] = useState<LoadState>({ status: "loading" })
   const [selected, setSelected] = useState<RankedPlace | null>(null)
+  // Sheet open-mode: list-view selections open the sheet expanded (no
+  // orb focus state behind it to preserve); 3D-scene selections open
+  // compact so the focus line stays visible.
+  const [sheetInitialMode, setSheetInitialMode] = useState<"compact" | "expanded">("compact")
   const [webglFailed, setWebglFailed] = useState<boolean>(() => !isWebglSupported())
+  // Reverse-geocode the user's current location to a dong label
+  // (e.g. "강남구 압구정동"). Surfaces beneath the city label in the
+  // location pill. Null until the dongs data has loaded.
+  const userNeighborhood = useNeighborhoodLabel(location?.lat, location?.lng)
+
+  // Deep-link focus: when the parent opened Map Mode with a target
+  // place id (e.g. clicking an Instagram save card on the itinerary),
+  // auto-select it once the day's places have loaded. The 3D scene
+  // animates the camera into focus mode via its selectedId prop. We
+  // honor the focus id exactly once per overlay mount so re-renders
+  // don't re-snap to it after the user has navigated away.
+  const honoredFocusRef = useRef(false)
+  useEffect(() => {
+    if (honoredFocusRef.current) return
+    if (!initialFocusPlaceId) return
+    if (state.status !== "success") return
+    const match = state.data.places.find((p) => p.id === initialFocusPlaceId)
+    if (match) {
+      setSheetInitialMode("compact")
+      setSelected(match)
+      honoredFocusRef.current = true
+    }
+  }, [initialFocusPlaceId, state])
   // Multi-select filter state — UNION semantics. A place is visible if its
   // category is in `enabledCategories` OR its priority is in `enabledPriorities`.
   // Both sets are independently toggled. By default only the day's
@@ -546,7 +579,10 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
                       <Detailed3DScene
                         places={filteredPlaces}
                         neighborhoods={state.data.neighborhoods ?? []}
-                        onSelect={setSelected}
+                        onSelect={(p) => {
+                          setSheetInitialMode("compact")
+                          setSelected(p)
+                        }}
                         onDeselect={() => setSelected(null)}
                         selectedId={selected?.id ?? null}
                         reducedMotion={reduce ?? undefined}
@@ -559,7 +595,10 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
                   ) : (
                     <MapModeScene
                       places={filteredPlaces}
-                      onSelect={setSelected}
+                      onSelect={(p) => {
+                        setSheetInitialMode("compact")
+                        setSelected(p)
+                      }}
                       onDeselect={() => setSelected(null)}
                       selectedId={selected?.id ?? null}
                       reducedMotion={reduce ?? undefined}
@@ -627,8 +666,14 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
               </div>
             )}
             {showList && (
-              <div className="absolute inset-0 overflow-y-auto pt-16">
-                <MapModeFallbackList places={filteredPlaces} onSelect={setSelected} />
+              <div className="absolute inset-0 overflow-y-auto pt-32">
+                <MapModeFallbackList
+                  places={filteredPlaces}
+                  onSelect={(p) => {
+                    setSheetInitialMode("expanded")
+                    setSelected(p)
+                  }}
+                />
               </div>
             )}
           </>
@@ -654,10 +699,19 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
 
         {/* Location pill */}
         {location && (
-          <div className="pointer-events-none absolute bottom-3 right-3 z-10 max-w-[60vw] truncate rounded-full bg-white/85 px-3 py-1.5 text-[10px] font-medium text-stone-700 shadow-md backdrop-blur dark:bg-stone-900/85 dark:text-stone-300">
-            <MapPin className="mr-1 inline-block h-3 w-3" aria-hidden />
-            {location.label}
-            {location.source === "geolocation" && " · live"}
+          <div className={"pointer-events-none absolute bottom-3 right-3 z-10 max-w-[60vw] bg-white/85 px-3 py-1.5 text-[10px] font-medium text-stone-700 shadow-md backdrop-blur dark:bg-stone-900/85 dark:text-stone-300 " + (userNeighborhood ? "rounded-2xl" : "truncate rounded-full")}>
+            <div className="flex items-center gap-1 truncate">
+              <MapPin className="inline-block h-3 w-3 shrink-0" aria-hidden />
+              <span className="truncate">
+                {location.label}
+                {location.source === "geolocation" && " · live"}
+              </span>
+            </div>
+            {userNeighborhood && (
+              <div className="mt-0.5 truncate pl-4 text-[10px] font-normal text-stone-500 dark:text-stone-400">
+                {userNeighborhood}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -671,6 +725,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose }: MapModeOverlayPro
             onClose={() => setSelected(null)}
             userLat={location?.lat}
             userLng={location?.lng}
+            initialMode={sheetInitialMode}
           />
         )}
       </AnimatePresence>
