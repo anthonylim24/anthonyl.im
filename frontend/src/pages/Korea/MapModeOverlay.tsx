@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState, useRef } from "react"
 import { motion, AnimatePresence, useReducedMotion } from "motion/react"
-import { X, MapPin, Navigation, Bug, Loader2, Crosshair, Globe2, List as ListIcon } from "lucide-react"
+import { X, MapPin, Navigation, Bug, Loader2, Crosshair, Globe2, List as ListIcon, Info } from "lucide-react"
 import { IgIcon } from "./IgIcon"
 import { useGetToken } from "@/lib/safeAuth"
 import { MapModeScene, isWebglSupported } from "./MapModeScene"
@@ -76,6 +76,10 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
   // compact so the focus line stays visible.
   const [sheetInitialMode, setSheetInitialMode] = useState<"compact" | "expanded">("compact")
   const [webglFailed, setWebglFailed] = useState<boolean>(() => !isWebglSupported())
+  // Map legend defaults to collapsed — it's a one-time explainer, not
+  // something the user needs every session. Tap the small chip to
+  // expand and read the dot meanings.
+  const [legendOpen, setLegendOpen] = useState(false)
   // Reverse-geocode the user's current location to a dong label
   // (e.g. "강남구 압구정동"). Surfaces beneath the city label in the
   // location pill. Null until the dongs data has loaded.
@@ -679,21 +683,49 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
           </>
         )}
 
-        {/* Legend — only in orb view; list view doesn't need 3D hints */}
+        {/* Legend — collapsed by default. The closed chip is a small
+            info circle in the bottom-left; tapping expands the full
+            dot legend. Only in orb view; list view doesn't need 3D hints. */}
         {showOrbs && (
-          <div className="pointer-events-none absolute bottom-3 left-3 z-10 flex flex-col gap-1.5 rounded-2xl bg-white/85 px-3 py-2 text-[10px] font-medium text-stone-700 shadow-md backdrop-blur dark:bg-stone-900/85 dark:text-stone-300">
-            <Dot color="#ff4d6d" label="Scheduled · in your plan" />
-            <Dot color="#fb923c" label="Core · on today's itinerary" />
-            <Dot color="#a3a3a3" label="Supplemental · nearby extras" />
-            {state.status === "success" && state.data.places.some((p) => p.subcategory === "instagram") && (
-              <div className="flex items-center gap-1.5">
-                <IgIcon className="h-3 w-3 text-rose-500" aria-hidden />
-                <span>Instagram save</span>
+          <div className="absolute bottom-3 left-3 z-10">
+            {legendOpen ? (
+              <div className="flex flex-col gap-1.5 rounded-2xl bg-white/85 px-3 py-2 text-[10px] font-medium text-stone-700 shadow-md backdrop-blur dark:bg-stone-900/85 dark:text-stone-300">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-mono text-[9px] uppercase tracking-widest text-stone-500 dark:text-stone-500">
+                    Legend
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setLegendOpen(false)}
+                    aria-label="Collapse legend"
+                    className="inline-flex h-5 w-5 items-center justify-center rounded-full text-stone-500 transition hover:bg-stone-100 hover:text-stone-700 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-200"
+                  >
+                    <X className="h-3 w-3" aria-hidden />
+                  </button>
+                </div>
+                <Dot color="#ff4d6d" label="Scheduled · in your plan" />
+                <Dot color="#fb923c" label="Core · on today's itinerary" />
+                <Dot color="#a3a3a3" label="Supplemental · nearby extras" />
+                {state.status === "success" && state.data.places.some((p) => p.subcategory === "instagram") && (
+                  <div className="flex items-center gap-1.5">
+                    <IgIcon className="h-3 w-3 text-rose-500" aria-hidden />
+                    <span>Instagram save</span>
+                  </div>
+                )}
+                <div className="mt-1 border-t border-stone-200 pt-1 text-[9px] text-stone-500 dark:border-stone-800 dark:text-stone-500">
+                  Drag to rotate · pinch to zoom · tap a bubble
+                </div>
               </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setLegendOpen(true)}
+                aria-label="Show map legend"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-stone-700 shadow-md backdrop-blur transition hover:bg-stone-50 hover:text-rose-700 dark:bg-stone-900/85 dark:text-stone-300 dark:hover:bg-stone-900 dark:hover:text-rose-200"
+              >
+                <Info className="h-4 w-4" aria-hidden />
+              </button>
             )}
-            <div className="mt-1 border-t border-stone-200 pt-1 text-[9px] text-stone-500 dark:border-stone-800 dark:text-stone-500">
-              Drag to rotate · pinch to zoom · tap a bubble
-            </div>
           </div>
         )}
 
