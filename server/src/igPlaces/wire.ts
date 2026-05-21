@@ -4,7 +4,7 @@ import { createSupabaseClient } from './supabase';
 import { createQueue } from './queue';
 import { createFetchPost } from './fetchPost';
 import { createTranscriber, BIAS_PROMPT } from './transcribe';
-import { createGeminiExtractor, createGeminiVideoAnalyzer, createGeminiVideoTranscriber } from './gemini';
+import { createGeminiCarouselAnalyzer, createGeminiExtractor, createGeminiVideoAnalyzer, createGeminiVideoTranscriber } from './gemini';
 import { createFrameExtractor } from './extractFrames';
 import { createOcr } from './ocr';
 import { createBundleBuilder } from './buildBundle';
@@ -264,6 +264,9 @@ export function buildWorld() {
   const geminiVideoAnalyzer = config.geminiApiKey
     ? createGeminiVideoAnalyzer({ apiKey: config.geminiApiKey })
     : undefined;
+  const geminiCarouselAnalyzer = config.geminiApiKey
+    ? createGeminiCarouselAnalyzer({ apiKey: config.geminiApiKey })
+    : undefined;
   const geminiExtract = config.geminiApiKey
     ? createGeminiExtractor({ apiKey: config.geminiApiKey })
     : undefined;
@@ -287,6 +290,7 @@ export function buildWorld() {
     extractFrames,
     biasPrompt: BIAS_PROMPT,
     geminiVideoAnalyzer,
+    geminiCarouselAnalyzer,
   });
   const extract = createExtractor({ groq, cerebrasApiKey: config.cerebrasApiKey });
   // Geocode lookups for the same name+address are deterministic over short

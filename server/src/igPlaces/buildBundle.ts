@@ -39,6 +39,16 @@ export interface BundleDeps {
     videoPath: string,
     signal?: AbortSignal,
   ) => Promise<{ transcript: string; ocrText: string; places: import('./types').VotedPlace[] }>;
+  /** PRIMARY carousel analysis: parallel to geminiVideoAnalyzer but for
+   *  image-carousel posts. Uploads each image, reads on-screen text on
+   *  every slide, and returns OCR + structured places with Maps
+   *  grounding in one call. Falls back to the per-image Google Vision
+   *  OCR chain on failure. */
+  geminiCarouselAnalyzer?: (
+    post: PostPayload,
+    imagePaths: string[],
+    signal?: AbortSignal,
+  ) => Promise<{ ocrText: string; places: import('./types').VotedPlace[] }>;
 }
 
 export type BundleBuilder = (post: PostPayload, opts?: BundleOpts) => Promise<ExtractionBundle>;
@@ -265,21 +275,64 @@ export function createBundleBuilder(deps: BundleDeps): BundleBuilder {
           await log('info', `frame OCR: ${texts.filter(Boolean).length}/${frames.length} had text (${Date.now() - t2}ms)`);
         }
       } else if (images.length) {
-        await log('info', `OCR\'ing ${images.length} carousel image(s)…`);
-        const t0 = Date.now();
-        const texts = await Promise.all(images.map(async (img, i) => {
+        // Download every image up front — both the Gemini carousel path
+        // and the Vision OCR fallback need local files. Done once so the
+        // fallback doesn't re-download on Gemini failure.
+        await log('info', `downloading ${images.length} carousel image(s)…`);
+        const tDl = Date.now();
+        const localPaths = await Promise.all(images.map(async (img) => {
           const dlCtrl = new AbortController();
-          const localPath = await withTimeout(
+          return withTimeout(
             deps.downloadImage(img.url, dlCtrl.signal), TIMEOUT_DOWNLOAD_MS, 'image download', dlCtrl,
           ).then(p => { trackTmpDir(p); return p; }).catch(() => null);
-          if (!localPath) return '';
-          return withTimeout(deps.ocr(localPath), TIMEOUT_OCR_MS, 'ocr image')
-            .then(t => t ? `[image ${i+1}] ${t}` : '')
-            .catch(() => '');
         }));
+        const okPaths = localPaths.filter((p): p is string => Boolean(p));
+        await log('info', `downloaded ${okPaths.length}/${images.length} image(s) (${Date.now() - tDl}ms)`);
+
+        // PRIMARY: Gemini carousel analyzer — uploads every slide and
+        // returns OCR + extracted places (with Maps grounding) in a
+        // single call. Subsumes the per-image Vision OCR + gpt-oss-120b
+        // chain when it succeeds. Lets the model use cross-slide visual
+        // context (Korean signage, neighborhood cues, repeated venue
+        // patterns) to infer e.g. "all of these are Seoul restaurants"
+        // even when no single slide states the city.
+        if (deps.geminiCarouselAnalyzer && okPaths.length > 0) {
+          await log('info', `analyzing ${okPaths.length} carousel image(s) via Gemini (OCR + places + Maps grounding)…`);
+          const cCtrl = new AbortController();
+          const tGem = Date.now();
+          try {
+            const result = await withTimeout(
+              deps.geminiCarouselAnalyzer(post, okPaths, cCtrl.signal),
+              TIMEOUT_GEMINI_ANALYZER_MS,
+              'Gemini carousel analyzer', cCtrl,
+            );
+            await log('info',
+              `Gemini carousel analyzer done (${Date.now() - tGem}ms): ` +
+              `ocr=${result.ocrText.length} chars, ${result.places.length} place(s)`);
+            return {
+              caption: post.caption,
+              ocr: result.ocrText || undefined,
+              locationTagName: post.locationTag?.name,
+              hashtags,
+              mentions,
+              preExtractedPlaces: result.places,
+            };
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            await log('warn',
+              `Gemini carousel analyzer failed (${msg.slice(0, 120)}); falling back to Vision OCR per image`);
+          }
+        }
+
+        await log('info', `OCR\'ing ${okPaths.length} carousel image(s)…`);
+        const t0 = Date.now();
+        const texts = await Promise.all(okPaths.map((localPath, i) =>
+          withTimeout(deps.ocr(localPath), TIMEOUT_OCR_MS, 'ocr image')
+            .then(t => t ? `[image ${i+1}] ${t}` : '')
+            .catch(() => '')));
         const joined = texts.filter(Boolean).join('\n');
         if (joined) ocr = joined;
-        await log('info', `carousel OCR: ${texts.filter(Boolean).length}/${images.length} had text (${Date.now() - t0}ms)`);
+        await log('info', `carousel OCR: ${texts.filter(Boolean).length}/${okPaths.length} had text (${Date.now() - t0}ms)`);
       } else {
         await log('info', 'no video or images on post — caption-only bundle');
       }
