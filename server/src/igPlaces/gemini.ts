@@ -363,6 +363,136 @@ export function createGeminiVideoAnalyzer(deps: GeminiVideoAnalyzerDeps): Gemini
   };
 }
 
+// ─── Carousel analyzer (primary path for multi-image posts) ───────────────
+
+export interface GeminiCarouselAnalyzeResult {
+  ocrText: string;
+  places: VotedPlace[];
+}
+
+export interface GeminiCarouselAnalyzerDeps {
+  apiKey: string;
+  model?: string;
+  fetch?: typeof fetch;
+  /** Hard cap on how many images we'll upload per post. Keeps the API
+   *  payload bounded and the call latency tight. Default 12 — wide
+   *  enough for typical "Seoul restaurants round-up" carousels (most
+   *  have 5-10 slides) and cheap enough that Flash Lite stays under
+   *  the 60-second analyzer budget. */
+  maxImages?: number;
+}
+
+export type GeminiCarouselAnalyzer = (
+  post: PostPayload,
+  imagePaths: string[],
+  signal?: AbortSignal,
+) => Promise<GeminiCarouselAnalyzeResult>;
+
+/**
+ * One-shot carousel understanding: uploads every (up-to-maxImages) image
+ * via the Files API, then asks Gemini to read each slide's on-screen text
+ * and return both the joined OCR and a structured list of places, with
+ * Maps grounding turned on.
+ *
+ * Why this exists: many Korea-trip carousels are "10 Seoul restaurants
+ * I loved" lists, with the restaurant name + neighborhood burned into
+ * each slide. The legacy carousel path (Google Vision OCR per slide →
+ * gpt-oss-120b) loses the visual context — the model sees a flat OCR
+ * blob with no idea which lines belong to which slide, and no way to
+ * infer "these are all Seoul restaurants" from the imagery alone. The
+ * Gemini analyzer reads each slide as a unit with the caption + location
+ * tag as context and grounds names against Maps.
+ *
+ * Latency budget: upload ~5-20s (parallel; one Files API call per image),
+ * generation ~10-30s. Plan on 20-50s. Slower than parallel Vision OCR
+ * but produces much richer place extraction on this post shape.
+ */
+export function createGeminiCarouselAnalyzer(deps: GeminiCarouselAnalyzerDeps): GeminiCarouselAnalyzer {
+  const f = deps.fetch ?? fetch;
+  const model = deps.model ?? GEMINI_MODEL;
+  const maxImages = deps.maxImages ?? 12;
+  return async (post, imagePaths, signal) => {
+    const capped = imagePaths.slice(0, maxImages);
+    // Upload images in parallel — Files API tolerates concurrent uploads
+    // and the limiting factor here is per-image upload latency, not
+    // request count.
+    const fileUris = await Promise.all(
+      capped.map((p) => uploadFile(deps.apiKey, p, 'image/jpeg', f, signal)),
+    );
+
+    const prompt = buildCarouselPrompt(post, capped.length);
+    const parts: Array<{ text?: string; file_data?: { mime_type: string; file_uri: string } }> = [
+      { text: prompt },
+    ];
+    for (const uri of fileUris) {
+      parts.push({ file_data: { mime_type: 'image/jpeg', file_uri: uri } });
+    }
+
+    const r = await fetchGeminiGenerate(f, `${GEMINI_BASE}/models/${model}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': deps.apiKey },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts }],
+        tools: [{ googleMaps: {} }],
+        generationConfig: {
+          temperature: 0.3,
+          // Same budget as the video analyzer — the model still has
+          // to plan across multimodal inputs (N images + caption +
+          // grounding).
+          thinkingConfig: { thinkingBudget: 1024 },
+        },
+      }),
+      signal: signal ?? AbortSignal.timeout(180_000),
+    });
+    if (r.status === 429) {
+      const retryAfter = Number(r.headers.get('retry-after')) * 1000 || 60_000;
+      throw new RetryableError('gemini carousel analyzer rate-limited', retryAfter);
+    }
+    if (!r.ok) {
+      const body = await r.text().catch(() => '');
+      throw new Error(`gemini carousel analyzer ${r.status}: ${body.slice(0, 200)}`);
+    }
+    const j = await r.json() as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    };
+    const text = j.candidates?.[0]?.content?.parts?.map((p) => p.text).filter(Boolean).join('') ?? '';
+    const out = parseAnalyzerOutput(text);
+    return { ocrText: out.ocrText, places: out.places };
+  };
+}
+
+function buildCarouselPrompt(post: PostPayload, slideCount: number): string {
+  const captionSection = post.caption ? `\n\nCAPTION:\n${post.caption}` : '';
+  const locationSection = post.locationTag?.name ? `\n\nLOCATION TAG: ${post.locationTag.name}` : '';
+  return `${SYSTEM_PROMPT}
+
+You are analyzing an Instagram carousel with ${slideCount} image${slideCount === 1 ? '' : 's'}. Treat each image as one slide in a sequence. Read every readable text overlay, store sign, menu, banner, or burned-in caption visible on every slide.
+
+Many Korea-trip carousels are "list" posts (e.g. "10 Seoul restaurants I loved", "Cafés in Seongsu"). Each slide typically pictures a SINGLE venue with its name burned into the image. When a clear theme emerges from the caption, hashtags, or repeated visual cues across slides (e.g. all signage in Hangul, all neighborhoods named in Seoul), use that theme to infer the city/neighborhood for slides that don't state it explicitly. Do NOT invent unrelated cities.
+
+Return a single JSON object with EXACTLY these fields:
+
+{
+  "transcript": "",
+  "ocrText": "<every readable on-screen text from every slide, prefixed with [slide N] markers and joined by newlines>",
+  "places": [
+    {
+      "name": "<English-first venue name; see SYSTEM_PROMPT rule 2>",
+      "name_romanized": "<original-script name from rule 3>",
+      "city": "<Seoul | Busan | …>",
+      "address": "<verbatim address from caption / on-screen text; null if not stated>",
+      "category": "<restaurant | cafe | bar | shopping | activity | hotel | landmark | other>",
+      "confidence": <0..1>,
+      "is_subject": <bool>,
+      "supporting_quote": "<verbatim ≤120-char quote from the OCR or caption that grounds this place>",
+      "signal_source": "<ocr | caption | location_tag>"
+    }
+  ]
+}
+
+Use Google Maps grounding to confirm place names exist and to add structure. If no places can be confidently extracted, return places: []. Output ONLY the JSON object — no fencing, no preamble.${captionSection}${locationSection}`;
+}
+
 function buildAnalyzerPrompt(post: PostPayload): string {
   const captionSection = post.caption ? `\n\nCAPTION:\n${post.caption}` : '';
   const locationSection = post.locationTag?.name ? `\n\nLOCATION TAG: ${post.locationTag.name}` : '';

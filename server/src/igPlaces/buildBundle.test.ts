@@ -171,6 +171,74 @@ describe('buildBundle', () => {
     expect(b.transcript).toBeUndefined();
   });
 
+  test('carousel: Gemini analyzer is the primary path; OCR + preExtractedPlaces flow through', async () => {
+    const ocr = mock(async () => 'SHOULD NOT BE CALLED');
+    const downloadImage = mock(async (url: string) => `/tmp/${url}`);
+    const geminiCarouselAnalyzer = mock(async () => ({
+      ocrText: '[slide 1] Cafe Onion Seongsu\n[slide 2] Layered Songridan',
+      places: [
+        {
+          name: 'Cafe Onion Seongsu', name_romanized: '어니언 성수', city: 'Seoul',
+          address: null, category: 'cafe' as const, confidence: 0.92, is_subject: true,
+          supporting_quote: 'Cafe Onion Seongsu', signal_source: 'ocr' as const,
+          vote_count: 1, confidence_band: 'high' as const,
+        },
+      ],
+    }));
+    const build = createBundleBuilder({
+      transcribe: mock(async () => 'unused'),
+      ocr,
+      downloadVideo: mock(async () => 'unused'),
+      downloadImage,
+      extractFrames: mock(async () => []),
+      geminiCarouselAnalyzer,
+    });
+    const carouselPost = {
+      ...imagePost,
+      mediaItems: [
+        { type: 'image' as const, url: 'a.jpg' },
+        { type: 'image' as const, url: 'b.jpg' },
+      ],
+    };
+    const b = await build(carouselPost);
+    expect(geminiCarouselAnalyzer).toHaveBeenCalledTimes(1);
+    expect((geminiCarouselAnalyzer.mock.calls[0] as any[])[1]).toEqual(['/tmp/a.jpg', '/tmp/b.jpg']);
+    expect(b.ocr).toContain('Cafe Onion Seongsu');
+    expect(b.preExtractedPlaces).toBeDefined();
+    expect(b.preExtractedPlaces).toHaveLength(1);
+    expect(b.preExtractedPlaces![0].name).toBe('Cafe Onion Seongsu');
+    expect(ocr).not.toHaveBeenCalled();
+  });
+
+  test('carousel: Gemini analyzer failure falls back to per-image Vision OCR', async () => {
+    const downloadImage = mock(async (url: string) => `/tmp/${url}`);
+    const ocr = mock(async (p: string) => `OCR-of-${p.replace('/tmp/', '')}`);
+    const geminiCarouselAnalyzer = mock(async () => {
+      throw new Error('Gemini quota exceeded');
+    });
+    const build = createBundleBuilder({
+      transcribe: mock(async () => 'unused'),
+      ocr,
+      downloadVideo: mock(async () => 'unused'),
+      downloadImage,
+      extractFrames: mock(async () => []),
+      geminiCarouselAnalyzer,
+    });
+    const carouselPost = {
+      ...imagePost,
+      mediaItems: [
+        { type: 'image' as const, url: 'a.jpg' },
+        { type: 'image' as const, url: 'b.jpg' },
+      ],
+    };
+    const b = await build(carouselPost);
+    expect(geminiCarouselAnalyzer).toHaveBeenCalledTimes(1);
+    expect(ocr).toHaveBeenCalledTimes(2);
+    expect(b.ocr).toContain('[image 1] OCR-of-a.jpg');
+    expect(b.ocr).toContain('[image 2] OCR-of-b.jpg');
+    expect(b.preExtractedPlaces).toBeUndefined();
+  });
+
   test('skipVideo: skips entire video/image pipeline; returns caption + locationTag only', async () => {
     const downloadVideo = mock(async () => '/tmp/v.mp4');
     const downloadVideoFallback = mock(async () => '/tmp/v-yt.mp4');
