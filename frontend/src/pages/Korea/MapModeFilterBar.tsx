@@ -34,6 +34,7 @@ const CATEGORY_ICON: Record<string, string> = {
   transit: "🚄",
   neighborhood: "📍",
   venue: "💒",
+  landmark: "📌",
 }
 
 const PRIORITY_META: { id: PlacePriority; label: string; icon: string; tint: string }[] = [
