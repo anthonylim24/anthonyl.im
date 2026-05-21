@@ -69,20 +69,31 @@ export function MapModeFilterBar({
     enabledPriorities.has('core')
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-[60px] z-20 flex justify-center px-3 pt-3">
+    <div
+      className="pointer-events-none absolute inset-x-0 z-20 flex justify-center px-3"
+      style={{ top: "calc(env(safe-area-inset-top, 0px) + 64px)" }}
+    >
       <motion.nav
         initial={{ opacity: 0, y: -6 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ type: "spring", stiffness: 380, damping: 28, delay: 0.3 }}
+        transition={{ type: "spring", stiffness: 380, damping: 28, delay: 0.08 }}
         aria-label="Filter places"
         className="pointer-events-auto flex max-w-full items-center gap-1.5 overflow-x-auto rounded-full bg-white/85 px-2 py-1.5 shadow-lg ring-1 ring-stone-200 backdrop-blur-md sm:max-w-3xl dark:bg-stone-900/85 dark:ring-stone-800 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        style={{
+          // Faint edge mask hints at horizontal scrollability when chips overflow.
+          WebkitMaskImage:
+            "linear-gradient(to right, transparent 0, black 16px, black calc(100% - 16px), transparent 100%)",
+          maskImage:
+            "linear-gradient(to right, transparent 0, black 16px, black calc(100% - 16px), transparent 100%)",
+        }}
       >
         <button
           type="button"
           onClick={onReset}
           aria-pressed={atDefault}
+          aria-label={`Show all ${places.length} places`}
           className={
-            "shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold transition " +
+            "shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 " +
             (atDefault
               ? "bg-rose-600 text-white shadow-sm"
               : "bg-stone-100 text-stone-700 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700")
@@ -106,7 +117,7 @@ export function MapModeFilterBar({
               aria-pressed={enabled}
               title={`${meta.label} · ${count}`}
               className={
-                "flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition " +
+                "flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 " +
                 (enabled
                   ? "text-white shadow-sm"
                   : "bg-stone-100 text-stone-500 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-400 dark:hover:bg-stone-700")
@@ -134,7 +145,7 @@ export function MapModeFilterBar({
               aria-pressed={enabled}
               title={`${cat} · ${count}`}
               className={
-                "flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition " +
+                "flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 " +
                 (enabled
                   ? "bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900"
                   : "bg-stone-100 text-stone-500 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-400 dark:hover:bg-stone-700")

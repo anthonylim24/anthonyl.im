@@ -158,13 +158,27 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng, initialMode
 
   const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(place.name + ", " + place.city)}`
 
+  // Clean up the "Shared!" feedback timer if the user navigates away
+  // before it fires — otherwise React warns about state on an
+  // unmounted component.
+  const sharedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    return () => {
+      if (sharedTimerRef.current) clearTimeout(sharedTimerRef.current)
+    }
+  }, [])
+
   async function onShare() {
     const text = `${place.name} — ${place.description}`
+    function flashShared() {
+      setShared(true)
+      if (sharedTimerRef.current) clearTimeout(sharedTimerRef.current)
+      sharedTimerRef.current = setTimeout(() => setShared(false), 2500)
+    }
     if (typeof navigator !== "undefined" && "share" in navigator) {
       try {
         await navigator.share({ title: place.name, text, url: searchUrl })
-        setShared(true)
-        setTimeout(() => setShared(false), 2500)
+        flashShared()
         return
       } catch {
         /* fall through to clipboard */
@@ -173,8 +187,7 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng, initialMode
     if (typeof navigator !== "undefined" && navigator.clipboard) {
       try {
         await navigator.clipboard.writeText(`${text}\n${searchUrl}`)
-        setShared(true)
-        setTimeout(() => setShared(false), 2500)
+        flashShared()
       } catch {
         /* no-op */
       }
@@ -214,10 +227,11 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng, initialMode
           tap-down anywhere in the top strip can pull the sheet down. */}
       <div
         data-sheet-handle
+        role="presentation"
         aria-hidden
-        className="mx-auto flex h-6 w-full cursor-grab items-center justify-center pt-2 active:cursor-grabbing"
+        className="mx-auto flex h-7 w-full cursor-grab items-center justify-center pt-2.5 touch-none active:cursor-grabbing"
       >
-        <div className="h-1.5 w-12 rounded-full bg-stone-300/80 dark:bg-stone-700/80" />
+        <div className="h-1.5 w-12 rounded-full bg-stone-300/80 transition-colors group-active:bg-stone-400 dark:bg-stone-700/80" />
       </div>
       <AnimatePresence mode="wait" initial={false}>
         {mode === "compact" ? (
@@ -227,12 +241,14 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng, initialMode
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.14 }}
-            className="px-4 pb-4 pt-1 sm:px-6"
+            className="px-4 pt-1 sm:px-6"
+            style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" }}
           >
             <CompactBody
               place={place}
               walking={walking}
               directionsUrl={directionsUrl}
+              neighborhood={placeNeighborhood}
               onExpand={toggleMode}
               onClose={onClose}
             />
@@ -245,7 +261,8 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng, initialMode
             exit={{ opacity: 0 }}
             transition={{ duration: 0.14 }}
             ref={scrollRef}
-            className="max-h-[calc(78vh-1.5rem)] overflow-y-auto px-4 pb-6 pt-3 sm:px-6"
+            className="max-h-[calc(78vh-1.5rem)] overflow-y-auto px-4 pt-3 sm:px-6"
+            style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 24px)" }}
           >
             <div className="flex items-start gap-3">
               <div
@@ -290,7 +307,7 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng, initialMode
                   onClick={toggleMode}
                   aria-label="Collapse details"
                   title="Collapse details"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-stone-100 text-stone-700 transition hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-stone-100 text-stone-700 transition hover:bg-stone-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
                 >
                   <ChevronDown className="h-4 w-4" />
                 </button>
@@ -298,7 +315,7 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng, initialMode
                   type="button"
                   onClick={onClose}
                   aria-label="Close details"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-stone-100 text-stone-700 transition hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-stone-100 text-stone-700 transition hover:bg-stone-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -371,7 +388,7 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng, initialMode
                 href={directionsUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-rose-700 dark:bg-rose-500 dark:hover:bg-rose-400"
+                className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:bg-rose-500 dark:hover:bg-rose-400"
               >
                 <Navigation className="h-4 w-4" aria-hidden />
                 Directions
@@ -417,12 +434,14 @@ function CompactBody({
   place,
   walking,
   directionsUrl,
+  neighborhood,
   onExpand,
   onClose,
 }: {
   place: RankedPlace
   walking: string | null
   directionsUrl: string
+  neighborhood: string | null
   onExpand: () => void
   onClose: () => void
 }) {
@@ -459,12 +478,17 @@ function CompactBody({
             {place.distanceLabel ? ` · ${place.distanceLabel}` : ""}
             {walking ? ` · ${walking}` : ""}
           </p>
+          {neighborhood && (
+            <p className="mt-0.5 truncate text-[11px] text-stone-500 dark:text-stone-500">
+              {neighborhood}
+            </p>
+          )}
         </div>
         <button
           type="button"
           onClick={onClose}
           aria-label="Close details"
-          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-stone-100 text-stone-700 transition hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-stone-100 text-stone-700 transition hover:bg-stone-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
         >
           <X className="h-4 w-4" />
         </button>
@@ -474,7 +498,7 @@ function CompactBody({
           href={directionsUrl}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 px-3.5 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-rose-700 dark:bg-rose-500 dark:hover:bg-rose-400"
+          className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 px-3.5 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:bg-rose-500 dark:hover:bg-rose-400"
         >
           <Navigation className="h-3.5 w-3.5" aria-hidden />
           Directions
@@ -483,7 +507,7 @@ function CompactBody({
           type="button"
           onClick={onExpand}
           aria-label="View full details"
-          className="ml-auto inline-flex items-center gap-1 rounded-full border border-stone-300 bg-stone-50 px-3 py-1.5 text-xs font-medium text-stone-700 transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
+          className="ml-auto inline-flex items-center gap-1 rounded-full border border-stone-300 bg-stone-50 px-3 py-1.5 text-xs font-medium text-stone-700 transition hover:border-rose-300 hover:text-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
         >
           <ChevronUp className="h-3.5 w-3.5" aria-hidden />
           Details

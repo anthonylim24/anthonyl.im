@@ -37,7 +37,7 @@ export function TripHero({ snapshot }: TripHeroProps) {
         ? "day to go"
         : countdown === 0
           ? "departing today"
-          : `of twelve · in trip`
+          : "day of twelve · in trip"
   const numeralAria =
     countdown >= 0
       ? `${numeral} ${numeralLabel}`

@@ -2,7 +2,7 @@ import { motion, useReducedMotion } from "motion/react"
 import { MapPin, Phone, ExternalLink } from "lucide-react"
 import type { Reservation } from "./types"
 import { statusMeta, typeMeta, formatDate } from "./koreaTheme"
-import { mapsSearchUrl, tokenize } from "./linkify"
+import { mapsSearchUrl } from "./linkify"
 import { LinkifiedText } from "./LinkifiedText"
 import { Time } from "./Time"
 import { SmartEntity } from "./SmartEntity"
@@ -49,10 +49,6 @@ export function ReservationCard({ reservation, index = 0, compact = false }: Res
   const mapHref = reservation.address ? mapsSearchUrl(reservation.address) : null
   const contactHref = reservation.contact ? urlForContact(reservation.contact) : null
   const contactKind = reservation.contact ? detectContactKind(reservation.contact) : "other"
-
-  // Has any address or content that the linkifier might surface
-  const subtitleHasLinks = reservation.subtitle ? tokenize(reservation.subtitle).some((s) => s.kind === "link") : false
-  void subtitleHasLinks // currently unused; reserved for future "smart" badge
 
   return (
     <motion.article

@@ -263,7 +263,7 @@ export function KoreaDay() {
               <a
                 key={sec.heading}
                 href={`#${slugify(sec.heading)}`}
-                className="shrink-0 rounded-full border border-stone-200 bg-stone-50 px-3 py-1 font-medium text-stone-600 transition hover:border-stone-300 hover:text-stone-900 dark:border-stone-800 dark:bg-stone-900/40 dark:text-stone-400 dark:hover:border-stone-700 dark:hover:text-stone-100"
+                className="shrink-0 rounded-full border border-stone-200 bg-stone-50 px-3 py-1 font-medium text-stone-600 transition-colors duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:border-stone-300 hover:text-stone-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 dark:border-stone-800 dark:bg-stone-900/40 dark:text-stone-400 dark:hover:border-stone-700 dark:hover:text-stone-100"
               >
                 {sec.heading}
               </a>
@@ -341,7 +341,7 @@ export function KoreaDay() {
           {prev ? (
             <Link
               to={`/korea/day/${prev.slug}`}
-              className="group -mx-2 flex items-center justify-between gap-4 rounded-2xl px-2 py-3 transition-colors hover:bg-stone-100/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/50 dark:hover:bg-stone-900/40"
+              className="group -mx-2 flex items-center justify-between gap-4 rounded-2xl px-2 py-3 transition-colors hover:bg-stone-100/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 dark:hover:bg-stone-900/40"
             >
               <ArrowUpRight
                 aria-hidden
@@ -364,7 +364,7 @@ export function KoreaDay() {
           {next ? (
             <Link
               to={`/korea/day/${next.slug}`}
-              className="group -mx-2 flex items-center justify-between gap-4 rounded-2xl px-2 py-3 text-right transition-colors hover:bg-stone-100/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/50 sm:justify-end dark:hover:bg-stone-900/40"
+              className="group -mx-2 flex items-center justify-between gap-4 rounded-2xl px-2 py-3 text-right transition-colors hover:bg-stone-100/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 sm:justify-end dark:hover:bg-stone-900/40"
             >
               <div className="min-w-0 flex-1">
                 <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
@@ -474,7 +474,7 @@ function IgSaveCard({ save, onOpenInMap }: { save: IgSave; onOpenInMap: () => vo
           rel="noopener noreferrer"
           aria-label={`View ${save.name} on Instagram (opens in new tab)`}
           onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center text-stone-400 transition hover:text-rose-600 dark:text-stone-500 dark:hover:text-rose-400"
+          className="inline-flex items-center rounded-full p-1 text-stone-400 transition-colors duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:text-rose-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 dark:text-stone-500 dark:hover:text-rose-400"
         >
           <IgIcon className="h-3.5 w-3.5" aria-hidden />
         </a>
@@ -568,7 +568,7 @@ function DayError({ message }: { message: string }) {
       <p className="mt-2 text-sm text-stone-600 dark:text-stone-400">{message}</p>
       <Link
         to="/korea"
-        className="mt-4 inline-flex rounded-full bg-stone-900 px-4 py-2 text-sm text-white dark:bg-stone-100 dark:text-stone-900"
+        className="mt-4 inline-flex min-h-[44px] items-center rounded-full bg-stone-900 px-5 py-2 text-sm font-medium text-white transition-colors duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-stone-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-200"
       >
         Back to overview
       </Link>

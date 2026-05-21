@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { clerkEnabled, useGetToken } from '@/lib/safeAuth'
 import { motion, useReducedMotion } from 'motion/react'
-import { CheckCircle2, Circle, Loader2, XCircle } from 'lucide-react'
+import { CheckCircle2, ChevronRight, Circle, Loader2, XCircle } from 'lucide-react'
 import { isInstagramUrl } from './isInstagramUrl'
 import { ApiNotConfiguredError, fetchStats, listJobs, reextractJob, retryJob, submitUrl } from './ingestApi'
 import type { Job, JobStep, LogLine, PostPreview, Stats } from './ingestApi'
@@ -351,10 +351,16 @@ function StepTimeline({ job, reduce, etaNow }: { job: Job; reduce: boolean | nul
                   <CheckCircle2 className="h-3 w-3 text-white" aria-hidden />
                 </span>
               ) : state === 'current' ? (
-                <span
-                  className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-rose-500 ${reduce ? '' : 'animate-pulse'}`}
-                >
-                  <span className="h-2 w-2 rounded-full bg-white" aria-hidden />
+                <span className="relative inline-flex h-5 w-5 shrink-0 items-center justify-center">
+                  {!reduce && (
+                    <span
+                      aria-hidden
+                      className="absolute inset-0 rounded-full bg-rose-500/30 animate-ping"
+                    />
+                  )}
+                  <span className="relative inline-flex h-5 w-5 items-center justify-center rounded-full bg-rose-500">
+                    <span className="h-2 w-2 rounded-full bg-white" aria-hidden />
+                  </span>
                 </span>
               ) : state === 'errored' ? (
                 <XCircle className="h-5 w-5 shrink-0 text-red-600 dark:text-red-400" aria-hidden />
@@ -396,7 +402,7 @@ function StepTimeline({ job, reduce, etaNow }: { job: Job; reduce: boolean | nul
             {!isLast && (
               <span
                 aria-hidden
-                className={`mx-1.5 h-px w-6 shrink-0 sm:w-8 ${
+                className={`mx-1.5 h-px w-6 shrink-0 transition-colors duration-500 sm:w-8 ${
                   state === 'past' ? 'bg-amber-400' : 'bg-stone-200 dark:bg-stone-700'
                 }`}
               />
@@ -554,15 +560,13 @@ function PlacesList({ places }: { places: Job['places'] }) {
       <button
         type="button"
         onClick={() => setExpanded((e) => !e)}
-        className="flex min-h-[44px] w-full items-center gap-2 text-left text-[13px] font-medium text-stone-700 transition-colors hover:text-stone-900 dark:text-stone-300 dark:hover:text-stone-100"
+        className="flex min-h-[44px] w-full items-center gap-1.5 rounded text-left text-[13px] font-medium text-stone-700 transition-colors hover:text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40 dark:text-stone-300 dark:hover:text-stone-100"
         aria-expanded={expanded}
       >
-        <span
+        <ChevronRight
           aria-hidden
-          className={`inline-block transition-transform duration-150 ${expanded ? 'rotate-90' : ''}`}
-        >
-          ▶
-        </span>
+          className={`h-3.5 w-3.5 shrink-0 text-stone-400 transition-transform duration-200 motion-reduce:transition-none ${expanded ? 'rotate-90' : ''}`}
+        />
         {places.length} {places.length === 1 ? 'place' : 'places'} extracted
       </button>
 
@@ -1198,18 +1202,26 @@ function IngestImpl() {
                 setSubmitError(null)
               }}
               placeholder="https://www.instagram.com/reel/…"
-              className="min-h-[44px] flex-1 rounded-xl border border-stone-300 bg-white px-4 py-2 font-mono text-[13px] text-stone-900 placeholder-stone-400 outline-none transition focus:border-rose-400 focus:ring-2 focus:ring-rose-400/20 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:placeholder-stone-600 dark:focus:border-rose-500 dark:focus:ring-rose-500/20"
+              className={`min-h-[44px] flex-1 rounded-xl border bg-white px-4 py-2 font-mono text-[13px] text-stone-900 placeholder-stone-400 outline-none transition focus-visible:ring-2 dark:bg-stone-900 dark:text-stone-100 dark:placeholder-stone-600 disabled:opacity-60 ${
+                url && !isInstagramUrl(url)
+                  ? 'border-rose-400 focus-visible:border-rose-500 focus-visible:ring-rose-400/30 dark:border-rose-500/70 dark:focus-visible:ring-rose-500/30'
+                  : 'border-stone-300 focus-visible:border-rose-400 focus-visible:ring-rose-400/20 dark:border-stone-700 dark:focus-visible:border-rose-500 dark:focus-visible:ring-rose-500/20'
+              }`}
               aria-describedby="ig-url-hint"
+              aria-invalid={url ? !isInstagramUrl(url) : undefined}
               disabled={submitting}
             />
             <button
               type="submit"
               disabled={!canSubmit}
               aria-busy={submitting}
-              className="inline-flex min-h-[44px] min-w-[80px] items-center justify-center gap-2 rounded-xl bg-rose-500 px-5 py-2 text-[13px] font-medium text-white outline-none transition hover:bg-rose-600 focus-visible:ring-2 focus-visible:ring-rose-500/40 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-rose-500 dark:hover:bg-rose-400"
+              className="inline-flex min-h-[44px] min-w-[88px] items-center justify-center gap-2 rounded-xl bg-rose-500 px-5 py-2 text-[13px] font-medium text-white outline-none transition hover:bg-rose-600 focus-visible:ring-2 focus-visible:ring-rose-500/40 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100 dark:bg-rose-500 dark:hover:bg-rose-400 motion-reduce:active:scale-100"
             >
               {submitting ? (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  <span>Submitting</span>
+                </>
               ) : (
                 'Submit'
               )}
@@ -1224,14 +1236,17 @@ function IngestImpl() {
             )}
           </div>
 
-          <label className="mt-3 inline-flex items-center gap-2 text-[12px] text-stone-600 dark:text-stone-400 cursor-pointer">
+          <label className="mt-3 inline-flex min-h-[36px] cursor-pointer items-center gap-2 text-[12px] text-stone-600 dark:text-stone-400">
             <input
               type="checkbox"
               checked={skipVideo}
               onChange={(e) => setSkipVideo(e.target.checked)}
-              className="h-3.5 w-3.5 rounded border-stone-300 text-rose-600 focus:ring-rose-500 dark:border-stone-700"
+              className="h-4 w-4 shrink-0 rounded border-stone-300 accent-rose-500 focus-visible:ring-2 focus-visible:ring-rose-400/40 dark:border-stone-700"
             />
-            <span>Skip video download <span className="text-stone-400">— faster, caption + comments only</span></span>
+            <span>
+              Skip video download
+              <span className="text-stone-400 dark:text-stone-500"> — faster, caption + comments only</span>
+            </span>
           </label>
 
           {/* Submit result notice */}
@@ -1313,7 +1328,7 @@ function IngestImpl() {
           return (
             <section aria-label="Jobs" className="mt-12">
               <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
-                Recent jobs
+                Recent
                 <span aria-hidden className="mx-2 text-stone-300 dark:text-stone-700">·</span>
                 loading
               </p>
@@ -1328,7 +1343,7 @@ function IngestImpl() {
           return (
             <section aria-label="Jobs" className="mt-12">
               <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
-                Recent jobs
+                Recent
                 <span aria-hidden className="mx-2 text-stone-300 dark:text-stone-700">·</span>
                 auto-refresh
               </p>
@@ -1337,12 +1352,13 @@ function IngestImpl() {
                   initial={false}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.4 }}
-                  className="flex min-h-[140px] items-center justify-center rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 dark:border-stone-800 dark:bg-stone-900/30"
+                  className="flex min-h-[160px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 px-6 py-10 text-center dark:border-stone-800 dark:bg-stone-900/30"
                 >
-                  <p className="text-center text-sm text-stone-400 dark:text-stone-600">
+                  <p className="text-[14px] text-stone-500 dark:text-stone-400">
                     No ingested links yet.
-                    <br />
-                    Paste one above to begin.
+                  </p>
+                  <p className="text-[12px] text-stone-400 dark:text-stone-600">
+                    Paste an Instagram reel or post URL above to begin.
                   </p>
                 </motion.div>
               </div>
@@ -1367,13 +1383,12 @@ function IngestImpl() {
 
             {olderJobs.length > 0 && (
               <section aria-label="Older jobs" className="mt-10">
-                <p
-                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-stone-400 dark:text-stone-600"
-                  style={{ fontFamily: "'Cormorant Garamond', serif" }}
-                >
+                <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-stone-400 dark:text-stone-600">
                   Older
-                  <span aria-hidden className="mx-1.5 text-stone-300 dark:text-stone-700">·</span>
-                  <span className="text-stone-400 dark:text-stone-600 normal-case tracking-normal">{olderJobs.length} more</span>
+                  <span aria-hidden className="mx-2 text-stone-300 dark:text-stone-700">·</span>
+                  <span className="normal-case tracking-normal text-stone-400 dark:text-stone-600">
+                    {olderJobs.length} more
+                  </span>
                 </p>
                 <div className="mt-4 space-y-4">
                   {olderJobs.map(makeJobCard)}

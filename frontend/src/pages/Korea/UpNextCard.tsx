@@ -55,7 +55,10 @@ export function UpNextCard({ snapshot }: UpNextCardProps) {
     >
       <Wrapper
         {...wrapperProps}
-        className="group block border-y border-stone-200/80 py-5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/50 dark:border-stone-800/80"
+        className={
+          "group block border-y border-stone-200/80 py-5 transition-colors duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] dark:border-stone-800/80 " +
+          (dayLink ? "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500" : "")
+        }
       >
         <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
           {/* Eyebrow with rose dot + countdown */}
