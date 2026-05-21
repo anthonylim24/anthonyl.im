@@ -92,7 +92,7 @@ export interface EnrichedPlace extends VotedPlace {
   phone: string | null;
   rating: number | null;
   business_types: string[];
-  geocode_source: 'ig-tag'|'google'|'kakao'|'google+kakao'|null;
+  geocode_source: 'ig-tag'|'google'|'kakao'|'google+kakao'|'gemini-grounded'|null;
   geocode_kakao_id: string | null;
   geocode_disagree: boolean;
 }

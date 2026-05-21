@@ -18,7 +18,7 @@ export type ExtractedPlace = {
   phone: string | null;
   rating: number | null;
   business_types: string[];
-  geocode_source: 'apify-tag' | 'google' | 'kakao' | 'google+kakao' | null;
+  geocode_source: 'apify-tag' | 'ig-tag' | 'google' | 'kakao' | 'google+kakao' | 'gemini-grounded' | null;
   geocode_kakao_id: string | null;
   geocode_disagree: boolean;
   google_place_id: string | null;
