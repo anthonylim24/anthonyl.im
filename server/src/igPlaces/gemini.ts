@@ -14,10 +14,76 @@
 //
 // Both functions need only GEMINI_API_KEY — no separate Google Maps key
 // (grounding is bundled), no SDK dependency (raw fetch is enough).
-import type { ExtractionBundle, PostPayload, RawExtractedPlace, VotedPlace } from './types';
+import type { ExtractionBundle, IgPlaceCategory, IgSignalSource, PostPayload, RawExtractedPlace, VotedPlace } from './types';
 import { RetryableError } from './types';
 import { renderBundle, SYSTEM_PROMPT } from './extractPlaces';
 import { readFile, stat } from 'node:fs/promises';
+
+// ─── Enum coercion ────────────────────────────────────────────────────
+//
+// Gemini occasionally invents sensible-but-out-of-schema enum values
+// like `category: "bakery"` or `signal_source: "image"`. The DB enums
+// reject those (Postgres 22P02), which used to kill the entire save
+// even though the other 9-of-10 rows were valid. Map common synonyms
+// here so the model's intent survives the round trip, falling back to
+// the schema's catch-all (`other` / `caption`) for anything we don't
+// recognise. Centralised so the carousel + video + text extractors all
+// share the same mapping.
+
+const VALID_CATEGORIES = new Set<IgPlaceCategory>([
+  'restaurant', 'cafe', 'bar', 'shopping', 'activity', 'hotel', 'landmark', 'other',
+]);
+
+const CATEGORY_ALIASES: Record<string, IgPlaceCategory> = {
+  // restaurant family
+  food: 'restaurant', eatery: 'restaurant', diner: 'restaurant', bistro: 'restaurant',
+  steakhouse: 'restaurant', kbbq: 'restaurant', barbecue: 'restaurant', bbq: 'restaurant',
+  // cafe family
+  bakery: 'cafe', patisserie: 'cafe', coffee: 'cafe', coffeeshop: 'cafe',
+  'coffee shop': 'cafe', dessert: 'cafe', teahouse: 'cafe', 'tea house': 'cafe',
+  // bar family
+  pub: 'bar', speakeasy: 'bar', club: 'bar', nightclub: 'bar', lounge: 'bar',
+  cocktail: 'bar', wine: 'bar', winebar: 'bar', brewery: 'bar',
+  // shopping family
+  store: 'shopping', shop: 'shopping', boutique: 'shopping', mall: 'shopping',
+  market: 'shopping', flagship: 'shopping', retail: 'shopping',
+  // activity family
+  experience: 'activity', attraction: 'activity', spa: 'activity', salon: 'activity',
+  clinic: 'activity', studio: 'activity', class: 'activity', workshop: 'activity',
+  tour: 'activity',
+  // hotel family
+  resort: 'hotel', inn: 'hotel', hostel: 'hotel', lodging: 'hotel',
+  // landmark family
+  museum: 'landmark', gallery: 'landmark', park: 'landmark', temple: 'landmark',
+  monument: 'landmark', beach: 'landmark', viewpoint: 'landmark', shrine: 'landmark',
+  palace: 'landmark', tower: 'landmark', bridge: 'landmark',
+};
+
+export function coerceCategory(input: unknown): IgPlaceCategory {
+  if (typeof input !== 'string') return 'other';
+  const lower = input.toLowerCase().trim();
+  if (VALID_CATEGORIES.has(lower as IgPlaceCategory)) return lower as IgPlaceCategory;
+  return CATEGORY_ALIASES[lower] ?? 'other';
+}
+
+const VALID_SIGNAL_SOURCES = new Set<IgSignalSource>([
+  'caption', 'transcript', 'ocr', 'location_tag', 'multiple', 'comment',
+]);
+
+const SIGNAL_SOURCE_ALIASES: Record<string, IgSignalSource> = {
+  image: 'ocr', slide: 'ocr', frame: 'ocr', visual: 'ocr', screenshot: 'ocr',
+  audio: 'transcript', voice: 'transcript', speech: 'transcript',
+  text: 'caption', description: 'caption', post: 'caption',
+  tag: 'location_tag', location: 'location_tag',
+  combined: 'multiple', merged: 'multiple', mixed: 'multiple',
+};
+
+export function coerceSignalSource(input: unknown, fallback: IgSignalSource = 'caption'): IgSignalSource {
+  if (typeof input !== 'string') return fallback;
+  const lower = input.toLowerCase().trim();
+  if (VALID_SIGNAL_SOURCES.has(lower as IgSignalSource)) return lower as IgSignalSource;
+  return SIGNAL_SOURCE_ALIASES[lower] ?? fallback;
+}
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
@@ -140,11 +206,11 @@ function parseGeminiPlaces(text: string): VotedPlace[] {
         name_romanized: p.name_romanized ?? null,
         city: p.city ?? null,
         address: p.address ?? null,
-        category: (p.category ?? 'other') as RawExtractedPlace['category'],
+        category: coerceCategory(p.category),
         confidence,
         is_subject: Boolean(p.is_subject),
         supporting_quote: p.supporting_quote ?? '',
-        signal_source: p.signal_source ?? 'caption',
+        signal_source: coerceSignalSource(p.signal_source, 'caption'),
         vote_count: 1,
         confidence_band: band,
       } as VotedPlace;
@@ -552,11 +618,11 @@ function parseAnalyzerOutput(text: string): GeminiVideoAnalyzeResult {
         name_romanized: p.name_romanized ?? null,
         city: p.city ?? null,
         address: p.address ?? null,
-        category: (p.category ?? 'other') as RawExtractedPlace['category'],
+        category: coerceCategory(p.category),
         confidence,
         is_subject: Boolean(p.is_subject),
         supporting_quote: p.supporting_quote ?? '',
-        signal_source: p.signal_source ?? 'transcript',
+        signal_source: coerceSignalSource(p.signal_source, 'transcript'),
         vote_count: 1,
         confidence_band: band,
       } as VotedPlace;
