@@ -72,21 +72,32 @@ export function createSavePlaces(sb: SupabaseClient) {
 
     // Fire the inserts concurrently — each row is independent, so a serial
     // loop wastes ~N × (Supabase round-trip) where N is the place count.
-    // The `indexMissing` adaptive-retry path needs special handling: we
-    // first attempt every row with on-conflict; on a 42P10 from any row,
-    // we flip the flag once and retry the failed ones plain. This is the
-    // exact behavior the serial loop had, just batched.
+    //
+    // Error tolerance: a single per-row failure (e.g. an enum the model
+    // invented that we didn't catch upstream — Postgres returns 22P02)
+    // used to throw out of this function and lose the other N-1 rows
+    // that saved fine. Now we collect successes + failures across the
+    // batch and only throw if EVERY row failed AND there's at least one
+    // non-recoverable error. Recoverable conditions:
+    //   42P10 → unique index missing, fall back to plain insert
+    //   22P02 → invalid enum (model output), drop the offending row
+    //   23505 → duplicate (race vs another worker) — treat as success
+    const recoverable = (msg: string) =>
+      msg.includes('22P02') || msg.includes('23505');
+
     if (indexMissing) {
-      await Promise.all(rows.map((row) => sb.insert('instagram_places', row)));
+      await runConcurrent(rows, (row) => sb.insert('instagram_places', row), recoverable);
       return;
     }
     const settled = await Promise.allSettled(rows.map((row) =>
       sb.insert('instagram_places', row, { onConflict: 'post_id,user_id,name' }),
     ));
     const retries: typeof rows = [];
+    let succeeded = 0;
+    const fatals: unknown[] = [];
     for (let i = 0; i < settled.length; i++) {
       const r = settled[i];
-      if (r.status === 'fulfilled') continue;
+      if (r.status === 'fulfilled') { succeeded++; continue; }
       const msg = r.reason instanceof Error ? r.reason.message : String(r.reason);
       if (msg.includes('42P10')) {
         if (!indexMissing) {
@@ -97,12 +108,46 @@ export function createSavePlaces(sb: SupabaseClient) {
           indexMissing = true;
         }
         retries.push(rows[i]);
+      } else if (recoverable(msg)) {
+        // Log + drop. The model produced something Postgres rejected
+        // (e.g. an enum we don't yet alias). Don't kill the whole batch.
+        console.warn(
+          `[ig:save] dropping row "${rows[i].name}" — ${msg.slice(0, 200)}`,
+        );
       } else {
-        throw r.reason;
+        fatals.push(r.reason);
       }
     }
     if (retries.length) {
-      await Promise.all(retries.map((row) => sb.insert('instagram_places', row)));
+      await runConcurrent(retries, (row) => sb.insert('instagram_places', row), recoverable,
+        (n) => { succeeded += n; });
+    }
+    // Re-throw only when nothing got saved AND we had hard failures.
+    // If even one row landed, the job is "partially successful" — the
+    // worker proceeds to mark the job done so the user sees what we did
+    // extract instead of a red-banner failure.
+    if (succeeded === 0 && fatals.length > 0) {
+      throw fatals[0];
     }
   };
+}
+
+// Run inserts in parallel and tolerate per-row failures matching
+// `recoverable`. Optional onSuccess callback for accumulating counters
+// across the primary + retry passes.
+async function runConcurrent<T>(
+  rows: T[],
+  fn: (row: T) => Promise<unknown>,
+  recoverable: (msg: string) => boolean,
+  onSuccess?: (n: number) => void,
+): Promise<void> {
+  const settled = await Promise.allSettled(rows.map(fn));
+  let ok = 0;
+  for (const r of settled) {
+    if (r.status === 'fulfilled') { ok++; continue; }
+    const msg = r.reason instanceof Error ? r.reason.message : String(r.reason);
+    if (!recoverable(msg)) throw r.reason;
+    console.warn(`[ig:save] dropping row — ${msg.slice(0, 200)}`);
+  }
+  onSuccess?.(ok);
 }
