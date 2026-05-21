@@ -178,6 +178,170 @@ export function createGeminiExtractor(deps: GeminiExtractorDeps): GeminiExtracto
   };
 }
 
+// ─── Geocode-dispute resolver ──────────────────────────────────────────
+//
+// When Google Places and Kakao Local return locations that disagree
+// (different name OR > 200 m apart), we used to flag the row as
+// `geocode_disagree=true` and surface a red banner to the user. Now we
+// run a single Gemini 3.1 Flash Lite call with Maps grounding, give
+// the model both candidates plus the LLM-extracted hint, and ask it
+// to pick (or override with) the canonical venue. Same factory is
+// used live during ingestion AND retroactively by the backfill script.
+
+export interface GeminiResolverCandidate {
+  source: 'google' | 'kakao';
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+}
+
+export interface GeminiResolveInput {
+  name: string;
+  nameRomanized?: string | null;
+  city?: string | null;
+  /** LLM-extracted address hint from the source text. */
+  addressHint?: string | null;
+  category?: string | null;
+  /** Either candidate may be omitted (e.g. backfill, where the original
+   *  Kakao result wasn't preserved on the DB row). */
+  google?: GeminiResolverCandidate | null;
+  kakao?:  GeminiResolverCandidate | null;
+}
+
+export interface GeminiResolveResult {
+  /** Canonical English-first name as confirmed by Maps grounding. */
+  name: string;
+  /** Canonical street address. */
+  address: string;
+  lat: number;
+  lng: number;
+  /** 0..1 — how confidently the model believes this is the right venue. */
+  confidence: number;
+  /** Which input the model accepted; "gemini-new" means it overrode both
+   *  with a different ground-truth location it found via grounding. */
+  chose: 'google' | 'kakao' | 'gemini-new';
+}
+
+export interface GeminiResolverDeps {
+  apiKey: string;
+  model?: string;
+  fetch?: typeof fetch;
+}
+
+export type GeminiPlaceResolver = (input: GeminiResolveInput) => Promise<GeminiResolveResult | null>;
+
+export function createGeminiPlaceResolver(deps: GeminiResolverDeps): GeminiPlaceResolver {
+  const f = deps.fetch ?? fetch;
+  const model = deps.model ?? GEMINI_MODEL;
+  return async (input) => {
+    const prompt = buildResolverPrompt(input);
+    const r = await fetchGeminiGenerate(f, `${GEMINI_BASE}/models/${model}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': deps.apiKey },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        tools: [{ googleMaps: {} }],
+        generationConfig: {
+          temperature: 0.1,
+          // Low temp + small budget: this is a precision task, not a
+          // creative one. The model picks A, B, or finds C — short
+          // reasoning is enough.
+          thinkingConfig: { thinkingBudget: 512 },
+        },
+      }),
+      signal: AbortSignal.timeout(45_000),
+    });
+    if (r.status === 429) {
+      const retryAfter = Number(r.headers.get('retry-after')) * 1000 || 60_000;
+      throw new RetryableError('gemini geocode resolver rate-limited', retryAfter);
+    }
+    if (!r.ok) {
+      const body = await r.text().catch(() => '');
+      throw new Error(`gemini geocode resolver ${r.status}: ${body.slice(0, 200)}`);
+    }
+    const j = await r.json() as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    };
+    const text = j.candidates?.[0]?.content?.parts?.map((p) => p.text).filter(Boolean).join('') ?? '';
+    return parseResolverOutput(text);
+  };
+}
+
+function buildResolverPrompt(input: GeminiResolveInput): string {
+  const sections: string[] = [];
+  sections.push(
+    `You are resolving a geographic dispute for a place in South Korea. ` +
+    `Use Google Maps grounding to determine the correct venue and return its coordinates.`,
+  );
+  const placeBits: string[] = [];
+  placeBits.push(`name: "${input.name}"`);
+  if (input.nameRomanized && input.nameRomanized !== input.name) {
+    placeBits.push(`local-script name: "${input.nameRomanized}"`);
+  }
+  if (input.city) placeBits.push(`city: ${input.city}`);
+  if (input.category) placeBits.push(`category: ${input.category}`);
+  if (input.addressHint) placeBits.push(`address hint from source text: "${input.addressHint}"`);
+  sections.push(`PLACE:\n  ${placeBits.join('\n  ')}`);
+
+  if (input.google) {
+    sections.push(
+      `CANDIDATE A — Google Places:\n  name: "${input.google.name}"\n  address: "${input.google.address}"\n  lat/lng: ${input.google.lat}, ${input.google.lng}`,
+    );
+  }
+  if (input.kakao) {
+    sections.push(
+      `CANDIDATE B — Kakao Local:\n  name: "${input.kakao.name}"\n  address: "${input.kakao.address}"\n  lat/lng: ${input.kakao.lat}, ${input.kakao.lng}`,
+    );
+  }
+  sections.push(
+    `Pick the correct venue. If either A or B matches the canonical Maps entry, choose it; ` +
+    `otherwise return the actual location you find via grounding (chose: "gemini-new"). ` +
+    `Return JSON ONLY — no fencing, no preamble:\n` +
+    `{\n` +
+    `  "name": "<canonical English name>",\n` +
+    `  "address": "<canonical street address>",\n` +
+    `  "lat": <number>,\n` +
+    `  "lng": <number>,\n` +
+    `  "confidence": <0..1>,\n` +
+    `  "chose": "google" | "kakao" | "gemini-new"\n` +
+    `}`,
+  );
+  return sections.join('\n\n');
+}
+
+interface ResolverJson {
+  name?: unknown;
+  address?: unknown;
+  lat?: unknown;
+  lng?: unknown;
+  confidence?: unknown;
+  chose?: unknown;
+}
+
+function parseResolverOutput(text: string): GeminiResolveResult | null {
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+  let parsed: ResolverJson;
+  try {
+    parsed = JSON.parse(match[0]);
+  } catch {
+    return null;
+  }
+  const lat = typeof parsed.lat === 'number' ? parsed.lat : Number(parsed.lat);
+  const lng = typeof parsed.lng === 'number' ? parsed.lng : Number(parsed.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  // Korea bounding box — refuse coordinates obviously outside the trip.
+  if (lat < 33 || lat > 39 || lng < 124 || lng > 132) return null;
+  const name = typeof parsed.name === 'string' ? parsed.name : '';
+  const address = typeof parsed.address === 'string' ? parsed.address : '';
+  if (!name || !address) return null;
+  const conf = typeof parsed.confidence === 'number' ? parsed.confidence : 0.7;
+  const chose = parsed.chose === 'google' || parsed.chose === 'kakao' || parsed.chose === 'gemini-new'
+    ? parsed.chose : 'gemini-new';
+  return { name, address, lat, lng, confidence: conf, chose };
+}
+
 /** Parse Gemini's text output (often wrapped in ```json fences) into
  *  VotedPlace[]. Tolerates markdown wrappers and minor model variance.
  *  Each extracted place becomes a single-vote VotedPlace with a confidence

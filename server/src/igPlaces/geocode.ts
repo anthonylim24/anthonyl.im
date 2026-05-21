@@ -39,9 +39,33 @@ export interface LookupQuery {
   category?: string;
 }
 
+/** Resolves a Google-vs-Kakao dispute via Gemini + Maps grounding.
+ *  When undefined or null is returned, the geocoder falls back to the
+ *  legacy behavior (use Google, flag the row). Errors thrown here are
+ *  caught and treated as "could not resolve". */
+export type DisputeResolver = (input: {
+  name: string;
+  nameRomanized?: string | null;
+  city?: string | null;
+  addressHint?: string | null;
+  category?: string | null;
+  google?: { source: 'google'; name: string; address: string; lat: number; lng: number };
+  kakao?:  { source: 'kakao';  name: string; address: string; lat: number; lng: number };
+}) => Promise<{
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+  confidence: number;
+  chose: 'google' | 'kakao' | 'gemini-new';
+} | null>;
+
 export interface GeocoderDeps {
   googleLookup: (q: LookupQuery) => Promise<GoogleResult | null>;
   kakaoLookup:  (q: LookupQuery) => Promise<KakaoResult | null>;
+  /** Optional. When set + Google + Kakao disagree, fire this to ask
+   *  Gemini (with Maps grounding) which one is right. */
+  resolveDispute?: DisputeResolver;
 }
 
 export type GeocodeLog = (level: 'info'|'warn'|'error', message: string) => Promise<void> | void;
@@ -127,15 +151,73 @@ export function createGeocoder(deps: GeocoderDeps): Geocoder {
       const sameName = fuzzyEq(google.name, kakao.name);
       const close = haversineMeters(google.lat, google.lng, kakao.lat, kakao.lng) <= 200;
       const agree = sameName && close;
+      if (agree) {
+        return {
+          ...place,
+          address: google.address, lat: google.lat, lng: google.lng,
+          google_place_id: google.place_id, phone: google.phone, rating: google.rating,
+          business_types: google.types,
+          geocode_source: 'google+kakao',
+          geocode_kakao_id: kakao.id,
+          geocode_disagree: false,
+          confidence_band: bumpBand(place.confidence_band),
+        };
+      }
+      // Disagree → try the Gemini grounded resolver before falling back
+      // to "trust Google, flag the row". The model gets both candidates
+      // + the LLM-extracted hint and answers via Maps grounding.
+      if (deps.resolveDispute) {
+        try {
+          const resolved = await deps.resolveDispute({
+            name: place.name,
+            nameRomanized: place.name_romanized,
+            city: place.city,
+            addressHint: place.address,
+            category: place.category,
+            google: { source: 'google', name: google.name, address: google.address, lat: google.lat, lng: google.lng },
+            kakao:  { source: 'kakao',  name: kakao.name,  address: kakao.address,  lat: kakao.lat,  lng: kakao.lng },
+          });
+          if (resolved && resolved.confidence >= 0.5) {
+            await log('info',
+              `Gemini resolved geocode dispute for "${place.name}": chose=${resolved.chose} conf=${resolved.confidence}`);
+            // When the model picks Google, keep Google's enrichment
+            // (place_id, phone, rating, types) — they're real metadata
+            // tied to a specific Maps entry. When it picks Kakao or a
+            // brand-new location, those Google-only fields no longer
+            // apply.
+            const keepGoogleMeta = resolved.chose === 'google';
+            return {
+              ...place,
+              address: resolved.address,
+              lat: resolved.lat,
+              lng: resolved.lng,
+              google_place_id: keepGoogleMeta ? google.place_id : null,
+              phone: keepGoogleMeta ? google.phone : null,
+              rating: keepGoogleMeta ? google.rating : null,
+              business_types: keepGoogleMeta ? google.types : [],
+              geocode_source: 'gemini-grounded',
+              geocode_kakao_id: resolved.chose === 'kakao' ? kakao.id : null,
+              geocode_disagree: false,
+            };
+          }
+          await log('warn',
+            `Gemini resolver returned low-confidence (${resolved?.confidence ?? 'null'}) for "${place.name}"; falling back to Google + disagree flag`);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          await log('warn', `Gemini resolver failed for "${place.name}": ${msg.slice(0, 120)}`);
+        }
+      }
+      // Resolver unavailable or low-confidence: legacy behavior — use
+      // Google's coords and flag the row for manual review.
       return {
         ...place,
         address: google.address, lat: google.lat, lng: google.lng,
         google_place_id: google.place_id, phone: google.phone, rating: google.rating,
         business_types: google.types,
-        geocode_source: agree ? 'google+kakao' : 'google',
+        geocode_source: 'google',
         geocode_kakao_id: kakao.id,
-        geocode_disagree: !agree,
-        confidence_band: agree ? bumpBand(place.confidence_band) : 'low',
+        geocode_disagree: true,
+        confidence_band: 'low',
       };
     }
     if (google) {

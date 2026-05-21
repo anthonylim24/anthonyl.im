@@ -4,7 +4,7 @@ import { createSupabaseClient } from './supabase';
 import { createQueue } from './queue';
 import { createFetchPost } from './fetchPost';
 import { createTranscriber, BIAS_PROMPT } from './transcribe';
-import { createGeminiCarouselAnalyzer, createGeminiExtractor, createGeminiVideoAnalyzer, createGeminiVideoTranscriber } from './gemini';
+import { createGeminiCarouselAnalyzer, createGeminiExtractor, createGeminiPlaceResolver, createGeminiVideoAnalyzer, createGeminiVideoTranscriber } from './gemini';
 import { createFrameExtractor } from './extractFrames';
 import { createOcr } from './ocr';
 import { createBundleBuilder } from './buildBundle';
@@ -309,9 +309,16 @@ export function buildWorld() {
     `${q.name}|${q.nameRomanized ?? ''}|${q.city ?? ''}|${q.address ?? ''}`.toLowerCase();
   const googleLookupRaw = realGoogleLookup(config.googleMapsApiKey ?? '');
   const kakaoLookupRaw = config.kakaoRestApiKey ? realKakaoLookup(config.kakaoRestApiKey) : async () => null;
+  // Auto-resolves Google ↔ Kakao geocode disputes via Gemini + Maps
+  // grounding. Optional: when GEMINI_API_KEY isn't set the geocoder
+  // falls back to the legacy "trust Google, flag the row" behavior.
+  const resolveDispute = config.geminiApiKey
+    ? createGeminiPlaceResolver({ apiKey: config.geminiApiKey })
+    : undefined;
   const geocode = createGeocoder({
     googleLookup: memoLRU(googleLookupRaw, { keyFn: lookupKey, max: 2000, ttlMs: 7 * 24 * 60 * 60_000 }),
     kakaoLookup:  memoLRU(kakaoLookupRaw,  { keyFn: lookupKey, max: 2000, ttlMs: 7 * 24 * 60 * 60_000 }),
+    resolveDispute,
   });
   const upsertPost = upsertPostFactory(supabase);
   const savePlaces = createSavePlaces(supabase);
