@@ -148,7 +148,14 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }}
           script: |
             set -e
-            export PATH="$HOME/.bun/bin:$PATH"
+            # Non-interactive SSH inherits a minimal PATH that often omits
+            # /usr/local/bin (where `sudo npm install -g` lands binaries
+            # like dev-browser). Explicitly prepend the standard binary
+            # dirs so PM2's child process can find yt-dlp, ffmpeg, and
+            # dev-browser. Without this the IG worker logs
+            # "[ig:bundle] dev-browser NOT in $PATH" and silently skips
+            # the headless video fallback.
+            export PATH="$HOME/.bun/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 
             if [ ! -f ~/anthonyl.im/frontend/dist/index.html ]; then
               echo "ERROR: frontend/dist/index.html not found"
@@ -161,9 +168,18 @@ jobs:
               bun add -g pm2
             fi
 
+            # Sanity-check binaries pm2's child needs at runtime
+            echo "[deploy] PATH=$PATH"
+            echo "[deploy] yt-dlp: $(command -v yt-dlp >/dev/null && which yt-dlp || echo MISSING)"
+            echo "[deploy] ffmpeg: $(command -v ffmpeg >/dev/null && which ffmpeg || echo MISSING)"
+            echo "[deploy] dev-browser: $(command -v dev-browser >/dev/null && which dev-browser || echo MISSING)"
+
             pm2 delete anthonyl.im 2>/dev/null || true
             cd ~/anthonyl.im
-            pm2 start bun --name anthonyl.im -- run index.ts
+            # --update-env so PM2 captures the explicit PATH we just set
+            # rather than the daemon's stale environment from a previous
+            # deploy (which may not have included /usr/local/bin).
+            pm2 start bun --name anthonyl.im --update-env -- run index.ts
 
             sleep 3
             pm2 logs anthonyl.im --lines 15 --nostream
