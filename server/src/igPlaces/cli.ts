@@ -13,26 +13,40 @@ import { createFrameExtractor } from './extractFrames';
 import { createOcr } from './ocr';
 import { createBundleBuilder } from './buildBundle';
 import { createExtractor } from './extractPlaces';
+import { createGeminiCarouselAnalyzer, createGeminiVideoAnalyzer } from './gemini';
 import { createGeocoder, realGoogleLookup, realKakaoLookup } from './geocode';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-async function downloadVideo(url: string): Promise<string> {
+// IG's CDN closes connections (hang/timeout) when the request lacks a
+// browser-like User-Agent + Referer. Matches the wire.ts CDN_FETCH_HEADERS.
+const CDN_HEADERS = {
+  'User-Agent':
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
+    '(KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36',
+  Accept: '*/*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  Referer: 'https://www.instagram.com/',
+};
+
+// See wire.ts: Bun.write(out, response) deadlocks when fetch had an
+// AbortSignal. arrayBuffer() materialises the body and avoids it.
+async function downloadVideo(url: string, signal?: AbortSignal): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'ig-cli-'));
   const out = join(dir, 'video.mp4');
-  const r = await fetch(url);
-  if (!r.ok || !r.body) throw new Error(`download ${r.status}`);
-  await Bun.write(out, r);
+  const r = await fetch(url, { headers: CDN_HEADERS, signal });
+  if (!r.ok) throw new Error(`download ${r.status}`);
+  await Bun.write(out, await r.arrayBuffer());
   return out;
 }
 
-async function downloadImage(url: string): Promise<string> {
+async function downloadImage(url: string, signal?: AbortSignal): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'ig-cli-img-'));
   const out = join(dir, 'image.jpg');
-  const r = await fetch(url);
-  if (!r.ok || !r.body) throw new Error(`image download ${r.status}`);
-  await Bun.write(out, r);
+  const r = await fetch(url, { headers: CDN_HEADERS, signal });
+  if (!r.ok) throw new Error(`image download ${r.status}`);
+  await Bun.write(out, await r.arrayBuffer());
   return out;
 }
 
@@ -46,9 +60,16 @@ async function main() {
   const transcribe = createTranscriber({ groq });
   const extractFrames = createFrameExtractor();
   const ocr = createOcr({ apiKey: config.googleVisionApiKey ?? '' });
+  const geminiCarouselAnalyzer = config.geminiApiKey
+    ? createGeminiCarouselAnalyzer({ apiKey: config.geminiApiKey })
+    : undefined;
+  const geminiVideoAnalyzer = config.geminiApiKey
+    ? createGeminiVideoAnalyzer({ apiKey: config.geminiApiKey })
+    : undefined;
   const buildBundle = createBundleBuilder({
     transcribe: (i) => transcribe({ ...i, biasPrompt: BIAS_PROMPT }),
     ocr, downloadVideo, downloadImage, extractFrames, biasPrompt: BIAS_PROMPT,
+    geminiCarouselAnalyzer, geminiVideoAnalyzer,
   });
   const extract = createExtractor({ groq });
   const geocode = createGeocoder({
@@ -61,13 +82,21 @@ async function main() {
   console.log('[cli] fetched via', payload.source, '— caption:', payload.caption.slice(0, 80));
 
   console.log('[cli] building bundle …');
-  const bundle = await buildBundle(payload);
+  const bundle = await buildBundle(payload, {
+    log: (level, message) => console.log(`[cli:bundle] ${level}: ${message}`),
+  });
   if (bundle.transcript) console.log('[cli] transcript:', bundle.transcript.slice(0, 200));
   if (bundle.ocr) console.log('[cli] ocr:', bundle.ocr.slice(0, 200));
 
-  console.log('[cli] extracting places (3-vote self-consistency) …');
-  const voted = await extract(bundle);
-  console.log('[cli] voted places:', voted.length);
+  let voted;
+  if (bundle.preExtractedPlaces && bundle.preExtractedPlaces.length > 0) {
+    voted = bundle.preExtractedPlaces;
+    console.log('[cli] using preExtractedPlaces from analyzer:', voted.length);
+  } else {
+    console.log('[cli] extracting places (3-vote self-consistency) …');
+    voted = await extract(bundle);
+    console.log('[cli] voted places:', voted.length);
+  }
 
   console.log('[cli] geocoding …');
   const enriched = await Promise.all(voted.map(v => geocode(v, payload.locationTag)));

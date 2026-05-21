@@ -31,12 +31,18 @@ const CDN_FETCH_HEADERS = {
   Referer: 'https://www.instagram.com/',
 };
 
+// Bun 1.3.0 quirk: `Bun.write(out, response)` deadlocks when `response` came
+// from a fetch started with an AbortSignal — the writer never gets a body
+// chunk and the call hangs forever (observed: 14-parallel IG image fetches
+// all "timing out" at exactly 120s with the worker pegged at ~100% CPU).
+// Materialising the body via `arrayBuffer()` first avoids the streaming
+// path entirely and writes complete in ~1s for a ~150 KB image.
 async function downloadVideo(url: string, signal?: AbortSignal): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'ig-video-'));
   const out = join(dir, 'video.mp4');
   const r = await fetch(url, { signal, headers: CDN_FETCH_HEADERS });
-  if (!r.ok || !r.body) throw new Error(`video download ${r.status}`);
-  await Bun.write(out, r);
+  if (!r.ok) throw new Error(`video download ${r.status}`);
+  await Bun.write(out, await r.arrayBuffer());
   return out;
 }
 
@@ -44,8 +50,8 @@ async function downloadImage(url: string, signal?: AbortSignal): Promise<string>
   const dir = await mkdtemp(join(tmpdir(), 'ig-image-'));
   const out = join(dir, 'image.jpg');
   const r = await fetch(url, { signal, headers: CDN_FETCH_HEADERS });
-  if (!r.ok || !r.body) throw new Error(`image download ${r.status}`);
-  await Bun.write(out, r);
+  if (!r.ok) throw new Error(`image download ${r.status}`);
+  await Bun.write(out, await r.arrayBuffer());
   return out;
 }
 
@@ -226,8 +232,10 @@ try {
     const dir = await mkdtemp(join(tmpdir(), 'ig-video-headless-'));
     const outPath = join(dir, 'video.mp4');
     const dl = await fetch(videoSrc, { signal, headers: CDN_FETCH_HEADERS });
-    if (!dl.ok || !dl.body) throw new Error(`headless CDN stream ${dl.status}`);
-    await Bun.write(outPath, dl);
+    if (!dl.ok) throw new Error(`headless CDN stream ${dl.status}`);
+    // arrayBuffer() avoids the Bun.write-with-aborted-signal deadlock —
+    // see comment on downloadImage above.
+    await Bun.write(outPath, await dl.arrayBuffer());
     return outPath;
   } finally {
     signal?.removeEventListener('abort', onAbort);
