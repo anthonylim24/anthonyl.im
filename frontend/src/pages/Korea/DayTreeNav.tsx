@@ -58,9 +58,10 @@ export function DayTreeNav({ days, className }: DayTreeNavProps) {
         <Link
           to="/korea"
           data-active={isIndex}
-          className="group flex shrink-0 items-center gap-1.5 rounded-full border border-stone-300/70 bg-stone-50 px-3 py-1.5 text-xs font-medium text-stone-700 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-900 data-[active=true]:border-rose-400 data-[active=true]:bg-rose-100 data-[active=true]:text-rose-900 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:bg-rose-950/40 dark:data-[active=true]:border-rose-700 dark:data-[active=true]:bg-rose-950/60 dark:data-[active=true]:text-rose-100"
+          aria-current={isIndex ? "page" : undefined}
+          className="group flex shrink-0 items-center gap-1.5 rounded-full border border-stone-300/70 bg-stone-50 px-3 py-1.5 text-xs font-medium text-stone-700 transition-colors duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:border-stone-300 hover:bg-stone-100 hover:text-stone-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 data-[active=true]:border-rose-400 data-[active=true]:bg-rose-100 data-[active=true]:text-rose-900 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-stone-700 dark:hover:bg-stone-800 dark:hover:text-stone-100 dark:data-[active=true]:border-rose-700 dark:data-[active=true]:bg-rose-950/60 dark:data-[active=true]:text-rose-100"
         >
-          <span className="text-base leading-none">🇰🇷</span>
+          <span aria-hidden className="text-base leading-none">🇰🇷</span>
           <span>Overview</span>
         </Link>
         <div
@@ -84,7 +85,7 @@ export function DayTreeNav({ days, className }: DayTreeNavProps) {
                   data-today={isToday}
                   aria-current={active ? "page" : undefined}
                   className={
-                    "group relative flex items-center gap-1.5 rounded-full border border-transparent px-3 py-1.5 text-xs font-medium text-stone-600 transition hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900 data-[active=true]:border-rose-400 data-[active=true]:bg-rose-100 data-[active=true]:text-rose-900 data-[active=true]:shadow-sm dark:text-stone-400 dark:hover:border-stone-700 dark:hover:bg-stone-900 dark:hover:text-stone-100 dark:data-[active=true]:border-rose-700 dark:data-[active=true]:bg-rose-950/60 dark:data-[active=true]:text-rose-100 " +
+                    "group relative flex items-center gap-1.5 rounded-full border border-transparent px-3 py-1.5 text-xs font-medium text-stone-600 transition-colors duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 data-[active=true]:border-rose-400 data-[active=true]:bg-rose-100 data-[active=true]:text-rose-900 data-[active=true]:shadow-sm dark:text-stone-400 dark:hover:border-stone-700 dark:hover:bg-stone-900 dark:hover:text-stone-100 dark:data-[active=true]:border-rose-700 dark:data-[active=true]:bg-rose-950/60 dark:data-[active=true]:text-rose-100 " +
                     (isToday && !active
                       ? "ring-2 ring-emerald-400/70 dark:ring-emerald-500/60"
                       : "")

@@ -400,7 +400,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
           type="button"
           onClick={onClose}
           aria-label="Close Map Mode"
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-stone-300 bg-stone-50 text-stone-700 transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-stone-300 bg-stone-50 text-stone-700 transition hover:border-rose-300 hover:text-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
         >
           <X className="h-4 w-4" />
         </button>
@@ -423,7 +423,8 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
           onClick={requestLocation}
           disabled={locating}
           title="Re-fetch your location"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-stone-300 bg-stone-50 px-2.5 py-1.5 text-xs font-medium text-stone-700 transition hover:border-rose-300 hover:text-rose-700 disabled:opacity-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
+          aria-label="Re-fetch your location"
+          className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-stone-300 bg-stone-50 px-3 text-xs font-medium text-stone-700 transition hover:border-rose-300 hover:text-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 disabled:opacity-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
         >
           {locating ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
@@ -434,14 +435,15 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
         </button>
 
         {!webglFailed && (
-          <div className="inline-flex shrink-0 overflow-hidden rounded-full border border-stone-300 bg-stone-50 text-xs font-medium dark:border-stone-700 dark:bg-stone-900">
+          <div role="group" aria-label="View mode" className="inline-flex h-10 shrink-0 overflow-hidden rounded-full border border-stone-300 bg-stone-50 text-xs font-medium dark:border-stone-700 dark:bg-stone-900">
             <button
               type="button"
               onClick={() => setViewMode("orb")}
               aria-pressed={viewMode === "orb"}
+              aria-label="3D bubble view"
               title="3D bubble view"
               className={
-                "inline-flex items-center gap-1 px-2.5 py-1.5 transition " +
+                "inline-flex items-center gap-1 px-3 transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 " +
                 (viewMode === "orb"
                   ? "bg-rose-600 text-white"
                   : "text-stone-700 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800")
@@ -454,9 +456,10 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
               type="button"
               onClick={() => setViewMode("list")}
               aria-pressed={viewMode === "list"}
+              aria-label="List view"
               title="List view"
               className={
-                "inline-flex items-center gap-1 px-2.5 py-1.5 transition " +
+                "inline-flex items-center gap-1 px-3 transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 " +
                 (viewMode === "list"
                   ? "bg-rose-600 text-white"
                   : "text-stone-700 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800")
@@ -476,7 +479,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
             aria-expanded={debugOpen}
             aria-label="Debug options"
             className={
-              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-medium transition " +
+              "inline-flex h-10 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 " +
               (testMode || mockHotel || detailed3D
                 ? "border-violet-400 bg-violet-100 text-violet-900 dark:border-violet-700 dark:bg-violet-950/60 dark:text-violet-100"
                 : "border-stone-300 bg-stone-50 text-stone-700 hover:border-violet-300 hover:text-violet-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-violet-700 dark:hover:text-violet-200")
@@ -624,10 +627,10 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
                   onClick={resetView}
                   title="Reset camera view"
                   aria-label="Reset camera view"
-                  className="absolute right-3 z-20 inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-stone-700 shadow-md backdrop-blur transition hover:bg-stone-50 hover:text-rose-700 dark:bg-stone-900/85 dark:text-stone-300 dark:hover:bg-stone-900 dark:hover:text-rose-200"
-                  style={{ top: "calc(env(safe-area-inset-top, 0px) + 64px)" }}
+                  className="absolute right-3 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/85 text-stone-700 shadow-md backdrop-blur transition hover:bg-stone-50 hover:text-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:bg-stone-900/85 dark:text-stone-300 dark:hover:bg-stone-900 dark:hover:text-rose-200"
+                  style={{ top: "calc(env(safe-area-inset-top, 0px) + 76px)" }}
                 >
-                  <Crosshair className="h-4 w-4" />
+                  <Crosshair className="h-4 w-4" aria-hidden />
                 </button>
                 <MapModeCompass yawRef={yawRef} onOrientNorth={orientNorth} />
               </>
@@ -670,7 +673,13 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
               </div>
             )}
             {showList && (
-              <div className="absolute inset-0 overflow-y-auto pt-32">
+              <div
+                className="absolute inset-0 overflow-y-auto"
+                style={{
+                  paddingTop: "calc(env(safe-area-inset-top, 0px) + 124px)",
+                  paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)",
+                }}
+              >
                 <MapModeFallbackList
                   places={filteredPlaces}
                   onSelect={(p) => {
@@ -687,7 +696,10 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
             info circle in the bottom-left; tapping expands the full
             dot legend. Only in orb view; list view doesn't need 3D hints. */}
         {showOrbs && (
-          <div className="absolute bottom-3 left-3 z-10">
+          <div
+            className="absolute left-3 z-10"
+            style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
+          >
             {legendOpen ? (
               <div className="flex flex-col gap-1.5 rounded-2xl bg-white/85 px-3 py-2 text-[10px] font-medium text-stone-700 shadow-md backdrop-blur dark:bg-stone-900/85 dark:text-stone-300">
                 <div className="flex items-center justify-between gap-3">
@@ -698,7 +710,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
                     type="button"
                     onClick={() => setLegendOpen(false)}
                     aria-label="Collapse legend"
-                    className="inline-flex h-5 w-5 items-center justify-center rounded-full text-stone-500 transition hover:bg-stone-100 hover:text-stone-700 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-200"
+                    className="inline-flex h-6 w-6 items-center justify-center rounded-full text-stone-500 transition hover:bg-stone-100 hover:text-stone-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-200"
                   >
                     <X className="h-3 w-3" aria-hidden />
                   </button>
@@ -721,7 +733,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
                 type="button"
                 onClick={() => setLegendOpen(true)}
                 aria-label="Show map legend"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-stone-700 shadow-md backdrop-blur transition hover:bg-stone-50 hover:text-rose-700 dark:bg-stone-900/85 dark:text-stone-300 dark:hover:bg-stone-900 dark:hover:text-rose-200"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/85 text-stone-700 shadow-md backdrop-blur transition hover:bg-stone-50 hover:text-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:bg-stone-900/85 dark:text-stone-300 dark:hover:bg-stone-900 dark:hover:text-rose-200"
               >
                 <Info className="h-4 w-4" aria-hidden />
               </button>
@@ -731,8 +743,11 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
 
         {/* Location pill */}
         {location && (
-          <div className={"pointer-events-none absolute bottom-3 right-3 z-10 max-w-[60vw] bg-white/85 px-3 py-1.5 text-[10px] font-medium text-stone-700 shadow-md backdrop-blur dark:bg-stone-900/85 dark:text-stone-300 " + (userNeighborhood ? "rounded-2xl" : "truncate rounded-full")}>
-            <div className="flex items-center gap-1 truncate">
+          <div
+            className={"pointer-events-none absolute right-3 z-10 max-w-[60vw] bg-white/85 px-3 py-1.5 text-[10px] font-medium text-stone-700 shadow-md backdrop-blur dark:bg-stone-900/85 dark:text-stone-300 " + (userNeighborhood ? "rounded-2xl" : "rounded-full")}
+            style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
+          >
+            <div className="flex items-center gap-1.5">
               <MapPin className="inline-block h-3 w-3 shrink-0" aria-hidden />
               <span className="truncate">
                 {location.label}
@@ -740,7 +755,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
               </span>
             </div>
             {userNeighborhood && (
-              <div className="mt-0.5 truncate pl-4 text-[10px] font-normal text-stone-500 dark:text-stone-400">
+              <div className="mt-0.5 truncate pl-[18px] text-[10px] font-normal text-stone-500 dark:text-stone-400">
                 {userNeighborhood}
               </div>
             )}

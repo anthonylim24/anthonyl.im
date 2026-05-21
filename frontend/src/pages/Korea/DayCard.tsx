@@ -32,11 +32,12 @@ export function DayCard({ day, index, reservationsCount, isToday = false }: DayC
     >
       <Link
         to={`/korea/day/${day.slug}`}
+        aria-current={isToday ? "date" : undefined}
         className={
-          "group relative block h-full overflow-hidden rounded-3xl border bg-stone-50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/50 dark:bg-stone-900/40 " +
+          "group relative block h-full overflow-hidden rounded-3xl border bg-stone-50 transition-colors duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/50 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-50 dark:bg-stone-900/40 dark:focus-visible:ring-offset-stone-950 " +
           (isToday
             ? "border-rose-400/70 dark:border-rose-500/60"
-            : "border-stone-200/80 hover:border-stone-300 dark:border-stone-800/80 dark:hover:border-stone-700") +
+            : "border-stone-200/80 hover:border-stone-300 hover:bg-stone-100/60 dark:border-stone-800/80 dark:hover:border-stone-700 dark:hover:bg-stone-900/60") +
           (isPast ? " opacity-60" : "")
         }
       >
@@ -64,9 +65,11 @@ export function DayCard({ day, index, reservationsCount, isToday = false }: DayC
                 Day {String(day.n).padStart(2, "0")}
               </span>
             </div>
-            <span aria-hidden className="text-2xl leading-none opacity-90">
-              {day.emoji}
-            </span>
+            {!isToday && (
+              <span aria-hidden className="text-2xl leading-none opacity-90">
+                {day.emoji}
+              </span>
+            )}
           </div>
 
           {/* Headline */}

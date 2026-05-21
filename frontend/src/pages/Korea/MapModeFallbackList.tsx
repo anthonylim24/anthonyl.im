@@ -47,29 +47,37 @@ export function MapModeFallbackList({ places, onSelect }: MapModeFallbackListPro
     else groups[p.priority].push(p)
   }
 
+  const isEmpty = places.length === 0
+
   return (
-    <div className="mx-auto max-w-2xl px-4 pb-28 pt-4 sm:px-6">
-      {groupOrder.map((key) =>
-        groups[key].length > 0 ? (
-          <section key={key} className="mb-5">
-            <h3 className="mb-2 inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-stone-500 dark:text-stone-400">
-              {key === "instagram" && <IgIcon className="h-3 w-3 text-rose-500" aria-hidden />}
-              {groupLabel[key]} · {groups[key].length}
-            </h3>
-            <ul className="space-y-2">
-              {groups[key].map((p, i) => (
-                <motion.li
-                  key={p.id}
-                  initial={reduce ? false : { opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: reduce ? 0 : i * 0.03 }}
-                >
-                  <PlaceListRow place={p} onSelect={onSelect} ringClass={groupRingColor[key]} />
-                </motion.li>
-              ))}
-            </ul>
-          </section>
-        ) : null,
+    <div className="mx-auto max-w-2xl px-4 pb-12 pt-4 sm:px-6">
+      {isEmpty ? (
+        <div className="mt-16 rounded-2xl border border-dashed border-stone-300 bg-white/60 p-8 text-center text-sm text-stone-600 shadow-sm dark:border-stone-700 dark:bg-stone-900/40 dark:text-stone-400">
+          No places match these filters yet.
+        </div>
+      ) : (
+        groupOrder.map((key) =>
+          groups[key].length > 0 ? (
+            <section key={key} className="mb-5">
+              <h3 className="mb-2 inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-stone-500 dark:text-stone-400">
+                {key === "instagram" && <IgIcon className="h-3 w-3 text-rose-500" aria-hidden />}
+                {groupLabel[key]} · {groups[key].length}
+              </h3>
+              <ul className="space-y-2">
+                {groups[key].map((p, i) => (
+                  <motion.li
+                    key={p.id}
+                    initial={reduce ? false : { opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: reduce ? 0 : Math.min(i * 0.03, 0.3) }}
+                  >
+                    <PlaceListRow place={p} onSelect={onSelect} ringClass={groupRingColor[key]} />
+                  </motion.li>
+                ))}
+              </ul>
+            </section>
+          ) : null,
+        )
       )}
     </div>
   )
@@ -105,7 +113,8 @@ function PlaceListRow({ place, onSelect, ringClass }: PlaceListRowProps) {
     <button
       type="button"
       onClick={() => onSelect(place)}
-      className="group flex w-full items-start gap-3 rounded-2xl border border-stone-200 bg-white/80 p-3.5 text-left shadow-sm transition hover:border-rose-300 hover:bg-rose-50 dark:border-stone-800 dark:bg-stone-900/60 dark:hover:border-rose-700 dark:hover:bg-rose-950/30"
+      aria-label={`Open ${place.name} details`}
+      className="group flex w-full items-start gap-3 rounded-2xl border border-stone-200 bg-white/80 p-3.5 text-left shadow-sm transition hover:-translate-y-px hover:border-rose-300 hover:bg-rose-50 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:border-stone-800 dark:bg-stone-900/60 dark:hover:border-rose-700 dark:hover:bg-rose-950/30"
     >
       {/* Thumbnail with photo + category-tinted gradient fallback */}
       <span

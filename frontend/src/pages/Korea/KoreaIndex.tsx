@@ -154,7 +154,7 @@ function SectionShell({
           {title}
         </h2>
         {subtitle && (
-          <p className="mt-2 max-w-[58ch] text-sm text-stone-600 dark:text-stone-400">{subtitle}</p>
+          <p className="mt-2 max-w-[60ch] break-words text-sm leading-relaxed text-stone-600 dark:text-stone-400">{subtitle}</p>
         )}
       </motion.header>
       <div className="mt-8">{children}</div>
@@ -170,6 +170,13 @@ function SectionShell({
  */
 function ReservationLedger({ reservations }: { reservations: Reservation[] }) {
   const reduce = useReducedMotion()
+  if (reservations.length === 0) {
+    return (
+      <p className="-mt-2 max-w-[60ch] text-sm text-stone-500 dark:text-stone-500">
+        No reservations booked yet.
+      </p>
+    )
+  }
   return (
     <ol className="-mt-2 divide-y divide-stone-200/80 dark:divide-stone-800/80">
       {reservations.map((r, i) => (
@@ -205,7 +212,7 @@ function ReservationRow({ reservation: r }: { reservation: Reservation }) {
           {dateLabel.day}
         </span>
         <span className="mt-1 font-mono text-[10px] uppercase tracking-[0.18em] text-stone-500 dark:text-stone-500">
-          {dateLabel.month} · {dateLabel.dow}
+          {[dateLabel.month, dateLabel.dow].filter(Boolean).join(" · ")}
         </span>
         {r.time && (
           <span className="mt-2.5 font-mono text-[11px] tabular-nums text-stone-700 dark:text-stone-300">
@@ -287,6 +294,13 @@ function formatLedgerDate(iso: string): { day: string; month: string; dow: strin
  */
 function NeighborhoodSpread({ neighborhoods }: { neighborhoods: Snapshot["neighborhoods"] }) {
   const reduce = useReducedMotion()
+  if (neighborhoods.length === 0) {
+    return (
+      <p className="-mt-2 max-w-[60ch] text-sm text-stone-500 dark:text-stone-500">
+        Neighborhoods haven't been mapped yet.
+      </p>
+    )
+  }
   return (
     <ul className="-mt-2 divide-y divide-stone-200/80 dark:divide-stone-800/80">
       {neighborhoods.map((n, i) => (
@@ -324,6 +338,13 @@ function NeighborhoodSpread({ neighborhoods }: { neighborhoods: Snapshot["neighb
  */
 function HotelLedger({ hotels }: { hotels: Snapshot["trip"]["hotels"] }) {
   const reduce = useReducedMotion()
+  if (hotels.length === 0) {
+    return (
+      <p className="-mt-2 max-w-[60ch] text-sm text-stone-500 dark:text-stone-500">
+        No hotels booked yet.
+      </p>
+    )
+  }
   return (
     <ul className="-mt-2 divide-y divide-stone-200/80 dark:divide-stone-800/80">
       {hotels.map((h, i) => (
@@ -400,7 +421,7 @@ function KoreaError({ message }: { message: string }) {
       <button
         type="button"
         onClick={() => location.reload()}
-        className="mt-5 inline-flex items-center gap-2 rounded-full bg-stone-900 px-5 py-2 text-sm font-medium text-white transition hover:bg-stone-800 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-200"
+        className="mt-5 inline-flex min-h-[44px] items-center gap-2 rounded-full bg-stone-900 px-5 py-2 text-sm font-medium text-white transition-colors duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-stone-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-200"
       >
         Retry
       </button>

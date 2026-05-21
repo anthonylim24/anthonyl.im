@@ -24,7 +24,8 @@ export function TodayBanner({ today }: TodayBannerProps) {
     >
       <Link
         to={`/korea/day/${today.slug}`}
-        className="group block border-y border-stone-200/80 py-4 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/50 dark:border-stone-800/80"
+        aria-label={`Today: Day ${today.n}, ${today.title}`}
+        className="group block border-y border-stone-200/80 py-4 transition-colors duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 dark:border-stone-800/80"
       >
         <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
           <p className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.24em] text-rose-700 dark:text-rose-300">

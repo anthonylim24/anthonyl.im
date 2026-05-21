@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { clerkEnabled, useGetToken } from '@/lib/safeAuth'
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react'
-import { ExternalLink, MapPin, Phone, Star, AlertTriangle, ArrowLeft, CalendarDays, Check, Loader2 } from 'lucide-react'
+import { ExternalLink, MapPin, Phone, Star, AlertTriangle, ArrowLeft, CalendarDays, Check, Loader2, X } from 'lucide-react'
 import { IgIcon } from './IgIcon'
 import { PlaceCardSkeleton } from './skeletons'
 import { fetchExtractedPlaces, setExtractedPlaceDays } from './placesApi'
@@ -137,22 +137,27 @@ interface DayAssignButtonProps {
 }
 
 function DayAssignButton({ place, getToken, onUpdated }: DayAssignButtonProps) {
+  const reduce = useReducedMotion()
   const [open, setOpen] = useState(false)
   const [pendingDays, setPendingDays] = useState<Set<number>>(new Set(place.days ?? []))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
   // Sync external changes (e.g. re-fetch)
   useEffect(() => {
     if (!open) setPendingDays(new Set(place.days ?? []))
   }, [place.days, open])
 
-  // Close on Escape
+  // Close on Escape — return focus to the trigger for keyboard users
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key === 'Escape') {
+        setOpen(false)
+        triggerRef.current?.focus()
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -200,17 +205,25 @@ function DayAssignButton({ place, getToken, onUpdated }: DayAssignButtonProps) {
   const assignedDays = [...(place.days ?? [])].sort((a, b) => a - b)
   const hasAssignment = assignedDays.length > 0
 
+  // Detect unsaved changes so the Save button can disable when there's
+  // nothing to commit (also makes the dialog feel less like a no-op trap).
+  const initial = new Set(place.days ?? [])
+  const dirty =
+    pendingDays.size !== initial.size ||
+    [...pendingDays].some((n) => !initial.has(n))
+
   return (
     <div className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => { setPendingDays(new Set(place.days ?? [])); setOpen((v) => !v) }}
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={hasAssignment ? `Assigned to ${assignedDays.map(n => `Day ${n}`).join(', ')}. Change days` : 'Add to days'}
-        className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 ${
+        className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-900 ${
           hasAssignment
-            ? 'border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-700/60 dark:bg-rose-950/40 dark:text-rose-400'
+            ? 'border-rose-300 bg-rose-50 text-rose-700 hover:border-rose-400 hover:bg-rose-100 dark:border-rose-700/60 dark:bg-rose-950/40 dark:text-rose-400 dark:hover:bg-rose-950/60'
             : 'border-stone-200 bg-stone-50 text-stone-600 hover:border-stone-300 hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-800/60 dark:text-stone-300 dark:hover:bg-stone-800'
         }`}
       >
@@ -225,30 +238,30 @@ function DayAssignButton({ place, getToken, onUpdated }: DayAssignButtonProps) {
             role="dialog"
             aria-label={`Assign ${place.name} to itinerary days`}
             aria-modal="true"
-            initial={{ opacity: 0, scale: 0.96, y: -4 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: -4 }}
-            transition={{ duration: 0.14 }}
-            className="absolute left-0 top-[calc(100%+6px)] z-40 w-64 origin-top-left rounded-2xl border border-stone-200 bg-white p-3 shadow-xl ring-1 ring-stone-200/60 dark:border-stone-800 dark:bg-stone-950 dark:ring-stone-800"
+            initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: -4 }}
+            animate={reduce ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
+            exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: -4 }}
+            transition={{ duration: reduce ? 0.08 : 0.14, ease: [0.16, 1, 0.3, 1] }}
+            className="absolute left-0 top-[calc(100%+6px)] z-40 w-64 max-w-[calc(100vw-2rem)] origin-top-left rounded-2xl border border-stone-200 bg-white p-3 shadow-xl ring-1 ring-stone-200/60 dark:border-stone-800 dark:bg-stone-950 dark:ring-stone-800"
           >
             <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
               Assign to days
             </p>
             <fieldset>
               <legend className="sr-only">Select days for {place.name}</legend>
-              <div className="max-h-48 space-y-0.5 overflow-y-auto">
+              <div className="max-h-48 space-y-0.5 overflow-y-auto pr-1">
                 {KOREA_DAYS.map((day) => {
                   const checked = pendingDays.has(day.n)
                   return (
                     <label
                       key={day.n}
-                      className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 transition hover:bg-stone-50 dark:hover:bg-stone-900"
+                      className="flex min-h-[36px] cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 transition hover:bg-stone-50 focus-within:ring-2 focus-within:ring-rose-400/40 dark:hover:bg-stone-900"
                     >
                       <input
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggleDay(day.n)}
-                        className="h-4 w-4 shrink-0 accent-rose-600"
+                        className="h-4 w-4 shrink-0 accent-rose-600 focus:outline-none"
                         aria-label={day.label}
                       />
                       <span className="text-[12px] text-stone-800 dark:text-stone-200">{day.label}</span>
@@ -259,23 +272,23 @@ function DayAssignButton({ place, getToken, onUpdated }: DayAssignButtonProps) {
               </div>
             </fieldset>
             {error && (
-              <p role="alert" className="mt-2 text-[11px] text-red-600 dark:text-red-400">{error}</p>
+              <p role="alert" className="mt-2 rounded-md bg-red-50 px-2 py-1 text-[11px] text-red-700 dark:bg-red-950/30 dark:text-red-400">{error}</p>
             )}
             <div className="mt-3 flex gap-2">
               <button
                 type="button"
                 onClick={handleSave}
-                disabled={saving}
+                disabled={saving || !dirty}
                 aria-busy={saving}
-                className="inline-flex min-h-[36px] flex-1 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-rose-700 disabled:opacity-60 dark:bg-rose-500 dark:hover:bg-rose-400"
+                className="inline-flex min-h-[36px] flex-1 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-rose-500 dark:hover:bg-rose-400"
               >
                 {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
-                Save
+                {saving ? 'Saving…' : 'Save'}
               </button>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="inline-flex min-h-[36px] items-center justify-center rounded-lg border border-stone-200 px-3 py-1.5 text-[12px] font-medium text-stone-600 transition hover:bg-stone-50 dark:border-stone-700 dark:text-stone-400 dark:hover:bg-stone-900"
+                className="inline-flex min-h-[36px] items-center justify-center rounded-lg border border-stone-200 px-3 py-1.5 text-[12px] font-medium text-stone-600 transition hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:border-stone-700 dark:text-stone-400 dark:hover:bg-stone-900"
               >
                 Cancel
               </button>
@@ -298,16 +311,17 @@ function PlaceCard({
   getToken: () => Promise<string | null>
   onUpdated: (placeId: number, days: number[]) => void
 }) {
+  const reduce = useReducedMotion()
   const gmUrl = googleMapsUrl(place)
   const kakaoUrl = kakaoMapsUrl(place)
 
   return (
     <motion.article
-      layout
+      layout={reduce ? false : 'position'}
       initial={false}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-      className="relative rounded-2xl border border-stone-200/80 bg-white p-5 dark:border-stone-800/80 dark:bg-stone-900/60"
+      transition={{ duration: reduce ? 0 : 0.3, ease: [0.16, 1, 0.3, 1] }}
+      className="relative rounded-2xl border border-stone-200/80 bg-white p-5 transition-colors dark:border-stone-800/80 dark:bg-stone-900/60"
       aria-label={`Place: ${place.name}`}
     >
       {/* Geocode-disagree warning banner */}
@@ -323,9 +337,9 @@ function PlaceCard({
 
       {/* Header: Korean name + badges */}
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h2
-            className="inline-flex flex-wrap items-baseline gap-x-1.5 break-words text-[1.125rem] font-medium leading-snug text-stone-900 dark:text-stone-100"
+            className="inline-flex flex-wrap items-baseline gap-x-1.5 text-[1.125rem] font-medium leading-snug text-stone-900 [overflow-wrap:anywhere] dark:text-stone-100"
             style={{ fontFamily: "'Cormorant Garamond', serif" }}
           >
             <span>{place.name}</span>
@@ -335,14 +349,14 @@ function PlaceCard({
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label={`View ${place.name} on Instagram (opens in new tab)`}
-                className="inline-flex items-center text-stone-400 transition hover:text-rose-600 dark:text-stone-500 dark:hover:text-rose-400"
+                className="-mx-1 inline-flex h-6 w-6 items-center justify-center rounded text-stone-400 transition hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:text-stone-500 dark:hover:text-rose-400"
               >
                 <IgIcon className="h-4 w-4" aria-hidden />
               </a>
             )}
           </h2>
           {place.name_romanized && place.name_romanized !== place.name && (
-            <p className="mt-0.5 text-[13px] text-stone-500 dark:text-stone-400">
+            <p className="mt-0.5 text-[13px] leading-snug text-stone-500 [overflow-wrap:anywhere] dark:text-stone-400">
               {place.name_romanized}
               {place.city && (
                 <span className="text-stone-400 dark:text-stone-500"> · {place.city}</span>
@@ -357,12 +371,18 @@ function PlaceCard({
           <CategoryBadge category={place.category} />
           <BandBadge band={place.confidence_band} votes={place.vote_count} />
           {place.is_subject && (
-            <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-700 dark:bg-rose-950/30 dark:text-rose-400">
+            <span
+              className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-700 ring-1 ring-inset ring-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:ring-rose-900/40"
+              title="Primary subject of the post"
+            >
               Subject
             </span>
           )}
           {place.signal_source && (
-            <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-medium text-stone-500 dark:bg-stone-800 dark:text-stone-400">
+            <span
+              className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-medium text-stone-500 dark:bg-stone-800 dark:text-stone-400"
+              title={`Signal source: ${SIGNAL_SOURCE_LABELS[place.signal_source] ?? place.signal_source}`}
+            >
               {SIGNAL_SOURCE_LABELS[place.signal_source] ?? place.signal_source}
             </span>
           )}
@@ -375,21 +395,21 @@ function PlaceCard({
           {place.address && (
             <p className="flex items-start gap-1.5">
               <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-stone-400" aria-hidden />
-              <span className="break-words">{place.address}</span>
+              <span className="min-w-0 break-words [overflow-wrap:anywhere]">{place.address}</span>
             </p>
           )}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5">
             {place.phone && (
               <a
                 href={`tel:${place.phone}`}
-                className="flex items-center gap-1 text-stone-600 hover:text-rose-700 dark:text-stone-400 dark:hover:text-rose-400"
+                className="-mx-1 inline-flex items-center gap-1 rounded px-1 py-0.5 text-stone-600 transition hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:text-stone-400 dark:hover:text-rose-400"
               >
                 <Phone className="h-3 w-3 shrink-0" aria-hidden />
                 {place.phone}
               </a>
             )}
             {place.rating != null && (
-              <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+              <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400" aria-label={`Rating ${place.rating.toFixed(1)} out of 5`}>
                 <Star className="h-3 w-3 shrink-0 fill-current" aria-hidden />
                 {place.rating.toFixed(1)}
               </span>
@@ -400,8 +420,8 @@ function PlaceCard({
 
       {/* Supporting quote */}
       {place.supporting_quote && (
-        <blockquote className="mt-3 border-l-2 border-rose-200 pl-3 text-[13px] italic leading-relaxed text-stone-600 dark:border-rose-900/40 dark:text-stone-400">
-          "{place.supporting_quote}"
+        <blockquote className="mt-3 border-l-2 border-rose-200 pl-3 text-[13px] italic leading-relaxed text-stone-600 [overflow-wrap:anywhere] dark:border-rose-900/40 dark:text-stone-400">
+          &ldquo;{place.supporting_quote}&rdquo;
         </blockquote>
       )}
 
@@ -410,7 +430,15 @@ function PlaceCard({
         <p className="mt-2 text-[11px] text-stone-400 dark:text-stone-500">
           {place.post.owner_username && (
             <span>
-              — <span className="font-medium text-stone-500 dark:text-stone-400">@{place.post.owner_username}</span>
+              &mdash;{' '}
+              <a
+                href={`https://instagram.com/${place.post.owner_username}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="-mx-0.5 rounded px-0.5 font-medium text-stone-500 transition hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:text-stone-400 dark:hover:text-rose-400"
+              >
+                @{place.post.owner_username}
+              </a>
               {' '}
             </span>
           )}
@@ -426,8 +454,8 @@ function PlaceCard({
             href={place.post.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 text-[12px] font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-800/60 dark:text-stone-300 dark:hover:bg-stone-800"
-            aria-label={`View source post on Instagram (opens in new tab)`}
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 text-[12px] font-medium text-stone-700 transition active:scale-[0.98] hover:border-stone-300 hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:border-stone-700 dark:bg-stone-800/60 dark:text-stone-300 dark:hover:bg-stone-800"
+            aria-label="View source post on Instagram (opens in new tab)"
           >
             <IgIcon className="h-3.5 w-3.5" aria-hidden />
             View on Instagram
@@ -438,7 +466,7 @@ function PlaceCard({
             href={gmUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 text-[12px] font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-800/60 dark:text-stone-300 dark:hover:bg-stone-800"
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 text-[12px] font-medium text-stone-700 transition active:scale-[0.98] hover:border-stone-300 hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:border-stone-700 dark:bg-stone-800/60 dark:text-stone-300 dark:hover:bg-stone-800"
             aria-label={`View ${place.name} on Google Maps (opens in new tab)`}
           >
             <ExternalLink className="h-3.5 w-3.5" aria-hidden />
@@ -450,7 +478,7 @@ function PlaceCard({
             href={kakaoUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 text-[12px] font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-800/60 dark:text-stone-300 dark:hover:bg-stone-800"
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 text-[12px] font-medium text-stone-700 transition active:scale-[0.98] hover:border-stone-300 hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:border-stone-700 dark:bg-stone-800/60 dark:text-stone-300 dark:hover:bg-stone-800"
             aria-label={`View ${place.name} on Kakao Maps (opens in new tab)`}
           >
             <ExternalLink className="h-3.5 w-3.5" aria-hidden />
@@ -477,9 +505,9 @@ function FilterChip({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex min-h-[36px] items-center rounded-full border px-3 py-1 text-[12px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 ${
+      className={`inline-flex min-h-[36px] items-center rounded-full border px-3 py-1 text-[12px] font-medium transition active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 ${
         active
-          ? 'border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-700/60 dark:bg-rose-950/40 dark:text-rose-400'
+          ? 'border-rose-300 bg-rose-50 text-rose-700 shadow-[0_0_0_1px_rgba(244,63,94,0.08)_inset] hover:border-rose-400 hover:bg-rose-100 dark:border-rose-700/60 dark:bg-rose-950/40 dark:text-rose-400 dark:hover:bg-rose-950/60'
           : 'border-stone-200 bg-white text-stone-600 hover:border-stone-300 hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-400 dark:hover:bg-stone-800'
       }`}
       aria-pressed={active}
@@ -641,7 +669,7 @@ function PlacesImpl() {
             <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-stone-500 dark:text-stone-500">
               <Link
                 to="/korea/ingest"
-                className="inline-flex items-center gap-1 text-stone-400 transition hover:text-rose-600 dark:text-stone-500 dark:hover:text-rose-400"
+                className="-mx-0.5 inline-flex items-center gap-1 rounded px-0.5 text-stone-400 transition hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:text-stone-500 dark:hover:text-rose-400"
                 aria-label="Back to Ingest"
               >
                 <ArrowLeft className="h-3 w-3" aria-hidden />
@@ -658,28 +686,30 @@ function PlacesImpl() {
             >
               Extracted Places
             </h1>
-            <p className="mt-1.5 text-[13px] text-stone-500 dark:text-stone-400">
-              {loading
-                ? 'Loading…'
-                : total === 0
-                  ? 'No places yet'
-                  : (
+            <p className="mt-1.5 text-[13px] text-stone-500 dark:text-stone-400" aria-live="polite">
+              {loading ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                  Loading…
+                </span>
+              ) : total === 0 ? (
+                'No places yet'
+              ) : (
+                <>
+                  <span className="font-medium text-stone-700 dark:text-stone-300 tabular-nums">{total}</span> place{total !== 1 ? 's' : ''}
+                  {flaggedCount > 0 && (
                     <>
-                      <span className="font-medium text-stone-700 dark:text-stone-300">{total}</span> place{total !== 1 ? 's' : ''}
-                      {flaggedCount > 0 && (
-                        <>
-                          <span aria-hidden className="mx-1.5 text-stone-300 dark:text-stone-700">·</span>
-                          <span className="text-amber-600 dark:text-amber-400">{flaggedCount} flagged for review</span>
-                        </>
-                      )}
+                      <span aria-hidden className="mx-1.5 text-stone-300 dark:text-stone-700">·</span>
+                      <span className="text-amber-600 dark:text-amber-400">{flaggedCount} flagged for review</span>
                     </>
-                  )
-              }
+                  )}
+                </>
+              )}
             </p>
           </div>
 
           {/* Search */}
-          <div className="w-full sm:w-64">
+          <div className="relative w-full sm:w-64">
             <label htmlFor="places-search" className="sr-only">Search places</label>
             <input
               id="places-search"
@@ -687,9 +717,19 @@ function PlacesImpl() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search places…"
-              className="w-full min-h-[44px] rounded-xl border border-stone-300 bg-white px-4 py-2 text-[13px] text-stone-900 placeholder-stone-400 outline-none transition focus:border-rose-400 focus:ring-2 focus:ring-rose-400/20 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:placeholder-stone-600 dark:focus:border-rose-500 dark:focus:ring-rose-500/20"
+              className="min-h-[44px] w-full rounded-xl border border-stone-300 bg-white px-4 py-2 pr-10 text-[13px] text-stone-900 placeholder-stone-400 outline-none transition focus:border-rose-400 focus:ring-2 focus:ring-rose-400/20 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:placeholder-stone-600 dark:focus:border-rose-500 dark:focus:ring-rose-500/20"
               aria-label="Search extracted places by name or quote"
             />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                aria-label="Clear search"
+                className="absolute right-1.5 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:text-stone-500 dark:hover:bg-stone-800 dark:hover:text-stone-200"
+              >
+                <X className="h-3.5 w-3.5" aria-hidden />
+              </button>
+            )}
           </div>
         </div>
       </motion.header>
@@ -743,8 +783,20 @@ function PlacesImpl() {
       {/* Places list */}
       <section aria-label="Extracted places" aria-live="polite" className="mt-8">
         {error && (
-          <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-400">
-            {error}
+          <div
+            role="alert"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-400"
+          >
+            <span className="break-words">{error}</span>
+            <button
+              type="button"
+              onClick={() =>
+                void load({ category: activeCategory, band: activeBand, q: debouncedSearch, offset: 0, append: false })
+              }
+              className="inline-flex min-h-[36px] items-center rounded-lg border border-red-300/70 bg-white/60 px-3 py-1 text-[12px] font-medium text-red-700 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/60"
+            >
+              Retry
+            </button>
           </div>
         )}
 
@@ -760,11 +812,13 @@ function PlacesImpl() {
           <div className="flex min-h-[140px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 px-6 py-10 text-center dark:border-stone-800 dark:bg-stone-900/30">
             {hasActiveFilters ? (
               <>
-                <p className="text-[14px] text-stone-500 dark:text-stone-400">No matches.</p>
+                <p className="text-[14px] text-stone-500 dark:text-stone-400">
+                  No places match the current filters.
+                </p>
                 <button
                   type="button"
                   onClick={clearFilters}
-                  className="rounded-lg border border-stone-300 px-3 py-1.5 text-[13px] font-medium text-stone-600 transition hover:bg-stone-100 dark:border-stone-700 dark:text-stone-400 dark:hover:bg-stone-800"
+                  className="inline-flex min-h-[44px] items-center rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-[13px] font-medium text-stone-700 transition hover:border-stone-400 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:bg-stone-800"
                 >
                   Clear filters
                 </button>
@@ -772,7 +826,10 @@ function PlacesImpl() {
             ) : (
               <p className="text-[14px] text-stone-500 dark:text-stone-400">
                 No extracted places yet. Submit a link in{' '}
-                <Link to="/korea/ingest" className="text-rose-600 underline-offset-2 hover:underline dark:text-rose-400">
+                <Link
+                  to="/korea/ingest"
+                  className="rounded text-rose-600 underline-offset-2 transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:text-rose-400"
+                >
                   Ingest
                 </Link>{' '}
                 to get started.
@@ -806,9 +863,16 @@ function PlacesImpl() {
               onClick={handleLoadMore}
               disabled={loadingMore}
               aria-busy={loadingMore}
-              className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-stone-300 bg-white px-6 py-2.5 text-[13px] font-medium text-stone-700 transition hover:bg-stone-50 disabled:opacity-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:bg-stone-800"
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-stone-300 bg-white px-6 py-2.5 text-[13px] font-medium text-stone-700 transition active:scale-[0.98] hover:border-stone-400 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:bg-stone-800"
             >
-              {loadingMore ? 'Loading…' : `Load ${PAGE_SIZE} more`}
+              {loadingMore ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  Loading…
+                </>
+              ) : (
+                <>Load {Math.min(PAGE_SIZE, total - places.length)} more</>
+              )}
             </button>
           </div>
         )}
