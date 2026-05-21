@@ -22,6 +22,7 @@ export type PlaceCategory =
   | "transit"
   | "neighborhood"
   | "venue"
+  | "landmark"
 
 export interface PlaceDef {
   id: string
@@ -57,6 +58,7 @@ export const categoryIcon: Record<PlaceCategory, string> = {
   transit: "🚄",
   neighborhood: "📍",
   venue: "💒",
+  landmark: "📌",
 }
 
 export const categoryColor: Record<PlaceCategory, string> = {
@@ -75,6 +77,7 @@ export const categoryColor: Record<PlaceCategory, string> = {
   transit: "#64748b",
   neighborhood: "#f43f5e",
   venue: "#e11d48",
+  landmark: "#14b8a6",
 }
 
 export const koreaPlaces: PlaceDef[] = [

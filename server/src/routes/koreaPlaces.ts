@@ -411,6 +411,7 @@ const PLACE_CATEGORY_TO_ENTITY: Record<PlaceCategory, EntityType> = {
   transit: "transit",
   neighborhood: "neighborhood",
   venue: "venue",
+  landmark: "place",
 }
 
 const RESERVATION_TYPE_TO_ENTITY: Record<string, EntityType> = {
