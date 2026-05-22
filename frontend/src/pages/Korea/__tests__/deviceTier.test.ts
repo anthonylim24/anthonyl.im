@@ -57,11 +57,12 @@ describe('deviceTier', () => {
     })
 
     it('round-trips a saved override and merges over defaults', () => {
-      saveEffectPrefs({ fog: false, godRays: true, grade: false })
+      saveEffectPrefs({ fog: false, godRays: true, grade: false, maxQuality: true })
       const prefs = loadEffectPrefs('low')
       expect(prefs.fog).toBe(false)
       expect(prefs.godRays).toBe(true)
       expect(prefs.grade).toBe(false)
+      expect(prefs.maxQuality).toBe(true)
     })
 
     it('falls back to defaults on malformed storage', () => {
