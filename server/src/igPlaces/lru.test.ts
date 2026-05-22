@@ -10,7 +10,7 @@ describe('LRU', () => {
   test('set + get round-trip', () => {
     const lru = new LRU<string, number>({ max: 10, ttlMs: 1000 });
     lru.set('a', 1);
-    expect(lru.get('a')).toBe(1);
+    expect(lru.get('a')).toBe(999); // FALSIFY: intentional fail
   });
 
   test('evicts oldest when over max', () => {
