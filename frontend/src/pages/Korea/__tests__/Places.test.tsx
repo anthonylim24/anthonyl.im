@@ -203,20 +203,35 @@ describe('Places page', () => {
 
     await renderPlaces()
 
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /add to days/i })).toBeTruthy()
-    })
+    // Wait for the place card's button to land in the DOM. findByRole
+    // retries up to the timeout so we don't race the FLIP LayoutGroup
+    // remount that PR #410 introduced.
+    await screen.findByRole(
+      'button',
+      { name: /add to days/i },
+      { timeout: 3000 },
+    )
 
-    const btn = screen.getByRole('button', { name: /add to days/i })
+    // Use fireEvent.click instead of userEvent.click — fireEvent is
+    // synchronous and doesn't depend on `userEvent`'s internal microtask
+    // queue, which has historically lagged on the GitHub Actions
+    // runner. Wrap in act() so React processes the state update before
+    // we look for the dialog.
     await act(async () => {
-      await userEvent.click(btn)
-      await Promise.resolve()
+      const btn = screen.getByRole('button', { name: /add to days/i })
+      fireEvent.click(btn)
     })
 
-    // Day 1 checkbox should appear
-    await waitFor(() => {
-      expect(screen.getByRole('dialog', { name: /assign.*to itinerary days/i })).toBeTruthy()
-    })
+    // The dialog renders synchronously once `open` flips to true (the
+    // motion mock collapses AnimatePresence to its children), but
+    // CI's React effect flush still occasionally needs a tick — give
+    // findByRole 3 s to settle.
+    const dialog = await screen.findByRole(
+      'dialog',
+      { name: /assign.*to itinerary days/i },
+      { timeout: 3000 },
+    )
+    expect(dialog).toBeTruthy()
   })
 
   it('search box is debounced — does not call API immediately', async () => {
