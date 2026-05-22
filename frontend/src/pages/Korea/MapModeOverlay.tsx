@@ -118,6 +118,13 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
   // compass each frame. Ref so the React tree doesn't re-render every
   // time the user drags.
   const yawRef = useRef<number>(0)
+  // Last orb-tap screen position. Captured by a pointer-up listener on
+  // the scene container so we can use it as the View Transitions anchor
+  // for the orb → sheet morph below.
+  const lastTapRef = useRef<{ x: number; y: number; at: number } | null>(null)
+  // Anchor for the currently-open sheet so the close transition can
+  // morph back to the orb's original screen position.
+  const morphAnchorRef = useRef<{ x: number; y: number; color: string } | null>(null)
   const showOrbs = viewMode === "orb" && !webglFailed
   const showList = viewMode === "list" || webglFailed
 
@@ -151,6 +158,134 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
   }
   function orientNorth() {
     dispatchSceneEvent("korea-map-orient-north")
+  }
+
+  // ── Orb → sheet morph (View Transitions) ─────────────────────────
+  // Capture the last pointer-up position on the 3D scene container so
+  // we can morph the sheet open from where the user actually tapped
+  // the orb. Pointer-up reads the precise tap location; we time-stamp
+  // it so an unrelated selection (e.g. deep-link via
+  // initialFocusPlaceId) that didn't originate from a tap doesn't
+  // anchor to a stale position.
+  useEffect(() => {
+    const el = sceneContainerRef.current
+    if (!el) return
+    const onPointerUp = (e: PointerEvent) => {
+      lastTapRef.current = { x: e.clientX, y: e.clientY, at: performance.now() }
+    }
+    el.addEventListener("pointerup", onPointerUp, true)
+    return () => {
+      el.removeEventListener("pointerup", onPointerUp, true)
+    }
+  }, [])
+
+  // Open the sheet using View Transitions when possible, with an orb
+  // stand-in element that morphs into the sheet's icon block. The
+  // stand-in mimics the frosted-orb appearance + color tint so the
+  // visual continuity reads as "zooming into the orb you tapped".
+  //
+  // Browsers without `document.startViewTransition` (Firefox, older
+  // Safari) get the existing motion-driven slide-up — same UX, no
+  // morph. `prefers-reduced-motion` skips the morph (the sheet already
+  // honors `reduce` with a plain opacity fade).
+  function openSheetWithMorph(p: RankedPlace, initialMode: "compact" | "expanded") {
+    const tapped = lastTapRef.current
+    const recent = tapped && performance.now() - tapped.at < 1500 ? tapped : null
+    morphAnchorRef.current = recent
+      ? { x: recent.x, y: recent.y, color: p.color }
+      : null
+    setSheetInitialMode(initialMode)
+
+    const canMorph =
+      !reduce &&
+      recent !== null &&
+      typeof document !== "undefined" &&
+      typeof (document as Document & { startViewTransition?: unknown }).startViewTransition === "function"
+
+    if (!canMorph) {
+      setSelected(p)
+      return
+    }
+
+    // Mount a transient orb stand-in at the tap location, mark it with
+    // the same `view-transition-name` the sheet's icon block will carry,
+    // then start the transition. The browser snapshots the stand-in's
+    // bounding box as the "before" state, mounts the sheet (which now
+    // owns the same view-transition-name), and morphs between them.
+    const standIn = document.createElement("div")
+    standIn.setAttribute("aria-hidden", "true")
+    standIn.style.cssText = [
+      "position:fixed",
+      "z-index:40",
+      "width:44px",
+      "height:44px",
+      `left:${recent!.x - 22}px`,
+      `top:${recent!.y - 22}px`,
+      "border-radius:9999px",
+      `background:radial-gradient(circle at 32% 28%, rgba(255,255,255,0.55), ${p.color}66 65%, ${p.color}22 100%)`,
+      `box-shadow:0 0 0 1px ${p.color}55, 0 6px 20px ${p.color}55`,
+      "pointer-events:none",
+      "view-transition-name:place-detail-morph",
+    ].join(";")
+    document.body.appendChild(standIn)
+
+    type VTDocument = Document & {
+      startViewTransition: (cb: () => void | Promise<void>) => { finished: Promise<void> }
+    }
+    const transition = (document as VTDocument).startViewTransition(() => {
+      standIn.remove()
+      setSelected(p)
+    })
+    transition.finished.catch(() => {
+      if (standIn.isConnected) standIn.remove()
+    })
+  }
+
+  // Close the sheet with a reverse morph toward the orb when we still
+  // have a recent anchor. Falls through to the existing motion-driven
+  // exit otherwise.
+  function closeSheetWithMorph() {
+    const anchor = morphAnchorRef.current
+    const canMorph =
+      !reduce &&
+      anchor !== null &&
+      typeof document !== "undefined" &&
+      typeof (document as Document & { startViewTransition?: unknown }).startViewTransition === "function"
+    if (!canMorph) {
+      setSelected(null)
+      morphAnchorRef.current = null
+      return
+    }
+    type VTDocument = Document & {
+      startViewTransition: (cb: () => void | Promise<void>) => { finished: Promise<void> }
+    }
+    const standIn = document.createElement("div")
+    standIn.setAttribute("aria-hidden", "true")
+    standIn.style.cssText = [
+      "position:fixed",
+      "z-index:40",
+      "width:44px",
+      "height:44px",
+      `left:${anchor!.x - 22}px`,
+      `top:${anchor!.y - 22}px`,
+      "border-radius:9999px",
+      `background:radial-gradient(circle at 32% 28%, rgba(255,255,255,0.55), ${anchor!.color}66 65%, ${anchor!.color}22 100%)`,
+      `box-shadow:0 0 0 1px ${anchor!.color}55, 0 6px 20px ${anchor!.color}55`,
+      "pointer-events:none",
+      "view-transition-name:place-detail-morph",
+    ].join(";")
+    const transition = (document as VTDocument).startViewTransition(() => {
+      document.body.appendChild(standIn)
+      setSelected(null)
+    })
+    transition.finished
+      .catch(() => {
+        if (standIn.isConnected) standIn.remove()
+      })
+      .finally(() => {
+        if (standIn.isConnected) standIn.remove()
+        morphAnchorRef.current = null
+      })
   }
 
   // Geolocation fetch. Honors the two debug toggles: when `mockHotel` is
@@ -604,10 +739,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
                       <Detailed3DScene
                         places={filteredPlaces}
                         neighborhoods={state.data.neighborhoods ?? []}
-                        onSelect={(p) => {
-                          setSheetInitialMode("compact")
-                          setSelected(p)
-                        }}
+                        onSelect={(p) => openSheetWithMorph(p, "compact")}
                         onDeselect={() => setSelected(null)}
                         selectedId={selected?.id ?? null}
                         reducedMotion={reduce ?? undefined}
@@ -620,10 +752,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
                   ) : (
                     <MapModeScene
                       places={filteredPlaces}
-                      onSelect={(p) => {
-                        setSheetInitialMode("compact")
-                        setSelected(p)
-                      }}
+                      onSelect={(p) => openSheetWithMorph(p, "compact")}
                       onDeselect={() => setSelected(null)}
                       selectedId={selected?.id ?? null}
                       reducedMotion={reduce ?? undefined}
@@ -703,7 +832,11 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
                 <MapModeFallbackList
                   places={filteredPlaces}
                   onSelect={(p) => {
+                    // List view has no orb to morph from — skip the
+                    // View Transition and use the sheet's default
+                    // motion-driven entry.
                     setSheetInitialMode("expanded")
+                    morphAnchorRef.current = null
                     setSelected(p)
                   }}
                 />
@@ -789,7 +922,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
           <PlaceDetailSheet
             key={selected.id}
             place={selected}
-            onClose={() => setSelected(null)}
+            onClose={closeSheetWithMorph}
             userLat={location?.lat}
             userLng={location?.lng}
             initialMode={sheetInitialMode}
