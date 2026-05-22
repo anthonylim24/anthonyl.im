@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useState, useRef } from "react"
 import { motion, AnimatePresence, useReducedMotion } from "motion/react"
 import { X, MapPin, Navigation, Bug, Loader2, Crosshair, Globe2, List as ListIcon, Info } from "lucide-react"
 import { IgIcon } from "./IgIcon"
+import { KstClock } from "./KstClock"
 import { useGetToken } from "@/lib/safeAuth"
 import { isWebglSupported } from "./webglSupport"
 import { MapModeCompass } from "./MapModeCompass"
@@ -567,6 +568,8 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
             </p>
           )}
         </div>
+
+        <KstClock />
 
         <button
           type="button"
