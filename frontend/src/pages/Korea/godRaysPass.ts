@@ -99,6 +99,12 @@ export class GodRaysPass {
         // Mask the rays when the sun is offscreen — they should
         // fall off smoothly as the sun's NDC magnitude crosses 1.
         uOffscreen: { value: 0.0 },
+        // Camera-pitch attenuation: 1.0 when looking top-down (little
+        // sky in frame), → 0 when looking horizontally toward the
+        // horizon (most of the frame is sky and the radial accumulator
+        // blows out). Computed each frame from `cos(polarAngle)` in
+        // the caller and pushed in via `setPitchAttenuation`.
+        uPitchAtten: { value: 1.0 },
       },
       vertexShader: /* glsl */ `
         varying vec2 vUv;
@@ -119,6 +125,7 @@ export class GodRaysPass {
         uniform float uWeight;
         uniform float uExposure;
         uniform float uOffscreen;
+        uniform float uPitchAtten;
 
         const int SAMPLES = 40;
 
@@ -141,7 +148,11 @@ export class GodRaysPass {
             accum += sky * illum * uWeight;
             illum *= uDecay;
           }
-          accum *= uIntensity * uExposure * uOffscreen;
+          accum *= uIntensity * uExposure * uOffscreen * uPitchAtten;
+          // Hard clamp so the additive composite cannot blow the
+          // scene out to white even if the accumulator goes wild
+          // (e.g., transient sky coverage spike during a pan).
+          accum = min(accum, 0.75);
           vec4 base = texture2D(tDiffuse, vUv);
           // Additive composite — preserves the underlying scene color
           // and stacks the rays on top in warm sun-temperature.
@@ -160,6 +171,15 @@ export class GodRaysPass {
 
   setClearColor(c: Color): void {
     this.clearColor.copy(c)
+  }
+
+  /** Per-frame ray strength attenuation in [0, 1]. The caller computes
+   *  this from camera pitch (cos(polarAngle) raised to a soft curve)
+   *  so rays fade smoothly toward zero as the camera tilts toward the
+   *  horizon — that's when the screen fills with bright sky and the
+   *  radial accumulator would otherwise blow the highlights out. */
+  setPitchAttenuation(v: number): void {
+    this.composite.uniforms.uPitchAtten.value = Math.max(0, Math.min(1, v))
   }
 
   /** Resize the internal RTs. Honors the renderer's current pixel
