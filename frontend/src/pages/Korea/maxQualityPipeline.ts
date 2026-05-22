@@ -49,9 +49,9 @@ import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js"
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js"
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js"
 import { SMAAPass } from "three/examples/jsm/postprocessing/SMAAPass.js"
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js"
 import { gradeKindAt, type GradeKind } from "./timeOfDayGrade"
 import { VolumetricClouds } from "./volumetricClouds"
-import type { GodRaysPass } from "./godRaysPass"
 
 // Per-phase color grading matrices. These replace the CSS `filter`
 // chain on the canvas — operating in HDR space pre-tonemap gives much
@@ -186,6 +186,7 @@ export class MaxQualityPipeline {
   private grade: ShaderPass
   private smaa: SMAAPass
   private cloudComposite: ShaderPass
+  private output: OutputPass
   readonly clouds: VolumetricClouds
   private prevToneMapping: typeof AgXToneMapping
   private prevToneExposure: number
@@ -200,18 +201,26 @@ export class MaxQualityPipeline {
     this.prevOutputColorSpace = this.renderer.outputColorSpace
     this.renderer.toneMapping = AgXToneMapping
     this.renderer.toneMappingExposure = 1.0
+    // sRGB output is mandatory for the OutputPass below to encode
+    // correctly. Without this, the linear HDR composite gets gamma-
+    // mushed and the canvas looks washed-out / orange-tinted (the
+    // most-recently-reported regression — pre-fix the screen turned
+    // a uniform amber because no tone-mapping was ever applied).
+    this.renderer.outputColorSpace = "srgb" as typeof this.renderer.outputColorSpace
 
     const dpr = this.renderer.getPixelRatio()
     const w = Math.max(1, Math.floor(opts.size.w * dpr))
     const h = Math.max(1, Math.floor(opts.size.h * dpr))
 
-    // HDR render target — HalfFloat for highlights past 1.0, MSAA
-    // samples for in-RT antialiasing of scene geometry (SMAA runs at
-    // the end to clean up post-process artifacts).
+    // HDR render target — HalfFloat for highlights past 1.0.
+    // `samples` (MSAA on HalfFloat RT) is deliberately 0: iOS 17
+    // Safari has driver bugs that combine MSAA + HalfFloat into a
+    // black or solid-tinted output. SMAA at the end of the chain
+    // handles edge aliasing instead.
     const hdrRT = new WebGLRenderTarget(w, h, {
       type: HalfFloatType,
       format: RGBAFormat,
-      samples: 4,
+      samples: 0,
     })
     this.composer = new EffectComposer(this.renderer, hdrRT)
     this.composer.setSize(opts.size.w, opts.size.h)
@@ -236,15 +245,21 @@ export class MaxQualityPipeline {
     this.bloom = new UnrealBloomPass(new Vector2(opts.size.w, opts.size.h), 0.4, 0.5, 1.0)
     this.composer.addPass(this.bloom)
 
-    // 4) Grade + exposure (matrix in HDR space). AgX tonemap runs as
-    //    part of the renderer's output stage; sRGB encode happens
-    //    automatically when outputColorSpace = SRGB.
+    // 4) Grade + exposure (matrix in HDR space, identity at midday).
     this.grade = new ShaderPass(GradeToneShader)
     this.composer.addPass(this.grade)
 
-    // 5) SMAA — last pass, in LDR sRGB, cleans up edge aliasing.
-    // SMAAPass in three r0.184 takes no constructor args; sizing is
-    // handled via the composer's size + the pass's own setSize().
+    // 5) OutputPass — applies `renderer.toneMapping` (AgX) +
+    //    `renderer.outputColorSpace` (sRGB) to the linear HDR buffer.
+    //    Without this pass the HDR values just clamp to 0–1, AgX
+    //    never runs, and the canvas looks washed-out / uniform-tinted.
+    //    This was the v1 bug.
+    this.output = new OutputPass()
+    this.composer.addPass(this.output)
+
+    // 6) SMAA — last pass, in LDR sRGB, cleans up edge aliasing.
+    //    SMAAPass in three r0.184 takes no constructor args; sizing is
+    //    handled via the composer's size + the pass's own setSize().
     this.smaa = new SMAAPass()
     this.smaa.setSize(w, h)
     this.composer.addPass(this.smaa)
@@ -266,22 +281,6 @@ export class MaxQualityPipeline {
     this.clouds.setHourPhase(hour, 1)
   }
 
-  /** Wire a god-rays pass so its output lands in this pipeline's HDR
-   *  buffer instead of the default framebuffer. Caller responsible
-   *  for actually invoking `godRays.render()` each frame — this just
-   *  redirects WHERE the result lands. */
-  withGodRays(_godRays: GodRaysPass): void {
-    // Note: the existing GodRaysPass writes to the default framebuffer
-    // via `renderer.setRenderTarget(null)`. To fold its output into
-    // the composer chain we'd need a thin patch on GodRaysPass to
-    // accept an output target. For Max Quality v1 we keep them
-    // independent — god rays render first (to backbuffer), then
-    // composer.render() overwrites with the HDR pipeline output
-    // including the cloud composite. We accept the small visual
-    // overlap rather than retrofit god-rays mid-PR.
-    // TODO: follow-up PR — patch GodRaysPass to accept setOutputTarget.
-    void _godRays
-  }
 
   resize(w: number, h: number): void {
     this.composer.setSize(w, h)
@@ -301,6 +300,7 @@ export class MaxQualityPipeline {
     this.clouds.dispose()
     this.bloom.dispose()
     this.grade.dispose()
+    this.output.dispose()
     this.smaa.dispose()
     this.renderer.toneMapping = this.prevToneMapping
     this.renderer.toneMappingExposure = this.prevToneExposure
