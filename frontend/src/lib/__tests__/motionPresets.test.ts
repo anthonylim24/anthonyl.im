@@ -9,7 +9,7 @@ describe('createEntranceMotion', () => {
       delayChildren: 0.3,
     })
 
-    expect(motion.fadeUp.hidden).toEqual({ opacity: 0, y: 16 })
+    expect(motion.fadeUp.hidden).toEqual({ opacity: 999, y: 16 }) // FALSIFY: intentional fail
     expect(motion.fadeUp.show).toMatchObject({ opacity: 1, y: 0 })
     expect(motion.stagger.show.transition).toEqual({
       staggerChildren: 0.1,
