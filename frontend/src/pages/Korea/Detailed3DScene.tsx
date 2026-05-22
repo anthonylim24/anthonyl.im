@@ -8,8 +8,10 @@ import {
   AmbientLight,
   BufferAttribute,
   BufferGeometry,
+  Color,
   CylinderGeometry,
   DirectionalLight,
+  FogExp2,
   HemisphereLight,
   Line,
   LineBasicMaterial,
@@ -36,7 +38,9 @@ import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js"
 import { KTX2Loader } from "three/examples/jsm/loaders/KTX2Loader.js"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import type { NeighborhoodCenter, RankedPlace } from "./mapModeTypes"
-import { arrivalStartFilter, cssFilterFor, kstHour } from "./timeOfDayGrade"
+import { arrivalStartFilter, cssFilterFor, fogForHour, kstHour } from "./timeOfDayGrade"
+import { GodRaysPass } from "./godRaysPass"
+import type { EffectPrefs } from "./deviceTier"
 
 // Session-scoped flag: the cinematic fly-in plays once per browser
 // session, not on every navigation into Map Mode. Stored in
@@ -68,6 +72,11 @@ interface Detailed3DSceneProps {
   // each tick. Consumed by MapModeCompass so the compass dial
   // rotates as the user orbits the camera.
   yawRef?: { current: number }
+  /** Optional effect toggles wired from the debug menu. Default values
+   *  come from `loadEffectPrefs()` in the parent so user choices
+   *  persist across sessions. When omitted, all effects are treated as
+   *  off (safe fallback for callers that haven't been updated). */
+  effects?: EffectPrefs
 }
 
 function escapeHtml(s: string): string {
@@ -90,7 +99,11 @@ export function Detailed3DScene({
   userLat,
   userLng,
   yawRef: yawRefProp,
+  effects,
 }: Detailed3DSceneProps) {
+  const fogOn = effects?.fog ?? false
+  const godRaysOn = effects?.godRays ?? false
+  const gradeOn = effects?.grade ?? true
   const mountRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const attributionRef = useRef<HTMLDivElement>(null)
@@ -168,12 +181,20 @@ export function Detailed3DScene({
         try { return !sessionStorage.getItem(ARRIVAL_SESSION_KEY) } catch { return true }
       })()
     renderer.domElement.style.transition = "filter 0.6s ease"
-    renderer.domElement.style.filter = arrivalPlanned
-      ? arrivalStartFilter(initialHour)
-      : cssFilterFor(initialHour)
+    // CSS time-of-day grade — when disabled in the debug menu we clear
+    // the filter entirely so the canvas renders neutrally.
+    renderer.domElement.style.filter = !gradeOn
+      ? "none"
+      : arrivalPlanned
+        ? arrivalStartFilter(initialHour)
+        : cssFilterFor(initialHour)
     const gradeInterval = window.setInterval(() => {
       // Only refresh when no arrival is in flight; arrival completion
       // will re-set the filter to the current hour.
+      if (!gradeOn) {
+        renderer.domElement.style.filter = "none"
+        return
+      }
       if (!arriving) renderer.domElement.style.filter = cssFilterFor(kstHour())
     }, 60_000)
 
@@ -212,6 +233,37 @@ export function Detailed3DScene({
     const sun = new DirectionalLight(0xffffff, 1.0)
     sun.position.set(800, 1200, 400)
     scene.add(sun)
+
+    // ── Atmospheric fog ──────────────────────────────────────────
+    // FogExp2 reads cleanly through GLTFLoader's MeshStandardMaterial
+    // chunks (3d-tiles-renderer doesn't override materials), and the
+    // fog is computed from view-space vFogDepth — not the depth
+    // buffer — so it's logDepth-safe. Color + density track the
+    // time-of-day table; during arrival we halve density so the high
+    // approach pose can see Seoul, then ramp to full strength as the
+    // focus lerp settles.
+    const fogInit = fogForHour(initialHour)
+    const fogColor = new Color(fogInit.color)
+    const baseFogDensity = fogInit.density
+    let currentFogDensity = baseFogDensity
+    if (fogOn) {
+      scene.fog = new FogExp2(fogColor, arrivalPlanned ? baseFogDensity * 0.5 : baseFogDensity)
+      // Canvas is alpha:true; the page background shows through when
+      // fog is layered. Tinting the renderer clear color to fog.color
+      // is simpler than rendering a sky quad and the trade-off (fog
+      // color showing in any unwritten pixels) is invisible since
+      // the tiles cover the viewport.
+      renderer.setClearColor(fogColor, 1)
+    }
+    const fogHourInterval = window.setInterval(() => {
+      if (!fogOn || !scene.fog) return
+      const f = fogForHour(kstHour())
+      fogColor.set(f.color)
+      currentFogDensity = f.density
+      ;(scene.fog as FogExp2).color.copy(fogColor)
+      ;(scene.fog as FogExp2).density = arriving ? currentFogDensity * 0.5 : currentFogDensity
+      renderer.setClearColor(fogColor, 1)
+    }, 60_000)
 
     // ── Controls. OrbitControls' default damping reads nicely on
     // touch; we lock min distance to keep the camera from clipping
@@ -270,6 +322,9 @@ export function Detailed3DScene({
         emissive: 0xff4d6d,
         emissiveIntensity: 0.7,
         roughness: 0.3,
+        // YOU is the trip's geometric + visual anchor — fog should
+        // never dim it. Atmospheric haze layers behind it, never on it.
+        fog: false,
       }),
     )
     youMarker.position.set(0, 6, 0)
@@ -540,6 +595,7 @@ export function Detailed3DScene({
       camera.aspect = w / h
       camera.updateProjectionMatrix()
       tiles.setResolutionFromRenderer(camera, renderer)
+      godRays?.resize(w, h)
     })
     ro.observe(mount)
 
@@ -669,6 +725,25 @@ export function Detailed3DScene({
     window.addEventListener("korea-map-reset", onResetView)
     window.addEventListener("korea-map-orient-north", onOrientNorth)
 
+    // ── God-rays pass ────────────────────────────────────────────
+    // Lazily constructed: we only allocate RTs + shaders when the
+    // user has the toggle on AND we have a non-trivial viewport.
+    // Disposed in the cleanup block. Skipped entirely on tiles that
+    // are mid-stream (see `tileBusyHoldoff` below) so we don't burn
+    // GPU time on a half-rendered city.
+    let godRays: GodRaysPass | null = null
+    if (godRaysOn) {
+      godRays = new GodRaysPass({
+        renderer,
+        scene,
+        camera,
+        sunPos: new Vector3(800, 1200, 400),
+        size: { w, h },
+        clearColor: fogColor,
+      })
+    }
+    let tileBusyHoldoff = 0
+
     // ── Animation loop ────────────────────────────────────────────
     let running = true
     let lastAttrAt = 0
@@ -715,8 +790,17 @@ export function Detailed3DScene({
           focusLerp = 0.045
           // Brighten the canvas to its target grade in step with the
           // camera; the CSS transition (0.6s) gives the fade-up.
-          renderer.domElement.style.filter = cssFilterFor(kstHour())
+          if (gradeOn) renderer.domElement.style.filter = cssFilterFor(kstHour())
         }
+      }
+
+      // Ramp fog density from 0.5x → 1.0x during arrival so Seoul is
+      // visible from the high approach pose, then thickens as the
+      // camera lowers. Tracks the focus lerp for visual sync.
+      if (scene.fog && fogOn) {
+        const target = arriving ? currentFogDensity * 0.5 : currentFogDensity
+        const f = scene.fog as FogExp2
+        f.density += (target - f.density) * 0.06
       }
 
       // Publish the live "yaw from north-up" to the parent compass.
@@ -965,7 +1049,28 @@ export function Detailed3DScene({
         updateAttribution()
       }
 
-      renderer.render(scene, camera)
+      // Skip the god-rays pass for a few frames after the tiles
+      // renderer reports active streaming work — both passes together
+      // are too expensive when the GPU is already busy decoding GLTFs.
+      // The check is cheap (just a counter) and the visual hit is
+      // imperceptible: god rays fade in/out implicitly via the
+      // additive composite, so frames without them just look like
+      // the rays got dimmer for a beat.
+      // tiles.stats is documented in 3d-tiles-renderer's API.md but
+      // missing from the TS types — cast through unknown to peek at
+      // the runtime shape without disabling type-checking elsewhere.
+      const stats = (tiles as unknown as { stats?: { downloading?: number; parsing?: number } }).stats
+      const tilesBusy = !!stats && ((stats.downloading ?? 0) + (stats.parsing ?? 0) > 0)
+      if (tilesBusy) tileBusyHoldoff = 6
+      else if (tileBusyHoldoff > 0) tileBusyHoldoff--
+
+      if (godRays && tileBusyHoldoff === 0) {
+        godRays.setClearColor(fogColor)
+        godRays.render()
+      } else {
+        renderer.setRenderTarget(null)
+        renderer.render(scene, camera)
+      }
       requestAnimationFrame(tick)
     }
     tick()
@@ -973,6 +1078,9 @@ export function Detailed3DScene({
     return () => {
       running = false
       window.clearInterval(gradeInterval)
+      window.clearInterval(fogHourInterval)
+      godRays?.dispose()
+      scene.fog = null
       ro.disconnect()
       window.removeEventListener("korea-map-reset", onResetView)
       window.removeEventListener("korea-map-orient-north", onOrientNorth)
@@ -1009,7 +1117,7 @@ export function Detailed3DScene({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiKey, userLat, userLng, places, reducedMotion])
+  }, [apiKey, userLat, userLng, places, reducedMotion, fogOn, godRaysOn, gradeOn])
 
   if (keyMissing) {
     return (

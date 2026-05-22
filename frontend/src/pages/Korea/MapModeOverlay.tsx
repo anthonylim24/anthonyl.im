@@ -17,6 +17,7 @@ import { MapModeFilterBar } from "./MapModeFilterBar"
 import { PlaceDetailSheet } from "./PlaceDetailSheet"
 import { useNeighborhoodLabel } from "./allKoreaDongs"
 import type { BusynessLevel, PlacePriority, PlacesResponse, RankedPlace, UserLocation } from "./mapModeTypes"
+import { detectTier, loadEffectPrefs, saveEffectPrefs, type EffectPrefs } from "./deviceTier"
 
 
 // Last-resort fallback when we don't yet know the day's hotel (e.g.
@@ -78,6 +79,23 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
   // something the user needs every session. Tap the small chip to
   // expand and read the dot meanings.
   const [legendOpen, setLegendOpen] = useState(false)
+  // Detailed-3D post-processing toggles. Tier-detected on first mount;
+  // user overrides persist via localStorage so the same browser
+  // remembers its preference. Toggling any flag rebuilds the scene's
+  // useEffect (cheaper than re-mounting the whole overlay and lets
+  // OrbitControls keep state). Lifted into overlay state so the debug
+  // menu can write directly into the prop the scene reads.
+  const [effects, setEffects] = useState<EffectPrefs>(() =>
+    loadEffectPrefs(detectTier(), reduce ?? false),
+  )
+  function toggleEffect(key: keyof EffectPrefs, value: boolean) {
+    setEffects((prev) => {
+      const next = { ...prev, [key]: value }
+      saveEffectPrefs(next)
+      return next
+    })
+  }
+
   // Reverse-geocode the user's current location to a dong label
   // (e.g. "강남구 압구정동"). Surfaces beneath the city label in the
   // location pill. Null until the dongs data has loaded.
@@ -693,6 +711,59 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
                     </div>
                   </div>
                 </label>
+
+                <div className="mx-2 my-1 border-t border-stone-200 dark:border-stone-800" />
+                <div className="px-2 pb-0.5 pt-1 font-mono text-[9px] uppercase tracking-widest text-stone-500 dark:text-stone-500">
+                  Scene effects
+                </div>
+                <label className="flex cursor-pointer items-start gap-2 rounded-xl p-2 transition hover:bg-stone-50 dark:hover:bg-stone-900">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-violet-600"
+                    checked={effects.fog}
+                    onChange={(e) => toggleEffect("fog", e.target.checked)}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[12px] font-semibold text-stone-900 dark:text-stone-100">
+                      Atmospheric fog
+                    </div>
+                    <div className="text-[11px] leading-snug text-stone-500 dark:text-stone-400">
+                      Exponential haze that tints with the KST hour.
+                    </div>
+                  </div>
+                </label>
+                <label className="flex cursor-pointer items-start gap-2 rounded-xl p-2 transition hover:bg-stone-50 dark:hover:bg-stone-900">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-violet-600"
+                    checked={effects.godRays}
+                    onChange={(e) => toggleEffect("godRays", e.target.checked)}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[12px] font-semibold text-stone-900 dark:text-stone-100">
+                      God rays
+                    </div>
+                    <div className="text-[11px] leading-snug text-stone-500 dark:text-stone-400">
+                      Volumetric sun shafts. Heavier — defaults off on low-tier GPUs.
+                    </div>
+                  </div>
+                </label>
+                <label className="flex cursor-pointer items-start gap-2 rounded-xl p-2 transition hover:bg-stone-50 dark:hover:bg-stone-900">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-violet-600"
+                    checked={effects.grade}
+                    onChange={(e) => toggleEffect("grade", e.target.checked)}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[12px] font-semibold text-stone-900 dark:text-stone-100">
+                      Time-of-day grade
+                    </div>
+                    <div className="text-[11px] leading-snug text-stone-500 dark:text-stone-400">
+                      CSS filter that warms/cools the canvas by hour.
+                    </div>
+                  </div>
+                </label>
               </motion.div>
             )}
           </AnimatePresence>
@@ -729,6 +800,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
                       userLat={location?.lat}
                       userLng={location?.lng}
                       yawRef={yawRef}
+                      effects={effects}
                     />
                   </Suspense>
                 </div>

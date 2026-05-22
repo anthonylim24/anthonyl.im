@@ -72,6 +72,37 @@ export function cssFilterFor(hour: number): string {
   }
 }
 
+/** Atmospheric fog parameters for the Detailed-3D scene at the given
+ *  KST hour. Returns a hex color string + an exponential-fog density.
+ *
+ *  Densities are tuned for the trip's typical viewing distance (Seoul
+ *  origin → 5–10 km of tiles). Cool tones for night/evening, warm for
+ *  dawn/dusk, near-neutral for midday so the city reads honestly.
+ *
+ *  See CLAUDE.md "Korea-specific Principles" — fog should feel like
+ *  real atmosphere, not like a fog-of-war game effect. The values
+ *  below keep buildings >2 km readable while letting horizon haze
+ *  layer in the warm/cool character of the hour. */
+export function fogForHour(hour: number): { color: string; density: number } {
+  const kind = gradeKindAt(hour)
+  switch (kind) {
+    case "night":
+      return { color: "#0e1a2e", density: 6.0e-5 }
+    case "dawn":
+      return { color: "#f3b6a0", density: 5.5e-5 }
+    case "morning":
+      return { color: "#cfd9e3", density: 3.5e-5 }
+    case "midday":
+      return { color: "#b9c4d2", density: 2.8e-5 }
+    case "afternoon":
+      return { color: "#e8b878", density: 4.0e-5 }
+    case "dusk":
+      return { color: "#d68a4a", density: 4.5e-5 }
+    case "evening":
+      return { color: "#3a4a66", density: 5.5e-5 }
+  }
+}
+
 /** A slightly dimmer, slightly desaturated variant used during the
  *  arrival fly-in so the city brightens into its final grade as the
  *  camera settles. Composing relative to the final grade keeps the
