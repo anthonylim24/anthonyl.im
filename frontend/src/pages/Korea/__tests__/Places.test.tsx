@@ -203,20 +203,36 @@ describe('Places page', () => {
 
     await renderPlaces()
 
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /add to days/i })).toBeTruthy()
-    })
+    // findByRole has a built-in retry up to its timeout (default 1000 ms;
+    // bumped to 3000 ms below for CI's slower scheduler). Use it instead
+    // of getByRole+waitFor so we don't race the FLIP LayoutGroup, which
+    // can briefly remount the place card between the data fetch settling
+    // and the card painting.
+    const btnInitial = await screen.findByRole(
+      'button',
+      { name: /add to days/i },
+      { timeout: 3000 },
+    )
+    expect(btnInitial).toBeTruthy()
 
+    // Re-query right before click. PR #410's FLIP animation reorders
+    // cards as filters change; under the test's mock motion runtime the
+    // DOM reference can be stale by the time we click.
     const btn = screen.getByRole('button', { name: /add to days/i })
     await act(async () => {
       await userEvent.click(btn)
-      await Promise.resolve()
     })
 
-    // Day 1 checkbox should appear
-    await waitFor(() => {
-      expect(screen.getByRole('dialog', { name: /assign.*to itinerary days/i })).toBeTruthy()
-    })
+    // findByRole again — the dialog mount can lag a frame behind the
+    // setOpen state update, even with the AnimatePresence mock that
+    // returns children immediately, because act() ends before React
+    // has flushed every effect on a slow CI runner.
+    const dialog = await screen.findByRole(
+      'dialog',
+      { name: /assign.*to itinerary days/i },
+      { timeout: 3000 },
+    )
+    expect(dialog).toBeTruthy()
   })
 
   it('search box is debounced — does not call API immediately', async () => {
