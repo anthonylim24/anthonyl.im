@@ -80,6 +80,7 @@ export function createInstagramPlacesRouter(deps: InstagramPlacesDeps) {
     const offset = Math.max(0, Number(c.req.query('offset') ?? 0));
     const category = c.req.query('category');
     const band = c.req.query('band');
+    const busyness = c.req.query('busyness');
     const q = c.req.query('q');
 
     const validCategories = ['restaurant', 'cafe', 'bar', 'shopping', 'activity', 'hotel', 'landmark', 'other'];
@@ -92,7 +93,12 @@ export function createInstagramPlacesRouter(deps: InstagramPlacesDeps) {
       return c.json({ error: `invalid band: ${band}` }, 400);
     }
 
-    const data = await deps.listExtractedPlaces({ userId, limit, offset, category, band, q });
+    const validBusyness = ['quiet', 'moderate', 'busy', 'very_busy'];
+    if (busyness && !validBusyness.includes(busyness)) {
+      return c.json({ error: `invalid busyness: ${busyness}` }, 400);
+    }
+
+    const data = await deps.listExtractedPlaces({ userId, limit, offset, category, band, busyness, q });
     return c.json(data);
   });
 

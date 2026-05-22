@@ -6,7 +6,8 @@ import { ExternalLink, MapPin, Phone, Star, AlertTriangle, ArrowLeft, CalendarDa
 import { IgIcon } from './IgIcon'
 import { PlaceCardSkeleton } from './skeletons'
 import { fetchExtractedPlaces, setExtractedPlaceDays } from './placesApi'
-import type { ExtractedPlace } from './placesApi'
+import type { ExtractedPlace, BusynessLevel } from './placesApi'
+import { BusynessBadge } from './BusynessBadge'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -15,6 +16,15 @@ type Category = typeof CATEGORIES[number]
 
 const BANDS = ['high', 'medium', 'low'] as const
 type Band = typeof BANDS[number]
+
+const BUSYNESS_LEVELS = ['quiet', 'moderate', 'busy', 'very_busy'] as const
+
+const BUSYNESS_LABELS: Record<BusynessLevel, string> = {
+  quiet: 'Quiet',
+  moderate: 'Moderate',
+  busy: 'Busy',
+  very_busy: 'Very Busy',
+}
 
 const CATEGORY_LABELS: Record<Category, string> = {
   restaurant: 'Restaurant',
@@ -374,6 +384,7 @@ function PlaceCard({
         <div className="flex flex-wrap items-center gap-1.5 sm:shrink-0">
           <CategoryBadge category={place.category} />
           <BandBadge band={place.confidence_band} votes={place.vote_count} />
+          {place.busyness && <BusynessBadge busyness={place.busyness} />}
           {place.is_subject && (
             <span
               className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-700 ring-1 ring-inset ring-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:ring-rose-900/40"
@@ -568,6 +579,7 @@ function PlacesImpl() {
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState<Category | null>(null)
   const [activeBand, setActiveBand] = useState<Band | null>(null)
+  const [activeBusyness, setActiveBusyness] = useState<BusynessLevel | null>(null)
   const [offset, setOffset] = useState(0)
 
   const getTokenRef = useRef(getToken)
@@ -586,6 +598,7 @@ function PlacesImpl() {
   const load = useCallback(async (opts: {
     category: Category | null
     band: Band | null
+    busyness: BusynessLevel | null
     q: string
     offset: number
     append: boolean
@@ -600,6 +613,7 @@ function PlacesImpl() {
         offset: queryOpts.offset,
         category: queryOpts.category ?? undefined,
         band: queryOpts.band ?? undefined,
+        busyness: queryOpts.busyness ?? undefined,
         q: queryOpts.q || undefined,
       })
       if (append) {
@@ -623,13 +637,13 @@ function PlacesImpl() {
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false
-      void load({ category: null, band: null, q: '', offset: 0, append: false })
+      void load({ category: null, band: null, busyness: null, q: '', offset: 0, append: false })
       return
     }
     setOffset(0)
-    void load({ category: activeCategory, band: activeBand, q: debouncedSearch, offset: 0, append: false })
+    void load({ category: activeCategory, band: activeBand, busyness: activeBusyness, q: debouncedSearch, offset: 0, append: false })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCategory, activeBand, debouncedSearch, load])
+  }, [activeCategory, activeBand, activeBusyness, debouncedSearch, load])
 
   // Refresh when the tab regains focus — covers the common case of
   // submitting a URL on /korea/ingest, switching back to /korea/places, and
@@ -637,27 +651,28 @@ function PlacesImpl() {
   useEffect(() => {
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return
-      void load({ category: activeCategory, band: activeBand, q: debouncedSearch, offset: 0, append: false })
+      void load({ category: activeCategory, band: activeBand, busyness: activeBusyness, q: debouncedSearch, offset: 0, append: false })
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCategory, activeBand, debouncedSearch, load])
+  }, [activeCategory, activeBand, activeBusyness, debouncedSearch, load])
 
   function handleLoadMore() {
     const nextOffset = offset + places.length
     setOffset(nextOffset)
-    void load({ category: activeCategory, band: activeBand, q: debouncedSearch, offset: nextOffset, append: true })
+    void load({ category: activeCategory, band: activeBand, busyness: activeBusyness, q: debouncedSearch, offset: nextOffset, append: true })
   }
 
   function clearFilters() {
     setActiveCategory(null)
     setActiveBand(null)
+    setActiveBusyness(null)
     setSearch('')
     setDebouncedSearch('')
   }
 
-  const hasActiveFilters = activeCategory != null || activeBand != null || search !== ''
+  const hasActiveFilters = activeCategory != null || activeBand != null || activeBusyness != null || search !== ''
   const flaggedCount = places.filter((p) => p.geocode_disagree).length
 
   return (
@@ -782,6 +797,23 @@ function PlacesImpl() {
             />
           ))}
         </div>
+
+        {/* Busyness row */}
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by busyness">
+          <FilterChip
+            label="Any busyness"
+            active={activeBusyness === null}
+            onClick={() => setActiveBusyness(null)}
+          />
+          {BUSYNESS_LEVELS.map((level) => (
+            <FilterChip
+              key={level}
+              label={BUSYNESS_LABELS[level]}
+              active={activeBusyness === level}
+              onClick={() => setActiveBusyness(activeBusyness === level ? null : level)}
+            />
+          ))}
+        </div>
       </motion.section>
 
       {/* Places list */}
@@ -795,7 +827,7 @@ function PlacesImpl() {
             <button
               type="button"
               onClick={() =>
-                void load({ category: activeCategory, band: activeBand, q: debouncedSearch, offset: 0, append: false })
+                void load({ category: activeCategory, band: activeBand, busyness: activeBusyness, q: debouncedSearch, offset: 0, append: false })
               }
               className="inline-flex min-h-[36px] items-center rounded-lg border border-red-300/70 bg-white/60 px-3 py-1 text-[12px] font-medium text-red-700 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/60"
             >

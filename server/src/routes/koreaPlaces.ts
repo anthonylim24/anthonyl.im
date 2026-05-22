@@ -20,6 +20,8 @@ const places = new Hono()
 
 export type PlacePriority = "scheduled" | "core" | "supplemental"
 
+type BusynessLevel = "quiet" | "moderate" | "busy" | "very_busy"
+
 interface RankedPlace {
   id: string
   name: string
@@ -43,6 +45,7 @@ interface RankedPlace {
   subcategory?: "instagram"
   instagramUrl?: string
   instagramShortcode?: string
+  busyness?: BusynessLevel | null
 }
 
 // IG place_category → PlaceCategory mapping
@@ -296,6 +299,7 @@ places.get("/day/:slug/places", async (c) => {
             subcategory: "instagram",
             instagramUrl: p.post.url,
             instagramShortcode: p.post.shortcode ?? undefined,
+            busyness: p.busyness ?? null,
           }
         })
     } catch (err) {

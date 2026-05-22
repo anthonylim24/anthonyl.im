@@ -16,6 +16,7 @@ import { upsertPostFactory, createSavePlaces } from './savePlaces';
 import { createProcessor } from './process';
 import { createWorkerLoop } from './worker';
 import { createCommentsFetcher } from './fetchComments';
+import { createBusynessFetcher } from './fetchBusyness';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir, hostname } from 'node:os';
 import { join } from 'node:path';
@@ -326,12 +327,18 @@ export function buildWorld() {
 
   const findCachedPost = createCachedPostLookup(supabase);
 
+  const fetchBusyness = createBusynessFetcher({
+    geminiApiKey: config.geminiApiKey,
+    kakaoApiKey: config.kakaoRestApiKey,
+  });
+
   const processor = createProcessor({
     fetchPost, upsertPost, buildBundle, extract, geocode, savePlaces,
     fetchComments,
     geminiExtract,
     geminiPrimaryExtract,
     findCachedPost,
+    fetchBusyness,
     complete: queue.complete, fail: queue.fail, setStep: queue.setStep, log: queue.log,
   });
 
@@ -402,6 +409,7 @@ export type ExtractedPlacesOpts = {
   offset?: number;
   category?: string;
   band?: string;
+  busyness?: string;
   q?: string;
 };
 
@@ -519,6 +527,7 @@ export type IgPlaceForDay = {
   lng: number | null;
   confidence_band: 'high' | 'medium' | 'low';
   supporting_quote: string | null;
+  busyness: 'quiet' | 'moderate' | 'busy' | 'very_busy' | null;
   post: {
     url: string;
     shortcode: string | null;
@@ -551,7 +560,7 @@ export async function listIgPlacesForDay(opts: { userId: string; dayN: number })
 
   // Join assignments → places → posts
   const params = new URLSearchParams({
-    select: 'place_id,instagram_places!inner(id,name,name_romanized,category,address,lat,lng,confidence_band,supporting_quote,post:instagram_posts!inner(url,shortcode,owner_username,caption))',
+    select: 'place_id,instagram_places!inner(id,name,name_romanized,category,address,lat,lng,confidence_band,supporting_quote,busyness,post:instagram_posts!inner(url,shortcode,owner_username,caption))',
     user_id: `eq.${userId}`,
     day_n: `eq.${dayN}`,
   });
@@ -575,6 +584,7 @@ export async function listIgPlacesForDay(opts: { userId: string; dayN: number })
       lng: number | null;
       confidence_band: 'high' | 'medium' | 'low';
       supporting_quote: string | null;
+      busyness: 'quiet' | 'moderate' | 'busy' | 'very_busy' | null;
       post: {
         url: string;
         shortcode: string | null;
@@ -598,7 +608,7 @@ export async function listExtractedPlaces(opts: ExtractedPlacesOpts) {
     return { places: [], total: 0, hasMore: false };
   }
 
-  const { userId, limit = 50, offset = 0, category, band, q } = opts;
+  const { userId, limit = 50, offset = 0, category, band, busyness, q } = opts;
 
   const params = new URLSearchParams();
   params.set('select', '*,post:instagram_posts(id,url,shortcode,owner_username,caption,fetched_at)');
@@ -611,6 +621,9 @@ export async function listExtractedPlaces(opts: ExtractedPlacesOpts) {
   }
   if (band) {
     params.set('confidence_band', `eq.${encodeURIComponent(band)}`);
+  }
+  if (busyness) {
+    params.set('busyness', `eq.${encodeURIComponent(busyness)}`);
   }
   if (q) {
     params.set('or', `(name.ilike.*${encodeURIComponent(q)}*,supporting_quote.ilike.*${encodeURIComponent(q)}`+ '*)');

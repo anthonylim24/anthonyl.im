@@ -16,7 +16,7 @@ const voted: VotedPlace = {
 const enriched: EnrichedPlace = {
   ...voted, address: 'A', lat: 37.5, lng: 127, google_place_id: null, phone: null,
   rating: null, business_types: [], geocode_source: 'google', geocode_kakao_id: null,
-  geocode_disagree: false,
+  geocode_disagree: false, busyness: null, busyness_source: null, busyness_confidence: null,
 };
 
 describe('process', () => {

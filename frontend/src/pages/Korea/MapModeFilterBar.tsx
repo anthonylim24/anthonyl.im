@@ -1,5 +1,6 @@
 import { motion } from "motion/react"
-import type { PlacePriority, RankedPlace } from "./mapModeTypes"
+import type { BusynessLevel, PlacePriority, RankedPlace } from "./mapModeTypes"
+import { BusynessBadge } from "./BusynessBadge"
 
 interface MapModeFilterBarProps {
   places: RankedPlace[]
@@ -9,10 +10,13 @@ interface MapModeFilterBarProps {
   // ALL shopping places regardless of priority.
   enabledCategories: Set<string>
   enabledPriorities: Set<PlacePriority>
+  enabledBusyness: Set<BusynessLevel>
   // Toggle: add the category if absent, remove if present.
   onSoloSelect: (cat: string) => void
   // Toggle: add the priority if absent, remove if present.
   onSoloPriority: (priority: PlacePriority) => void
+  // Toggle busyness filter
+  onSoloBusyness: (level: BusynessLevel) => void
   // Reset to defaults (priorities = {scheduled, core}, categories = {}).
   onReset: () => void
 }
@@ -44,12 +48,16 @@ const PRIORITY_META: { id: PlacePriority; label: string; icon: string; tint: str
   { id: "supplemental", label: "Extra", icon: "✶", tint: "#a3a3a3" },
 ]
 
+const BUSYNESS_ORDER: BusynessLevel[] = ['quiet', 'moderate', 'busy', 'very_busy']
+
 export function MapModeFilterBar({
   places,
   enabledCategories,
   enabledPriorities,
+  enabledBusyness,
   onSoloSelect,
   onSoloPriority,
+  onSoloBusyness,
   onReset,
 }: MapModeFilterBarProps) {
   const counts = new Map<string, number>()
@@ -59,14 +67,21 @@ export function MapModeFilterBar({
   const priorityCounts = new Map<PlacePriority, number>()
   for (const p of places) priorityCounts.set(p.priority, (priorityCounts.get(p.priority) ?? 0) + 1)
 
-  // "Default" reset state = no extra categories, priorities = {scheduled, core}.
+  const busynessCounts = new Map<BusynessLevel, number>()
+  for (const p of places) {
+    if (p.busyness) busynessCounts.set(p.busyness, (busynessCounts.get(p.busyness) ?? 0) + 1)
+  }
+  const availableBusyness = BUSYNESS_ORDER.filter((lvl) => (busynessCounts.get(lvl) ?? 0) > 0)
+
+  // "Default" reset state = no extra categories, priorities = {scheduled, core}, no busyness.
   // The "All" chip lights up when we're at this default so the user knows
   // resetCategories() is a no-op at the moment.
   const atDefault =
     enabledCategories.size === 0 &&
     enabledPriorities.size === 2 &&
     enabledPriorities.has('scheduled') &&
-    enabledPriorities.has('core')
+    enabledPriorities.has('core') &&
+    enabledBusyness.size === 0
 
   return (
     <div
@@ -157,6 +172,34 @@ export function MapModeFilterBar({
             </button>
           )
         })}
+
+        {availableBusyness.length > 0 && (
+          <>
+            <span aria-hidden className="mx-0.5 h-5 w-px shrink-0 bg-stone-300 dark:bg-stone-700" />
+            {availableBusyness.map((lvl) => {
+              const count = busynessCounts.get(lvl) ?? 0
+              const enabled = enabledBusyness.has(lvl)
+              return (
+                <button
+                  key={lvl}
+                  type="button"
+                  onClick={() => onSoloBusyness(lvl)}
+                  aria-pressed={enabled}
+                  title={`Busyness: ${lvl} · ${count}`}
+                  className={
+                    "flex shrink-0 items-center rounded-full px-2 py-1 text-[11px] font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 " +
+                    (enabled
+                      ? "bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900"
+                      : "bg-stone-100 text-stone-500 hover:bg-stone-200 dark:bg-stone-800 dark:text-stone-400 dark:hover:bg-stone-700")
+                  }
+                >
+                  <BusynessBadge busyness={lvl} size="sm" className={enabled ? "!bg-transparent !text-inherit" : ""} />
+                  <span className="ml-1 opacity-70">{count}</span>
+                </button>
+              )
+            })}
+          </>
+        )}
       </motion.nav>
     </div>
   )

@@ -508,6 +508,28 @@ language sql security definer as $$
 $$;
 
 -- ============================================================
+-- IG place busyness enrichment
+-- busyness: how crowded this place typically is (fetched post-geocode
+--   via Gemini 3.1 Flash Lite with Google Maps grounding; Kakao inferred
+--   as fallback when Gemini confidence is low).
+-- busyness_source: which system produced the value.
+-- busyness_confidence: 0..1 confidence score from the source model.
+-- ============================================================
+
+alter table public.instagram_places
+  add column if not exists busyness text
+    check (busyness in ('quiet', 'moderate', 'busy', 'very_busy'))
+    default null;
+
+alter table public.instagram_places
+  add column if not exists busyness_source text
+    check (busyness_source in ('gemini-grounded', 'kakao', 'inferred'))
+    default null;
+
+alter table public.instagram_places
+  add column if not exists busyness_confidence real default null;
+
+-- ============================================================
 -- IG place → itinerary day assignment
 -- Allows a user to assign their extracted IG places to one or
 -- more specific days of the Korea trip (day_n: 1-12).

@@ -1,5 +1,8 @@
 // Fetch helpers for the extracted-places browser at /korea/places.
 
+export type BusynessLevel = 'quiet' | 'moderate' | 'busy' | 'very_busy';
+export type BusynessSource = 'gemini-grounded' | 'kakao' | 'inferred';
+
 export type ExtractedPlace = {
   id: number;
   name: string;
@@ -24,6 +27,9 @@ export type ExtractedPlace = {
   google_place_id: string | null;
   status: 'extracted' | 'verified' | 'rejected';
   created_at: string;
+  busyness: BusynessLevel | null;
+  busyness_source: BusynessSource | null;
+  busyness_confidence: number | null;
   /** Day numbers (1-12) this place is assigned to on the Korea itinerary */
   days: number[];
   post: {
@@ -47,6 +53,7 @@ export type PlacesFilter = {
   offset?: number;
   category?: string;
   band?: string;
+  busyness?: BusynessLevel;
   q?: string;
 };
 
@@ -69,6 +76,7 @@ export async function fetchExtractedPlaces(
   if (opts.offset != null) params.set('offset', String(opts.offset));
   if (opts.category) params.set('category', opts.category);
   if (opts.band) params.set('band', opts.band);
+  if (opts.busyness) params.set('busyness', opts.busyness);
   if (opts.q) params.set('q', opts.q);
 
   const qs = params.toString();
