@@ -229,14 +229,61 @@ interface BubbleNode {
   labelProj?: { x: number; y: number; opacity: number; camDist: number } | null
 }
 
-function easeOutCubic(t: number): number {
-  return 1 - Math.pow(1 - t, 3)
-}
-
 function easeOutBack(t: number): number {
   const c1 = 1.70158
   const c3 = c1 + 1
   return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2)
+}
+
+// Smoothstep — the standard S-curve for blending in/out a uniform without
+// the visible discontinuity of a linear ramp. Used by the arrival
+// sequence's per-orb frost-in opacity.
+function smoothstep(t: number): number {
+  if (t <= 0) return 0
+  if (t >= 1) return 1
+  return t * t * (3 - 2 * t)
+}
+
+// Critically-damped spring scalar. One iteration step toward `target`.
+// Used by the arrival camera spring so the approach reads as a physical
+// settle (no overshoot at 2*sqrt(k) damping) rather than the previous
+// linear-cubic glide. Time-decoupled via dt.
+function springStep(
+  value: number,
+  velocity: number,
+  target: number,
+  dt: number,
+  stiffness: number,
+  damping: number,
+): { value: number; velocity: number } {
+  const a = stiffness * (target - value) - damping * velocity
+  const v = velocity + a * dt
+  const x = value + v * dt
+  return { value: x, velocity: v }
+}
+
+// Session-storage gate for the cinematic arrival sequence. Plays once
+// per browser tab — first Map Mode entry feels like a first-class
+// moment; subsequent entries snap straight to the settled pose so it
+// never wears out. SessionStorage so it doesn't persist across new tabs
+// (where "first arrival" should read fresh again).
+const ARRIVAL_SESSION_KEY = "korea-mapmode-arrived"
+function shouldPlayArrival(reducedMotion: boolean | undefined): boolean {
+  if (reducedMotion) return false
+  if (typeof window === "undefined") return false
+  try {
+    return window.sessionStorage.getItem(ARRIVAL_SESSION_KEY) !== "1"
+  } catch {
+    return false
+  }
+}
+function markArrivalPlayed(): void {
+  if (typeof window === "undefined") return
+  try {
+    window.sessionStorage.setItem(ARRIVAL_SESSION_KEY, "1")
+  } catch {
+    /* private-mode storage failure — fine, just no-op */
+  }
 }
 
 // Build a CanvasTexture with a soft circular vignette in the given color so the
@@ -372,13 +419,36 @@ export function MapModeScene({
     // rings around YOU rather than bunching above. The orbit is user-driven
     // only — no auto-rotate — so the scene stays put unless dragged.
     const cameraTarget = new Vector3(0, 0, 0)
-    const camYaw = { current: -Math.PI / 6 }
-    const camPitch = { current: DEFAULT_PITCH }
+    // ── Cinematic arrival sequence ───────────────────────────────────
+    // First Map Mode entry in the session: the camera starts elevated,
+    // slightly tilted toward the horizon, with a yaw offset — a
+    // "descending into the trip" approach pose — then spring-lerps to
+    // the canonical YOU-centered isometric. Once played, the flag
+    // persists for the rest of the tab so we never replay the sequence.
+    const arrivalActive = { current: shouldPlayArrival(reducedMotion) }
+    const settledYaw = -Math.PI / 6
+    const approachYaw = settledYaw - 0.42
+    const approachPitch = 0.62
+    const arrival = {
+      // Velocities for the per-axis critically-damped spring.
+      radiusV: 0,
+      yawV: 0,
+      pitchV: 0,
+      // Settle time — set once when the spring is close enough to
+      // target. Drives the YOU pin one-shot welcome pulse.
+      settledAt: 0,
+    }
+    const camYaw = { current: arrivalActive.current ? approachYaw : settledYaw }
+    const camPitch = { current: arrivalActive.current ? approachPitch : DEFAULT_PITCH }
     // Optional target for an animated yaw return (used by the compass
     // "orient north" affordance). Set to a target angle; the tick loop
     // lerps toward it and clears once reached.
     const camYawTarget = { current: null as number | null }
-    const camRadius = { current: 90 }
+    // Approach radius: pulled farther than the previous fixed 90 so the
+    // arrival camera reads as "coming in from above the trip". Capped
+    // per viewport so wide desktops don't start uncomfortably far away.
+    const approachRadius = arrivalActive.current ? Math.min(200, cameraTargetRadiusFor(w) + 60) : 90
+    const camRadius = { current: approachRadius }
     const camRadiusTarget = { current: cameraTargetRadiusFor(w) }
     // Optional target for an animated pitch shift (used when a place is
     // selected — we tilt toward bird's-eye to make the YOU→destination
@@ -1520,6 +1590,16 @@ export function MapModeScene({
         // animation — manual gesture always wins.
         camYawTarget.current = null
         camPitchTarget.current = null
+        // Skip the rest of the arrival sequence too — once the user
+        // grabs the camera they own it. Zero the spring velocities so
+        // the solver stops dragging the pose around mid-gesture.
+        if (arrivalActive.current) {
+          arrivalActive.current = false
+          arrival.radiusV = 0
+          arrival.yawV = 0
+          arrival.pitchV = 0
+          markArrivalPlayed()
+        }
       }
     }
 
@@ -1638,6 +1718,26 @@ export function MapModeScene({
     renderer.domElement.addEventListener("touchstart", onTouchStart, { passive: true })
     renderer.domElement.addEventListener("touchmove", onTouchMove, { passive: true })
 
+    // ── Arrival entry-delay reassignment ───────────────────────────
+    // When the arrival sequence is playing, replace the index-based
+    // entryDelay with a distance-from-YOU stagger so the trip
+    // materializes outward from the center — closest orbs frost-in
+    // first, farthest last. The eye reads "me, then nearby, then
+    // beyond" rather than a random index order. Reduced-motion + repeat
+    // entries fall through to the original tiny stagger.
+    if (arrivalActive.current && nodes.length > 0) {
+      const sorted = nodes
+        .map((n) => ({ n, d: Math.hypot(n.basePos.x, n.basePos.z) }))
+        .sort((a, b) => a.d - b.d)
+      const HEAD = 0.18
+      const SPREAD = 0.55
+      const n = sorted.length
+      sorted.forEach((entry, i) => {
+        const t = n <= 1 ? 0 : i / (n - 1)
+        entry.n.entryDelay = HEAD + t * SPREAD
+      })
+    }
+
     // ── Animation loop ─────────────────────────────────────────────
     const clock = new Clock()
     let running = true
@@ -1677,9 +1777,42 @@ export function MapModeScene({
       const t = clock.getElapsedTime()
       const sceneT = (performance.now() - sceneStart) / 1000
 
-      if (sceneT < 1.5 && !reducedMotion) {
-        const k = easeOutCubic(sceneT / 1.5)
-        camRadius.current = 90 + (camRadiusTarget.current - 90) * k
+      // ── Arrival sequence (camera spring) ─────────────────────────
+      // First-entry-only: a critically-damped spring on radius / yaw /
+      // pitch carries the camera from the elevated approach pose into
+      // the canonical settled isometric. Reads as "descending" rather
+      // than the previous linear-cubic glide. User drag clears
+      // `arrivalActive` so the manual gesture always wins (see
+      // onPointerDown). A 2.4s safety cap guarantees we never strand
+      // in arrival state on a degenerate device clock.
+      if (arrivalActive.current) {
+        const dt = Math.min(0.05, clock.getDelta() || 0.016)
+        const K = 42
+        const C = 13
+        const r = springStep(camRadius.current, arrival.radiusV, camRadiusTarget.current, dt, K, C)
+        camRadius.current = r.value
+        arrival.radiusV = r.velocity
+        const y = springStep(camYaw.current, arrival.yawV, settledYaw, dt, K, C)
+        camYaw.current = y.value
+        arrival.yawV = y.velocity
+        const p = springStep(camPitch.current, arrival.pitchV, DEFAULT_PITCH, dt, K, C)
+        camPitch.current = p.value
+        arrival.pitchV = p.velocity
+        const close =
+          Math.abs(camRadius.current - camRadiusTarget.current) < 0.05 &&
+          Math.abs(camYaw.current - settledYaw) < 0.002 &&
+          Math.abs(camPitch.current - DEFAULT_PITCH) < 0.002
+        if (close || sceneT > 2.4) {
+          camRadius.current = camRadiusTarget.current
+          camYaw.current = settledYaw
+          camPitch.current = DEFAULT_PITCH
+          arrival.radiusV = 0
+          arrival.yawV = 0
+          arrival.pitchV = 0
+          arrivalActive.current = false
+          arrival.settledAt = sceneT
+          markArrivalPlayed()
+        }
       } else {
         camRadius.current += (camRadiusTarget.current - camRadius.current) * 0.09
       }
@@ -1917,8 +2050,21 @@ export function MapModeScene({
 
       // YOU pin animation
       const pulse = 1 + Math.sin(t * 2.4) * 0.06
-      youCore.scale.setScalar(reducedMotion ? 1 : pulse)
-      youGlow.scale.setScalar(reducedMotion ? 1.0 : 1 + Math.sin(t * 1.6) * 0.12)
+      // One-shot welcome pulse: when the arrival sequence settles, the
+      // YOU pin pulses gently once — a soft "you are here" acknowledgment
+      // as the camera lands. Asymmetric envelope (fast attack, slow
+      // decay) so it reads as a single emphatic beat, not a sine. Decays
+      // over ~0.9s; contributes zero before settle and after the window.
+      let arrivalPulse = 0
+      if (!reducedMotion && arrival.settledAt > 0) {
+        const since = sceneT - arrival.settledAt
+        if (since >= 0 && since < 0.9) {
+          const k = since < 0.15 ? since / 0.15 : 1 - (since - 0.15) / 0.75
+          arrivalPulse = Math.max(0, k) * 0.22
+        }
+      }
+      youCore.scale.setScalar(reducedMotion ? 1 : pulse + arrivalPulse)
+      youGlow.scale.setScalar(reducedMotion ? 1.0 : 1 + Math.sin(t * 1.6) * 0.12 + arrivalPulse * 1.4)
       ;(youRing.material as MeshBasicMaterial).opacity = reducedMotion ? 0.55 : 0.45 + Math.sin(t * 1.8) * 0.15
       youRing.scale.setScalar(reducedMotion ? 1 : 1 + Math.sin(t * 1.4) * 0.08)
       ;(youRing2.material as MeshBasicMaterial).opacity = reducedMotion ? 0.3 : 0.2 + Math.sin(t * 1.1 + 1) * 0.12
@@ -2024,26 +2170,45 @@ export function MapModeScene({
         if (expandedClusterId !== null && !inExpandedScope) focusDim = 0.25
         if (selId !== null && !isSelectedNode) focusDim = Math.min(focusDim, 0.12)
 
+        // ── Frost-in factor (arrival sequence) ────────────────────────
+        // During the first ~0.6s after `bornAt`, the orb fades from
+        // invisible into its settled frosted-glass look. A bell-shaped
+        // rim spike at the midpoint brightens the silhouette briefly so
+        // the orb "flashes" as it materializes. Outside the birth
+        // window both factors are 1 — the existing materials read as
+        // normal. Reduced-motion users skip the effect: birth scale is
+        // already 1, so they get the orb in place immediately.
+        let frostOpacity = 1
+        let rimSpike = 1
+        if (!reducedMotion && node.bornAt > 0) {
+          const sinceBirth = sceneT - node.bornAt
+          if (sinceBirth < 0.7) {
+            frostOpacity = smoothstep(Math.min(1, sinceBirth / 0.6))
+            const bell = Math.sin(Math.min(1, sinceBirth / 0.7) * Math.PI)
+            rimSpike = 1 + bell * 0.8
+          }
+        }
+
         // Selection emphasis (only effect outer + rim — leave billboard scale alone)
         const rimMat = node.rim.material as MeshBasicMaterial
         if (isSelectedNode) {
           const sel = 1 + Math.sin(t * 4) * 0.08
           node.outer.scale.setScalar(Math.max(node.outer.scale.x, 1.2 * sel))
           node.rim.scale.setScalar(1.35 * sel)
-          rimMat.opacity = 0.55 * focusDim
+          rimMat.opacity = 0.55 * focusDim * frostOpacity * rimSpike
         } else if (hovered && hovered === node) {
-          rimMat.opacity = 0.4 * focusDim
+          rimMat.opacity = 0.4 * focusDim * frostOpacity * rimSpike
         } else {
-          rimMat.opacity = (node.kind === "cluster" ? 0.32 : 0.22) * focusDim
+          rimMat.opacity = (node.kind === "cluster" ? 0.32 : 0.22) * focusDim * frostOpacity * rimSpike
         }
 
         // Outer + billboard opacity follow the dim too. We multiply,
         // not assign, so the underlying material opacity (which sets the
         // glass look) is preserved when nothing is dimmed.
         const outerMat = node.outer.material as MeshPhysicalMaterial
-        outerMat.opacity = 0.32 * focusDim
+        outerMat.opacity = 0.32 * focusDim * frostOpacity
         const billboardMat = node.innerBillboard.material as MeshBasicMaterial
-        billboardMat.opacity = focusDim
+        billboardMat.opacity = focusDim * frostOpacity
         const shadowMat = node.shadow.material as MeshBasicMaterial
 
         // Update line endpoint (members don't own a line — cluster does)
