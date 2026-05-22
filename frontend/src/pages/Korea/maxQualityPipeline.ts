@@ -205,15 +205,13 @@ const GRADE_FRAGMENT = /* glsl */ `
   void main() {
     vec4 c = texture2D(tDiffuse, vUv);
     vec3 graded = uMatrix * c.rgb * uExposure;
-    // Reinhard-like soft clamp. Hard \`clamp\` to [0,1] would lose
-    // any HDR overshoot the bloom pass already lifted; soft-clamp
-    // preserves relative brightness. Critically: prevents sky-color
-    // input from saturating any single channel to 1.0 just because
-    // a matrix diagonal was nudged above 1.0 — which is what turned
-    // the morning/night Max Quality view into a "blue screen" in v1.
-    graded = max(graded, vec3(0.0));
-    graded = graded / (1.0 + graded * 0.15);
-    gl_FragColor = vec4(graded, c.a);
+    // Hard clamp to [0, 1]. Previous Reinhard-style soft-clamp was
+    // dimming midtones by 7–13% across the board (user reported
+    // "terrain is quite dark" with Max Quality on). Hard clamp
+    // preserves midtones exactly; matrix row-sums are already capped
+    // at ≤1.0 so this can only catch defensive overshoot, not
+    // realistic content.
+    gl_FragColor = vec4(clamp(graded, vec3(0.0), vec3(1.0)), c.a);
   }
 `
 

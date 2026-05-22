@@ -38,7 +38,7 @@ import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js"
 import { KTX2Loader } from "three/examples/jsm/loaders/KTX2Loader.js"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import type { NeighborhoodCenter, RankedPlace } from "./mapModeTypes"
-import { arrivalStartFilter, cssFilterFor, fogForHour, kstHour, skyForHour } from "./timeOfDayGrade"
+import { arrivalStartFilter, cssFilterFor, fogForHour, kstHour } from "./timeOfDayGrade"
 import { GodRaysPass } from "./godRaysPass"
 import { MaxQualityPipeline, applyTileQualityHints } from "./maxQualityPipeline"
 import type { EffectPrefs } from "./deviceTier"
@@ -248,20 +248,20 @@ export function Detailed3DScene({
     const fogColor = new Color(fogInit.color)
     const baseFogDensity = fogInit.density
     let currentFogDensity = baseFogDensity
-    // Clear color is a sky tint that's distinct from the fog color so
-    // unwritten pixels (sky regions, pre-tile-load frames) read as
-    // sky, not as gray fog. Previously clearColor = fogColor, which
-    // painted the whole viewport gray whenever tiles hadn't loaded
-    // or were fully fogged at far zoom.
-    const skyColor = new Color(skyForHour(initialHour))
-    renderer.setClearColor(skyColor, 1)
+    // The canvas is alpha:true so unwritten pixels show the page
+    // parchment background. We deliberately do NOT call
+    // \`renderer.setClearColor\` here. Previously we set it to the fog
+    // color (which painted the viewport completely gray when fog was
+    // on and tiles hadn't streamed in yet) and then tried sky-blue
+    // (which produced the "blue screen" report). Both showed the
+    // clear color over the whole canvas for the 30–90 s while Google
+    // Photorealistic Tiles stream — a worse loading experience than
+    // the soft parchment that shows through with transparent clear.
     if (fogOn) {
       scene.fog = new FogExp2(fogColor, arrivalPlanned ? baseFogDensity * 0.5 : baseFogDensity)
     }
     const fogHourInterval = window.setInterval(() => {
       const hour = kstHour()
-      skyColor.set(skyForHour(hour))
-      renderer.setClearColor(skyColor, 1)
       if (fogOn && scene.fog) {
         const f = fogForHour(hour)
         fogColor.set(f.color)

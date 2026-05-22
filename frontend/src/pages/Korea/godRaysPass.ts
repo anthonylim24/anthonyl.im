@@ -154,9 +154,19 @@ export class GodRaysPass {
           // (e.g., transient sky coverage spike during a pan).
           accum = min(accum, 0.75);
           vec4 base = texture2D(tDiffuse, vUv);
-          // Additive composite — preserves the underlying scene color
-          // and stacks the rays on top in warm sun-temperature.
-          gl_FragColor = vec4(base.rgb + vec3(accum * 1.10, accum * 0.95, accum * 0.65), 1.0);
+          // Multiplicative base lift — the silhouette/occlusion path
+          // re-renders the scene with a flat MeshBasicMaterial which
+          // gives a slightly dimmer base than direct rendering. The
+          // 1.15x lift counters that so god-rays terrain reads at the
+          // same brightness as the standard view (user reported the
+          // god-rays terrain was "quite dark"). Then add warm rays on
+          // top — preserves the underlying scene color and stacks
+          // sun-shaft light in warm tone.
+          gl_FragColor = vec4(
+            clamp(base.rgb * 1.15, vec3(0.0), vec3(1.0))
+              + vec3(accum * 1.10, accum * 0.95, accum * 0.65),
+            1.0
+          );
         }
       `,
     })
