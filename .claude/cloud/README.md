@@ -8,11 +8,26 @@ need: Playwright + Chromium so end-to-end tests can run.
 
 | Script | Purpose |
 |---|---|
-| `setup.sh` | One-shot bootstrap. Runs `.codex/setup.sh` (Bun, Node, deps, env stubs) then installs Playwright Chromium. Idempotent. |
-| `verify.sh` | Exec wrapper around `.codex/check.sh` — server tests + frontend typecheck, matching the GitHub Actions deploy gate. Lint and frontend unit tests are intentionally NOT in the gate (pre-existing failures on main); run them separately when fixing that debt. |
+| `setup.sh` | One-shot bootstrap. Runs `.codex/setup.sh` (Bun, Node, deps in **both** root AND `frontend/`, env stubs) then installs Playwright Chromium. Idempotent — safe to re-run. |
+| `verify.sh` | Exec wrapper around `.codex/check.sh` — TS pre-flight + server tests (including the `appLoad` module-load smoke) + frontend typecheck. Matches the GitHub Actions deploy gate. Lint and frontend unit tests are intentionally NOT in the gate (pre-existing failures on main); run them separately when fixing that debt. |
 | `dev.sh` | Boots Hono :3000 and Vite :5173. Exec wrapper around `.codex/dev.sh`. |
 | `e2e.sh` | Runs Playwright against a live full stack. Playwright's `webServer` config owns the lifecycle — no manual server orchestration. |
 | `cloud-setup.test.sh` | Invariant lint for the scripts above. |
+
+## Ordering invariant
+
+**Setup must complete before any build/verify command.** The recent cloud
+failure was a `bun run build` invocation that ran before frontend deps were
+installed; `tsc -b` then resolved the root's TypeScript 5.x and rejected
+`ignoreDeprecations: "6.0"`.
+
+If you see any of these symptoms, run `bash .claude/cloud/setup.sh` first:
+
+- `error TS5103: Invalid value for '--ignoreDeprecations'`
+- `error TS2307: Cannot find module 'vite'`
+- `error TS2307: Cannot find module '@vitejs/plugin-react'`
+- `[codex-deps] missing frontend dependency: …`
+- `[codex-deps] ERROR: frontend TypeScript reports "Version 5.x" but ~6.0 is expected`
 
 ## Why mirror, not fork
 
@@ -31,12 +46,29 @@ stack. Not part of every loop.
 
 ## What the gate catches (and what it misses)
 
-`verify.sh` runs **server tests + `tsc -b --noEmit`** — same as the GitHub
-Actions deploy job. It will catch:
+`verify.sh` runs (in order):
+
+1. **Dependency auto-repair** — if `frontend/node_modules` is missing or
+   partial, `ensure_dependencies` re-runs `bun install` in both roots and
+   exits with an actionable error if that still doesn't recover.
+2. **Frontend TypeScript pre-flight** — `bunx --bun tsc --version` must
+   report `Version 6.x` so `tsc -b` matches the build's expectations.
+3. **Server tests** (`bun test --bail server/src`) — includes
+   `appLoad.test.ts`, a module-load smoke test that imports `server/app.ts`
+   and evaluates the full route/worker dependency graph. This catches
+   missing/renamed-export regressions that every other test mocks past
+   (root cause of the May 2026 PM2 startup crash).
+4. **Frontend typecheck** (`tsc -b --noEmit`) — same as the GitHub Actions
+   deploy job.
+
+It will catch:
 
 - TypeScript errors anywhere in `frontend/` or `server/` (including type
   drift in test fixtures — see "Type-fixture invariant" in `CLAUDE.md`).
 - Server logic regressions covered by the mocked test suite.
+- Missing-export regressions that previously only surfaced at PM2 start-up.
+- Frontend dep-tree drift that previously only surfaced as a `tsc` build
+  failure on the cloud agent's first build.
 
 It will **not** catch:
 

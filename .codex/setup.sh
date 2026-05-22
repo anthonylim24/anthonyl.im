@@ -49,7 +49,7 @@ install_bun_if_needed() {
   append_once 'export PATH="$BUN_INSTALL/bin:$PATH"' "$BASHRC"
 
   if command -v bun >/dev/null 2>&1; then
-    echo "[codex-setup] bun $(bun --version) already available"
+    echo "[codex-setup] bun $(bun --version) already available at $(command -v bun)"
     return 0
   fi
 
@@ -68,17 +68,41 @@ install_bun_if_needed() {
 seed_env_files() {
   if [ ! -f "$ROOT_DIR/.env" ]; then
     cp "$ROOT_DIR/.codex/root.env.example" "$ROOT_DIR/.env"
-    echo "[codex-setup] wrote safe repo-root .env defaults"
+    echo "[codex-setup] wrote $ROOT_DIR/.env (safe stub defaults)"
+  else
+    echo "[codex-setup] $ROOT_DIR/.env already exists; left untouched"
   fi
 
   if [ ! -f "$ROOT_DIR/frontend/.env.local" ]; then
     cp "$ROOT_DIR/.codex/frontend.env.local.example" "$ROOT_DIR/frontend/.env.local"
-    echo "[codex-setup] wrote safe frontend/.env.local defaults"
+    echo "[codex-setup] wrote $ROOT_DIR/frontend/.env.local (safe stub defaults)"
+  else
+    echo "[codex-setup] $ROOT_DIR/frontend/.env.local already exists; left untouched"
   fi
 }
 
 install_dependencies() {
+  # Always run install_dependency_roots — `bun install --frozen-lockfile`
+  # is a fast no-op when the tree already matches the lockfile, so this
+  # stays cheap on repeat runs while still repairing partial installs.
   install_dependency_roots
+}
+
+print_summary() {
+  echo "[codex-setup] -------- summary --------"
+  echo "[codex-setup] repo root: $ROOT_DIR"
+  echo "[codex-setup] bun: $(command -v bun) ($(bun --version))"
+  if command -v node >/dev/null 2>&1; then
+    echo "[codex-setup] node: $(command -v node) ($(node --version))"
+  fi
+  if ts_version="$(cd "$ROOT_DIR/frontend" && bunx --bun tsc --version 2>/dev/null)"; then
+    echo "[codex-setup] frontend ${ts_version}"
+  fi
+  echo "[codex-setup] env stubs: .env, frontend/.env.local"
+  echo "[codex-setup] next steps:"
+  echo "[codex-setup]   verify:  bash .codex/check.sh"
+  echo "[codex-setup]   dev:     bash .codex/dev.sh"
+  echo "[codex-setup] ------------------------"
 }
 
 echo "[codex-setup] preparing $ROOT_DIR"
@@ -87,4 +111,5 @@ node --version || true
 install_bun_if_needed
 seed_env_files
 install_dependencies
+print_summary
 echo "[codex-setup] ready"
