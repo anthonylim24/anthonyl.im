@@ -1,6 +1,12 @@
 // Busyness indicator badge — compact pill used in place cards, detail sheets,
 // and Map Mode overlays. Colour-coded from calm green (quiet) through red
 // (very_busy) to signal crowd level at a glance.
+//
+// `very_busy` gets a *very* subtle breathing animation on its leading dot
+// (~3 s opacity cycle) so the page can communicate "this place is currently
+// bustling" subliminally as the user scans the grid. All other levels stay
+// still. Honors `prefers-reduced-motion` via the CSS media query in
+// index.css — no JS branch needed.
 
 import type { BusynessLevel } from './placesApi'
 
@@ -11,11 +17,12 @@ const META: Record<BusynessLevel, {
   bgDark: string
   textLight: string
   textDark: string
+  dot: string
 }> = {
-  quiet:     { label: 'Quiet',     emoji: '🌿', bgLight: 'bg-emerald-50',  bgDark: 'dark:bg-emerald-950/40', textLight: 'text-emerald-700', textDark: 'dark:text-emerald-300' },
-  moderate:  { label: 'Moderate',  emoji: '🟡', bgLight: 'bg-amber-50',    bgDark: 'dark:bg-amber-950/40',   textLight: 'text-amber-700',   textDark: 'dark:text-amber-300'   },
-  busy:      { label: 'Busy',      emoji: '🔴', bgLight: 'bg-orange-50',   bgDark: 'dark:bg-orange-950/40',  textLight: 'text-orange-700',  textDark: 'dark:text-orange-300'  },
-  very_busy: { label: 'Very Busy', emoji: '🚨', bgLight: 'bg-rose-50',     bgDark: 'dark:bg-rose-950/40',    textLight: 'text-rose-700',    textDark: 'dark:text-rose-300'    },
+  quiet:     { label: 'Quiet',     emoji: '🌿', bgLight: 'bg-emerald-50',  bgDark: 'dark:bg-emerald-950/40', textLight: 'text-emerald-700', textDark: 'dark:text-emerald-300', dot: 'bg-emerald-500' },
+  moderate:  { label: 'Moderate',  emoji: '🟡', bgLight: 'bg-amber-50',    bgDark: 'dark:bg-amber-950/40',   textLight: 'text-amber-700',   textDark: 'dark:text-amber-300',   dot: 'bg-amber-500'   },
+  busy:      { label: 'Busy',      emoji: '🔴', bgLight: 'bg-orange-50',   bgDark: 'dark:bg-orange-950/40',  textLight: 'text-orange-700',  textDark: 'dark:text-orange-300',  dot: 'bg-orange-500'  },
+  very_busy: { label: 'Very Busy', emoji: '🚨', bgLight: 'bg-rose-50',     bgDark: 'dark:bg-rose-950/40',    textLight: 'text-rose-700',    textDark: 'dark:text-rose-300',    dot: 'bg-rose-500'    },
 }
 
 interface BusynessBadgeProps {
@@ -35,6 +42,15 @@ export function BusynessBadge({ busyness, size = 'sm', className = '' }: Busynes
     <span className={`${base} ${sizing} ${className}`}>
       <span aria-hidden className="leading-none">{m.emoji}</span>
       {m.label}
+      {busyness === 'very_busy' && (
+        <span
+          aria-hidden
+          // ~3 s opacity cycle, only for very_busy. The keyframes live in
+          // index.css (busyness-breathe) and are disabled automatically
+          // under prefers-reduced-motion.
+          className={`ml-0.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full ${m.dot} animate-busyness-breathe`}
+        />
+      )}
     </span>
   )
 }

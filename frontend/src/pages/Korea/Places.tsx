@@ -1,13 +1,38 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { clerkEnabled, useGetToken } from '@/lib/safeAuth'
-import { motion, AnimatePresence, useReducedMotion } from 'motion/react'
+import { LayoutGroup, motion, AnimatePresence, useReducedMotion } from 'motion/react'
 import { ExternalLink, MapPin, Phone, Star, AlertTriangle, ArrowLeft, CalendarDays, Check, Loader2, X } from 'lucide-react'
 import { IgIcon } from './IgIcon'
 import { PlaceCardSkeleton } from './skeletons'
 import { fetchExtractedPlaces, setExtractedPlaceDays } from './placesApi'
 import type { ExtractedPlace, BusynessLevel } from './placesApi'
 import { BusynessBadge } from './BusynessBadge'
+import { useTweenNumber } from './useTweenNumber'
+
+// Spring curves reused by the chips and cards — match the shared
+// cubic-bezier(0.16, 1, 0.3, 1) feel from the design system but tuned for
+// small-displacement motion. `stiffness` is high enough to feel responsive,
+// `damping` keeps it from oscillating on the second hop.
+const FLIP_SPRING = { type: 'spring' as const, stiffness: 520, damping: 38, mass: 0.6 }
+const CHIP_SPRING = { type: 'spring' as const, stiffness: 600, damping: 30, mass: 0.4 }
+
+// ── Hooks ─────────────────────────────────────────────────────────────────────
+
+// True only on desktops with a real pointer at >=md (Tailwind's 768 px). Mobile
+// is touch-first; we don't want a hover-lift firing under a finger.
+function useDesktopHoverCapable(): boolean {
+  const [ok, setOk] = useState(false)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const mq = window.matchMedia('(min-width: 768px) and (hover: hover) and (pointer: fine)')
+    const update = () => setOk(mq.matches)
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [])
+  return ok
+}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -325,12 +350,27 @@ function PlaceCard({
   const gmUrl = googleMapsUrl(place)
   const kakaoUrl = kakaoMapsUrl(place)
 
+  // Hover lift on ≥md with a real pointer only — touch devices skip it.
+  const isDesktopHoverCapable = useDesktopHoverCapable()
+
   return (
     <motion.article
-      layout={reduce ? false : 'position'}
-      initial={false}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: reduce ? 0 : 0.3, ease: [0.16, 1, 0.3, 1] }}
+      // FLIP: `layout` rearranges existing cards with spring physics when
+      // the filter result set changes. Cards entering/exiting are handled
+      // by AnimatePresence (popLayout) in the parent so neighbors immediately
+      // animate up to fill gaps rather than waiting on exit.
+      layout={reduce ? false : true}
+      initial={reduce ? false : { opacity: 0, scale: 0.96, y: 8 }}
+      animate={reduce ? undefined : { opacity: 1, scale: 1, y: 0 }}
+      exit={reduce ? undefined : { opacity: 0, scale: 0.94, y: -4 }}
+      transition={reduce ? { duration: 0 } : FLIP_SPRING}
+      whileHover={reduce || !isDesktopHoverCapable ? undefined : {
+        scale: 1.005,
+        y: -2,
+        boxShadow: '0 12px 28px -16px rgba(28, 25, 23, 0.18), 0 4px 10px -6px rgba(28, 25, 23, 0.12)',
+        transition: { type: 'spring', stiffness: 320, damping: 26 },
+      }}
+      style={{ willChange: 'transform' }}
       className="relative rounded-2xl border border-stone-200/80 bg-white p-5 transition-colors dark:border-stone-800/80 dark:bg-stone-900/60"
       aria-label={`Place: ${place.name}`}
     >
@@ -516,11 +556,20 @@ function FilterChip({
   active: boolean
   onClick: () => void
 }) {
+  const reduce = useReducedMotion()
+  // Color states stay in Tailwind classes (transition-colors handles the
+  // crossfade with dark-mode tokens preserved). The spring is purely for
+  // the confidence-inspiring scale nudge when toggled.
   return (
-    <button
+    <motion.button
       type="button"
       onClick={onClick}
-      className={`inline-flex min-h-[36px] items-center rounded-full border px-3 py-1 text-[12px] font-medium transition active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 ${
+      initial={false}
+      animate={reduce ? undefined : { scale: active ? 1.04 : 1 }}
+      whileTap={reduce ? undefined : { scale: 0.94 }}
+      transition={reduce ? { duration: 0 } : CHIP_SPRING}
+      style={{ transformOrigin: 'center' }}
+      className={`inline-flex min-h-[36px] items-center rounded-full border px-3 py-1 text-[12px] font-medium transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 ${
         active
           ? 'border-rose-300 bg-rose-50 text-rose-700 shadow-[0_0_0_1px_rgba(244,63,94,0.08)_inset] hover:border-rose-400 hover:bg-rose-100 dark:border-rose-700/60 dark:bg-rose-950/40 dark:text-rose-400 dark:hover:bg-rose-950/60'
           : 'border-stone-200 bg-white text-stone-600 hover:border-stone-300 hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-400 dark:hover:bg-stone-800'
@@ -528,7 +577,7 @@ function FilterChip({
       aria-pressed={active}
     >
       {label}
-    </button>
+    </motion.button>
   )
 }
 
@@ -588,10 +637,12 @@ function PlacesImpl() {
   const searchRef = useRef(search)
   searchRef.current = search
 
-  // Debounced search
+  // Debounced search — 80 ms is tight enough that the FLIP feels like a
+  // direct response to keystrokes, but long enough to coalesce a burst
+  // of keypresses into one fetch.
   const [debouncedSearch, setDebouncedSearch] = useState('')
   useEffect(() => {
-    const id = setTimeout(() => setDebouncedSearch(search), 300)
+    const id = setTimeout(() => setDebouncedSearch(search), 80)
     return () => clearTimeout(id)
   }, [search])
 
@@ -675,6 +726,11 @@ function PlacesImpl() {
   const hasActiveFilters = activeCategory != null || activeBand != null || activeBusyness != null || search !== ''
   const flaggedCount = places.filter((p) => p.geocode_disagree).length
 
+  // Smoothly tween the displayed counter rather than swapping the number
+  // outright — keeps the count visually in sync with the FLIP rearrangement.
+  // Reduced motion snaps.
+  const animatedTotal = useTweenNumber(total, 320, { reducedMotion: !!reduce })
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
       {/* Page header — see Ingest.tsx note on initial={false}. */}
@@ -715,7 +771,7 @@ function PlacesImpl() {
                 'No places yet'
               ) : (
                 <>
-                  <span className="font-medium text-stone-700 dark:text-stone-300 tabular-nums">{total}</span> place{total !== 1 ? 's' : ''}
+                  <span className="font-medium text-stone-700 dark:text-stone-300 tabular-nums">{animatedTotal}</span> place{total !== 1 ? 's' : ''}
                   {flaggedCount > 0 && (
                     <>
                       <span aria-hidden className="mx-1.5 text-stone-300 dark:text-stone-700">·</span>
@@ -875,20 +931,33 @@ function PlacesImpl() {
         )}
 
         {!loading && places.length > 0 && (
-          <div className="space-y-4">
-            {places.map((place) => (
-              <PlaceCard
-                key={place.id}
-                place={place}
-                getToken={getToken}
-                onUpdated={(placeId, days) => {
-                  setPlaces((prev) =>
-                    prev.map((p) => p.id === placeId ? { ...p, days } : p)
-                  )
-                }}
-              />
-            ))}
-          </div>
+          // FLIP engine: LayoutGroup + AnimatePresence(popLayout) drives
+          // the "feel of filtering".
+          //   • cards that stay → `layout` interpolates First→Last with
+          //     FLIP_SPRING when their grid position changes.
+          //   • cards that exit → fade + scale via `exit` props on the
+          //     card; popLayout removes them from flow so neighbors
+          //     animate up immediately rather than waiting on exit.
+          //   • cards that enter → fade + scale via the card's `initial`.
+          // Keyed by `place.id` so motion matches cards across renders.
+          <LayoutGroup>
+            <motion.div layout={reduce ? false : 'position'} className="space-y-4">
+              <AnimatePresence initial={false} mode="popLayout">
+                {places.map((place) => (
+                  <PlaceCard
+                    key={place.id}
+                    place={place}
+                    getToken={getToken}
+                    onUpdated={(placeId, days) => {
+                      setPlaces((prev) =>
+                        prev.map((p) => p.id === placeId ? { ...p, days } : p)
+                      )
+                    }}
+                  />
+                ))}
+              </AnimatePresence>
+            </motion.div>
+          </LayoutGroup>
         )}
 
         {/* Load more */}
