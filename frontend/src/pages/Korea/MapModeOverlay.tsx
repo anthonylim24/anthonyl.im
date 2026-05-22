@@ -764,6 +764,25 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
                     </div>
                   </div>
                 </label>
+                <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-2 transition hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/40 dark:hover:bg-rose-950/60">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-rose-600"
+                    checked={effects.maxQuality}
+                    onChange={(e) => toggleEffect("maxQuality", e.target.checked)}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[12px] font-semibold text-rose-900 dark:text-rose-100">
+                      Max Quality (experimental)
+                    </div>
+                    <div className="text-[11px] leading-snug text-rose-700/80 dark:text-rose-300/70">
+                      HDR + AgX tonemap, per-hour bloom, ray-marched
+                      volumetric clouds, SMAA, in-shader grade. Sharper
+                      tiles. Budgeted for iPhone 17 Pro / M-class
+                      hardware.
+                    </div>
+                  </div>
+                </label>
               </motion.div>
             )}
           </AnimatePresence>

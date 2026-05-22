@@ -27,6 +27,13 @@ export interface EffectPrefs {
   /** CSS filter chain on the renderer canvas (see `cssFilterFor`).
    *  Compositor-only — effectively free, on by default. */
   grade: boolean
+  /** "Max Quality" pipeline — HDR EffectComposer with AgX tone mapping,
+   *  per-phase bloom, ray-marched volumetric clouds with ground
+   *  shadows, in-shader color grade, SMAA. Tier-gated to `high` GPUs
+   *  by default; on A19-class hardware it adds ~5–6 ms/frame, which
+   *  fits the 16.6 ms budget with the existing tile cost. The toggle
+   *  is exposed in the debug menu so the user can always force it. */
+  maxQuality: boolean
 }
 
 const PREFS_KEY = "korea-d3d-effects"
@@ -82,12 +89,15 @@ export function detectTier(): DeviceTier {
  *  toggle them on manually if they want. */
 export function defaultPrefsForTier(tier: DeviceTier, prefersReducedMotion = false): EffectPrefs {
   if (prefersReducedMotion || tier === "low") {
-    return { fog: false, godRays: false, grade: true }
+    return { fog: false, godRays: false, grade: true, maxQuality: false }
   }
   if (tier === "medium") {
-    return { fog: true, godRays: false, grade: true }
+    return { fog: true, godRays: false, grade: true, maxQuality: false }
   }
-  return { fog: true, godRays: true, grade: true }
+  // Max Quality stays opt-in by default even on high tier — it's a
+  // ~5-6 ms/frame budget hit that not every user will want. The
+  // debug menu surfaces the toggle prominently.
+  return { fog: true, godRays: true, grade: true, maxQuality: false }
 }
 
 /** Read the persisted overrides (if any) and merge over the tier
@@ -103,6 +113,7 @@ export function loadEffectPrefs(tier: DeviceTier, prefersReducedMotion = false):
       fog: typeof parsed.fog === "boolean" ? parsed.fog : defaults.fog,
       godRays: typeof parsed.godRays === "boolean" ? parsed.godRays : defaults.godRays,
       grade: typeof parsed.grade === "boolean" ? parsed.grade : defaults.grade,
+      maxQuality: typeof parsed.maxQuality === "boolean" ? parsed.maxQuality : defaults.maxQuality,
     }
   } catch {
     return defaults

@@ -40,6 +40,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import type { NeighborhoodCenter, RankedPlace } from "./mapModeTypes"
 import { arrivalStartFilter, cssFilterFor, fogForHour, kstHour } from "./timeOfDayGrade"
 import { GodRaysPass } from "./godRaysPass"
+import { MaxQualityPipeline, applyTileQualityHints } from "./maxQualityPipeline"
 import type { EffectPrefs } from "./deviceTier"
 
 // Session-scoped flag: the cinematic fly-in plays once per browser
@@ -104,6 +105,7 @@ export function Detailed3DScene({
   const fogOn = effects?.fog ?? false
   const godRaysOn = effects?.godRays ?? false
   const gradeOn = effects?.grade ?? true
+  const maxQualityOn = effects?.maxQuality ?? false
   const mountRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const attributionRef = useRef<HTMLDivElement>(null)
@@ -263,6 +265,10 @@ export function Detailed3DScene({
       ;(scene.fog as FogExp2).color.copy(fogColor)
       ;(scene.fog as FogExp2).density = arriving ? currentFogDensity * 0.5 : currentFogDensity
       renderer.setClearColor(fogColor, 1)
+      // Push the same hour into the HDR pipeline if it's active so
+      // bloom thresholds, exposure, grade matrix, and cloud palette
+      // all stay synchronized.
+      maxQuality?.setHourPhase(kstHour())
     }, 60_000)
 
     // ── Controls. OrbitControls' default damping reads nicely on
@@ -310,9 +316,20 @@ export function Detailed3DScene({
     tiles.setResolutionFromRenderer(camera, renderer)
     // Higher errorTarget = fewer / lower-quality tiles. 12 is a good
     // visual:bandwidth trade for a personal app; mobile users on
-    // slow networks could be pushed to 24.
-    tiles.errorTarget = 16
+    // slow networks could be pushed to 24. Max Quality drops it to 8
+    // for sharper geometry — A19-class wifi handles the extra stream.
+    tiles.errorTarget = maxQualityOn ? 8 : 16
     scene.add(tiles.group)
+
+    // Apply anisotropic filtering + sRGB color space to each tile's
+    // textures as they stream in. Free quality win regardless of
+    // Max Quality mode: building facades at grazing angles look like
+    // mud without anisotropy, and Google delivers sRGB-encoded textures
+    // that look washed-out without the color space hint.
+    tiles.addEventListener("load-model", (event: unknown) => {
+      const ev = event as { scene?: { traverse: (cb: (o: unknown) => void) => void } }
+      if (ev.scene) applyTileQualityHints(ev.scene, renderer)
+    })
 
     // ── YOU marker — small emissive sphere + ring at origin ────
     const youMarker = new Mesh(
@@ -596,6 +613,7 @@ export function Detailed3DScene({
       camera.updateProjectionMatrix()
       tiles.setResolutionFromRenderer(camera, renderer)
       godRays?.resize(w, h)
+      maxQuality?.resize(w, h)
     })
     ro.observe(mount)
 
@@ -744,6 +762,24 @@ export function Detailed3DScene({
         clearColor: fogColor,
       })
     }
+
+    // ── Max Quality HDR pipeline ─────────────────────────────────
+    // Replaces the direct renderer.render call with a multi-pass
+    // chain: scene → cloud composite → bloom → grade/tonemap → SMAA.
+    // Coordinates per-phase color, exposure, bloom threshold, and
+    // cloud palette via setHourPhase() once per minute.
+    let maxQuality: MaxQualityPipeline | null = null
+    if (maxQualityOn) {
+      maxQuality = new MaxQualityPipeline({
+        renderer,
+        scene,
+        camera,
+        size: { w, h },
+        reducedMotion: !!reducedMotion,
+      })
+      maxQuality.setHourPhase(kstHour())
+    }
+    const maxQualityStart = performance.now()
 
     // ── Animation loop ────────────────────────────────────────────
     let running = true
@@ -1050,22 +1086,22 @@ export function Detailed3DScene({
         updateAttribution()
       }
 
-      if (godRays) {
-        // Camera-pitch attenuation: cos(polarAngle) is 1 when looking
-        // straight down, 0 when looking horizontally. Raising to ^0.7
-        // softens the curve a bit so we still get some rays at moderate
-        // pitch (e.g., the home pose ~60°) while killing the horizon
-        // blowout — when the screen fills with sky, the radial accum-
-        // ulator would otherwise saturate every pixel.
+      // Render path selection — three modes, ordered by priority:
+      //   1. Max Quality: HDR composer pipeline (replaces god-rays
+      //      direct render — god-rays output is currently not folded
+      //      into the composer in v1; if the user has BOTH max quality
+      //      and god-rays toggled on, max quality wins. A follow-up
+      //      PR will patch GodRaysPass to accept an output target so
+      //      its result lands in the HDR buffer for bloom + tone-map.)
+      //   2. God rays only: existing radial-blur composite.
+      //   3. Plain direct render.
+      if (maxQuality) {
+        maxQuality.render((performance.now() - maxQualityStart) / 1000)
+      } else if (godRays) {
         const polar = controls.getPolarAngle()
         const pitchAtten = Math.pow(Math.max(0, Math.cos(polar)), 0.7)
         godRays.setClearColor(fogColor)
         godRays.setPitchAttenuation(pitchAtten)
-        // Run every frame. Tile-streaming throttling was removed: it
-        // made the effect blink off during any pan because new tiles
-        // load continuously while the camera moves. The pass is cheap
-        // (~1.5 ms on M-class at half-res occlusion) and the device-
-        // tier gate already disables it on low-end hardware.
         godRays.render()
       } else {
         renderer.setRenderTarget(null)
@@ -1080,6 +1116,7 @@ export function Detailed3DScene({
       window.clearInterval(gradeInterval)
       window.clearInterval(fogHourInterval)
       godRays?.dispose()
+      maxQuality?.dispose()
       scene.fog = null
       ro.disconnect()
       window.removeEventListener("korea-map-reset", onResetView)
@@ -1117,7 +1154,7 @@ export function Detailed3DScene({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiKey, userLat, userLng, places, reducedMotion, fogOn, godRaysOn, gradeOn])
+  }, [apiKey, userLat, userLng, places, reducedMotion, fogOn, godRaysOn, gradeOn, maxQualityOn])
 
   if (keyMissing) {
     return (
