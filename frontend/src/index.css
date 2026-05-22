@@ -724,3 +724,19 @@ body {
   0%   { transform: translateX(-100%); }
   100% { transform: translateX(400%); }
 }
+
+/* Busyness badge — subtle breathing dot for `very_busy` only. ~3 s opacity
+   cycle communicates "this place is currently bustling" subliminally when
+   the user is scanning the /korea/places grid. Honors prefers-reduced-motion
+   via the @media guard below. */
+@keyframes busyness-breathe {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%      { opacity: 1;    transform: scale(1.18); }
+}
+.animate-busyness-breathe {
+  animation: busyness-breathe 3s ease-in-out infinite;
+  transform-origin: center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-busyness-breathe { animation: none; opacity: 1; transform: none; }
+}
