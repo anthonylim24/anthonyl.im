@@ -269,7 +269,13 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng, initialMode
               <div
                 aria-hidden
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-2xl shadow-inner"
-                style={{ background: place.color + "33" }}
+                style={{
+                  background: place.color + "33",
+                  // Mirror of the CompactBody morph target so the
+                  // view-transition-name follows the icon block across
+                  // mode toggles and through expanded-initial opens.
+                  viewTransitionName: "place-detail-morph",
+                }}
               >
                 {place.icon}
               </div>
@@ -459,7 +465,15 @@ function CompactBody({
         <div
           aria-hidden
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-2xl shadow-inner"
-          style={{ background: place.color + "33" }}
+          style={{
+            background: place.color + "33",
+            // Morph target for the orb → sheet View Transition. When the
+            // overlay starts the transition, the page-level stand-in
+            // carries the same view-transition-name, so the browser
+            // morphs the orb stand-in's bounding box into this colored
+            // icon tile. No-op when View Transitions aren't running.
+            viewTransitionName: "place-detail-morph",
+          }}
         >
           {place.icon}
         </div>
