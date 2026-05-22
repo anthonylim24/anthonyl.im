@@ -36,6 +36,13 @@ import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js"
 import { KTX2Loader } from "three/examples/jsm/loaders/KTX2Loader.js"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import type { NeighborhoodCenter, RankedPlace } from "./mapModeTypes"
+import { arrivalStartFilter, cssFilterFor, kstHour } from "./timeOfDayGrade"
+
+// Session-scoped flag: the cinematic fly-in plays once per browser
+// session, not on every navigation into Map Mode. Stored in
+// sessionStorage so a refresh replays it but back/forward inside the
+// same tab doesn't.
+const ARRIVAL_SESSION_KEY = "korea-d3d-arrival-done"
 
 const DEG2RAD = Math.PI / 180
 // Approx meters per degree latitude (constant); per-longitude scales
@@ -148,6 +155,28 @@ export function Detailed3DScene({
     renderer.domElement.style.touchAction = "none"
     renderer.domElement.style.display = "block"
 
+    // ── Time-of-day color grade ──────────────────────────────────
+    // The canvas gets a CSS filter chain that reflects the current
+    // Asia/Seoul wall-clock hour. This is intentionally subtle — the
+    // Google mesh is already richly textured. Refresh every minute so
+    // the grade tracks the hour without spinning a per-frame timer.
+    // The arrival fly-in starts from a dimmer variant of this so the
+    // city "wakes up" as the camera settles.
+    const initialHour = kstHour()
+    const arrivalPlanned =
+      !reducedMotion && (() => {
+        try { return !sessionStorage.getItem(ARRIVAL_SESSION_KEY) } catch { return true }
+      })()
+    renderer.domElement.style.transition = "filter 0.6s ease"
+    renderer.domElement.style.filter = arrivalPlanned
+      ? arrivalStartFilter(initialHour)
+      : cssFilterFor(initialHour)
+    const gradeInterval = window.setInterval(() => {
+      // Only refresh when no arrival is in flight; arrival completion
+      // will re-set the filter to the current hour.
+      if (!arriving) renderer.domElement.style.filter = cssFilterFor(kstHour())
+    }, 60_000)
+
     // ── Scene + camera + lights ──────────────────────────────────
     const scene = new Scene()
     const camera = new PerspectiveCamera(55, w / h, 1, 100000)
@@ -159,7 +188,22 @@ export function Detailed3DScene({
     // depth — the user can see today's neighborhood footprint without
     // tilting upward. Bumped to a larger overall radius so adjacent
     // hotel + neighborhoods fit in-frame without panning.
-    camera.position.set(900, 2700, -1200)
+    // Final ("home") vantage. The arrival sequence seeds the camera
+    // from an elevated SE approach (~3× height, ~2× horizontal radius)
+    // and springs back to this; users without arrival land here
+    // directly. Mutated only by the existing focus system; the
+    // arrival uses the same `focusing` lerp path so we don't double-
+    // own the camera each frame.
+    let arriving = false
+    if (arrivalPlanned) {
+      // Elevated approach: same azimuth, ~3× higher, ~2× farther out
+      // along the SE diagonal. From this vantage the user sees Seoul
+      // from above before being lowered into the trip's neighborhood.
+      camera.position.set(2700, 7800, -3600)
+      arriving = true
+    } else {
+      camera.position.set(900, 2700, -1200)
+    }
     camera.lookAt(0, 0, 0)
     // Hemisphere fill so building shadows don't crush to black on
     // mobile where the GPU can't afford a real shadow pass.
@@ -629,10 +673,51 @@ export function Detailed3DScene({
     let running = true
     let lastAttrAt = 0
     let buildingHighlightTries = 0
+    // Arrival is armed; the tick below waits for the first batch of
+    // tiles to land (so we don't fly through empty space), then kicks
+    // off a focus tween from approach → HOME with a slower-than-usual
+    // lerp factor for cinematic weight.
+    let arrivalArmed = arriving
+    const arrivalDeadline = performance.now() + 2500
+    let focusLerp = 0.12
+    const onArrivalCancel = () => {
+      if (!arriving) return
+      // User wants control — stop the camera mid-flight. OrbitControls
+      // re-derives its spherical state from camera.position + target on
+      // its next update(), so dropping `focusing` cleanly hands control
+      // back without a snap.
+      arriving = false
+      arrivalArmed = false
+      focusing = false
+      focusLerp = 0.12
+      renderer.domElement.style.filter = cssFilterFor(kstHour())
+      try { sessionStorage.setItem(ARRIVAL_SESSION_KEY, "1") } catch { /* private mode */ }
+    }
+    renderer.domElement.addEventListener("pointerdown", onArrivalCancel, { passive: true, once: true })
     function tick() {
       if (!running) return
       controls.update()
       tiles.update()
+
+      // Arrival kickoff: wait until tiles have rendered something
+      // (otherwise the fly-in happens over an empty sky) OR the
+      // deadline expires (slow network — fall through and accept
+      // the empty-ish vista rather than freezing forever).
+      if (arrivalArmed) {
+        const tilesReady = tiles.group.children.length > 0
+        if (tilesReady || performance.now() > arrivalDeadline) {
+          arrivalArmed = false
+          focusTarget.copy(HOME_TARGET)
+          focusCamPos.copy(HOME_POS)
+          focusing = true
+          // ~1.6s settle at 60fps with 0.045 lerp factor — cinematic
+          // weight without feeling slow.
+          focusLerp = 0.045
+          // Brighten the canvas to its target grade in step with the
+          // camera; the CSS transition (0.6s) gives the fade-up.
+          renderer.domElement.style.filter = cssFilterFor(kstHour())
+        }
+      }
 
       // Publish the live "yaw from north-up" to the parent compass.
       // OrbitControls.getAzimuthalAngle() returns the camera's angle
@@ -655,14 +740,22 @@ export function Detailed3DScene({
       // spherical coords from these on the next update() so the
       // user can still manually orbit after the animation settles.
       if (focusing) {
-        controls.target.lerp(focusTarget, 0.12)
-        camera.position.lerp(focusCamPos, 0.12)
+        controls.target.lerp(focusTarget, focusLerp)
+        camera.position.lerp(focusCamPos, focusLerp)
         const dT = controls.target.distanceTo(focusTarget)
         const dP = camera.position.distanceTo(focusCamPos)
         if (dT < 1 && dP < 2) {
           controls.target.copy(focusTarget)
           camera.position.copy(focusCamPos)
           focusing = false
+          if (arriving) {
+            // Settled. Mark arrival done so subsequent Map Mode opens
+            // in the same session land directly at HOME, and restore
+            // the everyday focus lerp speed.
+            arriving = false
+            focusLerp = 0.12
+            try { sessionStorage.setItem(ARRIVAL_SESSION_KEY, "1") } catch { /* private mode */ }
+          }
         }
       }
 
@@ -879,9 +972,11 @@ export function Detailed3DScene({
 
     return () => {
       running = false
+      window.clearInterval(gradeInterval)
       ro.disconnect()
       window.removeEventListener("korea-map-reset", onResetView)
       window.removeEventListener("korea-map-orient-north", onOrientNorth)
+      renderer.domElement.removeEventListener("pointerdown", onArrivalCancel)
       renderer.domElement.removeEventListener("pointerdown", onPointerDown)
       renderer.domElement.removeEventListener("pointerup", onPointerUp)
       tiles.dispose()
