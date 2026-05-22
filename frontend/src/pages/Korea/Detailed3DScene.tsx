@@ -728,9 +728,11 @@ export function Detailed3DScene({
     // ── God-rays pass ────────────────────────────────────────────
     // Lazily constructed: we only allocate RTs + shaders when the
     // user has the toggle on AND we have a non-trivial viewport.
-    // Disposed in the cleanup block. Skipped entirely on tiles that
-    // are mid-stream (see `tileBusyHoldoff` below) so we don't burn
-    // GPU time on a half-rendered city.
+    // Disposed in the cleanup block. Runs every frame — the previous
+    // tile-streaming throttle made the effect blink off during any
+    // pan (new tiles load continuously while the camera moves), which
+    // read as broken. Pitch attenuation in the shader handles the
+    // expensive case (horizon blowout) instead.
     let godRays: GodRaysPass | null = null
     if (godRaysOn) {
       godRays = new GodRaysPass({
@@ -742,7 +744,6 @@ export function Detailed3DScene({
         clearColor: fogColor,
       })
     }
-    let tileBusyHoldoff = 0
 
     // ── Animation loop ────────────────────────────────────────────
     let running = true
@@ -1049,23 +1050,22 @@ export function Detailed3DScene({
         updateAttribution()
       }
 
-      // Skip the god-rays pass for a few frames after the tiles
-      // renderer reports active streaming work — both passes together
-      // are too expensive when the GPU is already busy decoding GLTFs.
-      // The check is cheap (just a counter) and the visual hit is
-      // imperceptible: god rays fade in/out implicitly via the
-      // additive composite, so frames without them just look like
-      // the rays got dimmer for a beat.
-      // tiles.stats is documented in 3d-tiles-renderer's API.md but
-      // missing from the TS types — cast through unknown to peek at
-      // the runtime shape without disabling type-checking elsewhere.
-      const stats = (tiles as unknown as { stats?: { downloading?: number; parsing?: number } }).stats
-      const tilesBusy = !!stats && ((stats.downloading ?? 0) + (stats.parsing ?? 0) > 0)
-      if (tilesBusy) tileBusyHoldoff = 6
-      else if (tileBusyHoldoff > 0) tileBusyHoldoff--
-
-      if (godRays && tileBusyHoldoff === 0) {
+      if (godRays) {
+        // Camera-pitch attenuation: cos(polarAngle) is 1 when looking
+        // straight down, 0 when looking horizontally. Raising to ^0.7
+        // softens the curve a bit so we still get some rays at moderate
+        // pitch (e.g., the home pose ~60°) while killing the horizon
+        // blowout — when the screen fills with sky, the radial accum-
+        // ulator would otherwise saturate every pixel.
+        const polar = controls.getPolarAngle()
+        const pitchAtten = Math.pow(Math.max(0, Math.cos(polar)), 0.7)
         godRays.setClearColor(fogColor)
+        godRays.setPitchAttenuation(pitchAtten)
+        // Run every frame. Tile-streaming throttling was removed: it
+        // made the effect blink off during any pan because new tiles
+        // load continuously while the camera moves. The pass is cheap
+        // (~1.5 ms on M-class at half-res occlusion) and the device-
+        // tier gate already disables it on low-end hardware.
         godRays.render()
       } else {
         renderer.setRenderTarget(null)
