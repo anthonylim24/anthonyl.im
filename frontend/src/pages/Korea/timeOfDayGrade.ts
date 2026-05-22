@@ -38,34 +38,37 @@ export function gradeKindAt(hour: number): GradeKind {
 /**
  * CSS filter chain for the Detailed-3D canvas at the given KST hour.
  *
- * Tones are deliberately gentle — the Google Photorealistic mesh is
- * already richly textured, so we want a *tint*, not a costume. Limits
- * (rough): brightness ±10%, saturation 0.85–1.05, hue-rotate ≤ ±8°.
+ * Dramatic preset. The grade is deliberately cinematic — viewers should
+ * feel the difference between dusk and night at a glance. Midday stays
+ * near neutral so the trip's daytime use case looks honest.
+ *
+ * Limits (rough): brightness 0.55–1.05, saturation 0.55–1.18,
+ * hue-rotate ±18°, contrast up to 1.18, sepia up to 0.18.
  */
 export function cssFilterFor(hour: number): string {
   const kind = gradeKindAt(hour)
   switch (kind) {
     case "night":
-      // Deep blue, slightly dim + desaturated; the city is asleep.
-      return "brightness(0.78) saturate(0.7) hue-rotate(-8deg) contrast(1.05)"
+      // Cinema-blue, deep — Seoul-after-midnight from above.
+      return "brightness(0.55) saturate(0.65) hue-rotate(-18deg) contrast(1.18)"
     case "dawn":
-      // Warm pink-coral wash, slightly brighter than night.
-      return "brightness(0.92) saturate(1.02) hue-rotate(6deg)"
+      // Coral / sodium-pink wash with a hint of sepia warmth.
+      return "brightness(0.88) saturate(1.12) hue-rotate(12deg) sepia(0.12) contrast(1.04)"
     case "morning":
-      // Crisp, slightly cool — almost neutral.
-      return "brightness(1.02) saturate(1.0) hue-rotate(-2deg)"
+      // Crisp, slightly cool with bright highlights — the city wakes up.
+      return "brightness(1.05) saturate(1.06) hue-rotate(-4deg) contrast(1.03)"
     case "midday":
-      // Neutral baseline — Google's mesh as-is.
-      return "brightness(1.0) saturate(1.0)"
+      // Honest baseline — Google's mesh as-is, with a faint contrast lift.
+      return "brightness(1.0) saturate(1.02) contrast(1.02)"
     case "afternoon":
-      // Warmer light as sun lowers.
-      return "brightness(1.02) saturate(1.04) hue-rotate(3deg)"
+      // Warmer light as the sun lowers; subtle golden cast.
+      return "brightness(1.04) saturate(1.1) hue-rotate(6deg) sepia(0.06)"
     case "dusk":
-      // Golden hour: stronger warm tilt + a hair more saturation.
-      return "brightness(0.96) saturate(1.08) hue-rotate(8deg)"
+      // Full golden hour — strong warm tilt + sepia + saturation push.
+      return "brightness(0.94) saturate(1.18) hue-rotate(16deg) sepia(0.18) contrast(1.05)"
     case "evening":
-      // Cool, slightly dim — neon era hasn't taken over yet.
-      return "brightness(0.85) saturate(0.92) hue-rotate(-4deg)"
+      // Cool dim — the neon hour hasn't fully arrived; melancholic blue.
+      return "brightness(0.72) saturate(0.85) hue-rotate(-12deg) contrast(1.1)"
   }
 }
 
