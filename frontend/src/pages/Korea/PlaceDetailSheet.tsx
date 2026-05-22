@@ -222,7 +222,7 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng, initialMode
       dragMomentum={false}
       onDragEnd={onDragEnd}
       onPointerDown={reduce ? undefined : maybeStartDrag}
-      className="absolute inset-x-0 bottom-0 z-30 overflow-hidden rounded-t-3xl border-t border-stone-200 bg-white/95 shadow-2xl backdrop-blur-xl dark:border-stone-800 dark:bg-stone-950/95"
+      className="absolute inset-x-0 bottom-0 z-30 mx-auto overflow-hidden rounded-t-3xl border-t border-stone-200 bg-white/95 shadow-2xl backdrop-blur-xl dark:border-stone-800 dark:bg-stone-950/95 md:bottom-6 md:w-[min(520px,calc(100vw-3rem))] md:rounded-3xl md:border md:border-stone-200/80 dark:md:border-stone-800/80"
     >
       {/* Drag handle — larger touch target than the visible pill, so a
           tap-down anywhere in the top strip can pull the sheet down. */}
