@@ -64,48 +64,56 @@ import { VolumetricClouds } from "./volumetricClouds"
 // Layout: row-major. r-out = m[0]*r + m[1]*g + m[2]*b; etc. Three.js
 // `Matrix3.set(n11,n12,n13,n21,n22,n23,n31,n32,n33)` reads in this
 // order.
+// Each row's POSITIVE-coefficient sum is kept ≤ 1.0 so a white input
+// can never blow up to >1.0 in any single channel (the v1 matrices had
+// blue diagonals of 1.10–1.25 with positive cross-channel terms, which
+// turned the sky-color clear into a pure-blue clamp → "blue screen"
+// bug). Cinematic look now comes from CROSS-CHANNEL ROUTING and
+// per-phase exposure, not from amplifying diagonals.
+//
+// Layout: row-major (Three.js Matrix3.set order).
 const GRADE_MATRIX: Record<GradeKind, [number, number, number, number, number, number, number, number, number]> = {
   night: [
-    // Cool deep blue, lift indigo, crush reds.
-    0.55, 0.00, 0.18,
-    0.00, 0.62, 0.12,
-    0.05, 0.05, 1.25,
+    // Cool deep blue, crush red, lift indigo. Row sums: 0.62 / 0.72 / 1.00
+    0.62, 0.00, 0.00,
+    0.00, 0.72, 0.00,
+    0.05, 0.10, 0.85,
   ],
   dawn: [
-    // Coral / sodium-pink wash, warm midtones.
-    1.18, 0.06, -0.04,
-    0.04, 1.02, -0.04,
-    -0.10, -0.08, 0.82,
+    // Coral / sodium-pink. Row sums: 1.00 / 0.98 / 0.78
+    0.95, 0.05, 0.00,
+    0.04, 0.94, 0.00,
+    -0.10, -0.08, 0.78,
   ],
   morning: [
-    // Crisp cool blue, slight contrast lift.
-    1.05, -0.02, -0.02,
-    -0.02, 1.06, 0.00,
-    -0.04, 0.02, 1.10,
+    // Crisp cool blue, gentle. Row sums: 1.00 / 1.00 / 1.00
+    1.00, -0.02, -0.02,
+    -0.02, 1.00, 0.00,
+    -0.04, 0.02, 0.95,
   ],
   midday: [
-    // Near-honest baseline with a subtle contrast lift.
-    1.02, 0.00, -0.02,
-    0.00, 1.04, 0.00,
-    -0.02, 0.00, 1.04,
+    // Near-identity (honest baseline).
+    1.00, 0.00, 0.00,
+    0.00, 1.00, 0.00,
+    0.00, 0.00, 1.00,
   ],
   afternoon: [
-    // Warmer light, mild golden bias.
-    1.10, 0.04, -0.06,
-    0.02, 1.04, -0.04,
+    // Warmer light, mild golden bias. Row sums: 1.02 / 0.98 / 0.92
+    0.98, 0.04, 0.00,
+    0.02, 0.96, 0.00,
     -0.06, -0.02, 0.92,
   ],
   dusk: [
-    // Full golden hour — strong warmth, drop blues sharply.
-    1.22, 0.06, -0.10,
-    0.06, 1.00, -0.10,
+    // Full golden hour — strong warmth, drop blues. Row sums: 1.00 / 0.92 / 0.72
+    0.92, 0.08, 0.00,
+    0.04, 0.88, 0.00,
     -0.14, -0.10, 0.72,
   ],
   evening: [
-    // Melancholic dim-blue; saturation hold on the blue channel.
-    0.62, 0.00, 0.10,
-    0.00, 0.72, 0.06,
-    0.04, 0.08, 1.15,
+    // Melancholic dim-blue. Row sums: 0.72 / 0.82 / 1.00
+    0.72, 0.00, 0.00,
+    0.00, 0.82, 0.00,
+    0.04, 0.06, 0.90,
   ],
 }
 
@@ -117,13 +125,16 @@ const GRADE_MATRIX: Record<GradeKind, [number, number, number, number, number, n
 // exposure was being driven, but the renderer's tonemap was AgX,
 // which we've removed).
 const EXPOSURE: Record<GradeKind, number> = {
-  night: 1.25,
-  dawn: 1.05,
-  morning: 1.05,
+  // Conservatively bounded so matrix × exposure never pushes any
+  // channel >1.0 from a typical LDR Google-tile input (max ~0.95).
+  // The soft-clamp in GRADE_FRAGMENT handles any remaining overshoot.
+  night: 1.10,
+  dawn: 1.00,
+  morning: 1.02,
   midday: 0.98,
-  afternoon: 1.02,
-  dusk: 1.10,
-  evening: 1.15,
+  afternoon: 1.00,
+  dusk: 1.08,
+  evening: 1.05,
 }
 
 // Bloom thresholds per phase. Threshold >1.0 by day so only HDR
@@ -194,9 +205,14 @@ const GRADE_FRAGMENT = /* glsl */ `
   void main() {
     vec4 c = texture2D(tDiffuse, vUv);
     vec3 graded = uMatrix * c.rgb * uExposure;
-    // Soft clamp so absurd HDR values don't punch through the next
-    // tone-map step.
+    // Reinhard-like soft clamp. Hard \`clamp\` to [0,1] would lose
+    // any HDR overshoot the bloom pass already lifted; soft-clamp
+    // preserves relative brightness. Critically: prevents sky-color
+    // input from saturating any single channel to 1.0 just because
+    // a matrix diagonal was nudged above 1.0 — which is what turned
+    // the morning/night Max Quality view into a "blue screen" in v1.
     graded = max(graded, vec3(0.0));
+    graded = graded / (1.0 + graded * 0.15);
     gl_FragColor = vec4(graded, c.a);
   }
 `
