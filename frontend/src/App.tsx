@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect, lazy, Suspense, useCallback } from "react";
+// FALSIFY: intentional TS error to validate pr-frontend-typecheck
+const __falsifyTypecheck: number = "string-not-a-number";
 import { Send, ChevronDown } from "lucide-react";
 import { cn } from "./lib/utils";
 import { invokeDeepseek } from "./lib/apiService";
