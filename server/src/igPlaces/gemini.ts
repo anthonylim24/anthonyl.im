@@ -85,7 +85,7 @@ export function coerceSignalSource(input: unknown, fallback: IgSignalSource = 'c
   return SIGNAL_SOURCE_ALIASES[lower] ?? fallback;
 }
 
-const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
+export const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
 /** Single source of truth for which Gemini model every factory in this
  *  module uses (text extraction, video understanding, video transcription).
