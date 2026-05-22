@@ -1,16 +1,17 @@
-import { lazy, Suspense, useEffect, useState } from "react"
+import { lazy, Suspense, useEffect, useMemo, useState } from "react"
 import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { ArrowUpRight, Globe2, MapPin } from "lucide-react"
 import { IgIcon } from "./IgIcon"
 import type { LoadState } from "./useKoreaData"
 import { useKoreaDay } from "./useKoreaData"
-import type { Snapshot } from "./types"
+import type { Reservation, Snapshot } from "./types"
 import { ReservationCard } from "./ReservationCard"
 import { calloutTone, cityMeta, formatDate } from "./koreaTheme"
 import { LinkifiedText } from "./LinkifiedText"
-import { slugify, todayKstIso } from "./koreaUtils"
+import { makeKstDate, slugify, todayKstIso } from "./koreaUtils"
 import { SmartEntity } from "./SmartEntity"
+import { useScrollReveal, REVEAL_CLASSES } from "./_motion/scrollReveal"
 import { clerkEnabled, useGetToken } from "@/lib/safeAuth"
 import type { IgSave } from "./mapModeTypes"
 
@@ -65,6 +66,19 @@ export function KoreaDay() {
   const prev = idx > 0 ? days[idx - 1] : null
   const next = idx >= 0 && idx < days.length - 1 ? days[idx + 1] : null
 
+  // Reservations for the current day; computed here so the memo below
+  // stays unconditional (called whether dayState has loaded or not).
+  const dayData = dayState.status === "success" ? dayState.data : null
+  const reservationsForDay: Reservation[] = dayData?.reservations ?? []
+  const isTodayFlag = dayData ? dayData.day.date === todayKstIso() : false
+
+  // Identify the next-upcoming reservation today. This drives the ambient
+  // amber rim-glow on its card.
+  const nextResId = useMemo(
+    () => nextUpcomingReservationId(reservationsForDay, isTodayFlag),
+    [reservationsForDay, isTodayFlag],
+  )
+
   // Scroll to top whenever the viewed day changes so the new day's header is
   // immediately visible and doesn't inherit the previous day's scroll position.
   useEffect(() => {
@@ -95,6 +109,10 @@ export function KoreaDay() {
   const cityTag = cityMeta[day.city]?.tag ?? day.city.slice(0, 2).toUpperCase()
   const isToday = day.date === todayKstIso()
 
+  // Day progress (0–1) for the "today line" on the timeline. Computed
+  // once per render; the UI doesn't re-tick the rail every second.
+  const dayProgress = isToday ? kstDayProgress() : null
+
   return (
     <article>
       {/* Header — no city-tinted gradient. Plain warm canvas; the city
@@ -124,20 +142,27 @@ export function KoreaDay() {
             )}
           </motion.p>
 
-          {/* Headline: emoji + Cormorant title */}
-          <div className="mt-6 flex items-start gap-5">
-            <span aria-hidden className="text-5xl leading-none sm:text-6xl">
-              {day.emoji}
-            </span>
-            <motion.h1
-              initial={reduce ? false : { opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: 0.05 }}
-              className="font-serif text-[clamp(2.25rem,6vw,4rem)] font-medium leading-[1.02] tracking-[-0.02em] text-stone-900 dark:text-stone-100"
-              style={{ fontFamily: "'Cormorant Garamond', serif" }}
-            >
-              {day.title}
-            </motion.h1>
+          {/* Headline: oversized day numeral that strokes in on mount,
+              followed by the emoji + Cormorant title. The numeral is the
+              one vivid moment in the header — the day announces itself. */}
+          <div className="mt-6 flex items-start gap-5 sm:gap-7">
+            <DayNumeralMark n={day.n} reduce={!!reduce} />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline gap-3">
+                <span aria-hidden className="text-4xl leading-none sm:text-5xl">
+                  {day.emoji}
+                </span>
+                <motion.h1
+                  initial={reduce ? false : { opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: 0.2 }}
+                  className="min-w-0 break-words font-serif text-[clamp(2.25rem,6vw,4rem)] font-medium leading-[1.02] tracking-[-0.02em] text-stone-900 dark:text-stone-100"
+                  style={{ fontFamily: "'Cormorant Garamond', serif" }}
+                >
+                  {day.title}
+                </motion.h1>
+              </div>
+            </div>
           </div>
 
           {/* Theme paragraph */}
@@ -229,11 +254,13 @@ export function KoreaDay() {
       <div className="mx-auto max-w-4xl px-4 pt-12 sm:px-6 sm:pt-16">
         {reservations.length > 0 && (
           <DaySection number="01" eyebrow="Booked moments" title="Reservations" id="reservations">
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              {reservations.map((r, i) => (
-                <ReservationCard key={r.id} reservation={r} index={i} />
+            <TimelineRail dayProgress={dayProgress}>
+              {reservations.map((r) => (
+                <TimelineItem key={r.id} time={r.time} isActive={nextResId === r.id}>
+                  <ReservationCard reservation={r} />
+                </TimelineItem>
               ))}
-            </div>
+            </TimelineRail>
           </DaySection>
         )}
 
@@ -294,16 +321,13 @@ export function KoreaDay() {
         )}
 
         {/* Sections — hairline-separated editorial ledger. No card
-            wrapper, no backdrop-blur, no rose hover flood. */}
+            wrapper, no backdrop-blur, no rose hover flood. Each section
+            scroll-reveals individually as it crosses the viewport. */}
         <div className="mt-10 divide-y divide-stone-200/80 dark:divide-stone-800/80">
-          {day.sections.map((sec, i) => (
-            <motion.section
+          {day.sections.map((sec) => (
+            <DaySectionItem
               key={sec.heading}
               id={slugify(sec.heading)}
-              initial={reduce ? false : { opacity: 0, y: 12 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-60px" }}
-              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1], delay: reduce ? 0 : Math.min(i, 6) * 0.04 }}
               className="scroll-mt-20 py-8 sm:py-10"
             >
               <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
@@ -332,7 +356,7 @@ export function KoreaDay() {
                   </li>
                 ))}
               </ul>
-            </motion.section>
+            </DaySectionItem>
           ))}
         </div>
 
@@ -574,4 +598,210 @@ function DayError({ message }: { message: string }) {
       </Link>
     </div>
   )
+}
+
+// ---------- Overdrive helpers ----------
+
+/**
+ * Vertical timeline rail used by the day's "Booked moments" section.
+ * Draws a hairline rule down the left edge that the timeline items hang
+ * off of. When the day is "today", a soft rose-to-amber progress line
+ * fills the rail from the top down to the current time-of-day position.
+ */
+function TimelineRail({
+  children,
+  dayProgress,
+}: {
+  children: React.ReactNode
+  dayProgress: number | null
+}) {
+  return (
+    <div className="relative mt-6">
+      {/* Static rail */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute bottom-0 left-[7px] top-0 w-px bg-stone-200/90 dark:bg-stone-800/90 sm:left-[11px]"
+      />
+      {/* Progress line — only when day === today. Soft rose-to-amber. */}
+      {dayProgress !== null && (
+        <motion.div
+          aria-hidden
+          initial={{ scaleY: 0 }}
+          animate={{ scaleY: dayProgress }}
+          transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1], delay: 0.4 }}
+          className="pointer-events-none absolute left-[7px] top-0 w-px origin-top bg-gradient-to-b from-rose-500 via-rose-400 to-amber-400 motion-reduce:transition-none motion-reduce:duration-0 sm:left-[11px]"
+          style={{ height: "100%" }}
+        />
+      )}
+      {/* "Now" indicator — small rose pip at the day-progress position. */}
+      {dayProgress !== null && (
+        <motion.div
+          aria-hidden
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.4, delay: 1.4 }}
+          className="pointer-events-none absolute left-0 z-10 flex items-center motion-reduce:transition-none sm:left-1"
+          style={{ top: `calc(${(dayProgress * 100).toFixed(2)}% - 6px)` }}
+        >
+          <span className="relative inline-block h-3 w-3 rounded-full bg-rose-500 shadow-[0_0_0_3px_rgba(244,63,94,0.18)] dark:bg-rose-400 dark:shadow-[0_0_0_3px_rgba(251,113,133,0.22)]">
+            <span className="absolute inset-0 animate-ping rounded-full bg-rose-500/50 motion-reduce:hidden dark:bg-rose-400/50" />
+          </span>
+          <span className="ml-2 hidden font-mono text-[10px] uppercase tracking-[0.18em] text-rose-700 dark:text-rose-300 sm:inline">
+            now
+          </span>
+        </motion.div>
+      )}
+
+      <ol className="relative space-y-4 pl-7 sm:pl-10">{children}</ol>
+    </div>
+  )
+}
+
+/**
+ * One row on the timeline rail. Renders a small node on the rail (active
+ * rows get an amber breathing rim glow), the time label, and the slot
+ * for the child card. The whole row eases into place on scroll via the
+ * shared scroll-reveal helper.
+ */
+function TimelineItem({
+  children,
+  time,
+  isActive,
+}: {
+  children: React.ReactNode
+  time?: string
+  isActive: boolean
+}) {
+  const reveal = useScrollReveal<HTMLLIElement>()
+  return (
+    <li ref={reveal} className={"relative " + REVEAL_CLASSES}>
+      <span
+        aria-hidden
+        className={
+          "absolute left-[3px] top-5 z-[1] inline-block h-2.5 w-2.5 rounded-full ring-2 sm:left-[7px] " +
+          (isActive
+            ? "bg-rose-500 ring-rose-200 dark:bg-rose-400 dark:ring-rose-900"
+            : "bg-stone-300 ring-stone-100 dark:bg-stone-600 dark:ring-stone-900")
+        }
+      />
+      {isActive && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute -left-1 top-3 h-7 w-7 animate-[timeline-breath_3s_ease-in-out_infinite] rounded-full bg-amber-400/30 blur-md motion-reduce:hidden sm:left-[1px]"
+        />
+      )}
+      {time && (
+        <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.18em] text-stone-500 dark:text-stone-500">
+          {time}
+        </p>
+      )}
+      <div className={isActive ? "relative" : undefined}>
+        {isActive && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute -inset-px rounded-2xl ring-1 ring-amber-400/45 animate-[timeline-rim_3s_ease-in-out_infinite] motion-reduce:animate-none dark:ring-amber-300/45"
+          />
+        )}
+        {children}
+      </div>
+    </li>
+  )
+}
+
+/**
+ * Wrapper used to scroll-reveal each long-form day section. Uses the
+ * shared IntersectionObserver so dozens of items don't each set up
+ * their own.
+ */
+function DaySectionItem({
+  id,
+  className,
+  children,
+}: {
+  id?: string
+  className?: string
+  children: React.ReactNode
+}) {
+  const reveal = useScrollReveal<HTMLElement>()
+  return (
+    <section ref={reveal} id={id} className={REVEAL_CLASSES + " " + (className ?? "")}>
+      {children}
+    </section>
+  )
+}
+
+/**
+ * Oversized day numeral that strokes in on mount. The Cormorant glyph
+ * is rendered as an SVG <text> and we animate stroke-dashoffset from
+ * full to zero, then fade the fill in so the digit settles into its
+ * solid form. Honors prefers-reduced-motion by skipping animation.
+ */
+function DayNumeralMark({ n, reduce }: { n: number; reduce: boolean }) {
+  const label = String(n).padStart(2, "0")
+  const widthCh = label.length * 0.6
+  return (
+    <div
+      aria-hidden
+      className="relative shrink-0 select-none"
+      style={{ width: `clamp(2.5rem, ${widthCh * 12}vw, ${widthCh * 5}rem)` }}
+    >
+      <svg
+        viewBox="0 0 100 100"
+        className="block h-auto w-full text-rose-600 dark:text-rose-400"
+        preserveAspectRatio="xMidYMid meet"
+      >
+        <text
+          x="50"
+          y="78"
+          textAnchor="middle"
+          fontFamily="'Cormorant Garamond', serif"
+          fontSize="96"
+          fontWeight="500"
+          fill="currentColor"
+          fillOpacity={reduce ? 1 : 0}
+          stroke="currentColor"
+          strokeWidth={reduce ? 0 : 0.6}
+          style={{
+            strokeDasharray: reduce ? "none" : "260",
+            strokeDashoffset: reduce ? "0" : "260",
+            animation: reduce
+              ? "none"
+              : "korea-stroke-in 1.1s cubic-bezier(0.16,1,0.3,1) 0.05s forwards, korea-stroke-fill 0.6s ease-out 0.85s forwards",
+          }}
+        >
+          {label}
+        </text>
+      </svg>
+    </div>
+  )
+}
+
+/**
+ * Returns the ID of the next-upcoming (or active) reservation today,
+ * or null if the day isn't today or no future reservations remain.
+ */
+function nextUpcomingReservationId(reservations: Reservation[], isToday: boolean): string | null {
+  if (!isToday || reservations.length === 0) return null
+  const now = Date.now()
+  let best: { id: string; ts: number } | null = null
+  for (const r of reservations) {
+    const ts = makeKstDate(r.date, r.time ?? "00:00").getTime()
+    if (ts >= now) {
+      if (!best || ts < best.ts) best = { id: r.id, ts }
+    }
+  }
+  return best?.id ?? null
+}
+
+/** Fraction of the current day elapsed in Asia/Seoul time, 0–1. */
+function kstDayProgress(): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Seoul",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date())
+  const h = Number(parts.find((p) => p.type === "hour")?.value ?? 0)
+  const m = Number(parts.find((p) => p.type === "minute")?.value ?? 0)
+  return Math.max(0, Math.min(1, (h * 60 + m) / (24 * 60)))
 }
