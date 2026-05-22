@@ -84,22 +84,52 @@ export function cssFilterFor(hour: number): string {
  *  below keep buildings >2 km readable while letting horizon haze
  *  layer in the warm/cool character of the hour. */
 export function fogForHour(hour: number): { color: string; density: number } {
+  // Densities tuned so:
+  //   - buildings ≤ 1 km: essentially clear
+  //   - mid-distance 5 km: subtle haze (~5% fog factor)
+  //   - far 15 km: noticeable haze (~30% fog factor)
+  //   - max camera distance 80 km: fog dominates but doesn't reach 100%
+  //
+  // Previous values (2.8e-5 → 6.0e-5) were 3× too high — at the
+  // 80 km max OrbitControls radius they pushed the entire viewport
+  // to ~99% fog, painting it the fog color (gray at midday). The
+  // user's "completely gray" report on prod was this exact failure
+  // mode triggering whenever they zoomed out far.
   const kind = gradeKindAt(hour)
   switch (kind) {
     case "night":
-      return { color: "#0e1a2e", density: 6.0e-5 }
+      return { color: "#0e1a2e", density: 2.0e-5 }
     case "dawn":
-      return { color: "#f3b6a0", density: 5.5e-5 }
+      return { color: "#f3b6a0", density: 1.8e-5 }
     case "morning":
-      return { color: "#cfd9e3", density: 3.5e-5 }
+      return { color: "#cfd9e3", density: 1.2e-5 }
     case "midday":
-      return { color: "#b9c4d2", density: 2.8e-5 }
+      return { color: "#b9c4d2", density: 0.9e-5 }
     case "afternoon":
-      return { color: "#e8b878", density: 4.0e-5 }
+      return { color: "#e8b878", density: 1.4e-5 }
     case "dusk":
-      return { color: "#d68a4a", density: 4.5e-5 }
+      return { color: "#d68a4a", density: 1.6e-5 }
     case "evening":
-      return { color: "#3a4a66", density: 5.5e-5 }
+      return { color: "#3a4a66", density: 1.8e-5 }
+  }
+}
+
+/** Sky/background color for the given KST hour. Used as the renderer's
+ *  clear color so any unwritten pixels read as sky, NOT as the fog
+ *  color. (Setting clearColor = fogColor caused the "completely gray
+ *  screen" bug — when buildings hadn't loaded yet or the camera was
+ *  zoomed out far enough to fog them out, the whole viewport showed
+ *  the gray fog tint instead of a proper sky.) */
+export function skyForHour(hour: number): string {
+  const kind = gradeKindAt(hour)
+  switch (kind) {
+    case "night": return "#1a2540"        // deep navy with a hint of indigo
+    case "dawn": return "#ffb89a"          // peach-coral sunrise
+    case "morning": return "#9ec7e8"       // bright cool blue
+    case "midday": return "#7fb2e0"        // saturated sky blue
+    case "afternoon": return "#a3c4dc"     // warm-tinted blue
+    case "dusk": return "#ff8e5a"          // golden-coral sunset
+    case "evening": return "#4a5d80"       // dusky mauve-blue
   }
 }
 

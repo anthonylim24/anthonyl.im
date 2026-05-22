@@ -34,12 +34,13 @@
 // References: see PR #419 research briefs.
 
 import {
-  AgXToneMapping,
   HalfFloatType,
   Matrix3,
+  NoToneMapping,
   RGBAFormat,
   type PerspectiveCamera,
   type Scene,
+  type ToneMapping,
   Vector2,
   WebGLRenderTarget,
   type WebGLRenderer,
@@ -53,36 +54,76 @@ import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js"
 import { gradeKindAt, type GradeKind } from "./timeOfDayGrade"
 import { VolumetricClouds } from "./volumetricClouds"
 
-// Per-phase color grading matrices. These replace the CSS `filter`
-// chain on the canvas — operating in HDR space pre-tonemap gives much
-// better warmth without crushing highlights. Each matrix is the
-// concatenation of a saturation tweak + a warm/cool color rotation
-// + a lift/gain shift; hand-tuned to roughly match the CSS palette
-// from `timeOfDayGrade.ts` but with extra cinematic punch.
+// Per-phase color grading matrices. Punchier than the v1 values —
+// previously they were so close to identity that the user saw the
+// scene as "gray washed out" because AgX tonemap was the dominant
+// effect (and it desaturates LDR input). Now we drop AgX entirely
+// (LDR Google tiles don't need filmic compression) and let these
+// matrices do all the artistic lifting.
 //
-// Layout is column-major as Three.js Matrix3 expects.
+// Layout: row-major. r-out = m[0]*r + m[1]*g + m[2]*b; etc. Three.js
+// `Matrix3.set(n11,n12,n13,n21,n22,n23,n31,n32,n33)` reads in this
+// order.
 const GRADE_MATRIX: Record<GradeKind, [number, number, number, number, number, number, number, number, number]> = {
-  // r-out = a*r + b*g + c*b ; etc. Diagonal-dominant so identity-ish.
-  night:     [0.85, 0.02, 0.10,  0.02, 0.85, 0.05,  0.05, 0.10, 1.10],
-  dawn:      [1.08, 0.04, 0.00,  0.02, 0.98, 0.00,  0.00, -0.02, 0.92],
-  morning:   [1.02, 0.00, -0.02, 0.00, 1.02, 0.00,  -0.02, 0.00, 1.04],
-  midday:    [1.00, 0.00, 0.00,  0.00, 1.00, 0.00,  0.00, 0.00, 1.00],
-  afternoon: [1.05, 0.02, -0.01, 0.01, 1.00, -0.02, -0.02, -0.01, 0.95],
-  dusk:      [1.10, 0.04, -0.02, 0.02, 0.96, -0.04, -0.04, -0.02, 0.86],
-  evening:   [0.88, 0.00, 0.08,  0.00, 0.92, 0.04,  0.06, 0.08, 1.08],
+  night: [
+    // Cool deep blue, lift indigo, crush reds.
+    0.55, 0.00, 0.18,
+    0.00, 0.62, 0.12,
+    0.05, 0.05, 1.25,
+  ],
+  dawn: [
+    // Coral / sodium-pink wash, warm midtones.
+    1.18, 0.06, -0.04,
+    0.04, 1.02, -0.04,
+    -0.10, -0.08, 0.82,
+  ],
+  morning: [
+    // Crisp cool blue, slight contrast lift.
+    1.05, -0.02, -0.02,
+    -0.02, 1.06, 0.00,
+    -0.04, 0.02, 1.10,
+  ],
+  midday: [
+    // Near-honest baseline with a subtle contrast lift.
+    1.02, 0.00, -0.02,
+    0.00, 1.04, 0.00,
+    -0.02, 0.00, 1.04,
+  ],
+  afternoon: [
+    // Warmer light, mild golden bias.
+    1.10, 0.04, -0.06,
+    0.02, 1.04, -0.04,
+    -0.06, -0.02, 0.92,
+  ],
+  dusk: [
+    // Full golden hour — strong warmth, drop blues sharply.
+    1.22, 0.06, -0.10,
+    0.06, 1.00, -0.10,
+    -0.14, -0.10, 0.72,
+  ],
+  evening: [
+    // Melancholic dim-blue; saturation hold on the blue channel.
+    0.62, 0.00, 0.10,
+    0.00, 0.72, 0.06,
+    0.04, 0.08, 1.15,
+  ],
 }
 
-// Per-phase exposure on top of AgX. AgX is filmic so we err on the
-// brighter side at night (city lights pop) and slightly cooler at
-// midday so highlights don't blow.
+// Per-phase exposure (a uniform pre-multiplier on rgb before the
+// matrix). Without AgX we can be more aggressive — these values
+// brighten night a touch so neon pops and dim daylight slightly so
+// highlights don't blow. Wired into `grade.uniforms.uExposure` in
+// `setHourPhase` (was bugged in v1 — only the renderer's tonemap
+// exposure was being driven, but the renderer's tonemap was AgX,
+// which we've removed).
 const EXPOSURE: Record<GradeKind, number> = {
-  night: 1.35,
-  dawn: 0.95,
-  morning: 1.00,
-  midday: 1.00,
-  afternoon: 1.05,
-  dusk: 1.15,
-  evening: 1.20,
+  night: 1.25,
+  dawn: 1.05,
+  morning: 1.05,
+  midday: 0.98,
+  afternoon: 1.02,
+  dusk: 1.10,
+  evening: 1.15,
 }
 
 // Bloom thresholds per phase. Threshold >1.0 by day so only HDR
@@ -188,7 +229,7 @@ export class MaxQualityPipeline {
   private cloudComposite: ShaderPass
   private output: OutputPass
   readonly clouds: VolumetricClouds
-  private prevToneMapping: typeof AgXToneMapping
+  private prevToneMapping: ToneMapping
   private prevToneExposure: number
   private prevOutputColorSpace: string
 
@@ -196,16 +237,17 @@ export class MaxQualityPipeline {
     this.renderer = opts.renderer
     // Stash existing renderer state so dispose() can restore it
     // cleanly when the user toggles Max Quality off.
-    this.prevToneMapping = this.renderer.toneMapping as typeof AgXToneMapping
+    this.prevToneMapping = this.renderer.toneMapping
     this.prevToneExposure = this.renderer.toneMappingExposure
     this.prevOutputColorSpace = this.renderer.outputColorSpace
-    this.renderer.toneMapping = AgXToneMapping
+    // NoToneMapping (passthrough) rather than AgX or ACES — the Google
+    // Photorealistic tiles ship as LDR (already tonemapped at source),
+    // so running a filmic curve over them again compresses midtones
+    // and produces the "gray washed-out" look. The GradeTone shader
+    // is the only color/exposure controller in this pipeline.
+    this.renderer.toneMapping = NoToneMapping
     this.renderer.toneMappingExposure = 1.0
-    // sRGB output is mandatory for the OutputPass below to encode
-    // correctly. Without this, the linear HDR composite gets gamma-
-    // mushed and the canvas looks washed-out / orange-tinted (the
-    // most-recently-reported regression — pre-fix the screen turned
-    // a uniform amber because no tone-mapping was ever applied).
+    // sRGB output for the OutputPass to gamma-encode correctly.
     this.renderer.outputColorSpace = "srgb" as typeof this.renderer.outputColorSpace
 
     const dpr = this.renderer.getPixelRatio()
@@ -273,7 +315,10 @@ export class MaxQualityPipeline {
     const m = GRADE_MATRIX[kind]
     const matrix = this.grade.material.uniforms.uMatrix.value as Matrix3
     matrix.set(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8])
-    this.renderer.toneMappingExposure = EXPOSURE[kind]
+    // Wire the per-phase exposure into the grade shader's uniform
+    // (v1 forgot this — uExposure stayed at 1.0). Renderer tone-map
+    // is NoToneMapping so the renderer's exposure is unused.
+    this.grade.material.uniforms.uExposure.value = EXPOSURE[kind]
     const b = BLOOM[kind]
     this.bloom.threshold = b.threshold
     this.bloom.strength = b.strength
@@ -320,20 +365,30 @@ export function applyTileQualityHints(
   renderer: WebGLRenderer,
 ): void {
   const maxAniso = renderer.capabilities.getMaxAnisotropy()
-  const textureKeys = ["map", "normalMap", "roughnessMap", "metalnessMap", "emissiveMap"] as const
+  // Only color-data textures get the sRGB hint. normalMap/roughnessMap/
+  // metalnessMap store data, not color — marking them sRGB would
+  // double-decode and shift the entire material's lighting.
+  const COLOR_KEYS = ["map", "emissiveMap"] as const
+  const DATA_KEYS = ["normalMap", "roughnessMap", "metalnessMap"] as const
   group.traverse((o) => {
     const mesh = o as { material?: unknown }
     if (!mesh.material) return
     const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
     for (const mat of mats) {
       const matAny = mat as Record<string, unknown>
-      for (const k of textureKeys) {
+      for (const k of COLOR_KEYS) {
         const t = matAny[k] as { isTexture?: boolean; anisotropy?: number; colorSpace?: string; needsUpdate?: boolean } | null | undefined
         if (t && t.isTexture) {
           t.anisotropy = maxAniso
-          // Google delivers sRGB-encoded textures. Without this the
-          // mid-tones are washed-out gamma-mush.
+          // Google delivers sRGB-encoded color textures.
           if (t.colorSpace !== undefined) t.colorSpace = "srgb"
+          t.needsUpdate = true
+        }
+      }
+      for (const k of DATA_KEYS) {
+        const t = matAny[k] as { isTexture?: boolean; anisotropy?: number; needsUpdate?: boolean } | null | undefined
+        if (t && t.isTexture) {
+          t.anisotropy = maxAniso
           t.needsUpdate = true
         }
       }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { gradeKindAt, cssFilterFor, arrivalStartFilter, kstHour, fogForHour } from '../timeOfDayGrade'
+import { gradeKindAt, cssFilterFor, arrivalStartFilter, kstHour, fogForHour, skyForHour } from '../timeOfDayGrade'
 
 describe('time-of-day grade', () => {
   it('maps hours to the right named kind', () => {
@@ -68,6 +68,19 @@ describe('time-of-day grade', () => {
       const dusk = fogForHour(19).density
       expect(midday).toBeLessThan(night)
       expect(midday).toBeLessThan(dusk)
+    })
+  })
+
+  describe('skyForHour', () => {
+    it('returns a valid hex color at every hour', () => {
+      for (let h = 0; h < 24; h += 0.5) {
+        expect(skyForHour(h)).toMatch(/^#[0-9a-f]{6}$/i)
+      }
+    })
+    it('sky is distinct from fog at every phase (so the renderer clear color does not collapse onto fog and paint the viewport gray)', () => {
+      for (let h = 0; h < 24; h += 1) {
+        expect(skyForHour(h)).not.toBe(fogForHour(h).color)
+      }
     })
   })
 })

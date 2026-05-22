@@ -38,7 +38,7 @@ import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js"
 import { KTX2Loader } from "three/examples/jsm/loaders/KTX2Loader.js"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import type { NeighborhoodCenter, RankedPlace } from "./mapModeTypes"
-import { arrivalStartFilter, cssFilterFor, fogForHour, kstHour } from "./timeOfDayGrade"
+import { arrivalStartFilter, cssFilterFor, fogForHour, kstHour, skyForHour } from "./timeOfDayGrade"
 import { GodRaysPass } from "./godRaysPass"
 import { MaxQualityPipeline, applyTileQualityHints } from "./maxQualityPipeline"
 import type { EffectPrefs } from "./deviceTier"
@@ -248,27 +248,31 @@ export function Detailed3DScene({
     const fogColor = new Color(fogInit.color)
     const baseFogDensity = fogInit.density
     let currentFogDensity = baseFogDensity
+    // Clear color is a sky tint that's distinct from the fog color so
+    // unwritten pixels (sky regions, pre-tile-load frames) read as
+    // sky, not as gray fog. Previously clearColor = fogColor, which
+    // painted the whole viewport gray whenever tiles hadn't loaded
+    // or were fully fogged at far zoom.
+    const skyColor = new Color(skyForHour(initialHour))
+    renderer.setClearColor(skyColor, 1)
     if (fogOn) {
       scene.fog = new FogExp2(fogColor, arrivalPlanned ? baseFogDensity * 0.5 : baseFogDensity)
-      // Canvas is alpha:true; the page background shows through when
-      // fog is layered. Tinting the renderer clear color to fog.color
-      // is simpler than rendering a sky quad and the trade-off (fog
-      // color showing in any unwritten pixels) is invisible since
-      // the tiles cover the viewport.
-      renderer.setClearColor(fogColor, 1)
     }
     const fogHourInterval = window.setInterval(() => {
-      if (!fogOn || !scene.fog) return
-      const f = fogForHour(kstHour())
-      fogColor.set(f.color)
-      currentFogDensity = f.density
-      ;(scene.fog as FogExp2).color.copy(fogColor)
-      ;(scene.fog as FogExp2).density = arriving ? currentFogDensity * 0.5 : currentFogDensity
-      renderer.setClearColor(fogColor, 1)
+      const hour = kstHour()
+      skyColor.set(skyForHour(hour))
+      renderer.setClearColor(skyColor, 1)
+      if (fogOn && scene.fog) {
+        const f = fogForHour(hour)
+        fogColor.set(f.color)
+        currentFogDensity = f.density
+        ;(scene.fog as FogExp2).color.copy(fogColor)
+        ;(scene.fog as FogExp2).density = arriving ? currentFogDensity * 0.5 : currentFogDensity
+      }
       // Push the same hour into the HDR pipeline if it's active so
       // bloom thresholds, exposure, grade matrix, and cloud palette
       // all stay synchronized.
-      maxQuality?.setHourPhase(kstHour())
+      maxQuality?.setHourPhase(hour)
     }, 60_000)
 
     // ── Controls. OrbitControls' default damping reads nicely on
