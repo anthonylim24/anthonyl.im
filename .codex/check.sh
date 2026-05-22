@@ -28,14 +28,25 @@ if ! command -v bun >/dev/null 2>&1; then
   exit 1
 fi
 
+echo "[codex-check] bun $(bun --version)"
+if command -v node >/dev/null 2>&1; then
+  echo "[codex-check] node $(node --version)"
+fi
+
 ensure_dependencies
 
+# Pre-flight: confirm the frontend's pinned TypeScript is what `tsc -b`
+# will actually run. Catches the cloud failure mode where root install
+# happened but frontend install didn't, so `tsc` silently fell back to
+# the root's TS 5.x and exploded on `ignoreDeprecations: "6.0"`.
+verify_frontend_typescript
+
 cd "$ROOT_DIR"
-echo "[codex-check] running server tests"
+echo "[codex-check] running server tests (includes appLoad module-load smoke)"
 bun test --bail server/src
 
 cd "$ROOT_DIR/frontend"
-echo "[codex-check] running frontend typecheck"
+echo "[codex-check] running frontend typecheck (tsc -b --noEmit)"
 bun run typecheck
 
 echo "[codex-check] checks passed"

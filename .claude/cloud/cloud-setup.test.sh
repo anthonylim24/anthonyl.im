@@ -51,4 +51,16 @@ assert_contains ".claude/cloud/dev.sh" ".codex/dev.sh"
   exit 1
 }
 
+# Module-load smoke test must exist — it's the only thing in the server
+# suite that evaluates the real route/worker dependency graph (catches
+# missing-export regressions like the GEMINI_BASE crash pre-PR-#398).
+[ -f "$ROOT_DIR/server/src/appLoad.test.ts" ] || {
+  echo "[claude-cloud-test] missing server/src/appLoad.test.ts (module-load smoke test)" >&2
+  exit 1
+}
+
+# The shared codex invariants must also pass — they assert the
+# frontend TypeScript pre-flight and the dep package list we depend on.
+bash "$ROOT_DIR/.codex/cloud-setup.test.sh"
+
 echo "[claude-cloud-test] setup script invariants passed"
