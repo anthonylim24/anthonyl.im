@@ -1,4 +1,11 @@
 name: Dependabot Auto-merge
+
+# This workflow approves + sets auto-merge on dependabot PRs. The
+# `--auto` flag means GitHub will only complete the merge once all
+# required status checks pass — which is the `pr-gate` aggregate check
+# from .github/workflows/pr.yml (configured as required by branch
+# protection on main). So dependabot PRs are gated identically to
+# human PRs; this workflow just skips the human approval step.
 on: pull_request_target
 
 permissions:

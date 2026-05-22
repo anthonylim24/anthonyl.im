@@ -192,3 +192,29 @@ jobs:
               pm2 show anthonyl.im
               exit 1
             fi
+
+      # Post-deploy smoke check. Runs from the GitHub runner against the
+      # public URL — fails the deploy job if the site doesn't actually
+      # serve a 200 with the expected SPA shell after the restart. This
+      # is the last line of defense: if PM2 reports "online" but the app
+      # crashed at first request (e.g., missing-export caught only at
+      # route handling time), this catches it.
+      - name: Post-deploy smoke (live URL returns 200 + SPA shell)
+        run: |
+          set -euo pipefail
+          URL="https://anthonyl.im/"
+          echo "[smoke] waiting 10s for app to warm up"
+          sleep 10
+          for attempt in 1 2 3; do
+            echo "[smoke] attempt $attempt — GET $URL"
+            BODY="$(curl -fsSL --max-time 15 "$URL")" && {
+              if echo "$BODY" | grep -q '<div id="root">'; then
+                echo "[smoke] OK — SPA shell served"
+                exit 0
+              fi
+              echo "[smoke] WARN: 200 OK but SPA shell missing; retrying"
+            }
+            sleep 5
+          done
+          echo "::error::Post-deploy smoke failed — $URL is not serving the SPA shell"
+          exit 1

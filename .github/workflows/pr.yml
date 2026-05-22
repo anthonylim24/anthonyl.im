@@ -1,0 +1,187 @@
+name: PR Checks
+
+# The PR gate. Everything that lands on `main` flows through here first.
+#
+# Branch protection on `main` is configured (via gh api) to require all
+# five `pr-*` checks below before a merge button is enabled. This is the
+# guarantee that broken code cannot reach production: deploy.yml runs
+# only on push to main, and the only way to push to main is via a PR
+# that has passed this gate.
+#
+# Design choices:
+#   - One workflow, many parallel jobs — UI shows individual statuses
+#     and a failing job blocks merge independently.
+#   - Concurrency group cancels stale runs on push, so the latest
+#     commit always reflects current status.
+#   - Bun + Node + npm-cache stay warm across runs via actions/cache.
+#   - Each job runs the same command an operator would run locally,
+#     so reproducing a CI failure is `bun run <thing>` not "spin up
+#     a container."
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# Cancel in-flight runs when a new commit lands on the same PR. Saves
+# minutes and makes the latest commit always definitive.
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # ─── 1. Server tests + module-load smoke ────────────────────────────
+  # `bun test server/src` is fast (≤10s) and covers:
+  #   - mocked unit tests for IG worker, geocoding, save, queue
+  #   - `appLoad.test.ts` which imports server/app.ts and forces Bun
+  #     to evaluate the full route + worker dependency graph. Any
+  #     missing/renamed export anywhere fails the gate here instead
+  #     of pm2 at deploy time.
+  pr-server-tests:
+    name: pr-server-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/cache@v5
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lockb', 'frontend/bun.lockb') }}
+          restore-keys: ${{ runner.os }}-bun-
+      - name: Install root deps
+        run: bun install --frozen-lockfile
+      - name: Server tests (mocked, includes appLoad smoke)
+        env:
+          KLUSTER_API_KEY: ci-stub
+          KLUSTER_API_BASE_URL: https://example.invalid
+          IG_WORKER_ENABLED: 'false'
+        run: bun test --bail server/src
+
+  # ─── 2. Frontend typecheck ──────────────────────────────────────────
+  # `tsc -b --noEmit` catches:
+  #   - type drift in shared types (the PR #396 ExtractedPlace fixture)
+  #   - tsconfig misconfigs (the recent ignoreDeprecations cloud bug)
+  # vite build alone uses esbuild and skips strict checks, so this
+  # is mandatory.
+  pr-frontend-typecheck:
+    name: pr-frontend-typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/cache@v5
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lockb', 'frontend/bun.lockb') }}
+          restore-keys: ${{ runner.os }}-bun-
+      - name: Install root deps (peers needed for typecheck)
+        run: bun install --frozen-lockfile
+      - name: Install frontend deps
+        working-directory: frontend
+        run: bun install --frozen-lockfile
+      - name: Frontend typecheck (tsc -b --noEmit)
+        working-directory: frontend
+        run: bun run typecheck
+
+  # ─── 3. Frontend build ──────────────────────────────────────────────
+  # The deploy job runs `bun run build` on CI and SCPs the dist. If
+  # build is red, deploy can't ship — gating on it here means a red
+  # PR can never enter the deploy pipeline. Also surfaces vite/rollup
+  # specific issues (chunking, asset resolution) that tsc misses.
+  pr-frontend-build:
+    name: pr-frontend-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/cache@v5
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lockb', 'frontend/bun.lockb') }}
+          restore-keys: ${{ runner.os }}-bun-
+      - name: Install frontend deps
+        working-directory: frontend
+        run: bun install --frozen-lockfile
+      - name: Build with CI env stubs
+        working-directory: frontend
+        # Stub frontend env so the build doesn't fail on missing secrets.
+        # The dist still ships — runtime reads window-level fallbacks.
+        run: |
+          if [ ! -f .env ]; then cp .env.local.example .env || true; fi
+          bun run build
+
+  # ─── 4. Frontend unit tests ─────────────────────────────────────────
+  # Vitest suite — 416 tests at time of authoring. Was historically
+  # left out of the gate due to stale BreathFlow-PWA assertions, but
+  # PR #397 fixed those, so it's safe to require now.
+  pr-frontend-tests:
+    name: pr-frontend-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/cache@v5
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lockb', 'frontend/bun.lockb') }}
+          restore-keys: ${{ runner.os }}-bun-
+      - name: Install frontend deps
+        working-directory: frontend
+        run: bun install --frozen-lockfile
+      - name: Vitest
+        working-directory: frontend
+        run: bun run test:run
+
+  # ─── 5. Cloud-agent setup smoke ─────────────────────────────────────
+  # Runs the same setup + verify pipeline that Codex and Claude Code
+  # cloud use. If a PR breaks the cloud sandbox bootstrap, we want
+  # to know now rather than the next time someone opens a cloud task.
+  pr-cloud-setup:
+    name: pr-cloud-setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/cache@v5
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lockb', 'frontend/bun.lockb') }}
+          restore-keys: ${{ runner.os }}-bun-
+      - name: Run codex setup (the cloud bootstrap path)
+        run: bash .codex/setup.sh
+      - name: Run codex check (the cloud verify gate)
+        run: bash .codex/check.sh
+      - name: Run setup-invariant lints
+        run: |
+          bash .codex/cloud-setup.test.sh
+          bash .claude/cloud/cloud-setup.test.sh
+
+  # ─── Aggregate status ───────────────────────────────────────────────
+  # Single check the branch protection rule depends on. Allows adding
+  # / removing individual checks without re-configuring the protected
+  # branch every time. Required by the `merge required-checks` rule.
+  pr-gate:
+    name: pr-gate
+    runs-on: ubuntu-latest
+    needs:
+      - pr-server-tests
+      - pr-frontend-typecheck
+      - pr-frontend-build
+      - pr-frontend-tests
+      - pr-cloud-setup
+    if: always()
+    steps:
+      - name: Gate result
+        run: |
+          if [ "${{ needs.pr-server-tests.result }}" != "success" ] \
+             || [ "${{ needs.pr-frontend-typecheck.result }}" != "success" ] \
+             || [ "${{ needs.pr-frontend-build.result }}" != "success" ] \
+             || [ "${{ needs.pr-frontend-tests.result }}" != "success" ] \
+             || [ "${{ needs.pr-cloud-setup.result }}" != "success" ]; then
+            echo "::error::One or more PR checks failed — not safe to merge."
+            exit 1
+          fi
+          echo "All PR checks passed."

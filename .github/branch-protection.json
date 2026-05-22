@@ -1,0 +1,20 @@
+{
+  "//": "Branch protection config for `main`. Apply via:",
+  "//apply": "gh api --method PUT repos/anthonylim24/anthonyl.im/branches/main/protection --input .github/branch-protection.json",
+  "//verify": "gh api repos/anthonylim24/anthonyl.im/branches/main/protection",
+  "required_status_checks": {
+    "strict": true,
+    "contexts": [
+      "pr-gate"
+    ]
+  },
+  "enforce_admins": true,
+  "required_pull_request_reviews": null,
+  "restrictions": null,
+  "allow_force_pushes": false,
+  "allow_deletions": false,
+  "block_creations": false,
+  "required_conversation_resolution": false,
+  "lock_branch": false,
+  "allow_fork_syncing": false
+}
