@@ -203,30 +203,29 @@ describe('Places page', () => {
 
     await renderPlaces()
 
-    // findByRole has a built-in retry up to its timeout (default 1000 ms;
-    // bumped to 3000 ms below for CI's slower scheduler). Use it instead
-    // of getByRole+waitFor so we don't race the FLIP LayoutGroup, which
-    // can briefly remount the place card between the data fetch settling
-    // and the card painting.
-    const btnInitial = await screen.findByRole(
+    // Wait for the place card's button to land in the DOM. findByRole
+    // retries up to the timeout so we don't race the FLIP LayoutGroup
+    // remount that PR #410 introduced.
+    await screen.findByRole(
       'button',
       { name: /add to days/i },
       { timeout: 3000 },
     )
-    expect(btnInitial).toBeTruthy()
 
-    // Re-query right before click. PR #410's FLIP animation reorders
-    // cards as filters change; under the test's mock motion runtime the
-    // DOM reference can be stale by the time we click.
-    const btn = screen.getByRole('button', { name: /add to days/i })
+    // Use fireEvent.click instead of userEvent.click — fireEvent is
+    // synchronous and doesn't depend on `userEvent`'s internal microtask
+    // queue, which has historically lagged on the GitHub Actions
+    // runner. Wrap in act() so React processes the state update before
+    // we look for the dialog.
     await act(async () => {
-      await userEvent.click(btn)
+      const btn = screen.getByRole('button', { name: /add to days/i })
+      fireEvent.click(btn)
     })
 
-    // findByRole again — the dialog mount can lag a frame behind the
-    // setOpen state update, even with the AnimatePresence mock that
-    // returns children immediately, because act() ends before React
-    // has flushed every effect on a slow CI runner.
+    // The dialog renders synchronously once `open` flips to true (the
+    // motion mock collapses AnimatePresence to its children), but
+    // CI's React effect flush still occasionally needs a tick — give
+    // findByRole 3 s to settle.
     const dialog = await screen.findByRole(
       'dialog',
       { name: /assign.*to itinerary days/i },
