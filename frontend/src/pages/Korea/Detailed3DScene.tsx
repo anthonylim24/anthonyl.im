@@ -1,11 +1,7 @@
-// "Detailed 3D" Map Mode — Google Earth-style photorealistic mesh of
-// Seoul (and the rest of the trip) streamed via NASA AMMOS
-// 3DTilesRendererJS + Google's Photorealistic 3D Tiles.
-//
-// This component is parallel to MapModeScene and lives behind a debug
-// toggle. It accepts the same place/userLat/userLng/selectedId props so
-// the place sheet, focus mode, and click-out behaviors of the parent
-// overlay transplant unchanged.
+// Map Mode — Google Earth-style photorealistic mesh of Seoul (and the
+// rest of the trip) streamed via NASA AMMOS 3DTilesRendererJS + Google's
+// Photorealistic 3D Tiles. The orbital-bubble view this replaced lived
+// in MapModeScene.tsx until commit removing it.
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
@@ -125,7 +121,7 @@ export function Detailed3DScene({
     // logarithmicDepthBuffer is essential — Google tiles cover a 10+
     // km radius from origin and we want both far buildings AND tight
     // close-ups to z-resolve cleanly. antialias on for the city
-    // silhouettes; DPR capped at 1.5 (same trade as MapModeScene).
+    // silhouettes; DPR capped at 1.5.
     let renderer: WebGLRenderer
     try {
       renderer = new WebGLRenderer({
@@ -344,7 +340,7 @@ export function Detailed3DScene({
     }
 
     // YOU label — CSS-anchored to viewport center via translate so
-    // the user always knows where origin is. Mirrors MapModeScene.
+    // the user always knows where origin is.
     const youLabel = document.createElement("div")
     youLabel.className =
       "pointer-events-none absolute select-none text-center"
