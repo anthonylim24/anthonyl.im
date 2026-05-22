@@ -724,3 +724,41 @@ body {
   0%   { transform: translateX(-100%); }
   100% { transform: translateX(400%); }
 }
+
+/* ---------- Korea route — overdrive moments ---------- */
+
+/* Day numeral mark — stroke draws in, then the fill fades up. */
+@keyframes korea-stroke-in {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes korea-stroke-fill {
+  to {
+    fill-opacity: 1;
+  }
+}
+
+/* Timeline active item — amber rim breathing and glow breathing.
+   Both run as a slow 3s cycle so the eye lands on the upcoming
+   reservation without ever being shouted at. */
+@keyframes timeline-rim {
+  0%, 100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+@keyframes timeline-breath {
+  0%, 100% {
+    opacity: 0.45;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.1);
+  }
+}

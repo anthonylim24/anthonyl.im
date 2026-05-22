@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react"
-import { motion, useReducedMotion } from "motion/react"
+import { useEffect, useRef, useState } from "react"
+import { motion, useReducedMotion, useScroll, useTransform } from "motion/react"
 import type { Snapshot } from "./types"
 import { daysUntil, formatDate } from "./koreaTheme"
 import { SmartEntity } from "./SmartEntity"
@@ -11,22 +11,31 @@ interface TripHeroProps {
 /**
  * Editorial hero — a printed-dossier opening spread rather than a SaaS card.
  *
- * Type carries the hierarchy: Cormorant headline at its breath-it-in scale,
- * a tabular numeral countdown set big enough to be the day's one vivid
- * moment per viewport, and a thin meta strip that lists trip facts in prose
- * instead of a card grid. The background is a single quiet rose wash; a
- * subtle SVG paper grain overlays everything for tactile dossier feel; a
- * rotated rose wax-seal stamp sits at the corner like a real chop on a
- * private file.
+ * Overdrive moment: on mount, the countdown numeral flips into place one
+ * glyph at a time — weighted like a planner being thumbed through — and
+ * the rose+amber bloom behind it pulses once and settles. The bloom drifts
+ * at ~0.3x scroll speed (parallax, background only) as the user scrolls
+ * the day list below.
  */
 export function TripHero({ snapshot }: TripHeroProps) {
   const reduce = useReducedMotion()
   const [countdown, setCountdown] = useState(() => daysUntil(snapshot.trip.startDate))
+  const heroRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     const id = setInterval(() => setCountdown(daysUntil(snapshot.trip.startDate)), 60 * 60 * 1000)
     return () => clearInterval(id)
   }, [snapshot.trip.startDate])
+
+  // Subtle parallax on the rose+amber bloom — background only, never content.
+  const { scrollY } = useScroll()
+  const bloomYRaw = useTransform(scrollY, [0, 600], [0, 180])
+  const bloomY = reduce ? 0 : bloomYRaw
+
+  // Intensity is amped when the trip is imminent or in-progress. The
+  // bloom-pulse animation only runs once on mount and quickly settles.
+  const imminence: "far" | "soon" | "now" =
+    countdown > 3 ? "far" : countdown > 0 ? "soon" : "now"
 
   const numeral =
     countdown > 0 ? String(countdown) : countdown === 0 ? "0" : String(-countdown + 1)
@@ -43,33 +52,38 @@ export function TripHero({ snapshot }: TripHeroProps) {
       ? `${numeral} ${numeralLabel}`
       : `Day ${numeral} of twelve, currently on the trip`
 
-  // First flight identifier in the "out" string ("UA 893" etc) — first
-  // 2-letter + digits match wins. Used as the SmartEntity name so the
-  // popover hits FlightAware with the right ID.
   const flightIdMatch = snapshot.trip.flights.out.match(/\b[A-Z]{2}\s?\d{1,5}\b/)
   const flightId = flightIdMatch?.[0]
 
-  return (
-    <header className="relative overflow-hidden">
-      {/* Rose halo — quiet glow behind the countdown numeral */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(244,63,94,0.08),_transparent_60%)] dark:bg-[radial-gradient(ellipse_at_top_right,_rgba(251,113,133,0.14),_transparent_60%)]"
-      />
-      {/* Paper grain — SVG fractalNoise rendered as a data-URI background.
-          Sells the "printed dossier" feel without raster weight. Uses
-          multiply blend on light, screen blend on dark. Very low alpha
-          so it never dominates the type. */}
-      <DossierGrain />
+  const bloomKeyframes = reduce
+    ? undefined
+    : imminence === "now"
+      ? { opacity: [0.55, 1, 0.9], scale: [1, 1.06, 1.02] }
+      : imminence === "soon"
+        ? { opacity: [0.55, 0.95, 0.85], scale: [1, 1.04, 1] }
+        : { opacity: [0.55, 0.85, 0.8], scale: [1, 1.02, 1] }
 
-      {/* Wax seal — rotated SVG stamp in the top-right corner. The single
-          deep-rose moment that signals this is a private file, not a
-          travel-tool dashboard. Hidden on the smallest viewports so it
-          doesn't crowd the headline. */}
+  return (
+    <header ref={heroRef} className="relative overflow-hidden">
+      {/* Rose+amber bloom — quiet glow behind the countdown numeral. Drifts
+          at ~0.3x scroll speed (background only, never content). Pulses
+          once on mount; intensifies subtly when the trip is imminent. */}
+      <motion.div
+        aria-hidden
+        style={{ y: bloomY }}
+        initial={reduce ? false : { opacity: 0.55, scale: 1 }}
+        animate={bloomKeyframes}
+        transition={{ duration: 1.6, ease: [0.16, 1, 0.3, 1], times: [0, 0.55, 1] }}
+        className="pointer-events-none absolute -inset-x-20 -inset-y-10 will-change-transform"
+      >
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(244,63,94,0.10),_transparent_55%)] dark:bg-[radial-gradient(ellipse_at_top_right,_rgba(251,113,133,0.16),_transparent_55%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_rgba(245,158,11,0.07),_transparent_55%)] dark:bg-[radial-gradient(ellipse_at_bottom_left,_rgba(251,191,36,0.10),_transparent_55%)]" />
+      </motion.div>
+
+      <DossierGrain />
       <DossierStamp count={countdown} />
 
       <div className="relative mx-auto max-w-6xl px-4 pb-12 pt-14 sm:px-6 sm:pt-20 lg:pb-16 lg:pt-24">
-        {/* Eyebrow — Inter all-caps, almost a printer's mark */}
         <motion.p
           initial={reduce ? false : { opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
@@ -85,9 +99,6 @@ export function TripHero({ snapshot }: TripHeroProps) {
           {formatDate(snapshot.trip.endDate)}
         </motion.p>
 
-        {/* Headline + countdown — paired in a magazine spread. On mobile they
-            stack with the headline leading; on desktop the headline holds the
-            left column and the numeral pulls the eye to the right. */}
         <div className="mt-10 grid grid-cols-1 items-end gap-10 sm:mt-14 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
           <motion.div
             initial={reduce ? false : { opacity: 0, y: 14 }}
@@ -113,15 +124,30 @@ export function TripHero({ snapshot }: TripHeroProps) {
             transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1], delay: 0.16 }}
             className="flex items-end justify-start gap-5 lg:justify-end"
           >
-            {/* Countdown numeral. Designed, not labeled — the digit is
-                the focal element. Bumped from 18vw to 22vw for more
-                committed scale at desktop widths. */}
+            {/* Countdown numeral. Each glyph rotates + rises into place
+                with a weighted stagger so the entry reads like flipping
+                through a planner. */}
             <span
               aria-label={numeralAria}
-              className="font-serif text-[clamp(5rem,22vw,14rem)] font-light leading-[0.82] tracking-[-0.05em] tabular-nums text-rose-600 dark:text-rose-400"
+              className="inline-flex font-serif text-[clamp(5rem,22vw,14rem)] font-light leading-[0.82] tracking-[-0.05em] tabular-nums text-rose-600 [perspective:600px] dark:text-rose-400"
               style={{ fontFamily: "'Cormorant Garamond', serif", fontFeatureSettings: '"tnum"' }}
             >
-              {numeral}
+              {Array.from(numeral).map((ch, i) => (
+                <motion.span
+                  key={`${numeral}-${i}`}
+                  aria-hidden
+                  initial={reduce ? false : { opacity: 0, rotateX: -75, y: "0.35em" }}
+                  animate={{ opacity: 1, rotateX: 0, y: 0 }}
+                  transition={{
+                    duration: 0.7,
+                    ease: [0.16, 1, 0.3, 1],
+                    delay: reduce ? 0 : 0.22 + i * 0.12,
+                  }}
+                  style={{ transformOrigin: "50% 100%", display: "inline-block" }}
+                >
+                  {ch}
+                </motion.span>
+              ))}
             </span>
             <span className="mb-2 inline-flex flex-col gap-1 pb-2 text-left sm:mb-3 sm:pb-3">
               <span className="h-px w-10 bg-rose-400/60 dark:bg-rose-400/50" aria-hidden />
@@ -132,7 +158,6 @@ export function TripHero({ snapshot }: TripHeroProps) {
           </motion.div>
         </div>
 
-        {/* Status headline (editorial sentence, not a card) */}
         <motion.p
           initial={reduce ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -142,8 +167,6 @@ export function TripHero({ snapshot }: TripHeroProps) {
           {snapshot.status.headline}
         </motion.p>
 
-        {/* Meta strip — replaces the 2x2 fact card grid with a single
-            hairline-separated row that reads like a manifest. */}
         <motion.dl
           initial={reduce ? false : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -208,12 +231,6 @@ function MetaRow({
   )
 }
 
-/**
- * SVG fractal-noise paper grain. Subtle texture overlay that sells the
- * "printed dossier" feel without raster weight. The pattern is encoded
- * as a data URI so we ship zero extra requests; opacity is intentionally
- * low so the grain never overpowers the type.
- */
 function DossierGrain() {
   return (
     <div
@@ -228,15 +245,6 @@ function DossierGrain() {
   )
 }
 
-/**
- * Rotated SVG wax-seal stamp. The single deep-rose color moment in the
- * hero — a chop mark on a private file. Double-ring border, curved
- * label text on the top arc, "MMXXVI" on the bottom arc, and a
- * decorative ampersand at center as the focal glyph.
- *
- * Slightly rotated for a hand-stamped feel. Hidden on the smallest
- * viewports so it doesn't crowd the headline.
- */
 function DossierStamp({ count: _count }: { count: number }) {
   return (
     <div
@@ -249,17 +257,13 @@ function DossierStamp({ count: _count }: { count: number }) {
         fill="none"
       >
         <defs>
-          {/* Top arc — text rides above the center, reading L→R */}
           <path id="dossier-stamp-top" d="M 28,100 A 72,72 0 0 1 172,100" fill="none" />
-          {/* Bottom arc — drawn so the text below reads L→R upright */}
           <path id="dossier-stamp-bottom" d="M 172,110 A 72,72 0 0 1 28,110" fill="none" />
         </defs>
 
-        {/* Double-ring stamp border */}
         <circle cx="100" cy="100" r="88" stroke="currentColor" strokeWidth="2" />
         <circle cx="100" cy="100" r="76" stroke="currentColor" strokeWidth="1" opacity="0.7" />
 
-        {/* Top label */}
         <text
           fontFamily="'Cormorant Garamond', serif"
           fontSize="15"
@@ -270,7 +274,6 @@ function DossierStamp({ count: _count }: { count: number }) {
           <textPath href="#dossier-stamp-top" startOffset="50%">PRIVATE  DOSSIER</textPath>
         </text>
 
-        {/* Bottom label */}
         <text
           fontFamily="'Cormorant Garamond', serif"
           fontSize="11"
@@ -281,16 +284,12 @@ function DossierStamp({ count: _count }: { count: number }) {
           <textPath href="#dossier-stamp-bottom" startOffset="50%">SEOUL · BUSAN</textPath>
         </text>
 
-        {/* Inner ornaments — three tiny stars in a row sit above the
-            centerpiece, like a wax-seal motif */}
         <g fill="currentColor" opacity="0.85">
           <circle cx="82" cy="78" r="1.6" />
           <circle cx="100" cy="76" r="2" />
           <circle cx="118" cy="78" r="1.6" />
         </g>
 
-        {/* Centerpiece — italic Cormorant ampersand, the most editorial
-            character in the type's repertoire */}
         <text
           x="100"
           y="118"
@@ -304,7 +303,6 @@ function DossierStamp({ count: _count }: { count: number }) {
           &amp;
         </text>
 
-        {/* Lower mark — date in roman numerals */}
         <text
           x="100"
           y="138"
