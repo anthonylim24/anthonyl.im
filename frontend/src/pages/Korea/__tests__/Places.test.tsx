@@ -17,6 +17,7 @@ vi.mock('motion/react', async () => {
     const {
       initial: _i, animate: _a, exit: _e, transition: _tr,
       whileInView: _wiv, viewport: _vp, layout: _l,
+      whileHover: _wh, whileTap: _wt, layoutId: _li,
       ...domProps
     } = rest
     return React.createElement(tag, domProps, children)
@@ -27,6 +28,7 @@ vi.mock('motion/react', async () => {
       { get: (_t, prop: string) => makeEl(prop) },
     ),
     AnimatePresence: ({ children }: { children: React.ReactNode }) => children,
+    LayoutGroup: ({ children }: { children: React.ReactNode }) => children,
     useReducedMotion: () => false,
   }
 })
