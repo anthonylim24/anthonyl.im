@@ -68,6 +68,9 @@ export function createSavePlaces(sb: SupabaseClient) {
       geocode_source: p.geocode_source,
       geocode_kakao_id: p.geocode_kakao_id,
       geocode_disagree: p.geocode_disagree,
+      busyness: p.busyness ?? null,
+      busyness_source: p.busyness_source ?? null,
+      busyness_confidence: p.busyness_confidence ?? null,
     }));
 
     // Fire the inserts concurrently — each row is independent, so a serial

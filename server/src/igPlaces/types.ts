@@ -5,6 +5,8 @@ export type IgPlaceCategory = 'restaurant'|'cafe'|'bar'|'shopping'|'activity'
                             | 'hotel'|'landmark'|'other';
 export type IgSignalSource = 'caption'|'transcript'|'ocr'|'location_tag'|'multiple'|'comment';
 export type IgConfidenceBand = 'high'|'medium'|'low';
+export type BusynessLevel = 'quiet' | 'moderate' | 'busy' | 'very_busy';
+export type BusynessSource = 'gemini-grounded' | 'kakao' | 'inferred';
 
 export interface IgJob {
   id: number;
@@ -95,6 +97,9 @@ export interface EnrichedPlace extends VotedPlace {
   geocode_source: 'ig-tag'|'google'|'kakao'|'google+kakao'|'gemini-grounded'|null;
   geocode_kakao_id: string | null;
   geocode_disagree: boolean;
+  busyness: BusynessLevel | null;
+  busyness_source: BusynessSource | null;
+  busyness_confidence: number | null;
 }
 
 export class RetryableError extends Error {

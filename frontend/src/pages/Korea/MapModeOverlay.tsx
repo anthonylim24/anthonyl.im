@@ -14,7 +14,7 @@ import { MapModeFallbackList } from "./MapModeFallbackList"
 import { MapModeFilterBar } from "./MapModeFilterBar"
 import { PlaceDetailSheet } from "./PlaceDetailSheet"
 import { useNeighborhoodLabel } from "./allKoreaDongs"
-import type { PlacePriority, PlacesResponse, RankedPlace, UserLocation } from "./mapModeTypes"
+import type { BusynessLevel, PlacePriority, PlacesResponse, RankedPlace, UserLocation } from "./mapModeTypes"
 
 
 // Last-resort fallback when we don't yet know the day's hotel (e.g.
@@ -111,6 +111,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
   // like "Shopping" surfaces ALL shopping places regardless of priority.
   const [enabledCategories, setEnabledCategories] = useState<Set<string>>(() => new Set())
   const [enabledPriorities, setEnabledPriorities] = useState<Set<PlacePriority>>(() => new Set(['scheduled', 'core']))
+  const [enabledBusyness, setEnabledBusyness] = useState<Set<BusynessLevel>>(() => new Set())
   const [viewMode, setViewMode] = useState<"orb" | "list">("orb")
   const sceneContainerRef = useRef<HTMLDivElement>(null)
   // Live camera yaw, written by the Three.js tick loop, read by the
@@ -313,10 +314,17 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
     // sets are empty (the "reset" state), show nothing — the reset button
     // re-applies the default (scheduled + core priorities enabled).
     if (enabledCategories.size === 0 && enabledPriorities.size === 0) return []
-    return state.data.places.filter((p) =>
-      enabledCategories.has(p.category) || enabledPriorities.has(p.priority),
-    )
-  }, [state, enabledCategories, enabledPriorities])
+    return state.data.places.filter((p) => {
+      const passesFilter = enabledCategories.has(p.category) || enabledPriorities.has(p.priority)
+      if (!passesFilter) return false
+      // Busyness is an intersection filter (AND): when any busyness levels are
+      // selected, only places with a matching busyness level pass through.
+      if (enabledBusyness.size > 0) {
+        if (!p.busyness || !enabledBusyness.has(p.busyness)) return false
+      }
+      return true
+    })
+  }, [state, enabledCategories, enabledPriorities, enabledBusyness])
 
   const counts = useMemo(() => {
     if (state.status !== "success") return { scheduled: 0, core: 0, supplemental: 0 }
@@ -345,9 +353,19 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
     })
   }
 
+  function toggleBusyness(level: BusynessLevel) {
+    setEnabledBusyness((prev) => {
+      const next = new Set(prev)
+      if (next.has(level)) next.delete(level)
+      else next.add(level)
+      return next
+    })
+  }
+
   function resetCategories() {
     setEnabledCategories(new Set())
     setEnabledPriorities(new Set(['scheduled', 'core']))
+    setEnabledBusyness(new Set())
   }
 
 
@@ -651,8 +669,10 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
                     places={state.data.places}
                     enabledCategories={enabledCategories}
                     enabledPriorities={enabledPriorities}
+                    enabledBusyness={enabledBusyness}
                     onSoloSelect={toggleCategory}
                     onSoloPriority={togglePriority}
+                    onSoloBusyness={toggleBusyness}
                     onReset={resetCategories}
                   />
                 </motion.div>

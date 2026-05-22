@@ -4,6 +4,7 @@ import { NonRetryableError } from './types';
 import type { Queue } from './queue';
 import type { IgComment } from './fetchComments';
 import { renderCommentsForBundle } from './fetchComments';
+import type { BusynessFetcher } from './fetchBusyness';
 
 export interface ProcessorDeps {
   fetchPost:   (url: string, cached: PostPayload | null) => Promise<PostPayload>;
@@ -37,6 +38,10 @@ export interface ProcessorDeps {
    *  downstream video chain (yt-dlp / direct CDN / headless) handles that
    *  by re-resolving from the canonical post URL. */
   findCachedPost?: (dedupeKey: string) => Promise<PostPayload | null>;
+  /** Optional busyness fetcher. When present, called after geocoding to
+   *  annotate each place with a typical busyness level. Best-effort —
+   *  failures are logged but never block the save step. */
+  fetchBusyness?: BusynessFetcher;
 }
 
 export function createProcessor(deps: ProcessorDeps) {
@@ -203,10 +208,10 @@ export function createProcessor(deps: ProcessorDeps) {
       lastStep = 'geocoding';
       await deps.setStep(job.id, 'geocoding');
       await deps.log(job.id, 'geocoding', 'info', 'querying Google Places + Kakao in parallel').catch(() => {});
-      const enriched = await Promise.all(voted.map(v => deps.geocode(v, payload.locationTag, {
+      const geocoded = await Promise.all(voted.map(v => deps.geocode(v, payload.locationTag, {
         log: (level, message) => deps.log(job.id, 'geocoding', level, message).catch(() => {}),
       })));
-      const srcCounts = enriched.reduce((m, p) => {
+      const srcCounts = geocoded.reduce((m, p) => {
         const k = p.geocode_source ?? 'none';
         m[k] = (m[k] ?? 0) + 1;
         return m;
@@ -214,6 +219,39 @@ export function createProcessor(deps: ProcessorDeps) {
       await deps.log(job.id, 'geocoding', 'info',
         `geocode sources: ${Object.entries(srcCounts).map(([k, v]) => `${k}=${v}`).join(' ')}`)
         .catch(() => {});
+
+      // Best-effort busyness enrichment — runs in parallel across places.
+      // Failures are logged but never block saving.
+      let enriched = geocoded;
+      if (deps.fetchBusyness && geocoded.length > 0) {
+        await deps.log(job.id, 'geocoding', 'info', 'fetching busyness data in parallel').catch(() => {});
+        const busynessResults = await Promise.allSettled(
+          geocoded.map((p) => deps.fetchBusyness!(p)),
+        );
+        enriched = geocoded.map((p, i) => {
+          const r = busynessResults[i];
+          if (r.status === 'fulfilled') {
+            return {
+              ...p,
+              busyness: r.value.busyness,
+              busyness_source: r.value.source,
+              busyness_confidence: r.value.confidence,
+            };
+          }
+          return { ...p, busyness: null, busyness_source: null, busyness_confidence: null };
+        });
+        const bCounts = enriched.reduce((m, p) => {
+          if (p.busyness) m[p.busyness] = (m[p.busyness] ?? 0) + 1;
+          return m;
+        }, {} as Record<string, number>);
+        await deps.log(job.id, 'geocoding', 'info',
+          `busyness: ${Object.entries(bCounts).map(([k, v]) => `${k}=${v}`).join(' ') || 'none'}`)
+          .catch(() => {});
+      } else {
+        enriched = geocoded.map((p) => ({
+          ...p, busyness: null, busyness_source: null, busyness_confidence: null,
+        }));
+      }
 
       lastStep = 'saving';
       await deps.setStep(job.id, 'saving');

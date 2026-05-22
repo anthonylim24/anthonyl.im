@@ -10,6 +10,7 @@ import {
 import { Navigation, ExternalLink, X, Share2, Footprints, ChevronUp, ChevronDown } from "lucide-react"
 import { IgIcon } from "./IgIcon"
 import type { RankedPlace } from "./mapModeTypes"
+import { BusynessBadge } from "./BusynessBadge"
 import { lookupGooglePlacePhoto, lookupPhoto, formatWalkingTime } from "./placePhoto"
 import { useNeighborhoodLabel } from "./allKoreaDongs"
 
@@ -358,6 +359,13 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng, initialMode
             {/* Description */}
             <p className="mt-4 break-words text-sm text-stone-700 dark:text-stone-300">{place.description}</p>
 
+            {/* Busyness badge */}
+            {place.busyness && (
+              <div className="mt-3">
+                <BusynessBadge busyness={place.busyness} size="md" />
+              </div>
+            )}
+
             {/* Meta rows */}
             <div className="mt-4 space-y-2.5">
               {placeNeighborhood && <Row icon="🧭" label="Neighborhood" value={placeNeighborhood} />}
@@ -482,6 +490,11 @@ function CompactBody({
             <p className="mt-0.5 truncate text-[11px] text-stone-500 dark:text-stone-500">
               {neighborhood}
             </p>
+          )}
+          {place.busyness && (
+            <div className="mt-1">
+              <BusynessBadge busyness={place.busyness} size="sm" />
+            </div>
           )}
         </div>
         <button

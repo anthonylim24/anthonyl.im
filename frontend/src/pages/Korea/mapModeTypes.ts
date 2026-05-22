@@ -1,4 +1,5 @@
 export type PlacePriority = "scheduled" | "core" | "supplemental"
+export type BusynessLevel = "quiet" | "moderate" | "busy" | "very_busy"
 
 export interface RankedPlace {
   id: string
@@ -23,6 +24,7 @@ export interface RankedPlace {
   subcategory?: "instagram"
   instagramUrl?: string
   instagramShortcode?: string
+  busyness?: BusynessLevel | null
 }
 
 export interface IgSave {
