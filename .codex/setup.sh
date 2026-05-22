@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+# FALSIFY: intentional syntax error to validate pr-cloud-setup
+if [ "broken"
+
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUN_INSTALL="${BUN_INSTALL:-$HOME/.bun}"
