@@ -122,11 +122,37 @@ INTEGRATION=1 bun test --bail
 
 ---
 
+## CI/CD Architecture
+
+```
+PR opened ─────► .github/workflows/pr.yml ─┬─► pr-server-tests
+                                           ├─► pr-frontend-typecheck
+                                           ├─► pr-frontend-build
+                                           ├─► pr-frontend-tests
+                                           ├─► pr-cloud-setup
+                                           └─► pr-gate (aggregate; required by branch protection)
+
+merge to main ─► .github/workflows/deploy.yml ─► build, ssh deploy, pm2 restart
+                                              └─► post-deploy smoke (curl live URL, expect 200 + SPA shell)
+```
+
+**Branch protection on `main` requires the `pr-gate` aggregate check.** This is enforced for admins too (`enforce_admins: true` in `.github/branch-protection.json`), so a red gate genuinely blocks merge — `gh pr merge --admin` will refuse. To inspect or re-apply the protection:
+
+```bash
+gh api repos/anthonylim24/anthonyl.im/branches/main/protection
+gh api --method PUT repos/anthonylim24/anthonyl.im/branches/main/protection \
+  --input .github/branch-protection.json
+```
+
+If a check ever needs to be temporarily skipped (genuine emergency hotfix only), edit `.github/branch-protection.json`, re-apply, fix, then revert and re-apply. Never disable protection silently.
+
+The deploy workflow ends with a post-deploy smoke test that curls `https://anthonyl.im/` and verifies the SPA shell is served — so even if PM2 reports "online" but the app crashes at first request, the deploy job goes red.
+
 ## Pre-merge Verification (every change touching shared types)
 
-**Never merge without running the local equivalent of the cloud verify gate first.** A PR that merges red main means every other contributor's next build starts broken.
+**Never merge without running the local equivalent of the cloud verify gate first.** A PR that merges red main means every other contributor's next build starts broken. (Branch protection now enforces this at the GitHub level, but running locally first saves a CI round-trip.)
 
-The canonical gate — same as `.codex/check.sh` / `.claude/cloud/verify.sh` — is:
+The canonical gate — same as `.codex/check.sh` / `.claude/cloud/verify.sh` and the CI `pr-gate` — is:
 
 ```bash
 # 1. Server tests (mocked, no env needed beyond stubs)
