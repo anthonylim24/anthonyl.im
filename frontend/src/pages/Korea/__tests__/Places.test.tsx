@@ -74,6 +74,9 @@ function makePlace(overrides: Partial<ExtractedPlace> = {}): ExtractedPlace {
     google_place_id: 'ChIJplace123',
     status: 'extracted',
     created_at: new Date().toISOString(),
+    busyness: null,
+    busyness_source: null,
+    busyness_confidence: null,
     days: [],
     post: {
       id: 10,

@@ -28,3 +28,25 @@ Point the environment's:
 
 E2E (`e2e.sh`) is opt-in — heavyweight, downloads a browser, runs a live
 stack. Not part of every loop.
+
+## What the gate catches (and what it misses)
+
+`verify.sh` runs **server tests + `tsc -b --noEmit`** — same as the GitHub
+Actions deploy job. It will catch:
+
+- TypeScript errors anywhere in `frontend/` or `server/` (including type
+  drift in test fixtures — see "Type-fixture invariant" in `CLAUDE.md`).
+- Server logic regressions covered by the mocked test suite.
+
+It will **not** catch:
+
+- ESLint violations (`bun run lint`) — pre-existing failures on main.
+- Frontend unit test regressions (`bun run test:run`) — historically has
+  carried stale tests from architecture rewrites.
+- Runtime errors visible only in the browser (use `e2e.sh` for those).
+
+**Before merging from the cloud sandbox: re-run `verify.sh` after every
+non-trivial edit.** A red gate means the PR is not safe to merge — do not
+push past it. Recent example: PR #396 added new required fields to a
+shared type without updating a test fixture; the cloud agent merged
+anyway and broke main's typecheck.

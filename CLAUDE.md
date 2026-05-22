@@ -122,6 +122,43 @@ INTEGRATION=1 bun test --bail
 
 ---
 
+## Pre-merge Verification (every change touching shared types)
+
+**Never merge without running the local equivalent of the cloud verify gate first.** A PR that merges red main means every other contributor's next build starts broken.
+
+The canonical gate — same as `.codex/check.sh` / `.claude/cloud/verify.sh` — is:
+
+```bash
+# 1. Server tests (mocked, no env needed beyond stubs)
+KLUSTER_API_KEY=ci-stub KLUSTER_API_BASE_URL=https://example.invalid IG_WORKER_ENABLED=false \
+  bun test --bail server/src
+
+# 2. Frontend typecheck (catches type-level regressions that vite build alone misses)
+cd frontend && bun run typecheck
+```
+
+If you touched anything in `frontend/`, also run:
+
+```bash
+cd frontend && bun run build && bun run test:run
+```
+
+### Type-fixture invariant
+
+When you add a field to a TypeScript type that is used as `T | null` (not `T | null | undefined`), **every test fixture must declare the field explicitly** — `undefined` is not assignable to `T | null`. Search for fixtures with: `grep -rn "Partial<TypeName>\|: TypeName" frontend/src/**/__tests__/`.
+
+Recent recurrence: PR #396 added `busyness*` fields to `ExtractedPlace` but didn't update `Places.test.tsx`'s `makePlace()` fixture, which broke `tsc -b --noEmit` on main even though `vite build` (which uses esbuild and skips strict checks) succeeded locally.
+
+### Stale-test landmines
+
+The frontend unit suite (`bun run test:run`) is intentionally NOT in the deploy gate — historically it has carried pre-existing failures from architecture rewrites (e.g., the BreathFlow-→-Korea PWA migration in PR #319). If you see failing tests in `src/lib/__tests__/metadataAssets.test.ts` or `serviceWorker.test.ts` that reference `/site.webmanifest` or `breathflow-offline-v*`, those are stale relics — update them to match the current Korea PWA, don't roll back behavior to match them.
+
+### Playwright vs. vitest separation
+
+`frontend/e2e/` is owned by Playwright. `frontend/vitest.config.ts` excludes `e2e/**` so vitest doesn't try to import `@playwright/test` and fail. **Do not remove that exclude** — leaving it in keeps `bun run test:run` green even on a fresh checkout without Playwright installed.
+
+---
+
 ## Routing
 
 Routes are lazy-loaded. All three apps share the same SPA entry point (`index.html`), with the server injecting per-route OG tags / favicon / manifest at request time.

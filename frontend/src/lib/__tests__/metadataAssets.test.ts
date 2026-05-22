@@ -18,7 +18,10 @@ describe('metadata assets', () => {
   it('links the web app manifest from index.html', () => {
     const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8')
 
-    expect(html).toContain('<link rel="manifest" href="/site.webmanifest" />')
+    // Korea is the installable PWA — index.html bootstraps with the
+    // korea manifest; the server swaps to /site.webmanifest for the
+    // BreathFlow routes at request time.
+    expect(html).toContain('<link rel="manifest" href="/korea.webmanifest" />')
     expect(html).toContain('<meta name="mobile-web-app-capable" content="yes" />')
     expect(html).toContain('<link rel="icon" type="image/png" sizes="192x192" href="/icons/breathflow-192.png" />')
     expect(html).toContain('<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />')
@@ -126,7 +129,7 @@ describe('metadata assets', () => {
     const worker = readFileSync(resolve(process.cwd(), 'public/sw.js'), 'utf8')
 
     for (const asset of [
-      '/site.webmanifest',
+      '/korea.webmanifest',
       '/apple-touch-icon.png',
       '/icons/breathflow-192.png',
       '/icons/breathflow-512.png',

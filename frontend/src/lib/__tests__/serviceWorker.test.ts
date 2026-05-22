@@ -133,11 +133,15 @@ describe('service worker registration', () => {
   it('ships a conservative same-origin offline cache worker', () => {
     const worker = readFileSync(resolve(process.cwd(), 'public/sw.js'), 'utf8')
 
-    expect(worker).toMatch(/CACHE_VERSION = 'breathflow-offline-v\d+'/)
+    // Post-PR #319 the only installable PWA is Korea; the SW still
+    // precaches the BreathFlow routes/icons so they work offline on
+    // visitors who installed the legacy app, but the cache namespace
+    // is now korea-offline-v*.
+    expect(worker).toMatch(/CACHE_VERSION = 'korea-offline-v\d+'/)
+    expect(worker).toContain("'/korea'")
+    expect(worker).toContain("'/korea.webmanifest'")
     expect(worker).toContain("'/breathwork'")
     expect(worker).toContain("'/breathwork/progress'")
-    expect(worker).toContain("'/breathwork/session?technique=cyclic_sighing&rounds=30'")
-    expect(worker).toContain("'/breathwork/session?technique=four_seven_eight&rounds=16'")
     expect(worker).toContain("request.mode === 'navigate'")
     expect(worker).toContain("url.pathname.startsWith('/api/')")
     expect(worker).toContain('Promise.allSettled')
