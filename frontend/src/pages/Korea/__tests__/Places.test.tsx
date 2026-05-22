@@ -117,6 +117,11 @@ async function renderPlaces() {
 describe('Places page', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Defensive: another test file in the suite (e.g. BreathingSession,
+    // useWebGLOrb) may leave `vi.useFakeTimers()` on if its own afterEach
+    // failed mid-run. userEvent.click + waitFor here rely on real
+    // timers, so re-assert before every test.
+    vi.useRealTimers()
     mockFetchExtractedPlaces.mockResolvedValue(emptyResponse())
   })
 
