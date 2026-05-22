@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { clerkEnabled, useGetToken } from '@/lib/safeAuth'
 import { motion, useReducedMotion } from 'motion/react'
-import { CheckCircle2, ChevronRight, Circle, Loader2, XCircle } from 'lucide-react'
+import { Check, ChevronRight, Circle, Download, Layers, Loader2, MapPin, Save, Sparkles, XCircle } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { isInstagramUrl } from './isInstagramUrl'
 import { ApiNotConfiguredError, fetchStats, listJobs, reextractJob, retryJob, submitUrl } from './ingestApi'
 import type { Job, JobStep, LogLine, PostPreview, Stats } from './ingestApi'
@@ -72,6 +73,24 @@ const STEP_DESCRIPTIONS: Record<UiStep, StepInfo> = {
 
 const STEP_DURATIONS: Record<UiStep, number> = {
   fetching: 8, bundling: 25, extracting: 4, geocoding: 3, saving: 1,
+}
+
+// Per-stage glyph + short label. Glyphs carry recognition at a glance — far
+// more legible than five identical filled dots.
+const STEP_GLYPHS: Record<UiStep, LucideIcon> = {
+  fetching: Download,
+  bundling: Layers,
+  extracting: Sparkles,
+  geocoding: MapPin,
+  saving: Save,
+}
+
+const STEP_LABELS: Record<UiStep, string> = {
+  fetching: 'Fetch',
+  bundling: 'Bundle',
+  extracting: 'Extract',
+  geocoding: 'Geocode',
+  saving: 'Save',
 }
 
 // ─── Shared hooks ─────────────────────────────────────────────────────────────
@@ -291,16 +310,27 @@ function StatusPill({ status }: { status: Job['status'] }) {
   )
 }
 
+/**
+ * Cinematic horizontal pipeline timeline.
+ *
+ * Each stage is a node — a refined glyph in a circular plate — connected by an
+ * SVG hairline. Past nodes settle to a soft amber; the active node breathes
+ * with a rose pulse + outward rim glow; the connector approaching the active
+ * node carries a directional dashed flow (amber → rose). Errored states swap
+ * the active rose treatment for a red XCircle.
+ *
+ * Implementation notes:
+ * - 5 equal grid columns. Each cell is `position: relative` so the connector
+ *   can be absolutely positioned to span from the cell center to the next
+ *   cell center, keeping geometry stable regardless of label length.
+ * - Nodes are buttons with full per-step `aria-label`; tap/click toggles the
+ *   popover (also opens on hover / focus). Popover content unchanged.
+ * - `prefers-reduced-motion`: flow + rim + breath all freeze; the static
+ *   visual state (color + dashed stroke) carries the information without
+ *   any motion.
+ */
 function StepTimeline({ job, reduce, etaNow }: { job: Job; reduce: boolean | null; etaNow: number }) {
   const stepStates = deriveStepStates(job)
-  const stepLabels: Record<string, string> = {
-    fetching: 'Fetch',
-    bundling: 'Bundle',
-    extracting: 'Extract',
-    geocoding: 'Geocode',
-    saving: 'Save',
-  }
-
   const currentStep = PIPELINE_STEPS.find((s) => stepStates[s] === 'current') ?? null
 
   const [expandedStep, setExpandedStep] = useState<UiStep | null>(null)
@@ -323,94 +353,209 @@ function StepTimeline({ job, reduce, etaNow }: { job: Job; reduce: boolean | nul
       ref={timelineRef}
       aria-live="polite"
       aria-label={currentStep ? `Current step: ${currentStep}` : undefined}
-      // overflow-visible (not overflow-x-auto) so the per-step popover can
-      // escape the timeline's clipping rect. The step pills themselves are
-      // narrow enough to fit on the smallest expected viewport (mobile) so
-      // horizontal scrolling isn't actually needed.
-      className="flex items-center gap-0 overflow-visible"
+      className="relative grid items-start gap-0 overflow-visible"
+      style={{ gridTemplateColumns: `repeat(${PIPELINE_STEPS.length}, minmax(0, 1fr))` }}
     >
       {PIPELINE_STEPS.map((step, i) => {
         const state = stepStates[step]
         const isLast = i === PIPELINE_STEPS.length - 1
+        const nextState = isLast ? null : stepStates[PIPELINE_STEPS[i + 1]]
+        const connectorVariant: ConnectorVariant = !nextState
+          ? 'none'
+          : state === 'past' && nextState === 'current'
+            ? 'flowing'
+            : state === 'past' && nextState === 'past'
+              ? 'done'
+              : 'idle'
+
         const info = STEP_DESCRIPTIONS[step as UiStep]
-        const ariaSummary = `${stepLabels[step]}: ${info.summary} Stack: ${info.stack.join('; ')}.`
+        const ariaSummary = `${STEP_LABELS[step]}: ${info.summary} Stack: ${info.stack.join('; ')}.`
         const isExpanded = expandedStep === step
 
         return (
-          <div key={step} className="flex min-w-0 items-center">
-            <div className="group relative">
-            <button
-              type="button"
-              aria-label={ariaSummary}
-              onClick={() => setExpandedStep(isExpanded ? null : step as UiStep)}
-              className="flex min-h-[44px] min-w-[44px] flex-col items-center justify-center gap-1 px-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 rounded"
-            >
-              {/* Circle indicator */}
-              {state === 'past' ? (
-                <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-500">
-                  <CheckCircle2 className="h-3 w-3 text-white" aria-hidden />
+          <div key={step} className="relative flex min-w-0 flex-col items-center">
+            {!isLast && (
+              <PipelineConnector variant={connectorVariant} reduce={!!reduce} />
+            )}
+
+            <div className="group relative z-10">
+              <button
+                type="button"
+                aria-label={ariaSummary}
+                onClick={() => setExpandedStep(isExpanded ? null : step as UiStep)}
+                className="flex min-h-[44px] min-w-[44px] flex-col items-center justify-center gap-2 px-1 cursor-pointer rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50"
+              >
+                <PipelineNode step={step} state={state} reduce={!!reduce} />
+                <span
+                  className={`whitespace-nowrap text-[10px] leading-none tracking-wide ${
+                    state === 'past'
+                      ? 'font-medium text-amber-700 dark:text-amber-300'
+                      : state === 'current'
+                        ? 'font-semibold text-rose-600 dark:text-rose-400'
+                        : state === 'errored'
+                          ? 'font-semibold text-red-600 dark:text-red-400'
+                          : 'text-stone-400 dark:text-stone-600'
+                  }`}
+                >
+                  {STEP_LABELS[step]}
                 </span>
-              ) : state === 'current' ? (
-                <span className="relative inline-flex h-5 w-5 shrink-0 items-center justify-center">
-                  {!reduce && (
-                    <span
-                      aria-hidden
-                      className="absolute inset-0 rounded-full bg-rose-500/30 animate-ping"
-                    />
-                  )}
-                  <span className="relative inline-flex h-5 w-5 items-center justify-center rounded-full bg-rose-500">
-                    <span className="h-2 w-2 rounded-full bg-white" aria-hidden />
-                  </span>
-                </span>
-              ) : state === 'errored' ? (
-                <XCircle className="h-5 w-5 shrink-0 text-red-600 dark:text-red-400" aria-hidden />
-              ) : (
-                <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-stone-300 dark:border-stone-600">
-                  <Circle className="h-2.5 w-2.5 text-stone-300 dark:text-stone-600" aria-hidden />
-                </span>
-              )}
-              {/* Label */}
-              <span
-                className={`whitespace-nowrap text-[10px] leading-none ${
-                  state === 'past'
-                    ? 'font-medium text-amber-600 dark:text-amber-400'
-                    : state === 'current'
-                      ? 'font-semibold text-rose-600 dark:text-rose-400'
-                      : state === 'errored'
-                        ? 'font-semibold text-red-600 dark:text-red-400'
-                        : 'text-stone-400 dark:text-stone-600'
+              </button>
+
+              <div
+                role="tooltip"
+                className={`absolute left-1/2 top-[calc(100%+10px)] z-30 w-72 -translate-x-1/2 rounded-xl border border-stone-200/80 bg-white p-3 text-left shadow-lg ring-1 ring-stone-900/5 transition-opacity duration-150 dark:border-stone-700/80 dark:bg-stone-900 dark:ring-stone-100/5 ${
+                  isExpanded
+                    ? 'pointer-events-auto opacity-100'
+                    : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100'
                 }`}
               >
-                {stepLabels[step]}
-              </span>
-            </button>
-
-            {/* Hover/focus popover + tap-to-expand on mobile */}
-            <div
-              role="tooltip"
-              className={`absolute left-1/2 top-[calc(100%+8px)] z-20 w-72 -translate-x-1/2 rounded-xl border border-stone-200/80 bg-white p-3 text-left shadow-lg ring-1 ring-stone-900/5 transition-opacity duration-150 dark:border-stone-700/80 dark:bg-stone-900 dark:ring-stone-100/5 ${
-                isExpanded
-                  ? 'pointer-events-auto opacity-100'
-                  : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100'
-              }`}
-            >
-              <StepPopoverContent step={step as UiStep} state={state} info={info} job={job} etaNow={etaNow} />
+                <StepPopoverContent step={step as UiStep} state={state} info={info} job={job} etaNow={etaNow} />
+              </div>
             </div>
-            </div>
-
-            {/* Connector line */}
-            {!isLast && (
-              <span
-                aria-hidden
-                className={`mx-1.5 h-px w-6 shrink-0 transition-colors duration-500 sm:w-8 ${
-                  state === 'past' ? 'bg-amber-400' : 'bg-stone-200 dark:bg-stone-700'
-                }`}
-              />
-            )}
           </div>
         )
       })}
     </div>
+  )
+}
+
+type ConnectorVariant = 'none' | 'idle' | 'flowing' | 'done'
+
+/**
+ * SVG connector drawn from the right edge of one node toward the left edge of
+ * the next. `flowing` variant runs a dashed stroke + animated dashoffset to
+ * convey direction (toward the active node). `done` is a steady amber line.
+ * `idle` is the neutral stone hairline.
+ *
+ * The plate is 36 px tall (`h-9`); the connector sits at y ≈ 17 to thread
+ * the visual midline of the plate.
+ */
+function PipelineConnector({ variant, reduce }: { variant: ConnectorVariant; reduce: boolean }) {
+  if (variant === 'none') return null
+
+  const stroke =
+    variant === 'flowing'
+      ? 'url(#ig-pipeline-flow-grad)'
+      : variant === 'done'
+        ? 'rgba(180,83,9,0.55)'
+        : 'rgba(168,162,158,0.55)'
+
+  return (
+    <span
+      aria-hidden
+      className="pointer-events-none absolute top-[17px] z-0 h-px"
+      style={{ left: '50%', right: '-50%' }}
+    >
+      <svg
+        viewBox="0 0 100 2"
+        preserveAspectRatio="none"
+        className="block h-[2px] w-full"
+      >
+        <defs>
+          <linearGradient id="ig-pipeline-flow-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#d97706" stopOpacity="0.55" />
+            <stop offset="100%" stopColor="#f43f5e" stopOpacity="1" />
+          </linearGradient>
+        </defs>
+        <line
+          x1="6"
+          y1="1"
+          x2="94"
+          y2="1"
+          stroke={stroke}
+          strokeWidth={variant === 'flowing' ? 1.4 : 1}
+          strokeLinecap="round"
+          strokeDasharray={variant === 'flowing' ? '4 3' : undefined}
+          style={
+            variant === 'flowing' && !reduce
+              ? { animation: 'ig-pipeline-flow 1.1s linear infinite' }
+              : undefined
+          }
+        />
+      </svg>
+    </span>
+  )
+}
+
+/**
+ * Circular glyph plate for a single pipeline stage. Renders four visual
+ * states; the active state layers a breath-pulsing rose plate behind an
+ * outward rim glow.
+ */
+function PipelineNode({
+  step,
+  state,
+  reduce,
+}: {
+  step: UiStep
+  state: StepState
+  reduce: boolean
+}) {
+  const Glyph = STEP_GLYPHS[step]
+
+  if (state === 'errored') {
+    return (
+      <span className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center">
+        <XCircle className="h-9 w-9 text-red-600 dark:text-red-400" aria-hidden strokeWidth={1.5} />
+      </span>
+    )
+  }
+
+  if (state === 'current') {
+    return (
+      <span className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center">
+        <span
+          aria-hidden
+          className={`absolute inset-0 rounded-full bg-rose-500/30 ${reduce ? '' : 'ig-pipeline-rim'}`}
+          style={
+            reduce
+              ? undefined
+              : { animation: 'ig-pipeline-rim 2.2s cubic-bezier(0.16, 1, 0.3, 1) infinite' }
+          }
+        />
+        <span
+          aria-hidden
+          className={`absolute inset-[3px] rounded-full ${reduce ? '' : 'ig-pipeline-breath'}`}
+          style={{
+            background: 'radial-gradient(circle at 30% 30%, #fb7185 0%, #f43f5e 55%, #c2410c 100%)',
+            boxShadow: '0 0 0 1px rgba(244,63,94,0.35), 0 6px 14px -4px rgba(244,63,94,0.45)',
+            animation: reduce
+              ? undefined
+              : 'ig-pipeline-breath 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite',
+          }}
+        />
+        <Glyph
+          className="relative h-4 w-4 text-white drop-shadow-[0_1px_2px_rgba(159,18,57,0.4)]"
+          aria-hidden
+          strokeWidth={2}
+        />
+      </span>
+    )
+  }
+
+  if (state === 'past') {
+    return (
+      <span
+        className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+        style={{
+          background:
+            'radial-gradient(circle at 30% 30%, rgba(252,211,77,0.55) 0%, rgba(217,119,6,0.25) 60%, rgba(120,113,108,0.18) 100%)',
+          boxShadow: '0 0 0 1px rgba(180,140,80,0.35)',
+        }}
+      >
+        <Check
+          className="h-4 w-4 text-amber-700 dark:text-amber-300"
+          aria-hidden
+          strokeWidth={2.4}
+        />
+      </span>
+    )
+  }
+
+  return (
+    <span className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-dashed border-stone-300 bg-white/40 dark:border-stone-700 dark:bg-stone-900/40">
+      <Glyph className="h-4 w-4 text-stone-300 dark:text-stone-600" aria-hidden strokeWidth={1.5} />
+    </span>
   )
 }
 
@@ -550,8 +695,24 @@ const SIGNAL_SOURCE_LABELS: Record<string, string> = {
   multiple: 'from multiple signals',
 }
 
-function PlacesList({ places }: { places: Job['places'] }) {
-  const [expanded, setExpanded] = useState(false)
+function PlacesList({
+  places,
+  emergent,
+  reduce,
+}: {
+  places: Job['places']
+  /** When true, auto-expand and animate each card in with a soft drop-in.
+   *  The first card briefly outlines in rose to draw the eye. */
+  emergent: boolean
+  reduce: boolean | null
+}) {
+  const [expanded, setExpanded] = useState(emergent)
+
+  // If the job transitions into "just completed" while we're already mounted
+  // (the live polling case), auto-expand to reveal the result without a click.
+  useEffect(() => {
+    if (emergent) setExpanded(true)
+  }, [emergent])
 
   if (places.length === 0) return null
 
@@ -572,10 +733,26 @@ function PlacesList({ places }: { places: Job['places'] }) {
 
       {expanded && (
         <ul className="mt-2 space-y-3">
-          {places.map((p) => (
-            <li
+          {places.map((p, idx) => (
+            <motion.li
               key={p.id}
-              className="flex flex-col gap-1 text-[13px] text-stone-700 dark:text-stone-300"
+              initial={emergent && !reduce ? { opacity: 0, y: 6, scale: 0.96 } : false}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{
+                duration: 0.36,
+                ease: [0.16, 1, 0.3, 1],
+                delay: emergent && !reduce ? Math.min(idx, 8) * 0.08 : 0,
+              }}
+              className={`relative flex flex-col gap-1 text-[13px] text-stone-700 dark:text-stone-300 ${
+                emergent && idx === 0 && !reduce
+                  ? 'rounded-lg px-2 py-1.5 ring-1 ring-rose-300/70 dark:ring-rose-500/40 ig-place-emerge-ring'
+                  : ''
+              }`}
+              style={
+                emergent && idx === 0 && !reduce
+                  ? { animation: 'ig-place-emerge-ring 2.6s ease-out 1.2s forwards' }
+                  : undefined
+              }
             >
               {/* Name row */}
               <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -630,7 +807,7 @@ function PlacesList({ places }: { places: Job['places'] }) {
                   "{p.supporting_quote}"
                 </p>
               )}
-            </li>
+            </motion.li>
           ))}
         </ul>
       )}
@@ -770,6 +947,22 @@ function JobCard({
   const [reextracting, setReextracting] = useState(false)
   const [reextractError, setReextractError] = useState<string | null>(null)
 
+  // Emergence — trigger the staggered place-card reveal only when this card
+  // *witnesses* the job transition from in-flight → done. Already-completed
+  // jobs on first mount stay calm; emergence is about the moment of arrival.
+  const wasCompletedRef = useRef(job.status === 'done' || job.step === 'done')
+  const [emergent, setEmergent] = useState(false)
+  useEffect(() => {
+    const isDone = job.status === 'done' || job.step === 'done'
+    if (isDone && !wasCompletedRef.current) {
+      wasCompletedRef.current = true
+      setEmergent(true)
+      // Total visible runway: 8 cards × 80ms + 360ms reveal + 2.6s ring ≈ 3.7s.
+      const t = setTimeout(() => setEmergent(false), 4000)
+      return () => clearTimeout(t)
+    }
+  }, [job.status, job.step])
+
   const handleRetry = async () => {
     setRetrying(true)
     setRetryError(null)
@@ -907,7 +1100,7 @@ function JobCard({
 
       {/* Places — either the extracted list or the "0 found" empty state */}
       {job.places.length > 0 ? (
-        <PlacesList places={job.places} />
+        <PlacesList places={job.places} emergent={emergent} reduce={reduce} />
       ) : (
         (job.status === 'done' || job.step === 'done') && job.post_preview && (
           <EmptyExtractionPanel preview={job.post_preview} />
