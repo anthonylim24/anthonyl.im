@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { clerkEnabled, useGetToken } from '@/lib/safeAuth'
 import { LayoutGroup, motion, AnimatePresence, useReducedMotion } from 'motion/react'
@@ -171,6 +172,11 @@ interface DayAssignButtonProps {
   onUpdated: (placeId: number, days: number[]) => void
 }
 
+// Approximate dialog height for placement decisions — kept conservative so a
+// nearly-full dropdown still gets flipped above the trigger if the viewport
+// would clip it. Refined after first paint via the dialog's measured rect.
+const DAY_DIALOG_ESTIMATED_HEIGHT = 360
+
 function DayAssignButton({ place, getToken, onUpdated }: DayAssignButtonProps) {
   const reduce = useReducedMotion()
   const [open, setOpen] = useState(false)
@@ -179,6 +185,10 @@ function DayAssignButton({ place, getToken, onUpdated }: DayAssignButtonProps) {
   const [error, setError] = useState<string | null>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  // Fixed-position coordinates for the portaled dialog. `placement` flips the
+  // dropdown above the trigger when there isn't room below — common on phones
+  // when the card sits near the bottom of the viewport.
+  const [pos, setPos] = useState<{ top: number; left: number; placement: 'below' | 'above' } | null>(null)
 
   // Sync external changes (e.g. re-fetch)
   useEffect(() => {
@@ -198,18 +208,62 @@ function DayAssignButton({ place, getToken, onUpdated }: DayAssignButtonProps) {
     return () => window.removeEventListener('keydown', onKey)
   }, [open])
 
-  // Close on outside click
+  // Close on outside click — must also exclude the trigger so its click
+  // doesn't fire after mousedown-driven close and reopen the dialog.
   useEffect(() => {
     if (!open) return
     const onDown = (e: MouseEvent | TouchEvent) => {
-      const node = dialogRef.current
-      if (node && !node.contains(e.target as Node)) setOpen(false)
+      const dialog = dialogRef.current
+      const trigger = triggerRef.current
+      const target = e.target as Node
+      if (dialog && dialog.contains(target)) return
+      if (trigger && trigger.contains(target)) return
+      setOpen(false)
     }
     document.addEventListener('mousedown', onDown)
     document.addEventListener('touchstart', onDown)
     return () => {
       document.removeEventListener('mousedown', onDown)
       document.removeEventListener('touchstart', onDown)
+    }
+  }, [open])
+
+  // Compute + keep dialog position in sync with the trigger. We portal the
+  // dialog to document.body to escape every PlaceCard's stacking context
+  // (each card creates one via willChange:transform + motion's layout
+  // transforms), so it must be positioned manually relative to the viewport.
+  useLayoutEffect(() => {
+    if (!open) {
+      setPos(null)
+      return
+    }
+    const update = () => {
+      const trigger = triggerRef.current
+      if (!trigger) return
+      const rect = trigger.getBoundingClientRect()
+      const measured = dialogRef.current?.offsetHeight ?? 0
+      const dialogH = measured > 0 ? measured : DAY_DIALOG_ESTIMATED_HEIGHT
+      const spaceBelow = window.innerHeight - rect.bottom
+      const spaceAbove = rect.top
+      const placement: 'below' | 'above' =
+        spaceBelow < dialogH + 12 && spaceAbove > spaceBelow ? 'above' : 'below'
+      const top = placement === 'below' ? rect.bottom + 6 : rect.top - 6 - dialogH
+      // Clamp to viewport — 8 px gutter on each side, never wider than the
+      // dialog's max-width (256 px = w-64).
+      const dialogW = 256
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - dialogW - 8))
+      setPos({ top, left, placement })
+    }
+    update()
+    // Re-measure after the dialog mounts so the placement decision can use
+    // the real height instead of the estimate.
+    const raf = requestAnimationFrame(update)
+    window.addEventListener('scroll', update, true)
+    window.addEventListener('resize', update)
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('scroll', update, true)
+      window.removeEventListener('resize', update)
     }
   }, [open])
 
@@ -266,71 +320,81 @@ function DayAssignButton({ place, getToken, onUpdated }: DayAssignButtonProps) {
         {hasAssignment ? `Day ${assignedDays.join(', ')}` : 'Add to days'}
       </button>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            ref={dialogRef}
-            role="dialog"
-            aria-label={`Assign ${place.name} to itinerary days`}
-            aria-modal="true"
-            initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: -4 }}
-            animate={reduce ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
-            exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: -4 }}
-            transition={{ duration: reduce ? 0.08 : 0.14, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute left-0 top-[calc(100%+6px)] z-40 w-64 max-w-[calc(100vw-2rem)] origin-top-left rounded-2xl border border-stone-200 bg-white p-3 shadow-xl ring-1 ring-stone-200/60 dark:border-stone-800 dark:bg-stone-950 dark:ring-stone-800"
-          >
-            <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
-              Assign to days
-            </p>
-            <fieldset>
-              <legend className="sr-only">Select days for {place.name}</legend>
-              <div className="max-h-48 space-y-0.5 overflow-y-auto pr-1">
-                {KOREA_DAYS.map((day) => {
-                  const checked = pendingDays.has(day.n)
-                  return (
-                    <label
-                      key={day.n}
-                      className="flex min-h-[36px] cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 transition hover:bg-stone-50 focus-within:ring-2 focus-within:ring-rose-400/40 dark:hover:bg-stone-900"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleDay(day.n)}
-                        className="h-4 w-4 shrink-0 accent-rose-600 focus:outline-none"
-                        aria-label={day.label}
-                      />
-                      <span className="text-[12px] text-stone-800 dark:text-stone-200">{day.label}</span>
-                      {checked && <Check className="ml-auto h-3 w-3 shrink-0 text-rose-600 dark:text-rose-400" aria-hidden />}
-                    </label>
-                  )
-                })}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {open && (
+            <motion.div
+              ref={dialogRef}
+              role="dialog"
+              aria-label={`Assign ${place.name} to itinerary days`}
+              aria-modal="true"
+              initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: pos?.placement === 'above' ? 4 : -4 }}
+              animate={reduce ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
+              exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: pos?.placement === 'above' ? 4 : -4 }}
+              transition={{ duration: reduce ? 0.08 : 0.14, ease: [0.16, 1, 0.3, 1] }}
+              style={{
+                position: 'fixed',
+                top: pos?.top ?? -9999,
+                left: pos?.left ?? -9999,
+                visibility: pos ? 'visible' : 'hidden',
+                transformOrigin: pos?.placement === 'above' ? 'bottom left' : 'top left',
+              }}
+              className="z-[100] w-64 max-w-[calc(100vw-1rem)] rounded-2xl border border-stone-200 bg-white p-3 shadow-xl ring-1 ring-stone-200/60 dark:border-stone-800 dark:bg-stone-950 dark:ring-stone-800"
+            >
+              <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
+                Assign to days
+              </p>
+              <fieldset>
+                <legend className="sr-only">Select days for {place.name}</legend>
+                <div className="max-h-48 space-y-0.5 overflow-y-auto pr-1">
+                  {KOREA_DAYS.map((day) => {
+                    const checked = pendingDays.has(day.n)
+                    return (
+                      <label
+                        key={day.n}
+                        className="flex min-h-[36px] cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 transition hover:bg-stone-50 focus-within:ring-2 focus-within:ring-rose-400/40 dark:hover:bg-stone-900"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleDay(day.n)}
+                          className="h-4 w-4 shrink-0 accent-rose-600 focus:outline-none"
+                          aria-label={day.label}
+                        />
+                        <span className="text-[12px] text-stone-800 dark:text-stone-200">{day.label}</span>
+                        {checked && <Check className="ml-auto h-3 w-3 shrink-0 text-rose-600 dark:text-rose-400" aria-hidden />}
+                      </label>
+                    )
+                  })}
+                </div>
+              </fieldset>
+              {error && (
+                <p role="alert" className="mt-2 rounded-md bg-red-50 px-2 py-1 text-[11px] text-red-700 dark:bg-red-950/30 dark:text-red-400">{error}</p>
+              )}
+              <div className="mt-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving || !dirty}
+                  aria-busy={saving}
+                  className="inline-flex min-h-[36px] flex-1 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-rose-500 dark:hover:bg-rose-400"
+                >
+                  {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="inline-flex min-h-[36px] items-center justify-center rounded-lg border border-stone-200 px-3 py-1.5 text-[12px] font-medium text-stone-600 transition hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:border-stone-700 dark:text-stone-400 dark:hover:bg-stone-900"
+                >
+                  Cancel
+                </button>
               </div>
-            </fieldset>
-            {error && (
-              <p role="alert" className="mt-2 rounded-md bg-red-50 px-2 py-1 text-[11px] text-red-700 dark:bg-red-950/30 dark:text-red-400">{error}</p>
-            )}
-            <div className="mt-3 flex gap-2">
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving || !dirty}
-                aria-busy={saving}
-                className="inline-flex min-h-[36px] flex-1 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-rose-500 dark:hover:bg-rose-400"
-              >
-                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
-                {saving ? 'Saving…' : 'Save'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="inline-flex min-h-[36px] items-center justify-center rounded-lg border border-stone-200 px-3 py-1.5 text-[12px] font-medium text-stone-600 transition hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:border-stone-700 dark:text-stone-400 dark:hover:bg-stone-900"
-              >
-                Cancel
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
     </div>
   )
 }
