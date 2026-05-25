@@ -8,6 +8,8 @@ function Bomb({ message = 'kaboom' }: { message?: string }): null {
 }
 
 describe('RouteErrorBoundary', () => {
+  const originalLocation = window.location
+
   // The boundary intentionally calls console.error on catch — silence it in
   // tests so the suite output stays readable while still letting us assert
   // the spy fired.
@@ -16,6 +18,13 @@ describe('RouteErrorBoundary', () => {
   })
   afterEach(() => {
     vi.restoreAllMocks()
+    // Belt + suspenders: a failed assertion in the reload-button test would
+    // skip its inline restore, leaving subsequent tests staring at a stubbed
+    // `window.location`. Always reset here.
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: originalLocation,
+    })
   })
 
   it('renders children when no error is thrown', () => {
