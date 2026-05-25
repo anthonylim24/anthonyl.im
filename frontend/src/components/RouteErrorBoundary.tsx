@@ -1,4 +1,4 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { Component, createRef, type ErrorInfo, type ReactNode } from 'react'
 
 interface Props {
   /** Which app this boundary protects — drives accent color + copy. */
@@ -17,21 +17,28 @@ const appCopy: Record<Props['app'], { heading: string; accent: string }> = {
   },
   breathwork: {
     heading: 'Something went wrong loading BreathFlow.',
-    accent: 'text-amber-700 dark:text-amber-300',
+    accent: 'text-amber-800 dark:text-amber-300',
   },
   korea: {
     heading: 'Something went wrong loading the Korea itinerary.',
-    accent: 'text-rose-700 dark:text-rose-300',
+    accent: 'text-rose-800 dark:text-rose-300',
   },
 }
 
-// Renders a recovery surface when a descendant throws during render, in an
-// effect, or while lazy-loading a chunk. Without this, an unhandled error
-// in React 19 unmounts the root tree and the user sees a blank page — which
-// is indistinguishable from "site is down" and unrecoverable without a hard
-// refresh + cache clear.
+// Renders a recovery surface when a descendant throws during render or in a
+// synchronous effect (componentDidMount / useEffect body). Pair with a
+// <Suspense> placed INSIDE this boundary — a lazy chunk that rejects throws
+// past Suspense, and the boundary catches it here. (If Suspense were above
+// this boundary, chunk-load rejections would never reach us and the user
+// would see a blank page.)
+//
+// What this does NOT catch:
+//   - Errors thrown asynchronously inside event handlers (React 19 leaves
+//     those for window.onerror) → see the unhandledrejection listener below.
+//   - Errors in code that runs before this boundary mounts (e.g., main.tsx).
 export class RouteErrorBoundary extends Component<Props, State> {
   state: State = { error: null }
+  private reloadRef = createRef<HTMLButtonElement>()
 
   static getDerivedStateFromError(error: Error): State {
     return { error }
@@ -41,6 +48,15 @@ export class RouteErrorBoundary extends Component<Props, State> {
     // Surface to the browser console so the user (and any attached devtools)
     // can see the original stack instead of just the boundary's fallback UI.
     console.error('[RouteErrorBoundary]', this.props.app, error, info.componentStack)
+  }
+
+  componentDidUpdate(_prev: Props, prevState: State) {
+    // Focus the reload button right after the fallback mounts so screen-reader
+    // users land on the recovery action instead of being dropped at document
+    // start with no announcement of what changed.
+    if (!prevState.error && this.state.error) {
+      this.reloadRef.current?.focus()
+    }
   }
 
   private handleReload = () => {
@@ -71,9 +87,10 @@ export class RouteErrorBoundary extends Component<Props, State> {
           stale asset — clear the site data and try again.
         </p>
         <button
+          ref={this.reloadRef}
           type="button"
           onClick={this.handleReload}
-          className="mt-2 inline-flex items-center justify-center rounded-full bg-stone-900 px-5 py-2.5 text-sm font-semibold text-stone-50 transition hover:bg-stone-700 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-300"
+          className="mt-2 inline-flex items-center justify-center rounded-full bg-stone-900 px-5 py-2.5 text-sm font-semibold text-stone-50 transition hover:bg-stone-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-400 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-300"
         >
           Reload
         </button>

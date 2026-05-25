@@ -22,10 +22,20 @@ vi.mock('motion/react', async () => {
     } = rest
     return React.createElement(tag, domProps, children)
   }
+  // Cache components per tag so identity is stable across renders. Without
+  // this, the Proxy returns a fresh function instance every property access,
+  // which makes React treat `motion.div` as a new component type on every
+  // render and unmount/remount the subtree — fatal for portals under load.
+  const cache: Record<string, ReturnType<typeof makeEl>> = {}
   return {
     motion: new Proxy(
       {},
-      { get: (_t, prop: string) => makeEl(prop) },
+      {
+        get: (_t, prop: string) => {
+          if (!cache[prop]) cache[prop] = makeEl(prop)
+          return cache[prop]
+        },
+      },
     ),
     AnimatePresence: ({ children }: { children: React.ReactNode }) => children,
     LayoutGroup: ({ children }: { children: React.ReactNode }) => children,
@@ -212,23 +222,23 @@ describe('Places page', () => {
       { timeout: 3000 },
     )
 
-    // Use fireEvent.click instead of userEvent.click — fireEvent is
-    // synchronous and doesn't depend on `userEvent`'s internal microtask
-    // queue, which has historically lagged on the GitHub Actions
-    // runner. Wrap in act() so React processes the state update before
-    // we look for the dialog.
+    // Use fireEvent.click — synchronous, doesn't depend on userEvent's
+    // internal microtask queue. Wrap in act() so React processes the
+    // state update before we look for the dialog.
     await act(async () => {
       const btn = screen.getByRole('button', { name: /add to days/i })
       fireEvent.click(btn)
     })
 
-    // The dialog renders synchronously once `open` flips to true (the
-    // motion mock collapses AnimatePresence to its children), but
-    // CI's React effect flush still occasionally needs a tick — give
-    // findByRole 3 s to settle.
+    // The dialog renders into a portal on document.body (PR #425) and
+    // uses a `useLayoutEffect` to set `pos` after measuring the trigger
+    // — that produces a two-render mount sequence (visibility:hidden →
+    // visibility:visible). Under CI scheduler pressure that sequence
+    // can land slightly outside RTL's default poll window, so we give
+    // `findByRole` 3 s and don't filter on visibility.
     const dialog = await screen.findByRole(
       'dialog',
-      { name: /assign.*to itinerary days/i },
+      { name: /assign.*to itinerary days/i, hidden: true },
       { timeout: 3000 },
     )
     expect(dialog).toBeTruthy()
