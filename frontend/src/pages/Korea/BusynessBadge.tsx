@@ -55,10 +55,3 @@ export function BusynessBadge({ busyness, size = 'sm', className = '' }: Busynes
   )
 }
 
-export function busynessLabel(level: BusynessLevel): string {
-  return META[level].label
-}
-
-export function busynessEmoji(level: BusynessLevel): string {
-  return META[level].emoji
-}

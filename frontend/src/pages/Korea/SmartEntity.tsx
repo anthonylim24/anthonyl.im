@@ -122,6 +122,8 @@ export function SmartEntity({
     if (!open) return
     const cached = aboutCache.get(aboutKey(name, type, city))
     if (cached) {
+      // Cache hit — show the description instantly without the loading flash.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDescription(cached.description)
       return
     }

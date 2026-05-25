@@ -150,8 +150,12 @@ export function OrbSheen({ amplitude, isActive, className }: OrbSheenProps) {
   const amplitudeRef = useRef(amplitude)
   const isActiveRef = useRef(isActive)
 
+  // Latest-value ref pattern — the RAF loop reads these without re-binding
+  // on every prop change. Updating during render is intentional.
+  /* eslint-disable react-hooks/refs */
   amplitudeRef.current = amplitude
   isActiveRef.current = isActive
+  /* eslint-enable react-hooks/refs */
 
   useEffect(() => {
     const canvas = canvasRef.current

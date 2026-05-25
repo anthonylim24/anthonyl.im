@@ -113,7 +113,7 @@ function buildIndex(entries: EntityRef[]): EntityIndex {
   // engine treats CJK as non-word characters in default mode. We allow
   // both word-boundary AND lookbehind-non-letter for those cases.
   const pattern = `(?<![\\p{L}\\p{N}])(?:${sortedTerms.map(escapeRegex).join("|")})(?![\\p{L}\\p{N}])`
-  let matchRegex: RegExp | null = null
+  let matchRegex: RegExp
   try {
     matchRegex = new RegExp(pattern, "giu")
   } catch {
@@ -150,6 +150,7 @@ export function EntityIndexProvider({ children }: { children: React.ReactNode })
   return <EntityIndexContext.Provider value={index}>{children}</EntityIndexContext.Provider>
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useEntityIndex(): EntityIndex {
   return useContext(EntityIndexContext)
 }

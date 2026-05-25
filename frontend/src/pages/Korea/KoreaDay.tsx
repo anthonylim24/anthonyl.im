@@ -69,7 +69,10 @@ export function KoreaDay() {
   // Reservations for the current day; computed here so the memo below
   // stays unconditional (called whether dayState has loaded or not).
   const dayData = dayState.status === "success" ? dayState.data : null
-  const reservationsForDay: Reservation[] = dayData?.reservations ?? []
+  const reservationsForDay: Reservation[] = useMemo(
+    () => dayData?.reservations ?? [],
+    [dayData],
+  )
   const isTodayFlag = dayData ? dayData.day.date === todayKstIso() : false
 
   // Identify the next-upcoming reservation today. This drives the ambient
