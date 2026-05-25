@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import App from './App'
+import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 import {
   loadBreathworkNotFoundPage,
   loadHomePage,
@@ -53,10 +54,31 @@ export function AppRoutes() {
     <BrowserRouter>
       <Suspense fallback={<BreathworkShellFallback />}>
         <Routes>
-          <Route path="/" element={<App />} />
-          <Route path="/chatbot" element={<App />} />
+          <Route
+            path="/"
+            element={
+              <RouteErrorBoundary app="chatbot">
+                <App />
+              </RouteErrorBoundary>
+            }
+          />
+          <Route
+            path="/chatbot"
+            element={
+              <RouteErrorBoundary app="chatbot">
+                <App />
+              </RouteErrorBoundary>
+            }
+          />
 
-          <Route path="/breathwork" element={<BreathworkLayout />}>
+          <Route
+            path="/breathwork"
+            element={
+              <RouteErrorBoundary app="breathwork">
+                <BreathworkLayout />
+              </RouteErrorBoundary>
+            }
+          >
             <Route index element={<Home />} />
             <Route path="session" element={<Session />} />
             <Route path="progress" element={<Progress />} />
@@ -64,7 +86,14 @@ export function AppRoutes() {
             <Route path="*" element={<BreathworkNotFound />} />
           </Route>
 
-          <Route path="/korea" element={<KoreaLayout />}>
+          <Route
+            path="/korea"
+            element={
+              <RouteErrorBoundary app="korea">
+                <KoreaLayout />
+              </RouteErrorBoundary>
+            }
+          >
             <Route index element={<KoreaIndex />} />
             <Route path="day/:slug" element={<KoreaDay />} />
             <Route path="ingest" element={<Ingest />} />
