@@ -711,6 +711,7 @@ function PlacesList({
   // If the job transitions into "just completed" while we're already mounted
   // (the live polling case), auto-expand to reveal the result without a click.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (emergent) setExpanded(true)
   }, [emergent])
 
@@ -1180,7 +1181,10 @@ function IngestImpl() {
   const [fetchFailures, setFetchFailures] = useState(0)
   const [apiNotConfigured, setApiNotConfigured] = useState<string | null>(null)
 
+  // Latest-callback ref — Clerk's getToken changes identity often; the
+  // long-lived poll/submit handlers should always see the most recent one.
   const getTokenRef = useRef(getToken)
+  // eslint-disable-next-line react-hooks/refs
   getTokenRef.current = getToken
 
   // ── Time ticks ─────────────────────────────────────────────────────────────
@@ -1295,7 +1299,6 @@ function IngestImpl() {
 
   const canSubmit = isInstagramUrl(url) && !submitting
   // stalenessNow forces a re-render every 5s so the "X ago" label stays fresh
-  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
   void stalenessNow
   const agoLabel = lastRefreshed ? timeAgo(lastRefreshed) : null
 
@@ -1491,8 +1494,11 @@ function IngestImpl() {
         </form>
       </motion.section>
 
-      {/* Jobs list — split into Recent (≤7 days) and Older */}
+      {/* Jobs list — split into Recent (≤7 days) and Older. The cutoff is
+          intentionally recomputed per render so the "recent" window slides
+          forward as the user keeps the page open. */}
       {(() => {
+        // eslint-disable-next-line react-hooks/purity
         const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000
         const recentJobs = jobs.filter((j) => new Date(j.created_at).getTime() >= cutoff)
         const olderJobs = jobs.filter((j) => new Date(j.created_at).getTime() < cutoff)

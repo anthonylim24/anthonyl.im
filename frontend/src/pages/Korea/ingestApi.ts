@@ -161,7 +161,9 @@ export async function retryJob(
     try {
       const body = await r.json() as { error?: string }
       if (body.error) msg = body.error
-    } catch {}
+    } catch {
+      // body wasn't JSON — fall back to the HTTP status message
+    }
     throw new Error(msg)
   }
 }
@@ -180,7 +182,9 @@ export async function reextractJob(
     try {
       const body = await r.json() as { error?: string }
       if (body.error) msg = body.error
-    } catch {}
+    } catch {
+      // body wasn't JSON — fall back to the HTTP status message
+    }
     throw new Error(msg)
   }
 }

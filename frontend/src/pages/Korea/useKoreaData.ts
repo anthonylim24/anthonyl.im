@@ -80,6 +80,8 @@ export function useKoreaDay(slug: string | undefined): LoadState<DayDetailRespon
     stateSlugRef.current = slug
 
     if (dayCache.has(slug)) {
+      // Cache hit — hydrate immediately without the loading skeleton.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setState({ status: "success", data: dayCache.get(slug)!, error: null })
       return
     }
@@ -107,6 +109,7 @@ export function useKoreaDay(slug: string | undefined): LoadState<DayDetailRespon
 
   // Slug changed but effect hasn't run yet — derive synchronously from cache
   // so we don't briefly flash the previous day's content.
+  // eslint-disable-next-line react-hooks/refs
   if (stateSlugRef.current !== slug) {
     return getInitialDayState(slug)
   }

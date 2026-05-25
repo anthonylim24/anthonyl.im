@@ -114,8 +114,12 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
     if (state.status !== "success") return
     const match = state.data.places.find((p) => p.id === initialFocusPlaceId)
     if (match) {
+      // One-shot initial-focus sync — gated by honoredFocusRef so it can't
+      // cascade. Refactoring to event-driven would lose the URL-route entry.
+      /* eslint-disable react-hooks/set-state-in-effect */
       setSheetInitialMode("compact")
       setSelected(match)
+      /* eslint-enable react-hooks/set-state-in-effect */
       honoredFocusRef.current = true
     }
   }, [initialFocusPlaceId, state])
@@ -156,6 +160,10 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
     if (state.status !== "success") return
     const c = state.data.meta.center
     if (!c) return
+    // Sync external place data into local state — the identity-stable
+    // updater above is the whole point (prevents the infinite loop
+    // described in the comment block above this effect).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDayHotelLocation((prev) => {
       if (prev.lat === c.lat && prev.lng === c.lng && prev.label === c.label) {
         return prev
@@ -338,6 +346,8 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
   }
 
   useEffect(() => {
+    // One-shot bootstrap — kicks off the geolocation request on mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     requestLocation()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -361,6 +371,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
 
   useEffect(() => {
     if (mockHotel) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLocationIfCoordsChanged(dayHotelLocation)
       return
     }
@@ -374,6 +385,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
   useEffect(() => {
     if (!location || mockHotel) return
     if (location.source !== "geolocation") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLocationIfCoordsChanged(testMode ? SF_TEST_LOCATION : dayHotelLocation)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -384,6 +396,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
   // to the new day's hotel. Real geolocation + test-anchor stay put.
   useEffect(() => {
     if (location?.source === "hotel") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLocationIfCoordsChanged(dayHotelLocation)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -435,6 +448,8 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
 
   useEffect(() => {
     if (!location) return
+    // Show the loading skeleton immediately while the async fetch resolves.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setState({ status: "loading" })
     const qs = new URLSearchParams({
       lat: String(location.lat),

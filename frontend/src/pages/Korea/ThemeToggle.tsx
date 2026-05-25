@@ -21,7 +21,11 @@ export function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>("system")
 
   useEffect(() => {
+    // One-time mount: read the saved theme from localStorage. Initial useState
+    // is intentionally "system" to keep SSR/SSG output stable; the effect
+    // hydrates to the real preference once the browser is available.
     const initial = getInitialTheme()
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTheme(initial)
     applyTheme(initial)
 

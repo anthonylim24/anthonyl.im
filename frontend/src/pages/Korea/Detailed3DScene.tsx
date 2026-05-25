@@ -109,12 +109,17 @@ export function Detailed3DScene({
   const mountRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const attributionRef = useRef<HTMLDivElement>(null)
+  // Latest-callback ref pattern — the three.js scene's internal callbacks
+  // read these without re-binding on every render. Updating during render
+  // is intentional.
+  /* eslint-disable react-hooks/refs */
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
   const onDeselectRef = useRef(onDeselect)
   onDeselectRef.current = onDeselect
   const onWebglErrorRef = useRef(onWebglError)
   onWebglErrorRef.current = onWebglError
+  /* eslint-enable react-hooks/refs */
   const selectedIdRef = useRef<string | null>(selectedId ?? null)
 
   useEffect(() => {
@@ -126,6 +131,9 @@ export function Detailed3DScene({
 
   useEffect(() => {
     if (!apiKey) {
+      // Defensive: useState init already handles the missing-key case,
+      // but a key that becomes missing mid-mount needs to flip too.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setKeyMissing(true)
       return
     }

@@ -9,23 +9,22 @@ interface StatusPanelProps {
  * Trip status panel — written like a dispatch from the trip planner.
  *
  * Editorial chapter shell (eyebrow + Cormorant title + hairline rule) so
- * it sits in rhythm with the rest of the index. Four tonal columns hold
- * weather / book-now / adds / corrections; the tone is conveyed by a
- * small colored marker, not a full-panel glass backdrop. Empty groups
- * collapse out of the layout so the page never reads as half-filled.
+ * it sits in rhythm with the rest of the index. Three tonal columns hold
+ * weather / book-now / adds; the tone is conveyed by a small colored
+ * marker, not a full-panel glass backdrop. Empty groups collapse out of
+ * the layout so the page never reads as half-filled.
  */
 export function StatusPanel({ status }: StatusPanelProps) {
   const reduce = useReducedMotion()
 
-  // Ink + rose + emerald only. Weather and corrections are stone (neutral
-  // dispatch); book-now is the one urgent moment (rose); adds keeps
-  // emerald because "new locked-in items" parallels confirmed status.
+  // Ink + rose + emerald only. Weather is stone (neutral dispatch);
+  // book-now is the one urgent moment (rose); adds keeps emerald because
+  // "new locked-in items" parallels confirmed status.
   const groups = (
     [
       { id: "weather", label: "Weather", tone: "stone", items: status.weather },
       { id: "book", label: "Book now", tone: "rose", items: status.bookActions.map((a) => a.label) },
       { id: "adds", label: "Adds", tone: "emerald", items: status.adds },
-      { id: "corrections", label: "Corrections", tone: "stone", items: status.corrections },
     ] as const
   ).filter((g) => g.items.length > 0)
 

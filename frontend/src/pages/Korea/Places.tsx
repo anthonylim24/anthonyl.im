@@ -192,6 +192,7 @@ function DayAssignButton({ place, getToken, onUpdated }: DayAssignButtonProps) {
 
   // Sync external changes (e.g. re-fetch)
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!open) setPendingDays(new Set(place.days ?? []))
   }, [place.days, open])
 
@@ -234,6 +235,7 @@ function DayAssignButton({ place, getToken, onUpdated }: DayAssignButtonProps) {
   // transforms), so it must be positioned manually relative to the viewport.
   useLayoutEffect(() => {
     if (!open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPos(null)
       return
     }
@@ -695,11 +697,15 @@ function PlacesImpl() {
   const [activeBusyness, setActiveBusyness] = useState<BusynessLevel | null>(null)
   const [offset, setOffset] = useState(0)
 
+  // Latest-value refs — the long-lived load() callback reads these without
+  // re-binding identity on every render.
+  /* eslint-disable react-hooks/refs */
   const getTokenRef = useRef(getToken)
   getTokenRef.current = getToken
 
   const searchRef = useRef(search)
   searchRef.current = search
+  /* eslint-enable react-hooks/refs */
 
   // Debounced search — 80 ms is tight enough that the FLIP feels like a
   // direct response to keystrokes, but long enough to coalesce a burst
@@ -757,7 +763,6 @@ function PlacesImpl() {
     }
     setOffset(0)
     void load({ category: activeCategory, band: activeBand, busyness: activeBusyness, q: debouncedSearch, offset: 0, append: false })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCategory, activeBand, activeBusyness, debouncedSearch, load])
 
   // Refresh when the tab regains focus — covers the common case of
@@ -770,7 +775,6 @@ function PlacesImpl() {
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCategory, activeBand, activeBusyness, debouncedSearch, load])
 
   function handleLoadMore() {

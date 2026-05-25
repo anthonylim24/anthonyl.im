@@ -50,6 +50,7 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng, initialMode
   // Reset mode when a new place is selected — the user's previous
   // expanded/compact state shouldn't leak across selections.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMode(initialMode)
   }, [place.id, initialMode])
 
@@ -109,8 +110,12 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng, initialMode
   // place.photoUrl is the last-line backup.
   useEffect(() => {
     let cancelled = false
+    // Reset to loading state for the new place id before kicking off the
+    // photo-resolution cascade below.
+    /* eslint-disable react-hooks/set-state-in-effect */
     setPhotoLoading(true)
     setPhotoFailed(false)
+    /* eslint-enable react-hooks/set-state-in-effect */
     const titles = [
       place.name.replace(/\s*\([^)]+\)\s*/g, "").trim(),
       place.name.split("·")[0].trim(),

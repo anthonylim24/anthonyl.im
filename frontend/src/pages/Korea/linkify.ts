@@ -46,7 +46,7 @@ const PATTERNS: PatternDef[] = [
   // KTX 007 / KTX 026 — Korail
   {
     kind: "ktx",
-    rx: /\bKTX[  ]?(\d{2,4})\b/g,
+    rx: /\bKTX[ \u00A0]?(\d{2,4})\b/g,
     build: (m) => ({
       value: m[0],
       href: `https://www.letskorail.com/ebizprd/EbizPrdTicketpr11100W_pr11150.do?txtPsgFlg_1=1&txtTrnNo=${m[1]}`,
@@ -59,7 +59,7 @@ const PATTERNS: PatternDef[] = [
   // limiting to known carrier codes)
   {
     kind: "flight",
-    rx: /\b(UA|KE|OZ|AA|DL|AS|BA|JL|NH)[  ]?(\d{2,5})\b/g,
+    rx: /\b(UA|KE|OZ|AA|DL|AS|BA|JL|NH)[ \u00A0]?(\d{2,5})\b/g,
     build: (m) => {
       const code = m[1] as keyof typeof airlineTrackers
       const num = m[2]

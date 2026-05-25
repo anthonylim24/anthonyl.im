@@ -68,7 +68,6 @@ export interface Snapshot {
     headline: string
     weather: string[]
     bookActions: { id: string; label: string }[]
-    corrections: string[]
     adds: string[]
   }
   reservations: Reservation[]
