@@ -28,9 +28,11 @@ export function TripHero({ snapshot }: TripHeroProps) {
   }, [snapshot.trip.startDate])
 
   // Subtle parallax on the rose+amber bloom — background only, never content.
+  // Always keep `bloomY` as a MotionValue (don't ternary-swap to a plain `0`
+  // when reduce-motion fires) — type-flipping the style prop between renders
+  // crashes motion@12 on iOS Safari 26 when the value swaps mid-paint.
   const { scrollY } = useScroll()
-  const bloomYRaw = useTransform(scrollY, [0, 600], [0, 180])
-  const bloomY = reduce ? 0 : bloomYRaw
+  const bloomY = useTransform(scrollY, [0, 600], reduce ? [0, 0] : [0, 180])
 
   // Intensity is amped when the trip is imminent or in-progress. The
   // bloom-pulse animation only runs once on mount and quickly settles.
