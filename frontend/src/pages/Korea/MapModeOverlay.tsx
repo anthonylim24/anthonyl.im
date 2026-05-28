@@ -60,10 +60,9 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
   const reduce = useReducedMotion()
   const getToken = useGetToken()
   const [testMode, setTestMode] = useState(false)
-  // Default to mock-location ON during pre-trip testing — geolocation from
-  // anywhere outside Korea anchors the camera in the wrong place and breaks
-  // the neighborhood-highlight framing. User can flip off in the debug menu.
-  const [mockHotel, setMockHotel] = useState(true)
+  // Default to mock-location OFF — real geolocation is used unless the
+  // user explicitly enables the mock-hotel override in the debug menu.
+  const [mockHotel, setMockHotel] = useState(false)
   const [debugOpen, setDebugOpen] = useState(false)
   const [location, setLocation] = useState<UserLocation | null>(null)
   const [locating, setLocating] = useState(false)
