@@ -81,7 +81,7 @@ export interface Snapshot {
 }
 
 export const koreaSnapshot: Snapshot = {
-  generatedAt: "2026-05-17T00:00:00+09:00",
+  generatedAt: "2026-05-29T00:00:00+09:00",
   trip: {
     title: "South Korea — Seoul + Busan",
     startDate: "2026-05-26",
@@ -101,14 +101,15 @@ export const koreaSnapshot: Snapshot = {
     holidays: ["Wed Jun 3 — Local Election Day", "Sat Jun 6 — Memorial Day"],
   },
   status: {
-    tMinus: 9,
-    asOf: "Sat May 17, 2026",
-    headline: "+3-4 °C warmer than T-15. Wedding day 31 °C, clear, dry.",
+    tMinus: 0,
+    asOf: "Fri May 29, 2026 (in-trip refresh)",
+    headline: "In-trip refresh (verified May 29). Weather holding dry & warm; Busan cooler. All MICHELIN 2026 + walk-in picks added to Places.",
     weather: [
-      "Seoul May 26–30: 28–31 °C / 17–20 °C, dry",
-      "Sun May 31 Yangju (wedding): 31 °C / 20 °C, clear, ESE 5 km/h",
-      "Tue Jun 2 Seoul 27/17 dry · Wed/Thu Busan 22–23/15–16 cool · Fri Jun 5 26/18 dry",
-      "Pre-jangma window · no yellow-dust alert",
+      "Seoul May 26–30: 28–31 °C / 17–20 °C, dry (confirmed)",
+      "Sun May 31 Yangju (wedding): ~30–31 °C / 20 °C, clear, light wind",
+      "Tue Jun 2 Seoul 27/17 dry · Wed/Thu Busan 22–25/16–18 cool sea breeze · Fri Jun 5 26/18 dry",
+      "Sat Jun 6 Seoul 26/17, slight PM shower risk emerging",
+      "Pre-jangma window (monsoon onset ~Jun 20) · no yellow-dust alert",
     ],
     bookActions: [
       { id: "sky-capsule", label: "Sky Capsule Wed Jun 3 (window opened May 6 — try Klook/KKday)" },
@@ -124,6 +125,9 @@ export const koreaSnapshot: Snapshot = {
       "IAán is in Busan, not Seoul",
       "Zest is in Sinsa/Apgujeong (Gangnam-gu), not Hannam",
       "Drone Show: Jayang L7 Exits 2/3 (not Exit 1)",
+      "Mosu re-entered the 2026 guide at ★★ (prior data said ★★★)",
+      "Haeundae Sand: festival ran May 15–18; sculptures on display through ~Jun 14",
+      "Weverse Con is Jun 6–7 (2-day) — KSPO Dome + 88 Lawn Field, Olympic Park",
     ],
     adds: [
       "APMA 'Chapter Five' + NMK 'Kim Hongdo' — Yongsan, both open Mon Jun 1",
@@ -132,6 +136,9 @@ export const koreaSnapshot: Snapshot = {
       "Seongsu salt-bread: Beton · Jayeondo Sogeumppang · Elephant Bagel",
       "GiwaKang (★ + Sommelier Award) · Onjium (Asia's Best Female Chef 2026) · Bium (#43 50 Best)",
       "Bar Cham (Seochon hanok) — Zest counterweight",
+      "All MICHELIN Guide Seoul & Busan 2026 restaurants added to Places (verified subset: stars · Bib Gourmand · Selected)",
+      "Walk-in picks added — gukbap/naengmyeon institutions, jjimjilbang (Spa Lei · Dragon Hill · Spa Land), foreigner-friendly skin clinics, oceanview cafes",
+      "Busan Classic Park Concert confirmed: Jun 3 & 4, 18:30, Hayalia Lawn (free, picnic seating)",
     ],
   },
   reservations: [
@@ -829,7 +836,7 @@ export const koreaSnapshot: Snapshot = {
           heading: "Late morning — Sand Festival + market",
           time: "10:00 – 13:00",
           bullets: [
-            "Haeundae Sand Festival sculptures (through Jun 14) — walkable from Signiel",
+            "Haeundae Sand sculptures on display through ~Jun 14 (festival itself ran May 15–18) — walkable from Signiel",
             "Haeundae Traditional Market raw seafood crawl — bring cash",
             "Lunch: Ssangdungi Dwaeji Gukbap (Chosun Daily top-10) or Gaetmaeul Sikdang (Michelin Guide)",
           ],
@@ -859,7 +866,7 @@ export const koreaSnapshot: Snapshot = {
         {
           icon: "🎼",
           tone: "success",
-          body: "FREE Classic Park Concert at Busan Citizens' Park lawn — Wed Jun 3: KBS Symphony (Maestro Chung Myung-whun) · Thu Jun 4: Busan Philharmonic. First-come lawn seating.",
+          body: "FREE Classic Park Concert at Busan Citizens' Park (Hayalia Lawn Plaza), both nights 18:30 — Wed Jun 3: KBS Symphony (Maestro Chung Myung-whun) · Thu Jun 4: Busan Philharmonic (Choi Soo-yeol). First-come picnic seating — bring a mat.",
         },
         {
           icon: "🏖️",
@@ -1031,7 +1038,7 @@ export const koreaSnapshot: Snapshot = {
         {
           icon: "🎤",
           tone: "warn",
-          body: "Weverse Con Day 1 at Olympic Park (1 stop from Jamsil): 40K+ fans, RAIN-headlined Tribute Stage. Festival surrounds your hotel, not the airport — leave by 12:30 PM.",
+          body: "Weverse Con Festival (Jun 6–7, 2-day) at Olympic Park — KSPO Dome + 88 Lawn Field, 1 stop from Jamsil: 40K+ fans, RAIN-headlined Tribute Stage (ENHYPEN · LE SSERAFIM · ILLIT + more). Festival surrounds your hotel, not the airport — leave by 12:30 PM.",
         },
       ],
     },
