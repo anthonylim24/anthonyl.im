@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState, useRef } from "react"
 import { motion, AnimatePresence, useReducedMotion } from "motion/react"
-import { X, MapPin, Navigation, Bug, Loader2, Crosshair, Globe2, List as ListIcon, Info } from "lucide-react"
+import { X, MapPin, Navigation, Bug, Loader2, Crosshair, Globe2, List as ListIcon, Info, Eye } from "lucide-react"
 import { IgIcon } from "./IgIcon"
 import { KstClock } from "./KstClock"
 import { useGetToken } from "@/lib/safeAuth"
@@ -128,6 +128,10 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
   const [enabledPriorities, setEnabledPriorities] = useState<Set<PlacePriority>>(() => new Set(['scheduled', 'core']))
   const [enabledBusyness, setEnabledBusyness] = useState<Set<BusynessLevel>>(() => new Set())
   const [viewMode, setViewMode] = useState<"orb" | "list">("orb")
+  // Birds-eye toggle — flies the camera to a straight-down vantage
+  // (preserving zoom + heading) when on, and back to the composed
+  // isometric HOME view when off. Manual reset clears it too.
+  const [birdsEye, setBirdsEye] = useState(false)
   const sceneContainerRef = useRef<HTMLDivElement>(null)
   // Live camera yaw, written by the Three.js tick loop, read by the
   // compass each frame. Ref so the React tree doesn't re-render every
@@ -169,10 +173,20 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
     window.dispatchEvent(new CustomEvent(name))
   }
   function resetView() {
+    // Reset returns to the composed isometric HOME view, which also
+    // exits any active birds-eye vantage — keep the toggle in sync.
+    setBirdsEye(false)
     dispatchSceneEvent("korea-map-reset")
   }
   function orientNorth() {
     dispatchSceneEvent("korea-map-orient-north")
+  }
+  function toggleBirdsEye() {
+    setBirdsEye((on) => {
+      const next = !on
+      dispatchSceneEvent(next ? "korea-map-birds-eye" : "korea-map-reset")
+      return next
+    })
   }
 
   // ── Orb → sheet morph (View Transitions) ─────────────────────────
@@ -837,6 +851,22 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
                   style={{ top: "calc(env(safe-area-inset-top, 0px) + 76px)" }}
                 >
                   <Crosshair className="h-4 w-4" aria-hidden />
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleBirdsEye}
+                  aria-pressed={birdsEye}
+                  title={birdsEye ? "Exit birds-eye view" : "Birds-eye view"}
+                  aria-label={birdsEye ? "Exit birds-eye view" : "Birds-eye view"}
+                  className={
+                    "absolute right-3 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full shadow-md backdrop-blur transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 " +
+                    (birdsEye
+                      ? "bg-rose-600 text-white hover:bg-rose-500"
+                      : "bg-white/85 text-stone-700 hover:bg-stone-50 hover:text-rose-700 dark:bg-stone-900/85 dark:text-stone-300 dark:hover:bg-stone-900 dark:hover:text-rose-200")
+                  }
+                  style={{ top: "calc(env(safe-area-inset-top, 0px) + 132px)" }}
+                >
+                  <Eye className="h-4 w-4" aria-hidden />
                 </button>
                 <MapModeCompass yawRef={yawRef} onOrientNorth={orientNorth} />
               </>
