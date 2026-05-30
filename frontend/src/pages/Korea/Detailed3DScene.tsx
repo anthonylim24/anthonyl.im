@@ -744,8 +744,30 @@ export function Detailed3DScene({
       focusCamPos.set(t.x, t.y + radius * cos, t.z - radius * sin)
       focusing = true
     }
+    // Birds-eye = straight-down vantage. Keep the current target, zoom
+    // (radius), and heading (azimuth); only drive the pitch to
+    // near-vertical so the user looks down on the trip from above.
+    // minPolarAngle (0.1) is the tightest top-down the controls allow,
+    // which keeps OrbitControls happy when it re-derives its spherical
+    // state from the new camera position.
+    const onBirdsEye = () => {
+      const radius = camera.position.distanceTo(controls.target)
+      const azimuth = controls.getAzimuthalAngle()
+      const polar = controls.minPolarAngle
+      const sinP = Math.sin(polar)
+      const cosP = Math.cos(polar)
+      const t = controls.target
+      focusTarget.copy(t)
+      focusCamPos.set(
+        t.x + radius * sinP * Math.sin(azimuth),
+        t.y + radius * cosP,
+        t.z + radius * sinP * Math.cos(azimuth),
+      )
+      focusing = true
+    }
     window.addEventListener("korea-map-reset", onResetView)
     window.addEventListener("korea-map-orient-north", onOrientNorth)
+    window.addEventListener("korea-map-birds-eye", onBirdsEye)
 
     // ── God-rays pass ────────────────────────────────────────────
     // Lazily constructed: we only allocate RTs + shaders when the
@@ -1125,6 +1147,7 @@ export function Detailed3DScene({
       ro.disconnect()
       window.removeEventListener("korea-map-reset", onResetView)
       window.removeEventListener("korea-map-orient-north", onOrientNorth)
+      window.removeEventListener("korea-map-birds-eye", onBirdsEye)
       renderer.domElement.removeEventListener("pointerdown", onArrivalCancel)
       renderer.domElement.removeEventListener("pointerdown", onPointerDown)
       renderer.domElement.removeEventListener("pointerup", onPointerUp)

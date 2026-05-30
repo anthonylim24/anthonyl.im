@@ -44,7 +44,7 @@ export function MapModeCompass({ yawRef, onOrientNorth }: MapModeCompassProps) {
       title="Orient north up"
       aria-label="Orient north up"
       className="group absolute right-3 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white/85 text-stone-700 shadow-md backdrop-blur transition hover:bg-stone-50 hover:text-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:bg-stone-900/85 dark:text-stone-300 dark:hover:bg-stone-900 dark:hover:text-rose-200"
-      style={{ top: "calc(env(safe-area-inset-top, 0px) + 132px)" }}
+      style={{ top: "calc(env(safe-area-inset-top, 0px) + 188px)" }}
     >
       {/* Rotating dial. The N indicator at the top tracks toward
           screen-north regardless of how the camera is oriented. */}
