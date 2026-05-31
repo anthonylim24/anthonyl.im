@@ -386,10 +386,23 @@ export function BreathingSession({
     }
   }, [showSummary, savedSessionId, moodBefore, setSessionMood])
 
+  // If the user answers the after-mood before the saved record has resolved
+  // (effectively never, but cheap to guarantee), stash it and flush once the id
+  // is available so a reading is never silently dropped.
+  const pendingMoodAfterRef = useRef<MoodValue | null>(null)
+  useEffect(() => {
+    if (savedSessionId && pendingMoodAfterRef.current != null) {
+      setSessionMood(savedSessionId, { moodAfter: pendingMoodAfterRef.current })
+      pendingMoodAfterRef.current = null
+    }
+  }, [savedSessionId, setSessionMood])
+
   const handleMoodAfter = useCallback(
     (moodAfter: MoodValue) => {
       if (savedSessionId) {
         setSessionMood(savedSessionId, { moodAfter })
+      } else {
+        pendingMoodAfterRef.current = moodAfter
       }
     },
     [savedSessionId, setSessionMood],
@@ -418,6 +431,7 @@ export function BreathingSession({
   const handleStop = useCallback(() => {
     summaryProcessedRef.current = false
     moodPersistedRef.current = false
+    pendingMoodAfterRef.current = null
     haptic('error')
     stop()
     onCancel?.()
@@ -426,6 +440,7 @@ export function BreathingSession({
   const handleRestart = () => {
     summaryProcessedRef.current = false
     moodPersistedRef.current = false
+    pendingMoodAfterRef.current = null
     haptic('nudge')
     stop()
     start(config)
