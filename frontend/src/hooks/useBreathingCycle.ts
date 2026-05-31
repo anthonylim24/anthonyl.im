@@ -8,6 +8,7 @@ import {
   getPhaseForRound,
   type SessionConfig,
 } from '@/lib/breathingProtocols'
+import { BreathingAudioEngine, cueForPhase } from '@/lib/breathingAudio'
 
 interface UseBreathingCycleOptions {
   onPhaseChange?: (phase: BreathPhase) => void
@@ -58,7 +59,7 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
   const { addSession } = useHistoryStore()
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const audioContextRef = useRef<AudioContext | null>(null)
+  const audioEngineRef = useRef<BreathingAudioEngine | null>(null)
   const holdStartTimeRef = useRef<number | null>(null)
   const accumulatedHoldMsRef = useRef(0)
 
@@ -94,33 +95,39 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
     }
   }, [])
 
-  const playBeep = useCallback((frequency: number = 440, duration: number = 100) => {
-    const volume = Math.max(0, Math.min(1, audioVolume))
-    if (!enableAudio || volume === 0) return
-
-    try {
-      if (!audioContextRef.current) {
-        audioContextRef.current = new AudioContext()
-      }
-
-      const ctx = audioContextRef.current
-      const oscillator = ctx.createOscillator()
-      const gainNode = ctx.createGain()
-
-      oscillator.connect(gainNode)
-      gainNode.connect(ctx.destination)
-
-      oscillator.frequency.value = frequency
-      oscillator.type = 'sine'
-
-      gainNode.gain.setValueAtTime(volume, ctx.currentTime)
-      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration / 1000)
-
-      oscillator.start(ctx.currentTime)
-      oscillator.stop(ctx.currentTime + duration / 1000)
-    } catch {
-      // Audio not supported
+  // A single shared audio engine instance per hook, created lazily on first cue
+  // (which always follows a user gesture, so the AudioContext can start).
+  const getAudioEngine = useCallback(() => {
+    if (!audioEngineRef.current) {
+      audioEngineRef.current = new BreathingAudioEngine({
+        enabled: enableAudio,
+        volume: audioVolume,
+      })
     }
+    return audioEngineRef.current
+  }, [audioVolume, enableAudio])
+
+  const playCue = useCallback(
+    (cue: Parameters<BreathingAudioEngine['play']>[0]) => {
+      if (!enableAudio || audioVolume <= 0) return
+      getAudioEngine().play(cue)
+    },
+    [audioVolume, enableAudio, getAudioEngine],
+  )
+
+  const playPhaseCue = useCallback(
+    (phase: BreathPhase) => {
+      playCue(cueForPhase(phase))
+    },
+    [playCue],
+  )
+
+  // Keep a live engine's settings in sync with preference changes mid-session.
+  useEffect(() => {
+    const engine = audioEngineRef.current
+    if (!engine) return
+    engine.setEnabled(enableAudio)
+    engine.setVolume(audioVolume)
   }, [audioVolume, enableAudio])
 
   const start = useCallback((config: SessionConfig) => {
@@ -132,8 +139,8 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
       resetHoldTimer()
     }
     startSession(config, firstPhase.phase, firstPhase.duration)
-    playBeep(660, 150)
-  }, [resetHoldTimer, startHoldTimer, startSession, playBeep])
+    playCue('start')
+  }, [resetHoldTimer, startHoldTimer, startSession, playCue])
 
   const pause = useCallback(() => {
     const activeSession = useSessionStore.getState().session
@@ -203,7 +210,7 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
           )
           updatePhase(nextPhaseConfig.phase, nextPhaseIndex, nextPhaseConfig.duration)
           onPhaseChangeRef.current?.(nextPhaseConfig.phase)
-          playBeep(nextPhaseConfig.phase === BREATH_PHASES.INHALE || nextPhaseConfig.phase === BREATH_PHASES.DEEP_INHALE ? 660 : 440, 100)
+          playPhaseCue(nextPhaseConfig.phase)
 
           // Start tracking hold time
           if (isHoldPhase(nextPhaseConfig.phase)) {
@@ -220,7 +227,7 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
             // Session complete
             completeSession()
             onSessionCompleteRef.current?.()
-            playBeep(880, 300)
+            playCue('complete')
 
             // Save to history
             const durationSeconds = calculateSessionDuration(activeSession.config)
@@ -255,7 +262,7 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
             )
             updatePhase(firstPhase.phase, 0, firstPhase.duration)
             onPhaseChangeRef.current?.(firstPhase.phase)
-            playBeep(660, 150)
+            playPhaseCue(firstPhase.phase)
             if (isHoldPhase(firstPhase.phase)) {
               startHoldTimer()
             } else {
@@ -264,13 +271,10 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
           }
         }
       } else {
-        // Countdown
+        // Countdown. We intentionally do NOT play per-second ticks here — a
+        // calm breathwork session should never sound like a kitchen timer.
+        // Cues fire only at phase transitions (see playPhaseCue above).
         setTimeRemaining(currentTime - 1)
-
-        // Play beep on last 3 seconds
-        if (currentTime <= 4) {
-          playBeep(550, 50)
-        }
       }
     }, 1000)
 
@@ -289,16 +293,17 @@ export function useBreathingCycle(options: UseBreathingCycleOptions = {}) {
     startHoldTimer,
     // Removed callback props from deps - they're now accessed via refs
     // This prevents effect re-runs when parent re-renders with new callback refs
-    playBeep,
+    playCue,
+    playPhaseCue,
   ])
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       resetHoldTimer()
-      if (audioContextRef.current) {
-        audioContextRef.current.close()
-        audioContextRef.current = null
+      if (audioEngineRef.current) {
+        audioEngineRef.current.close()
+        audioEngineRef.current = null
       }
     }
   }, [resetHoldTimer])
