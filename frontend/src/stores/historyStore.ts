@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { BreathPhase, TechniqueId } from '@/lib/constants'
 import { STORAGE_KEYS } from '@/lib/constants'
+import type { MoodValue } from '@/lib/mood'
 import {
   addLocalDays,
   formatLocalDateKey,
@@ -20,6 +21,10 @@ export interface CompletedSession {
   holdTimes: number[]
   maxHoldTime: number
   avgHoldTime: number
+  /** Optional 1–5 calm rating captured before the session (local-first reflection). */
+  moodBefore?: MoodValue
+  /** Optional 1–5 calm rating captured after the session. */
+  moodAfter?: MoodValue
 }
 
 export interface PersonalBest {
@@ -34,6 +39,7 @@ interface HistoryState {
   vo2MaxManual: number | null
   vo2MaxHistory: { value: number; date: string }[]
   addSession: (session: Omit<CompletedSession, 'id'>) => void
+  setSessionMood: (id: string, mood: { moodBefore?: MoodValue; moodAfter?: MoodValue }) => void
   clearHistory: () => void
   setVO2Max: (value: number) => void
   getSessionsByTechnique: (techniqueId: TechniqueId) => CompletedSession[]
@@ -118,6 +124,19 @@ export const useHistoryStore = create<HistoryState>()(
             personalBests: newPersonalBests,
           }
         })
+      },
+
+      setSessionMood: (id, mood) => {
+        set((state) => ({
+          sessions: state.sessions.map((session) => {
+            if (session.id !== id) return session
+
+            const next = { ...session }
+            if (mood.moodBefore !== undefined) next.moodBefore = mood.moodBefore
+            if (mood.moodAfter !== undefined) next.moodAfter = mood.moodAfter
+            return next
+          }),
+        }))
       },
 
       clearHistory: () => {

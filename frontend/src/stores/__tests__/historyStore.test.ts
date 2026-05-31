@@ -140,4 +140,50 @@ describe('historyStore', () => {
       vo2MaxHistory: [],
     })
   })
+
+  describe('setSessionMood', () => {
+    function addSession() {
+      useHistoryStore.getState().addSession({
+        techniqueId: TECHNIQUE_IDS.CYCLIC_SIGHING,
+        date: new Date('2026-05-01T12:00:00.000Z').toISOString(),
+        durationSeconds: 300,
+        rounds: 30,
+        holdTimes: [],
+        maxHoldTime: 0,
+        avgHoldTime: 0,
+      })
+      return useHistoryStore.getState().sessions[0]
+    }
+
+    it('attaches a before reading without clobbering the after reading', () => {
+      const session = addSession()
+
+      useHistoryStore.getState().setSessionMood(session.id, { moodBefore: 2 })
+      expect(useHistoryStore.getState().sessions[0].moodBefore).toBe(2)
+      expect(useHistoryStore.getState().sessions[0].moodAfter).toBeUndefined()
+
+      useHistoryStore.getState().setSessionMood(session.id, { moodAfter: 5 })
+      const updated = useHistoryStore.getState().sessions[0]
+      expect(updated.moodBefore).toBe(2)
+      expect(updated.moodAfter).toBe(5)
+    })
+
+    it('is a no-op for an unknown session id', () => {
+      const session = addSession()
+      useHistoryStore.getState().setSessionMood('does-not-exist', { moodAfter: 4 })
+      expect(useHistoryStore.getState().sessions[0]).toEqual(session)
+    })
+
+    it('leaves other sessions untouched', () => {
+      const first = addSession()
+      const second = addSession()
+
+      useHistoryStore.getState().setSessionMood(second.id, { moodBefore: 1, moodAfter: 4 })
+
+      const stored = useHistoryStore.getState().sessions
+      expect(stored.find((s) => s.id === first.id)?.moodBefore).toBeUndefined()
+      expect(stored.find((s) => s.id === second.id)?.moodBefore).toBe(1)
+      expect(stored.find((s) => s.id === second.id)?.moodAfter).toBe(4)
+    })
+  })
 })
