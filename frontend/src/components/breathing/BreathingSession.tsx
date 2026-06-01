@@ -38,6 +38,7 @@ import {
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore, type CompletedSession } from '@/stores/historyStore'
 import { useSettingsStore } from '@/stores/settingsStore'
+import type { MoodValue } from '@/lib/mood'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import { useHaptics } from '@/hooks/useHaptics'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
@@ -46,6 +47,8 @@ import type { ActiveSession } from '@/stores/sessionStore'
 
 interface BreathingSessionProps {
   config: SessionConfig
+  /** Optional pre-session calm rating, captured on the setup screen. */
+  moodBefore?: MoodValue | null
   onComplete?: () => void
   onCancel?: () => void
 }
@@ -124,6 +127,7 @@ function getPriorSessions(
 
 export function BreathingSession({
   config,
+  moodBefore = null,
   onComplete,
   onCancel,
 }: BreathingSessionProps) {
@@ -144,8 +148,9 @@ export function BreathingSession({
 
   // Gamification stores
   const { addXP, unlockBadges, recordSession, earnedBadges, selectedTheme, xp } = useGamificationStore()
-  const { sessions, getStreak } = useHistoryStore()
+  const { sessions, getStreak, setSessionMood } = useHistoryStore()
   const { soundEnabled, soundVolume, setSoundEnabled } = useSettingsStore()
+  const moodPersistedRef = useRef(false)
   const level = getLevelForXP(xp)
   const selectedOrbTheme = isOrbThemeUnlocked(selectedTheme, level)
     ? getOrbTheme(selectedTheme)
@@ -361,7 +366,50 @@ export function BreathingSession({
     }
   }, [showSummary, session, summaryData, sessions, config, getStreak, addXP, recordSession, unlockBadges, earnedBadges])
 
+  // Locate the just-saved history record so we can attach the before/after mood
+  // readings to it (useBreathingCycle saves the session at completion).
+  const savedSessionId = useMemo(() => {
+    if (!session) return null
+    const durationSeconds = calculateSessionDuration(config)
+    return (
+      sessions.find((stored) =>
+        isStoredCurrentSession(stored, session, durationSeconds),
+      )?.id ?? null
+    )
+  }, [config, session, sessions])
+
+  // Persist the pre-session mood once the summary opens and the record exists.
+  useEffect(() => {
+    if (showSummary && savedSessionId && moodBefore != null && !moodPersistedRef.current) {
+      moodPersistedRef.current = true
+      setSessionMood(savedSessionId, { moodBefore })
+    }
+  }, [showSummary, savedSessionId, moodBefore, setSessionMood])
+
+  // If the user answers the after-mood before the saved record has resolved
+  // (effectively never, but cheap to guarantee), stash it and flush once the id
+  // is available so a reading is never silently dropped.
+  const pendingMoodAfterRef = useRef<MoodValue | null>(null)
+  useEffect(() => {
+    if (savedSessionId && pendingMoodAfterRef.current != null) {
+      setSessionMood(savedSessionId, { moodAfter: pendingMoodAfterRef.current })
+      pendingMoodAfterRef.current = null
+    }
+  }, [savedSessionId, setSessionMood])
+
+  const handleMoodAfter = useCallback(
+    (moodAfter: MoodValue) => {
+      if (savedSessionId) {
+        setSessionMood(savedSessionId, { moodAfter })
+      } else {
+        pendingMoodAfterRef.current = moodAfter
+      }
+    },
+    [savedSessionId, setSessionMood],
+  )
+
   const handleStart = () => {
+    moodPersistedRef.current = false
     summaryProcessedRef.current = false
     haptic('success')
     start(config)
@@ -382,6 +430,8 @@ export function BreathingSession({
 
   const handleStop = useCallback(() => {
     summaryProcessedRef.current = false
+    moodPersistedRef.current = false
+    pendingMoodAfterRef.current = null
     haptic('error')
     stop()
     onCancel?.()
@@ -389,6 +439,8 @@ export function BreathingSession({
 
   const handleRestart = () => {
     summaryProcessedRef.current = false
+    moodPersistedRef.current = false
+    pendingMoodAfterRef.current = null
     haptic('nudge')
     stop()
     start(config)
@@ -725,6 +777,8 @@ export function BreathingSession({
           durationSeconds={summaryData.durationSeconds}
           holdTimes={session.holdTimes}
           isNewPersonalBest={summaryData.isNewPersonalBest}
+          moodBefore={moodBefore}
+          onMoodAfter={handleMoodAfter}
           onClose={handleCloseSummary}
           onRepeat={handleRepeatFromSummary}
         />

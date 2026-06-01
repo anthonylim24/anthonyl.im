@@ -45,6 +45,7 @@ const mocks = vi.hoisted(() => {
     cycleOptions: undefined as undefined | { onSessionComplete?: () => void },
     earnedBadges: ['first_session', 'box_master'],
     sessions: [] as CompletedSession[],
+    setSessionMood: vi.fn(),
   }
 })
 
@@ -90,6 +91,7 @@ vi.mock('@/stores/historyStore', () => ({
   useHistoryStore: () => ({
     sessions: mocks.sessions,
     getStreak: () => 0,
+    setSessionMood: mocks.setSessionMood,
   }),
 }))
 
@@ -105,10 +107,12 @@ vi.mock('../SessionSummary', () => ({
     isNewPersonalBest,
     newBadges,
     onRepeat,
+    onMoodAfter,
   }: {
     isNewPersonalBest: boolean
     newBadges: string[]
     onRepeat?: () => void
+    onMoodAfter?: (mood: number) => void
   }) => (
     <div
       data-testid="session-summary"
@@ -117,6 +121,9 @@ vi.mock('../SessionSummary', () => ({
     >
       <button type="button" onClick={onRepeat}>
         Repeat
+      </button>
+      <button type="button" onClick={() => onMoodAfter?.(5)}>
+        Log mood after
       </button>
     </div>
   ),
@@ -207,5 +214,41 @@ describe('BreathingSession summary context', () => {
     expect(mocks.cycle.stop).toHaveBeenCalledTimes(1)
     expect(mocks.cycle.start).toHaveBeenCalledWith(sessionConfig)
     expect(screen.queryByTestId('session-summary')).not.toBeInTheDocument()
+  })
+
+  it('persists the pre-session mood onto the saved record when the summary opens', async () => {
+    render(<BreathingSession config={sessionConfig} moodBefore={2} />)
+
+    act(() => {
+      mocks.cycleOptions?.onSessionComplete?.()
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('session-summary')).toBeInTheDocument()
+    })
+
+    expect(mocks.setSessionMood).toHaveBeenCalledWith('current-session-written-by-cycle', {
+      moodBefore: 2,
+    })
+  })
+
+  it('persists the post-session mood onto the saved record', async () => {
+    render(<BreathingSession config={sessionConfig} />)
+
+    act(() => {
+      mocks.cycleOptions?.onSessionComplete?.()
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('session-summary')).toBeInTheDocument()
+    })
+
+    act(() => {
+      screen.getByRole('button', { name: /log mood after/i }).click()
+    })
+
+    expect(mocks.setSessionMood).toHaveBeenCalledWith('current-session-written-by-cycle', {
+      moodAfter: 5,
+    })
   })
 })

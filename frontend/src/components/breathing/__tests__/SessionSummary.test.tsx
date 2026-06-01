@@ -168,4 +168,36 @@ describe('SessionSummary', () => {
     await user.tab({ shift: true })
     expect(continueButton).toHaveFocus()
   })
+
+  it('asks how the user feels after the session', () => {
+    render(<SessionSummary {...gentleProps} />)
+    expect(screen.getByRole('radiogroup', { name: /how do you feel now/i })).toBeInTheDocument()
+  })
+
+  it('reveals the calm shift and reports it once answered', async () => {
+    const user = userEvent.setup()
+    const onMoodAfter = vi.fn()
+    render(<SessionSummary {...gentleProps} moodBefore={1} onMoodAfter={onMoodAfter} />)
+
+    expect(screen.getByText('You started: Tense')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('radio', { name: 'Calm' }))
+
+    expect(onMoodAfter).toHaveBeenCalledWith(5)
+    expect(screen.getByText('Tense → Calm')).toBeInTheDocument()
+    expect(screen.getByText(/calmer than you started/i)).toBeInTheDocument()
+  })
+
+  it('records an after reading even without a before reading', async () => {
+    const user = userEvent.setup()
+    const onMoodAfter = vi.fn()
+    render(<SessionSummary {...gentleProps} onMoodAfter={onMoodAfter} />)
+
+    await user.click(screen.getByRole('radio', { name: 'Settled' }))
+
+    expect(onMoodAfter).toHaveBeenCalledWith(4)
+    // No before reading → no shift arrow, just an acknowledgement.
+    expect(screen.queryByText(/→/)).not.toBeInTheDocument()
+    expect(screen.getByText(/feeling settled/i)).toBeInTheDocument()
+  })
 })

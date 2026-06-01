@@ -7,9 +7,11 @@ import type { TechniqueId } from '@/lib/constants'
 import { getProtocol } from '@/lib/breathingProtocols'
 import { Trophy, Zap, Target, Clock, Star, X, Sparkles, Activity, ArrowRight, RotateCcw, type LucideProps } from 'lucide-react'
 import { CelebrationParticles } from './CelebrationParticles'
+import { MoodPicker } from './MoodPicker'
 import { useHaptics } from '@/hooks/useHaptics'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { reducedMotionTransition, useEntranceMotion } from '@/lib/motionPresets'
+import { formatMoodShift, getMoodDelta, getMoodLabel, type MoodValue } from '@/lib/mood'
 
 interface SessionSummaryProps {
   techniqueId: TechniqueId
@@ -19,6 +21,10 @@ interface SessionSummaryProps {
   durationSeconds: number
   holdTimes: number[]
   isNewPersonalBest: boolean
+  /** Pre-session calm rating (if the user checked in before starting). */
+  moodBefore?: MoodValue | null
+  /** Called when the user records how they feel after the session. */
+  onMoodAfter?: (mood: MoodValue) => void
   onClose: () => void
   onRepeat?: () => void
 }
@@ -110,10 +116,21 @@ export function SessionSummary({
   durationSeconds,
   holdTimes,
   isNewPersonalBest,
+  moodBefore = null,
+  onMoodAfter,
   onClose,
   onRepeat,
 }: SessionSummaryProps) {
   const { trigger: haptic } = useHaptics()
+  const [moodAfter, setMoodAfter] = useState<MoodValue | null>(null)
+  const moodShift = formatMoodShift(moodBefore, moodAfter)
+  const moodDelta = getMoodDelta(moodBefore, moodAfter)
+
+  const handleMoodAfter = (value: MoodValue) => {
+    haptic('selection')
+    setMoodAfter(value)
+    onMoodAfter?.(value)
+  }
   const dialogRef = useRef<HTMLDivElement>(null)
   const continueButtonRef = useRef<HTMLButtonElement>(null)
   const { reducedMotion, stagger, fadeUp, spring } = useEntranceMotion({
@@ -365,6 +382,45 @@ export function SessionSummary({
                   </p>
                 </div>
               </div>
+            </motion.div>
+
+            <motion.div
+              variants={fadeUp}
+              className="mt-4 border border-bw-border p-4"
+              data-testid="mood-reflection"
+            >
+              {moodAfter ? (
+                <div className="text-center">
+                  <div className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">
+                    {moodShift ? 'Your shift' : 'Noted'}
+                  </div>
+                  {moodShift ? (
+                    <>
+                      <div className="mt-2 font-display text-2xl font-semibold leading-none text-bw">
+                        {moodShift}
+                      </div>
+                      <p className="mt-2 text-xs leading-relaxed text-bw-tertiary">
+                        {moodDelta != null && moodDelta > 0
+                          ? 'You ended this session calmer than you started.'
+                          : moodDelta === 0
+                            ? 'You held steady — grounded through the whole session.'
+                            : 'Calm is a practice. Showing up is the rep that counts.'}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="mt-2 text-xs leading-relaxed text-bw-tertiary">
+                      Feeling {getMoodLabel(moodAfter).toLowerCase()}. Noted.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <MoodPicker
+                  label="How do you feel now?"
+                  hint={moodBefore ? `You started: ${getMoodLabel(moodBefore)}` : undefined}
+                  value={moodAfter}
+                  onChange={handleMoodAfter}
+                />
+              )}
             </motion.div>
 
             {newBadges.length > 0 && (

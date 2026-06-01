@@ -3,6 +3,8 @@ import { motion } from 'motion/react'
 import { SessionHistory } from '@/components/tracking/SessionHistory'
 import { PersonalBests } from '@/components/tracking/PersonalBests'
 import { PracticeConsistency } from '@/components/tracking/PracticeConsistency'
+import { MoodTrendCard } from '@/components/tracking/MoodTrendCard'
+import { getAverageMoodShift } from '@/lib/mood'
 import { useHistoryStore } from '@/stores/historyStore'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { getLevelForXP, getXPForLevel, getLevelTitle } from '@/lib/gamification'
@@ -83,6 +85,7 @@ export function Progress() {
     () => filteredSessions.filter((s) => s.maxHoldTime > 0),
     [filteredSessions],
   )
+  const moodTrend = useMemo(() => getAverageMoodShift(sessions), [sessions])
 
   // Transform sessions to SessionDay format for heatmap
   const sessionDays = useMemo(() => {
@@ -228,6 +231,13 @@ export function Progress() {
           <motion.div variants={fadeUp} className="border-t border-bw-border pt-5">
             <PersonalBests personalBests={personalBests} />
           </motion.div>
+
+          {/* Calm shift — evidence of change from before/after mood check-ins */}
+          {moodTrend ? (
+            <motion.div variants={fadeUp} className="border-t border-bw-border pt-5">
+              <MoodTrendCard trend={moodTrend} />
+            </motion.div>
+          ) : null}
         </div>
 
         {/* ── Full-width sections below ── */}

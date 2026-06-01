@@ -7,6 +7,8 @@ import { BreathworkSafetyDisclosure } from '@/components/breathing/BreathworkSaf
 import { CadenceEditor } from '@/components/breathing/CadenceEditor'
 import { clampCadenceDuration } from '@/lib/cadenceDurations'
 import { ProgressiveHoldLadder } from '@/components/breathing/ProgressiveHoldLadder'
+import { MoodPicker } from '@/components/breathing/MoodPicker'
+import type { MoodValue } from '@/lib/mood'
 import {
   applyCustomPhaseDurations,
   breathingProtocols,
@@ -280,6 +282,7 @@ export function Session() {
   const [customPhaseDurations, setCustomPhaseDurations] =
     useState<Partial<Record<BreathPhase, number>>>(() => requestedCustomPhaseDurations)
   const [sessionStarted, setSessionStarted] = useState(false)
+  const [moodBefore, setMoodBefore] = useState<MoodValue | null>(null)
   const [scienceExpanded, setScienceExpanded] = useState(false)
   const [safetyAcknowledged, setSafetyAcknowledged] = useState(false)
   const [recoveryNow, setRecoveryNow] = useState(() => new Date())
@@ -378,6 +381,11 @@ export function Session() {
     setCustomPhaseDurations({})
   }, [haptic])
 
+  const handleMoodSelect = useCallback((value: MoodValue) => {
+    haptic('selection')
+    setMoodBefore((current) => (current === value ? null : value))
+  }, [haptic])
+
   const handleStartSession = () => {
     if (!canStartSession) {
       haptic(10)
@@ -401,6 +409,7 @@ export function Session() {
     return (
       <BreathingSession
         config={sessionConfig}
+        moodBefore={moodBefore}
         onComplete={handleSessionComplete}
         onCancel={handleSessionCancel}
       />
@@ -591,6 +600,15 @@ export function Session() {
             rounds={rounds}
             customPhaseDurations={customPhaseDurations}
             compact
+          />
+        </motion.div>
+
+        <motion.div variants={fadeUp} className="border-t border-bw-border py-4">
+          <MoodPicker
+            label="How do you feel right now?"
+            hint="Optional — we'll check in again after, so you can see the shift."
+            value={moodBefore}
+            onChange={handleMoodSelect}
           />
         </motion.div>
 
@@ -825,6 +843,15 @@ export function Session() {
             protocol={protocol}
             rounds={rounds}
             customPhaseDurations={customPhaseDurations}
+          />
+        </motion.div>
+
+        <motion.div variants={fadeUp} className="border-t border-bw-border pt-5">
+          <MoodPicker
+            label="How do you feel right now?"
+            hint="Optional — we'll check in again after, so you can see the shift."
+            value={moodBefore}
+            onChange={handleMoodSelect}
           />
         </motion.div>
 

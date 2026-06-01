@@ -198,23 +198,26 @@ describe('useBreathingCycle', () => {
     })
   })
 
-  it('uses the configured audio volume for session beeps', () => {
-    const gainSetValueAtTime = vi.fn()
-    const gainRampToValueAtTime = vi.fn()
+  it('routes phase cues through the calm audio engine at the configured volume', () => {
+    const masterGainSetValueAtTime = vi.fn()
     const oscillatorStart = vi.fn()
-    const oscillatorStop = vi.fn()
+    let createdOscillators = 0
 
     class FakeAudioContext {
       currentTime = 12
+      state = 'running'
       destination = {}
+      resume = vi.fn(() => Promise.resolve())
 
       createOscillator() {
+        createdOscillators += 1
         return {
-          connect: vi.fn(),
-          frequency: { value: 0 },
           type: 'sine',
+          connect: vi.fn(),
+          frequency: { setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() },
+          detune: { setValueAtTime: vi.fn() },
           start: oscillatorStart,
-          stop: oscillatorStop,
+          stop: vi.fn(),
         }
       }
 
@@ -222,8 +225,9 @@ describe('useBreathingCycle', () => {
         return {
           connect: vi.fn(),
           gain: {
-            setValueAtTime: gainSetValueAtTime,
-            exponentialRampToValueAtTime: gainRampToValueAtTime,
+            setValueAtTime: masterGainSetValueAtTime,
+            linearRampToValueAtTime: vi.fn(),
+            exponentialRampToValueAtTime: vi.fn(),
           },
         }
       }
@@ -245,10 +249,69 @@ describe('useBreathingCycle', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Start' }))
 
-    expect(gainSetValueAtTime).toHaveBeenCalledWith(0.12, 12)
-    expect(gainRampToValueAtTime).toHaveBeenCalledWith(0.01, 12.15)
-    expect(oscillatorStart).toHaveBeenCalledWith(12)
-    expect(oscillatorStop).toHaveBeenCalledWith(12.15)
+    // The master volume node is set to the configured volume...
+    expect(masterGainSetValueAtTime).toHaveBeenCalledWith(0.12, 12)
+    // ...and a "start" cue tone is scheduled (no per-second countdown beeps).
+    expect(oscillatorStart).toHaveBeenCalled()
+    expect(createdOscillators).toBeGreaterThan(0)
+  })
+
+  it('does not emit per-second countdown beeps during a phase', async () => {
+    let oscillatorsCreated = 0
+
+    class CountingAudioContext {
+      currentTime = 0
+      state = 'running'
+      destination = {}
+      resume = vi.fn(() => Promise.resolve())
+
+      createOscillator() {
+        oscillatorsCreated += 1
+        return {
+          type: 'sine',
+          connect: vi.fn(),
+          frequency: { setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() },
+          detune: { setValueAtTime: vi.fn() },
+          start: vi.fn(),
+          stop: vi.fn(),
+        }
+      }
+
+      createGain() {
+        return {
+          connect: vi.fn(),
+          gain: {
+            setValueAtTime: vi.fn(),
+            linearRampToValueAtTime: vi.fn(),
+            exponentialRampToValueAtTime: vi.fn(),
+          },
+        }
+      }
+
+      close() {
+        return Promise.resolve()
+      }
+    }
+
+    vi.stubGlobal('AudioContext', CountingAudioContext)
+
+    render(
+      <Probe
+        config={{ techniqueId: TECHNIQUE_IDS.RESONANCE_BREATHING, rounds: 1 }}
+        enableAudio
+        audioVolume={0.3}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start' }))
+    // "start" cue fires immediately (single voice).
+    const afterStart = oscillatorsCreated
+
+    // Advance through the 5-second inhale countdown — the old code beeped on
+    // every one of the final ~3 seconds; the new engine must stay silent until
+    // the phase actually transitions.
+    await advanceSeconds(4)
+    expect(oscillatorsCreated).toBe(afterStart)
   })
 
   it('keeps ticking through an unrelated StrictMode rerender during the final second', async () => {
