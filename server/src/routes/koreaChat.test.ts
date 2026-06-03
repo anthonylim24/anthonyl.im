@@ -22,6 +22,18 @@ function geminiSseResponse(deltas: string[]): Response {
   return new Response(stream, { status: 200, headers: { "Content-Type": "text/event-stream" } })
 }
 
+// Build a raw Gemini SSE Response from pre-serialized chunk objects.
+function geminiRawSse(chunks: unknown[]): Response {
+  const encoder = new TextEncoder()
+  const stream = new ReadableStream({
+    start(controller) {
+      for (const ch of chunks) controller.enqueue(encoder.encode(`data: ${JSON.stringify(ch)}\n\n`))
+      controller.close()
+    },
+  })
+  return new Response(stream, { status: 200, headers: { "Content-Type": "text/event-stream" } })
+}
+
 const realFetch = globalThis.fetch
 const realKey = process.env.GEMINI_API_KEY
 
@@ -110,6 +122,39 @@ describe("POST /api/korea/chat", () => {
 
     expect(capturedBody.contents[0]).toEqual({ role: "user", parts: [{ text: "dinner?" }] })
     expect(capturedBody.contents[1]).toEqual({ role: "model", parts: [{ text: "Try Mingles." }] })
+  })
+
+  test("emits a fallback reply when Gemini returns 200 with no text (safety block)", async () => {
+    process.env.GEMINI_API_KEY = "test-key"
+    globalThis.fetch = (async () =>
+      geminiRawSse([{ promptFeedback: { blockReason: "SAFETY" } }])) as unknown as typeof fetch
+
+    const res = await makeApp().request("/api/korea/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: "hi" }),
+    })
+    const text = await res.text()
+    // A real reply is sent so the client never hangs on a typing indicator.
+    expect(text).toContain("outside what I can help with")
+    expect(text).toContain("data: [DONE]")
+  })
+
+  test("appends a 'trimmed for length' note on MAX_TOKENS", async () => {
+    process.env.GEMINI_API_KEY = "test-key"
+    globalThis.fetch = (async () =>
+      geminiRawSse([
+        { candidates: [{ content: { parts: [{ text: "A long answer" }] } }] },
+        { candidates: [{ finishReason: "MAX_TOKENS" }] },
+      ])) as unknown as typeof fetch
+
+    const res = await makeApp().request("/api/korea/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: "plan my whole day" }),
+    })
+    const text = await res.text()
+    expect(text).toContain("trimmed for length")
   })
 
   test("surfaces a friendly error when Gemini responds non-OK", async () => {

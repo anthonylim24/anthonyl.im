@@ -167,7 +167,11 @@ function buildSystemInstruction(snapshot: Snapshot, slug?: string): string {
 // with a trailing `data: [DONE]`. Roles map user→user, assistant→model.
 
 interface GeminiStreamChunk {
-  candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
+  candidates?: Array<{
+    content?: { parts?: Array<{ text?: string }> }
+    finishReason?: string
+  }>
+  promptFeedback?: { blockReason?: string }
 }
 
 function extractDelta(chunk: GeminiStreamChunk): string {
@@ -204,7 +208,20 @@ koreaChat.post("/", zValidator("json", chatSchema), async (c) => {
     },
   }
 
+  // Abort the upstream Gemini stream when EITHER the 60s budget elapses OR
+  // the client disconnects (panel closed / navigated away). Without the
+  // client-disconnect link, an orphaned Gemini stream would run — and bill —
+  // to completion with no listener; on a 1 GB droplet that adds up fast.
+  const upstreamSignal = AbortSignal.any([
+    AbortSignal.timeout(60_000),
+    c.req.raw.signal,
+  ])
+
   return streamSSE(c, async (stream) => {
+    let sawText = false
+    let finishReason: string | undefined
+    let blockReason: string | undefined
+
     try {
       const res = await fetch(
         `${GEMINI_BASE}/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`,
@@ -212,7 +229,7 @@ koreaChat.post("/", zValidator("json", chatSchema), async (c) => {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
           body: JSON.stringify(body),
-          signal: AbortSignal.timeout(60_000),
+          signal: upstreamSignal,
         },
       )
 
@@ -235,8 +252,14 @@ koreaChat.post("/", zValidator("json", chatSchema), async (c) => {
         if (!payload || payload === "[DONE]") return
         try {
           const json = JSON.parse(payload) as GeminiStreamChunk
+          if (json.promptFeedback?.blockReason) blockReason = json.promptFeedback.blockReason
+          const fr = json.candidates?.[0]?.finishReason
+          if (fr) finishReason = fr
           const delta = extractDelta(json)
-          if (delta) await stream.writeSSE({ data: JSON.stringify(delta) })
+          if (delta) {
+            sawText = true
+            await stream.writeSSE({ data: JSON.stringify(delta) })
+          }
         } catch {
           // Ignore partial/keepalive lines — Gemini occasionally emits
           // non-JSON whitespace between events.
@@ -253,8 +276,24 @@ koreaChat.post("/", zValidator("json", chatSchema), async (c) => {
       }
       if (buffer) await flushLine(buffer)
 
+      // Truncated mid-thought — tell the user so a cut-off sentence isn't mistaken for the full answer.
+      if (sawText && finishReason === "MAX_TOKENS") {
+        await stream.writeSSE({ data: JSON.stringify("\n\n*…trimmed for length — ask me to continue.*") })
+      }
+
+      // 200 with no text at all (safety block, empty candidate). Surface a
+      // real reply instead of leaving the UI on a perpetual typing indicator.
+      if (!sawText) {
+        const reason = blockReason
+          ? "That one's outside what I can help with for this trip."
+          : "I couldn't find an answer for that. Try rephrasing, or ask about a specific day, restaurant, or reservation."
+        await stream.writeSSE({ data: JSON.stringify(reason) })
+      }
+
       await stream.writeSSE({ data: "[DONE]" })
     } catch (error) {
+      // Client disconnects abort the upstream fetch — that's expected, not an error to log loudly.
+      if ((error as Error).name === "AbortError" && c.req.raw.signal.aborted) return
       console.error("[korea-chat] streaming error:", error)
       await stream.writeSSE({ data: JSON.stringify({ error: "Streaming error occurred" }) })
       await stream.writeSSE({ data: "[DONE]" })

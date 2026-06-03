@@ -8,13 +8,21 @@ import { Fragment, type ReactNode } from "react"
 // React elements (no dangerouslySetInnerHTML), so it's injection-safe.
 
 function renderInline(text: string, keyBase: string): ReactNode[] {
-  // Split on **bold** while keeping the delimiters.
-  return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) => {
+  // Split on **bold** and *italic* while keeping the delimiters. Bold is
+  // matched first so it wins over the single-asterisk italic pattern.
+  return text.split(/(\*\*[^*]+\*\*|\*[^*\s][^*]*\*)/g).map((part, i) => {
     if (/^\*\*[^*]+\*\*$/.test(part)) {
       return (
         <strong key={`${keyBase}-b-${i}`} className="font-semibold text-stone-900 dark:text-stone-100">
           {part.slice(2, -2)}
         </strong>
+      )
+    }
+    if (/^\*[^*\s][^*]*\*$/.test(part)) {
+      return (
+        <em key={`${keyBase}-i-${i}`} className="italic">
+          {part.slice(1, -1)}
+        </em>
       )
     }
     return <Fragment key={`${keyBase}-t-${i}`}>{part}</Fragment>

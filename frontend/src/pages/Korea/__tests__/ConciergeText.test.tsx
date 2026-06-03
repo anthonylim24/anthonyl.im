@@ -27,6 +27,11 @@ describe("ConciergeText", () => {
     expect(container.querySelectorAll("p")).toHaveLength(2)
   })
 
+  it("renders *italic* spans", () => {
+    render(<ConciergeText text="that's *very* good" />)
+    expect(screen.getByText("very").tagName).toBe("EM")
+  })
+
   it("leaves unmatched asterisks as literal text", () => {
     render(<ConciergeText text="a ** b" />)
     expect(screen.getByText(/a \*\* b/)).toBeTruthy()

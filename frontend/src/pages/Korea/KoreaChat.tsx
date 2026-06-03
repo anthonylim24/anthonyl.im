@@ -44,14 +44,25 @@ export function KoreaChat() {
   const [input, setInput] = useState("")
   const [streaming, setStreaming] = useState(false)
 
+  const [kbInset, setKbInset] = useState(0)
+
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fabRef = useRef<HTMLButtonElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const inFlightRef = useRef(false)
   const pinnedRef = useRef(true)
   const titleId = useId()
 
   const suggestions = slug ? DAY_SUGGESTIONS : TRIP_SUGGESTIONS
+
+  // Centralised close: abort any in-flight stream so we don't leave an
+  // orphaned (billed) Gemini request running, then hide the panel.
+  const handleClose = useCallback(() => {
+    abortRef.current?.abort()
+    setOpen(false)
+  }, [])
 
   // Keep the transcript pinned to the bottom while it's near the bottom —
   // streaming tokens shouldn't yank the view if the user has scrolled up.
@@ -73,16 +84,72 @@ export function KoreaChat() {
     fabRef.current?.focus()
   }, [open, reduce])
 
-  // Escape closes; abort any in-flight stream on unmount.
+  // Escape closes. Tab is trapped within the dialog so keyboard / screen-reader
+  // users can't tab into the page obscured behind the modal sheet.
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false)
+      if (e.key === "Escape") {
+        handleClose()
+        return
+      }
+      if (e.key !== "Tab") return
+      const root = dialogRef.current
+      if (!root) return
+      const focusable = root.querySelectorAll<HTMLElement>(
+        'button, [href], textarea, input, select, [tabindex]:not([tabindex="-1"])',
+      )
+      if (focusable.length === 0) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      const active = document.activeElement as HTMLElement | null
+      if (e.shiftKey && (active === first || !root.contains(active))) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault()
+        first.focus()
+      }
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
+  }, [open, handleClose])
+
+  // Lock body scroll on mobile while the sheet is open so the parchment page
+  // doesn't scroll/rubber-band behind it. Desktop keeps its docked-widget feel
+  // (the backdrop is click-through there), so we only lock on small screens.
+  useEffect(() => {
+    if (!open) return
+    if (!window.matchMedia("(max-width: 767px)").matches) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => {
+      document.body.style.overflow = prev
+    }
   }, [open])
 
+  // Keyboard avoidance: lift the sheet above the on-screen keyboard on mobile
+  // using the Visual Viewport API (iOS Safari won't move fixed elements or
+  // shrink dvh for the keyboard on its own).
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!open || !vv) return
+    const update = () => {
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
+      // Ignore tiny insets (browser chrome jitter); only react to a real keyboard.
+      setKbInset(inset > 120 ? inset : 0)
+    }
+    update()
+    vv.addEventListener("resize", update)
+    vv.addEventListener("scroll", update)
+    return () => {
+      vv.removeEventListener("resize", update)
+      vv.removeEventListener("scroll", update)
+      setKbInset(0)
+    }
+  }, [open])
+
+  // Abort any in-flight stream on unmount.
   useEffect(() => () => abortRef.current?.abort(), [])
 
   const handleScroll = useCallback(() => {
@@ -94,7 +161,10 @@ export function KoreaChat() {
   const send = useCallback(
     async (text: string) => {
       const prompt = text.trim()
-      if (!prompt || streaming) return
+      // Synchronous latch — guards against a double-tap / double-submit firing
+      // two requests before React commits the `streaming` state update.
+      if (!prompt || inFlightRef.current) return
+      inFlightRef.current = true
 
       const history: KoreaChatMessage[] = messages.map((m) => ({ role: m.role, content: m.content }))
       const userMsg: ChatMessage = { id: newId(), role: "user", content: prompt }
@@ -112,8 +182,13 @@ export function KoreaChat() {
         setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content } : m)))
 
       try {
-        const { error } = await streamKoreaChat(prompt, history, slug, setAssistant, controller.signal)
+        const { content, error } = await streamKoreaChat(prompt, history, slug, setAssistant, controller.signal)
         if (error) setAssistant(`⚠️ ${error}`)
+        // Defensive fallback: if the stream ended with no text and no error,
+        // don't leave the bubble stuck on the typing indicator.
+        else if (!content.trim()) {
+          setAssistant("I couldn't generate a reply just now. Please try rephrasing.")
+        }
       } catch (err) {
         if ((err as Error).name !== "AbortError") {
           setAssistant(
@@ -122,11 +197,24 @@ export function KoreaChat() {
         }
       } finally {
         setStreaming(false)
+        inFlightRef.current = false
         abortRef.current = null
       }
     },
-    [messages, slug, streaming],
+    [messages, slug],
   )
+
+  // Auto-grow the composer up to the CSS max-height, then let it scroll.
+  const autoGrow = useCallback(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = "auto"
+    el.style.height = `${el.scrollHeight}px`
+  }, [])
+
+  useEffect(() => {
+    if (input === "" && inputRef.current) inputRef.current.style.height = "auto"
+  }, [input])
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -183,17 +271,19 @@ export function KoreaChat() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.18 }}
-              onClick={() => setOpen(false)}
-              className="fixed inset-0 z-40 bg-stone-950/40 backdrop-blur-[2px] md:bg-transparent md:backdrop-blur-0 md:pointer-events-none"
+              onClick={handleClose}
+              className="fixed inset-0 z-[55] bg-stone-950/40 backdrop-blur-[2px] md:bg-transparent md:backdrop-blur-0 md:pointer-events-none"
               aria-hidden
             />
 
             <motion.div
               {...panelMotion}
+              ref={dialogRef}
               role="dialog"
               aria-modal="true"
               aria-labelledby={titleId}
-              className="fixed inset-x-0 bottom-0 z-50 mx-auto flex h-[86dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-stone-200 bg-white/95 shadow-2xl backdrop-blur-xl dark:border-stone-800 dark:bg-stone-950/95 md:inset-x-auto md:bottom-6 md:right-6 md:h-[600px] md:max-h-[calc(100dvh-3rem)] md:w-[400px] md:rounded-3xl"
+              className="fixed inset-x-0 bottom-0 z-[60] mx-auto flex h-[86dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-stone-200 bg-white/95 shadow-2xl backdrop-blur-xl dark:border-stone-800 dark:bg-stone-950/95 md:inset-x-auto md:bottom-6 md:right-6 md:h-[600px] md:max-h-[calc(100dvh-3rem)] md:w-[400px] md:rounded-3xl"
+              style={kbInset > 0 ? { bottom: kbInset } : undefined}
             >
               {/* Header */}
               <header className="flex items-center gap-3 border-b border-stone-200/80 px-4 py-3 dark:border-stone-800/80">
@@ -210,7 +300,7 @@ export function KoreaChat() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setOpen(false)}
+                  onClick={handleClose}
                   aria-label="Close chat"
                   className="flex h-9 w-9 items-center justify-center rounded-full text-stone-500 transition hover:bg-stone-100 hover:text-stone-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100"
                 >
@@ -248,7 +338,7 @@ export function KoreaChat() {
                           {m.content ? (
                             <ConciergeText text={m.content} />
                           ) : (
-                            <TypingDots />
+                            <TypingDots reduce={!!reduce} />
                           )}
                         </div>
                       </div>
@@ -283,7 +373,10 @@ export function KoreaChat() {
                   <textarea
                     ref={inputRef}
                     value={input}
-                    onChange={(e) => setInput(e.target.value)}
+                    onChange={(e) => {
+                      setInput(e.target.value)
+                      autoGrow()
+                    }}
                     onKeyDown={onKeyDown}
                     rows={1}
                     placeholder="Ask about restaurants, your day, reservations…"
@@ -307,17 +400,21 @@ export function KoreaChat() {
   )
 }
 
-function TypingDots() {
+function TypingDots({ reduce }: { reduce: boolean }) {
   return (
     <div className="flex items-center gap-1 py-1" aria-label="Concierge is typing">
-      {[0, 1, 2].map((i) => (
-        <motion.span
-          key={i}
-          className="h-1.5 w-1.5 rounded-full bg-stone-400 dark:bg-stone-500"
-          animate={{ opacity: [0.3, 1, 0.3], y: [0, -2, 0] }}
-          transition={{ duration: 1, repeat: Infinity, delay: i * 0.15, ease: "easeInOut" }}
-        />
-      ))}
+      {[0, 1, 2].map((i) =>
+        reduce ? (
+          <span key={i} className="h-1.5 w-1.5 rounded-full bg-stone-400 opacity-70 dark:bg-stone-500" />
+        ) : (
+          <motion.span
+            key={i}
+            className="h-1.5 w-1.5 rounded-full bg-stone-400 dark:bg-stone-500"
+            animate={{ opacity: [0.3, 1, 0.3], y: [0, -2, 0] }}
+            transition={{ duration: 1, repeat: Infinity, delay: i * 0.15, ease: "easeInOut" }}
+          />
+        ),
+      )}
     </div>
   )
 }
