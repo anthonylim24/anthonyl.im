@@ -6,6 +6,7 @@ import { KoreaAuthGate } from "./KoreaAuthGate"
 import { applyTheme, getInitialTheme } from "./koreaUtils"
 import { startImageBudgetMonitor } from "./imageBudget"
 import { EntityIndexProvider } from "./entityIndex"
+import { KoreaChat } from "./KoreaChat"
 
 export function KoreaLayout() {
   const state = useKoreaSnapshot()
@@ -44,6 +45,9 @@ export function KoreaLayout() {
               <Outlet context={state} />
             </Suspense>
           </main>
+
+          {/* Trip concierge — floating CTA + chat panel, present on every Korea page. */}
+          <KoreaChat />
         </div>
       </EntityIndexProvider>
     </KoreaAuthGate>

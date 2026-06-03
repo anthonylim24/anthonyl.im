@@ -136,6 +136,14 @@ app.use("/api/invoke/*", async (c, next) => {
   await next();
 });
 
+// Korea concierge chat is also SSE-streamed (Gemini relay).
+app.use("/api/korea/chat", async (c, next) => {
+  Object.entries(sseHeaders).forEach(([key, value]) => {
+    c.header(key, value);
+  });
+  await next();
+});
+
 // API Routes
 app.route("/api/invoke", invokeRouter);
 app.route("/api/korea", koreaRouter);
