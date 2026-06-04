@@ -36,7 +36,7 @@
   "dependencies": {
     "@clerk/backend": "^3.4.11",
     "groq-sdk": "^1.2.0",
-    "hono": "^4.12.18",
+    "hono": "^4.12.23",
     "openai": "^6.37.0",
     "posthog-js": "^1.373.4",
     "zod": "^4.4.3"
