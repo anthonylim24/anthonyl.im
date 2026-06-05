@@ -34,11 +34,11 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "@clerk/backend": "^3.4.11",
-    "groq-sdk": "^1.2.0",
-    "hono": "^4.12.18",
-    "openai": "^6.37.0",
-    "posthog-js": "^1.373.4",
+    "@clerk/backend": "^3.5.0",
+    "groq-sdk": "^1.2.1",
+    "hono": "^4.12.23",
+    "openai": "^6.42.0",
+    "posthog-js": "^1.380.1",
     "zod": "^4.4.3"
   }
 }
