@@ -9,7 +9,10 @@ import invokeRouter from "./src/routes/invoke";
 import koreaRouter from "./src/routes/korea";
 import entityRouter from "./src/routes/entity";
 import { createInstagramPlacesRouter } from "./src/routes/instagramPlaces";
-import { createClerkAuth } from "./src/middleware/clerkAuth";
+import { createTripsRouter } from "./src/routes/trips";
+import { getTripStore } from "./src/trips/store";
+import { createGoogleGeocoder, createGroqLlm } from "./src/trips/ai";
+import { createClerkAuth, verifyClerkOptional } from "./src/middleware/clerkAuth";
 import { createRateLimit } from "./src/middleware/rateLimit";
 import { bootIgWorker, getQueue, listJobsForUser, listExtractedPlaces, listIgPlaceDays, setIgPlaceDays } from "./src/igPlaces/wire";
 import { join, resolve } from "path";
@@ -155,6 +158,26 @@ app.use("/api/entity/*", entityRateLimit);
 app.route("/api/invoke", invokeRouter);
 app.route("/api/korea", koreaRouter);
 app.route("/api/entity", entityRouter);
+
+// Multi-trip travel planner — Clerk-authenticated CRUD + AI generation /
+// enhancement + per-day Map Mode places. The Korea trip is seeded into the
+// store on first request and appears as a normal trip.
+const tripsRateLimit = createRateLimit({ windowMs: 60_000, max: 60, keyPrefix: "trips" });
+app.use("/api/trips/*", tripsRateLimit);
+app.route(
+  "/api/trips",
+  createTripsRouter({
+    store: getTripStore(),
+    verifyAuth: (authHeader) =>
+      verifyClerkOptional(authHeader, {
+        secretKey: config.clerkSecretKey,
+        devBearer: config.igDevBearer,
+        devUserId: config.igDevUserId,
+      }),
+    llm: config.groqApiKey ? createGroqLlm(config.groqApiKey) : null,
+    geocode: config.googleMapsApiKey ? createGoogleGeocoder(config.googleMapsApiKey) : null,
+  }),
+);
 
 // IG place extractor — Clerk-gated route + in-process worker
 const clerkAuth = (config.clerkSecretKey || config.igDevBearer)
