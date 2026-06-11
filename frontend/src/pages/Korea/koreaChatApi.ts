@@ -1,3 +1,5 @@
+import { readSseStream } from "../../lib/sseStream"
+
 export interface KoreaChatMessage {
   role: "user" | "assistant"
   content: string
@@ -47,12 +49,9 @@ export async function streamKoreaChat(
     throw new Error(message)
   }
 
-  const reader = response.body?.getReader()
-  if (!reader) throw new Error("Response body is empty")
+  if (!response.body) throw new Error("Response body is empty")
 
-  const decoder = new TextDecoder()
   let content = ""
-  let buffer = ""
   let streamError: string | undefined
 
   const handleData = (data: string) => {
@@ -72,23 +71,7 @@ export async function streamKoreaChat(
     }
   }
 
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split("\n")
-      buffer = lines.pop() ?? ""
-      for (const line of lines) {
-        const trimmed = line.trim()
-        if (trimmed.startsWith("data:")) handleData(trimmed.slice(5).trim())
-      }
-    }
-    const tail = buffer.trim()
-    if (tail.startsWith("data:")) handleData(tail.slice(5).trim())
-  } finally {
-    reader.releaseLock()
-  }
+  await readSseStream(response.body, { onData: handleData, signal })
 
   return { content, error: streamError }
 }

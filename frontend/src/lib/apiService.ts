@@ -1,3 +1,5 @@
+import { readSseStream } from './sseStream';
+
 interface Message {
   role: "user" | "assistant";
   content: string;
@@ -8,90 +10,71 @@ interface ApiResponse {
   error?: string;
 }
 
+const WATCHDOG_INTERVAL_MS = 5_000;
+const WATCHDOG_SILENCE_LIMIT_MS = 45_000;
+
 export async function invokeDeepseek(
   prompt: string,
   messages: Message[] = [],
   onUpdate?: (content: string) => void
 ): Promise<ApiResponse> {
-  const response = await fetch('/api/invoke', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'text/event-stream',
-    },
-    body: JSON.stringify({ prompt, messages }),
-    credentials: 'include',
-  });
+  const controller = new AbortController();
 
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
-  }
-
-  const reader = response.body?.getReader();
-  if (!reader) {
-    throw new Error('Response body is null');
-  }
-
-  let content = '';
-  let buffer = '';
-  const decoder = new TextDecoder();
+  let lastActivity = Date.now();
+  const watchdog = setInterval(() => {
+    if (Date.now() - lastActivity > WATCHDOG_SILENCE_LIMIT_MS) {
+      controller.abort(new Error('Response timed out — please try again.'));
+    }
+  }, WATCHDOG_INTERVAL_MS);
 
   try {
-    while (true) {
-      const { done, value } = await reader.read();
+    const response = await fetch('/api/invoke', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+      },
+      body: JSON.stringify({ prompt, messages }),
+      credentials: 'include',
+      signal: controller.signal,
+    });
 
-      if (done) break;
-
-      // Add new chunk to buffer
-      buffer += decoder.decode(value, { stream: true });
-
-      // Process complete lines from buffer
-      const lines = buffer.split('\n');
-
-      // Keep the last potentially incomplete line in the buffer
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        const trimmedLine = line.trim();
-
-        if (trimmedLine.startsWith('data: ')) {
-          const data = trimmedLine.slice(6);
-
-          if (data === '[DONE]') {
-            return { content };
-          }
-
-          // Parse JSON-encoded content to preserve newlines
-          try {
-            const parsed = JSON.parse(data);
-            content += parsed;
-            onUpdate?.(content);
-          } catch {
-            // If not valid JSON, use raw data (fallback for compatibility)
-            content += data;
-            onUpdate?.(content);
-          }
-        }
-      }
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    // Process any remaining data in buffer
-    if (buffer.trim().startsWith('data: ')) {
-      const data = buffer.trim().slice(6);
-      if (data !== '[DONE]') {
+    if (!response.body) {
+      throw new Error('Response body is null');
+    }
+
+    let content = '';
+
+    await readSseStream(response.body, {
+      signal: controller.signal,
+      onData: (data) => {
+        lastActivity = Date.now();
+        let chunk: string;
         try {
-          const parsed = JSON.parse(data);
-          content += parsed;
-          onUpdate?.(content);
+          chunk = JSON.parse(data);
         } catch {
-          content += data;
-          onUpdate?.(content);
+          chunk = data;
         }
-      }
-    }
+        content += chunk;
+        try { onUpdate?.(content); } catch { /* swallow — callback errors must not corrupt content */ }
+      },
+    });
 
     return { content };
+  } catch (err) {
+    if (
+      (err instanceof DOMException && err.name === 'AbortError') ||
+      (err instanceof Error && err.message.includes('timed out'))
+    ) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      throw new (Error as any)('Response timed out — please try again.', { cause: err });
+    }
+    throw err;
   } finally {
-    reader.releaseLock();
+    clearInterval(watchdog);
   }
 }
