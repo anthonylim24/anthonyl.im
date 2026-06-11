@@ -285,3 +285,41 @@ describe("applySuggestions", () => {
     expect(skipped).toEqual(["sug-edit", "nope"])
   })
 })
+
+import { createGeminiLlm } from "./ai"
+
+describe("createGeminiLlm", () => {
+  test("sends Maps-grounded request and joins text parts", async () => {
+    let captured: { url: string; body: Record<string, unknown> } | null = null
+    const fetchImpl = (async (url: RequestInfo | URL, init?: RequestInit) => {
+      captured = { url: String(url), body: JSON.parse(String(init?.body)) as Record<string, unknown> }
+      return new Response(
+        JSON.stringify({
+          candidates: [{ content: { parts: [{ text: '{"summary":' }, { text: '"ok","days":[]}' }] } }],
+        }),
+        { status: 200 },
+      )
+    }) as typeof fetch
+
+    const llm = createGeminiLlm("test-key", fetchImpl)
+    const out = await llm({ system: "SYS", user: "USER" })
+    expect(out).toBe('{"summary":"ok","days":[]}')
+    expect(captured!.url).toContain("gemini-3.1-flash-lite:generateContent")
+    expect(captured!.body.tools).toEqual([{ googleMaps: {} }])
+    const contents = captured!.body.contents as Array<{ parts: Array<{ text: string }> }>
+    expect(contents[0]!.parts[0]!.text).toContain("SYS")
+    expect(contents[0]!.parts[0]!.text).toContain("USER")
+  })
+
+  test("throws with status + body on API errors", async () => {
+    const fetchImpl = (async () => new Response("quota exceeded", { status: 429 })) as typeof fetch
+    const llm = createGeminiLlm("test-key", fetchImpl)
+    await expect(llm({ system: "s", user: "u" })).rejects.toThrow(/429.*quota/)
+  })
+
+  test("throws on an empty candidate response", async () => {
+    const fetchImpl = (async () => new Response(JSON.stringify({ candidates: [] }), { status: 200 })) as typeof fetch
+    const llm = createGeminiLlm("test-key", fetchImpl)
+    await expect(llm({ system: "s", user: "u" })).rejects.toThrow(/empty/)
+  })
+})

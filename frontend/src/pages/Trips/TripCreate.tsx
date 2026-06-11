@@ -68,9 +68,13 @@ export function TripCreate() {
             preferences: Object.keys(preferences).length ? preferences : undefined,
           })
         } catch (err) {
-          // The trip exists — land on it with a notice rather than losing work.
+          // The trip exists — land on it with the failed generation queued up
+          // for a one-click retry (prompt + preferences preserved).
           navigate(`/trips/${trip.id}`, {
-            state: { notice: `Trip created, but AI generation failed: ${err instanceof Error ? err.message : String(err)}` },
+            state: {
+              notice: `Trip created, but AI generation failed: ${err instanceof Error ? err.message : String(err)}`,
+              retryGenerate: { prompt: prompt.trim() || undefined, preferences },
+            },
           })
           return
         }

@@ -11,7 +11,7 @@ import entityRouter from "./src/routes/entity";
 import { createInstagramPlacesRouter } from "./src/routes/instagramPlaces";
 import { createTripsRouter } from "./src/routes/trips";
 import { getTripStore } from "./src/trips/store";
-import { createGoogleGeocoder, createGroqLlm } from "./src/trips/ai";
+import { createGeminiLlm, createGoogleGeocoder, createGroqLlm } from "./src/trips/ai";
 import { createClerkAuth, verifyClerkOptional } from "./src/middleware/clerkAuth";
 import { createRateLimit } from "./src/middleware/rateLimit";
 import { bootIgWorker, getQueue, listJobsForUser, listExtractedPlaces, listIgPlaceDays, setIgPlaceDays } from "./src/igPlaces/wire";
@@ -174,7 +174,13 @@ app.route(
         devBearer: config.igDevBearer,
         devUserId: config.igDevUserId,
       }),
-    llm: config.groqApiKey ? createGroqLlm(config.groqApiKey) : null,
+    // Gemini (Maps grounding, big context) preferred; Groq is the fallback —
+    // its on-demand tier 8k-TPM limit 413s on full-trip itineraries.
+    llm: config.geminiApiKey
+      ? createGeminiLlm(config.geminiApiKey)
+      : config.groqApiKey
+        ? createGroqLlm(config.groqApiKey)
+        : null,
     geocode: config.googleMapsApiKey ? createGoogleGeocoder(config.googleMapsApiKey) : null,
   }),
 );

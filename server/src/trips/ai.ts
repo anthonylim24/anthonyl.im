@@ -1,4 +1,5 @@
 import Groq from "groq-sdk"
+import { GEMINI_BASE, GEMINI_MODEL } from "../igPlaces/gemini"
 import { haversineMeters } from "../data/koreaPlaces"
 import {
   aiEnhancementSchema,
@@ -50,6 +51,43 @@ export function createGroqLlm(apiKey: string): LlmCall {
     )) as Awaited<ReturnType<typeof groq.chat.completions.create>>
     if (!("choices" in completion)) throw new Error("unexpected streaming response")
     return completion.choices[0]?.message?.content ?? ""
+  }
+}
+
+/**
+ * Preferred trips LLM: Gemini 3.1 Flash Lite with Google Maps grounding.
+ * Grounding lets the model verify venues exist and return real coordinates
+ * directly (fewer geocode round-trips), and the model's context window
+ * comfortably fits a full multi-day itinerary — Groq's on-demand tier
+ * 8k-TPM limit 413s on trips longer than a weekend.
+ */
+export function createGeminiLlm(apiKey: string, fetchImpl: typeof fetch = fetch): LlmCall {
+  return async ({ system, user, maxTokens }) => {
+    const res = await fetchImpl(`${GEMINI_BASE}/models/${GEMINI_MODEL}:generateContent`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: `${system}\n\n${user}` }] }],
+        // Maps grounding — venue verification + coordinates from ground truth.
+        tools: [{ googleMaps: {} }],
+        generationConfig: {
+          temperature: 0.55,
+          maxOutputTokens: maxTokens ?? 16_384,
+          thinkingConfig: { thinkingBudget: 512 },
+        },
+      }),
+      signal: AbortSignal.timeout(120_000),
+    })
+    if (!res.ok) {
+      const body = await res.text().catch(() => "")
+      throw new Error(`gemini ${res.status}: ${body.slice(0, 300)}`)
+    }
+    const j = (await res.json()) as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
+    }
+    const text = j.candidates?.[0]?.content?.parts?.map((p) => p.text).filter(Boolean).join("") ?? ""
+    if (!text) throw new Error("gemini returned an empty response")
+    return text
   }
 }
 
@@ -163,7 +201,7 @@ Output a single JSON object with this exact shape:
 Rules:
 - Realistic pacing: 4-7 items per day, geographically clustered to minimize backtracking.
 - Include meals (lunch + dinner) as place items with category "restaurant" or "cafe".
-- Every place item MUST have a location with at least name + address. Provide lat/lng when confident.
+- Every place item MUST have a location with at least name + address. When Google Maps grounding is available, use it to verify each venue exists and include its real lat/lng; otherwise provide coordinates only when confident.
 - Use "section" items sparingly as morning/afternoon/evening headers, "note" items for tips.
 - Respect the traveler preferences when given. Never invent reservations or claim bookings exist.`
 
@@ -273,7 +311,7 @@ Output a single JSON object:
   ]
 }
 
-Review for: schedule realism (too packed / large gaps), travel time between consecutive stops (use the provided distances), better geographic ordering, weather conflicts (outdoor plans on high-rain days), places that may be closed or need hour verification (flag as "warning" with confidence "low" rather than asserting), missing meals, and nearby alternatives worth adding.
+Review for: schedule realism (too packed / large gaps), travel time between consecutive stops (use the provided distances), better geographic ordering, weather conflicts (outdoor plans on high-rain days), places that may be closed or need hour verification (verify with Google Maps grounding when available; otherwise flag as "warning" with confidence "low" rather than asserting), missing meals, and nearby alternatives worth adding.
 
 Rules:
 - Preserve the traveler's intent. Suggest, don't rewrite wholesale. Max ~8 suggestions.

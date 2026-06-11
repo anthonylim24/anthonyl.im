@@ -19,7 +19,7 @@ import {
   X,
 } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
-import { applySuggestions, enhanceTrip, getTrip, updateTrip } from "./tripsApi"
+import { applySuggestions, enhanceTrip, generateItinerary, getTrip, updateTrip, type GetToken } from "./tripsApi"
 import {
   addItem,
   convertNoteToPlace,
@@ -40,6 +40,7 @@ import type {
   TripDay,
   TripStatus,
 } from "./types"
+import { DEFAULT_ITINERARY_PROMPT, type GeneratePreferences } from "./types"
 
 // Map Mode pulls in three.js — keep it lazy so the editor stays light.
 const MapModeOverlay = lazy(() =>
@@ -93,9 +94,11 @@ export function TripDetail() {
   const [trip, setTrip] = useState<Trip | null>(null)
   const [access, setAccess] = useState<TripAccess>("view")
   const [saveState, setSaveState] = useState<"saved" | "saving" | "dirty" | "error">("saved")
-  const [notice, setNotice] = useState<string | null>(
-    (routerLocation.state as { notice?: string } | null)?.notice ?? null,
-  )
+  const navState = routerLocation.state as {
+    notice?: string
+    retryGenerate?: { prompt?: string; preferences?: GeneratePreferences }
+  } | null
+  const [notice, setNotice] = useState<string | null>(navState?.notice ?? null)
   const [mapDayId, setMapDayId] = useState<string | null>(null)
   const [enhancing, setEnhancing] = useState<"day" | "trip" | null>(null)
   const [activeRun, setActiveRun] = useState<EnhancementRun | null>(null)
@@ -283,6 +286,22 @@ export function TripDetail() {
         </div>
       )}
 
+      {/* AI generation for an empty itinerary — also the retry path when
+          generation failed during the create flow. */}
+      {editable && trip.days.every((d) => d.items.length === 0) && (
+        <GeneratePanel
+          getToken={getToken}
+          tripId={trip.id}
+          initialPrompt={navState?.retryGenerate?.prompt}
+          preferences={navState?.retryGenerate?.preferences}
+          onGenerated={(next) => {
+            setTrip(next)
+            setSaveState("saved")
+            setNotice(null)
+          }}
+        />
+      )}
+
       {/* Enhancement review sheet */}
       {activeRun && (
         <SuggestionsPanel
@@ -328,6 +347,91 @@ export function TripDetail() {
         </Suspense>
       )}
     </div>
+  )
+}
+
+// ── AI generation panel (empty trips + retry after a failed generate) ────
+
+function GeneratePanel({
+  getToken,
+  tripId,
+  initialPrompt,
+  preferences,
+  onGenerated,
+}: {
+  getToken: GetToken
+  tripId: string
+  initialPrompt?: string
+  preferences?: GeneratePreferences
+  onGenerated: (trip: Trip) => void
+}) {
+  const [prompt, setPrompt] = useState(initialPrompt ?? DEFAULT_ITINERARY_PROMPT)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const generate = async () => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const { trip } = await generateItinerary(getToken, tripId, {
+        prompt: prompt.trim() || undefined,
+        preferences,
+        replaceExisting: true,
+      })
+      onGenerated(trip)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+      aria-label="Generate itinerary with AI"
+      className="mt-6 rounded-3xl border border-stone-200/80 bg-white p-5 motion-reduce:transition-none dark:border-stone-800 dark:bg-stone-900"
+    >
+      <h2 className="flex items-center gap-2 text-base font-semibold text-stone-900 dark:text-stone-100">
+        <Sparkles className="h-4 w-4 text-amber-600" aria-hidden />
+        Draft this itinerary with AI
+      </h2>
+      <p className="mt-1 text-sm text-stone-600 dark:text-stone-400">
+        The itinerary is empty — generate a structured starting point, then reshape it. Every place
+        the AI adds lands on the map.
+      </p>
+      <textarea
+        value={prompt}
+        rows={3}
+        aria-label="AI prompt"
+        onChange={(e) => setPrompt(e.target.value)}
+        className="mt-3 w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-600/25 dark:border-stone-700 dark:bg-stone-950/40 dark:text-stone-100"
+      />
+      {error && (
+        <p className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
+          Generation failed: {error}
+        </p>
+      )}
+      <div className="mt-3 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => void generate()}
+          disabled={busy}
+          className="inline-flex items-center gap-2 rounded-full bg-amber-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-800 disabled:opacity-60 dark:bg-amber-600 dark:hover:bg-amber-500"
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Sparkles className="h-4 w-4" aria-hidden />}
+          {busy ? "Generating… (~30s)" : error ? "Retry generation" : "Generate itinerary"}
+        </button>
+        {preferences && Object.values(preferences).some(Boolean) && (
+          <span className="text-xs text-stone-500 dark:text-stone-400">
+            Your traveler preferences from the create form are included.
+          </span>
+        )}
+      </div>
+    </motion.section>
   )
 }
 
