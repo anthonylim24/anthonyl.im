@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { motion } from "motion/react"
+import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useLocation, useParams } from "react-router-dom"
 import {
   ArrowDown,
@@ -7,12 +7,16 @@ import {
   ArrowUp,
   Bookmark,
   Check,
+  CheckCircle2,
   Copy,
+  Eye,
   FileText,
+  Globe2,
   Heading2,
   Loader2,
   Map as MapIcon,
   MapPin,
+  Pencil,
   Plus,
   Sparkles,
   Trash2,
@@ -100,10 +104,17 @@ export function TripDetail() {
   } | null
   const [notice, setNotice] = useState<string | null>(navState?.notice ?? null)
   const [mapDayId, setMapDayId] = useState<string | null>(null)
-  const [enhancing, setEnhancing] = useState<"day" | "trip" | null>(null)
+  // "trip" or a dayId while that enhancement is in flight.
+  const [enhancingTarget, setEnhancingTarget] = useState<string | null>(null)
   const [activeRun, setActiveRun] = useState<EnhancementRun | null>(null)
+  // Item ids touched by the last applied suggestions — drives the amber
+  // "this just changed" flash, cleared after the flash finishes.
+  const [recentIds, setRecentIds] = useState<Set<string>>(() => new Set())
+  const recentTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [mode, setMode] = useState<"edit" | "preview">("edit")
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const editable = access === "edit" || access === "owner"
+
 
   useEffect(() => {
     if (!tripId) return
@@ -112,6 +123,8 @@ export function TripDetail() {
         const { trip: loaded, access: a } = await getTrip(getToken, tripId)
         setTrip(loaded)
         setAccess(a)
+        // Viewers land on the clean preview; editors start in edit mode.
+        if (a !== "edit" && a !== "owner") setMode("preview")
         setState({ status: "success" })
       } catch (err) {
         setState({ status: "error", message: err instanceof Error ? err.message : String(err) })
@@ -162,8 +175,8 @@ export function TripDetail() {
   )
 
   const runEnhance = async (scope: "day" | "trip", dayId?: string) => {
-    if (!trip || enhancing) return
-    setEnhancing(scope)
+    if (!trip || enhancingTarget) return
+    setEnhancingTarget(scope === "day" ? (dayId ?? null) : "trip")
     setActiveRun(null)
     try {
       const run = await enhanceTrip(getToken, trip.id, scope, dayId)
@@ -171,7 +184,7 @@ export function TripDetail() {
     } catch (err) {
       setNotice(`Enhancement failed: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
-      setEnhancing(null)
+      setEnhancingTarget(null)
     }
   }
 
@@ -179,14 +192,28 @@ export function TripDetail() {
     if (!trip || !activeRun) return
     try {
       const { trip: next, applied } = await applySuggestions(getToken, trip.id, activeRun.id, suggestionIds)
+      // Flash the items the accepted suggestions touched (added or edited).
+      const touched = new Set<string>()
+      for (const id of applied) {
+        const s = activeRun.suggestions.find((x) => x.id === id)
+        const target = s?.proposedItem?.id ?? s?.itemId
+        if (target && (s?.kind === "add" || s?.kind === "edit")) touched.add(target)
+      }
       setTrip(next)
       setActiveRun(null)
       setSaveState("saved")
+      setRecentIds(touched)
+      if (recentTimer.current) clearTimeout(recentTimer.current)
+      recentTimer.current = setTimeout(() => setRecentIds(new Set()), 3200)
       setNotice(`Applied ${applied.length} suggestion${applied.length === 1 ? "" : "s"}.`)
     } catch (err) {
       setNotice(`Could not apply suggestions: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
+
+  useEffect(() => () => {
+    if (recentTimer.current) clearTimeout(recentTimer.current)
+  }, [])
 
   if (state.status === "loading") {
     return (
@@ -210,70 +237,103 @@ export function TripDetail() {
   const mapDay = mapDayId ? trip.days.find((d) => d.id === mapDayId) : null
   const mapDayIndex = mapDay ? trip.days.findIndex((d) => d.id === mapDay.id) : -1
 
+  const isPreview = mode === "preview"
+
   return (
     <div>
       {/* Trip header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <input
-            value={trip.name}
-            disabled={!editable}
-            onChange={(e) => scheduleSave({ ...trip, name: e.target.value })}
-            aria-label="Trip name"
-            className="w-full bg-transparent font-serif text-4xl text-stone-900 focus:outline-none dark:text-stone-100"
-            style={{ fontFamily: "'Cormorant Garamond', serif" }}
-          />
+          {isPreview ? (
+            <h1
+              className="font-serif text-4xl text-stone-900 dark:text-stone-100"
+              style={{ fontFamily: "'Cormorant Garamond', serif" }}
+            >
+              {trip.name}
+            </h1>
+          ) : (
+            <input
+              value={trip.name}
+              disabled={!editable}
+              onChange={(e) => scheduleSave({ ...trip, name: e.target.value })}
+              aria-label="Trip name"
+              className="w-full bg-transparent font-serif text-4xl text-stone-900 focus:outline-none dark:text-stone-100"
+              style={{ fontFamily: "'Cormorant Garamond', serif" }}
+            />
+          )}
           <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
             {trip.destinations.join(" · ")} · {trip.startDate} → {trip.endDate} · {trip.timezone}
+            {isPreview && <span className="ml-2 capitalize">· {trip.status}</span>}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={trip.status}
-            disabled={!editable}
-            onChange={(e) => scheduleSave({ ...trip, status: e.target.value as TripStatus })}
-            aria-label="Trip status"
-            className="rounded-full border border-stone-300 bg-white px-3 py-1.5 text-sm capitalize dark:border-stone-700 dark:bg-stone-900"
-          >
-            {(["draft", "active", "archived", "completed"] as const).map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
+        <div className="flex flex-wrap items-center gap-2">
           {editable && (
+            <div
+              role="tablist"
+              aria-label="View mode"
+              className="flex rounded-full border border-stone-300 bg-white p-0.5 dark:border-stone-700 dark:bg-stone-900"
+            >
+              {(
+                [
+                  { id: "edit", label: "Edit", Icon: Pencil },
+                  { id: "preview", label: "Preview", Icon: Eye },
+                ] as const
+              ).map(({ id, label, Icon }) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === id}
+                  onClick={() => setMode(id)}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                    mode === id
+                      ? "bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900"
+                      : "text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200"
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" aria-hidden />
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          {!isPreview && (
+            <select
+              value={trip.status}
+              disabled={!editable}
+              onChange={(e) => scheduleSave({ ...trip, status: e.target.value as TripStatus })}
+              aria-label="Trip status"
+              className="rounded-full border border-stone-300 bg-white px-3 py-1.5 text-sm capitalize dark:border-stone-700 dark:bg-stone-900"
+            >
+              {(["draft", "active", "archived", "completed"] as const).map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          )}
+          {editable && trip.status === "draft" && (
+            <button
+              type="button"
+              onClick={() => {
+                scheduleSave({ ...trip, status: "active" })
+                setNotice("Trip published — it's now active for everyone who can see it.")
+              }}
+              className="inline-flex items-center gap-2 rounded-full border border-emerald-600/40 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/70"
+            >
+              <Globe2 className="h-4 w-4" aria-hidden />
+              Publish
+            </button>
+          )}
+          {editable && !isPreview && (
             <button
               type="button"
               onClick={() => void runEnhance("trip")}
-              disabled={enhancing !== null}
+              disabled={enhancingTarget !== null}
               className="inline-flex items-center gap-2 rounded-full bg-amber-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-800 disabled:opacity-50 dark:bg-amber-600 dark:hover:bg-amber-500"
             >
-              {enhancing === "trip" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Sparkles className="h-4 w-4" aria-hidden />}
-              Enhance trip
+              {enhancingTarget === "trip" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Sparkles className="h-4 w-4" aria-hidden />}
+              {enhancingTarget === "trip" ? "Reviewing trip…" : "Enhance trip"}
             </button>
           )}
-          <span
-            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition-colors ${
-              saveState === "error"
-                ? "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300"
-                : "text-stone-400 dark:text-stone-500"
-            }`}
-            role="status"
-            aria-live="polite"
-          >
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${
-                saveState === "saved"
-                  ? "bg-emerald-500"
-                  : saveState === "error"
-                    ? "bg-red-500"
-                    : "animate-pulse bg-amber-500 motion-reduce:animate-none"
-              }`}
-              aria-hidden
-            />
-            {saveState === "saved" && "Saved"}
-            {saveState === "dirty" && "Editing…"}
-            {saveState === "saving" && "Saving…"}
-            {saveState === "error" && "Save failed — retries on next edit"}
-          </span>
         </div>
       </div>
 
@@ -288,7 +348,7 @@ export function TripDetail() {
 
       {/* AI generation for an empty itinerary — also the retry path when
           generation failed during the create flow. */}
-      {editable && trip.days.every((d) => d.items.length === 0) && (
+      {editable && !isPreview && trip.days.every((d) => d.items.length === 0) && (
         <GeneratePanel
           getToken={getToken}
           tripId={trip.id}
@@ -302,8 +362,9 @@ export function TripDetail() {
         />
       )}
 
-      {/* Enhancement review sheet */}
-      {activeRun && (
+      {/* Trip-wide enhancement review stays at the top; day-scoped runs
+          render inside their day card. */}
+      {activeRun && activeRun.scope === "trip" && !isPreview && (
         <SuggestionsPanel
           run={activeRun}
           dayOptions={dayOptions}
@@ -312,22 +373,53 @@ export function TripDetail() {
         />
       )}
 
-      {/* Days */}
-      <div className="mt-8 space-y-8">
-        {trip.days.map((day, idx) => (
-          <DayCard
-            key={day.id}
-            day={day}
-            index={idx}
-            editable={editable}
-            dayOptions={dayOptions}
-            enhancing={enhancing === "day"}
-            onChange={setDays}
-            onOpenMap={() => setMapDayId(day.id)}
-            onEnhance={() => void runEnhance("day", day.id)}
-          />
-        ))}
+      {/* Days + sticky day-rail navigation (desktop) */}
+      <div className="mt-8 lg:grid lg:grid-cols-[10rem_minmax(0,1fr)] lg:gap-8">
+        <nav aria-label="Days" className="hidden lg:block">
+          <ol className="sticky top-20 space-y-0.5 border-l border-stone-200 pl-3 dark:border-stone-800">
+            {trip.days.map((day, idx) => (
+              <li key={day.id}>
+                <a
+                  href={`#${day.id}`}
+                  className="block rounded-md px-2 py-1 text-[13px] text-stone-500 transition hover:bg-stone-100 hover:text-stone-900 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100"
+                >
+                  <span className="font-medium">Day {idx + 1}</span>
+                  <span className="ml-1.5 text-stone-400 dark:text-stone-500">
+                    {new Date(`${day.date}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ol>
+        </nav>
+        <div className="space-y-8">
+          {trip.days.map((day, idx) =>
+            isPreview ? (
+              <PreviewDay key={day.id} day={day} index={idx} onOpenMap={() => setMapDayId(day.id)} />
+            ) : (
+              <DayCard
+                key={day.id}
+                day={day}
+                index={idx}
+                editable={editable}
+                dayOptions={dayOptions}
+                enhancing={enhancingTarget === day.id}
+                recentIds={recentIds}
+                run={activeRun && activeRun.scope === "day" && activeRun.dayId === day.id ? activeRun : null}
+                onApplyRun={(ids) => void applyRun(ids)}
+                onDismissRun={() => setActiveRun(null)}
+                onChange={setDays}
+                onOpenMap={() => setMapDayId(day.id)}
+                onEnhance={() => void runEnhance("day", day.id)}
+              />
+            ),
+          )}
+        </div>
       </div>
+
+      {/* Non-blocking floating save indicator (visible while scrolled) */}
+      <FloatingSaveIndicator saveState={saveState} />
+
 
       {/* Map Mode */}
       {mapDay && (
@@ -435,6 +527,160 @@ function GeneratePanel({
   )
 }
 
+// ── Floating save indicator ──────────────────────────────────────────────
+//
+// Non-blocking: a small fixed pill that appears while edits are unsaved or
+// in flight, lingers on "Saved" for a moment, then fades away.
+
+function FloatingSaveIndicator({ saveState }: { saveState: "saved" | "saving" | "dirty" | "error" }) {
+  const reduce = useReducedMotion()
+  const [showSaved, setShowSaved] = useState(false)
+  const prev = useRef(saveState)
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null
+    if (saveState === "saved" && (prev.current === "saving" || prev.current === "dirty")) {
+      setShowSaved(true)
+      timer = setTimeout(() => setShowSaved(false), 1800)
+    }
+    prev.current = saveState
+    return () => {
+      if (timer) clearTimeout(timer)
+    }
+  }, [saveState])
+
+  const visible = saveState !== "saved" || showSaved
+  return (
+    <div className="pointer-events-none fixed bottom-5 right-5 z-40" role="status" aria-live="polite">
+      <AnimatePresence>
+        {visible && (
+          <motion.div
+            initial={reduce ? { opacity: 0 } : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className={`flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-medium shadow-lg backdrop-blur ${
+              saveState === "error"
+                ? "border-red-200 bg-red-50/95 text-red-800 dark:border-red-900/50 dark:bg-red-950/90 dark:text-red-300"
+                : "border-stone-200 bg-white/95 text-stone-600 dark:border-stone-700 dark:bg-stone-900/95 dark:text-stone-300"
+            }`}
+          >
+            {saveState === "error" ? (
+              <>
+                <X className="h-3.5 w-3.5 text-red-600" aria-hidden />
+                Save failed — retries on next edit
+              </>
+            ) : saveState === "saved" ? (
+              <>
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                All changes saved
+              </>
+            ) : (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-600 motion-reduce:animate-none" aria-hidden />
+                {saveState === "saving" ? "Saving…" : "Unsaved changes…"}
+              </>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+// ── Preview mode ─────────────────────────────────────────────────────────
+//
+// The published, read-only view of a day — what collaborators see. No
+// inputs, no edit chrome; just a clean itinerary document.
+
+function PreviewDay({ day, index, onOpenMap }: { day: TripDay; index: number; onOpenMap: () => void }) {
+  const hasMappable = day.items.some((i) => i.location?.lat != null && i.location?.lng != null)
+  return (
+    <section id={day.id} aria-label={`Day ${index + 1}`} className="scroll-mt-20">
+      <div className="flex items-baseline justify-between gap-3 border-b border-stone-200 pb-2 dark:border-stone-800">
+        <div className="min-w-0">
+          <div className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+            Day {index + 1} · {formatDayDate(day.date)}
+            {day.city ? ` · ${day.city}` : ""}
+          </div>
+          {day.title && (
+            <h2
+              className="mt-0.5 font-serif text-2xl text-stone-900 dark:text-stone-100"
+              style={{ fontFamily: "'Cormorant Garamond', serif" }}
+            >
+              {day.title}
+            </h2>
+          )}
+        </div>
+        {hasMappable && (
+          <button
+            type="button"
+            onClick={onOpenMap}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-stone-300 px-3 py-1.5 text-xs font-medium text-stone-700 transition hover:border-amber-400 hover:text-amber-700 dark:border-stone-700 dark:text-stone-300 dark:hover:text-amber-400"
+          >
+            <MapIcon className="h-3.5 w-3.5" aria-hidden />
+            Map
+          </button>
+        )}
+      </div>
+      {day.notes && <p className="mt-2 text-sm text-stone-600 dark:text-stone-400">{day.notes}</p>}
+      {day.items.length === 0 ? (
+        <p className="mt-3 text-sm italic text-stone-400 dark:text-stone-500">Free day — nothing scheduled.</p>
+      ) : (
+        <ul className="relative mt-4 space-y-3 pl-6 before:absolute before:bottom-2 before:left-[7px] before:top-2 before:w-px before:bg-stone-200 dark:before:bg-stone-800">
+          {day.items.map((item) => {
+            const Icon = KIND_ICON[item.kind]
+            const located = item.location?.lat != null && item.location?.lng != null
+            if (item.kind === "section") {
+              return (
+                <li key={item.id} className="relative pt-2">
+                  <span className="absolute -left-[23px] top-1/2 h-[9px] w-[9px] rounded-full border-2 border-stone-300 bg-stone-300 dark:border-stone-600 dark:bg-stone-600" aria-hidden />
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400">
+                    {item.title}
+                  </h3>
+                </li>
+              )
+            }
+            return (
+              <li key={item.id} className="relative">
+                <span
+                  className={`absolute -left-[23px] top-2 h-[9px] w-[9px] rounded-full border-2 ${
+                    located
+                      ? "border-amber-600 bg-amber-600 dark:border-amber-400 dark:bg-amber-400"
+                      : "border-stone-300 bg-white dark:border-stone-600 dark:bg-stone-900"
+                  }`}
+                  aria-hidden
+                />
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  {item.time && (
+                    <span className="text-xs font-medium tabular-nums text-stone-500 dark:text-stone-400">
+                      {item.time}
+                      {item.endTime ? `–${item.endTime}` : ""}
+                    </span>
+                  )}
+                  <span className={`text-sm font-medium text-stone-900 dark:text-stone-100 ${item.status === "completed" ? "line-through opacity-60" : ""}`}>
+                    <Icon className="mr-1 inline h-3.5 w-3.5 align-[-2px] text-stone-400" aria-hidden />
+                    {item.title}
+                  </span>
+                  {item.status !== "none" && (
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_CHIP[item.status]}`}>
+                      {STATUS_OPTIONS.find((s) => s.value === item.status)?.label}
+                    </span>
+                  )}
+                </div>
+                {item.location?.address && (
+                  <p className="mt-0.5 text-xs text-stone-500 dark:text-stone-400">{item.location.address}</p>
+                )}
+                {item.notes && <p className="mt-1 whitespace-pre-line text-sm text-stone-600 dark:text-stone-400">{item.notes}</p>}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </section>
+  )
+}
+
 // ── Day card ─────────────────────────────────────────────────────────────
 
 function DayCard({
@@ -443,6 +689,10 @@ function DayCard({
   editable,
   dayOptions,
   enhancing,
+  recentIds,
+  run,
+  onApplyRun,
+  onDismissRun,
   onChange,
   onOpenMap,
   onEnhance,
@@ -452,13 +702,26 @@ function DayCard({
   editable: boolean
   dayOptions: Array<{ id: string; label: string }>
   enhancing: boolean
+  recentIds: Set<string>
+  run: EnhancementRun | null
+  onApplyRun: (ids: string[]) => void
+  onDismissRun: () => void
   onChange: (fn: (days: TripDay[]) => TripDay[]) => void
   onOpenMap: () => void
   onEnhance: () => void
 }) {
   const hasMappable = day.items.some((i) => i.location?.lat != null && i.location?.lng != null)
   return (
-    <section aria-label={`Day ${index + 1}`} className="rounded-3xl border border-stone-200/80 bg-white p-5 shadow-sm dark:border-stone-800 dark:bg-stone-900">
+    <section
+      id={day.id}
+      aria-label={`Day ${index + 1}`}
+      aria-busy={enhancing}
+      className={`scroll-mt-20 rounded-3xl border bg-white p-5 shadow-sm transition-colors duration-300 dark:bg-stone-900 ${
+        enhancing
+          ? "border-amber-400/70 dark:border-amber-600/60"
+          : "border-stone-200/80 dark:border-stone-800"
+      }`}
+    >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
@@ -480,10 +743,18 @@ function DayCard({
               type="button"
               onClick={onEnhance}
               disabled={enhancing}
-              className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 px-3 py-1.5 text-xs font-medium text-stone-700 transition hover:border-amber-400 hover:text-amber-700 disabled:opacity-50 dark:border-stone-700 dark:text-stone-300 dark:hover:text-amber-400"
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                enhancing
+                  ? "border-amber-400 bg-amber-50 text-amber-800 dark:border-amber-600 dark:bg-amber-950/40 dark:text-amber-300"
+                  : "border-stone-300 text-stone-700 hover:border-amber-400 hover:text-amber-700 dark:border-stone-700 dark:text-stone-300 dark:hover:text-amber-400"
+              }`}
             >
-              <Sparkles className="h-3.5 w-3.5" aria-hidden />
-              Enhance day
+              {enhancing ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" aria-hidden />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5" aria-hidden />
+              )}
+              {enhancing ? "Reviewing day…" : "Enhance day"}
             </button>
           )}
           <button
@@ -509,6 +780,18 @@ function DayCard({
         className="mt-2 w-full resize-none rounded-lg border border-transparent bg-transparent px-2 py-1 text-sm text-stone-600 transition placeholder:text-stone-300 hover:border-stone-200 focus:border-amber-500 focus:outline-none dark:text-stone-400 dark:placeholder:text-stone-600 dark:hover:border-stone-700"
       />
 
+      {/* Day-scoped enhancement review renders here, inside the day. */}
+      <AnimatePresence>
+        {run && (
+          <SuggestionsPanel
+            run={run}
+            dayOptions={dayOptions}
+            onApply={onApplyRun}
+            onDismiss={onDismissRun}
+          />
+        )}
+      </AnimatePresence>
+
       {day.items.length === 0 ? (
         <div className="mt-3 rounded-xl border border-dashed border-stone-200 px-4 py-6 text-center text-sm text-stone-400 dark:border-stone-700 dark:text-stone-500">
           Nothing planned yet{editable ? " — add a place, note, or section below." : "."}
@@ -517,18 +800,21 @@ function DayCard({
         // Timeline rail: a vertical line with one marker per item, the
         // itinerary affordance that makes day order legible at a glance.
         <ul className="relative mt-4 space-y-2 pl-6 before:absolute before:bottom-3 before:left-[7px] before:top-3 before:w-px before:bg-stone-200 dark:before:bg-stone-800">
-          {day.items.map((item, itemIdx) => (
-            <ItemRow
-              key={item.id}
-              item={item}
-              dayId={day.id}
-              isFirst={itemIdx === 0}
-              isLast={itemIdx === day.items.length - 1}
-              editable={editable}
-              dayOptions={dayOptions}
-              onChange={onChange}
-            />
-          ))}
+          <AnimatePresence initial={false}>
+            {day.items.map((item, itemIdx) => (
+              <ItemRow
+                key={item.id}
+                item={item}
+                dayId={day.id}
+                isFirst={itemIdx === 0}
+                isLast={itemIdx === day.items.length - 1}
+                editable={editable}
+                dayOptions={dayOptions}
+                highlight={recentIds.has(item.id)}
+                onChange={onChange}
+              />
+            ))}
+          </AnimatePresence>
         </ul>
       )}
 
@@ -572,6 +858,7 @@ function ItemRow({
   isLast,
   editable,
   dayOptions,
+  highlight,
   onChange,
 }: {
   item: ItineraryItem
@@ -580,21 +867,39 @@ function ItemRow({
   isLast: boolean
   editable: boolean
   dayOptions: Array<{ id: string; label: string }>
+  highlight: boolean
   onChange: (fn: (days: TripDay[]) => TripDay[]) => void
 }) {
+  const reduce = useReducedMotion()
   const [expanded, setExpanded] = useState(false)
   const Icon = KIND_ICON[item.kind]
   const patch = (p: Partial<Omit<ItineraryItem, "id">>) => onChange((days) => updateItem(days, dayId, item.id, p))
   const isSection = item.kind === "section"
   const hasLocation = item.location?.lat != null && item.location?.lng != null
 
+  // Amber pulse on items just touched by applied AI suggestions. Reduced
+  // motion gets a static ring (cleared with recentIds) instead of the pulse.
+  const flashAnimate =
+    highlight && !reduce
+      ? { backgroundColor: ["rgba(245, 158, 11, 0.20)", "rgba(245, 158, 11, 0)"] }
+      : {}
+
   return (
-    <li
+    <motion.li
+      layout={!reduce}
+      initial={reduce ? false : { opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0, ...flashAnimate }}
+      exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.98 }}
+      transition={{
+        duration: 0.22,
+        ease: [0.16, 1, 0.3, 1],
+        backgroundColor: { duration: 2.6, ease: "easeOut" },
+      }}
       className={`relative ${
         isSection
           ? "rounded-xl bg-stone-100/80 px-3 py-2 dark:bg-stone-800/60"
-          : "rounded-xl border border-stone-200/80 bg-white px-3 py-2 transition-colors hover:border-stone-300 dark:border-stone-800 dark:bg-stone-900 dark:hover:border-stone-700"
-      }`}
+          : "rounded-xl border border-stone-200/80 bg-white px-3 py-2 transition-shadow hover:border-stone-300 dark:border-stone-800 dark:bg-stone-900 dark:hover:border-stone-700"
+      } ${highlight ? "ring-2 ring-amber-400/70 dark:ring-amber-500/50" : ""}`}
     >
       {/* Timeline marker — filled when the stop is mapped, hollow otherwise. */}
       <span
@@ -769,7 +1074,7 @@ function ItemRow({
           )}
         </div>
       )}
-    </li>
+    </motion.li>
   )
 }
 
@@ -837,9 +1142,10 @@ function SuggestionsPanel({
     <motion.section
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -6 }}
       transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
       aria-label="AI enhancement suggestions"
-      className="mt-6 rounded-3xl border border-amber-200/80 bg-amber-50/50 p-5 motion-reduce:transition-none dark:border-amber-900/40 dark:bg-amber-950/15"
+      className="mt-5 rounded-2xl border border-amber-200/80 bg-amber-50/50 p-5 motion-reduce:transition-none dark:border-amber-900/40 dark:bg-amber-950/15"
     >
       <div className="flex items-start justify-between gap-3">
         <div>
