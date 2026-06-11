@@ -240,7 +240,9 @@ Routes are lazy-loaded. All three apps share the same SPA entry point (`index.ht
 | `/korea/ingest` | IG ingestion | Clerk-gated |
 | `/trips` | Trip planner — list | Clerk-gated |
 | `/trips/new` | Trip planner — create (blank or AI starter) | Clerk-gated |
-| `/trips/:tripId` | Trip planner — itinerary editor + Map Mode | Clerk-gated |
+| `/trips/:tripId` | Trip planner — dossier-style overview (Korea-look, accent-themed) | Clerk-gated |
+| `/trips/:tripId/day/:dayId` | Trip planner — dossier day page + Map Mode | Clerk-gated |
+| `/trips/:tripId/edit` | Trip planner — itinerary editor (appearance config, AI enhance) | Clerk-gated |
 
 ---
 
