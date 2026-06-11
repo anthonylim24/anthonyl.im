@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
-import { useLocation, useParams } from "react-router-dom"
+import { Link, useLocation, useParams } from "react-router-dom"
 import {
   ArrowDown,
   ArrowRightLeft,
@@ -16,7 +16,6 @@ import {
   Loader2,
   Map as MapIcon,
   MapPin,
-  Pencil,
   Plus,
   Sparkles,
   Trash2,
@@ -111,7 +110,6 @@ export function TripDetail() {
   // "this just changed" flash, cleared after the flash finishes.
   const [recentIds, setRecentIds] = useState<Set<string>>(() => new Set())
   const recentTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [mode, setMode] = useState<"edit" | "preview">("edit")
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const editable = access === "edit" || access === "owner"
 
@@ -123,8 +121,6 @@ export function TripDetail() {
         const { trip: loaded, access: a } = await getTrip(getToken, tripId)
         setTrip(loaded)
         setAccess(a)
-        // Viewers land on the clean preview; editors start in edit mode.
-        if (a !== "edit" && a !== "owner") setMode("preview")
         setState({ status: "success" })
       } catch (err) {
         setState({ status: "error", message: err instanceof Error ? err.message : String(err) })
@@ -179,7 +175,9 @@ export function TripDetail() {
     setEnhancingTarget(scope === "day" ? (dayId ?? null) : "trip")
     setActiveRun(null)
     try {
-      const run = await enhanceTrip(getToken, trip.id, scope, dayId)
+      const { run, trip: refreshed } = await enhanceTrip(getToken, trip.id, scope, dayId)
+      // The server auto-syncs day.weather from the live forecast during the run.
+      if (refreshed) setTrip(refreshed)
       setActiveRun(run)
     } catch (err) {
       setNotice(`Enhancement failed: ${err instanceof Error ? err.message : String(err)}`)
@@ -237,79 +235,42 @@ export function TripDetail() {
   const mapDay = mapDayId ? trip.days.find((d) => d.id === mapDayId) : null
   const mapDayIndex = mapDay ? trip.days.findIndex((d) => d.id === mapDay.id) : -1
 
-  const isPreview = mode === "preview"
-
   return (
     <div>
       {/* Trip header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          {isPreview ? (
-            <h1
-              className="font-serif text-4xl text-stone-900 dark:text-stone-100"
-              style={{ fontFamily: "'Cormorant Garamond', serif" }}
-            >
-              {trip.name}
-            </h1>
-          ) : (
-            <input
-              value={trip.name}
-              disabled={!editable}
-              onChange={(e) => scheduleSave({ ...trip, name: e.target.value })}
-              aria-label="Trip name"
-              className="w-full bg-transparent font-serif text-4xl text-stone-900 focus:outline-none dark:text-stone-100"
-              style={{ fontFamily: "'Cormorant Garamond', serif" }}
-            />
-          )}
+          <input
+            value={trip.name}
+            disabled={!editable}
+            onChange={(e) => scheduleSave({ ...trip, name: e.target.value })}
+            aria-label="Trip name"
+            className="w-full bg-transparent font-serif text-4xl text-stone-900 focus:outline-none dark:text-stone-100"
+            style={{ fontFamily: "'Cormorant Garamond', serif" }}
+          />
           <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
             {trip.destinations.join(" · ")} · {trip.startDate} → {trip.endDate} · {trip.timezone}
-            {isPreview && <span className="ml-2 capitalize">· {trip.status}</span>}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {editable && (
-            <div
-              role="tablist"
-              aria-label="View mode"
-              className="flex rounded-full border border-stone-300 bg-white p-0.5 dark:border-stone-700 dark:bg-stone-900"
-            >
-              {(
-                [
-                  { id: "edit", label: "Edit", Icon: Pencil },
-                  { id: "preview", label: "Preview", Icon: Eye },
-                ] as const
-              ).map(({ id, label, Icon }) => (
-                <button
-                  key={id}
-                  type="button"
-                  role="tab"
-                  aria-selected={mode === id}
-                  onClick={() => setMode(id)}
-                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                    mode === id
-                      ? "bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900"
-                      : "text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200"
-                  }`}
-                >
-                  <Icon className="h-3.5 w-3.5" aria-hidden />
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-          {!isPreview && (
-            <select
-              value={trip.status}
-              disabled={!editable}
-              onChange={(e) => scheduleSave({ ...trip, status: e.target.value as TripStatus })}
-              aria-label="Trip status"
-              className="rounded-full border border-stone-300 bg-white px-3 py-1.5 text-sm capitalize dark:border-stone-700 dark:bg-stone-900"
-            >
-              {(["draft", "active", "archived", "completed"] as const).map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          )}
+          <Link
+            to={`/trips/${trip.id}`}
+            className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 px-3.5 py-2 text-sm font-medium text-stone-700 transition hover:border-stone-400 hover:text-stone-900 dark:border-stone-700 dark:text-stone-300 dark:hover:text-stone-100"
+          >
+            <Eye className="h-4 w-4" aria-hidden />
+            View
+          </Link>
+          <select
+            value={trip.status}
+            disabled={!editable}
+            onChange={(e) => scheduleSave({ ...trip, status: e.target.value as TripStatus })}
+            aria-label="Trip status"
+            className="rounded-full border border-stone-300 bg-white px-3 py-1.5 text-sm capitalize dark:border-stone-700 dark:bg-stone-900"
+          >
+            {(["draft", "active", "archived", "completed"] as const).map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
           {editable && trip.status === "draft" && (
             <button
               type="button"
@@ -323,7 +284,7 @@ export function TripDetail() {
               Publish
             </button>
           )}
-          {editable && !isPreview && (
+          {editable && (
             <button
               type="button"
               onClick={() => void runEnhance("trip")}
@@ -346,9 +307,14 @@ export function TripDetail() {
         </div>
       )}
 
+      {/* Appearance — accent + dossier copy for the trip's public pages */}
+      {editable && (
+        <AppearancePanel trip={trip} onChange={(appearance) => scheduleSave({ ...trip, appearance })} />
+      )}
+
       {/* AI generation for an empty itinerary — also the retry path when
           generation failed during the create flow. */}
-      {editable && !isPreview && trip.days.every((d) => d.items.length === 0) && (
+      {editable && trip.days.every((d) => d.items.length === 0) && (
         <GeneratePanel
           getToken={getToken}
           tripId={trip.id}
@@ -364,7 +330,7 @@ export function TripDetail() {
 
       {/* Trip-wide enhancement review stays at the top; day-scoped runs
           render inside their day card. */}
-      {activeRun && activeRun.scope === "trip" && !isPreview && (
+      {activeRun && activeRun.scope === "trip" && (
         <SuggestionsPanel
           run={activeRun}
           dayOptions={dayOptions}
@@ -393,27 +359,23 @@ export function TripDetail() {
           </ol>
         </nav>
         <div className="space-y-8">
-          {trip.days.map((day, idx) =>
-            isPreview ? (
-              <PreviewDay key={day.id} day={day} index={idx} onOpenMap={() => setMapDayId(day.id)} />
-            ) : (
-              <DayCard
-                key={day.id}
-                day={day}
-                index={idx}
-                editable={editable}
-                dayOptions={dayOptions}
-                enhancing={enhancingTarget === day.id}
-                recentIds={recentIds}
-                run={activeRun && activeRun.scope === "day" && activeRun.dayId === day.id ? activeRun : null}
-                onApplyRun={(ids) => void applyRun(ids)}
-                onDismissRun={() => setActiveRun(null)}
-                onChange={setDays}
-                onOpenMap={() => setMapDayId(day.id)}
-                onEnhance={() => void runEnhance("day", day.id)}
-              />
-            ),
-          )}
+          {trip.days.map((day, idx) => (
+            <DayCard
+              key={day.id}
+              day={day}
+              index={idx}
+              editable={editable}
+              dayOptions={dayOptions}
+              enhancing={enhancingTarget === day.id}
+              recentIds={recentIds}
+              run={activeRun && activeRun.scope === "day" && activeRun.dayId === day.id ? activeRun : null}
+              onApplyRun={(ids) => void applyRun(ids)}
+              onDismissRun={() => setActiveRun(null)}
+              onChange={setDays}
+              onOpenMap={() => setMapDayId(day.id)}
+              onEnhance={() => void runEnhance("day", day.id)}
+            />
+          ))}
         </div>
       </div>
 
@@ -588,94 +550,87 @@ function FloatingSaveIndicator({ saveState }: { saveState: "saved" | "saving" | 
   )
 }
 
-// ── Preview mode ─────────────────────────────────────────────────────────
+// ── Appearance panel ─────────────────────────────────────────────────────
 //
-// The published, read-only view of a day — what collaborators see. No
-// inputs, no edit chrome; just a clean itinerary document.
+// Configures the dossier-style public pages: accent family + editorial copy.
+// AI generation proposes these; everything here overrides it.
 
-function PreviewDay({ day, index, onOpenMap }: { day: TripDay; index: number; onOpenMap: () => void }) {
-  const hasMappable = day.items.some((i) => i.location?.lat != null && i.location?.lng != null)
+const ACCENT_SWATCH: Record<string, string> = {
+  rose: "bg-rose-500",
+  amber: "bg-amber-500",
+  emerald: "bg-emerald-500",
+  sky: "bg-sky-500",
+  violet: "bg-violet-500",
+}
+
+function AppearancePanel({ trip, onChange }: { trip: Trip; onChange: (appearance: NonNullable<Trip["appearance"]>) => void }) {
+  const [open, setOpen] = useState(false)
+  const appearance = trip.appearance ?? {}
+  const patch = (p: Partial<NonNullable<Trip["appearance"]>>) => onChange({ ...appearance, ...p })
+  const fieldClass =
+    "w-full rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-sm focus:border-amber-500 focus:outline-none dark:border-stone-700 dark:bg-stone-900"
+
   return (
-    <section id={day.id} aria-label={`Day ${index + 1}`} className="scroll-mt-20">
-      <div className="flex items-baseline justify-between gap-3 border-b border-stone-200 pb-2 dark:border-stone-800">
-        <div className="min-w-0">
-          <div className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
-            Day {index + 1} · {formatDayDate(day.date)}
-            {day.city ? ` · ${day.city}` : ""}
-          </div>
-          {day.title && (
-            <h2
-              className="mt-0.5 font-serif text-2xl text-stone-900 dark:text-stone-100"
-              style={{ fontFamily: "'Cormorant Garamond', serif" }}
-            >
-              {day.title}
-            </h2>
-          )}
-        </div>
-        {hasMappable && (
-          <button
-            type="button"
-            onClick={onOpenMap}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-stone-300 px-3 py-1.5 text-xs font-medium text-stone-700 transition hover:border-amber-400 hover:text-amber-700 dark:border-stone-700 dark:text-stone-300 dark:hover:text-amber-400"
-          >
-            <MapIcon className="h-3.5 w-3.5" aria-hidden />
-            Map
-          </button>
-        )}
-      </div>
-      {day.notes && <p className="mt-2 text-sm text-stone-600 dark:text-stone-400">{day.notes}</p>}
-      {day.items.length === 0 ? (
-        <p className="mt-3 text-sm italic text-stone-400 dark:text-stone-500">Free day — nothing scheduled.</p>
-      ) : (
-        <ul className="relative mt-4 space-y-3 pl-6 before:absolute before:bottom-2 before:left-[7px] before:top-2 before:w-px before:bg-stone-200 dark:before:bg-stone-800">
-          {day.items.map((item) => {
-            const Icon = KIND_ICON[item.kind]
-            const located = item.location?.lat != null && item.location?.lng != null
-            if (item.kind === "section") {
-              return (
-                <li key={item.id} className="relative pt-2">
-                  <span className="absolute -left-[23px] top-1/2 h-[9px] w-[9px] rounded-full border-2 border-stone-300 bg-stone-300 dark:border-stone-600 dark:bg-stone-600" aria-hidden />
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400">
-                    {item.title}
-                  </h3>
-                </li>
-              )
-            }
-            return (
-              <li key={item.id} className="relative">
-                <span
-                  className={`absolute -left-[23px] top-2 h-[9px] w-[9px] rounded-full border-2 ${
-                    located
-                      ? "border-amber-600 bg-amber-600 dark:border-amber-400 dark:bg-amber-400"
-                      : "border-stone-300 bg-white dark:border-stone-600 dark:bg-stone-900"
+    <section className="mt-6 rounded-2xl border border-stone-200/80 bg-white dark:border-stone-800 dark:bg-stone-900">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 px-5 py-3.5 text-left"
+      >
+        <span className="flex items-center gap-2.5 text-sm font-semibold text-stone-900 dark:text-stone-100">
+          <span className={`h-3.5 w-3.5 rounded-full ${ACCENT_SWATCH[appearance.accent ?? "amber"]}`} aria-hidden />
+          Appearance
+          <span className="font-normal text-stone-400 dark:text-stone-500">
+            — accent, hero copy for the trip page
+          </span>
+        </span>
+        <span className="text-xs text-stone-400">{open ? "Hide" : "Configure"}</span>
+      </button>
+      {open && (
+        <div className="space-y-4 border-t border-stone-100 px-5 py-4 dark:border-stone-800">
+          <div>
+            <span className="block text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400">Accent</span>
+            <div className="mt-2 flex gap-2" role="radiogroup" aria-label="Accent color">
+              {Object.entries(ACCENT_SWATCH).map(([name, cls]) => (
+                <button
+                  key={name}
+                  type="button"
+                  role="radio"
+                  aria-checked={(appearance.accent ?? "amber") === name}
+                  aria-label={name}
+                  title={name}
+                  onClick={() => patch({ accent: name as NonNullable<Trip["appearance"]>["accent"] })}
+                  className={`h-7 w-7 rounded-full ${cls} transition ${
+                    (appearance.accent ?? "amber") === name
+                      ? "ring-2 ring-stone-900 ring-offset-2 dark:ring-stone-100 dark:ring-offset-stone-900"
+                      : "opacity-60 hover:opacity-100"
                   }`}
-                  aria-hidden
                 />
-                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                  {item.time && (
-                    <span className="text-xs font-medium tabular-nums text-stone-500 dark:text-stone-400">
-                      {item.time}
-                      {item.endTime ? `–${item.endTime}` : ""}
-                    </span>
-                  )}
-                  <span className={`text-sm font-medium text-stone-900 dark:text-stone-100 ${item.status === "completed" ? "line-through opacity-60" : ""}`}>
-                    <Icon className="mr-1 inline h-3.5 w-3.5 align-[-2px] text-stone-400" aria-hidden />
-                    {item.title}
-                  </span>
-                  {item.status !== "none" && (
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_CHIP[item.status]}`}>
-                      {STATUS_OPTIONS.find((s) => s.value === item.status)?.label}
-                    </span>
-                  )}
-                </div>
-                {item.location?.address && (
-                  <p className="mt-0.5 text-xs text-stone-500 dark:text-stone-400">{item.location.address}</p>
-                )}
-                {item.notes && <p className="mt-1 whitespace-pre-line text-sm text-stone-600 dark:text-stone-400">{item.notes}</p>}
-              </li>
-            )
-          })}
-        </ul>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400">Eyebrow</span>
+              <input className={`mt-1 ${fieldClass}`} value={appearance.eyebrow ?? ""} placeholder="The dossier" onChange={(e) => patch({ eyebrow: e.target.value || undefined })} />
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400">Subtitle</span>
+              <input className={`mt-1 ${fieldClass}`} value={appearance.subtitle ?? ""} placeholder="a Seoul & Busan dossier" onChange={(e) => patch({ subtitle: e.target.value || undefined })} />
+            </label>
+          </div>
+          <label className="block">
+            <span className="text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400">Headline</span>
+            <textarea
+              rows={2}
+              className={`mt-1 ${fieldClass}`}
+              value={appearance.headline ?? ""}
+              placeholder="The editorial paragraph under the trip title — AI fills this on generation."
+              onChange={(e) => patch({ headline: e.target.value || undefined })}
+            />
+          </label>
+        </div>
       )}
     </section>
   )
@@ -711,6 +666,8 @@ function DayCard({
   onEnhance: () => void
 }) {
   const hasMappable = day.items.some((i) => i.location?.lat != null && i.location?.lng != null)
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const patchDay = (p: Partial<TripDay>) => onChange((days) => days.map((d) => (d.id === day.id ? { ...d, ...p } : d)))
   return (
     <section
       id={day.id}
@@ -728,14 +685,25 @@ function DayCard({
             Day {index + 1} · {formatDayDate(day.date)}
             {day.city ? ` · ${day.city}` : ""}
           </div>
-          <input
-            value={day.title ?? ""}
-            disabled={!editable}
-            placeholder="Day theme…"
-            aria-label={`Day ${index + 1} title`}
-            onChange={(e) => onChange((days) => days.map((d) => (d.id === day.id ? { ...d, title: e.target.value } : d)))}
-            className="mt-0.5 w-full bg-transparent text-lg font-semibold text-stone-900 placeholder:text-stone-300 focus:outline-none dark:text-stone-100 dark:placeholder:text-stone-600"
-          />
+          <div className="flex items-center gap-2">
+            <input
+              value={day.emoji ?? ""}
+              disabled={!editable}
+              placeholder="✦"
+              maxLength={4}
+              aria-label={`Day ${index + 1} emoji`}
+              onChange={(e) => patchDay({ emoji: e.target.value || undefined })}
+              className="w-9 shrink-0 bg-transparent text-center text-xl focus:outline-none"
+            />
+            <input
+              value={day.title ?? ""}
+              disabled={!editable}
+              placeholder="Day theme…"
+              aria-label={`Day ${index + 1} title`}
+              onChange={(e) => patchDay({ title: e.target.value })}
+              className="mt-0.5 w-full bg-transparent text-lg font-semibold text-stone-900 placeholder:text-stone-300 focus:outline-none dark:text-stone-100 dark:placeholder:text-stone-600"
+            />
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {editable && (
@@ -773,12 +741,108 @@ function DayCard({
       <textarea
         value={day.notes ?? ""}
         disabled={!editable}
-        placeholder={editable ? "Day notes — freeform planning space…" : ""}
-        aria-label={`Day ${index + 1} notes`}
+        placeholder={editable ? "Day theme prose — the editorial line under the title on the trip page…" : ""}
+        aria-label={`Day ${index + 1} theme`}
         rows={day.notes ? Math.min(4, day.notes.split("\n").length) : 1}
-        onChange={(e) => onChange((days) => days.map((d) => (d.id === day.id ? { ...d, notes: e.target.value } : d)))}
+        onChange={(e) => patchDay({ notes: e.target.value })}
         className="mt-2 w-full resize-none rounded-lg border border-transparent bg-transparent px-2 py-1 text-sm text-stone-600 transition placeholder:text-stone-300 hover:border-stone-200 focus:border-amber-500 focus:outline-none dark:text-stone-400 dark:placeholder:text-stone-600 dark:hover:border-stone-700"
       />
+
+      {/* Day details: display metadata for the dossier pages */}
+      {editable && (
+        <div className="mt-1">
+          <button
+            type="button"
+            onClick={() => setDetailsOpen((o) => !o)}
+            aria-expanded={detailsOpen}
+            className="rounded-md px-2 py-1 text-xs font-medium text-stone-400 transition hover:bg-stone-100 hover:text-stone-700 dark:hover:bg-stone-800 dark:hover:text-stone-300"
+          >
+            {detailsOpen ? "Hide day details" : "Day details (neighborhoods, callouts, weather)"}
+          </button>
+          {detailsOpen && (
+            <div className="mt-2 space-y-3 rounded-xl border border-stone-100 p-3 dark:border-stone-800">
+              <label className="block">
+                <span className="text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400">
+                  Neighborhoods (comma-separated)
+                </span>
+                <input
+                  value={(day.neighborhoods ?? []).join(", ")}
+                  placeholder="Samseong, COEX, Bongeunsa"
+                  onChange={(e) =>
+                    patchDay({
+                      neighborhoods: e.target.value
+                        .split(",")
+                        .map((n) => n.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                  className="mt-1 w-full rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-sm focus:border-amber-500 focus:outline-none dark:border-stone-700 dark:bg-stone-900"
+                />
+              </label>
+              <div>
+                <span className="text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400">Callouts</span>
+                <div className="mt-1 space-y-2">
+                  {(day.callouts ?? []).map((c, ci) => (
+                    <div key={ci} className="flex items-start gap-2">
+                      <input
+                        value={c.icon}
+                        maxLength={4}
+                        aria-label="Callout icon"
+                        onChange={(e) =>
+                          patchDay({ callouts: (day.callouts ?? []).map((x, xi) => (xi === ci ? { ...x, icon: e.target.value } : x)) })
+                        }
+                        className="w-10 shrink-0 rounded-lg border border-stone-200 bg-white px-1 py-1.5 text-center text-sm dark:border-stone-700 dark:bg-stone-900"
+                      />
+                      <select
+                        value={c.tone}
+                        aria-label="Callout tone"
+                        onChange={(e) =>
+                          patchDay({
+                            callouts: (day.callouts ?? []).map((x, xi) =>
+                              xi === ci ? { ...x, tone: e.target.value as typeof c.tone } : x,
+                            ),
+                          })
+                        }
+                        className="shrink-0 rounded-lg border border-stone-200 bg-white px-1.5 py-1.5 text-xs dark:border-stone-700 dark:bg-stone-900"
+                      >
+                        {(["info", "warn", "success", "alert"] as const).map((t) => (
+                          <option key={t} value={t}>{t}</option>
+                        ))}
+                      </select>
+                      <input
+                        value={c.body}
+                        aria-label="Callout text"
+                        placeholder="Heads-up text…"
+                        onChange={(e) =>
+                          patchDay({ callouts: (day.callouts ?? []).map((x, xi) => (xi === ci ? { ...x, body: e.target.value } : x)) })
+                        }
+                        className="min-w-0 flex-1 rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-sm focus:border-amber-500 focus:outline-none dark:border-stone-700 dark:bg-stone-900"
+                      />
+                      <IconButton label="Remove callout" destructive onClick={() => patchDay({ callouts: (day.callouts ?? []).filter((_, xi) => xi !== ci) })}>
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                      </IconButton>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => patchDay({ callouts: [...(day.callouts ?? []), { icon: "⚠️", tone: "warn", body: "" }] })}
+                    className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-stone-500 transition hover:bg-stone-100 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800"
+                  >
+                    <Plus className="h-3 w-3" aria-hidden />
+                    Add callout
+                  </button>
+                </div>
+              </div>
+              {day.weather && (
+                <p className="text-xs text-stone-500 dark:text-stone-400">
+                  Weather: {day.weather.highC}°C / {day.weather.lowC}°C · {day.weather.condition} — auto-synced from the live
+                  forecast on each Enhance run.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Day-scoped enhancement review renders here, inside the day. */}
       <AnimatePresence>

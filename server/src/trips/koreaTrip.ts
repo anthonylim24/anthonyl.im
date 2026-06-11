@@ -114,18 +114,6 @@ function buildDay(day: Day, reservations: Reservation[]): TripDay {
     }
   }
 
-  // 4. Callouts → note items.
-  for (const [i, callout] of (day.callouts ?? []).entries()) {
-    items.push({
-      id: `note-${day.slug}-${i + 1}`,
-      kind: "note",
-      title: `${callout.icon} ${callout.tone === "warn" || callout.tone === "alert" ? "Heads up" : "Note"}`,
-      notes: callout.body,
-      status: callout.tone === "warn" || callout.tone === "alert" ? "needs_review" : "none",
-      createdBy: "migration",
-    })
-  }
-
   return {
     id: day.slug,
     date: day.date,
@@ -133,6 +121,11 @@ function buildDay(day: Day, reservations: Reservation[]): TripDay {
     emoji: day.emoji,
     city: day.city,
     notes: day.theme,
+    neighborhoods: day.neighborhoods.length ? day.neighborhoods : undefined,
+    weather: day.weather,
+    // Callouts stay structured (icon + tone + body) so the dossier-style
+    // alert boxes render exactly as on /korea.
+    callouts: day.callouts?.length ? day.callouts.map((c) => ({ ...c })) : undefined,
     items,
   }
 }
@@ -164,6 +157,13 @@ export function buildKoreaTrip(now: Date = new Date()): Trip {
       .join("\n"),
     collaborators: [],
     sharedWithAllUsers: true,
+    appearance: {
+      accent: "rose",
+      eyebrow: "The dossier",
+      subtitle: "a Seoul & Busan dossier",
+      headline: koreaSnapshot.status.headline,
+      cityTags: { Seoul: "SE", Busan: "BU", Yangju: "YJ", Incheon: "IC" },
+    },
     days: days.map((day) =>
       buildDay(
         day,

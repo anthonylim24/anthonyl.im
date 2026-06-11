@@ -74,3 +74,26 @@ describe("buildKoreaTrip", () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 })
+
+describe("dossier display data", () => {
+  const trip = buildKoreaTrip()
+
+  test("carries trip appearance theming", () => {
+    expect(trip.appearance?.accent).toBe("rose")
+    expect(trip.appearance?.subtitle).toContain("Seoul")
+    expect(trip.appearance?.headline).toBe(koreaSnapshot.status.headline)
+    expect(trip.appearance?.cityTags?.Seoul).toBe("SE")
+  })
+
+  test("carries day neighborhoods, weather, and structured callouts", () => {
+    for (const day of koreaSnapshot.days) {
+      const converted = trip.days.find((d) => d.id === day.slug)!
+      if (day.neighborhoods.length) expect(converted.neighborhoods).toEqual(day.neighborhoods)
+      if (day.weather) expect(converted.weather).toEqual(day.weather)
+      if (day.callouts?.length) {
+        expect(converted.callouts?.length).toBe(day.callouts.length)
+        expect(converted.callouts?.[0]).toMatchObject({ tone: day.callouts[0]!.tone, body: day.callouts[0]!.body })
+      }
+    }
+  })
+})

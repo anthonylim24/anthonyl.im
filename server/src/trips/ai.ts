@@ -2,6 +2,7 @@ import Groq from "groq-sdk"
 import { GEMINI_BASE, GEMINI_MODEL } from "../igPlaces/gemini"
 import { haversineMeters } from "../data/koreaPlaces"
 import {
+  aiAppearanceSchema,
   aiItemSchema,
   aiItinerarySchema,
   aiSuggestionSchema,
@@ -189,16 +190,27 @@ type AiSuggestion = z.infer<typeof aiSuggestionSchema>
 
 const looseDaySchema = z.object({
   title: z.string().max(200).optional(),
+  emoji: z.string().max(8).optional(),
   city: z.string().max(80).optional(),
   notes: z.string().max(4000).optional(),
+  neighborhoods: z.array(z.string().min(1).max(80)).max(12).optional(),
   items: z.array(z.unknown()).max(60).default([]),
 })
 
-export function salvageItinerary(raw: string): { summary?: string; days: AiDay[] } {
+export function salvageItinerary(raw: string): {
+  summary?: string
+  appearance?: z.infer<typeof aiAppearanceSchema>
+  days: AiDay[]
+} {
   const loose = parseModelJson(
     raw,
-    z.object({ summary: z.string().max(2000).optional(), days: z.array(z.unknown()).max(60).default([]) }),
+    z.object({
+      summary: z.string().max(2000).optional(),
+      appearance: z.unknown().optional(),
+      days: z.array(z.unknown()).max(60).default([]),
+    }),
   )
+  const appearance = aiAppearanceSchema.safeParse(loose.appearance)
   let dropped = 0
   const days: AiDay[] = loose.days.map((rawDay) => {
     const day = looseDaySchema.safeParse(rawDay)
@@ -216,7 +228,7 @@ export function salvageItinerary(raw: string): { summary?: string; days: AiDay[]
     return { ...day.data, items }
   })
   if (dropped > 0) console.warn(`[trips/ai] generation: dropped ${dropped} malformed entr${dropped === 1 ? "y" : "ies"}`)
-  return { summary: loose.summary, days }
+  return { summary: loose.summary, appearance: appearance.success ? appearance.data : undefined, days }
 }
 
 /** Fold common model deviations into valid shapes before validating: string
@@ -269,11 +281,19 @@ const GENERATION_SYSTEM = `You are a meticulous travel-planning agent. You produ
 Output a single JSON object with this exact shape:
 {
   "summary": string,                       // 1-3 sentence trip overview
+  "appearance": {                           // editorial theming for the trip's dossier-style pages
+    "accent": "rose" | "amber" | "emerald" | "sky" | "violet",  // pick the family that fits the destination's mood
+    "eyebrow": string,                      // 2-3 word kicker, e.g. "The dossier"
+    "subtitle": string,                     // italic serif line under the title, e.g. "a Seoul & Busan dossier"
+    "headline": string                      // 2-3 sentence editorial paragraph capturing the trip's spirit
+  },
   "days": [                                 // EXACTLY one entry per trip day, in date order
     {
       "title": string,                      // short day theme, e.g. "Palaces & Hanok lanes"
+      "emoji": string,                      // ONE expressive emoji for the day, e.g. "🏯"
       "city": string,                       // primary city/area for the day
-      "notes": string,                      // optional routing/pacing notes
+      "notes": string,                      // 1-2 sentence editorial day theme (rendered as prose under the title)
+      "neighborhoods": [string],            // 2-4 neighborhood/area names featured this day
       "items": [
         {
           "kind": "place" | "note" | "section",
@@ -298,7 +318,8 @@ Rules:
 - Include meals (lunch + dinner) as place items with category "restaurant" or "cafe".
 - Every place item MUST have a location with at least name + address. When Google Maps grounding is available, use it to verify each venue exists and include its real lat/lng; otherwise provide coordinates only when confident.
 - Use "section" items sparingly as morning/afternoon/evening headers, "note" items for tips.
-- Respect the traveler preferences when given. Never invent reservations or claim bookings exist.`
+- Respect the traveler preferences when given. Never invent reservations or claim bookings exist.
+- "notes" at the day level is editorial voice (a travel-dossier one-liner), not logistics; keep logistics in item notes.`
 
 export async function generateItinerary(args: {
   trip: Trip
@@ -306,7 +327,7 @@ export async function generateItinerary(args: {
   preferences?: GeneratePreferences
   llm: LlmCall
   geocode?: Geocoder | null
-}): Promise<{ summary?: string; days: TripDay[] }> {
+}): Promise<{ summary?: string; appearance?: Trip["appearance"]; days: TripDay[] }> {
   const { trip, preferences, llm, geocode } = args
   const dates = tripDates(trip.startDate, trip.endDate)
   const prefLines = Object.entries(preferences ?? {})
@@ -328,6 +349,7 @@ export async function generateItinerary(args: {
 
   const raw = await llm({ system: GENERATION_SYSTEM, user })
   const parsed = salvageItinerary(raw)
+  const appearance = parsed.appearance
 
   const days: TripDay[] = dates.map((date, i) => {
     const aiDay = parsed.days[i]
@@ -335,8 +357,10 @@ export async function generateItinerary(args: {
       id: `day-${i + 1}`,
       date,
       title: aiDay?.title,
+      emoji: aiDay?.emoji,
       city: aiDay?.city,
       notes: aiDay?.notes,
+      neighborhoods: aiDay?.neighborhoods,
       items: (aiDay?.items ?? []).map((item): ItineraryItem => ({
         id: newId("it"),
         kind: item.kind,
@@ -381,7 +405,7 @@ export async function generateItinerary(args: {
     }
   }
 
-  return { summary: parsed.summary, days }
+  return { summary: parsed.summary, appearance, days }
 }
 
 // ── Enhancement ──────────────────────────────────────────────────────────
@@ -504,6 +528,14 @@ export async function enhanceTrip(args: {
       dates: days.map((d) => d.date),
     })
     if (forecast.length > 0) {
+      // Persisted by the route onto day.weather — keeps trip pages' weather
+      // chips live without a manual edit.
+      run.weatherByDate = Object.fromEntries(
+        forecast.map((w) => [
+          w.date,
+          { highC: Math.round(w.highC), lowC: Math.round(w.lowC), condition: `${w.precipitationChance}% rain` },
+        ]),
+      )
       weatherLines = forecast
         .map((w) => `${w.date}: ${w.lowC}–${w.highC}°C, ${w.precipitationChance}% rain chance`)
         .join("\n")

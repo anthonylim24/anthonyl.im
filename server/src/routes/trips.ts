@@ -77,8 +77,30 @@ const seededStores = new WeakSet<TripStore>()
 async function ensureSeeded(store: TripStore) {
   if (seededStores.has(store)) return
   try {
-    if (!(await store.get(KOREA_TRIP_ID))) {
+    const existing = await store.get(KOREA_TRIP_ID)
+    if (!existing) {
       await store.create(buildKoreaTrip())
+    } else if (!existing.appearance) {
+      // One-time display-data upgrade for trips seeded before the dossier
+      // theming existed: backfill appearance + per-day neighborhoods /
+      // weather / callouts from the canonical seed, preserving any item
+      // edits the user has made since.
+      const seed = buildKoreaTrip()
+      await store.update({
+        ...existing,
+        appearance: seed.appearance,
+        days: existing.days.map((d) => {
+          const seedDay = seed.days.find((s) => s.id === d.id)
+          if (!seedDay) return d
+          return {
+            ...d,
+            neighborhoods: d.neighborhoods ?? seedDay.neighborhoods,
+            weather: d.weather ?? seedDay.weather,
+            callouts: d.callouts ?? seedDay.callouts,
+          }
+        }),
+        updatedAt: nowIso(),
+      })
     }
     seededStores.add(store)
   } catch (err) {
@@ -216,7 +238,13 @@ export function createTripsRouter(deps: TripsRouterDeps) {
         llm: deps.llm,
         geocode: deps.geocode,
       })
-      const next: Trip = { ...result.trip, days: generated.days, updatedAt: nowIso() }
+      const next: Trip = {
+        ...result.trip,
+        days: generated.days,
+        // AI-proposed theming fills gaps but never overwrites user choices.
+        appearance: { ...generated.appearance, ...result.trip.appearance },
+        updatedAt: nowIso(),
+      }
       await deps.store.update(next)
       return c.json({ trip: next, summary: generated.summary })
     } catch (err) {
@@ -246,7 +274,18 @@ export function createTripsRouter(deps: TripsRouterDeps) {
       fetchWeather: deps.fetchWeather ?? fetchOpenMeteoWeather,
     })
     await deps.store.saveRun(run)
-    return c.json({ run }, run.status === "error" ? 502 : 200)
+    // Trusted auto-sync: refresh day.weather from the live forecast fetched
+    // during the run (metadata, not an itinerary change — no review needed).
+    let trip = result.trip
+    if (run.weatherByDate && Object.keys(run.weatherByDate).length > 0) {
+      trip = {
+        ...trip,
+        days: trip.days.map((d) => (run.weatherByDate![d.date] ? { ...d, weather: run.weatherByDate![d.date] } : d)),
+        updatedAt: nowIso(),
+      }
+      await deps.store.update(trip)
+    }
+    return c.json({ run, trip }, run.status === "error" ? 502 : 200)
   })
 
   trips.get("/:id/enhancements", async (c) => {

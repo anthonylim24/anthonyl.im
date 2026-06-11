@@ -44,6 +44,18 @@ export interface ItineraryItem {
   createdBy: LocationSource
 }
 
+export interface DayCallout {
+  icon: string
+  tone: "info" | "warn" | "success" | "alert"
+  body: string
+}
+
+export interface DayWeather {
+  highC: number
+  lowC: number
+  condition: string
+}
+
 export interface TripDay {
   id: string
   date: string
@@ -51,7 +63,20 @@ export interface TripDay {
   emoji?: string
   city?: string
   notes?: string
+  neighborhoods?: string[]
+  weather?: DayWeather
+  callouts?: DayCallout[]
   items: ItineraryItem[]
+}
+
+export type TripAccent = "rose" | "amber" | "emerald" | "sky" | "violet"
+
+export interface TripAppearance {
+  accent?: TripAccent
+  eyebrow?: string
+  subtitle?: string
+  headline?: string
+  cityTags?: Record<string, string>
 }
 
 export interface Trip {
@@ -67,6 +92,7 @@ export interface Trip {
   description?: string
   collaborators: TripCollaborator[]
   sharedWithAllUsers?: boolean
+  appearance?: TripAppearance
   days: TripDay[]
   createdAt: string
   updatedAt: string

@@ -74,10 +74,10 @@ export const generateItinerary = (
   })
 
 export const enhanceTrip = (getToken: GetToken, id: string, scope: "day" | "trip", dayId?: string) =>
-  request<{ run: EnhancementRun }>(getToken, `/${encodeURIComponent(id)}/enhance`, {
+  request<{ run: EnhancementRun; trip?: Trip }>(getToken, `/${encodeURIComponent(id)}/enhance`, {
     method: "POST",
     body: JSON.stringify({ scope, dayId }),
-  }).then((r) => r.run)
+  })
 
 export const applySuggestions = (getToken: GetToken, id: string, runId: string, suggestionIds: string[]) =>
   request<{ trip: Trip; applied: string[]; skipped: string[] }>(

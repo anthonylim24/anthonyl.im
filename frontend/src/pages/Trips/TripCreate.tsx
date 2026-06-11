@@ -70,7 +70,7 @@ export function TripCreate() {
         } catch (err) {
           // The trip exists — land on it with the failed generation queued up
           // for a one-click retry (prompt + preferences preserved).
-          navigate(`/trips/${trip.id}`, {
+          navigate(`/trips/${trip.id}/edit`, {
             state: {
               notice: `Trip created, but AI generation failed: ${err instanceof Error ? err.message : String(err)}`,
               retryGenerate: { prompt: prompt.trim() || undefined, preferences },
@@ -78,8 +78,12 @@ export function TripCreate() {
           })
           return
         }
+        // AI trips land on the dossier overview — the reveal moment.
+        navigate(`/trips/${trip.id}`)
+        return
       }
-      navigate(`/trips/${trip.id}`)
+      // Blank trips go straight into the editor.
+      navigate(`/trips/${trip.id}/edit`)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
       setBusy("idle")

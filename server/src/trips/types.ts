@@ -53,14 +53,51 @@ export interface ItineraryItem {
   createdBy: LocationSource
 }
 
+export interface DayCallout {
+  icon: string // emoji
+  tone: "info" | "warn" | "success" | "alert"
+  body: string
+}
+
+export interface DayWeather {
+  highC: number
+  lowC: number
+  condition: string
+}
+
 export interface TripDay {
   id: string // stable slug within the trip, e.g. "day-1"
   date: string // ISO yyyy-mm-dd
   title?: string
   emoji?: string
   city?: string
+  /** Day theme prose — the editorial one-liner under the day title. */
   notes?: string
+  /** Neighborhood/area names featured this day (rendered as meta + map hints). */
+  neighborhoods?: string[]
+  weather?: DayWeather
+  callouts?: DayCallout[]
   items: ItineraryItem[]
+}
+
+// ── Trip appearance (configurable, AI-fillable theming) ──────────────────
+//
+// Drives the Korea-dossier-style rendering of trip pages. Every field has a
+// sensible default; AI generation proposes values and the editor overrides.
+
+export type TripAccent = "rose" | "amber" | "emerald" | "sky" | "violet"
+
+export interface TripAppearance {
+  /** Signature accent family — colors the hero bloom, countdown, dots. */
+  accent?: TripAccent
+  /** Hero kicker, e.g. "The dossier". */
+  eyebrow?: string
+  /** Italic serif line under the trip title, e.g. "a Seoul & Busan dossier". */
+  subtitle?: string
+  /** Editorial paragraph under the hero. */
+  headline?: string
+  /** Two-letter tags per city for day cards; auto-derived when absent. */
+  cityTags?: Record<string, string>
 }
 
 export interface Trip {
@@ -78,6 +115,7 @@ export interface Trip {
   // Legacy Korea behavior: every signed-in user can view and edit. New trips
   // default to private (owner + collaborators only).
   sharedWithAllUsers?: boolean
+  appearance?: TripAppearance
   days: TripDay[]
   createdAt: string
   updatedAt: string
@@ -109,6 +147,9 @@ export interface EnhancementRun {
   summary?: string
   suggestions: EnhancementSuggestion[]
   appliedSuggestionIds: string[]
+  /** Live forecast fetched during the run — auto-merged onto day.weather
+   *  (trusted metadata sync, not a reviewable suggestion). */
+  weatherByDate?: Record<string, DayWeather>
   error?: string
   createdAt: string
 }
@@ -162,6 +203,18 @@ export const itemSchema = z.object({
   createdBy: z.enum(["user", "ai", "migration"]).default("user"),
 })
 
+export const calloutSchema = z.object({
+  icon: z.string().min(1).max(8),
+  tone: z.enum(["info", "warn", "success", "alert"]),
+  body: z.string().min(1).max(1000),
+})
+
+export const weatherSchema = z.object({
+  highC: z.number().min(-60).max(60),
+  lowC: z.number().min(-60).max(60),
+  condition: z.string().max(60),
+})
+
 export const daySchema = z.object({
   id: z.string().min(1).max(64),
   date: isoDate,
@@ -169,7 +222,18 @@ export const daySchema = z.object({
   emoji: z.string().max(8).optional(),
   city: z.string().max(80).optional(),
   notes: z.string().max(8000).optional(),
+  neighborhoods: z.array(z.string().min(1).max(80)).max(12).optional(),
+  weather: weatherSchema.optional(),
+  callouts: z.array(calloutSchema).max(12).optional(),
   items: z.array(itemSchema).max(200),
+})
+
+export const appearanceSchema = z.object({
+  accent: z.enum(["rose", "amber", "emerald", "sky", "violet"]).optional(),
+  eyebrow: z.string().max(60).optional(),
+  subtitle: z.string().max(120).optional(),
+  headline: z.string().max(600).optional(),
+  cityTags: z.record(z.string().max(80), z.string().max(4)).optional(),
 })
 
 export const createTripSchema = z.object({
@@ -194,6 +258,7 @@ export const updateTripSchema = z.object({
   tags: z.array(z.string().max(40)).max(20).optional(),
   description: z.string().max(4000).nullable().optional(),
   collaborators: z.array(collaboratorSchema).max(50).optional(),
+  appearance: appearanceSchema.optional(),
   days: z.array(daySchema).max(60).optional(),
 })
 
@@ -245,18 +310,26 @@ export const aiItemSchema = z.object({
     .optional(),
 })
 
+export const aiDaySchema = z.object({
+  title: z.string().max(200).optional(),
+  emoji: z.string().max(8).optional(),
+  city: z.string().max(80).optional(),
+  notes: z.string().max(4000).optional(),
+  neighborhoods: z.array(z.string().min(1).max(80)).max(12).optional(),
+  items: z.array(aiItemSchema).max(40).default([]),
+})
+
+export const aiAppearanceSchema = z.object({
+  accent: z.enum(["rose", "amber", "emerald", "sky", "violet"]).optional(),
+  eyebrow: z.string().max(60).optional(),
+  subtitle: z.string().max(120).optional(),
+  headline: z.string().max(600).optional(),
+})
+
 export const aiItinerarySchema = z.object({
   summary: z.string().max(2000).optional(),
-  days: z
-    .array(
-      z.object({
-        title: z.string().max(200).optional(),
-        city: z.string().max(80).optional(),
-        notes: z.string().max(4000).optional(),
-        items: z.array(aiItemSchema).max(40).default([]),
-      }),
-    )
-    .max(60),
+  appearance: aiAppearanceSchema.optional(),
+  days: z.array(aiDaySchema).max(60),
 })
 
 export const aiSuggestionSchema = z.object({

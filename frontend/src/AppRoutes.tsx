@@ -52,6 +52,12 @@ const TripCreate = lazy(() =>
 const TripDetail = lazy(() =>
   import('./pages/Trips/TripDetail').then((module) => ({ default: module.TripDetail })),
 )
+const TripOverview = lazy(() =>
+  import('./pages/Trips/TripOverview').then((module) => ({ default: module.TripOverview })),
+)
+const TripDayPage = lazy(() =>
+  import('./pages/Trips/TripDayPage').then((module) => ({ default: module.TripDayPage })),
+)
 
 // Route-aware skeletons so a lazy chunk that's still streaming (or hung on a
 // stale SW transition) shows recognizable parchment instead of a blank canvas
@@ -186,7 +192,9 @@ export function AppRoutes() {
         >
           <Route index element={<TripsIndex />} />
           <Route path="new" element={<TripCreate />} />
-          <Route path=":tripId" element={<TripDetail />} />
+          <Route path=":tripId" element={<TripOverview />} />
+          <Route path=":tripId/edit" element={<TripDetail />} />
+          <Route path=":tripId/day/:dayId" element={<TripDayPage />} />
         </Route>
       </Routes>
     </BrowserRouter>
