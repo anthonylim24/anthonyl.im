@@ -20,6 +20,7 @@ export interface SupabaseClient {
   select<T>(table: string, opts?: SelectOptions): Promise<T[]>;
   insert<T = unknown>(table: string, row: object, opts?: InsertOptions): Promise<T[]>;
   update<T = unknown>(table: string, patch: object, eq: Record<string, unknown>): Promise<T[]>;
+  delete(table: string, eq: Record<string, unknown>): Promise<void>;
   rpc<T = unknown>(fn: string, args?: object): Promise<T>;
 }
 
@@ -96,6 +97,14 @@ export function createSupabaseClient(cfg: SupabaseConfig): SupabaseClient {
         body: JSON.stringify(patch),
       });
       return safeJson<T[]>(await r.text(), `update ${table}`, []);
+    },
+
+    async delete(table: string, eq: Record<string, unknown>) {
+      const qs = eqParams(eq);
+      await call(`/${table}?${qs}`, {
+        method: 'DELETE',
+        headers: { ...baseHeaders, Prefer: 'return=minimal' },
+      });
     },
 
     async rpc<T = unknown>(fn: string, args: object = {}) {
