@@ -323,3 +323,77 @@ describe("createGeminiLlm", () => {
     await expect(llm({ system: "s", user: "u" })).rejects.toThrow(/empty/)
   })
 })
+
+import { extractModelJson, salvageSuggestions, salvageItinerary } from "./ai"
+
+describe("extractModelJson", () => {
+  test("parses double-encoded JSON (grounded Gemini failure mode)", () => {
+    const inner = JSON.stringify({ summary: "ok", suggestions: [] })
+    expect(extractModelJson(JSON.stringify(inner))).toEqual({ summary: "ok", suggestions: [] })
+  })
+
+  test("strips trailing prose after JSON starting at position 0", () => {
+    expect(extractModelJson('{"a":1}\n\nSources: Google Maps')).toEqual({ a: 1 })
+  })
+
+  test("strips leading prose and code fences", () => {
+    expect(extractModelJson('Here you go:\n```json\n{"a":1}\n```')).toEqual({ a: 1 })
+  })
+})
+
+describe("salvage parsing", () => {
+  test("keeps valid suggestions and drops malformed ones instead of failing", () => {
+    const raw = JSON.stringify({
+      summary: "Mixed bag.",
+      suggestions: [
+        { kind: "warning", dayId: "day-1", title: "Check hours", detail: "Verify.", confidence: "low" },
+        "not an object",
+        { kind: "edit", itemId: "it-a", title: "Shift", detail: "", confidence: "high", proposedChanges: "move to 08:00" },
+        { title: "missing kind" },
+      ],
+    })
+    const out = salvageSuggestions(raw)
+    expect(out.suggestions.length).toBe(2)
+    expect(out.suggestions[0]!.kind).toBe("warning")
+    // string proposedChanges folded into detail rather than dropped
+    expect(out.suggestions[1]!.kind).toBe("edit")
+    expect(out.suggestions[1]!.proposedChanges).toBeUndefined()
+    expect(out.suggestions[1]!.detail).toContain("move to 08:00")
+  })
+
+  test("enhanceTrip survives double-encoded grounded output end-to-end", async () => {
+    const payload = JSON.stringify({
+      summary: "Looks good.",
+      suggestions: [{ kind: "info", dayId: "day-1", title: "Nice pacing", detail: "", confidence: "high" }],
+    })
+    const run = await enhanceTrip({
+      trip: makeTrip(),
+      scope: "day",
+      dayId: "day-1",
+      llm: async () => JSON.stringify(payload), // double-encoded
+    })
+    expect(run.status).toBe("complete")
+    expect(run.suggestions.length).toBe(1)
+  })
+
+  test("salvageItinerary drops malformed items but keeps the rest of the day", () => {
+    const raw = JSON.stringify({
+      summary: "ok",
+      days: [
+        {
+          title: "Day in town",
+          items: [
+            { kind: "place", title: "Museum", location: { name: "Museum", address: "1 Main St" } },
+            { kind: "place" }, // missing title → dropped
+            42,
+          ],
+        },
+        "garbage day",
+      ],
+    })
+    const out = salvageItinerary(raw)
+    expect(out.days.length).toBe(2)
+    expect(out.days[0]!.items.length).toBe(1)
+    expect(out.days[1]!.items.length).toBe(0)
+  })
+})

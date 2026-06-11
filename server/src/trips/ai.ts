@@ -2,8 +2,9 @@ import Groq from "groq-sdk"
 import { GEMINI_BASE, GEMINI_MODEL } from "../igPlaces/gemini"
 import { haversineMeters } from "../data/koreaPlaces"
 import {
-  aiEnhancementSchema,
+  aiItemSchema,
   aiItinerarySchema,
+  aiSuggestionSchema,
   DEFAULT_ITINERARY_PROMPT,
   newId,
   nowIso,
@@ -14,7 +15,7 @@ import {
   type Trip,
   type TripDay,
 } from "./types"
-import type { z } from "zod"
+import { z } from "zod"
 
 // ── LLM + geocode dependency seams (injected in tests) ───────────────────
 
@@ -139,20 +140,114 @@ export const fetchOpenMeteoWeather: WeatherFetcher = async ({ lat, lng, dates })
 
 // ── JSON parsing helper ──────────────────────────────────────────────────
 
-function parseModelJson<T>(raw: string, schema: z.ZodType<T>): T {
+/** Extract a JSON value from raw model text. Handles code fences, leading
+ *  AND trailing prose (grounded Gemini appends source notes after the JSON),
+ *  and double-encoded output (a JSON string whose content is itself JSON —
+ *  observed from gemini-3.1-flash-lite with the Maps grounding tool). */
+export function extractModelJson(raw: string): unknown {
   let candidate = raw.trim()
-  // Models occasionally wrap JSON in code fences despite JSON mode.
   const fence = candidate.match(/```(?:json)?\s*([\s\S]*?)```/)
   if (fence) candidate = fence[1]!.trim()
-  const firstBrace = candidate.indexOf("{")
-  const lastBrace = candidate.lastIndexOf("}")
-  if (firstBrace > 0 && lastBrace > firstBrace) candidate = candidate.slice(firstBrace, lastBrace + 1)
-  const parsed = JSON.parse(candidate) as unknown
+  let parsed: unknown
+  try {
+    // Whole-string parse first — brace-slicing a double-encoded JSON string
+    // would mangle its escaped quotes.
+    parsed = JSON.parse(candidate)
+  } catch {
+    const firstBrace = candidate.indexOf("{")
+    const lastBrace = candidate.lastIndexOf("}")
+    if (firstBrace < 0 || lastBrace <= firstBrace) throw new Error("no JSON object found in model output")
+    parsed = JSON.parse(candidate.slice(firstBrace, lastBrace + 1)) as unknown
+  }
+  if (typeof parsed === "string") parsed = JSON.parse(parsed) as unknown
+  return parsed
+}
+
+function parseModelJson<T>(raw: string, schema: z.ZodType<T>): T {
+  const parsed = extractModelJson(raw)
   const result = schema.safeParse(parsed)
   if (!result.success) {
-    throw new Error(`model output failed validation: ${result.error.issues[0]?.message ?? "unknown"}`)
+    const issue = result.error.issues[0]
+    const path = issue && issue.path.length ? ` at ${issue.path.join(".")}` : ""
+    console.warn(
+      `[trips/ai] model output failed validation: ${issue?.message}${path} | raw: ${raw.slice(0, 400)}`,
+    )
+    throw new Error(`model output failed validation: ${issue?.message ?? "unknown"}${path}`)
   }
   return result.data
+}
+
+// ── Salvage parsing ──────────────────────────────────────────────────────
+//
+// One malformed entry from the model must never fail the whole response.
+// Top-level shape is validated loosely, then each day/item/suggestion is
+// validated individually — invalid entries are dropped (and counted in the
+// logs) instead of 502ing the request.
+
+type AiDay = z.infer<typeof aiItinerarySchema>["days"][number]
+type AiSuggestion = z.infer<typeof aiSuggestionSchema>
+
+const looseDaySchema = z.object({
+  title: z.string().max(200).optional(),
+  city: z.string().max(80).optional(),
+  notes: z.string().max(4000).optional(),
+  items: z.array(z.unknown()).max(60).default([]),
+})
+
+export function salvageItinerary(raw: string): { summary?: string; days: AiDay[] } {
+  const loose = parseModelJson(
+    raw,
+    z.object({ summary: z.string().max(2000).optional(), days: z.array(z.unknown()).max(60).default([]) }),
+  )
+  let dropped = 0
+  const days: AiDay[] = loose.days.map((rawDay) => {
+    const day = looseDaySchema.safeParse(rawDay)
+    if (!day.success) {
+      dropped++
+      return { items: [] }
+    }
+    const items = day.data.items
+      .map((rawItem) => aiItemSchema.safeParse(rawItem))
+      .filter((r) => {
+        if (!r.success) dropped++
+        return r.success
+      })
+      .map((r) => (r as { success: true; data: z.infer<typeof aiItemSchema> }).data)
+    return { ...day.data, items }
+  })
+  if (dropped > 0) console.warn(`[trips/ai] generation: dropped ${dropped} malformed entr${dropped === 1 ? "y" : "ies"}`)
+  return { summary: loose.summary, days }
+}
+
+/** Fold common model deviations into valid shapes before validating: string
+ *  proposedChanges/proposedItem become part of the detail text. */
+function normalizeSuggestion(rawSug: unknown): unknown {
+  if (typeof rawSug !== "object" || rawSug === null) return rawSug
+  const s = { ...(rawSug as Record<string, unknown>) }
+  for (const key of ["proposedChanges", "proposedItem", "proposedOrder"] as const) {
+    if (typeof s[key] === "string") {
+      s.detail = [s.detail, s[key]].filter((v) => typeof v === "string" && v).join(" — ")
+      delete s[key]
+    }
+  }
+  if (typeof s.detail !== "string") s.detail = ""
+  return s
+}
+
+export function salvageSuggestions(raw: string): { summary?: string; suggestions: AiSuggestion[] } {
+  const loose = parseModelJson(
+    raw,
+    z.object({ summary: z.string().max(2000).optional(), suggestions: z.array(z.unknown()).max(60).default([]) }),
+  )
+  let dropped = 0
+  const suggestions: AiSuggestion[] = []
+  for (const rawSug of loose.suggestions) {
+    const r = aiSuggestionSchema.safeParse(normalizeSuggestion(rawSug))
+    if (r.success) suggestions.push(r.data)
+    else dropped++
+  }
+  if (dropped > 0) console.warn(`[trips/ai] enhancement: dropped ${dropped} malformed suggestion(s)`)
+  return { summary: loose.summary, suggestions }
 }
 
 // ── Itinerary generation ─────────────────────────────────────────────────
@@ -232,7 +327,7 @@ export async function generateItinerary(args: {
     .join("\n")
 
   const raw = await llm({ system: GENERATION_SYSTEM, user })
-  const parsed = parseModelJson(raw, aiItinerarySchema)
+  const parsed = salvageItinerary(raw)
 
   const days: TripDay[] = dates.map((date, i) => {
     const aiDay = parsed.days[i]
@@ -430,7 +525,7 @@ export async function enhanceTrip(args: {
 
   try {
     const raw = await llm({ system: ENHANCEMENT_SYSTEM, user })
-    const parsed = parseModelJson(raw, aiEnhancementSchema)
+    const parsed = salvageSuggestions(raw)
     run.summary = parsed.summary
     const validDayIds = new Set(days.map((d) => d.id))
     const validItemIds = new Set(days.flatMap((d) => d.items.map((i) => i.id)))
