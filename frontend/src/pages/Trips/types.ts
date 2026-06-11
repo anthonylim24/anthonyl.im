@@ -81,6 +81,7 @@ export interface TripAppearance {
 
 export interface Trip {
   id: string
+  slug?: string
   ownerId: string
   name: string
   destinations: string[]
@@ -100,6 +101,7 @@ export interface Trip {
 
 export interface TripSummary {
   id: string
+  slug?: string
   name: string
   destinations: string[]
   startDate: string

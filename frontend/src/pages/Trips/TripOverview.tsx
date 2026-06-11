@@ -179,7 +179,7 @@ export function TripOverview() {
           {editable && (
             <motion.div {...fadeUp(0.32)} className="mt-8">
               <Link
-                to={`/trips/${trip.id}/edit`}
+                to={`/trips/${trip.slug ?? trip.id}/edit`}
                 className={`inline-flex items-center gap-2 rounded-full bg-stone-900 px-5 py-2.5 text-sm font-semibold text-stone-50 transition-colors hover:bg-stone-700 focus-visible:outline-none focus-visible:ring-2 ${a.focusRing} dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-300`}
               >
                 <Pencil className="h-4 w-4" aria-hidden />
@@ -194,7 +194,7 @@ export function TripOverview() {
       {todayDay && (
         <motion.aside {...fadeUp(0.1)} className="mx-auto mt-4 max-w-6xl px-4 sm:px-6">
           <Link
-            to={`/trips/${trip.id}/day/${todayDay.id}`}
+            to={`/trips/${trip.slug ?? trip.id}/day/${todayDay.id}`}
             className="group block border-y border-stone-200/80 py-4 transition-colors hover:bg-stone-100/50 dark:border-stone-800/80 dark:hover:bg-stone-900/40"
           >
             <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
@@ -344,7 +344,7 @@ function OverviewDayCard({
       className="h-full"
     >
       <Link
-        to={`/trips/${trip.id}/day/${day.id}`}
+        to={`/trips/${trip.slug ?? trip.id}/day/${day.id}`}
         className={`group relative block h-full overflow-hidden rounded-3xl border bg-stone-50 transition-[border-color,background-color,box-shadow] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] focus:outline-none focus-visible:ring-2 ${a.focusRing} focus-visible:ring-offset-2 hover:shadow-[0_18px_40px_-24px_rgba(28,25,23,0.18)] dark:bg-stone-900/40 dark:hover:shadow-[0_18px_40px_-24px_rgba(0,0,0,0.6)] ${
           isToday
             ? a.todayBorder
@@ -425,7 +425,7 @@ function ReservationRow({
       transition={{ duration: 0.35, ease: EASE, delay: Math.min(index, 8) * 0.025 }}
     >
       <Link
-        to={`/trips/${trip.id}/day/${day.id}`}
+        to={`/trips/${trip.slug ?? trip.id}/day/${day.id}`}
         className="group flex items-start gap-5 py-5 transition-colors hover:bg-stone-100/40 sm:gap-8 dark:hover:bg-stone-900/30"
       >
         <div className="w-[5.5rem] shrink-0 sm:w-[7rem]">

@@ -8,6 +8,7 @@ import {
   Bookmark,
   Check,
   CheckCircle2,
+  ChevronDown,
   Copy,
   Eye,
   FileText,
@@ -140,10 +141,17 @@ export function TripDetail() {
         void updateTrip(getToken, next.id, {
           name: next.name,
           status: next.status,
+          slug: next.slug,
           days: next.days,
         })
           .then(() => setSaveState("saved"))
-          .catch(() => setSaveState("error"))
+          .catch((err: unknown) => {
+            setSaveState("error")
+            // Permalink conflicts/validation deserve a readable explanation,
+            // not just the red pill.
+            const message = err instanceof Error ? err.message : String(err)
+            if (/permalink|slug|hyphen/i.test(message)) setNotice(message)
+          })
       }, 900)
     },
     [getToken],
@@ -170,12 +178,12 @@ export function TripDetail() {
     [trip],
   )
 
-  const runEnhance = async (scope: "day" | "trip", dayId?: string) => {
+  const runEnhance = async (scope: "day" | "trip", dayId?: string, prompt?: string) => {
     if (!trip || enhancingTarget) return
     setEnhancingTarget(scope === "day" ? (dayId ?? null) : "trip")
     setActiveRun(null)
     try {
-      const { run, trip: refreshed } = await enhanceTrip(getToken, trip.id, scope, dayId)
+      const { run, trip: refreshed } = await enhanceTrip(getToken, trip.id, scope, dayId, prompt)
       // The server auto-syncs day.weather from the live forecast during the run.
       if (refreshed) setTrip(refreshed)
       setActiveRun(run)
@@ -285,15 +293,15 @@ export function TripDetail() {
             </button>
           )}
           {editable && (
-            <button
-              type="button"
-              onClick={() => void runEnhance("trip")}
+            <EnhanceButton
+              label="Enhance trip"
+              busyLabel="Reviewing trip…"
+              busy={enhancingTarget === "trip"}
               disabled={enhancingTarget !== null}
-              className="inline-flex items-center gap-2 rounded-full bg-amber-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-800 disabled:opacity-50 dark:bg-amber-600 dark:hover:bg-amber-500"
-            >
-              {enhancingTarget === "trip" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Sparkles className="h-4 w-4" aria-hidden />}
-              {enhancingTarget === "trip" ? "Reviewing trip…" : "Enhance trip"}
-            </button>
+              variant="solid"
+              promptPlaceholder="Optional focus — e.g. “tighten the pacing and add more local food”"
+              onRun={(prompt) => void runEnhance("trip", undefined, prompt)}
+            />
           )}
         </div>
       </div>
@@ -307,9 +315,13 @@ export function TripDetail() {
         </div>
       )}
 
-      {/* Appearance — accent + dossier copy for the trip's public pages */}
+      {/* Appearance — accent, dossier copy, permalink for the trip's pages */}
       {editable && (
-        <AppearancePanel trip={trip} onChange={(appearance) => scheduleSave({ ...trip, appearance })} />
+        <AppearancePanel
+          trip={trip}
+          onChange={(appearance) => scheduleSave({ ...trip, appearance })}
+          onSlugChange={(slug) => scheduleSave({ ...trip, slug })}
+        />
       )}
 
       {/* AI generation for an empty itinerary — also the retry path when
@@ -373,7 +385,7 @@ export function TripDetail() {
               onDismissRun={() => setActiveRun(null)}
               onChange={setDays}
               onOpenMap={() => setMapDayId(day.id)}
-              onEnhance={() => void runEnhance("day", day.id)}
+              onEnhance={(prompt) => void runEnhance("day", day.id, prompt)}
             />
           ))}
         </div>
@@ -550,6 +562,133 @@ function FloatingSaveIndicator({ saveState }: { saveState: "saved" | "saving" | 
   )
 }
 
+// ── Enhance split-button (optional focus prompt) ─────────────────────────
+
+function EnhanceButton({
+  label,
+  busyLabel,
+  busy,
+  disabled,
+  variant,
+  promptPlaceholder,
+  onRun,
+}: {
+  label: string
+  busyLabel: string
+  busy: boolean
+  disabled: boolean
+  variant: "solid" | "outline"
+  promptPlaceholder: string
+  onRun: (prompt?: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [prompt, setPrompt] = useState("")
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent | TouchEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false)
+    }
+    document.addEventListener("mousedown", onDown)
+    document.addEventListener("touchstart", onDown)
+    document.addEventListener("keydown", onKey)
+    return () => {
+      document.removeEventListener("mousedown", onDown)
+      document.removeEventListener("touchstart", onDown)
+      document.removeEventListener("keydown", onKey)
+    }
+  }, [open])
+
+  const run = (withPrompt: boolean) => {
+    setOpen(false)
+    onRun(withPrompt && prompt.trim() ? prompt.trim() : undefined)
+  }
+
+  const solid = variant === "solid"
+  const base = solid
+    ? "bg-amber-700 text-white shadow-sm hover:bg-amber-800 dark:bg-amber-600 dark:hover:bg-amber-500"
+    : busy
+      ? "border border-amber-400 bg-amber-50 text-amber-800 dark:border-amber-600 dark:bg-amber-950/40 dark:text-amber-300"
+      : "border border-stone-300 text-stone-700 hover:border-amber-400 hover:text-amber-700 dark:border-stone-700 dark:text-stone-300 dark:hover:text-amber-400"
+  const size = solid ? "px-4 py-2 text-sm font-semibold gap-2" : "px-3 py-1.5 text-xs font-medium gap-1.5"
+  const iconSize = solid ? "h-4 w-4" : "h-3.5 w-3.5"
+
+  return (
+    <div ref={rootRef} className="relative inline-flex">
+      <button
+        type="button"
+        onClick={() => run(false)}
+        disabled={disabled}
+        className={`inline-flex items-center rounded-l-full pr-2.5 transition disabled:opacity-50 ${base} ${size}`}
+      >
+        {busy ? (
+          <Loader2 className={`${iconSize} animate-spin motion-reduce:animate-none`} aria-hidden />
+        ) : (
+          <Sparkles className={iconSize} aria-hidden />
+        )}
+        {busy ? busyLabel : label}
+      </button>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        disabled={disabled}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={`${label} with a custom focus`}
+        className={`inline-flex items-center rounded-r-full border-l pl-1.5 pr-2 transition disabled:opacity-50 ${base} ${
+          solid ? "border-amber-800/40 dark:border-amber-500/40" : "border-l-stone-300 dark:border-l-stone-700"
+        }`}
+      >
+        <ChevronDown className={`${iconSize} transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            role="dialog"
+            aria-label={`${label} focus`}
+            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+            className="absolute right-0 top-[calc(100%+0.5rem)] z-40 w-[20rem] rounded-2xl border border-stone-200 bg-white p-3 shadow-xl shadow-stone-950/10 dark:border-stone-700 dark:bg-stone-900 dark:shadow-black/40"
+          >
+            <label className="block text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400">
+              Focus for this review
+            </label>
+            <textarea
+              value={prompt}
+              rows={3}
+              autoFocus
+              placeholder={promptPlaceholder}
+              onChange={(e) => setPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) run(true)
+              }}
+              className="mt-1.5 w-full rounded-xl border border-stone-200 bg-white px-2.5 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-stone-700 dark:bg-stone-950/40"
+            />
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <span className="text-[11px] text-stone-400 dark:text-stone-500">⌘↵ to run</span>
+              <button
+                type="button"
+                onClick={() => run(true)}
+                className="inline-flex items-center gap-1.5 rounded-full bg-amber-700 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-800 dark:bg-amber-600 dark:hover:bg-amber-500"
+              >
+                <Sparkles className="h-3 w-3" aria-hidden />
+                {label}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 // ── Appearance panel ─────────────────────────────────────────────────────
 //
 // Configures the dossier-style public pages: accent family + editorial copy.
@@ -563,7 +702,15 @@ const ACCENT_SWATCH: Record<string, string> = {
   violet: "bg-violet-500",
 }
 
-function AppearancePanel({ trip, onChange }: { trip: Trip; onChange: (appearance: NonNullable<Trip["appearance"]>) => void }) {
+function AppearancePanel({
+  trip,
+  onChange,
+  onSlugChange,
+}: {
+  trip: Trip
+  onChange: (appearance: NonNullable<Trip["appearance"]>) => void
+  onSlugChange: (slug: string) => void
+}) {
   const [open, setOpen] = useState(false)
   const appearance = trip.appearance ?? {}
   const patch = (p: Partial<NonNullable<Trip["appearance"]>>) => onChange({ ...appearance, ...p })
@@ -630,6 +777,32 @@ function AppearancePanel({ trip, onChange }: { trip: Trip; onChange: (appearance
               onChange={(e) => patch({ headline: e.target.value || undefined })}
             />
           </label>
+          <label className="block">
+            <span className="text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400">Permalink</span>
+            <span className="mt-1 flex items-center gap-0 overflow-hidden rounded-lg border border-stone-200 bg-white focus-within:border-amber-500 dark:border-stone-700 dark:bg-stone-900">
+              <span className="shrink-0 select-none border-r border-stone-200 bg-stone-50 px-2.5 py-1.5 text-sm text-stone-400 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-500">
+                /trips/
+              </span>
+              <input
+                value={trip.slug ?? ""}
+                placeholder="my-trip-2026"
+                aria-label="Trip permalink"
+                onChange={(e) =>
+                  onSlugChange(
+                    e.target.value
+                      .toLowerCase()
+                      .replace(/[^a-z0-9-]+/g, "-")
+                      .replace(/-{2,}/g, "-")
+                      .slice(0, 80),
+                  )
+                }
+                className="w-full bg-transparent px-2.5 py-1.5 text-sm focus:outline-none"
+              />
+            </span>
+            <span className="mt-1 block text-xs text-stone-400 dark:text-stone-500">
+              Lowercase letters, numbers, hyphens. Must be unique — you'll see an error here if it's taken.
+            </span>
+          </label>
         </div>
       )}
     </section>
@@ -663,7 +836,7 @@ function DayCard({
   onDismissRun: () => void
   onChange: (fn: (days: TripDay[]) => TripDay[]) => void
   onOpenMap: () => void
-  onEnhance: () => void
+  onEnhance: (prompt?: string) => void
 }) {
   const hasMappable = day.items.some((i) => i.location?.lat != null && i.location?.lng != null)
   const [detailsOpen, setDetailsOpen] = useState(false)
@@ -707,23 +880,15 @@ function DayCard({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {editable && (
-            <button
-              type="button"
-              onClick={onEnhance}
+            <EnhanceButton
+              label="Enhance day"
+              busyLabel="Reviewing day…"
+              busy={enhancing}
               disabled={enhancing}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
-                enhancing
-                  ? "border-amber-400 bg-amber-50 text-amber-800 dark:border-amber-600 dark:bg-amber-950/40 dark:text-amber-300"
-                  : "border-stone-300 text-stone-700 hover:border-amber-400 hover:text-amber-700 dark:border-stone-700 dark:text-stone-300 dark:hover:text-amber-400"
-              }`}
-            >
-              {enhancing ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" aria-hidden />
-              ) : (
-                <Sparkles className="h-3.5 w-3.5" aria-hidden />
-              )}
-              {enhancing ? "Reviewing day…" : "Enhance day"}
-            </button>
+              variant="outline"
+              promptPlaceholder="Optional focus — e.g. “swap the museum for something outdoors”"
+              onRun={onEnhance}
+            />
           )}
           <button
             type="button"

@@ -492,6 +492,8 @@ export async function enhanceTrip(args: {
   trip: Trip
   scope: "day" | "trip"
   dayId?: string
+  /** Optional traveler focus steering the review. */
+  prompt?: string
   llm: LlmCall
   fetchWeather?: WeatherFetcher
 }): Promise<EnhancementRun> {
@@ -545,6 +547,9 @@ export async function enhanceTrip(args: {
   const user = [
     `Trip: ${trip.name} (${trip.destinations.join(", ")}), ${trip.startDate} to ${trip.endDate}, timezone ${trip.timezone}.`,
     `Scope: ${scope === "day" ? `single day ${dayId}` : "entire trip"}.`,
+    args.prompt?.trim()
+      ? `Traveler's focus for this review (prioritize this): ${args.prompt.trim()}`
+      : undefined,
     `Itinerary:`,
     ...days.map(describeDay),
     `Computed distances between consecutive located stops:`,
@@ -553,7 +558,9 @@ export async function enhanceTrip(args: {
       : "  (none — items lack coordinates)",
     `Weather forecast near the itinerary:`,
     weatherLines,
-  ].join("\n")
+  ]
+    .filter((line): line is string => line !== undefined)
+    .join("\n")
 
   try {
     const raw = await llm({ system: ENHANCEMENT_SYSTEM, user })

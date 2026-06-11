@@ -53,7 +53,7 @@ export const createTrip = (getToken: GetToken, input: CreateTripInput) =>
 export const updateTrip = (
   getToken: GetToken,
   id: string,
-  patch: Partial<CreateTripInput> & { days?: TripDay[] },
+  patch: Partial<CreateTripInput> & { days?: TripDay[]; slug?: string },
 ) =>
   request<{ trip: Trip }>(getToken, `/${encodeURIComponent(id)}`, {
     method: "PATCH",
@@ -73,10 +73,10 @@ export const generateItinerary = (
     body: JSON.stringify(input),
   })
 
-export const enhanceTrip = (getToken: GetToken, id: string, scope: "day" | "trip", dayId?: string) =>
+export const enhanceTrip = (getToken: GetToken, id: string, scope: "day" | "trip", dayId?: string, prompt?: string) =>
   request<{ run: EnhancementRun; trip?: Trip }>(getToken, `/${encodeURIComponent(id)}/enhance`, {
     method: "POST",
-    body: JSON.stringify({ scope, dayId }),
+    body: JSON.stringify({ scope, dayId, prompt: prompt?.trim() || undefined }),
   })
 
 export const applySuggestions = (getToken: GetToken, id: string, runId: string, suggestionIds: string[]) =>

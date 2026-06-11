@@ -138,6 +138,7 @@ export function buildKoreaTrip(now: Date = new Date()): Trip {
 
   return {
     id: KOREA_TRIP_ID,
+    slug: KOREA_TRIP_ID,
     ownerId: KOREA_TRIP_OWNER,
     name: trip.title,
     destinations: [...new Set(days.map((d) => d.city))],

@@ -94,7 +94,7 @@ export function TripDayPage() {
     return (
       <div className="mx-auto max-w-3xl px-4 pt-10 sm:px-6 text-sm text-stone-500">
         Day not found.{" "}
-        <Link to={`/trips/${trip.id}`} className="font-semibold underline">Back to the trip</Link>.
+        <Link to={`/trips/${trip.slug ?? trip.id}`} className="font-semibold underline">Back to the trip</Link>.
       </div>
     )
   }
@@ -120,7 +120,7 @@ export function TripDayPage() {
         {...fadeUp(0)}
         className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500"
       >
-        <Link to={`/trips/${trip.id}`} className="text-stone-700 transition-colors hover:underline dark:text-stone-300">
+        <Link to={`/trips/${trip.slug ?? trip.id}`} className="text-stone-700 transition-colors hover:underline dark:text-stone-300">
           {cityTag(day.city, trip.appearance?.cityTags)}
         </Link>
         <span aria-hidden className="h-px w-8 bg-stone-300 dark:bg-stone-700" />
@@ -188,7 +188,7 @@ export function TripDayPage() {
         )}
         {editable && (
           <Link
-            to={`/trips/${trip.id}/edit#${day.id}`}
+            to={`/trips/${trip.slug ?? trip.id}/edit#${day.id}`}
             className="inline-flex items-center gap-2 rounded-full border border-stone-300 px-4 py-2.5 text-sm font-medium text-stone-700 transition hover:border-stone-400 hover:text-stone-900 dark:border-stone-700 dark:text-stone-300 dark:hover:text-stone-100"
           >
             <Pencil className="h-3.5 w-3.5" aria-hidden />
@@ -282,7 +282,7 @@ export function TripDayPage() {
       <nav className="mt-12 grid grid-cols-1 gap-2 border-t border-stone-200/80 pt-6 sm:grid-cols-2 sm:gap-6 dark:border-stone-800/80" aria-label="Adjacent days">
         {prev ? (
           <Link
-            to={`/trips/${trip.id}/day/${prev.id}`}
+            to={`/trips/${trip.slug ?? trip.id}/day/${prev.id}`}
             className="group -mx-2 flex items-center gap-4 rounded-2xl px-2 py-3 transition-colors hover:bg-stone-100/60 dark:hover:bg-stone-900/40"
           >
             <ArrowUpRight className="h-4 w-4 shrink-0 -rotate-[135deg] text-stone-400 transition group-hover:-translate-x-0.5 motion-reduce:group-hover:translate-x-0" aria-hidden />
@@ -298,7 +298,7 @@ export function TripDayPage() {
         )}
         {next && (
           <Link
-            to={`/trips/${trip.id}/day/${next.id}`}
+            to={`/trips/${trip.slug ?? trip.id}/day/${next.id}`}
             className="group -mx-2 flex items-center justify-end gap-4 rounded-2xl px-2 py-3 text-right transition-colors hover:bg-stone-100/60 dark:hover:bg-stone-900/40"
           >
             <span className="min-w-0">

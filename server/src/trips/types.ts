@@ -102,6 +102,8 @@ export interface TripAppearance {
 
 export interface Trip {
   id: string
+  /** URL permalink (unique across trips); routes resolve by id or slug. */
+  slug?: string
   ownerId: string
   name: string
   destinations: string[]
@@ -170,8 +172,12 @@ export const collaboratorSchema = z.object({
   role: z.enum(["viewer", "editor"]),
 })
 
+// NOTE: the editor saves the whole document on a debounce, so transient
+// editing states (a just-added item with an empty title, a place whose name
+// hasn't been typed yet) must validate. Empty strings are allowed here;
+// display layers render placeholders for them.
 export const locationSchema = z.object({
-  name: z.string().min(1).max(200),
+  name: z.string().max(200),
   address: z.string().max(400).optional(),
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
@@ -184,7 +190,7 @@ export const locationSchema = z.object({
 export const itemSchema = z.object({
   id: z.string().min(1).max(64),
   kind: z.enum(["place", "note", "section", "reservation"]),
-  title: z.string().min(1).max(300),
+  title: z.string().max(300),
   time: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   endTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   notes: z.string().max(8000).optional(),
@@ -204,9 +210,10 @@ export const itemSchema = z.object({
 })
 
 export const calloutSchema = z.object({
-  icon: z.string().min(1).max(8),
+  icon: z.string().max(8),
   tone: z.enum(["info", "warn", "success", "alert"]),
-  body: z.string().min(1).max(1000),
+  // Empty body allowed: a just-added callout saves mid-edit (see itemSchema note).
+  body: z.string().max(1000),
 })
 
 export const weatherSchema = z.object({
@@ -250,6 +257,10 @@ export const createTripSchema = z.object({
 
 export const updateTripSchema = z.object({
   name: z.string().min(1).max(160).optional(),
+  slug: z
+    .string()
+    .regex(/^[a-z0-9](?:[a-z0-9-]{1,78}[a-z0-9])?$/, "lowercase letters, numbers, and hyphens only")
+    .optional(),
   destinations: z.array(z.string().min(1).max(120)).min(1).max(20).optional(),
   startDate: isoDate.optional(),
   endDate: isoDate.optional(),
@@ -284,7 +295,30 @@ export const generateRequestSchema = z.object({
 export const enhanceRequestSchema = z.object({
   scope: z.enum(["day", "trip"]),
   dayId: z.string().max(64).optional(),
+  /** Optional traveler focus, e.g. "find more vegetarian dinner options". */
+  prompt: z.string().max(2000).optional(),
 })
+
+// ── Permalinks ───────────────────────────────────────────────────────────
+
+export const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,78}[a-z0-9])?$/
+
+export const slugSchema = z
+  .string()
+  .regex(SLUG_PATTERN, "lowercase letters, numbers, and hyphens only (3-80 chars)")
+
+/** URL-safe slug from free text: diacritics stripped, non-alphanumerics
+ *  collapsed to hyphens. Returns "" when nothing survives. */
+export function slugify(text: string): string {
+  return text
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 70)
+    .replace(/-+$/g, "")
+}
 
 export const applySuggestionsSchema = z.object({
   suggestionIds: z.array(z.string().min(1).max(64)).min(1).max(100),

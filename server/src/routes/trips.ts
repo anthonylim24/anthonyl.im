@@ -22,6 +22,7 @@ import {
   newId,
   nowIso,
   emptyDays,
+  slugify,
   updateTripSchema,
   type Trip,
 } from "../trips/types"
@@ -44,6 +45,7 @@ export interface TripsRouterDeps {
 function summarize(trip: Trip, userId: string) {
   return {
     id: trip.id,
+    slug: trip.slug,
     name: trip.name,
     destinations: trip.destinations,
     startDate: trip.startDate,
@@ -80,7 +82,7 @@ async function ensureSeeded(store: TripStore) {
     const existing = await store.get(KOREA_TRIP_ID)
     if (!existing) {
       await store.create(buildKoreaTrip())
-    } else if (!existing.appearance) {
+    } else if (!existing.appearance || !existing.slug) {
       // One-time display-data upgrade for trips seeded before the dossier
       // theming existed: backfill appearance + per-day neighborhoods /
       // weather / callouts from the canonical seed, preserving any item
@@ -88,7 +90,8 @@ async function ensureSeeded(store: TripStore) {
       const seed = buildKoreaTrip()
       await store.update({
         ...existing,
-        appearance: seed.appearance,
+        slug: existing.slug ?? seed.slug,
+        appearance: existing.appearance ?? seed.appearance,
         days: existing.days.map((d) => {
           const seedDay = seed.days.find((s) => s.id === d.id)
           if (!seedDay) return d
@@ -137,9 +140,30 @@ export function createTripsRouter(deps: TripsRouterDeps) {
 
   const userIdOf = (c: Context) => c.get("userId" as never) as string
 
+  /** Resolve a trip by id, falling back to its permalink slug. */
+  async function resolveTrip(idOrSlug: string): Promise<Trip | null> {
+    const byId = await deps.store.get(idOrSlug)
+    if (byId) return byId
+    const all = await deps.store.list()
+    return all.find((t) => t.slug === idOrSlug) ?? null
+  }
+
+  /** Unique permalink: base, base-2, base-3, … (excluding the trip itself). */
+  async function uniqueSlug(base: string, excludeId?: string): Promise<string> {
+    const fallback = base || "trip"
+    const all = await deps.store.list()
+    const taken = new Set(all.filter((t) => t.id !== excludeId).flatMap((t) => [t.slug, t.id]))
+    if (!taken.has(fallback)) return fallback
+    for (let n = 2; n < 100; n++) {
+      const candidate = `${fallback}-${n}`
+      if (!taken.has(candidate)) return candidate
+    }
+    return `${fallback}-${newId("x").slice(2)}`
+  }
+
   /** Load trip + enforce access. Returns a Response on failure. */
   async function loadTrip(c: Context, id: string, needEdit = false) {
-    const trip = await deps.store.get(id)
+    const trip = await resolveTrip(id)
     if (!trip) return { error: c.json({ error: "trip not found" }, 404) }
     const access = accessFor(trip, userIdOf(c))
     if (!canView(access) || (needEdit && !canEdit(access))) {
@@ -166,8 +190,11 @@ export function createTripsRouter(deps: TripsRouterDeps) {
       return c.json({ error: "endDate must be on or after startDate" }, 400)
     }
     const now = nowIso()
+    // Intelligent default permalink: trip name + year, deduped.
+    const baseSlug = slugify(`${body.data.name} ${body.data.startDate.slice(0, 4)}`)
     const trip: Trip = {
       id: newId("trip"),
+      slug: await uniqueSlug(baseSlug),
       ownerId: userIdOf(c),
       ...body.data,
       days: emptyDays(body.data.startDate, body.data.endDate),
@@ -194,6 +221,14 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     // Only the owner may change sharing-relevant fields (collaborators).
     if (patch.collaborators && result.access !== "owner") {
       return c.json({ error: "only the owner can change collaborators" }, 403)
+    }
+    // Custom permalinks must stay unique across all trips (ids included).
+    if (patch.slug && patch.slug !== result.trip.slug) {
+      const all = await deps.store.list()
+      const clash = all.some((t) => t.id !== result.trip.id && (t.slug === patch.slug || t.id === patch.slug))
+      if (clash) {
+        return c.json({ error: "slug_taken", message: `The permalink “${patch.slug}” is already in use.` }, 409)
+      }
     }
     const next: Trip = {
       ...result.trip,
@@ -270,6 +305,7 @@ export function createTripsRouter(deps: TripsRouterDeps) {
       trip: result.trip,
       scope: body.data.scope,
       dayId: body.data.dayId,
+      prompt: body.data.prompt,
       llm: deps.llm,
       fetchWeather: deps.fetchWeather ?? fetchOpenMeteoWeather,
     })

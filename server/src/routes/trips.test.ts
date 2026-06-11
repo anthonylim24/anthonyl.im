@@ -315,3 +315,97 @@ describe("enhancement endpoints", () => {
     expect(res.status).toBe(400)
   })
 })
+
+describe("live-document saves (empty drafts)", () => {
+  test("accepts a just-added item with empty title and empty place name", async () => {
+    const { app } = makeApp()
+    const trip = await createTrip(app)
+    const res = await app.request(`/api/trips/${trip.id}`, {
+      method: "PATCH",
+      headers: AUTH,
+      body: JSON.stringify({
+        days: [
+          {
+            id: "day-1",
+            date: "2026-07-10",
+            items: [
+              { id: "it-new", kind: "place", title: "", status: "none", createdBy: "user", location: { name: "", source: "user" } },
+              { id: "it-note", kind: "note", title: "", status: "none", createdBy: "user" },
+            ],
+            callouts: [{ icon: "⚠️", tone: "warn", body: "" }],
+          },
+        ],
+      }),
+    })
+    expect(res.status).toBe(200)
+  })
+})
+
+describe("permalinks", () => {
+  test("creates an intelligent slug from name + year and resolves by it", async () => {
+    const { app } = makeApp()
+    const res = await app.request("/api/trips", { method: "POST", headers: AUTH, body: newTripBody })
+    const { trip } = (await res.json()) as { trip: { id: string; slug: string } }
+    expect(trip.slug).toBe("tokyo-long-weekend-2026")
+    const bySlug = await app.request(`/api/trips/tokyo-long-weekend-2026`, { headers: AUTH })
+    expect(bySlug.status).toBe(200)
+    expect(((await bySlug.json()) as { trip: { id: string } }).trip.id).toBe(trip.id)
+  })
+
+  test("auto-dedupes default slugs", async () => {
+    const { app } = makeApp()
+    const t1 = await createTrip(app)
+    const r2 = await app.request("/api/trips", { method: "POST", headers: AUTH, body: newTripBody })
+    const { trip: t2 } = (await r2.json()) as { trip: { slug: string } }
+    expect((t1 as { slug?: string }).slug).toBe("tokyo-long-weekend-2026")
+    expect(t2.slug).toBe("tokyo-long-weekend-2026-2")
+  })
+
+  test("custom slug can be set; duplicates are rejected with 409", async () => {
+    const { app } = makeApp()
+    const t1 = await createTrip(app)
+    const r2 = await app.request("/api/trips", { method: "POST", headers: AUTH, body: newTripBody })
+    const { trip: t2 } = (await r2.json()) as { trip: { id: string } }
+
+    const ok = await app.request(`/api/trips/${t2.id}`, {
+      method: "PATCH",
+      headers: AUTH,
+      body: JSON.stringify({ slug: "honeymoon" }),
+    })
+    expect(ok.status).toBe(200)
+
+    const clash = await app.request(`/api/trips/${t1.id}`, {
+      method: "PATCH",
+      headers: AUTH,
+      body: JSON.stringify({ slug: "honeymoon" }),
+    })
+    expect(clash.status).toBe(409)
+
+    const invalid = await app.request(`/api/trips/${t1.id}`, {
+      method: "PATCH",
+      headers: AUTH,
+      body: JSON.stringify({ slug: "Bad Slug!" }),
+    })
+    expect(invalid.status).toBe(400)
+  })
+})
+
+describe("enhance with custom prompt", () => {
+  test("forwards the traveler's focus into the model context", async () => {
+    let seenUser = ""
+    const { app } = makeApp({
+      llm: async ({ user }: { user: string }) => {
+        seenUser = user
+        return JSON.stringify({ summary: "ok", suggestions: [] })
+      },
+    })
+    const trip = await createTrip(app)
+    const res = await app.request(`/api/trips/${trip.id}/enhance`, {
+      method: "POST",
+      headers: AUTH,
+      body: JSON.stringify({ scope: "trip", prompt: "find more vegetarian dinners" }),
+    })
+    expect(res.status).toBe(200)
+    expect(seenUser).toContain("find more vegetarian dinners")
+  })
+})

@@ -170,7 +170,7 @@ export function TripsIndex() {
               >
                 <div className="group relative flex items-center gap-4 rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm transition hover:border-amber-300/70 hover:shadow-md sm:p-5 dark:border-stone-800 dark:bg-stone-900 dark:hover:border-amber-700/50">
                   <Link
-                    to={`/trips/${trip.id}`}
+                    to={`/trips/${trip.slug ?? trip.id}`}
                     className="absolute inset-0 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600"
                     aria-label={`Open ${trip.name}`}
                   />
