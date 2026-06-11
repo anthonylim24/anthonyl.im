@@ -40,6 +40,24 @@ const Ingest = lazy(() =>
 const Places = lazy(() =>
   import('./pages/Korea/Places').then((module) => ({ default: module.Places })),
 )
+const TripsLayout = lazy(() =>
+  import('./pages/Trips/TripsLayout').then((module) => ({ default: module.TripsLayout })),
+)
+const TripsIndex = lazy(() =>
+  import('./pages/Trips/TripsIndex').then((module) => ({ default: module.TripsIndex })),
+)
+const TripCreate = lazy(() =>
+  import('./pages/Trips/TripCreate').then((module) => ({ default: module.TripCreate })),
+)
+const TripDetail = lazy(() =>
+  import('./pages/Trips/TripDetail').then((module) => ({ default: module.TripDetail })),
+)
+const TripOverview = lazy(() =>
+  import('./pages/Trips/TripOverview').then((module) => ({ default: module.TripOverview })),
+)
+const TripDayPage = lazy(() =>
+  import('./pages/Trips/TripDayPage').then((module) => ({ default: module.TripDayPage })),
+)
 
 // Route-aware skeletons so a lazy chunk that's still streaming (or hung on a
 // stale SW transition) shows recognizable parchment instead of a blank canvas
@@ -68,6 +86,18 @@ function BreathworkShellFallback() {
   )
 }
 
+function TripsShellFallback() {
+  return (
+    <div
+      className="trips flex min-h-screen items-center justify-center bg-stone-50 text-stone-500 dark:bg-stone-950 dark:text-stone-400"
+      role="status"
+      aria-label="Loading trip planner"
+    >
+      <span className="text-sm">Loading trips…</span>
+    </div>
+  )
+}
+
 function KoreaShellFallback() {
   return (
     <div
@@ -91,7 +121,7 @@ function Guarded({
   fallback,
   children,
 }: {
-  app: 'chatbot' | 'breathwork' | 'korea'
+  app: 'chatbot' | 'breathwork' | 'korea' | 'trips'
   fallback: ReactNode
   children: ReactNode
 }) {
@@ -150,6 +180,21 @@ export function AppRoutes() {
           <Route path="day/:slug" element={<KoreaDay />} />
           <Route path="ingest" element={<Ingest />} />
           <Route path="places" element={<Places />} />
+        </Route>
+
+        <Route
+          path="/trips"
+          element={
+            <Guarded app="trips" fallback={<TripsShellFallback />}>
+              <TripsLayout />
+            </Guarded>
+          }
+        >
+          <Route index element={<TripsIndex />} />
+          <Route path="new" element={<TripCreate />} />
+          <Route path=":tripId" element={<TripOverview />} />
+          <Route path=":tripId/edit" element={<TripDetail />} />
+          <Route path=":tripId/day/:dayId" element={<TripDayPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

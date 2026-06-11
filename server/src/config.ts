@@ -1,4 +1,46 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 const isTruthy = (v: string | undefined) => v !== undefined && v !== 'false' && v !== '0';
+
+/** Extract VITE_DEV_BEARER from a frontend .env file's text. Exported for tests. */
+export function parseDevBearer(envText: string): string | undefined {
+  const m = envText.match(/^\s*VITE_DEV_BEARER\s*=\s*(.+)\s*$/m);
+  const value = m?.[1]?.trim().replace(/^["']|["']$/g, '');
+  return value || undefined;
+}
+
+/**
+ * Local-dev auth bridge. The frontend dev server hands out VITE_DEV_BEARER
+ * (frontend/.env) as its bearer token — see frontend/src/lib/safeAuth.ts.
+ * When the backend has no explicit IG_DEV_BEARER, mirror the frontend's
+ * value so a bare `bun --watch server/app.ts` + `bun run dev` stack
+ * authenticates out of the box instead of 401ing on every gated route.
+ *
+ * Inert in production: guarded on NODE_ENV, and the deployed frontend/.env
+ * is generated from the FRONTEND_ENV CI secret, which must never contain
+ * VITE_DEV_BEARER.
+ */
+function readFrontendDevBearer(): string | undefined {
+  if (process.env.NODE_ENV === 'production') return undefined;
+  try {
+    const envPath = resolve(import.meta.dir, '../../frontend/.env');
+    return parseDevBearer(readFileSync(envPath, 'utf8'));
+  } catch {
+    return undefined;
+  }
+}
+
+/** Accepted dev bearers: the explicit IG_DEV_BEARER plus (in dev) the
+ *  frontend's VITE_DEV_BEARER — both work even when they differ, so a
+ *  mismatch between .env and frontend/.env no longer 401s local dev. */
+function resolveDevBearers(): string | string[] | undefined {
+  const bearers = [process.env.IG_DEV_BEARER, readFrontendDevBearer()]
+    .filter((v): v is string => !!v);
+  const unique = [...new Set(bearers)];
+  if (unique.length === 0) return undefined;
+  return unique.length === 1 ? unique[0] : unique;
+}
 
 export const config = {
   port: process.env.PORT || 3000,
@@ -35,7 +77,7 @@ export const config = {
   igWorkerConcurrency: Number(process.env.IG_WORKER_CONCURRENCY ?? 3),
   igWorkerPollMs: Number(process.env.IG_WORKER_POLL_MS ?? 3_000),
   igWorkerStaleSec: Number(process.env.IG_WORKER_STALE_SEC ?? 600),
-  igDevBearer: process.env.IG_DEV_BEARER,
+  igDevBearer: resolveDevBearers(),
   igDevUserId: process.env.IG_DEV_USER_ID ?? 'dev-user',
 } as const;
 

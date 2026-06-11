@@ -2,7 +2,7 @@ import { Component, createRef, type ErrorInfo, type ReactNode } from 'react'
 
 interface Props {
   /** Which app this boundary protects — drives accent color + copy. */
-  app: 'chatbot' | 'breathwork' | 'korea'
+  app: 'chatbot' | 'breathwork' | 'korea' | 'trips'
   children: ReactNode
 }
 
@@ -22,6 +22,10 @@ const appCopy: Record<Props['app'], { heading: string; accent: string }> = {
   korea: {
     heading: 'Something went wrong loading the Korea itinerary.',
     accent: 'text-rose-800 dark:text-rose-300',
+  },
+  trips: {
+    heading: 'Something went wrong loading the trip planner.',
+    accent: 'text-amber-800 dark:text-amber-300',
   },
 }
 

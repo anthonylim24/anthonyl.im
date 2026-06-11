@@ -574,3 +574,35 @@ begin
     select p_place_id, p_user_id, unnest(p_days);
   end if;
 end $$;
+
+-- ── Multi-trip travel planner ───────────────────────────────────────────
+--
+-- Trips are stored as whole documents (doc jsonb = the Trip object: metadata,
+-- collaborators, days[].items[] with structured locations). All reads/writes
+-- go through the server with the service-role key; permission checks (owner /
+-- collaborator / shared) are enforced in server/src/routes/trips.ts.
+
+create table if not exists public.trips (
+  id          text primary key,
+  owner_id    text not null,
+  doc         jsonb not null,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+create index if not exists trips_owner_idx on public.trips (owner_id);
+
+alter table public.trips enable row level security;
+-- No anon/authenticated policies: service-role only.
+
+create table if not exists public.trip_enhancement_runs (
+  id          text primary key,
+  trip_id     text not null references public.trips(id) on delete cascade,
+  doc         jsonb not null,
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists trip_enhancement_runs_trip_idx
+  on public.trip_enhancement_runs (trip_id, created_at desc);
+
+alter table public.trip_enhancement_runs enable row level security;

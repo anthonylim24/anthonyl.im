@@ -48,6 +48,11 @@ interface MapModeOverlayProps {
    *  itinerary's Instagram Saves cards to deep-link into Map Mode
    *  centered on a specific save. */
   initialFocusPlaceId?: string
+  /** Override for the places endpoint (path only, no query string).
+   *  Any endpoint emitting the PlacesResponse contract works — the
+   *  generic trips planner passes `/api/trips/:id/days/:dayId/places`.
+   *  Defaults to the legacy Korea day endpoint. */
+  placesUrl?: string
 }
 
 type LoadState =
@@ -56,7 +61,7 @@ type LoadState =
   | { status: "success"; data: PlacesResponse }
   | { status: "error"; message: string }
 
-export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId }: MapModeOverlayProps) {
+export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId, placesUrl }: MapModeOverlayProps) {
   const reduce = useReducedMotion()
   const getToken = useGetToken()
   const [testMode, setTestMode] = useState(false)
@@ -459,10 +464,8 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
         const token = await getToken()
         const headers: Record<string, string> = {}
         if (token) headers["Authorization"] = `Bearer ${token}`
-        const r = await fetch(
-          `/api/korea/day/${encodeURIComponent(daySlug)}/places?${qs.toString()}`,
-          { headers },
-        )
+        const base = placesUrl ?? `/api/korea/day/${encodeURIComponent(daySlug)}/places`
+        const r = await fetch(`${base}?${qs.toString()}`, { headers })
         if (!r.ok) throw new Error(`Places fetch ${r.status}`)
         const data = await r.json() as PlacesResponse
         setState({ status: "success", data })
@@ -470,7 +473,7 @@ export function MapModeOverlay({ daySlug, dayTitle, onClose, initialFocusPlaceId
         setState({ status: "error", message: err instanceof Error ? err.message : String(err) })
       }
     })()
-  }, [daySlug, location, testMode, getToken])
+  }, [daySlug, location, testMode, getToken, placesUrl])
 
   const filteredPlaces = useMemo(() => {
     if (state.status !== "success") return []
