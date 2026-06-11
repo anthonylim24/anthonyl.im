@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { motion } from "motion/react"
 import { useLocation, useParams } from "react-router-dom"
 import {
   ArrowDown,
@@ -247,14 +248,28 @@ export function TripDetail() {
             </button>
           )}
           <span
-            className="text-xs text-stone-400 dark:text-stone-500"
+            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition-colors ${
+              saveState === "error"
+                ? "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300"
+                : "text-stone-400 dark:text-stone-500"
+            }`}
             role="status"
             aria-live="polite"
           >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                saveState === "saved"
+                  ? "bg-emerald-500"
+                  : saveState === "error"
+                    ? "bg-red-500"
+                    : "animate-pulse bg-amber-500 motion-reduce:animate-none"
+              }`}
+              aria-hidden
+            />
             {saveState === "saved" && "Saved"}
-            {saveState === "dirty" && "Unsaved…"}
+            {saveState === "dirty" && "Editing…"}
             {saveState === "saving" && "Saving…"}
-            {saveState === "error" && <span className="text-red-600 dark:text-red-400">Save failed — edits retry on next change</span>}
+            {saveState === "error" && "Save failed — retries on next edit"}
           </span>
         </div>
       </div>
@@ -390,25 +405,28 @@ function DayCard({
         className="mt-2 w-full resize-none rounded-lg border border-transparent bg-transparent px-2 py-1 text-sm text-stone-600 transition placeholder:text-stone-300 hover:border-stone-200 focus:border-amber-500 focus:outline-none dark:text-stone-400 dark:placeholder:text-stone-600 dark:hover:border-stone-700"
       />
 
-      <ul className="mt-3 space-y-2">
-        {day.items.length === 0 && (
-          <li className="rounded-xl border border-dashed border-stone-200 px-4 py-6 text-center text-sm text-stone-400 dark:border-stone-700 dark:text-stone-500">
-            Nothing planned yet.
-          </li>
-        )}
-        {day.items.map((item, itemIdx) => (
-          <ItemRow
-            key={item.id}
-            item={item}
-            dayId={day.id}
-            isFirst={itemIdx === 0}
-            isLast={itemIdx === day.items.length - 1}
-            editable={editable}
-            dayOptions={dayOptions}
-            onChange={onChange}
-          />
-        ))}
-      </ul>
+      {day.items.length === 0 ? (
+        <div className="mt-3 rounded-xl border border-dashed border-stone-200 px-4 py-6 text-center text-sm text-stone-400 dark:border-stone-700 dark:text-stone-500">
+          Nothing planned yet{editable ? " — add a place, note, or section below." : "."}
+        </div>
+      ) : (
+        // Timeline rail: a vertical line with one marker per item, the
+        // itinerary affordance that makes day order legible at a glance.
+        <ul className="relative mt-4 space-y-2 pl-6 before:absolute before:bottom-3 before:left-[7px] before:top-3 before:w-px before:bg-stone-200 dark:before:bg-stone-800">
+          {day.items.map((item, itemIdx) => (
+            <ItemRow
+              key={item.id}
+              item={item}
+              dayId={day.id}
+              isFirst={itemIdx === 0}
+              isLast={itemIdx === day.items.length - 1}
+              editable={editable}
+              dayOptions={dayOptions}
+              onChange={onChange}
+            />
+          ))}
+        </ul>
+      )}
 
       {editable && (
         <div className="mt-3 flex flex-wrap gap-2">
@@ -464,28 +482,38 @@ function ItemRow({
   const Icon = KIND_ICON[item.kind]
   const patch = (p: Partial<Omit<ItineraryItem, "id">>) => onChange((days) => updateItem(days, dayId, item.id, p))
   const isSection = item.kind === "section"
+  const hasLocation = item.location?.lat != null && item.location?.lng != null
 
   return (
     <li
-      className={
+      className={`relative ${
         isSection
           ? "rounded-xl bg-stone-100/80 px-3 py-2 dark:bg-stone-800/60"
-          : "rounded-xl border border-stone-200/80 px-3 py-2 dark:border-stone-800"
-      }
+          : "rounded-xl border border-stone-200/80 bg-white px-3 py-2 transition-colors hover:border-stone-300 dark:border-stone-800 dark:bg-stone-900 dark:hover:border-stone-700"
+      }`}
     >
+      {/* Timeline marker — filled when the stop is mapped, hollow otherwise. */}
+      <span
+        className={`absolute -left-[23px] top-1/2 h-[9px] w-[9px] -translate-y-1/2 rounded-full border-2 ${
+          isSection
+            ? "border-stone-300 bg-stone-300 dark:border-stone-600 dark:bg-stone-600"
+            : hasLocation
+              ? "border-amber-600 bg-amber-600 dark:border-amber-400 dark:bg-amber-400"
+              : "border-stone-300 bg-white dark:border-stone-600 dark:bg-stone-900"
+        }`}
+        aria-hidden
+      />
       <div className="flex items-center gap-2">
         <Icon
           className={`h-4 w-4 shrink-0 ${item.kind === "place" ? "text-amber-600 dark:text-amber-400" : "text-stone-400 dark:text-stone-500"}`}
           aria-hidden
         />
-        <input
-          type="time"
-          value={item.time ?? ""}
-          disabled={!editable}
-          aria-label="Item time"
-          onChange={(e) => patch({ time: e.target.value || undefined })}
-          className="w-[5.5rem] shrink-0 rounded-md border border-transparent bg-transparent px-1 py-0.5 text-xs text-stone-500 hover:border-stone-200 focus:border-amber-500 focus:outline-none dark:text-stone-400 dark:hover:border-stone-700"
-        />
+        {item.time && (
+          <span className="shrink-0 rounded-md bg-stone-100 px-1.5 py-0.5 text-xs font-medium tabular-nums text-stone-600 dark:bg-stone-800 dark:text-stone-300">
+            {item.time}
+            {item.endTime ? `–${item.endTime}` : ""}
+          </span>
+        )}
         <input
           value={item.title}
           disabled={!editable}
@@ -519,6 +547,28 @@ function ItemRow({
 
       {expanded && (
         <div className="mt-2 space-y-3 border-t border-stone-100 pt-3 dark:border-stone-800">
+          {editable && (
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="inline-flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+                Starts
+                <input
+                  type="time"
+                  value={item.time ?? ""}
+                  onChange={(e) => patch({ time: e.target.value || undefined })}
+                  className="rounded-md border border-stone-200 bg-white px-2 py-1 text-xs tabular-nums focus:border-amber-500 focus:outline-none dark:border-stone-700 dark:bg-stone-900"
+                />
+              </label>
+              <label className="inline-flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+                Ends
+                <input
+                  type="time"
+                  value={item.endTime ?? ""}
+                  onChange={(e) => patch({ endTime: e.target.value || undefined })}
+                  className="rounded-md border border-stone-200 bg-white px-2 py-1 text-xs tabular-nums focus:border-amber-500 focus:outline-none dark:border-stone-700 dark:bg-stone-900"
+                />
+              </label>
+            </div>
+          )}
           <textarea
             value={item.notes ?? ""}
             disabled={!editable}
@@ -680,9 +730,12 @@ function SuggestionsPanel({
   const dayLabel = (id?: string) => dayOptions.find((d) => d.id === id)?.label ?? id
 
   return (
-    <section
+    <motion.section
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
       aria-label="AI enhancement suggestions"
-      className="mt-6 rounded-3xl border border-amber-200/80 bg-amber-50/50 p-5 dark:border-amber-900/40 dark:bg-amber-950/15"
+      className="mt-6 rounded-3xl border border-amber-200/80 bg-amber-50/50 p-5 motion-reduce:transition-none dark:border-amber-900/40 dark:bg-amber-950/15"
     >
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -768,6 +821,6 @@ function SuggestionsPanel({
           </button>
         </div>
       )}
-    </section>
+    </motion.section>
   )
 }

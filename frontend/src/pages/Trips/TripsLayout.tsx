@@ -1,8 +1,10 @@
-import type { ReactNode } from "react"
+import { useEffect, type ReactNode } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
 import { Lock, Map as MapIcon } from "lucide-react"
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/clerk-react"
 import { CLERK_ENABLED } from "@/lib/clerk"
+import { ThemeToggle } from "../Korea/ThemeToggle"
+import { applyTheme, getInitialTheme } from "../Korea/koreaUtils"
 
 const DEV_BEARER: string | null =
   (typeof import.meta !== "undefined" && import.meta.env?.VITE_DEV_BEARER) || null
@@ -53,6 +55,10 @@ function TripsAuthGate({ children }: { children: ReactNode }) {
 export function TripsLayout() {
   const location = useLocation()
   const atIndex = location.pathname === "/trips"
+  // Same persisted theme as the Korea app (shared key + html.dark class).
+  useEffect(() => {
+    applyTheme(getInitialTheme())
+  }, [])
   return (
     <div className="trips min-h-screen bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-100">
       <TripsAuthGate>
@@ -74,6 +80,7 @@ export function TripsLayout() {
                   All trips
                 </Link>
               )}
+              <ThemeToggle />
               {CLERK_ENABLED && !DEV_BEARER ? <UserButton afterSignOutUrl="/" /> : null}
             </div>
           </div>

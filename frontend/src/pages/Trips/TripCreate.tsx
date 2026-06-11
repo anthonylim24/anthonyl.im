@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom"
 import { Loader2, Sparkles, WandSparkles } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
 import { createTrip, generateItinerary } from "./tripsApi"
+import { DateRangeField } from "./components/DateRangeField"
+import { TimezoneField } from "./components/TimezoneField"
 import { DEFAULT_ITINERARY_PROMPT, type GeneratePreferences } from "./types"
 
 const inputClass =
@@ -101,18 +103,25 @@ export function TripCreate() {
           <label htmlFor="trip-dest" className={labelClass}>Destinations (comma-separated)</label>
           <input id="trip-dest" className={`mt-1.5 ${inputClass}`} value={destinations} onChange={(e) => setDestinations(e.target.value)} placeholder="Tokyo, Hakone" required />
         </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[3fr_2fr]">
           <div>
-            <label htmlFor="trip-start" className={labelClass}>Start date</label>
-            <input id="trip-start" type="date" className={`mt-1.5 ${inputClass}`} value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
+            <span className={labelClass}>Dates</span>
+            <div className="mt-1.5">
+              <DateRangeField
+                startDate={startDate}
+                endDate={endDate}
+                onChange={(s, e) => {
+                  setStartDate(s)
+                  setEndDate(e)
+                }}
+              />
+            </div>
           </div>
           <div>
-            <label htmlFor="trip-end" className={labelClass}>End date</label>
-            <input id="trip-end" type="date" className={`mt-1.5 ${inputClass}`} value={endDate} min={startDate || undefined} onChange={(e) => setEndDate(e.target.value)} required />
-          </div>
-          <div>
-            <label htmlFor="trip-tz" className={labelClass}>Time zone</label>
-            <input id="trip-tz" className={`mt-1.5 ${inputClass}`} value={timezone} onChange={(e) => setTimezone(e.target.value)} placeholder="Asia/Tokyo" />
+            <span className={labelClass}>Time zone</span>
+            <div className="mt-1.5">
+              <TimezoneField value={timezone} onChange={setTimezone} />
+            </div>
           </div>
         </div>
         <div>

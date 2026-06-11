@@ -4,8 +4,16 @@ import { verifyToken as clerkVerify } from '@clerk/backend';
 export interface ClerkAuthDeps {
   verifyToken?: (token: string) => Promise<{ sub: string }>;
   secretKey?: string;
-  devBearer?: string;       // if set, a request bearing exactly this string is accepted
+  // If set, a request bearing exactly one of these strings is accepted.
+  // Accepts an array so local dev can honor both the server's explicit
+  // IG_DEV_BEARER and the frontend build's VITE_DEV_BEARER when they differ.
+  devBearer?: string | string[];
   devUserId?: string;       // userId to set when devBearer matches; defaults to 'dev-user'
+}
+
+function matchesDevBearer(token: string, devBearer: string | string[] | undefined): boolean {
+  if (!devBearer) return false;
+  return Array.isArray(devBearer) ? devBearer.includes(token) : devBearer === token;
 }
 
 export function createClerkAuth(deps: ClerkAuthDeps = {}): MiddlewareHandler {
@@ -19,7 +27,7 @@ export function createClerkAuth(deps: ClerkAuthDeps = {}): MiddlewareHandler {
       return c.json({ error: 'missing or malformed Authorization header' }, 401);
     }
     const token = header.slice('Bearer '.length).trim();
-    if (deps.devBearer && token === deps.devBearer) {
+    if (matchesDevBearer(token, deps.devBearer)) {
       c.set('userId' as never, (deps.devUserId ?? 'dev-user') as never);
       await next();
       return;
@@ -49,7 +57,7 @@ export async function verifyClerkOptional(
   if (!authHeader?.startsWith('Bearer ')) return null;
   const token = authHeader.slice('Bearer '.length).trim();
   if (!token) return null;
-  if (deps.devBearer && token === deps.devBearer) {
+  if (matchesDevBearer(token, deps.devBearer)) {
     return deps.devUserId ?? 'dev-user';
   }
   try {
