@@ -11,12 +11,14 @@ export const errorHandler: MiddlewareHandler = async (c: Context, next) => {
       method: c.req.method,
     });
 
+    const status = error instanceof Error && 'status' in error ? Number(error.status) : 500;
+    const expose = status >= 400 && status < 500;
     return c.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : 'Internal server error',
+        error: expose && error instanceof Error ? error.message : 'Internal server error',
       },
-      error instanceof Error && 'status' in error ? Number(error.status) : 500 as any
+      status as any
     );
   }
 };
