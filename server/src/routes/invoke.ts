@@ -20,12 +20,12 @@ const GROQ_MODEL = "openai/gpt-oss-120b";
 
 const messageSchema = z.object({
   role: z.enum(["user", "assistant"]),
-  content: z.string(),
+  content: z.string().max(8_000),
 });
 
 const invokeSchema = z.object({
-  prompt: z.string().min(1, "Prompt is required"),
-  messages: z.array(messageSchema).optional(),
+  prompt: z.string().min(1, "Prompt is required").max(8_000),
+  messages: z.array(messageSchema).max(40).optional(),
 });
 
 invoke.post("/", zValidator("json", invokeSchema), async (c) => {

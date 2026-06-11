@@ -10,6 +10,7 @@ import koreaRouter from "./src/routes/korea";
 import entityRouter from "./src/routes/entity";
 import { createInstagramPlacesRouter } from "./src/routes/instagramPlaces";
 import { createClerkAuth } from "./src/middleware/clerkAuth";
+import { createRateLimit } from "./src/middleware/rateLimit";
 import { bootIgWorker, getQueue, listJobsForUser, listExtractedPlaces, listIgPlaceDays, setIgPlaceDays } from "./src/igPlaces/wire";
 import { join, resolve } from "path";
 
@@ -143,6 +144,12 @@ app.use("/api/korea/chat", async (c, next) => {
   });
   await next();
 });
+
+// Rate limiting for public LLM endpoints
+const invokeRateLimit = createRateLimit({ windowMs: 60_000, max: 20, keyPrefix: "invoke" });
+const entityRateLimit = createRateLimit({ windowMs: 60_000, max: 30, keyPrefix: "entity" });
+app.use("/api/invoke/*", invokeRateLimit);
+app.use("/api/entity/*", entityRateLimit);
 
 // API Routes
 app.route("/api/invoke", invokeRouter);

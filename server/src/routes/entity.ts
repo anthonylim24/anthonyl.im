@@ -165,6 +165,8 @@ Output: {"description": "United's daily nonstop SFO to Incheon on a 777-300ER. R
 // noticeably better for dossier prose than the 8B instant variant.
 const GROQ_MODEL = "openai/gpt-oss-120b";
 
+const sanitizeField = (s: string) => s.replace(/["\\\n\r]/g, " ").trim();
+
 async function generateDescription(req: EntityAboutRequest): Promise<string | null> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
@@ -173,9 +175,9 @@ async function generateDescription(req: EntityAboutRequest): Promise<string | nu
   }
   const groq = new Groq({ apiKey });
 
-  const userParts: string[] = [`type="${req.type}"`, `name="${req.name}"`];
-  if (req.city) userParts.push(`city="${req.city}"`);
-  if (req.context) userParts.push(`context="${req.context}"`);
+  const userParts: string[] = [`type="${req.type}"`, `name="${sanitizeField(req.name)}"`];
+  if (req.city) userParts.push(`city="${sanitizeField(req.city)}"`);
+  if (req.context) userParts.push(`context="${sanitizeField(req.context)}"`);
   const userPrompt = userParts.join(", ");
 
   // gpt-oss-120b is a reasoning model: its internal "thinking" tokens
