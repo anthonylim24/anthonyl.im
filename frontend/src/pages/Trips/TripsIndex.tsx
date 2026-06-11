@@ -28,26 +28,31 @@ export function TripsIndex() {
   const navigate = useNavigate()
   const [state, setState] = useState<LoadState>({ status: "loading" })
   const [deleting, setDeleting] = useState<string | null>(null)
-
-  const load = useCallback(async () => {
-    try {
-      const trips = await listTrips(getToken)
-      setState({ status: "success", trips })
-    } catch (err) {
-      setState({ status: "error", message: err instanceof Error ? err.message : String(err) })
-    }
-  }, [getToken])
+  // Bumping this re-runs the load effect (after deletes / manual retry).
+  const [reloadKey, setReloadKey] = useState(0)
+  const load = useCallback(() => setReloadKey((k) => k + 1), [])
 
   useEffect(() => {
-    void load()
-  }, [load])
+    let cancelled = false
+    void (async () => {
+      try {
+        const trips = await listTrips(getToken)
+        if (!cancelled) setState({ status: "success", trips })
+      } catch (err) {
+        if (!cancelled) setState({ status: "error", message: err instanceof Error ? err.message : String(err) })
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [getToken, reloadKey])
 
   const onDelete = async (trip: TripSummary) => {
     if (!window.confirm(`Delete “${trip.name}”? This removes the whole itinerary.`)) return
     setDeleting(trip.id)
     try {
       await deleteTrip(getToken, trip.id)
-      await load()
+      load()
     } catch (err) {
       window.alert(`Could not delete trip: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
@@ -91,7 +96,7 @@ export function TripsIndex() {
         {state.status === "error" && (
           <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
             Couldn’t load your trips ({state.message}).{" "}
-            <button type="button" className="font-semibold underline" onClick={() => void load()}>
+            <button type="button" className="font-semibold underline" onClick={load}>
               Retry
             </button>
           </div>

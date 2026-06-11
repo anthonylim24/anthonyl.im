@@ -67,6 +67,36 @@ anthonyl.im/
 └── package.json                 # Root workspace (Hono, Clerk, Groq, OpenAI, Zod)
 ```
 
+### Multi-Trip Travel Planner (`/trips`, `server/src/trips/`)
+
+The Korea trip is one instance of a generic trip system. Trips are document-model
+records (`Trip` = metadata + `days[].items[]`, each place item carrying a structured
+`TripLocation` with lat/lng/category/source/confidence) stored in Supabase
+(`trips` + `trip_enhancement_runs`, jsonb docs; in-memory fallback when Supabase
+env is missing).
+
+| Piece | Location | Notes |
+|-------|----------|-------|
+| Domain model + Zod schemas | `server/src/trips/types.ts` | Shared shape mirrored in `frontend/src/pages/Trips/types.ts` |
+| Store | `server/src/trips/store.ts` | `getTripStore()`: Supabase or memory |
+| Korea migration | `server/src/trips/koreaTrip.ts` | Pure `buildKoreaTrip()` from `koreaSnapshot`/`koreaPlaces`; seeded on first `/api/trips` request as trip `korea-2026` (shared with all signed-in users, not deletable) |
+| AI generation/enhancement | `server/src/trips/ai.ts` | Groq JSON-mode (same pattern as `entity.ts`); Google geocoding for AI places missing coords; Open-Meteo weather + deterministic travel-leg pre-pass feed the enhancement prompt; suggestions are reviewable before apply |
+| Router | `server/src/routes/trips.ts` | `createTripsRouter(deps)` — store/auth/LLM injected for tests. CRUD, `/generate`, `/enhance`, `/enhancements/:runId/apply`, `/days/:dayId/places` |
+| Frontend | `frontend/src/pages/Trips/` | `TripsIndex`, `TripCreate`, `TripDetail` (editor + enhancement review), pure `tripEdits.ts` helpers |
+
+**Map Mode contract:** `GET /api/trips/:id/days/:dayId/places` emits the same
+`PlacesResponse`/`RankedPlace` shape as the legacy Korea endpoint, so
+`MapModeOverlay` (via its `placesUrl` prop) renders any trip's day without 3D
+scene changes. AI-added places must always carry structured locations — never
+prose only.
+
+**Permissions:** owner > editor/viewer collaborators > `sharedWithAllUsers`
+(legacy Korea behavior: all signed-in users can view/edit). Only owners delete
+or change collaborators. Legacy `/api/korea/*` routes still serve the bespoke
+Korea UI from the snapshot (backward compat); the snapshot is data, and the
+trips system is the path for all new destination work — do not add new
+destination-specific routes or logic.
+
 ### Korea Pages (`frontend/src/pages/Korea/`)
 
 | File | Purpose |
@@ -208,6 +238,9 @@ Routes are lazy-loaded. All three apps share the same SPA entry point (`index.ht
 | `/korea/day/:slug` | Day detail | Clerk-gated |
 | `/korea/places` | Places list | Clerk-gated |
 | `/korea/ingest` | IG ingestion | Clerk-gated |
+| `/trips` | Trip planner — list | Clerk-gated |
+| `/trips/new` | Trip planner — create (blank or AI starter) | Clerk-gated |
+| `/trips/:tripId` | Trip planner — itinerary editor + Map Mode | Clerk-gated |
 
 ---
 

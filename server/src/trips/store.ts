@@ -117,11 +117,24 @@ export class SupabaseTripStore implements TripStore {
   }
 }
 
+/** True when an error indicates the trips tables haven't been created yet
+ *  (supabase/schema.sql not applied). Routes map this to a 503 with an
+ *  actionable message instead of a raw 500. */
+export function isNotProvisionedError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err)
+  return message.includes("PGRST205") || message.includes("Could not find the table")
+}
+
 let storeSingleton: TripStore | null = null
 
 export function getTripStore(): TripStore {
   if (storeSingleton) return storeSingleton
-  if (config.supabaseUrl && config.supabaseServiceKey) {
+  if (process.env.TRIPS_STORE === "memory") {
+    // Explicit dev/test override — useful for local screenshots and demos
+    // against a database that doesn't have the trips tables yet.
+    console.warn("[trips] TRIPS_STORE=memory — using in-memory trip store (non-persistent)")
+    storeSingleton = new MemoryTripStore()
+  } else if (config.supabaseUrl && config.supabaseServiceKey) {
     storeSingleton = new SupabaseTripStore(
       createSupabaseClient({ url: config.supabaseUrl, serviceKey: config.supabaseServiceKey }),
     )

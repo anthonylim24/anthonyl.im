@@ -10,7 +10,7 @@ import {
   type WeatherFetcher,
 } from "../trips/ai"
 import { buildKoreaTrip, KOREA_TRIP_ID } from "../trips/koreaTrip"
-import type { TripStore } from "../trips/store"
+import { isNotProvisionedError, type TripStore } from "../trips/store"
 import {
   accessFor,
   applySuggestionsSchema,
@@ -88,6 +88,22 @@ async function ensureSeeded(store: TripStore) {
 
 export function createTripsRouter(deps: TripsRouterDeps) {
   const trips = new Hono()
+
+  // A database that hasn't had supabase/schema.sql applied yet should fail
+  // loud-but-actionable, not as an opaque 500.
+  trips.onError((err, c) => {
+    if (isNotProvisionedError(err)) {
+      return c.json(
+        {
+          error: "trips_not_provisioned",
+          message: "The trips tables are missing — apply supabase/schema.sql to the database.",
+        },
+        503,
+      )
+    }
+    console.error("[trips] unhandled error:", err instanceof Error ? err.message : err)
+    return c.json({ error: "internal_error" }, 500)
+  })
 
   // Auth gate for every trips endpoint.
   trips.use("*", async (c, next) => {
