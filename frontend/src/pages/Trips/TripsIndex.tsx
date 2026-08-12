@@ -1,29 +1,50 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
-import { ArrowRight, CalendarDays, MapPin, Plus, Trash2, Users, X } from "lucide-react"
+import { ArrowRight, CalendarDays, MapPin, Plus, RotateCcw, Trash2, Users } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
 import { deleteTrip, listTrips } from "./tripsApi"
-import type { TripStatus, TripSummary } from "./types"
-import { todayIsoIn } from "./theme"
+import type { TripSummary } from "./types"
+import { ACCENT, collaboratorSummary, daysUntilIn, todayIsoIn } from "./theme"
+import { TripStatusChip } from "./components/StatusChip"
 import {
   EASE,
+  REVEAL_DURATION,
   SERIF,
   alertErrorClass,
+  dangerBtnClass,
+  dangerIconBtnClass,
   dayCountInclusive,
+  eyebrowClass,
+  focusRingInsetClass,
   formatRangeFull,
   ghostBtnClass,
+  ghostOnTintBtnClass,
+  hoverArrowClass,
+  inlineLinkClass,
+  mutedInkClass,
+  pageClass,
   primaryBtnClass,
+  revealDelay,
   secondaryBtnClass,
-  softPanelClass,
+  wrapAnywhereClass,
 } from "./ui"
 
-const STATUS_META: Record<TripStatus, { label: string; dot: string }> = {
-  draft: { label: "Draft", dot: "bg-stone-400" },
-  active: { label: "Active", dot: "bg-emerald-500" },
-  archived: { label: "Archived", dot: "bg-stone-300 dark:bg-stone-600" },
-  completed: { label: "Completed", dot: "bg-amber-600 dark:bg-amber-500" },
-}
+/** Left column of a trip row and of the loading skeleton. */
+const markColumnClass = "w-[4.5rem] shrink-0 sm:w-20"
+
+const captionClass = `font-mono-trips text-[10px] uppercase tracking-[0.16em] ${mutedInkClass}`
+
+const metaIconClass = `h-3.5 w-3.5 shrink-0 ${mutedInkClass}`
+
+const rowListClass =
+  "divide-y divide-stone-200/80 border-y border-stone-200/80 dark:divide-stone-800/80 dark:border-stone-800/80"
+
+const skeletonBarClass = "animate-pulse rounded bg-stone-200/70 dark:bg-stone-800"
+
+/** `dark:text-*` is emitted after `group-hover:*` at equal specificity, so the
+ *  dark pair has to be spelled out for the accent to win on hover. */
+const arrowAccentHoverClass = `${ACCENT.textHover} dark:group-hover:text-[color:var(--ta-strong)]`
 
 type LoadState =
   | { status: "loading" }
@@ -32,28 +53,92 @@ type LoadState =
 
 type TripBucket = "current" | "upcoming" | "past"
 
+/** The one decision-relevant fact per row: how far away the trip is.
+ *  `label` is the spoken form — the glyphs read as noise to a screen reader. */
+interface TripMark {
+  value: string
+  caption?: string
+  label: string
+  accent: boolean
+  dot?: boolean
+}
+
+interface TripRow {
+  trip: TripSummary
+  mark: TripMark
+  dayCount: number
+  range: string
+}
+
 function bucketFor(trip: TripSummary, today: string): TripBucket {
   if (today >= trip.startDate && today <= trip.endDate) return "current"
   if (today < trip.startDate) return "upcoming"
   return "past"
 }
 
-function DateMark({ iso }: { iso: string }) {
-  const d = new Date(`${iso}T12:00:00Z`)
+function markFor(trip: TripSummary, bucket: TripBucket, today: string, dayCount: number, timezone: string): TripMark {
+  if (bucket === "past") {
+    const year = trip.endDate.slice(0, 4)
+    return { value: year, label: `Ended in ${year}`, accent: false }
+  }
+  if (bucket === "current") {
+    const day = Math.min(dayCountInclusive(trip.startDate, today), dayCount)
+    return {
+      value: `Day ${day}`,
+      caption: `of ${dayCount}`,
+      label: `Under way, day ${day} of ${dayCount}`,
+      accent: true,
+      dot: true,
+    }
+  }
+  const days = daysUntilIn(trip.startDate, timezone)
+  if (days <= 0) return { value: "Today", caption: "departs", label: "Departs today", accent: true, dot: true }
+  return {
+    value: `T–${days}`,
+    caption: days === 1 ? "day out" : "days out",
+    label: `${plural(days, "day", "days")} until departure`,
+    accent: true,
+  }
+}
+
+/** Past rows carry the year in their mark, so repeating it in the range would
+ *  state the same fact twice in one row. */
+function rangeFor(trip: TripSummary, bucket: TripBucket): string {
+  const sameYear = trip.startDate.slice(0, 4) === trip.endDate.slice(0, 4)
+  return formatRangeFull(trip.startDate, trip.endDate, { year: !(bucket === "past" && sameYear) })
+}
+
+function CountdownMark({ mark }: { mark: TripMark }) {
   return (
-    <div
-      className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-xl border border-stone-200/80 bg-stone-50/80 text-stone-900 dark:border-stone-800 dark:bg-stone-900/60 dark:text-stone-100"
-      aria-hidden
-    >
-      <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-amber-800 dark:text-amber-400">
-        {d.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })}
-      </span>
-      <span className="font-display text-2xl leading-none" style={SERIF}>
-        {d.getUTCDate()}
-      </span>
+    <div className={`${markColumnClass} self-start`}>
+      <span className="sr-only">{mark.label}</span>
+      <p
+        aria-hidden
+        className={`flex items-center gap-1.5 font-mono-trips text-base leading-snug tabular-nums sm:text-lg ${
+          mark.accent ? ACCENT.text : mutedInkClass
+        }`}
+      >
+        {mark.dot && <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${ACCENT.dot}`} />}
+        {mark.value}
+      </p>
+      {mark.caption && (
+        <p aria-hidden className={`mt-1 ${captionClass}`}>
+          {mark.caption}
+        </p>
+      )}
     </div>
   )
 }
+
+function plural(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`
+}
+
+const sections: Array<{ key: TripBucket; title: string }> = [
+  { key: "current", title: "In progress" },
+  { key: "upcoming", title: "Upcoming" },
+  { key: "past", title: "Past" },
+]
 
 export function TripsIndex() {
   const getToken = useGetToken()
@@ -62,8 +147,25 @@ export function TripsIndex() {
   const [state, setState] = useState<LoadState>({ status: "loading" })
   const [deleting, setDeleting] = useState<string | null>(null)
   const [confirmId, setConfirmId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<{ id: string; message: string } | null>(null)
+  const [deletedName, setDeletedName] = useState<string | null>(null)
+  // The confirm strip replaces the row, so the delete trigger unmounts while
+  // the dialog is open: focus can only return once the trigger remounts.
+  const [pendingFocusId, setPendingFocusId] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const newTripRef = useRef<HTMLButtonElement>(null)
   const load = useCallback(() => setReloadKey((k) => k + 1), [])
+
+  const focusOnMount = useCallback((el: HTMLButtonElement | null) => el?.focus(), [])
+
+  const restoreTriggerFocus = useCallback(
+    (el: HTMLButtonElement | null) => {
+      if (!el || el.dataset.tripId !== pendingFocusId) return
+      el.focus()
+      setPendingFocusId(null)
+    },
+    [pendingFocusId],
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -82,65 +184,85 @@ export function TripsIndex() {
 
   const grouped = useMemo(() => {
     if (state.status !== "success") return null
-    const today = todayIsoIn(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC")
-    const buckets: Record<TripBucket, TripSummary[]> = { current: [], upcoming: [], past: [] }
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+    const today = todayIsoIn(timezone)
+    const buckets: Record<TripBucket, TripRow[]> = { current: [], upcoming: [], past: [] }
     for (const trip of state.trips) {
-      buckets[bucketFor(trip, today)].push(trip)
+      const bucket = bucketFor(trip, today)
+      const dayCount = trip.dayCount || dayCountInclusive(trip.startDate, trip.endDate)
+      buckets[bucket].push({
+        trip,
+        dayCount,
+        range: rangeFor(trip, bucket),
+        mark: markFor(trip, bucket, today, dayCount, timezone),
+      })
     }
     for (const key of Object.keys(buckets) as TripBucket[]) {
-      buckets[key].sort((a, b) => a.startDate.localeCompare(b.startDate) * (key === "past" ? -1 : 1))
+      buckets[key].sort((a, b) => a.trip.startDate.localeCompare(b.trip.startDate) * (key === "past" ? -1 : 1))
     }
     return buckets
   }, [state])
 
+  const onlyPast = grouped !== null && grouped.past.length > 0 && grouped.current.length + grouped.upcoming.length === 0
+
   const onDelete = async (trip: TripSummary) => {
     setDeleting(trip.id)
+    setDeleteError(null)
     try {
       await deleteTrip(getToken, trip.id)
       setConfirmId(null)
+      // The row is gone, so focus moves to the page's primary action rather
+      // than falling back to the document.
+      newTripRef.current?.focus()
+      setDeletedName(trip.name)
       load()
     } catch (err) {
-      window.alert(`Could not delete trip: ${err instanceof Error ? err.message : String(err)}`)
+      setDeleteError({ id: trip.id, message: err instanceof Error ? err.message : String(err) })
     } finally {
       setDeleting(null)
     }
   }
 
-  const sections: Array<{ key: TripBucket; title: string; empty?: string }> = [
-    { key: "current", title: "In progress" },
-    { key: "upcoming", title: "Upcoming" },
-    { key: "past", title: "Past" },
-  ]
+  const closeConfirm = (tripId: string) => {
+    setConfirmId(null)
+    setDeleteError(null)
+    setPendingFocusId(tripId)
+  }
 
   return (
-    <div>
+    <div className={pageClass()}>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <p className="font-mono-trips text-[11px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-400">
-            Itinerary workspace
-          </p>
-          <h1 className="mt-2 font-display text-[clamp(2.25rem,5vw,3.25rem)] leading-[1.05] tracking-tight text-stone-900 dark:text-stone-100" style={SERIF}>
+          <p className={eyebrowClass}>Itinerary workspace</p>
+          <h1
+            className="mt-2 font-display text-[clamp(2.25rem,5vw,3.25rem)] leading-[1.05] tracking-tight text-stone-900 dark:text-stone-100"
+            style={SERIF}
+          >
             Your trips
           </h1>
-          <p className="mt-2 max-w-md text-sm leading-relaxed text-stone-600 dark:text-stone-400">
-            Plan days, keep reservations straight, and open Map Mode when you need the ground truth.
-          </p>
         </div>
-        <button type="button" onClick={() => navigate("/trips/new")} className={primaryBtnClass}>
+        <button ref={newTripRef} type="button" onClick={() => navigate("/trips/new")} className={primaryBtnClass}>
           <Plus className="h-4 w-4" aria-hidden />
           New trip
         </button>
       </div>
 
-      <div className="mt-12">
+      <p className="sr-only" role="status">
+        {deletedName ? `Deleted ${deletedName}.` : ""}
+      </p>
+
+      <div className="mt-10">
         {state.status === "loading" && (
-          <div className="space-y-3" role="status" aria-label="Loading trips">
+          <div className={rowListClass} role="status" aria-label="Loading trips">
             {[0, 1, 2].map((i) => (
-              <div key={i} className={`flex items-center gap-4 p-4 ${softPanelClass}`}>
-                <div className="h-14 w-14 animate-pulse rounded-xl bg-stone-200/70 dark:bg-stone-800" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 w-1/3 animate-pulse rounded bg-stone-200/70 dark:bg-stone-800" />
-                  <div className="h-3 w-1/2 animate-pulse rounded bg-stone-200/50 dark:bg-stone-800/70" />
+              <div key={i} className="flex items-center gap-4 py-5 sm:gap-6">
+                <div className={`${markColumnClass} space-y-2`}>
+                  <div className={`h-4 w-12 ${skeletonBarClass}`} />
+                  <div className={`h-2.5 w-10 opacity-70 ${skeletonBarClass}`} />
+                </div>
+                <div className="flex-1 space-y-2.5">
+                  <div className={`h-4 w-1/3 ${skeletonBarClass}`} />
+                  <div className={`h-3 w-1/2 opacity-70 ${skeletonBarClass}`} />
                 </div>
               </div>
             ))}
@@ -149,23 +271,29 @@ export function TripsIndex() {
 
         {state.status === "error" && (
           <div className={alertErrorClass} role="alert">
-            Couldn’t load your trips ({state.message}).{" "}
-            <button type="button" className="font-semibold underline underline-offset-2" onClick={load}>
+            <p className={`min-w-0 ${wrapAnywhereClass}`}>
+              Couldn’t load your trips. Check your connection, then try again. ({state.message})
+            </p>
+            <button type="button" className={`mt-1 font-semibold ${inlineLinkClass}`} onClick={load}>
               Retry
             </button>
           </div>
         )}
 
         {state.status === "success" && state.trips.length === 0 && (
-          <div className="border border-dashed border-stone-300/90 px-6 py-16 text-center dark:border-stone-700">
-            <CalendarDays className="mx-auto h-8 w-8 text-amber-800/70 dark:text-amber-400/70" aria-hidden />
-            <p className="mt-4 font-display text-3xl text-stone-900 dark:text-stone-100" style={SERIF}>
+          <div className="relative isolate -mx-4 overflow-hidden px-4 py-10 sm:-mx-6 sm:px-6 sm:py-14">
+            <div aria-hidden className={`pointer-events-none absolute inset-0 -z-10 opacity-70 ${ACCENT.bloomA}`} />
+            <p className={eyebrowClass}>No trips yet</p>
+            <h2
+              className="mt-3 font-display text-[clamp(2.25rem,5vw,3.25rem)] leading-[1.05] tracking-tight text-stone-900 dark:text-stone-100"
+              style={SERIF}
+            >
               Where to next?
-            </p>
-            <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-stone-600 dark:text-stone-400">
+            </h2>
+            <p className={`mt-3 max-w-[46ch] text-sm leading-relaxed ${mutedInkClass}`}>
               Start blank and build day by day, or ask AI for a structured draft you can reshape.
             </p>
-            <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+            <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link to="/trips/new?mode=ai" className={primaryBtnClass}>
                 Plan with AI
               </Link>
@@ -177,128 +305,190 @@ export function TripsIndex() {
         )}
 
         {state.status === "success" && grouped && state.trips.length > 0 && (
-          <div className="space-y-12">
-            {sections.map(({ key, title }) => {
-              const trips = grouped[key]
-              if (trips.length === 0) return null
-              return (
-                <section key={key} aria-labelledby={`bucket-${key}`}>
-                  <h2
-                    id={`bucket-${key}`}
-                    className="font-mono-trips text-[11px] uppercase tracking-[0.2em] text-stone-500 dark:text-stone-400"
-                  >
-                    {title}
-                    <span className="ml-2 tabular-nums text-stone-400 dark:text-stone-500">{trips.length}</span>
-                  </h2>
-                  <ul className="mt-4 divide-y divide-stone-200/80 border-y border-stone-200/80 dark:divide-stone-800/80 dark:border-stone-800/80">
-                    {trips.map((trip, i) => (
-                      <motion.li
-                        key={trip.id}
-                        initial={reduce ? false : { opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.28, delay: Math.min(i, 8) * 0.04, ease: EASE }}
-                      >
-                        {confirmId === trip.id ? (
-                          <div className="flex flex-wrap items-center justify-between gap-3 bg-red-50/60 px-3 py-4 dark:bg-red-950/20" role="alertdialog" aria-labelledby={`del-${trip.id}`}>
-                            <p id={`del-${trip.id}`} className="text-sm text-red-900 dark:text-red-200">
-                              Delete <span className="font-semibold">{trip.name}</span>? This removes the whole itinerary.
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                className={ghostBtnClass}
-                                onClick={() => setConfirmId(null)}
-                                disabled={deleting === trip.id}
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                type="button"
-                                className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-50"
-                                onClick={() => void onDelete(trip)}
-                                disabled={deleting === trip.id}
-                              >
-                                <Trash2 className="h-4 w-4" aria-hidden />
-                                {deleting === trip.id ? "Deleting…" : "Delete"}
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="group relative flex items-center gap-4 py-4 sm:gap-5">
-                            <Link
-                              to={`/trips/${trip.slug ?? trip.id}`}
-                              className="absolute inset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-600/50"
-                              aria-label={`Open ${trip.name}`}
-                            />
-                            <DateMark iso={trip.startDate} />
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                                <h3 className="truncate text-base font-semibold text-stone-900 sm:text-lg dark:text-stone-100">
-                                  {trip.name}
-                                </h3>
-                                <span className="inline-flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400">
-                                  <span className={`h-1.5 w-1.5 rounded-full ${STATUS_META[trip.status].dot}`} aria-hidden />
-                                  {STATUS_META[trip.status].label}
-                                </span>
-                              </div>
-                              <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-stone-600 dark:text-stone-400">
-                                <span className="inline-flex min-w-0 items-center gap-1.5">
-                                  <MapPin className="h-3.5 w-3.5 shrink-0 text-stone-400" aria-hidden />
-                                  <span className="truncate">{trip.destinations.join(" · ")}</span>
-                                </span>
-                                <span className="inline-flex items-center gap-1.5">
-                                  <CalendarDays className="h-3.5 w-3.5 shrink-0 text-stone-400" aria-hidden />
-                                  {formatRangeFull(trip.startDate, trip.endDate)} ·{" "}
-                                  {trip.dayCount || dayCountInclusive(trip.startDate, trip.endDate)} days
-                                </span>
-                                {(trip.collaborators.length > 0 || trip.sharedWithAllUsers) && (
-                                  <span className="inline-flex items-center gap-1.5">
-                                    <Users className="h-3.5 w-3.5 shrink-0 text-stone-400" aria-hidden />
-                                    {trip.sharedWithAllUsers
-                                      ? "Shared with all users"
-                                      : `${trip.collaborators.length} collaborator${trip.collaborators.length === 1 ? "" : "s"}`}
-                                  </span>
-                                )}
+          <>
+            <div className="space-y-10">
+              {sections.map(({ key, title }) => {
+                const rows = grouped[key]
+                if (rows.length === 0) return null
+                return (
+                  <section key={key} aria-labelledby={`bucket-${key}`}>
+                    <h2 id={`bucket-${key}`} className={`flex items-center gap-3 ${eyebrowClass}`}>
+                      {title}
+                      <span aria-hidden className={`h-px w-8 ${ACCENT.hairline}`} />
+                      <span className="tabular-nums">
+                        {rows.length}
+                        <span className="sr-only"> {rows.length === 1 ? "trip" : "trips"}</span>
+                      </span>
+                    </h2>
+                    <ul className={`mt-4 ${rowListClass}`}>
+                      {rows.map(({ trip, mark, dayCount, range }, i) => (
+                        <motion.li
+                          key={trip.id}
+                          initial={reduce ? false : { opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: REVEAL_DURATION, delay: revealDelay(i), ease: EASE }}
+                        >
+                          {deleteError?.id === trip.id ? (
+                            <div
+                              className={`my-3 ${alertErrorClass}`}
+                              role="alert"
+                              onKeyDown={(e) => {
+                                if (e.key === "Escape") closeConfirm(trip.id)
+                              }}
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-3 sm:flex-nowrap">
+                                <p className={`min-w-0 ${wrapAnywhereClass}`}>
+                                  Couldn’t delete <span className="font-semibold">{trip.name}</span>. Nothing was
+                                  removed, so you can try again. ({deleteError.message})
+                                </p>
+                                <div className="flex shrink-0 items-center gap-2">
+                                  <button
+                                    type="button"
+                                    ref={focusOnMount}
+                                    className={ghostOnTintBtnClass}
+                                    onClick={() => closeConfirm(trip.id)}
+                                    disabled={deleting === trip.id}
+                                  >
+                                    Dismiss
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={dangerBtnClass}
+                                    onClick={() => void onDelete(trip)}
+                                    disabled={deleting === trip.id}
+                                  >
+                                    <RotateCcw className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+                                    {deleting === trip.id ? "Deleting…" : "Retry delete"}
+                                  </button>
+                                </div>
                               </div>
                             </div>
-                            <div className="relative z-10 flex shrink-0 items-center gap-1">
-                              {trip.access === "owner" && (
+                          ) : confirmId === trip.id ? (
+                            <div
+                              className="flex flex-wrap items-center justify-between gap-3 bg-red-50/60 px-3 py-3 sm:flex-nowrap dark:bg-red-950/20"
+                              role="alertdialog"
+                              aria-labelledby={`del-${trip.id}`}
+                              onKeyDown={(e) => {
+                                if (e.key === "Escape") closeConfirm(trip.id)
+                              }}
+                            >
+                              <p
+                                id={`del-${trip.id}`}
+                                className={`min-w-0 text-sm text-red-900 dark:text-red-200 ${wrapAnywhereClass}`}
+                              >
+                                Delete <span className="font-semibold">{trip.name}</span>? The whole itinerary goes
+                                with it.
+                              </p>
+                              <div className="flex shrink-0 items-center gap-2">
                                 <button
                                   type="button"
-                                  onClick={() => setConfirmId(trip.id)}
-                                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-stone-400 transition hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 dark:hover:bg-red-950/40"
-                                  aria-label={`Delete ${trip.name}`}
+                                  ref={focusOnMount}
+                                  className={ghostOnTintBtnClass}
+                                  onClick={() => closeConfirm(trip.id)}
+                                  disabled={deleting === trip.id}
                                 >
-                                  <Trash2 className="h-4 w-4" aria-hidden />
+                                  Cancel
                                 </button>
-                              )}
-                              <ArrowRight
-                                className="h-4 w-4 text-stone-300 transition group-hover:translate-x-0.5 group-hover:text-amber-700 motion-reduce:group-hover:translate-x-0 dark:text-stone-600 dark:group-hover:text-amber-400"
-                                aria-hidden
-                              />
+                                <button
+                                  type="button"
+                                  className={dangerBtnClass}
+                                  onClick={() => void onDelete(trip)}
+                                  disabled={deleting === trip.id}
+                                >
+                                  <Trash2 className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+                                  {deleting === trip.id ? "Deleting…" : "Delete"}
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        )}
-                      </motion.li>
-                    ))}
-                  </ul>
-                </section>
-              )
-            })}
-          </div>
+                          ) : (
+                            <div className="group relative flex items-center gap-4 py-5 sm:gap-6">
+                              <Link
+                                to={`/trips/${trip.slug ?? trip.id}`}
+                                className={`absolute inset-0 ${focusRingInsetClass}`}
+                                aria-label={`Open ${trip.name}`}
+                              />
+                              <CountdownMark mark={mark} />
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                                  <h3
+                                    className={`min-w-0 text-base font-semibold leading-snug text-stone-900 sm:text-lg dark:text-stone-100 ${wrapAnywhereClass}`}
+                                  >
+                                    {trip.name}
+                                  </h3>
+                                  <TripStatusChip status={trip.status} />
+                                </div>
+                                <div
+                                  className={`mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[13px] ${mutedInkClass}`}
+                                >
+                                  <span className="inline-flex min-w-0 items-center gap-1.5">
+                                    <MapPin className={metaIconClass} strokeWidth={1.5} aria-hidden />
+                                    <span className={wrapAnywhereClass}>{trip.destinations.join(" · ")}</span>
+                                  </span>
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <CalendarDays className={metaIconClass} strokeWidth={1.5} aria-hidden />
+                                    {range}
+                                  </span>
+                                  <span className="font-mono-trips text-xs tabular-nums">
+                                    {plural(dayCount, "day", "days")} · {plural(trip.itemCount, "stop", "stops")}
+                                  </span>
+                                  {trip.collaborators.length > 0 && (
+                                    <span className="inline-flex items-center gap-1.5">
+                                      <Users className={metaIconClass} strokeWidth={1.5} aria-hidden />
+                                      {collaboratorSummary(trip.collaborators)}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="relative z-10 flex shrink-0 items-center gap-1">
+                                {trip.access === "owner" && (
+                                  <button
+                                    type="button"
+                                    ref={restoreTriggerFocus}
+                                    data-trip-id={trip.id}
+                                    onClick={() => {
+                                      setDeleteError(null)
+                                      setConfirmId(trip.id)
+                                    }}
+                                    className={`${dangerIconBtnClass} sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100`}
+                                    aria-label={`Delete ${trip.name}`}
+                                  >
+                                    <Trash2 className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+                                  </button>
+                                )}
+                                <ArrowRight
+                                  className={`h-4 w-4 text-stone-500 dark:text-stone-400 ${arrowAccentHoverClass} ${hoverArrowClass}`}
+                                  aria-hidden
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </motion.li>
+                      ))}
+                    </ul>
+                  </section>
+                )
+              })}
+            </div>
+
+            {onlyPast && (
+              <div className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2">
+                <p className={`flex items-center gap-3 ${eyebrowClass}`}>
+                  Next
+                  <span aria-hidden className={`h-px w-8 ${ACCENT.hairline}`} />
+                </p>
+                <Link to="/trips/new" className={`group ${ghostBtnClass}`}>
+                  Plan a new trip
+                  <ArrowRight
+                    className={`h-4 w-4 ${hoverArrowClass}`}
+                    strokeWidth={1.5}
+                    aria-hidden
+                  />
+                </Link>
+              </div>
+            )}
+          </>
         )}
       </div>
-
-      {confirmId && (
-        <button
-          type="button"
-          className="sr-only"
-          onClick={() => setConfirmId(null)}
-          aria-label="Cancel delete"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      )}
     </div>
   )
 }

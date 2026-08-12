@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react"
+import { accentIconClass, focusRingClass, iconBtnClass, inputClass, mutedInkClass, popoverClass } from "../ui"
 
 // Custom dual-month range calendar — no external date library. Dates are ISO
 // yyyy-mm-dd strings end to end (matching the trip model), so there's no
@@ -10,6 +11,8 @@ interface DateRangeFieldProps {
   startDate: string
   endDate: string
   onChange: (startDate: string, endDate: string) => void
+  invalid?: boolean
+  describedBy?: string
 }
 
 const DAY_MS = 86_400_000
@@ -37,6 +40,22 @@ function monthMatrix(year: number, month: number): (string | null)[] {
   for (let d = 1; d <= daysInMonth; d++) cells.push(toIso(new Date(Date.UTC(year, month, d))))
   while (cells.length % 7 !== 0) cells.push(null)
   return cells
+}
+
+/** Spoken name for a day cell: the date, then how it sits in the range. */
+function dayLabel(iso: string, state: { isStart: boolean; isEnd: boolean; inRange: boolean }): string {
+  const date = toUtc(iso).toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  })
+  if (state.isStart && state.isEnd) return `${date}, selected as the only day`
+  if (state.isStart) return `${date}, selected as the first day`
+  if (state.isEnd) return `${date}, selected as the last day`
+  if (state.inRange) return `${date}, within the selected range`
+  return date
 }
 
 export function formatRangeLabel(startDate: string, endDate: string): string {
@@ -77,15 +96,22 @@ function Month({
   // While picking the end date, preview the span to the hovered day.
   const previewEnd = selecting && hovered && hovered >= start ? hovered : end
   const inRange = (iso: string) => start && previewEnd && iso > start && iso < previewEnd
+  // The tint runs edge to edge behind the day cells, so a multi-day range
+  // reads as one band rather than a row of separate swatches.
+  const last = previewEnd || start
+  const banded = (iso: string | null | undefined) =>
+    !!iso && !!start && last > start && iso >= start && iso <= last
 
   return (
-    <div className="w-[16.5rem]">
+    // Day cells fill their column so the range band is continuous. The month
+    // is wider below `sm`, where only one shows, to hold a 44px touch target.
+    <div className="w-[19.25rem] sm:w-[16.5rem]">
       <div className="px-1 text-center text-sm font-semibold text-stone-800 dark:text-stone-200">
         {monthLabel(year, month)}
       </div>
-      <div className="mt-2 grid grid-cols-7 text-center" role="rowgroup" aria-hidden>
+      <div className={`mt-2 grid grid-cols-7 text-center ${mutedInkClass}`} aria-hidden>
         {WEEKDAYS.map((w, i) => (
-          <span key={i} className="py-1 text-[11px] font-medium text-stone-400 dark:text-stone-500">
+          <span key={i} className="py-1 text-[11px] font-medium">
             {w}
           </span>
         ))}
@@ -94,8 +120,9 @@ function Month({
         {cells.map((iso, i) => {
           if (!iso) return <span key={i} aria-hidden />
           const isStart = iso === start
-          const isEnd = iso === (previewEnd || start)
+          const isEnd = iso === last
           const isEdge = isStart || isEnd
+          const inBand = banded(iso)
           return (
             <button
               key={iso}
@@ -105,22 +132,46 @@ function Month({
               onClick={() => onPick(iso)}
               onMouseEnter={() => onHover(iso)}
               onFocus={() => onHover(iso)}
-              aria-label={toUtc(iso).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })}
-              aria-pressed={isEdge}
+              // Selection is spoken in the name rather than through
+              // `aria-pressed`: these days are dates in a range, not toggles.
+              aria-label={dayLabel(iso, { isStart, isEnd, inRange: !!inRange(iso) })}
+              aria-current={iso === today ? "date" : undefined}
               className={[
-                "relative mx-auto my-0.5 flex h-10 w-10 items-center justify-center text-[13px] tabular-nums outline-none transition-colors duration-150",
-                isEdge
-                  ? "rounded-full bg-amber-800 font-semibold text-white dark:bg-amber-500 dark:text-stone-950"
-                  : inRange(iso)
-                    ? "rounded-none bg-amber-100/80 text-amber-950 dark:bg-amber-500/15 dark:text-amber-200"
-                    : "rounded-full text-stone-700 hover:bg-stone-200/70 dark:text-stone-300 dark:hover:bg-stone-800",
-                iso === today && !isEdge ? "font-semibold text-amber-800 dark:text-amber-400" : "",
-                "focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:ring-offset-1",
+                "relative flex h-11 w-full items-center justify-center rounded-lg text-[13px] tabular-nums outline-none transition-colors duration-150 sm:h-10",
+                isEdge || inBand ? "" : "text-stone-700 hover:bg-stone-200/70 dark:text-stone-300 dark:hover:bg-stone-800",
+                iso === today && !isEdge ? `font-semibold ${accentIconClass}` : "",
+                `${focusRingClass} focus-visible:ring-inset`,
               ].join(" ")}
             >
-              {Number(iso.slice(8, 10))}
+              {inBand && (
+                <span
+                  aria-hidden
+                  className={[
+                    "absolute inset-y-0 bg-[color:var(--ta-soft)]",
+                    isStart ? "left-1/2" : banded(cells[i - 1]) && i % 7 !== 0 ? "left-0" : "left-0 rounded-l-lg",
+                    isEnd ? "right-1/2" : banded(cells[i + 1]) && i % 7 !== 6 ? "right-0" : "right-0 rounded-r-lg",
+                  ].join(" ")}
+                />
+              )}
+              {isEdge && (
+                <span
+                  aria-hidden
+                  className="absolute inset-0 rounded-lg bg-[color:var(--trips-accent)]"
+                />
+              )}
+              <span
+                className={
+                  isEdge
+                    ? "relative font-semibold text-white dark:text-stone-950"
+                    : inBand
+                      ? "relative text-stone-900 dark:text-stone-100"
+                      : "relative"
+                }
+              >
+                {Number(iso.slice(8, 10))}
+              </span>
               {iso === today && !isEdge && (
-                <span className="absolute bottom-1 h-1 w-1 rounded-full bg-amber-600" aria-hidden />
+                <span className="absolute bottom-1 h-1 w-1 rounded-full bg-[color:var(--trips-accent)]" aria-hidden />
               )}
             </button>
           )
@@ -130,11 +181,12 @@ function Month({
   )
 }
 
-export function DateRangeField({ startDate, endDate, onChange }: DateRangeFieldProps) {
+export function DateRangeField({ startDate, endDate, onChange, invalid, describedBy }: DateRangeFieldProps) {
   const reduce = useReducedMotion()
   const labelId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
   // selecting=true → start picked, waiting for the end date.
   const [selecting, setSelecting] = useState(false)
@@ -159,7 +211,10 @@ export function DateRangeField({ startDate, endDate, onChange }: DateRangeFieldP
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        // Focus was inside the grid that is about to unmount, so it goes back
+        // to the control that opened it.
         setOpen(false)
+        triggerRef.current?.focus()
         return
       }
       // Roving arrow-key navigation across day buttons.
@@ -201,6 +256,7 @@ export function DateRangeField({ startDate, endDate, onChange }: DateRangeFieldP
         onChange(startDate, iso)
         setSelecting(false)
         setOpen(false)
+        triggerRef.current?.focus()
       }
     }
   }
@@ -210,15 +266,20 @@ export function DateRangeField({ startDate, endDate, onChange }: DateRangeFieldP
   return (
     <div ref={rootRef} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-labelledby={labelId}
+        aria-invalid={invalid ? true : undefined}
+        aria-describedby={describedBy}
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-3 rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-left text-sm text-stone-900 transition hover:border-stone-400 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-600/25 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:hover:border-stone-600"
+        className={`flex items-center gap-3 text-left hover:border-stone-400 dark:hover:border-stone-600 ${inputClass} ${
+          invalid ? "border-red-400 dark:border-red-800" : ""
+        }`}
       >
-        <CalendarDays className="h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" aria-hidden />
-        <span id={labelId} className={startDate ? "" : "text-stone-500 dark:text-stone-400"}>
+        <CalendarDays className={`h-4 w-4 shrink-0 ${accentIconClass}`} strokeWidth={1.5} aria-hidden />
+        <span id={labelId} className={startDate ? "" : mutedInkClass}>
           {startDate && endDate ? formatRangeLabel(startDate, endDate) : "Select trip dates"}
         </span>
       </button>
@@ -232,27 +293,27 @@ export function DateRangeField({ startDate, endDate, onChange }: DateRangeFieldP
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={reduce ? { opacity: 0 } : { opacity: 0, y: -4, scale: 0.99 }}
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute left-0 top-[calc(100%+0.5rem)] z-40 rounded-2xl border border-stone-200 bg-white p-4 shadow-xl shadow-stone-950/10 dark:border-stone-700 dark:bg-stone-900 dark:shadow-black/40"
+            className={`absolute left-0 top-[calc(100%+0.5rem)] z-40 p-4 ${popoverClass}`}
           >
             <div className="flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => shiftMonth(-1)}
                 aria-label="Previous month"
-                className="rounded-full p-2 text-stone-500 transition hover:bg-stone-100 hover:text-stone-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600 dark:hover:bg-stone-800 dark:hover:text-stone-200"
+                className={iconBtnClass}
               >
-                <ChevronLeft className="h-4 w-4" aria-hidden />
+                <ChevronLeft className="h-4 w-4" strokeWidth={1.5} aria-hidden />
               </button>
-              <p className="text-xs text-stone-500 dark:text-stone-400" aria-live="polite">
+              <p className={`text-xs ${mutedInkClass}`} aria-live="polite">
                 {selecting ? "Now pick the last day" : "Pick the first day"}
               </p>
               <button
                 type="button"
                 onClick={() => shiftMonth(1)}
                 aria-label="Next month"
-                className="rounded-full p-2 text-stone-500 transition hover:bg-stone-100 hover:text-stone-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600 dark:hover:bg-stone-800 dark:hover:text-stone-200"
+                className={iconBtnClass}
               >
-                <ChevronRight className="h-4 w-4" aria-hidden />
+                <ChevronRight className="h-4 w-4" strokeWidth={1.5} aria-hidden />
               </button>
             </div>
             <div ref={gridRef} className="mt-2 flex gap-6">

@@ -1,102 +1,83 @@
-import type { ItemStatus, TripAccent } from "./types"
+import {
+  BedDouble,
+  Building2,
+  CalendarClock,
+  Camera,
+  Church,
+  Coffee,
+  Landmark,
+  MapPin,
+  Martini,
+  PartyPopper,
+  Plane,
+  ShoppingBag,
+  StickyNote,
+  Store,
+  Ticket,
+  TrainFront,
+  Trees,
+  UtensilsCrossed,
+  type LucideIcon,
+} from "lucide-react"
+import type { ItemStatus, SuggestionKind, TripAccent, TripCollaborator } from "./types"
 
 // Generic dossier theme system — the Korea itinerary's visual language,
-// parameterized by accent family and trip timezone. All class strings are
-// literal (Tailwind can't see computed names).
+// parameterized by trip accent and timezone.
+//
+// The accent itself lives in CSS: `data-trip-accent="<accent>"` on a
+// trip-scoped subtree (see the `.trips` block in index.css) sets `--ta`,
+// `--ta-strong`, `--ta-soft`, `--ta-ring`, `--ta-bloom-a`, `--ta-bloom-b`
+// plus the shared `--trips-accent` / `--trips-focus` chrome vars. Everything
+// below is one set of class strings over those variables, so a page never
+// branches on which accent a trip uses.
 
 export interface AccentTheme {
-  /** Hero radial bloom layers (top-right primary, bottom-left amber echo). */
+  /** Hero radial bloom layers (accent top-right, warm echo bottom-left). */
   bloomA: string
   bloomB: string
-  /** Big countdown numeral + accent text. */
-  countdown: string
+  /** Accent text: countdowns, eyebrow numerals, status lines. */
   text: string
+  /** Hover/pressed accent text. */
+  textStrong: string
+  /** Accent text that darkens with the enclosing `group`. */
   textHover: string
-  /** Small status dots / pips. */
+  /** Small dots, pips, filled timeline markers. */
   dot: string
-  /** Eyebrow section number. */
-  eyebrowNum: string
-  /** Today-card border. */
-  todayBorder: string
-  focusRing: string
+  /** Tint background for "now" / "just changed" surfaces. */
+  softBg: string
+  /** Accent border for tinted panels and active states. */
+  border: string
+  /** Hairline rules next to eyebrows. */
   hairline: string
+  /** Static accent ring (flash highlight, active rail segment). */
+  ring: string
+  /** Focus ring on trip-scoped surfaces. */
+  focusRing: string
 }
 
-export const ACCENTS: Record<TripAccent, AccentTheme> = {
-  rose: {
-    bloomA:
-      "bg-[radial-gradient(ellipse_at_top_right,_rgba(244,63,94,0.10),_transparent_55%)] dark:bg-[radial-gradient(ellipse_at_top_right,_rgba(251,113,133,0.16),_transparent_55%)]",
-    bloomB:
-      "bg-[radial-gradient(ellipse_at_bottom_left,_rgba(245,158,11,0.07),_transparent_55%)] dark:bg-[radial-gradient(ellipse_at_bottom_left,_rgba(251,191,36,0.10),_transparent_55%)]",
-    countdown: "text-rose-600 dark:text-rose-400",
-    text: "text-rose-700 dark:text-rose-300",
-    textHover: "group-hover:text-rose-800 dark:group-hover:text-rose-200",
-    dot: "bg-rose-500 dark:bg-rose-400",
-    eyebrowNum: "text-rose-600 dark:text-rose-400",
-    todayBorder: "border-rose-400/70 dark:border-rose-500/60",
-    focusRing: "focus-visible:ring-rose-500/50",
-    hairline: "bg-rose-400/60 dark:bg-rose-400/50",
-  },
-  amber: {
-    bloomA:
-      "bg-[radial-gradient(ellipse_at_top_right,_rgba(245,158,11,0.12),_transparent_55%)] dark:bg-[radial-gradient(ellipse_at_top_right,_rgba(251,191,36,0.16),_transparent_55%)]",
-    bloomB:
-      "bg-[radial-gradient(ellipse_at_bottom_left,_rgba(120,113,108,0.08),_transparent_55%)] dark:bg-[radial-gradient(ellipse_at_bottom_left,_rgba(168,162,158,0.08),_transparent_55%)]",
-    countdown: "text-amber-700 dark:text-amber-400",
-    text: "text-amber-800 dark:text-amber-300",
-    textHover: "group-hover:text-amber-900 dark:group-hover:text-amber-200",
-    dot: "bg-amber-500 dark:bg-amber-400",
-    eyebrowNum: "text-amber-700 dark:text-amber-400",
-    todayBorder: "border-amber-400/70 dark:border-amber-500/60",
-    focusRing: "focus-visible:ring-amber-500/50",
-    hairline: "bg-amber-400/60 dark:bg-amber-400/50",
-  },
-  emerald: {
-    bloomA:
-      "bg-[radial-gradient(ellipse_at_top_right,_rgba(16,185,129,0.10),_transparent_55%)] dark:bg-[radial-gradient(ellipse_at_top_right,_rgba(52,211,153,0.14),_transparent_55%)]",
-    bloomB:
-      "bg-[radial-gradient(ellipse_at_bottom_left,_rgba(245,158,11,0.06),_transparent_55%)] dark:bg-[radial-gradient(ellipse_at_bottom_left,_rgba(251,191,36,0.08),_transparent_55%)]",
-    countdown: "text-emerald-700 dark:text-emerald-400",
-    text: "text-emerald-800 dark:text-emerald-300",
-    textHover: "group-hover:text-emerald-900 dark:group-hover:text-emerald-200",
-    dot: "bg-emerald-500 dark:bg-emerald-400",
-    eyebrowNum: "text-emerald-700 dark:text-emerald-400",
-    todayBorder: "border-emerald-400/70 dark:border-emerald-500/60",
-    focusRing: "focus-visible:ring-emerald-500/50",
-    hairline: "bg-emerald-400/60 dark:bg-emerald-400/50",
-  },
-  sky: {
-    bloomA:
-      "bg-[radial-gradient(ellipse_at_top_right,_rgba(14,165,233,0.10),_transparent_55%)] dark:bg-[radial-gradient(ellipse_at_top_right,_rgba(56,189,248,0.14),_transparent_55%)]",
-    bloomB:
-      "bg-[radial-gradient(ellipse_at_bottom_left,_rgba(245,158,11,0.06),_transparent_55%)] dark:bg-[radial-gradient(ellipse_at_bottom_left,_rgba(251,191,36,0.08),_transparent_55%)]",
-    countdown: "text-sky-700 dark:text-sky-400",
-    text: "text-sky-800 dark:text-sky-300",
-    textHover: "group-hover:text-sky-900 dark:group-hover:text-sky-200",
-    dot: "bg-sky-500 dark:bg-sky-400",
-    eyebrowNum: "text-sky-700 dark:text-sky-400",
-    todayBorder: "border-sky-400/70 dark:border-sky-500/60",
-    focusRing: "focus-visible:ring-sky-500/50",
-    hairline: "bg-sky-400/60 dark:bg-sky-400/50",
-  },
-  violet: {
-    bloomA:
-      "bg-[radial-gradient(ellipse_at_top_right,_rgba(139,92,246,0.10),_transparent_55%)] dark:bg-[radial-gradient(ellipse_at_top_right,_rgba(167,139,250,0.14),_transparent_55%)]",
-    bloomB:
-      "bg-[radial-gradient(ellipse_at_bottom_left,_rgba(244,63,94,0.06),_transparent_55%)] dark:bg-[radial-gradient(ellipse_at_bottom_left,_rgba(251,113,133,0.08),_transparent_55%)]",
-    countdown: "text-violet-700 dark:text-violet-400",
-    text: "text-violet-800 dark:text-violet-300",
-    textHover: "group-hover:text-violet-900 dark:group-hover:text-violet-200",
-    dot: "bg-violet-500 dark:bg-violet-400",
-    eyebrowNum: "text-violet-700 dark:text-violet-400",
-    todayBorder: "border-violet-400/70 dark:border-violet-500/60",
-    focusRing: "focus-visible:ring-violet-500/50",
-    hairline: "bg-violet-400/60 dark:bg-violet-400/50",
-  },
+export const ACCENT: AccentTheme = {
+  bloomA: "trip-bloom-a",
+  bloomB: "trip-bloom-b",
+  text: "text-[color:var(--ta)]",
+  textStrong: "text-[color:var(--ta-strong)]",
+  // Both variants are spelled out: a call site's own `dark:text-*` would
+  // otherwise win over a bare `group-hover:` at equal specificity.
+  textHover: "group-hover:text-[color:var(--ta-strong)] dark:group-hover:text-[color:var(--ta-strong)]",
+  dot: "bg-[color:var(--ta)]",
+  softBg: "bg-[color:var(--ta-soft)]",
+  border: "border-[color:var(--ta-ring)]",
+  hairline: "bg-[color:var(--ta-ring)]",
+  ring: "ring-[color:var(--ta-ring)]",
+  focusRing: "focus-visible:ring-[color:var(--ta-ring)]",
 }
 
 export const DEFAULT_ACCENT: TripAccent = "amber"
 
+/** Picker order — also the set `resolveAccent` validates against. */
+export const TRIP_ACCENTS: readonly TripAccent[] = ["rose", "amber", "emerald", "sky", "violet"]
+
+/** Literal swatch colors — the one place per-accent hues are still named,
+ *  because the appearance picker has to show all five at once. */
 export const ACCENT_SWATCH: Record<TripAccent, string> = {
   rose: "bg-rose-500",
   amber: "bg-amber-500",
@@ -107,20 +88,39 @@ export const ACCENT_SWATCH: Record<TripAccent, string> = {
 
 /** Safe accent lookup — never returns undefined for bad runtime data. */
 export function resolveAccent(accent?: string | null): TripAccent {
-  if (accent && accent in ACCENTS) return accent as TripAccent
-  return DEFAULT_ACCENT
+  return TRIP_ACCENTS.includes(accent as TripAccent) ? (accent as TripAccent) : DEFAULT_ACCENT
 }
 
-export const accentTheme = (accent?: string | null): AccentTheme => ACCENTS[resolveAccent(accent)]
+// ── Trip metadata for display ────────────────────────────────────────────
 
-// ── Item display metadata (mirrors koreaTheme's status/type systems) ─────
+/** Bookkeeping the migration left behind, not trip metadata a reader wants.
+ *  Every surface that renders `trip.tags` filters through `visibleTags`. */
+const HIDDEN_TAGS = new Set(["migrated"])
+
+export function visibleTags(tags: readonly string[]): string[] {
+  return tags.filter((tag) => !HIDDEN_TAGS.has(tag))
+}
+
+/** "1 editor · 2 viewers" — empty when nobody else is on the trip. */
+export function collaboratorSummary(collaborators: readonly TripCollaborator[]): string {
+  const editors = collaborators.filter((c) => c.role === "editor").length
+  const viewers = collaborators.length - editors
+  return [
+    editors > 0 ? `${editors} editor${editors === 1 ? "" : "s"}` : "",
+    viewers > 0 ? `${viewers} viewer${viewers === 1 ? "" : "s"}` : "",
+  ]
+    .filter((part) => part.length > 0)
+    .join(" · ")
+}
+
+// ── Item display metadata ────────────────────────────────────────────────
 
 export const itemStatusMeta: Record<ItemStatus, { label: string; chip: string; dot: string } | null> = {
   none: null,
   booked: {
     label: "Booked",
-    chip: "bg-emerald-50 text-emerald-900 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-100 dark:border-emerald-900/60",
-    dot: "bg-emerald-600",
+    chip: "bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-100 dark:border-emerald-900/60",
+    dot: "bg-emerald-600 dark:bg-emerald-400",
   },
   optional: {
     label: "Optional",
@@ -129,51 +129,66 @@ export const itemStatusMeta: Record<ItemStatus, { label: string; chip: string; d
   },
   needs_review: {
     label: "Needs review",
-    chip: "bg-amber-50 text-amber-950 border-amber-200 dark:bg-amber-950/40 dark:text-amber-100 dark:border-amber-900/60",
-    dot: "bg-amber-500",
+    chip: "bg-amber-50 text-amber-950 border-amber-300 dark:bg-amber-950/40 dark:text-amber-100 dark:border-amber-900/60",
+    dot: "bg-amber-600 dark:bg-amber-400",
   },
   completed: {
     label: "Done",
-    chip: "bg-stone-100 text-stone-500 border-stone-200 dark:bg-stone-900/60 dark:text-stone-500 dark:border-stone-800",
+    chip: "bg-stone-100 text-stone-600 border-stone-300 dark:bg-stone-900/60 dark:text-stone-400 dark:border-stone-800",
     dot: "bg-stone-400 dark:bg-stone-600",
   },
 }
 
-export const reservationTypeIcon: Record<string, string> = {
-  flight: "✈️",
-  hotel: "🏨",
-  meal: "🍴",
-  bar: "🍸",
-  experience: "🎟️",
-  transit: "🚄",
-  event: "🎆",
-  appointment: "📅",
-  wedding: "💒",
+/** Suggestion kinds collapse to three tints: added, removed, everything else. */
+export function suggestionBadgeClass(kind: SuggestionKind): string {
+  switch (kind) {
+    case "add":
+      return "bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-100 dark:border-emerald-900/60"
+    case "remove":
+      return "bg-red-50 text-red-900 border-red-300 dark:bg-red-950/40 dark:text-red-100 dark:border-red-900/60"
+    default:
+      return "bg-stone-100 text-stone-700 border-stone-300 dark:bg-stone-900/70 dark:text-stone-300 dark:border-stone-700"
+  }
 }
 
-export const placeCategoryIcon: Record<string, string> = {
-  restaurant: "🍴",
-  cafe: "☕",
-  bar: "🍸",
-  market: "🧺",
-  shopping: "🛍️",
-  museum: "🖼️",
-  palace: "🏯",
-  shrine: "⛩️",
-  park: "🌳",
-  viewpoint: "🌆",
-  experience: "🎟️",
-  landmark: "📍",
-  neighborhood: "🏘️",
-  hotel: "🏨",
-  transit: "🚄",
-  venue: "🎪",
+// ── Icons — Lucide only; user-entered emoji (day.emoji, callout.icon) is
+//    content and stays text. ────────────────────────────────────────────
+
+export const reservationTypeIcon: Record<string, LucideIcon> = {
+  flight: Plane,
+  hotel: BedDouble,
+  meal: UtensilsCrossed,
+  bar: Martini,
+  experience: Ticket,
+  transit: TrainFront,
+  event: PartyPopper,
+  appointment: CalendarClock,
+  wedding: Church,
 }
 
-export function itemIcon(kind: string, category?: string, reservationType?: string): string {
-  if (kind === "reservation" && reservationType) return reservationTypeIcon[reservationType] ?? "📌"
-  if (category) return placeCategoryIcon[category] ?? "📍"
-  return kind === "note" ? "📝" : "📍"
+export const placeCategoryIcon: Record<string, LucideIcon> = {
+  restaurant: UtensilsCrossed,
+  cafe: Coffee,
+  bar: Martini,
+  market: Store,
+  shopping: ShoppingBag,
+  museum: Landmark,
+  palace: Landmark,
+  shrine: Church,
+  park: Trees,
+  viewpoint: Camera,
+  experience: Ticket,
+  landmark: Landmark,
+  neighborhood: Building2,
+  hotel: BedDouble,
+  transit: TrainFront,
+  venue: Ticket,
+}
+
+export function itemIcon(kind: string, category?: string, reservationType?: string): LucideIcon {
+  if (kind === "reservation" && reservationType) return reservationTypeIcon[reservationType] ?? Ticket
+  if (category) return placeCategoryIcon[category] ?? MapPin
+  return kind === "note" ? StickyNote : MapPin
 }
 
 export function calloutTone(tone: "info" | "warn" | "success" | "alert"): string {

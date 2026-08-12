@@ -1,6 +1,14 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { Check, Globe2 } from "lucide-react"
+import {
+  accentIconClass,
+  bareInputClass,
+  fieldShellClass,
+  menuItemActiveClass,
+  mutedInkClass,
+  popoverClass,
+} from "../ui"
 
 // Searchable timezone combobox built on Intl — no dependency, always current
 // with the runtime's IANA database. Zones are shown with live GMT offsets and
@@ -10,6 +18,8 @@ import { Check, Globe2 } from "lucide-react"
 interface TimezoneFieldProps {
   value: string
   onChange: (tz: string) => void
+  invalid?: boolean
+  describedBy?: string
 }
 
 const COMMON_ZONES = [
@@ -58,7 +68,7 @@ interface ZoneOption {
   group: "detected" | "common" | "all"
 }
 
-export function TimezoneField({ value, onChange }: TimezoneFieldProps) {
+export function TimezoneField({ value, onChange, invalid, describedBy }: TimezoneFieldProps) {
   const reduce = useReducedMotion()
   const listId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -68,6 +78,7 @@ export function TimezoneField({ value, onChange }: TimezoneFieldProps) {
   const [activeIndex, setActiveIndex] = useState(0)
 
   const detected = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, [])
+  const optionId = (index: number) => `${listId}-option-${index}`
 
   const options = useMemo<ZoneOption[]>(() => {
     const q = query.trim().toLowerCase().replace(/ /g, "_")
@@ -142,14 +153,17 @@ export function TimezoneField({ value, onChange }: TimezoneFieldProps) {
 
   return (
     <div ref={rootRef} className="relative">
-      <div className="flex items-center gap-3 rounded-xl border border-stone-300 bg-white px-3 py-1 transition focus-within:border-amber-600 focus-within:ring-2 focus-within:ring-amber-600/25 hover:border-stone-400 dark:border-stone-700 dark:bg-stone-900 dark:hover:border-stone-600">
-        <Globe2 className="h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" aria-hidden />
+      <div className={`${fieldShellClass} ${invalid ? "border-red-400 dark:border-red-800" : ""}`}>
+        <Globe2 className={`h-4 w-4 shrink-0 ${accentIconClass}`} strokeWidth={1.5} aria-hidden />
         <input
           role="combobox"
           aria-expanded={open}
           aria-controls={listId}
           aria-autocomplete="list"
           aria-label="Time zone"
+          aria-activedescendant={open && options[activeIndex] ? optionId(activeIndex) : undefined}
+          aria-invalid={invalid ? true : undefined}
+          aria-describedby={describedBy}
           value={open ? query : `${cityLabel(value)} (${offsetLabel(value)})`}
           placeholder="Search city or zone…"
           onFocus={() => {
@@ -163,7 +177,7 @@ export function TimezoneField({ value, onChange }: TimezoneFieldProps) {
             setActiveIndex(0)
           }}
           onKeyDown={onKeyDown}
-          className="w-full bg-transparent py-1.5 text-sm text-stone-900 placeholder:text-stone-500 focus:outline-none dark:text-stone-100 dark:placeholder:text-stone-400"
+          className={bareInputClass}
         />
       </div>
 
@@ -178,39 +192,39 @@ export function TimezoneField({ value, onChange }: TimezoneFieldProps) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-40 max-h-72 overflow-auto rounded-2xl border border-stone-200 bg-white py-1.5 shadow-xl shadow-stone-950/10 dark:border-stone-700 dark:bg-stone-900 dark:shadow-black/40"
+            className={`absolute left-0 right-0 top-[calc(100%+0.5rem)] z-40 max-h-72 overflow-auto py-1.5 ${popoverClass}`}
           >
             {options.length === 0 && (
-              <li className="px-4 py-3 text-sm text-stone-500 dark:text-stone-400">No matching time zone.</li>
+              <li className={`px-4 py-3 text-sm ${mutedInkClass}`}>No matching time zone.</li>
             )}
             {options.map((opt, i) => {
               const showGroup = i === 0 || options[i - 1]!.group !== opt.group
               return (
                 <li key={opt.tz} role="presentation">
                   {showGroup && (
-                    <div className="px-4 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-stone-400 dark:text-stone-500" aria-hidden>
+                    <div className={`px-4 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide ${mutedInkClass}`} aria-hidden>
                       {GROUP_LABEL[opt.group]}
                     </div>
                   )}
                   <button
                     type="button"
+                    id={optionId(i)}
                     role="option"
+                    tabIndex={-1}
                     aria-selected={opt.tz === value}
                     onMouseEnter={() => setActiveIndex(i)}
                     onClick={() => select(opt.tz)}
-                    className={`flex w-full items-center justify-between gap-3 px-4 py-2 text-left text-sm transition-colors ${
-                      i === activeIndex
-                        ? "bg-amber-50 text-stone-900 dark:bg-amber-500/10 dark:text-stone-100"
-                        : "text-stone-700 dark:text-stone-300"
+                    className={`flex min-h-11 w-full items-center justify-between gap-3 px-4 py-2 text-left text-sm transition-colors ${
+                      i === activeIndex ? menuItemActiveClass : "text-stone-700 dark:text-stone-300"
                     }`}
                   >
                     <span className="min-w-0 truncate">
                       <span className="font-medium">{opt.city}</span>
-                      <span className="ml-2 text-xs text-stone-500 dark:text-stone-400">{opt.tz}</span>
+                      <span className={`ml-2 text-xs ${mutedInkClass}`}>{opt.tz}</span>
                     </span>
-                    <span className="flex shrink-0 items-center gap-2 text-xs tabular-nums text-stone-500 dark:text-stone-400">
+                    <span className={`flex shrink-0 items-center gap-2 text-xs tabular-nums ${mutedInkClass}`}>
                       {opt.offset}
-                      {opt.tz === value && <Check className="h-3.5 w-3.5 text-amber-700 dark:text-amber-400" aria-hidden />}
+                      {opt.tz === value && <Check className={`h-4 w-4 ${accentIconClass}`} strokeWidth={1.5} aria-hidden />}
                     </span>
                   </button>
                 </li>
