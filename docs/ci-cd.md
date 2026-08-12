@@ -90,6 +90,7 @@ Secrets: `SSH_HOST`, `SSH_USERNAME`, `SSH_KEY`, `FRONTEND_ENV`. Droplet runtime 
 | Stale service worker after deploy | `sw.js` no-cache headers in `server/app.ts`; bump `CACHE_VERSION` on SW behavior changes |
 | Preview HTML served as production SPA | Preview router is mounted **before** the SPA fallback; missing trees 404 |
 | Production SW caching `/preview/` | `sw.js` bypasses `/preview/`; bump `CACHE_VERSION` when changing that |
+| `oven-sh/setup-bun` 503 / socket hang up | `.github/actions/setup-ci` retries Bun setup twice with pauses |
 
 ## What is intentionally NOT in the cloud verify gate
 

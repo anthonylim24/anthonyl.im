@@ -49,7 +49,8 @@ assert_contains ".codex/check.sh" "ensure_dependencies"
 # The TS-resolution pre-flight must run as part of the gate.
 assert_contains ".codex/check.sh" "verify_frontend_typescript"
 
-# The module-load smoke test that catches missing-export regressions
+assert_contains ".github/actions/setup-ci/action.yml" "oven-sh/setup-bun@v2"
+assert_contains ".github/actions/setup-ci/action.yml" "Set up Bun (retry)"
 # (e.g. GEMINI_BASE pre-PR-#398) must exist so `bun test server/src`
 # evaluates the real app dependency graph.
 [ -f "$ROOT_DIR/server/src/appLoad.test.ts" ] || {
