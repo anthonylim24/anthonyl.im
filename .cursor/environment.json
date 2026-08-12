@@ -1,0 +1,15 @@
+{
+  "name": "anthonyl.im",
+  "install": "bash .codex/setup.sh",
+  "terminals": [
+    {
+      "name": "dev",
+      "command": "bash .codex/dev.sh",
+      "description": "Full stack: Hono API on :3000 and Vite frontend on :5173 (chatbot, BreathFlow, Korea/Trips). Seeds safe stub env, reuses the shared .codex bootstrap."
+    }
+  ],
+  "ports": [
+    { "name": "backend", "port": 3000 },
+    { "name": "frontend", "port": 5173 }
+  ]
+}
