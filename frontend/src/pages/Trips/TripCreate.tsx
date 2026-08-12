@@ -16,11 +16,14 @@ import {
   softPanelClass,
 } from "./ui"
 
-const PREFERENCE_FIELDS: Array<{ key: keyof GeneratePreferences; label: string; placeholder: string }> = [
+const CORE_PREFS: Array<{ key: keyof GeneratePreferences; label: string; placeholder: string }> = [
   { key: "pace", label: "Pace", placeholder: "Relaxed mornings, busy afternoons" },
-  { key: "budget", label: "Budget", placeholder: "Mid-range, splurge on 2 dinners" },
   { key: "interests", label: "Interests", placeholder: "Food, architecture, vintage shopping" },
   { key: "food", label: "Food", placeholder: "No raw fish; loves noodles" },
+]
+
+const MORE_PREFS: Array<{ key: keyof GeneratePreferences; label: string; placeholder: string }> = [
+  { key: "budget", label: "Budget", placeholder: "Mid-range, splurge on 2 dinners" },
   { key: "mobility", label: "Mobility", placeholder: "Lots of walking OK; avoid stairs" },
   { key: "mustSee", label: "Must-see", placeholder: "Teamlab, a sumo match" },
   { key: "avoid", label: "Avoid", placeholder: "Long museum days, tourist traps" },
@@ -52,6 +55,7 @@ export function TripCreate() {
   const [prompt, setPrompt] = useState(DEFAULT_ITINERARY_PROMPT)
   const [prefs, setPrefs] = useState<GeneratePreferences>({})
   const [showPrefs, setShowPrefs] = useState(false)
+  const [showMorePrefs, setShowMorePrefs] = useState(false)
   const [busy, setBusy] = useState<"idle" | "creating" | "generating">("idle")
   const [error, setError] = useState<string | null>(null)
   const [touched, setTouched] = useState(false)
@@ -119,39 +123,35 @@ export function TripCreate() {
       <p className="font-mono-trips text-[11px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-400">
         New itinerary
       </p>
-      <h1 className="mt-2 font-display text-[clamp(2.25rem,5vw,3rem)] tracking-tight text-stone-900 dark:text-stone-100" style={SERIF}>
+      <h1
+        className="mt-2 font-display text-[clamp(2.25rem,5vw,3rem)] tracking-tight text-stone-900 dark:text-stone-100"
+        style={SERIF}
+      >
         Plan a trip
       </h1>
       <p className="mt-2 text-sm leading-relaxed text-stone-600 dark:text-stone-400">
-        Capture the essentials first. You can refine days, reservations, and Map Mode after.
+        Essentials first. Days, reservations, and Map Mode come after.
       </p>
 
-      <fieldset className={`mt-8 p-5 sm:p-6 ${softPanelClass}`}>
-        <legend className="sr-only">How to start</legend>
-        <p className={labelClass}>Start with</p>
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <fieldset className="mt-8">
+        <legend className={labelClass}>Start with</legend>
+        <div
+          className="mt-3 grid grid-cols-2 gap-1 rounded-xl border border-stone-200/90 p-1 dark:border-stone-700"
+          role="radiogroup"
+          aria-label="How to start"
+        >
           {(
             [
-              {
-                id: "ai" as const,
-                title: "AI draft",
-                body: "Structured days and places you can edit.",
-                Icon: Sparkles,
-              },
-              {
-                id: "blank" as const,
-                title: "Blank days",
-                body: "Empty days for each date — build it yourself.",
-                Icon: PenLine,
-              },
+              { id: "ai" as const, title: "AI draft", Icon: Sparkles },
+              { id: "blank" as const, title: "Blank days", Icon: PenLine },
             ]
           ).map((opt) => (
             <label
               key={opt.id}
-              className={`relative flex cursor-pointer gap-3 rounded-xl border p-4 transition focus-within:ring-2 focus-within:ring-amber-600/40 ${
+              className={`relative flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium transition focus-within:ring-2 focus-within:ring-amber-700/40 ${
                 mode === opt.id
-                  ? "border-amber-600/70 bg-amber-50/50 dark:border-amber-500/60 dark:bg-amber-950/20"
-                  : "border-stone-200 hover:border-stone-300 dark:border-stone-700 dark:hover:border-stone-600"
+                  ? "bg-amber-800 text-amber-50 dark:bg-amber-600 dark:text-amber-50"
+                  : "text-stone-600 hover:bg-stone-100/80 dark:text-stone-300 dark:hover:bg-stone-800/60"
               }`}
             >
               <input
@@ -162,20 +162,19 @@ export function TripCreate() {
                 onChange={() => setMode(opt.id)}
                 className="sr-only"
               />
-              <opt.Icon
-                className={`mt-0.5 h-4 w-4 shrink-0 ${mode === opt.id ? "text-amber-800 dark:text-amber-400" : "text-stone-400"}`}
-                aria-hidden
-              />
-              <span>
-                <span className="block text-sm font-semibold text-stone-900 dark:text-stone-100">{opt.title}</span>
-                <span className="mt-0.5 block text-xs leading-relaxed text-stone-500 dark:text-stone-400">{opt.body}</span>
-              </span>
+              <opt.Icon className="h-4 w-4 shrink-0" aria-hidden />
+              {opt.title}
             </label>
           ))}
         </div>
+        <p className="mt-2 text-xs leading-relaxed text-stone-500 dark:text-stone-400">
+          {mode === "ai"
+            ? "Structured days and places you can edit."
+            : "Empty days for each date. Build it yourself."}
+        </p>
       </fieldset>
 
-      <div className={`mt-5 space-y-5 p-5 sm:p-6 ${softPanelClass}`}>
+      <div className={`mt-6 space-y-5 p-5 sm:p-6 ${softPanelClass}`}>
         <div>
           <label htmlFor="trip-name" className={labelClass}>
             Trip name
@@ -204,7 +203,7 @@ export function TripCreate() {
             aria-describedby="trip-dest-hint"
           />
           <p id="trip-dest-hint" className="mt-1.5 text-xs text-stone-500 dark:text-stone-400">
-            Comma-separated. First destination usually sets the planning center of gravity.
+            Comma-separated. First destination usually sets the planning center.
           </p>
           {destinationList.length > 0 && (
             <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Parsed destinations">
@@ -243,7 +242,7 @@ export function TripCreate() {
               <TimezoneField value={timezone} onChange={setTimezone} />
             </div>
             <p className="mt-1.5 text-xs text-stone-500 dark:text-stone-400">
-              Prefer the destination zone so “today” and countdowns stay accurate.
+              Prefer the destination zone so “today” stays accurate.
             </p>
           </div>
         </div>
@@ -297,21 +296,49 @@ export function TripCreate() {
             {showPrefs ? "Hide traveler preferences" : "Add traveler preferences"}
           </button>
           {showPrefs && (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {PREFERENCE_FIELDS.map((f) => (
-                <div key={f.key}>
-                  <label htmlFor={`pref-${f.key}`} className={labelClass}>
-                    {f.label}
-                  </label>
-                  <input
-                    id={`pref-${f.key}`}
-                    className={`mt-2 ${inputClass}`}
-                    value={prefs[f.key] ?? ""}
-                    placeholder={f.placeholder}
-                    onChange={(e) => setPrefs((p) => ({ ...p, [f.key]: e.target.value }))}
-                  />
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {CORE_PREFS.map((f) => (
+                  <div key={f.key} className={f.key === "food" ? "sm:col-span-2" : undefined}>
+                    <label htmlFor={`pref-${f.key}`} className={labelClass}>
+                      {f.label}
+                    </label>
+                    <input
+                      id={`pref-${f.key}`}
+                      className={`mt-2 ${inputClass}`}
+                      value={prefs[f.key] ?? ""}
+                      placeholder={f.placeholder}
+                      onChange={(e) => setPrefs((p) => ({ ...p, [f.key]: e.target.value }))}
+                    />
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMorePrefs((s) => !s)}
+                className="text-xs font-medium text-stone-500 underline-offset-2 hover:underline dark:text-stone-400"
+                aria-expanded={showMorePrefs}
+              >
+                {showMorePrefs ? "Fewer preferences" : "More preferences"}
+              </button>
+              {showMorePrefs && (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {MORE_PREFS.map((f) => (
+                    <div key={f.key}>
+                      <label htmlFor={`pref-${f.key}`} className={labelClass}>
+                        {f.label}
+                      </label>
+                      <input
+                        id={`pref-${f.key}`}
+                        className={`mt-2 ${inputClass}`}
+                        value={prefs[f.key] ?? ""}
+                        placeholder={f.placeholder}
+                        onChange={(e) => setPrefs((p) => ({ ...p, [f.key]: e.target.value }))}
+                      />
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
           )}
         </div>
@@ -329,7 +356,7 @@ export function TripCreate() {
         </p>
       )}
 
-      <div className="sticky bottom-0 z-20 -mx-4 mt-8 border-t border-stone-200/70 bg-[color-mix(in_srgb,var(--trips-canvas)_92%,transparent)] px-4 py-4 backdrop-blur-md sm:-mx-6 sm:px-6 dark:border-stone-800/70">
+      <div className="sticky bottom-0 z-20 -mx-4 mt-8 border-t border-stone-200/70 bg-[var(--trips-canvas)] px-4 py-4 sm:-mx-6 sm:px-6 dark:border-stone-800/70">
         <div className="mx-auto flex max-w-2xl flex-wrap items-center gap-3">
           <button type="submit" disabled={busy !== "idle"} className={primaryBtnClass}>
             {busy === "idle" ? (

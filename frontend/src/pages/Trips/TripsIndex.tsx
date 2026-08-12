@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
-import { ArrowRight, CalendarDays, MapPin, Plus, Trash2, Users, X } from "lucide-react"
+import { ArrowRight, CalendarDays, MapPin, Plus, Trash2, Users } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
 import { deleteTrip, listTrips } from "./tripsApi"
 import type { TripStatus, TripSummary } from "./types"
@@ -9,8 +9,10 @@ import { todayIsoIn } from "./theme"
 import {
   EASE,
   SERIF,
+  TRIP_STATUS_LABEL,
   alertErrorClass,
   dayCountInclusive,
+  destructiveBtnClass,
   formatRangeFull,
   ghostBtnClass,
   primaryBtnClass,
@@ -19,10 +21,10 @@ import {
 } from "./ui"
 
 const STATUS_META: Record<TripStatus, { label: string; dot: string }> = {
-  draft: { label: "Draft", dot: "bg-stone-400" },
-  active: { label: "Active", dot: "bg-emerald-500" },
-  archived: { label: "Archived", dot: "bg-stone-300 dark:bg-stone-600" },
-  completed: { label: "Completed", dot: "bg-amber-600 dark:bg-amber-500" },
+  draft: { label: TRIP_STATUS_LABEL.draft, dot: "bg-stone-400" },
+  active: { label: TRIP_STATUS_LABEL.active, dot: "bg-emerald-600" },
+  archived: { label: TRIP_STATUS_LABEL.archived, dot: "bg-stone-300 dark:bg-stone-600" },
+  completed: { label: TRIP_STATUS_LABEL.completed, dot: "bg-amber-700 dark:bg-amber-500" },
 }
 
 type LoadState =
@@ -38,14 +40,22 @@ function bucketFor(trip: TripSummary, today: string): TripBucket {
   return "past"
 }
 
-function DateMark({ iso }: { iso: string }) {
+function DateMark({ iso, live }: { iso: string; live?: boolean }) {
   const d = new Date(`${iso}T12:00:00Z`)
   return (
     <div
-      className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-xl border border-stone-200/80 bg-stone-50/80 text-stone-900 dark:border-stone-800 dark:bg-stone-900/60 dark:text-stone-100"
+      className={`flex h-14 w-14 shrink-0 flex-col items-center justify-center text-stone-900 dark:text-stone-100 ${
+        live
+          ? "rounded-xl border border-amber-700/35 bg-amber-50/80 dark:border-amber-500/40 dark:bg-amber-950/30"
+          : "rounded-xl border border-stone-200/70 bg-stone-50/50 dark:border-stone-800 dark:bg-stone-900/40"
+      }`}
       aria-hidden
     >
-      <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-amber-800 dark:text-amber-400">
+      <span
+        className={`text-[10px] font-medium uppercase tracking-[0.14em] ${
+          live ? "text-amber-800 dark:text-amber-400" : "text-stone-500 dark:text-stone-400"
+        }`}
+      >
         {d.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })}
       </span>
       <span className="font-display text-2xl leading-none" style={SERIF}>
@@ -62,6 +72,7 @@ export function TripsIndex() {
   const [state, setState] = useState<LoadState>({ status: "loading" })
   const [deleting, setDeleting] = useState<string | null>(null)
   const [confirmId, setConfirmId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   const load = useCallback(() => setReloadKey((k) => k + 1), [])
 
@@ -95,18 +106,19 @@ export function TripsIndex() {
 
   const onDelete = async (trip: TripSummary) => {
     setDeleting(trip.id)
+    setDeleteError(null)
     try {
       await deleteTrip(getToken, trip.id)
       setConfirmId(null)
       load()
     } catch (err) {
-      window.alert(`Could not delete trip: ${err instanceof Error ? err.message : String(err)}`)
+      setDeleteError(err instanceof Error ? err.message : String(err))
     } finally {
       setDeleting(null)
     }
   }
 
-  const sections: Array<{ key: TripBucket; title: string; empty?: string }> = [
+  const sections: Array<{ key: TripBucket; title: string }> = [
     { key: "current", title: "In progress" },
     { key: "upcoming", title: "Upcoming" },
     { key: "past", title: "Past" },
@@ -119,11 +131,14 @@ export function TripsIndex() {
           <p className="font-mono-trips text-[11px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-400">
             Itinerary workspace
           </p>
-          <h1 className="mt-2 font-display text-[clamp(2.25rem,5vw,3.25rem)] leading-[1.05] tracking-tight text-stone-900 dark:text-stone-100" style={SERIF}>
+          <h1
+            className="mt-2 font-display text-[clamp(2.25rem,5vw,3.25rem)] leading-[1.05] tracking-tight text-stone-900 dark:text-stone-100"
+            style={SERIF}
+          >
             Your trips
           </h1>
           <p className="mt-2 max-w-md text-sm leading-relaxed text-stone-600 dark:text-stone-400">
-            Plan days, keep reservations straight, and open Map Mode when you need the ground truth.
+            Plan days, keep reservations straight, open Map Mode when you need the ground truth.
           </p>
         </div>
         <button type="button" onClick={() => navigate("/trips/new")} className={primaryBtnClass}>
@@ -181,6 +196,7 @@ export function TripsIndex() {
             {sections.map(({ key, title }) => {
               const trips = grouped[key]
               if (trips.length === 0) return null
+              const live = key === "current"
               return (
                 <section key={key} aria-labelledby={`bucket-${key}`}>
                   <h2
@@ -190,6 +206,11 @@ export function TripsIndex() {
                     {title}
                     <span className="ml-2 tabular-nums text-stone-400 dark:text-stone-500">{trips.length}</span>
                   </h2>
+                  {live && (
+                    <p className="mt-1.5 text-sm text-stone-600 dark:text-stone-400">
+                      Open a trip to jump into today&apos;s day and Map Mode.
+                    </p>
+                  )}
                   <ul className="mt-4 divide-y divide-stone-200/80 border-y border-stone-200/80 dark:divide-stone-800/80 dark:border-stone-800/80">
                     {trips.map((trip, i) => (
                       <motion.li
@@ -199,22 +220,36 @@ export function TripsIndex() {
                         transition={{ duration: 0.28, delay: Math.min(i, 8) * 0.04, ease: EASE }}
                       >
                         {confirmId === trip.id ? (
-                          <div className="flex flex-wrap items-center justify-between gap-3 bg-red-50/60 px-3 py-4 dark:bg-red-950/20" role="alertdialog" aria-labelledby={`del-${trip.id}`}>
-                            <p id={`del-${trip.id}`} className="text-sm text-red-900 dark:text-red-200">
-                              Delete <span className="font-semibold">{trip.name}</span>? This removes the whole itinerary.
-                            </p>
+                          <div
+                            className="flex flex-wrap items-center justify-between gap-3 bg-red-50 px-3 py-4 dark:bg-red-950/30"
+                            role="alertdialog"
+                            aria-labelledby={`del-${trip.id}`}
+                          >
+                            <div className="min-w-0">
+                              <p id={`del-${trip.id}`} className="text-sm text-red-900 dark:text-red-200">
+                                Delete <span className="font-semibold">{trip.name}</span>? This removes the whole itinerary.
+                              </p>
+                              {deleteError && (
+                                <p className="mt-1 text-xs text-red-800 dark:text-red-300" role="alert">
+                                  {deleteError}
+                                </p>
+                              )}
+                            </div>
                             <div className="flex items-center gap-2">
                               <button
                                 type="button"
                                 className={ghostBtnClass}
-                                onClick={() => setConfirmId(null)}
+                                onClick={() => {
+                                  setConfirmId(null)
+                                  setDeleteError(null)
+                                }}
                                 disabled={deleting === trip.id}
                               >
                                 Cancel
                               </button>
                               <button
                                 type="button"
-                                className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-50"
+                                className={destructiveBtnClass}
                                 onClick={() => void onDelete(trip)}
                                 disabled={deleting === trip.id}
                               >
@@ -226,20 +261,27 @@ export function TripsIndex() {
                         ) : (
                           <div className="group relative flex items-center gap-4 py-4 sm:gap-5">
                             <Link
-                              to={`/trips/${trip.slug ?? trip.id}`}
-                              className="absolute inset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-600/50"
-                              aria-label={`Open ${trip.name}`}
+                              to={`/trips/${trip.slug ?? trip.id}${live ? "#today" : ""}`}
+                              className="absolute inset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-700/50"
+                              aria-label={live ? `Open ${trip.name}, jump to today` : `Open ${trip.name}`}
                             />
-                            <DateMark iso={trip.startDate} />
+                            <DateMark iso={trip.startDate} live={live} />
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                                 <h3 className="truncate text-base font-semibold text-stone-900 sm:text-lg dark:text-stone-100">
                                   {trip.name}
                                 </h3>
-                                <span className="inline-flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400">
-                                  <span className={`h-1.5 w-1.5 rounded-full ${STATUS_META[trip.status].dot}`} aria-hidden />
-                                  {STATUS_META[trip.status].label}
-                                </span>
+                                {live ? (
+                                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-800 dark:text-amber-400">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-amber-700 dark:bg-amber-400" aria-hidden />
+                                    Today
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400">
+                                    <span className={`h-1.5 w-1.5 rounded-full ${STATUS_META[trip.status].dot}`} aria-hidden />
+                                    {STATUS_META[trip.status].label}
+                                  </span>
+                                )}
                               </div>
                               <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-stone-600 dark:text-stone-400">
                                 <span className="inline-flex min-w-0 items-center gap-1.5">
@@ -265,15 +307,18 @@ export function TripsIndex() {
                               {trip.access === "owner" && (
                                 <button
                                   type="button"
-                                  onClick={() => setConfirmId(trip.id)}
-                                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-stone-400 transition hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 dark:hover:bg-red-950/40"
+                                  onClick={() => {
+                                    setConfirmId(trip.id)
+                                    setDeleteError(null)
+                                  }}
+                                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-stone-500 transition hover:bg-red-100 hover:text-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 dark:text-stone-400 dark:hover:bg-red-950/50 dark:hover:text-red-300"
                                   aria-label={`Delete ${trip.name}`}
                                 >
                                   <Trash2 className="h-4 w-4" aria-hidden />
                                 </button>
                               )}
                               <ArrowRight
-                                className="h-4 w-4 text-stone-300 transition group-hover:translate-x-0.5 group-hover:text-amber-700 motion-reduce:group-hover:translate-x-0 dark:text-stone-600 dark:group-hover:text-amber-400"
+                                className="h-4 w-4 text-stone-300 transition group-hover:translate-x-0.5 group-hover:text-amber-800 motion-reduce:group-hover:translate-x-0 dark:text-stone-600 dark:group-hover:text-amber-400"
                                 aria-hidden
                               />
                             </div>
@@ -288,17 +333,6 @@ export function TripsIndex() {
           </div>
         )}
       </div>
-
-      {confirmId && (
-        <button
-          type="button"
-          className="sr-only"
-          onClick={() => setConfirmId(null)}
-          aria-label="Cancel delete"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      )}
     </div>
   )
 }

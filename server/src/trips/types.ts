@@ -85,7 +85,7 @@ export interface TripDay {
 // Drives the Korea-dossier-style rendering of trip pages. Every field has a
 // sensible default; AI generation proposes values and the editor overrides.
 
-export type TripAccent = "rose" | "amber" | "emerald" | "sky" | "violet"
+export type TripAccent = "rose" | "amber" | "emerald" | "sky" | "wine"
 
 export interface TripAppearance {
   /** Signature accent family — colors the hero bloom, countdown, dots. */
@@ -237,7 +237,11 @@ export const daySchema = z.object({
 })
 
 export const appearanceSchema = z.object({
-  accent: z.enum(["rose", "amber", "emerald", "sky", "violet"]).optional(),
+  // "violet" accepted for legacy docs; normalized to wine.
+  accent: z
+    .enum(["rose", "amber", "emerald", "sky", "wine", "violet"])
+    .optional()
+    .transform((v): TripAccent | undefined => (v === "violet" ? "wine" : v)),
   eyebrow: z.string().max(60).optional(),
   subtitle: z.string().max(120).optional(),
   headline: z.string().max(600).optional(),
@@ -356,7 +360,10 @@ export const aiDaySchema = z.object({
 })
 
 export const aiAppearanceSchema = z.object({
-  accent: z.enum(["rose", "amber", "emerald", "sky", "violet"]).optional(),
+  accent: z
+    .enum(["rose", "amber", "emerald", "sky", "wine", "violet"])
+    .optional()
+    .transform((v): TripAccent | undefined => (v === "violet" ? "wine" : v)),
   eyebrow: z.string().max(60).optional(),
   subtitle: z.string().max(120).optional(),
   headline: z.string().max(600).optional(),

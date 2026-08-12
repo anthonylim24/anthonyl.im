@@ -200,17 +200,31 @@ export function TimezoneField({ value, onChange }: TimezoneFieldProps) {
                     onClick={() => select(opt.tz)}
                     className={`flex w-full items-center justify-between gap-3 px-4 py-2 text-left text-sm transition-colors ${
                       i === activeIndex
-                        ? "bg-amber-50 text-stone-900 dark:bg-amber-500/10 dark:text-stone-100"
+                        ? "bg-amber-50 text-amber-950 dark:bg-amber-500/15 dark:text-amber-50"
                         : "text-stone-700 dark:text-stone-300"
                     }`}
                   >
                     <span className="min-w-0 truncate">
                       <span className="font-medium">{opt.city}</span>
-                      <span className="ml-2 text-xs text-stone-500 dark:text-stone-400">{opt.tz}</span>
+                      <span
+                        className={`ml-2 text-xs ${
+                          i === activeIndex
+                            ? "text-amber-800/80 dark:text-amber-100/70"
+                            : "text-stone-500 dark:text-stone-400"
+                        }`}
+                      >
+                        {opt.tz}
+                      </span>
                     </span>
-                    <span className="flex shrink-0 items-center gap-2 text-xs tabular-nums text-stone-500 dark:text-stone-400">
+                    <span
+                      className={`flex shrink-0 items-center gap-2 text-xs tabular-nums ${
+                        i === activeIndex
+                          ? "text-amber-800/80 dark:text-amber-100/70"
+                          : "text-stone-500 dark:text-stone-400"
+                      }`}
+                    >
                       {opt.offset}
-                      {opt.tz === value && <Check className="h-3.5 w-3.5 text-amber-700 dark:text-amber-400" aria-hidden />}
+                      {opt.tz === value && <Check className="h-3.5 w-3.5 text-amber-800 dark:text-amber-400" aria-hidden />}
                     </span>
                   </button>
                 </li>

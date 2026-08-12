@@ -46,6 +46,15 @@ import type {
   TripStatus,
 } from "./types"
 import { DEFAULT_ITINERARY_PROMPT, type GeneratePreferences } from "./types"
+import {
+  SERIF,
+  alertErrorClass,
+  alertNoticeClass,
+  ghostBtnClass,
+  primaryBtnClass,
+  quietBtnClass,
+  secondaryBtnClass,
+} from "./ui"
 
 // Map Mode pulls in three.js — keep it lazy so the editor stays light.
 const MapModeOverlay = lazy(() =>
@@ -297,7 +306,7 @@ export function TripDetail() {
 
   if (state.status === "error" || !trip) {
     return (
-      <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+      <div className={alertErrorClass}>
         Couldn’t load this trip{state.status === "error" ? ` (${state.message})` : ""}.
       </div>
     )
@@ -322,8 +331,8 @@ export function TripDetail() {
             value={trip.name}
             disabled={!editable}
             onChange={(e) => scheduleSave({ ...trip, name: e.target.value })}
-            className="mt-1 w-full bg-transparent font-display text-[clamp(1.75rem,4vw,2.5rem)] font-medium leading-tight tracking-tight text-stone-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-600/30 dark:text-stone-100"
-            style={{ fontFamily: "'Cormorant Garamond', serif" }}
+            className="mt-1 w-full bg-transparent font-display text-[clamp(1.75rem,4vw,2.5rem)] font-medium leading-tight tracking-tight text-stone-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-700/30 dark:text-stone-100"
+            style={SERIF}
           />
           <p className="mt-2 text-sm text-stone-500 dark:text-stone-400">
             {trip.destinations.join(" · ")} · {formatTripDate(trip.startDate, trip.timezone)} →{" "}
@@ -331,24 +340,24 @@ export function TripDetail() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Link
-            to={`/trips/${trip.slug ?? trip.id}`}
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-stone-300 px-3.5 py-2 text-sm font-medium text-stone-700 transition hover:border-stone-400 hover:text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600/40 dark:border-stone-700 dark:text-stone-300 dark:hover:text-stone-100"
-          >
+          <Link to={`/trips/${trip.slug ?? trip.id}`} className={secondaryBtnClass}>
             <Eye className="h-4 w-4" aria-hidden />
-            View
+            View dossier
           </Link>
-          <select
-            value={trip.status}
-            disabled={!editable}
-            onChange={(e) => scheduleSave({ ...trip, status: e.target.value as TripStatus })}
-            aria-label="Trip status"
-            className="min-h-11 rounded-xl border border-stone-300 bg-[var(--trips-surface)] px-3 py-2 text-sm capitalize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600/40 dark:border-stone-700 dark:bg-stone-900"
-          >
-            {(["draft", "active", "archived", "completed"] as const).map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
+          {editable && (
+            <select
+              value={trip.status}
+              onChange={(e) => scheduleSave({ ...trip, status: e.target.value as TripStatus })}
+              aria-label="Trip status"
+              className="min-h-11 rounded-xl border border-stone-300 bg-[var(--trips-surface)] px-3 py-2 text-sm capitalize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700/40 dark:border-stone-700 dark:bg-stone-900"
+            >
+              {(["draft", "active", "archived", "completed"] as const).map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          )}
           {editable && trip.status === "draft" && (
             <button
               type="button"
@@ -356,7 +365,7 @@ export function TripDetail() {
                 scheduleSave({ ...trip, status: "active" })
                 setNotice("Trip published — it's now active for everyone who can see it.")
               }}
-              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-emerald-600/40 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-900 transition hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/70"
+              className={primaryBtnClass}
             >
               <Globe2 className="h-4 w-4" aria-hidden />
               Publish
@@ -364,11 +373,11 @@ export function TripDetail() {
           )}
           {editable && (
             <EnhanceButton
-              label="Enhance trip"
-              busyLabel="Reviewing trip…"
+              label="Enhance"
+              busyLabel="Reviewing…"
               busy={enhancingTarget === "trip"}
               disabled={enhancingTarget !== null}
-              variant="solid"
+              variant="outline"
               promptPlaceholder="Optional focus — e.g. “tighten the pacing and add more local food”"
               onRun={(prompt) => void runEnhance("trip", undefined, prompt)}
             />
@@ -376,10 +385,21 @@ export function TripDetail() {
         </div>
       </div>
 
+      {!editable && (
+        <div className={`mt-4 ${alertNoticeClass}`} role="status">
+          You’re viewing a shared itinerary. Editing is disabled for your role.
+        </div>
+      )}
+
       {notice && (
-        <div className="mt-4 flex items-start justify-between gap-3 rounded-xl border border-amber-200/80 bg-amber-50/90 p-3.5 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100" role="status">
+        <div className={`mt-4 flex items-start justify-between gap-3 ${alertNoticeClass}`} role="status">
           <span>{notice}</span>
-          <button type="button" onClick={() => setNotice(null)} aria-label="Dismiss notice" className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg hover:bg-amber-100/80 dark:hover:bg-amber-900/40">
+          <button
+            type="button"
+            onClick={() => setNotice(null)}
+            aria-label="Dismiss notice"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-amber-900 hover:bg-amber-100/80 dark:text-amber-100 dark:hover:bg-amber-900/40"
+          >
             <X className="h-4 w-4" aria-hidden />
           </button>
         </div>
@@ -422,18 +442,23 @@ export function TripDetail() {
       )}
 
       {/* Days + sticky day-rail navigation (desktop) */}
-      <div className="mt-8 lg:grid lg:grid-cols-[10rem_minmax(0,1fr)] lg:gap-8">
+      <div className="mt-8 lg:grid lg:grid-cols-[9.5rem_minmax(0,1fr)] lg:gap-8">
         <nav aria-label="Days" className="hidden lg:block">
-          <ol className="sticky top-20 space-y-0.5 border-l border-stone-200 pl-3 dark:border-stone-800">
+          <ol className="sticky top-20 space-y-0.5">
             {trip.days.map((day, idx) => (
               <li key={day.id}>
                 <a
                   href={`#${day.id}`}
-                  className="block rounded-md px-2 py-1 text-[13px] text-stone-500 transition hover:bg-stone-100 hover:text-stone-900 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100"
+                  className="flex items-baseline gap-2 rounded-lg px-2 py-1.5 text-[13px] text-stone-500 transition hover:bg-stone-100 hover:text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700/40 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100"
                 >
-                  <span className="font-medium">Day {idx + 1}</span>
-                  <span className="ml-1.5 text-stone-400 dark:text-stone-500">
-                    {new Date(`${day.date}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  <span className="w-5 shrink-0 font-mono-trips text-[11px] tabular-nums text-amber-800 dark:text-amber-400">
+                    {String(idx + 1).padStart(2, "0")}
+                  </span>
+                  <span className="min-w-0 truncate">
+                    <span className="font-medium text-stone-700 dark:text-stone-300">Day {idx + 1}</span>
+                    <span className="ml-1.5 text-stone-400 dark:text-stone-500">
+                      {new Date(`${day.date}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </span>
                   </span>
                 </a>
               </li>
@@ -556,7 +581,7 @@ function GeneratePanel({
           type="button"
           onClick={() => void generate()}
           disabled={busy}
-          className="inline-flex items-center gap-2 rounded-full bg-amber-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-800 disabled:opacity-60 dark:bg-amber-600 dark:hover:bg-amber-500"
+          className={`${primaryBtnClass} disabled:opacity-60`}
         >
           {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Sparkles className="h-4 w-4" aria-hidden />}
           {busy ? "Generating… (~30s)" : error ? "Retry generation" : "Generate itinerary"}
@@ -603,10 +628,10 @@ function FloatingSaveIndicator({ saveState }: { saveState: "saved" | "saving" | 
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className={`flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-medium shadow-lg backdrop-blur ${
+            className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-medium shadow-md ${
               saveState === "error"
-                ? "border-red-200 bg-red-50/95 text-red-800 dark:border-red-900/50 dark:bg-red-950/90 dark:text-red-300"
-                : "border-stone-200 bg-white/95 text-stone-600 dark:border-stone-700 dark:bg-stone-900/95 dark:text-stone-300"
+                ? "border-red-200 bg-red-50 text-red-900 dark:border-red-900/50 dark:bg-red-950 dark:text-red-200"
+                : "border-stone-200 bg-[var(--trips-surface)] text-stone-600 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300"
             }`}
           >
             {saveState === "error" ? (
@@ -680,11 +705,11 @@ function EnhanceButton({
 
   const solid = variant === "solid"
   const base = solid
-    ? "bg-amber-700 text-white shadow-sm hover:bg-amber-800 dark:bg-amber-600 dark:hover:bg-amber-500"
+    ? "bg-amber-800 text-amber-50 shadow-sm hover:bg-amber-900 dark:bg-amber-600 dark:hover:bg-amber-500"
     : busy
-      ? "border border-amber-400 bg-amber-50 text-amber-800 dark:border-amber-600 dark:bg-amber-950/40 dark:text-amber-300"
-      : "border border-stone-300 text-stone-700 hover:border-amber-400 hover:text-amber-700 dark:border-stone-700 dark:text-stone-300 dark:hover:text-amber-400"
-  const size = solid ? "px-4 py-2 text-sm font-semibold gap-2" : "px-3 py-1.5 text-xs font-medium gap-1.5"
+      ? "border border-amber-400 bg-amber-50 text-amber-900 dark:border-amber-600 dark:bg-amber-950/40 dark:text-amber-200"
+      : "border border-stone-300 text-stone-700 hover:border-amber-700 hover:text-amber-900 dark:border-stone-700 dark:text-stone-300 dark:hover:text-amber-400"
+  const size = solid ? "min-h-11 px-4 py-2 text-sm font-semibold gap-2" : "min-h-11 px-3 py-1.5 text-xs font-medium gap-1.5"
   const iconSize = solid ? "h-4 w-4" : "h-3.5 w-3.5"
 
   return (
@@ -693,7 +718,7 @@ function EnhanceButton({
         type="button"
         onClick={() => run(false)}
         disabled={disabled}
-        className={`inline-flex items-center rounded-l-full pr-2.5 transition disabled:opacity-50 ${base} ${size}`}
+        className={`inline-flex items-center rounded-l-xl pr-2.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700/40 disabled:opacity-50 ${base} ${size}`}
       >
         {busy ? (
           <Loader2 className={`${iconSize} animate-spin motion-reduce:animate-none`} aria-hidden />
@@ -709,8 +734,8 @@ function EnhanceButton({
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={`${label} with a custom focus`}
-        className={`inline-flex items-center rounded-r-full border-l pl-1.5 pr-2 transition disabled:opacity-50 ${base} ${
-          solid ? "border-amber-800/40 dark:border-amber-500/40" : "border-l-stone-300 dark:border-l-stone-700"
+        className={`inline-flex items-center rounded-r-xl border-l pl-1.5 pr-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700/40 disabled:opacity-50 ${base} ${
+          solid ? "border-amber-950/30 dark:border-amber-500/40" : "border-l-stone-300 dark:border-l-stone-700"
         }`}
       >
         <ChevronDown className={`${iconSize} transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
@@ -725,7 +750,7 @@ function EnhanceButton({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute right-0 top-[calc(100%+0.5rem)] z-40 w-[20rem] rounded-2xl border border-stone-200 bg-white p-3 shadow-xl shadow-stone-950/10 dark:border-stone-700 dark:bg-stone-900 dark:shadow-black/40"
+            className="absolute right-0 top-[calc(100%+0.5rem)] z-40 w-[20rem] rounded-2xl border border-stone-200 bg-[var(--trips-surface)] p-3 shadow-lg dark:border-stone-700 dark:bg-stone-900"
           >
             <label className="block text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400">
               Focus for this review
@@ -739,15 +764,11 @@ function EnhanceButton({
               onKeyDown={(e) => {
                 if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) run(true)
               }}
-              className="mt-1.5 w-full rounded-xl border border-stone-200 bg-white px-2.5 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-stone-700 dark:bg-stone-950/40"
+              className="mt-1.5 w-full rounded-xl border border-stone-200 bg-[var(--trips-surface)] px-2.5 py-2 text-sm focus:border-amber-700 focus:outline-none dark:border-stone-700 dark:bg-stone-950/40"
             />
             <div className="mt-2 flex items-center justify-between gap-2">
               <span className="text-[11px] text-stone-400 dark:text-stone-500">⌘↵ to run</span>
-              <button
-                type="button"
-                onClick={() => run(true)}
-                className="inline-flex items-center gap-1.5 rounded-full bg-amber-700 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-800 dark:bg-amber-600 dark:hover:bg-amber-500"
-              >
+              <button type="button" onClick={() => run(true)} className={`${primaryBtnClass} min-h-9 px-3.5 py-1.5 text-xs`}>
                 <Sparkles className="h-3 w-3" aria-hidden />
                 {label}
               </button>
@@ -764,7 +785,7 @@ function EnhanceButton({
 // Configures the dossier-style public pages: accent family + editorial copy.
 // AI generation proposes these; everything here overrides it.
 
-const ACCENTS_ORDER = ["rose", "amber", "emerald", "sky", "violet"] as const
+const ACCENTS_ORDER = ["rose", "amber", "emerald", "sky", "wine"] as const
 
 function AppearancePanel({
   trip,
@@ -812,7 +833,7 @@ function AppearancePanel({
                   aria-label={name}
                   title={name}
                   onClick={() => patch({ accent: name })}
-                  className={`h-11 w-11 rounded-full ${ACCENT_SWATCH[name]} transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-900 focus-visible:ring-offset-2 dark:focus-visible:ring-stone-100 ${
+                  className={`h-11 w-11 rounded-xl ${ACCENT_SWATCH[name]} transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-900 focus-visible:ring-offset-2 dark:focus-visible:ring-stone-100 ${
                     (appearance.accent ?? "amber") === name
                       ? "ring-2 ring-stone-900 ring-offset-2 dark:ring-stone-100 dark:ring-offset-stone-900"
                       : "opacity-60 hover:opacity-100"
@@ -918,7 +939,7 @@ function DayCard({
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+          <div className="font-mono-trips text-[11px] uppercase tracking-[0.16em] text-amber-800 dark:text-amber-400">
             Day {index + 1} · {formatDayDate(day.date)}
             {day.city ? ` · ${day.city}` : ""}
           </div>
@@ -938,7 +959,8 @@ function DayCard({
               placeholder="Day theme…"
               aria-label={`Day ${index + 1} title`}
               onChange={(e) => patchDay({ title: e.target.value })}
-              className="mt-0.5 w-full bg-transparent text-lg font-semibold text-stone-900 placeholder:text-stone-300 focus:outline-none dark:text-stone-100 dark:placeholder:text-stone-600"
+              className="mt-0.5 w-full bg-transparent font-display text-xl font-medium text-stone-900 placeholder:text-stone-300 focus:outline-none dark:text-stone-100 dark:placeholder:text-stone-600"
+              style={SERIF}
             />
           </div>
         </div>
@@ -959,7 +981,7 @@ function DayCard({
             onClick={onOpenMap}
             disabled={!hasMappable}
             title={hasMappable ? "Open Map Mode" : "No located places on this day yet"}
-            className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 px-3 py-1.5 text-xs font-medium text-stone-700 transition hover:border-amber-400 hover:text-amber-700 disabled:opacity-40 dark:border-stone-700 dark:text-stone-300 dark:hover:text-amber-400"
+            className={`${secondaryBtnClass} min-h-11 px-3 text-xs disabled:opacity-40`}
           >
             <MapIcon className="h-3.5 w-3.5" aria-hidden />
             Map
@@ -1055,7 +1077,7 @@ function DayCard({
                   <button
                     type="button"
                     onClick={() => patchDay({ callouts: [...(day.callouts ?? []), { icon: "⚠️", tone: "warn", body: "" }] })}
-                    className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-stone-500 transition hover:bg-stone-100 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800"
+                    className={quietBtnClass}
                   >
                     <Plus className="h-3 w-3" aria-hidden />
                     Add callout
@@ -1130,7 +1152,7 @@ function DayCard({
                   return addItem(days, day.id, item)
                 })
               }
-              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-stone-500 transition hover:bg-stone-100 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-200"
+              className={quietBtnClass}
             >
               <Plus className="h-3.5 w-3.5" aria-hidden />
               {label}
@@ -1227,12 +1249,12 @@ function ItemRow({
           className={`min-w-0 flex-1 ${inputClass} ${isSection ? "font-semibold uppercase tracking-wide text-xs" : ""} ${item.status === "completed" ? "line-through opacity-60" : ""}`}
         />
         {item.createdBy === "ai" && (
-          <span className="hidden shrink-0 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-700 sm:inline dark:bg-violet-950/60 dark:text-violet-300">
+          <span className="hidden shrink-0 rounded-md border border-stone-200 bg-stone-50 px-2 py-0.5 text-[10px] font-medium text-stone-600 sm:inline dark:border-stone-700 dark:bg-stone-800 dark:text-stone-300">
             AI
           </span>
         )}
         {item.status !== "none" && (
-          <span className={`hidden shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium sm:inline ${STATUS_CHIP[item.status]}`}>
+          <span className={`hidden shrink-0 rounded-md px-2 py-0.5 text-[10px] font-medium sm:inline ${STATUS_CHIP[item.status]}`}>
             {STATUS_OPTIONS.find((s) => s.value === item.status)?.label}
           </span>
         )}
@@ -1393,7 +1415,7 @@ function IconButton({
       onClick={onClick}
       className={`rounded-md p-1.5 transition disabled:opacity-30 ${
         destructive
-          ? "text-stone-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
+          ? "text-stone-500 hover:bg-red-100 hover:text-red-800 dark:hover:bg-red-950/50 dark:hover:text-red-300"
           : "text-stone-400 hover:bg-stone-100 hover:text-stone-700 dark:hover:bg-stone-800 dark:hover:text-stone-300"
       }`}
     >
@@ -1405,12 +1427,12 @@ function IconButton({
 // ── Enhancement suggestions review ───────────────────────────────────────
 
 const SUGGESTION_BADGE: Record<string, string> = {
-  add: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300",
-  edit: "bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300",
-  remove: "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300",
-  reorder: "bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300",
-  warning: "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300",
-  info: "bg-stone-200/70 text-stone-600 dark:bg-stone-800 dark:text-stone-300",
+  add: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-200",
+  edit: "bg-sky-100 text-sky-900 dark:bg-sky-950/60 dark:text-sky-200",
+  remove: "bg-red-100 text-red-900 dark:bg-red-950/60 dark:text-red-200",
+  reorder: "bg-amber-100 text-amber-950 dark:bg-amber-950/60 dark:text-amber-200",
+  warning: "bg-amber-100 text-amber-950 dark:bg-amber-950/60 dark:text-amber-200",
+  info: "bg-stone-200/70 text-stone-700 dark:bg-stone-800 dark:text-stone-300",
 }
 
 function SuggestionsPanel({
@@ -1448,7 +1470,7 @@ function SuggestionsPanel({
           </h2>
           {run.summary && <p className="mt-1 text-sm text-stone-600 dark:text-stone-400">{run.summary}</p>}
         </div>
-        <button type="button" onClick={onDismiss} aria-label="Dismiss suggestions" className="rounded-full p-1.5 text-stone-400 hover:bg-stone-200/60 dark:hover:bg-stone-800/60">
+        <button type="button" onClick={onDismiss} aria-label="Dismiss suggestions" className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-stone-400 hover:bg-stone-200/60 dark:hover:bg-stone-800/60">
           <X className="h-4 w-4" aria-hidden />
         </button>
       </div>
@@ -1460,7 +1482,7 @@ function SuggestionsPanel({
           {run.suggestions.map((s) => {
             const isActionable = actionable.some((a) => a.id === s.id)
             return (
-              <li key={s.id} className="rounded-xl border border-stone-200/80 bg-white p-3 dark:border-stone-800 dark:bg-stone-900">
+              <li key={s.id} className="rounded-xl border border-stone-200/80 bg-[var(--trips-surface)] p-3 dark:border-stone-800 dark:bg-stone-900">
                 <label className="flex items-start gap-3">
                   {isActionable ? (
                     <input
@@ -1474,7 +1496,7 @@ function SuggestionsPanel({
                           return next
                         })
                       }
-                      className="mt-1 h-4 w-4 accent-amber-700"
+                      className="mt-1 h-4 w-4 accent-amber-800"
                       aria-label={`Accept: ${s.title}`}
                     />
                   ) : (
@@ -1482,7 +1504,7 @@ function SuggestionsPanel({
                   )}
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${SUGGESTION_BADGE[s.kind] ?? SUGGESTION_BADGE.info}`}>
+                      <span className={`rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase ${SUGGESTION_BADGE[s.kind] ?? SUGGESTION_BADGE.info}`}>
                         {s.kind}
                       </span>
                       <span className="text-sm font-medium text-stone-900 dark:text-stone-100">{s.title}</span>
@@ -1510,16 +1532,12 @@ function SuggestionsPanel({
             type="button"
             disabled={selected.size === 0}
             onClick={() => onApply([...selected])}
-            className="inline-flex items-center gap-2 rounded-full bg-amber-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-800 disabled:opacity-50 dark:bg-amber-600 dark:hover:bg-amber-500"
+            className={primaryBtnClass}
           >
             <Check className="h-4 w-4" aria-hidden />
             Apply {selected.size} selected
           </button>
-          <button
-            type="button"
-            onClick={onDismiss}
-            className="rounded-full px-3 py-2 text-sm text-stone-600 hover:bg-stone-200/60 dark:text-stone-400 dark:hover:bg-stone-800/60"
-          >
+          <button type="button" onClick={onDismiss} className={ghostBtnClass}>
             Dismiss all
           </button>
         </div>

@@ -20,7 +20,7 @@ function TripsAuthGate({ children }: { children: ReactNode }) {
         <div className="flex min-h-[70vh] items-center justify-center px-5 py-16">
           <div className="w-full max-w-md text-center">
             <div
-              className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-stone-200/80 bg-[var(--trips-surface)] text-amber-800 shadow-sm dark:border-stone-800 dark:text-amber-400"
+              className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-stone-200/80 bg-[var(--trips-surface)] text-amber-800 dark:border-stone-800 dark:text-amber-400"
               aria-hidden
             >
               <Compass className="h-7 w-7" strokeWidth={1.5} />
@@ -29,7 +29,7 @@ function TripsAuthGate({ children }: { children: ReactNode }) {
               Trips
             </h1>
             <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-stone-600 dark:text-stone-400">
-              A private itinerary workspace. Sign in to plan days, reservations, and Map Mode.
+              Private itineraries for planning and travel days. Sign in to continue.
             </p>
             <SignInButton mode="modal">
               <button type="button" className={`mt-8 w-full ${primaryBtnClass}`}>
@@ -57,17 +57,17 @@ export function TripsLayout() {
       <TripsAuthGate>
         <a
           href="#trips-main"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-amber-800 focus:px-3 focus:py-2 focus:text-sm focus:text-white"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-amber-800 focus:px-3 focus:py-2 focus:text-sm focus:text-amber-50"
         >
           Skip to content
         </a>
-        <header className="sticky top-0 z-30 border-b border-stone-200/60 bg-[color-mix(in_srgb,var(--trips-canvas)_88%,transparent)] backdrop-blur-md dark:border-stone-800/60">
-          <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6 pt-[env(safe-area-inset-top,0px)]">
-            <div className="flex min-w-0 items-center gap-3">
+        <header className="sticky top-0 z-30 border-b border-stone-200/60 bg-[color-mix(in_srgb,var(--trips-canvas)_94%,transparent)] dark:border-stone-800/60">
+          <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 pt-[env(safe-area-inset-top,0px)] sm:px-6">
+            <div className="flex min-w-0 items-center gap-2">
               {!atIndex && (
                 <Link
                   to="/trips"
-                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-stone-500 transition hover:bg-stone-200/50 hover:text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600/50 dark:hover:bg-stone-800/60 dark:hover:text-stone-100"
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-stone-500 transition hover:bg-stone-200/50 hover:text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700/50 dark:hover:bg-stone-800/60 dark:hover:text-stone-100"
                   aria-label="Back to all trips"
                 >
                   <ArrowLeft className="h-4 w-4" aria-hidden />
@@ -75,7 +75,7 @@ export function TripsLayout() {
               )}
               <Link
                 to="/trips"
-                className="font-display text-[1.35rem] leading-none tracking-tight text-stone-900 transition hover:text-amber-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600/40 dark:text-stone-100 dark:hover:text-amber-400"
+                className="font-display text-[1.35rem] leading-none tracking-tight text-stone-900 transition hover:text-amber-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-700/40 dark:text-stone-100 dark:hover:text-amber-400"
                 style={SERIF}
               >
                 Trips

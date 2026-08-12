@@ -79,19 +79,19 @@ export const ACCENTS: Record<TripAccent, AccentTheme> = {
     focusRing: "focus-visible:ring-sky-500/50",
     hairline: "bg-sky-400/60 dark:bg-sky-400/50",
   },
-  violet: {
+  wine: {
     bloomA:
-      "bg-[radial-gradient(ellipse_at_top_right,_rgba(139,92,246,0.10),_transparent_55%)] dark:bg-[radial-gradient(ellipse_at_top_right,_rgba(167,139,250,0.14),_transparent_55%)]",
+      "bg-[radial-gradient(ellipse_at_top_right,_rgba(136,49,61,0.12),_transparent_55%)] dark:bg-[radial-gradient(ellipse_at_top_right,_rgba(190,90,104,0.16),_transparent_55%)]",
     bloomB:
-      "bg-[radial-gradient(ellipse_at_bottom_left,_rgba(244,63,94,0.06),_transparent_55%)] dark:bg-[radial-gradient(ellipse_at_bottom_left,_rgba(251,113,133,0.08),_transparent_55%)]",
-    countdown: "text-violet-700 dark:text-violet-400",
-    text: "text-violet-800 dark:text-violet-300",
-    textHover: "group-hover:text-violet-900 dark:group-hover:text-violet-200",
-    dot: "bg-violet-500 dark:bg-violet-400",
-    eyebrowNum: "text-violet-700 dark:text-violet-400",
-    todayBorder: "border-violet-400/70 dark:border-violet-500/60",
-    focusRing: "focus-visible:ring-violet-500/50",
-    hairline: "bg-violet-400/60 dark:bg-violet-400/50",
+      "bg-[radial-gradient(ellipse_at_bottom_left,_rgba(180,83,9,0.06),_transparent_55%)] dark:bg-[radial-gradient(ellipse_at_bottom_left,_rgba(217,119,6,0.08),_transparent_55%)]",
+    countdown: "text-[#88313d] dark:text-[#d48690]",
+    text: "text-[#7a2d38] dark:text-[#e0a0a8]",
+    textHover: "group-hover:text-[#5c222b] dark:group-hover:text-[#efc4c9]",
+    dot: "bg-[#88313d] dark:bg-[#d48690]",
+    eyebrowNum: "text-[#88313d] dark:text-[#d48690]",
+    todayBorder: "border-[#88313d]/70 dark:border-[#d48690]/60",
+    focusRing: "focus-visible:ring-[#88313d]/50",
+    hairline: "bg-[#88313d]/60 dark:bg-[#d48690]/50",
   },
 }
 
@@ -102,11 +102,13 @@ export const ACCENT_SWATCH: Record<TripAccent, string> = {
   amber: "bg-amber-500",
   emerald: "bg-emerald-500",
   sky: "bg-sky-500",
-  violet: "bg-violet-500",
+  wine: "bg-[#88313d]",
 }
 
 /** Safe accent lookup — never returns undefined for bad runtime data. */
 export function resolveAccent(accent?: string | null): TripAccent {
+  // Legacy "violet" trips migrate visually to wine (anti-purple).
+  if (accent === "violet") return "wine"
   if (accent && accent in ACCENTS) return accent as TripAccent
   return DEFAULT_ACCENT
 }

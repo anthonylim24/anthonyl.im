@@ -69,7 +69,7 @@ export interface TripDay {
   items: ItineraryItem[]
 }
 
-export type TripAccent = "rose" | "amber" | "emerald" | "sky" | "violet"
+export type TripAccent = "rose" | "amber" | "emerald" | "sky" | "wine"
 
 export interface TripAppearance {
   accent?: TripAccent

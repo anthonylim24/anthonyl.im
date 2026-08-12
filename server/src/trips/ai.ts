@@ -386,7 +386,7 @@ Output a single JSON object with this exact shape:
 {
   "summary": string,                       // 1-3 sentence trip overview
   "appearance": {                           // editorial theming for the trip's dossier-style pages
-    "accent": "rose" | "amber" | "emerald" | "sky" | "violet",  // pick the family that fits the destination's mood
+    "accent": "rose" | "amber" | "emerald" | "sky" | "wine",  // pick the family that fits the destination's mood (no purple)
     "eyebrow": string,                      // 2-3 word kicker, e.g. "The dossier"
     "subtitle": string,                     // italic serif line under the title, e.g. "a Seoul & Busan dossier"
     "headline": string                      // 2-3 sentence editorial paragraph capturing the trip's spirit

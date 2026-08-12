@@ -8,7 +8,7 @@ import { LinkifiedText } from "../Korea/LinkifiedText"
 import { getTrip } from "./tripsApi"
 import { accentTheme, calloutTone, formatTripDate, itemIcon, itemStatusMeta, todayIsoIn } from "./theme"
 import type { ItineraryItem, Trip } from "./types"
-import { EASE, SERIF, alertErrorClass, inkBtnClass, secondaryBtnClass } from "./ui"
+import { EASE, SERIF, alertErrorClass, chipBtnClass, inkBtnClass, secondaryBtnClass } from "./ui"
 
 const MapModeOverlay = lazy(() =>
   import("../Korea/MapModeOverlay").then((m) => ({ default: m.MapModeOverlay })),
@@ -191,7 +191,12 @@ export function TripDayPage() {
           )}
         </motion.dl>
 
-        <motion.div {...fadeUp(0.22)} className="mt-7 flex flex-wrap items-center gap-3">
+        <motion.div
+          {...fadeUp(0.22)}
+          className={`mt-7 flex flex-wrap items-center gap-3 ${
+            isToday ? "sticky bottom-4 z-20 rounded-2xl border border-stone-200/80 bg-[var(--trips-surface)] p-3 shadow-sm dark:border-stone-800" : ""
+          }`}
+        >
           {hasMappable ? (
             <button type="button" onClick={() => setMapOpen(true)} className={inkBtnClass}>
               <Globe2 className="h-4 w-4" aria-hidden />
@@ -425,17 +430,14 @@ function ReservationTimelineItem({ item, index, accentDot }: { item: ItineraryIt
                   href={mapsUrl(item.location.address)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-stone-200 px-2.5 text-xs font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600/40 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-stone-800"
+                  className={chipBtnClass}
                 >
                   <MapPin className="h-3.5 w-3.5" aria-hidden />
                   Maps
                 </a>
               )}
               {phone && (
-                <a
-                  href={phone}
-                  className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-stone-200 px-2.5 text-xs font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600/40 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-stone-800"
-                >
+                <a href={phone} className={chipBtnClass}>
                   <Phone className="h-3.5 w-3.5" aria-hidden />
                   Call
                 </a>
@@ -445,7 +447,7 @@ function ReservationTimelineItem({ item, index, accentDot }: { item: ItineraryIt
                   href={item.reservation.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-stone-200 px-2.5 text-xs font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600/40 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-stone-800"
+                  className={chipBtnClass}
                 >
                   <ExternalLink className="h-3.5 w-3.5" aria-hidden />
                   Booking

@@ -14,7 +14,7 @@ import {
   todayIsoIn,
 } from "./theme"
 import type { ItineraryItem, Trip, TripDay } from "./types"
-import { EASE, SERIF, alertErrorClass, inkBtnClass } from "./ui"
+import { EASE, SERIF, TRIP_STATUS_LABEL, alertErrorClass, inkBtnClass, secondaryBtnClass } from "./ui"
 
 type LoadState =
   | { status: "loading" }
@@ -122,7 +122,7 @@ export function TripOverview() {
               {statusLine}
             </span>
             <span
-              className={`rounded-md border px-2 py-0.5 text-[11px] font-medium capitalize tracking-wide ${
+              className={`rounded-md border px-2 py-0.5 text-[11px] font-medium tracking-wide ${
                 statusTone === "live"
                   ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-200"
                   : statusTone === "past"
@@ -130,8 +130,13 @@ export function TripOverview() {
                     : "border-amber-200/80 bg-amber-50/80 text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100"
               }`}
             >
-              {trip.status}
+              {TRIP_STATUS_LABEL[trip.status]}
             </span>
+            {!editable && (
+              <span className="rounded-md border border-stone-200/80 px-2 py-0.5 text-[11px] font-medium text-stone-600 dark:border-stone-700 dark:text-stone-400">
+                View only
+              </span>
+            )}
           </motion.div>
 
           <motion.h1 {...fadeUp(0.08)} className="mt-4 max-w-[18ch] text-stone-900 dark:text-stone-100" style={SERIF}>
@@ -144,6 +149,35 @@ export function TripOverview() {
               </span>
             )}
           </motion.h1>
+
+          {todayDay && (
+            <motion.div {...fadeUp(0.1)} className="mt-7">
+              <Link
+                id="today"
+                to={`/trips/${trip.slug ?? trip.id}/day/${todayDay.id}`}
+                className={`group flex flex-wrap items-center justify-between gap-3 border-y border-stone-200/80 py-4 transition-colors hover:bg-stone-100/40 focus-visible:outline-none focus-visible:ring-2 ${a.focusRing} dark:border-stone-800/80 dark:hover:bg-stone-900/40`}
+              >
+                <div className="min-w-0">
+                  <p className={`flex items-center gap-2 font-mono-trips text-[11px] uppercase tracking-[0.2em] ${a.text}`}>
+                    <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.dot}`} aria-hidden />
+                    Today · {formatTripDate(todayDay.date, trip.timezone)}
+                  </p>
+                  <p
+                    className={`mt-1 break-words font-display text-xl font-medium text-stone-900 transition-colors sm:text-2xl dark:text-stone-100 ${a.textHover}`}
+                    style={SERIF}
+                  >
+                    {todayDay.emoji && <span aria-hidden className="mr-2">{todayDay.emoji}</span>}
+                    Day {trip.days.indexOf(todayDay) + 1}
+                    {todayDay.title ? `, ${todayDay.title}` : ""}
+                  </p>
+                </div>
+                <span className={`shrink-0 text-sm font-semibold ${a.text}`}>
+                  Open day
+                  <ArrowUpRight className="ml-1 inline h-4 w-4 align-[-0.125em]" aria-hidden />
+                </span>
+              </Link>
+            </motion.div>
+          )}
 
           {trip.appearance?.headline && (
             <motion.p
@@ -164,28 +198,27 @@ export function TripOverview() {
 
           <motion.dl
             {...fadeUp(0.18)}
-            className="mt-9 grid grid-cols-1 gap-x-10 gap-y-5 border-t border-stone-200/80 pt-6 sm:grid-cols-2 lg:grid-cols-4 dark:border-stone-800/80"
+            className="mt-8 grid grid-cols-1 gap-x-10 gap-y-4 border-t border-stone-200/80 pt-5 sm:grid-cols-2 dark:border-stone-800/80"
           >
             <MetaRow label="Destinations" value={trip.destinations.join(" · ")} />
             <MetaRow
               label="Dates"
               value={`${formatTripDate(trip.startDate, trip.timezone)} – ${formatTripDate(trip.endDate, trip.timezone)}`}
             />
-            <MetaRow label="Time zone" value={trip.timezone} />
-            <MetaRow
-              label="Sharing"
-              value={
-                trip.sharedWithAllUsers
-                  ? "All signed-in users"
-                  : trip.collaborators.length
-                    ? `${trip.collaborators.length} collaborator${trip.collaborators.length === 1 ? "" : "s"}`
-                    : "Private"
-              }
-            />
           </motion.dl>
 
+          <motion.p {...fadeUp(0.2)} className="mt-3 text-xs text-stone-500 dark:text-stone-400">
+            {trip.timezone}
+            {" · "}
+            {trip.sharedWithAllUsers
+              ? "Shared with all signed-in users"
+              : trip.collaborators.length
+                ? `${trip.collaborators.length} collaborator${trip.collaborators.length === 1 ? "" : "s"}`
+                : "Private"}
+          </motion.p>
+
           {trip.tags.length > 0 && (
-            <motion.ul {...fadeUp(0.22)} className="mt-5 flex flex-wrap gap-1.5" aria-label="Tags">
+            <motion.ul {...fadeUp(0.22)} className="mt-4 flex flex-wrap gap-1.5" aria-label="Tags">
               {trip.tags.map((tag) => (
                 <li
                   key={tag}
@@ -199,7 +232,7 @@ export function TripOverview() {
 
           {editable && (
             <motion.div {...fadeUp(0.26)} className="mt-8">
-              <Link to={`/trips/${trip.slug ?? trip.id}/edit`} className={inkBtnClass}>
+              <Link to={`/trips/${trip.slug ?? trip.id}/edit`} className={todayDay ? secondaryBtnClass : inkBtnClass}>
                 <Pencil className="h-4 w-4" aria-hidden />
                 Edit itinerary
               </Link>
@@ -207,30 +240,6 @@ export function TripOverview() {
           )}
         </div>
       </header>
-
-      {todayDay && (
-        <motion.aside {...fadeUp(0.08)} className="mx-auto max-w-6xl px-4 sm:px-6">
-          <Link
-            to={`/trips/${trip.slug ?? trip.id}/day/${todayDay.id}`}
-            className={`group block border-y border-stone-200/80 py-4 transition-colors hover:bg-stone-100/40 focus-visible:outline-none focus-visible:ring-2 ${a.focusRing} dark:border-stone-800/80 dark:hover:bg-stone-900/40`}
-          >
-            <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
-              <p className={`flex items-center gap-2 font-mono-trips text-[11px] uppercase tracking-[0.2em] ${a.text}`}>
-                <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.dot}`} aria-hidden />
-                Today · {formatTripDate(todayDay.date, trip.timezone)}
-              </p>
-              <p
-                className={`break-words font-display text-lg font-medium text-stone-900 transition-colors sm:text-xl dark:text-stone-100 ${a.textHover}`}
-                style={SERIF}
-              >
-                {todayDay.emoji && <span aria-hidden className="mr-2">{todayDay.emoji}</span>}
-                Day {trip.days.indexOf(todayDay) + 1}
-                {todayDay.title ? `, ${todayDay.title}` : ""}
-              </p>
-            </div>
-          </Link>
-        </motion.aside>
-      )}
 
       <section className="mx-auto mt-14 max-w-6xl px-4 sm:mt-16 sm:px-6">
         <SectionHeader
@@ -382,7 +391,7 @@ function DayRow({
       <Link
         to={`/trips/${trip.slug ?? trip.id}/day/${day.id}`}
         className={`group flex items-start gap-4 py-5 transition-colors focus-visible:outline-none focus-visible:ring-2 sm:gap-6 ${a.focusRing} ${
-          isPast && !isToday ? "opacity-55 hover:opacity-100" : ""
+          isPast && !isToday ? "opacity-70 hover:opacity-100" : ""
         } ${isToday ? "bg-stone-100/40 dark:bg-stone-900/30" : "hover:bg-stone-100/30 dark:hover:bg-stone-900/25"}`}
       >
         <div className="w-14 shrink-0 sm:w-16">

@@ -110,7 +110,7 @@ function Month({
               className={[
                 "relative mx-auto my-0.5 flex h-10 w-10 items-center justify-center text-[13px] tabular-nums outline-none transition-colors duration-150",
                 isEdge
-                  ? "rounded-full bg-amber-800 font-semibold text-white dark:bg-amber-500 dark:text-stone-950"
+                  ? "rounded-full bg-amber-800 font-semibold text-amber-50 dark:bg-amber-500 dark:text-amber-950"
                   : inRange(iso)
                     ? "rounded-none bg-amber-100/80 text-amber-950 dark:bg-amber-500/15 dark:text-amber-200"
                     : "rounded-full text-stone-700 hover:bg-stone-200/70 dark:text-stone-300 dark:hover:bg-stone-800",
