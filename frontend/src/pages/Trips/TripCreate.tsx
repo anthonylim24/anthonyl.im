@@ -115,7 +115,7 @@ export function TripCreate() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="mx-auto max-w-2xl" noValidate>
+    <form onSubmit={onSubmit} className="mx-auto max-w-2xl px-4 pt-8 sm:px-6 sm:pt-10" noValidate>
       <p className="font-mono-trips text-[11px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-400">
         New itinerary
       </p>

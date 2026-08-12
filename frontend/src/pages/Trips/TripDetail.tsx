@@ -78,13 +78,8 @@ const KIND_ICON: Record<ItemKind, typeof MapPin> = {
   reservation: Bookmark,
 }
 
-function formatDayDate(iso: string): string {
-  return new Date(`${iso}T00:00:00`).toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  })
-}
+/** Page gutters — `<main>` is unconstrained so trip heroes can be full-bleed. */
+const pageClass = "mx-auto max-w-6xl px-4 pt-8 sm:px-6 sm:pt-10"
 
 type LoadState =
   | { status: "loading" }
@@ -226,7 +221,10 @@ export function TripDetail() {
   )
 
   const dayOptions = useMemo(
-    () => (trip ? trip.days.map((d, i) => ({ id: d.id, label: `Day ${i + 1} · ${formatDayDate(d.date)}` })) : []),
+    () =>
+      trip
+        ? trip.days.map((d, i) => ({ id: d.id, label: `Day ${i + 1} · ${formatTripDate(d.date, trip.timezone)}` }))
+        : [],
     [trip],
   )
 
@@ -286,7 +284,7 @@ export function TripDetail() {
 
   if (state.status === "loading") {
     return (
-      <div className="space-y-4" role="status" aria-label="Loading trip">
+      <div className={`${pageClass} space-y-4`} role="status" aria-label="Loading trip">
         <div className="h-12 w-2/3 animate-pulse rounded-xl bg-stone-200/60 dark:bg-stone-900" />
         {[0, 1, 2].map((i) => (
           <div key={i} className="h-40 animate-pulse rounded-2xl bg-stone-200/60 dark:bg-stone-900" />
@@ -297,8 +295,10 @@ export function TripDetail() {
 
   if (state.status === "error" || !trip) {
     return (
-      <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
-        Couldn’t load this trip{state.status === "error" ? ` (${state.message})` : ""}.
+      <div className={pageClass}>
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+          Couldn’t load this trip{state.status === "error" ? ` (${state.message})` : ""}.
+        </div>
       </div>
     )
   }
@@ -307,7 +307,7 @@ export function TripDetail() {
   const mapDayIndex = mapDay ? trip.days.findIndex((d) => d.id === mapDay.id) : -1
 
   return (
-    <div>
+    <div className={pageClass}>
       {/* Trip header */}
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-stone-200/80 pb-6 dark:border-stone-800/80">
         <div className="min-w-0 flex-1">
@@ -433,7 +433,7 @@ export function TripDetail() {
                 >
                   <span className="font-medium">Day {idx + 1}</span>
                   <span className="ml-1.5 text-stone-400 dark:text-stone-500">
-                    {new Date(`${day.date}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    {formatTripDate(day.date, trip.timezone, { weekday: undefined })}
                   </span>
                 </a>
               </li>
@@ -446,6 +446,7 @@ export function TripDetail() {
               key={day.id}
               day={day}
               index={idx}
+              timezone={trip.timezone}
               editable={editable}
               dayOptions={dayOptions}
               enhancing={enhancingTarget === day.id}
@@ -878,6 +879,7 @@ function AppearancePanel({
 function DayCard({
   day,
   index,
+  timezone,
   editable,
   dayOptions,
   enhancing,
@@ -891,6 +893,7 @@ function DayCard({
 }: {
   day: TripDay
   index: number
+  timezone: string
   editable: boolean
   dayOptions: Array<{ id: string; label: string }>
   enhancing: boolean
@@ -919,7 +922,7 @@ function DayCard({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
-            Day {index + 1} · {formatDayDate(day.date)}
+            Day {index + 1} · {formatTripDate(day.date, timezone)}
             {day.city ? ` · ${day.city}` : ""}
           </div>
           <div className="flex items-center gap-2">

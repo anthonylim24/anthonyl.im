@@ -87,7 +87,9 @@ export function TripsLayout() {
             </div>
           </div>
         </header>
-        <main id="trips-main" className="mx-auto max-w-6xl px-4 pb-28 pt-8 sm:px-6 sm:pt-10">
+        {/* Unconstrained so trip-scoped pages can bleed their hero gradient to
+            the viewport edge; each routed page owns its own gutters. */}
+        <main id="trips-main" className="px-0 pb-28">
           <Outlet />
         </main>
       </TripsAuthGate>

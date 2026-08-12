@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
 import { ArrowUpRight, Pencil } from "lucide-react"
@@ -21,11 +21,19 @@ type LoadState =
   | { status: "error"; message: string }
   | { status: "success"; trip: Trip; editable: boolean }
 
+/** Page gutters — `<main>` is unconstrained so the hero bloom can be full-bleed. */
+const gutterClass = "mx-auto max-w-6xl px-4 pt-8 sm:px-6 sm:pt-10"
+
 export function TripOverview() {
   const { tripId } = useParams<{ tripId: string }>()
   const getToken = useGetToken()
   const reduce = useReducedMotion()
   const [state, setState] = useState<LoadState>({ status: "loading" })
+  const [reloadKey, setReloadKey] = useState(0)
+  const reload = useCallback(() => {
+    setState({ status: "loading" })
+    setReloadKey((k) => k + 1)
+  }, [])
 
   useEffect(() => {
     if (!tripId) return
@@ -41,11 +49,11 @@ export function TripOverview() {
     return () => {
       cancelled = true
     }
-  }, [tripId, getToken])
+  }, [tripId, getToken, reloadKey])
 
   if (state.status === "loading") {
     return (
-      <div role="status" aria-label="Loading trip">
+      <div className={gutterClass} role="status" aria-label="Loading trip">
         <div className="h-4 w-48 animate-pulse rounded bg-stone-200/60 dark:bg-stone-900" />
         <div className="mt-8 h-16 w-3/4 max-w-xl animate-pulse rounded-2xl bg-stone-200/60 dark:bg-stone-900" />
         <div className="mt-10 space-y-3">
@@ -59,11 +67,13 @@ export function TripOverview() {
 
   if (state.status === "error") {
     return (
-      <div className={alertErrorClass} role="alert">
-        Couldn’t load this trip ({state.message}).{" "}
-        <button type="button" className="font-semibold underline underline-offset-2" onClick={() => window.location.reload()}>
-          Retry
-        </button>
+      <div className={gutterClass}>
+        <div className={alertErrorClass} role="alert">
+          Couldn’t load this trip ({state.message}).{" "}
+          <button type="button" className="font-semibold underline underline-offset-2" onClick={reload}>
+            Retry
+          </button>
+        </div>
       </div>
     )
   }
@@ -87,8 +97,6 @@ export function TripOverview() {
           ? "1 day to go"
           : `${Math.max(tMinus, 0)} days to go`
 
-  const statusTone = inTrip ? "live" : past ? "past" : "ahead"
-
   const reservations = trip.days.flatMap((day) =>
     day.items.filter((i) => i.kind === "reservation").map((item) => ({ day, item })),
   )
@@ -100,7 +108,7 @@ export function TripOverview() {
   })
 
   return (
-    <div className="-mx-4 -mt-8 sm:-mx-6 sm:-mt-10">
+    <div>
       <header className="relative overflow-hidden">
         <div aria-hidden className="pointer-events-none absolute inset-0">
           <div className={`absolute inset-0 ${a.bloomA}`} />
@@ -121,25 +129,14 @@ export function TripOverview() {
               <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.dot}`} aria-hidden />
               {statusLine}
             </span>
-            <span
-              className={`rounded-md border px-2 py-0.5 text-[11px] font-medium capitalize tracking-wide ${
-                statusTone === "live"
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-200"
-                  : statusTone === "past"
-                    ? "border-stone-200 bg-stone-100/80 text-stone-600 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-400"
-                    : "border-amber-200/80 bg-amber-50/80 text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100"
-              }`}
-            >
-              {trip.status}
-            </span>
           </motion.div>
 
-          <motion.h1 {...fadeUp(0.08)} className="mt-4 max-w-[18ch] text-stone-900 dark:text-stone-100" style={SERIF}>
-            <span className="block font-display text-[clamp(2.5rem,7vw,4.5rem)] font-medium leading-[0.98] tracking-[-0.02em]">
+          <motion.h1 {...fadeUp(0.08)} className="mt-4 text-stone-900 dark:text-stone-100" style={SERIF}>
+            <span className="block max-w-[16ch] font-display text-[clamp(2.5rem,7vw,4.5rem)] font-medium leading-[0.98] tracking-[-0.02em]">
               {trip.name}
             </span>
             {trip.appearance?.subtitle && (
-              <span className="mt-3 block font-display text-[clamp(1.2rem,3vw,1.75rem)] font-light italic leading-snug text-stone-500 dark:text-stone-400">
+              <span className="mt-3 block max-w-[30ch] font-display text-[clamp(1.2rem,3vw,1.75rem)] font-light italic leading-snug text-stone-500 dark:text-stone-400">
                 {trip.appearance.subtitle}
               </span>
             )}

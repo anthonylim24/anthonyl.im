@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
-import { ArrowRight, CalendarDays, MapPin, Plus, Trash2, Users, X } from "lucide-react"
+import { ArrowRight, CalendarDays, MapPin, Plus, RotateCcw, Trash2, Users } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
 import { deleteTrip, listTrips } from "./tripsApi"
 import type { TripStatus, TripSummary } from "./types"
@@ -17,6 +17,12 @@ import {
   secondaryBtnClass,
   softPanelClass,
 } from "./ui"
+
+/** Page gutters — `<main>` is unconstrained so trip heroes can be full-bleed. */
+const pageClass = "mx-auto max-w-6xl px-4 pt-8 sm:px-6 sm:pt-10"
+
+const dangerBtnClass =
+  "inline-flex min-h-11 items-center gap-2 rounded-xl bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-50"
 
 const STATUS_META: Record<TripStatus, { label: string; dot: string }> = {
   draft: { label: "Draft", dot: "bg-stone-400" },
@@ -62,6 +68,7 @@ export function TripsIndex() {
   const [state, setState] = useState<LoadState>({ status: "loading" })
   const [deleting, setDeleting] = useState<string | null>(null)
   const [confirmId, setConfirmId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<{ id: string; message: string } | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   const load = useCallback(() => setReloadKey((k) => k + 1), [])
 
@@ -95,15 +102,21 @@ export function TripsIndex() {
 
   const onDelete = async (trip: TripSummary) => {
     setDeleting(trip.id)
+    setDeleteError(null)
     try {
       await deleteTrip(getToken, trip.id)
       setConfirmId(null)
       load()
     } catch (err) {
-      window.alert(`Could not delete trip: ${err instanceof Error ? err.message : String(err)}`)
+      setDeleteError({ id: trip.id, message: err instanceof Error ? err.message : String(err) })
     } finally {
       setDeleting(null)
     }
+  }
+
+  const closeConfirm = () => {
+    setConfirmId(null)
+    setDeleteError(null)
   }
 
   const sections: Array<{ key: TripBucket; title: string; empty?: string }> = [
@@ -113,7 +126,7 @@ export function TripsIndex() {
   ]
 
   return (
-    <div>
+    <div className={pageClass}>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
           <p className="font-mono-trips text-[11px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-400">
@@ -198,7 +211,29 @@ export function TripsIndex() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.28, delay: Math.min(i, 8) * 0.04, ease: EASE }}
                       >
-                        {confirmId === trip.id ? (
+                        {deleteError?.id === trip.id ? (
+                          <div className={`my-3 ${alertErrorClass}`} role="alert">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <p className="min-w-0">
+                                Couldn’t delete <span className="font-semibold">{trip.name}</span> ({deleteError.message}).
+                              </p>
+                              <div className="flex items-center gap-2">
+                                <button type="button" className={ghostBtnClass} onClick={closeConfirm} disabled={deleting === trip.id}>
+                                  Dismiss
+                                </button>
+                                <button
+                                  type="button"
+                                  className={dangerBtnClass}
+                                  onClick={() => void onDelete(trip)}
+                                  disabled={deleting === trip.id}
+                                >
+                                  <RotateCcw className="h-4 w-4" aria-hidden />
+                                  {deleting === trip.id ? "Deleting…" : "Retry delete"}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ) : confirmId === trip.id ? (
                           <div className="flex flex-wrap items-center justify-between gap-3 bg-red-50/60 px-3 py-4 dark:bg-red-950/20" role="alertdialog" aria-labelledby={`del-${trip.id}`}>
                             <p id={`del-${trip.id}`} className="text-sm text-red-900 dark:text-red-200">
                               Delete <span className="font-semibold">{trip.name}</span>? This removes the whole itinerary.
@@ -207,14 +242,14 @@ export function TripsIndex() {
                               <button
                                 type="button"
                                 className={ghostBtnClass}
-                                onClick={() => setConfirmId(null)}
+                                onClick={closeConfirm}
                                 disabled={deleting === trip.id}
                               >
                                 Cancel
                               </button>
                               <button
                                 type="button"
-                                className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:opacity-50"
+                                className={dangerBtnClass}
                                 onClick={() => void onDelete(trip)}
                                 disabled={deleting === trip.id}
                               >
@@ -265,7 +300,10 @@ export function TripsIndex() {
                               {trip.access === "owner" && (
                                 <button
                                   type="button"
-                                  onClick={() => setConfirmId(trip.id)}
+                                  onClick={() => {
+                                    setDeleteError(null)
+                                    setConfirmId(trip.id)
+                                  }}
                                   className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-stone-400 transition hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 dark:hover:bg-red-950/40"
                                   aria-label={`Delete ${trip.name}`}
                                 >
@@ -288,17 +326,6 @@ export function TripsIndex() {
           </div>
         )}
       </div>
-
-      {confirmId && (
-        <button
-          type="button"
-          className="sr-only"
-          onClick={() => setConfirmId(null)}
-          aria-label="Cancel delete"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      )}
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react"
+import { lazy, Suspense, useCallback, useEffect, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
 import { ArrowUpRight, ExternalLink, Globe2, MapPin, Pencil, Phone } from "lucide-react"
@@ -18,6 +18,9 @@ type LoadState =
   | { status: "loading" }
   | { status: "error"; message: string }
   | { status: "success"; trip: Trip; editable: boolean }
+
+/** Page gutters — `<main>` is unconstrained so trip heroes can be full-bleed. */
+const pageClass = "mx-auto max-w-3xl px-4 pt-8 sm:px-6 sm:pt-10"
 
 function narrativeBlocks(items: ItineraryItem[]): Array<{ section: ItineraryItem | null; items: ItineraryItem[] }> {
   const blocks: Array<{ section: ItineraryItem | null; items: ItineraryItem[] }> = []
@@ -53,6 +56,11 @@ export function TripDayPage() {
   const reduce = useReducedMotion()
   const [state, setState] = useState<LoadState>({ status: "loading" })
   const [mapOpen, setMapOpen] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
+  const reload = useCallback(() => {
+    setState({ status: "loading" })
+    setReloadKey((k) => k + 1)
+  }, [])
 
   useEffect(() => {
     if (!tripId) return
@@ -68,11 +76,11 @@ export function TripDayPage() {
     return () => {
       cancelled = true
     }
-  }, [tripId, getToken])
+  }, [tripId, getToken, reloadKey])
 
   if (state.status === "loading") {
     return (
-      <div className="mx-auto max-w-3xl" role="status" aria-label="Loading day">
+      <div className={pageClass} role="status" aria-label="Loading day">
         <div className="h-4 w-72 animate-pulse rounded bg-stone-200/60 dark:bg-stone-900" />
         <div className="mt-6 h-16 w-2/3 animate-pulse rounded-2xl bg-stone-200/60 dark:bg-stone-900" />
         <div className="mt-10 space-y-3">
@@ -86,11 +94,13 @@ export function TripDayPage() {
 
   if (state.status === "error") {
     return (
-      <div className={`mx-auto max-w-3xl ${alertErrorClass}`} role="alert">
-        Couldn’t load this day ({state.message}).{" "}
-        <button type="button" className="font-semibold underline underline-offset-2" onClick={() => window.location.reload()}>
-          Retry
-        </button>
+      <div className={pageClass}>
+        <div className={alertErrorClass} role="alert">
+          Couldn’t load this day ({state.message}).{" "}
+          <button type="button" className="font-semibold underline underline-offset-2" onClick={reload}>
+            Retry
+          </button>
+        </div>
       </div>
     )
   }
@@ -100,7 +110,7 @@ export function TripDayPage() {
   const day = trip.days[dayIndex]
   if (!day) {
     return (
-      <div className="mx-auto max-w-3xl text-sm text-stone-500">
+      <div className={`${pageClass} text-sm text-stone-500`}>
         Day not found.{" "}
         <Link to={`/trips/${trip.slug ?? trip.id}`} className="font-semibold underline underline-offset-2">
           Back to the trip
@@ -126,7 +136,7 @@ export function TripDayPage() {
 
   return (
     <EntityIndexProvider>
-      <div className="mx-auto max-w-3xl">
+      <div className={pageClass}>
         <motion.p
           {...fadeUp(0)}
           className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono-trips text-[11px] uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400"
