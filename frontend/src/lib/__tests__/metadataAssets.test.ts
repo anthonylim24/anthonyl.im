@@ -43,10 +43,10 @@ describe('metadata assets', () => {
     const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8')
 
     expect(html).toContain('data-route-metadata="breathflow"')
-    expect(html).toContain("location.pathname.startsWith('/breathwork')")
+    expect(html).toContain("appPath.startsWith('/breathwork')")
     expect(html).toContain(`const title = '${BREATHFLOW_ROUTE_METADATA.title}';`)
     expect(html).toContain(`const description = '${BREATHFLOW_ROUTE_METADATA.description}';`)
-    expect(html).toContain(`favicon.setAttribute('href', '${BREATHFLOW_ROUTE_METADATA.favicon}');`)
+    expect(html).toContain(`favicon.setAttribute('href', assetBase + '${BREATHFLOW_ROUTE_METADATA.favicon}');`)
   })
 
   it('defines an installable BreathFlow manifest', () => {
@@ -111,6 +111,7 @@ describe('metadata assets', () => {
     const sitemap = readFileSync(resolve(process.cwd(), 'public/sitemap.xml'), 'utf8')
 
     expect(robots).toContain('Sitemap: https://anthonyl.im/sitemap.xml')
+    expect(robots).toContain('Disallow: /preview/')
     expect(sitemap).toContain('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">')
 
     for (const route of [

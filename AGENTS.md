@@ -264,6 +264,7 @@ The current UI reads as AI-generated. Specific tells:
 Canonical reference: [`docs/ci-cd.md`](docs/ci-cd.md) (mirrored pointer at `.agents/memory/ci-cd.md`).
 
 - PR gate: `.github/workflows/pr.yml` → aggregate check `pr-gate` (branch-protection required context; starts immediately so merge UIs wait).
+- PR preview (not a gate): `.github/workflows/preview.yml` → `https://anthonyl.im/preview/pr/<n>/`. Agent guide: [`docs/pr-previews.md`](docs/pr-previews.md).
 - Deploy on merge: `.github/workflows/deploy.yml` (atomic `anthonyl.im.next` swap + `/health` smoke).
 - Shared setup: `.github/actions/setup-ci` (Bun + `node_modules` caches).
 - Lockfiles: text `bun.lock` only; Dependabot uses `package-ecosystem: bun`. Never commit `bun.lockb`.
@@ -278,9 +279,9 @@ Canonical reference: [`docs/ci-cd.md`](docs/ci-cd.md) (mirrored pointer at `.age
 When creating a pull request that includes frontend changes (any modifications to files in `frontend/src/` that affect UI — components, pages, CSS, layout, styles), you **must** attempt to capture screenshots of the affected pages using the Chrome MCP tools before creating the PR. Include these screenshots in the PR description under a `## Screenshots` section.
 
 **Process:**
-1. Start the dev server (`bun run dev` in `frontend/`)
-2. Use Chrome MCP to navigate to affected pages and capture screenshots
+1. Prefer the remote PR preview (`https://anthonyl.im/preview/pr/<n>/`). Wait with `bun scripts/wait-for-preview.ts --pr <n> --sha <head-sha>` (see [`docs/pr-previews.md`](docs/pr-previews.md)). No local Vite server required.
+2. Use Chrome MCP to navigate the preview URLs (append `?hidePreviewChrome=1`) and capture screenshots.
 3. **Upload screenshots to GitHub** using `gh api` so they get permanent URLs visible in the PR. Local file paths and repo blob URLs do not render in PR descriptions. Use: `gh api --method POST repos/{owner}/{repo}/issues/{pr_number}/comments --field body="![screenshot](url)"` or upload via the GitHub upload endpoint.
 4. Add the uploaded screenshot URLs to the PR description body
 
-If the Chrome MCP is unavailable or the dev server cannot start (e.g., Node.js version incompatibility), note this in the PR description and skip screenshots. Do not block PR creation on screenshot availability.
+If the preview is not live yet (serving code not on production, droplet down) **or** Chrome MCP is unavailable, fall back to `bun run dev` in `frontend/` and note that in the PR. Do not block PR creation on screenshot availability.

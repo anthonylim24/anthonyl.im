@@ -17,7 +17,32 @@ inputs:
 runs:
   using: composite
   steps:
+    # GitHub Releases occasionally 503s (`oven-sh/setup-bun` already retries
+    # twice internally, then gives up). Extra attempts with a pause keep a
+    # transient CDN blip from failing pr-gate.
     - name: Set up Bun
+      id: bun
+      continue-on-error: true
+      uses: oven-sh/setup-bun@v2
+
+    - name: Wait before Bun retry
+      if: steps.bun.outcome == 'failure'
+      shell: bash
+      run: sleep 20
+
+    - name: Set up Bun (retry)
+      id: bun-retry
+      if: steps.bun.outcome == 'failure'
+      continue-on-error: true
+      uses: oven-sh/setup-bun@v2
+
+    - name: Wait before Bun last attempt
+      if: steps.bun.outcome == 'failure' && steps.bun-retry.outcome == 'failure'
+      shell: bash
+      run: sleep 30
+
+    - name: Set up Bun (last attempt)
+      if: steps.bun.outcome == 'failure' && steps.bun-retry.outcome == 'failure'
       uses: oven-sh/setup-bun@v2
 
     # Package tarball cache — cheap, always restore.

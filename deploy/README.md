@@ -24,6 +24,17 @@ git push → GitHub Actions (.github/workflows/deploy.yml)
 
 CI builds the frontend on a GH Actions runner (zero OOM risk vs. building on the 1 GB droplet) and ships the pre-built `dist` directory. The droplet never runs `vite build`. Concurrent deploys queue (`concurrency: deploy-production`); in-flight deploys are never cancelled mid-flight.
 
+## PR previews
+
+Same-repo PRs also get a remote frontend preview at `https://anthonyl.im/preview/pr/<n>/` so a phone or a cloud agent can review UI without a laptop. That pipeline is `.github/workflows/preview.yml` (not a merge gate). Agent guide: [`docs/pr-previews.md`](../docs/pr-previews.md).
+
+Optional droplet env (defaults are fine):
+
+```
+PREVIEW_ROOT=/root/previews    # where published trees live; default ~/previews
+SITE_URL=https://anthonyl.im   # used for preview index links
+```
+
 ## GitHub Secrets
 
 Set these under **repo → Settings → Secrets and variables → Actions**:

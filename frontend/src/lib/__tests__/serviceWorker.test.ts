@@ -71,6 +71,39 @@ describe('service worker registration', () => {
     expect(cacheDelete).toHaveBeenCalledWith('stale-cache')
   })
 
+  it('does not unregister the production SW when a preview build has the flag off', async () => {
+    const register = vi.fn().mockResolvedValue(undefined)
+    const unregister = vi.fn().mockResolvedValue(true)
+    const container = makeContainer(register) as unknown as ServiceWorkerContainer & {
+      getRegistrations: () => Promise<ServiceWorkerRegistration[]>
+    }
+    container.getRegistrations = vi.fn().mockResolvedValue([{ unregister } as unknown as ServiceWorkerRegistration])
+    const caches = {
+      keys: vi.fn().mockResolvedValue(['korea-offline-v11']),
+      delete: vi.fn().mockResolvedValue(true),
+    }
+
+    expect(
+      registerServiceWorker(
+        {
+          PROD: true,
+          VITE_ENABLE_SERVICE_WORKER: 'false',
+          BASE_URL: '/preview/pr/12/',
+        },
+        { serviceWorker: container },
+        { addEventListener: vi.fn() as unknown as Window['addEventListener'] },
+        { caches: caches as unknown as CacheStorage },
+      ),
+    ).toBe(false)
+
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(register).not.toHaveBeenCalled()
+    expect(container.getRegistrations).not.toHaveBeenCalled()
+    expect(unregister).not.toHaveBeenCalled()
+    expect(caches.keys).not.toHaveBeenCalled()
+  })
+
   it('registers the worker after window load in production when the toggle is on', async () => {
     const register = vi.fn().mockResolvedValue({
       waiting: null,
@@ -144,6 +177,7 @@ describe('service worker registration', () => {
     expect(worker).toContain("'/breathwork/progress'")
     expect(worker).toContain("request.mode === 'navigate'")
     expect(worker).toContain("url.pathname.startsWith('/api/')")
+    expect(worker).toContain("url.pathname.startsWith('/preview/')")
     expect(worker).toContain('Promise.allSettled')
     expect(worker).toContain("fetch(url, { cache: 'reload' })")
     expect(worker).not.toContain('cache.addAll(APP_SHELL)')

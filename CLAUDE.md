@@ -64,8 +64,10 @@ anthonyl.im/
 │   └── schema.sql               # Database schema
 ├── .github/workflows/deploy.yml # Deploy on merge (atomic swap + smoke)
 ├── .github/workflows/pr.yml     # PR gate → pr-gate aggregate check
+├── .github/workflows/preview.yml # Remote PR frontend previews (not a merge gate)
 ├── .github/actions/setup-ci/    # Shared Bun + node_modules cache action
 ├── docs/ci-cd.md                # CI/CD agent memory (read before changing CI)
+├── docs/pr-previews.md          # Remote PR preview URLs + agent screenshot flow
 ├── .agents/memory/ci-cd.md      # Short pointer to docs/ci-cd.md
 ├── index.ts                     # Root Bun entry point (wraps server/app.ts)
 └── package.json                 # Root workspace (Hono, Clerk, Groq, OpenAI, Zod)
@@ -167,6 +169,10 @@ PR opened ─────► .github/workflows/pr.yml ─┬─► pr-server-tes
                                            ├─► pr-frontend-tests
                                            ├─► pr-cloud-setup
                                            └─► pr-gate (aggregate; starts immediately; required by branch protection)
+
+PR opened ─────► .github/workflows/preview.yml ─► build + publish
+                                              → https://anthonyl.im/preview/pr/<n>/
+                                              (not a merge gate; see docs/pr-previews.md)
 
 merge to main ─► .github/workflows/deploy.yml ─► test → build → stage next → SCP dist
                                               → atomic swap → PM2 restart (rollback on fail)
@@ -533,9 +539,9 @@ The app is a PWA. Every deploy must keep these invariants:
 When creating a pull request that includes frontend changes (any modifications to files in `frontend/src/` that affect UI — components, pages, CSS, layout, styles), you **must** attempt to capture screenshots of the affected pages using the Chrome MCP tools before creating the PR. Include these screenshots in the PR description under a `## Screenshots` section.
 
 **Process:**
-1. Start the dev server (`bun run dev` in `frontend/`)
-2. Use Chrome MCP to navigate to affected pages and capture screenshots
+1. Prefer the remote PR preview (`https://anthonyl.im/preview/pr/<n>/`). Wait with `bun scripts/wait-for-preview.ts --pr <n> --sha <head-sha>` (see [`docs/pr-previews.md`](docs/pr-previews.md)). No local Vite server required.
+2. Use Chrome MCP to navigate the preview URLs (append `?hidePreviewChrome=1`) and capture screenshots.
 3. **Upload screenshots to GitHub** using `gh api` so they get permanent URLs visible in the PR. Local file paths and repo blob URLs do not render in PR descriptions. Use: `gh api --method POST repos/{owner}/{repo}/issues/{pr_number}/comments --field body="![screenshot](url)"` or upload via the GitHub upload endpoint.
 4. Add the uploaded screenshot URLs to the PR description body
 
-If the Chrome MCP is unavailable or the dev server cannot start (e.g., Node.js version incompatibility), note this in the PR description and skip screenshots. Do not block PR creation on screenshot availability.
+If the preview is not live yet (serving code not on production, droplet down) **or** Chrome MCP is unavailable, fall back to `bun run dev` in `frontend/` and note that in the PR. Do not block PR creation on screenshot availability.

@@ -1,11 +1,11 @@
 // Service worker registration + auto-update flow.
 //
 // Toggled by VITE_ENABLE_SERVICE_WORKER (default: on). Set the flag to
-// "false" / "0" / "no" / "off" to disable; doing so additionally unregisters
-// any existing SW and deletes its caches so a previously-installed worker
-// cannot keep serving stale bundles. This is the escape hatch for the
-// classic PWA staleness trap: deploying a fix and finding users still pinned
-// to old asset hashes.
+// "false" / "0" / "no" / "off" to disable; on a production (`BASE_URL=/`)
+// build that additionally unregisters any existing SW and deletes its
+// caches so a previously-installed worker cannot keep serving stale
+// bundles. Preview builds (`BASE_URL=/preview/...`) also disable
+// registration but must NOT unregister — they share the production origin.
 //
 // When the flag is on we:
 //   1. Register `/sw.js`.
@@ -23,6 +23,7 @@ const UPDATE_INTERVAL_MS = 5 * 60 * 1000
 
 interface ServiceWorkerEnv {
   PROD?: boolean
+  BASE_URL?: string
   VITE_ENABLE_SERVICE_WORKER?: string | boolean
 }
 
@@ -51,6 +52,12 @@ function isEnabled(env: ServiceWorkerEnv): boolean {
     return true
   }
   return true
+}
+
+/** Remote PR previews share the production origin; their Vite base is `/preview/pr/<n>/`. */
+export function isPreviewDeploy(env: ServiceWorkerEnv): boolean {
+  const base = env.BASE_URL ?? "/"
+  return base === "/preview" || base.startsWith("/preview/")
 }
 
 // Wipe SW + cache state. Safe to call when nothing is registered. Returns
@@ -91,8 +98,14 @@ export function registerServiceWorker(
   // Flag off → make sure no SW is left controlling the page from a prior
   // deploy. This is what gives users an escape from stale caches without
   // asking them to hard-reload.
+  //
+  // Preview builds also set the flag off (they must not register `/sw.js`),
+  // but they share the production origin. Unregistering here would tear down
+  // the production PWA for anyone who opens a preview on their phone.
   if (!isEnabled(env)) {
-    void unregisterServiceWorker(navigatorRef, cacheRef)
+    if (!isPreviewDeploy(env)) {
+      void unregisterServiceWorker(navigatorRef, cacheRef)
+    }
     return false
   }
 

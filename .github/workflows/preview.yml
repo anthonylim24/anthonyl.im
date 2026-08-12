@@ -1,0 +1,267 @@
+name: PR Preview
+
+# Publishes a remote frontend preview for each same-repo PR so a phone +
+# browser (or a cloud agent) can review UI without a local dev server.
+#
+# URL: https://anthonyl.im/preview/pr/<n>/
+#
+# Intentionally NOT part of pr-gate. A droplet blip must not block merge.
+# The preview is the PR's frontend against the production API. Service
+# worker is disabled. Forks and Dependabot are skipped (untrusted HTML
+# would otherwise run on the production origin).
+#
+# Canonical agent guide: docs/pr-previews.md
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, closed]
+
+concurrency:
+  group: preview-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  deployments: write
+
+env:
+  KLUSTER_API_KEY: ci-stub
+  KLUSTER_API_BASE_URL: https://example.invalid
+  IG_WORKER_ENABLED: "false"
+  PREVIEW_SITE_URL: https://anthonyl.im
+  PR_NUMBER: ${{ github.event.pull_request.number }}
+  PR_SHA: ${{ github.event.pull_request.head.sha }}
+  PR_URL: ${{ github.event.pull_request.html_url }}
+  PREVIEW_URL: https://anthonyl.im/preview/pr/${{ github.event.pull_request.number }}/
+
+jobs:
+  preview:
+    name: preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: >
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Bun + caches
+        uses: ./.github/actions/setup-ci
+        with:
+          install-root: "true"
+          install-frontend: "true"
+
+      - name: Build preview frontend
+        working-directory: frontend
+        env:
+          VITE_BASE: /preview/pr/${{ github.event.pull_request.number }}/
+        run: |
+          set -euo pipefail
+          umask 077
+          if [ -z "${{ secrets.FRONTEND_ENV }}" ]; then
+            echo "::error::FRONTEND_ENV secret is missing — cannot bake Clerk/Supabase keys into the preview."
+            exit 1
+          fi
+          # Never bake the local-dev Clerk bypass into a public preview.
+          printf '%s\n' "${{ secrets.FRONTEND_ENV }}" | sed '/^[[:space:]]*VITE_DEV_BEARER=/d' > .env
+          printf '\nVITE_ENABLE_SERVICE_WORKER=false\n' >> .env
+          bun run build
+          grep -F "/preview/pr/${PR_NUMBER}/assets/" dist/index.html \
+            || { echo "::error::built index.html is missing the preview asset base"; exit 1; }
+          if grep -E '^[[:space:]]*VITE_DEV_BEARER=' .env >/dev/null; then
+            echo "::error::VITE_DEV_BEARER leaked into the preview .env"
+            exit 1
+          fi
+
+      - name: Stamp preview.json + chrome
+        run: |
+          bun server/src/previewStamp.ts \
+            --dir frontend/dist \
+            --pr "$PR_NUMBER" \
+            --sha "$PR_SHA" \
+            --html-url "$PR_URL" \
+            --site-url "$PREVIEW_SITE_URL"
+          test -f frontend/dist/preview.json
+          grep -q 'data-pr-preview=' frontend/dist/index.html
+
+      - name: Pack dist
+        run: tar -C frontend/dist -czf preview-pr.tar.gz .
+
+      - name: Upload preview tarball
+        uses: appleboy/scp-action@v1.0.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          key: ${{ secrets.SSH_KEY }}
+          username: ${{ secrets.SSH_USERNAME }}
+          overwrite: true
+          rm: true
+          source: "preview-pr.tar.gz,deploy/publish-preview.sh"
+          target: "previews/.incoming/${{ github.event.pull_request.number }}"
+
+      - name: Publish on droplet
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          key: ${{ secrets.SSH_KEY }}
+          username: ${{ secrets.SSH_USERNAME }}
+          script: |
+            set -euo pipefail
+            PR="${{ github.event.pull_request.number }}"
+            INCOMING="$HOME/previews/.incoming/$PR"
+            SCRIPT="$INCOMING/deploy/publish-preview.sh"
+            TARBALL="$INCOMING/preview-pr.tar.gz"
+            [ -f "$SCRIPT" ] || SCRIPT="$INCOMING/publish-preview.sh"
+            chmod +x "$SCRIPT"
+            bash "$SCRIPT" publish "$PR" "$TARBALL"
+            bash "$SCRIPT" prune || true
+            rm -rf "$INCOMING"
+
+            echo "[preview] local smoke against Hono"
+            for attempt in 1 2 3 4 5; do
+              if BODY="$(curl -fsS --max-time 5 "http://127.0.0.1:3000/preview/pr/${PR}/preview.json" 2>/dev/null)"; then
+                if echo "$BODY" | grep -q "\"pr\": ${PR}"; then
+                  echo "[preview] live — $BODY"
+                  exit 0
+                fi
+                echo "[preview] unexpected body: $BODY"
+              else
+                echo "[preview] not serving yet (attempt $attempt) — serving code may not be on production yet"
+              fi
+              sleep 2
+            done
+            echo "[preview] uploaded; public URL pending production Hono preview routes"
+            exit 0
+
+      - name: Sticky PR comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          SHORT_SHA="${PR_SHA:0:7}"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          NOTE="Open on a phone or in any browser — no laptop dev server."
+          if ! curl -fsS --max-time 10 "${PREVIEW_URL}preview.json" | grep -q "\"pr\": ${PR_NUMBER}"; then
+            NOTE="Files are on the droplet. The preview URL goes live after the preview-serving Hono routes are deployed to production. Until then, \`GET ${PREVIEW_URL}preview.json\` will not match."
+          fi
+
+          BODY=$(cat <<EOF
+          <!-- pr-preview -->
+          ## Preview
+
+          **${PREVIEW_URL}**
+
+          | App | URL |
+          | --- | --- |
+          | Chatbot | [${PREVIEW_URL}](${PREVIEW_URL}) |
+          | BreathFlow | [${PREVIEW_URL}breathwork](${PREVIEW_URL}breathwork) |
+          | Korea | [${PREVIEW_URL}korea](${PREVIEW_URL}korea) |
+          | Trips | [${PREVIEW_URL}trips](${PREVIEW_URL}trips) |
+
+          Commit [\`${SHORT_SHA}\`](${{ github.server_url }}/${{ github.repository }}/commit/${PR_SHA}) · [workflow run](${RUN_URL})
+
+          ${NOTE}
+
+          **Agents:** \`bun scripts/wait-for-preview.ts --pr ${PR_NUMBER} --sha ${PR_SHA}\` then screenshot with \`?hidePreviewChrome=1\`. Korea / Trips still need a Clerk session (same as production). This is the PR frontend against the **production API**. See \`docs/pr-previews.md\`.
+          EOF
+          )
+
+          EXISTING=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            --jq '.[] | select(.body | contains("<!-- pr-preview -->")) | .id' | head -1)
+          if [ -n "$EXISTING" ]; then
+            gh api -X PATCH "repos/${{ github.repository }}/issues/comments/${EXISTING}" -f body="$BODY"
+          else
+            gh api -X POST "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" -f body="$BODY"
+          fi
+
+      - name: Record GitHub deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          DEPLOY_ID=$(gh api -X POST "repos/${{ github.repository }}/deployments" --input - <<EOF | jq -r .id
+          {
+            "ref": "${PR_SHA}",
+            "environment": "pr-preview-${PR_NUMBER}",
+            "auto_merge": false,
+            "required_contexts": [],
+            "production_environment": false,
+            "transient_environment": true,
+            "description": "PR #${PR_NUMBER} frontend preview"
+          }
+          EOF
+          )
+          gh api -X POST "repos/${{ github.repository }}/deployments/${DEPLOY_ID}/statuses" --input - <<EOF
+          {
+            "state": "success",
+            "environment": "pr-preview-${PR_NUMBER}",
+            "environment_url": "${PREVIEW_URL}",
+            "log_url": "${RUN_URL}",
+            "description": "Preview published"
+          }
+          EOF
+
+      - name: Comment on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          BODY=$(cat <<EOF
+          <!-- pr-preview -->
+          ## Preview
+
+          Preview publish **failed** for commit \`${PR_SHA:0:7}\`. See the [workflow run](${RUN_URL}).
+          EOF
+          )
+          EXISTING=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            --jq '.[] | select(.body | contains("<!-- pr-preview -->")) | .id' | head -1)
+          if [ -n "$EXISTING" ]; then
+            gh api -X PATCH "repos/${{ github.repository }}/issues/comments/${EXISTING}" -f body="$BODY"
+          else
+            gh api -X POST "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" -f body="$BODY"
+          fi
+
+  cleanup:
+    name: preview-cleanup
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: >
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]'
+    steps:
+      - name: Remove preview tree
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          key: ${{ secrets.SSH_KEY }}
+          username: ${{ secrets.SSH_USERNAME }}
+          script: |
+            set -euo pipefail
+            PR="${{ github.event.pull_request.number }}"
+            rm -rf "$HOME/previews/$PR" "$HOME/previews/.staging/$PR" "$HOME/previews/.incoming/$PR"
+            echo "[preview] removed PR $PR"
+
+      - name: Mark sticky comment removed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BODY=$(cat <<EOF
+          <!-- pr-preview -->
+          ## Preview
+
+          This pull request is closed — the remote preview has been removed.
+          EOF
+          )
+          EXISTING=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            --jq '.[] | select(.body | contains("<!-- pr-preview -->")) | .id' | head -1)
+          if [ -n "$EXISTING" ]; then
+            gh api -X PATCH "repos/${{ github.repository }}/issues/comments/${EXISTING}" -f body="$BODY"
+          fi

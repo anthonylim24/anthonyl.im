@@ -1,6 +1,6 @@
 // Korea is now the only installable PWA — bump cache version so iOS
 // clients drop the previously-precached BreathFlow manifest.
-const CACHE_VERSION = 'korea-offline-v10'
+const CACHE_VERSION = 'korea-offline-v11'
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`
 const KOREA_API_CACHE = `${CACHE_VERSION}-korea-api`
 const APP_SHELL = [
@@ -145,6 +145,14 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url)
   if (url.origin !== self.location.origin) {
+    return
+  }
+
+  // Remote PR previews must never be intercepted — they live under
+  // /preview/pr/:n/ with their own hashed assets. Caching them in the
+  // production SW would pin reviewers to a stale preview (or worse,
+  // serve production HTML for a preview URL).
+  if (url.pathname === '/preview' || url.pathname.startsWith('/preview/')) {
     return
   }
 
