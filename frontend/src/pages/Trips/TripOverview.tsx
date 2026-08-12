@@ -121,17 +121,17 @@ export function TripOverview() {
               <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.dot}`} aria-hidden />
               {statusLine}
             </span>
-            <span
-              className={`rounded-md border px-2 py-0.5 text-[11px] font-medium tracking-wide ${
-                statusTone === "live"
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-200"
-                  : statusTone === "past"
-                    ? "border-stone-200 bg-stone-100/80 text-stone-600 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-400"
+            {statusTone !== "past" && (
+              <span
+                className={`rounded-md border px-2 py-0.5 text-[11px] font-medium tracking-wide ${
+                  statusTone === "live"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-200"
                     : "border-amber-200/80 bg-amber-50/80 text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100"
-              }`}
-            >
-              {TRIP_STATUS_LABEL[trip.status]}
-            </span>
+                }`}
+              >
+                {TRIP_STATUS_LABEL[trip.status]}
+              </span>
+            )}
             {!editable && (
               <span className="rounded-md border border-stone-200/80 px-2 py-0.5 text-[11px] font-medium text-stone-600 dark:border-stone-700 dark:text-stone-400">
                 View only
