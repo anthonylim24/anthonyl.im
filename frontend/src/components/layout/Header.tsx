@@ -28,22 +28,10 @@ export function Header() {
 
   return (
     <header
-      // iOS Safari real-device polish:
-      // - `transform: translateZ(0)` + `will-change: transform` promote the
-      //   header to its own compositor layer. Without this, sticky headers
-      //   jitter on iOS during URL-bar collapse because the header gets
-      //   repainted on every scroll frame.
-      // - Direct `border-bottom` (instead of an absolutely-positioned
-      //   hairline child) means one element to composite, not two.
-      // - `contain: layout paint` further isolates the header's paint work
-      //   from the rest of the document.
       className="sticky top-0 z-50 w-full safe-top"
       style={{
         backgroundColor: 'var(--bw-nav-bg)',
         borderBottom: '1px solid var(--bw-nav-border)',
-        transform: 'translateZ(0)',
-        willChange: 'transform',
-        contain: 'layout paint',
       }}
     >
       <div className="relative">

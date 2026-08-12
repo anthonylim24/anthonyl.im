@@ -5,10 +5,11 @@ import sessionSource from '../../pages/Session.tsx?raw'
 import layoutSource from '../../components/layout/BreathworkLayout.tsx?raw'
 
 describe('mobile overflow guardrails', () => {
-  it('keeps BreathFlow pages clipped at the viewport without a nested scrollport', () => {
+  it('keeps BreathFlow pages from creating a nested scrollport or a fixed containing block on #root', () => {
     expect(indexCss).toContain('.breathwork-layout')
-    expect(indexCss).toMatch(/#root \{[\s\S]*?overflow-x:\s*clip/)
-    expect(indexCss).toMatch(/\.breathwork-layout,\s*\n\.breathwork \{[\s\S]*?overflow:\s*visible/)
+    expect(indexCss).toMatch(/#root \{[\s\S]*?min-height:\s*0/)
+    expect(indexCss).not.toMatch(/#root \{[\s\S]*?overflow-x:\s*clip/)
+    expect(indexCss).toMatch(/\.leaves-overlay \{[\s\S]*?contain:\s*strict/)
     expect(indexCss).not.toMatch(/\.breathwork-layout \{\s*position:\s*fixed/)
     expect(indexCss).not.toContain('.bw-page-scroll')
     expect(indexCss).not.toContain('touch-action: pan-y pinch-zoom')

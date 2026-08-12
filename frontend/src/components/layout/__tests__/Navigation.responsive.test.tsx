@@ -53,7 +53,7 @@ describe('Navigation responsive behavior', () => {
     render(<NavigationHost pathname="/breathwork" />)
 
     const nav = screen.getByRole('navigation', { name: 'Primary' })
-    expect(nav).toHaveClass('fixed', 'bottom-4', 'left-1/2', 'md:hidden', 'bw-mobile-nav')
+    expect(nav).toHaveClass('fixed', 'bottom-4', 'inset-x-0', 'md:hidden', 'bw-mobile-nav')
   })
 
   it('keeps every mobile tab target at least 44px square', () => {

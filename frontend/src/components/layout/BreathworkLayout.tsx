@@ -25,54 +25,46 @@ const LEAVES_VISIBLE_OPACITY = '0.5'
  * browsers from restarting the video during ordinary parent re-renders.
  */
 const LeavesVideo = memo(function LeavesVideo({ reducedMotion }: { reducedMotion: boolean }) {
+  const wrapRef = useRef<HTMLDivElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
 
   useEffect(() => {
     if (reducedMotion) return
 
-    // Subscribe to theme changes outside of React's render cycle
-    const unsubscribe = useSettingsStore.subscribe((state) => {
+    const apply = (isDark: boolean) => {
+      const wrap = wrapRef.current
       const video = videoRef.current
+      if (wrap) wrap.style.opacity = isDark ? '0' : LEAVES_VISIBLE_OPACITY
       if (!video) return
-      const isDark = state.theme === 'dark'
-      video.style.opacity = isDark ? '0' : LEAVES_VISIBLE_OPACITY
       if (isDark) {
         video.pause()
       } else {
         video.play().catch(() => {})
       }
-    })
-
-    // Initial play based on current theme
-    const video = videoRef.current
-    if (video) {
-      const isDark = useSettingsStore.getState().theme === 'dark'
-      video.style.opacity = isDark ? '0' : LEAVES_VISIBLE_OPACITY
-      if (!isDark) {
-        video.play().catch(() => {})
-      }
     }
 
+    const unsubscribe = useSettingsStore.subscribe((state) => {
+      apply(state.theme === 'dark')
+    })
+
+    apply(useSettingsStore.getState().theme === 'dark')
     return unsubscribe
   }, [reducedMotion])
-
 
   if (reducedMotion) return null
 
   return (
-    <video
-      ref={videoRef}
-      src="https://leaves.anthonylim-ucsc.workers.dev/"
-      loop
-      muted
-      playsInline
-      preload="auto"
-      aria-hidden="true"
-      className="leaves-overlay"
-      style={{
-        mixBlendMode: 'multiply',
-      }}
-    />
+    <div ref={wrapRef} className="leaves-overlay" aria-hidden="true">
+      <video
+        ref={videoRef}
+        src="https://leaves.anthonylim-ucsc.workers.dev/"
+        loop
+        muted
+        playsInline
+        preload="auto"
+        className="leaves-overlay-media"
+      />
+    </div>
   )
 }, (prev, next) => prev.reducedMotion === next.reducedMotion)
 

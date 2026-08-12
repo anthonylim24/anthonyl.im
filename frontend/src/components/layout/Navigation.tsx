@@ -42,7 +42,7 @@ export function Navigation({ rootRef, scrollRootRef }: NavigationProps) {
   const { trigger: haptic } = useHaptics()
   const reducedMotion = useReducedMotion()
 
-  const mobileNavRef = useRef<HTMLElement>(null)
+  const mobileNavRef = useRef<HTMLDivElement>(null)
 
   const activeIndex = navItems.findIndex(({ path }) =>
     path === '/breathwork'
@@ -54,7 +54,7 @@ export function Navigation({ rootRef, scrollRootRef }: NavigationProps) {
   const enabled = !isSessionRoute && !reducedMotion
 
   useScrollMappedHide(mobileNavRef, {
-    translateX: '-50%',
+    translateX: '0px',
     maxHidden: MOBILE_MAX_HIDDEN,
     enabled,
     scrollRootRef,
@@ -65,16 +65,20 @@ export function Navigation({ rootRef, scrollRootRef }: NavigationProps) {
   return (
     <>
       <nav
-        ref={mobileNavRef}
         aria-label="Primary"
-        className="bw-mobile-nav md:hidden fixed bottom-4 left-1/2 z-50 flex items-center gap-1 rounded-full px-2 py-2 will-change-transform"
-        style={{
-          transform: 'translate3d(-50%, 0px, 0)',
-          background: 'var(--bw-surface)',
-          border: '1px solid var(--bw-nav-border)',
-          boxShadow: 'var(--bw-nav-shadow)',
-        }}
+        className="bw-mobile-nav md:hidden fixed bottom-4 inset-x-0 z-50 flex justify-center pointer-events-none"
       >
+        <div
+          ref={mobileNavRef}
+          data-nav-pill="true"
+          className="bw-mobile-nav-pill pointer-events-auto flex items-center gap-1 rounded-full px-2 py-2"
+          style={{
+            transform: 'translate3d(0px, 0px, 0)',
+            background: 'var(--bw-surface)',
+            border: '1px solid var(--bw-nav-border)',
+            boxShadow: 'var(--bw-nav-shadow)',
+          }}
+        >
         {navItems.map(({ path, label, icon: Icon }, i) => {
           const active = i === activeIndex
           return (
@@ -107,6 +111,7 @@ export function Navigation({ rootRef, scrollRootRef }: NavigationProps) {
             </Link>
           )
         })}
+        </div>
       </nav>
 
       <nav
