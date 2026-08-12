@@ -263,7 +263,7 @@ The current UI reads as AI-generated. Specific tells:
 
 Canonical reference: [`docs/ci-cd.md`](docs/ci-cd.md) (mirrored pointer at `.agents/memory/ci-cd.md`).
 
-- PR gate: `.github/workflows/pr.yml` → aggregate check `pr-gate` (branch-protection required context).
+- PR gate: `.github/workflows/pr.yml` → aggregate check `pr-gate` (branch-protection required context; starts immediately so merge UIs wait).
 - Deploy on merge: `.github/workflows/deploy.yml` (atomic `anthonyl.im.next` swap + `/health` smoke).
 - Shared setup: `.github/actions/setup-ci` (Bun + `node_modules` caches).
 - Lockfiles: text `bun.lock` only; Dependabot uses `package-ecosystem: bun`. Never commit `bun.lockb`.
