@@ -45,6 +45,8 @@ bun install --frozen-lockfile --registry=https://registry.npmjs.org/
 `bunfig.toml` / `frontend/bunfig.toml` set `install.saveTextLockfile = true`
 so local installs keep writing text lockfiles.
 
+The setup script also verifies that representative root and frontend packages resolve after install. The maintenance script repeats the same installs when Codex resumes a cached container on a newer branch. If dependencies are missing when `codex:dev` or `codex:check` runs, those commands invoke maintenance before building, which catches the "missing react/vite/types" failure before TypeScript emits a wall of missing-module errors.
+
 ## Running Dev Servers
 
 The easiest cloud command is:
