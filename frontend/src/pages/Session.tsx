@@ -656,10 +656,10 @@ export function Session() {
           initial="hidden"
           animate="show"
           data-testid="mobile-session-action-bar"
-          className="relative z-20 shrink-0 border-t border-bw-border bg-bw-canvas pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
+          className="relative z-20 shrink-0 border-t border-bw-border bg-bw-canvas pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
         >
           <div
-            className="mb-3 flex items-center justify-between gap-3"
+            className="mb-2 flex items-center justify-between gap-3"
             role="group"
             aria-label={`Session rounds, ${rounds} selected`}
           >

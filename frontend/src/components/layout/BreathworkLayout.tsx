@@ -110,7 +110,10 @@ export function BreathworkLayout() {
       <LeavesVideo reducedMotion={reducedMotion} />
 
       <div ref={glassRootRef} className="h-full">
-        <div className="breathwork relative z-0 flex h-full min-h-0 flex-col bg-transparent col-fade-in">
+        <div
+          className="breathwork relative z-0 flex h-full min-h-0 flex-col bg-transparent col-fade-in"
+          style={contentStyle}
+        >
           <Header />
           <main
             ref={mainRef}
@@ -124,13 +127,23 @@ export function BreathworkLayout() {
               className={`w-full mx-auto px-5 sm:px-8 lg:px-12 bg-transparent ${
                 isSessionRoute
                   ? 'flex h-full min-h-0 flex-col max-w-5xl py-4 pb-0 md:block md:h-auto md:py-10 md:pb-10'
-                  : 'max-w-3xl py-6 sm:py-10 pb-[var(--mobile-content-bottom-space)] md:pb-24'
+                  : 'max-w-3xl py-6 sm:py-10 md:pb-24'
               }`}
-              style={contentStyle}
             >
               <AnimatedOutlet fill={isSessionRoute} />
             </div>
           </main>
+          {/* Viewport-fixed clearance so the floating nav never covers the
+              bottom of the first screen. Document-end padding only helped
+              after you scrolled to the last pixel. */}
+          {isSessionRoute ? null : (
+            <div
+              aria-hidden="true"
+              data-testid="mobile-nav-clearance"
+              className="pointer-events-none shrink-0 md:hidden"
+              style={{ height: 'var(--mobile-content-bottom-space)' }}
+            />
+          )}
         </div>
         <Navigation rootRef={glassRootRef} scrollRootRef={mainRef} />
       </div>
