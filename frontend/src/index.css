@@ -115,24 +115,6 @@ body {
   height: 100svh;
 }
 
-/* Mobile bottom nav — float the capsule with bottom-4, then lift the whole
-   pill by the home-indicator inset. Do not pad inside the pill: that made
-   the footer taller while still overlapping content. */
-.bw-mobile-nav {
-  margin-bottom: env(safe-area-inset-bottom, 0px);
-  overflow: hidden;
-}
-
-.bw-mobile-nav-pill {
-  transition: transform 280ms cubic-bezier(0.33, 0, 0, 1);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .bw-mobile-nav-pill {
-    transition: none;
-  }
-}
-
 /* Idle dim — desaturate color, never opacity. Keyboard focus is always findable.
    Stop button preserves its destructive color even when dimmed. */
 .session-controls-fade[data-dimmed="true"] button {

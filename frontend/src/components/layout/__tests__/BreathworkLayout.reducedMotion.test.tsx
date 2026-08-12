@@ -51,40 +51,27 @@ describe('BreathworkLayout reduced motion', () => {
     expect(document.querySelector('.leaves-overlay')).toBeNull()
   })
 
-  it('lets the session setup screen own its footer spacing instead of adding an outer spacer', () => {
-    const { container } = render(
-      <MemoryRouter initialEntries={['/breathwork/session']}>
-        <BreathworkLayout />
-      </MemoryRouter>,
-    )
-
-    const content = container.querySelector<HTMLElement>(
-      '[style*="--mobile-content-bottom-space"]',
-    )
-
-    expect(content?.style.getPropertyValue('--mobile-content-bottom-space')).toBe('0px')
-    expect(content?.style.getPropertyValue('--mobile-content-bottom-space')).not.toContain('7.5rem')
-    expect(content?.style.getPropertyValue('--mobile-content-bottom-space')).not.toContain('5.25rem')
-    expect(container.querySelector('[data-testid="mobile-nav-clearance"]')).toBeNull()
-  })
-
-  it('reserves only the floating nav height on non-session pages', () => {
-    const { container } = render(
+  it('does not reserve floating-footer space on any BreathFlow route', () => {
+    const home = render(
       <MemoryRouter initialEntries={['/breathwork']}>
         <BreathworkLayout />
       </MemoryRouter>,
     )
 
-    const content = container.querySelector<HTMLElement>(
-      '[style*="--mobile-content-bottom-space"]',
+    expect(home.container.querySelector('[style*="--mobile-content-bottom-space"]')).toBeNull()
+    expect(home.container.querySelector('[data-testid="mobile-nav-clearance"]')).toBeNull()
+    expect(home.container.querySelector('main')?.className).toContain('pb-10')
+    expect(home.container.querySelector('main')?.className).not.toContain('mobile-content-bottom-space')
+    home.unmount()
+
+    const session = render(
+      <MemoryRouter initialEntries={['/breathwork/session']}>
+        <BreathworkLayout />
+      </MemoryRouter>,
     )
 
-    expect(content?.style.getPropertyValue('--mobile-content-bottom-space')).toBe(
-      'calc(5.25rem + env(safe-area-inset-bottom, 0px))',
-    )
-    expect(container.querySelector('[data-testid="mobile-nav-clearance"]')).toBeNull()
-    expect(container.querySelector('main')?.className).toContain(
-      'pb-[var(--mobile-content-bottom-space)]',
-    )
+    expect(session.container.querySelector('[style*="--mobile-content-bottom-space"]')).toBeNull()
+    expect(session.container.querySelector('[data-testid="mobile-nav-clearance"]')).toBeNull()
+    session.unmount()
   })
 })

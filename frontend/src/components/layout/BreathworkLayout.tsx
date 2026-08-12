@@ -1,10 +1,8 @@
-import { useRef, useEffect, lazy, memo, Suspense } from 'react'
+import { useEffect, lazy, memo, Suspense, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation } from 'react-router-dom'
 import { AnimatedOutlet } from './AnimatedOutlet'
-import type { CSSProperties } from 'react'
 import { Header } from './Header'
-import { Navigation } from './Navigation'
 import { useTheme } from '@/hooks/useTheme'
 import { useFavicon } from '@/hooks/useFavicon'
 import { useDocumentMetadata } from '@/hooks/useDocumentMetadata'
@@ -84,15 +82,6 @@ export function BreathworkLayout() {
   })
   const reducedMotion = useReducedMotion()
   const isSessionRoute = location.pathname.startsWith('/breathwork/session')
-  const glassRootRef = useRef<HTMLDivElement>(null)
-
-  // Nav capsule is ~3.75rem tall, sits `bottom-4` (1rem) above the home
-  // indicator, plus a 0.5rem gap so the last row isn't tucked under it.
-  const contentStyle = {
-    '--mobile-content-bottom-space': isSessionRoute
-      ? '0px'
-      : 'calc(5.25rem + env(safe-area-inset-bottom, 0px))',
-  } as CSSProperties
 
   return (
     <div className="breathwork-layout">
@@ -104,31 +93,19 @@ export function BreathworkLayout() {
 
       <LeavesVideo reducedMotion={reducedMotion} />
 
-      <div ref={glassRootRef}>
-        <div
-          className="breathwork relative z-0 bg-transparent col-fade-in"
-          style={contentStyle}
-        >
-          <Header />
-          <main
-            className={
+      <div className="breathwork relative z-0 bg-transparent col-fade-in">
+        <Header />
+        <main className={isSessionRoute ? 'w-full' : 'w-full pb-10 md:pb-16'}>
+          <div
+            className={`w-full mx-auto px-5 sm:px-8 lg:px-12 bg-transparent ${
               isSessionRoute
-                ? 'w-full'
-                : 'w-full pb-[var(--mobile-content-bottom-space)] md:pb-24'
-            }
+                ? 'max-w-5xl py-4 pb-0 md:py-10 md:pb-10'
+                : 'max-w-3xl pt-6 sm:pt-10'
+            }`}
           >
-            <div
-              className={`w-full mx-auto px-5 sm:px-8 lg:px-12 bg-transparent ${
-                isSessionRoute
-                  ? 'max-w-5xl py-4 pb-0 md:py-10 md:pb-10'
-                  : 'max-w-3xl pt-6 sm:pt-10'
-              }`}
-            >
-              <AnimatedOutlet />
-            </div>
-          </main>
-        </div>
-        <Navigation rootRef={glassRootRef} />
+            <AnimatedOutlet />
+          </div>
+        </main>
       </div>
     </div>
   )
