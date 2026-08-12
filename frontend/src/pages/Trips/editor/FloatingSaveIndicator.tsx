@@ -2,9 +2,20 @@ import { useEffect, useRef, useState, type ReactNode } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { CheckCircle2, Loader2, Undo2, X } from "lucide-react"
 import { ACCENT } from "../theme"
-import { EASE, focusRingClass } from "../ui"
+import { ENTER_SPRING, EXIT_FADE, focusRingClass, spinnerClass } from "../ui"
 
 export type SaveState = "saved" | "saving" | "dirty" | "error"
+
+/** Both docked surfaces arrive on the same spring and leave on the same short
+ *  fade, so the stack reads as one object however it is stacked. */
+function dockMotion(reduce: boolean) {
+  return {
+    initial: reduce ? { opacity: 0 } : { opacity: 0, y: 12 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, transition: EXIT_FADE },
+    transition: reduce ? EXIT_FADE : ENTER_SPRING,
+  }
+}
 
 /** Bottom-right stack: undo toast above the save pill, both non-blocking. */
 export function EditorDock({ children }: { children: ReactNode }) {
@@ -43,10 +54,7 @@ export function FloatingSaveIndicator({ saveState }: { saveState: SaveState }) {
       <AnimatePresence>
         {visible && (
           <motion.div
-            initial={reduce ? { opacity: 0 } : { opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2, ease: EASE }}
+            {...dockMotion(!!reduce)}
             className={`${pillClass} ${
               saveState === "error"
                 ? "border-red-200 bg-red-50/95 text-red-800 dark:border-red-900/50 dark:bg-red-950/90 dark:text-red-300"
@@ -65,10 +73,7 @@ export function FloatingSaveIndicator({ saveState }: { saveState: SaveState }) {
               </>
             ) : (
               <>
-                <Loader2
-                  className={`h-3.5 w-3.5 animate-spin motion-reduce:animate-none ${ACCENT.text}`}
-                  aria-hidden
-                />
+                <Loader2 className={`h-3.5 w-3.5 ${spinnerClass} ${ACCENT.text}`} aria-hidden />
                 {saveState === "saving" ? "Saving…" : "Unsaved changes…"}
               </>
             )}
@@ -100,10 +105,7 @@ export function UndoToast({ undo, onUndo }: { undo: PendingUndo | null; onUndo: 
         {undo && (
           <motion.div
             key={undo.key}
-            initial={reduce ? { opacity: 0 } : { opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2, ease: EASE }}
+            {...dockMotion(!!reduce)}
             className={`${pillClass} pointer-events-auto border-stone-300 bg-white/95 text-stone-700 dark:border-stone-700 dark:bg-stone-900/95 dark:text-stone-200`}
           >
             <span className="max-w-[14rem] truncate">

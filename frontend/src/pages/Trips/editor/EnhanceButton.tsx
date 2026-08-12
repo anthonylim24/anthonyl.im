@@ -10,6 +10,7 @@ import {
   mutedInkClass,
   primaryBtnClass,
   softPanelClass,
+  spinnerClass,
 } from "../ui"
 
 /** Run an AI review, optionally with a one-off focus prompt from the
@@ -75,7 +76,7 @@ export function EnhanceButton({
     <div ref={rootRef} className="trip-split relative inline-flex">
       <button type="button" onClick={() => run(false)} disabled={disabled} className={base}>
         {busy ? (
-          <Loader2 className={`${iconSize} animate-spin motion-reduce:animate-none`} aria-hidden />
+          <Loader2 className={`${iconSize} ${spinnerClass}`} aria-hidden />
         ) : (
           <Sparkles className={iconSize} strokeWidth={1.5} aria-hidden />
         )}

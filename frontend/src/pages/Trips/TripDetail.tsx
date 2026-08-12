@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
+import { useReducedMotion } from "motion/react"
 import { Eye, Globe2, X } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
 import { applySuggestions, enhanceTrip, getTrip, updateTrip } from "./tripsApi"
@@ -63,6 +64,7 @@ interface DeletedItem extends PendingUndo {
 export function TripDetail() {
   const { tripId } = useParams<{ tripId: string }>()
   const routerLocation = useLocation()
+  const reduce = useReducedMotion()
   const getToken = useGetToken()
   const [state, setState] = useState<LoadState>({ status: "loading" })
   const [trip, setTrip] = useState<Trip | null>(null)
@@ -318,10 +320,12 @@ export function TripDetail() {
     if (!hash) return
     // Wait a frame so day sections exist in the DOM after async load.
     const id = window.setTimeout(() => {
-      document.getElementById(hash)?.scrollIntoView({ behavior: "smooth", block: "start" })
+      document
+        .getElementById(hash)
+        ?.scrollIntoView(reduce ? { block: "start" } : { behavior: "smooth", block: "start" })
     }, 80)
     return () => window.clearTimeout(id)
-  }, [state.status, trip, routerLocation.hash])
+  }, [state.status, trip, routerLocation.hash, reduce])
 
   if (state.status === "loading") {
     return (

@@ -20,16 +20,19 @@ import { StatusChip } from "./components/StatusChip"
 import type { ItineraryItem, Trip, TripDay } from "./types"
 import {
   EASE,
+  REVEAL_DURATION,
   SERIF,
   alertErrorClass,
   focusRingClass,
   focusRingInsetClass,
+  hoverArrowClass,
   inkBtnClass,
   inlineLinkClass,
   metaLabelClass,
   mutedInkClass,
   overlayHoverClass,
   pageClass,
+  revealDelay,
   wrapAnywhereClass,
 } from "./ui"
 
@@ -133,10 +136,10 @@ export function TripOverview() {
     meta.push({ label: "Sharing", value: collaboratorSummary(trip.collaborators) })
   }
 
-  const fadeUp = (delay: number) => ({
+  const fadeUp = (step: number) => ({
     initial: reduce ? false : { opacity: 0, y: 8 },
     animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.42, ease: EASE, delay },
+    transition: { duration: REVEAL_DURATION, ease: EASE, delay: revealDelay(step) },
   })
 
   return (
@@ -156,14 +159,14 @@ export function TripOverview() {
             {formatTripDate(trip.endDate, trip.timezone, { weekday: undefined })}
           </motion.p>
 
-          <motion.div {...fadeUp(0.05)} className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <motion.div {...fadeUp(1)} className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
             <span className={`inline-flex items-center gap-2 text-sm font-medium ${a.text}`}>
               <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.dot}`} aria-hidden />
               {statusLine}
             </span>
           </motion.div>
 
-          <motion.h1 {...fadeUp(0.08)} className="mt-4 text-stone-900 dark:text-stone-100" style={SERIF}>
+          <motion.h1 {...fadeUp(2)} className="mt-4 text-stone-900 dark:text-stone-100" style={SERIF}>
             <span className={`block max-w-[16ch] font-display text-[clamp(2.5rem,7vw,4.25rem)] font-medium leading-[0.98] tracking-[-0.02em] ${wrapAnywhereClass}`}>
               {trip.name}
             </span>
@@ -176,7 +179,7 @@ export function TripOverview() {
 
           {trip.appearance?.headline && (
             <motion.p
-              {...fadeUp(0.14)}
+              {...fadeUp(3)}
               className="mt-5 max-w-[58ch] text-base leading-relaxed text-stone-700 sm:text-[1.05rem] dark:text-stone-300"
             >
               {trip.appearance.headline}
@@ -184,7 +187,7 @@ export function TripOverview() {
           )}
           {!trip.appearance?.headline && trip.description && (
             <motion.p
-              {...fadeUp(0.14)}
+              {...fadeUp(3)}
               className="mt-5 max-w-[58ch] text-base leading-relaxed text-stone-700 dark:text-stone-300"
             >
               {trip.description}
@@ -192,7 +195,7 @@ export function TripOverview() {
           )}
 
           <motion.dl
-            {...fadeUp(0.18)}
+            {...fadeUp(4)}
             className={`mt-8 grid grid-cols-1 gap-x-10 gap-y-5 border-t border-stone-200/80 pt-5 sm:grid-cols-2 dark:border-stone-800/80 ${
               meta.length > 3 ? "lg:grid-cols-4" : "lg:grid-cols-3"
             }`}
@@ -203,7 +206,7 @@ export function TripOverview() {
           </motion.dl>
 
           {tags.length > 0 && (
-            <motion.ul {...fadeUp(0.22)} className="mt-5 flex flex-wrap gap-1.5" aria-label="Tags">
+            <motion.ul {...fadeUp(5)} className="mt-5 flex flex-wrap gap-1.5" aria-label="Tags">
               {tags.map((tag) => (
                 <li
                   key={tag}
@@ -216,7 +219,7 @@ export function TripOverview() {
           )}
 
           {editable && (
-            <motion.div {...fadeUp(0.26)} className="mt-7">
+            <motion.div {...fadeUp(6)} className="mt-7">
               <Link to={`/trips/${trip.slug ?? trip.id}/edit`} className={inkBtnClass}>
                 <Pencil className="h-4 w-4" aria-hidden />
                 Edit itinerary
@@ -227,7 +230,7 @@ export function TripOverview() {
       </header>
 
       {todayDay && (
-        <motion.aside {...fadeUp(0.08)} className={`border-y ${a.border} ${a.softBg}`}>
+        <motion.aside {...fadeUp(2)} className={`border-y ${a.border} ${a.softBg}`}>
           <Link
             to={`/trips/${trip.slug ?? trip.id}/day/${todayDay.id}`}
             className={`group mx-auto flex max-w-6xl items-center gap-4 px-4 py-4 transition-colors sm:px-6 ${overlayHoverClass} ${focusRingInsetClass}`}
@@ -247,7 +250,7 @@ export function TripOverview() {
               </p>
             </div>
             <ArrowUpRight
-              className={`ml-auto h-4 w-4 shrink-0 transition group-hover:translate-x-0.5 motion-reduce:group-hover:translate-x-0 ${a.text}`}
+              className={`ml-auto h-4 w-4 shrink-0 ${hoverArrowClass} ${a.text}`}
               aria-hidden
             />
           </Link>
@@ -380,7 +383,7 @@ function DayRow({
       initial={reduce ? false : { opacity: 0, y: 8 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-30px" }}
-      transition={{ duration: 0.35, ease: EASE, delay: Math.min(index, 10) * 0.025 }}
+      transition={{ duration: REVEAL_DURATION, ease: EASE, delay: revealDelay(index) }}
     >
       <Link
         to={`/trips/${trip.slug ?? trip.id}/day/${day.id}`}
@@ -433,7 +436,7 @@ function DayRow({
           </div>
         </div>
         <ArrowUpRight
-          className="mt-1 h-4 w-4 shrink-0 text-stone-300 transition group-hover:translate-x-0.5 group-hover:text-stone-600 motion-reduce:group-hover:translate-x-0 dark:text-stone-600 dark:group-hover:text-stone-300"
+          className={`mt-1 h-4 w-4 shrink-0 text-stone-300 group-hover:text-stone-600 dark:text-stone-600 dark:group-hover:text-stone-300 ${hoverArrowClass}`}
           aria-hidden
         />
       </Link>
@@ -460,7 +463,7 @@ function ReservationRow({
       initial={reduce ? false : { opacity: 0, y: 6 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      transition={{ duration: 0.3, ease: EASE, delay: Math.min(index, 8) * 0.02 }}
+      transition={{ duration: REVEAL_DURATION, ease: EASE, delay: revealDelay(index) }}
     >
       <Link
         to={`/trips/${trip.slug ?? trip.id}/day/${day.id}#item-${item.id}`}
@@ -498,7 +501,7 @@ function ReservationRow({
         </div>
         <div className="flex shrink-0 items-center gap-3 pt-1.5">
           <StatusChip status={item.status} />
-          <ArrowUpRight className="h-4 w-4 text-stone-500 transition group-hover:translate-x-0.5 dark:text-stone-400 motion-reduce:group-hover:translate-x-0" aria-hidden />
+          <ArrowUpRight className={`h-4 w-4 text-stone-500 dark:text-stone-400 ${hoverArrowClass}`} aria-hidden />
         </div>
       </Link>
     </motion.li>

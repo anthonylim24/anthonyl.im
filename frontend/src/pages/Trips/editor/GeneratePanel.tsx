@@ -3,7 +3,16 @@ import { motion } from "motion/react"
 import { Loader2, Sparkles } from "lucide-react"
 import { ACCENT } from "../theme"
 import { generateItinerary, type GetToken } from "../tripsApi"
-import { EASE, alertErrorClass, inputClass, mutedInkClass, primaryBtnClass, softPanelClass, wrapAnywhereClass } from "../ui"
+import {
+  EASE,
+  alertErrorClass,
+  inputClass,
+  mutedInkClass,
+  primaryBtnClass,
+  softPanelClass,
+  spinnerClass,
+  wrapAnywhereClass,
+} from "../ui"
 import { DEFAULT_ITINERARY_PROMPT, type GeneratePreferences, type Trip } from "../types"
 
 /** AI generation for an empty itinerary — also the retry path when
@@ -74,7 +83,7 @@ export function GeneratePanel({
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <button type="button" onClick={() => void generate()} disabled={busy} className={primaryBtnClass}>
           {busy ? (
-            <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden />
+            <Loader2 className={`h-4 w-4 ${spinnerClass}`} aria-hidden />
           ) : (
             <Sparkles className="h-4 w-4" strokeWidth={1.5} aria-hidden />
           )}

@@ -96,10 +96,15 @@ function Month({
   // While picking the end date, preview the span to the hovered day.
   const previewEnd = selecting && hovered && hovered >= start ? hovered : end
   const inRange = (iso: string) => start && previewEnd && iso > start && iso < previewEnd
+  // The tint runs edge to edge behind the day cells, so a multi-day range
+  // reads as one band rather than a row of separate swatches.
+  const last = previewEnd || start
+  const banded = (iso: string | null | undefined) =>
+    !!iso && !!start && last > start && iso >= start && iso <= last
 
   return (
-    // Wider below `sm`, where only one month shows, so day cells can hold a
-    // 44px touch target; tightens once two months share the popover.
+    // Day cells fill their column so the range band is continuous. The month
+    // is wider below `sm`, where only one shows, to hold a 44px touch target.
     <div className="w-[19.25rem] sm:w-[16.5rem]">
       <div className="px-1 text-center text-sm font-semibold text-stone-800 dark:text-stone-200">
         {monthLabel(year, month)}
@@ -115,8 +120,9 @@ function Month({
         {cells.map((iso, i) => {
           if (!iso) return <span key={i} aria-hidden />
           const isStart = iso === start
-          const isEnd = iso === (previewEnd || start)
+          const isEnd = iso === last
           const isEdge = isStart || isEnd
+          const inBand = banded(iso)
           return (
             <button
               key={iso}
@@ -131,17 +137,39 @@ function Month({
               aria-label={dayLabel(iso, { isStart, isEnd, inRange: !!inRange(iso) })}
               aria-current={iso === today ? "date" : undefined}
               className={[
-                "relative mx-auto my-0.5 flex h-11 w-11 items-center justify-center text-[13px] tabular-nums outline-none transition-colors duration-150 sm:h-10 sm:w-10",
-                isEdge
-                  ? "rounded-lg bg-[color:var(--trips-accent)] font-semibold text-white dark:text-stone-950"
-                  : inRange(iso)
-                    ? "rounded-none bg-[color:var(--ta-soft)] text-stone-900 dark:text-stone-100"
-                    : "rounded-lg text-stone-700 hover:bg-stone-200/70 dark:text-stone-300 dark:hover:bg-stone-800",
+                "relative flex h-11 w-full items-center justify-center rounded-lg text-[13px] tabular-nums outline-none transition-colors duration-150 sm:h-10",
+                isEdge || inBand ? "" : "text-stone-700 hover:bg-stone-200/70 dark:text-stone-300 dark:hover:bg-stone-800",
                 iso === today && !isEdge ? `font-semibold ${accentIconClass}` : "",
-                `${focusRingClass} focus-visible:ring-offset-1`,
+                `${focusRingClass} focus-visible:ring-inset`,
               ].join(" ")}
             >
-              {Number(iso.slice(8, 10))}
+              {inBand && (
+                <span
+                  aria-hidden
+                  className={[
+                    "absolute inset-y-0 bg-[color:var(--ta-soft)]",
+                    isStart ? "left-1/2" : banded(cells[i - 1]) && i % 7 !== 0 ? "left-0" : "left-0 rounded-l-lg",
+                    isEnd ? "right-1/2" : banded(cells[i + 1]) && i % 7 !== 6 ? "right-0" : "right-0 rounded-r-lg",
+                  ].join(" ")}
+                />
+              )}
+              {isEdge && (
+                <span
+                  aria-hidden
+                  className="absolute inset-0 rounded-lg bg-[color:var(--trips-accent)]"
+                />
+              )}
+              <span
+                className={
+                  isEdge
+                    ? "relative font-semibold text-white dark:text-stone-950"
+                    : inBand
+                      ? "relative text-stone-900 dark:text-stone-100"
+                      : "relative"
+                }
+              >
+                {Number(iso.slice(8, 10))}
+              </span>
               {iso === today && !isEdge && (
                 <span className="absolute bottom-1 h-1 w-1 rounded-full bg-[color:var(--trips-accent)]" aria-hidden />
               )}

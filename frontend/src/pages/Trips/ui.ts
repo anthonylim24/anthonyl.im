@@ -13,6 +13,37 @@
 export const SERIF = { fontFamily: "'Cormorant Garamond', Georgia, serif" } as const
 export const MONO = { fontFamily: "'Fragment Mono', ui-monospace, monospace" } as const
 export const EASE = [0.16, 1, 0.3, 1] as const
+const EASE_CSS = "ease-[cubic-bezier(0.16,1,0.3,1)]"
+
+// ── Motion ───────────────────────────────────────────────────────────────
+
+/** One reveal length for every entry fade. */
+export const REVEAL_DURATION = 0.22
+
+/** Staggered reveals climb in 25ms steps and stop climbing at the seventh
+ *  element, so the last thing on any page settles within 400ms of the first. */
+export function revealDelay(step: number): number {
+  return Math.min(step, 6) * 0.025
+}
+
+/** Springs for surfaces that arrive on top of the page (save pill, undo
+ *  toast): they settle rather than slide to a stop. */
+export const ENTER_SPRING = { type: "spring", stiffness: 420, damping: 34, mass: 0.7 } as const
+
+/** Exits stay a short fade — anything longer keeps a focusable control alive
+ *  in the DOM after focus has already moved on. */
+export const EXIT_FADE = { duration: 0.12, ease: EASE } as const
+
+/** Indeterminate progress. Rotation is motion, so it stops when asked to. */
+export const spinnerClass = "animate-spin motion-reduce:animate-none"
+
+const ARROW_NUDGE = `transition duration-200 ${EASE_CSS} motion-reduce:transition-none motion-reduce:group-hover:translate-x-0`
+
+/** The "go here" nudge on an arrow inside a `group` link. */
+export const hoverArrowClass = `${ARROW_NUDGE} group-hover:translate-x-0.5`
+
+/** The same nudge pointing back, for previous/up links. */
+export const hoverArrowBackClass = `${ARROW_NUDGE} group-hover:-translate-x-0.5`
 
 const FOCUS =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--trips-focus)]"

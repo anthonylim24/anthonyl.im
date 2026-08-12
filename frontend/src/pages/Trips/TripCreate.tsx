@@ -20,6 +20,7 @@ import {
   primaryBtnClass,
   secondaryBtnClass,
   softPanelClass,
+  spinnerClass,
   wrapAnywhereClass,
 } from "./ui"
 
@@ -490,7 +491,7 @@ export function TripCreate() {
               )
             ) : (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} aria-hidden />
+                <Loader2 className={`h-4 w-4 ${spinnerClass}`} strokeWidth={1.5} aria-hidden />
                 {busy === "creating" ? "Creating trip…" : "Generating itinerary…"}
               </>
             )}

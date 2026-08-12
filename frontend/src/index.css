@@ -837,6 +837,10 @@ body {
   --ta-ring: rgba(180, 83, 9, 0.45);
   --ta-bloom-a: rgba(217, 119, 6, 0.1);
   --ta-bloom-b: rgba(120, 113, 108, 0.08);
+  /* `rounded-lg`/`rounded-md` resolve through this shadcn token, which the
+     chatbot theme zeroes at `:root`. Without it every compact control in the
+     Trips vocabulary renders square. */
+  --radius: 0.5rem;
   color-scheme: light dark;
   background-color: var(--trips-canvas);
   color: var(--trips-ink);

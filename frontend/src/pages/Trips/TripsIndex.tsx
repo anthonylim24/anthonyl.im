@@ -9,6 +9,7 @@ import { ACCENT, collaboratorSummary, daysUntilIn, todayIsoIn } from "./theme"
 import { TripStatusChip } from "./components/StatusChip"
 import {
   EASE,
+  REVEAL_DURATION,
   SERIF,
   alertErrorClass,
   dangerBtnClass,
@@ -19,10 +20,12 @@ import {
   formatRangeFull,
   ghostBtnClass,
   ghostOnTintBtnClass,
+  hoverArrowClass,
   inlineLinkClass,
   mutedInkClass,
   pageClass,
   primaryBtnClass,
+  revealDelay,
   secondaryBtnClass,
   wrapAnywhereClass,
 } from "./ui"
@@ -323,7 +326,7 @@ export function TripsIndex() {
                           key={trip.id}
                           initial={reduce ? false : { opacity: 0, y: 8 }}
                           animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.24, delay: Math.min(i, 5) * 0.03, ease: EASE }}
+                          transition={{ duration: REVEAL_DURATION, delay: revealDelay(i), ease: EASE }}
                         >
                           {deleteError?.id === trip.id ? (
                             <div
@@ -453,7 +456,7 @@ export function TripsIndex() {
                                   </button>
                                 )}
                                 <ArrowRight
-                                  className={`h-4 w-4 text-stone-500 transition group-hover:translate-x-0.5 ${arrowAccentHoverClass} motion-reduce:transition-none motion-reduce:group-hover:translate-x-0 dark:text-stone-400`}
+                                  className={`h-4 w-4 text-stone-500 dark:text-stone-400 ${arrowAccentHoverClass} ${hoverArrowClass}`}
                                   aria-hidden
                                 />
                               </div>
@@ -476,7 +479,7 @@ export function TripsIndex() {
                 <Link to="/trips/new" className={`group ${ghostBtnClass}`}>
                   Plan a new trip
                   <ArrowRight
-                    className="h-4 w-4 transition group-hover:translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0"
+                    className={`h-4 w-4 ${hoverArrowClass}`}
                     strokeWidth={1.5}
                     aria-hidden
                   />

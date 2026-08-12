@@ -14,15 +14,19 @@ import { StatusChip } from "./components/StatusChip"
 import type { ItineraryItem, Trip } from "./types"
 import {
   EASE,
+  REVEAL_DURATION,
   SERIF,
   alertErrorClass,
   chipBtnClass,
   focusRingClass,
+  hoverArrowBackClass,
+  hoverArrowClass,
   inkBtnClass,
   inlineLinkClass,
   metaLabelClass,
   mutedInkClass,
   pageClass,
+  revealDelay,
   secondaryBtnClass,
   wrapAnywhereClass,
 } from "./ui"
@@ -152,10 +156,10 @@ export function TripDayPage() {
   const prev = trip.days[dayIndex - 1]
   const next = trip.days[dayIndex + 1]
 
-  const fadeUp = (delay: number) => ({
+  const fadeUp = (step: number) => ({
     initial: reduce ? false : { opacity: 0, y: 8 },
     animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.42, ease: EASE, delay },
+    transition: { duration: REVEAL_DURATION, ease: EASE, delay: revealDelay(step) },
   })
 
   return (
@@ -186,7 +190,7 @@ export function TripDayPage() {
           )}
         </motion.p>
 
-        <motion.div {...fadeUp(0.06)} className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <motion.div {...fadeUp(1)} className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
           <span
             className={`font-display text-[clamp(3rem,8vw,4.75rem)] font-light leading-[0.85] tabular-nums ${a.text}`}
             style={SERIF}
@@ -204,13 +208,13 @@ export function TripDayPage() {
         </motion.div>
 
         {day.notes && (
-          <motion.div {...fadeUp(0.12)} className="mt-5 max-w-[60ch] whitespace-pre-line text-base leading-relaxed text-stone-700 dark:text-stone-300">
+          <motion.div {...fadeUp(2)} className="mt-5 max-w-[60ch] whitespace-pre-line text-base leading-relaxed text-stone-700 dark:text-stone-300">
             <LinkifiedText>{day.notes}</LinkifiedText>
           </motion.div>
         )}
 
         <motion.dl
-          {...fadeUp(0.16)}
+          {...fadeUp(3)}
           className="mt-7 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-stone-200/80 pt-5 sm:grid-cols-3 sm:gap-x-10 dark:border-stone-800/80"
         >
           {day.city && <Meta label="City" value={day.city} />}
@@ -225,7 +229,7 @@ export function TripDayPage() {
           )}
         </motion.dl>
 
-        <motion.div {...fadeUp(0.22)} className="mt-7 flex flex-wrap items-center gap-3">
+        <motion.div {...fadeUp(4)} className="mt-7 flex flex-wrap items-center gap-3">
           {hasMappable ? (
             <button type="button" onClick={() => setMapOpen(true)} className={inkBtnClass}>
               <Globe2 className="h-4 w-4" aria-hidden />
@@ -252,7 +256,7 @@ export function TripDayPage() {
                 initial={reduce ? false : { opacity: 0, y: 6 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.3, ease: EASE, delay: reduce ? 0 : i * 0.04 }}
+                transition={{ duration: REVEAL_DURATION, ease: EASE, delay: revealDelay(i) }}
                 className={`flex items-start gap-3 rounded-xl border p-4 text-sm text-stone-800 dark:text-stone-200 ${calloutTone(c.tone)}`}
               >
                 <span aria-hidden className="text-lg leading-none">{c.icon}</span>
@@ -289,7 +293,7 @@ export function TripDayPage() {
                 initial={reduce ? false : { opacity: 0, y: 10 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-15%" }}
-                transition={{ duration: 0.4, ease: EASE }}
+                transition={{ duration: REVEAL_DURATION, ease: EASE }}
                 className="py-8 first:pt-0 sm:py-10"
               >
                 {block.section && (
@@ -355,7 +359,7 @@ export function TripDayPage() {
                   {next.title ?? `Day ${dayIndex + 2}`}
                 </span>
               </span>
-              <ArrowUpRight className="h-4 w-4 shrink-0 rotate-45 text-stone-500 transition dark:text-stone-400 group-hover:translate-x-0.5 motion-reduce:group-hover:translate-x-0" aria-hidden />
+              <ArrowUpRight className={`h-4 w-4 shrink-0 rotate-45 text-stone-500 dark:text-stone-400 ${hoverArrowClass}`} aria-hidden />
             </Link>
           )}
           {prev ? (
@@ -364,7 +368,7 @@ export function TripDayPage() {
               to={`/trips/${trip.slug ?? trip.id}/day/${prev.id}`}
               className={`group order-2 -mx-2 flex min-h-14 items-center gap-4 rounded-xl px-2 py-3 transition-colors hover:bg-stone-100/50 sm:order-1 dark:hover:bg-stone-900/40 ${focusRingClass}`}
             >
-              <ArrowUpRight className="h-4 w-4 shrink-0 -rotate-[135deg] text-stone-500 transition dark:text-stone-400 group-hover:-translate-x-0.5 motion-reduce:group-hover:translate-x-0" aria-hidden />
+              <ArrowUpRight className={`h-4 w-4 shrink-0 -rotate-[135deg] text-stone-500 dark:text-stone-400 ${hoverArrowBackClass}`} aria-hidden />
               <span className="min-w-0">
                 <span className={`block font-mono-trips text-[10px] uppercase tracking-[0.18em] ${mutedInkClass}`}>
                   Previous · Day {dayIndex}
@@ -432,7 +436,7 @@ function ReservationTimelineItem({
       initial={reduce ? false : { opacity: 0, y: 10 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      transition={{ duration: 0.35, ease: EASE, delay: reduce ? 0 : index * 0.04 }}
+      transition={{ duration: REVEAL_DURATION, ease: EASE, delay: revealDelay(index) }}
       className="relative"
     >
       <span className={`absolute -left-[23px] top-8 h-2.5 w-2.5 rounded-full ring-2 ring-[var(--trips-canvas)] sm:-left-[29px] ${accentDot}`} aria-hidden />

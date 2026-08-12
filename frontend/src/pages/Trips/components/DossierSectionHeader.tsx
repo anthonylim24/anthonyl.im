@@ -1,6 +1,6 @@
 import { motion, useReducedMotion } from "motion/react"
 import { ACCENT } from "../theme"
-import { EASE, SERIF, mutedInkClass, wrapAnywhereClass } from "../ui"
+import { EASE, REVEAL_DURATION, SERIF, mutedInkClass, wrapAnywhereClass } from "../ui"
 
 type Scale = "page" | "section"
 
@@ -37,7 +37,7 @@ export function DossierSectionHeader({
       initial={reveal ? { opacity: 0, y: 6 } : false}
       whileInView={reveal ? { opacity: 1, y: 0 } : undefined}
       viewport={{ once: true }}
-      transition={{ duration: 0.4, ease: EASE }}
+      transition={{ duration: REVEAL_DURATION, ease: EASE }}
       className={`border-b border-stone-200/80 dark:border-stone-800/80 ${scale === "page" ? "pb-5" : "pb-4"}`}
     >
       <p className={`flex items-center gap-3 font-mono-trips text-[11px] uppercase tracking-[0.24em] ${mutedInkClass}`}>
