@@ -752,15 +752,12 @@ export function MapModeOverlay({
                   {locating
                     ? "Finding you…"
                     : location?.source === "geolocation"
-                      ? `${userNeighborhood ?? location.label} · Live`
-                      : `${location?.label ?? "Day center"} · Day center`}
+                      ? `${userNeighborhood ?? location.label ?? "You"} · Live`
+                      : userNeighborhood
+                        ? `${userNeighborhood} · Day center`
+                        : (location?.label ?? "Day center")}
                 </span>
               </div>
-              {!locating && userNeighborhood && location?.source === "day-center" && (
-                <div className="mt-0.5 truncate pl-4 text-[10px] font-normal text-stone-500 dark:text-stone-400">
-                  {userNeighborhood}
-                </div>
-              )}
             </motion.button>
           )}
         </AnimatePresence>
