@@ -1,0 +1,4 @@
+# Keep the text lockfile (bun.lock) so Dependabot's `package-ecosystem: bun`
+# can update it. Binary bun.lockb is unsupported by Dependabot.
+[install]
+saveTextLockfile = true

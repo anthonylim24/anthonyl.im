@@ -2,6 +2,8 @@
 
 How `anthonyl.im` ships from this repo to the DigitalOcean droplet.
 
+> Agent-oriented CI/CD memory (gates, lockfiles, failure modes): [`docs/ci-cd.md`](../docs/ci-cd.md).
+
 ## Architecture
 
 ```
@@ -10,15 +12,17 @@ git push → GitHub Actions (.github/workflows/deploy.yml)
               ├─ frontend build              # uses FRONTEND_ENV GH secret
               │  → frontend/dist             # CI-built artifact
               ├─ SSH to droplet:
-              │  ├─ rm -rf ~/anthonyl.im, git clone fresh
-              │  ├─ copy ~/.env  →  repo root + frontend (runtime secrets)
-              │  ├─ bun install
-              │  └─ apt install / curl ↓ yt-dlp + ffmpeg (idempotent)
-              ├─ scp frontend/dist → ~/anthonyl.im/frontend/dist
-              └─ SSH again: pm2 delete + pm2 start
+              │  ├─ shallow clone → ~/anthonyl.im.next
+              │  ├─ copy ~/.env  →  staged root + frontend
+              │  ├─ bun install --frozen-lockfile
+              │  └─ apt/curl ↓ yt-dlp + ffmpeg + dev-browser (idempotent, non-fatal)
+              ├─ scp frontend/dist → ~/anthonyl.im.next/frontend/dist
+              ├─ atomic swap next → live (prev kept for rollback)
+              ├─ pm2 restart (--update-env)
+              └─ smoke: /health + SPA shells
 ```
 
-CI builds the frontend on a 7 GB GH Actions runner (zero OOM risk vs. building on the 512 MB droplet) and ships the pre-built `dist` directory. The droplet never runs `vite build`.
+CI builds the frontend on a GH Actions runner (zero OOM risk vs. building on the 1 GB droplet) and ships the pre-built `dist` directory. The droplet never runs `vite build`. Concurrent deploys queue (`concurrency: deploy-production`); in-flight deploys are never cancelled mid-flight.
 
 ## GitHub Secrets
 
@@ -302,4 +306,6 @@ and in Map Mode as `priority: 'scheduled'` markers.
 
 ## Rollback
 
-The workflow does a `rm -rf ~/anthonyl.im` + `git clone` — there's no kept-around previous version. To roll back: revert the bad commit on `main`, push, and the workflow re-runs with the prior code. The build-and-deploy takes ~2-3 minutes from `git push`.
+Deploy keeps the previous tree at `~/anthonyl.im.prev` only until the new PM2 process reports online; then `prev` is deleted. If PM2 fails to come online, the workflow moves `prev` back to `~/anthonyl.im` and restarts PM2 automatically.
+
+To roll back a bad *merged* commit: revert on `main`, push, and the workflow re-runs. End-to-end takes a few minutes from `git push`.

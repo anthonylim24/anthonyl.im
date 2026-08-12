@@ -1,7 +1,9 @@
 version: 2
 updates:
-  # Root (server) dependencies
-  - package-ecosystem: "npm"
+  # Root (server) — Bun text lockfile (bun.lock). Binary bun.lockb is
+  # unsupported by Dependabot and caused frozen-lockfile CI failures on
+  # every npm-ecosystem bump that only rewrote package.json.
+  - package-ecosystem: "bun"
     directory: "/"
     schedule:
       interval: "weekly"
@@ -16,8 +18,8 @@ updates:
           - "minor"
           - "patch"
 
-  # Frontend dependencies
-  - package-ecosystem: "npm"
+  # Frontend — same Bun ecosystem + text lockfile.
+  - package-ecosystem: "bun"
     directory: "/frontend"
     schedule:
       interval: "weekly"
