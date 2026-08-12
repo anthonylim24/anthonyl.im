@@ -73,9 +73,11 @@ describe('Session safety gates', () => {
     for (const button of enterButtons) {
       expect(button).toBeDisabled()
     }
-    expect(enterButtons[0].parentElement).toHaveClass('shrink-0', 'border-t')
+    const mobileActionBar = screen.getByTestId('mobile-session-action-bar')
+    expect(mobileActionBar).toContainElement(enterButtons[0])
+    expect(mobileActionBar).toHaveClass('fixed', 'inset-x-0', 'bottom-0', 'border-t')
+    expect(mobileActionBar).not.toHaveClass('sticky')
     expect(enterButtons[1].parentElement).toHaveClass('shrink-0', 'border-t')
-    expect(enterButtons[0].parentElement).not.toHaveClass('sticky')
     expect(enterButtons[1].parentElement).not.toHaveClass('sticky')
     expect(screen.getAllByText(/complete the safety check to enter/i)).toHaveLength(2)
     expect(enterButtons[0]).toHaveAccessibleDescription(/complete the safety check to enter/i)
