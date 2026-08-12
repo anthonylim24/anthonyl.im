@@ -5,6 +5,7 @@ import { ArrowUpRight, Pencil } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
 import { getTrip } from "./tripsApi"
 import { ACCENT, cityTag, daysUntilIn, formatTripDate, itemIcon, resolveAccent, todayIsoIn } from "./theme"
+import { DossierSectionHeader } from "./components/DossierSectionHeader"
 import { StatusChip } from "./components/StatusChip"
 import type { ItineraryItem, Trip, TripDay } from "./types"
 import { EASE, SERIF, alertErrorClass, focusRingClass, inkBtnClass } from "./ui"
@@ -223,12 +224,13 @@ export function TripOverview() {
       )}
 
       <section className="mx-auto mt-14 max-w-6xl px-4 sm:mt-16 sm:px-6">
-        <SectionHeader
+        <DossierSectionHeader
+          scale="page"
+          animate
           num="01"
           eyebrow={`${dayCount} day${dayCount === 1 ? "" : "s"}`}
           title="Daily itinerary"
           subtitle={dayCount === 0 ? "No days yet — open the editor to add structure." : "Open a day for reservations, places, and Map Mode."}
-          reduce={!!reduce}
         />
         {dayCount === 0 ? (
           <div className="mt-8 border border-dashed border-stone-300 px-5 py-10 text-sm text-stone-600 dark:border-stone-700 dark:text-stone-400">
@@ -265,12 +267,13 @@ export function TripOverview() {
 
       {reservations.length > 0 && (
         <section className="mx-auto mt-16 max-w-6xl px-4 sm:mt-20 sm:px-6">
-          <SectionHeader
+          <DossierSectionHeader
+            scale="page"
+            animate
             num="02"
             eyebrow="Booked moments"
             title="Reservations"
             subtitle="Confirmed, pending, and tentative bookings across the trip."
-            reduce={!!reduce}
           />
           <ol className="divide-y divide-stone-200/80 dark:divide-stone-800/80">
             {reservations.map(({ day, item }, i) => (
@@ -302,45 +305,6 @@ function MetaRow({ label, value }: { label: string; value: string }) {
       <dt className="font-mono-trips text-[10px] uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">{label}</dt>
       <dd className="mt-1 break-words text-sm leading-snug text-stone-800 dark:text-stone-200">{value}</dd>
     </div>
-  )
-}
-
-function SectionHeader({
-  num,
-  eyebrow,
-  title,
-  subtitle,
-  reduce,
-}: {
-  num: string
-  eyebrow: string
-  title: string
-  subtitle?: string
-  reduce: boolean
-}) {
-  return (
-    <motion.header
-      initial={reduce ? false : { opacity: 0, y: 6 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ duration: 0.4, ease: EASE }}
-      className="border-b border-stone-200/80 pb-5 dark:border-stone-800/80"
-    >
-      <p className="flex items-center gap-3 font-mono-trips text-[11px] uppercase tracking-[0.24em] text-stone-500 dark:text-stone-400">
-        <span className={`tabular-nums ${ACCENT.text}`}>{num}</span>
-        <span aria-hidden className="h-px w-8 bg-stone-300 dark:bg-stone-700" />
-        <span>{eyebrow}</span>
-      </p>
-      <h2
-        className="mt-3 font-display text-[clamp(1.75rem,4vw,2.5rem)] font-medium leading-[1.08] tracking-[-0.02em] text-stone-900 dark:text-stone-100"
-        style={SERIF}
-      >
-        {title}
-      </h2>
-      {subtitle && (
-        <p className="mt-2 max-w-[56ch] break-words text-sm leading-relaxed text-stone-600 dark:text-stone-400">{subtitle}</p>
-      )}
-    </motion.header>
   )
 }
 

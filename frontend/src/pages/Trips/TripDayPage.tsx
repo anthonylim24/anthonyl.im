@@ -7,6 +7,7 @@ import { EntityIndexProvider } from "../Korea/entityIndex"
 import { LinkifiedText } from "../Korea/LinkifiedText"
 import { getTrip } from "./tripsApi"
 import { ACCENT, calloutTone, formatTripDate, itemIcon, resolveAccent, todayIsoIn } from "./theme"
+import { DossierSectionHeader } from "./components/DossierSectionHeader"
 import { StatusChip } from "./components/StatusChip"
 import type { ItineraryItem, Trip } from "./types"
 import {
@@ -251,7 +252,7 @@ export function TripDayPage() {
 
         {reservations.length > 0 && (
           <section className="mt-12">
-            <DaySectionHeader num="01" eyebrow="Booked moments" title="Reservations" />
+            <DossierSectionHeader num="01" eyebrow="Booked moments" title="Reservations" />
             <div className="relative mt-6 space-y-5 pl-6 before:absolute before:bottom-2 before:left-[7px] before:top-2 before:w-px before:bg-stone-200/90 sm:pl-8 sm:before:left-[11px] dark:before:bg-stone-800/90">
               {reservations.map((item, i) => (
                 <ReservationTimelineItem key={item.id} item={item} index={i} accentDot={a.dot} />
@@ -374,21 +375,6 @@ function Meta({ label, value }: { label: string; value: string }) {
       <dt className="font-mono-trips text-[10px] uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">{label}</dt>
       <dd className="mt-1 break-words text-sm leading-snug text-stone-800 dark:text-stone-200">{value}</dd>
     </div>
-  )
-}
-
-function DaySectionHeader({ num, eyebrow, title }: { num: string; eyebrow: string; title: string }) {
-  return (
-    <header className="border-b border-stone-200/80 pb-4 dark:border-stone-800/80">
-      <p className="flex items-center gap-3 font-mono-trips text-[11px] uppercase tracking-[0.24em] text-stone-500 dark:text-stone-400">
-        <span className={`tabular-nums ${ACCENT.text}`}>{num}</span>
-        <span aria-hidden className="h-px w-8 bg-stone-300 dark:bg-stone-700" />
-        <span>{eyebrow}</span>
-      </p>
-      <h2 className="mt-2 font-display text-2xl font-medium leading-tight tracking-[-0.01em] text-stone-900 sm:text-3xl dark:text-stone-100" style={SERIF}>
-        {title}
-      </h2>
-    </header>
   )
 }
 
