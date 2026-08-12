@@ -77,6 +77,8 @@ export function MapModeOverlay({
   const [effects, setEffects] = useState(() => loadEffectPrefs(detectTier(), reduce ?? false))
   // Which lat,lng the current places payload was ranked for (reactive).
   const [rankedKey, setRankedKey] = useState<string | null>(null)
+  /** Bumped to re-run the bootstrap places fetch (Retry). */
+  const [reloadNonce, setReloadNonce] = useState(0)
   const userNeighborhood = useNeighborhoodLabel(location?.lat, location?.lng)
 
   // If reduced-motion resolves after first paint, drop the heavy effects.
@@ -261,6 +263,7 @@ export function MapModeOverlay({
   useEffect(() => {
     rankedForRef.current = null
     setRankedKey(null)
+    setLocation(null)
     setState({ status: "loading" })
     const queryKey = "0,0"
     const qs = new URLSearchParams({ lat: "0", lng: "0" })
@@ -291,7 +294,7 @@ export function MapModeOverlay({
     return () => {
       cancelled = true
     }
-  }, [daySlug, getToken, placesUrl])
+  }, [daySlug, getToken, placesUrl, reloadNonce])
 
   // Resolve YOU / day-center once places are known and geo has settled
   // (or failed). While geo is pending we still show places in list mode.
@@ -532,9 +535,9 @@ export function MapModeOverlay({
       </motion.header>
 
       <div className="absolute inset-0 overflow-hidden">
-        {(state.status === "loading" || (showOrbs && !mapReady && state.status !== "error")) && (
-          <LoadingPulse reduce={!!reduce} />
-        )}
+        {(state.status === "loading" ||
+          (state.status === "success" && !mapReady) ||
+          state.status === "idle") && <LoadingPulse reduce={!!reduce} />}
 
         {state.status === "error" && (
           <div className="absolute inset-0 flex items-center justify-center px-6">
@@ -548,34 +551,10 @@ export function MapModeOverlay({
               <button
                 type="button"
                 onClick={() => {
-                  rankedForRef.current = null
-                  setRankedKey(null)
                   setLocation(null)
                   setDeviceReady(false)
                   requestDeviceLocation()
-                  // Re-trigger bootstrap by bumping nothing — daySlug effect
-                  // only re-runs on day change; force a manual reload:
-                  setState({ status: "loading" })
-                  void (async () => {
-                    try {
-                      const token = await getToken()
-                      const headers: Record<string, string> = {}
-                      if (token) headers["Authorization"] = `Bearer ${token}`
-                      const base =
-                        placesUrl ?? `/api/korea/day/${encodeURIComponent(daySlug)}/places`
-                      const r = await fetch(`${base}?lat=0&lng=0`, { headers })
-                      if (!r.ok) throw new Error(`Places fetch ${r.status}`)
-                      const data = (await r.json()) as PlacesResponse
-                      rankedForRef.current = "0,0"
-                      setRankedKey("0,0")
-                      setState({ status: "success", data })
-                    } catch (err) {
-                      setState({
-                        status: "error",
-                        message: err instanceof Error ? err.message : String(err),
-                      })
-                    }
-                  })()
+                  setReloadNonce((n) => n + 1)
                 }}
                 className="mt-4 inline-flex h-10 items-center justify-center rounded-full bg-rose-600 px-4 text-xs font-semibold text-white transition hover:bg-rose-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60"
               >
@@ -585,7 +564,7 @@ export function MapModeOverlay({
           </div>
         )}
 
-        {state.status === "success" && (
+        {state.status === "success" && mapReady && (
           <>
             {webglFailed && viewMode === "orb" && (
               <div
@@ -599,7 +578,7 @@ export function MapModeOverlay({
               </div>
             )}
 
-            {showOrbs && mapReady && (
+            {showOrbs && (
               <>
                 <div ref={sceneContainerRef} className="absolute inset-0">
                   <Suspense fallback={<LoadingPulse reduce={!!reduce} />}>
