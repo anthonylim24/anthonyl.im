@@ -78,7 +78,7 @@ function getConsistencyCopy(
     const advancedRecovery =
       dominantCategory === 'performance'
         ? 'Add one recovery or resonance session.'
-        : 'Same time of day. Don't add intensity.'
+        : 'Same time of day. Do not add intensity.'
 
     return {
       label: '5+ days',
