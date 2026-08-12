@@ -44,7 +44,11 @@ export default defineConfig({
             { name: 'radix', test: /[\\/]node_modules[\\/]@radix-ui[\\/]/, priority: 60 },
             { name: 'state', test: /[\\/]node_modules[\\/]zustand[\\/]/, priority: 50 },
             { name: 'icons', test: /[\\/]node_modules[\\/]lucide-react[\\/]/, priority: 40 },
-            { name: 'korea-map', test: /[\\/]pages[\\/]Korea[\\/]MapMode/, priority: 30 },
+            {
+              name: 'korea-map',
+              test: /[\\/]pages[\\/]Korea[\\/](MapMode|Detailed3D|mapLocation|deviceTier|godRays|maxQuality|volumetric|timeOfDay)/,
+              priority: 30,
+            },
           ],
         },
       }
