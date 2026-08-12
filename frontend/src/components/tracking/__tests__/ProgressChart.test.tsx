@@ -28,7 +28,7 @@ describe('ProgressChart', () => {
 
     expect(
       screen.getByRole('status', {
-        name: /hold time progress: no hold-time sessions recorded yet/i,
+        name: /hold time: no hold-time sessions recorded yet/i,
       })
     ).toBeInTheDocument()
   })
@@ -45,7 +45,7 @@ describe('ProgressChart', () => {
 
     expect(
       screen.getByRole('img', {
-        name: /hold time progress: 2 sessions from .* to .* best hold 32 seconds\. latest average 18 seconds/i,
+        name: /hold time: 2 sessions from .* to .* best hold 32 seconds\. latest average 18 seconds/i,
       })
     ).toBeInTheDocument()
   })

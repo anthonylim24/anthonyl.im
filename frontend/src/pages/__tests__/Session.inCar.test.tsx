@@ -64,7 +64,7 @@ describe('Session in-car protocol block', () => {
     expect(screen.getAllByTestId('in-car-protocol-block')).toHaveLength(2)
     expect(screen.getAllByText(/not available while driving/i).length).toBeGreaterThan(0)
 
-    const enterButtons = screen.getAllByRole('button', { name: /^(enter|begin)/i })
+    const enterButtons = screen.getAllByRole('button', { name: /^start /i })
     for (const button of enterButtons) {
       expect(button).toBeDisabled()
       expect(button).toHaveAccessibleDescription(/not available while driving/i)
@@ -80,7 +80,7 @@ describe('Session in-car protocol block', () => {
 
     expect(screen.queryByTestId('in-car-protocol-block')).not.toBeInTheDocument()
 
-    await user.click(screen.getAllByRole('button', { name: /^(enter|begin)/i })[0])
+    await user.click(screen.getAllByRole('button', { name: /^start /i })[0])
     expect(screen.getByTestId('active-session')).toHaveTextContent(TECHNIQUE_IDS.CYCLIC_SIGHING)
   })
 })

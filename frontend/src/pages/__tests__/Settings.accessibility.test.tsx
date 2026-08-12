@@ -90,15 +90,15 @@ describe('Settings accessibility', () => {
     expect(screen.getByRole('switch', { name: /sound/i })).toHaveClass('h-11', 'w-14')
     expect(screen.getByRole('switch', { name: /haptics/i })).toHaveClass('h-11', 'w-14')
     expect(screen.getByRole('slider', { name: /sound volume/i })).toHaveClass('h-11')
-    expect(screen.getByRole('button', { name: /export data/i })).toHaveClass('min-h-11')
-    expect(screen.getByRole('button', { name: /import data/i })).toHaveClass('min-h-11')
+    expect(screen.getByRole('button', { name: /export/i })).toHaveClass('min-h-11')
+    expect(screen.getByRole('button', { name: /import/i })).toHaveClass('min-h-11')
     expect(screen.getByRole('button', { name: /clear all data/i })).toHaveClass('min-h-11')
   })
 
   it('exposes a JSON import control for BreathFlow backups', () => {
     render(<Settings />)
 
-    expect(screen.getByRole('button', { name: /import data/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /import/i })).toBeInTheDocument()
     expect(screen.getByLabelText(/choose breathflow data backup/i)).toHaveAttribute(
       'accept',
       'application/json,.json',
@@ -171,7 +171,7 @@ describe('Settings accessibility', () => {
     expect(mocks.clearHistory).not.toHaveBeenCalled()
     expect(mocks.gamification.resetProgress).not.toHaveBeenCalled()
     expect(mocks.settings.resetSettings).not.toHaveBeenCalled()
-    expect(screen.getByRole('status')).toHaveTextContent(/requires confirmation/i)
+    expect(screen.getByRole('status')).toHaveTextContent(/tap clear again to delete all data/i)
 
     await user.click(screen.getByRole('button', { name: /tap again to confirm/i }))
 
@@ -182,6 +182,6 @@ describe('Settings accessibility', () => {
     expect(localStorage.getItem(STORAGE_KEYS.GAMIFICATION)).toBeNull()
     expect(localStorage.getItem(STORAGE_KEYS.SETTINGS)).toBeNull()
     expect(localStorage.getItem('unrelated-app-key')).toBe('keep')
-    expect(screen.getByRole('status')).toHaveTextContent(/data was cleared/i)
+    expect(screen.getByRole('status')).toHaveTextContent(/all data cleared/i)
   })
 })

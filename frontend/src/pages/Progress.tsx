@@ -39,7 +39,7 @@ function ProgressChartFallback() {
         <div
           className="h-64 flex items-center justify-center text-sm text-bw-tertiary"
           role="status"
-          aria-label="Loading hold time progress"
+          aria-label="Loading hold times"
         >
           Loading hold times...
         </div>

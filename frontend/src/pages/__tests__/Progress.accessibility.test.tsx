@@ -60,7 +60,7 @@ vi.mock('@/components/tracking/PersonalBests', () => ({
 }))
 
 vi.mock('@/components/tracking/PracticeConsistency', () => ({
-  PracticeConsistency: () => <section aria-label="Practice signal" />,
+  PracticeConsistency: () => <section aria-label="This week" />,
 }))
 
 async function renderProgress() {

@@ -140,7 +140,7 @@ describe('breathingProtocols', () => {
     expect(co2.science).toMatch(/not a guaranteed endurance boost/i)
     expect(power.science).toMatch(/multi-component program/i)
     expect(power.science).toMatch(/does not show that an app session independently treats inflammation or modulates immunity/i)
-    expect(power.purpose).toBe('Sympathetic activation and alertness')
+    expect(power.purpose).toBe('Short high-arousal set')
   })
 
   it('cyclic sighing has inhale, deep inhale, and exhale phases', () => {
