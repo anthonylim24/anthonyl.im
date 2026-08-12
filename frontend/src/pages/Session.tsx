@@ -161,7 +161,7 @@ function ProtocolSafetyGate({
               className="h-5 w-5 shrink-0 accent-bw-accent"
             />
             <span className="text-xs font-medium leading-relaxed text-bw">
-              I have reviewed the cautions, am in a safe setting, and can stop immediately if needed.
+              I've read this. I'm seated and can stop if I need to.
             </span>
           </label>
         </div>
@@ -218,7 +218,7 @@ function InCarProtocolNotice({ compact = false }: { compact?: boolean }) {
       )}
     >
       <h2 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary">
-        Vehicle browser
+        Driving
       </h2>
       <p className="mt-2 text-xs leading-relaxed text-bw-tertiary">
         Strong protocols are off while driving. Use Cyclic Sighing or Resonance.

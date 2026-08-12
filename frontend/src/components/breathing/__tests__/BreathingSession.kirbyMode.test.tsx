@@ -138,7 +138,7 @@ describe('BreathingSession Kirby mode', () => {
     vi.spyOn(Date, 'now').mockImplementation(() => (t += 100))
 
     render(<BreathingSession config={CONFIG} />)
-    expect(screen.queryByRole('button', { name: /toggle alternate visual/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /switch the visual/i })).toBeNull()
     expect(screen.getByRole('img', { name: /breathing visualization/i })).toBeInTheDocument()
 
     const orb = screen.getByTestId('concentric-rings')
@@ -167,7 +167,7 @@ describe('BreathingSession Kirby mode', () => {
 
     expect(screen.queryByTestId('kirby-easter-egg')).toBeNull()
     expect(screen.queryByTestId('kirby-orb')).toBeNull()
-    expect(screen.queryByRole('button', { name: /toggle alternate visual/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /switch the visual/i })).toBeNull()
     expect(screen.getByRole('img', { name: /breathing visualization/i })).toBeInTheDocument()
   })
 })

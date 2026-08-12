@@ -113,8 +113,8 @@ describe('getLevelTitle', () => {
     expect(getLevelTitle(1)).toBe('Beginner')
   })
 
-  it('returns "Steward" for level 50', () => {
-    expect(getLevelTitle(50)).toBe('Steward')
+  it('returns "Long-term" for level 50', () => {
+    expect(getLevelTitle(50)).toBe('Long-term')
   })
 
   it('returns the highest matching title for levels between defined thresholds', () => {

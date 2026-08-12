@@ -14,8 +14,8 @@ describe('buildSessionInsight', () => {
       newBadgeCount: 1,
     })
 
-    expect(insight.effectLabel).toBe('CO2 tolerance exposure')
-    expect(insight.doseLabel).toBe('Full protocol')
+    expect(insight.effectLabel).toBe('CO2 holds')
+    expect(insight.doseLabel).toBe('Full')
     expect(insight.score).toBeGreaterThanOrEqual(90)
     expect(insight.nextStep).toMatch(/nasal breathing/i)
   })

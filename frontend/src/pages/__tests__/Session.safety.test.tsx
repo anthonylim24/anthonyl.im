@@ -87,7 +87,7 @@ describe('Session safety gates', () => {
     expect(screen.queryByTestId('active-session')).not.toBeInTheDocument()
 
     const safetyCheckbox = screen.getAllByRole('checkbox', {
-      name: /reviewed the cautions, am in a safe setting/i,
+      name: /i've read this\. i'm seated and can stop if i need to/i,
     })[0]
     expect(safetyCheckbox.getAttribute('aria-describedby')).toContain('contraindications')
 
@@ -127,7 +127,7 @@ describe('Session safety gates', () => {
     expect(screen.getAllByText(/wait .* after Power Breathing before another advanced set/i).length).toBeGreaterThan(0)
 
     const safetyCheckbox = screen.getAllByRole('checkbox', {
-      name: /reviewed the cautions, am in a safe setting/i,
+      name: /i've read this\. i'm seated and can stop if i need to/i,
     })[0]
     await user.click(safetyCheckbox)
 

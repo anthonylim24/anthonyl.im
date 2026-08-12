@@ -42,15 +42,15 @@ const CATEGORY_EFFECTS: Record<ProtocolCategory, Pick<SessionInsight, 'effectLab
   },
   performance: {
     effectLabel: 'Activation',
-    effectDescription: 'Higher-intensity work around arousal and air hunger.',
+    effectDescription: 'Faster or held breathing. Raises arousal.',
     nextStep: 'Nasal breathing for a minute before another advanced set.',
   },
 }
 
 const TECHNIQUE_EFFECTS: Partial<Record<TechniqueId, Pick<SessionInsight, 'effectLabel' | 'effectDescription' | 'nextStep'>>> = {
   [TECHNIQUE_IDS.CO2_TOLERANCE]: {
-    effectLabel: 'CO2 tolerance exposure',
-    effectDescription: 'Progressive holds practice staying composed as the urge to breathe rises.',
+    effectLabel: 'CO2 holds',
+    effectDescription: 'Progressive holds. Stay composed as the urge to breathe rises.',
     nextStep: 'Take at least a minute of relaxed nasal breathing before another hold set.',
   },
   [TECHNIQUE_IDS.POWER_BREATHING]: {
@@ -66,7 +66,7 @@ function clamp(value: number, min: number, max: number): number {
 
 function getDoseLabel(durationSeconds: number): string {
   if (durationSeconds >= 480) return 'Long'
-  if (durationSeconds >= 300) return 'Full protocol'
+  if (durationSeconds >= 300) return 'Full'
   if (durationSeconds >= 120) return 'Short'
   return 'Brief'
 }

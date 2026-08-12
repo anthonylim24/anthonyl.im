@@ -50,7 +50,7 @@ describe('SessionSummary', () => {
 
   it('shows personal best indicator', () => {
     render(<SessionSummary {...defaultProps} />)
-    expect(screen.getByText(/personal best/i)).toBeTruthy()
+    expect(screen.getByText(/new best hold/i)).toBeTruthy()
   })
 
   it('shows new badges', () => {
@@ -69,9 +69,9 @@ describe('SessionSummary', () => {
     render(<SessionSummary {...defaultProps} />)
 
     expect(screen.getByText(/CO2 Tolerance Table/)).toBeTruthy()
-    expect(screen.getAllByText('Full protocol').length).toBeGreaterThan(0)
-    expect(screen.getByText('CO2 tolerance exposure')).toBeTruthy()
-    expect(screen.getByText(/progressive holds practice/i)).toBeTruthy()
+    expect(screen.getAllByText('Full').length).toBeGreaterThan(0)
+    expect(screen.getByText('CO2 holds')).toBeTruthy()
+    expect(screen.getByText(/progressive holds/i)).toBeTruthy()
     expect(screen.getByText(/relaxed nasal breathing/i)).toBeTruthy()
   })
 

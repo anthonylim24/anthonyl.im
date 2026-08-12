@@ -66,8 +66,8 @@ const LEVEL_TITLES: [number, string][] = [
   [15, 'Advanced'],
   [20, 'Expert'],
   [30, 'Veteran'],
-  [40, 'Mentor'],
-  [50, 'Steward'],
+  [40, 'Seasoned'],
+  [50, 'Long-term'],
 ]
 
 export function getLevelTitle(level: number): string {

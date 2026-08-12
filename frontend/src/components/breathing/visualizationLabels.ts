@@ -7,5 +7,5 @@ export function getBreathingVisualizationLabel(phase: BreathPhase | null) {
 }
 
 export function getInteractiveBreathingVisualizationLabel(phase: BreathPhase | null) {
-  return `${getBreathingVisualizationLabel(phase)}. Activate repeatedly to toggle alternate visual.`
+  return `${getBreathingVisualizationLabel(phase)}. Tap repeatedly to switch the visual.`
 }

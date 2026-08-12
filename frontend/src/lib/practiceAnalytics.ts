@@ -78,11 +78,11 @@ function getConsistencyCopy(
     const advancedRecovery =
       dominantCategory === 'performance'
         ? 'Add one recovery or resonance session.'
-        : 'Keep the same time of day. Do not add strain.'
+        : 'Same time of day. Don't add intensity.'
 
     return {
       label: '5+ days',
-      description: 'Five or more practice days this week.',
+      description: 'Five or more days this week.',
       nextStep: advancedRecovery,
     }
   }
@@ -90,8 +90,8 @@ function getConsistencyCopy(
   if (activeDays >= 3) {
     return {
       label: '3 to 4 days',
-      description: 'Three or four practice days this week.',
-      nextStep: 'Repeat the easiest useful protocol tomorrow.',
+      description: 'Three or four days this week.',
+      nextStep: 'Same protocol tomorrow, or an easier one.',
     }
   }
 
@@ -99,14 +99,14 @@ function getConsistencyCopy(
     return {
       label: 'Started',
       description: 'One or two sessions this week.',
-      nextStep: 'Do another five-minute session in the next day.',
+      nextStep: 'Another five minutes tomorrow.',
     }
   }
 
   return {
     label: 'No sessions yet',
     description: 'No sessions in the last seven days.',
-    nextStep: 'Start with a five-minute protocol.',
+    nextStep: 'Start with five minutes.',
   }
 }
 

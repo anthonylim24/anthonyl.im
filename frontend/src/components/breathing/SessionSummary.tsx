@@ -313,7 +313,7 @@ export function SessionSummary({
                 <div className="flex items-center gap-2 text-bw-secondary">
                   <Activity className="h-4 w-4 text-bw-accent" aria-hidden="true" />
                   <span className="text-[10px] font-medium uppercase tracking-[0.07em]">
-                    Session Insight · {insight.scoreLabel}
+                    {insight.scoreLabel}
                   </span>
                 </div>
                 <h3 className="mt-2 font-display text-2xl font-semibold leading-none text-bw">
@@ -332,7 +332,7 @@ export function SessionSummary({
               <SessionStatRow icon={Zap} label="XP" value={`+${xpEarned}`} />
               <SessionStatRow
                 icon={Sparkles}
-                label="Dose"
+                label="Length"
                 value={insight.doseLabel}
                 mono={false}
               />
@@ -341,13 +341,13 @@ export function SessionSummary({
             {holdTimes.length > 0 && (
               <motion.div variants={fadeUp}>
                 <div className="flex items-baseline justify-between gap-4 border-t border-bw-border py-3">
-                  <span className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">Best Hold</span>
+                  <span className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">Best hold</span>
                   <span className="inline-block font-mono tabular-nums text-base text-bw leading-none border-b border-bw-accent pb-0.5">
                     <AnimatedCounter target={maxHold} suffix="s" />
                   </span>
                 </div>
                 <div className="flex items-baseline justify-between gap-4 border-t border-bw-border py-3">
-                  <span className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">Avg Hold</span>
+                  <span className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">Avg hold</span>
                   <span className="inline-block font-mono tabular-nums text-base text-bw leading-none border-b border-bw-accent pb-0.5">
                     <AnimatedCounter target={avgHold} suffix="s" />
                   </span>
@@ -363,7 +363,7 @@ export function SessionSummary({
                 <div className="flex items-center justify-center gap-2">
                   <Star className="h-4 w-4 text-bw-secondary" />
                   <span className="text-sm font-medium text-bw">
-                    New Personal Best
+                    New best hold
                   </span>
                   <Star className="h-4 w-4 text-bw-secondary" />
                 </div>
@@ -403,8 +403,8 @@ export function SessionSummary({
                         {moodDelta != null && moodDelta > 0
                           ? 'Calmer than you started.'
                           : moodDelta === 0
-                            ? 'Hold time stayed even.'
-                            : 'Session complete.'}
+                            ? 'Same as you started.'
+                            : 'More tense than you started.'}
                       </p>
                     </>
                   ) : (

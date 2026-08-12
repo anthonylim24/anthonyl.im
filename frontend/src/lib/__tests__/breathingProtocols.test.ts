@@ -137,9 +137,9 @@ describe('breathingProtocols', () => {
     const power = breathingProtocols[TECHNIQUE_IDS.POWER_BREATHING]
 
     expect(co2.science).toMatch(/small conference study/i)
-    expect(co2.science).toMatch(/not a guaranteed endurance boost/i)
+    expect(co2.science).toMatch(/not an endurance program/i)
     expect(power.science).toMatch(/multi-component program/i)
-    expect(power.science).toMatch(/does not show that an app session independently treats inflammation or modulates immunity/i)
+    expect(power.science).toMatch(/does not treat inflammation or modulate immunity/i)
     expect(power.purpose).toBe('Short high-arousal set')
   })
 
