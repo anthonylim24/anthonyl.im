@@ -1,7 +1,7 @@
 {
   "name": "BreathFlow",
   "short_name": "BreathFlow",
-  "description": "Evidence-informed breathwork for calm, sleep, focus, recovery, and performance.",
+  "description": "Timed breathing protocols with published research.",
   "start_url": "/breathwork",
   "scope": "/breathwork",
   "display": "standalone",
@@ -31,9 +31,9 @@
   ],
   "shortcuts": [
     {
-      "name": "Start Calm Session",
+      "name": "Start Cyclic Sighing",
       "short_name": "Calm",
-      "description": "Begin BreathFlow with the default evidence-backed calming protocol.",
+      "description": "Open Cyclic Sighing.",
       "url": "/breathwork/session?technique=cyclic_sighing&rounds=30",
       "icons": [
         {
@@ -45,9 +45,9 @@
       ]
     },
     {
-      "name": "Sleep Downshift",
+      "name": "Start 4-7-8",
       "short_name": "Sleep",
-      "description": "Open a gentle evening breathing setup for sleep onset.",
+      "description": "Open 4-7-8.",
       "url": "/breathwork/session?technique=four_seven_eight&rounds=16",
       "icons": [
         {
@@ -59,9 +59,9 @@
       ]
     },
     {
-      "name": "View Progress",
+      "name": "Progress",
       "short_name": "Progress",
-      "description": "Open your BreathFlow practice history and achievements.",
+      "description": "Session history and badges.",
       "url": "/breathwork/progress",
       "icons": [
         {

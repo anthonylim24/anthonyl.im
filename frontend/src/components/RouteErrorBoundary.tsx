@@ -16,7 +16,7 @@ const appCopy: Record<Props['app'], { heading: string; accent: string }> = {
     accent: 'text-stone-900 dark:text-stone-100',
   },
   breathwork: {
-    heading: 'Something went wrong loading BreathFlow.',
+    heading: 'Couldn\'t load BreathFlow.',
     accent: 'text-amber-800 dark:text-amber-300',
   },
   korea: {
@@ -87,8 +87,7 @@ export class RouteErrorBoundary extends Component<Props, State> {
           {heading}
         </h1>
         <p className="max-w-md text-sm text-stone-600 dark:text-stone-400">
-          A reload usually fixes this. If it keeps happening, your browser may be holding onto a
-          stale asset — clear the site data and try again.
+          A reload usually fixes this. If it keeps happening, clear site data and try again.
         </p>
         <button
           ref={this.reloadRef}

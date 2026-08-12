@@ -56,7 +56,7 @@ describe('RouteErrorBoundary', () => {
       </RouteErrorBoundary>,
     )
     expect(
-      screen.getByText(/Something went wrong loading BreathFlow\./),
+      screen.getByText(/Couldn't load BreathFlow\./),
     ).toBeTruthy()
   })
 

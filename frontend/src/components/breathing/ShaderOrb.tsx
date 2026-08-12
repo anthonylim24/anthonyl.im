@@ -57,6 +57,7 @@ export function ShaderOrb({
     color2,
     isActive: isActive && !reducedMotion,
     reducedMotion,
+    dark: isDark,
   })
 
   const ariaLabel = getBreathingVisualizationLabel(phase)

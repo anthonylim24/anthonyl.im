@@ -23,6 +23,7 @@ import {
 } from '@/lib/breathingProtocols'
 import {
   getAdvancedProtocolRecoveryStatus,
+  isAdvancedBreathingProtocol,
   type AdvancedProtocolRecoveryStatus,
 } from '@/lib/advancedProtocolRecovery'
 import { TECHNIQUE_IDS, type BreathPhase, type TechniqueId } from '@/lib/constants'
@@ -34,6 +35,7 @@ import { useHaptics } from '@/hooks/useHaptics'
 import { useViewTransitionNavigate } from '@/hooks/useViewTransition'
 import { useEntranceMotion } from '@/lib/motionPresets'
 import { useHistoryStore } from '@/stores/historyStore'
+import { useConstrainedViewport } from '@/hooks/useConstrainedViewport'
 
 function getInitialRounds(requestedRounds: string | null, techniqueId: TechniqueId): number {
   const parsedRounds = Number(requestedRounds)
@@ -159,7 +161,7 @@ function ProtocolSafetyGate({
               className="h-5 w-5 shrink-0 accent-bw-accent"
             />
             <span className="text-xs font-medium leading-relaxed text-bw">
-              I have reviewed the cautions, am in a safe setting, and can stop immediately if needed.
+              I've read this. I'm seated and can stop if I need to.
             </span>
           </label>
         </div>
@@ -205,6 +207,26 @@ function AdvancedRecoveryNotice({ status, compact = false }: AdvancedRecoveryNot
   )
 }
 
+function InCarProtocolNotice({ compact = false }: { compact?: boolean }) {
+  return (
+    <div
+      role="status"
+      data-testid="in-car-protocol-block"
+      className={cn(
+        'border-y border-bw-border',
+        compact ? 'mb-3 py-3' : 'pt-5 pb-6'
+      )}
+    >
+      <h2 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary">
+        Driving
+      </h2>
+      <p className="mt-2 text-xs leading-relaxed text-bw-tertiary">
+        Strong protocols are off while driving. Use Cyclic Sighing or Resonance.
+      </p>
+    </div>
+  )
+}
+
 interface EvidenceTrailProps {
   citations: BreathingProtocol['citations']
   compact?: boolean
@@ -218,7 +240,7 @@ function EvidenceTrail({ citations, compact = false }: EvidenceTrailProps) {
   return (
     <div className={cn('border-t border-bw-border', compact ? 'mt-4 pt-3' : 'mt-5 pt-4')}>
       <h3 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary">
-        Evidence Trail
+        Evidence
       </h3>
       <ul
         aria-label="Protocol evidence sources"
@@ -286,6 +308,7 @@ export function Session() {
   const [scienceExpanded, setScienceExpanded] = useState(false)
   const [safetyAcknowledged, setSafetyAcknowledged] = useState(false)
   const [recoveryNow, setRecoveryNow] = useState(() => new Date())
+  const inCar = useConstrainedViewport()
 
   const { trigger: haptic } = useHaptics()
   const { sessions } = useHistoryStore()
@@ -299,13 +322,16 @@ export function Session() {
     [recoveryNow, selectedTechnique, sessions],
   )
   const needsSafetyAcknowledgement = requiresSafetyCheck && !safetyAcknowledged
-  const canStartSession = !needsSafetyAcknowledgement && !recoveryStatus.isActive
-  const startSafetyHelpText = needsSafetyAcknowledgement && recoveryStatus.isActive
-    ? `Complete the safety check and wait ${formatTime(recoveryStatus.remainingSeconds)} before another advanced set.`
+  const blockedInCar = inCar && isAdvancedBreathingProtocol(selectedTechnique)
+  const canStartSession = !needsSafetyAcknowledgement && !recoveryStatus.isActive && !blockedInCar
+  const startSafetyHelpText = blockedInCar
+    ? 'Not available while driving. Use Cyclic Sighing or Resonance.'
+    : needsSafetyAcknowledgement && recoveryStatus.isActive
+    ? `Finish the safety check, then wait ${formatTime(recoveryStatus.remainingSeconds)}.`
     : needsSafetyAcknowledgement
-      ? 'Complete the safety check to enter.'
+      ? 'Finish the safety check first.'
       : recoveryStatus.isActive
-        ? `Recovery window active. Wait ${formatTime(recoveryStatus.remainingSeconds)} before another advanced set.`
+        ? `Wait ${formatTime(recoveryStatus.remainingSeconds)} before another advanced set.`
         : null
   const hasCustomCadence = useMemo(
     () => hasCustomPhaseDurations(protocol, customPhaseDurations),
@@ -417,14 +443,17 @@ export function Session() {
   }
 
   return (
-    <>
+    <div>
       {/* ═══ MOBILE LAYOUT ═══════════════════════════════ */}
-      <div className="md:hidden flex h-[calc(100dvh-5.5rem)] min-h-[calc(100svh-5.5rem)] max-w-full flex-col overflow-hidden">
+      <div className="md:hidden max-w-full">
+        <div
+          data-testid="mobile-session-scroller"
+          className="pb-[calc(8rem+env(safe-area-inset-bottom,0px))]"
+        >
         <motion.div
           variants={stagger}
           initial="hidden"
           animate="show"
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain no-scrollbar pb-4"
         >
           {/* Back button */}
           <motion.button
@@ -455,7 +484,7 @@ export function Session() {
         </motion.div>
 
         {/* Technique rail */}
-        <motion.div variants={fadeUp} className="mb-3 max-w-full overflow-x-auto overscroll-x-contain no-scrollbar">
+        <motion.div variants={fadeUp} className="mb-3 max-w-full overflow-x-auto overflow-y-hidden overscroll-x-contain no-scrollbar">
           <div
             className="flex w-max min-w-full gap-2"
             role="group"
@@ -535,7 +564,7 @@ export function Session() {
               onClick={() => setScienceExpanded(!scienceExpanded)}
               className="flex min-h-11 w-full items-center justify-between text-left"
             >
-              <span className="text-[10px] font-medium text-bw-secondary uppercase tracking-[0.07em]">How it works</span>
+              <span className="text-[10px] font-medium text-bw-secondary uppercase tracking-[0.07em]">Method</span>
               <ChevronDown className={cn(
                 'h-3 w-3 text-bw-tertiary transition-transform duration-200',
                 scienceExpanded && 'rotate-180'
@@ -584,6 +613,12 @@ export function Session() {
           <AdvancedRecoveryNotice status={recoveryStatus} compact />
         </motion.div>
 
+        {blockedInCar ? (
+          <motion.div variants={fadeUp}>
+            <InCarProtocolNotice compact />
+          </motion.div>
+        ) : null}
+
         <motion.div variants={fadeUp}>
           <CadenceEditor
             protocol={protocol}
@@ -605,25 +640,27 @@ export function Session() {
 
         <motion.div variants={fadeUp} className="border-t border-bw-border py-4">
           <MoodPicker
-            label="How do you feel right now?"
-            hint="Optional — we'll check in again after, so you can see the shift."
+            label="How do you feel?"
+            hint="Optional. Asked again after."
             value={moodBefore}
             onChange={handleMoodSelect}
           />
         </motion.div>
 
         </motion.div>
+        </div>
 
-        {/* Pinned setup controls */}
+        {/* Viewport-pinned setup controls. The page itself is the document
+            scroller; this bar stays on screen while mood/safety scroll up. */}
         <motion.div
           variants={fadeUp}
           initial="hidden"
           animate="show"
           data-testid="mobile-session-action-bar"
-          className="shrink-0 border-t border-bw-border bg-bw-canvas pt-3 pb-[max(1rem,env(safe-area-inset-bottom,0px))]"
+          className="fixed inset-x-0 bottom-0 z-20 border-t border-bw-border bg-bw-canvas px-5 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] sm:px-8"
         >
           <div
-            className="mb-3 flex items-center justify-between gap-3"
+            className="mb-2 flex items-center justify-between gap-3"
             role="group"
             aria-label={`Session rounds, ${rounds} selected`}
           >
@@ -679,26 +716,26 @@ export function Session() {
             className="flex min-h-11 w-full items-center justify-center gap-3 border border-bw-accent bg-bw-accent px-6 py-3.5 text-sm font-medium text-bw-accent-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:border-bw-border disabled:bg-bw-active disabled:text-bw-tertiary disabled:hover:opacity-100"
           >
             <Play className="h-4 w-4" aria-hidden="true" />
-            <span>Begin {protocol.name}</span>
+            <span>Start {protocol.name}</span>
           </button>
         </motion.div>
       </div>
 
       {/* ═══ DESKTOP LAYOUT ══════════════════════════════ */}
-      <div
-        className="hidden md:flex md:h-[calc(100dvh-4rem-5rem)] md:flex-col max-w-2xl mx-auto"
-      >
+      <div className="hidden md:grid md:grid-cols-[minmax(0,1fr)_17rem] lg:grid-cols-[minmax(0,1fr)_19rem] md:gap-8 lg:gap-10 md:items-start">
         <motion.div
           variants={stagger}
           initial="hidden"
           animate="show"
-          className="flex-1 space-y-8 overflow-y-auto no-scrollbar pb-4"
+          className="min-w-0 space-y-8 pb-4"
         >
-          {/* Header */}
           <motion.div variants={fadeUp}>
             <h1 className="font-display text-4xl font-semibold text-bw leading-none">
-              Session Setup
+              Session
             </h1>
+            <p className="mt-2 text-sm text-bw-tertiary">
+              Choose a technique.
+            </p>
           </motion.div>
 
         {/* Technique Selection — border-separated list */}
@@ -779,7 +816,7 @@ export function Session() {
           <div className="grid grid-cols-[1fr_auto] gap-6">
             <div>
               <h2 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary mb-3">
-                Protocol Notes
+                Notes
               </h2>
               <p className="text-xs text-bw-tertiary leading-relaxed">
                 {protocol.science}
@@ -829,6 +866,12 @@ export function Session() {
           <AdvancedRecoveryNotice status={recoveryStatus} />
         </motion.div>
 
+        {blockedInCar ? (
+          <motion.div variants={fadeUp}>
+            <InCarProtocolNotice />
+          </motion.div>
+        ) : null}
+
         <motion.div variants={fadeUp}>
           <CadenceEditor
             protocol={protocol}
@@ -848,21 +891,30 @@ export function Session() {
 
         <motion.div variants={fadeUp} className="border-t border-bw-border pt-5">
           <MoodPicker
-            label="How do you feel right now?"
-            hint="Optional — we'll check in again after, so you can see the shift."
+            label="How do you feel?"
+            hint="Optional. Asked again after."
             value={moodBefore}
             onChange={handleMoodSelect}
           />
         </motion.div>
 
-        {/* Round Counter */}
-        <motion.div variants={fadeUp} className="border-t border-bw-border pt-8">
-          <div className="space-y-6">
+        </motion.div>
+
+        <aside className="md:sticky md:top-20 self-start">
+          <p className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">
+            Start
+          </p>
+          <p className="mt-2 text-lg font-medium leading-snug text-bw">{protocol.name}</p>
+          <p className="mt-1 text-[11px] font-mono tabular-nums text-bw-tertiary">
+            {cadenceLabel} · {formatTime(estimatedDuration)}
+          </p>
+
+          <div className="mt-6 border-t border-bw-border pt-5">
             <label className="text-[10px] font-medium text-bw-secondary tracking-[0.07em] uppercase">
-              Number of Rounds
+              Rounds
             </label>
             <div
-              className="flex items-center justify-center gap-10"
+              className="mt-4 flex items-center justify-center gap-6"
               role="group"
               aria-label={`Session rounds, ${rounds} selected`}
             >
@@ -873,15 +925,15 @@ export function Session() {
                 aria-label={`Decrease rounds, currently ${rounds} rounds selected`}
                 onClick={() => { haptic(15); setRounds((r) => Math.max(MIN_SESSION_ROUNDS, r - 1)) }}
                 disabled={rounds <= MIN_SESSION_ROUNDS}
-                className="h-12 w-12 border border-bw-border hover:bg-bw-hover disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 text-bw"
+                className="flex h-11 w-11 items-center justify-center border border-bw-border text-bw transition-all duration-300 hover:bg-bw-hover disabled:cursor-not-allowed disabled:opacity-25"
               >
                 <Minus className="h-4 w-4" aria-hidden="true" />
               </motion.button>
-              <div className="text-center min-w-[80px]">
-                <span className="font-mono text-3xl font-normal tabular-nums text-bw leading-none">
+              <div className="min-w-12 text-center">
+                <span className="font-mono text-3xl font-normal tabular-nums leading-none text-bw">
                   {rounds}
                 </span>
-                <span className="block text-[10px] text-bw-secondary mt-2 font-medium tracking-[0.07em] uppercase">
+                <span className="mt-2 block text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">
                   rounds
                 </span>
               </div>
@@ -892,51 +944,42 @@ export function Session() {
                 aria-label={`Increase rounds, currently ${rounds} rounds selected`}
                 onClick={() => { haptic(15); setRounds((r) => Math.min(maxRounds, r + 1)) }}
                 disabled={rounds >= maxRounds}
-                className="h-12 w-12 border border-bw-border hover:bg-bw-hover disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 text-bw"
+                className="flex h-11 w-11 items-center justify-center border border-bw-border text-bw transition-all duration-300 hover:bg-bw-hover disabled:cursor-not-allowed disabled:opacity-25"
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
               </motion.button>
             </div>
-
-            <div className="flex items-center justify-center gap-2 py-3 border-t border-bw-border">
+            <div className="mt-4 flex items-center justify-center gap-2">
               <Clock className="h-3.5 w-3.5 text-bw-tertiary" aria-hidden="true" />
               <span className="text-xs text-bw-tertiary">Estimated</span>
-              <span className="font-mono font-medium text-sm text-bw tabular-nums">
+              <span className="font-mono text-sm font-medium tabular-nums text-bw">
                 {formatTime(estimatedDuration)}
               </span>
             </div>
           </div>
-        </motion.div>
 
-        </motion.div>
-
-        {/* Pinned Start Button */}
-        <motion.div
-          variants={fadeUp}
-          initial="hidden"
-          animate="show"
-          className="shrink-0 border-t border-bw-border bg-bw-canvas pt-3 pb-1"
-        >
-          {startSafetyHelpText ? (
-            <p
-              id="desktop-start-safety-help"
-              className="mb-2 text-center text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary"
+          <div className="shrink-0 border-t border-bw-border bg-bw-canvas pt-3 pb-1 mt-5">
+            {startSafetyHelpText ? (
+              <p
+                id="desktop-start-safety-help"
+                className="mb-2 text-center text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary"
+              >
+                {startSafetyHelpText}
+              </p>
+            ) : null}
+            <button
+              type="button"
+              onClick={handleStartSession}
+              disabled={!canStartSession}
+              aria-describedby={startSafetyHelpText ? 'desktop-start-safety-help' : undefined}
+              className="flex min-h-11 w-full items-center justify-center gap-3 border border-bw-accent bg-bw-accent px-6 py-3.5 text-sm font-medium text-bw-accent-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:border-bw-border disabled:bg-bw-active disabled:text-bw-tertiary disabled:hover:opacity-100"
             >
-              {startSafetyHelpText}
-            </p>
-          ) : null}
-          <button
-            type="button"
-            onClick={handleStartSession}
-            disabled={!canStartSession}
-            aria-describedby={startSafetyHelpText ? 'desktop-start-safety-help' : undefined}
-            className="w-full py-3.5 px-6 border border-bw-accent bg-bw-accent font-medium text-bw-accent-foreground text-sm flex items-center justify-center gap-3 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:border-bw-border disabled:bg-bw-active disabled:text-bw-tertiary disabled:hover:opacity-100"
-          >
-            <Play className="h-4 w-4" aria-hidden="true" />
-            <span>Enter {protocol.name}</span>
-          </button>
-        </motion.div>
+              <Play className="h-4 w-4" aria-hidden="true" />
+              <span>Start {protocol.name}</span>
+            </button>
+          </div>
+        </aside>
       </div>
-    </>
+    </div>
   )
 }

@@ -18,7 +18,10 @@ export function AnimatedOutlet() {
 
   return (
     <AnimatePresence mode="wait">
-      <PageTransition key={location.pathname} reducedMotion={reducedMotion}>
+      <PageTransition
+        key={location.pathname}
+        reducedMotion={reducedMotion}
+      >
         <Suspense fallback={<RouteLoader />}>
           {outlet}
         </Suspense>

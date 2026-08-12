@@ -30,8 +30,10 @@ describe('BreathworkLayout reduced motion', () => {
       </MemoryRouter>,
     )
 
-    const overlay = container.querySelector<HTMLVideoElement>('.leaves-overlay')
+    const overlay = document.querySelector<HTMLElement>('.leaves-overlay')
     expect(overlay).toBeTruthy()
+    expect(container.contains(overlay)).toBe(false)
+    expect(overlay?.parentElement).toBe(document.body)
     await waitFor(() => {
       expect(overlay).toHaveStyle({ opacity: '0.5' })
     })
@@ -40,27 +42,36 @@ describe('BreathworkLayout reduced motion', () => {
   it('does not render autoplaying ambient video for reduced-motion users', () => {
     mocks.reducedMotion = true
 
-    const { container } = render(
+    render(
       <MemoryRouter>
         <BreathworkLayout />
       </MemoryRouter>,
     )
 
-    expect(container.querySelector('.leaves-overlay')).toBeNull()
+    expect(document.querySelector('.leaves-overlay')).toBeNull()
   })
 
-  it('lets the session setup screen own its footer spacing instead of adding an outer spacer', () => {
-    const { container } = render(
+  it('does not reserve floating-footer space on any BreathFlow route', () => {
+    const home = render(
+      <MemoryRouter initialEntries={['/breathwork']}>
+        <BreathworkLayout />
+      </MemoryRouter>,
+    )
+
+    expect(home.container.querySelector('[style*="--mobile-content-bottom-space"]')).toBeNull()
+    expect(home.container.querySelector('[data-testid="mobile-nav-clearance"]')).toBeNull()
+    expect(home.container.querySelector('main')?.className).toContain('pb-10')
+    expect(home.container.querySelector('main')?.className).not.toContain('mobile-content-bottom-space')
+    home.unmount()
+
+    const session = render(
       <MemoryRouter initialEntries={['/breathwork/session']}>
         <BreathworkLayout />
       </MemoryRouter>,
     )
 
-    const content = container.querySelector<HTMLElement>(
-      '[style*="--mobile-content-bottom-space"]',
-    )
-
-    expect(content?.style.getPropertyValue('--mobile-content-bottom-space')).toBe('0px')
-    expect(content?.style.getPropertyValue('--mobile-content-bottom-space')).not.toContain('7.5rem')
+    expect(session.container.querySelector('[style*="--mobile-content-bottom-space"]')).toBeNull()
+    expect(session.container.querySelector('[data-testid="mobile-nav-clearance"]')).toBeNull()
+    session.unmount()
   })
 })

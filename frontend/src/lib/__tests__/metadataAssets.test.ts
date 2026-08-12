@@ -85,15 +85,15 @@ describe('metadata assets', () => {
     expect(manifest.shortcuts).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          name: 'Start Calm Session',
+          name: 'Start Cyclic Sighing',
           url: '/breathwork/session?technique=cyclic_sighing&rounds=30',
         }),
         expect.objectContaining({
-          name: 'Sleep Downshift',
+          name: 'Start 4-7-8',
           url: '/breathwork/session?technique=four_seven_eight&rounds=16',
         }),
         expect.objectContaining({
-          name: 'View Progress',
+          name: 'Progress',
           url: '/breathwork/progress',
         }),
       ])

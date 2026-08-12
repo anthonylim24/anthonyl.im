@@ -73,7 +73,7 @@ export function CadenceEditor({
               compact && 'sr-only',
             )}
           >
-            Adjust phase timing one second at a time. Defaults keep the protocol unchanged.
+            Adjust each phase by one second. Reset restores the defaults.
           </p>
         </div>
         <button

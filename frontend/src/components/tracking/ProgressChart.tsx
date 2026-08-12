@@ -58,7 +58,7 @@ function pointsToPath(points: ReturnType<typeof getPointCoordinates>): string {
 
 export function ProgressChart({
   sessions,
-  title = 'Hold Time Progress',
+  title = 'Hold time',
 }: ProgressChartProps) {
   const chartData = useMemo(() => {
     const result = []

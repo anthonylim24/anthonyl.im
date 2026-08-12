@@ -14,8 +14,8 @@ describe('buildSessionInsight', () => {
       newBadgeCount: 1,
     })
 
-    expect(insight.effectLabel).toBe('CO2 tolerance exposure')
-    expect(insight.doseLabel).toBe('Full protocol')
+    expect(insight.effectLabel).toBe('CO2 holds')
+    expect(insight.doseLabel).toBe('Full')
     expect(insight.score).toBeGreaterThanOrEqual(90)
     expect(insight.nextStep).toMatch(/nasal breathing/i)
   })
@@ -30,9 +30,9 @@ describe('buildSessionInsight', () => {
       newBadgeCount: 0,
     })
 
-    expect(insight.doseLabel).toBe('Primer')
+    expect(insight.doseLabel).toBe('Brief')
     expect(insight.scoreLabel).toBe('Started')
-    expect(insight.effectLabel).toBe('Downshift signal')
+    expect(insight.effectLabel).toBe('Slower breathing')
   })
 
   it('returns sleep-specific next steps for sleep protocols', () => {
@@ -45,7 +45,7 @@ describe('buildSessionInsight', () => {
       newBadgeCount: 0,
     })
 
-    expect(insight.effectLabel).toBe('Sleep runway')
+    expect(insight.effectLabel).toBe('Sleep prep')
     expect(insight.nextStep).toMatch(/lights low/i)
   })
 })

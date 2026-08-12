@@ -3,7 +3,6 @@ import { useViewTransitionNavigate } from '@/hooks/useViewTransition'
 import { motion } from 'motion/react'
 import { useHistoryStore } from '@/stores/historyStore'
 import { useGamificationStore } from '@/stores/gamificationStore'
-import { getLevelForXP, getXPForLevel, getLevelTitle } from '@/lib/gamification'
 import { breathingProtocols, getProtocolCatalog } from '@/lib/breathingProtocols'
 import { TECHNIQUE_IDS } from '@/lib/constants'
 import {
@@ -35,7 +34,6 @@ import {
 } from 'lucide-react'
 import { useHaptics } from '@/hooks/useHaptics'
 import { useEntranceMotion } from '@/lib/motionPresets'
-import { StatNumeral } from '@/components/ui/StatNumeral'
 
 const goalIcons = {
   calm: Wind,
@@ -56,14 +54,13 @@ function getGreeting(): string {
 }
 
 function getStreakMessage(streak: number, dailyGoalMet: boolean): string {
-  if (dailyGoalMet && streak >= 30) return 'A month of consistency. Remarkable discipline.'
-  if (dailyGoalMet && streak >= 14) return 'Two weeks strong. This is becoming part of you.'
-  if (dailyGoalMet && streak >= 7) return 'A full week. Your body is learning.'
-  if (dailyGoalMet && streak >= 3) return 'Building momentum. Keep showing up.'
-  if (dailyGoalMet) return 'You\'ve completed today\'s goal'
-  if (streak >= 7) return `${streak} day streak — don't break the chain`
-  if (streak >= 3) return 'Your streak is growing. Ready for today?'
-  return 'Ready for today\'s session?'
+  if (dailyGoalMet && streak >= 30) return '30-day streak.'
+  if (dailyGoalMet && streak >= 14) return '14-day streak.'
+  if (dailyGoalMet && streak >= 7) return '7-day streak.'
+  if (dailyGoalMet) return 'Logged today.'
+  if (streak >= 7) return `${streak} days this week.`
+  if (streak >= 3) return `${streak}-day streak.`
+  return 'Next session.'
 }
 
 function formatDurationLabel(seconds: number): string {
@@ -130,21 +127,9 @@ export function Home() {
   )
   const [selectedWindow, setSelectedWindow] = useState<SessionWindow>('standard')
   const { sessions, getStreak } = useHistoryStore()
-  const { xp, dailySessionCount } = useGamificationStore()
+  const { dailySessionCount } = useGamificationStore()
 
   const streak = getStreak()
-
-  const level = getLevelForXP(xp)
-  const currentLevelXP = getXPForLevel(level)
-  const nextLevelXP = getXPForLevel(level + 1)
-  const xpInLevel = xp - currentLevelXP
-  const xpNeeded = nextLevelXP - currentLevelXP
-  const levelProgress = xpNeeded > 0 ? xpInLevel / xpNeeded : 1
-
-  const totalPracticeTime = useMemo(
-    () => sessions.reduce((sum, s) => sum + s.durationSeconds, 0),
-    [sessions],
-  )
 
   const dailyGoalMet = dailySessionCount >= 1
 
@@ -194,163 +179,50 @@ export function Home() {
       initial="hidden"
       animate="show"
     >
-      {/* ── Greeting ────────────────────────────────────── */}
-      <motion.div variants={fadeUp} className="pt-2 pb-8 md:pb-16">
-        <p className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary md:hidden">
-          {getGreeting()}
-        </p>
-        <h1 className="font-display text-3xl md:text-5xl font-semibold text-bw leading-[0.95] mt-1 md:mt-0">
-          <span className="md:hidden">Time to breathe</span>
-          <span className="hidden md:inline">{getGreeting()}</span>
-        </h1>
-        <p className="text-xs text-bw-tertiary mt-2 md:mt-3 font-medium tracking-wide hidden md:block">
+      {/* ── Greeting: one line of context, then the action ── */}
+      <motion.div variants={fadeUp} className="pt-1 pb-4 md:pb-5">
+        <p className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary">
           {isNewUser
-            ? 'Your first session takes about 5 minutes'
+            ? 'About 5 minutes'
             : getStreakMessage(streak, dailyGoalMet)}
         </p>
+        <h1 className="font-display text-3xl md:text-4xl font-semibold text-bw leading-[0.95] mt-1">
+          {getGreeting()}
+        </h1>
       </motion.div>
 
       {isNewUser ? (
-        /* ── Welcome State ──────────────────────────────── */
-        <>
-          {/* Mobile welcome */}
-          <motion.div variants={fadeUp} className="pb-8 md:hidden">
-            <p className="text-xs text-bw-tertiary leading-relaxed mb-6">
-              Your first session takes about 5 minutes
-            </p>
-            <button
-              type="button"
-              aria-label={`Start your first session, ${buildProtocolDetailLabel(
-                suggestedProtocol.name,
-                suggestedDuration,
-                recommendation.primary.rounds,
-              )}`}
-              onClick={() => { haptic('success'); navigate(suggestedPath) }}
-              className="flex min-h-11 w-full items-center justify-center gap-2.5 border border-bw-accent bg-bw-accent py-4 font-medium text-bw-accent-foreground text-sm transition-all hover:opacity-90"
-            >
-              <Play className="h-4 w-4" aria-hidden="true" />
-              Start your first session
-            </button>
-            <button
-              type="button"
-              onClick={handleBrowseTechniques}
-              className="mt-3 flex min-h-11 w-full items-center justify-center py-2 text-xs font-medium text-bw-tertiary transition-colors hover:text-bw-secondary"
-            >
-              Browse all techniques
-            </button>
-          </motion.div>
+        <motion.div variants={fadeUp} className="pb-5">
+          <button
+            type="button"
+            aria-label={`Begin, ${buildProtocolDetailLabel(
+              suggestedProtocol.name,
+              suggestedDuration,
+              recommendation.primary.rounds,
+            )}`}
+            onClick={() => { haptic('success'); navigate(suggestedPath) }}
+            className="flex min-h-11 w-full items-center justify-center gap-2.5 border border-bw-accent bg-bw-accent py-3.5 font-medium text-bw-accent-foreground text-sm transition-opacity hover:opacity-90 md:w-auto md:px-8"
+          >
+            <Play className="h-4 w-4" aria-hidden="true" />
+            Begin
+          </button>
+          <button
+            type="button"
+            onClick={handleBrowseTechniques}
+            className="mt-1 flex min-h-11 w-full items-center justify-center py-2 text-xs font-medium text-bw-tertiary transition-colors hover:text-bw-secondary md:mt-0 md:inline-flex md:w-auto md:px-1"
+          >
+            All techniques
+          </button>
+        </motion.div>
+      ) : null}
 
-          {/* Desktop welcome */}
-          <motion.div variants={fadeUp} className="hidden md:block pb-16 border-b border-bw-border">
-            <button
-              type="button"
-              aria-label={`Start your first session, ${buildProtocolDetailLabel(
-                suggestedProtocol.name,
-                suggestedDuration,
-                recommendation.primary.rounds,
-              )}`}
-              onClick={() => { haptic('success'); navigate(suggestedPath) }}
-              className="flex min-h-11 items-center gap-3 border border-bw-accent bg-bw-accent px-8 py-4 font-medium text-bw-accent-foreground text-sm transition-all hover:opacity-90"
-            >
-              <Play className="h-4 w-4" aria-hidden="true" />
-              Start your first session
-            </button>
-            <button
-              type="button"
-              onClick={handleBrowseTechniques}
-              className="mt-3 inline-flex min-h-11 items-center text-xs font-medium text-bw-tertiary transition-colors hover:text-bw-secondary"
-            >
-              Or browse all techniques
-            </button>
-          </motion.div>
-        </>
-      ) : (
-        /* ── Returning User Stats ──────────────────────── */
-        <>
-          {/* Mobile: 3 compact stat lines, brass rule signature */}
-          <motion.div variants={fadeUp} className="grid grid-cols-3 gap-3 pb-3 md:hidden">
-            <div className="border-t border-bw-border pt-3">
-              <StatNumeral size="sm" value={level} unit="Lv" />
-              <span className="mt-1.5 block text-[10px] text-bw-tertiary font-medium tracking-[0.07em] uppercase">
-                Level
-              </span>
-            </div>
-            <div className="border-t border-bw-border pt-3">
-              <StatNumeral size="sm" value={streak} />
-              <span className="mt-1.5 block text-[10px] text-bw-tertiary font-medium tracking-[0.07em] uppercase">
-                Streak
-              </span>
-            </div>
-            <div className="border-t border-bw-border pt-3">
-              <StatNumeral size="sm" value={formatTime(totalPracticeTime)} />
-              <span className="mt-1.5 block text-[10px] text-bw-tertiary font-medium tracking-[0.07em] uppercase">
-                Total
-              </span>
-            </div>
-          </motion.div>
-
-          {/* Desktop: editorial horizontal strip — title in Cormorant, rest on brass */}
-          <motion.div variants={fadeUp} className="hidden md:flex items-baseline gap-16 pb-12 border-b border-bw-border">
-            <div>
-              <span className="font-display text-3xl font-semibold text-bw leading-none">
-                {getLevelTitle(level)}
-              </span>
-              <span className="block text-[10px] text-bw-secondary font-medium tracking-[0.07em] uppercase mt-1.5">
-                Level {level}
-              </span>
-            </div>
-            <div>
-              <StatNumeral value={streak} />
-              <span className="block text-[10px] text-bw-secondary font-medium tracking-[0.07em] uppercase mt-1.5">
-                Day streak
-              </span>
-            </div>
-            <div>
-              <StatNumeral value={dailySessionCount} />
-              <span className="block text-[10px] text-bw-secondary font-medium tracking-[0.07em] uppercase mt-1.5">
-                Today
-              </span>
-            </div>
-            <div>
-              <StatNumeral value={formatTime(totalPracticeTime)} />
-              <span className="block text-[10px] text-bw-secondary font-medium tracking-[0.07em] uppercase mt-1.5">
-                Total
-              </span>
-            </div>
-          </motion.div>
-
-          {/* ── XP Progress — inline, minimal ────────────────── */}
-          <motion.div variants={fadeUp} className="pt-2 pb-4 sm:py-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] text-bw-secondary font-medium tracking-[0.07em] uppercase">
-                Level {level} progress
-              </span>
-              <span className="flex items-baseline gap-1.5 text-[10px] text-bw-secondary font-medium">
-                <span className="font-mono tabular-nums border-b border-bw-accent text-bw">
-                  {xpInLevel}
-                </span>
-                <span>/ {xpNeeded} XP</span>
-              </span>
-            </div>
-            <div className="h-px bg-bw-border overflow-hidden">
-              <div
-                className="h-full origin-left transition-transform duration-700 ease-out bg-bw-accent"
-                style={{
-                  transform: `translateZ(0) scaleX(${Math.round(levelProgress * 100) / 100})`,
-                }}
-              />
-            </div>
-          </motion.div>
-        </>
-      )}
-
-      {/* ── Protocol Lab ───────────────────────────────── */}
-      <motion.section variants={fadeUp} className="pt-3 md:pt-8" aria-labelledby="protocol-lab-heading">
+      {/* ── Recommended session ────────────────────────── */}
+      <motion.section variants={fadeUp} className="pt-0" aria-labelledby="recommended-heading">
         <div className="border-y border-bw-border py-5 md:py-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 id="protocol-lab-heading" className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary">
-                Protocol Lab
+              <h2 id="recommended-heading" className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary">
+                Recommended
               </h2>
               <div className="font-display text-2xl md:text-3xl font-semibold text-bw mt-1 leading-none">
                 {suggestedProtocol.name}
@@ -384,7 +256,7 @@ export function Home() {
               </div>
               <div className="min-w-0">
                 <span className="block text-[10px] font-medium uppercase tracking-[0.07em] opacity-75">
-                  Start recommended session
+                  Start
                 </span>
                 <span className="mt-0.5 block truncate text-sm font-semibold">
                   {suggestedProtocol.name}
@@ -400,10 +272,10 @@ export function Home() {
           {/* Tune the recommendation — secondary controls, below the primary CTA */}
           <div className="mt-5 border-t border-bw-border pt-4">
             <h3 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary">
-              Tune session
+              Adjust
             </h3>
             <div className="mt-3">
-              <div role="group" aria-label="Breathing goal" className="grid grid-cols-5 gap-1.5 sm:flex sm:w-max sm:gap-2">
+              <div role="group" aria-label="Breathing goal" className="flex max-w-full gap-1.5 overflow-x-auto overflow-y-hidden overscroll-x-contain no-scrollbar sm:w-max sm:overflow-visible">
                 {protocolGoalOptions.map((option) => {
                   const Icon = goalIcons[option.id]
                   const selected = selectedGoal === option.id
@@ -417,7 +289,7 @@ export function Home() {
                         setSelectedGoal(option.id)
                       }}
                       className={cn(
-                        'flex min-h-12 flex-col items-center justify-center gap-1 border px-1 text-[10px] font-medium transition-colors duration-200 sm:min-h-11 sm:flex-row sm:gap-2 sm:px-3 sm:text-xs',
+                        'flex min-h-12 min-w-[4.5rem] shrink-0 flex-col items-center justify-center gap-1 border px-2.5 text-[10px] font-medium transition-colors duration-200 sm:min-h-11 sm:min-w-0 sm:flex-row sm:gap-2 sm:px-3 sm:text-xs',
                         selected
                           ? 'border-bw-accent bg-bw-active text-bw'
                           : 'border-bw-border text-bw-tertiary hover:bg-bw-hover hover:text-bw-secondary'
@@ -475,10 +347,10 @@ export function Home() {
               className="mt-4 border-y border-bw-border py-3"
             >
               <div className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">
-                Advanced recovery active
+                Recovery
               </div>
               <p className="mt-1 text-xs leading-relaxed text-bw-tertiary">
-                Showing a moderate performance protocol for {formatTime(advancedRecoveryStatus.remainingSeconds)} after {advancedRecoveryStatus.lastProtocolName}.
+                Moderate protocol for {formatTime(advancedRecoveryStatus.remainingSeconds)} after {advancedRecoveryStatus.lastProtocolName}.
               </p>
             </div>
           ) : null}
@@ -489,15 +361,8 @@ export function Home() {
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
             <span>{suggestedProtocol.evidence}</span>
             <span>{suggestedProtocol.intensity}</span>
-            {suggestedProtocol.safetyChecklist?.length ? <span>Safety gated</span> : null}
+            {suggestedProtocol.safetyChecklist?.length ? <span>Safety check</span> : null}
           </div>
-            <div className="mt-4 flex flex-wrap gap-1.5">
-              {recommendation.primary.reasons.map((reason) => (
-                <span key={reason} className="border border-bw-border px-2 py-1 text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
-                  {reason}
-                </span>
-              ))}
-            </div>
 
           <div className="mt-5 grid gap-2 sm:grid-cols-2">
             {recommendation.alternatives.map((option) => (
@@ -536,7 +401,7 @@ export function Home() {
 
         {/* Mobile: horizontal scroll carousel — 2 cards visible */}
         <div
-          className="scroll-snap-x md:hidden max-w-full overflow-x-auto overscroll-x-contain no-scrollbar"
+          className="scroll-snap-x md:hidden max-w-full overflow-x-auto overflow-y-hidden overscroll-x-contain no-scrollbar"
           style={{ scrollPaddingLeft: '1rem' }}
         >
           <div
@@ -552,7 +417,7 @@ export function Home() {
                   aria-label={`Start ${p.name}`}
                   whileTap={tap(0.97)}
                   transition={motionTransition}
-                  className="border-t border-bw-border pt-4 pb-2 text-left bg-transparent"
+                  className="min-h-11 border-t border-bw-border pt-4 pb-2 text-left bg-transparent"
                   style={{ scrollSnapAlign: 'start' }}
                   onClick={() => { haptic('light'); navigate(`/breathwork/session?technique=${id}`) }}
                 >
@@ -702,8 +567,6 @@ export function Home() {
         </motion.div>
       )}
 
-      {/* Bottom breathing room */}
-      <div className="h-8" />
     </motion.div>
   )
 }

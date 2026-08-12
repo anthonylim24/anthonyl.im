@@ -14,9 +14,6 @@ export function PhaseIndicator({ phase, className }: PhaseIndicatorProps) {
   return (
     <div
       className={cn('text-center', className)}
-      role="status"
-      aria-live="polite"
-      aria-atomic="true"
     >
       {/* Phase label badge */}
       {phase && (
@@ -30,7 +27,7 @@ export function PhaseIndicator({ phase, className }: PhaseIndicatorProps) {
       {/* Main text */}
       <h2
         className={cn(
-          'font-display text-4xl font-semibold leading-none transition-all duration-500 text-bw',
+          'font-medium text-4xl leading-none tracking-tight text-bw',
           !phase && 'text-bw-tertiary'
         )}
       >

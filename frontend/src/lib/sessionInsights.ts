@@ -21,41 +21,41 @@ export interface SessionInsight {
 
 const CATEGORY_EFFECTS: Record<ProtocolCategory, Pick<SessionInsight, 'effectLabel' | 'effectDescription' | 'nextStep'>> = {
   calm: {
-    effectLabel: 'Downshift signal',
-    effectDescription: 'Slow breathing and longer exhales give the nervous system a repeatable cue to settle.',
-    nextStep: 'Check your jaw, shoulders, and breath rate before moving back into the day.',
+    effectLabel: 'Slower breathing',
+    effectDescription: 'Slow breathing and longer exhales lower respiratory rate.',
+    nextStep: 'Check jaw, shoulders, and breath rate before you stand.',
   },
   sleep: {
-    effectLabel: 'Sleep runway',
-    effectDescription: 'Long cycles and gentle retention create a deliberate off-ramp for late-night rumination.',
-    nextStep: 'Keep lights low and give yourself a few quiet minutes before reaching for another screen.',
+    effectLabel: 'Sleep prep',
+    effectDescription: 'Long cycles with a hold and a longer exhale. Used before bed.',
+    nextStep: 'Keep lights low. Wait a few minutes before another screen.',
   },
   focus: {
-    effectLabel: 'Pressure reset',
-    effectDescription: 'A structured cadence gives attention a stable timing target under stress.',
-    nextStep: 'Choose one next task and let this rhythm carry into the first minute of work.',
+    effectLabel: 'Focus',
+    effectDescription: 'A fixed cadence gives attention a timing target.',
+    nextStep: 'Pick one next task. Keep the same pace for the first minute.',
   },
   recovery: {
-    effectLabel: 'Ventilation ease',
-    effectDescription: 'A paced outflow can slow the respiratory cycle and support steadier recovery breathing.',
-    nextStep: 'Stand up slowly and keep the next minute of breathing quiet and easy.',
+    effectLabel: 'Recovery',
+    effectDescription: 'A paced exhale slows the respiratory cycle.',
+    nextStep: 'Stand up slowly. Keep the next minute of breathing quiet.',
   },
   performance: {
-    effectLabel: 'Composure training',
-    effectDescription: 'Higher-intensity breathwork trains attention around arousal, air hunger, and activation.',
-    nextStep: 'Return to nasal breathing for a minute before starting another advanced set.',
+    effectLabel: 'Activation',
+    effectDescription: 'Faster or held breathing. Raises arousal.',
+    nextStep: 'Nasal breathing for a minute before another advanced set.',
   },
 }
 
 const TECHNIQUE_EFFECTS: Partial<Record<TechniqueId, Pick<SessionInsight, 'effectLabel' | 'effectDescription' | 'nextStep'>>> = {
   [TECHNIQUE_IDS.CO2_TOLERANCE]: {
-    effectLabel: 'CO2 tolerance exposure',
-    effectDescription: 'Progressive holds practice staying composed as the urge to breathe rises.',
+    effectLabel: 'CO2 holds',
+    effectDescription: 'Progressive holds. Stay composed as the urge to breathe rises.',
     nextStep: 'Take at least a minute of relaxed nasal breathing before another hold set.',
   },
   [TECHNIQUE_IDS.POWER_BREATHING]: {
     effectLabel: 'Activation set',
-    effectDescription: 'Fast cycles are designed for alertness and high-energy preparation, not quiet downshifting.',
+    effectDescription: 'Fast cycles raise alertness. Not for quieting down.',
     nextStep: 'Stay seated until your breathing and balance feel completely normal.',
   },
 }
@@ -65,14 +65,14 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 function getDoseLabel(durationSeconds: number): string {
-  if (durationSeconds >= 480) return 'Deep protocol'
-  if (durationSeconds >= 300) return 'Full protocol'
-  if (durationSeconds >= 120) return 'Focused set'
-  return 'Primer'
+  if (durationSeconds >= 480) return 'Long'
+  if (durationSeconds >= 300) return 'Full'
+  if (durationSeconds >= 120) return 'Short'
+  return 'Brief'
 }
 
 function getScoreLabel(score: number): string {
-  if (score >= 92) return 'Exceptional'
+  if (score >= 92) return 'High'
   if (score >= 82) return 'Strong'
   if (score >= 70) return 'Steady'
   return 'Started'

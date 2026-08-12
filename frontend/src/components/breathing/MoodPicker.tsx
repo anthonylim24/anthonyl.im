@@ -57,7 +57,7 @@ export function MoodPicker({ value, onChange, label, hint, className }: MoodPick
                 )}
                 style={{ height: `${6 + option.value * 3}px` }}
               />
-              <span className="text-[9px] font-medium uppercase tracking-[0.04em] leading-none">
+              <span className="hidden min-[380px]:block text-[9px] font-medium uppercase tracking-[0.04em] leading-none">
                 {option.label}
               </span>
             </button>

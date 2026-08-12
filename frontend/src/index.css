@@ -14,44 +14,43 @@
 html,
 body {
   width: 100%;
-  height: 100%;
+  height: auto;
+  min-height: 0;
   margin: 0;
   padding: 0;
-  /* Defensive — these are no-ops on iOS Safari pre-16 and only partially
-     honored 16+ for document-level rubber-band, but they cost nothing and
-     do help every other mobile browser. The real iOS lock is the JS
-     body-scroll-lock applied by `useBodyScrollLock` during active sessions. */
-  overscroll-behavior: none;
-  /* iOS Safari sizes `html, body { height: 100% }` to the layout (large)
-     viewport — meaning the bottom is hidden behind the URL bar when it's
-     showing. Override with svh (small viewport) so the page fits the
-     actually-visible area at first paint. Older Safari ignores svh and
-     falls back to 100%. */
-  min-height: 100svh;
 }
 
+html {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: none;
+}
 
-/* #root must have a DEFINITE height (not min-height) so flex children
-   can compute overflow.  min-height alone lets the element grow past
-   the viewport, which means overflow-y:auto on descendants never fires. */
+body {
+  overscroll-behavior-y: none;
+}
+
 #root {
   width: 100%;
-  height: 100%;
+  height: auto;
+  min-height: 0;
   margin: 0;
   padding: 0;
 }
 
-.breathwork-layout,
-.breathwork {
+/* Short pages fill the *small* viewport (URL bar showing). 100vh on iOS is
+   the large viewport and lets the document rest past the last content. */
+.breathwork-layout {
   max-width: 100%;
-  overflow-x: clip;
+  height: auto;
+  min-height: 100svh;
+  overflow: visible;
 }
 
-@supports not (overflow: clip) {
-  .breathwork-layout,
-  .breathwork {
-    overflow-x: hidden;
-  }
+.breathwork {
+  max-width: 100%;
+  height: auto;
+  min-height: 0;
+  overflow: visible;
 }
 
 :root {
@@ -99,11 +98,11 @@ body {
 }
 
 .session-content {
-  padding-bottom: calc(8.75rem + env(safe-area-inset-bottom, 0px));
+  min-height: 0;
 }
 
 .session-controls {
-  bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
 }
 
 /* iOS Safari shell: size to the *small* viewport (URL-bar showing) so the
@@ -114,13 +113,6 @@ body {
 .session-shell {
   height: 100%;       /* fallback */
   height: 100svh;
-}
-
-/* Mobile bottom nav — standard pattern: position:fixed bottom-0 with safe-
-   area padding for the home indicator. Class lives here so jsdom doesn't
-   choke on the env() expression in inline styles. */
-.bw-mobile-nav {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* Idle dim — desaturate color, never opacity. Keyboard focus is always findable.
@@ -138,6 +130,69 @@ body {
 .session-controls-fade[data-dimmed="true"]:hover button:where(.text-bw-destructive, [class*="destructive"]),
 .session-controls-fade[data-dimmed="true"]:focus-within button:where(.text-bw-destructive, [class*="destructive"]) {
   color: var(--bw-destructive);
+}
+
+.session-orb {
+  width: clamp(10rem, 52vw, 24rem);
+  height: clamp(10rem, 52vw, 24rem);
+  max-width: min(82vw, 24rem);
+  max-height: min(48vh, 24rem);
+}
+
+.session-orb::after {
+  content: "";
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: 4%;
+  height: 14%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(28, 25, 23, 0.16), transparent 72%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.dark .session-orb::after {
+  background: radial-gradient(ellipse, rgba(0, 0, 0, 0.45), transparent 72%);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .session-start-cta:hover {
+    transform: scale(1.03);
+  }
+}
+
+/* Tesla / phone landscape / any short landscape panel: row layout so the
+   orb stays large and controls stay reachable. Coach copy hides; the live
+   region still announces it. */
+@media (orientation: landscape) and (max-height: 700px) {
+  .session-content {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 0.75rem 1.5rem;
+    padding-bottom: 0;
+  }
+
+  .session-orb {
+    width: min(72svh, 48vw, 20rem);
+    height: min(72svh, 48vw, 20rem);
+    max-width: min(72svh, 48vw, 20rem);
+    max-height: min(72svh, 48vw, 20rem);
+  }
+
+  .session-coach,
+  .session-safety-cue {
+    display: none;
+  }
+
+  .session-controls {
+    width: calc(100% - 1.5rem);
+    max-width: none;
+    gap: 0.75rem;
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+  }
 }
 
 
@@ -169,28 +224,38 @@ body {
 .leaves-overlay {
   position: fixed;
   inset: 0;
-  width: 100%;
-  height: 100%;
+  display: block;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
   object-fit: cover;
   object-position: center top;
   filter: grayscale(1) contrast(0.62) brightness(1.12);
   mix-blend-mode: multiply;
   pointer-events: none;
   z-index: 1;
+  contain: layout paint;
   opacity: 0;
   transition: opacity 700ms var(--ease-out-expo);
 }
 
+.leaves-overlay-media {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  pointer-events: none;
+}
+
 /* Column fade-in — dany.works entry animation */
 @keyframes col-fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .col-fade-in {
@@ -627,6 +692,7 @@ body {
 
 .scroll-snap-x {
   overflow-x: auto;
+  overflow-y: hidden;
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
 }

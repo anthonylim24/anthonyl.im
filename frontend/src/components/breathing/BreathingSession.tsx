@@ -590,7 +590,7 @@ export function BreathingSession({
 
       <div
         data-testid="session-content"
-        className="session-content relative z-10 flex w-full max-w-md flex-1 flex-col items-center justify-center px-5"
+        className="session-content relative z-10 flex w-full max-w-md min-h-0 flex-1 flex-col items-center justify-center px-5"
       >
         {/* Phase text above orb */}
         <div className="relative z-10 mb-3">
@@ -598,15 +598,7 @@ export function BreathingSession({
         </div>
 
         {/* Breathing visualization - scales with screen height and width to avoid overlap */}
-        <div
-          className="relative"
-          style={{
-            width: 'clamp(10rem, 52vw, 24rem)',
-            height: 'clamp(10rem, 52vw, 24rem)',
-            maxWidth: 'min(82vw, 24rem)',
-            maxHeight: 'min(48vh, 24rem)',
-          }}
-        >
+        <div className="session-orb relative">
           {canUseKirbyMode ? (
             <button
               type="button"
@@ -682,7 +674,7 @@ export function BreathingSession({
         </div>
 
         <p
-          className="relative z-10 mt-4 max-w-xs text-center text-xs leading-relaxed text-bw-tertiary"
+          className="session-coach relative z-10 mt-4 max-w-xs text-center text-xs leading-relaxed text-bw-tertiary"
           data-testid="phase-coach-cue"
         >
           {coachCue}
@@ -690,7 +682,7 @@ export function BreathingSession({
 
         {safetyCue ? (
           <p
-            className="relative z-10 mt-3 max-w-xs border border-bw-border px-3 py-2 text-center text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary"
+            className="session-safety-cue relative z-10 mt-3 max-w-xs border border-bw-border px-3 py-2 text-center text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary"
             data-testid="active-session-safety-cue"
           >
             {safetyCue}
@@ -704,7 +696,7 @@ export function BreathingSession({
         data-testid="session-controls"
         data-dimmed={controlsDimmed ? 'true' : 'false'}
         className={cn(
-          'session-controls session-controls-fade absolute left-1/2 z-10 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-4',
+          'session-controls session-controls-fade relative z-10 mt-auto flex w-full max-w-[calc(100vw-2rem)] flex-wrap items-center justify-center gap-4 px-4 pt-3',
           'transition-colors duration-500 motion-reduce:transition-none',
         )}
         role="toolbar"
@@ -732,7 +724,7 @@ export function BreathingSession({
           <button
             type="button"
             onClick={handleStart}
-            className="flex min-h-14 max-w-full items-center gap-3 border border-bw-accent bg-bw-accent px-8 py-4 text-base font-medium text-bw-accent-foreground transition-all duration-300 hover:scale-105"
+            className="session-start-cta flex min-h-14 max-w-full items-center gap-3 border border-bw-accent bg-bw-accent px-8 py-4 text-base font-medium text-bw-accent-foreground transition-transform duration-300"
           >
             <Play className="h-5 w-5" aria-hidden="true" />
             Start

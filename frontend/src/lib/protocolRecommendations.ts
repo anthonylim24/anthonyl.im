@@ -119,7 +119,7 @@ export const protocolGoalOptions: ProtocolGoalOption[] = [
 export const sessionWindowOptions: SessionWindowOption[] = [
   { id: 'quick', label: 'Quick', shortLabel: '3 min', targetSeconds: 180 },
   { id: 'standard', label: 'Standard', shortLabel: '5 min', targetSeconds: 300 },
-  { id: 'deep', label: 'Deep', shortLabel: '8 min', targetSeconds: 480 },
+  { id: 'deep', label: 'Long', shortLabel: '8 min', targetSeconds: 480 },
 ]
 
 const evidenceScore: Record<BreathingProtocol['evidenceLevel'], number> = {

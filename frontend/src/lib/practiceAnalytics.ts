@@ -77,36 +77,36 @@ function getConsistencyCopy(
   if (activeDays >= 5) {
     const advancedRecovery =
       dominantCategory === 'performance'
-        ? 'Balance the intensity with one gentle recovery or resonance session.'
-        : 'Keep the same anchor time and avoid turning consistency into strain.'
+        ? 'Add one recovery or resonance session.'
+        : 'Same time of day. Do not add intensity.'
 
     return {
-      label: 'Consistent rhythm',
-      description: 'Five or more practice days this week is enough repetition for a durable habit signal.',
+      label: '5+ days',
+      description: 'Five or more days this week.',
       nextStep: advancedRecovery,
     }
   }
 
   if (activeDays >= 3) {
     return {
-      label: 'Habit forming',
-      description: 'Three to four practice days gives the nervous system repeated context without needing daily pressure.',
-      nextStep: 'Repeat the easiest useful protocol tomorrow to make the habit automatic.',
+      label: '3 to 4 days',
+      description: 'Three or four days this week.',
+      nextStep: 'Same protocol tomorrow, or an easier one.',
     }
   }
 
   if (activeDays >= 1) {
     return {
-      label: 'Early signal',
-      description: 'You have a recent session on record. The next gain comes from repeating it before momentum fades.',
-      nextStep: 'Schedule one five-minute calm or resonance session in the next 24 hours.',
+      label: 'Started',
+      description: 'One or two sessions this week.',
+      nextStep: 'Another five minutes tomorrow.',
     }
   }
 
   return {
-    label: 'Ready to begin',
-    description: 'No recent practice is recorded yet, so the trend line is waiting for a first data point.',
-    nextStep: 'Start with a gentle five-minute protocol and let the app build your baseline.',
+    label: 'No sessions yet',
+    description: 'No sessions in the last seven days.',
+    nextStep: 'Start with five minutes.',
   }
 }
 

@@ -6,8 +6,8 @@ export const DEFAULT_ROUTE_METADATA = {
 } as const
 
 export const BREATHFLOW_ROUTE_METADATA = {
-  title: 'BreathFlow - Scientific Breathwork',
-  description: 'BreathFlow is a warm, evidence-informed breathwork app for calm, sleep, focus, recovery, and performance training.',
+  title: 'BreathFlow',
+  description: 'Timed breathing protocols with published research.',
   favicon: '/favicon-breath.svg',
   themeColor: 'transparent',
 } as const

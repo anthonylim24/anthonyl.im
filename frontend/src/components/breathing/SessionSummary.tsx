@@ -313,7 +313,7 @@ export function SessionSummary({
                 <div className="flex items-center gap-2 text-bw-secondary">
                   <Activity className="h-4 w-4 text-bw-accent" aria-hidden="true" />
                   <span className="text-[10px] font-medium uppercase tracking-[0.07em]">
-                    Session Insight · {insight.scoreLabel}
+                    {insight.scoreLabel}
                   </span>
                 </div>
                 <h3 className="mt-2 font-display text-2xl font-semibold leading-none text-bw">
@@ -332,7 +332,7 @@ export function SessionSummary({
               <SessionStatRow icon={Zap} label="XP" value={`+${xpEarned}`} />
               <SessionStatRow
                 icon={Sparkles}
-                label="Dose"
+                label="Length"
                 value={insight.doseLabel}
                 mono={false}
               />
@@ -341,13 +341,13 @@ export function SessionSummary({
             {holdTimes.length > 0 && (
               <motion.div variants={fadeUp}>
                 <div className="flex items-baseline justify-between gap-4 border-t border-bw-border py-3">
-                  <span className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">Best Hold</span>
+                  <span className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">Best hold</span>
                   <span className="inline-block font-mono tabular-nums text-base text-bw leading-none border-b border-bw-accent pb-0.5">
                     <AnimatedCounter target={maxHold} suffix="s" />
                   </span>
                 </div>
                 <div className="flex items-baseline justify-between gap-4 border-t border-bw-border py-3">
-                  <span className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">Avg Hold</span>
+                  <span className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">Avg hold</span>
                   <span className="inline-block font-mono tabular-nums text-base text-bw leading-none border-b border-bw-accent pb-0.5">
                     <AnimatedCounter target={avgHold} suffix="s" />
                   </span>
@@ -363,7 +363,7 @@ export function SessionSummary({
                 <div className="flex items-center justify-center gap-2">
                   <Star className="h-4 w-4 text-bw-secondary" />
                   <span className="text-sm font-medium text-bw">
-                    New Personal Best
+                    New best hold
                   </span>
                   <Star className="h-4 w-4 text-bw-secondary" />
                 </div>
@@ -392,7 +392,7 @@ export function SessionSummary({
               {moodAfter ? (
                 <div className="text-center">
                   <div className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">
-                    {moodShift ? 'Your shift' : 'Noted'}
+                    {moodShift ? 'Change' : 'Noted'}
                   </div>
                   {moodShift ? (
                     <>
@@ -401,15 +401,15 @@ export function SessionSummary({
                       </div>
                       <p className="mt-2 text-xs leading-relaxed text-bw-tertiary">
                         {moodDelta != null && moodDelta > 0
-                          ? 'You ended this session calmer than you started.'
+                          ? 'Calmer than you started.'
                           : moodDelta === 0
-                            ? 'You held steady — grounded through the whole session.'
-                            : 'Calm is a practice. Showing up is the rep that counts.'}
+                            ? 'Same as you started.'
+                            : 'More tense than you started.'}
                       </p>
                     </>
                   ) : (
                     <p className="mt-2 text-xs leading-relaxed text-bw-tertiary">
-                      Feeling {getMoodLabel(moodAfter).toLowerCase()}. Noted.
+                      Feeling {getMoodLabel(moodAfter).toLowerCase()}.
                     </p>
                   )}
                 </div>
@@ -426,7 +426,7 @@ export function SessionSummary({
             {newBadges.length > 0 && (
               <motion.div variants={fadeUp} className="mt-4 space-y-2">
                 <div className="text-xs text-bw-tertiary text-center font-medium uppercase tracking-wider">
-                  {newBadges.length === 1 ? 'Milestone Unlocked' : 'Milestones Unlocked'}
+                  {newBadges.length === 1 ? 'New badge' : 'New badges'}
                 </div>
                 <div className="flex flex-wrap justify-center gap-2">
                   {newBadges.map((badgeId) => {
@@ -463,7 +463,7 @@ export function SessionSummary({
                 className="border border-bw-border bg-bw-active px-4 py-3"
               >
                 <div className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">
-                  Recovery first
+                  Recovery
                 </div>
                 <p className="mt-1 text-xs leading-relaxed text-bw-tertiary">
                   Return to relaxed nasal breathing before another advanced set.

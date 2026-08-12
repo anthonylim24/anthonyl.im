@@ -61,12 +61,12 @@ afterEach(() => {
   }
 })
 
-describe('Home Protocol Lab', () => {
+describe('Home recommended session', () => {
   it('starts the recommended calm protocol with computed rounds', async () => {
     const user = userEvent.setup()
     renderHome()
 
-    expect(screen.getByRole('heading', { name: /protocol lab/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /recommended/i })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Calm' }))
     await user.click(screen.getByRole('button', { name: /Standard/ }))
@@ -76,7 +76,7 @@ describe('Home Protocol Lab', () => {
     })
 
     expect(startButton).toBeInTheDocument()
-    expect(within(startButton).getByText(/start recommended session/i)).toBeInTheDocument()
+    expect(within(startButton).getByText(/^Start$/)).toBeInTheDocument()
     expect(startButton).toHaveClass('bg-bw-accent')
 
     await user.click(startButton)
@@ -96,7 +96,7 @@ describe('Home Protocol Lab', () => {
     })
 
     expect(startButton).toBeInTheDocument()
-    expect(screen.getAllByText('Safety gated').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Safety check').length).toBeGreaterThan(0)
 
     await user.click(startButton)
     expect(mocks.navigate).toHaveBeenCalledWith(
@@ -124,7 +124,7 @@ describe('Home Protocol Lab', () => {
     await user.click(screen.getByRole('button', { name: 'Perform' }))
 
     expect(screen.getByTestId('protocol-lab-recovery-window')).toHaveTextContent(
-      /advanced recovery active/i,
+      /recovery/i,
     )
 
     const startButton = screen.getByRole('button', {
@@ -141,11 +141,11 @@ describe('Home Protocol Lab', () => {
   it('keeps welcome secondary controls at 44px target height', () => {
     renderHome()
 
-    for (const button of screen.getAllByRole('button', { name: /start your first session, .*rounds/i })) {
+    for (const button of screen.getAllByRole('button', { name: /begin, .*rounds/i })) {
       expect(button).toHaveClass('min-h-11')
     }
 
-    for (const button of screen.getAllByRole('button', { name: /browse all techniques/i })) {
+    for (const button of screen.getAllByRole('button', { name: /all techniques/i })) {
       expect(button).toHaveClass('min-h-11')
     }
   })
@@ -172,7 +172,7 @@ describe('Home Protocol Lab', () => {
 
     renderHome()
 
-    await user.click(screen.getAllByRole('button', { name: /browse all techniques/i })[0])
+    await user.click(screen.getAllByRole('button', { name: /all techniques/i })[0])
 
     expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'auto' })
   })

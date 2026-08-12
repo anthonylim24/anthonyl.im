@@ -56,6 +56,31 @@ describe('Header navigation', () => {
     }
   })
 
+  it('puts destinations in the sticky masthead instead of a floating footer', () => {
+    render(
+      <MemoryRouter initialEntries={['/breathwork']}>
+        <Header />
+      </MemoryRouter>
+    )
+
+    const nav = screen.getByRole('navigation', { name: 'Primary' })
+    expect(nav).not.toHaveClass('fixed')
+    expect(nav).not.toHaveClass('bottom-4')
+    expect(nav).toHaveClass('grid', 'grid-cols-4')
+    expect(screen.queryByRole('navigation', { name: 'Quick actions' })).toBeNull()
+  })
+
+  it('keeps the masthead destinations on session setup', () => {
+    render(
+      <MemoryRouter initialEntries={['/breathwork/session']}>
+        <Header />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole('navigation', { name: 'Primary' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Breathe' })).toHaveAttribute('aria-current', 'page')
+  })
+
   it('keeps the signed-out auth control at a 44px target size', async () => {
     clerkState.enabled = true
 
