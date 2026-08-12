@@ -9,7 +9,7 @@
 // from Kakao Local's category_group_code and district heuristics.
 
 import type { BusynessLevel, BusynessSource } from './types';
-import { GEMINI_MODEL, GEMINI_BASE } from './gemini';
+import { GEMINI_MODEL, GEMINI_BASE, geminiThinking } from './gemini';
 
 export interface BusynessResult {
   busyness: BusynessLevel;
@@ -83,7 +83,7 @@ async function fetchBusynessFromGemini(
         tools: [{ googleMaps: {} }],
         generationConfig: {
           temperature: 0.1,
-          thinkingConfig: { thinkingBudget: 256 },
+          thinkingConfig: geminiThinking('low'),
         },
       }),
       signal: AbortSignal.timeout(30_000),

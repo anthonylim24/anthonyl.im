@@ -1,5 +1,5 @@
 import Groq from "groq-sdk"
-import { GEMINI_BASE, GEMINI_MODEL } from "../igPlaces/gemini"
+import { GEMINI_BASE, TRIPS_GEMINI_MODEL, geminiThinking } from "../igPlaces/gemini"
 import { haversineMeters } from "../data/koreaPlaces"
 import {
   aiAppearanceSchema,
@@ -56,41 +56,104 @@ export function createGroqLlm(apiKey: string): LlmCall {
   }
 }
 
+type GeminiPart = { text?: string; thought?: boolean }
+
+function textFromGeminiParts(parts: GeminiPart[] | undefined): string {
+  // Thought summaries (when present) must not be concatenated into the JSON
+  // payload — they contain braces that break extractModelJson.
+  return parts?.filter((p) => !p.thought && p.text).map((p) => p.text!).join("") ?? ""
+}
+
 /**
- * Preferred trips LLM: Gemini 3.1 Flash Lite with Google Maps grounding.
+ * Preferred trips LLM: Gemini 3.6 Flash with Google Maps grounding.
  * Grounding lets the model verify venues exist and return real coordinates
- * directly (fewer geocode round-trips), and the model's context window
- * comfortably fits a full multi-day itinerary — Groq's on-demand tier
- * 8k-TPM limit 413s on trips longer than a weekend.
+ * directly (fewer geocode round-trips). On grounding/API failure, retries
+ * once in JSON-only mode (Maps + responseMimeType is unsupported).
  */
-export function createGeminiLlm(apiKey: string, fetchImpl: typeof fetch = fetch): LlmCall {
+export function createGeminiLlm(
+  apiKey: string,
+  fetchImpl: typeof fetch = fetch,
+  opts?: { model?: string },
+): LlmCall {
+  const model = opts?.model ?? TRIPS_GEMINI_MODEL
   return async ({ system, user, maxTokens }) => {
-    const res = await fetchImpl(`${GEMINI_BASE}/models/${GEMINI_MODEL}:generateContent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: `${system}\n\n${user}` }] }],
-        // Maps grounding — venue verification + coordinates from ground truth.
-        tools: [{ googleMaps: {} }],
-        generationConfig: {
-          temperature: 0.55,
-          maxOutputTokens: maxTokens ?? 16_384,
-          thinkingConfig: { thinkingBudget: 512 },
-        },
-      }),
-      signal: AbortSignal.timeout(120_000),
-    })
-    if (!res.ok) {
-      const body = await res.text().catch(() => "")
-      throw new Error(`gemini ${res.status}: ${body.slice(0, 300)}`)
+    const run = async (withMaps: boolean): Promise<string> => {
+      const generationConfig: Record<string, unknown> = {
+        temperature: 0.55,
+        maxOutputTokens: maxTokens ?? 16_384,
+        thinkingConfig: geminiThinking("low"),
+      }
+      // Maps grounding cannot be combined with application/json mime type
+      // (Gemini returns 400 INVALID_ARGUMENT). JSON mode is the no-Maps retry.
+      if (!withMaps) generationConfig.responseMimeType = "application/json"
+
+      const res = await fetchImpl(`${GEMINI_BASE}/models/${model}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: `${system}\n\n${user}` }] }],
+          ...(withMaps ? { tools: [{ googleMaps: {} }] } : {}),
+          generationConfig,
+        }),
+        signal: AbortSignal.timeout(120_000),
+      })
+      if (!res.ok) {
+        const body = await res.text().catch(() => "")
+        throw new Error(`gemini ${res.status}: ${body.slice(0, 300)}`)
+      }
+      const j = (await res.json()) as {
+        candidates?: Array<{
+          content?: { parts?: GeminiPart[] }
+          finishReason?: string
+        }>
+        promptFeedback?: { blockReason?: string }
+      }
+      if (j.promptFeedback?.blockReason) {
+        throw new Error(`gemini blocked: ${j.promptFeedback.blockReason}`)
+      }
+      const candidate = j.candidates?.[0]
+      const text = textFromGeminiParts(candidate?.content?.parts)
+      if (!text) {
+        const reason = candidate?.finishReason ?? "empty"
+        throw new Error(`gemini returned an empty response (${reason})`)
+      }
+      return text
     }
-    const j = (await res.json()) as {
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
+
+    try {
+      return await run(true)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.warn(`[trips/ai] Maps-grounded Gemini failed (${msg}); retrying JSON-only`)
+      return await run(false)
     }
-    const text = j.candidates?.[0]?.content?.parts?.map((p) => p.text).filter(Boolean).join("") ?? ""
-    if (!text) throw new Error("gemini returned an empty response")
-    return text
   }
+}
+
+/** Try `primary`, fall through to `fallback` on any throw. */
+export function withLlmFallback(primary: LlmCall, fallback: LlmCall): LlmCall {
+  return async (opts) => {
+    try {
+      return await primary(opts)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.warn(`[trips/ai] primary LLM failed; falling back (${msg})`)
+      return fallback(opts)
+    }
+  }
+}
+
+/** Gemini (Maps → JSON retry) with Groq as final fallback. */
+export function createTripsLlm(args: {
+  geminiApiKey?: string | null
+  groqApiKey?: string | null
+}): LlmCall | null {
+  const gemini = args.geminiApiKey ? createGeminiLlm(args.geminiApiKey) : null
+  const groq = args.groqApiKey ? createGroqLlm(args.groqApiKey) : null
+  if (!gemini && !groq) return null
+  if (!gemini) return groq
+  if (!groq) return gemini
+  return withLlmFallback(gemini, groq)
 }
 
 export function createGoogleGeocoder(apiKey: string): Geocoder {
@@ -144,7 +207,7 @@ export const fetchOpenMeteoWeather: WeatherFetcher = async ({ lat, lng, dates })
 /** Extract a JSON value from raw model text. Handles code fences, leading
  *  AND trailing prose (grounded Gemini appends source notes after the JSON),
  *  and double-encoded output (a JSON string whose content is itself JSON —
- *  observed from gemini-3.1-flash-lite with the Maps grounding tool). */
+ *  observed from grounded Flash models with the Maps grounding tool). */
 export function extractModelJson(raw: string): unknown {
   let candidate = raw.trim()
   const fence = candidate.match(/```(?:json)?\s*([\s\S]*?)```/)
@@ -190,12 +253,51 @@ type AiSuggestion = z.infer<typeof aiSuggestionSchema>
 
 const looseDaySchema = z.object({
   title: z.string().max(200).optional(),
-  emoji: z.string().max(8).optional(),
+  // ZWJ / flag emoji sequences regularly exceed 8 UTF-16 code units.
+  emoji: z.string().max(32).optional(),
   city: z.string().max(80).optional(),
   notes: z.string().max(4000).optional(),
   neighborhoods: z.array(z.string().min(1).max(80)).max(12).optional(),
   items: z.array(z.unknown()).max(60).default([]),
 })
+
+/** Pad "9:00" / "9:00 am" → "09:00". Returns original string if unparseable
+ *  so the schema can still reject truly bad values. */
+export function normalizeTime(raw: string): string {
+  const m = raw.trim().match(/^(\d{1,2}):(\d{2})(?:\s*([ap]m))?$/i)
+  if (!m) return raw
+  let h = Number(m[1])
+  const min = m[2]!
+  const ap = m[3]?.toLowerCase()
+  if (ap === "pm" && h < 12) h += 12
+  if (ap === "am" && h === 12) h = 0
+  if (!Number.isFinite(h) || h > 23 || Number(min) > 59) return raw
+  return `${String(h).padStart(2, "0")}:${min}`
+}
+
+function coerceCoord(value: unknown): number | unknown {
+  if (typeof value === "number") return value
+  if (typeof value === "string" && value.trim() !== "") {
+    const n = Number(value)
+    if (Number.isFinite(n)) return n
+  }
+  return value
+}
+
+/** Fold common model deviations before Zod: unpadded times, string lat/lng. */
+export function normalizeAiItem(raw: unknown): unknown {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return raw
+  const item = { ...(raw as Record<string, unknown>) }
+  if (typeof item.time === "string") item.time = normalizeTime(item.time)
+  if (typeof item.endTime === "string") item.endTime = normalizeTime(item.endTime)
+  if (item.location && typeof item.location === "object" && !Array.isArray(item.location)) {
+    const loc = { ...(item.location as Record<string, unknown>) }
+    loc.lat = coerceCoord(loc.lat)
+    loc.lng = coerceCoord(loc.lng)
+    item.location = loc
+  }
+  return item
+}
 
 export function salvageItinerary(raw: string): {
   summary?: string
@@ -219,7 +321,7 @@ export function salvageItinerary(raw: string): {
       return { items: [] }
     }
     const items = day.data.items
-      .map((rawItem) => aiItemSchema.safeParse(rawItem))
+      .map((rawItem) => aiItemSchema.safeParse(normalizeAiItem(rawItem)))
       .filter((r) => {
         if (!r.success) dropped++
         return r.success
@@ -243,6 +345,8 @@ function normalizeSuggestion(rawSug: unknown): unknown {
     }
   }
   if (typeof s.detail !== "string") s.detail = ""
+  if (s.proposedItem != null) s.proposedItem = normalizeAiItem(s.proposedItem)
+  if (s.proposedChanges != null) s.proposedChanges = normalizeAiItem(s.proposedChanges)
   return s
 }
 
@@ -383,25 +487,34 @@ export async function generateItinerary(args: {
 
   // Best-effort geocoding for AI places missing coordinates, so every
   // AI-added place lands in Map Mode rather than existing only as text.
+  // Parallel batches keep long trips under the client/proxy timeout —
+  // sequential 40×8s geocodes previously hung generation for minutes.
   if (geocode) {
     const pending = days
       .flatMap((d) => d.items)
       .filter((i) => i.location && (i.location.lat == null || i.location.lng == null))
       .slice(0, 40)
-    for (const item of pending) {
-      const loc = item.location!
-      try {
-        const hit = await geocode([loc.name, loc.address, trip.destinations[0]].filter(Boolean).join(", "))
-        if (hit) {
-          loc.lat = hit.lat
-          loc.lng = hit.lng
-          loc.address = loc.address ?? hit.address
-          loc.placeId = hit.placeId
-          loc.confidence = "medium"
-        }
-      } catch {
-        // leave un-geocoded; UI surfaces missing-coordinate places in list view
-      }
+    const destination = trip.destinations[0]
+    const CONCURRENCY = 6
+    for (let i = 0; i < pending.length; i += CONCURRENCY) {
+      const batch = pending.slice(i, i + CONCURRENCY)
+      await Promise.all(
+        batch.map(async (item) => {
+          const loc = item.location!
+          try {
+            const hit = await geocode([loc.name, loc.address, destination].filter(Boolean).join(", "))
+            if (hit) {
+              loc.lat = hit.lat
+              loc.lng = hit.lng
+              loc.address = loc.address ?? hit.address
+              loc.placeId = hit.placeId
+              loc.confidence = "medium"
+            }
+          } catch {
+            // leave un-geocoded; UI surfaces missing-coordinate places in list view
+          }
+        }),
+      )
     }
   }
 

@@ -11,7 +11,7 @@ import entityRouter from "./src/routes/entity";
 import { createInstagramPlacesRouter } from "./src/routes/instagramPlaces";
 import { createTripsRouter } from "./src/routes/trips";
 import { getTripStore } from "./src/trips/store";
-import { createGeminiLlm, createGoogleGeocoder, createGroqLlm } from "./src/trips/ai";
+import { createGoogleGeocoder, createTripsLlm } from "./src/trips/ai";
 import { createClerkAuth, verifyClerkOptional } from "./src/middleware/clerkAuth";
 import { createRateLimit } from "./src/middleware/rateLimit";
 import { bootIgWorker, getQueue, listJobsForUser, listExtractedPlaces, listIgPlaceDays, setIgPlaceDays } from "./src/igPlaces/wire";
@@ -174,13 +174,13 @@ app.route(
         devBearer: config.igDevBearer,
         devUserId: config.igDevUserId,
       }),
-    // Gemini (Maps grounding, big context) preferred; Groq is the fallback —
-    // its on-demand tier 8k-TPM limit 413s on full-trip itineraries.
-    llm: config.geminiApiKey
-      ? createGeminiLlm(config.geminiApiKey)
-      : config.groqApiKey
-        ? createGroqLlm(config.groqApiKey)
-        : null,
+    // Gemini 3.6 Flash (Maps → JSON retry) with Groq as final fallback —
+    // Groq's on-demand tier 8k-TPM still 413s on full-trip itineraries, so
+    // it's last resort only.
+    llm: createTripsLlm({
+      geminiApiKey: config.geminiApiKey,
+      groqApiKey: config.groqApiKey,
+    }),
     geocode: config.googleMapsApiKey ? createGoogleGeocoder(config.googleMapsApiKey) : null,
   }),
 );

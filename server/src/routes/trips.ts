@@ -258,7 +258,7 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     if ("error" in result) return result.error
     const body = generateRequestSchema.safeParse(await c.req.json().catch(() => ({})))
     if (!body.success) return c.json({ error: "invalid request", issues: body.error.issues }, 400)
-    if (!deps.llm) return c.json({ error: "ai_not_configured", message: "GROQ_API_KEY missing" }, 503)
+    if (!deps.llm) return c.json({ error: "ai_not_configured", message: "GEMINI_API_KEY or GROQ_API_KEY missing" }, 503)
 
     const hasItems = result.trip.days.some((d) => d.items.length > 0)
     if (hasItems && !body.data.replaceExisting) {
@@ -299,7 +299,7 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     if (body.data.scope === "day" && !body.data.dayId) {
       return c.json({ error: "dayId required for day scope" }, 400)
     }
-    if (!deps.llm) return c.json({ error: "ai_not_configured", message: "GROQ_API_KEY missing" }, 503)
+    if (!deps.llm) return c.json({ error: "ai_not_configured", message: "GEMINI_API_KEY or GROQ_API_KEY missing" }, 503)
 
     const run = await enhanceTrip({
       trip: result.trip,

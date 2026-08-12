@@ -90,10 +90,26 @@ export const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 /** Single source of truth for which Gemini model every factory in this
  *  module uses (text extraction, video understanding, video transcription).
  *  Flash Lite handles all three workloads (multimodal: text + image + video
- *  + audio + PDF) at $0.25/1M-in / $1.50/1M-out, vs ~6× pricier Flash. To
- *  swap app-wide, change this one line. Per-call `model` overrides on the
+ *  + audio + PDF) at the cost-efficient Flash-Lite tier. Trips itinerary
+ *  generation opts into a stronger Flash model via `TRIPS_GEMINI_MODEL`.
+ *  To swap app-wide, change this one line. Per-call `model` overrides on the
  *  factories still work if a specific surface needs a different tier. */
-export const GEMINI_MODEL = 'gemini-3.1-flash-lite';
+export const GEMINI_MODEL = 'gemini-3.5-flash-lite'
+
+/** Stronger Flash tier for multi-day itinerary planning (Maps grounding +
+ *  large structured JSON). Kept separate from GEMINI_MODEL so high-volume
+ *  IG extraction stays on the cheaper Flash-Lite path. */
+export const TRIPS_GEMINI_MODEL = 'gemini-3.6-flash'
+
+/** Gemini 3 thinking levels. Prefer these over the 2.5-era `thinkingBudget`
+ *  — budget is accepted for back-compat but can behave unexpectedly on 3.x. */
+export type GeminiThinkingLevel = 'minimal' | 'low' | 'medium' | 'high'
+
+export function geminiThinking(level: GeminiThinkingLevel = 'low'): {
+  thinkingLevel: GeminiThinkingLevel
+} {
+  return { thinkingLevel: level }
+}
 
 /** Status codes Google documents as transient on Generative Language API.
  *  https://ai.google.dev/gemini-api/docs/troubleshooting */
@@ -151,11 +167,9 @@ export function createGeminiExtractor(deps: GeminiExtractorDeps): GeminiExtracto
         tools: [{ googleMaps: {} }],
         generationConfig: {
           temperature: 0.3,
-          // `thinkingBudget: 512` gives the model a short reasoning window —
-          // tradeoff between latency (lower is faster) and quality (higher
-          // resolves ambiguous places better). 512 matches Google's
-          // benchmark default and adds <2s vs minimal.
-          thinkingConfig: { thinkingBudget: 512 },
+          // Low thinking: enough to resolve ambiguous venues via Maps
+          // grounding without the latency of medium/high.
+          thinkingConfig: geminiThinking('low'),
         },
       }),
       signal: AbortSignal.timeout(45_000),
@@ -244,10 +258,8 @@ export function createGeminiPlaceResolver(deps: GeminiResolverDeps): GeminiPlace
         tools: [{ googleMaps: {} }],
         generationConfig: {
           temperature: 0.1,
-          // Low temp + small budget: this is a precision task, not a
-          // creative one. The model picks A, B, or finds C — short
-          // reasoning is enough.
-          thinkingConfig: { thinkingBudget: 512 },
+          // Low temp + low thinking: precision pick A/B/C, not creative.
+          thinkingConfig: geminiThinking('low'),
         },
       }),
       signal: AbortSignal.timeout(45_000),
@@ -569,10 +581,9 @@ export function createGeminiVideoAnalyzer(deps: GeminiVideoAnalyzerDeps): Gemini
         generationConfig: {
           temperature: 0.3,
           // 1024-token reasoning budget so the model can plan across the
-          // multimodal inputs (audio + frames + caption + grounding). At
-          // 256 it occasionally short-circuits OCR; at 1024 it consistently
-          // produces all three sections.
-          thinkingConfig: { thinkingBudget: 1024 },
+          // Medium thinking for multimodal planning (audio + frames +
+          // caption + grounding). Minimal/low occasionally short-circuits OCR.
+          thinkingConfig: geminiThinking('medium'),
         },
       }),
       signal: signal ?? AbortSignal.timeout(180_000),
@@ -666,10 +677,9 @@ export function createGeminiCarouselAnalyzer(deps: GeminiCarouselAnalyzerDeps): 
         tools: [{ googleMaps: {} }],
         generationConfig: {
           temperature: 0.3,
-          // Same budget as the video analyzer — the model still has
-          // to plan across multimodal inputs (N images + caption +
-          // grounding).
-          thinkingConfig: { thinkingBudget: 1024 },
+          // Medium thinking — plan across multimodal inputs (N images +
+          // caption + grounding), matching the video analyzer.
+          thinkingConfig: geminiThinking('medium'),
         },
       }),
       signal: signal ?? AbortSignal.timeout(180_000),
