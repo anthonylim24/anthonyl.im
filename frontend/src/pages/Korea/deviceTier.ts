@@ -1,12 +1,11 @@
 // Device-tier detection + effect-preference persistence for the
-// Detailed-3D Map Mode scene.
+// Map Mode photorealistic tiles scene.
 //
 // We do a one-shot GPU/CPU/memory sniff at module load time and bucket
 // the device into "low" / "medium" / "high". The tier picks the
-// default state of three optional post-processing effects (atmospheric
-// fog, god rays, the time-of-day CSS grade); any explicit user choice
-// in the debug menu wins over the default and is persisted to
-// localStorage so the same browser remembers its preference.
+// default state of optional post-processing effects (atmospheric fog,
+// god rays, time-of-day CSS grade, max quality). Overrides persist in
+// localStorage when present; there is no traveler-facing debug UI.
 //
 // The detector is deliberately conservative — when in doubt we pick
 // the cheaper tier. Mobile GPUs (Mali, Adreno 3xx–5xx, PowerVR) and
@@ -28,11 +27,8 @@ export interface EffectPrefs {
    *  Compositor-only — effectively free, on by default. */
   grade: boolean
   /** "Max Quality" pipeline — HDR EffectComposer with AgX tone mapping,
-   *  per-phase bloom, ray-marched volumetric clouds with ground
-   *  shadows, in-shader color grade, SMAA. Tier-gated to `high` GPUs
-   *  by default; on A19-class hardware it adds ~5–6 ms/frame, which
-   *  fits the 16.6 ms budget with the existing tile cost. The toggle
-   *  is exposed in the debug menu so the user can always force it. */
+   *  per-phase bloom, ray-marched volumetric clouds, in-shader grade,
+   *  SMAA. Opt-in; persisted when previously enabled. */
   maxQuality: boolean
 }
 
@@ -83,10 +79,8 @@ export function detectTier(): DeviceTier {
   return "medium"
 }
 
-/** Tier-default effect prefs. Users can override and persist via the
- *  debug menu. `prefersReducedMotion` is treated as a hard "low" tier
- *  for the defaults — fog + god rays both off — but the user can still
- *  toggle them on manually if they want. */
+/** Tier-default effect prefs. `prefersReducedMotion` forces the cheap
+ *  defaults (fog + god rays off). Max Quality stays opt-in even on high. */
 export function defaultPrefsForTier(tier: DeviceTier, prefersReducedMotion = false): EffectPrefs {
   if (prefersReducedMotion || tier === "low") {
     return { fog: false, godRays: false, grade: true, maxQuality: false }
@@ -94,9 +88,6 @@ export function defaultPrefsForTier(tier: DeviceTier, prefersReducedMotion = fal
   if (tier === "medium") {
     return { fog: true, godRays: false, grade: true, maxQuality: false }
   }
-  // Max Quality stays opt-in by default even on high tier — it's a
-  // ~5-6 ms/frame budget hit that not every user will want. The
-  // debug menu surfaces the toggle prominently.
   return { fog: true, godRays: true, grade: true, maxQuality: false }
 }
 

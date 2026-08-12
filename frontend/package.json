@@ -12,7 +12,8 @@
     "test": "vitest",
     "test:run": "vitest run",
     "e2e": "playwright test",
-    "e2e:install": "playwright install chromium"
+    "e2e:install": "playwright install chromium",
+    "screenshot:map-mode": "bun scripts/capture-map-mode.mjs"
   },
   "dependencies": {
     "3d-tiles-renderer": "^0.4.28",
