@@ -57,4 +57,26 @@ assert_contains ".codex/check.sh" "verify_frontend_typescript"
   exit 1
 }
 
+# Remote PR previews: workflow exists, is not part of pr-gate, and the
+# droplet publish script is executable + syntactically valid.
+[ -f "$ROOT_DIR/.github/workflows/preview.yml" ] || {
+  echo "[codex-cloud-test] missing .github/workflows/preview.yml" >&2
+  exit 1
+}
+assert_contains ".github/workflows/preview.yml" "/preview/pr/"
+assert_contains ".github/workflows/preview.yml" "VITE_ENABLE_SERVICE_WORKER=false"
+assert_contains ".github/workflows/preview.yml" "dependabot[bot]"
+assert_contains ".github/workflows/preview.yml" "head.repo.full_name"
+if grep -A30 '^  pr-gate:' "$ROOT_DIR/.github/workflows/pr.yml" | grep -q 'preview'; then
+  echo "[codex-cloud-test] preview must not be a pr-gate dependency" >&2
+  exit 1
+fi
+assert_executable "deploy/publish-preview.sh"
+bash -n "$ROOT_DIR/deploy/publish-preview.sh"
+assert_contains "deploy/publish-preview.sh" "preview.json"
+[ -f "$ROOT_DIR/server/src/preview.ts" ] || {
+  echo "[codex-cloud-test] missing server/src/preview.ts" >&2
+  exit 1
+}
+
 echo "[codex-cloud-test] setup script invariants passed"

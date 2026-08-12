@@ -1,16 +1,18 @@
 import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { getRouteMetadata } from '@/lib/routeMetadata'
+import { withViteBase } from '@/lib/routerBasename'
 
 export function useFavicon() {
   const { pathname } = useLocation()
 
   useEffect(() => {
     const meta = getRouteMetadata(pathname)
+    const href = withViteBase(meta.favicon)
 
     const link = document.querySelector<HTMLLinkElement>("link[rel='icon'][type='image/svg+xml']")
-    if (link && link.getAttribute('href') !== meta.favicon) {
-      link.setAttribute('href', meta.favicon)
+    if (link && link.getAttribute('href') !== href) {
+      link.setAttribute('href', href)
     }
 
     const themeTag = document.querySelector<HTMLMetaElement>("meta[name='theme-color']")

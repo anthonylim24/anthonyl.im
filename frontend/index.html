@@ -35,7 +35,9 @@
 
     <script data-route-metadata="breathflow">
       (() => {
-        if (!location.pathname.startsWith('/breathwork')) return;
+        const appPath = location.pathname.replace(/^\/preview\/pr\/\d+(?=\/|$)/, '') || '/';
+        const assetBase = (location.pathname.match(/^\/preview\/pr\/\d+/) || [''])[0];
+        if (!appPath.startsWith('/breathwork')) return;
 
         const title = 'BreathFlow - Scientific Breathwork';
         const description = 'BreathFlow is a warm, evidence-informed breathwork app for calm, sleep, focus, recovery, and performance training.';
@@ -51,7 +53,7 @@
         }
 
         const favicon = document.querySelector('link[rel="icon"][type="image/svg+xml"]');
-        if (favicon) favicon.setAttribute('href', '/favicon-breath.svg');
+        if (favicon) favicon.setAttribute('href', assetBase + '/favicon-breath.svg');
 
         document.title = title;
         setRouteMeta('meta[name="description"]', 'name', 'description', description);
@@ -68,7 +70,9 @@
 
     <script data-route-metadata="korea">
       (() => {
-        if (!location.pathname.startsWith('/korea')) return;
+        const appPath = location.pathname.replace(/^\/preview\/pr\/\d+(?=\/|$)/, '') || '/';
+        const assetBase = (location.pathname.match(/^\/preview\/pr\/\d+/) || [''])[0];
+        if (!appPath.startsWith('/korea')) return;
 
         const title = 'South Korea Itinerary — Seoul + Busan';
         const description = 'A 12-day Seoul + Busan trip with reservations, weather, smart links, and a 3D Map Mode that puts you at the center.';
@@ -88,11 +92,11 @@
         // it. (iOS Safari reads the manifest at page load and may
         // ignore JS-driven changes.)
         const manifest = document.querySelector('link[rel="manifest"]');
-        if (manifest) manifest.setAttribute('href', '/korea.webmanifest');
+        if (manifest) manifest.setAttribute('href', assetBase + '/korea.webmanifest');
 
         // Swap favicon to the Korea variant
         const favicon = document.querySelector('link[rel="icon"][type="image/svg+xml"]');
-        if (favicon) favicon.setAttribute('href', '/favicon-korea.svg');
+        if (favicon) favicon.setAttribute('href', assetBase + '/favicon-korea.svg');
 
         // Theme color: warm rose tint
         const themeColor = document.querySelector('meta[name="theme-color"]');

@@ -13,7 +13,8 @@ export const BREATHFLOW_ROUTE_METADATA = {
 } as const
 
 export function getRouteMetadata(pathname: string) {
-  return pathname.startsWith('/breathwork')
+  const appPath = pathname.replace(/^\/preview\/pr\/\d+(?=\/|$)/, "") || "/"
+  return appPath.startsWith("/breathwork")
     ? BREATHFLOW_ROUTE_METADATA
     : DEFAULT_ROUTE_METADATA
 }

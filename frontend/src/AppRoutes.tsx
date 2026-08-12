@@ -2,6 +2,7 @@ import { lazy, Suspense, type ReactNode } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import App from './App'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
+import { routerBasename } from './lib/routerBasename'
 import {
   loadBreathworkNotFoundPage,
   loadHomePage,
@@ -134,7 +135,7 @@ function Guarded({
 
 export function AppRoutes() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={routerBasename()}>
       <Routes>
         <Route
           path="/"

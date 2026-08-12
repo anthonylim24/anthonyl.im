@@ -15,6 +15,7 @@ import { createGoogleGeocoder, createTripsLlm } from "./src/trips/ai";
 import { createClerkAuth, verifyClerkOptional } from "./src/middleware/clerkAuth";
 import { createRateLimit } from "./src/middleware/rateLimit";
 import { bootIgWorker, getQueue, listJobsForUser, listExtractedPlaces, listIgPlaceDays, setIgPlaceDays } from "./src/igPlaces/wire";
+import { createPreviewRouter, getPreviewRoot, previewSiteUrl } from "./src/preview";
 import { join, resolve } from "path";
 
 const app = new Hono();
@@ -229,6 +230,14 @@ if (clerkAuth) {
 }
 
 bootIgWorker();
+
+// Remote PR previews — published by .github/workflows/preview.yml into
+// $PREVIEW_ROOT/<pr>/ (default ~/previews). Mounted before static/SPA so a
+// missing preview returns 404 rather than the production index.html.
+app.route("/", createPreviewRouter({
+    root: getPreviewRoot(),
+    siteUrl: previewSiteUrl(),
+  }));
 
 // Health check
 app.get("/health", (c) =>

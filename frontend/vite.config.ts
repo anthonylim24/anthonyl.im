@@ -4,6 +4,11 @@ import { defineConfig } from "vite"
 
 export default defineConfig({
   plugins: [react()],
+  base: (() => {
+    const raw = process.env.VITE_BASE?.trim()
+    if (!raw || raw === "/") return "/"
+    return raw.endsWith("/") ? raw : `${raw}/`
+  })(),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
