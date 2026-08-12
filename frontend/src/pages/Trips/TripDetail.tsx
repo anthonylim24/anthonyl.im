@@ -1415,7 +1415,7 @@ function IconButton({
       onClick={onClick}
       className={`rounded-md p-1.5 transition disabled:opacity-30 ${
         destructive
-          ? "text-stone-500 hover:bg-red-100 hover:text-red-800 dark:hover:bg-red-950/50 dark:hover:text-red-300"
+          ? "text-red-800/55 hover:bg-red-100 hover:text-red-900 dark:text-red-300/60 dark:hover:bg-red-950/50 dark:hover:text-red-200"
           : "text-stone-400 hover:bg-stone-100 hover:text-stone-700 dark:hover:bg-stone-800 dark:hover:text-stone-300"
       }`}
     >

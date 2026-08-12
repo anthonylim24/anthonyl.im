@@ -311,7 +311,7 @@ export function TripsIndex() {
                                     setConfirmId(trip.id)
                                     setDeleteError(null)
                                   }}
-                                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-stone-500 transition hover:bg-red-100 hover:text-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 dark:text-stone-400 dark:hover:bg-red-950/50 dark:hover:text-red-300"
+                                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-red-800/55 transition hover:bg-red-100 hover:text-red-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 dark:text-red-300/60 dark:hover:bg-red-950/50 dark:hover:text-red-200"
                                   aria-label={`Delete ${trip.name}`}
                                 >
                                   <Trash2 className="h-4 w-4" aria-hidden />
