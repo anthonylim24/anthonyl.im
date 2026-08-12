@@ -37,15 +37,19 @@ body {
   padding: 0;
 }
 
-/* Fill the visible screen on short pages without using dvh, which is the
-   iOS large viewport and adds empty document height under the URL bar. */
-.breathwork-layout,
+/* Short pages fill the *small* viewport (URL bar showing). 100vh on iOS is
+   the large viewport and lets the document rest past the last content. */
+.breathwork-layout {
+  max-width: 100%;
+  height: auto;
+  min-height: 100svh;
+  overflow: visible;
+}
+
 .breathwork {
   max-width: 100%;
   height: auto;
-  min-height: 100vh;
-  min-height: 100svh;
-  min-height: -webkit-fill-available;
+  min-height: 0;
   overflow: visible;
 }
 
@@ -237,16 +241,10 @@ body {
    z-index can still swallow touch-scroll momentum on WebKit ≤ iOS 15. */
 .leaves-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: auto;
-  bottom: auto;
+  inset: 0;
   display: block;
-  width: 100vw;
-  height: 100vh;
-  height: 100svh;
-  max-width: 100vw;
-  max-height: 100svh;
+  width: auto;
+  height: auto;
   margin: 0;
   padding: 0;
   overflow: hidden;
@@ -256,7 +254,7 @@ body {
   mix-blend-mode: multiply;
   pointer-events: none;
   z-index: 1;
-  contain: strict;
+  contain: layout paint;
   opacity: 0;
   transition: opacity 700ms var(--ease-out-expo);
 }

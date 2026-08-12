@@ -30,8 +30,10 @@ describe('BreathworkLayout reduced motion', () => {
       </MemoryRouter>,
     )
 
-    const overlay = container.querySelector<HTMLVideoElement>('.leaves-overlay')
+    const overlay = document.querySelector<HTMLElement>('.leaves-overlay')
     expect(overlay).toBeTruthy()
+    expect(container.contains(overlay)).toBe(false)
+    expect(overlay?.parentElement).toBe(document.body)
     await waitFor(() => {
       expect(overlay).toHaveStyle({ opacity: '0.5' })
     })
@@ -40,13 +42,13 @@ describe('BreathworkLayout reduced motion', () => {
   it('does not render autoplaying ambient video for reduced-motion users', () => {
     mocks.reducedMotion = true
 
-    const { container } = render(
+    render(
       <MemoryRouter>
         <BreathworkLayout />
       </MemoryRouter>,
     )
 
-    expect(container.querySelector('.leaves-overlay')).toBeNull()
+    expect(document.querySelector('.leaves-overlay')).toBeNull()
   })
 
   it('lets the session setup screen own its footer spacing instead of adding an outer spacer', () => {

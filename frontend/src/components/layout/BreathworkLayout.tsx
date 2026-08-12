@@ -1,4 +1,5 @@
 import { useRef, useEffect, lazy, memo, Suspense } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocation } from 'react-router-dom'
 import { AnimatedOutlet } from './AnimatedOutlet'
 import type { CSSProperties } from 'react'
@@ -52,8 +53,12 @@ const LeavesVideo = memo(function LeavesVideo({ reducedMotion }: { reducedMotion
   }, [reducedMotion])
 
   if (reducedMotion) return null
+  if (typeof document === 'undefined') return null
 
-  return (
+  // Portal to body so a viewport-sized texture cannot sit in BreathFlow's
+  // document flow. On iOS, a `position: fixed` overlay sized with 100vw/100vh
+  // inside the layout tree was expanding scrollHeight by a full viewport.
+  return createPortal(
     <div ref={wrapRef} className="leaves-overlay" aria-hidden="true">
       <video
         ref={videoRef}
@@ -64,7 +69,8 @@ const LeavesVideo = memo(function LeavesVideo({ reducedMotion }: { reducedMotion
         preload="auto"
         className="leaves-overlay-media"
       />
-    </div>
+    </div>,
+    document.body,
   )
 }, (prev, next) => prev.reducedMotion === next.reducedMotion)
 
