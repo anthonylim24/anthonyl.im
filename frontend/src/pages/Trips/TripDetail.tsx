@@ -34,6 +34,7 @@ import {
   removeItem,
   updateItem,
 } from "./tripEdits"
+import { ACCENT_SWATCH } from "./theme"
 import type {
   EnhancementRun,
   ItemKind,
@@ -129,37 +130,88 @@ export function TripDetail() {
     })()
   }, [tripId, getToken])
 
-  // Debounced document save: any edit marks the trip dirty; 900ms after the
-  // last keystroke the whole days array (and renamed metadata) is PATCHed.
-  const scheduleSave = useCallback(
-    (next: Trip) => {
-      setTrip(next)
-      setSaveState("dirty")
-      if (saveTimer.current) clearTimeout(saveTimer.current)
-      saveTimer.current = setTimeout(() => {
-        setSaveState("saving")
-        void updateTrip(getToken, next.id, {
+  // Latest pending document for flush-on-leave.
+  const pendingPatchRef = useRef<Trip | null>(null)
+
+  const persistTrip = useCallback(
+    async (next: Trip) => {
+      setSaveState("saving")
+      try {
+        await updateTrip(getToken, next.id, {
           name: next.name,
           status: next.status,
           slug: next.slug,
+          appearance: next.appearance,
+          destinations: next.destinations,
+          startDate: next.startDate,
+          endDate: next.endDate,
+          timezone: next.timezone,
+          tags: next.tags,
+          description: next.description ?? null,
           days: next.days,
         })
-          .then(() => setSaveState("saved"))
-          .catch((err: unknown) => {
-            setSaveState("error")
-            // Permalink conflicts/validation deserve a readable explanation,
-            // not just the red pill.
-            const message = err instanceof Error ? err.message : String(err)
-            if (/permalink|slug|hyphen/i.test(message)) setNotice(message)
-          })
-      }, 900)
+        // Ignore stale responses if a newer edit is already queued.
+        if (pendingPatchRef.current && pendingPatchRef.current !== next) return
+        pendingPatchRef.current = null
+        setSaveState("saved")
+      } catch (err: unknown) {
+        setSaveState("error")
+        const message = err instanceof Error ? err.message : String(err)
+        if (/permalink|slug|hyphen/i.test(message)) setNotice(message)
+      }
     },
     [getToken],
   )
 
-  useEffect(() => () => {
-    if (saveTimer.current) clearTimeout(saveTimer.current)
-  }, [])
+  // Debounced document save: any edit marks the trip dirty; 900ms after the
+  // last keystroke metadata + days are PATCHed (including appearance).
+  const scheduleSave = useCallback(
+    (next: Trip) => {
+      setTrip(next)
+      pendingPatchRef.current = next
+      setSaveState("dirty")
+      if (saveTimer.current) clearTimeout(saveTimer.current)
+      saveTimer.current = setTimeout(() => {
+        void persistTrip(next)
+      }, 900)
+    },
+    [persistTrip],
+  )
+
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!pendingPatchRef.current) return
+      e.preventDefault()
+      e.returnValue = ""
+    }
+    window.addEventListener("beforeunload", onBeforeUnload)
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload)
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current)
+        saveTimer.current = null
+      }
+      const pending = pendingPatchRef.current
+      if (pending) {
+        pendingPatchRef.current = null
+        void updateTrip(getToken, pending.id, {
+          name: pending.name,
+          status: pending.status,
+          slug: pending.slug,
+          appearance: pending.appearance,
+          destinations: pending.destinations,
+          startDate: pending.startDate,
+          endDate: pending.endDate,
+          timezone: pending.timezone,
+          tags: pending.tags,
+          description: pending.description ?? null,
+          days: pending.days,
+        }).catch(() => {
+          /* best-effort flush on leave */
+        })
+      }
+    }
+  }, [getToken])
 
   const setDays = useCallback(
     (fn: (days: TripDay[]) => TripDay[]) => {
@@ -221,6 +273,17 @@ export function TripDetail() {
     if (recentTimer.current) clearTimeout(recentTimer.current)
   }, [])
 
+  useEffect(() => {
+    if (state.status !== "success" || !trip) return
+    const hash = routerLocation.hash.replace(/^#/, "")
+    if (!hash) return
+    // Wait a frame so day sections exist in the DOM after async load.
+    const id = window.setTimeout(() => {
+      document.getElementById(hash)?.scrollIntoView({ behavior: "smooth", block: "start" })
+    }, 80)
+    return () => window.clearTimeout(id)
+  }, [state.status, trip, routerLocation.hash])
+
   if (state.status === "loading") {
     return (
       <div className="space-y-4" role="status" aria-label="Loading trip">
@@ -246,24 +309,30 @@ export function TripDetail() {
   return (
     <div>
       {/* Trip header */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-stone-200/80 pb-6 dark:border-stone-800/80">
         <div className="min-w-0 flex-1">
+          <p className="font-mono-trips text-[11px] uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
+            Itinerary editor
+          </p>
+          <label className="sr-only" htmlFor="trip-editor-name">
+            Trip name
+          </label>
           <input
+            id="trip-editor-name"
             value={trip.name}
             disabled={!editable}
             onChange={(e) => scheduleSave({ ...trip, name: e.target.value })}
-            aria-label="Trip name"
-            className="w-full bg-transparent font-serif text-4xl text-stone-900 focus:outline-none dark:text-stone-100"
+            className="mt-1 w-full bg-transparent font-display text-[clamp(1.75rem,4vw,2.5rem)] font-medium leading-tight tracking-tight text-stone-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-600/30 dark:text-stone-100"
             style={{ fontFamily: "'Cormorant Garamond', serif" }}
           />
-          <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+          <p className="mt-2 text-sm text-stone-500 dark:text-stone-400">
             {trip.destinations.join(" · ")} · {trip.startDate} → {trip.endDate} · {trip.timezone}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Link
-            to={`/trips/${trip.id}`}
-            className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 px-3.5 py-2 text-sm font-medium text-stone-700 transition hover:border-stone-400 hover:text-stone-900 dark:border-stone-700 dark:text-stone-300 dark:hover:text-stone-100"
+            to={`/trips/${trip.slug ?? trip.id}`}
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-stone-300 px-3.5 py-2 text-sm font-medium text-stone-700 transition hover:border-stone-400 hover:text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600/40 dark:border-stone-700 dark:text-stone-300 dark:hover:text-stone-100"
           >
             <Eye className="h-4 w-4" aria-hidden />
             View
@@ -273,7 +342,7 @@ export function TripDetail() {
             disabled={!editable}
             onChange={(e) => scheduleSave({ ...trip, status: e.target.value as TripStatus })}
             aria-label="Trip status"
-            className="rounded-full border border-stone-300 bg-white px-3 py-1.5 text-sm capitalize dark:border-stone-700 dark:bg-stone-900"
+            className="min-h-11 rounded-xl border border-stone-300 bg-[var(--trips-surface)] px-3 py-2 text-sm capitalize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600/40 dark:border-stone-700 dark:bg-stone-900"
           >
             {(["draft", "active", "archived", "completed"] as const).map((s) => (
               <option key={s} value={s}>{s}</option>
@@ -286,7 +355,7 @@ export function TripDetail() {
                 scheduleSave({ ...trip, status: "active" })
                 setNotice("Trip published — it's now active for everyone who can see it.")
               }}
-              className="inline-flex items-center gap-2 rounded-full border border-emerald-600/40 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/70"
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-emerald-600/40 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-900 transition hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/70"
             >
               <Globe2 className="h-4 w-4" aria-hidden />
               Publish
@@ -307,9 +376,9 @@ export function TripDetail() {
       </div>
 
       {notice && (
-        <div className="mt-4 flex items-start justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200" role="status">
+        <div className="mt-4 flex items-start justify-between gap-3 rounded-xl border border-amber-200/80 bg-amber-50/90 p-3.5 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100" role="status">
           <span>{notice}</span>
-          <button type="button" onClick={() => setNotice(null)} aria-label="Dismiss notice">
+          <button type="button" onClick={() => setNotice(null)} aria-label="Dismiss notice" className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg hover:bg-amber-100/80 dark:hover:bg-amber-900/40">
             <X className="h-4 w-4" aria-hidden />
           </button>
         </div>
@@ -694,13 +763,7 @@ function EnhanceButton({
 // Configures the dossier-style public pages: accent family + editorial copy.
 // AI generation proposes these; everything here overrides it.
 
-const ACCENT_SWATCH: Record<string, string> = {
-  rose: "bg-rose-500",
-  amber: "bg-amber-500",
-  emerald: "bg-emerald-500",
-  sky: "bg-sky-500",
-  violet: "bg-violet-500",
-}
+const ACCENTS_ORDER = ["rose", "amber", "emerald", "sky", "violet"] as const
 
 function AppearancePanel({
   trip,
@@ -715,21 +778,21 @@ function AppearancePanel({
   const appearance = trip.appearance ?? {}
   const patch = (p: Partial<NonNullable<Trip["appearance"]>>) => onChange({ ...appearance, ...p })
   const fieldClass =
-    "w-full rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-sm focus:border-amber-500 focus:outline-none dark:border-stone-700 dark:bg-stone-900"
+    "w-full min-h-11 rounded-xl border border-stone-200 bg-[var(--trips-surface)] px-3 py-2 text-sm focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-600/25 dark:border-stone-700 dark:bg-stone-900"
 
   return (
-    <section className="mt-6 rounded-2xl border border-stone-200/80 bg-white dark:border-stone-800 dark:bg-stone-900">
+    <section className="mt-6 rounded-2xl border border-stone-200/80 bg-[var(--trips-surface)] dark:border-stone-800 dark:bg-stone-900/50">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-3 px-5 py-3.5 text-left"
+        className="flex min-h-12 w-full items-center justify-between gap-3 px-5 py-3.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-600/40"
       >
         <span className="flex items-center gap-2.5 text-sm font-semibold text-stone-900 dark:text-stone-100">
           <span className={`h-3.5 w-3.5 rounded-full ${ACCENT_SWATCH[appearance.accent ?? "amber"]}`} aria-hidden />
           Appearance
-          <span className="font-normal text-stone-400 dark:text-stone-500">
-            — accent, hero copy for the trip page
+          <span className="hidden font-normal text-stone-400 sm:inline dark:text-stone-500">
+            accent & dossier copy
           </span>
         </span>
         <span className="text-xs text-stone-400">{open ? "Hide" : "Configure"}</span>
@@ -737,9 +800,9 @@ function AppearancePanel({
       {open && (
         <div className="space-y-4 border-t border-stone-100 px-5 py-4 dark:border-stone-800">
           <div>
-            <span className="block text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400">Accent</span>
-            <div className="mt-2 flex gap-2" role="radiogroup" aria-label="Accent color">
-              {Object.entries(ACCENT_SWATCH).map(([name, cls]) => (
+            <span className="block text-[11px] font-medium uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">Accent</span>
+            <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Accent color">
+              {ACCENTS_ORDER.map((name) => (
                 <button
                   key={name}
                   type="button"
@@ -747,8 +810,8 @@ function AppearancePanel({
                   aria-checked={(appearance.accent ?? "amber") === name}
                   aria-label={name}
                   title={name}
-                  onClick={() => patch({ accent: name as NonNullable<Trip["appearance"]>["accent"] })}
-                  className={`h-7 w-7 rounded-full ${cls} transition ${
+                  onClick={() => patch({ accent: name })}
+                  className={`h-11 w-11 rounded-full ${ACCENT_SWATCH[name]} transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-900 focus-visible:ring-offset-2 dark:focus-visible:ring-stone-100 ${
                     (appearance.accent ?? "amber") === name
                       ? "ring-2 ring-stone-900 ring-offset-2 dark:ring-stone-100 dark:ring-offset-stone-900"
                       : "opacity-60 hover:opacity-100"
@@ -759,28 +822,28 @@ function AppearancePanel({
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="block">
-              <span className="text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400">Eyebrow</span>
-              <input className={`mt-1 ${fieldClass}`} value={appearance.eyebrow ?? ""} placeholder="The dossier" onChange={(e) => patch({ eyebrow: e.target.value || undefined })} />
+              <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">Eyebrow</span>
+              <input className={`mt-1.5 ${fieldClass}`} value={appearance.eyebrow ?? ""} placeholder="The dossier" onChange={(e) => patch({ eyebrow: e.target.value || undefined })} />
             </label>
             <label className="block">
-              <span className="text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400">Subtitle</span>
-              <input className={`mt-1 ${fieldClass}`} value={appearance.subtitle ?? ""} placeholder="a Seoul & Busan dossier" onChange={(e) => patch({ subtitle: e.target.value || undefined })} />
+              <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">Subtitle</span>
+              <input className={`mt-1.5 ${fieldClass}`} value={appearance.subtitle ?? ""} placeholder="a Seoul & Busan dossier" onChange={(e) => patch({ subtitle: e.target.value || undefined })} />
             </label>
           </div>
           <label className="block">
-            <span className="text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400">Headline</span>
+            <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">Headline</span>
             <textarea
               rows={2}
-              className={`mt-1 ${fieldClass}`}
+              className={`mt-1.5 ${fieldClass}`}
               value={appearance.headline ?? ""}
-              placeholder="The editorial paragraph under the trip title — AI fills this on generation."
+              placeholder="Editorial paragraph under the trip title."
               onChange={(e) => patch({ headline: e.target.value || undefined })}
             />
           </label>
           <label className="block">
-            <span className="text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400">Permalink</span>
-            <span className="mt-1 flex items-center gap-0 overflow-hidden rounded-lg border border-stone-200 bg-white focus-within:border-amber-500 dark:border-stone-700 dark:bg-stone-900">
-              <span className="shrink-0 select-none border-r border-stone-200 bg-stone-50 px-2.5 py-1.5 text-sm text-stone-400 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-500">
+            <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">Permalink</span>
+            <span className="mt-1.5 flex items-center gap-0 overflow-hidden rounded-xl border border-stone-200 bg-[var(--trips-surface)] focus-within:border-amber-600 focus-within:ring-2 focus-within:ring-amber-600/25 dark:border-stone-700 dark:bg-stone-900">
+              <span className="shrink-0 select-none border-r border-stone-200 bg-stone-50 px-2.5 py-2.5 text-sm text-stone-400 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-500">
                 /trips/
               </span>
               <input
@@ -796,11 +859,11 @@ function AppearancePanel({
                       .slice(0, 80),
                   )
                 }
-                className="w-full bg-transparent px-2.5 py-1.5 text-sm focus:outline-none"
+                className="min-h-11 w-full bg-transparent px-2.5 py-2 text-sm focus:outline-none"
               />
             </span>
-            <span className="mt-1 block text-xs text-stone-400 dark:text-stone-500">
-              Lowercase letters, numbers, hyphens. Must be unique — you'll see an error here if it's taken.
+            <span className="mt-1.5 block text-xs text-stone-400 dark:text-stone-500">
+              Lowercase letters, numbers, hyphens. Must be unique.
             </span>
           </label>
         </div>
@@ -846,7 +909,7 @@ function DayCard({
       id={day.id}
       aria-label={`Day ${index + 1}`}
       aria-busy={enhancing}
-      className={`scroll-mt-20 rounded-3xl border bg-white p-5 shadow-sm transition-colors duration-300 dark:bg-stone-900 ${
+      className={`scroll-mt-24 rounded-2xl border bg-[var(--trips-surface)] p-5 transition-colors duration-300 dark:bg-stone-900/50 ${
         enhancing
           ? "border-amber-400/70 dark:border-amber-600/60"
           : "border-stone-200/80 dark:border-stone-800"

@@ -13,14 +13,8 @@ import {
   reservationTypeIcon,
   todayIsoIn,
 } from "./theme"
-import type { ItineraryItem, Trip, TripAccent, TripDay } from "./types"
-
-// Dossier-style trip overview — the generic equivalent of the /korea index:
-// hero bloom + serif title + countdown, today banner, day card grid, and a
-// reservations ledger. Fully driven by trip data + trip.appearance.
-
-const SERIF = { fontFamily: "'Cormorant Garamond', serif" } as const
-const EASE = [0.16, 1, 0.3, 1] as const
+import type { ItineraryItem, Trip, TripDay } from "./types"
+import { EASE, SERIF, alertErrorClass, inkBtnClass } from "./ui"
 
 type LoadState =
   | { status: "loading" }
@@ -51,12 +45,12 @@ export function TripOverview() {
 
   if (state.status === "loading") {
     return (
-      <div className="mx-auto max-w-6xl px-4 pt-14 sm:px-6" role="status" aria-label="Loading trip">
-        <div className="h-6 w-64 animate-pulse rounded bg-stone-200/60 dark:bg-stone-900" />
-        <div className="mt-10 h-28 w-3/4 animate-pulse rounded-2xl bg-stone-200/60 dark:bg-stone-900" />
-        <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="h-56 animate-pulse rounded-3xl bg-stone-200/60 dark:bg-stone-900" />
+      <div role="status" aria-label="Loading trip">
+        <div className="h-4 w-48 animate-pulse rounded bg-stone-200/60 dark:bg-stone-900" />
+        <div className="mt-8 h-16 w-3/4 max-w-xl animate-pulse rounded-2xl bg-stone-200/60 dark:bg-stone-900" />
+        <div className="mt-10 space-y-3">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-16 animate-pulse rounded-xl bg-stone-200/60 dark:bg-stone-900" />
           ))}
         </div>
       </div>
@@ -65,107 +59,100 @@ export function TripOverview() {
 
   if (state.status === "error") {
     return (
-      <div className="mx-auto max-w-6xl px-4 pt-14 sm:px-6">
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
-          Couldn’t load this trip ({state.message}).
-        </div>
+      <div className={alertErrorClass} role="alert">
+        Couldn’t load this trip ({state.message}).{" "}
+        <button type="button" className="font-semibold underline underline-offset-2" onClick={() => window.location.reload()}>
+          Retry
+        </button>
       </div>
     )
   }
 
   const { trip, editable } = state
-  const a = accentTheme(trip.appearance?.accent as TripAccent | undefined)
+  const a = accentTheme(trip.appearance?.accent)
   const today = todayIsoIn(trip.timezone)
   const todayDay = trip.days.find((d) => d.date === today)
   const tMinus = daysUntilIn(trip.startDate, trip.timezone)
   const inTrip = today >= trip.startDate && today <= trip.endDate
   const past = today > trip.endDate
   const dayCount = trip.days.length
-  const numeral = inTrip
-    ? String(trip.days.findIndex((d) => d.date === today) + 1 || 1)
+
+  const statusLine = inTrip
+    ? `Day ${trip.days.findIndex((d) => d.date === today) + 1 || 1} of ${dayCount}`
     : past
-      ? String(dayCount)
-      : String(Math.max(tMinus, 0))
-  const numeralLabel = inTrip
-    ? `day of ${dayCount} · in trip`
-    : past
-      ? "days · concluded"
+      ? "Trip concluded"
       : tMinus === 0
-        ? "departing today"
+        ? "Departing today"
         : tMinus === 1
-          ? "day to go"
-          : "days to go"
+          ? "1 day to go"
+          : `${Math.max(tMinus, 0)} days to go`
 
   const reservations = trip.days.flatMap((day) =>
-    day.items
-      .filter((i) => i.kind === "reservation")
-      .map((item) => ({ day, item })),
+    day.items.filter((i) => i.kind === "reservation").map((item) => ({ day, item })),
   )
 
   const fadeUp = (delay: number) => ({
-    initial: reduce ? false : { opacity: 0, y: 10 },
+    initial: reduce ? false : { opacity: 0, y: 8 },
     animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.5, ease: EASE, delay },
+    transition: { duration: 0.42, ease: EASE, delay },
   })
 
   return (
-    <div className="-mx-4 -mt-6">
-      {/* ── Hero ── */}
+    <div className="-mx-4 -mt-8 sm:-mx-6 sm:-mt-10">
       <header className="relative overflow-hidden">
         <div aria-hidden className="pointer-events-none absolute inset-0">
           <div className={`absolute inset-0 ${a.bloomA}`} />
           <div className={`absolute inset-0 ${a.bloomB}`} />
         </div>
-        <div className="relative mx-auto max-w-6xl px-4 pb-12 pt-12 sm:px-6 sm:pt-16 lg:pb-16">
+        <div className="relative mx-auto max-w-6xl px-4 pb-10 pt-10 sm:px-6 sm:pb-12 sm:pt-14">
           <motion.p
             {...fadeUp(0)}
-            className="font-mono text-[11px] uppercase tracking-[0.28em] text-stone-500 dark:text-stone-500"
+            className="font-mono-trips text-[11px] uppercase tracking-[0.24em] text-stone-500 dark:text-stone-400"
           >
-            {trip.appearance?.eyebrow ?? "The itinerary"} · {dayCount} day{dayCount === 1 ? "" : "s"} ·{" "}
+            {trip.appearance?.eyebrow ?? "Itinerary"} · {dayCount} day{dayCount === 1 ? "" : "s"} ·{" "}
             {formatTripDate(trip.startDate, trip.timezone, { weekday: undefined })} →{" "}
             {formatTripDate(trip.endDate, trip.timezone, { weekday: undefined })}
           </motion.p>
 
-          <div className="mt-8 grid grid-cols-1 items-end gap-8 sm:mt-12 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
-            <motion.h1 {...fadeUp(0.06)} className="font-serif text-stone-900 dark:text-stone-100" style={SERIF}>
-              <span className="block text-[clamp(2.75rem,9vw,6rem)] font-medium leading-[0.95] tracking-[-0.02em]">
-                {trip.name}
-              </span>
-              {trip.appearance?.subtitle && (
-                <span className="mt-2 block text-[clamp(1.35rem,3.5vw,2.25rem)] font-light italic leading-tight text-stone-500 dark:text-stone-400">
-                  {trip.appearance.subtitle}
-                </span>
-              )}
-            </motion.h1>
+          <motion.div {...fadeUp(0.05)} className="mt-6 flex flex-wrap items-center gap-3">
+            <span className={`inline-flex items-center gap-2 text-sm font-medium ${a.text}`}>
+              <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.dot}`} aria-hidden />
+              {statusLine}
+            </span>
+            <span className="capitalize text-sm text-stone-500 dark:text-stone-400">{trip.status}</span>
+          </motion.div>
 
-            <motion.div {...fadeUp(0.14)} className="flex items-end justify-start gap-5 lg:justify-end">
-              <span
-                className={`inline-flex font-serif text-[clamp(4.5rem,18vw,11rem)] font-light leading-[0.82] tracking-[-0.05em] tabular-nums ${a.countdown}`}
-                style={{ ...SERIF, fontFeatureSettings: '"tnum"' }}
-              >
-                {numeral}
+          <motion.h1 {...fadeUp(0.08)} className="mt-4 max-w-[18ch] text-stone-900 dark:text-stone-100" style={SERIF}>
+            <span className="block font-display text-[clamp(2.5rem,7vw,4.5rem)] font-medium leading-[0.98] tracking-[-0.02em]">
+              {trip.name}
+            </span>
+            {trip.appearance?.subtitle && (
+              <span className="mt-3 block font-display text-[clamp(1.2rem,3vw,1.75rem)] font-light italic leading-snug text-stone-500 dark:text-stone-400">
+                {trip.appearance.subtitle}
               </span>
-              <span className="mb-2 inline-flex flex-col gap-1 pb-2 text-left">
-                <span className={`h-px w-10 ${a.hairline}`} aria-hidden />
-                <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-stone-700 dark:text-stone-300">
-                  {numeralLabel}
-                </span>
-              </span>
-            </motion.div>
-          </div>
+            )}
+          </motion.h1>
 
           {trip.appearance?.headline && (
             <motion.p
-              {...fadeUp(0.2)}
-              className="mt-10 max-w-[60ch] text-base leading-relaxed text-stone-700 sm:text-lg dark:text-stone-300"
+              {...fadeUp(0.14)}
+              className="mt-6 max-w-[58ch] text-base leading-relaxed text-stone-700 sm:text-[1.05rem] dark:text-stone-300"
             >
               {trip.appearance.headline}
             </motion.p>
           )}
+          {!trip.appearance?.headline && trip.description && (
+            <motion.p
+              {...fadeUp(0.14)}
+              className="mt-6 max-w-[58ch] text-base leading-relaxed text-stone-700 dark:text-stone-300"
+            >
+              {trip.description}
+            </motion.p>
+          )}
 
           <motion.dl
-            {...fadeUp(0.26)}
-            className="mt-10 grid grid-cols-1 gap-x-10 gap-y-5 border-t border-stone-200/80 pt-6 sm:grid-cols-2 lg:grid-cols-4 dark:border-stone-800/80"
+            {...fadeUp(0.18)}
+            className="mt-9 grid grid-cols-1 gap-x-10 gap-y-5 border-t border-stone-200/80 pt-6 sm:grid-cols-2 lg:grid-cols-4 dark:border-stone-800/80"
           >
             <MetaRow label="Destinations" value={trip.destinations.join(" · ")} />
             <MetaRow
@@ -173,15 +160,34 @@ export function TripOverview() {
               value={`${formatTripDate(trip.startDate, trip.timezone)} – ${formatTripDate(trip.endDate, trip.timezone)}`}
             />
             <MetaRow label="Time zone" value={trip.timezone} />
-            <MetaRow label="Status" value={trip.status} className="capitalize" />
+            <MetaRow
+              label="Sharing"
+              value={
+                trip.sharedWithAllUsers
+                  ? "All signed-in users"
+                  : trip.collaborators.length
+                    ? `${trip.collaborators.length} collaborator${trip.collaborators.length === 1 ? "" : "s"}`
+                    : "Private"
+              }
+            />
           </motion.dl>
 
+          {trip.tags.length > 0 && (
+            <motion.ul {...fadeUp(0.22)} className="mt-5 flex flex-wrap gap-1.5" aria-label="Tags">
+              {trip.tags.map((tag) => (
+                <li
+                  key={tag}
+                  className="rounded-md border border-stone-200/80 px-2 py-0.5 text-xs text-stone-600 dark:border-stone-700 dark:text-stone-400"
+                >
+                  {tag}
+                </li>
+              ))}
+            </motion.ul>
+          )}
+
           {editable && (
-            <motion.div {...fadeUp(0.32)} className="mt-8">
-              <Link
-                to={`/trips/${trip.slug ?? trip.id}/edit`}
-                className={`inline-flex items-center gap-2 rounded-full bg-stone-900 px-5 py-2.5 text-sm font-semibold text-stone-50 transition-colors hover:bg-stone-700 focus-visible:outline-none focus-visible:ring-2 ${a.focusRing} dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-300`}
-              >
+            <motion.div {...fadeUp(0.26)} className="mt-8">
+              <Link to={`/trips/${trip.slug ?? trip.id}/edit`} className={inkBtnClass}>
                 <Pencil className="h-4 w-4" aria-hidden />
                 Edit itinerary
               </Link>
@@ -190,20 +196,19 @@ export function TripOverview() {
         </div>
       </header>
 
-      {/* ── Today banner ── */}
       {todayDay && (
-        <motion.aside {...fadeUp(0.1)} className="mx-auto mt-4 max-w-6xl px-4 sm:px-6">
+        <motion.aside {...fadeUp(0.08)} className="mx-auto max-w-6xl px-4 sm:px-6">
           <Link
             to={`/trips/${trip.slug ?? trip.id}/day/${todayDay.id}`}
-            className="group block border-y border-stone-200/80 py-4 transition-colors hover:bg-stone-100/50 dark:border-stone-800/80 dark:hover:bg-stone-900/40"
+            className={`group block border-y border-stone-200/80 py-4 transition-colors hover:bg-stone-100/40 focus-visible:outline-none focus-visible:ring-2 ${a.focusRing} dark:border-stone-800/80 dark:hover:bg-stone-900/40`}
           >
             <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
-              <p className={`flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.24em] ${a.text}`}>
+              <p className={`flex items-center gap-2 font-mono-trips text-[11px] uppercase tracking-[0.2em] ${a.text}`}>
                 <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.dot}`} aria-hidden />
                 Today · {formatTripDate(todayDay.date, trip.timezone)}
               </p>
               <p
-                className={`break-words font-serif text-lg font-medium text-stone-900 transition-colors sm:text-xl dark:text-stone-100 ${a.textHover}`}
+                className={`break-words font-display text-lg font-medium text-stone-900 transition-colors sm:text-xl dark:text-stone-100 ${a.textHover}`}
                 style={SERIF}
               >
                 {todayDay.emoji && <span aria-hidden className="mr-2">{todayDay.emoji}</span>}
@@ -215,55 +220,72 @@ export function TripOverview() {
         </motion.aside>
       )}
 
-      {/* ── Day cards ── */}
-      <section className="mx-auto mt-16 max-w-6xl px-4 sm:mt-20 sm:px-6">
+      <section className="mx-auto mt-14 max-w-6xl px-4 sm:mt-16 sm:px-6">
         <SectionHeader
           num="01"
-          eyebrow={`The ${dayCount} day${dayCount === 1 ? "" : "s"}`}
+          eyebrow={`${dayCount} day${dayCount === 1 ? "" : "s"}`}
           title="Daily itinerary"
-          subtitle="Tap a day for the full plan."
+          subtitle={dayCount === 0 ? "No days yet — open the editor to add structure." : "Open a day for reservations, places, and Map Mode."}
           accentNum={a.eyebrowNum}
+          reduce={!!reduce}
         />
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {trip.days.map((day, i) => (
-            <OverviewDayCard
-              key={day.id}
-              trip={trip}
-              day={day}
-              index={i}
-              isToday={day.date === today}
-              isPast={day.date < today}
-            />
-          ))}
-        </div>
+        {dayCount === 0 ? (
+          <div className="mt-8 border border-dashed border-stone-300 px-5 py-10 text-sm text-stone-600 dark:border-stone-700 dark:text-stone-400">
+            This trip has no days yet.
+            {editable && (
+              <>
+                {" "}
+                <Link to={`/trips/${trip.slug ?? trip.id}/edit`} className="font-semibold text-amber-800 underline-offset-2 hover:underline dark:text-amber-400">
+                  Open the editor
+                </Link>
+                .
+              </>
+            )}
+          </div>
+        ) : (
+          <ol className="mt-2 divide-y divide-stone-200/80 dark:divide-stone-800/80">
+            {trip.days.map((day, i) => (
+              <DayRow
+                key={day.id}
+                trip={trip}
+                day={day}
+                index={i}
+                isToday={day.date === today}
+                isPast={day.date < today}
+                reduce={!!reduce}
+              />
+            ))}
+          </ol>
+        )}
       </section>
 
-      {/* ── Reservations ledger ── */}
       {reservations.length > 0 && (
-        <>
-          <Fleuron />
-          <section className="mx-auto mt-16 max-w-6xl px-4 sm:mt-20 sm:px-6">
-            <SectionHeader
-              num="02"
-              eyebrow="Booked moments"
-              title="Reservations"
-              subtitle="Every confirmed, pending, and tentative booking across the trip."
-              accentNum={a.eyebrowNum}
-            />
-            <ol className="divide-y divide-stone-200/80 dark:divide-stone-800/80">
-              {reservations.map(({ day, item }, i) => (
-                <ReservationRow key={item.id} trip={trip} day={day} item={item} index={i} />
-              ))}
-            </ol>
-          </section>
-        </>
+        <section className="mx-auto mt-16 max-w-6xl px-4 sm:mt-20 sm:px-6">
+          <SectionHeader
+            num="02"
+            eyebrow="Booked moments"
+            title="Reservations"
+            subtitle="Confirmed, pending, and tentative bookings across the trip."
+            accentNum={a.eyebrowNum}
+            reduce={!!reduce}
+          />
+          <ol className="divide-y divide-stone-200/80 dark:divide-stone-800/80">
+            {reservations.map(({ day, item }, i) => (
+              <ReservationRow key={item.id} trip={trip} day={day} item={item} index={i} reduce={!!reduce} />
+            ))}
+          </ol>
+        </section>
       )}
 
-      {/* ── Footer ── */}
-      <footer className="mx-auto mt-20 max-w-6xl px-4 pb-12 sm:px-6">
-        <div className="border-t border-stone-200/80 pt-6 dark:border-stone-800/80">
-          <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
-            Updated · {new Date(trip.updatedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+      <footer className="mx-auto mt-16 max-w-6xl px-4 pb-10 sm:px-6">
+        <div className="border-t border-stone-200/80 pt-5 dark:border-stone-800/80">
+          <p className="font-mono-trips text-[11px] uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
+            Updated ·{" "}
+            {new Date(trip.updatedAt).toLocaleDateString("en-US", {
+              month: "long",
+              day: "numeric",
+              year: "numeric",
+            })}
           </p>
         </div>
       </footer>
@@ -271,11 +293,11 @@ export function TripOverview() {
   )
 }
 
-function MetaRow({ label, value, className = "" }: { label: string; value: string; className?: string }) {
+function MetaRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <dt className="font-mono text-[10px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">{label}</dt>
-      <dd className={`mt-1 break-words text-sm leading-snug text-stone-800 dark:text-stone-200 ${className}`}>{value}</dd>
+      <dt className="font-mono-trips text-[10px] uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">{label}</dt>
+      <dd className="mt-1 break-words text-sm leading-snug text-stone-800 dark:text-stone-200">{value}</dd>
     </div>
   )
 }
@@ -286,121 +308,116 @@ function SectionHeader({
   title,
   subtitle,
   accentNum,
+  reduce,
 }: {
   num: string
   eyebrow: string
   title: string
   subtitle?: string
   accentNum: string
+  reduce: boolean
 }) {
   return (
     <motion.header
-      initial={{ opacity: 0, y: 8 }}
+      initial={reduce ? false : { opacity: 0, y: 6 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      transition={{ duration: 0.45, ease: EASE }}
+      transition={{ duration: 0.4, ease: EASE }}
       className="border-b border-stone-200/80 pb-5 dark:border-stone-800/80"
     >
-      <p className="flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.28em] text-stone-500 dark:text-stone-500">
+      <p className="flex items-center gap-3 font-mono-trips text-[11px] uppercase tracking-[0.24em] text-stone-500 dark:text-stone-400">
         <span className={`tabular-nums ${accentNum}`}>{num}</span>
-        <span aria-hidden className="h-px w-10 bg-stone-300 dark:bg-stone-700" />
+        <span aria-hidden className="h-px w-8 bg-stone-300 dark:bg-stone-700" />
         <span>{eyebrow}</span>
       </p>
       <h2
-        className="mt-3 font-serif text-[clamp(2rem,5.4vw,3.25rem)] font-medium leading-[1.05] tracking-[-0.02em] text-stone-900 dark:text-stone-100"
+        className="mt-3 font-display text-[clamp(1.75rem,4vw,2.5rem)] font-medium leading-[1.08] tracking-[-0.02em] text-stone-900 dark:text-stone-100"
         style={SERIF}
       >
         {title}
       </h2>
       {subtitle && (
-        <p className="mt-2 max-w-[60ch] break-words text-sm leading-relaxed text-stone-600 dark:text-stone-400">{subtitle}</p>
+        <p className="mt-2 max-w-[56ch] break-words text-sm leading-relaxed text-stone-600 dark:text-stone-400">{subtitle}</p>
       )}
     </motion.header>
   )
 }
 
-function OverviewDayCard({
+function DayRow({
   trip,
   day,
   index,
   isToday,
   isPast,
+  reduce,
 }: {
   trip: Trip
   day: TripDay
   index: number
   isToday: boolean
   isPast: boolean
+  reduce: boolean
 }) {
-  const a = accentTheme(trip.appearance?.accent as TripAccent | undefined)
+  const a = accentTheme(trip.appearance?.accent)
   const booked = day.items.filter((i) => i.kind === "reservation" || i.status === "booked").length
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 14, scale: 0.985 }}
-      whileInView={{ opacity: 1, y: 0, scale: 1 }}
-      viewport={{ once: true, margin: "-40px" }}
-      transition={{ duration: 0.55, ease: EASE, delay: Math.min(index % 3, 2) * 0.06 }}
-      whileHover={{ y: -2 }}
-      className="h-full"
+    <motion.li
+      initial={reduce ? false : { opacity: 0, y: 8 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-30px" }}
+      transition={{ duration: 0.35, ease: EASE, delay: Math.min(index, 10) * 0.025 }}
     >
       <Link
         to={`/trips/${trip.slug ?? trip.id}/day/${day.id}`}
-        className={`group relative block h-full overflow-hidden rounded-3xl border bg-stone-50 transition-[border-color,background-color,box-shadow] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] focus:outline-none focus-visible:ring-2 ${a.focusRing} focus-visible:ring-offset-2 hover:shadow-[0_18px_40px_-24px_rgba(28,25,23,0.18)] dark:bg-stone-900/40 dark:hover:shadow-[0_18px_40px_-24px_rgba(0,0,0,0.6)] ${
-          isToday
-            ? a.todayBorder
-            : "border-stone-200/80 hover:border-stone-300 hover:bg-stone-100/60 dark:border-stone-800/80 dark:hover:border-stone-700 dark:hover:bg-stone-900/60"
-        }${isPast ? " opacity-60" : ""}`}
+        className={`group flex items-start gap-4 py-5 transition-colors focus-visible:outline-none focus-visible:ring-2 sm:gap-6 ${a.focusRing} ${
+          isPast && !isToday ? "opacity-55 hover:opacity-100" : ""
+        } ${isToday ? "bg-stone-100/40 dark:bg-stone-900/30" : "hover:bg-stone-100/30 dark:hover:bg-stone-900/25"}`}
       >
-        {isToday && (
-          <span className={`absolute right-4 top-4 z-10 inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] ${a.text}`}>
-            <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.dot}`} aria-hidden />
-            Today
-          </span>
-        )}
-        <div className="relative flex h-full flex-col gap-4 p-5 sm:p-6">
-          <div className="flex items-baseline justify-between gap-3">
-            <div className="flex items-baseline gap-2.5">
-              <span className="font-mono text-[11px] font-semibold tracking-[0.18em] text-stone-500 dark:text-stone-400">
-                {cityTag(day.city, trip.appearance?.cityTags)}
-              </span>
-              <span aria-hidden className="text-stone-300 dark:text-stone-700">·</span>
-              <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
-                Day {String(index + 1).padStart(2, "0")}
-              </span>
-            </div>
-            {!isToday && day.emoji && (
-              <span aria-hidden className="text-2xl leading-none opacity-90">{day.emoji}</span>
+        <div className="w-14 shrink-0 sm:w-16">
+          <p className={`font-display text-3xl font-light leading-none tabular-nums ${isToday ? a.countdown : "text-stone-900 dark:text-stone-100"}`} style={SERIF}>
+            {String(index + 1).padStart(2, "0")}
+          </p>
+          <p className="mt-1 font-mono-trips text-[10px] uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">
+            {cityTag(day.city, trip.appearance?.cityTags)}
+          </p>
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <h3 className="break-words font-display text-xl font-medium leading-snug text-stone-900 sm:text-2xl dark:text-stone-100" style={SERIF}>
+              {day.emoji && <span aria-hidden className="mr-1.5 text-lg">{day.emoji}</span>}
+              {day.title ?? `Day ${index + 1}`}
+            </h3>
+            {isToday && (
+              <span className={`font-mono-trips text-[10px] uppercase tracking-[0.18em] ${a.text}`}>Today</span>
             )}
           </div>
-          <h3
-            className="break-words font-serif text-2xl font-medium leading-tight tracking-[-0.01em] text-stone-900 sm:text-[1.7rem] dark:text-stone-100"
-            style={SERIF}
-          >
-            {day.title ?? `Day ${index + 1}`}
-          </h3>
-          {day.notes && <p className="text-sm leading-relaxed text-stone-700 dark:text-stone-300">{day.notes}</p>}
-          {day.neighborhoods && day.neighborhoods.length > 0 && (
-            <p className="text-xs text-stone-500 dark:text-stone-500">{day.neighborhoods.slice(0, 3).join("  ·  ")}</p>
+          {day.notes && (
+            <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-stone-600 dark:text-stone-400">{day.notes}</p>
           )}
-          <div className="mt-auto flex items-center justify-between gap-3 border-t border-stone-200/80 pt-3 text-[11px] text-stone-500 dark:border-stone-800/80 dark:text-stone-500">
-            <span className="font-mono uppercase tracking-[0.16em]">{formatTripDate(day.date, trip.timezone)}</span>
-            <span className="flex items-center gap-3">
-              {booked > 0 && (
-                <span className={`inline-flex items-center gap-1.5 ${a.text}`}>
-                  <span className={`inline-block h-1 w-1 rounded-full ${a.dot}`} aria-hidden />
-                  {booked} booked
-                </span>
-              )}
-              {day.weather && (
-                <span className="font-mono tabular-nums text-stone-500 dark:text-stone-500">
-                  {day.weather.highC}° / {day.weather.lowC}°
-                </span>
-              )}
-            </span>
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-stone-500 dark:text-stone-400">
+            <span className="font-mono-trips uppercase tracking-[0.14em]">{formatTripDate(day.date, trip.timezone)}</span>
+            {booked > 0 && (
+              <span className={`inline-flex items-center gap-1.5 ${a.text}`}>
+                <span className={`inline-block h-1 w-1 rounded-full ${a.dot}`} aria-hidden />
+                {booked} booked
+              </span>
+            )}
+            {day.weather && (
+              <span className="font-mono-trips tabular-nums">
+                {day.weather.highC}° / {day.weather.lowC}°
+              </span>
+            )}
+            {day.neighborhoods && day.neighborhoods.length > 0 && (
+              <span className="truncate">{day.neighborhoods.slice(0, 3).join(" · ")}</span>
+            )}
           </div>
         </div>
+        <ArrowUpRight
+          className="mt-1 h-4 w-4 shrink-0 text-stone-300 transition group-hover:translate-x-0.5 group-hover:text-stone-600 motion-reduce:group-hover:translate-x-0 dark:text-stone-600 dark:group-hover:text-stone-300"
+          aria-hidden
+        />
       </Link>
-    </motion.div>
+    </motion.li>
   )
 }
 
@@ -409,40 +426,42 @@ function ReservationRow({
   day,
   item,
   index,
+  reduce,
 }: {
   trip: Trip
   day: TripDay
   item: ItineraryItem
   index: number
+  reduce: boolean
 }) {
   const status = itemStatusMeta[item.status]
   const dayNum = new Date(`${day.date}T12:00:00Z`).getUTCDate()
   return (
     <motion.li
-      initial={{ opacity: 0, y: 8 }}
+      initial={reduce ? false : { opacity: 0, y: 6 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      transition={{ duration: 0.35, ease: EASE, delay: Math.min(index, 8) * 0.025 }}
+      transition={{ duration: 0.3, ease: EASE, delay: Math.min(index, 8) * 0.02 }}
     >
       <Link
         to={`/trips/${trip.slug ?? trip.id}/day/${day.id}`}
-        className="group flex items-start gap-5 py-5 transition-colors hover:bg-stone-100/40 sm:gap-8 dark:hover:bg-stone-900/30"
+        className="group flex items-start gap-5 py-5 transition-colors hover:bg-stone-100/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600/40 sm:gap-8 dark:hover:bg-stone-900/25"
       >
         <div className="w-[5.5rem] shrink-0 sm:w-[7rem]">
-          <p className="font-serif text-3xl font-light leading-none text-stone-900 dark:text-stone-100" style={SERIF}>
+          <p className="font-display text-3xl font-light leading-none text-stone-900 dark:text-stone-100" style={SERIF}>
             {dayNum}
           </p>
-          <p className="mt-1 font-mono text-[10px] lowercase tracking-[0.18em] text-stone-500 dark:text-stone-500">
+          <p className="mt-1 font-mono-trips text-[10px] lowercase tracking-[0.14em] text-stone-500 dark:text-stone-400">
             {formatTripDate(day.date, trip.timezone, { day: undefined })}
           </p>
           {item.time && (
-            <p className="mt-0.5 font-mono text-[11px] tabular-nums text-stone-600 dark:text-stone-400">{item.time}</p>
+            <p className="mt-0.5 font-mono-trips text-[11px] tabular-nums text-stone-600 dark:text-stone-400">{item.time}</p>
           )}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2.5">
             <span aria-hidden>{reservationTypeIcon[item.reservation?.type ?? ""] ?? "📌"}</span>
-            <h3 className="break-words font-serif text-xl font-medium leading-snug text-stone-900 dark:text-stone-100" style={SERIF}>
+            <h3 className="break-words font-display text-xl font-medium leading-snug text-stone-900 dark:text-stone-100" style={SERIF}>
               {item.title}
             </h3>
           </div>
@@ -452,7 +471,7 @@ function ReservationRow({
         </div>
         <div className="flex shrink-0 items-center gap-3 pt-1.5">
           {status && (
-            <span className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-stone-500">
+            <span className="flex items-center gap-2 font-mono-trips text-[10px] uppercase tracking-[0.16em] text-stone-500 dark:text-stone-400">
               <span className={`inline-block h-1.5 w-1.5 rounded-full ${status.dot}`} aria-hidden />
               <span className="hidden sm:inline">{status.label}</span>
             </span>
@@ -461,24 +480,5 @@ function ReservationRow({
         </div>
       </Link>
     </motion.li>
-  )
-}
-
-function Fleuron() {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-60px" }}
-      transition={{ duration: 0.6, ease: EASE }}
-      className="mx-auto mt-16 flex max-w-6xl items-center gap-6 px-4 sm:mt-20 sm:px-6"
-      aria-hidden
-    >
-      <span className="h-px flex-1 bg-stone-200 dark:bg-stone-800" />
-      <span className="select-none font-serif text-2xl leading-none tracking-[0.6em] text-stone-400 dark:text-stone-600" style={SERIF}>
-        ···
-      </span>
-      <span className="h-px flex-1 bg-stone-200 dark:bg-stone-800" />
-    </motion.div>
   )
 }
