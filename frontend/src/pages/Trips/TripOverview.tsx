@@ -4,8 +4,9 @@ import { motion, useReducedMotion } from "motion/react"
 import { ArrowUpRight, Pencil } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
 import { getTrip } from "./tripsApi"
-import { ACCENT, cityTag, daysUntilIn, formatTripDate, itemIcon, resolveAccent, todayIsoIn } from "./theme"
+import { ACCENT, cityTag, daysUntilIn, formatTripDate, resolveAccent, todayIsoIn } from "./theme"
 import { DossierSectionHeader } from "./components/DossierSectionHeader"
+import { ItemIcon } from "./components/ItemIcon"
 import { StatusChip } from "./components/StatusChip"
 import type { ItineraryItem, Trip, TripCollaborator, TripDay } from "./types"
 import { EASE, SERIF, alertErrorClass, focusRingClass, focusRingInsetClass, inkBtnClass } from "./ui"
@@ -433,7 +434,6 @@ function ReservationRow({
   index: number
   reduce: boolean
 }) {
-  const Icon = itemIcon(item.kind, item.location?.category, item.reservation?.type)
   const dayNum = new Date(`${day.date}T12:00:00Z`).getUTCDate()
   return (
     <motion.li
@@ -459,7 +459,12 @@ function ReservationRow({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2.5">
-            <Icon className="h-4 w-4 shrink-0 translate-y-0.5 text-stone-500 dark:text-stone-400" strokeWidth={1.5} aria-hidden />
+            <ItemIcon
+              kind={item.kind}
+              category={item.location?.category}
+              reservationType={item.reservation?.type}
+              className="h-4 w-4 shrink-0 translate-y-0.5 text-stone-500 dark:text-stone-400"
+            />
             <h3 className="break-words font-display text-xl font-medium leading-snug text-stone-900 dark:text-stone-100" style={SERIF}>
               {item.title}
             </h3>

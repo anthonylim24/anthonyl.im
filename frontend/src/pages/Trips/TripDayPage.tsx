@@ -6,8 +6,9 @@ import { useGetToken } from "@/lib/safeAuth"
 import { EntityIndexProvider } from "../Korea/entityIndex"
 import { LinkifiedText } from "../Korea/LinkifiedText"
 import { getTrip } from "./tripsApi"
-import { ACCENT, calloutTone, formatTripDate, itemIcon, resolveAccent, todayIsoIn } from "./theme"
+import { ACCENT, calloutTone, formatTripDate, resolveAccent, todayIsoIn } from "./theme"
 import { DossierSectionHeader } from "./components/DossierSectionHeader"
+import { ItemIcon } from "./components/ItemIcon"
 import { StatusChip } from "./components/StatusChip"
 import type { ItineraryItem, Trip } from "./types"
 import {
@@ -452,7 +453,6 @@ function ReservationTimelineItem({
 }) {
   const reduce = useReducedMotion()
   const highlight = useAnchorHighlight(flash)
-  const Icon = itemIcon(item.kind, item.location?.category, item.reservation?.type)
   const phone = item.reservation?.contact ? telHref(item.reservation.contact) : null
   const time = item.time ? `${item.time}${item.endTime ? ` – ${item.endTime}` : ""}` : null
   return (
@@ -473,7 +473,7 @@ function ReservationTimelineItem({
             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${ACCENT.softBg} ${ACCENT.text}`}
             aria-hidden
           >
-            <Icon className="h-4 w-4" strokeWidth={1.5} />
+            <ItemIcon kind={item.kind} category={item.location?.category} reservationType={item.reservation?.type} />
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-x-3 gap-y-1">
@@ -529,15 +529,14 @@ function ReservationTimelineItem({
 
 function NarrativeItem({ item, flash }: { item: ItineraryItem; flash: boolean }) {
   const highlight = useAnchorHighlight(flash)
-  const Icon = itemIcon(item.kind, item.location?.category)
   return (
     // `-mx-2 px-2` keeps the text on the same optical line as the headings
     // while giving the arrival highlight room to breathe.
     <li id={`item-${item.id}`} className={`-mx-2 flex gap-3 break-words rounded-lg px-2 ${highlight}`}>
-      <Icon
+      <ItemIcon
+        kind={item.kind}
+        category={item.location?.category}
         className="mt-1 h-4 w-4 shrink-0 text-stone-500 dark:text-stone-400"
-        strokeWidth={1.5}
-        aria-hidden
       />
       <span className="min-w-0 flex-1 break-words">
         {item.time && (
