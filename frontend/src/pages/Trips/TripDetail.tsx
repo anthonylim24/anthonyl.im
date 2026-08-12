@@ -34,7 +34,7 @@ import {
   removeItem,
   updateItem,
 } from "./tripEdits"
-import { ACCENT_SWATCH } from "./theme"
+import { ACCENT_SWATCH, formatTripDate } from "./theme"
 import type {
   EnhancementRun,
   ItemKind,
@@ -326,7 +326,8 @@ export function TripDetail() {
             style={{ fontFamily: "'Cormorant Garamond', serif" }}
           />
           <p className="mt-2 text-sm text-stone-500 dark:text-stone-400">
-            {trip.destinations.join(" · ")} · {trip.startDate} → {trip.endDate} · {trip.timezone}
+            {trip.destinations.join(" · ")} · {formatTripDate(trip.startDate, trip.timezone)} →{" "}
+            {formatTripDate(trip.endDate, trip.timezone)} · {trip.timezone}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

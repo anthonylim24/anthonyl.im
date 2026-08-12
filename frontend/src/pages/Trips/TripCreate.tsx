@@ -329,33 +329,35 @@ export function TripCreate() {
         </p>
       )}
 
-      <div className="mt-7 flex flex-wrap items-center gap-3">
-        <button type="submit" disabled={busy !== "idle"} className={primaryBtnClass}>
-          {busy === "idle" ? (
-            mode === "ai" ? (
-              <>
-                <Sparkles className="h-4 w-4" aria-hidden />
-                Create & generate
-              </>
+      <div className="sticky bottom-0 z-20 -mx-4 mt-8 border-t border-stone-200/70 bg-[color-mix(in_srgb,var(--trips-canvas)_92%,transparent)] px-4 py-4 backdrop-blur-md sm:-mx-6 sm:px-6 dark:border-stone-800/70">
+        <div className="mx-auto flex max-w-2xl flex-wrap items-center gap-3">
+          <button type="submit" disabled={busy !== "idle"} className={primaryBtnClass}>
+            {busy === "idle" ? (
+              mode === "ai" ? (
+                <>
+                  <Sparkles className="h-4 w-4" aria-hidden />
+                  Create & generate
+                </>
+              ) : (
+                "Create trip"
+              )
             ) : (
-              "Create trip"
-            )
-          ) : (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-              {busy === "creating" ? "Creating trip…" : "Generating itinerary…"}
-            </>
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                {busy === "creating" ? "Creating trip…" : "Generating itinerary…"}
+              </>
+            )}
+          </button>
+          <button type="button" onClick={() => navigate("/trips")} className={ghostBtnClass} disabled={busy !== "idle"}>
+            Cancel
+          </button>
+          {busy === "generating" && (
+            <p className="w-full text-xs text-stone-500 dark:text-stone-400 sm:w-auto" role="status" aria-live="polite">
+              Usually 20–40 seconds. Stay on this page.
+            </p>
           )}
-        </button>
-        <button type="button" onClick={() => navigate("/trips")} className={ghostBtnClass} disabled={busy !== "idle"}>
-          Cancel
-        </button>
+        </div>
       </div>
-      {busy === "generating" && (
-        <p className="mt-3 text-xs text-stone-500 dark:text-stone-400" role="status" aria-live="polite">
-          Generation usually takes about 20–40 seconds. Stay on this page.
-        </p>
-      )}
     </form>
   )
 }

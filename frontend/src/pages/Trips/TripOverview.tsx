@@ -80,12 +80,14 @@ export function TripOverview() {
   const statusLine = inTrip
     ? `Day ${trip.days.findIndex((d) => d.date === today) + 1 || 1} of ${dayCount}`
     : past
-      ? "Trip concluded"
+      ? "Concluded"
       : tMinus === 0
         ? "Departing today"
         : tMinus === 1
           ? "1 day to go"
           : `${Math.max(tMinus, 0)} days to go`
+
+  const statusTone = inTrip ? "live" : past ? "past" : "ahead"
 
   const reservations = trip.days.flatMap((day) =>
     day.items.filter((i) => i.kind === "reservation").map((item) => ({ day, item })),
@@ -114,12 +116,22 @@ export function TripOverview() {
             {formatTripDate(trip.endDate, trip.timezone, { weekday: undefined })}
           </motion.p>
 
-          <motion.div {...fadeUp(0.05)} className="mt-6 flex flex-wrap items-center gap-3">
+          <motion.div {...fadeUp(0.05)} className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2">
             <span className={`inline-flex items-center gap-2 text-sm font-medium ${a.text}`}>
               <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.dot}`} aria-hidden />
               {statusLine}
             </span>
-            <span className="capitalize text-sm text-stone-500 dark:text-stone-400">{trip.status}</span>
+            <span
+              className={`rounded-md border px-2 py-0.5 text-[11px] font-medium capitalize tracking-wide ${
+                statusTone === "live"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-200"
+                  : statusTone === "past"
+                    ? "border-stone-200 bg-stone-100/80 text-stone-600 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-400"
+                    : "border-amber-200/80 bg-amber-50/80 text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100"
+              }`}
+            >
+              {trip.status}
+            </span>
           </motion.div>
 
           <motion.h1 {...fadeUp(0.08)} className="mt-4 max-w-[18ch] text-stone-900 dark:text-stone-100" style={SERIF}>
