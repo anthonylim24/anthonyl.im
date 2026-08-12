@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { ChevronDown } from "lucide-react"
 import { ACCENT_SWATCH, TRIP_ACCENTS, resolveAccent } from "../theme"
-import { focusRingInsetClass, inputClass, labelClass, softPanelClass } from "../ui"
+import { focusRingInsetClass, hintClass, inputClass, labelClass, mutedInkClass, softPanelClass } from "../ui"
 import type { Trip } from "../types"
 
 /** Configures the dossier-style public pages: accent family, editorial copy,
@@ -32,12 +32,12 @@ export function AppearancePanel({
         <span className="flex items-center gap-2.5 text-sm font-semibold text-stone-900 dark:text-stone-100">
           <span className={`h-3.5 w-3.5 rounded-full ${ACCENT_SWATCH[selectedAccent]}`} aria-hidden />
           Appearance
-          <span className="hidden font-normal text-stone-500 sm:inline dark:text-stone-400">
+          <span className={`hidden font-normal sm:inline ${mutedInkClass}`}>
             accent, dossier copy, permalink
           </span>
         </span>
         <ChevronDown
-          className={`h-4 w-4 shrink-0 text-stone-500 transition-transform dark:text-stone-400 ${open ? "rotate-180" : ""}`}
+          className={`h-4 w-4 shrink-0 transition-transform ${mutedInkClass} ${open ? "rotate-180" : ""}`}
           strokeWidth={1.5}
           aria-hidden
         />
@@ -117,7 +117,7 @@ export function AppearancePanel({
           <label className="block">
             <span className={labelClass}>Permalink</span>
             <span className="mt-1.5 flex items-center gap-0 overflow-hidden rounded-xl border border-stone-300/90 bg-[var(--trips-surface)] focus-within:border-[color:var(--trips-accent)] focus-within:ring-2 focus-within:ring-[color:var(--trips-focus)] dark:border-stone-700 dark:bg-stone-900">
-              <span className="shrink-0 select-none border-r border-stone-300/90 bg-stone-100 px-2.5 py-2.5 text-sm text-stone-600 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-400">
+              <span className={`shrink-0 select-none border-r border-stone-300/90 bg-stone-100 px-2.5 py-2.5 text-sm dark:border-stone-700 dark:bg-stone-800 ${mutedInkClass}`}>
                 /trips/
               </span>
               <input
@@ -136,9 +136,7 @@ export function AppearancePanel({
                 className="min-h-11 w-full bg-transparent px-2.5 py-2 text-sm focus:outline-none"
               />
             </span>
-            <span className="mt-1.5 block text-xs text-stone-500 dark:text-stone-400">
-              Lowercase letters, numbers, hyphens. Must be unique.
-            </span>
+            <span className={`block ${hintClass}`}>Lowercase letters, numbers, hyphens. Must be unique.</span>
           </label>
         </div>
       )}

@@ -21,7 +21,7 @@ export function TripStatusSelect({
   if (!editable) return <TripStatusChip status={status} />
 
   return (
-    <span className="relative -my-3 inline-flex items-center gap-1 rounded-lg py-3 pr-1 focus-within:outline-none focus-within:ring-2 focus-within:ring-[color:var(--trips-focus)]">
+    <span className="relative -my-3 inline-flex items-center gap-1 rounded-lg py-3 pr-1 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[color:var(--trips-focus)]">
       <TripStatusChip status={status} />
       <ChevronDown className="h-3 w-3 shrink-0 text-stone-500 dark:text-stone-400" strokeWidth={1.5} aria-hidden />
       <select

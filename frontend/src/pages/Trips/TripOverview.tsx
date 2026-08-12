@@ -4,34 +4,42 @@ import { motion, useReducedMotion } from "motion/react"
 import { ArrowUpRight, Pencil } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
 import { getTrip } from "./tripsApi"
-import { ACCENT, cityTag, daysUntilIn, formatTripDate, resolveAccent, todayIsoIn } from "./theme"
+import {
+  ACCENT,
+  cityTag,
+  collaboratorSummary,
+  daysUntilIn,
+  formatTripDate,
+  resolveAccent,
+  todayIsoIn,
+  visibleTags,
+} from "./theme"
 import { DossierSectionHeader } from "./components/DossierSectionHeader"
 import { ItemIcon } from "./components/ItemIcon"
 import { StatusChip } from "./components/StatusChip"
-import type { ItineraryItem, Trip, TripCollaborator, TripDay } from "./types"
-import { EASE, SERIF, alertErrorClass, focusRingClass, focusRingInsetClass, inkBtnClass } from "./ui"
+import type { ItineraryItem, Trip, TripDay } from "./types"
+import {
+  EASE,
+  SERIF,
+  alertErrorClass,
+  focusRingClass,
+  focusRingInsetClass,
+  inkBtnClass,
+  inlineLinkClass,
+  metaLabelClass,
+  mutedInkClass,
+  overlayHoverClass,
+  pageClass,
+  wrapAnywhereClass,
+} from "./ui"
 
 type LoadState =
   | { status: "loading" }
   | { status: "error"; message: string }
   | { status: "success"; trip: Trip; editable: boolean }
 
-/** Page gutters — `<main>` is unconstrained so the hero bloom can be full-bleed. */
-const gutterClass = "mx-auto max-w-6xl px-4 pt-8 sm:px-6 sm:pt-10"
-
-/** Bookkeeping the migration left behind — not trip metadata a reader wants. */
-const HIDDEN_TAGS = new Set(["migrated"])
-
-function collaboratorSummary(collaborators: TripCollaborator[]): string {
-  const editors = collaborators.filter((c) => c.role === "editor").length
-  const viewers = collaborators.length - editors
-  return [
-    editors > 0 ? `${editors} editor${editors === 1 ? "" : "s"}` : "",
-    viewers > 0 ? `${viewers} viewer${viewers === 1 ? "" : "s"}` : "",
-  ]
-    .filter((part) => part.length > 0)
-    .join(" · ")
-}
+/** `<main>` is unconstrained so the hero bloom can be full-bleed. */
+const gutterClass = pageClass()
 
 export function TripOverview() {
   const { tripId } = useParams<{ tripId: string }>()
@@ -78,8 +86,10 @@ export function TripOverview() {
     return (
       <div className={gutterClass}>
         <div className={alertErrorClass} role="alert">
-          Couldn’t load this trip ({state.message}).{" "}
-          <button type="button" className="font-semibold underline underline-offset-2" onClick={reload}>
+          <p className={`min-w-0 ${wrapAnywhereClass}`}>
+            Couldn’t open this trip. Check your connection, then try again. ({state.message})
+          </p>
+          <button type="button" className={`mt-1 font-semibold ${inlineLinkClass}`} onClick={reload}>
             Retry
           </button>
         </div>
@@ -110,7 +120,7 @@ export function TripOverview() {
     day.items.filter((i) => i.kind === "reservation").map((item) => ({ day, item })),
   )
 
-  const tags = trip.tags.filter((tag) => !HIDDEN_TAGS.has(tag))
+  const tags = visibleTags(trip.tags)
   const meta: { label: string; value: string }[] = [
     { label: "Destinations", value: trip.destinations.join(" · ") },
     {
@@ -139,7 +149,7 @@ export function TripOverview() {
         <div className="relative mx-auto max-w-6xl px-4 pb-8 pt-8 sm:px-6 sm:pb-10 sm:pt-10">
           <motion.p
             {...fadeUp(0)}
-            className="font-mono-trips text-[11px] uppercase tracking-[0.24em] text-stone-600 dark:text-stone-400"
+            className={`font-mono-trips text-[11px] uppercase tracking-[0.24em] ${mutedInkClass}`}
           >
             {trip.appearance?.eyebrow ?? "Itinerary"} · {dayCount} day{dayCount === 1 ? "" : "s"} ·{" "}
             {formatTripDate(trip.startDate, trip.timezone, { weekday: undefined })} →{" "}
@@ -154,11 +164,11 @@ export function TripOverview() {
           </motion.div>
 
           <motion.h1 {...fadeUp(0.08)} className="mt-4 text-stone-900 dark:text-stone-100" style={SERIF}>
-            <span className="block max-w-[16ch] font-display text-[clamp(2.5rem,7vw,4.25rem)] font-medium leading-[0.98] tracking-[-0.02em]">
+            <span className={`block max-w-[16ch] font-display text-[clamp(2.5rem,7vw,4.25rem)] font-medium leading-[0.98] tracking-[-0.02em] ${wrapAnywhereClass}`}>
               {trip.name}
             </span>
             {trip.appearance?.subtitle && (
-              <span className="mt-3 block max-w-[30ch] font-display text-[clamp(1.2rem,3vw,1.75rem)] font-light italic leading-snug text-stone-600 dark:text-stone-400">
+              <span className={`mt-3 block max-w-[30ch] font-display text-[clamp(1.2rem,3vw,1.75rem)] font-light italic leading-snug ${mutedInkClass} ${wrapAnywhereClass}`}>
                 {trip.appearance.subtitle}
               </span>
             )}
@@ -197,7 +207,7 @@ export function TripOverview() {
               {tags.map((tag) => (
                 <li
                   key={tag}
-                  className="rounded-md border border-stone-200/80 px-2 py-0.5 text-xs text-stone-600 dark:border-stone-700 dark:text-stone-400"
+                  className={`rounded-md border border-stone-200/80 px-2 py-0.5 text-xs dark:border-stone-700 ${mutedInkClass} ${wrapAnywhereClass}`}
                 >
                   {tag}
                 </li>
@@ -220,7 +230,7 @@ export function TripOverview() {
         <motion.aside {...fadeUp(0.08)} className={`border-y ${a.border} ${a.softBg}`}>
           <Link
             to={`/trips/${trip.slug ?? trip.id}/day/${todayDay.id}`}
-            className={`group mx-auto flex max-w-6xl items-center gap-4 px-4 py-4 transition-colors hover:bg-stone-950/5 sm:px-6 dark:hover:bg-stone-50/5 ${focusRingInsetClass}`}
+            className={`group mx-auto flex max-w-6xl items-center gap-4 px-4 py-4 transition-colors sm:px-6 ${overlayHoverClass} ${focusRingInsetClass}`}
           >
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-5 gap-y-1">
               <p className={`flex items-center gap-2 font-mono-trips text-[11px] uppercase tracking-[0.2em] ${a.text}`}>
@@ -228,7 +238,7 @@ export function TripOverview() {
                 Today · {formatTripDate(todayDay.date, trip.timezone)}
               </p>
               <p
-                className={`break-words font-display text-lg font-medium text-stone-900 transition-colors sm:text-xl dark:text-stone-100 ${a.textHover}`}
+                className={`font-display text-lg font-medium text-stone-900 transition-colors sm:text-xl dark:text-stone-100 ${a.textHover} ${wrapAnywhereClass}`}
                 style={SERIF}
               >
                 {todayDay.emoji && <span aria-hidden className="mr-2">{todayDay.emoji}</span>}
@@ -251,17 +261,21 @@ export function TripOverview() {
           num="01"
           eyebrow={`${dayCount} day${dayCount === 1 ? "" : "s"}`}
           title="Daily itinerary"
-          subtitle={dayCount === 0 ? "No days yet — open the editor to add structure." : "Open a day for reservations, places, and Map Mode."}
+          subtitle={
+            dayCount === 0
+              ? "No days yet. Open the editor to add structure."
+              : "Open a day for reservations, places, and Map Mode."
+          }
         />
         {dayCount === 0 ? (
-          <div className="mt-8 border border-dashed border-stone-300 px-5 py-10 text-sm text-stone-600 dark:border-stone-700 dark:text-stone-400">
+          <div className={`mt-8 border border-dashed border-stone-300 px-5 py-10 text-sm dark:border-stone-700 ${mutedInkClass}`}>
             This trip has no days yet.
             {editable && (
               <>
                 {" "}
                 <Link
                   to={`/trips/${trip.slug ?? trip.id}/edit`}
-                  className={`font-semibold underline-offset-2 hover:underline ${a.text}`}
+                  className={`font-semibold ${inlineLinkClass} ${a.text}`}
                 >
                   Open the editor
                 </Link>
@@ -279,6 +293,7 @@ export function TripOverview() {
                 index={i}
                 isToday={day.date === today}
                 isPast={day.date < today}
+                concluded={past}
                 reduce={!!reduce}
               />
             ))}
@@ -306,7 +321,7 @@ export function TripOverview() {
 
       <footer className="mx-auto mt-16 max-w-6xl px-4 pb-10 sm:px-6">
         <div className="border-t border-stone-200/80 pt-5 dark:border-stone-800/80">
-          <p className="font-mono-trips text-[11px] uppercase tracking-[0.18em] text-stone-600 dark:text-stone-400">
+          <p className={`font-mono-trips text-[11px] uppercase tracking-[0.18em] ${mutedInkClass}`}>
             Updated ·{" "}
             {new Date(trip.updatedAt).toLocaleDateString("en-US", {
               month: "long",
@@ -323,8 +338,8 @@ export function TripOverview() {
 function MetaRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <dt className="font-mono-trips text-[10px] uppercase tracking-[0.18em] text-stone-600 dark:text-stone-400">{label}</dt>
-      <dd className="mt-1 break-words text-sm leading-snug text-stone-800 dark:text-stone-200">{value}</dd>
+      <dt className={metaLabelClass}>{label}</dt>
+      <dd className={`mt-1 text-sm leading-snug text-stone-800 dark:text-stone-200 ${wrapAnywhereClass}`}>{value}</dd>
     </div>
   )
 }
@@ -335,6 +350,7 @@ function DayRow({
   index,
   isToday,
   isPast,
+  concluded,
   reduce,
 }: {
   trip: Trip
@@ -342,19 +358,23 @@ function DayRow({
   index: number
   isToday: boolean
   isPast: boolean
+  concluded: boolean
   reduce: boolean
 }) {
   const a = ACCENT
   const booked = day.items.filter((i) => i.kind === "reservation" || i.status === "booked").length
   // Elapsed days recede by hue, not opacity: a translucent row composited on
   // the parchment canvas cannot hold 4.5:1 at any useful level of dimming.
-  const elapsed = isPast && !isToday
+  // Once the trip is over every day is elapsed, so receding them all would
+  // just print the whole archive quietly — the treatment only earns its keep
+  // while there are days still ahead to contrast against.
+  const elapsed = isPast && !isToday && !concluded
   const numeralClass = isToday
     ? a.text
     : elapsed
       ? "text-stone-500 dark:text-stone-500"
       : "text-stone-900 dark:text-stone-100"
-  const titleClass = elapsed ? "text-stone-600 dark:text-stone-400" : "text-stone-900 dark:text-stone-100"
+  const titleClass = elapsed ? mutedInkClass : "text-stone-900 dark:text-stone-100"
   return (
     <motion.li
       initial={reduce ? false : { opacity: 0, y: 8 }}
@@ -372,14 +392,14 @@ function DayRow({
           <p className={`font-display text-3xl font-light leading-none tabular-nums ${numeralClass}`} style={SERIF}>
             {String(index + 1).padStart(2, "0")}
           </p>
-          <p className="mt-1 font-mono-trips text-[10px] uppercase tracking-[0.14em] text-stone-600 dark:text-stone-400">
+          <p className={`mt-1 font-mono-trips text-[10px] uppercase tracking-[0.14em] ${mutedInkClass}`}>
             {cityTag(day.city, trip.appearance?.cityTags)}
           </p>
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <h3
-              className={`break-words font-display text-xl font-medium leading-snug sm:text-2xl ${titleClass}`}
+              className={`font-display text-xl font-medium leading-snug sm:text-2xl ${titleClass} ${wrapAnywhereClass}`}
               style={SERIF}
             >
               {day.emoji && <span aria-hidden className="mr-1.5 text-lg">{day.emoji}</span>}
@@ -390,11 +410,11 @@ function DayRow({
             )}
           </div>
           {day.notes && (
-            <p className="mt-1 line-clamp-2 break-words text-sm leading-relaxed text-stone-600 dark:text-stone-400">
+            <p className={`mt-1 line-clamp-2 text-sm leading-relaxed ${mutedInkClass} ${wrapAnywhereClass}`}>
               {day.notes}
             </p>
           )}
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-stone-600 dark:text-stone-400">
+          <div className={`mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] ${mutedInkClass}`}>
             <span className="font-mono-trips uppercase tracking-[0.14em]">{formatTripDate(day.date, trip.timezone)}</span>
             {booked > 0 && (
               <span className={`inline-flex items-center gap-1.5 ${a.text}`}>
@@ -450,11 +470,11 @@ function ReservationRow({
           <p className="font-display text-3xl font-light leading-none text-stone-900 dark:text-stone-100" style={SERIF}>
             {dayNum}
           </p>
-          <p className="mt-1 font-mono-trips text-[10px] lowercase tracking-[0.14em] text-stone-600 dark:text-stone-400">
+          <p className={`mt-1 font-mono-trips text-[10px] lowercase tracking-[0.14em] ${mutedInkClass}`}>
             {formatTripDate(day.date, trip.timezone, { day: undefined })}
           </p>
           {item.time && (
-            <p className="mt-0.5 font-mono-trips text-[11px] tabular-nums text-stone-600 dark:text-stone-400">{item.time}</p>
+            <p className={`mt-0.5 font-mono-trips text-[11px] tabular-nums ${mutedInkClass}`}>{item.time}</p>
           )}
         </div>
         <div className="min-w-0 flex-1">
@@ -465,12 +485,15 @@ function ReservationRow({
               reservationType={item.reservation?.type}
               className="h-4 w-4 shrink-0 translate-y-0.5 text-stone-500 dark:text-stone-400"
             />
-            <h3 className="break-words font-display text-xl font-medium leading-snug text-stone-900 dark:text-stone-100" style={SERIF}>
+            <h3
+              className={`font-display text-xl font-medium leading-snug text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
+              style={SERIF}
+            >
               {item.title}
             </h3>
           </div>
           {item.notes && (
-            <p className="mt-1 break-words text-[13px] leading-relaxed text-stone-600 dark:text-stone-400">{item.notes}</p>
+            <p className={`mt-1 text-[13px] leading-relaxed ${mutedInkClass} ${wrapAnywhereClass}`}>{item.notes}</p>
           )}
         </div>
         <div className="flex shrink-0 items-center gap-3 pt-1.5">

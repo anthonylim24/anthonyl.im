@@ -56,7 +56,7 @@ export function FloatingSaveIndicator({ saveState }: { saveState: SaveState }) {
             {saveState === "error" ? (
               <>
                 <X className="h-3.5 w-3.5 text-red-600" aria-hidden />
-                Save failed — retries on next edit
+                Couldn’t save. Retries on your next edit.
               </>
             ) : saveState === "saved" ? (
               <>
@@ -85,11 +85,17 @@ export interface PendingUndo {
   title: string
 }
 
-/** Six-second reprieve after a delete — the editor's only undo affordance. */
+/** Wrapper id so the page can tell whether focus is still parked in the toast
+ *  when the undo window closes. */
+export const UNDO_TOAST_ID = "trip-undo-toast"
+
+/** Six-second reprieve after a delete — the editor's only undo affordance.
+ *  Takes focus on appearing, because the delete button that had focus is the
+ *  control that just unmounted. */
 export function UndoToast({ undo, onUndo }: { undo: PendingUndo | null; onUndo: () => void }) {
   const reduce = useReducedMotion()
   return (
-    <div role="status" aria-live="polite">
+    <div id={UNDO_TOAST_ID} role="status" aria-live="polite">
       <AnimatePresence>
         {undo && (
           <motion.div
@@ -105,6 +111,7 @@ export function UndoToast({ undo, onUndo }: { undo: PendingUndo | null; onUndo: 
             </span>
             <button
               type="button"
+              autoFocus
               onClick={onUndo}
               className={`-my-2 inline-flex min-h-11 items-center gap-1.5 rounded-full px-2 font-semibold text-[color:var(--ta)] transition hover:text-[color:var(--ta-strong)] ${focusRingClass}`}
             >

@@ -4,7 +4,20 @@ import { Eye, Globe2, X } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
 import { applySuggestions, enhanceTrip, getTrip, updateTrip } from "./tripsApi"
 import { insertItemAt, removeItem } from "./tripEdits"
-import { SERIF, alertErrorClass, alertNoticeClass, eyebrowClass, focusRingClass, iconBtnClass, secondaryBtnClass, successBtnClass } from "./ui"
+import {
+  SERIF,
+  alertErrorClass,
+  alertNoticeClass,
+  eyebrowClass,
+  focusRingClass,
+  iconBtnClass,
+  inlineLinkClass,
+  mutedInkClass,
+  pageClass,
+  secondaryBtnClass,
+  successBtnClass,
+  wrapAnywhereClass,
+} from "./ui"
 import { formatTripDate, resolveAccent } from "./theme"
 import { AppearancePanel } from "./editor/AppearancePanel"
 import { DayCard } from "./editor/DayCard"
@@ -13,6 +26,7 @@ import { EnhanceButton } from "./editor/EnhanceButton"
 import {
   EditorDock,
   FloatingSaveIndicator,
+  UNDO_TOAST_ID,
   UndoToast,
   type PendingUndo,
   type SaveState,
@@ -29,17 +43,11 @@ const MapModeOverlay = lazy(() =>
   import("../Korea/MapModeOverlay").then((m) => ({ default: m.MapModeOverlay })),
 )
 
-/** Page gutters — `<main>` is unconstrained so trip heroes can be full-bleed. */
-const pageClass = "mx-auto max-w-6xl px-4 pt-8 sm:px-6 sm:pt-10"
+const PAGE = pageClass()
 
 const UNDO_WINDOW_MS = 6000
 
-/** A global rule pins every input to 16px below 768px so iOS doesn't zoom on
- *  focus. The trip name is the page's display type and never drops below
- *  28px, so it can opt out without reintroducing that zoom. */
-const sizeAsDisplayType = (el: HTMLInputElement | null) => {
-  el?.style.setProperty("font-size", "clamp(1.75rem, 4vw, 2.5rem)", "important")
-}
+const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err))
 
 type LoadState =
   | { status: "loading" }
@@ -89,7 +97,7 @@ export function TripDetail() {
         setAccess(a)
         setState({ status: "success" })
       } catch (err) {
-        setState({ status: "error", message: err instanceof Error ? err.message : String(err) })
+        setState({ status: "error", message: errorText(err) })
       }
     })()
   }, [tripId, getToken])
@@ -120,8 +128,12 @@ export function TripDetail() {
         setSaveState("saved")
       } catch (err: unknown) {
         setSaveState("error")
-        const message = err instanceof Error ? err.message : String(err)
-        if (/permalink|slug|hyphen/i.test(message)) setNotice(message)
+        const message = errorText(err)
+        // A rejected permalink is a fixable input problem, not a transient
+        // failure, so it needs to say so instead of hiding behind the pill.
+        if (/permalink|slug|hyphen/i.test(message)) {
+          setNotice(`Couldn’t save the permalink. Edit it under Trip settings, then it will save. (${message})`)
+        }
       }
     },
     [getToken],
@@ -213,7 +225,9 @@ export function TripDetail() {
         if (refreshed) setTrip(refreshed)
         setActiveRun(run)
       } catch (err) {
-        setNotice(`Enhancement failed: ${err instanceof Error ? err.message : String(err)}`)
+        setNotice(
+          `The AI review didn’t finish. Nothing in your itinerary changed, so you can run it again. (${errorText(err)})`,
+        )
       } finally {
         setEnhancingTarget(null)
       }
@@ -241,7 +255,9 @@ export function TripDetail() {
         recentTimer.current = setTimeout(() => setRecentIds(new Set()), 3200)
         setNotice(`Applied ${applied.length} suggestion${applied.length === 1 ? "" : "s"}.`)
       } catch (err) {
-        setNotice(`Could not apply suggestions: ${err instanceof Error ? err.message : String(err)}`)
+        setNotice(
+          `Couldn’t apply those suggestions. They’re still listed below, so you can try again. (${errorText(err)})`,
+        )
       }
     },
     [getToken, tripDocId, activeRun],
@@ -265,17 +281,32 @@ export function TripDetail() {
     [setDays],
   )
 
+  /** The toast holds focus while the undo window is open, so hand focus back
+   *  to the day the item came from rather than dropping it on the document. */
+  const releaseUndoFocus = useCallback((dayId: string) => {
+    const toast = document.getElementById(UNDO_TOAST_ID)
+    if (!toast?.contains(document.activeElement)) return
+    document
+      .getElementById(dayId)
+      ?.querySelector<HTMLElement>("input, textarea, button, a[href]")
+      ?.focus()
+  }, [])
+
   const undoDelete = useCallback(() => {
     if (!deleted) return
     setDays((days) => insertItemAt(days, deleted.dayId, deleted.item, deleted.index))
     setDeleted(null)
-  }, [deleted, setDays])
+    releaseUndoFocus(deleted.dayId)
+  }, [deleted, setDays, releaseUndoFocus])
 
   useEffect(() => {
     if (!deleted) return
-    const timer = setTimeout(() => setDeleted(null), UNDO_WINDOW_MS)
+    const timer = setTimeout(() => {
+      setDeleted(null)
+      releaseUndoFocus(deleted.dayId)
+    }, UNDO_WINDOW_MS)
     return () => clearTimeout(timer)
-  }, [deleted])
+  }, [deleted, releaseUndoFocus])
 
   useEffect(() => () => {
     if (recentTimer.current) clearTimeout(recentTimer.current)
@@ -294,7 +325,7 @@ export function TripDetail() {
 
   if (state.status === "loading") {
     return (
-      <div className={`${pageClass} space-y-4`} role="status" aria-label="Loading trip">
+      <div className={`${PAGE} space-y-4`} role="status" aria-label="Loading trip">
         <div className="h-12 w-2/3 animate-pulse rounded-xl bg-stone-200/60 dark:bg-stone-900" />
         {[0, 1, 2].map((i) => (
           <div key={i} className="h-40 animate-pulse rounded-2xl bg-stone-200/60 dark:bg-stone-900" />
@@ -305,9 +336,15 @@ export function TripDetail() {
 
   if (state.status === "error" || !trip) {
     return (
-      <div className={pageClass}>
+      <div className={PAGE}>
         <div className={alertErrorClass} role="alert">
-          Couldn’t load this trip{state.status === "error" ? ` (${state.message})` : ""}.
+          <p className={`min-w-0 ${wrapAnywhereClass}`}>
+            Couldn’t open this trip. Check your connection and reload the page.
+            {state.status === "error" ? ` (${state.message})` : ""}
+          </p>
+          <Link to="/trips" className={`mt-1 font-semibold ${inlineLinkClass}`}>
+            Back to all trips
+          </Link>
         </div>
       </div>
     )
@@ -317,32 +354,43 @@ export function TripDetail() {
   const mapDayIndex = mapDay ? trip.days.findIndex((d) => d.id === mapDay.id) : -1
 
   return (
-    <div className={pageClass} data-trip-accent={resolveAccent(trip.appearance?.accent)}>
+    <div className={PAGE} data-trip-accent={resolveAccent(trip.appearance?.accent)}>
       {/* Trip header: identity on the left, the two things you do with a whole
           trip on the right. */}
       <header className="flex flex-col gap-4 border-b border-stone-200/80 pb-6 sm:flex-row sm:items-start sm:justify-between dark:border-stone-800/80">
         <div className="min-w-0 flex-1">
           <p className={eyebrowClass}>Itinerary editor</p>
-          <label className="sr-only" htmlFor="trip-editor-name">
-            Trip name
-          </label>
-          <input
-            id="trip-editor-name"
-            ref={sizeAsDisplayType}
-            value={trip.name}
-            disabled={!editable}
-            onChange={(e) => scheduleSave({ ...trip, name: e.target.value })}
-            className={`mt-1 w-full bg-transparent font-display font-medium leading-tight tracking-tight text-stone-900 focus:outline-none dark:text-stone-100 ${focusRingClass}`}
-            style={SERIF}
-          />
-          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-2 text-sm text-stone-600 dark:text-stone-400">
+          {editable ? (
+            <>
+              <label className="sr-only" htmlFor="trip-editor-name">
+                Trip name
+              </label>
+              <input
+                id="trip-editor-name"
+                // `trip-display-input` beats the global 16px input floor: this
+                // is display type, so the iOS zoom guard doesn't apply.
+                className={`trip-display-input mt-1 min-h-11 w-full bg-transparent font-display font-medium leading-tight tracking-tight text-stone-900 focus:outline-none dark:text-stone-100 ${focusRingClass}`}
+                value={trip.name}
+                onChange={(e) => scheduleSave({ ...trip, name: e.target.value })}
+                style={SERIF}
+              />
+            </>
+          ) : (
+            <h1
+              className={`mt-1 font-display text-[clamp(1.75rem,4vw,2.5rem)] font-medium leading-tight tracking-tight text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
+              style={SERIF}
+            >
+              {trip.name}
+            </h1>
+          )}
+          <div className={`mt-2 flex flex-wrap items-center gap-x-2 gap-y-2 text-sm ${mutedInkClass}`}>
             <TripStatusSelect
               status={trip.status}
               editable={editable}
               onChange={(status) => scheduleSave({ ...trip, status })}
             />
             <span aria-hidden>·</span>
-            <span className="break-words">
+            <span className={wrapAnywhereClass}>
               {trip.destinations.join(" · ")} · {formatTripDate(trip.startDate, trip.timezone)} →{" "}
               {formatTripDate(trip.endDate, trip.timezone)} · {trip.timezone}
             </span>
@@ -358,7 +406,7 @@ export function TripDetail() {
               type="button"
               onClick={() => {
                 scheduleSave({ ...trip, status: "active" })
-                setNotice("Trip published — it's now active for everyone who can see it.")
+                setNotice("Trip published. It’s now active for everyone who can see it.")
               }}
               className={successBtnClass}
             >
@@ -373,7 +421,7 @@ export function TripDetail() {
               busy={enhancingTarget === "trip"}
               disabled={enhancingTarget !== null}
               variant="solid"
-              promptPlaceholder="Optional focus — e.g. “tighten the pacing and add more local food”"
+              promptPlaceholder="Optional focus, e.g. “tighten the pacing and add more local food”"
               onRun={(prompt) => void runEnhance("trip", undefined, prompt)}
             />
           )}
@@ -382,7 +430,7 @@ export function TripDetail() {
 
       {notice && (
         <div className={`mt-4 flex items-start justify-between gap-3 ${alertNoticeClass}`} role="status">
-          <span className="min-w-0 break-words">{notice}</span>
+          <span className={`min-w-0 ${wrapAnywhereClass}`}>{notice}</span>
           <button
             type="button"
             onClick={() => setNotice(null)}

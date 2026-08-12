@@ -2,13 +2,26 @@ import { memo, useEffect, useId, useRef, useState, type MouseEvent } from "react
 import { motion, useReducedMotion } from "motion/react"
 import { ArrowDown, ArrowRightLeft, ArrowUp, ChevronDown, Copy, MapPin, Trash2 } from "lucide-react"
 import { ACCENT } from "../theme"
+import { useAnchorHighlight } from "../anchors"
 import { AiChip, StatusChip } from "../components/StatusChip"
 import { ItemIcon } from "../components/ItemIcon"
 import { convertNoteToPlace, duplicateItem, moveItem, moveItemToDay, updateItem } from "../tripEdits"
-import { EASE, compactInputClass, compactSelectClass, iconBtnClass, subtleInputClass } from "../ui"
+import {
+  EASE,
+  compactInputClass,
+  compactSelectClass,
+  dangerChipBtnClass,
+  fieldLabelClass,
+  iconBtnClass,
+  staticFieldClass,
+  staticValueClass,
+  subtleInputClass,
+  timeCellClass,
+  wrapAnywhereClass,
+} from "../ui"
 import type { ItemStatus, ItineraryItem, TripDay } from "../types"
 import { IconButton } from "./IconButton"
-import { STATUS_OPTIONS, dangerChipBtnClass, fieldLabelClass, timeCellClass, type DayOption } from "./editorUi"
+import { STATUS_OPTIONS, type DayOption } from "./editorUi"
 
 interface ItemRowProps {
   item: ItineraryItem
@@ -26,6 +39,42 @@ interface ItemRowProps {
   onDelete: (dayId: string, item: ItineraryItem, index: number) => void
 }
 
+/** Viewers get plain text with the input's box metrics: a `disabled` input is
+ *  skipped by screen readers and renders below AA contrast. */
+function ReadonlyOrInput({
+  editable,
+  label,
+  value,
+  placeholder,
+  onChange,
+}: {
+  editable: boolean
+  label: string
+  value: string
+  placeholder: string
+  onChange: (value: string) => void
+}) {
+  if (!editable) {
+    return (
+      <div>
+        <span className={fieldLabelClass}>{label}</span>
+        <p className={staticFieldClass}>{value || "Not set"}</p>
+      </div>
+    )
+  }
+  return (
+    <label className="block">
+      <span className={fieldLabelClass}>{label}</span>
+      <input
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        className={`mt-1 w-full ${compactInputClass}`}
+      />
+    </label>
+  )
+}
+
 export const ItemRow = memo(function ItemRow({
   item,
   dayId,
@@ -40,6 +89,7 @@ export const ItemRow = memo(function ItemRow({
   onDelete,
 }: ItemRowProps) {
   const reduce = useReducedMotion()
+  const highlightClass = useAnchorHighlight(highlight)
   const [expanded, setExpanded] = useState(false)
   const rowRef = useRef<HTMLLIElement>(null)
   const panelId = useId()
@@ -97,22 +147,29 @@ export const ItemRow = memo(function ItemRow({
         isSection
           ? "rounded-lg bg-stone-100/80 px-3 py-1.5 dark:bg-stone-800/50"
           : "rounded-xl border border-stone-200/80 bg-white px-3 py-2 transition-shadow hover:border-stone-300 dark:border-stone-800 dark:bg-stone-900 dark:hover:border-stone-700"
-      } ${highlight ? `trip-flash ring-2 ${ACCENT.ring}` : ""}`}
+      } ${highlightClass}`}
     >
       {isSection ? (
         // A divider, not a card: full-width tinted band, uppercase mono.
         <div className="flex items-center gap-2" onClick={toggleFromRow}>
-          <input
-            value={item.title}
-            disabled={!editable}
-            placeholder="Section heading…"
-            title={item.title || undefined}
-            aria-label="Section heading"
-            onChange={(e) => patch({ title: e.target.value })}
-            // Below 768px a global rule pins inputs to 16px (iOS zoom guard),
-            // so the band tightens its tracking instead of its size.
-            className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1 py-1 font-mono-trips text-[11px] uppercase tracking-[0.06em] text-stone-700 transition placeholder:text-stone-500 hover:border-stone-300 focus:border-[color:var(--trips-accent)] focus:outline-none sm:tracking-[0.16em] dark:text-stone-300 dark:hover:border-stone-700"
-          />
+          {editable ? (
+            <input
+              value={item.title}
+              placeholder="Section heading…"
+              title={item.title || undefined}
+              aria-label="Section heading"
+              onChange={(e) => patch({ title: e.target.value })}
+              // Below 768px a global rule pins inputs to 16px (iOS zoom guard),
+              // so the band tightens its tracking instead of its size.
+              className={`min-h-11 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1 py-1 font-mono-trips text-[11px] uppercase tracking-[0.06em] text-stone-700 transition placeholder:text-stone-500 hover:border-stone-300 focus:border-[color:var(--trips-accent)] focus:outline-none sm:min-h-0 sm:tracking-[0.16em] dark:text-stone-300 dark:hover:border-stone-700`}
+            />
+          ) : (
+            <span
+              className={`min-w-0 flex-1 px-1 py-1 font-mono-trips text-[11px] uppercase tracking-[0.06em] text-stone-700 sm:tracking-[0.16em] dark:text-stone-300 ${wrapAnywhereClass}`}
+            >
+              {item.title}
+            </span>
+          )}
           {item.time && <span className={`shrink-0 ${timeCellClass}`}>{item.time}</span>}
           {disclosure}
         </div>
@@ -157,17 +214,26 @@ export const ItemRow = memo(function ItemRow({
             reservationType={item.reservation?.type}
             className={`h-4 w-4 shrink-0 ${isPlace ? ACCENT.text : "text-stone-500 dark:text-stone-400"}`}
           />
-          <input
-            value={item.title}
-            disabled={!editable}
-            placeholder="Title…"
-            title={item.title || undefined}
-            aria-label="Item title"
-            onChange={(e) => patch({ title: e.target.value })}
-            className={`w-full min-w-0 ${subtleInputClass} ${
-              item.status === "completed" ? "line-through opacity-60" : ""
-            }`}
-          />
+          {editable ? (
+            <input
+              value={item.title}
+              placeholder="Title…"
+              title={item.title || undefined}
+              aria-label="Item title"
+              onChange={(e) => patch({ title: e.target.value })}
+              className={`w-full min-w-0 ${subtleInputClass} ${
+                item.status === "completed" ? "line-through opacity-60" : ""
+              }`}
+            />
+          ) : (
+            <span
+              className={`w-full min-w-0 ${staticValueClass} ${wrapAnywhereClass} ${
+                item.status === "completed" ? "line-through opacity-60" : ""
+              }`}
+            >
+              {item.title}
+            </span>
+          )}
           <span className="flex items-center gap-1.5 justify-self-end">
             <span className="hidden items-center gap-1.5 sm:inline-flex">{chips}</span>
             {disclosure}
@@ -185,7 +251,7 @@ export const ItemRow = memo(function ItemRow({
                   {item.endTime ? `${item.time}–${item.endTime}` : item.time}
                 </span>
               )}
-              {metaLocation && <span className="min-w-0 break-words">{metaLocation}</span>}
+              {metaLocation && <span className={`min-w-0 ${wrapAnywhereClass}`}>{metaLocation}</span>}
               {needsPin && <span className="text-amber-700 dark:text-amber-400">no pin yet</span>}
               {hasChips && <span className="flex items-center gap-1.5 sm:hidden">{chips}</span>}
             </div>
@@ -237,58 +303,62 @@ export const ItemRow = memo(function ItemRow({
             </div>
           )}
 
-          <label className="block">
-            <span className={fieldLabelClass}>Notes</span>
-            <textarea
-              value={item.notes ?? ""}
-              disabled={!editable}
-              placeholder="Notes, links, reminders…"
-              rows={3}
-              onChange={(e) => patch({ notes: e.target.value || undefined })}
-              className={`mt-1 w-full resize-none ${compactInputClass}`}
-            />
-          </label>
+          {editable ? (
+            <label className="block">
+              <span className={fieldLabelClass}>Notes</span>
+              <textarea
+                value={item.notes ?? ""}
+                placeholder="Notes, links, reminders…"
+                rows={3}
+                onChange={(e) => patch({ notes: e.target.value || undefined })}
+                className={`mt-1 w-full resize-none ${compactInputClass}`}
+              />
+            </label>
+          ) : (
+            item.notes && (
+              <div>
+                <span className={fieldLabelClass}>Notes</span>
+                <p className={`${staticFieldClass} whitespace-pre-line`}>{item.notes}</p>
+              </div>
+            )
+          )}
 
           {isPlace && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <label className="block">
-                <span className={fieldLabelClass}>Location name</span>
-                <input
-                  value={item.location?.name ?? ""}
-                  disabled={!editable}
-                  placeholder="Place name"
-                  onChange={(e) =>
-                    patch({ location: { ...(item.location ?? { source: "user" as const }), name: e.target.value } })
-                  }
-                  className={`mt-1 w-full ${compactInputClass}`}
-                />
-              </label>
-              <label className="block">
-                <span className={fieldLabelClass}>Address</span>
-                <input
-                  value={item.location?.address ?? ""}
-                  disabled={!editable}
-                  placeholder="Address"
-                  onChange={(e) =>
-                    patch({
-                      location: {
-                        ...(item.location ?? { name: item.title, source: "user" as const }),
-                        address: e.target.value || undefined,
-                      },
-                    })
-                  }
-                  className={`mt-1 w-full ${compactInputClass}`}
-                />
-              </label>
+              <ReadonlyOrInput
+                editable={editable}
+                label="Location name"
+                value={item.location?.name ?? ""}
+                placeholder="Place name"
+                onChange={(next) =>
+                  patch({ location: { ...(item.location ?? { source: "user" as const }), name: next } })
+                }
+              />
+              <ReadonlyOrInput
+                editable={editable}
+                label="Address"
+                value={item.location?.address ?? ""}
+                placeholder="Address"
+                onChange={(next) =>
+                  patch({
+                    location: {
+                      ...(item.location ?? { name: item.title, source: "user" as const }),
+                      address: next || undefined,
+                    },
+                  })
+                }
+              />
               {item.location?.lat != null && item.location?.lng != null ? (
-                <p className="col-span-full inline-flex items-center gap-1.5 break-words text-xs text-stone-600 dark:text-stone-400">
+                <p
+                  className={`col-span-full inline-flex items-center gap-1.5 text-xs text-stone-600 dark:text-stone-400 ${wrapAnywhereClass}`}
+                >
                   <MapPin className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} aria-hidden />
                   {item.location.lat.toFixed(4)}, {item.location.lng.toFixed(4)}
-                  {item.location.confidence ? ` · ${item.location.confidence} confidence` : ""} — appears in Map Mode
+                  {item.location.confidence ? ` · ${item.location.confidence} confidence` : ""} · appears in Map Mode
                 </p>
               ) : (
                 <p className="col-span-full text-xs text-amber-700 dark:text-amber-400">
-                  No coordinates yet — run “Enhance day” or add them so this place appears in Map Mode.
+                  No coordinates yet. Run “Enhance day” or add them so this place appears in Map Mode.
                 </p>
               )}
             </div>

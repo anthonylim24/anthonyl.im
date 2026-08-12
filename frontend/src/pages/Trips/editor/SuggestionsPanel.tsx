@@ -6,11 +6,14 @@ import { SuggestionChip } from "../components/StatusChip"
 import {
   EASE,
   checkboxClass,
+  fieldLabelClass,
   ghostBtnClass,
   iconBtnClass,
+  mutedInkClass,
   primaryBtnClass,
   quietBtnClass,
   softPanelClass,
+  wrapAnywhereClass,
 } from "../ui"
 import type { EnhancementRun, EnhancementSuggestion } from "../types"
 import type { DayOption } from "./editorUi"
@@ -93,7 +96,7 @@ export function SuggestionsPanel({
             Enhancement review {run.scope === "day" ? `· ${dayLabel(run.dayId)}` : "· whole trip"}
           </h2>
           {run.summary && (
-            <p className="mt-1 break-words text-sm text-stone-600 dark:text-stone-400">{run.summary}</p>
+            <p className={`mt-1 text-sm ${mutedInkClass} ${wrapAnywhereClass}`}>{run.summary}</p>
           )}
         </div>
         <button type="button" onClick={onDismiss} aria-label="Dismiss suggestions" className={iconBtnClass}>
@@ -102,14 +105,12 @@ export function SuggestionsPanel({
       </div>
 
       {run.suggestions.length === 0 ? (
-        <p className="mt-4 text-sm text-stone-500 dark:text-stone-400">
-          No suggestions — this plan already looks solid.
-        </p>
+        <p className={`mt-4 text-sm ${mutedInkClass}`}>No suggestions. This plan already looks solid.</p>
       ) : (
         <>
           {actionableIds.length > 1 && (
             <div className="mt-4 flex items-center justify-between gap-3 border-b border-stone-200/80 pb-2 dark:border-stone-800">
-              <span className="font-mono-trips text-[11px] uppercase tracking-[0.14em] text-stone-600 dark:text-stone-400">
+              <span className={fieldLabelClass} role="status">
                 {selected.size} of {actionableIds.length} selected
               </span>
               <button
@@ -125,9 +126,7 @@ export function SuggestionsPanel({
             {groups.map((group) => (
               <div key={group.key}>
                 {group.label && (
-                  <p className="font-mono-trips text-[11px] uppercase tracking-[0.14em] text-stone-600 dark:text-stone-400">
-                    {group.label}
-                  </p>
+                  <p className={fieldLabelClass}>{group.label}</p>
                 )}
                 <ul className={`space-y-2 ${group.label ? "mt-2" : ""}`}>
                   {group.suggestions.map((s) => (
@@ -194,7 +193,7 @@ function SuggestionItem({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <SuggestionChip kind={suggestion.kind} />
-            <span className="break-words text-sm font-medium text-stone-900 dark:text-stone-100">
+            <span className={`text-sm font-medium text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}>
               {suggestion.title}
             </span>
             {/* Only low confidence earns a tag — medium and high are noise. */}
@@ -203,10 +202,10 @@ function SuggestionItem({
             )}
           </div>
           {suggestion.detail && (
-            <p className="mt-1 break-words text-sm text-stone-600 dark:text-stone-400">{suggestion.detail}</p>
+            <p className={`mt-1 text-sm ${mutedInkClass} ${wrapAnywhereClass}`}>{suggestion.detail}</p>
           )}
           {suggestion.proposedItem && (
-            <p className="mt-1 break-words text-xs text-stone-500 dark:text-stone-400">
+            <p className={`mt-1 text-xs ${mutedInkClass} ${wrapAnywhereClass}`}>
               Adds: {suggestion.proposedItem.title}
               {suggestion.proposedItem.location?.name ? ` @ ${suggestion.proposedItem.location.name}` : ""}
             </p>

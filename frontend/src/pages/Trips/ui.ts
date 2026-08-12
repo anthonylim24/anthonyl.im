@@ -23,30 +23,63 @@ const BTN = "inline-flex items-center justify-center gap-2 rounded-xl transition
 export const focusRingClass = FOCUS
 export const focusRingInsetClass = FOCUS_INSET
 
+// ── Ink ──────────────────────────────────────────────────────────────────
+
+/** Secondary ink: 6.83:1 on the light canvas, 7.35:1 on the dark one. The
+ *  named floor for muted copy — `text-stone-500` is 4.30:1 and fails AA. */
+export const mutedInkClass = "text-stone-600 dark:text-stone-400"
+
+/** User-authored strings (titles, addresses, notes) that may be one long
+ *  unbroken run — Korean addresses overflow narrow columns without this. */
+export const wrapAnywhereClass = "break-words [overflow-wrap:anywhere]"
+
+// ── Layout ───────────────────────────────────────────────────────────────
+
+const PAGE_MAX = { form: "max-w-2xl", reading: "max-w-3xl", wide: "max-w-6xl" } as const
+
+/** Page gutters. `<main>` is unconstrained so trip heroes can bleed to the
+ *  viewport edge, so every routed page opens with one of these. */
+export function pageClass(width: keyof typeof PAGE_MAX = "wide"): string {
+  return `mx-auto ${PAGE_MAX[width]} px-4 pt-8 sm:px-6 sm:pt-10`
+}
+
 // ── Labels ───────────────────────────────────────────────────────────────
 
-export const labelClass =
-  "block text-[11px] font-medium uppercase tracking-[0.16em] text-stone-600 dark:text-stone-400"
+export const labelClass = `block text-[11px] font-medium uppercase tracking-[0.16em] ${mutedInkClass}`
 
 /** Mono eyebrow above a section or field group. */
-export const eyebrowClass =
-  "font-mono-trips text-[11px] uppercase tracking-[0.2em] text-stone-600 dark:text-stone-400"
+export const eyebrowClass = `font-mono-trips text-[11px] uppercase tracking-[0.2em] ${mutedInkClass}`
+
+/** Mono field label for the editor's dense forms — the quieter sibling of
+ *  `labelClass`, which is sized for full-width form pages. */
+export const fieldLabelClass = `block font-mono-trips text-[11px] uppercase tracking-[0.14em] ${mutedInkClass}`
+
+/** Term label in a dossier definition list (Destinations, Time zone, …). */
+export const metaLabelClass = `font-mono-trips text-[10px] uppercase tracking-[0.18em] ${mutedInkClass}`
+
+/** Explanatory line under a field. */
+export const hintClass = `mt-1.5 text-xs leading-relaxed ${mutedInkClass}`
+
+/** Mono tabular time — keeps times aligned down a list of rows. */
+export const timeCellClass = `font-mono-trips text-[11px] tabular-nums ${mutedInkClass}`
 
 // ── Inputs ───────────────────────────────────────────────────────────────
 
 export const inputClass = `w-full min-h-11 rounded-xl border border-stone-300/90 bg-[var(--trips-surface)] px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-500 transition focus:border-[color:var(--trips-accent)] focus:outline-none ${FOCUS} dark:border-stone-700 dark:bg-stone-900/80 dark:text-stone-100 dark:placeholder:text-stone-400`
 
 /** Bordered control for dense editor grids — smaller than `inputClass`.
- *  Width is left to the call site so it can sit in a flex row. */
-export const compactInputClass = `min-h-9 rounded-lg border border-stone-300/90 bg-[var(--trips-surface)] px-2.5 py-1.5 text-sm text-stone-900 placeholder:text-stone-500 transition focus:border-[color:var(--trips-accent)] focus:outline-none ${FOCUS} dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:placeholder:text-stone-400`
+ *  Width is left to the call site so it can sit in a flex row. Keeps a full
+ *  44px target on touch layouts and tightens to 36px from `sm`, like the
+ *  compact buttons. */
+export const compactInputClass = `min-h-11 sm:min-h-9 rounded-lg border border-stone-300/90 bg-[var(--trips-surface)] px-2.5 py-1.5 text-sm text-stone-900 placeholder:text-stone-500 transition focus:border-[color:var(--trips-accent)] focus:outline-none ${FOCUS} dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:placeholder:text-stone-400`
 
 /** Borderless inline edit — the field only reveals itself on hover/focus.
  *  Width is left to the call site so it can sit in a flex row. */
-export const subtleInputClass = `min-h-9 rounded-lg border border-transparent bg-transparent px-2 py-1 text-sm text-stone-900 transition placeholder:text-stone-500 hover:border-stone-300 focus:border-[color:var(--trips-accent)] focus:bg-[var(--trips-surface)] focus:outline-none ${FOCUS} dark:text-stone-100 dark:placeholder:text-stone-400 dark:hover:border-stone-700 dark:focus:bg-stone-900`
+export const subtleInputClass = `min-h-11 sm:min-h-9 rounded-lg border border-transparent bg-transparent px-2 py-1 text-sm text-stone-900 transition placeholder:text-stone-500 hover:border-stone-300 focus:border-[color:var(--trips-accent)] focus:bg-[var(--trips-surface)] focus:outline-none ${FOCUS} dark:text-stone-100 dark:placeholder:text-stone-400 dark:hover:border-stone-700 dark:focus:bg-stone-900`
 
 export const selectClass = `min-h-11 rounded-xl border border-stone-300/90 bg-[var(--trips-surface)] px-3 py-2 text-sm text-stone-900 transition focus:border-[color:var(--trips-accent)] focus:outline-none ${FOCUS} dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100`
 
-export const compactSelectClass = `min-h-9 rounded-lg border border-stone-300/90 bg-[var(--trips-surface)] px-2 py-1 text-xs text-stone-800 transition focus:border-[color:var(--trips-accent)] focus:outline-none ${FOCUS} dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200`
+export const compactSelectClass = `min-h-11 sm:min-h-9 rounded-lg border border-stone-300/90 bg-[var(--trips-surface)] px-2 py-1 text-xs text-stone-800 transition focus:border-[color:var(--trips-accent)] focus:outline-none ${FOCUS} dark:border-stone-700 dark:bg-stone-900 dark:text-stone-200`
 
 export const checkboxClass = `h-4 w-4 rounded border-stone-400 accent-[var(--trips-accent)] ${FOCUS} dark:border-stone-600`
 
@@ -60,6 +93,14 @@ export const bareInputClass =
 
 /** Leading accent glyph inside a field or heading. */
 export const accentIconClass = "text-[color:var(--trips-accent)]"
+
+/** Read-only stand-in for `subtleInputClass`: same box metrics, plain text.
+ *  Viewers get real text rather than a `disabled` input, which screen readers
+ *  skip and which renders below AA contrast. */
+export const staticValueClass = "min-h-9 px-2 py-1 text-sm text-stone-900 dark:text-stone-100"
+
+/** Read-only stand-in for `compactInputClass`. */
+export const staticFieldClass = `mt-1 block px-0.5 text-sm text-stone-800 dark:text-stone-200 ${wrapAnywhereClass}`
 
 // ── Surfaces ─────────────────────────────────────────────────────────────
 
@@ -88,6 +129,14 @@ export const secondaryBtnClass = `${BTN} min-h-11 border border-stone-300/90 bg-
 
 export const ghostBtnClass = `${BTN} min-h-11 px-3.5 py-2 text-sm font-medium text-stone-600 hover:bg-stone-200/60 hover:text-stone-900 ${FOCUS} disabled:cursor-not-allowed disabled:opacity-50 dark:text-stone-400 dark:hover:bg-stone-800/60 dark:hover:text-stone-100`
 
+/** Neutral hover for anything sitting on a tinted surface: an ink overlay
+ *  layers over the tint, where a `bg-stone-*` hover would replace it. */
+export const overlayHoverClass = "hover:bg-stone-950/5 dark:hover:bg-stone-50/5"
+
+/** `ghostBtnClass` for tinted bands (the red delete-confirm strip), where the
+ *  stone hover tint muddies against the surface it sits on. */
+export const ghostOnTintBtnClass = `${BTN} min-h-11 px-3.5 py-2 text-sm font-medium text-stone-700 ${overlayHoverClass} hover:text-stone-950 ${FOCUS} disabled:cursor-not-allowed disabled:opacity-50 dark:text-stone-300 dark:hover:text-stone-50`
+
 /** Neutral-ink action — reserved for the one "enter Map Mode" style CTA. */
 export const inkBtnClass = `${BTN} min-h-11 bg-stone-900 px-5 py-2.5 text-sm font-semibold text-stone-50 hover:bg-stone-700 ${FOCUS} focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-300`
 
@@ -106,6 +155,14 @@ export const accentChipBtnClass = `inline-flex min-h-11 items-center justify-cen
 /** Quiet add-affordance ("Place / Note / Section", "Add callout"). */
 export const quietBtnClass = `inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-medium text-stone-600 transition hover:bg-stone-200/60 hover:text-stone-900 ${FOCUS} disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-9 dark:text-stone-400 dark:hover:bg-stone-800/60 dark:hover:text-stone-100`
 
+/** Destructive action with a text label, sized like `chipBtnClass`. */
+export const dangerChipBtnClass =
+  "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-red-300/80 bg-transparent px-3 text-xs font-medium text-red-700 transition hover:bg-red-50 hover:text-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-9 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-950/40 dark:hover:text-red-200"
+
+/** Secondary link or button inside a sentence. The vertical padding buys a
+ *  44px-tall target without changing the line box it sits in. */
+export const inlineLinkClass = `inline-block rounded py-1.5 -my-1.5 underline underline-offset-2 ${FOCUS}`
+
 /** 44x44 icon-only button. */
 export const iconBtnClass = `inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-stone-500 transition hover:bg-stone-200/60 hover:text-stone-900 ${FOCUS} disabled:cursor-not-allowed disabled:opacity-30 dark:text-stone-400 dark:hover:bg-stone-800/60 dark:hover:text-stone-100`
 
@@ -115,17 +172,20 @@ export const dangerIconBtnClass = `inline-flex h-11 w-11 shrink-0 items-center j
 
 // ── Formatting helpers ───────────────────────────────────────────────────
 
-export function formatRangeFull(start: string, end: string): string {
-  const startY = start.slice(0, 4)
-  const endY = end.slice(0, 4)
-  const fmt = (iso: string, withYear: boolean) =>
+/** `Mar 3 – Mar 11, 2026`, dropping the year only where it is redundant.
+ *  `year: false` omits it entirely, for rows that state the year elsewhere. */
+export function formatRangeFull(start: string, end: string, opts?: { year?: boolean }): string {
+  const sameYear = start.slice(0, 4) === end.slice(0, 4)
+  const withYear = opts?.year !== false
+  const fmt = (iso: string, year: boolean) =>
     new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
-      ...(withYear ? { year: "numeric" } : {}),
+      ...(year ? { year: "numeric" } : {}),
       timeZone: "UTC",
     })
-  if (startY !== endY) return `${fmt(start, true)} – ${fmt(end, true)}`
+  if (!withYear) return `${fmt(start, false)} – ${fmt(end, false)}`
+  if (!sameYear) return `${fmt(start, true)} – ${fmt(end, true)}`
   return `${fmt(start, false)} – ${fmt(end, true)}`
 }
 

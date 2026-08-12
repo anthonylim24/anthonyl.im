@@ -8,9 +8,12 @@ import {
   compactInputClass,
   compactSelectClass,
   labelClass,
+  mutedInkClass,
   quietBtnClass,
   secondaryBtnClass,
+  staticValueClass,
   subtleInputClass,
+  wrapAnywhereClass,
 } from "../ui"
 import type { EnhancementRun, ItemKind, ItineraryItem, TripDay } from "../types"
 import { EnhanceButton } from "./EnhanceButton"
@@ -81,24 +84,31 @@ export const DayCard = memo(function DayCard({
             {day.city ? ` · ${day.city}` : ""}
           </p>
           <div className="mt-0.5 flex items-center gap-1.5">
-            <input
-              value={day.emoji ?? ""}
-              disabled={!editable}
-              placeholder="✦"
-              maxLength={4}
-              aria-label={`Day ${index + 1} emoji`}
-              onChange={(e) => patchDay({ emoji: e.target.value || undefined })}
-              className={`w-11 shrink-0 text-center text-xl ${subtleInputClass}`}
-            />
-            <input
-              value={day.title ?? ""}
-              disabled={!editable}
-              placeholder="Day theme…"
-              title={day.title || undefined}
-              aria-label={`Day ${index + 1} title`}
-              onChange={(e) => patchDay({ title: e.target.value })}
-              className={`w-full truncate text-lg font-semibold ${subtleInputClass}`}
-            />
+            {editable ? (
+              <>
+                <input
+                  value={day.emoji ?? ""}
+                  placeholder="✦"
+                  maxLength={4}
+                  aria-label={`Day ${index + 1} emoji`}
+                  onChange={(e) => patchDay({ emoji: e.target.value || undefined })}
+                  className={`w-11 shrink-0 text-center text-xl ${subtleInputClass}`}
+                />
+                <input
+                  value={day.title ?? ""}
+                  placeholder="Day theme…"
+                  title={day.title || undefined}
+                  aria-label={`Day ${index + 1} title`}
+                  onChange={(e) => patchDay({ title: e.target.value })}
+                  className={`w-full truncate text-lg font-semibold ${subtleInputClass}`}
+                />
+              </>
+            ) : (
+              <h2 className={`text-lg font-semibold ${staticValueClass} ${wrapAnywhereClass}`}>
+                {day.emoji ? `${day.emoji} ` : ""}
+                {day.title ?? ""}
+              </h2>
+            )}
           </div>
         </div>
         {/* Own row below `sm` so the title input keeps the full width. */}
@@ -110,7 +120,7 @@ export const DayCard = memo(function DayCard({
               busy={enhancing}
               disabled={enhancing}
               variant="outline"
-              promptPlaceholder="Optional focus — e.g. “swap the museum for something outdoors”"
+              promptPlaceholder="Optional focus, e.g. “swap the museum for something outdoors”"
               onRun={enhance}
             />
           )}
@@ -127,17 +137,22 @@ export const DayCard = memo(function DayCard({
         </div>
       </div>
 
-      <textarea
-        value={day.notes ?? ""}
-        disabled={!editable}
-        placeholder={editable ? "Day theme prose — the editorial line under the title on the trip page…" : ""}
-        aria-label={`Day ${index + 1} theme`}
-        rows={day.notes ? Math.min(4, day.notes.split("\n").length) : 1}
-        onChange={(e) => patchDay({ notes: e.target.value })}
-        // `field-sizing-content` grows the box with wrapped prose; `rows` is
-        // the fallback where it isn't supported.
-        className={`mt-2 w-full resize-none field-sizing-content ${subtleInputClass}`}
-      />
+      {editable ? (
+        <textarea
+          value={day.notes ?? ""}
+          placeholder="Day theme prose, the editorial line under the title on the trip page…"
+          aria-label={`Day ${index + 1} theme`}
+          rows={day.notes ? Math.min(4, day.notes.split("\n").length) : 1}
+          onChange={(e) => patchDay({ notes: e.target.value })}
+          // `field-sizing-content` grows the box with wrapped prose; `rows` is
+          // the fallback where it isn't supported.
+          className={`mt-2 w-full resize-none field-sizing-content ${subtleInputClass}`}
+        />
+      ) : (
+        day.notes && (
+          <p className={`mt-2 whitespace-pre-line ${staticValueClass} ${wrapAnywhereClass}`}>{day.notes}</p>
+        )
+      )}
 
       {/* Day details: display metadata for the dossier pages */}
       {editable && (
@@ -242,8 +257,8 @@ export const DayCard = memo(function DayCard({
                 </div>
               </div>
               {day.weather && (
-                <p className="text-xs text-stone-600 dark:text-stone-400">
-                  Weather: {day.weather.highC}°C / {day.weather.lowC}°C · {day.weather.condition} — auto-synced from
+                <p className={`text-xs ${mutedInkClass}`}>
+                  Weather: {day.weather.highC}°C / {day.weather.lowC}°C · {day.weather.condition}. Auto-synced from
                   the live forecast on each Enhance run.
                 </p>
               )}
@@ -260,8 +275,10 @@ export const DayCard = memo(function DayCard({
       </AnimatePresence>
 
       {day.items.length === 0 ? (
-        <div className="mt-3 rounded-xl border border-dashed border-stone-200 px-4 py-6 text-center text-sm text-stone-600 dark:border-stone-700 dark:text-stone-400">
-          Nothing planned yet{editable ? " — add a place, note, or section below." : "."}
+        <div
+          className={`mt-3 rounded-xl border border-dashed border-stone-200 px-4 py-6 text-center text-sm dark:border-stone-700 ${mutedInkClass}`}
+        >
+          Nothing planned yet{editable ? ". Add a place, note, or section below." : "."}
         </div>
       ) : (
         // Timeline rail: a vertical line down the day, the itinerary

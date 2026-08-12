@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
 import { ArrowRight, CalendarDays, MapPin, Plus, RotateCcw, Trash2, Users } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
 import { deleteTrip, listTrips } from "./tripsApi"
 import type { TripSummary } from "./types"
-import { ACCENT, daysUntilIn, todayIsoIn } from "./theme"
+import { ACCENT, collaboratorSummary, daysUntilIn, todayIsoIn } from "./theme"
 import { TripStatusChip } from "./components/StatusChip"
 import {
   EASE,
@@ -15,23 +15,24 @@ import {
   dangerIconBtnClass,
   dayCountInclusive,
   eyebrowClass,
-  focusRingClass,
   focusRingInsetClass,
   formatRangeFull,
   ghostBtnClass,
+  ghostOnTintBtnClass,
+  inlineLinkClass,
+  mutedInkClass,
+  pageClass,
   primaryBtnClass,
   secondaryBtnClass,
+  wrapAnywhereClass,
 } from "./ui"
-
-/** Page gutters — `<main>` is unconstrained so trip heroes can be full-bleed. */
-const pageClass = "mx-auto max-w-6xl px-4 pt-8 sm:px-6 sm:pt-10"
 
 /** Left column of a trip row and of the loading skeleton. */
 const markColumnClass = "w-[4.5rem] shrink-0 sm:w-20"
 
-const captionClass = "font-mono-trips text-[10px] uppercase tracking-[0.16em] text-stone-600 dark:text-stone-400"
+const captionClass = `font-mono-trips text-[10px] uppercase tracking-[0.16em] ${mutedInkClass}`
 
-const metaIconClass = "h-3.5 w-3.5 shrink-0 text-stone-500 dark:text-stone-400"
+const metaIconClass = `h-3.5 w-3.5 shrink-0 ${mutedInkClass}`
 
 const rowListClass =
   "divide-y divide-stone-200/80 border-y border-stone-200/80 dark:divide-stone-800/80 dark:border-stone-800/80"
@@ -97,19 +98,11 @@ function markFor(trip: TripSummary, bucket: TripBucket, today: string, dayCount:
   }
 }
 
-/** Month/day only. Past rows carry the year in the mark, so repeating it in
- *  the range would state the same fact twice in one row. */
-function formatRangeShort(start: string, end: string): string {
-  const monthDay = (iso: string) =>
-    new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })
-  return `${monthDay(start)} – ${monthDay(end)}`
-}
-
+/** Past rows carry the year in their mark, so repeating it in the range would
+ *  state the same fact twice in one row. */
 function rangeFor(trip: TripSummary, bucket: TripBucket): string {
   const sameYear = trip.startDate.slice(0, 4) === trip.endDate.slice(0, 4)
-  return bucket === "past" && sameYear
-    ? formatRangeShort(trip.startDate, trip.endDate)
-    : formatRangeFull(trip.startDate, trip.endDate)
+  return formatRangeFull(trip.startDate, trip.endDate, { year: !(bucket === "past" && sameYear) })
 }
 
 function CountdownMark({ mark }: { mark: TripMark }) {
@@ -119,7 +112,7 @@ function CountdownMark({ mark }: { mark: TripMark }) {
       <p
         aria-hidden
         className={`flex items-center gap-1.5 font-mono-trips text-base leading-snug tabular-nums sm:text-lg ${
-          mark.accent ? ACCENT.text : "text-stone-600 dark:text-stone-400"
+          mark.accent ? ACCENT.text : mutedInkClass
         }`}
       >
         {mark.dot && <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${ACCENT.dot}`} />}
@@ -152,8 +145,24 @@ export function TripsIndex() {
   const [deleting, setDeleting] = useState<string | null>(null)
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<{ id: string; message: string } | null>(null)
+  const [deletedName, setDeletedName] = useState<string | null>(null)
+  // The confirm strip replaces the row, so the delete trigger unmounts while
+  // the dialog is open: focus can only return once the trigger remounts.
+  const [pendingFocusId, setPendingFocusId] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const newTripRef = useRef<HTMLButtonElement>(null)
   const load = useCallback(() => setReloadKey((k) => k + 1), [])
+
+  const focusOnMount = useCallback((el: HTMLButtonElement | null) => el?.focus(), [])
+
+  const restoreTriggerFocus = useCallback(
+    (el: HTMLButtonElement | null) => {
+      if (!el || el.dataset.tripId !== pendingFocusId) return
+      el.focus()
+      setPendingFocusId(null)
+    },
+    [pendingFocusId],
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -199,6 +208,10 @@ export function TripsIndex() {
     try {
       await deleteTrip(getToken, trip.id)
       setConfirmId(null)
+      // The row is gone, so focus moves to the page's primary action rather
+      // than falling back to the document.
+      newTripRef.current?.focus()
+      setDeletedName(trip.name)
       load()
     } catch (err) {
       setDeleteError({ id: trip.id, message: err instanceof Error ? err.message : String(err) })
@@ -207,13 +220,14 @@ export function TripsIndex() {
     }
   }
 
-  const closeConfirm = () => {
+  const closeConfirm = (tripId: string) => {
     setConfirmId(null)
     setDeleteError(null)
+    setPendingFocusId(tripId)
   }
 
   return (
-    <div className={pageClass}>
+    <div className={pageClass()}>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
           <p className={eyebrowClass}>Itinerary workspace</p>
@@ -224,11 +238,15 @@ export function TripsIndex() {
             Your trips
           </h1>
         </div>
-        <button type="button" onClick={() => navigate("/trips/new")} className={primaryBtnClass}>
+        <button ref={newTripRef} type="button" onClick={() => navigate("/trips/new")} className={primaryBtnClass}>
           <Plus className="h-4 w-4" aria-hidden />
           New trip
         </button>
       </div>
+
+      <p className="sr-only" role="status">
+        {deletedName ? `Deleted ${deletedName}.` : ""}
+      </p>
 
       <div className="mt-10">
         {state.status === "loading" && (
@@ -250,12 +268,10 @@ export function TripsIndex() {
 
         {state.status === "error" && (
           <div className={alertErrorClass} role="alert">
-            Couldn’t load your trips ({state.message}).{" "}
-            <button
-              type="button"
-              className={`rounded font-semibold underline underline-offset-2 ${focusRingClass}`}
-              onClick={load}
-            >
+            <p className={`min-w-0 ${wrapAnywhereClass}`}>
+              Couldn’t load your trips. Check your connection, then try again. ({state.message})
+            </p>
+            <button type="button" className={`mt-1 font-semibold ${inlineLinkClass}`} onClick={load}>
               Retry
             </button>
           </div>
@@ -271,7 +287,7 @@ export function TripsIndex() {
             >
               Where to next?
             </h2>
-            <p className="mt-3 max-w-[46ch] text-sm leading-relaxed text-stone-600 dark:text-stone-400">
+            <p className={`mt-3 max-w-[46ch] text-sm leading-relaxed ${mutedInkClass}`}>
               Start blank and build day by day, or ask AI for a structured draft you can reshape.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
@@ -310,17 +326,24 @@ export function TripsIndex() {
                           transition={{ duration: 0.24, delay: Math.min(i, 5) * 0.03, ease: EASE }}
                         >
                           {deleteError?.id === trip.id ? (
-                            <div className={`my-3 ${alertErrorClass}`} role="alert">
+                            <div
+                              className={`my-3 ${alertErrorClass}`}
+                              role="alert"
+                              onKeyDown={(e) => {
+                                if (e.key === "Escape") closeConfirm(trip.id)
+                              }}
+                            >
                               <div className="flex flex-wrap items-center justify-between gap-3 sm:flex-nowrap">
-                                <p className="min-w-0 break-words">
-                                  Couldn’t delete <span className="font-semibold">{trip.name}</span> (
-                                  {deleteError.message}).
+                                <p className={`min-w-0 ${wrapAnywhereClass}`}>
+                                  Couldn’t delete <span className="font-semibold">{trip.name}</span>. Nothing was
+                                  removed, so you can try again. ({deleteError.message})
                                 </p>
                                 <div className="flex shrink-0 items-center gap-2">
                                   <button
                                     type="button"
-                                    className={ghostBtnClass}
-                                    onClick={closeConfirm}
+                                    ref={focusOnMount}
+                                    className={ghostOnTintBtnClass}
+                                    onClick={() => closeConfirm(trip.id)}
                                     disabled={deleting === trip.id}
                                   >
                                     Dismiss
@@ -343,12 +366,12 @@ export function TripsIndex() {
                               role="alertdialog"
                               aria-labelledby={`del-${trip.id}`}
                               onKeyDown={(e) => {
-                                if (e.key === "Escape") closeConfirm()
+                                if (e.key === "Escape") closeConfirm(trip.id)
                               }}
                             >
                               <p
                                 id={`del-${trip.id}`}
-                                className="min-w-0 break-words text-sm text-red-900 dark:text-red-200"
+                                className={`min-w-0 text-sm text-red-900 dark:text-red-200 ${wrapAnywhereClass}`}
                               >
                                 Delete <span className="font-semibold">{trip.name}</span>? The whole itinerary goes
                                 with it.
@@ -356,8 +379,9 @@ export function TripsIndex() {
                               <div className="flex shrink-0 items-center gap-2">
                                 <button
                                   type="button"
-                                  className={ghostBtnClass}
-                                  onClick={closeConfirm}
+                                  ref={focusOnMount}
+                                  className={ghostOnTintBtnClass}
+                                  onClick={() => closeConfirm(trip.id)}
                                   disabled={deleting === trip.id}
                                 >
                                   Cancel
@@ -383,15 +407,19 @@ export function TripsIndex() {
                               <CountdownMark mark={mark} />
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                                  <h3 className="min-w-0 break-words text-base font-semibold leading-snug text-stone-900 sm:text-lg dark:text-stone-100">
+                                  <h3
+                                    className={`min-w-0 text-base font-semibold leading-snug text-stone-900 sm:text-lg dark:text-stone-100 ${wrapAnywhereClass}`}
+                                  >
                                     {trip.name}
                                   </h3>
                                   <TripStatusChip status={trip.status} />
                                 </div>
-                                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[13px] text-stone-600 dark:text-stone-400">
+                                <div
+                                  className={`mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[13px] ${mutedInkClass}`}
+                                >
                                   <span className="inline-flex min-w-0 items-center gap-1.5">
                                     <MapPin className={metaIconClass} strokeWidth={1.5} aria-hidden />
-                                    <span className="break-words">{trip.destinations.join(" · ")}</span>
+                                    <span className={wrapAnywhereClass}>{trip.destinations.join(" · ")}</span>
                                   </span>
                                   <span className="inline-flex items-center gap-1.5">
                                     <CalendarDays className={metaIconClass} strokeWidth={1.5} aria-hidden />
@@ -403,7 +431,7 @@ export function TripsIndex() {
                                   {trip.collaborators.length > 0 && (
                                     <span className="inline-flex items-center gap-1.5">
                                       <Users className={metaIconClass} strokeWidth={1.5} aria-hidden />
-                                      {plural(trip.collaborators.length, "collaborator", "collaborators")}
+                                      {collaboratorSummary(trip.collaborators)}
                                     </span>
                                   )}
                                 </div>
@@ -412,6 +440,8 @@ export function TripsIndex() {
                                 {trip.access === "owner" && (
                                   <button
                                     type="button"
+                                    ref={restoreTriggerFocus}
+                                    data-trip-id={trip.id}
                                     onClick={() => {
                                       setDeleteError(null)
                                       setConfirmId(trip.id)

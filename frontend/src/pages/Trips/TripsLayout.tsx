@@ -57,7 +57,7 @@ export function TripsLayout() {
       <TripsAuthGate>
         <a
           href="#trips-main"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-[color:var(--trips-accent)] focus:px-3 focus:py-2 focus:text-sm focus:text-white dark:focus:text-stone-950"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:inline-flex focus:min-h-11 focus:items-center focus:rounded-lg focus:bg-[color:var(--trips-accent)] focus:px-4 focus:text-sm focus:font-medium focus:text-white dark:focus:text-stone-950"
         >
           Skip to content
         </a>
@@ -75,14 +75,18 @@ export function TripsLayout() {
               )}
               <Link
                 to="/trips"
-                className={`font-display text-[1.35rem] leading-none tracking-tight text-stone-900 transition hover:text-[color:var(--trips-accent)] dark:text-stone-100 ${focusRingClass}`}
+                className={`-mx-2 inline-flex min-h-11 items-center rounded-lg px-2 font-display text-[1.35rem] leading-none tracking-tight text-stone-900 transition hover:text-[color:var(--trips-accent)] dark:text-stone-100 ${focusRingClass}`}
                 style={SERIF}
               >
                 Trips
               </Link>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2">
-              <ThemeToggle />
+              {/* The toggle is a 32px control owned by the Korea app; `trip-tap-44`
+                  grows its hit area rather than forking the component. */}
+              <span className="trip-tap-44 inline-flex">
+                <ThemeToggle />
+              </span>
               {CLERK_ENABLED && !DEV_BEARER ? <UserButton afterSignOutUrl="/" /> : null}
             </div>
           </div>

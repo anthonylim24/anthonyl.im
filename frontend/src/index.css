@@ -877,6 +877,26 @@ html.dark .trips,
   font-family: "Fragment Mono", ui-monospace, monospace;
 }
 
+/* Below 768px every input is pinned to 16px so iOS doesn't zoom on focus.
+   That floor is right for form fields and wrong for the editor's trip name,
+   which is display type and never drops below 28px. Opting one input out
+   keeps the guard intact everywhere else. */
+.trips input.trip-display-input {
+  font-size: clamp(1.75rem, 4vw, 2.5rem) !important;
+}
+
+/* Grows a small control's hit area to 44px without resizing it — for shared
+   controls this app doesn't own. */
+.trips .trip-tap-44 > button {
+  position: relative;
+}
+
+.trips .trip-tap-44 > button::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+}
+
 /* ───────────────────────────────────────────────────────
    Per-trip accent
 
@@ -1010,9 +1030,18 @@ html.dark .trips [data-trip-accent="violet"] {
   border-start-end-radius: 0.75rem;
   border-end-end-radius: 0.75rem;
   padding-inline: 0.5rem;
+  /* A chevron alone is narrower than the 44px touch floor; tightens with the
+     compact buttons from `sm`. */
+  min-width: 2.75rem;
   /* Divider tracks the button's own text colour, so one rule serves the
      filled and the bordered variant. */
   border-inline-start: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+}
+
+@media (min-width: 640px) {
+  .trip-split > button:last-of-type {
+    min-width: 2.25rem;
+  }
 }
 
 /* "This just changed" flash on items an applied AI suggestion touched. */

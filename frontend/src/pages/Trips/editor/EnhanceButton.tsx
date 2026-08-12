@@ -7,6 +7,7 @@ import {
   chipBtnClass,
   inputClass,
   labelClass,
+  mutedInkClass,
   primaryBtnClass,
   softPanelClass,
 } from "../ui"
@@ -34,6 +35,14 @@ export function EnhanceButton({
   const [prompt, setPrompt] = useState("")
   const promptId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
+  const disclosureRef = useRef<HTMLButtonElement>(null)
+
+  /** The popover holds focus, so dismissing it has to hand focus back to the
+   *  disclosure rather than dropping it on the document. */
+  const close = (restoreFocus: boolean) => {
+    setOpen(false)
+    if (restoreFocus) disclosureRef.current?.focus()
+  }
 
   useEffect(() => {
     if (!open) return
@@ -41,7 +50,7 @@ export function EnhanceButton({
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
     }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false)
+      if (e.key === "Escape") close(true)
     }
     document.addEventListener("mousedown", onDown)
     document.addEventListener("touchstart", onDown)
@@ -73,8 +82,9 @@ export function EnhanceButton({
         {busy ? busyLabel : label}
       </button>
       <button
+        ref={disclosureRef}
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => (open ? close(false) : setOpen(true))}
         disabled={disabled}
         aria-expanded={open}
         aria-haspopup="dialog"
@@ -111,7 +121,7 @@ export function EnhanceButton({
               className={`mt-1.5 ${inputClass}`}
             />
             <div className="mt-2 flex items-center justify-between gap-2">
-              <span className="text-[11px] text-stone-500 dark:text-stone-400">⌘↵ to run</span>
+              <span className={`text-[11px] ${mutedInkClass}`}>⌘↵ to run</span>
               <button type="button" onClick={() => run(true)} className={primaryBtnClass}>
                 <Sparkles className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
                 {label}

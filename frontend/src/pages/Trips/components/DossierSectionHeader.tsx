@@ -1,6 +1,6 @@
 import { motion, useReducedMotion } from "motion/react"
 import { ACCENT } from "../theme"
-import { EASE, SERIF } from "../ui"
+import { EASE, SERIF, mutedInkClass, wrapAnywhereClass } from "../ui"
 
 type Scale = "page" | "section"
 
@@ -40,7 +40,7 @@ export function DossierSectionHeader({
       transition={{ duration: 0.4, ease: EASE }}
       className={`border-b border-stone-200/80 dark:border-stone-800/80 ${scale === "page" ? "pb-5" : "pb-4"}`}
     >
-      <p className="flex items-center gap-3 font-mono-trips text-[11px] uppercase tracking-[0.24em] text-stone-600 dark:text-stone-400">
+      <p className={`flex items-center gap-3 font-mono-trips text-[11px] uppercase tracking-[0.24em] ${mutedInkClass}`}>
         <span className={`tabular-nums ${ACCENT.text}`}>{num}</span>
         <span aria-hidden className={`h-px w-8 ${ACCENT.hairline}`} />
         <span>{eyebrow}</span>
@@ -49,7 +49,7 @@ export function DossierSectionHeader({
         {title}
       </h2>
       {subtitle && (
-        <p className="mt-2 max-w-[56ch] break-words text-sm leading-relaxed text-stone-600 dark:text-stone-400">
+        <p className={`mt-2 max-w-[56ch] text-sm leading-relaxed ${mutedInkClass} ${wrapAnywhereClass}`}>
           {subtitle}
         </p>
       )}

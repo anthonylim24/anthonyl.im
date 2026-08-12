@@ -3,7 +3,7 @@ import { motion } from "motion/react"
 import { Loader2, Sparkles } from "lucide-react"
 import { ACCENT } from "../theme"
 import { generateItinerary, type GetToken } from "../tripsApi"
-import { EASE, alertErrorClass, inputClass, primaryBtnClass, softPanelClass } from "../ui"
+import { EASE, alertErrorClass, inputClass, mutedInkClass, primaryBtnClass, softPanelClass, wrapAnywhereClass } from "../ui"
 import { DEFAULT_ITINERARY_PROMPT, type GeneratePreferences, type Trip } from "../types"
 
 /** AI generation for an empty itinerary — also the retry path when
@@ -55,8 +55,8 @@ export function GeneratePanel({
         <Sparkles className={`h-4 w-4 ${ACCENT.text}`} strokeWidth={1.5} aria-hidden />
         Draft this itinerary with AI
       </h2>
-      <p className="mt-1 text-sm text-stone-600 dark:text-stone-400">
-        The itinerary is empty — generate a structured starting point, then reshape it. Every place
+      <p className={`mt-1 text-sm ${mutedInkClass}`}>
+        The itinerary is empty. Generate a structured starting point, then reshape it. Every place
         the AI adds lands on the map.
       </p>
       <textarea
@@ -67,8 +67,8 @@ export function GeneratePanel({
         className={`mt-3 ${inputClass}`}
       />
       {error && (
-        <p className={`mt-3 ${alertErrorClass}`} role="alert">
-          Generation failed: {error}
+        <p className={`mt-3 ${alertErrorClass} ${wrapAnywhereClass}`} role="alert">
+          The draft didn’t finish. Your days are unchanged, so you can retry below. ({error})
         </p>
       )}
       <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -81,7 +81,7 @@ export function GeneratePanel({
           {busy ? "Generating… (~30s)" : error ? "Retry generation" : "Generate itinerary"}
         </button>
         {preferences && Object.values(preferences).some(Boolean) && (
-          <span className="text-xs text-stone-500 dark:text-stone-400">
+          <span className={`text-xs ${mutedInkClass}`}>
             Your traveler preferences from the create form are included.
           </span>
         )}

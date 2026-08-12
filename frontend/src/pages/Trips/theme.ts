@@ -19,7 +19,7 @@ import {
   UtensilsCrossed,
   type LucideIcon,
 } from "lucide-react"
-import type { ItemStatus, SuggestionKind, TripAccent } from "./types"
+import type { ItemStatus, SuggestionKind, TripAccent, TripCollaborator } from "./types"
 
 // Generic dossier theme system — the Korea itinerary's visual language,
 // parameterized by trip accent and timezone.
@@ -89,6 +89,28 @@ export const ACCENT_SWATCH: Record<TripAccent, string> = {
 /** Safe accent lookup — never returns undefined for bad runtime data. */
 export function resolveAccent(accent?: string | null): TripAccent {
   return TRIP_ACCENTS.includes(accent as TripAccent) ? (accent as TripAccent) : DEFAULT_ACCENT
+}
+
+// ── Trip metadata for display ────────────────────────────────────────────
+
+/** Bookkeeping the migration left behind, not trip metadata a reader wants.
+ *  Every surface that renders `trip.tags` filters through `visibleTags`. */
+const HIDDEN_TAGS = new Set(["migrated"])
+
+export function visibleTags(tags: readonly string[]): string[] {
+  return tags.filter((tag) => !HIDDEN_TAGS.has(tag))
+}
+
+/** "1 editor · 2 viewers" — empty when nobody else is on the trip. */
+export function collaboratorSummary(collaborators: readonly TripCollaborator[]): string {
+  const editors = collaborators.filter((c) => c.role === "editor").length
+  const viewers = collaborators.length - editors
+  return [
+    editors > 0 ? `${editors} editor${editors === 1 ? "" : "s"}` : "",
+    viewers > 0 ? `${viewers} viewer${viewers === 1 ? "" : "s"}` : "",
+  ]
+    .filter((part) => part.length > 0)
+    .join(" · ")
 }
 
 // ── Item display metadata ────────────────────────────────────────────────

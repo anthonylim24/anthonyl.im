@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react"
-import { accentIconClass, focusRingClass, iconBtnClass, inputClass, popoverClass } from "../ui"
+import { accentIconClass, focusRingClass, iconBtnClass, inputClass, mutedInkClass, popoverClass } from "../ui"
 
 // Custom dual-month range calendar — no external date library. Dates are ISO
 // yyyy-mm-dd strings end to end (matching the trip model), so there's no
@@ -11,6 +11,8 @@ interface DateRangeFieldProps {
   startDate: string
   endDate: string
   onChange: (startDate: string, endDate: string) => void
+  invalid?: boolean
+  describedBy?: string
 }
 
 const DAY_MS = 86_400_000
@@ -38,6 +40,22 @@ function monthMatrix(year: number, month: number): (string | null)[] {
   for (let d = 1; d <= daysInMonth; d++) cells.push(toIso(new Date(Date.UTC(year, month, d))))
   while (cells.length % 7 !== 0) cells.push(null)
   return cells
+}
+
+/** Spoken name for a day cell: the date, then how it sits in the range. */
+function dayLabel(iso: string, state: { isStart: boolean; isEnd: boolean; inRange: boolean }): string {
+  const date = toUtc(iso).toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  })
+  if (state.isStart && state.isEnd) return `${date}, selected as the only day`
+  if (state.isStart) return `${date}, selected as the first day`
+  if (state.isEnd) return `${date}, selected as the last day`
+  if (state.inRange) return `${date}, within the selected range`
+  return date
 }
 
 export function formatRangeLabel(startDate: string, endDate: string): string {
@@ -80,13 +98,15 @@ function Month({
   const inRange = (iso: string) => start && previewEnd && iso > start && iso < previewEnd
 
   return (
-    <div className="w-[16.5rem]">
+    // Wider below `sm`, where only one month shows, so day cells can hold a
+    // 44px touch target; tightens once two months share the popover.
+    <div className="w-[19.25rem] sm:w-[16.5rem]">
       <div className="px-1 text-center text-sm font-semibold text-stone-800 dark:text-stone-200">
         {monthLabel(year, month)}
       </div>
-      <div className="mt-2 grid grid-cols-7 text-center" role="rowgroup" aria-hidden>
+      <div className={`mt-2 grid grid-cols-7 text-center ${mutedInkClass}`} aria-hidden>
         {WEEKDAYS.map((w, i) => (
-          <span key={i} className="py-1 text-[11px] font-medium text-stone-600 dark:text-stone-400">
+          <span key={i} className="py-1 text-[11px] font-medium">
             {w}
           </span>
         ))}
@@ -106,10 +126,12 @@ function Month({
               onClick={() => onPick(iso)}
               onMouseEnter={() => onHover(iso)}
               onFocus={() => onHover(iso)}
-              aria-label={toUtc(iso).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })}
-              aria-pressed={isEdge}
+              // Selection is spoken in the name rather than through
+              // `aria-pressed`: these days are dates in a range, not toggles.
+              aria-label={dayLabel(iso, { isStart, isEnd, inRange: !!inRange(iso) })}
+              aria-current={iso === today ? "date" : undefined}
               className={[
-                "relative mx-auto my-0.5 flex h-10 w-10 items-center justify-center text-[13px] tabular-nums outline-none transition-colors duration-150",
+                "relative mx-auto my-0.5 flex h-11 w-11 items-center justify-center text-[13px] tabular-nums outline-none transition-colors duration-150 sm:h-10 sm:w-10",
                 isEdge
                   ? "rounded-lg bg-[color:var(--trips-accent)] font-semibold text-white dark:text-stone-950"
                   : inRange(iso)
@@ -131,11 +153,12 @@ function Month({
   )
 }
 
-export function DateRangeField({ startDate, endDate, onChange }: DateRangeFieldProps) {
+export function DateRangeField({ startDate, endDate, onChange, invalid, describedBy }: DateRangeFieldProps) {
   const reduce = useReducedMotion()
   const labelId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
   const gridRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
   // selecting=true → start picked, waiting for the end date.
   const [selecting, setSelecting] = useState(false)
@@ -160,7 +183,10 @@ export function DateRangeField({ startDate, endDate, onChange }: DateRangeFieldP
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        // Focus was inside the grid that is about to unmount, so it goes back
+        // to the control that opened it.
         setOpen(false)
+        triggerRef.current?.focus()
         return
       }
       // Roving arrow-key navigation across day buttons.
@@ -202,6 +228,7 @@ export function DateRangeField({ startDate, endDate, onChange }: DateRangeFieldP
         onChange(startDate, iso)
         setSelecting(false)
         setOpen(false)
+        triggerRef.current?.focus()
       }
     }
   }
@@ -211,15 +238,20 @@ export function DateRangeField({ startDate, endDate, onChange }: DateRangeFieldP
   return (
     <div ref={rootRef} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-labelledby={labelId}
+        aria-invalid={invalid ? true : undefined}
+        aria-describedby={describedBy}
         onClick={() => setOpen((o) => !o)}
-        className={`flex items-center gap-3 text-left hover:border-stone-400 dark:hover:border-stone-600 ${inputClass}`}
+        className={`flex items-center gap-3 text-left hover:border-stone-400 dark:hover:border-stone-600 ${inputClass} ${
+          invalid ? "border-red-400 dark:border-red-800" : ""
+        }`}
       >
         <CalendarDays className={`h-4 w-4 shrink-0 ${accentIconClass}`} strokeWidth={1.5} aria-hidden />
-        <span id={labelId} className={startDate ? "" : "text-stone-500 dark:text-stone-400"}>
+        <span id={labelId} className={startDate ? "" : mutedInkClass}>
           {startDate && endDate ? formatRangeLabel(startDate, endDate) : "Select trip dates"}
         </span>
       </button>
@@ -244,7 +276,7 @@ export function DateRangeField({ startDate, endDate, onChange }: DateRangeFieldP
               >
                 <ChevronLeft className="h-4 w-4" strokeWidth={1.5} aria-hidden />
               </button>
-              <p className="text-xs text-stone-500 dark:text-stone-400" aria-live="polite">
+              <p className={`text-xs ${mutedInkClass}`} aria-live="polite">
                 {selecting ? "Now pick the last day" : "Pick the first day"}
               </p>
               <button
