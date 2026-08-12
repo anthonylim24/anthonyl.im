@@ -109,7 +109,7 @@ export function BreathworkLayout() {
 
       <LeavesVideo reducedMotion={reducedMotion} />
 
-      <div ref={glassRootRef} className="h-full">
+      <div ref={glassRootRef} className="h-full min-h-0">
         <div
           className="breathwork relative z-0 flex h-full min-h-0 flex-col bg-transparent col-fade-in"
           style={contentStyle}
@@ -120,7 +120,7 @@ export function BreathworkLayout() {
             className={
               isSessionRoute
                 ? 'min-h-0 flex-1 overflow-hidden md:overflow-y-auto'
-                : 'min-h-0 flex-1 overflow-x-clip overflow-y-auto'
+                : 'bw-page-scroll min-h-0 flex-1'
             }
           >
             <div

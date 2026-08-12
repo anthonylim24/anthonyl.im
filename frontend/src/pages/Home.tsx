@@ -276,7 +276,7 @@ export function Home() {
               Tune session
             </h3>
             <div className="mt-3">
-              <div role="group" aria-label="Breathing goal" className="flex max-w-full gap-1.5 overflow-x-auto overscroll-x-contain no-scrollbar sm:w-max sm:overflow-visible">
+              <div role="group" aria-label="Breathing goal" className="flex max-w-full gap-1.5 overflow-x-auto overflow-y-hidden overscroll-x-contain no-scrollbar sm:w-max sm:overflow-visible">
                 {protocolGoalOptions.map((option) => {
                   const Icon = goalIcons[option.id]
                   const selected = selectedGoal === option.id
@@ -402,7 +402,7 @@ export function Home() {
 
         {/* Mobile: horizontal scroll carousel — 2 cards visible */}
         <div
-          className="scroll-snap-x md:hidden max-w-full overflow-x-auto overscroll-x-contain no-scrollbar"
+          className="scroll-snap-x md:hidden max-w-full overflow-x-auto overflow-y-hidden overscroll-x-contain no-scrollbar"
           style={{ scrollPaddingLeft: '1rem' }}
         >
           <div

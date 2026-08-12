@@ -448,7 +448,7 @@ export function Session() {
       <div className="md:hidden flex h-full min-h-0 max-w-full flex-col overflow-hidden">
         <div
           data-testid="mobile-session-scroller"
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain no-scrollbar pb-4"
+          className="bw-page-scroll min-h-0 flex-1 no-scrollbar pb-4"
         >
         <motion.div
           variants={stagger}
@@ -484,7 +484,7 @@ export function Session() {
         </motion.div>
 
         {/* Technique rail */}
-        <motion.div variants={fadeUp} className="mb-3 max-w-full overflow-x-auto overscroll-x-contain no-scrollbar">
+        <motion.div variants={fadeUp} className="mb-3 max-w-full overflow-x-auto overflow-y-hidden overscroll-x-contain no-scrollbar">
           <div
             className="flex w-max min-w-full gap-2"
             role="group"

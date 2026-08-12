@@ -3,19 +3,19 @@ import type { ReactNode } from 'react'
 
 const deceleration = [0.33, 0, 0, 1] as const
 
+/* Opacity only. A translateY on this wrapper (the scroller's content root)
+   leaves `transform` on the node after the animation, and iOS Safari then
+   fails to pan nested overflow-y:auto. */
 const variants = {
   enter: {
     opacity: 0,
-    y: 12,
   },
   visible: {
     opacity: 1,
-    y: 0,
     transition: { duration: 0.35, ease: deceleration },
   },
   exit: {
     opacity: 0,
-    y: -6,
     transition: { duration: 0.2, ease: [0.4, 0, 1, 1] },
   },
 }

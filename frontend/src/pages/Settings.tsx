@@ -246,7 +246,7 @@ export function Settings() {
           </span>
         </div>
         <div
-          className="flex max-w-full gap-2 overflow-x-auto overscroll-x-contain no-scrollbar py-1"
+          className="flex max-w-full gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain no-scrollbar py-1"
           role="group"
           aria-label={`Orb palettes unlocked through level ${level}`}
         >

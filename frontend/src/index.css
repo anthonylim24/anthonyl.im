@@ -49,12 +49,34 @@ body {
   overflow-y: hidden;
 }
 
+/* Pin the BreathFlow shell to the visual viewport. `html, body { height: 100% }`
+   is the *large* viewport on iOS Safari, so an in-flow 100% shell sits behind
+   the URL bar and nested overflow-y:auto often never receives the pan. */
+.breathwork-layout {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100svh;
+  height: 100dvh;
+}
+
 @supports not (overflow: clip) {
   .breathwork-layout,
   .breathwork {
     overflow-x: hidden;
     overflow-y: hidden;
   }
+}
+
+/* The only vertical scroller on BreathFlow pages. Do not mix overflow-x: clip
+   with overflow-y: auto on this node — WebKit can compute both axes to
+   hidden, which kills touch scrolling on real iPhones. */
+.bw-page-scroll {
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y pinch-zoom;
 }
 
 :root {
@@ -249,14 +271,8 @@ body {
 
 /* Column fade-in — dany.works entry animation */
 @keyframes col-fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .col-fade-in {
@@ -693,6 +709,7 @@ body {
 
 .scroll-snap-x {
   overflow-x: auto;
+  overflow-y: hidden;
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
 }

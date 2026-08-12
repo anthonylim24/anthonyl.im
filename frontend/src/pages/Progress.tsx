@@ -206,7 +206,7 @@ export function Progress() {
           <div>
             {/* Filter Buttons */}
             <div
-              className="flex max-w-full min-w-0 gap-4 mb-5 sm:mb-6 border-b border-bw-border pb-3 overflow-x-auto overscroll-x-contain no-scrollbar"
+              className="flex max-w-full min-w-0 gap-4 mb-5 sm:mb-6 border-b border-bw-border pb-3 overflow-x-auto overflow-y-hidden overscroll-x-contain no-scrollbar"
               role="group"
               aria-label="Session history filters"
             >
