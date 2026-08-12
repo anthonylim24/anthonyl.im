@@ -18,7 +18,7 @@ export function MoodTrendCard({ trend }: MoodTrendCardProps) {
   return (
     <div>
       <h2 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary mb-5">
-        Calm shift
+        Mood
       </h2>
       <div className="flex items-baseline gap-3">
         <span className="font-mono text-4xl font-normal tabular-nums leading-none text-bw">
@@ -29,9 +29,9 @@ export function MoodTrendCard({ trend }: MoodTrendCardProps) {
         </span>
       </div>
       <p className="mt-3 text-xs leading-relaxed text-bw-tertiary">
-        You ended calmer in{' '}
+        Calmer in{' '}
         <span className="font-medium text-bw-secondary">{calmerPercent}%</span> of{' '}
-        <span className="font-mono tabular-nums">{trend.count}</span> tracked {sessionLabel}.
+        <span className="font-mono tabular-nums">{trend.count}</span> {sessionLabel}.
       </p>
     </div>
   )

@@ -1,58 +1,58 @@
 import { BREATH_PHASES, type BreathPhase, type TechniqueId, TECHNIQUE_IDS } from '@/lib/constants'
 
-const READY_CUE = 'Settle into a stable position and let your next breath be easy.'
+const READY_CUE = 'Sit still. Next breath, easy.'
 
 const DEFAULT_PHASE_CUES = {
-  [BREATH_PHASES.INHALE]: 'Draw the breath in quietly, without lifting the shoulders.',
+  [BREATH_PHASES.INHALE]: 'Inhale quietly. Keep the shoulders down.',
   [BREATH_PHASES.DEEP_INHALE]: 'Add a small second sip of air at the top.',
-  [BREATH_PHASES.HOLD_IN]: 'Hold gently. Keep the face, jaw, and hands soft.',
-  [BREATH_PHASES.EXHALE]: 'Let the breath leave slowly and evenly.',
-  [BREATH_PHASES.HOLD_OUT]: 'Rest at the bottom without bracing.',
-  [BREATH_PHASES.REST]: 'Return to easy nasal breathing before the next round.',
+  [BREATH_PHASES.HOLD_IN]: 'Hold gently. Soften the face, jaw, and hands.',
+  [BREATH_PHASES.EXHALE]: 'Exhale slowly and evenly.',
+  [BREATH_PHASES.HOLD_OUT]: 'Rest at the bottom. Do not brace.',
+  [BREATH_PHASES.REST]: 'Easy nasal breathing before the next round.',
 } satisfies Record<BreathPhase, string>
 
 const TECHNIQUE_PHASE_CUES: Partial<Record<TechniqueId, Partial<Record<BreathPhase, string>>>> = {
   [TECHNIQUE_IDS.CYCLIC_SIGHING]: {
-    [BREATH_PHASES.INHALE]: 'Fill the lungs through the nose with a relaxed first inhale.',
-    [BREATH_PHASES.DEEP_INHALE]: 'Take the second sip gently, just enough to top off the breath.',
-    [BREATH_PHASES.EXHALE]: 'Release a long sigh and let the chest settle.',
+    [BREATH_PHASES.INHALE]: 'First inhale through the nose. Fill the lungs.',
+    [BREATH_PHASES.DEEP_INHALE]: 'Second sip. Just enough to top off.',
+    [BREATH_PHASES.EXHALE]: 'Long slow exhale.',
   },
   [TECHNIQUE_IDS.RESONANCE_BREATHING]: {
-    [BREATH_PHASES.INHALE]: 'Inhale smoothly, as if following a slow metronome.',
-    [BREATH_PHASES.EXHALE]: 'Exhale at the same pace, keeping the rhythm unforced.',
+    [BREATH_PHASES.INHALE]: 'Inhale on a slow even count.',
+    [BREATH_PHASES.EXHALE]: 'Exhale at the same pace. Do not force it.',
   },
   [TECHNIQUE_IDS.DIAPHRAGMATIC_BREATHING]: {
-    [BREATH_PHASES.INHALE]: 'Let the belly soften outward before the chest works.',
-    [BREATH_PHASES.EXHALE]: 'Let the belly fall back naturally as the breath leaves.',
+    [BREATH_PHASES.INHALE]: 'Let the belly move first, then the chest.',
+    [BREATH_PHASES.EXHALE]: 'Let the belly fall as the breath leaves.',
   },
   [TECHNIQUE_IDS.EXTENDED_EXHALE]: {
-    [BREATH_PHASES.INHALE]: 'Take only as much air as you can release comfortably.',
-    [BREATH_PHASES.EXHALE]: 'Lengthen the outflow without squeezing at the end.',
+    [BREATH_PHASES.INHALE]: 'Take only as much air as you can release easily.',
+    [BREATH_PHASES.EXHALE]: 'Lengthen the exhale. Do not squeeze at the end.',
   },
   [TECHNIQUE_IDS.BOX_BREATHING]: {
-    [BREATH_PHASES.INHALE]: 'Trace the first side of the box with a measured inhale.',
-    [BREATH_PHASES.HOLD_IN]: 'Pause at the top. Stay composed, not rigid.',
-    [BREATH_PHASES.EXHALE]: 'Trace the next side with an even exhale.',
-    [BREATH_PHASES.HOLD_OUT]: 'Pause at the bottom and wait for the next side.',
+    [BREATH_PHASES.INHALE]: 'Inhale for the first side.',
+    [BREATH_PHASES.HOLD_IN]: 'Pause at the top. Stay still, not rigid.',
+    [BREATH_PHASES.EXHALE]: 'Exhale for the next side.',
+    [BREATH_PHASES.HOLD_OUT]: 'Pause at the bottom.',
   },
   [TECHNIQUE_IDS.FOUR_SEVEN_EIGHT]: {
-    [BREATH_PHASES.INHALE]: 'Inhale softly through the nose and keep the breath small.',
-    [BREATH_PHASES.HOLD_IN]: 'Hold with ease. Release early if the retention feels sharp.',
-    [BREATH_PHASES.EXHALE]: 'Exhale slowly, giving the body time to downshift.',
+    [BREATH_PHASES.INHALE]: 'Small inhale through the nose.',
+    [BREATH_PHASES.HOLD_IN]: 'Hold easily. Release early if it feels sharp.',
+    [BREATH_PHASES.EXHALE]: 'Exhale slowly through the mouth.',
   },
   [TECHNIQUE_IDS.CO2_TOLERANCE]: {
-    [BREATH_PHASES.INHALE]: 'Take a calm, ordinary breath before the hold.',
-    [BREATH_PHASES.HOLD_IN]: 'Notice the urge to breathe without fighting it. Stop before strain.',
-    [BREATH_PHASES.EXHALE]: 'Exhale smoothly and stay seated.',
-    [BREATH_PHASES.REST]: 'Recover with relaxed nasal breathing.',
+    [BREATH_PHASES.INHALE]: 'Ordinary breath before the hold.',
+    [BREATH_PHASES.HOLD_IN]: 'Notice the urge to breathe. Stop before strain.',
+    [BREATH_PHASES.EXHALE]: 'Exhale smoothly. Stay seated.',
+    [BREATH_PHASES.REST]: 'Relaxed nasal breathing.',
   },
   [TECHNIQUE_IDS.PURSED_LIP_RECOVERY]: {
-    [BREATH_PHASES.INHALE]: 'Inhale gently through the nose without chasing a deep breath.',
-    [BREATH_PHASES.EXHALE]: 'Exhale through softly pursed lips, like cooling tea.',
+    [BREATH_PHASES.INHALE]: 'Small inhale through the nose.',
+    [BREATH_PHASES.EXHALE]: 'Exhale through pursed lips.',
   },
   [TECHNIQUE_IDS.POWER_BREATHING]: {
-    [BREATH_PHASES.INHALE]: 'Breathe in fully while staying seated and relaxed.',
-    [BREATH_PHASES.EXHALE]: 'Let the breath fall out passively. Do not force the emptying.',
+    [BREATH_PHASES.INHALE]: 'Full inhale. Stay seated.',
+    [BREATH_PHASES.EXHALE]: 'Let the breath fall out. Do not force it.',
   },
 }
 

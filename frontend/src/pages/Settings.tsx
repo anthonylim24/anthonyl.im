@@ -111,7 +111,7 @@ export function Settings() {
 
   const handleExportData = () => {
     setImportError(null)
-    setDataStatus('Export started. Your browser will save a BreathFlow JSON backup.')
+    setDataStatus('Saving a JSON backup.')
     const data = buildBreathFlowExportData(localStorage)
     const blob = new Blob([JSON.stringify(data, null, 2)], {
       type: 'application/json',
@@ -141,9 +141,9 @@ export function Settings() {
 
       replaceBreathFlowStorageData(localStorage, data)
 
-      const statusMessage = 'Data import complete. BreathFlow restored your backup.'
+      const statusMessage = 'Backup restored.'
       window.sessionStorage.setItem(IMPORT_STATUS_STORAGE_KEY, statusMessage)
-      setDataStatus('Import complete. Reloading BreathFlow.')
+      setDataStatus('Backup restored. Reloading.')
       haptic('success')
       window.location.reload()
     } catch (error) {
@@ -161,7 +161,7 @@ export function Settings() {
       haptic('error')
       setConfirmClear(true)
       setDataStatus(
-        'Clear all data requires confirmation. Press clear again to permanently remove BreathFlow data.',
+        'Tap Clear again to delete all data.',
       )
       return
     }
@@ -173,7 +173,7 @@ export function Settings() {
       localStorage.removeItem(key)
     }
     setConfirmClear(false)
-    setDataStatus('All BreathFlow data was cleared.')
+    setDataStatus('All data cleared.')
   }
 
   return (
@@ -240,7 +240,7 @@ export function Settings() {
       {/* Orb palette */}
       <motion.section variants={fadeUp} className="border-t border-bw-border pt-5 pb-6">
         <div className="mb-4 flex items-baseline justify-between gap-3">
-          <h2 className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">Orb Palette</h2>
+          <h2 className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">Orb color</h2>
           <span className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
             Level {level}
           </span>
@@ -248,7 +248,7 @@ export function Settings() {
         <div
           className="flex max-w-full gap-2 overflow-x-auto overflow-y-hidden overscroll-x-contain no-scrollbar py-1"
           role="group"
-          aria-label={`Orb palettes unlocked through level ${level}`}
+          aria-label={`Orb colors available through level ${level}`}
         >
           {ORB_THEMES.map((orbTheme) => {
             const unlocked = unlockedThemeIds.has(orbTheme.id)
@@ -262,8 +262,8 @@ export function Settings() {
                 aria-pressed={selected}
                 aria-label={
                   unlocked
-                    ? `${orbTheme.name} orb palette`
-                    : `${orbTheme.name} orb palette, unlocks at level ${orbTheme.unlockLevel}`
+                    ? `${orbTheme.name} orb color`
+                    : `${orbTheme.name} orb color, available at level ${orbTheme.unlockLevel}`
                 }
                 whileTap={unlocked ? tap(0.98) : undefined}
                 transition={motionTransition}
@@ -376,9 +376,9 @@ export function Settings() {
           >
             <Download className="h-3.5 w-3.5 text-bw-tertiary" aria-hidden="true" />
             <div>
-              <p className="text-xs font-medium text-bw">Export Data</p>
+              <p className="text-xs font-medium text-bw">Export</p>
               <p className="text-[10px] text-bw-tertiary">
-                Download all data as JSON
+                Save a JSON backup
               </p>
             </div>
           </motion.button>
@@ -396,9 +396,9 @@ export function Settings() {
           >
             <Upload className="h-3.5 w-3.5 text-bw-tertiary" aria-hidden="true" />
             <div>
-              <p className="text-xs font-medium text-bw">Import Data</p>
+              <p className="text-xs font-medium text-bw">Import</p>
               <p className="text-[10px] text-bw-tertiary">
-                Restore a BreathFlow JSON backup
+                Load a JSON backup
               </p>
             </div>
           </motion.button>
@@ -451,7 +451,7 @@ export function Settings() {
                   confirmClear ? 'text-bw-destructive' : 'text-bw'
                 )}
               >
-                {confirmClear ? 'Tap again to confirm' : 'Clear All Data'}
+                {confirmClear ? 'Tap again to confirm' : 'Clear all data'}
               </p>
               <p className="text-[10px] text-bw-tertiary">
                 {confirmClear

@@ -329,7 +329,7 @@ describe('Session safety gates', () => {
   it('renders source-level evidence links for the selected protocol', () => {
     renderSession(`/breathwork/session?technique=${TECHNIQUE_IDS.CYCLIC_SIGHING}`)
 
-    expect(screen.getAllByText('Evidence Trail').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('Evidence').length).toBeGreaterThan(0)
 
     const citationLinks = screen.getAllByRole('link', {
       name: /Brief structured respiration practices enhance mood/i,

@@ -12,7 +12,7 @@ describe('MoodTrendCard', () => {
     const text = container.textContent ?? ''
     expect(text).toContain('75%')
     expect(text).toContain('4')
-    expect(text).toContain('tracked sessions')
+    expect(text).toContain('sessions')
   })
 
   it('uses singular copy for a single session and omits the sign when negative', () => {
@@ -22,7 +22,7 @@ describe('MoodTrendCard', () => {
 
     expect(screen.getByText('-0.5')).toBeInTheDocument()
     const text = container.textContent ?? ''
-    expect(text).toContain('tracked session.')
-    expect(text).not.toContain('tracked sessions')
+    expect(text).toContain('session.')
+    expect(text).not.toContain('sessions')
   })
 })

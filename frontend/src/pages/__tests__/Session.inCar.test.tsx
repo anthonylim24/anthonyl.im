@@ -67,7 +67,7 @@ describe('Session in-car protocol block', () => {
     const enterButtons = screen.getAllByRole('button', { name: /^(enter|begin)/i })
     for (const button of enterButtons) {
       expect(button).toBeDisabled()
-      expect(button).toHaveAccessibleDescription(/not available in the vehicle browser/i)
+      expect(button).toHaveAccessibleDescription(/not available while driving/i)
     }
 
     await user.click(enterButtons[0])

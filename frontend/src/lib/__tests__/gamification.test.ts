@@ -109,19 +109,17 @@ describe('getLevelForXP', () => {
 })
 
 describe('getLevelTitle', () => {
-  it('returns "First Breath" for level 1', () => {
-    expect(getLevelTitle(1)).toBe('First Breath')
+  it('returns "Beginner" for level 1', () => {
+    expect(getLevelTitle(1)).toBe('Beginner')
   })
 
-  it('returns "Breathwork Steward" for level 50', () => {
-    expect(getLevelTitle(50)).toBe('Breathwork Steward')
+  it('returns "Steward" for level 50', () => {
+    expect(getLevelTitle(50)).toBe('Steward')
   })
 
   it('returns the highest matching title for levels between defined thresholds', () => {
-    // level 7 should get level 5 title "Breath Student"
-    expect(getLevelTitle(7)).toBe('Breath Student')
-    // level 12 should get level 10 title "Rhythm Keeper"
-    expect(getLevelTitle(12)).toBe('Rhythm Keeper')
+    expect(getLevelTitle(7)).toBe('Consistent')
+    expect(getLevelTitle(12)).toBe('Skilled')
   })
 
   it('keeps level titles in a refined breathwork tone', () => {
@@ -153,8 +151,8 @@ describe('BADGES', () => {
   it('uses refined milestone names instead of toy-like game copy', () => {
     const names = BADGES.map((badge) => badge.name)
 
-    expect(BADGES.find((badge) => badge.id === 'streak_7')?.name).toBe('Seven-Day Rhythm')
-    expect(BADGES.find((badge) => badge.id === 'hour_total')?.name).toBe('One-Hour Baseline')
+    expect(BADGES.find((badge) => badge.id === 'streak_7')?.name).toBe('7-day streak')
+    expect(BADGES.find((badge) => badge.id === 'hour_total')?.name).toBe('1 hour')
     expect(names).not.toEqual(
       expect.arrayContaining([
         expect.stringMatching(/week warrior|monthly master|hour of power|box master|night owl|early bird|marathon breather/i),

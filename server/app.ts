@@ -38,9 +38,9 @@ const appPreviews = {
     imageAlt: "Futuristic AI interface with glowing code and circuitry visuals",
   },
   breathwork: {
-    title: "Breathwork by Anthony Lim",
+    title: "BreathFlow",
     description:
-      "Guided breathing sessions with streaks, XP, and progress tracking for calm, focus, and recovery.",
+      "Timed breathing protocols with published research.",
     imagePathOrUrl:
       "https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=1200&h=630&q=80",
     imageAlt: "Person meditating at sunrise with calm natural tones",

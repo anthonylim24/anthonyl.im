@@ -55,7 +55,7 @@ describe('SessionSummary', () => {
 
   it('shows new badges', () => {
     render(<SessionSummary {...defaultProps} />)
-    expect(screen.getByText('First Breath')).toBeTruthy()
+    expect(screen.getByText('First session')).toBeTruthy()
   })
 
   it('shows hold stats', async () => {
@@ -117,7 +117,7 @@ describe('SessionSummary', () => {
     render(<SessionSummary {...defaultProps} onRepeat={vi.fn()} />)
 
     expect(screen.queryByRole('button', { name: /repeat/i })).not.toBeInTheDocument()
-    expect(screen.getByText('Recovery first')).toBeTruthy()
+    expect(screen.getByText('Recovery')).toBeTruthy()
     expect(screen.getByText(/relaxed nasal breathing before another advanced set/i)).toBeTruthy()
   })
 

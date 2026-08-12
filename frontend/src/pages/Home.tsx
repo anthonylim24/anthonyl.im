@@ -54,14 +54,13 @@ function getGreeting(): string {
 }
 
 function getStreakMessage(streak: number, dailyGoalMet: boolean): string {
-  if (dailyGoalMet && streak >= 30) return '30 days of practice.'
-  if (dailyGoalMet && streak >= 14) return 'Two weeks of showing up.'
-  if (dailyGoalMet && streak >= 7) return 'A full week logged.'
-  if (dailyGoalMet && streak >= 3) return 'Today is done.'
-  if (dailyGoalMet) return 'Today\'s session is logged.'
+  if (dailyGoalMet && streak >= 30) return '30-day streak.'
+  if (dailyGoalMet && streak >= 14) return '14-day streak.'
+  if (dailyGoalMet && streak >= 7) return '7-day streak.'
+  if (dailyGoalMet) return 'Logged today.'
   if (streak >= 7) return `${streak} days this week.`
   if (streak >= 3) return `${streak}-day streak.`
-  return 'Ready for today\'s session?'
+  return 'Next session.'
 }
 
 function formatDurationLabel(seconds: number): string {
@@ -184,7 +183,7 @@ export function Home() {
       <motion.div variants={fadeUp} className="pt-1 pb-4 md:pb-5">
         <p className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary">
           {isNewUser
-            ? 'First session · about 5 minutes'
+            ? 'About 5 minutes'
             : getStreakMessage(streak, dailyGoalMet)}
         </p>
         <h1 className="font-display text-3xl md:text-4xl font-semibold text-bw leading-[0.95] mt-1">
@@ -196,7 +195,7 @@ export function Home() {
         <motion.div variants={fadeUp} className="pb-5">
           <button
             type="button"
-            aria-label={`Start your first session, ${buildProtocolDetailLabel(
+            aria-label={`Begin, ${buildProtocolDetailLabel(
               suggestedProtocol.name,
               suggestedDuration,
               recommendation.primary.rounds,
@@ -205,25 +204,25 @@ export function Home() {
             className="flex min-h-11 w-full items-center justify-center gap-2.5 border border-bw-accent bg-bw-accent py-3.5 font-medium text-bw-accent-foreground text-sm transition-opacity hover:opacity-90 md:w-auto md:px-8"
           >
             <Play className="h-4 w-4" aria-hidden="true" />
-            Start your first session
+            Begin
           </button>
           <button
             type="button"
             onClick={handleBrowseTechniques}
             className="mt-1 flex min-h-11 w-full items-center justify-center py-2 text-xs font-medium text-bw-tertiary transition-colors hover:text-bw-secondary md:mt-0 md:inline-flex md:w-auto md:px-1"
           >
-            Browse all techniques
+            All techniques
           </button>
         </motion.div>
       ) : null}
 
-      {/* ── Protocol Lab ───────────────────────────────── */}
-      <motion.section variants={fadeUp} className="pt-0" aria-labelledby="protocol-lab-heading">
+      {/* ── Recommended session ────────────────────────── */}
+      <motion.section variants={fadeUp} className="pt-0" aria-labelledby="recommended-heading">
         <div className="border-y border-bw-border py-5 md:py-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 id="protocol-lab-heading" className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary">
-                Protocol Lab
+              <h2 id="recommended-heading" className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary">
+                Recommended
               </h2>
               <div className="font-display text-2xl md:text-3xl font-semibold text-bw mt-1 leading-none">
                 {suggestedProtocol.name}
@@ -257,7 +256,7 @@ export function Home() {
               </div>
               <div className="min-w-0">
                 <span className="block text-[10px] font-medium uppercase tracking-[0.07em] opacity-75">
-                  Start recommended session
+                  Start
                 </span>
                 <span className="mt-0.5 block truncate text-sm font-semibold">
                   {suggestedProtocol.name}
@@ -273,7 +272,7 @@ export function Home() {
           {/* Tune the recommendation — secondary controls, below the primary CTA */}
           <div className="mt-5 border-t border-bw-border pt-4">
             <h3 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary">
-              Tune session
+              Adjust
             </h3>
             <div className="mt-3">
               <div role="group" aria-label="Breathing goal" className="flex max-w-full gap-1.5 overflow-x-auto overflow-y-hidden overscroll-x-contain no-scrollbar sm:w-max sm:overflow-visible">
@@ -348,10 +347,10 @@ export function Home() {
               className="mt-4 border-y border-bw-border py-3"
             >
               <div className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">
-                Advanced recovery active
+                Recovery
               </div>
               <p className="mt-1 text-xs leading-relaxed text-bw-tertiary">
-                Showing a moderate performance protocol for {formatTime(advancedRecoveryStatus.remainingSeconds)} after {advancedRecoveryStatus.lastProtocolName}.
+                Moderate protocol for {formatTime(advancedRecoveryStatus.remainingSeconds)} after {advancedRecoveryStatus.lastProtocolName}.
               </p>
             </div>
           ) : null}
@@ -362,7 +361,7 @@ export function Home() {
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
             <span>{suggestedProtocol.evidence}</span>
             <span>{suggestedProtocol.intensity}</span>
-            {suggestedProtocol.safetyChecklist?.length ? <span>Safety gated</span> : null}
+            {suggestedProtocol.safetyChecklist?.length ? <span>Safety check</span> : null}
           </div>
 
           <div className="mt-5 grid gap-2 sm:grid-cols-2">

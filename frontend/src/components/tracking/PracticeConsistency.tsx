@@ -13,7 +13,7 @@ export function PracticeConsistency({
   className,
 }: PracticeConsistencyProps) {
   const insight = useMemo(() => buildPracticeConsistencyInsight(sessions), [sessions])
-  const protocolText = insight.dominantProtocolName ?? 'No dominant protocol yet'
+  const protocolText = insight.dominantProtocolName ?? 'None yet'
 
   return (
     <section
@@ -24,7 +24,7 @@ export function PracticeConsistency({
         id="practice-consistency-heading"
         className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary"
       >
-        Practice Signal
+        This week
       </h2>
       <h3 className="mt-2 font-display text-3xl font-semibold leading-none text-bw">
         {insight.label}
@@ -56,7 +56,7 @@ export function PracticeConsistency({
         </div>
         <div>
           <div className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">
-            Next best action
+            Next
           </div>
           <p className="mt-1 text-xs leading-relaxed text-bw-tertiary">
             {insight.nextStep}

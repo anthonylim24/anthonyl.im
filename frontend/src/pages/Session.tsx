@@ -221,7 +221,7 @@ function InCarProtocolNotice({ compact = false }: { compact?: boolean }) {
         Vehicle browser
       </h2>
       <p className="mt-2 text-xs leading-relaxed text-bw-tertiary">
-        Strong breathing protocols are not available while driving. Choose Cyclic Sighing or Resonance.
+        Strong protocols are off while driving. Use Cyclic Sighing or Resonance.
       </p>
     </div>
   )
@@ -240,7 +240,7 @@ function EvidenceTrail({ citations, compact = false }: EvidenceTrailProps) {
   return (
     <div className={cn('border-t border-bw-border', compact ? 'mt-4 pt-3' : 'mt-5 pt-4')}>
       <h3 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary">
-        Evidence Trail
+        Evidence
       </h3>
       <ul
         aria-label="Protocol evidence sources"
@@ -325,13 +325,13 @@ export function Session() {
   const blockedInCar = inCar && isAdvancedBreathingProtocol(selectedTechnique)
   const canStartSession = !needsSafetyAcknowledgement && !recoveryStatus.isActive && !blockedInCar
   const startSafetyHelpText = blockedInCar
-    ? 'This protocol is not available in the vehicle browser. Choose Cyclic Sighing or Resonance.'
+    ? 'Not available while driving. Use Cyclic Sighing or Resonance.'
     : needsSafetyAcknowledgement && recoveryStatus.isActive
-    ? `Complete the safety check and wait ${formatTime(recoveryStatus.remainingSeconds)} before another advanced set.`
+    ? `Finish the safety check, then wait ${formatTime(recoveryStatus.remainingSeconds)}.`
     : needsSafetyAcknowledgement
-      ? 'Complete the safety check to enter.'
+      ? 'Finish the safety check first.'
       : recoveryStatus.isActive
-        ? `Recovery window active. Wait ${formatTime(recoveryStatus.remainingSeconds)} before another advanced set.`
+        ? `Wait ${formatTime(recoveryStatus.remainingSeconds)} before another advanced set.`
         : null
   const hasCustomCadence = useMemo(
     () => hasCustomPhaseDurations(protocol, customPhaseDurations),
@@ -564,7 +564,7 @@ export function Session() {
               onClick={() => setScienceExpanded(!scienceExpanded)}
               className="flex min-h-11 w-full items-center justify-between text-left"
             >
-              <span className="text-[10px] font-medium text-bw-secondary uppercase tracking-[0.07em]">How it works</span>
+              <span className="text-[10px] font-medium text-bw-secondary uppercase tracking-[0.07em]">Method</span>
               <ChevronDown className={cn(
                 'h-3 w-3 text-bw-tertiary transition-transform duration-200',
                 scienceExpanded && 'rotate-180'
@@ -640,8 +640,8 @@ export function Session() {
 
         <motion.div variants={fadeUp} className="border-t border-bw-border py-4">
           <MoodPicker
-            label="How do you feel right now?"
-            hint="Optional. We'll check in again after, so you can see the shift."
+            label="How do you feel?"
+            hint="Optional. Asked again after."
             value={moodBefore}
             onChange={handleMoodSelect}
           />
@@ -716,7 +716,7 @@ export function Session() {
             className="flex min-h-11 w-full items-center justify-center gap-3 border border-bw-accent bg-bw-accent px-6 py-3.5 text-sm font-medium text-bw-accent-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:border-bw-border disabled:bg-bw-active disabled:text-bw-tertiary disabled:hover:opacity-100"
           >
             <Play className="h-4 w-4" aria-hidden="true" />
-            <span>Begin {protocol.name}</span>
+            <span>Start {protocol.name}</span>
           </button>
         </motion.div>
       </div>
@@ -731,10 +731,10 @@ export function Session() {
         >
           <motion.div variants={fadeUp}>
             <h1 className="font-display text-4xl font-semibold text-bw leading-none">
-              Session Setup
+              Session
             </h1>
             <p className="mt-2 text-sm text-bw-tertiary">
-              Pick a protocol. Start stays on the right.
+              Choose a technique.
             </p>
           </motion.div>
 
@@ -816,7 +816,7 @@ export function Session() {
           <div className="grid grid-cols-[1fr_auto] gap-6">
             <div>
               <h2 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary mb-3">
-                Protocol Notes
+                Notes
               </h2>
               <p className="text-xs text-bw-tertiary leading-relaxed">
                 {protocol.science}
@@ -891,8 +891,8 @@ export function Session() {
 
         <motion.div variants={fadeUp} className="border-t border-bw-border pt-5">
           <MoodPicker
-            label="How do you feel right now?"
-            hint="Optional. We'll check in again after, so you can see the shift."
+            label="How do you feel?"
+            hint="Optional. Asked again after."
             value={moodBefore}
             onChange={handleMoodSelect}
           />
@@ -902,7 +902,7 @@ export function Session() {
 
         <aside className="md:sticky md:top-20 self-start">
           <p className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">
-            Start this session
+            Start
           </p>
           <p className="mt-2 text-lg font-medium leading-snug text-bw">{protocol.name}</p>
           <p className="mt-1 text-[11px] font-mono tabular-nums text-bw-tertiary">
@@ -911,7 +911,7 @@ export function Session() {
 
           <div className="mt-6 border-t border-bw-border pt-5">
             <label className="text-[10px] font-medium text-bw-secondary tracking-[0.07em] uppercase">
-              Number of Rounds
+              Rounds
             </label>
             <div
               className="mt-4 flex items-center justify-center gap-6"
@@ -975,7 +975,7 @@ export function Session() {
               className="flex min-h-11 w-full items-center justify-center gap-3 border border-bw-accent bg-bw-accent px-6 py-3.5 text-sm font-medium text-bw-accent-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:border-bw-border disabled:bg-bw-active disabled:text-bw-tertiary disabled:hover:opacity-100"
             >
               <Play className="h-4 w-4" aria-hidden="true" />
-              <span>Enter {protocol.name}</span>
+              <span>Start {protocol.name}</span>
             </button>
           </div>
         </aside>

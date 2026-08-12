@@ -122,28 +122,28 @@ describe('Settings accessibility', () => {
   it('announces a completed import after the restore reload', () => {
     window.sessionStorage.setItem(
       'breathflow-import-status',
-      'Data import complete. BreathFlow restored your backup.',
+      'Backup restored.',
     )
 
     render(<Settings />)
 
-    expect(screen.getByRole('status')).toHaveTextContent(/data import complete/i)
+    expect(screen.getByRole('status')).toHaveTextContent(/backup restored/i)
     expect(window.sessionStorage.getItem('breathflow-import-status')).toBeNull()
   })
 
   it('shows unlocked and locked orb palette controls with clear states', () => {
     render(<Settings />)
 
-    expect(screen.getByRole('group', { name: /orb palettes unlocked through level 1/i })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: /orb colors available through level 1/i })).toBeInTheDocument()
 
-    const defaultPalette = screen.getByRole('button', { name: /default orb palette/i })
-    const tidalPalette = screen.getByRole('button', { name: /tidal orb palette/i })
+    const defaultPalette = screen.getByRole('button', { name: /default orb color/i })
+    const tidalPalette = screen.getByRole('button', { name: /tidal orb color/i })
 
     expect(defaultPalette).toHaveAttribute('aria-pressed', 'true')
     expect(defaultPalette).toHaveClass('min-h-11')
     expect(tidalPalette).toHaveAttribute('aria-pressed', 'false')
     expect(tidalPalette).toBeDisabled()
-    expect(tidalPalette).toHaveAccessibleName(/unlocks at level 5/i)
+    expect(tidalPalette).toHaveAccessibleName(/available at level 5/i)
   })
 
   it('keeps a persistent breathwork safety disclosure available from settings', () => {

@@ -392,7 +392,7 @@ export function SessionSummary({
               {moodAfter ? (
                 <div className="text-center">
                   <div className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">
-                    {moodShift ? 'Your shift' : 'Noted'}
+                    {moodShift ? 'Change' : 'Noted'}
                   </div>
                   {moodShift ? (
                     <>
@@ -401,15 +401,15 @@ export function SessionSummary({
                       </div>
                       <p className="mt-2 text-xs leading-relaxed text-bw-tertiary">
                         {moodDelta != null && moodDelta > 0
-                          ? 'You ended this session calmer than you started.'
+                          ? 'Calmer than you started.'
                           : moodDelta === 0
-                            ? 'You held steady — grounded through the whole session.'
-                            : 'Calm is a practice. Showing up is the rep that counts.'}
+                            ? 'Hold time stayed even.'
+                            : 'Session complete.'}
                       </p>
                     </>
                   ) : (
                     <p className="mt-2 text-xs leading-relaxed text-bw-tertiary">
-                      Feeling {getMoodLabel(moodAfter).toLowerCase()}. Noted.
+                      Feeling {getMoodLabel(moodAfter).toLowerCase()}.
                     </p>
                   )}
                 </div>
@@ -426,7 +426,7 @@ export function SessionSummary({
             {newBadges.length > 0 && (
               <motion.div variants={fadeUp} className="mt-4 space-y-2">
                 <div className="text-xs text-bw-tertiary text-center font-medium uppercase tracking-wider">
-                  {newBadges.length === 1 ? 'Milestone Unlocked' : 'Milestones Unlocked'}
+                  {newBadges.length === 1 ? 'New badge' : 'New badges'}
                 </div>
                 <div className="flex flex-wrap justify-center gap-2">
                   {newBadges.map((badgeId) => {
@@ -463,7 +463,7 @@ export function SessionSummary({
                 className="border border-bw-border bg-bw-active px-4 py-3"
               >
                 <div className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">
-                  Recovery first
+                  Recovery
                 </div>
                 <p className="mt-1 text-xs leading-relaxed text-bw-tertiary">
                   Return to relaxed nasal breathing before another advanced set.

@@ -13,23 +13,23 @@ describe('BadgeGrid', () => {
 
   it('shows earned badge name', () => {
     render(<BadgeGrid earnedBadges={['first_session']} />)
-    expect(screen.getByText('First Breath')).toBeTruthy()
+    expect(screen.getByText('First session')).toBeTruthy()
   })
 
   it('summarizes achievement progress and badge states for assistive technology', () => {
     render(<BadgeGrid earnedBadges={['first_session']} />)
 
     expect(
-      screen.getByRole('list', { name: `1 of ${BADGES.length} milestones earned` })
+      screen.getByRole('list', { name: `1 of ${BADGES.length} badges earned` })
     ).toBeInTheDocument()
     expect(
       screen.getByRole('listitem', {
-        name: /First Breath earned\. Complete your first guided session\./i,
+        name: /First session earned\. Finish one guided session\./i,
       })
     ).toBeInTheDocument()
     expect(
       screen.getByRole('listitem', {
-        name: /Seven-Day Rhythm locked\. Practice for 7 days in a row\./i,
+        name: /7-day streak locked\. Practice 7 days in a row\./i,
       })
     ).toBeInTheDocument()
   })
@@ -49,7 +49,7 @@ describe('BadgeGrid', () => {
 
   it('reveals secret badge when earned', () => {
     render(<BadgeGrid earnedBadges={['night_owl']} />)
-    expect(screen.getByText('Night Practice')).toBeTruthy()
+    expect(screen.getByText('Night practice')).toBeTruthy()
   })
 
   it('shows secret placeholders when not earned', () => {

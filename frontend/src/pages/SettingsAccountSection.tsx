@@ -44,7 +44,7 @@ export function SettingsAccountSection({ variants }: SettingsAccountSectionProps
       <SignedOut>
         <div className="flex flex-col items-start gap-3 py-2">
           <p className="text-xs text-bw-tertiary">
-            Sign in with Google to sync your progress across devices
+            Sign in with Google to sync across devices.
           </p>
           <SignInButton mode="modal">
             <button

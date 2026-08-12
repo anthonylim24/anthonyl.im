@@ -33,7 +33,7 @@ describe('SessionHistory', () => {
 
     render(<SessionHistory sessions={[]} />)
 
-    const startButton = screen.getByRole('button', { name: /start your first session/i })
+    const startButton = screen.getByRole('button', { name: /start a session/i })
     expect(startButton).toHaveClass('min-h-11')
 
     await user.click(startButton)

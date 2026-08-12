@@ -40,7 +40,7 @@ export function PersonalBests({ personalBests }: PersonalBestsProps) {
             role="status"
             aria-label="No personal bests recorded yet."
           >
-            Personal records unlock as you practice. Start your first session to begin tracking.
+            Hold times appear after sessions with a breath hold.
           </div>
         </div>
       </div>

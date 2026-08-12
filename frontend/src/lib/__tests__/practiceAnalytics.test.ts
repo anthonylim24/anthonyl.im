@@ -36,7 +36,7 @@ describe('buildPracticeConsistencyInsight', () => {
     expect(insight.activeDays).toBe(3)
     expect(insight.sessionCount).toBe(3)
     expect(insight.totalMinutes).toBe(15)
-    expect(insight.label).toBe('Habit forming')
+    expect(insight.label).toBe('3 to 4 days')
     expect(insight.dominantProtocolName).toBe('Resonance Breathing')
     expect(insight.dominantCategory).toBe('calm')
   })
@@ -50,9 +50,9 @@ describe('buildPracticeConsistencyInsight', () => {
       session('d4', '2026-04-27T08:00:00.000Z', TECHNIQUE_IDS.POWER_BREATHING),
     ], now)
 
-    expect(insight.label).toBe('Consistent rhythm')
+    expect(insight.label).toBe('5+ days')
     expect(insight.dominantCategory).toBe('performance')
-    expect(insight.nextStep).toMatch(/gentle recovery or resonance/i)
+    expect(insight.nextStep).toMatch(/recovery or resonance/i)
   })
 
   it('returns an empty-state insight when there is no recent practice', () => {
@@ -61,7 +61,7 @@ describe('buildPracticeConsistencyInsight', () => {
     expect(insight.activeDays).toBe(0)
     expect(insight.sessionCount).toBe(0)
     expect(insight.totalMinutes).toBe(0)
-    expect(insight.label).toBe('Ready to begin')
+    expect(insight.label).toBe('No sessions yet')
     expect(insight.dominantProtocolName).toBeNull()
   })
 

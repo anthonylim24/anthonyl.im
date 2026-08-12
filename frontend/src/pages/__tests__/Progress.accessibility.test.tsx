@@ -69,7 +69,7 @@ async function renderProgress() {
       <Progress />
     </MemoryRouter>,
   )
-  await screen.findByRole('region', { name: /practice signal/i })
+  await screen.findByRole('region', { name: /this week/i })
 }
 
 describe('Progress accessibility', () => {
@@ -120,10 +120,10 @@ describe('Progress accessibility', () => {
   it('keeps history filter controls and empty-history CTA at 44px height', async () => {
     await renderProgress()
 
-    expect(screen.getByRole('region', { name: /practice signal/i })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: /this week/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /show all sessions/i })).toHaveClass('min-h-11')
     expect(screen.getByRole('button', { name: /show box sessions/i })).toHaveClass('min-h-11')
-    expect(screen.getByRole('button', { name: /start your first session/i })).toHaveClass('min-h-11')
+    expect(screen.getByRole('button', { name: /start a session/i })).toHaveClass('min-h-11')
   })
 
   it('exposes the selected history filter state to assistive technology', async () => {

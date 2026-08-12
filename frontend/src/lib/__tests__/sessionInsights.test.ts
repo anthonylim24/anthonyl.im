@@ -30,9 +30,9 @@ describe('buildSessionInsight', () => {
       newBadgeCount: 0,
     })
 
-    expect(insight.doseLabel).toBe('Primer')
+    expect(insight.doseLabel).toBe('Brief')
     expect(insight.scoreLabel).toBe('Started')
-    expect(insight.effectLabel).toBe('Downshift signal')
+    expect(insight.effectLabel).toBe('Slower breathing')
   })
 
   it('returns sleep-specific next steps for sleep protocols', () => {
@@ -45,7 +45,7 @@ describe('buildSessionInsight', () => {
       newBadgeCount: 0,
     })
 
-    expect(insight.effectLabel).toBe('Sleep runway')
+    expect(insight.effectLabel).toBe('Sleep prep')
     expect(insight.nextStep).toMatch(/lights low/i)
   })
 })

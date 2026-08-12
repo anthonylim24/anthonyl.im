@@ -53,7 +53,7 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
     <motion.ol
       className="divide-y divide-bw-border border-t border-bw-border"
       role="list"
-      aria-label={`${earnedCount} of ${BADGES.length} milestones earned`}
+      aria-label={`${earnedCount} of ${BADGES.length} badges earned`}
       variants={reducedMotion ? reducedBadgeStagger : badgeStagger}
       initial="hidden"
       animate="show"
@@ -70,7 +70,7 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
               variants={motionConfig.variants}
               data-badge={badge.id}
               data-secret="true"
-              aria-label="Secret milestone locked. Not yet discovered."
+              aria-label="Hidden badge. Not earned yet."
               className="flex items-center gap-4 py-3"
             >
               <span className="font-mono text-base text-bw-tertiary tabular-nums w-7 shrink-0">
@@ -80,9 +80,9 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
                 <HelpCircle className="h-4 w-4" aria-hidden="true" />
               </span>
               <span className="flex-1 min-w-0">
-                <span className="block text-sm text-bw-tertiary">Hidden milestone</span>
+                <span className="block text-sm text-bw-tertiary">Hidden</span>
                 <span className="block text-[11px] text-bw-tertiary leading-tight mt-0.5">
-                  Keep practicing. This one reveals itself.
+                  Not earned yet.
                 </span>
               </span>
               <span className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary shrink-0">

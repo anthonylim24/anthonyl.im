@@ -32,7 +32,7 @@ function ProgressChartFallback() {
     <div className="overflow-hidden">
       <div className="pb-4 border-b border-bw-border">
         <h3 className="font-display text-2xl font-semibold text-bw leading-none">
-          Hold Time Progress
+          Hold time
         </h3>
       </div>
       <div className="pt-4">
@@ -41,7 +41,7 @@ function ProgressChartFallback() {
           role="status"
           aria-label="Loading hold time progress"
         >
-          Loading hold time trend...
+          Loading hold times...
         </div>
       </div>
     </div>
@@ -170,7 +170,7 @@ export function Progress() {
             className="mt-5 flex min-h-11 w-full items-center justify-center gap-2.5 border border-bw-accent bg-bw-accent px-4 py-3 text-sm font-medium text-bw-accent-foreground transition-opacity hover:opacity-90"
           >
             <Play className="h-4 w-4" aria-hidden="true" />
-            Start Session
+            Start session
           </button>
         </motion.div>
 
@@ -200,7 +200,7 @@ export function Progress() {
         <motion.div variants={fadeUp} className="border-t border-bw-border pt-5">
           <div className="mb-5">
             <h3 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary">
-              Session History
+              History
             </h3>
           </div>
           <div>
