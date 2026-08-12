@@ -17,9 +17,8 @@ import {
   Line,
   LineBasicMaterial,
   Mesh,
-  MeshBasicMaterial,
-  MeshPhysicalMaterial,
-  MeshStandardMaterial,
+    MeshBasicMaterial,
+    MeshStandardMaterial,
   NoToneMapping,
   PerspectiveCamera,
   PMREMGenerator,
@@ -50,6 +49,14 @@ import { detectTier } from "./deviceTier"
 import { lightingForHour, type MapLighting } from "./mapSun"
 import { gradeParamsAt } from "./mapGrade"
 import { AdaptiveQuality, initialDprForTier, maxDprForTier, tileErrorTarget } from "./adaptiveQuality"
+import {
+  pickFloorHit,
+  refreshYouAnchor,
+  YOU_RAY_FAR,
+  YOU_RAY_HEIGHT,
+  type TerrainHit,
+} from "./terrainAnchor"
+import { YouPin } from "./youPin"
 
 // Session-scoped flag: the cinematic fly-in plays once per browser
 // session, not on every navigation into Map Mode. Stored in
@@ -183,7 +190,11 @@ export function Detailed3DScene({
     renderer.setPixelRatio(quality.dpr)
     renderer.toneMapping = NoToneMapping
     renderer.toneMappingExposure = 1
-    renderer.transmissionResolutionScale = 0.25
+    // Transmission is the YOU pin's refraction grab. 0.4 keeps the
+    // extra tiles pass cheap while the water still reads sharp enough
+    // to distort streets under the puddle. Composer paths skip
+    // transmission entirely (see YouPin), so the scale is unused there.
+    renderer.transmissionResolutionScale = useComposer ? 0.25 : 0.4
     renderer.setClearColor(0x88a2c9, 0)
     const size = () => ({ w: mount.clientWidth, h: Math.max(1, mount.clientHeight) })
     let { w, h } = size()
@@ -368,12 +379,17 @@ export function Detailed3DScene({
     // Max Quality mode: building facades at grazing angles look like
     // mud without anisotropy, and Google delivers sRGB-encoded textures
     // that look washed-out without the color space hint.
+    let recastYou = true
     tiles.addEventListener("load-model", (event: unknown) => {
       const ev = event as { scene?: { traverse: (cb: (o: unknown) => void) => void } }
       if (ev.scene) applyTileQualityHints(ev.scene, renderer)
+      recastYou = true
     })
 
-    // ── YOU marker — frosted rose orb at origin ────
+    // ── YOU pin — glassy droplet on a water puddle, snapped to the
+    // tile mesh. Transmission is the HL2 refraction pass (scene
+    // re-rendered at transmissionResolutionScale into a grab RT);
+    // skip it on the composer paths that already re-draw the tiles.
     const orbGeo = new SphereGeometry(1, 16, 12)
     const beamGeo = new CylinderGeometry(0.9, 1.6, 56, 8, 1, true)
     const blobGeo = new CircleGeometry(1, 20)
@@ -388,45 +404,11 @@ export function Detailed3DScene({
       polygonOffsetFactor: -2,
       polygonOffsetUnits: -2,
     })
-    const youMarker = new Mesh(
-      orbGeo,
-      new MeshPhysicalMaterial({
-        color: 0xf43f5e,
-        emissive: 0xf43f5e,
-        emissiveIntensity: 0.45,
-        roughness: 0.18,
-        metalness: 0.08,
-        clearcoat: 0.55,
-        clearcoatRoughness: 0.3,
-        envMapIntensity: 0.9,
-        // No transmission — three.js re-renders the entire tile scene
-        // into a refraction RT whenever any transmissive mesh exists.
-        fog: false,
-      }),
-    )
-    youMarker.position.set(0, 8, 0)
-    youMarker.scale.setScalar(10)
-    scene.add(youMarker)
-    const youBlob = new Mesh(blobGeo, blobMat)
-    youBlob.position.set(0, 0.55, 0)
-    youBlob.scale.setScalar(12)
-    youBlob.renderOrder = 5
-    scene.add(youBlob)
-
-    const youHalo = new Mesh(
-      new RingGeometry(14, 20, 48),
-      new MeshBasicMaterial({
-        color: 0xf43f5e,
-        transparent: true,
-        opacity: 0.55,
-        depthWrite: false,
-        fog: false,
-      }),
-    )
-    youHalo.rotation.x = -Math.PI / 2
-    youHalo.position.set(0, 1.5, 0)
-    youHalo.renderOrder = 40
-    scene.add(youHalo)
+    const youPin = new YouPin({
+      transmission: !useComposer,
+      reducedMotion: !!reducedMotion,
+    })
+    scene.add(youPin.group)
 
     const cosUserLat = Math.cos(anchorLat * DEG2RAD)
 
@@ -578,7 +560,7 @@ export function Detailed3DScene({
     youLabel.style.visibility = "hidden"
     youLabel.innerHTML = `
       <div class="flex flex-col items-center gap-1">
-        <div class="inline-block rounded-full bg-rose-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white shadow-[0_8px_20px_rgba(244,63,94,0.45)] ring-1 ring-rose-200/50">You</div>
+        <div class="inline-block rounded-full border border-white/35 bg-rose-600/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white shadow-[0_8px_24px_rgba(244,63,94,0.4)] backdrop-blur-sm">You</div>
       </div>
     `
     overlay.appendChild(youLabel)
@@ -803,6 +785,7 @@ export function Detailed3DScene({
     const downRay = new Raycaster()
     const downOrigin = new Vector3()
     const downDir = new Vector3(0, -1, 0)
+    const faceN = new Vector3()
     function snapBuildingHighlight(destX: number, destZ: number) {
       downOrigin.set(destX, 5000, destZ)
       downRay.set(downOrigin, downDir)
@@ -814,6 +797,27 @@ export function Detailed3DScene({
       buildingRing.position.y += 0.6
       buildingRing.visible = true
       return true
+    }
+
+    function castYouProbe(x: number, z: number): TerrainHit | null {
+      downOrigin.set(x, YOU_RAY_HEIGHT, z)
+      downRay.set(downOrigin, downDir)
+      downRay.near = 0
+      downRay.far = YOU_RAY_FAR
+      const raw = downRay.intersectObject(tiles.group, true)
+      const mapped: TerrainHit[] = []
+      for (const h of raw) {
+        if (!h.face) continue
+        faceN.copy(h.face.normal).transformDirection(h.object.matrixWorld)
+        if (faceN.lengthSq() < 1e-8) continue
+        faceN.normalize()
+        mapped.push({
+          distance: h.distance,
+          point: { x: h.point.x, y: h.point.y, z: h.point.z },
+          normal: { x: faceN.x, y: faceN.y, z: faceN.z },
+        })
+      }
+      return pickFloorHit(mapped)
     }
 
     // Per-frame screen projection of a world point — used for label
@@ -921,7 +925,6 @@ export function Detailed3DScene({
       const len = Math.hypot(L.sunDir.x, L.sunDir.z) || 1
       const ox = -(L.sunDir.x / len) * 3.2
       const oz = -(L.sunDir.z / len) * 3.2
-      youBlob.position.set(ox, 0.55, oz)
       blobMat.opacity = L.belowHorizon ? 0.08 : 0.16
       for (const m of markers) {
         m.shadow.position.set(m.basePos.x + ox, 0.55, m.basePos.z + oz)
@@ -959,6 +962,7 @@ export function Detailed3DScene({
       maxQuality?.setHourPhase(hour)
       maxQuality?.setGradeEnabled(gradeOn)
       layoutBlobs(L)
+      youPin.setLighting(L)
     }
     applyLighting(initialHour)
     syncHour = (hour: number) => {
@@ -1001,6 +1005,7 @@ export function Detailed3DScene({
     const distWorld = new Vector3()
     let lastFrameAt = performance.now()
     let lastErrorTarget = tiles.errorTarget
+    let youProbeClock = 0
     const onVisibility = () => {
       if (document.visibilityState === "visible" && running) {
         lastFrameAt = performance.now()
@@ -1033,6 +1038,23 @@ export function Detailed3DScene({
       }
       controls.update()
       tiles.update()
+
+      // Snap YOU onto the photogrammetry floor. Tiles stream in over
+      // seconds, so we recast when a model lands and every 8 frames
+      // otherwise. Stable floors take one center tap; first snap /
+      // steep hits / LOD jumps use the 5-tap median.
+      youProbeClock++
+      if (recastYou || youProbeClock % 8 === 0) {
+        recastYou = false
+        if (tiles.group.children.length > 0) {
+          const hit = refreshYouAnchor(
+            castYouProbe,
+            youPin.hasAnchor ? youPin.surfaceY : null,
+          )
+          if (hit) youPin.setTarget(hit, !!reducedMotion)
+        }
+      }
+      youPin.tick(frameDt, frameNow / 1000, !!reducedMotion)
 
       // Arrival kickoff: wait until tiles have rendered something
       // (otherwise the fly-in happens over an empty sky) OR the
@@ -1114,9 +1136,10 @@ export function Detailed3DScene({
             const destZ = m.basePos.z
             planFocus(destX, destZ)
             // Line on the ground from YOU to destination.
+            const youY = youPin.hasAnchor ? youPin.surfaceY + 0.8 : 1
             const lpos = selLineGeom.attributes.position as BufferAttribute
-            lpos.setXYZ(0, 0, 1, 0)
-            lpos.setXYZ(1, destX, 1, destZ)
+            lpos.setXYZ(0, 0, youY, 0)
+            lpos.setXYZ(1, destX, youY, destZ)
             lpos.needsUpdate = true
             selLine.visible = true
             // Destination ring on the ground at the place's exact
@@ -1261,15 +1284,19 @@ export function Detailed3DScene({
           takenN++
         }
       }
-      labelWorld.set(0, 4, 0)
-      const youProj = projectToScreen(labelWorld)
-      if (youProj.visible) {
-        const xf = `translate3d(${youProj.x.toFixed(1)}px,${youProj.y.toFixed(1)}px,0) translate(-50%,-50%)`
-        if (youLabel.dataset.xf !== xf) {
-          youLabel.dataset.xf = xf
-          youLabel.style.transform = xf
+      if (youPin.hasAnchor) {
+        labelWorld.set(0, youPin.labelY, 0)
+        const youProj = projectToScreen(labelWorld)
+        if (youProj.visible) {
+          const xf = `translate3d(${youProj.x.toFixed(1)}px,${youProj.y.toFixed(1)}px,0) translate(-50%,-130%)`
+          if (youLabel.dataset.xf !== xf) {
+            youLabel.dataset.xf = xf
+            youLabel.style.transform = xf
+          }
+          if (youLabel.style.visibility !== "visible") youLabel.style.visibility = "visible"
+        } else if (youLabel.style.visibility !== "hidden") {
+          youLabel.style.visibility = "hidden"
         }
-        if (youLabel.style.visibility !== "visible") youLabel.style.visibility = "visible"
       } else if (youLabel.style.visibility !== "hidden") {
         youLabel.style.visibility = "hidden"
       }
@@ -1277,7 +1304,12 @@ export function Detailed3DScene({
       if (selLine.visible && sel) {
         const m = markers.find((x) => x.place.id === sel)
         if (m) {
-          labelWorld.set(m.basePos.x / 2, 40, m.basePos.z / 2)
+          const youY = youPin.hasAnchor ? youPin.surfaceY + 0.8 : 1
+          const lpos = selLineGeom.attributes.position as BufferAttribute
+          lpos.setXYZ(0, 0, youY, 0)
+          lpos.setXYZ(1, m.basePos.x, youY, m.basePos.z)
+          lpos.needsUpdate = true
+          labelWorld.set(m.basePos.x / 2, youY + 40, m.basePos.z / 2)
           const proj = projectToScreen(labelWorld)
           if (proj.visible) {
             selectionPill.style.transform = `translate3d(${proj.x.toFixed(1)}px, ${proj.y.toFixed(1)}px, 0) translate(-50%, -50%)`
@@ -1363,9 +1395,7 @@ export function Detailed3DScene({
       buildingRing.geometry.dispose()
       ;(buildingRing.material as MeshBasicMaterial).dispose()
       selectionPill.remove()
-      ;(youMarker.material as MeshPhysicalMaterial).dispose()
-      youHalo.geometry.dispose()
-      ;(youHalo.material as MeshBasicMaterial).dispose()
+      youPin.dispose()
       renderer.dispose()
       try {
         mount.removeChild(renderer.domElement)
