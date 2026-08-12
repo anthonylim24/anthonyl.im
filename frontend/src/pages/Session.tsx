@@ -23,6 +23,7 @@ import {
 } from '@/lib/breathingProtocols'
 import {
   getAdvancedProtocolRecoveryStatus,
+  isAdvancedBreathingProtocol,
   type AdvancedProtocolRecoveryStatus,
 } from '@/lib/advancedProtocolRecovery'
 import { TECHNIQUE_IDS, type BreathPhase, type TechniqueId } from '@/lib/constants'
@@ -34,6 +35,7 @@ import { useHaptics } from '@/hooks/useHaptics'
 import { useViewTransitionNavigate } from '@/hooks/useViewTransition'
 import { useEntranceMotion } from '@/lib/motionPresets'
 import { useHistoryStore } from '@/stores/historyStore'
+import { useConstrainedViewport } from '@/hooks/useConstrainedViewport'
 
 function getInitialRounds(requestedRounds: string | null, techniqueId: TechniqueId): number {
   const parsedRounds = Number(requestedRounds)
@@ -205,6 +207,26 @@ function AdvancedRecoveryNotice({ status, compact = false }: AdvancedRecoveryNot
   )
 }
 
+function InCarProtocolNotice({ compact = false }: { compact?: boolean }) {
+  return (
+    <div
+      role="status"
+      data-testid="in-car-protocol-block"
+      className={cn(
+        'border-y border-bw-border',
+        compact ? 'mb-3 py-3' : 'pt-5 pb-6'
+      )}
+    >
+      <h2 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary">
+        Vehicle browser
+      </h2>
+      <p className="mt-2 text-xs leading-relaxed text-bw-tertiary">
+        Strong breathing protocols are not available while driving. Choose Cyclic Sighing or Resonance.
+      </p>
+    </div>
+  )
+}
+
 interface EvidenceTrailProps {
   citations: BreathingProtocol['citations']
   compact?: boolean
@@ -286,6 +308,7 @@ export function Session() {
   const [scienceExpanded, setScienceExpanded] = useState(false)
   const [safetyAcknowledged, setSafetyAcknowledged] = useState(false)
   const [recoveryNow, setRecoveryNow] = useState(() => new Date())
+  const inCar = useConstrainedViewport()
 
   const { trigger: haptic } = useHaptics()
   const { sessions } = useHistoryStore()
@@ -299,8 +322,11 @@ export function Session() {
     [recoveryNow, selectedTechnique, sessions],
   )
   const needsSafetyAcknowledgement = requiresSafetyCheck && !safetyAcknowledged
-  const canStartSession = !needsSafetyAcknowledgement && !recoveryStatus.isActive
-  const startSafetyHelpText = needsSafetyAcknowledgement && recoveryStatus.isActive
+  const blockedInCar = inCar && isAdvancedBreathingProtocol(selectedTechnique)
+  const canStartSession = !needsSafetyAcknowledgement && !recoveryStatus.isActive && !blockedInCar
+  const startSafetyHelpText = blockedInCar
+    ? 'This protocol is not available in the vehicle browser. Choose Cyclic Sighing or Resonance.'
+    : needsSafetyAcknowledgement && recoveryStatus.isActive
     ? `Complete the safety check and wait ${formatTime(recoveryStatus.remainingSeconds)} before another advanced set.`
     : needsSafetyAcknowledgement
       ? 'Complete the safety check to enter.'
@@ -584,6 +610,12 @@ export function Session() {
           <AdvancedRecoveryNotice status={recoveryStatus} compact />
         </motion.div>
 
+        {blockedInCar ? (
+          <motion.div variants={fadeUp}>
+            <InCarProtocolNotice compact />
+          </motion.div>
+        ) : null}
+
         <motion.div variants={fadeUp}>
           <CadenceEditor
             protocol={protocol}
@@ -606,7 +638,7 @@ export function Session() {
         <motion.div variants={fadeUp} className="border-t border-bw-border py-4">
           <MoodPicker
             label="How do you feel right now?"
-            hint="Optional — we'll check in again after, so you can see the shift."
+            hint="Optional. We'll check in again after, so you can see the shift."
             value={moodBefore}
             onChange={handleMoodSelect}
           />
@@ -686,13 +718,13 @@ export function Session() {
 
       {/* ═══ DESKTOP LAYOUT ══════════════════════════════ */}
       <div
-        className="hidden md:flex md:h-[calc(100dvh-4rem-5rem)] md:flex-col max-w-2xl mx-auto"
+        className="hidden md:flex md:flex-col max-w-2xl mx-auto"
       >
         <motion.div
           variants={stagger}
           initial="hidden"
           animate="show"
-          className="flex-1 space-y-8 overflow-y-auto no-scrollbar pb-4"
+          className="flex-1 space-y-8 pb-4"
         >
           {/* Header */}
           <motion.div variants={fadeUp}>
@@ -829,6 +861,12 @@ export function Session() {
           <AdvancedRecoveryNotice status={recoveryStatus} />
         </motion.div>
 
+        {blockedInCar ? (
+          <motion.div variants={fadeUp}>
+            <InCarProtocolNotice />
+          </motion.div>
+        ) : null}
+
         <motion.div variants={fadeUp}>
           <CadenceEditor
             protocol={protocol}
@@ -849,7 +887,7 @@ export function Session() {
         <motion.div variants={fadeUp} className="border-t border-bw-border pt-5">
           <MoodPicker
             label="How do you feel right now?"
-            hint="Optional — we'll check in again after, so you can see the shift."
+            hint="Optional. We'll check in again after, so you can see the shift."
             value={moodBefore}
             onChange={handleMoodSelect}
           />

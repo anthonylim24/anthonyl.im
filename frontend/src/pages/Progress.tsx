@@ -180,61 +180,8 @@ export function Progress() {
             <PracticeConsistency sessions={sessions} />
           </motion.div>
 
-          {/* Level */}
-          <motion.div variants={fadeUp} className="border-t border-bw-border pt-5">
-            <div className="flex items-center gap-6">
-              <LevelRing level={level} progress={progress} size={100} strokeWidth={4} />
-              <div className="flex-1 min-w-0 space-y-3">
-                <div>
-                  <div className="text-[10px] font-medium text-bw-secondary tracking-[0.07em] uppercase">
-                    Level {level}
-                  </div>
-                  <div className="font-display text-3xl font-semibold text-bw leading-none">{levelTitle}</div>
-                </div>
-                <div className="space-y-2">
-                  <div className="h-px bg-bw-border overflow-hidden">
-                    <div
-                      className="h-full origin-left transition-transform duration-700 ease-out bg-bw-accent"
-                      style={{
-                        transform: `translateZ(0) scaleX(${Math.min(1, progress)})`,
-                      }}
-                    />
-                  </div>
-                  <div className="flex items-baseline gap-1.5 text-[10px] text-bw-tertiary font-medium">
-                    <span className="font-mono tabular-nums border-b border-bw-accent text-bw">
-                      {xpInLevel}
-                    </span>
-                    <span>/ {xpNeeded} XP</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Activity Heatmap */}
-          <motion.div variants={fadeUp} className="border-t border-bw-border pt-5">
-            <h2 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary mb-5">
-              Activity
-            </h2>
-            <ActivityHeatmap sessions={sessionDays} />
-          </motion.div>
-
-          {/* Milestones */}
-          <motion.div variants={fadeUp} className="border-t border-bw-border pt-5">
-            <h2 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary mb-5">
-              Milestones
-            </h2>
-            <BadgeGrid earnedBadges={earnedBadges} />
-          </motion.div>
-
-          {/* Personal Bests */}
-          <motion.div variants={fadeUp} className="border-t border-bw-border pt-5">
-            <PersonalBests personalBests={personalBests} />
-          </motion.div>
-
-          {/* Calm shift — evidence of change from before/after mood check-ins */}
           {moodTrend ? (
-            <motion.div variants={fadeUp} className="border-t border-bw-border pt-5">
+            <motion.div variants={fadeUp} className="md:col-span-2 border-t border-bw-border pt-5">
               <MoodTrendCard trend={moodTrend} />
             </motion.div>
           ) : null}
@@ -305,6 +252,56 @@ export function Progress() {
             <SessionHistory sessions={filteredSessions} />
           </div>
         </motion.div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 sm:gap-12">
+          <motion.div variants={fadeUp} className="border-t border-bw-border pt-5">
+            <div className="flex items-center gap-6">
+              <LevelRing level={level} progress={progress} size={100} strokeWidth={4} />
+              <div className="flex-1 min-w-0 space-y-3">
+                <div>
+                  <div className="text-[10px] font-medium text-bw-secondary tracking-[0.07em] uppercase">
+                    Level {level}
+                  </div>
+                  <div className="font-display text-3xl font-semibold text-bw leading-none">{levelTitle}</div>
+                </div>
+                <div className="space-y-2">
+                  <div className="h-px bg-bw-border overflow-hidden">
+                    <div
+                      className="h-full origin-left transition-transform duration-700 ease-out bg-bw-accent"
+                      style={{
+                        transform: `translateZ(0) scaleX(${Math.min(1, progress)})`,
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-baseline gap-1.5 text-[10px] text-bw-tertiary font-medium">
+                    <span className="font-mono tabular-nums border-b border-bw-accent text-bw">
+                      {xpInLevel}
+                    </span>
+                    <span>/ {xpNeeded} XP</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          <motion.div variants={fadeUp} className="border-t border-bw-border pt-5">
+            <h2 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary mb-5">
+              Activity
+            </h2>
+            <ActivityHeatmap sessions={sessionDays} />
+          </motion.div>
+
+          <motion.div variants={fadeUp} className="border-t border-bw-border pt-5">
+            <h2 className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary mb-5">
+              Milestones
+            </h2>
+            <BadgeGrid earnedBadges={earnedBadges} />
+          </motion.div>
+
+          <motion.div variants={fadeUp} className="border-t border-bw-border pt-5">
+            <PersonalBests personalBests={personalBests} />
+          </motion.div>
+        </div>
       </div>
     </motion.div>
   )

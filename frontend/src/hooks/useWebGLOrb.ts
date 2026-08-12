@@ -1,4 +1,11 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
+import {
+  AdaptiveQuality,
+  initialDprForTier,
+  maxDprForTier,
+} from '@/pages/Korea/adaptiveQuality'
+import { detectTier } from '@/pages/Korea/deviceTier'
+import { detectOrbQuality, type OrbQuality } from '@/lib/breathworkViewport'
 
 // ── Shaders (inline GLSL) ────────────────────────────────────────────
 
@@ -9,18 +16,11 @@ const QUAD_VERTS = new Float32Array([
   -1,  1,  1, -1,   1, 1,
 ])
 
-// Fragment shader — renders the breathing orb as a soft glass body.
+// Fragment shader — Source-engine (HL2) water on a sphere.
 //
-// On top of the original SDF + FBM displacement, this shader adds a simulated
-// physical lighting model so the orb reads as a translucent glass volume:
-//   • A faked hemisphere normal turns the 2D disc into an approximate 3D shape
-//   • High-frequency noise bumps perturb that normal for glass surface texture
-//   • Blinn–Phong specular gives a clean upper-left highlight
-//   • A Fresnel term brightens the rim where light grazes (defining of glass)
-//   • The interior color noise is sampled with a normal-offset UV to fake
-//     refraction of whatever's "inside" the orb
-//   • Wavelength-dependent rim shift produces a subtle chromatic dispersion
-//   • Caustic-like swirls inside hint at light bending through the volume
+// The silhouette stays circular. Water lives in the normal: dual scrolling
+// procedural normals, Schlick Fresnel, beer-lambert murk, one sun spec,
+// and (high tier) cheap caustic bands. No FBM outline wobble.
 const FRAG = `#version 300 es
 precision highp float;
 
@@ -29,6 +29,8 @@ uniform float u_amplitude;
 uniform vec2 u_resolution;
 uniform vec3 u_color1;
 uniform vec3 u_color2;
+uniform float u_quality;
+uniform float u_dark;
 
 out vec4 fragColor;
 
@@ -49,89 +51,96 @@ float noise(vec2 p) {
   return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
 
-float fbm(vec2 p) {
-  float v = 0.0;
-  float a = 0.5;
-  vec2 shift = vec2(100.0);
-  for (int i = 0; i < 4; i++) {
-    v += a * noise(p);
-    p = p * 2.0 + shift;
-    a *= 0.5;
+float fbm2(vec2 p) {
+  return noise(p) * 0.65 + noise(p * 2.17 + 17.1) * 0.35;
+}
+
+vec3 waterNormal(vec2 p, float t, float quality) {
+  vec2 uv0 = p * 3.4 + vec2(t * 0.031, t * 0.019);
+  vec2 uv1 = p * 5.7 + vec2(-t * 0.017, t * 0.041);
+  float eps = 0.035;
+  float h0 = noise(uv0);
+  float h1 = noise(uv1);
+  float h = mix(h0, h1, 0.55);
+  float hx = mix(noise(uv0 + vec2(eps, 0.0)), noise(uv1 + vec2(eps, 0.0)), 0.55);
+  float hy = mix(noise(uv0 + vec2(0.0, eps)), noise(uv1 + vec2(0.0, eps)), 0.55);
+  vec3 n = normalize(vec3(h - hx, h - hy, 0.42));
+  if (quality > 1.5) {
+    vec2 uv2 = p * 9.1 + vec2(t * 0.055, -t * 0.028);
+    float h2 = noise(uv2);
+    n.xy += vec2(h2 - noise(uv2 + vec2(eps, 0.0)), h2 - noise(uv2 + vec2(0.0, eps))) * 0.28;
+    n = normalize(n);
   }
-  return v;
+  return n;
 }
 
 void main() {
   vec2 uv = gl_FragCoord.xy / u_resolution;
-  vec2 center = vec2(0.5);
-  vec2 fromCenter = uv - center;
+  vec2 fromCenter = uv - vec2(0.5);
   float aspect = u_resolution.x / u_resolution.y;
   fromCenter.x *= aspect;
   float dist = length(fromCenter);
+
   float baseRadius = 0.16 + u_amplitude * 0.22;
+  float sdf = dist - baseRadius;
+  float edge = smoothstep(0.018, -0.018, sdf);
+  float glow = smoothstep(0.10, -0.02, sdf) * (0.18 + u_amplitude * 0.10);
 
-  // Organic outer displacement (preserved — keeps the breathing wobble).
-  float displace = fbm(fromCenter * 3.5 + u_time * 0.15) * 0.08 * (0.3 + u_amplitude * 0.7);
-  float sdf = dist - baseRadius - displace;
-  float edge = smoothstep(0.025, -0.025, sdf);
-  float glow = smoothstep(0.15, -0.05, sdf) * (0.25 + u_amplitude * 0.15);
-
-  // ── Surface normal: project the 2D disc onto a hemisphere ──
-  float effRadius = max(baseRadius + displace, 0.0001);
+  float effRadius = max(baseRadius, 0.0001);
   float ndist = clamp(dist / effRadius, 0.0, 1.0);
   float sphereZ = sqrt(max(0.0, 1.0 - ndist * ndist));
-  vec3 normal = vec3(fromCenter / effRadius, sphereZ);
+  vec3 geoNormal = normalize(vec3(fromCenter / effRadius, sphereZ));
 
-  // Micro-bumps — sample noise at offset points to derive a 2D bump gradient.
-  // This perturbs the sphere normal so the surface reads as imperfect glass.
-  vec2 bumpCoord = fromCenter * 12.0 + u_time * 0.10;
-  float bx = noise(bumpCoord + vec2(0.5, 0.0)) - noise(bumpCoord);
-  float by = noise(bumpCoord + vec2(0.0, 0.5)) - noise(bumpCoord);
-  normal.xy += vec2(bx, by) * 0.22;
-  normal = normalize(normal);
+  vec3 ripple = waterNormal(fromCenter * 2.4, u_time, u_quality);
+  vec3 normal = normalize(vec3(geoNormal.xy + ripple.xy * 0.38, geoNormal.z));
 
-  // ── Lighting ──
-  vec3 lightDir = normalize(vec3(-0.45, 0.55, 0.7));
+  vec3 lightDir = normalize(vec3(-0.35, 0.55, 0.72));
   vec3 viewDir = vec3(0.0, 0.0, 1.0);
   vec3 halfVec = normalize(lightDir + viewDir);
   float NdotV = max(dot(normal, viewDir), 0.0);
   float NdotH = max(dot(normal, halfVec), 0.0);
+  float NdotL = max(dot(normal, lightDir), 0.0);
+  float wrap = max(dot(normal, lightDir) * 0.5 + 0.5, 0.0);
 
-  // Tight Blinn–Phong hotspot + softer halo for that "wet glass" sheen.
-  float specular = pow(NdotH, 90.0) * 0.95;
-  float specHalo = pow(NdotH, 22.0) * 0.18;
-  // Fresnel — characteristic edge brightening of any glass body.
-  float fresnel = pow(1.0 - NdotV, 3.2);
+  float F0 = 0.02;
+  float fresnel = F0 + (1.0 - F0) * pow(1.0 - NdotV, 5.0);
 
-  // ── Interior color with simulated refraction ──
-  // Offset the noise lookup by the surface normal — fakes refractive
-  // distortion of the volume "behind" the surface point.
-  vec2 refractUV = fromCenter - normal.xy * 0.07 * (1.0 - ndist * 0.4);
-  float colorNoise = fbm(refractUV * 2.0 + u_time * 0.08 + 50.0);
-  vec3 col = mix(u_color1, u_color2, colorNoise);
+  vec2 refractUV = uv + normal.xy * (0.045 * (1.0 - NdotV));
+  float parchment = u_quality > 0.5 ? fbm2(refractUV * 7.0 + 12.0) : noise(refractUV * 6.0);
+  vec3 paperLight = mix(vec3(0.96, 0.94, 0.90), vec3(0.91, 0.88, 0.82), parchment);
+  vec3 paperDark = mix(vec3(0.13, 0.12, 0.10), vec3(0.09, 0.08, 0.07), parchment);
+  vec3 scene = mix(paperLight, paperDark, u_dark);
 
-  // Caustic-like inner swirls — suggests light bending through the volume.
-  float caustic = fbm(refractUV * 6.5 - u_time * 0.11) * (1.0 - ndist * 0.7);
-  col += vec3(caustic) * 0.15;
+  float thickness = 2.0 * sphereZ;
+  float murk = 1.15 + u_amplitude * 0.25;
+  vec3 absorption = exp(-u_color1 * murk * thickness);
+  vec3 transmitted = scene * absorption;
+  transmitted = mix(transmitted, u_color2 * 0.55, 0.22 * (1.0 - ndist));
+  transmitted += u_color2 * pow(wrap, 2.2) * 0.12 * (1.0 - NdotV);
 
-  // Subtle chromatic shift at the rim — wavelength-dependent dispersion.
-  col.r += fresnel * 0.04;
-  col.b += fresnel * 0.06 * (1.0 - ndist);
+  if (u_quality > 1.5) {
+    vec2 cUV = refractUV * 8.0 + u_time * 0.08;
+    float caustic = pow(max(0.0, noise(cUV) * noise(cUV * 1.7 - u_time * 0.11)), 3.0);
+    transmitted += vec3(caustic) * 0.16 * (1.0 - ndist);
+  }
 
-  // ── Composite ──
-  float rim = smoothstep(baseRadius * 0.3, baseRadius, dist) * edge;
-  col += rim * 0.10;
+  vec3 R = reflect(-viewDir, normal);
+  float sky = clamp(R.y * 0.55 + 0.45, 0.0, 1.0);
+  vec3 skyCol = mix(u_color1 * 0.28, mix(u_color2, vec3(0.97, 0.95, 0.90), 0.42), sky);
+  skyCol = mix(skyCol, skyCol * 0.35, u_dark);
+  vec3 water = mix(transmitted, skyCol, fresnel);
 
-  vec3 highlight = mix(vec3(1.0), mix(u_color1, u_color2, 0.5) + 0.2, 0.3);
-  col = mix(col, highlight, specular);
-  col += highlight * specHalo;
-  col += fresnel * 0.35 * mix(u_color2, vec3(1.0), 0.4);
+  float specPower = u_quality > 0.5 ? 96.0 : 48.0;
+  float specular = pow(NdotH, specPower) * 0.95;
+  float specHalo = pow(NdotH, 22.0) * 0.16;
+  vec3 specCol = mix(vec3(0.97, 0.95, 0.90), vec3(0.86, 0.82, 0.74), u_dark);
+  water += specCol * (specular + specHalo);
+  water *= mix(0.78, 1.0, NdotL);
 
-  float alpha = edge * 0.88 + glow * (1.0 - edge);
-  float edgeFade = smoothstep(0.5, 0.42, dist);
-  alpha *= edgeFade;
+  float alpha = edge * 0.92 + glow * (1.0 - edge);
+  alpha *= smoothstep(0.52, 0.40, dist);
 
-  fragColor = vec4(col * alpha, alpha);
+  fragColor = vec4(water * alpha, alpha);
 }
 `
 
@@ -144,6 +153,7 @@ interface UseWebGLOrbOptions {
   color2: [number, number, number]
   isActive: boolean
   reducedMotion: boolean
+  dark?: boolean
 }
 
 interface GLState {
@@ -157,6 +167,8 @@ interface GLState {
     uResolution: WebGLUniformLocation | null
     uColor1: WebGLUniformLocation | null
     uColor2: WebGLUniformLocation | null
+    uQuality: WebGLUniformLocation | null
+    uDark: WebGLUniformLocation | null
   }
 }
 
@@ -175,7 +187,6 @@ function compileShader(gl: WebGL2RenderingContext, type: number, source: string)
 }
 
 function createGLState(gl: WebGL2RenderingContext): GLState | null {
-  // Drain any prior errors
   while (gl.getError() !== gl.NO_ERROR) { /* drain */ }
 
   const vert = compileShader(gl, gl.VERTEX_SHADER, VERT)
@@ -215,7 +226,6 @@ function createGLState(gl: WebGL2RenderingContext): GLState | null {
   gl.enable(gl.BLEND)
   gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
 
-  // Validate with a test draw — catches Metal pipeline compilation failures
   gl.useProgram(program)
   gl.bindVertexArray(vao)
   gl.viewport(0, 0, 1, 1)
@@ -226,6 +236,8 @@ function createGLState(gl: WebGL2RenderingContext): GLState | null {
   gl.uniform2f(gl.getUniformLocation(program, 'u_resolution'), 1, 1)
   gl.uniform3f(gl.getUniformLocation(program, 'u_color1'), 0.5, 0.5, 0.5)
   gl.uniform3f(gl.getUniformLocation(program, 'u_color2'), 0.5, 0.5, 0.5)
+  gl.uniform1f(gl.getUniformLocation(program, 'u_quality'), 1)
+  gl.uniform1f(gl.getUniformLocation(program, 'u_dark'), 0)
   gl.drawArrays(gl.TRIANGLES, 0, 6)
   gl.bindVertexArray(null)
 
@@ -248,6 +260,8 @@ function createGLState(gl: WebGL2RenderingContext): GLState | null {
       uResolution: gl.getUniformLocation(program, 'u_resolution'),
       uColor1: gl.getUniformLocation(program, 'u_color1'),
       uColor2: gl.getUniformLocation(program, 'u_color2'),
+      uQuality: gl.getUniformLocation(program, 'u_quality'),
+      uDark: gl.getUniformLocation(program, 'u_dark'),
     },
   }
 }
@@ -259,6 +273,10 @@ function destroyGL(state: GLState) {
   gl.deleteProgram(program)
 }
 
+function qualityFloat(quality: OrbQuality): number {
+  return quality
+}
+
 // ── Hook ─────────────────────────────────────────────────────────────
 
 export function useWebGLOrb({
@@ -268,12 +286,14 @@ export function useWebGLOrb({
   color2,
   isActive,
   reducedMotion,
+  dark = false,
 }: UseWebGLOrbOptions): boolean {
   const amplitudeRef = useRef(amplitude)
   const color1Ref = useRef(color1)
   const color2Ref = useRef(color2)
   const isActiveRef = useRef(isActive)
   const reducedMotionRef = useRef(reducedMotion)
+  const darkRef = useRef(dark)
   const requestRenderRef = useRef<(() => void) | null>(null)
   const [failed, setFailed] = useState(false)
 
@@ -283,8 +303,9 @@ export function useWebGLOrb({
     color2Ref.current = color2
     isActiveRef.current = isActive
     reducedMotionRef.current = reducedMotion
+    darkRef.current = dark
     requestRenderRef.current?.()
-  }, [amplitude, color1, color2, isActive, reducedMotion])
+  }, [amplitude, color1, color2, isActive, reducedMotion, dark])
 
   useEffect(() => {
     if (reducedMotion) {
@@ -298,6 +319,7 @@ export function useWebGLOrb({
     let ro: ResizeObserver | null = null
     let state: GLState | null = null
     let cancelled = false
+    let onVisibility: (() => void) | null = null
 
     const tearDownGL = () => {
       requestRenderRef.current = null
@@ -307,6 +329,10 @@ export function useWebGLOrb({
       }
       ro?.disconnect()
       ro = null
+      if (onVisibility) {
+        document.removeEventListener('visibilitychange', onVisibility)
+        onVisibility = null
+      }
       if (state) {
         destroyGL(state)
         state = null
@@ -329,6 +355,7 @@ export function useWebGLOrb({
         alpha: true,
         premultipliedAlpha: true,
         antialias: false,
+        powerPreference: 'high-performance',
       })
       if (!gl || gl.isContextLost()) {
         setFailed(true)
@@ -342,19 +369,49 @@ export function useWebGLOrb({
       }
 
       const { program, vao, uniforms } = state
+      const tier = detectTier()
+      const quality = detectOrbQuality()
+      const deviceDpr = window.devicePixelRatio || 1
+      const adaptive = new AdaptiveQuality({
+        maxDpr: maxDprForTier(tier, deviceDpr),
+        minDpr: 1,
+        initialDpr: initialDprForTier(tier, deviceDpr),
+      })
 
-      // ── Render scheduling ──
       let currentAmplitude = amplitudeRef.current
       let frozenTime = 0
       const startTime = performance.now()
+      let lastFrame = startTime
+      let currentWidth = 0
+      let currentHeight = 0
+
+      const applySize = (cssW: number, cssH: number) => {
+        const dpr = adaptive.dpr
+        const w = Math.max(1, Math.round(cssW * dpr))
+        const h = Math.max(1, Math.round(cssH * dpr))
+        if (w !== currentWidth || h !== currentHeight) {
+          currentWidth = w
+          currentHeight = h
+          canvas.width = w
+          canvas.height = h
+          gl.viewport(0, 0, w, h)
+        }
+      }
 
       const draw = (now: number) => {
+        const frameMs = now - lastFrame
+        lastFrame = now
+        if (adaptive.sample(frameMs)) {
+          const rect = canvas.getBoundingClientRect()
+          applySize(rect.width, rect.height)
+        }
+
         const dt = 1 / 60
         const targetAmplitude = amplitudeRef.current
         currentAmplitude += (targetAmplitude - currentAmplitude) * Math.min(1, dt * 6)
 
         let time: number
-        if (reducedMotionRef.current || !isActiveRef.current) {
+        if (reducedMotionRef.current || !isActiveRef.current || document.hidden) {
           time = frozenTime
         } else {
           time = (now - startTime) / 1000
@@ -372,6 +429,8 @@ export function useWebGLOrb({
         gl.uniform2f(uniforms.uResolution, currentWidth, currentHeight)
         gl.uniform3fv(uniforms.uColor1, color1Ref.current)
         gl.uniform3fv(uniforms.uColor2, color2Ref.current)
+        gl.uniform1f(uniforms.uQuality, qualityFloat(quality))
+        gl.uniform1f(uniforms.uDark, darkRef.current ? 1 : 0)
 
         gl.drawArrays(gl.TRIANGLES, 0, 6)
       }
@@ -383,7 +442,13 @@ export function useWebGLOrb({
           rafId = null
           draw(now)
 
-          if (!cancelled && !reducedMotionRef.current && isActiveRef.current) {
+          const keepLooping =
+            !cancelled &&
+            !reducedMotionRef.current &&
+            isActiveRef.current &&
+            !document.hidden
+
+          if (keepLooping) {
             scheduleRender()
           }
         })
@@ -391,34 +456,23 @@ export function useWebGLOrb({
 
       requestRenderRef.current = scheduleRender
 
-      // ── Resize handling ──
-      let currentWidth = 0
-      let currentHeight = 0
-
       const resize = () => {
-        const dpr = Math.min(window.devicePixelRatio, 2)
         const rect = canvas.getBoundingClientRect()
-        const w = Math.round(rect.width * dpr)
-        const h = Math.round(rect.height * dpr)
-        if (w !== currentWidth || h !== currentHeight) {
-          currentWidth = w
-          currentHeight = h
-          canvas.width = w
-          canvas.height = h
-          gl.viewport(0, 0, w, h)
-          scheduleRender()
-        }
+        applySize(rect.width, rect.height)
+        scheduleRender()
+      }
+
+      onVisibility = () => {
+        if (!document.hidden) scheduleRender()
       }
 
       ro = new ResizeObserver(resize)
       ro.observe(canvas)
+      document.addEventListener('visibilitychange', onVisibility)
       resize()
-
       scheduleRender()
     }
 
-    // Defer initialization to avoid competing with page-load GPU work.
-    // Metal shader compilation on macOS can fail transiently during heavy load.
     const timerId = setTimeout(start, 50)
 
     return () => {

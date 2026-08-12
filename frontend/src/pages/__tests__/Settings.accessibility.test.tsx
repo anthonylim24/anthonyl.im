@@ -140,7 +140,7 @@ describe('Settings accessibility', () => {
     const tidalPalette = screen.getByRole('button', { name: /tidal orb palette/i })
 
     expect(defaultPalette).toHaveAttribute('aria-pressed', 'true')
-    expect(defaultPalette).toHaveClass('min-h-24')
+    expect(defaultPalette).toHaveClass('min-h-11')
     expect(tidalPalette).toHaveAttribute('aria-pressed', 'false')
     expect(tidalPalette).toBeDisabled()
     expect(tidalPalette).toHaveAccessibleName(/unlocks at level 5/i)

@@ -246,7 +246,7 @@ export function Settings() {
           </span>
         </div>
         <div
-          className="grid grid-cols-2 gap-2 sm:grid-cols-3"
+          className="flex max-w-full gap-2 overflow-x-auto overscroll-x-contain no-scrollbar py-1"
           role="group"
           aria-label={`Orb palettes unlocked through level ${level}`}
         >
@@ -273,27 +273,24 @@ export function Settings() {
                   setSelectedTheme(orbTheme.id)
                 }}
                 className={cn(
-                  'min-h-24 border p-2.5 text-left transition-all duration-300',
-                  selected
-                    ? 'border-bw-accent bg-bw-active text-bw'
-                    : 'border-bw-border text-bw-secondary hover:border-bw-border hover:bg-bw-hover',
-                  !unlocked && 'cursor-not-allowed opacity-45 hover:bg-transparent'
+                  'flex min-h-11 min-w-11 shrink-0 flex-col items-center justify-center gap-1.5 px-1.5 transition-colors duration-300',
+                  !unlocked && 'cursor-not-allowed opacity-45'
                 )}
               >
                 <span
                   aria-hidden="true"
-                  className="mb-3 block h-8 w-full border border-bw-border"
+                  className={cn(
+                    'block h-8 w-8 rounded-full border',
+                    selected ? 'border-bw-accent' : 'border-bw-border',
+                  )}
                   style={{
                     background: `linear-gradient(135deg, ${orbTheme.colors[0]}, ${orbTheme.colors[1]})`,
                   }}
                 />
-                <span className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-medium">{orbTheme.name}</span>
-                  {selected ? <Check className="h-3.5 w-3.5 text-bw-accent" aria-hidden="true" /> : null}
-                  {!unlocked ? <Lock className="h-3.5 w-3.5 text-bw-tertiary" aria-hidden="true" /> : null}
-                </span>
-                <span className="mt-1 block text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
-                  Lv {orbTheme.unlockLevel}
+                <span className="flex items-center gap-0.5 text-[9px] font-medium uppercase tracking-[0.04em] text-bw-tertiary">
+                  {orbTheme.name}
+                  {selected ? <Check className="h-2.5 w-2.5 text-bw-accent" aria-hidden="true" /> : null}
+                  {!unlocked ? <Lock className="h-2.5 w-2.5" aria-hidden="true" /> : null}
                 </span>
               </motion.button>
             )

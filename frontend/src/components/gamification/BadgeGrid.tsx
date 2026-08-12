@@ -73,16 +73,16 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
               aria-label="Secret milestone locked. Not yet discovered."
               className="flex items-center gap-4 py-3"
             >
-              <span className="font-display text-base text-bw-tertiary tabular-nums w-7 shrink-0">
+              <span className="font-mono text-base text-bw-tertiary tabular-nums w-7 shrink-0">
                 {indexLabel}
               </span>
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center border border-bw-border text-bw-tertiary">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center border border-bw-border text-bw-tertiary">
                 <HelpCircle className="h-4 w-4" aria-hidden="true" />
               </span>
               <span className="flex-1 min-w-0">
-                <span className="block font-display text-sm text-bw-tertiary">Hidden milestone</span>
+                <span className="block text-sm text-bw-tertiary">Hidden milestone</span>
                 <span className="block text-[11px] text-bw-tertiary leading-tight mt-0.5">
-                  Keep practicing — this one reveals itself.
+                  Keep practicing. This one reveals itself.
                 </span>
               </span>
               <span className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary shrink-0">
@@ -107,7 +107,7 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
           >
             <span
               className={cn(
-                'font-display text-base tabular-nums w-7 shrink-0',
+                'font-mono text-base tabular-nums w-7 shrink-0',
                 earned ? 'text-bw-accent' : 'text-bw-tertiary',
               )}
             >
@@ -115,7 +115,7 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
             </span>
             <span
               className={cn(
-                'flex h-9 w-9 shrink-0 items-center justify-center border transition-colors duration-300',
+                'flex h-11 w-11 shrink-0 items-center justify-center border transition-colors duration-300',
                 earned
                   ? 'border-bw-accent bg-bw-accent text-bw-accent-foreground'
                   : 'border-bw-border text-bw-tertiary',
@@ -126,7 +126,7 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
             <span className="flex-1 min-w-0">
               <span
                 className={cn(
-                  'block font-display text-sm leading-tight',
+                  'block text-sm leading-tight',
                   earned ? 'text-bw font-semibold' : 'text-bw-secondary font-medium',
                 )}
               >

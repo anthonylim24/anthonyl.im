@@ -3,7 +3,6 @@ import { useViewTransitionNavigate } from '@/hooks/useViewTransition'
 import { motion } from 'motion/react'
 import { useHistoryStore } from '@/stores/historyStore'
 import { useGamificationStore } from '@/stores/gamificationStore'
-import { getLevelForXP, getXPForLevel, getLevelTitle } from '@/lib/gamification'
 import { breathingProtocols, getProtocolCatalog } from '@/lib/breathingProtocols'
 import { TECHNIQUE_IDS } from '@/lib/constants'
 import {
@@ -35,7 +34,6 @@ import {
 } from 'lucide-react'
 import { useHaptics } from '@/hooks/useHaptics'
 import { useEntranceMotion } from '@/lib/motionPresets'
-import { StatNumeral } from '@/components/ui/StatNumeral'
 
 const goalIcons = {
   calm: Wind,
@@ -56,13 +54,13 @@ function getGreeting(): string {
 }
 
 function getStreakMessage(streak: number, dailyGoalMet: boolean): string {
-  if (dailyGoalMet && streak >= 30) return 'A month of consistency. Remarkable discipline.'
-  if (dailyGoalMet && streak >= 14) return 'Two weeks strong. This is becoming part of you.'
-  if (dailyGoalMet && streak >= 7) return 'A full week. Your body is learning.'
-  if (dailyGoalMet && streak >= 3) return 'Building momentum. Keep showing up.'
-  if (dailyGoalMet) return 'You\'ve completed today\'s goal'
-  if (streak >= 7) return `${streak} day streak — don't break the chain`
-  if (streak >= 3) return 'Your streak is growing. Ready for today?'
+  if (dailyGoalMet && streak >= 30) return '30 days of practice.'
+  if (dailyGoalMet && streak >= 14) return 'Two weeks of showing up.'
+  if (dailyGoalMet && streak >= 7) return 'A full week logged.'
+  if (dailyGoalMet && streak >= 3) return 'Today is done.'
+  if (dailyGoalMet) return 'Today\'s session is logged.'
+  if (streak >= 7) return `${streak} days this week.`
+  if (streak >= 3) return `${streak}-day streak.`
   return 'Ready for today\'s session?'
 }
 
@@ -130,21 +128,9 @@ export function Home() {
   )
   const [selectedWindow, setSelectedWindow] = useState<SessionWindow>('standard')
   const { sessions, getStreak } = useHistoryStore()
-  const { xp, dailySessionCount } = useGamificationStore()
+  const { dailySessionCount } = useGamificationStore()
 
   const streak = getStreak()
-
-  const level = getLevelForXP(xp)
-  const currentLevelXP = getXPForLevel(level)
-  const nextLevelXP = getXPForLevel(level + 1)
-  const xpInLevel = xp - currentLevelXP
-  const xpNeeded = nextLevelXP - currentLevelXP
-  const levelProgress = xpNeeded > 0 ? xpInLevel / xpNeeded : 1
-
-  const totalPracticeTime = useMemo(
-    () => sessions.reduce((sum, s) => sum + s.durationSeconds, 0),
-    [sessions],
-  )
 
   const dailyGoalMet = dailySessionCount >= 1
 
@@ -196,12 +182,11 @@ export function Home() {
     >
       {/* ── Greeting ────────────────────────────────────── */}
       <motion.div variants={fadeUp} className="pt-2 pb-8 md:pb-16">
-        <p className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary md:hidden">
-          {getGreeting()}
+        <p className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary">
+          BreathFlow
         </p>
-        <h1 className="font-display text-3xl md:text-5xl font-semibold text-bw leading-[0.95] mt-1 md:mt-0">
-          <span className="md:hidden">Time to breathe</span>
-          <span className="hidden md:inline">{getGreeting()}</span>
+        <h1 className="font-display text-3xl md:text-5xl font-semibold text-bw leading-[0.95] mt-1">
+          {getGreeting()}
         </h1>
         <p className="text-xs text-bw-tertiary mt-2 md:mt-3 font-medium tracking-wide hidden md:block">
           {isNewUser
@@ -265,83 +250,18 @@ export function Home() {
           </motion.div>
         </>
       ) : (
-        /* ── Returning User Stats ──────────────────────── */
-        <>
-          {/* Mobile: 3 compact stat lines, brass rule signature */}
-          <motion.div variants={fadeUp} className="grid grid-cols-3 gap-3 pb-3 md:hidden">
-            <div className="border-t border-bw-border pt-3">
-              <StatNumeral size="sm" value={level} unit="Lv" />
-              <span className="mt-1.5 block text-[10px] text-bw-tertiary font-medium tracking-[0.07em] uppercase">
-                Level
-              </span>
-            </div>
-            <div className="border-t border-bw-border pt-3">
-              <StatNumeral size="sm" value={streak} />
-              <span className="mt-1.5 block text-[10px] text-bw-tertiary font-medium tracking-[0.07em] uppercase">
-                Streak
-              </span>
-            </div>
-            <div className="border-t border-bw-border pt-3">
-              <StatNumeral size="sm" value={formatTime(totalPracticeTime)} />
-              <span className="mt-1.5 block text-[10px] text-bw-tertiary font-medium tracking-[0.07em] uppercase">
-                Total
-              </span>
-            </div>
-          </motion.div>
-
-          {/* Desktop: editorial horizontal strip — title in Cormorant, rest on brass */}
-          <motion.div variants={fadeUp} className="hidden md:flex items-baseline gap-16 pb-12 border-b border-bw-border">
-            <div>
-              <span className="font-display text-3xl font-semibold text-bw leading-none">
-                {getLevelTitle(level)}
-              </span>
-              <span className="block text-[10px] text-bw-secondary font-medium tracking-[0.07em] uppercase mt-1.5">
-                Level {level}
-              </span>
-            </div>
-            <div>
-              <StatNumeral value={streak} />
-              <span className="block text-[10px] text-bw-secondary font-medium tracking-[0.07em] uppercase mt-1.5">
-                Day streak
-              </span>
-            </div>
-            <div>
-              <StatNumeral value={dailySessionCount} />
-              <span className="block text-[10px] text-bw-secondary font-medium tracking-[0.07em] uppercase mt-1.5">
-                Today
-              </span>
-            </div>
-            <div>
-              <StatNumeral value={formatTime(totalPracticeTime)} />
-              <span className="block text-[10px] text-bw-secondary font-medium tracking-[0.07em] uppercase mt-1.5">
-                Total
-              </span>
-            </div>
-          </motion.div>
-
-          {/* ── XP Progress — inline, minimal ────────────────── */}
-          <motion.div variants={fadeUp} className="pt-2 pb-4 sm:py-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] text-bw-secondary font-medium tracking-[0.07em] uppercase">
-                Level {level} progress
-              </span>
-              <span className="flex items-baseline gap-1.5 text-[10px] text-bw-secondary font-medium">
-                <span className="font-mono tabular-nums border-b border-bw-accent text-bw">
-                  {xpInLevel}
-                </span>
-                <span>/ {xpNeeded} XP</span>
-              </span>
-            </div>
-            <div className="h-px bg-bw-border overflow-hidden">
-              <div
-                className="h-full origin-left transition-transform duration-700 ease-out bg-bw-accent"
-                style={{
-                  transform: `translateZ(0) scaleX(${Math.round(levelProgress * 100) / 100})`,
-                }}
-              />
-            </div>
-          </motion.div>
-        </>
+        /* ── Returning: one quiet count, not a dashboard ── */
+        <motion.div variants={fadeUp} className="pb-4 md:pb-10 md:border-b md:border-bw-border">
+          <p className="text-sm text-bw">
+            {dailyGoalMet ? 'Today is logged.' : getStreakMessage(streak, dailyGoalMet)}
+          </p>
+          {streak > 0 ? (
+            <p className="mt-1 text-xs text-bw-tertiary">
+              {streak} {streak === 1 ? 'day' : 'days'} this stretch
+              {dailySessionCount > 0 ? `. ${dailySessionCount} today.` : '.'}
+            </p>
+          ) : null}
+        </motion.div>
       )}
 
       {/* ── Protocol Lab ───────────────────────────────── */}
@@ -403,7 +323,7 @@ export function Home() {
               Tune session
             </h3>
             <div className="mt-3">
-              <div role="group" aria-label="Breathing goal" className="grid grid-cols-5 gap-1.5 sm:flex sm:w-max sm:gap-2">
+              <div role="group" aria-label="Breathing goal" className="flex max-w-full gap-1.5 overflow-x-auto overscroll-x-contain no-scrollbar sm:w-max sm:overflow-visible">
                 {protocolGoalOptions.map((option) => {
                   const Icon = goalIcons[option.id]
                   const selected = selectedGoal === option.id
@@ -417,7 +337,7 @@ export function Home() {
                         setSelectedGoal(option.id)
                       }}
                       className={cn(
-                        'flex min-h-12 flex-col items-center justify-center gap-1 border px-1 text-[10px] font-medium transition-colors duration-200 sm:min-h-11 sm:flex-row sm:gap-2 sm:px-3 sm:text-xs',
+                        'flex min-h-12 min-w-[4.5rem] shrink-0 flex-col items-center justify-center gap-1 border px-2.5 text-[10px] font-medium transition-colors duration-200 sm:min-h-11 sm:min-w-0 sm:flex-row sm:gap-2 sm:px-3 sm:text-xs',
                         selected
                           ? 'border-bw-accent bg-bw-active text-bw'
                           : 'border-bw-border text-bw-tertiary hover:bg-bw-hover hover:text-bw-secondary'
@@ -491,13 +411,6 @@ export function Home() {
             <span>{suggestedProtocol.intensity}</span>
             {suggestedProtocol.safetyChecklist?.length ? <span>Safety gated</span> : null}
           </div>
-            <div className="mt-4 flex flex-wrap gap-1.5">
-              {recommendation.primary.reasons.map((reason) => (
-                <span key={reason} className="border border-bw-border px-2 py-1 text-[10px] font-medium uppercase tracking-[0.07em] text-bw-tertiary">
-                  {reason}
-                </span>
-              ))}
-            </div>
 
           <div className="mt-5 grid gap-2 sm:grid-cols-2">
             {recommendation.alternatives.map((option) => (
@@ -552,7 +465,7 @@ export function Home() {
                   aria-label={`Start ${p.name}`}
                   whileTap={tap(0.97)}
                   transition={motionTransition}
-                  className="border-t border-bw-border pt-4 pb-2 text-left bg-transparent"
+                  className="min-h-11 border-t border-bw-border pt-4 pb-2 text-left bg-transparent"
                   style={{ scrollSnapAlign: 'start' }}
                   onClick={() => { haptic('light'); navigate(`/breathwork/session?technique=${id}`) }}
                 >

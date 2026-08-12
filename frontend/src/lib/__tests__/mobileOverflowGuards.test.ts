@@ -23,4 +23,10 @@ describe('mobile overflow guardrails', () => {
     expect(sessionSource).not.toContain('h-[calc(100svh-8.5rem)]')
     expect(sessionSource).not.toContain('max-h-[calc(100dvh-8.5rem)]')
   })
+
+  it('reflows the live session for short landscape and vehicle browsers', () => {
+    expect(indexCss).toContain('@media (orientation: landscape) and (max-height: 700px)')
+    expect(indexCss).toContain('.session-orb')
+    expect(indexCss).toContain('.session-coach')
+  })
 })

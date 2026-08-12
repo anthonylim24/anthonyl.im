@@ -18,14 +18,6 @@ const CloudSync = lazy(() =>
 
 const LEAVES_VISIBLE_OPACITY = '0.5'
 
-// Parallax tuning — the video drifts upward at a fraction of the scroll
-// distance, giving the leaves a sense of depth. FACTOR stays well below 0.2
-// to keep the motion ambient rather than theatrical. BUFFER_PX is added on
-// top of the computed height so subpixel rounding and bounce-scroll never
-// expose the viewport edge.
-const PARALLAX_FACTOR = 0.08
-const PARALLAX_BUFFER_PX = 24
-
 /**
  * Fully isolated video component — subscribes to the theme store directly
  * and manages play/pause imperatively via refs. Wrapped in memo with a
@@ -64,62 +56,6 @@ const LeavesVideo = memo(function LeavesVideo({ reducedMotion }: { reducedMotion
     return unsubscribe
   }, [reducedMotion])
 
-  // Slight parallax — translate the fixed video against scroll position to
-  // suggest depth. The video element is grown vertically by exactly enough
-  // to absorb the maximum upward translation, so the viewport edge is never
-  // exposed regardless of page length. Both height and transform are mutated
-  // imperatively so React never re-renders on scroll/resize, and this stays
-  // compatible with the memoization above.
-  useEffect(() => {
-    if (reducedMotion) return
-    const video = videoRef.current
-    if (!video) return
-
-    let rafId: number | null = null
-
-    const updateHeight = () => {
-      const viewportHeight = window.innerHeight
-      const documentHeight = document.documentElement.scrollHeight
-      const maxScroll = Math.max(0, documentHeight - viewportHeight)
-      const required = viewportHeight + maxScroll * PARALLAX_FACTOR + PARALLAX_BUFFER_PX
-      video.style.height = `${Math.ceil(required)}px`
-    }
-
-    const applyTransform = () => {
-      rafId = null
-      // Clamp to >= 0 so iOS rubber-band scrolling (scrollY < 0) doesn't push
-      // the video downward and reveal the top edge.
-      const offset = Math.max(0, window.scrollY) * PARALLAX_FACTOR
-      video.style.transform = `translate3d(0, ${-offset}px, 0)`
-    }
-
-    const onScroll = () => {
-      if (rafId !== null) return
-      rafId = requestAnimationFrame(applyTransform)
-    }
-
-    const onResize = () => {
-      updateHeight()
-      applyTransform()
-    }
-
-    updateHeight()
-    applyTransform()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    window.addEventListener('resize', onResize)
-
-    // Document height also changes when content loads/route changes/lazy
-    // images settle — observe it so the video stays tall enough.
-    const resizeObserver = new ResizeObserver(updateHeight)
-    resizeObserver.observe(document.documentElement)
-
-    return () => {
-      window.removeEventListener('scroll', onScroll)
-      window.removeEventListener('resize', onResize)
-      resizeObserver.disconnect()
-      if (rafId !== null) cancelAnimationFrame(rafId)
-    }
-  }, [reducedMotion])
 
   if (reducedMotion) return null
 
@@ -135,11 +71,8 @@ const LeavesVideo = memo(function LeavesVideo({ reducedMotion }: { reducedMotion
       className="leaves-overlay"
       style={{
         mixBlendMode: 'multiply',
-        // Anchor top, release bottom so the JS-controlled height isn't
-        // over-constrained against the CSS class's `inset: 0`.
         top: 0,
         bottom: 'auto',
-        willChange: 'transform',
       }}
     />
   )
@@ -178,28 +111,8 @@ export function BreathworkLayout() {
         </Suspense>
       )}
 
-      {/*
-       * Leaves video lives OUTSIDE the glass root. The asset is served
-       * from a cross-origin Cloudflare worker without CORS headers, so
-       * drawing it into a canvas (which `@ybouane/liquidglass` does
-       * when sampling its root's children) would taint that canvas and
-       * disable the glass effect for the whole root. Keeping it as a
-       * sibling of the glass root preserves the ambient backdrop without
-       * poisoning the texture upload path.
-       */}
       <LeavesVideo reducedMotion={reducedMotion} />
 
-      {/*
-       * Glass root: the Navigation pills are direct child glass elements
-       * of this wrapper, and `.breathwork` is a sibling. The library
-       * rasterizes `.breathwork` via html-to-image once, then re-positions
-       * the cached raster per frame via getBoundingClientRect — so
-       * scrolling shifts the page raster naturally and the nav refracts
-       * whatever's behind it without any per-frame DOM capture.
-       *
-       * Plain div, no transform/filter/contain — anything that creates a
-       * containing block here would re-break the nav's `position: fixed`.
-       */}
       <div ref={glassRootRef}>
         {/* Content */}
         <div className="breathwork relative z-0 min-h-screen min-h-[100svh] col-fade-in bg-transparent">

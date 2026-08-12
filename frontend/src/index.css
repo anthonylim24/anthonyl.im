@@ -140,6 +140,69 @@ body {
   color: var(--bw-destructive);
 }
 
+.session-orb {
+  width: clamp(10rem, 52vw, 24rem);
+  height: clamp(10rem, 52vw, 24rem);
+  max-width: min(82vw, 24rem);
+  max-height: min(48vh, 24rem);
+}
+
+.session-orb::after {
+  content: "";
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: 4%;
+  height: 14%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(28, 25, 23, 0.16), transparent 72%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.dark .session-orb::after {
+  background: radial-gradient(ellipse, rgba(0, 0, 0, 0.45), transparent 72%);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .session-start-cta:hover {
+    transform: scale(1.03);
+  }
+}
+
+/* Tesla / phone landscape / any short landscape panel: row layout so the
+   orb stays large and controls stay reachable. Coach copy hides; the live
+   region still announces it. */
+@media (orientation: landscape) and (max-height: 700px) {
+  .session-content {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 0.75rem 1.5rem;
+    padding-bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .session-orb {
+    width: min(72svh, 48vw, 20rem);
+    height: min(72svh, 48vw, 20rem);
+    max-width: min(72svh, 48vw, 20rem);
+    max-height: min(72svh, 48vw, 20rem);
+  }
+
+  .session-coach,
+  .session-safety-cue {
+    display: none;
+  }
+
+  .session-controls {
+    bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+    width: calc(100% - 1.5rem);
+    max-width: none;
+    gap: 0.75rem;
+  }
+}
+
 
 /* ═══════════════════════════════════════════════════════
    SCROLLBAR

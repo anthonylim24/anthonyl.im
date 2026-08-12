@@ -18,10 +18,10 @@ export function BreathworkNotFound() {
           Page not found
         </p>
         <h1 className="mt-2 font-display text-4xl font-semibold leading-none text-bw md:text-5xl">
-          Return to the breath
+          This route does not exist
         </h1>
         <p className="mt-4 max-w-xl text-sm leading-relaxed text-bw-tertiary">
-          This BreathFlow route does not exist. Start again from the protocol lab or open a session directly.
+          Start from BreathFlow home or open a session directly.
         </p>
 
         <div className="mt-7 grid gap-3 sm:grid-cols-2">
@@ -32,7 +32,7 @@ export function BreathworkNotFound() {
             >
               <span className="flex items-center gap-2">
                 <Home className="h-4 w-4" aria-hidden="true" />
-                Open protocol lab
+                Open BreathFlow
               </span>
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
             </Link>
