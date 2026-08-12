@@ -443,12 +443,12 @@ export function Session() {
   }
 
   return (
-    <div className="h-full min-h-0 md:h-auto">
+    <div>
       {/* ═══ MOBILE LAYOUT ═══════════════════════════════ */}
-      <div className="md:hidden flex h-full min-h-0 max-w-full flex-col overflow-hidden">
+      <div className="md:hidden max-w-full">
         <div
           data-testid="mobile-session-scroller"
-          className="bw-page-scroll min-h-0 flex-1 no-scrollbar pb-4"
+          className="pb-48"
         >
         <motion.div
           variants={stagger}
@@ -650,13 +650,14 @@ export function Session() {
         </motion.div>
         </div>
 
-        {/* Pinned setup controls */}
+        {/* Viewport-pinned setup controls. The page itself is the document
+            scroller; this bar stays on screen while mood/safety scroll up. */}
         <motion.div
           variants={fadeUp}
           initial="hidden"
           animate="show"
           data-testid="mobile-session-action-bar"
-          className="relative z-20 shrink-0 border-t border-bw-border bg-bw-canvas pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
+          className="fixed inset-x-0 bottom-0 z-20 border-t border-bw-border bg-bw-canvas px-5 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] sm:px-8"
         >
           <div
             className="mb-2 flex items-center justify-between gap-3"

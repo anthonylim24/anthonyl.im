@@ -89,7 +89,6 @@ export function BreathworkLayout() {
   const reducedMotion = useReducedMotion()
   const isSessionRoute = location.pathname.startsWith('/breathwork/session')
   const glassRootRef = useRef<HTMLDivElement>(null)
-  const mainRef = useRef<HTMLElement>(null)
 
   // Nav capsule is ~3.75rem tall, sits `bottom-4` (1rem) above the home
   // indicator, plus a 0.5rem gap so the last row isn't tucked under it.
@@ -109,43 +108,31 @@ export function BreathworkLayout() {
 
       <LeavesVideo reducedMotion={reducedMotion} />
 
-      <div ref={glassRootRef} className="h-full min-h-0">
+      <div ref={glassRootRef}>
         <div
-          className="breathwork relative z-0 flex h-full min-h-0 flex-col bg-transparent col-fade-in"
+          className="breathwork relative z-0 bg-transparent col-fade-in"
           style={contentStyle}
         >
           <Header />
           <main
-            ref={mainRef}
             className={
               isSessionRoute
-                ? 'min-h-0 flex-1 overflow-hidden md:overflow-y-auto'
-                : 'bw-page-scroll min-h-0 flex-1'
+                ? 'w-full'
+                : 'w-full pb-[var(--mobile-content-bottom-space)] md:pb-24'
             }
           >
             <div
               className={`w-full mx-auto px-5 sm:px-8 lg:px-12 bg-transparent ${
                 isSessionRoute
-                  ? 'flex h-full min-h-0 flex-col max-w-5xl py-4 pb-0 md:block md:h-auto md:py-10 md:pb-10'
-                  : 'max-w-3xl py-6 sm:py-10 md:pb-24'
+                  ? 'max-w-5xl py-4 pb-0 md:py-10 md:pb-10'
+                  : 'max-w-3xl py-6 sm:py-10'
               }`}
             >
-              <AnimatedOutlet fill={isSessionRoute} />
+              <AnimatedOutlet />
             </div>
           </main>
-          {/* Viewport-fixed clearance so the floating nav never covers the
-              bottom of the first screen. Document-end padding only helped
-              after you scrolled to the last pixel. */}
-          {isSessionRoute ? null : (
-            <div
-              aria-hidden="true"
-              data-testid="mobile-nav-clearance"
-              className="pointer-events-none shrink-0 md:hidden"
-              style={{ height: 'var(--mobile-content-bottom-space)' }}
-            />
-          )}
         </div>
-        <Navigation rootRef={glassRootRef} scrollRootRef={mainRef} />
+        <Navigation rootRef={glassRootRef} />
       </div>
     </div>
   )

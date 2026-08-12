@@ -5,17 +5,22 @@ import sessionSource from '../../pages/Session.tsx?raw'
 import layoutSource from '../../components/layout/BreathworkLayout.tsx?raw'
 
 describe('mobile overflow guardrails', () => {
-  it('keeps BreathFlow pages clipped at the app shell instead of allowing page-level horizontal scroll', () => {
+  it('keeps BreathFlow pages clipped at the viewport without a nested scrollport', () => {
     expect(indexCss).toContain('.breathwork-layout')
-    expect(indexCss).toMatch(/overflow-x:\s*clip/)
+    expect(indexCss).toMatch(/html \{\s*overflow-x:\s*clip/)
+    expect(indexCss).toMatch(/\.breathwork-layout,\s*\n\.breathwork \{[\s\S]*?overflow:\s*visible/)
+    expect(indexCss).not.toMatch(/\.breathwork-layout \{\s*position:\s*fixed/)
+    expect(indexCss).not.toContain('.bw-page-scroll')
+    expect(indexCss).not.toContain('touch-action: pan-y pinch-zoom')
   })
 
-  it('uses a dedicated iOS scrollport instead of mixing overflow-x clip with overflow-y auto', () => {
-    expect(indexCss).toContain('.bw-page-scroll')
-    expect(indexCss).toContain('-webkit-overflow-scrolling: touch')
-    expect(indexCss).toMatch(/\.breathwork-layout \{\s*position:\s*fixed/)
-    expect(layoutSource).toContain('bw-page-scroll min-h-0 flex-1')
+  it('lets the document grow instead of pinning html/body/#root to 100%', () => {
+    expect(indexCss).toMatch(/html,\s*\nbody \{[\s\S]*?height:\s*auto/)
+    expect(indexCss).toMatch(/#root \{[\s\S]*?height:\s*auto/)
+    expect(layoutSource).not.toContain('bw-page-scroll')
     expect(layoutSource).not.toContain('overflow-x-clip overflow-y-auto')
+    expect(layoutSource).not.toContain('h-full min-h-0')
+    expect(layoutSource).not.toContain('data-testid="mobile-nav-clearance"')
   })
 
   it('contains mobile rails without negative-margin max-content patterns', () => {
@@ -26,14 +31,16 @@ describe('mobile overflow guardrails', () => {
     expect(sessionSource).not.toContain('-mx-5 mb-3 overflow-x-auto')
   })
 
-  it('lets the mobile session column fill the layout scroller instead of guessing a dvh offset', () => {
+  it('lets the mobile session column use document scroll instead of a nested overflow column', () => {
     expect(sessionSource).toContain('data-testid="mobile-session-scroller"')
-    expect(sessionSource).toContain('bw-page-scroll')
-    expect(sessionSource).toContain('min-h-0 flex-1')
+    expect(sessionSource).toContain('data-testid="mobile-session-action-bar"')
+    expect(sessionSource).toContain('fixed inset-x-0 bottom-0')
+    expect(sessionSource).not.toContain('bw-page-scroll')
     expect(sessionSource).not.toContain('overflow-x-clip overflow-y-auto')
     expect(sessionSource).not.toContain('h-[calc(100dvh-5.5rem)]')
     expect(sessionSource).not.toContain('h-[calc(100svh-8.5rem)]')
     expect(sessionSource).not.toContain('max-h-[calc(100dvh-8.5rem)]')
+    expect(sessionSource).not.toContain('flex h-full min-h-0 max-w-full flex-col overflow-hidden')
   })
 
   it('reflows the live session for short landscape and vehicle browsers', () => {

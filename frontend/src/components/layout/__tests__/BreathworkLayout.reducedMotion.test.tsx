@@ -80,6 +80,9 @@ describe('BreathworkLayout reduced motion', () => {
     expect(content?.style.getPropertyValue('--mobile-content-bottom-space')).toBe(
       'calc(5.25rem + env(safe-area-inset-bottom, 0px))',
     )
-    expect(container.querySelector('[data-testid="mobile-nav-clearance"]')).toBeTruthy()
+    expect(container.querySelector('[data-testid="mobile-nav-clearance"]')).toBeNull()
+    expect(container.querySelector('main')?.className).toContain(
+      'pb-[var(--mobile-content-bottom-space)]',
+    )
   })
 })

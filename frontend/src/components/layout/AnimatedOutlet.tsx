@@ -11,7 +11,7 @@ const RouteLoader = () => (
 )
 
 /** Animated outlet that wraps route content with enter/exit transitions. */
-export function AnimatedOutlet({ fill = false }: { fill?: boolean }) {
+export function AnimatedOutlet() {
   const location = useLocation()
   const outlet = useOutlet()
   const reducedMotion = useReducedMotion()
@@ -21,7 +21,6 @@ export function AnimatedOutlet({ fill = false }: { fill?: boolean }) {
       <PageTransition
         key={location.pathname}
         reducedMotion={reducedMotion}
-        className={fill ? 'flex h-full min-h-0 flex-col md:block md:h-auto' : undefined}
       >
         <Suspense fallback={<RouteLoader />}>
           {outlet}

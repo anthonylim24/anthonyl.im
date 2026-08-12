@@ -14,69 +14,46 @@
 html,
 body {
   width: 100%;
-  height: 100%;
+  height: auto;
   margin: 0;
   padding: 0;
-  /* Defensive — these are no-ops on iOS Safari pre-16 and only partially
-     honored 16+ for document-level rubber-band, but they cost nothing and
-     do help every other mobile browser. The real iOS lock is the JS
-     body-scroll-lock applied by `useBodyScrollLock` during active sessions. */
-  overscroll-behavior: none;
-  /* iOS Safari sizes `html, body { height: 100% }` to the layout (large)
-     viewport — meaning the bottom is hidden behind the URL bar when it's
-     showing. Override with svh (small viewport) so the page fits the
-     actually-visible area at first paint. Older Safari ignores svh and
-     falls back to 100%. */
-  min-height: 100svh;
+  min-height: 100%;
+  min-height: 100dvh;
 }
 
-
-/* #root must have a DEFINITE height (not min-height) so flex children
-   can compute overflow.  min-height alone lets the element grow past
-   the viewport, which means overflow-y:auto on descendants never fires. */
-#root {
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-}
-
-.breathwork-layout,
-.breathwork {
-  max-width: 100%;
-  height: 100%;
+/* Clip horizontal overflow at the viewport without creating a nested
+   scrollport. `overflow-x: hidden` on html+body computes overflow-y to
+   auto and steals sticky/document pan on iOS; `clip` does not. Live
+   sessions still lock the document via `useBodyScrollLock`. */
+html {
   overflow-x: clip;
-  overflow-y: hidden;
-}
-
-/* Pin the BreathFlow shell to the visual viewport. `html, body { height: 100% }`
-   is the *large* viewport on iOS Safari, so an in-flow 100% shell sits behind
-   the URL bar and nested overflow-y:auto often never receives the pan. */
-.breathwork-layout {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100svh;
-  height: 100dvh;
+  -webkit-overflow-scrolling: touch;
 }
 
 @supports not (overflow: clip) {
-  .breathwork-layout,
-  .breathwork {
+  html {
     overflow-x: hidden;
-    overflow-y: hidden;
   }
 }
 
-/* The only vertical scroller on BreathFlow pages. Do not mix overflow-x: clip
-   with overflow-y: auto on this node — WebKit can compute both axes to
-   hidden, which kills touch scrolling on real iPhones. */
-.bw-page-scroll {
-  overflow-x: hidden;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain;
-  touch-action: pan-y pinch-zoom;
+#root {
+  width: 100%;
+  height: auto;
+  min-height: 100%;
+  min-height: 100dvh;
+  margin: 0;
+  padding: 0;
+}
+
+/* BreathFlow is a normal document. Do not pin this shell or give it a
+   nested overflow-y scroller — iOS Safari pans the document, not
+   overflow:auto inside a 100dvh / position:fixed column. */
+.breathwork-layout,
+.breathwork {
+  max-width: 100%;
+  height: auto;
+  min-height: 100dvh;
+  overflow: visible;
 }
 
 :root {

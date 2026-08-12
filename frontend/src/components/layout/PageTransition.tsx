@@ -3,9 +3,8 @@ import type { ReactNode } from 'react'
 
 const deceleration = [0.33, 0, 0, 1] as const
 
-/* Opacity only. A translateY on this wrapper (the scroller's content root)
-   leaves `transform` on the node after the animation, and iOS Safari then
-   fails to pan nested overflow-y:auto. */
+/* Opacity only. A leftover translateY transform on the page root would
+   create a containing block and break `position: sticky` on the header. */
 const variants = {
   enter: {
     opacity: 0,
