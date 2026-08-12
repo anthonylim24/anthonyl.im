@@ -1,31 +1,46 @@
-import { useState } from "react"
-import { useNavigate } from "react-router-dom"
-import { Loader2, Sparkles, WandSparkles } from "lucide-react"
+import { useMemo, useState } from "react"
+import { useNavigate, useSearchParams } from "react-router-dom"
+import { Loader2, PenLine, Sparkles } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
 import { createTrip, generateItinerary } from "./tripsApi"
 import { DateRangeField } from "./components/DateRangeField"
 import { TimezoneField } from "./components/TimezoneField"
 import { DEFAULT_ITINERARY_PROMPT, type GeneratePreferences } from "./types"
-
-const inputClass =
-  "w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 placeholder:text-stone-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
-
-const labelClass = "block text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400"
+import {
+  SERIF,
+  alertErrorClass,
+  ghostBtnClass,
+  inputClass,
+  labelClass,
+  primaryBtnClass,
+  softPanelClass,
+} from "./ui"
 
 const PREFERENCE_FIELDS: Array<{ key: keyof GeneratePreferences; label: string; placeholder: string }> = [
   { key: "pace", label: "Pace", placeholder: "Relaxed mornings, busy afternoons" },
   { key: "budget", label: "Budget", placeholder: "Mid-range, splurge on 2 dinners" },
   { key: "interests", label: "Interests", placeholder: "Food, architecture, vintage shopping" },
-  { key: "food", label: "Food preferences", placeholder: "No raw fish; loves noodles" },
+  { key: "food", label: "Food", placeholder: "No raw fish; loves noodles" },
+  { key: "mobility", label: "Mobility", placeholder: "Lots of walking OK; avoid stairs" },
   { key: "mustSee", label: "Must-see", placeholder: "Teamlab, a sumo match" },
   { key: "avoid", label: "Avoid", placeholder: "Long museum days, tourist traps" },
   { key: "lodging", label: "Hotel / base", placeholder: "Park Hyatt, Shinjuku" },
   { key: "transport", label: "Transport", placeholder: "Trains + walking, no rental car" },
 ]
 
+function parseList(raw: string): string[] {
+  return raw
+    .split(/[,，]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
 export function TripCreate() {
   const getToken = useGetToken()
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const initialMode = params.get("mode") === "blank" ? "blank" : "ai"
+
   const [name, setName] = useState("")
   const [destinations, setDestinations] = useState("")
   const [startDate, setStartDate] = useState("")
@@ -33,28 +48,41 @@ export function TripCreate() {
   const [timezone, setTimezone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC")
   const [tags, setTags] = useState("")
   const [description, setDescription] = useState("")
-  const [mode, setMode] = useState<"blank" | "ai">("ai")
+  const [mode, setMode] = useState<"blank" | "ai">(initialMode)
   const [prompt, setPrompt] = useState(DEFAULT_ITINERARY_PROMPT)
   const [prefs, setPrefs] = useState<GeneratePreferences>({})
   const [showPrefs, setShowPrefs] = useState(false)
   const [busy, setBusy] = useState<"idle" | "creating" | "generating">("idle")
   const [error, setError] = useState<string | null>(null)
+  const [touched, setTouched] = useState(false)
 
-  const valid = name.trim() && destinations.trim() && startDate && endDate && endDate >= startDate
+  const destinationList = useMemo(() => parseList(destinations), [destinations])
+  const missing = useMemo(() => {
+    const gaps: string[] = []
+    if (!name.trim()) gaps.push("trip name")
+    if (destinationList.length === 0) gaps.push("at least one destination")
+    if (!startDate || !endDate) gaps.push("dates")
+    else if (endDate < startDate) gaps.push("an end date on or after the start")
+    if (!timezone.trim()) gaps.push("timezone")
+    return gaps
+  }, [name, destinationList, startDate, endDate, timezone])
+
+  const valid = missing.length === 0
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setTouched(true)
     if (!valid || busy !== "idle") return
     setError(null)
     setBusy("creating")
     try {
       const trip = await createTrip(getToken, {
         name: name.trim(),
-        destinations: destinations.split(",").map((d) => d.trim()).filter(Boolean),
+        destinations: destinationList,
         startDate,
         endDate,
         timezone,
-        tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+        tags: parseList(tags),
         description: description.trim() || undefined,
       })
       if (mode === "ai") {
@@ -68,8 +96,6 @@ export function TripCreate() {
             preferences: Object.keys(preferences).length ? preferences : undefined,
           })
         } catch (err) {
-          // The trip exists — land on it with the failed generation queued up
-          // for a one-click retry (prompt + preferences preserved).
           navigate(`/trips/${trip.id}/edit`, {
             state: {
               notice: `Trip created, but AI generation failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -78,11 +104,9 @@ export function TripCreate() {
           })
           return
         }
-        // AI trips land on the dossier overview — the reveal moment.
         navigate(`/trips/${trip.id}`)
         return
       }
-      // Blank trips go straight into the editor.
       navigate(`/trips/${trip.id}/edit`)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -91,71 +115,42 @@ export function TripCreate() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="mx-auto max-w-2xl">
-      <h1
-        className="font-serif text-4xl text-stone-900 dark:text-stone-100"
-        style={{ fontFamily: "'Cormorant Garamond', serif" }}
-      >
-        New trip
+    <form onSubmit={onSubmit} className="mx-auto max-w-2xl" noValidate>
+      <p className="font-mono-trips text-[11px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-400">
+        New itinerary
+      </p>
+      <h1 className="mt-2 font-display text-[clamp(2.25rem,5vw,3rem)] tracking-tight text-stone-900 dark:text-stone-100" style={SERIF}>
+        Plan a trip
       </h1>
-      <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
-        Start blank, or let AI draft a structured itinerary you can reshape.
+      <p className="mt-2 text-sm leading-relaxed text-stone-600 dark:text-stone-400">
+        Capture the essentials first. You can refine days, reservations, and Map Mode after.
       </p>
 
-      <div className="mt-8 space-y-5 rounded-3xl border border-stone-200/80 bg-white p-6 shadow-sm dark:border-stone-800 dark:bg-stone-900">
-        <div>
-          <label htmlFor="trip-name" className={labelClass}>Trip name</label>
-          <input id="trip-name" className={`mt-1.5 ${inputClass}`} value={name} onChange={(e) => setName(e.target.value)} placeholder="Tokyo Long Weekend" required />
-        </div>
-        <div>
-          <label htmlFor="trip-dest" className={labelClass}>Destinations (comma-separated)</label>
-          <input id="trip-dest" className={`mt-1.5 ${inputClass}`} value={destinations} onChange={(e) => setDestinations(e.target.value)} placeholder="Tokyo, Hakone" required />
-        </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[3fr_2fr]">
-          <div>
-            <span className={labelClass}>Dates</span>
-            <div className="mt-1.5">
-              <DateRangeField
-                startDate={startDate}
-                endDate={endDate}
-                onChange={(s, e) => {
-                  setStartDate(s)
-                  setEndDate(e)
-                }}
-              />
-            </div>
-          </div>
-          <div>
-            <span className={labelClass}>Time zone</span>
-            <div className="mt-1.5">
-              <TimezoneField value={timezone} onChange={setTimezone} />
-            </div>
-          </div>
-        </div>
-        <div>
-          <label htmlFor="trip-tags" className={labelClass}>Tags (optional, comma-separated)</label>
-          <input id="trip-tags" className={`mt-1.5 ${inputClass}`} value={tags} onChange={(e) => setTags(e.target.value)} placeholder="anniversary, food" />
-        </div>
-        <div>
-          <label htmlFor="trip-desc" className={labelClass}>Notes (optional)</label>
-          <textarea id="trip-desc" rows={2} className={`mt-1.5 ${inputClass}`} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Context the AI and collaborators should know — occasion, constraints, anchors." />
-        </div>
-      </div>
-
-      <fieldset className="mt-6 rounded-3xl border border-stone-200/80 bg-white p-6 shadow-sm dark:border-stone-800 dark:bg-stone-900">
-        <legend className="sr-only">Itinerary start mode</legend>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <fieldset className={`mt-8 p-5 sm:p-6 ${softPanelClass}`}>
+        <legend className="sr-only">How to start</legend>
+        <p className={labelClass}>Start with</p>
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           {(
             [
-              { id: "ai", title: "AI starter itinerary", body: "Drafts days, places, and meals as structured, editable items." },
-              { id: "blank", title: "Start blank", body: "Empty days for each date — build it up yourself." },
-            ] as const
+              {
+                id: "ai" as const,
+                title: "AI draft",
+                body: "Structured days and places you can edit.",
+                Icon: Sparkles,
+              },
+              {
+                id: "blank" as const,
+                title: "Blank days",
+                body: "Empty days for each date — build it yourself.",
+                Icon: PenLine,
+              },
+            ]
           ).map((opt) => (
             <label
               key={opt.id}
-              className={`cursor-pointer rounded-2xl border p-4 transition ${
+              className={`relative flex cursor-pointer gap-3 rounded-xl border p-4 transition focus-within:ring-2 focus-within:ring-amber-600/40 ${
                 mode === opt.id
-                  ? "border-amber-500 bg-amber-50/60 dark:border-amber-600 dark:bg-amber-950/20"
+                  ? "border-amber-600/70 bg-amber-50/50 dark:border-amber-500/60 dark:bg-amber-950/20"
                   : "border-stone-200 hover:border-stone-300 dark:border-stone-700 dark:hover:border-stone-600"
               }`}
             >
@@ -167,85 +162,201 @@ export function TripCreate() {
                 onChange={() => setMode(opt.id)}
                 className="sr-only"
               />
-              <div className="flex items-center gap-2 text-sm font-semibold text-stone-900 dark:text-stone-100">
-                {opt.id === "ai" && <Sparkles className="h-4 w-4 text-amber-600" aria-hidden />}
-                {opt.title}
-              </div>
-              <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">{opt.body}</p>
+              <opt.Icon
+                className={`mt-0.5 h-4 w-4 shrink-0 ${mode === opt.id ? "text-amber-800 dark:text-amber-400" : "text-stone-400"}`}
+                aria-hidden
+              />
+              <span>
+                <span className="block text-sm font-semibold text-stone-900 dark:text-stone-100">{opt.title}</span>
+                <span className="mt-0.5 block text-xs leading-relaxed text-stone-500 dark:text-stone-400">{opt.body}</span>
+              </span>
             </label>
           ))}
         </div>
-
-        {mode === "ai" && (
-          <div className="mt-5 space-y-4">
-            <div>
-              <label htmlFor="trip-prompt" className={labelClass}>AI prompt</label>
-              <textarea
-                id="trip-prompt"
-                rows={3}
-                className={`mt-1.5 ${inputClass}`}
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-              />
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowPrefs((s) => !s)}
-              className="text-sm font-medium text-amber-700 hover:underline dark:text-amber-400"
-            >
-              {showPrefs ? "Hide" : "Add"} traveler preferences
-            </button>
-            {showPrefs && (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {PREFERENCE_FIELDS.map((f) => (
-                  <div key={f.key}>
-                    <label htmlFor={`pref-${f.key}`} className={labelClass}>{f.label}</label>
-                    <input
-                      id={`pref-${f.key}`}
-                      className={`mt-1.5 ${inputClass}`}
-                      value={prefs[f.key] ?? ""}
-                      placeholder={f.placeholder}
-                      onChange={(e) => setPrefs((p) => ({ ...p, [f.key]: e.target.value }))}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
       </fieldset>
 
+      <div className={`mt-5 space-y-5 p-5 sm:p-6 ${softPanelClass}`}>
+        <div>
+          <label htmlFor="trip-name" className={labelClass}>
+            Trip name
+          </label>
+          <input
+            id="trip-name"
+            className={`mt-2 ${inputClass}`}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Tokyo Long Weekend"
+            required
+            autoComplete="off"
+          />
+        </div>
+        <div>
+          <label htmlFor="trip-dest" className={labelClass}>
+            Destinations
+          </label>
+          <input
+            id="trip-dest"
+            className={`mt-2 ${inputClass}`}
+            value={destinations}
+            onChange={(e) => setDestinations(e.target.value)}
+            placeholder="Tokyo, Hakone"
+            required
+            aria-describedby="trip-dest-hint"
+          />
+          <p id="trip-dest-hint" className="mt-1.5 text-xs text-stone-500 dark:text-stone-400">
+            Comma-separated. First destination usually sets the planning center of gravity.
+          </p>
+          {destinationList.length > 0 && (
+            <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Parsed destinations">
+              {destinationList.map((d) => (
+                <li
+                  key={d}
+                  className="rounded-md border border-stone-200 bg-stone-50 px-2 py-1 text-xs text-stone-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300"
+                >
+                  {d}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-[3fr_2fr]">
+          <div>
+            <span className={labelClass} id="trip-dates-label">
+              Dates
+            </span>
+            <div className="mt-2">
+              <DateRangeField
+                startDate={startDate}
+                endDate={endDate}
+                onChange={(s, e) => {
+                  setStartDate(s)
+                  setEndDate(e)
+                }}
+              />
+            </div>
+          </div>
+          <div>
+            <span className={labelClass} id="trip-tz-label">
+              Time zone
+            </span>
+            <div className="mt-2">
+              <TimezoneField value={timezone} onChange={setTimezone} />
+            </div>
+            <p className="mt-1.5 text-xs text-stone-500 dark:text-stone-400">
+              Prefer the destination zone so “today” and countdowns stay accurate.
+            </p>
+          </div>
+        </div>
+        <div>
+          <label htmlFor="trip-tags" className={labelClass}>
+            Tags <span className="font-normal normal-case tracking-normal text-stone-400">(optional)</span>
+          </label>
+          <input
+            id="trip-tags"
+            className={`mt-2 ${inputClass}`}
+            value={tags}
+            onChange={(e) => setTags(e.target.value)}
+            placeholder="anniversary, food"
+          />
+        </div>
+        <div>
+          <label htmlFor="trip-desc" className={labelClass}>
+            Notes <span className="font-normal normal-case tracking-normal text-stone-400">(optional)</span>
+          </label>
+          <textarea
+            id="trip-desc"
+            rows={2}
+            className={`mt-2 ${inputClass}`}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Occasion, constraints, or anchors collaborators should know."
+          />
+        </div>
+      </div>
+
+      {mode === "ai" && (
+        <div className={`mt-5 space-y-4 p-5 sm:p-6 ${softPanelClass}`}>
+          <div>
+            <label htmlFor="trip-prompt" className={labelClass}>
+              AI brief
+            </label>
+            <textarea
+              id="trip-prompt"
+              rows={3}
+              className={`mt-2 ${inputClass}`}
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowPrefs((s) => !s)}
+            className="text-sm font-medium text-amber-800 underline-offset-2 hover:underline dark:text-amber-400"
+            aria-expanded={showPrefs}
+          >
+            {showPrefs ? "Hide traveler preferences" : "Add traveler preferences"}
+          </button>
+          {showPrefs && (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {PREFERENCE_FIELDS.map((f) => (
+                <div key={f.key}>
+                  <label htmlFor={`pref-${f.key}`} className={labelClass}>
+                    {f.label}
+                  </label>
+                  <input
+                    id={`pref-${f.key}`}
+                    className={`mt-2 ${inputClass}`}
+                    value={prefs[f.key] ?? ""}
+                    placeholder={f.placeholder}
+                    onChange={(e) => setPrefs((p) => ({ ...p, [f.key]: e.target.value }))}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {error && (
-        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
+        <div className={`mt-5 ${alertErrorClass}`} role="alert">
           {error}
         </div>
       )}
 
-      <div className="mt-6 flex items-center gap-3">
-        <button
-          type="submit"
-          disabled={!valid || busy !== "idle"}
-          className="inline-flex items-center gap-2 rounded-full bg-amber-700 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-amber-600 dark:hover:bg-amber-500"
-        >
-          {busy === "idle" ? (
-            <>
-              <WandSparkles className="h-4 w-4" aria-hidden />
-              {mode === "ai" ? "Create & generate" : "Create trip"}
-            </>
-          ) : (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-              {busy === "creating" ? "Creating trip…" : "Generating itinerary… (~30s)"}
-            </>
+      {touched && !valid && (
+        <p className="mt-4 text-sm text-amber-900 dark:text-amber-200" role="status">
+          Still need {missing.join(", ")}.
+        </p>
+      )}
+
+      <div className="sticky bottom-0 z-20 -mx-4 mt-8 border-t border-stone-200/70 bg-[color-mix(in_srgb,var(--trips-canvas)_92%,transparent)] px-4 py-4 backdrop-blur-md sm:-mx-6 sm:px-6 dark:border-stone-800/70">
+        <div className="mx-auto flex max-w-2xl flex-wrap items-center gap-3">
+          <button type="submit" disabled={busy !== "idle"} className={primaryBtnClass}>
+            {busy === "idle" ? (
+              mode === "ai" ? (
+                <>
+                  <Sparkles className="h-4 w-4" aria-hidden />
+                  Create & generate
+                </>
+              ) : (
+                "Create trip"
+              )
+            ) : (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                {busy === "creating" ? "Creating trip…" : "Generating itinerary…"}
+              </>
+            )}
+          </button>
+          <button type="button" onClick={() => navigate("/trips")} className={ghostBtnClass} disabled={busy !== "idle"}>
+            Cancel
+          </button>
+          {busy === "generating" && (
+            <p className="w-full text-xs text-stone-500 dark:text-stone-400 sm:w-auto" role="status" aria-live="polite">
+              Usually 20–40 seconds. Stay on this page.
+            </p>
           )}
-        </button>
-        <button
-          type="button"
-          onClick={() => navigate("/trips")}
-          className="rounded-full px-4 py-3 text-sm text-stone-600 transition hover:bg-stone-200/60 dark:text-stone-400 dark:hover:bg-stone-800/60"
-        >
-          Cancel
-        </button>
+        </div>
       </div>
     </form>
   )

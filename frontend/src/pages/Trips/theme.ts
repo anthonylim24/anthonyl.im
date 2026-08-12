@@ -97,7 +97,21 @@ export const ACCENTS: Record<TripAccent, AccentTheme> = {
 
 export const DEFAULT_ACCENT: TripAccent = "amber"
 
-export const accentTheme = (accent?: TripAccent): AccentTheme => ACCENTS[accent ?? DEFAULT_ACCENT]
+export const ACCENT_SWATCH: Record<TripAccent, string> = {
+  rose: "bg-rose-500",
+  amber: "bg-amber-500",
+  emerald: "bg-emerald-500",
+  sky: "bg-sky-500",
+  violet: "bg-violet-500",
+}
+
+/** Safe accent lookup — never returns undefined for bad runtime data. */
+export function resolveAccent(accent?: string | null): TripAccent {
+  if (accent && accent in ACCENTS) return accent as TripAccent
+  return DEFAULT_ACCENT
+}
+
+export const accentTheme = (accent?: string | null): AccentTheme => ACCENTS[resolveAccent(accent)]
 
 // ── Item display metadata (mirrors koreaTheme's status/type systems) ─────
 
@@ -115,8 +129,8 @@ export const itemStatusMeta: Record<ItemStatus, { label: string; chip: string; d
   },
   needs_review: {
     label: "Needs review",
-    chip: "bg-rose-50 text-rose-900 border-rose-200 dark:bg-rose-950/40 dark:text-rose-100 dark:border-rose-900/60",
-    dot: "bg-rose-500",
+    chip: "bg-amber-50 text-amber-950 border-amber-200 dark:bg-amber-950/40 dark:text-amber-100 dark:border-amber-900/60",
+    dot: "bg-amber-500",
   },
   completed: {
     label: "Done",
@@ -165,13 +179,13 @@ export function itemIcon(kind: string, category?: string, reservationType?: stri
 export function calloutTone(tone: "info" | "warn" | "success" | "alert"): string {
   switch (tone) {
     case "info":
-      return "border-stone-200 bg-stone-50 dark:bg-stone-900/40 dark:border-stone-800"
+      return "border-stone-200 bg-stone-50/80 dark:bg-stone-900/40 dark:border-stone-800"
     case "warn":
-      return "border-rose-200 bg-rose-50/70 dark:bg-rose-950/25 dark:border-rose-900/50"
+      return "border-amber-200 bg-amber-50/80 dark:bg-amber-950/25 dark:border-amber-900/50"
     case "success":
-      return "border-emerald-200 bg-emerald-50/70 dark:bg-emerald-950/25 dark:border-emerald-900/50"
+      return "border-emerald-200 bg-emerald-50/80 dark:bg-emerald-950/25 dark:border-emerald-900/50"
     case "alert":
-      return "border-rose-300 bg-rose-100/70 dark:bg-rose-950/40 dark:border-rose-900/60"
+      return "border-rose-300 bg-rose-50/80 dark:bg-rose-950/40 dark:border-rose-900/60"
   }
 }
 

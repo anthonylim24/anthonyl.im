@@ -1,4 +1,14 @@
-import type { EnhancementRun, GeneratePreferences, Trip, TripAccess, TripCollaborator, TripDay, TripStatus, TripSummary } from "./types"
+import type {
+  EnhancementRun,
+  GeneratePreferences,
+  Trip,
+  TripAccess,
+  TripAppearance,
+  TripCollaborator,
+  TripDay,
+  TripStatus,
+  TripSummary,
+} from "./types"
 
 // Fetch helpers for /api/trips. Every call is authenticated — pass Clerk's
 // getToken (from useGetToken) so the server can resolve the user.
@@ -50,11 +60,22 @@ export const getTrip = (getToken: GetToken, id: string) =>
 export const createTrip = (getToken: GetToken, input: CreateTripInput) =>
   request<{ trip: Trip }>(getToken, "", { method: "POST", body: JSON.stringify(input) }).then((r) => r.trip)
 
-export const updateTrip = (
-  getToken: GetToken,
-  id: string,
-  patch: Partial<CreateTripInput> & { days?: TripDay[]; slug?: string },
-) =>
+export type UpdateTripPatch = {
+  name?: string
+  destinations?: string[]
+  startDate?: string
+  endDate?: string
+  timezone?: string
+  status?: TripStatus
+  tags?: string[]
+  collaborators?: TripCollaborator[]
+  days?: TripDay[]
+  slug?: string
+  appearance?: TripAppearance
+  description?: string | null
+}
+
+export const updateTrip = (getToken: GetToken, id: string, patch: UpdateTripPatch) =>
   request<{ trip: Trip }>(getToken, `/${encodeURIComponent(id)}`, {
     method: "PATCH",
     body: JSON.stringify(patch),

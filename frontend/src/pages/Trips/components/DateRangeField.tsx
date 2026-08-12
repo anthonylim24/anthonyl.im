@@ -100,7 +100,7 @@ function Month({
             <button
               key={iso}
               type="button"
-              tabIndex={-1}
+              tabIndex={0}
               data-iso={iso}
               onClick={() => onPick(iso)}
               onMouseEnter={() => onHover(iso)}
@@ -108,13 +108,13 @@ function Month({
               aria-label={toUtc(iso).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })}
               aria-pressed={isEdge}
               className={[
-                "relative mx-auto my-0.5 flex h-9 w-9 items-center justify-center text-[13px] tabular-nums outline-none transition-colors duration-150",
+                "relative mx-auto my-0.5 flex h-10 w-10 items-center justify-center text-[13px] tabular-nums outline-none transition-colors duration-150",
                 isEdge
-                  ? "rounded-full bg-amber-700 font-semibold text-white dark:bg-amber-500 dark:text-stone-950"
+                  ? "rounded-full bg-amber-800 font-semibold text-white dark:bg-amber-500 dark:text-stone-950"
                   : inRange(iso)
                     ? "rounded-none bg-amber-100/80 text-amber-950 dark:bg-amber-500/15 dark:text-amber-200"
                     : "rounded-full text-stone-700 hover:bg-stone-200/70 dark:text-stone-300 dark:hover:bg-stone-800",
-                iso === today && !isEdge ? "font-semibold text-amber-700 dark:text-amber-400" : "",
+                iso === today && !isEdge ? "font-semibold text-amber-800 dark:text-amber-400" : "",
                 "focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:ring-offset-1",
               ].join(" ")}
             >
@@ -147,22 +147,30 @@ export function DateRangeField({ startDate, endDate, onChange }: DateRangeFieldP
 
   useEffect(() => {
     if (!open) return
+    // Focus first selectable day (or the current start) so arrow keys work.
+    const focusTarget =
+      gridRef.current?.querySelector<HTMLButtonElement>(
+        startDate ? `button[data-iso="${startDate}"]` : "button[data-iso]",
+      ) ?? gridRef.current?.querySelector<HTMLButtonElement>("button[data-iso]")
+    focusTarget?.focus()
+
     const onDown = (e: MouseEvent | TouchEvent) => {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false)
     }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false)
+      if (e.key === "Escape") {
+        setOpen(false)
+        return
+      }
       // Roving arrow-key navigation across day buttons.
-      if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Enter"].includes(e.key)) {
+      if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
         const buttons = [...(gridRef.current?.querySelectorAll<HTMLButtonElement>("button[data-iso]") ?? [])]
         const active = document.activeElement as HTMLButtonElement | null
-        const idx = buttons.findIndex((b) => b === active)
-        if (idx < 0) return
-        const delta = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : e.key === "ArrowUp" ? -7 : e.key === "ArrowDown" ? 7 : 0
-        if (delta !== 0) {
-          e.preventDefault()
-          buttons[Math.max(0, Math.min(buttons.length - 1, idx + delta))]?.focus()
-        }
+        let idx = buttons.findIndex((b) => b === active)
+        if (idx < 0) idx = 0
+        const delta = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : e.key === "ArrowUp" ? -7 : 7
+        e.preventDefault()
+        buttons[Math.max(0, Math.min(buttons.length - 1, idx + delta))]?.focus()
       }
     }
     document.addEventListener("mousedown", onDown)
@@ -173,7 +181,7 @@ export function DateRangeField({ startDate, endDate, onChange }: DateRangeFieldP
       document.removeEventListener("touchstart", onDown)
       document.removeEventListener("keydown", onKey)
     }
-  }, [open])
+  }, [open, startDate])
 
   const shiftMonth = (delta: number) => {
     setView(({ year, month }) => {
