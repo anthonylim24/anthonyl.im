@@ -12,9 +12,11 @@ import { useEffect, type RefObject } from 'react'
  * No snapping or auto-finish on scroll-stop — the element rests wherever
  * the gesture leaves it.
  *
- * Special-cases the top of the page (within 8px) so the element is
- * always fully visible at rest. Without this, route changes that reset
- * `scrollY` to 0 can leave the element stuck off-screen.
+ * Special-cases the top and bottom of the scroller (within 8px) so the
+ * element is fully visible at rest. Without the top reset, route changes
+ * that reset `scrollY` to 0 can leave the element stuck off-screen.
+ * Without the bottom reset, hide-on-scroll leaves a dead zone of content
+ * padding where the nav used to sit.
  *
  * @param ref Element whose `transform` we mutate. The caller is expected
  *   to set the X portion of its transform via a separate CSS rule (we
@@ -68,7 +70,10 @@ export function useScrollMappedHide(
       const y = readY()
       const dy = y - lastY
       lastY = y
-      if (y < 8) {
+      const maxY = scrollRoot
+        ? Math.max(0, scrollRoot.scrollHeight - scrollRoot.clientHeight)
+        : Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
+      if (y < 8 || y >= maxY - 8) {
         offset = 0
       } else {
         offset = Math.max(0, Math.min(maxHidden, offset + dy))

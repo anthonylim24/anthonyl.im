@@ -18,7 +18,8 @@ describe('mobile overflow guardrails', () => {
   })
 
   it('lets the mobile session column fill the layout scroller instead of guessing a dvh offset', () => {
-    expect(sessionSource).toContain('md:hidden flex h-full min-h-0')
+    expect(sessionSource).toContain('data-testid="mobile-session-scroller"')
+    expect(sessionSource).toContain('min-h-0 flex-1 overflow-y-auto')
     expect(sessionSource).not.toContain('h-[calc(100dvh-5.5rem)]')
     expect(sessionSource).not.toContain('h-[calc(100svh-8.5rem)]')
     expect(sessionSource).not.toContain('max-h-[calc(100dvh-8.5rem)]')

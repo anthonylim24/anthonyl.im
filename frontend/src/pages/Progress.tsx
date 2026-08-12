@@ -106,7 +106,7 @@ export function Progress() {
   }
 
   return (
-    <motion.div className="pb-4" variants={stagger} initial="hidden" animate="show">
+    <motion.div variants={stagger} initial="hidden" animate="show">
       <div className="space-y-8 sm:space-y-10">
         <motion.div variants={fadeUp}>
           <div className="flex items-center justify-between gap-4">

@@ -446,11 +446,14 @@ export function Session() {
     <div className="h-full min-h-0 md:h-auto">
       {/* ═══ MOBILE LAYOUT ═══════════════════════════════ */}
       <div className="md:hidden flex h-full min-h-0 max-w-full flex-col overflow-hidden">
+        <div
+          data-testid="mobile-session-scroller"
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain no-scrollbar pb-4"
+        >
         <motion.div
           variants={stagger}
           initial="hidden"
           animate="show"
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain no-scrollbar pb-4"
         >
           {/* Back button */}
           <motion.button
@@ -645,6 +648,7 @@ export function Session() {
         </motion.div>
 
         </motion.div>
+        </div>
 
         {/* Pinned setup controls */}
         <motion.div
@@ -652,7 +656,7 @@ export function Session() {
           initial="hidden"
           animate="show"
           data-testid="mobile-session-action-bar"
-          className="shrink-0 border-t border-bw-border bg-bw-canvas pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
+          className="relative z-20 shrink-0 border-t border-bw-border bg-bw-canvas pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
         >
           <div
             className="mb-3 flex items-center justify-between gap-3"

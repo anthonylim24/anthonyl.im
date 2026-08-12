@@ -177,7 +177,7 @@ export function Settings() {
   }
 
   return (
-    <motion.div className="space-y-0 pb-8" variants={stagger} initial="hidden" animate="show">
+    <motion.div className="space-y-0" variants={stagger} initial="hidden" animate="show">
       <motion.div variants={fadeUp} className="pb-8">
         <h1 className="font-display text-4xl font-semibold text-bw leading-none">
           Settings
