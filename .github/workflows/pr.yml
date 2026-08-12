@@ -189,9 +189,15 @@ jobs:
             pending=()
             failed=()
             for name in "${REQUIRED_JOBS[@]}"; do
-              # Highest job id is the latest attempt if a job is retried.
-              status="$(jq -r --arg n "$name" '[.jobs[] | select(.name == $n)] | max_by(.id) | .status // empty' <<<"$json")"
-              conclusion="$(jq -r --arg n "$name" '[.jobs[] | select(.name == $n)] | max_by(.id) | .conclusion // empty' <<<"$json")"
+              # sort_by(.id)|last is the latest attempt; last on [] is null
+              # (max_by on [] errors in some jq versions and would trip set -e).
+              job="$(jq -c --arg n "$name" '[.jobs[] | select(.name == $n)] | sort_by(.id) | last // empty' <<<"$json")"
+              if [[ -z "$job" ]]; then
+                pending+=("$name")
+                continue
+              fi
+              status="$(jq -r '.status // empty' <<<"$job")"
+              conclusion="$(jq -r '.conclusion // empty' <<<"$job")"
               if [[ -z "$status" || "$status" != "completed" ]]; then
                 pending+=("$name")
                 continue
