@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Grok Bot SMS program: how to opt in, message frequency, and how to opt out."
+    />
+    <title>Grok Bot — SMS Consent &amp; Messaging Terms</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --canvas: #f5f2ed;
+        --surface: #fffcf7;
+        --ink: #1c1917;
+        --ink-2: #57534e;
+        --ink-3: #78716c;
+        --accent: #b8860b;
+        --border: rgba(28, 25, 23, 0.1);
+        --rule: rgba(28, 25, 23, 0.14);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        background: var(--canvas);
+        color: var(--ink);
+      }
+
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        font-family: "IBM Plex Sans", system-ui, sans-serif;
+        font-size: 1.02rem;
+        line-height: 1.65;
+        color: var(--ink);
+        background:
+          radial-gradient(ellipse 80% 50% at 10% -10%, rgba(184, 134, 11, 0.08), transparent 55%),
+          radial-gradient(ellipse 60% 40% at 100% 0%, rgba(120, 113, 108, 0.06), transparent 50%),
+          var(--canvas);
+      }
+
+      main {
+        width: min(42rem, calc(100% - 2.5rem));
+        margin: 0 auto;
+        padding: 3.5rem 0 5rem;
+      }
+
+      .brand {
+        font-family: "Cormorant Garamond", Georgia, serif;
+        font-size: 0.95rem;
+        font-weight: 600;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin: 0 0 1.25rem;
+      }
+
+      h1 {
+        font-family: "Cormorant Garamond", Georgia, serif;
+        font-size: clamp(2.2rem, 5vw, 3rem);
+        font-weight: 600;
+        line-height: 1.1;
+        letter-spacing: -0.02em;
+        margin: 0 0 0.75rem;
+      }
+
+      .lede {
+        color: var(--ink-2);
+        font-size: 1.05rem;
+        margin: 0 0 2.5rem;
+        max-width: 36rem;
+      }
+
+      section {
+        margin: 0 0 2.25rem;
+        padding-top: 1.75rem;
+        border-top: 1px solid var(--rule);
+      }
+
+      h2 {
+        font-family: "Cormorant Garamond", Georgia, serif;
+        font-size: 1.55rem;
+        font-weight: 600;
+        margin: 0 0 0.85rem;
+        letter-spacing: -0.01em;
+      }
+
+      p,
+      li {
+        color: var(--ink-2);
+      }
+
+      p {
+        margin: 0 0 0.9rem;
+      }
+
+      ul {
+        margin: 0 0 0.9rem;
+        padding-left: 1.2rem;
+      }
+
+      li {
+        margin: 0.35rem 0;
+      }
+
+      strong {
+        color: var(--ink);
+        font-weight: 600;
+      }
+
+      .callout {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 0.75rem;
+        padding: 1.15rem 1.25rem;
+        margin: 1rem 0 0;
+      }
+
+      .callout p:last-child {
+        margin-bottom: 0;
+      }
+
+      .keyword {
+        display: inline-block;
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-size: 0.92em;
+        font-weight: 600;
+        color: var(--ink);
+        background: rgba(184, 134, 11, 0.12);
+        border-radius: 0.35rem;
+        padding: 0.1rem 0.45rem;
+      }
+
+      .sample {
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-size: 0.9rem;
+        line-height: 1.55;
+        background: #171613;
+        color: #e7e3de;
+        border-radius: 0.75rem;
+        padding: 1.1rem 1.2rem;
+        margin: 0.85rem 0 0;
+        white-space: pre-wrap;
+      }
+
+      a {
+        color: var(--accent);
+        text-underline-offset: 0.15em;
+      }
+
+      footer {
+        margin-top: 3rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--rule);
+        color: var(--ink-3);
+        font-size: 0.88rem;
+      }
+
+      footer p {
+        color: var(--ink-3);
+        margin: 0 0 0.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="brand">Grok Bot</p>
+      <h1>SMS Consent &amp; Messaging Terms</h1>
+      <p class="lede">
+        This page documents how consumers consent to receive SMS messages from
+        <strong>Grok Bot</strong>, what those messages contain, and how to opt out.
+        It is provided as proof of consent for Twilio messaging verification.
+      </p>
+
+      <section aria-labelledby="program">
+        <h2 id="program">Program overview</h2>
+        <p>
+          <strong>Grok Bot</strong> sends account notification alerts and status updates
+          related to a user’s Grok Bot account. Message content may include service
+          alerts, account updates, and other important notifications.
+        </p>
+        <p>
+          <strong>Message frequency:</strong> up to 1 message per day.<br />
+          <strong>Rates:</strong> Message and data rates may apply.<br />
+          <strong>Carrier liability:</strong> Carriers are not liable for delayed or
+          undelivered messages.
+        </p>
+      </section>
+
+      <section aria-labelledby="opt-in">
+        <h2 id="opt-in">How opt-in (consent) is collected</h2>
+        <p>
+          Consent is collected <strong>via text</strong>. A consumer opts in by sending a
+          keyword to the Grok Bot toll-free messaging number associated with this program.
+        </p>
+        <div class="callout">
+          <p>
+            <strong>Opt-in action:</strong> Text
+            <span class="keyword">JOIN</span> or
+            <span class="keyword">START</span>
+            to the Grok Bot toll-free number.
+          </p>
+          <p>
+            Only consumers who send an affirmative opt-in keyword are enrolled. No one is
+            enrolled automatically from browsing this website or from purchasing a product.
+          </p>
+        </div>
+      </section>
+
+      <section aria-labelledby="confirmation">
+        <h2 id="confirmation">Opt-in confirmation message</h2>
+        <p>After a successful opt-in, Grok Bot sends a confirmation similar to:</p>
+        <p class="sample">Grok Bot: You're subscribed to daily account alerts and updates. Msg frequency: up to 1/day. Msg &amp; data rates may apply. Reply HELP for help, STOP to cancel.</p>
+      </section>
+
+      <section aria-labelledby="sample">
+        <h2 id="sample">Sample outbound message</h2>
+        <p class="sample">Grok Bot: Account alert — your status update is ready. Reply STOP to unsubscribe. Msg &amp; data rates may apply.</p>
+      </section>
+
+      <section aria-labelledby="help-stop">
+        <h2 id="help-stop">HELP and STOP</h2>
+        <ul>
+          <li>
+            Reply <span class="keyword">STOP</span> at any time to cancel. You will receive
+            a one-time confirmation that you have been unsubscribed and will receive no
+            further messages unless you opt in again.
+          </li>
+          <li>
+            Reply <span class="keyword">HELP</span> for help. You will receive contact
+            information for support.
+          </li>
+        </ul>
+        <p>Sample HELP reply:</p>
+        <p class="sample">Grok Bot: For support, visit https://anthonyl.im/sms-consent or email the address listed on that page. Reply STOP to unsubscribe. Msg &amp; data rates may apply.</p>
+      </section>
+
+      <section aria-labelledby="privacy">
+        <h2 id="privacy">Privacy</h2>
+        <p>
+          Mobile phone numbers collected for this SMS program are used only to deliver the
+          messages described above and to process HELP / STOP requests. We do not sell or
+          share mobile opt-in data with third parties or affiliates for their marketing.
+        </p>
+        <p>
+          For questions about this messaging program, contact:
+          <a href="mailto:hello@anthonyl.im">hello@anthonyl.im</a>.
+        </p>
+      </section>
+
+      <footer>
+        <p>Grok Bot messaging program · anthonyl.im</p>
+        <p>Last updated: August 11, 2026</p>
+      </footer>
+    </main>
+  </body>
+</html>
