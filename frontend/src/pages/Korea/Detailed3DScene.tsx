@@ -8,6 +8,7 @@ import {
   AmbientLight,
   BufferAttribute,
   BufferGeometry,
+  CircleGeometry,
   Color,
   CylinderGeometry,
   DirectionalLight,
@@ -19,7 +20,9 @@ import {
   MeshBasicMaterial,
   MeshPhysicalMaterial,
   MeshStandardMaterial,
+  NoToneMapping,
   PerspectiveCamera,
+  PMREMGenerator,
   Raycaster,
   RingGeometry,
   Scene,
@@ -40,9 +43,13 @@ import { KTX2Loader } from "three/examples/jsm/loaders/KTX2Loader.js"
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 import type { NeighborhoodCenter, RankedPlace } from "./mapModeTypes"
 import { arrivalStartFilter, cssFilterFor, fogForHour, kstHour } from "./timeOfDayGrade"
-import { GodRaysPass } from "./godRaysPass"
+import { GodRaysPass, godRayPitchAttenuation } from "./godRaysPass"
 import { MaxQualityPipeline, applyTileQualityHints } from "./maxQualityPipeline"
 import type { EffectPrefs } from "./deviceTier"
+import { detectTier } from "./deviceTier"
+import { lightingForHour, type MapLighting } from "./mapSun"
+import { gradeParamsAt } from "./mapGrade"
+import { AdaptiveQuality, initialDprForTier, maxDprForTier, tileErrorTarget } from "./adaptiveQuality"
 
 // Session-scoped flag: the cinematic fly-in plays once per browser
 // session, not on every navigation into Map Mode. Stored in
@@ -147,22 +154,36 @@ export function Detailed3DScene({
     // ── Renderer ─────────────────────────────────────────────────
     // logarithmicDepthBuffer is essential — Google tiles cover a 10+
     // km radius from origin and we want both far buildings AND tight
-    // close-ups to z-resolve cleanly. antialias on for the city
-    // silhouettes; DPR capped at 1.5.
+    // close-ups to z-resolve cleanly. MSAA only helps the default
+    // framebuffer (direct render); composer / god-ray RTs are not
+    // MSAA'd, so skip the extra memory on those paths.
+    const tier = detectTier()
+    const deviceDpr = window.devicePixelRatio || 1
+    const quality = new AdaptiveQuality({
+      maxDpr: maxDprForTier(tier, deviceDpr),
+      minDpr: 1,
+      initialDpr: initialDprForTier(tier, deviceDpr),
+    })
+    const useComposer = maxQualityOn || godRaysOn
     let renderer: WebGLRenderer
     try {
       renderer = new WebGLRenderer({
-        antialias: true,
+        antialias: !useComposer,
         alpha: true,
-        powerPreference: "default",
+        powerPreference: "high-performance",
         logarithmicDepthBuffer: true,
+        stencil: false,
+        depth: true,
       })
     } catch (err) {
       console.warn("[detailed3d] WebGL unavailable:", err)
       onWebglErrorRef.current?.()
       return
     }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
+    renderer.setPixelRatio(quality.dpr)
+    renderer.toneMapping = NoToneMapping
+    renderer.toneMappingExposure = 1
+    renderer.transmissionResolutionScale = 0.25
     renderer.setClearColor(0x88a2c9, 0)
     const size = () => ({ w: mount.clientWidth, h: Math.max(1, mount.clientHeight) })
     let { w, h } = size()
@@ -183,22 +204,22 @@ export function Detailed3DScene({
     // The arrival fly-in starts from a dimmer variant of this so the
     // city "wakes up" as the camera settles.
     const initialHour = kstHour()
+    const shaderGrade = maxQualityOn || godRaysOn
     const arrivalPlanned =
       !reducedMotion && (() => {
         try { return !sessionStorage.getItem(ARRIVAL_SESSION_KEY) } catch { return true }
       })()
     renderer.domElement.style.transition = "filter 0.6s ease"
-    // CSS time-of-day grade — when disabled in the debug menu we clear
-    // the filter entirely so the canvas renders neutrally.
-    renderer.domElement.style.filter = !gradeOn
+    // CSS grade is the cheap path. Shader grade (god rays composite /
+    // max-quality pipeline) already applies the cinematic look — stacking
+    // a CSS filter on top muddies midtones.
+    renderer.domElement.style.filter = !gradeOn || shaderGrade
       ? "none"
       : arrivalPlanned
         ? arrivalStartFilter(initialHour)
         : cssFilterFor(initialHour)
     const gradeInterval = window.setInterval(() => {
-      // Only refresh when no arrival is in flight; arrival completion
-      // will re-set the filter to the current hour.
-      if (!gradeOn) {
+      if (!gradeOn || shaderGrade) {
         renderer.domElement.style.filter = "none"
         return
       }
@@ -233,13 +254,29 @@ export function Detailed3DScene({
       camera.position.set(900, 2700, -1200)
     }
     camera.lookAt(0, 0, 0)
-    // Hemisphere fill so building shadows don't crush to black on
-    // mobile where the GPU can't afford a real shadow pass.
-    scene.add(new AmbientLight(0xffffff, 0.55))
-    scene.add(new HemisphereLight(0xbfd8ff, 0x8a7a5a, 0.7))
-    const sun = new DirectionalLight(0xffffff, 1.0)
-    sun.position.set(800, 1200, 400)
+    // Time-of-day lighting. Photogrammetry is pre-lit in albedo, so
+    // the directional is a relief key for facades + the glass orbs we
+    // own — not a second sun. Hemisphere + ambient fill the bounce.
+    const L0 = lightingForHour(initialHour)
+    const ambient = new AmbientLight(L0.ambientColor, L0.ambientIntensity)
+    const hemi = new HemisphereLight(L0.hemiSky, L0.hemiGround, L0.hemiIntensity)
+    const sun = new DirectionalLight(L0.sunColor, L0.sunIntensity)
+    sun.position.set(L0.sunPosition.x, L0.sunPosition.y, L0.sunPosition.z)
+    scene.add(ambient)
+    scene.add(hemi)
     scene.add(sun)
+
+    // Tiny sky-color env map so the orbs pick up a reflection of the
+    // hour without a studio HDR. Tiles get envMapIntensity knocked
+    // down in applyTileQualityHints so the bake isn't double-lit.
+    const pmrem = new PMREMGenerator(renderer)
+    const envScene = new Scene()
+    const envSkyColor = new Color(L0.hemiSky)
+    envScene.background = envSkyColor
+    let envRT = pmrem.fromScene(envScene, 0.04)
+    scene.environment = envRT.texture
+    scene.environmentIntensity = 0.9
+    let lastEnvHex = L0.hemiSky
 
     // ── Atmospheric fog ──────────────────────────────────────────
     // FogExp2 reads cleanly through GLTFLoader's MeshStandardMaterial
@@ -265,8 +302,7 @@ export function Detailed3DScene({
     if (fogOn) {
       scene.fog = new FogExp2(fogColor, arrivalPlanned ? baseFogDensity * 0.5 : baseFogDensity)
     }
-    const fogHourInterval = window.setInterval(() => {
-      const hour = kstHour()
+    let syncHour = (hour: number) => {
       if (fogOn && scene.fog) {
         const f = fogForHour(hour)
         fogColor.set(f.color)
@@ -274,11 +310,8 @@ export function Detailed3DScene({
         ;(scene.fog as FogExp2).color.copy(fogColor)
         ;(scene.fog as FogExp2).density = arriving ? currentFogDensity * 0.5 : currentFogDensity
       }
-      // Push the same hour into the HDR pipeline if it's active so
-      // bloom thresholds, exposure, grade matrix, and cloud palette
-      // all stay synchronized.
-      maxQuality?.setHourPhase(hour)
-    }, 60_000)
+    }
+    const fogHourInterval = window.setInterval(() => syncHour(kstHour()), 60_000)
 
     // ── Controls. OrbitControls' default damping reads nicely on
     // touch; we lock min distance to keep the camera from clipping
@@ -327,7 +360,7 @@ export function Detailed3DScene({
     // visual:bandwidth trade for a personal app; mobile users on
     // slow networks could be pushed to 24. Max Quality drops it to 8
     // for sharper geometry — A19-class wifi handles the extra stream.
-    tiles.errorTarget = maxQualityOn ? 8 : 16
+    tiles.errorTarget = tileErrorTarget("full", maxQualityOn, 0)
     scene.add(tiles.group)
 
     // Apply anisotropic filtering + sRGB color space to each tile's
@@ -341,26 +374,44 @@ export function Detailed3DScene({
     })
 
     // ── YOU marker — frosted rose orb at origin ────
+    const orbGeo = new SphereGeometry(1, 16, 12)
+    const beamGeo = new CylinderGeometry(0.9, 1.6, 56, 8, 1, true)
+    const blobGeo = new CircleGeometry(1, 20)
+    blobGeo.rotateX(-Math.PI / 2)
+    const blobMat = new MeshBasicMaterial({
+      color: 0x1c1917,
+      transparent: true,
+      opacity: 0.16,
+      depthWrite: false,
+      fog: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    })
     const youMarker = new Mesh(
-      new SphereGeometry(10, 32, 24),
+      orbGeo,
       new MeshPhysicalMaterial({
         color: 0xf43f5e,
         emissive: 0xf43f5e,
         emissiveIntensity: 0.45,
-        roughness: 0.22,
-        metalness: 0.05,
-        clearcoat: 0.7,
-        clearcoatRoughness: 0.25,
-        transmission: 0.35,
-        thickness: 4,
-        ior: 1.4,
-        // YOU is the trip's geometric + visual anchor — fog should
-        // never dim it. Atmospheric haze layers behind it, never on it.
+        roughness: 0.18,
+        metalness: 0.08,
+        clearcoat: 0.55,
+        clearcoatRoughness: 0.3,
+        envMapIntensity: 0.9,
+        // No transmission — three.js re-renders the entire tile scene
+        // into a refraction RT whenever any transmissive mesh exists.
         fog: false,
       }),
     )
     youMarker.position.set(0, 8, 0)
+    youMarker.scale.setScalar(10)
     scene.add(youMarker)
+    const youBlob = new Mesh(blobGeo, blobMat)
+    youBlob.position.set(0, 0.55, 0)
+    youBlob.scale.setScalar(12)
+    youBlob.renderOrder = 5
+    scene.add(youBlob)
 
     const youHalo = new Mesh(
       new RingGeometry(14, 20, 48),
@@ -389,12 +440,15 @@ export function Detailed3DScene({
       place: RankedPlace
       mesh: Mesh
       beam: Mesh
+      shadow: Mesh
       label: HTMLDivElement
       basePos: { x: number; z: number }
+      radius: number
       priorityRank: number
       onLabelClick: (e: MouseEvent) => void
     }
     const markers: PlaceMarker[] = []
+    const markerMeshes: Mesh[] = []
     for (const p of places) {
       const eastM = (p.lng - anchorLng) * cosUserLat * M_PER_DEG_LAT
       const northM = (p.lat - anchorLat) * M_PER_DEG_LAT
@@ -403,33 +457,30 @@ export function Detailed3DScene({
       const radius =
         p.priority === "scheduled" ? 16 : p.priority === "core" ? 13 : 10
       const mesh = new Mesh(
-        new SphereGeometry(radius, 24, 18),
-        new MeshPhysicalMaterial({
+        orbGeo,
+        new MeshStandardMaterial({
           color: p.color,
           emissive: p.color,
           emissiveIntensity: 0.35,
-          roughness: 0.18,
-          metalness: 0.08,
-          clearcoat: 0.85,
-          clearcoatRoughness: 0.2,
-          transmission: 0.45,
-          thickness: 3,
-          ior: 1.45,
-          transparent: true,
-          opacity: 0.95,
+          roughness: 0.22,
+          metalness: 0.12,
+          envMapIntensity: 1.2,
+          fog: true,
         }),
       )
       // Floating ~56 m above the ground so the orb pops above tall
       // rooftops without getting lost in the building mesh.
       mesh.position.set(localX, 56, localZ)
+      mesh.scale.setScalar(radius)
       mesh.userData.placeId = p.id
       scene.add(mesh)
+      markerMeshes.push(mesh)
 
       // Thin colored beam from the orb down to the ground at the
       // place's real lat/lng — makes the spot it represents
       // unambiguous on the photogrammetric mesh.
       const beam = new Mesh(
-        new CylinderGeometry(0.9, 1.6, 56, 10, 1, true),
+        beamGeo,
         new MeshBasicMaterial({
           color: p.color,
           transparent: true,
@@ -440,6 +491,12 @@ export function Detailed3DScene({
       beam.position.set(localX, 28, localZ)
       beam.renderOrder = 50
       scene.add(beam)
+
+      const shadow = new Mesh(blobGeo, blobMat)
+      shadow.position.set(localX, 0.55, localZ)
+      shadow.scale.setScalar(radius * 1.25)
+      shadow.renderOrder = 5
+      scene.add(shadow)
 
       // HTML label — clickable; overlay parent stays pointer-events:none
       // so the map underneath remains draggable.
@@ -485,12 +542,33 @@ export function Detailed3DScene({
         place: p,
         mesh,
         beam,
+        shadow,
         label,
         basePos: { x: localX, z: localZ },
+        radius,
         priorityRank: p.priority === "scheduled" ? 0 : p.priority === "core" ? 1 : 2,
         onLabelClick,
       })
     }
+
+    interface ProjectedLabel {
+      m: PlaceMarker
+      x: number
+      y: number
+      visible: boolean
+      camDist: number
+      rank: number
+    }
+    const projected: ProjectedLabel[] = markers.map((m) => ({
+      m,
+      x: 0,
+      y: 0,
+      visible: false,
+      camDist: 0,
+      rank: 0,
+    }))
+    const takenX = new Float64Array(Math.max(1, markers.length))
+    const takenY = new Float64Array(Math.max(1, markers.length))
 
     // YOU label — projected from world origin each frame.
     const youLabel = document.createElement("div")
@@ -574,10 +652,7 @@ export function Detailed3DScene({
 
     function pickMarker(): PlaceMarker | null {
       raycaster.setFromCamera(pointer, camera)
-      const hits = raycaster.intersectObjects(
-        markers.map((m) => m.mesh),
-        false,
-      )
+      const hits = raycaster.intersectObjects(markerMeshes, false)
       if (!hits.length) return null
       const obj = hits[0].object
       return markers.find((m) => m.mesh === obj) ?? null
@@ -726,8 +801,11 @@ export function Detailed3DScene({
     // building highlight ring onto that point. Runs whenever the
     // tile graph updates after a selection.
     const downRay = new Raycaster()
+    const downOrigin = new Vector3()
+    const downDir = new Vector3(0, -1, 0)
     function snapBuildingHighlight(destX: number, destZ: number) {
-      downRay.set(new Vector3(destX, 5000, destZ), new Vector3(0, -1, 0))
+      downOrigin.set(destX, 5000, destZ)
+      downRay.set(downOrigin, downDir)
       downRay.far = 8000
       const hits = downRay.intersectObject(tiles.group, true)
       if (!hits.length) return false
@@ -741,14 +819,18 @@ export function Detailed3DScene({
     // Per-frame screen projection of a world point — used for label
     // and selection-pill placement.
     const tmpVec = new Vector3()
-    function projectToScreen(v: Vector3): { x: number; y: number; visible: boolean; rect: DOMRect } {
-      const rect = renderer.domElement.getBoundingClientRect()
+    const canvasRect = { width: 1, height: 1 }
+    function refreshCanvasRect() {
+      const r = renderer.domElement.getBoundingClientRect()
+      canvasRect.width = r.width
+      canvasRect.height = r.height
+    }
+    function projectToScreen(v: Vector3): { x: number; y: number; visible: boolean } {
       tmpVec.copy(v).project(camera)
       return {
-        x: ((tmpVec.x + 1) / 2) * rect.width,
-        y: ((-tmpVec.y + 1) / 2) * rect.height,
+        x: ((tmpVec.x + 1) / 2) * canvasRect.width,
+        y: ((-tmpVec.y + 1) / 2) * canvasRect.height,
         visible: tmpVec.z > -1 && tmpVec.z < 1,
-        rect,
       }
     }
 
@@ -809,12 +891,12 @@ export function Detailed3DScene({
     // read as broken. Pitch attenuation in the shader handles the
     // expensive case (horizon blowout) instead.
     let godRays: GodRaysPass | null = null
-    if (godRaysOn) {
+    if (godRaysOn && !maxQualityOn) {
       godRays = new GodRaysPass({
         renderer,
         scene,
         camera,
-        sunPos: new Vector3(800, 1200, 400),
+        sunPos: sun.position.clone(),
         size: { w, h },
         clearColor: fogColor,
       })
@@ -823,8 +905,6 @@ export function Detailed3DScene({
     // ── Max Quality HDR pipeline ─────────────────────────────────
     // Replaces the direct renderer.render call with a multi-pass
     // chain: scene → cloud composite → bloom → grade/tonemap → SMAA.
-    // Coordinates per-phase color, exposure, bloom threshold, and
-    // cloud palette via setHourPhase() once per minute.
     let maxQuality: MaxQualityPipeline | null = null
     if (maxQualityOn) {
       maxQuality = new MaxQualityPipeline({
@@ -834,9 +914,63 @@ export function Detailed3DScene({
         size: { w, h },
         reducedMotion: !!reducedMotion,
       })
-      maxQuality.setHourPhase(kstHour())
     }
     const maxQualityStart = performance.now()
+
+    function layoutBlobs(L: MapLighting) {
+      const len = Math.hypot(L.sunDir.x, L.sunDir.z) || 1
+      const ox = -(L.sunDir.x / len) * 3.2
+      const oz = -(L.sunDir.z / len) * 3.2
+      youBlob.position.set(ox, 0.55, oz)
+      blobMat.opacity = L.belowHorizon ? 0.08 : 0.16
+      for (const m of markers) {
+        m.shadow.position.set(m.basePos.x + ox, 0.55, m.basePos.z + oz)
+      }
+    }
+
+    function applyLighting(hour: number) {
+      const L = lightingForHour(hour)
+      ambient.color.set(L.ambientColor)
+      ambient.intensity = L.ambientIntensity
+      hemi.color.set(L.hemiSky)
+      hemi.groundColor.set(L.hemiGround)
+      hemi.intensity = L.hemiIntensity
+      sun.color.set(L.sunColor)
+      sun.intensity = L.sunIntensity
+      sun.position.set(L.sunPosition.x, L.sunPosition.y, L.sunPosition.z)
+      if (L.hemiSky !== lastEnvHex) {
+        lastEnvHex = L.hemiSky
+        envSkyColor.set(L.hemiSky)
+        envScene.background = envSkyColor
+        envRT.dispose()
+        envRT = pmrem.fromScene(envScene, 0.04)
+        scene.environment = envRT.texture
+      }
+      godRays?.setSunPosition(sun.position)
+      godRays?.setIntensity(L.godRayIntensity)
+      godRays?.setRayColor(sun.color)
+      maxQuality?.setSunDirection(L.sunDir.x, L.sunDir.y, L.sunDir.z)
+      if (gradeOn) {
+        const gp = gradeParamsAt(hour)
+        godRays?.setGrade(gp, !reducedMotion)
+      } else {
+        godRays?.setGradeEnabled(false)
+      }
+      maxQuality?.setHourPhase(hour)
+      maxQuality?.setGradeEnabled(gradeOn)
+      layoutBlobs(L)
+    }
+    applyLighting(initialHour)
+    syncHour = (hour: number) => {
+      if (fogOn && scene.fog) {
+        const f = fogForHour(hour)
+        fogColor.set(f.color)
+        currentFogDensity = f.density
+        ;(scene.fog as FogExp2).color.copy(fogColor)
+        ;(scene.fog as FogExp2).density = arriving ? currentFogDensity * 0.5 : currentFogDensity
+      }
+      applyLighting(hour)
+    }
 
     // ── Animation loop ────────────────────────────────────────────
     let running = true
@@ -859,12 +993,44 @@ export function Detailed3DScene({
       arrivalArmed = false
       focusing = false
       focusLerp = 0.12
-      renderer.domElement.style.filter = cssFilterFor(kstHour())
+      renderer.domElement.style.filter = !gradeOn || shaderGrade ? "none" : cssFilterFor(kstHour())
       try { sessionStorage.setItem(ARRIVAL_SESSION_KEY, "1") } catch { /* private mode */ }
     }
     renderer.domElement.addEventListener("pointerdown", onArrivalCancel, { passive: true, once: true })
+    const labelWorld = new Vector3()
+    const distWorld = new Vector3()
+    let lastFrameAt = performance.now()
+    let lastErrorTarget = tiles.errorTarget
+    const onVisibility = () => {
+      if (document.visibilityState === "visible" && running) {
+        lastFrameAt = performance.now()
+        requestAnimationFrame(tick)
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibility)
     function tick() {
       if (!running) return
+      if (document.visibilityState === "hidden") return
+      const frameNow = performance.now()
+      const frameDt = frameNow - lastFrameAt
+      lastFrameAt = frameNow
+      if (quality.sample(frameDt) && !maxQualityOn) {
+        renderer.setPixelRatio(quality.dpr)
+        renderer.setSize(w, h, false)
+        tiles.setResolutionFromRenderer(camera, renderer)
+        godRays?.resize(w, h)
+      }
+      const lod = quality.lod
+      maxQuality?.setLod(lod)
+      if (godRays) {
+        godRays.setSampleCount(lod === "full" ? 24 : lod === "balanced" ? 16 : 12)
+      }
+      const camR = camera.position.length()
+      const nextError = tileErrorTarget(lod, maxQualityOn, camR)
+      if (nextError !== lastErrorTarget) {
+        lastErrorTarget = nextError
+        tiles.errorTarget = nextError
+      }
       controls.update()
       tiles.update()
 
@@ -884,7 +1050,7 @@ export function Detailed3DScene({
           focusLerp = 0.045
           // Brighten the canvas to its target grade in step with the
           // camera; the CSS transition (0.6s) gives the fade-up.
-          if (gradeOn) renderer.domElement.style.filter = cssFilterFor(kstHour())
+          if (gradeOn && !shaderGrade) renderer.domElement.style.filter = cssFilterFor(kstHour())
         }
       }
 
@@ -1019,103 +1185,100 @@ export function Detailed3DScene({
         const beamMat = m.beam.material as MeshBasicMaterial
         if (sel && m.place.id === sel) {
           mat.emissiveIntensity = reducedMotion ? 0.85 : 0.7 + Math.sin(t * 4) * 0.2
-          m.mesh.scale.setScalar(reducedMotion ? 1.25 : 1.2 + Math.sin(t * 4) * 0.06)
+          m.mesh.scale.setScalar(m.radius * (reducedMotion ? 1.25 : 1.2 + Math.sin(t * 4) * 0.06))
+          m.shadow.scale.setScalar(m.radius * 1.45)
           beamMat.opacity = 0.85
         } else if (sel) {
           mat.emissiveIntensity = 0.18
-          m.mesh.scale.setScalar(0.85)
+          m.mesh.scale.setScalar(m.radius * 0.85)
+          m.shadow.scale.setScalar(m.radius * 1.0)
           beamMat.opacity = 0.18
         } else {
-          mat.emissiveIntensity = 0.55
-          m.mesh.scale.setScalar(1)
+          mat.emissiveIntensity = 0.4
+          m.mesh.scale.setScalar(m.radius)
+          m.shadow.scale.setScalar(m.radius * 1.25)
           beamMat.opacity = 0.6
         }
       }
 
-      // Project all marker labels first; then run an overlap-
-      // declutter pass that fades out lower-priority labels whose
-      // screen bounding box overlaps a higher-priority neighbor's.
-      // Scheduled > Core > Supplemental, ties broken by closer-to-
-      // camera; the selected marker always wins.
-      interface ProjectedLabel {
-        m: PlaceMarker
-        x: number
-        y: number
-        visible: boolean
-        camDist: number
-        rank: number
-      }
-      const projected: ProjectedLabel[] = []
+      refreshCanvasRect()
       const cam = camera.position
-      for (const m of markers) {
-        const world = new Vector3(m.basePos.x, 100, m.basePos.z)
-        const proj = projectToScreen(world)
-        projected.push({
-          m,
-          x: proj.x,
-          y: proj.y,
-          visible: proj.visible,
-          camDist: cam.distanceTo(new Vector3(m.basePos.x, 0, m.basePos.z)),
-          rank: m.priorityRank,
-        })
+      for (let i = 0; i < markers.length; i++) {
+        const m = markers[i]
+        const row = projected[i]
+        labelWorld.set(m.basePos.x, 100, m.basePos.z)
+        const proj = projectToScreen(labelWorld)
+        distWorld.set(m.basePos.x, 0, m.basePos.z)
+        row.m = m
+        row.x = proj.x
+        row.y = proj.y
+        row.visible = proj.visible
+        row.camDist = cam.distanceTo(distWorld)
+        row.rank = m.priorityRank
       }
-      // Sort: selected first (rank -1), then by priority, then by
-      // camera distance so closer wins ties.
       projected.sort((a, b) => {
         const aSel = sel && a.m.place.id === sel ? -1 : a.rank
         const bSel = sel && b.m.place.id === sel ? -1 : b.rank
         if (aSel !== bSel) return aSel - bSel
         return a.camDist - b.camDist
       })
-      // Walk through; for each label that's visible, mark its
-      // bounding box; later labels that intersect get faded.
-      const HALF_W = 60 // approximate label half-width in px
-      const HALF_H = 20 // approximate label half-height in px
-      const taken: Array<{ x: number; y: number }> = []
+      const HALF_W = 60
+      const HALF_H = 20
+      let takenN = 0
       for (const p of projected) {
         const dim = sel && p.m.place.id !== sel ? 0.15 : 1
         if (!p.visible || dim < 0.05) {
-          p.m.label.style.visibility = "hidden"
+          if (p.m.label.style.visibility !== "hidden") p.m.label.style.visibility = "hidden"
           continue
         }
-        // Check overlap with previously-placed (higher-priority)
-        // labels. We use point-in-rectangle on the label center
-        // against each taken bbox — quick + good enough for
-        // bubble-label avoidance.
         let occluded = false
-        for (const t of taken) {
+        for (let i = 0; i < takenN; i++) {
           if (
-            Math.abs(p.x - t.x) < HALF_W * 1.4 &&
-            Math.abs(p.y - t.y) < HALF_H * 1.6
+            Math.abs(p.x - takenX[i]) < HALF_W * 1.4 &&
+            Math.abs(p.y - takenY[i]) < HALF_H * 1.6
           ) {
             occluded = true
             break
           }
         }
         const visualDim = occluded ? dim * 0.25 : dim
-        p.m.label.style.transform = `translate3d(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px, 0) translate(-50%, -50%)`
-        p.m.label.style.opacity = String(visualDim)
-        p.m.label.style.visibility = "visible"
-        // Closer / higher-priority labels paint on top.
-        p.m.label.style.zIndex = String(Math.max(1, Math.round(10000 - p.camDist)))
-        if (!occluded) taken.push({ x: p.x, y: p.y })
+        const xf = `translate3d(${p.x.toFixed(1)}px,${p.y.toFixed(1)}px,0) translate(-50%,-50%)`
+        const op = String(visualDim)
+        const z = String(Math.max(1, Math.round(10000 - p.camDist)))
+        if (p.m.label.dataset.xf !== xf) {
+          p.m.label.dataset.xf = xf
+          p.m.label.style.transform = xf
+        }
+        if (p.m.label.dataset.op !== op) {
+          p.m.label.dataset.op = op
+          p.m.label.style.opacity = op
+        }
+        if (p.m.label.style.visibility !== "visible") p.m.label.style.visibility = "visible"
+        if (p.m.label.style.zIndex !== z) p.m.label.style.zIndex = z
+        if (!occluded) {
+          takenX[takenN] = p.x
+          takenY[takenN] = p.y
+          takenN++
+        }
       }
-      const youProj = projectToScreen(new Vector3(0, 4, 0))
+      labelWorld.set(0, 4, 0)
+      const youProj = projectToScreen(labelWorld)
       if (youProj.visible) {
-        youLabel.style.transform = `translate3d(${youProj.x.toFixed(1)}px, ${youProj.y.toFixed(1)}px, 0) translate(-50%, -50%)`
-        youLabel.style.visibility = "visible"
-      } else {
+        const xf = `translate3d(${youProj.x.toFixed(1)}px,${youProj.y.toFixed(1)}px,0) translate(-50%,-50%)`
+        if (youLabel.dataset.xf !== xf) {
+          youLabel.dataset.xf = xf
+          youLabel.style.transform = xf
+        }
+        if (youLabel.style.visibility !== "visible") youLabel.style.visibility = "visible"
+      } else if (youLabel.style.visibility !== "hidden") {
         youLabel.style.visibility = "hidden"
       }
 
-      // Selection pill at the midpoint of the line.
       if (selLine.visible && sel) {
         const m = markers.find((x) => x.place.id === sel)
         if (m) {
-          // A touch above ground so depth-sorting against the line
-          // and ring is unambiguous.
-          const midWorld = new Vector3(m.basePos.x / 2, 40, m.basePos.z / 2)
-          const proj = projectToScreen(midWorld)
+          labelWorld.set(m.basePos.x / 2, 40, m.basePos.z / 2)
+          const proj = projectToScreen(labelWorld)
           if (proj.visible) {
             selectionPill.style.transform = `translate3d(${proj.x.toFixed(1)}px, ${proj.y.toFixed(1)}px, 0) translate(-50%, -50%)`
             selectionPill.style.opacity = "1"
@@ -1143,22 +1306,14 @@ export function Detailed3DScene({
         updateAttribution()
       }
 
-      // Render path selection — three modes, ordered by priority:
-      //   1. Max Quality: HDR composer pipeline (replaces god-rays
-      //      direct render — god-rays output is currently not folded
-      //      into the composer in v1; if the user has BOTH max quality
-      //      and god-rays toggled on, max quality wins. A follow-up
-      //      PR will patch GodRaysPass to accept an output target so
-      //      its result lands in the HDR buffer for bloom + tone-map.)
-      //   2. God rays only: existing radial-blur composite.
-      //   3. Plain direct render.
+      // Render path: Max Quality XOR god rays (never both — constructing
+      // both wastes VRAM and the composer would drop the shafts anyway).
       if (maxQuality) {
         maxQuality.render((performance.now() - maxQualityStart) / 1000)
       } else if (godRays) {
-        const polar = controls.getPolarAngle()
-        const pitchAtten = Math.pow(Math.max(0, Math.cos(polar)), 0.7)
         godRays.setClearColor(fogColor)
-        godRays.setPitchAttenuation(pitchAtten)
+        godRays.setPitchAttenuation(godRayPitchAttenuation(controls.getPolarAngle()))
+        godRays.setGradeTime((performance.now() - maxQualityStart) / 1000)
         godRays.render()
       } else {
         renderer.setRenderTarget(null)
@@ -1172,9 +1327,13 @@ export function Detailed3DScene({
       running = false
       window.clearInterval(gradeInterval)
       window.clearInterval(fogHourInterval)
+      document.removeEventListener("visibilitychange", onVisibility)
       godRays?.dispose()
       maxQuality?.dispose()
       scene.fog = null
+      scene.environment = null
+      envRT.dispose()
+      pmrem.dispose()
       ro.disconnect()
       window.removeEventListener("korea-map-reset", onResetView)
       window.removeEventListener("korea-map-orient-north", onOrientNorth)
@@ -1187,13 +1346,15 @@ export function Detailed3DScene({
       draco.dispose()
       ktx2.dispose()
       for (const m of markers) {
-        m.mesh.geometry.dispose()
-        ;(m.mesh.material as MeshPhysicalMaterial).dispose()
-        m.beam.geometry.dispose()
+        ;(m.mesh.material as MeshStandardMaterial).dispose()
         ;(m.beam.material as MeshBasicMaterial).dispose()
         m.label.removeEventListener("click", m.onLabelClick)
         m.label.remove()
       }
+      orbGeo.dispose()
+      beamGeo.dispose()
+      blobGeo.dispose()
+      blobMat.dispose()
       youLabel.remove()
       selLineGeom.dispose()
       ;(selLine.material as LineBasicMaterial).dispose()
@@ -1202,7 +1363,6 @@ export function Detailed3DScene({
       buildingRing.geometry.dispose()
       ;(buildingRing.material as MeshBasicMaterial).dispose()
       selectionPill.remove()
-      youMarker.geometry.dispose()
       ;(youMarker.material as MeshPhysicalMaterial).dispose()
       youHalo.geometry.dispose()
       ;(youHalo.material as MeshBasicMaterial).dispose()

@@ -31,6 +31,28 @@ import {
   type WebGLRenderer,
 } from "three"
 import { FullScreenQuad } from "three/examples/jsm/postprocessing/Pass.js"
+import {
+  GRADE_APPLY_GLSL,
+  GRADE_UNIFORMS_GLSL,
+  writeGradeUniforms,
+  type GradeParams,
+  type GradeUniformBag,
+} from "./mapGrade"
+
+/** Polar 0 = zenith (birds-eye), π/2 = horizon. Shafts peak near 45°. */
+export function godRayPitchAttenuation(polarRad: number): number {
+  return Math.pow(Math.max(0, Math.sin(2 * polarRad)), 0.85)
+}
+
+export function godRayContribution(
+  intensity: number,
+  pitchAtten: number,
+  offscreen: number,
+  behind: boolean,
+): number {
+  if (behind) return 0
+  return intensity * pitchAtten * offscreen
+}
 
 interface GodRaysPassOptions {
   renderer: WebGLRenderer
@@ -62,9 +84,10 @@ export class GodRaysPass {
   private composite: ShaderMaterial
   private fsQuad: FullScreenQuad
 
-  // Reusable Vector3 for the sun NDC projection so we don't allocate
-  // per-frame.
+  // Reusable scratch so we don't allocate per-frame.
   private ndc = new Vector3()
+  private prevClear = new Color()
+  private sampleCount = 24
 
   constructor(opts: GodRaysPassOptions) {
     this.renderer = opts.renderer
@@ -94,17 +117,25 @@ export class GodRaysPass {
         uIntensity: { value: 0.9 },
         uDecay: { value: 0.96 },
         uDensity: { value: 0.85 },
-        uWeight: { value: 0.4 },
-        uExposure: { value: 0.6 },
-        // Mask the rays when the sun is offscreen — they should
-        // fall off smoothly as the sun's NDC magnitude crosses 1.
+        uWeight: { value: 0.28 },
+        uRayExposure: { value: 0.45 },
         uOffscreen: { value: 0.0 },
-        // Camera-pitch attenuation: 1.0 when looking top-down (little
-        // sky in frame), → 0 when looking horizontally toward the
-        // horizon (most of the frame is sky and the radial accumulator
-        // blows out). Computed each frame from `cos(polarAngle)` in
-        // the caller and pushed in via `setPitchAttenuation`.
         uPitchAtten: { value: 1.0 },
+        uSampleCount: { value: 24 },
+        uRayColor: { value: new Vector3(1.0, 0.96, 0.88) },
+        uGradeOn: { value: 1 },
+        uExposure: { value: 1.0 },
+        uContrast: { value: 1.0 },
+        uSaturation: { value: 1.0 },
+        uLift: { value: new Vector3(0, 0, 0) },
+        uGamma: { value: new Vector3(1, 1, 1) },
+        uGain: { value: new Vector3(1, 1, 1) },
+        uShadowTint: { value: new Vector3(1, 1, 1) },
+        uHighlightTint: { value: new Vector3(1, 1, 1) },
+        uVignette: { value: 0.08 },
+        uGrain: { value: 0.0 },
+        uShoulder: { value: 0.06 },
+        uGradeTime: { value: 0.0 },
       },
       vertexShader: /* glsl */ `
         varying vec2 vUv;
@@ -123,52 +154,39 @@ export class GodRaysPass {
         uniform float uDecay;
         uniform float uDensity;
         uniform float uWeight;
-        uniform float uExposure;
+        uniform float uRayExposure;
         uniform float uOffscreen;
         uniform float uPitchAtten;
+        uniform float uSampleCount;
+        uniform vec3 uRayColor;
+        uniform float uGradeOn;
+        ${GRADE_UNIFORMS_GLSL}
+        ${GRADE_APPLY_GLSL}
 
-        const int SAMPLES = 40;
+        const int MAX_SAMPLES = 24;
 
         void main() {
-          // Direction from this pixel toward the sun, divided by
-          // the sample count and the density. The classic Mitchell
-          // god-rays kernel — accumulate light along the ray toward
-          // the sun, decaying per step.
-          vec2 delta = (vUv - uSunUV) * (1.0 / float(SAMPLES)) * uDensity;
+          vec2 delta = (vUv - uSunUV) * (1.0 / max(uSampleCount, 1.0)) * uDensity;
           vec2 uv = vUv;
           float illum = 1.0;
           float accum = 0.0;
-          for (int i = 0; i < SAMPLES; i++) {
+          for (int i = 0; i < MAX_SAMPLES; i++) {
+            if (float(i) >= uSampleCount) break;
             uv -= delta;
-            // The occlusion buffer is BLACK for in-scene geometry,
-            // WHITE for sky. We want the SKY to contribute light,
-            // so sample channel and weight against (1 - black) =
-            // bright sky.
             float sky = texture2D(tOccl, uv).r;
             accum += sky * illum * uWeight;
             illum *= uDecay;
           }
-          accum *= uIntensity * uExposure * uOffscreen * uPitchAtten;
-          // Hard clamp so the additive composite cannot blow the
-          // scene out to white even if the accumulator goes wild
-          // (e.g., transient sky coverage spike during a pan).
-          accum = min(accum, 0.75);
+          accum *= uIntensity * uRayExposure * uOffscreen * uPitchAtten;
+          accum = min(accum, 0.45);
           vec4 base = texture2D(tDiffuse, vUv);
-          // Multiplicative base lift — the silhouette/occlusion path
-          // re-renders the scene with a flat MeshBasicMaterial which
-          // gives a slightly dimmer base than direct rendering. The
-          // 1.15x lift counters that so god-rays terrain reads at the
-          // same brightness as the standard view (user reported the
-          // god-rays terrain was "quite dark"). Then add warm rays on
-          // top — preserves the underlying scene color and stacks
-          // sun-shaft light in warm tone.
-          gl_FragColor = vec4(
-            clamp(base.rgb * 1.15, vec3(0.0), vec3(1.0))
-              + vec3(accum * 1.10, accum * 0.95, accum * 0.65),
-            1.0
-          );
+          vec3 lit = clamp(base.rgb + uRayColor * accum, vec3(0.0), vec3(1.0));
+          vec3 outRgb = uGradeOn > 0.5 ? applyGrade(lit, vUv) : lit;
+          gl_FragColor = vec4(outRgb, 1.0);
+          #include <colorspace_fragment>
         }
       `,
+      toneMapped: false,
     })
     this.fsQuad = new FullScreenQuad(this.composite)
   }
@@ -192,6 +210,38 @@ export class GodRaysPass {
     this.composite.uniforms.uPitchAtten.value = Math.max(0, Math.min(1, v))
   }
 
+  setIntensity(v: number): void {
+    this.composite.uniforms.uIntensity.value = Math.max(0, v)
+  }
+
+  setRayColor(color: Color): void {
+    const v = this.composite.uniforms.uRayColor.value as Vector3
+    v.set(color.r, color.g * 0.96, color.b * 0.88)
+  }
+
+  setSampleCount(n: number): void {
+    this.sampleCount = Math.max(8, Math.min(24, n))
+    this.composite.uniforms.uSampleCount.value = this.sampleCount
+  }
+
+  setGrade(params: GradeParams, grainEnabled: boolean): void {
+    this.composite.uniforms.uGradeOn.value = 1
+    writeGradeUniforms(
+      this.composite.uniforms as unknown as GradeUniformBag,
+      params,
+      0,
+      grainEnabled,
+    )
+  }
+
+  setGradeEnabled(on: boolean): void {
+    this.composite.uniforms.uGradeOn.value = on ? 1 : 0
+  }
+
+  setGradeTime(timeSec: number): void {
+    this.composite.uniforms.uGradeTime.value = timeSec
+  }
+
   /** Resize the internal RTs. Honors the renderer's current pixel
    *  ratio so high-DPI displays don't render at a quarter resolution. */
   resize(w: number, h: number): void {
@@ -202,59 +252,49 @@ export class GodRaysPass {
     this.occlRT.setSize(Math.max(1, pw >> 1), Math.max(1, ph >> 1))
   }
 
-  /** Render the scene with the god-rays composite. Caller should
-   *  guard with their effects flag — when off, just call
-   *  `renderer.render(scene, camera)` directly and skip this. */
+  /** Render the scene with the god-rays composite. Always blits through
+   *  the composite so output encoding matches (linear RT → sRGB canvas).
+   *  The occlusion pass is skipped when shafts would be invisible. */
   render(): void {
     const r = this.renderer
     const scene = this.scene
     const camera = this.camera
 
-    // Project the sun to NDC; bail when behind the camera. Math is
-    // cheap so we do it every frame.
     this.ndc.copy(this.sunPos).project(camera)
     const behind = this.ndc.z > 1 || this.ndc.z < -1
-    if (behind) {
-      // Sun isn't visible — direct render. Still clear to the fog
-      // color so the page-level fallback doesn't show through the
-      // alpha:true canvas.
-      r.setRenderTarget(null)
-      r.setClearColor(this.clearColor, 1)
-      r.clear(true, true, true)
-      r.render(scene, camera)
-      return
-    }
-
-    // Smooth falloff as the sun drifts offscreen — full strength
-    // when sunUV is in [0,1], fading to zero by ±0.3 outside.
     const sx = (this.ndc.x + 1) * 0.5
     const sy = (this.ndc.y + 1) * 0.5
     const dist = Math.max(0, Math.max(sx - 1, -sx, sy - 1, -sy))
-    const offscreen = Math.max(0, 1 - dist / 0.3)
+    const offscreen = behind ? 0 : Math.max(0, 1 - dist / 0.3)
+    const intensity = this.composite.uniforms.uIntensity.value as number
+    const pitch = this.composite.uniforms.uPitchAtten.value as number
+    const contrib = godRayContribution(intensity, pitch, offscreen, behind)
     this.composite.uniforms.uSunUV.value.set(sx, sy)
     this.composite.uniforms.uOffscreen.value = offscreen
 
-    // 1) Occlusion pass — black geometry against white sky into the
-    //    half-res RT. Save + restore the renderer's clear color so
-    //    we don't leak white into the next frame's main pass.
-    const prevClear = new Color()
-    r.getClearColor(prevClear)
+    const prevClear = this.prevClear
     const prevAlpha = r.getClearAlpha()
-    scene.overrideMaterial = this.blackMat
-    r.setRenderTarget(this.occlRT)
-    r.setClearColor(0xffffff, 1)
-    r.clear(true, true, true)
-    r.render(scene, camera)
-    scene.overrideMaterial = null
+    r.getClearColor(prevClear)
 
-    // 2) Main pass — full-res with proper materials, clearing to the
-    //    fog color so the composite blends correctly.
+    // Main pass — linear working space into the scene RT.
     r.setRenderTarget(this.sceneRT)
     r.setClearColor(this.clearColor, 1)
     r.clear(true, true, true)
     r.render(scene, camera)
 
-    // 3) Composite — fullscreen quad with the radial-blur shader.
+    if (contrib >= 0.02) {
+      scene.overrideMaterial = this.blackMat
+      r.setRenderTarget(this.occlRT)
+      r.setClearColor(0xffffff, 1)
+      r.clear(true, true, true)
+      r.render(scene, camera)
+      scene.overrideMaterial = null
+      this.composite.uniforms.uSampleCount.value = this.sampleCount
+    } else {
+      this.composite.uniforms.uSampleCount.value = 0
+      this.composite.uniforms.uOffscreen.value = 0
+    }
+
     this.composite.uniforms.tDiffuse.value = this.sceneRT.texture
     r.setRenderTarget(null)
     r.setClearColor(this.clearColor, 1)

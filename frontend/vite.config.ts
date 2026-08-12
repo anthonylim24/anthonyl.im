@@ -51,7 +51,7 @@ export default defineConfig({
             { name: 'icons', test: /[\\/]node_modules[\\/]lucide-react[\\/]/, priority: 40 },
             {
               name: 'korea-map',
-              test: /[\\/]pages[\\/]Korea[\\/](MapMode|Detailed3D|mapLocation|deviceTier|godRays|maxQuality|volumetric|timeOfDay)/,
+              test: /[\\/]pages[\\/]Korea[\\/](MapMode|Detailed3D|mapLocation|deviceTier|godRays|maxQuality|volumetric|timeOfDay|mapSun|mapGrade|adaptiveQuality)/,
               priority: 30,
             },
           ],
