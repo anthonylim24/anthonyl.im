@@ -18,10 +18,17 @@ function mapDay(days: TripDay[], dayId: string, fn: (day: TripDay) => TripDay): 
   return days.map((d) => (d.id === dayId ? fn(d) : d))
 }
 
-export function addItem(days: TripDay[], dayId: string, item: ItineraryItem, index?: number): TripDay[] {
+/** Append an item to a day. */
+export function addItem(days: TripDay[], dayId: string, item: ItineraryItem): TripDay[] {
+  return mapDay(days, dayId, (day) => ({ ...day, items: [...day.items, item] }))
+}
+
+/** Insert an item at a position, clamped into range — the undo path for a
+ *  deleted item, which must land back where it was. */
+export function insertItemAt(days: TripDay[], dayId: string, item: ItineraryItem, index: number): TripDay[] {
   return mapDay(days, dayId, (day) => {
     const items = [...day.items]
-    items.splice(index ?? items.length, 0, item)
+    items.splice(Math.min(Math.max(index, 0), items.length), 0, item)
     return { ...day, items }
   })
 }

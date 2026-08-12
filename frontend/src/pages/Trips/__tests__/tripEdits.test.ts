@@ -3,6 +3,7 @@ import {
   addItem,
   convertNoteToPlace,
   duplicateItem,
+  insertItemAt,
   makeItem,
   moveItem,
   moveItemToDay,
@@ -29,6 +30,27 @@ describe("tripEdits", () => {
   it("adds an item at the end by default", () => {
     const next = addItem(makeDays(), "day-1", makeItem("note", "New"))
     expect(next[0]!.items.map((i) => i.title)).toEqual(["Temple", "Buy Suica", "New"])
+  })
+
+  it("inserts an item at a position", () => {
+    const next = insertItemAt(makeDays(), "day-1", makeItem("note", "New"), 1)
+    expect(next[0]!.items.map((i) => i.title)).toEqual(["Temple", "New", "Buy Suica"])
+  })
+
+  it("clamps an out-of-range insert index", () => {
+    const first = insertItemAt(makeDays(), "day-1", makeItem("note", "New"), -3)
+    expect(first[0]!.items.map((i) => i.title)).toEqual(["New", "Temple", "Buy Suica"])
+    const last = insertItemAt(makeDays(), "day-1", makeItem("note", "New"), 99)
+    expect(last[0]!.items.map((i) => i.title)).toEqual(["Temple", "Buy Suica", "New"])
+  })
+
+  it("restores a deleted item at its original index", () => {
+    const days = makeDays()
+    const index = days[0]!.items.findIndex((i) => i.id === "a")
+    const removed = days[0]!.items[index]!
+    const restored = insertItemAt(removeItem(days, "day-1", "a"), "day-1", removed, index)
+    expect(restored[0]!.items.map((i) => i.id)).toEqual(["a", "b"])
+    expect(restored[0]!.items[index]).toBe(removed)
   })
 
   it("updates an item without touching others", () => {
@@ -73,6 +95,7 @@ describe("tripEdits", () => {
     const days = makeDays()
     const snapshot = JSON.stringify(days)
     addItem(days, "day-1", makeItem("note"))
+    insertItemAt(days, "day-1", makeItem("note"), 0)
     moveItem(days, "day-1", "a", 1)
     removeItem(days, "day-1", "a")
     expect(JSON.stringify(days)).toBe(snapshot)
