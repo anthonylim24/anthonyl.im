@@ -1,0 +1,61 @@
+name: Setup CI
+description: >
+  Bun + dependency caches shared by PR and deploy workflows.
+  Caches ~/.bun/install/cache and (optionally) node_modules trees so
+  parallel PR jobs don't each pay a cold ~80s root install.
+
+inputs:
+  install-root:
+    description: Run `bun install --frozen-lockfile` at the repo root
+    required: false
+    default: "false"
+  install-frontend:
+    description: Run `bun install --frozen-lockfile` in frontend/
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@v2
+
+    # Package tarball cache — cheap, always restore.
+    - name: Cache Bun install cache
+      uses: actions/cache@v5
+      with:
+        path: ~/.bun/install/cache
+        key: ${{ runner.os }}-bun-pkg-${{ hashFiles('bun.lock', 'frontend/bun.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-bun-pkg-
+
+    # Linked node_modules trees — biggest wall-clock win on repeat runs.
+    # Keyed per tree so a frontend-only lock change doesn't invalidate root.
+    - name: Cache root node_modules
+      if: inputs.install-root == 'true'
+      uses: actions/cache@v5
+      with:
+        path: node_modules
+        key: ${{ runner.os }}-nm-root-${{ hashFiles('bun.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-nm-root-
+
+    - name: Cache frontend node_modules
+      if: inputs.install-frontend == 'true'
+      uses: actions/cache@v5
+      with:
+        path: frontend/node_modules
+        key: ${{ runner.os }}-nm-fe-${{ hashFiles('frontend/bun.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-nm-fe-
+
+    - name: Install root deps
+      if: inputs.install-root == 'true'
+      shell: bash
+      run: bun install --frozen-lockfile
+
+    - name: Install frontend deps
+      if: inputs.install-frontend == 'true'
+      shell: bash
+      working-directory: frontend
+      run: bun install --frozen-lockfile

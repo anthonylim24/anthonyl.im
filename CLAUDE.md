@@ -62,7 +62,11 @@ anthonyl.im/
 │           └── error.ts         # Error handler
 ├── supabase/
 │   └── schema.sql               # Database schema
-├── .github/workflows/deploy.yml # CI/CD pipeline (test → build → SSH deploy)
+├── .github/workflows/deploy.yml # Deploy on merge (atomic swap + smoke)
+├── .github/workflows/pr.yml     # PR gate → pr-gate aggregate check
+├── .github/actions/setup-ci/    # Shared Bun + node_modules cache action
+├── docs/ci-cd.md                # CI/CD agent memory (read before changing CI)
+├── .agents/memory/ci-cd.md      # Short pointer to docs/ci-cd.md
 ├── index.ts                     # Root Bun entry point (wraps server/app.ts)
 └── package.json                 # Root workspace (Hono, Clerk, Groq, OpenAI, Zod)
 ```
@@ -154,6 +158,8 @@ INTEGRATION=1 bun test --bail
 
 ## CI/CD Architecture
 
+> Full agent memory: [`docs/ci-cd.md`](docs/ci-cd.md) (also `.agents/memory/ci-cd.md`).
+
 ```
 PR opened ─────► .github/workflows/pr.yml ─┬─► pr-server-tests
                                            ├─► pr-frontend-typecheck
@@ -162,9 +168,12 @@ PR opened ─────► .github/workflows/pr.yml ─┬─► pr-server-tes
                                            ├─► pr-cloud-setup
                                            └─► pr-gate (aggregate; required by branch protection)
 
-merge to main ─► .github/workflows/deploy.yml ─► build, ssh deploy, pm2 restart
-                                              └─► post-deploy smoke (curl live URL, expect 200 + SPA shell)
+merge to main ─► .github/workflows/deploy.yml ─► test → build → stage next → SCP dist
+                                              → atomic swap → PM2 restart (rollback on fail)
+                                              → smoke (/health + SPA shells)
 ```
+
+Shared install/cache lives in `.github/actions/setup-ci`. Lockfiles are text `bun.lock` (Dependabot `package-ecosystem: bun`). Never reintroduce binary `bun.lockb`.
 
 **Branch protection on `main` requires the `pr-gate` aggregate check.** This is enforced for admins too (`enforce_admins: true` in `.github/branch-protection.json`), so a red gate genuinely blocks merge — `gh pr merge --admin` will refuse. To inspect or re-apply the protection:
 
@@ -176,24 +185,22 @@ gh api --method PUT repos/anthonylim24/anthonyl.im/branches/main/protection \
 
 If a check ever needs to be temporarily skipped (genuine emergency hotfix only), edit `.github/branch-protection.json`, re-apply, fix, then revert and re-apply. Never disable protection silently.
 
-The deploy workflow ends with a post-deploy smoke test that curls `https://anthonyl.im/` and verifies the SPA shell is served — so even if PM2 reports "online" but the app crashes at first request, the deploy job goes red.
-
 ## Pre-merge Verification (every change touching shared types)
 
 **Never merge without running the local equivalent of the cloud verify gate first.** A PR that merges red main means every other contributor's next build starts broken. (Branch protection now enforces this at the GitHub level, but running locally first saves a CI round-trip.)
 
-The canonical gate — same as `.codex/check.sh` / `.claude/cloud/verify.sh` and the CI `pr-gate` — is:
+The canonical **local/cloud** gate — `.codex/check.sh` / `.claude/cloud/verify.sh` — is:
 
 ```bash
 # 1. Server tests (mocked, no env needed beyond stubs)
 KLUSTER_API_KEY=ci-stub KLUSTER_API_BASE_URL=https://example.invalid IG_WORKER_ENABLED=false \
   bun test --bail server/src
 
-# 2. Frontend typecheck (catches type-level regressions that vite build alone misses)
+# 2. Frontend typecheck
 cd frontend && bun run typecheck
 ```
 
-If you touched anything in `frontend/`, also run:
+GitHub `pr-gate` is stricter (also build + vitest + cloud-setup smoke). If you touched anything in `frontend/`, also run:
 
 ```bash
 cd frontend && bun run build && bun run test:run
@@ -203,11 +210,11 @@ cd frontend && bun run build && bun run test:run
 
 When you add a field to a TypeScript type that is used as `T | null` (not `T | null | undefined`), **every test fixture must declare the field explicitly** — `undefined` is not assignable to `T | null`. Search for fixtures with: `grep -rn "Partial<TypeName>\|: TypeName" frontend/src/**/__tests__/`.
 
-Recent recurrence: PR #396 added `busyness*` fields to `ExtractedPlace` but didn't update `Places.test.tsx`'s `makePlace()` fixture, which broke `tsc -b --noEmit` on main even though `vite build` (which uses esbuild and skips strict checks) succeeded locally.
+Recent recurrence: PR #396 added `busyness*` fields to `ExtractedPlace` but didn't update `Places.test.tsx`'s `makePlace()` fixture, which broke `tsc -b --noEmit` on main even though a vite-only path could look green.
 
-### Stale-test landmines
+### Frontend unit tests in CI
 
-The frontend unit suite (`bun run test:run`) is intentionally NOT in the deploy gate — historically it has carried pre-existing failures from architecture rewrites (e.g., the BreathFlow-→-Korea PWA migration in PR #319). If you see failing tests in `src/lib/__tests__/metadataAssets.test.ts` or `serviceWorker.test.ts` that reference `/site.webmanifest` or `breathflow-offline-v*`, those are stale relics — update them to match the current Korea PWA, don't roll back behavior to match them.
+`pr-frontend-tests` (vitest) **is** part of `pr-gate` since PR #397 cleaned the stale BreathFlow-PWA assertions. It is still intentionally **not** part of `.codex/check.sh` (keeps cloud verify fast). If you see failing tests referencing `/site.webmanifest` or `breathflow-offline-v*`, update them to match the current Korea PWA — don't roll back behavior to match the tests.
 
 ### Playwright vs. vitest separation
 
@@ -288,13 +295,16 @@ See `frontend/.env.example` and `server/src/config.ts` for the full list.
 **Pipeline:**
 1. Server tests run as gate (`bun test --bail server/src`) — all external calls are mocked.
 2. Frontend builds on CI (`bun run build` in `frontend/`) with secrets injected as `.env`.
-3. Backend deployed to Digital Ocean via SSH: repo re-cloned, `bun install`, system tools checked (yt-dlp, ffmpeg, dev-browser).
-4. Frontend `dist/` uploaded via SCP.
-5. PM2 restarted (`pm2 start bun --name anthonyl.im -- run index.ts`).
+3. Backend staged on Digital Ocean via SSH into `~/anthonyl.im.next` (shallow clone, `bun install --frozen-lockfile`), system tools checked (yt-dlp, ffmpeg, dev-browser).
+4. Frontend `dist/` uploaded via SCP into the staged tree.
+5. Atomic swap `next → live`, PM2 restart; auto-rollback to `prev` if PM2 is not online.
+6. Post-deploy smoke: `/health` JSON + SPA shells on `/`, `/chatbot`, `/breathwork`, `/korea`, `/trips`.
 
 **Server:** Digital Ocean droplet (1 GB RAM). PM2 manages the Bun process. Frontend is static files served by Hono.
 
 **Never build the frontend on the droplet** — 1 GB RAM is not enough for Vite + Tailwind. CI always builds and SCPs the dist.
+
+Full CI/CD agent memory: [`docs/ci-cd.md`](docs/ci-cd.md).
 
 ---
 

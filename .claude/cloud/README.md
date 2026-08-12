@@ -9,7 +9,7 @@ need: Playwright + Chromium so end-to-end tests can run.
 | Script | Purpose |
 |---|---|
 | `setup.sh` | One-shot bootstrap. Runs `.codex/setup.sh` (Bun, Node, deps in **both** root AND `frontend/`, env stubs) then installs Playwright Chromium. Idempotent — safe to re-run. |
-| `verify.sh` | Exec wrapper around `.codex/check.sh` — TS pre-flight + server tests (including the `appLoad` module-load smoke) + frontend typecheck. Matches the GitHub Actions deploy gate. Lint and frontend unit tests are intentionally NOT in the gate (pre-existing failures on main); run them separately when fixing that debt. |
+| `verify.sh` | Exec wrapper around `.codex/check.sh` — TS pre-flight + server tests (including the `appLoad` module-load smoke) + frontend typecheck. Matches the **local/cloud** verify gate. GitHub `pr-gate` is stricter (also frontend build, vitest, and this cloud-setup job). Lint is intentionally NOT in either gate (pre-existing debt); run it separately when fixing that. |
 | `dev.sh` | Boots Hono :3000 and Vite :5173. Exec wrapper around `.codex/dev.sh`. |
 | `e2e.sh` | Runs Playwright against a live full stack. Playwright's `webServer` config owns the lifecycle — no manual server orchestration. |
 | `cloud-setup.test.sh` | Invariant lint for the scripts above. |
@@ -73,9 +73,12 @@ It will catch:
 It will **not** catch:
 
 - ESLint violations (`bun run lint`) — pre-existing failures on main.
-- Frontend unit test regressions (`bun run test:run`) — historically has
-  carried stale tests from architecture rewrites.
+- Frontend unit test regressions (`bun run test:run`) — those run in GitHub
+  `pr-frontend-tests` (part of `pr-gate`) but are kept out of the cloud
+  verify loop for speed. Run them locally before merging frontend changes.
 - Runtime errors visible only in the browser (use `e2e.sh` for those).
+
+See [`docs/ci-cd.md`](../../docs/ci-cd.md) for the full CI/CD agent memory.
 
 **Before merging from the cloud sandbox: re-run `verify.sh` after every
 non-trivial edit.** A red gate means the PR is not safe to merge — do not

@@ -2,29 +2,26 @@ name: PR Checks
 
 # The PR gate. Everything that lands on `main` flows through here first.
 #
-# Branch protection on `main` is configured (via gh api) to require all
-# five `pr-*` checks below before a merge button is enabled. This is the
-# guarantee that broken code cannot reach production: deploy.yml runs
-# only on push to main, and the only way to push to main is via a PR
-# that has passed this gate.
+# Branch protection on `main` requires the aggregate `pr-gate` check
+# (see .github/branch-protection.json). Individual jobs stay visible in
+# the Actions UI for fast triage; only `pr-gate` is the required context.
 #
 # Design choices:
-#   - One workflow, many parallel jobs — UI shows individual statuses
-#     and a failing job blocks merge independently.
-#   - Concurrency group cancels stale runs on push, so the latest
-#     commit always reflects current status.
-#   - Bun + Node + npm-cache stay warm across runs via actions/cache.
-#   - Each job runs the same command an operator would run locally,
-#     so reproducing a CI failure is `bun run <thing>` not "spin up
-#     a container."
+#   - Parallel jobs for independent signals (server / frontend / cloud).
+#   - Shared composite setup (.github/actions/setup-ci) caches Bun packages
+#     AND node_modules so 5 jobs don't each pay a cold install.
+#   - Concurrency cancels stale runs on the same PR.
+#   - Frozen lockfiles everywhere — Dependabot must land a matching
+#     bun.lock (text format; see dependabot.yml package-ecosystem: bun).
+#   - Frontend build already runs `tsc -b` (`bun run build`); the dedicated
+#     typecheck job still exists for a faster --noEmit fail path and clearer
+#     failure attribution.
 
 on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
 
-# Cancel in-flight runs when a new commit lands on the same PR. Saves
-# minutes and makes the latest commit always definitive.
 concurrency:
   group: pr-${{ github.event.pull_request.number }}
   cancel-in-progress: true
@@ -32,124 +29,93 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  # Shared stub env for any job that loads server/src/config.ts
+  KLUSTER_API_KEY: ci-stub
+  KLUSTER_API_BASE_URL: https://example.invalid
+  IG_WORKER_ENABLED: "false"
+
 jobs:
   # ─── 1. Server tests + module-load smoke ────────────────────────────
-  # `bun test server/src` is fast (≤10s) and covers:
-  #   - mocked unit tests for IG worker, geocoding, save, queue
-  #   - `appLoad.test.ts` which imports server/app.ts and forces Bun
-  #     to evaluate the full route + worker dependency graph. Any
-  #     missing/renamed export anywhere fails the gate here instead
-  #     of pm2 at deploy time.
   pr-server-tests:
     name: pr-server-tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-      - uses: oven-sh/setup-bun@v2
-      - uses: actions/cache@v5
+      - uses: ./.github/actions/setup-ci
         with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lockb', 'frontend/bun.lockb') }}
-          restore-keys: ${{ runner.os }}-bun-
-      - name: Install root deps
-        run: bun install --frozen-lockfile
+          install-root: "true"
       - name: Server tests (mocked, includes appLoad smoke)
-        env:
-          KLUSTER_API_KEY: ci-stub
-          KLUSTER_API_BASE_URL: https://example.invalid
-          IG_WORKER_ENABLED: 'false'
         run: bun test --bail server/src
 
   # ─── 2. Frontend typecheck ──────────────────────────────────────────
-  # `tsc -b --noEmit` catches:
-  #   - type drift in shared types (the PR #396 ExtractedPlace fixture)
-  #   - tsconfig misconfigs (the recent ignoreDeprecations cloud bug)
-  # vite build alone uses esbuild and skips strict checks, so this
-  # is mandatory.
   pr-frontend-typecheck:
     name: pr-frontend-typecheck
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
-      - uses: oven-sh/setup-bun@v2
-      - uses: actions/cache@v5
+      - uses: ./.github/actions/setup-ci
         with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lockb', 'frontend/bun.lockb') }}
-          restore-keys: ${{ runner.os }}-bun-
-      - name: Install root deps (peers needed for typecheck)
-        run: bun install --frozen-lockfile
-      - name: Install frontend deps
-        working-directory: frontend
-        run: bun install --frozen-lockfile
+          install-root: "true"
+          install-frontend: "true"
       - name: Frontend typecheck (tsc -b --noEmit)
         working-directory: frontend
         run: bun run typecheck
 
   # ─── 3. Frontend build ──────────────────────────────────────────────
-  # The deploy job runs `bun run build` on CI and SCPs the dist. If
-  # build is red, deploy can't ship — gating on it here means a red
-  # PR can never enter the deploy pipeline. Also surfaces vite/rollup
-  # specific issues (chunking, asset resolution) that tsc misses.
   pr-frontend-build:
     name: pr-frontend-build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
-      - uses: oven-sh/setup-bun@v2
-      - uses: actions/cache@v5
+      - uses: ./.github/actions/setup-ci
         with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lockb', 'frontend/bun.lockb') }}
-          restore-keys: ${{ runner.os }}-bun-
-      - name: Install frontend deps
-        working-directory: frontend
-        run: bun install --frozen-lockfile
+          install-frontend: "true"
       - name: Build with CI env stubs
         working-directory: frontend
         # Stub frontend env so the build doesn't fail on missing secrets.
-        # The dist still ships — runtime reads window-level fallbacks.
+        # Production deploy writes FRONTEND_ENV; this only needs any file
+        # Vite will load for import.meta.env shape checks.
         run: |
-          if [ ! -f .env ]; then cp .env.local.example .env || true; fi
+          if [ ! -f .env ]; then
+            if [ -f .env.local.example ]; then
+              cp .env.local.example .env
+            elif [ -f .env.example ]; then
+              cp .env.example .env
+            fi
+          fi
           bun run build
 
   # ─── 4. Frontend unit tests ─────────────────────────────────────────
-  # Vitest suite — 416 tests at time of authoring. Was historically
-  # left out of the gate due to stale BreathFlow-PWA assertions, but
-  # PR #397 fixed those, so it's safe to require now.
+  # Required since PR #397 cleaned the stale BreathFlow-PWA assertions.
   pr-frontend-tests:
     name: pr-frontend-tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
-      - uses: oven-sh/setup-bun@v2
-      - uses: actions/cache@v5
+      - uses: ./.github/actions/setup-ci
         with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lockb', 'frontend/bun.lockb') }}
-          restore-keys: ${{ runner.os }}-bun-
-      - name: Install frontend deps
-        working-directory: frontend
-        run: bun install --frozen-lockfile
+          install-frontend: "true"
       - name: Vitest
         working-directory: frontend
         run: bun run test:run
 
   # ─── 5. Cloud-agent setup smoke ─────────────────────────────────────
-  # Runs the same setup + verify pipeline that Codex and Claude Code
-  # cloud use. If a PR breaks the cloud sandbox bootstrap, we want
-  # to know now rather than the next time someone opens a cloud task.
+  # Verifies Codex/Claude bootstrap still works end-to-end. Intentionally
+  # re-runs the local verify gate via setup.sh → check.sh so a broken
+  # cloud path fails here even if other jobs are green via a different
+  # install path.
   pr-cloud-setup:
     name: pr-cloud-setup
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
-      - uses: oven-sh/setup-bun@v2
-      - uses: actions/cache@v5
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lockb', 'frontend/bun.lockb') }}
-          restore-keys: ${{ runner.os }}-bun-
+      - uses: ./.github/actions/setup-ci
       - name: Run codex setup (the cloud bootstrap path)
         run: bash .codex/setup.sh
       - name: Run codex check (the cloud verify gate)
@@ -160,12 +126,12 @@ jobs:
           bash .claude/cloud/cloud-setup.test.sh
 
   # ─── Aggregate status ───────────────────────────────────────────────
-  # Single check the branch protection rule depends on. Allows adding
-  # / removing individual checks without re-configuring the protected
-  # branch every time. Required by the `merge required-checks` rule.
+  # Single check branch protection depends on. Add/remove jobs above
+  # without re-configuring the protected branch — just update `needs`.
   pr-gate:
     name: pr-gate
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs:
       - pr-server-tests
       - pr-frontend-typecheck
@@ -176,12 +142,22 @@ jobs:
     steps:
       - name: Gate result
         run: |
-          if [ "${{ needs.pr-server-tests.result }}" != "success" ] \
-             || [ "${{ needs.pr-frontend-typecheck.result }}" != "success" ] \
-             || [ "${{ needs.pr-frontend-build.result }}" != "success" ] \
-             || [ "${{ needs.pr-frontend-tests.result }}" != "success" ] \
-             || [ "${{ needs.pr-cloud-setup.result }}" != "success" ]; then
+          results=(
+            "${{ needs.pr-server-tests.result }}"
+            "${{ needs.pr-frontend-typecheck.result }}"
+            "${{ needs.pr-frontend-build.result }}"
+            "${{ needs.pr-frontend-tests.result }}"
+            "${{ needs.pr-cloud-setup.result }}"
+          )
+          failed=0
+          for r in "${results[@]}"; do
+            if [ "$r" != "success" ]; then
+              failed=1
+            fi
+          done
+          if [ "$failed" -ne 0 ]; then
             echo "::error::One or more PR checks failed — not safe to merge."
+            printf '  %s\n' "${results[@]}"
             exit 1
           fi
           echo "All PR checks passed."

@@ -1,76 +1,91 @@
 name: Build & Deploy
+
+# Ships main → DigitalOcean droplet.
+#
+# Invariants (do not break):
+#   - Frontend is built on the GH runner (never on the 1 GB droplet).
+#   - Dist is SCP'd into place; PM2 only restarts after dist/index.html exists.
+#   - Post-deploy smoke hits live HTTPS routes; PM2 "online" alone is not enough.
+#   - Backend install uses --frozen-lockfile so a drifted lock cannot ship.
+#
+# Deploy strategy: prepare ~/anthonyl.im.next, then atomic swap into
+# ~/anthonyl.im before PM2 restart. Avoids the old rm -rf + clone window
+# where the live path briefly disappeared.
+
 on:
   push:
     branches: [main]
 
+# Never cancel an in-flight production deploy; queue the next one instead.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  KLUSTER_API_KEY: ci-stub
+  KLUSTER_API_BASE_URL: https://example.invalid
+  IG_WORKER_ENABLED: "false"
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
+      - name: Set up Bun + caches
+        uses: ./.github/actions/setup-ci
         with:
-          node-version: '26'
+          install-root: "true"
+          install-frontend: "true"
 
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-
-      # Cache downloaded packages — speeds up repeated deploys significantly
-      - name: Cache bun packages
-        uses: actions/cache@v5
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lockb', 'frontend/bun.lockb') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-
-
-      # Test gate: red tests block the deploy. Server tests don't need any
-      # external env to run — all third-party calls are mocked.
-      - name: Install root deps
-        run: bun install
-
+      # Re-run the server gate on main. PR already passed, but a force-push
+      # or protection misconfig must not ship red tests.
       - name: Run server tests
-        env:
-          # Stub values so config.ts's required-env check passes during tests.
-          KLUSTER_API_KEY: ci-stub
-          KLUSTER_API_BASE_URL: https://example.invalid
-          IG_WORKER_ENABLED: 'false'
         run: bun test --bail server/src
 
       - name: Build frontend
         working-directory: frontend
         run: |
           echo "${{ secrets.FRONTEND_ENV }}" > .env
-          bun install
           bun run build
 
-      # Clone repo & install backend deps, then prepare the dist directory for SCP
-      - name: Deploy backend
+      # Stage the next release under ~/anthonyl.im.next (does not touch the
+      # live tree yet). System tools install is idempotent + non-fatal.
+      - name: Stage backend on droplet
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.SSH_HOST }}
           key: ${{ secrets.SSH_KEY }}
           username: ${{ secrets.SSH_USERNAME }}
           script: |
-            set -e
-            rm -rf ~/anthonyl.im/
-            git clone git@github.com:anthonylim24/anthonyl.im.git
-            cp ~/.env ~/anthonyl.im/.env
-            cp ~/.env ~/anthonyl.im/frontend/.env
-            cd ~/anthonyl.im/
-            if [ ! -f ~/.bun/bin/bun ]; then
+            set -euo pipefail
+            export PATH="$HOME/.bun/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+
+            NEXT="$HOME/anthonyl.im.next"
+            REPO="git@github.com:anthonylim24/anthonyl.im.git"
+
+            # Stage into a sibling directory so the live tree keeps serving
+            # until the atomic swap step. Shallow clone keeps droplet disk low.
+            rm -rf "$NEXT"
+            git clone --depth=1 --branch main "$REPO" "$NEXT"
+            cd "$NEXT"
+
+            cp "$HOME/.env" "$NEXT/.env"
+            cp "$HOME/.env" "$NEXT/frontend/.env"
+
+            if [ ! -x "$HOME/.bun/bin/bun" ]; then
               curl -fsSL https://bun.sh/install | bash
             fi
-            ~/.bun/bin/bun install
+            export PATH="$HOME/.bun/bin:$PATH"
+            bun install --frozen-lockfile
 
-            # System tools the IG places worker needs at runtime. Each
-            # installer is idempotent + non-fatal — a broken apt sources.list
-            # or a transient mirror outage shouldn't fail the whole deploy.
-            # The worker degrades gracefully (caption-only bundle) when these
-            # are missing, so the website still goes live.
+            # System tools the IG places worker needs. Non-fatal — worker
+            # degrades to caption-only when these are missing.
 
             if ! command -v yt-dlp >/dev/null 2>&1; then
               echo "[deploy] yt-dlp missing — installing latest standalone binary"
@@ -82,15 +97,10 @@ jobs:
 
             if ! command -v ffmpeg >/dev/null 2>&1; then
               echo "[deploy] ffmpeg missing — trying apt first, static binary as fallback"
-              # apt path. Use `apt-get install` (no update) so we use the
-              # already-cached package lists. If the local cache is empty OR
-              # the install itself fails (e.g., apt sources.list is broken),
-              # fall through to the static-binary path.
               (sudo apt-get install -y -qq ffmpeg 2>&1 \
-                | grep -v -E '^E: The repository' || true) >/dev/null
+                | grep -v -E '^E: The repository' || true) >/dev/null || true
               if ! command -v ffmpeg >/dev/null 2>&1; then
                 echo "[deploy] apt install of ffmpeg failed — fetching static binary"
-                # John Van Sickle hosts canonical Linux x86_64 static builds.
                 TMPF=$(mktemp -d)
                 if curl -fsSL https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz \
                      -o "$TMPF/ffmpeg.tar.xz" \
@@ -99,24 +109,16 @@ jobs:
                    && [ -n "$FFBIN" ]; then
                   sudo mv "$FFBIN" /usr/local/bin/ffmpeg
                   sudo chmod a+rx /usr/local/bin/ffmpeg
-                  rm -rf "$TMPF"
                 else
                   echo "[deploy] WARN: ffmpeg static-binary install also failed; transcription/frame-OCR will be skipped per-job"
-                  rm -rf "$TMPF"
                 fi
+                rm -rf "$TMPF"
               fi
             fi
 
-            # dev-browser: drives a headless Chromium for the IG video
-            # extraction fallback (when yt-dlp is rate-limited AND direct
-            # CDN download fails). First install grabs ~200 MB of headless
-            # Chromium; subsequent runs are no-ops. ~190 MB RSS at runtime.
             if ! command -v dev-browser >/dev/null 2>&1; then
               echo "[deploy] dev-browser missing — installing globally"
-              # Try global install; fall back to a non-fatal warn so the
-              # deploy still ships if npm is unavailable.
               if sudo npm install -g dev-browser 2>&1 | tail -3; then
-                # Trigger the one-time browser-binary download
                 dev-browser install 2>&1 | tail -3 \
                   || echo "[deploy] WARN: dev-browser install (binary download) failed; headless fallback will be skipped"
               else
@@ -124,58 +126,65 @@ jobs:
               fi
             fi
 
+            echo "[deploy] staged $NEXT"
             echo "[deploy] yt-dlp: $(command -v yt-dlp >/dev/null 2>&1 && yt-dlp --version 2>/dev/null || echo MISSING)"
             echo "[deploy] ffmpeg: $(command -v ffmpeg >/dev/null 2>&1 && ffmpeg -version 2>/dev/null | head -1 || echo MISSING)"
             echo "[deploy] dev-browser: $(command -v dev-browser >/dev/null 2>&1 && dev-browser --version 2>/dev/null || echo MISSING)"
 
-      # Upload the CI-built dist — server never builds, so no OOM risk on 1GB droplet
-      # scp-action preserves the full source path, so source "frontend/dist" + target "anthonyl.im"
-      # lands at ~/anthonyl.im/frontend/dist — matching app.ts's production distPath
-      - name: Upload frontend build
+      # Upload CI-built dist into the staged tree (not the live tree yet).
+      # scp-action preserves source path, so "frontend/dist" + target
+      # "anthonyl.im.next" lands at ~/anthonyl.im.next/frontend/dist.
+      - name: Upload frontend build to staging
         uses: appleboy/scp-action@v1.0.0
         with:
           host: ${{ secrets.SSH_HOST }}
           key: ${{ secrets.SSH_KEY }}
           username: ${{ secrets.SSH_USERNAME }}
           source: "frontend/dist"
-          target: "anthonyl.im"
+          target: "anthonyl.im.next"
 
-      - name: Verify dist and restart PM2
+      - name: Atomic swap + PM2 restart
         uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.SSH_HOST }}
           key: ${{ secrets.SSH_KEY }}
           username: ${{ secrets.SSH_USERNAME }}
           script: |
-            set -e
+            set -euo pipefail
             # Non-interactive SSH inherits a minimal PATH that often omits
-            # /usr/local/bin (where `sudo npm install -g` lands binaries
-            # like dev-browser). Explicitly prepend the standard binary
-            # dirs so PM2's child process can find yt-dlp, ffmpeg, and
-            # dev-browser. Without this the IG worker logs
-            # "[ig:bundle] dev-browser NOT in $PATH" and silently skips
-            # the headless video fallback.
+            # /usr/local/bin (where `sudo npm install -g` lands binaries).
             export PATH="$HOME/.bun/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 
-            if [ ! -f ~/anthonyl.im/frontend/dist/index.html ]; then
-              echo "ERROR: frontend/dist/index.html not found"
-              ls -laR ~/anthonyl.im/frontend/ 2>/dev/null || echo "frontend/ dir missing"
+            LIVE="$HOME/anthonyl.im"
+            NEXT="$HOME/anthonyl.im.next"
+            PREV="$HOME/anthonyl.im.prev"
+
+            if [ ! -f "$NEXT/frontend/dist/index.html" ]; then
+              echo "ERROR: $NEXT/frontend/dist/index.html not found"
+              ls -laR "$NEXT/frontend/" 2>/dev/null || echo "frontend/ dir missing"
               exit 1
             fi
-            echo "dist verified: $(ls ~/anthonyl.im/frontend/dist/ | wc -l) entries"
+            echo "dist verified: $(ls "$NEXT/frontend/dist/" | wc -l) entries"
 
-            if ! command -v pm2 &>/dev/null; then
+            if ! command -v pm2 >/dev/null 2>&1; then
               bun add -g pm2
             fi
 
-            # Sanity-check binaries pm2's child needs at runtime
             echo "[deploy] PATH=$PATH"
             echo "[deploy] yt-dlp: $(command -v yt-dlp >/dev/null && which yt-dlp || echo MISSING)"
             echo "[deploy] ffmpeg: $(command -v ffmpeg >/dev/null && which ffmpeg || echo MISSING)"
             echo "[deploy] dev-browser: $(command -v dev-browser >/dev/null && which dev-browser || echo MISSING)"
 
+            # Atomic swap: live → prev, next → live. Downtime is only the
+            # PM2 restart window, not a missing directory during clone.
+            rm -rf "$PREV"
+            if [ -d "$LIVE" ]; then
+              mv "$LIVE" "$PREV"
+            fi
+            mv "$NEXT" "$LIVE"
+
             pm2 delete anthonyl.im 2>/dev/null || true
-            cd ~/anthonyl.im
+            cd "$LIVE"
             # --update-env so PM2 captures the explicit PATH we just set
             # rather than the daemon's stale environment from a previous
             # deploy (which may not have included /usr/local/bin).
@@ -187,29 +196,48 @@ jobs:
 
             if pm2 show anthonyl.im | grep -q "status.*online"; then
               echo 'Deployment successful to Digital Ocean'
+              rm -rf "$PREV"
             else
-              echo "ERROR: Process is not online"
+              echo "ERROR: Process is not online — attempting rollback to prev"
               pm2 show anthonyl.im
+              if [ -d "$PREV" ]; then
+                pm2 delete anthonyl.im 2>/dev/null || true
+                rm -rf "$LIVE"
+                mv "$PREV" "$LIVE"
+                cd "$LIVE"
+                pm2 start bun --name anthonyl.im --update-env -- run index.ts
+                echo "[deploy] rolled back to previous release"
+              fi
               exit 1
             fi
 
-      # Post-deploy smoke check. Runs from the GitHub runner against the
-      # public URL — fails the deploy job if the site doesn't actually
-      # serve a 200 with the expected SPA shell after the restart. This
-      # is the last line of defense: if PM2 reports "online" but the app
-      # crashed at first request (e.g., missing-export caught only at
-      # route handling time), this catches it.
-      #
-      # Probes each per-app route so a Korea- or BreathFlow-specific
-      # server regression (bad OG injection, missing manifest swap, etc.)
-      # also fails the deploy — not just the chatbot root.
-      - name: Post-deploy smoke (live URL returns 200 + SPA shell)
+      # Post-deploy smoke. Last line of defense: PM2 "online" can lie if the
+      # app crashes on first request. Probe health JSON + SPA shells.
+      - name: Post-deploy smoke (live URL healthy + SPA shell)
         run: |
           set -euo pipefail
           BASE="https://anthonyl.im"
-          PATHS=("/" "/chatbot" "/breathwork" "/korea")
-          echo "[smoke] waiting 10s for app to warm up"
-          sleep 10
+          echo "[smoke] waiting for /health"
+          OK=0
+          for attempt in 1 2 3 4 5 6; do
+            if BODY="$(curl -fsSL --max-time 10 "$BASE/health" 2>/dev/null)"; then
+              if echo "$BODY" | grep -q '"status":"ok"'; then
+                echo "[smoke] /health OK on attempt $attempt — $BODY"
+                OK=1
+                break
+              fi
+              echo "[smoke] /health returned unexpected body: $BODY"
+            else
+              echo "[smoke] /health not ready (attempt $attempt)"
+            fi
+            sleep 3
+          done
+          if [ "$OK" -ne 1 ]; then
+            echo "::error::Post-deploy smoke failed — $BASE/health did not return status ok"
+            exit 1
+          fi
+
+          PATHS=("/" "/chatbot" "/breathwork" "/korea" "/trips")
           for path in "${PATHS[@]}"; do
             URL="${BASE}${path}"
             OK=0
@@ -223,7 +251,7 @@ jobs:
                 fi
                 echo "[smoke] WARN: 200 OK but SPA shell missing for $path; retrying"
               fi
-              sleep 5
+              sleep 3
             done
             if [ "$OK" -ne 1 ]; then
               echo "::error::Post-deploy smoke failed — $URL is not serving the SPA shell"
