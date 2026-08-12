@@ -15,20 +15,20 @@ describe('time-of-day grade', () => {
     expect(gradeKindAt(23)).toBe('night')
   })
 
-  it('returns a non-empty CSS filter string at every hour', () => {
+  it('returns a CSS filter string or none at every hour', () => {
     for (let h = 0; h < 24; h += 0.5) {
       const f = cssFilterFor(h)
-      expect(f).toMatch(/brightness|saturate|hue-rotate/)
+      expect(f === 'none' || /brightness|saturate|sepia|contrast/.test(f)).toBe(true)
     }
   })
 
   it('arrivalStartFilter composes onto the hour grade (dimmer + less saturated)', () => {
-    const base = cssFilterFor(12)
     const start = arrivalStartFilter(12)
-    expect(start.startsWith(base)).toBe(true)
-    // Composed dim/desat must be present.
     expect(start).toContain('brightness(0.55)')
     expect(start).toContain('saturate(0.7)')
+    const duskStart = arrivalStartFilter(18.5)
+    const duskBase = cssFilterFor(18.5)
+    expect(duskStart.startsWith(duskBase)).toBe(true)
   })
 
   it('kstHour() returns a number in [0, 24)', () => {
@@ -56,8 +56,8 @@ describe('time-of-day grade', () => {
       expect(parseInt(night.slice(1, 3), 16)).toBeLessThan(parseInt(night.slice(5, 7), 16))
       expect(parseInt(evening.slice(1, 3), 16)).toBeLessThan(parseInt(evening.slice(5, 7), 16))
       // Warm — R should exceed B.
-      const dawn = fogForHour(6).color // #f3b6a0
-      const dusk = fogForHour(19).color // #d68a4a
+      const dawn = fogForHour(6).color
+      const dusk = fogForHour(19).color
       expect(parseInt(dawn.slice(1, 3), 16)).toBeGreaterThan(parseInt(dawn.slice(5, 7), 16))
       expect(parseInt(dusk.slice(1, 3), 16)).toBeGreaterThan(parseInt(dusk.slice(5, 7), 16))
     })

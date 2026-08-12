@@ -2,46 +2,34 @@
 //
 // Pipeline (when toggled on):
 //
-//   scene + god-rays  →  HDR RT (HalfFloat, MSAA)
+//   scene              →  HDR RT (HalfFloat, no MSAA — iOS HalfFloat+MSAA is buggy)
 //                    ↑
 //   clouds (half-res)─┘  (composited as a transparent overlay)
 //                    ↓
-//                  Bloom (luminance high-pass → 5-mip Gaussian → composite)
+//                  Bloom (UnrealBloomPass internally half-res of composer)
 //                    ↓
-//             GradeTone shader (per-phase color matrix → AgX → sRGB encode)
+//             Grade shader (CDL + split-tone + vignette + grain)
 //                    ↓
-//                   SMAA (edge detection + neighborhood blend)
+//                 OutputPass (sRGB encode; NoToneMapping — tiles are LDR)
+//                    ↓
+//                   SMAA (edge detection on LDR sRGB)
 //                    ↓
 //                 default framebuffer
 //
-// Why this shape:
-//   - HalfFloat RT preserves highlights past 1.0 so the bloom pass
-//     can read actual HDR overshoot (sun, lit windows at night).
-//   - AgX (added in three r167) keeps hue stability on warm sunsets
-//     where ACES otherwise crushes orange→yellow and ruins the
-//     rose/amber Korea palette.
-//   - The custom GradeTone pass folds color grading + tone-mapping +
-//     sRGB encode into ONE fullscreen draw, saving ~0.5 ms vs the
-//     stock OutputPass for the mobile budget.
-//   - SMAA last — it samples LDR sRGB so it has to run after the
-//     tone-map. Edge detection on Seoul's long verticals is the
-//     specific reason FXAA is rejected.
-//   - The clouds run BEFORE bloom so bright fringes can pick up
-//     atmospheric glow; the god-rays output is folded into the same
-//     HDR RT so its accumulation participates in tone-map and bloom
-//     for free (sun shafts now bleed light into the bloom passes).
-//
-// References: see PR #419 research briefs.
+// Photogrammetry is already tonemapped at source. We never run AgX/ACES
+// over it — that was the washed-out gray look. Grade is the only look
+// control; OutputPass only encodes. God rays are a separate path: when
+// Max Quality is on we do not construct them (VRAM + compile hitch).
 
 import {
   HalfFloatType,
-  Matrix3,
   NoToneMapping,
   RGBAFormat,
   type PerspectiveCamera,
   type Scene,
   type ToneMapping,
   Vector2,
+  Vector3,
   WebGLRenderTarget,
   type WebGLRenderer,
 } from "three"
@@ -53,101 +41,27 @@ import { SMAAPass } from "three/examples/jsm/postprocessing/SMAAPass.js"
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js"
 import { gradeKindAt, type GradeKind } from "./timeOfDayGrade"
 import { VolumetricClouds } from "./volumetricClouds"
-
-// Per-phase color grading matrices. Punchier than the v1 values —
-// previously they were so close to identity that the user saw the
-// scene as "gray washed out" because AgX tonemap was the dominant
-// effect (and it desaturates LDR input). Now we drop AgX entirely
-// (LDR Google tiles don't need filmic compression) and let these
-// matrices do all the artistic lifting.
-//
-// Layout: row-major. r-out = m[0]*r + m[1]*g + m[2]*b; etc. Three.js
-// `Matrix3.set(n11,n12,n13,n21,n22,n23,n31,n32,n33)` reads in this
-// order.
-// Each row's POSITIVE-coefficient sum is kept ≤ 1.0 so a white input
-// can never blow up to >1.0 in any single channel (the v1 matrices had
-// blue diagonals of 1.10–1.25 with positive cross-channel terms, which
-// turned the sky-color clear into a pure-blue clamp → "blue screen"
-// bug). Cinematic look now comes from CROSS-CHANNEL ROUTING and
-// per-phase exposure, not from amplifying diagonals.
-//
-// Layout: row-major (Three.js Matrix3.set order).
-const GRADE_MATRIX: Record<GradeKind, [number, number, number, number, number, number, number, number, number]> = {
-  night: [
-    // Cool deep blue, crush red, lift indigo. Row sums: 0.62 / 0.72 / 1.00
-    0.62, 0.00, 0.00,
-    0.00, 0.72, 0.00,
-    0.05, 0.10, 0.85,
-  ],
-  dawn: [
-    // Coral / sodium-pink. Row sums: 1.00 / 0.98 / 0.78
-    0.95, 0.05, 0.00,
-    0.04, 0.94, 0.00,
-    -0.10, -0.08, 0.78,
-  ],
-  morning: [
-    // Crisp cool blue, gentle. Row sums: 1.00 / 1.00 / 1.00
-    1.00, -0.02, -0.02,
-    -0.02, 1.00, 0.00,
-    -0.04, 0.02, 0.95,
-  ],
-  midday: [
-    // Near-identity (honest baseline).
-    1.00, 0.00, 0.00,
-    0.00, 1.00, 0.00,
-    0.00, 0.00, 1.00,
-  ],
-  afternoon: [
-    // Warmer light, mild golden bias. Row sums: 1.02 / 0.98 / 0.92
-    0.98, 0.04, 0.00,
-    0.02, 0.96, 0.00,
-    -0.06, -0.02, 0.92,
-  ],
-  dusk: [
-    // Full golden hour — strong warmth, drop blues. Row sums: 1.00 / 0.92 / 0.72
-    0.92, 0.08, 0.00,
-    0.04, 0.88, 0.00,
-    -0.14, -0.10, 0.72,
-  ],
-  evening: [
-    // Melancholic dim-blue. Row sums: 0.72 / 0.82 / 1.00
-    0.72, 0.00, 0.00,
-    0.00, 0.82, 0.00,
-    0.04, 0.06, 0.90,
-  ],
-}
-
-// Per-phase exposure (a uniform pre-multiplier on rgb before the
-// matrix). Without AgX we can be more aggressive — these values
-// brighten night a touch so neon pops and dim daylight slightly so
-// highlights don't blow. Wired into `grade.uniforms.uExposure` in
-// `setHourPhase` (was bugged in v1 — only the renderer's tonemap
-// exposure was being driven, but the renderer's tonemap was AgX,
-// which we've removed).
-const EXPOSURE: Record<GradeKind, number> = {
-  // Conservatively bounded so matrix × exposure never pushes any
-  // channel >1.0 from a typical LDR Google-tile input (max ~0.95).
-  // The soft-clamp in GRADE_FRAGMENT handles any remaining overshoot.
-  night: 1.10,
-  dawn: 1.00,
-  morning: 1.02,
-  midday: 0.98,
-  afternoon: 1.00,
-  dusk: 1.08,
-  evening: 1.05,
-}
+import {
+  GRADE_APPLY_GLSL,
+  GRADE_UNIFORMS_GLSL,
+  gradeParamsAt,
+  writeGradeUniforms,
+  type GradeUniformBag,
+} from "./mapGrade"
+import type { QualityLod } from "./adaptiveQuality"
 
 // Bloom thresholds per phase. Threshold >1.0 by day so only HDR
 // overshoot (sun) glows; threshold ≤0.7 at night so neon + window
-// lights bloom even though they're not over 1.0.
+// lights bloom even though they're not over 1.0. Strength is kept
+// modest — UnrealBloom at half-res is the fill-rate budget for 120 Hz.
 const BLOOM: Record<GradeKind, { threshold: number; strength: number; radius: number }> = {
-  night:     { threshold: 0.55, strength: 0.95, radius: 0.75 },
-  dawn:      { threshold: 0.85, strength: 0.55, radius: 0.55 },
-  morning:   { threshold: 1.10, strength: 0.30, radius: 0.40 },
-  midday:    { threshold: 1.15, strength: 0.25, radius: 0.40 },
-  afternoon: { threshold: 1.00, strength: 0.40, radius: 0.50 },
-  dusk:      { threshold: 0.85, strength: 0.60, radius: 0.55 },
-  evening:   { threshold: 0.70, strength: 0.75, radius: 0.65 },
+  night:     { threshold: 0.75, strength: 0.38, radius: 0.40 },
+  dawn:      { threshold: 0.95, strength: 0.28, radius: 0.36 },
+  morning:   { threshold: 1.20, strength: 0.12, radius: 0.28 },
+  midday:    { threshold: 1.25, strength: 0.10, radius: 0.28 },
+  afternoon: { threshold: 1.10, strength: 0.18, radius: 0.32 },
+  dusk:      { threshold: 0.95, strength: 0.28, radius: 0.36 },
+  evening:   { threshold: 0.85, strength: 0.32, radius: 0.38 },
 }
 
 // Cloud composite — alpha-blends the half-res cloud RT on top of the
@@ -182,12 +96,8 @@ const CloudCompositeShader = {
   fragmentShader: CLOUD_COMPOSITE_FRAGMENT,
 }
 
-// Custom output pass: per-phase color matrix (HDR) → AgX → sRGB encode.
-// AgX is provided by three's built-in `renderer.toneMapping`, but to
-// run on a post-process RT we apply the matrix here in HDR space and
-// let the renderer's tone-mapping in the OUTPUT step handle the
-// filmic curve. Three.js wires this automatically when
-// `renderer.outputColorSpace = SRGBColorSpace`.
+// Filmic grade: exposure / CDL / split-tone / vignette / grain.
+// Shared with the god-rays composite so both paths match.
 const GRADE_VERTEX = /* glsl */ `
   varying vec2 vUv;
   void main() {
@@ -200,26 +110,29 @@ const GRADE_FRAGMENT = /* glsl */ `
   precision highp float;
   varying vec2 vUv;
   uniform sampler2D tDiffuse;
-  uniform mat3 uMatrix;
-  uniform float uExposure;
+  ${GRADE_UNIFORMS_GLSL}
+  ${GRADE_APPLY_GLSL}
   void main() {
     vec4 c = texture2D(tDiffuse, vUv);
-    vec3 graded = uMatrix * c.rgb * uExposure;
-    // Hard clamp to [0, 1]. Previous Reinhard-style soft-clamp was
-    // dimming midtones by 7–13% across the board (user reported
-    // "terrain is quite dark" with Max Quality on). Hard clamp
-    // preserves midtones exactly; matrix row-sums are already capped
-    // at ≤1.0 so this can only catch defensive overshoot, not
-    // realistic content.
-    gl_FragColor = vec4(clamp(graded, vec3(0.0), vec3(1.0)), c.a);
+    gl_FragColor = vec4(applyGrade(c.rgb, vUv), c.a);
   }
 `
 
 const GradeToneShader = {
   uniforms: {
     tDiffuse: { value: null },
-    uMatrix: { value: new Matrix3() },
     uExposure: { value: 1.0 },
+    uContrast: { value: 1.0 },
+    uSaturation: { value: 1.0 },
+    uLift: { value: new Vector3(0, 0, 0) },
+    uGamma: { value: new Vector3(1, 1, 1) },
+    uGain: { value: new Vector3(1, 1, 1) },
+    uShadowTint: { value: new Vector3(1, 1, 1) },
+    uHighlightTint: { value: new Vector3(1, 1, 1) },
+    uVignette: { value: 0.08 },
+    uGrain: { value: 0.0 },
+    uShoulder: { value: 0.06 },
+    uGradeTime: { value: 0.0 },
   },
   vertexShader: GRADE_VERTEX,
   fragmentShader: GRADE_FRAGMENT,
@@ -246,9 +159,13 @@ export class MaxQualityPipeline {
   private prevToneMapping: ToneMapping
   private prevToneExposure: number
   private prevOutputColorSpace: string
+  private reducedMotion: boolean
+  private grainEnabled: boolean
 
   constructor(opts: MaxQualityPipelineOptions) {
     this.renderer = opts.renderer
+    this.reducedMotion = opts.reducedMotion
+    this.grainEnabled = !opts.reducedMotion
     // Stash existing renderer state so dispose() can restore it
     // cleanly when the user toggles Max Quality off.
     this.prevToneMapping = this.renderer.toneMapping
@@ -279,8 +196,6 @@ export class MaxQualityPipeline {
       samples: 0,
     })
     this.composer = new EffectComposer(this.renderer, hdrRT)
-    this.composer.setSize(opts.size.w, opts.size.h)
-    this.composer.setPixelRatio(dpr)
 
     // 1) Scene render → HDR RT.
     this.renderPass = new RenderPass(opts.scene, opts.camera)
@@ -297,42 +212,40 @@ export class MaxQualityPipeline {
     this.cloudComposite.uniforms.tClouds.value = this.clouds.texture
     this.composer.addPass(this.cloudComposite)
 
-    // 3) Bloom — HDR-aware threshold so we don't bloom every white wall.
+    // 3) Bloom — UnrealBloomPass internally half-res of the composer
+    //    drawing buffer. Do not pre-halve the constructor size; the
+    //    composer's setSize() overwrites it with device pixels.
     this.bloom = new UnrealBloomPass(new Vector2(opts.size.w, opts.size.h), 0.4, 0.5, 1.0)
     this.composer.addPass(this.bloom)
 
-    // 4) Grade + exposure (matrix in HDR space, identity at midday).
+    // 4) Filmic grade (CDL + split-tone + vignette + grain).
     this.grade = new ShaderPass(GradeToneShader)
     this.composer.addPass(this.grade)
 
-    // 5) OutputPass — applies `renderer.toneMapping` (AgX) +
-    //    `renderer.outputColorSpace` (sRGB) to the linear HDR buffer.
-    //    Without this pass the HDR values just clamp to 0–1, AgX
-    //    never runs, and the canvas looks washed-out / uniform-tinted.
-    //    This was the v1 bug.
+    // 5) OutputPass — sRGB encode of the (already LDR) buffer.
+    //    Tone mapping is NoToneMapping; tiles are pre-tonemapped.
     this.output = new OutputPass()
     this.composer.addPass(this.output)
 
-    // 6) SMAA — last pass, in LDR sRGB, cleans up edge aliasing.
-    //    SMAAPass in three r0.184 takes no constructor args; sizing is
-    //    handled via the composer's size + the pass's own setSize().
+    // 6) SMAA — last pass, in LDR sRGB.
     this.smaa = new SMAAPass()
-    this.smaa.setSize(w, h)
     this.composer.addPass(this.smaa)
+
+    // Size after every pass is registered so SMAA/bloom get device
+    // pixels, not CSS pixels.
+    this.composer.setPixelRatio(dpr)
+    this.composer.setSize(opts.size.w, opts.size.h)
   }
 
-  /** Drive per-phase uniforms (color grade, exposure, bloom threshold,
-   *  cloud palette). Call once at mount and whenever the KST hour rolls
-   *  into a new phase. */
+  /** Drive per-phase uniforms (color grade, bloom, cloud palette). */
   setHourPhase(hour: number): void {
     const kind = gradeKindAt(hour)
-    const m = GRADE_MATRIX[kind]
-    const matrix = this.grade.material.uniforms.uMatrix.value as Matrix3
-    matrix.set(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8])
-    // Wire the per-phase exposure into the grade shader's uniform
-    // (v1 forgot this — uExposure stayed at 1.0). Renderer tone-map
-    // is NoToneMapping so the renderer's exposure is unused.
-    this.grade.material.uniforms.uExposure.value = EXPOSURE[kind]
+    writeGradeUniforms(
+      this.grade.material.uniforms as unknown as GradeUniformBag,
+      gradeParamsAt(hour),
+      0,
+      this.grainEnabled,
+    )
     const b = BLOOM[kind]
     this.bloom.threshold = b.threshold
     this.bloom.strength = b.strength
@@ -340,21 +253,42 @@ export class MaxQualityPipeline {
     this.clouds.setHourPhase(hour, 1)
   }
 
+  setSunDirection(x: number, y: number, z: number): void {
+    this.clouds.setSunDirection(x, y, z)
+  }
+
+  setGradeEnabled(on: boolean): void {
+    this.grade.enabled = on
+  }
+
+  /** Drop expensive passes when the frame budget is tight.
+   *  Bloom stays on — it's the look the user opted into. Clouds are
+   *  the ray-march; SMAA is the last thing we keep. */
+  setLod(lod: QualityLod): void {
+    this.bloom.enabled = true
+    this.cloudComposite.enabled = lod === "full" && !this.reducedMotion
+    this.smaa.enabled = lod !== "lite"
+  }
 
   resize(w: number, h: number): void {
+    const dpr = this.renderer.getPixelRatio()
+    this.composer.setPixelRatio(dpr)
     this.composer.setSize(w, h)
     this.clouds.resize(w, h)
-    this.smaa.setSize(w, h)
   }
 
   /** Tick the cloud wind drift + render the entire HDR pipeline. */
   render(timeSec: number): void {
-    this.clouds.setTime(timeSec)
-    this.clouds.render()
+    this.grade.material.uniforms.uGradeTime.value = timeSec
+    if (this.cloudComposite.enabled) {
+      this.clouds.setTime(timeSec)
+      this.clouds.render()
+    }
     this.composer.render()
   }
 
   dispose(): void {
+    this.cloudComposite.dispose()
     this.composer.dispose()
     this.clouds.dispose()
     this.bloom.dispose()
@@ -378,7 +312,7 @@ export function applyTileQualityHints(
   group: { traverse: (cb: (o: unknown) => void) => void },
   renderer: WebGLRenderer,
 ): void {
-  const maxAniso = renderer.capabilities.getMaxAnisotropy()
+  const maxAniso = Math.min(4, renderer.capabilities.getMaxAnisotropy())
   // Only color-data textures get the sRGB hint. normalMap/roughnessMap/
   // metalnessMap store data, not color — marking them sRGB would
   // double-decode and shift the entire material's lighting.
@@ -405,6 +339,39 @@ export function applyTileQualityHints(
           t.anisotropy = maxAniso
           t.needsUpdate = true
         }
+      }
+      // Photogrammetry albedo is pre-lit. Flatten to unlit (albedo
+      // via emissive, lit color black) so ambient/hemi/sun cannot
+      // re-shade Google's bake. Orbs keep a real PBR response.
+      const std = matAny as {
+        isMeshStandardMaterial?: boolean
+        isMeshPhysicalMaterial?: boolean
+        map?: { isTexture?: boolean } | null
+        emissiveMap?: unknown
+        emissive?: { setRGB: (r: number, g: number, b: number) => void }
+        color?: { setRGB: (r: number, g: number, b: number) => void }
+        emissiveIntensity?: number
+        metalness?: number
+        roughness?: number
+        envMapIntensity?: number
+        userData?: { prelit?: boolean }
+      }
+      if (
+        (std.isMeshStandardMaterial || std.isMeshPhysicalMaterial) &&
+        std.map?.isTexture &&
+        !std.userData?.prelit
+      ) {
+        std.emissiveMap = std.map
+        std.emissive?.setRGB(1, 1, 1)
+        std.emissiveIntensity = 1
+        std.color?.setRGB(0, 0, 0)
+        std.metalness = 0
+        std.roughness = 1
+        std.envMapIntensity = 0
+        if (std.userData) std.userData.prelit = true
+        else std.userData = { prelit: true }
+      } else if (typeof matAny.envMapIntensity === "number") {
+        matAny.envMapIntensity = 0
       }
     }
   })
