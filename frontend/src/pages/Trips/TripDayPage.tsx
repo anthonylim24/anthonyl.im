@@ -6,9 +6,18 @@ import { useGetToken } from "@/lib/safeAuth"
 import { EntityIndexProvider } from "../Korea/entityIndex"
 import { LinkifiedText } from "../Korea/LinkifiedText"
 import { getTrip } from "./tripsApi"
-import { accentTheme, calloutTone, formatTripDate, itemIcon, itemStatusMeta, todayIsoIn } from "./theme"
+import { ACCENT, calloutTone, formatTripDate, itemIcon, resolveAccent, todayIsoIn } from "./theme"
+import { StatusChip } from "./components/StatusChip"
 import type { ItineraryItem, Trip } from "./types"
-import { EASE, SERIF, alertErrorClass, inkBtnClass, secondaryBtnClass } from "./ui"
+import {
+  EASE,
+  SERIF,
+  alertErrorClass,
+  chipBtnClass,
+  focusRingClass,
+  inkBtnClass,
+  secondaryBtnClass,
+} from "./ui"
 
 const MapModeOverlay = lazy(() =>
   import("../Korea/MapModeOverlay").then((m) => ({ default: m.MapModeOverlay })),
@@ -110,7 +119,7 @@ export function TripDayPage() {
   const day = trip.days[dayIndex]
   if (!day) {
     return (
-      <div className={`${pageClass} text-sm text-stone-500`}>
+      <div className={`${pageClass} text-sm text-stone-600 dark:text-stone-400`}>
         Day not found.{" "}
         <Link to={`/trips/${trip.slug ?? trip.id}`} className="font-semibold underline underline-offset-2">
           Back to the trip
@@ -120,7 +129,7 @@ export function TripDayPage() {
     )
   }
 
-  const a = accentTheme(trip.appearance?.accent)
+  const a = ACCENT
   const isToday = day.date === todayIsoIn(trip.timezone)
   const reservations = day.items.filter((i) => i.kind === "reservation")
   const blocks = narrativeBlocks(day.items)
@@ -136,14 +145,14 @@ export function TripDayPage() {
 
   return (
     <EntityIndexProvider>
-      <div className={pageClass}>
+      <div className={pageClass} data-trip-accent={resolveAccent(trip.appearance?.accent)}>
         <motion.p
           {...fadeUp(0)}
           className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono-trips text-[11px] uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400"
         >
           <Link
             to={`/trips/${trip.slug ?? trip.id}`}
-            className="text-stone-700 transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600/40 dark:text-stone-300"
+            className={`text-stone-700 transition-colors hover:underline dark:text-stone-300 ${focusRingClass}`}
           >
             {trip.name}
           </Link>
@@ -164,7 +173,7 @@ export function TripDayPage() {
 
         <motion.div {...fadeUp(0.06)} className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
           <span
-            className={`font-display text-[clamp(3rem,8vw,4.75rem)] font-light leading-[0.85] tabular-nums ${a.countdown}`}
+            className={`font-display text-[clamp(3rem,8vw,4.75rem)] font-light leading-[0.85] tabular-nums ${a.text}`}
             style={SERIF}
             aria-hidden
           >
@@ -242,7 +251,7 @@ export function TripDayPage() {
 
         {reservations.length > 0 && (
           <section className="mt-12">
-            <DaySectionHeader num="01" eyebrow="Booked moments" title="Reservations" accentNum={a.eyebrowNum} />
+            <DaySectionHeader num="01" eyebrow="Booked moments" title="Reservations" />
             <div className="relative mt-6 space-y-5 pl-6 before:absolute before:bottom-2 before:left-[7px] before:top-2 before:w-px before:bg-stone-200/90 sm:pl-8 sm:before:left-[11px] dark:before:bg-stone-800/90">
               {reservations.map((item, i) => (
                 <ReservationTimelineItem key={item.id} item={item} index={i} accentDot={a.dot} />
@@ -309,11 +318,11 @@ export function TripDayPage() {
           {prev ? (
             <Link
               to={`/trips/${trip.slug ?? trip.id}/day/${prev.id}`}
-              className="group -mx-2 flex min-h-14 items-center gap-4 rounded-xl px-2 py-3 transition-colors hover:bg-stone-100/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600/40 dark:hover:bg-stone-900/40"
+              className={`group -mx-2 flex min-h-14 items-center gap-4 rounded-xl px-2 py-3 transition-colors hover:bg-stone-100/50 dark:hover:bg-stone-900/40 ${focusRingClass}`}
             >
-              <ArrowUpRight className="h-4 w-4 shrink-0 -rotate-[135deg] text-stone-400 transition group-hover:-translate-x-0.5 motion-reduce:group-hover:translate-x-0" aria-hidden />
+              <ArrowUpRight className="h-4 w-4 shrink-0 -rotate-[135deg] text-stone-500 transition dark:text-stone-400 group-hover:-translate-x-0.5 motion-reduce:group-hover:translate-x-0" aria-hidden />
               <span className="min-w-0">
-                <span className="block font-mono-trips text-[10px] uppercase tracking-[0.18em] text-stone-500">Previous · Day {dayIndex}</span>
+                <span className="block font-mono-trips text-[10px] uppercase tracking-[0.18em] text-stone-600 dark:text-stone-400">Previous · Day {dayIndex}</span>
                 <span className="block truncate font-display text-base font-medium text-stone-900 dark:text-stone-100" style={SERIF}>
                   {prev.title ?? `Day ${dayIndex}`}
                 </span>
@@ -325,15 +334,15 @@ export function TripDayPage() {
           {next && (
             <Link
               to={`/trips/${trip.slug ?? trip.id}/day/${next.id}`}
-              className="group -mx-2 flex min-h-14 items-center justify-end gap-4 rounded-xl px-2 py-3 text-right transition-colors hover:bg-stone-100/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600/40 dark:hover:bg-stone-900/40"
+              className={`group -mx-2 flex min-h-14 items-center justify-end gap-4 rounded-xl px-2 py-3 text-right transition-colors hover:bg-stone-100/50 dark:hover:bg-stone-900/40 ${focusRingClass}`}
             >
               <span className="min-w-0">
-                <span className="block font-mono-trips text-[10px] uppercase tracking-[0.18em] text-stone-500">Next · Day {dayIndex + 2}</span>
+                <span className="block font-mono-trips text-[10px] uppercase tracking-[0.18em] text-stone-600 dark:text-stone-400">Next · Day {dayIndex + 2}</span>
                 <span className="block truncate font-display text-base font-medium text-stone-900 dark:text-stone-100" style={SERIF}>
                   {next.title ?? `Day ${dayIndex + 2}`}
                 </span>
               </span>
-              <ArrowUpRight className="h-4 w-4 shrink-0 rotate-45 text-stone-400 transition group-hover:translate-x-0.5 motion-reduce:group-hover:translate-x-0" aria-hidden />
+              <ArrowUpRight className="h-4 w-4 shrink-0 rotate-45 text-stone-500 transition dark:text-stone-400 group-hover:translate-x-0.5 motion-reduce:group-hover:translate-x-0" aria-hidden />
             </Link>
           )}
         </nav>
@@ -368,11 +377,11 @@ function Meta({ label, value }: { label: string; value: string }) {
   )
 }
 
-function DaySectionHeader({ num, eyebrow, title, accentNum }: { num: string; eyebrow: string; title: string; accentNum: string }) {
+function DaySectionHeader({ num, eyebrow, title }: { num: string; eyebrow: string; title: string }) {
   return (
     <header className="border-b border-stone-200/80 pb-4 dark:border-stone-800/80">
       <p className="flex items-center gap-3 font-mono-trips text-[11px] uppercase tracking-[0.24em] text-stone-500 dark:text-stone-400">
-        <span className={`tabular-nums ${accentNum}`}>{num}</span>
+        <span className={`tabular-nums ${ACCENT.text}`}>{num}</span>
         <span aria-hidden className="h-px w-8 bg-stone-300 dark:bg-stone-700" />
         <span>{eyebrow}</span>
       </p>
@@ -385,7 +394,7 @@ function DaySectionHeader({ num, eyebrow, title, accentNum }: { num: string; eye
 
 function ReservationTimelineItem({ item, index, accentDot }: { item: ItineraryItem; index: number; accentDot: string }) {
   const reduce = useReducedMotion()
-  const status = itemStatusMeta[item.status]
+  const Icon = itemIcon(item.kind, item.location?.category, item.reservation?.type)
   const phone = item.reservation?.contact ? telHref(item.reservation.contact) : null
   return (
     <motion.div
@@ -404,19 +413,18 @@ function ReservationTimelineItem({ item, index, accentDot }: { item: ItineraryIt
       )}
       <div className="rounded-xl border border-stone-200/90 bg-[var(--trips-surface)] p-4 dark:border-stone-800 dark:bg-stone-900/50">
         <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-stone-100 text-xl dark:bg-stone-800" aria-hidden>
-            {itemIcon(item.kind, item.location?.category, item.reservation?.type)}
+          <span
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${ACCENT.softBg} ${ACCENT.text}`}
+            aria-hidden
+          >
+            <Icon className="h-4 w-4" strokeWidth={1.5} />
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100">{item.title}</h3>
-              {status && (
-                <span className={`shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${status.chip}`}>
-                  {status.label}
-                </span>
-              )}
+              <StatusChip status={item.status} />
               {item.reservation?.status && item.reservation.status !== "confirmed" && (
-                <span className="text-[10px] uppercase tracking-wider text-stone-500 capitalize">{item.reservation.status}</span>
+                <span className="text-[10px] uppercase tracking-wider text-stone-600 capitalize dark:text-stone-400">{item.reservation.status}</span>
               )}
             </div>
             {item.notes && (
@@ -431,33 +439,20 @@ function ReservationTimelineItem({ item, index, accentDot }: { item: ItineraryIt
             )}
             <div className="mt-3 flex flex-wrap gap-2">
               {item.location?.address && (
-                <a
-                  href={mapsUrl(item.location.address)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-stone-200 px-2.5 text-xs font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600/40 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-stone-800"
-                >
-                  <MapPin className="h-3.5 w-3.5" aria-hidden />
+                <a href={mapsUrl(item.location.address)} target="_blank" rel="noopener noreferrer" className={chipBtnClass}>
+                  <MapPin className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
                   Maps
                 </a>
               )}
               {phone && (
-                <a
-                  href={phone}
-                  className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-stone-200 px-2.5 text-xs font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600/40 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-stone-800"
-                >
-                  <Phone className="h-3.5 w-3.5" aria-hidden />
+                <a href={phone} className={chipBtnClass}>
+                  <Phone className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
                   Call
                 </a>
               )}
               {item.reservation?.url && (
-                <a
-                  href={item.reservation.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-stone-200 px-2.5 text-xs font-medium text-stone-700 transition hover:border-stone-300 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600/40 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-stone-800"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                <a href={item.reservation.url} target="_blank" rel="noopener noreferrer" className={chipBtnClass}>
+                  <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
                   Booking
                 </a>
               )}
@@ -470,11 +465,14 @@ function ReservationTimelineItem({ item, index, accentDot }: { item: ItineraryIt
 }
 
 function NarrativeItem({ item }: { item: ItineraryItem }) {
+  const Icon = itemIcon(item.kind, item.location?.category)
   return (
     <li className="flex gap-3 break-words">
-      <span aria-hidden className="mt-1.5 shrink-0 text-sm leading-none">
-        {itemIcon(item.kind, item.location?.category)}
-      </span>
+      <Icon
+        className="mt-1 h-4 w-4 shrink-0 text-stone-500 dark:text-stone-400"
+        strokeWidth={1.5}
+        aria-hidden
+      />
       <span className="min-w-0 flex-1 break-words">
         {item.time && (
           <span className="mr-2 font-mono-trips text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">

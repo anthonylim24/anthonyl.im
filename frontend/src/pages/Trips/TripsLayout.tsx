@@ -5,7 +5,7 @@ import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/clerk-reac
 import { CLERK_ENABLED } from "@/lib/clerk"
 import { ThemeToggle } from "../Korea/ThemeToggle"
 import { applyTheme, getInitialTheme } from "../Korea/koreaUtils"
-import { SERIF, primaryBtnClass } from "./ui"
+import { SERIF, accentIconClass, focusRingClass, iconBtnClass, primaryBtnClass } from "./ui"
 
 const DEV_BEARER: string | null =
   (typeof import.meta !== "undefined" && import.meta.env?.VITE_DEV_BEARER) || null
@@ -20,7 +20,7 @@ function TripsAuthGate({ children }: { children: ReactNode }) {
         <div className="flex min-h-[70vh] items-center justify-center px-5 py-16">
           <div className="w-full max-w-md text-center">
             <div
-              className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-stone-200/80 bg-[var(--trips-surface)] text-amber-800 shadow-sm dark:border-stone-800 dark:text-amber-400"
+              className={`mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-stone-200/80 bg-[var(--trips-surface)] shadow-sm dark:border-stone-800 ${accentIconClass}`}
               aria-hidden
             >
               <Compass className="h-7 w-7" strokeWidth={1.5} />
@@ -33,7 +33,7 @@ function TripsAuthGate({ children }: { children: ReactNode }) {
             </p>
             <SignInButton mode="modal">
               <button type="button" className={`mt-8 w-full ${primaryBtnClass}`}>
-                <Lock className="h-4 w-4" aria-hidden />
+                <Lock className="h-4 w-4" strokeWidth={1.5} aria-hidden />
                 Sign in to continue
               </button>
             </SignInButton>
@@ -57,7 +57,7 @@ export function TripsLayout() {
       <TripsAuthGate>
         <a
           href="#trips-main"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-amber-800 focus:px-3 focus:py-2 focus:text-sm focus:text-white"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-[color:var(--trips-accent)] focus:px-3 focus:py-2 focus:text-sm focus:text-white dark:focus:text-stone-950"
         >
           Skip to content
         </a>
@@ -67,15 +67,15 @@ export function TripsLayout() {
               {!atIndex && (
                 <Link
                   to="/trips"
-                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-xl text-stone-500 transition hover:bg-stone-200/50 hover:text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600/50 dark:hover:bg-stone-800/60 dark:hover:text-stone-100"
+                  className={iconBtnClass}
                   aria-label="Back to all trips"
                 >
-                  <ArrowLeft className="h-4 w-4" aria-hidden />
+                  <ArrowLeft className="h-4 w-4" strokeWidth={1.5} aria-hidden />
                 </Link>
               )}
               <Link
                 to="/trips"
-                className="font-display text-[1.35rem] leading-none tracking-tight text-stone-900 transition hover:text-amber-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600/40 dark:text-stone-100 dark:hover:text-amber-400"
+                className={`font-display text-[1.35rem] leading-none tracking-tight text-stone-900 transition hover:text-[color:var(--trips-accent)] dark:text-stone-100 ${focusRingClass}`}
                 style={SERIF}
               >
                 Trips

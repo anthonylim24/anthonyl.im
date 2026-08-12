@@ -4,17 +4,10 @@ import { motion, useReducedMotion } from "motion/react"
 import { ArrowUpRight, Pencil } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
 import { getTrip } from "./tripsApi"
-import {
-  accentTheme,
-  cityTag,
-  daysUntilIn,
-  formatTripDate,
-  itemStatusMeta,
-  reservationTypeIcon,
-  todayIsoIn,
-} from "./theme"
+import { ACCENT, cityTag, daysUntilIn, formatTripDate, itemIcon, resolveAccent, todayIsoIn } from "./theme"
+import { StatusChip } from "./components/StatusChip"
 import type { ItineraryItem, Trip, TripDay } from "./types"
-import { EASE, SERIF, alertErrorClass, inkBtnClass } from "./ui"
+import { EASE, SERIF, alertErrorClass, focusRingClass, inkBtnClass } from "./ui"
 
 type LoadState =
   | { status: "loading" }
@@ -79,7 +72,7 @@ export function TripOverview() {
   }
 
   const { trip, editable } = state
-  const a = accentTheme(trip.appearance?.accent)
+  const a = ACCENT
   const today = todayIsoIn(trip.timezone)
   const todayDay = trip.days.find((d) => d.date === today)
   const tMinus = daysUntilIn(trip.startDate, trip.timezone)
@@ -108,7 +101,7 @@ export function TripOverview() {
   })
 
   return (
-    <div>
+    <div data-trip-accent={resolveAccent(trip.appearance?.accent)}>
       <header className="relative overflow-hidden">
         <div aria-hidden className="pointer-events-none absolute inset-0">
           <div className={`absolute inset-0 ${a.bloomA}`} />
@@ -235,7 +228,6 @@ export function TripOverview() {
           eyebrow={`${dayCount} day${dayCount === 1 ? "" : "s"}`}
           title="Daily itinerary"
           subtitle={dayCount === 0 ? "No days yet — open the editor to add structure." : "Open a day for reservations, places, and Map Mode."}
-          accentNum={a.eyebrowNum}
           reduce={!!reduce}
         />
         {dayCount === 0 ? (
@@ -244,7 +236,10 @@ export function TripOverview() {
             {editable && (
               <>
                 {" "}
-                <Link to={`/trips/${trip.slug ?? trip.id}/edit`} className="font-semibold text-amber-800 underline-offset-2 hover:underline dark:text-amber-400">
+                <Link
+                  to={`/trips/${trip.slug ?? trip.id}/edit`}
+                  className={`font-semibold underline-offset-2 hover:underline ${a.text}`}
+                >
                   Open the editor
                 </Link>
                 .
@@ -275,7 +270,6 @@ export function TripOverview() {
             eyebrow="Booked moments"
             title="Reservations"
             subtitle="Confirmed, pending, and tentative bookings across the trip."
-            accentNum={a.eyebrowNum}
             reduce={!!reduce}
           />
           <ol className="divide-y divide-stone-200/80 dark:divide-stone-800/80">
@@ -316,14 +310,12 @@ function SectionHeader({
   eyebrow,
   title,
   subtitle,
-  accentNum,
   reduce,
 }: {
   num: string
   eyebrow: string
   title: string
   subtitle?: string
-  accentNum: string
   reduce: boolean
 }) {
   return (
@@ -335,7 +327,7 @@ function SectionHeader({
       className="border-b border-stone-200/80 pb-5 dark:border-stone-800/80"
     >
       <p className="flex items-center gap-3 font-mono-trips text-[11px] uppercase tracking-[0.24em] text-stone-500 dark:text-stone-400">
-        <span className={`tabular-nums ${accentNum}`}>{num}</span>
+        <span className={`tabular-nums ${ACCENT.text}`}>{num}</span>
         <span aria-hidden className="h-px w-8 bg-stone-300 dark:bg-stone-700" />
         <span>{eyebrow}</span>
       </p>
@@ -367,7 +359,7 @@ function DayRow({
   isPast: boolean
   reduce: boolean
 }) {
-  const a = accentTheme(trip.appearance?.accent)
+  const a = ACCENT
   const booked = day.items.filter((i) => i.kind === "reservation" || i.status === "booked").length
   return (
     <motion.li
@@ -383,7 +375,7 @@ function DayRow({
         } ${isToday ? "bg-stone-100/40 dark:bg-stone-900/30" : "hover:bg-stone-100/30 dark:hover:bg-stone-900/25"}`}
       >
         <div className="w-14 shrink-0 sm:w-16">
-          <p className={`font-display text-3xl font-light leading-none tabular-nums ${isToday ? a.countdown : "text-stone-900 dark:text-stone-100"}`} style={SERIF}>
+          <p className={`font-display text-3xl font-light leading-none tabular-nums ${isToday ? a.text : "text-stone-900 dark:text-stone-100"}`} style={SERIF}>
             {String(index + 1).padStart(2, "0")}
           </p>
           <p className="mt-1 font-mono-trips text-[10px] uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">
@@ -443,7 +435,7 @@ function ReservationRow({
   index: number
   reduce: boolean
 }) {
-  const status = itemStatusMeta[item.status]
+  const Icon = itemIcon(item.kind, item.location?.category, item.reservation?.type)
   const dayNum = new Date(`${day.date}T12:00:00Z`).getUTCDate()
   return (
     <motion.li
@@ -454,7 +446,7 @@ function ReservationRow({
     >
       <Link
         to={`/trips/${trip.slug ?? trip.id}/day/${day.id}`}
-        className="group flex items-start gap-5 py-5 transition-colors hover:bg-stone-100/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600/40 sm:gap-8 dark:hover:bg-stone-900/25"
+        className={`group flex items-start gap-5 py-5 transition-colors hover:bg-stone-100/30 sm:gap-8 dark:hover:bg-stone-900/25 ${focusRingClass}`}
       >
         <div className="w-[5.5rem] shrink-0 sm:w-[7rem]">
           <p className="font-display text-3xl font-light leading-none text-stone-900 dark:text-stone-100" style={SERIF}>
@@ -469,7 +461,7 @@ function ReservationRow({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2.5">
-            <span aria-hidden>{reservationTypeIcon[item.reservation?.type ?? ""] ?? "📌"}</span>
+            <Icon className="h-4 w-4 shrink-0 translate-y-0.5 text-stone-500 dark:text-stone-400" strokeWidth={1.5} aria-hidden />
             <h3 className="break-words font-display text-xl font-medium leading-snug text-stone-900 dark:text-stone-100" style={SERIF}>
               {item.title}
             </h3>
@@ -479,13 +471,8 @@ function ReservationRow({
           )}
         </div>
         <div className="flex shrink-0 items-center gap-3 pt-1.5">
-          {status && (
-            <span className="flex items-center gap-2 font-mono-trips text-[10px] uppercase tracking-[0.16em] text-stone-500 dark:text-stone-400">
-              <span className={`inline-block h-1.5 w-1.5 rounded-full ${status.dot}`} aria-hidden />
-              <span className="hidden sm:inline">{status.label}</span>
-            </span>
-          )}
-          <ArrowUpRight className="h-4 w-4 text-stone-400 transition group-hover:translate-x-0.5 motion-reduce:group-hover:translate-x-0" aria-hidden />
+          <StatusChip status={item.status} />
+          <ArrowUpRight className="h-4 w-4 text-stone-500 transition group-hover:translate-x-0.5 dark:text-stone-400 motion-reduce:group-hover:translate-x-0" aria-hidden />
         </div>
       </Link>
     </motion.li>

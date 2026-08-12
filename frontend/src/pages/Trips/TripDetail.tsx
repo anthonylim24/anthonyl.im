@@ -1,17 +1,15 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { lazy, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { Link, useLocation, useParams } from "react-router-dom"
 import {
   ArrowDown,
   ArrowRightLeft,
   ArrowUp,
-  Bookmark,
   Check,
   CheckCircle2,
   ChevronDown,
   Copy,
   Eye,
-  FileText,
   Globe2,
   Heading2,
   Loader2,
@@ -34,7 +32,39 @@ import {
   removeItem,
   updateItem,
 } from "./tripEdits"
-import { ACCENT_SWATCH, formatTripDate } from "./theme"
+import {
+  ACCENT,
+  ACCENT_SWATCH,
+  TRIP_ACCENTS,
+  formatTripDate,
+  itemIcon,
+  resolveAccent,
+} from "./theme"
+import { AiChip, StatusChip, SuggestionChip } from "./components/StatusChip"
+import {
+  SERIF,
+  accentChipBtnClass,
+  alertErrorClass,
+  alertNoticeClass,
+  chipBtnClass,
+  compactInputClass,
+  compactSelectClass,
+  checkboxClass,
+  dangerIconBtnClass,
+  focusRingClass,
+  focusRingInsetClass,
+  ghostBtnClass,
+  iconBtnClass,
+  inputClass,
+  labelClass,
+  primaryBtnClass,
+  quietBtnClass,
+  secondaryBtnClass,
+  selectClass,
+  softPanelClass,
+  subtleInputClass,
+  successBtnClass,
+} from "./ui"
 import type {
   EnhancementRun,
   ItemKind,
@@ -52,31 +82,13 @@ const MapModeOverlay = lazy(() =>
   import("../Korea/MapModeOverlay").then((m) => ({ default: m.MapModeOverlay })),
 )
 
-const inputClass =
-  "rounded-lg border border-transparent bg-transparent px-2 py-1 text-sm text-stone-900 transition placeholder:text-stone-400 hover:border-stone-200 focus:border-amber-500 focus:bg-white focus:outline-none dark:text-stone-100 dark:hover:border-stone-700 dark:focus:bg-stone-900"
-
 const STATUS_OPTIONS: Array<{ value: ItemStatus; label: string }> = [
-  { value: "none", label: "—" },
+  { value: "none", label: "No status" },
   { value: "optional", label: "Optional" },
   { value: "booked", label: "Booked" },
   { value: "completed", label: "Completed" },
   { value: "needs_review", label: "Needs review" },
 ]
-
-const STATUS_CHIP: Record<ItemStatus, string> = {
-  none: "",
-  optional: "bg-stone-200/70 text-stone-600 dark:bg-stone-800 dark:text-stone-400",
-  booked: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300",
-  completed: "bg-stone-200 text-stone-500 line-through dark:bg-stone-800 dark:text-stone-500",
-  needs_review: "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300",
-}
-
-const KIND_ICON: Record<ItemKind, typeof MapPin> = {
-  place: MapPin,
-  note: FileText,
-  section: Heading2,
-  reservation: Bookmark,
-}
 
 /** Page gutters — `<main>` is unconstrained so trip heroes can be full-bleed. */
 const pageClass = "mx-auto max-w-6xl px-4 pt-8 sm:px-6 sm:pt-10"
@@ -103,7 +115,7 @@ export function TripDetail() {
   // "trip" or a dayId while that enhancement is in flight.
   const [enhancingTarget, setEnhancingTarget] = useState<string | null>(null)
   const [activeRun, setActiveRun] = useState<EnhancementRun | null>(null)
-  // Item ids touched by the last applied suggestions — drives the amber
+  // Item ids touched by the last applied suggestions — drives the accent
   // "this just changed" flash, cleared after the flash finishes.
   const [recentIds, setRecentIds] = useState<Set<string>>(() => new Set())
   const recentTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -296,7 +308,7 @@ export function TripDetail() {
   if (state.status === "error" || !trip) {
     return (
       <div className={pageClass}>
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+        <div className={alertErrorClass} role="alert">
           Couldn’t load this trip{state.status === "error" ? ` (${state.message})` : ""}.
         </div>
       </div>
@@ -307,7 +319,7 @@ export function TripDetail() {
   const mapDayIndex = mapDay ? trip.days.findIndex((d) => d.id === mapDay.id) : -1
 
   return (
-    <div className={pageClass}>
+    <div className={pageClass} data-trip-accent={resolveAccent(trip.appearance?.accent)}>
       {/* Trip header */}
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-stone-200/80 pb-6 dark:border-stone-800/80">
         <div className="min-w-0 flex-1">
@@ -322,8 +334,8 @@ export function TripDetail() {
             value={trip.name}
             disabled={!editable}
             onChange={(e) => scheduleSave({ ...trip, name: e.target.value })}
-            className="mt-1 w-full bg-transparent font-display text-[clamp(1.75rem,4vw,2.5rem)] font-medium leading-tight tracking-tight text-stone-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-600/30 dark:text-stone-100"
-            style={{ fontFamily: "'Cormorant Garamond', serif" }}
+            className={`mt-1 w-full bg-transparent font-display text-[clamp(1.75rem,4vw,2.5rem)] font-medium leading-tight tracking-tight text-stone-900 focus:outline-none dark:text-stone-100 ${focusRingClass}`}
+            style={SERIF}
           />
           <p className="mt-2 text-sm text-stone-500 dark:text-stone-400">
             {trip.destinations.join(" · ")} · {formatTripDate(trip.startDate, trip.timezone)} →{" "}
@@ -331,11 +343,8 @@ export function TripDetail() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Link
-            to={`/trips/${trip.slug ?? trip.id}`}
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-stone-300 px-3.5 py-2 text-sm font-medium text-stone-700 transition hover:border-stone-400 hover:text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600/40 dark:border-stone-700 dark:text-stone-300 dark:hover:text-stone-100"
-          >
-            <Eye className="h-4 w-4" aria-hidden />
+          <Link to={`/trips/${trip.slug ?? trip.id}`} className={secondaryBtnClass}>
+            <Eye className="h-4 w-4" strokeWidth={1.5} aria-hidden />
             View
           </Link>
           <select
@@ -343,7 +352,7 @@ export function TripDetail() {
             disabled={!editable}
             onChange={(e) => scheduleSave({ ...trip, status: e.target.value as TripStatus })}
             aria-label="Trip status"
-            className="min-h-11 rounded-xl border border-stone-300 bg-[var(--trips-surface)] px-3 py-2 text-sm capitalize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600/40 dark:border-stone-700 dark:bg-stone-900"
+            className={`capitalize ${selectClass}`}
           >
             {(["draft", "active", "archived", "completed"] as const).map((s) => (
               <option key={s} value={s}>{s}</option>
@@ -356,9 +365,9 @@ export function TripDetail() {
                 scheduleSave({ ...trip, status: "active" })
                 setNotice("Trip published — it's now active for everyone who can see it.")
               }}
-              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-emerald-600/40 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-900 transition hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 dark:border-emerald-500/40 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/70"
+              className={successBtnClass}
             >
-              <Globe2 className="h-4 w-4" aria-hidden />
+              <Globe2 className="h-4 w-4" strokeWidth={1.5} aria-hidden />
               Publish
             </button>
           )}
@@ -377,10 +386,10 @@ export function TripDetail() {
       </div>
 
       {notice && (
-        <div className="mt-4 flex items-start justify-between gap-3 rounded-xl border border-amber-200/80 bg-amber-50/90 p-3.5 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100" role="status">
-          <span>{notice}</span>
-          <button type="button" onClick={() => setNotice(null)} aria-label="Dismiss notice" className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg hover:bg-amber-100/80 dark:hover:bg-amber-900/40">
-            <X className="h-4 w-4" aria-hidden />
+        <div className={`mt-4 flex items-start justify-between gap-3 ${alertNoticeClass}`} role="status">
+          <span className="min-w-0 break-words">{notice}</span>
+          <button type="button" onClick={() => setNotice(null)} aria-label="Dismiss notice" className={`-my-2 shrink-0 ${iconBtnClass}`}>
+            <X className="h-4 w-4" strokeWidth={1.5} aria-hidden />
           </button>
         </div>
       )}
@@ -429,10 +438,10 @@ export function TripDetail() {
               <li key={day.id}>
                 <a
                   href={`#${day.id}`}
-                  className="block rounded-md px-2 py-1 text-[13px] text-stone-500 transition hover:bg-stone-100 hover:text-stone-900 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100"
+                  className={`block rounded-lg px-2 py-1 text-[13px] text-stone-600 transition hover:bg-stone-200/60 hover:text-stone-900 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100 ${focusRingClass}`}
                 >
                   <span className="font-medium">Day {idx + 1}</span>
-                  <span className="ml-1.5 text-stone-400 dark:text-stone-500">
+                  <span className="ml-1.5 text-stone-600 dark:text-stone-400">
                     {formatTripDate(day.date, trip.timezone, { weekday: undefined })}
                   </span>
                 </a>
@@ -530,10 +539,10 @@ function GeneratePanel({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
       aria-label="Generate itinerary with AI"
-      className="mt-6 rounded-3xl border border-stone-200/80 bg-white p-5 motion-reduce:transition-none dark:border-stone-800 dark:bg-stone-900"
+      className={`mt-6 p-5 motion-reduce:transition-none ${softPanelClass}`}
     >
       <h2 className="flex items-center gap-2 text-base font-semibold text-stone-900 dark:text-stone-100">
-        <Sparkles className="h-4 w-4 text-amber-600" aria-hidden />
+        <Sparkles className={`h-4 w-4 ${ACCENT.text}`} strokeWidth={1.5} aria-hidden />
         Draft this itinerary with AI
       </h2>
       <p className="mt-1 text-sm text-stone-600 dark:text-stone-400">
@@ -545,21 +554,20 @@ function GeneratePanel({
         rows={3}
         aria-label="AI prompt"
         onChange={(e) => setPrompt(e.target.value)}
-        className="mt-3 w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-600/25 dark:border-stone-700 dark:bg-stone-950/40 dark:text-stone-100"
+        className={`mt-3 ${inputClass}`}
       />
       {error && (
-        <p className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300" role="alert">
+        <p className={`mt-3 ${alertErrorClass}`} role="alert">
           Generation failed: {error}
         </p>
       )}
-      <div className="mt-3 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={() => void generate()}
-          disabled={busy}
-          className="inline-flex items-center gap-2 rounded-full bg-amber-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-800 disabled:opacity-60 dark:bg-amber-600 dark:hover:bg-amber-500"
-        >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Sparkles className="h-4 w-4" aria-hidden />}
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button type="button" onClick={() => void generate()} disabled={busy} className={primaryBtnClass}>
+          {busy ? (
+            <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden />
+          ) : (
+            <Sparkles className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+          )}
           {busy ? "Generating… (~30s)" : error ? "Retry generation" : "Generate itinerary"}
         </button>
         {preferences && Object.values(preferences).some(Boolean) && (
@@ -622,7 +630,10 @@ function FloatingSaveIndicator({ saveState }: { saveState: "saved" | "saving" | 
               </>
             ) : (
               <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-600 motion-reduce:animate-none" aria-hidden />
+                <Loader2
+                  className={`h-3.5 w-3.5 animate-spin motion-reduce:animate-none ${ACCENT.text}`}
+                  aria-hidden
+                />
                 {saveState === "saving" ? "Saving…" : "Unsaved changes…"}
               </>
             )}
@@ -654,6 +665,7 @@ function EnhanceButton({
 }) {
   const [open, setOpen] = useState(false)
   const [prompt, setPrompt] = useState("")
+  const promptId = useId()
   const rootRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -680,26 +692,16 @@ function EnhanceButton({
   }
 
   const solid = variant === "solid"
-  const base = solid
-    ? "bg-amber-700 text-white shadow-sm hover:bg-amber-800 dark:bg-amber-600 dark:hover:bg-amber-500"
-    : busy
-      ? "border border-amber-400 bg-amber-50 text-amber-800 dark:border-amber-600 dark:bg-amber-950/40 dark:text-amber-300"
-      : "border border-stone-300 text-stone-700 hover:border-amber-400 hover:text-amber-700 dark:border-stone-700 dark:text-stone-300 dark:hover:text-amber-400"
-  const size = solid ? "px-4 py-2 text-sm font-semibold gap-2" : "px-3 py-1.5 text-xs font-medium gap-1.5"
+  const base = solid ? primaryBtnClass : busy ? accentChipBtnClass : chipBtnClass
   const iconSize = solid ? "h-4 w-4" : "h-3.5 w-3.5"
 
   return (
-    <div ref={rootRef} className="relative inline-flex">
-      <button
-        type="button"
-        onClick={() => run(false)}
-        disabled={disabled}
-        className={`inline-flex items-center rounded-l-full pr-2.5 transition disabled:opacity-50 ${base} ${size}`}
-      >
+    <div ref={rootRef} className="trip-split relative inline-flex">
+      <button type="button" onClick={() => run(false)} disabled={disabled} className={base}>
         {busy ? (
           <Loader2 className={`${iconSize} animate-spin motion-reduce:animate-none`} aria-hidden />
         ) : (
-          <Sparkles className={iconSize} aria-hidden />
+          <Sparkles className={iconSize} strokeWidth={1.5} aria-hidden />
         )}
         {busy ? busyLabel : label}
       </button>
@@ -710,9 +712,7 @@ function EnhanceButton({
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={`${label} with a custom focus`}
-        className={`inline-flex items-center rounded-r-full border-l pl-1.5 pr-2 transition disabled:opacity-50 ${base} ${
-          solid ? "border-amber-800/40 dark:border-amber-500/40" : "border-l-stone-300 dark:border-l-stone-700"
-        }`}
+        className={base}
       >
         <ChevronDown className={`${iconSize} transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
       </button>
@@ -726,12 +726,13 @@ function EnhanceButton({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute right-0 top-[calc(100%+0.5rem)] z-40 w-[20rem] rounded-2xl border border-stone-200 bg-white p-3 shadow-xl shadow-stone-950/10 dark:border-stone-700 dark:bg-stone-900 dark:shadow-black/40"
+            className={`absolute right-0 top-[calc(100%+0.5rem)] z-40 w-[20rem] p-3 shadow-xl shadow-stone-950/10 dark:shadow-black/40 ${softPanelClass}`}
           >
-            <label className="block text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400">
+            <label className={labelClass} htmlFor={promptId}>
               Focus for this review
             </label>
             <textarea
+              id={promptId}
               value={prompt}
               rows={3}
               autoFocus
@@ -740,16 +741,12 @@ function EnhanceButton({
               onKeyDown={(e) => {
                 if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) run(true)
               }}
-              className="mt-1.5 w-full rounded-xl border border-stone-200 bg-white px-2.5 py-2 text-sm focus:border-amber-500 focus:outline-none dark:border-stone-700 dark:bg-stone-950/40"
+              className={`mt-1.5 ${inputClass}`}
             />
             <div className="mt-2 flex items-center justify-between gap-2">
-              <span className="text-[11px] text-stone-400 dark:text-stone-500">⌘↵ to run</span>
-              <button
-                type="button"
-                onClick={() => run(true)}
-                className="inline-flex items-center gap-1.5 rounded-full bg-amber-700 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-800 dark:bg-amber-600 dark:hover:bg-amber-500"
-              >
-                <Sparkles className="h-3 w-3" aria-hidden />
+              <span className="text-[11px] text-stone-500 dark:text-stone-400">⌘↵ to run</span>
+              <button type="button" onClick={() => run(true)} className={primaryBtnClass}>
+                <Sparkles className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
                 {label}
               </button>
             </div>
@@ -765,8 +762,6 @@ function EnhanceButton({
 // Configures the dossier-style public pages: accent family + editorial copy.
 // AI generation proposes these; everything here overrides it.
 
-const ACCENTS_ORDER = ["rose", "amber", "emerald", "sky", "violet"] as const
-
 function AppearancePanel({
   trip,
   onChange,
@@ -779,73 +774,81 @@ function AppearancePanel({
   const [open, setOpen] = useState(false)
   const appearance = trip.appearance ?? {}
   const patch = (p: Partial<NonNullable<Trip["appearance"]>>) => onChange({ ...appearance, ...p })
-  const fieldClass =
-    "w-full min-h-11 rounded-xl border border-stone-200 bg-[var(--trips-surface)] px-3 py-2 text-sm focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-600/25 dark:border-stone-700 dark:bg-stone-900"
 
   return (
-    <section className="mt-6 rounded-2xl border border-stone-200/80 bg-[var(--trips-surface)] dark:border-stone-800 dark:bg-stone-900/50">
+    <section className={`mt-6 ${softPanelClass}`}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="flex min-h-12 w-full items-center justify-between gap-3 px-5 py-3.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-amber-600/40"
+        className={`flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl px-5 py-3.5 text-left ${focusRingInsetClass}`}
       >
         <span className="flex items-center gap-2.5 text-sm font-semibold text-stone-900 dark:text-stone-100">
-          <span className={`h-3.5 w-3.5 rounded-full ${ACCENT_SWATCH[appearance.accent ?? "amber"]}`} aria-hidden />
+          <span className={`h-3.5 w-3.5 rounded-full ${ACCENT_SWATCH[resolveAccent(appearance.accent)]}`} aria-hidden />
           Appearance
-          <span className="hidden font-normal text-stone-400 sm:inline dark:text-stone-500">
+          <span className="hidden font-normal text-stone-500 sm:inline dark:text-stone-400">
             accent & dossier copy
           </span>
         </span>
-        <span className="text-xs text-stone-400">{open ? "Hide" : "Configure"}</span>
+        <span className="text-xs text-stone-500 dark:text-stone-400">{open ? "Hide" : "Configure"}</span>
       </button>
       {open && (
         <div className="space-y-4 border-t border-stone-100 px-5 py-4 dark:border-stone-800">
           <div>
-            <span className="block text-[11px] font-medium uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">Accent</span>
+            <span className={labelClass}>Accent</span>
             <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Accent color">
-              {ACCENTS_ORDER.map((name) => (
-                <button
-                  key={name}
-                  type="button"
-                  role="radio"
-                  aria-checked={(appearance.accent ?? "amber") === name}
-                  aria-label={name}
-                  title={name}
-                  onClick={() => patch({ accent: name })}
-                  className={`h-11 w-11 rounded-full ${ACCENT_SWATCH[name]} transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-900 focus-visible:ring-offset-2 dark:focus-visible:ring-stone-100 ${
-                    (appearance.accent ?? "amber") === name
-                      ? "ring-2 ring-stone-900 ring-offset-2 dark:ring-stone-100 dark:ring-offset-stone-900"
-                      : "opacity-60 hover:opacity-100"
-                  }`}
-                />
-              ))}
+              {TRIP_ACCENTS.map((name) => {
+                const selected = resolveAccent(appearance.accent) === name
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    aria-label={name}
+                    title={name}
+                    onClick={() => patch({ accent: name })}
+                    className={`flex h-11 w-11 items-center justify-center rounded-xl transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-900 dark:focus-visible:ring-stone-100 ${
+                      selected ? "bg-stone-900/5 dark:bg-stone-100/10" : "hover:bg-stone-900/5 dark:hover:bg-stone-100/10"
+                    }`}
+                  >
+                    <span
+                      className={`h-8 w-8 rounded-full ${ACCENT_SWATCH[name]} ${
+                        selected
+                          ? "ring-2 ring-stone-900 ring-offset-2 ring-offset-[var(--trips-surface)] dark:ring-stone-100"
+                          : "opacity-60"
+                      }`}
+                      aria-hidden
+                    />
+                  </button>
+                )
+              })}
             </div>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="block">
-              <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">Eyebrow</span>
-              <input className={`mt-1.5 ${fieldClass}`} value={appearance.eyebrow ?? ""} placeholder="The dossier" onChange={(e) => patch({ eyebrow: e.target.value || undefined })} />
+              <span className={labelClass}>Eyebrow</span>
+              <input className={`mt-1.5 ${inputClass}`} value={appearance.eyebrow ?? ""} placeholder="The dossier" onChange={(e) => patch({ eyebrow: e.target.value || undefined })} />
             </label>
             <label className="block">
-              <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">Subtitle</span>
-              <input className={`mt-1.5 ${fieldClass}`} value={appearance.subtitle ?? ""} placeholder="a Seoul & Busan dossier" onChange={(e) => patch({ subtitle: e.target.value || undefined })} />
+              <span className={labelClass}>Subtitle</span>
+              <input className={`mt-1.5 ${inputClass}`} value={appearance.subtitle ?? ""} placeholder="a Seoul & Busan dossier" onChange={(e) => patch({ subtitle: e.target.value || undefined })} />
             </label>
           </div>
           <label className="block">
-            <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">Headline</span>
+            <span className={labelClass}>Headline</span>
             <textarea
               rows={2}
-              className={`mt-1.5 ${fieldClass}`}
+              className={`mt-1.5 ${inputClass}`}
               value={appearance.headline ?? ""}
               placeholder="Editorial paragraph under the trip title."
               onChange={(e) => patch({ headline: e.target.value || undefined })}
             />
           </label>
           <label className="block">
-            <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">Permalink</span>
-            <span className="mt-1.5 flex items-center gap-0 overflow-hidden rounded-xl border border-stone-200 bg-[var(--trips-surface)] focus-within:border-amber-600 focus-within:ring-2 focus-within:ring-amber-600/25 dark:border-stone-700 dark:bg-stone-900">
-              <span className="shrink-0 select-none border-r border-stone-200 bg-stone-50 px-2.5 py-2.5 text-sm text-stone-400 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-500">
+            <span className={labelClass}>Permalink</span>
+            <span className="mt-1.5 flex items-center gap-0 overflow-hidden rounded-xl border border-stone-300/90 bg-[var(--trips-surface)] focus-within:border-[color:var(--trips-accent)] focus-within:ring-2 focus-within:ring-[color:var(--trips-focus)] dark:border-stone-700 dark:bg-stone-900">
+              <span className="shrink-0 select-none border-r border-stone-300/90 bg-stone-100 px-2.5 py-2.5 text-sm text-stone-600 dark:border-stone-700 dark:bg-stone-800 dark:text-stone-400">
                 /trips/
               </span>
               <input
@@ -864,7 +867,7 @@ function AppearancePanel({
                 className="min-h-11 w-full bg-transparent px-2.5 py-2 text-sm focus:outline-none"
               />
             </span>
-            <span className="mt-1.5 block text-xs text-stone-400 dark:text-stone-500">
+            <span className="mt-1.5 block text-xs text-stone-500 dark:text-stone-400">
               Lowercase letters, numbers, hyphens. Must be unique.
             </span>
           </label>
@@ -914,14 +917,12 @@ function DayCard({
       aria-label={`Day ${index + 1}`}
       aria-busy={enhancing}
       className={`scroll-mt-24 rounded-2xl border bg-[var(--trips-surface)] p-5 transition-colors duration-300 dark:bg-stone-900/50 ${
-        enhancing
-          ? "border-amber-400/70 dark:border-amber-600/60"
-          : "border-stone-200/80 dark:border-stone-800"
+        enhancing ? ACCENT.border : "border-stone-200/80 dark:border-stone-800"
       }`}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+          <div className={`text-xs font-semibold uppercase tracking-wide ${ACCENT.text}`}>
             Day {index + 1} · {formatTripDate(day.date, timezone)}
             {day.city ? ` · ${day.city}` : ""}
           </div>
@@ -933,15 +934,16 @@ function DayCard({
               maxLength={4}
               aria-label={`Day ${index + 1} emoji`}
               onChange={(e) => patchDay({ emoji: e.target.value || undefined })}
-              className="w-9 shrink-0 bg-transparent text-center text-xl focus:outline-none"
+              className={`w-11 shrink-0 text-center text-xl ${subtleInputClass}`}
             />
             <input
               value={day.title ?? ""}
               disabled={!editable}
               placeholder="Day theme…"
+              title={day.title ?? undefined}
               aria-label={`Day ${index + 1} title`}
               onChange={(e) => patchDay({ title: e.target.value })}
-              className="mt-0.5 w-full bg-transparent text-lg font-semibold text-stone-900 placeholder:text-stone-300 focus:outline-none dark:text-stone-100 dark:placeholder:text-stone-600"
+              className={`w-full text-lg font-semibold ${subtleInputClass}`}
             />
           </div>
         </div>
@@ -962,9 +964,9 @@ function DayCard({
             onClick={onOpenMap}
             disabled={!hasMappable}
             title={hasMappable ? "Open Map Mode" : "No located places on this day yet"}
-            className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 px-3 py-1.5 text-xs font-medium text-stone-700 transition hover:border-amber-400 hover:text-amber-700 disabled:opacity-40 dark:border-stone-700 dark:text-stone-300 dark:hover:text-amber-400"
+            className={chipBtnClass}
           >
-            <MapIcon className="h-3.5 w-3.5" aria-hidden />
+            <MapIcon className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
             Map
           </button>
         </div>
@@ -977,7 +979,7 @@ function DayCard({
         aria-label={`Day ${index + 1} theme`}
         rows={day.notes ? Math.min(4, day.notes.split("\n").length) : 1}
         onChange={(e) => patchDay({ notes: e.target.value })}
-        className="mt-2 w-full resize-none rounded-lg border border-transparent bg-transparent px-2 py-1 text-sm text-stone-600 transition placeholder:text-stone-300 hover:border-stone-200 focus:border-amber-500 focus:outline-none dark:text-stone-400 dark:placeholder:text-stone-600 dark:hover:border-stone-700"
+        className={`mt-2 w-full resize-none ${subtleInputClass}`}
       />
 
       {/* Day details: display metadata for the dossier pages */}
@@ -987,16 +989,15 @@ function DayCard({
             type="button"
             onClick={() => setDetailsOpen((o) => !o)}
             aria-expanded={detailsOpen}
-            className="rounded-md px-2 py-1 text-xs font-medium text-stone-400 transition hover:bg-stone-100 hover:text-stone-700 dark:hover:bg-stone-800 dark:hover:text-stone-300"
+            className={quietBtnClass}
           >
-            {detailsOpen ? "Hide day details" : "Day details (neighborhoods, callouts, weather)"}
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${detailsOpen ? "rotate-180" : ""}`} aria-hidden />
+            {detailsOpen ? "Hide details" : "Details"}
           </button>
           {detailsOpen && (
-            <div className="mt-2 space-y-3 rounded-xl border border-stone-100 p-3 dark:border-stone-800">
+            <div className="mt-2 space-y-3 rounded-xl border border-stone-200/80 p-3 dark:border-stone-800">
               <label className="block">
-                <span className="text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400">
-                  Neighborhoods (comma-separated)
-                </span>
+                <span className={labelClass}>Neighborhoods (comma-separated)</span>
                 <input
                   value={(day.neighborhoods ?? []).join(", ")}
                   placeholder="Samseong, COEX, Bongeunsa"
@@ -1008,11 +1009,11 @@ function DayCard({
                         .filter(Boolean),
                     })
                   }
-                  className="mt-1 w-full rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-sm focus:border-amber-500 focus:outline-none dark:border-stone-700 dark:bg-stone-900"
+                  className={`mt-1 w-full ${compactInputClass}`}
                 />
               </label>
               <div>
-                <span className="text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400">Callouts</span>
+                <span className={labelClass}>Callouts</span>
                 <div className="mt-1 space-y-2">
                   {(day.callouts ?? []).map((c, ci) => (
                     <div key={ci} className="flex items-start gap-2">
@@ -1023,7 +1024,7 @@ function DayCard({
                         onChange={(e) =>
                           patchDay({ callouts: (day.callouts ?? []).map((x, xi) => (xi === ci ? { ...x, icon: e.target.value } : x)) })
                         }
-                        className="w-10 shrink-0 rounded-lg border border-stone-200 bg-white px-1 py-1.5 text-center text-sm dark:border-stone-700 dark:bg-stone-900"
+                        className={`w-11 shrink-0 px-1 text-center ${compactInputClass}`}
                       />
                       <select
                         value={c.tone}
@@ -1035,7 +1036,7 @@ function DayCard({
                             ),
                           })
                         }
-                        className="shrink-0 rounded-lg border border-stone-200 bg-white px-1.5 py-1.5 text-xs dark:border-stone-700 dark:bg-stone-900"
+                        className={`shrink-0 ${compactSelectClass}`}
                       >
                         {(["info", "warn", "success", "alert"] as const).map((t) => (
                           <option key={t} value={t}>{t}</option>
@@ -1048,19 +1049,19 @@ function DayCard({
                         onChange={(e) =>
                           patchDay({ callouts: (day.callouts ?? []).map((x, xi) => (xi === ci ? { ...x, body: e.target.value } : x)) })
                         }
-                        className="min-w-0 flex-1 rounded-lg border border-stone-200 bg-white px-2.5 py-1.5 text-sm focus:border-amber-500 focus:outline-none dark:border-stone-700 dark:bg-stone-900"
+                        className={`min-w-0 flex-1 ${compactInputClass}`}
                       />
                       <IconButton label="Remove callout" destructive onClick={() => patchDay({ callouts: (day.callouts ?? []).filter((_, xi) => xi !== ci) })}>
-                        <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                        <Trash2 className="h-4 w-4" strokeWidth={1.5} aria-hidden />
                       </IconButton>
                     </div>
                   ))}
                   <button
                     type="button"
                     onClick={() => patchDay({ callouts: [...(day.callouts ?? []), { icon: "⚠️", tone: "warn", body: "" }] })}
-                    className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-stone-500 transition hover:bg-stone-100 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800"
+                    className={quietBtnClass}
                   >
-                    <Plus className="h-3 w-3" aria-hidden />
+                    <Plus className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
                     Add callout
                   </button>
                 </div>
@@ -1089,7 +1090,7 @@ function DayCard({
       </AnimatePresence>
 
       {day.items.length === 0 ? (
-        <div className="mt-3 rounded-xl border border-dashed border-stone-200 px-4 py-6 text-center text-sm text-stone-400 dark:border-stone-700 dark:text-stone-500">
+        <div className="mt-3 rounded-xl border border-dashed border-stone-200 px-4 py-6 text-center text-sm text-stone-600 dark:border-stone-700 dark:text-stone-400">
           Nothing planned yet{editable ? " — add a place, note, or section below." : "."}
         </div>
       ) : (
@@ -1133,9 +1134,9 @@ function DayCard({
                   return addItem(days, day.id, item)
                 })
               }
-              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-stone-500 transition hover:bg-stone-100 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-200"
+              className={quietBtnClass}
             >
-              <Plus className="h-3.5 w-3.5" aria-hidden />
+              <Plus className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
               {label}
             </button>
           ))}
@@ -1168,34 +1169,23 @@ function ItemRow({
 }) {
   const reduce = useReducedMotion()
   const [expanded, setExpanded] = useState(false)
-  const Icon = KIND_ICON[item.kind]
-  const patch = (p: Partial<Omit<ItineraryItem, "id">>) => onChange((days) => updateItem(days, dayId, item.id, p))
   const isSection = item.kind === "section"
+  const Icon = isSection ? Heading2 : itemIcon(item.kind, item.location?.category, item.reservation?.type)
+  const patch = (p: Partial<Omit<ItineraryItem, "id">>) => onChange((days) => updateItem(days, dayId, item.id, p))
   const hasLocation = item.location?.lat != null && item.location?.lng != null
-
-  // Amber pulse on items just touched by applied AI suggestions. Reduced
-  // motion gets a static ring (cleared with recentIds) instead of the pulse.
-  const flashAnimate =
-    highlight && !reduce
-      ? { backgroundColor: ["rgba(245, 158, 11, 0.20)", "rgba(245, 158, 11, 0)"] }
-      : {}
 
   return (
     <motion.li
       layout={!reduce}
       initial={reduce ? false : { opacity: 0, y: -4 }}
-      animate={{ opacity: 1, y: 0, ...flashAnimate }}
+      animate={{ opacity: 1, y: 0 }}
       exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.98 }}
-      transition={{
-        duration: 0.22,
-        ease: [0.16, 1, 0.3, 1],
-        backgroundColor: { duration: 2.6, ease: "easeOut" },
-      }}
+      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
       className={`relative ${
         isSection
           ? "rounded-xl bg-stone-100/80 px-3 py-2 dark:bg-stone-800/60"
           : "rounded-xl border border-stone-200/80 bg-white px-3 py-2 transition-shadow hover:border-stone-300 dark:border-stone-800 dark:bg-stone-900 dark:hover:border-stone-700"
-      } ${highlight ? "ring-2 ring-amber-400/70 dark:ring-amber-500/50" : ""}`}
+      } ${highlight ? `trip-flash ring-2 ${ACCENT.ring}` : ""}`}
     >
       {/* Timeline marker — filled when the stop is mapped, hollow otherwise. */}
       <span
@@ -1203,14 +1193,15 @@ function ItemRow({
           isSection
             ? "border-stone-300 bg-stone-300 dark:border-stone-600 dark:bg-stone-600"
             : hasLocation
-              ? "border-amber-600 bg-amber-600 dark:border-amber-400 dark:bg-amber-400"
+              ? `${ACCENT.border} ${ACCENT.dot}`
               : "border-stone-300 bg-white dark:border-stone-600 dark:bg-stone-900"
         }`}
         aria-hidden
       />
       <div className="flex items-center gap-2">
         <Icon
-          className={`h-4 w-4 shrink-0 ${item.kind === "place" ? "text-amber-600 dark:text-amber-400" : "text-stone-400 dark:text-stone-500"}`}
+          className={`h-4 w-4 shrink-0 ${item.kind === "place" || item.kind === "reservation" ? ACCENT.text : "text-stone-500 dark:text-stone-400"}`}
+          strokeWidth={1.5}
           aria-hidden
         />
         {item.time && (
@@ -1227,24 +1218,16 @@ function ItemRow({
           onChange={(e) => {
             patch({ title: e.target.value })
           }}
-          className={`min-w-0 flex-1 ${inputClass} ${isSection ? "font-semibold uppercase tracking-wide text-xs" : ""} ${item.status === "completed" ? "line-through opacity-60" : ""}`}
+          className={`min-w-0 flex-1 ${compactInputClass} ${isSection ? "text-xs font-semibold uppercase tracking-wide" : ""} ${item.status === "completed" ? "line-through opacity-60" : ""}`}
         />
-        {item.createdBy === "ai" && (
-          <span className="hidden shrink-0 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-700 sm:inline dark:bg-violet-950/60 dark:text-violet-300">
-            AI
-          </span>
-        )}
-        {item.status !== "none" && (
-          <span className={`hidden shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium sm:inline ${STATUS_CHIP[item.status]}`}>
-            {STATUS_OPTIONS.find((s) => s.value === item.status)?.label}
-          </span>
-        )}
+        {item.createdBy === "ai" && <AiChip className="hidden sm:inline-flex" />}
+        <StatusChip status={item.status} className="hidden sm:inline-flex" />
         <button
           type="button"
           onClick={() => setExpanded((e) => !e)}
           aria-expanded={expanded}
           aria-label={expanded ? "Collapse item" : "Expand item"}
-          className="shrink-0 rounded-md px-2 py-1 text-xs text-stone-400 transition hover:bg-stone-100 hover:text-stone-700 dark:hover:bg-stone-800 dark:hover:text-stone-300"
+          className={`${quietBtnClass} shrink-0`}
         >
           {expanded ? "Less" : "More"}
         </button>
@@ -1260,7 +1243,7 @@ function ItemRow({
                   type="time"
                   value={item.time ?? ""}
                   onChange={(e) => patch({ time: e.target.value || undefined })}
-                  className="rounded-md border border-stone-200 bg-white px-2 py-1 text-xs tabular-nums focus:border-amber-500 focus:outline-none dark:border-stone-700 dark:bg-stone-900"
+                  className={`tabular-nums ${compactInputClass}`}
                 />
               </label>
               <label className="inline-flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
@@ -1269,7 +1252,7 @@ function ItemRow({
                   type="time"
                   value={item.endTime ?? ""}
                   onChange={(e) => patch({ endTime: e.target.value || undefined })}
-                  className="rounded-md border border-stone-200 bg-white px-2 py-1 text-xs tabular-nums focus:border-amber-500 focus:outline-none dark:border-stone-700 dark:bg-stone-900"
+                  className={`tabular-nums ${compactInputClass}`}
                 />
               </label>
             </div>
@@ -1281,7 +1264,7 @@ function ItemRow({
             aria-label="Item notes"
             rows={3}
             onChange={(e) => patch({ notes: e.target.value || undefined })}
-            className="w-full rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm focus:border-amber-500 focus:outline-none dark:border-stone-700 dark:bg-stone-900"
+            className={`w-full resize-none ${compactInputClass}`}
           />
           {(item.kind === "place" || item.kind === "reservation") && (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -1293,7 +1276,7 @@ function ItemRow({
                 onChange={(e) =>
                   patch({ location: { ...(item.location ?? { source: "user" as const }), name: e.target.value } })
                 }
-                className="rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm focus:border-amber-500 focus:outline-none dark:border-stone-700 dark:bg-stone-900"
+                className={`w-full ${compactInputClass}`}
               />
               <input
                 value={item.location?.address ?? ""}
@@ -1308,11 +1291,12 @@ function ItemRow({
                     },
                   })
                 }
-                className="rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm focus:border-amber-500 focus:outline-none dark:border-stone-700 dark:bg-stone-900"
+                className={`w-full ${compactInputClass}`}
               />
               {item.location?.lat != null && item.location?.lng != null ? (
-                <p className="col-span-full text-xs text-stone-400 dark:text-stone-500">
-                  📍 {item.location.lat.toFixed(4)}, {item.location.lng.toFixed(4)}
+                <p className="col-span-full inline-flex items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400">
+                  <MapPin className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} aria-hidden />
+                  {item.location.lat.toFixed(4)}, {item.location.lng.toFixed(4)}
                   {item.location.confidence ? ` · ${item.location.confidence} confidence` : ""} — appears in Map Mode
                 </p>
               ) : (
@@ -1329,33 +1313,33 @@ function ItemRow({
                 value={item.status}
                 aria-label="Item status"
                 onChange={(e) => patch({ status: e.target.value as ItemStatus })}
-                className="rounded-md border border-stone-200 bg-white px-2 py-1 text-xs dark:border-stone-700 dark:bg-stone-900"
+                className={compactSelectClass}
               >
                 {STATUS_OPTIONS.map((s) => (
-                  <option key={s.value} value={s.value}>{s.label === "—" ? "No status" : s.label}</option>
+                  <option key={s.value} value={s.value}>{s.label}</option>
                 ))}
               </select>
               <IconButton label="Move up" disabled={isFirst} onClick={() => onChange((days) => moveItem(days, dayId, item.id, -1))}>
-                <ArrowUp className="h-3.5 w-3.5" aria-hidden />
+                <ArrowUp className="h-4 w-4" strokeWidth={1.5} aria-hidden />
               </IconButton>
               <IconButton label="Move down" disabled={isLast} onClick={() => onChange((days) => moveItem(days, dayId, item.id, 1))}>
-                <ArrowDown className="h-3.5 w-3.5" aria-hidden />
+                <ArrowDown className="h-4 w-4" strokeWidth={1.5} aria-hidden />
               </IconButton>
               <IconButton label="Duplicate" onClick={() => onChange((days) => duplicateItem(days, dayId, item.id))}>
-                <Copy className="h-3.5 w-3.5" aria-hidden />
+                <Copy className="h-4 w-4" strokeWidth={1.5} aria-hidden />
               </IconButton>
               {item.kind === "note" && (
                 <IconButton label="Convert to place" onClick={() => onChange((days) => convertNoteToPlace(days, dayId, item.id))}>
-                  <MapPin className="h-3.5 w-3.5" aria-hidden />
+                  <MapPin className="h-4 w-4" strokeWidth={1.5} aria-hidden />
                 </IconButton>
               )}
               <label className="inline-flex items-center gap-1 text-xs text-stone-500 dark:text-stone-400">
-                <ArrowRightLeft className="h-3.5 w-3.5" aria-hidden />
+                <ArrowRightLeft className="h-4 w-4" strokeWidth={1.5} aria-hidden />
                 <select
                   value={dayId}
                   aria-label="Move to day"
                   onChange={(e) => onChange((days) => moveItemToDay(days, dayId, item.id, e.target.value))}
-                  className="rounded-md border border-stone-200 bg-white px-1.5 py-1 text-xs dark:border-stone-700 dark:bg-stone-900"
+                  className={compactSelectClass}
                 >
                   {dayOptions.map((d) => (
                     <option key={d.id} value={d.id}>{d.label}</option>
@@ -1364,7 +1348,7 @@ function ItemRow({
               </label>
               <span className="flex-1" />
               <IconButton label="Delete item" destructive onClick={() => onChange((days) => removeItem(days, dayId, item.id))}>
-                <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                <Trash2 className="h-4 w-4" strokeWidth={1.5} aria-hidden />
               </IconButton>
             </div>
           )}
@@ -1394,11 +1378,7 @@ function IconButton({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className={`rounded-md p-1.5 transition disabled:opacity-30 ${
-        destructive
-          ? "text-stone-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40"
-          : "text-stone-400 hover:bg-stone-100 hover:text-stone-700 dark:hover:bg-stone-800 dark:hover:text-stone-300"
-      }`}
+      className={destructive ? dangerIconBtnClass : iconBtnClass}
     >
       {children}
     </button>
@@ -1406,15 +1386,6 @@ function IconButton({
 }
 
 // ── Enhancement suggestions review ───────────────────────────────────────
-
-const SUGGESTION_BADGE: Record<string, string> = {
-  add: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300",
-  edit: "bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300",
-  remove: "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300",
-  reorder: "bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300",
-  warning: "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300",
-  info: "bg-stone-200/70 text-stone-600 dark:bg-stone-800 dark:text-stone-300",
-}
 
 function SuggestionsPanel({
   run,
@@ -1441,18 +1412,18 @@ function SuggestionsPanel({
       exit={{ opacity: 0, y: -6 }}
       transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
       aria-label="AI enhancement suggestions"
-      className="mt-5 rounded-2xl border border-amber-200/80 bg-amber-50/50 p-5 motion-reduce:transition-none dark:border-amber-900/40 dark:bg-amber-950/15"
+      className={`mt-5 p-5 motion-reduce:transition-none ${softPanelClass} ${ACCENT.border}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 className="flex items-center gap-2 text-base font-semibold text-stone-900 dark:text-stone-100">
-            <Sparkles className="h-4 w-4 text-amber-600" aria-hidden />
+            <Sparkles className={`h-4 w-4 ${ACCENT.text}`} strokeWidth={1.5} aria-hidden />
             Enhancement review {run.scope === "day" ? `· ${dayLabel(run.dayId)}` : "· whole trip"}
           </h2>
           {run.summary && <p className="mt-1 text-sm text-stone-600 dark:text-stone-400">{run.summary}</p>}
         </div>
-        <button type="button" onClick={onDismiss} aria-label="Dismiss suggestions" className="rounded-full p-1.5 text-stone-400 hover:bg-stone-200/60 dark:hover:bg-stone-800/60">
-          <X className="h-4 w-4" aria-hidden />
+        <button type="button" onClick={onDismiss} aria-label="Dismiss suggestions" className={iconBtnClass}>
+          <X className="h-4 w-4" strokeWidth={1.5} aria-hidden />
         </button>
       </div>
 
@@ -1477,7 +1448,7 @@ function SuggestionsPanel({
                           return next
                         })
                       }
-                      className="mt-1 h-4 w-4 accent-amber-700"
+                      className={`mt-1 ${checkboxClass}`}
                       aria-label={`Accept: ${s.title}`}
                     />
                   ) : (
@@ -1485,12 +1456,10 @@ function SuggestionsPanel({
                   )}
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${SUGGESTION_BADGE[s.kind] ?? SUGGESTION_BADGE.info}`}>
-                        {s.kind}
-                      </span>
+                      <SuggestionChip kind={s.kind} />
                       <span className="text-sm font-medium text-stone-900 dark:text-stone-100">{s.title}</span>
-                      {s.dayId && <span className="text-xs text-stone-400">{dayLabel(s.dayId)}</span>}
-                      <span className="text-[10px] uppercase text-stone-400">{s.confidence} confidence</span>
+                      {s.dayId && <span className="text-xs text-stone-500 dark:text-stone-400">{dayLabel(s.dayId)}</span>}
+                      <span className="text-[10px] uppercase text-stone-500 dark:text-stone-400">{s.confidence} confidence</span>
                     </div>
                     {s.detail && <p className="mt-1 text-sm text-stone-600 dark:text-stone-400">{s.detail}</p>}
                     {s.proposedItem && (
@@ -1513,15 +1482,15 @@ function SuggestionsPanel({
             type="button"
             disabled={selected.size === 0}
             onClick={() => onApply([...selected])}
-            className="inline-flex items-center gap-2 rounded-full bg-amber-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-800 disabled:opacity-50 dark:bg-amber-600 dark:hover:bg-amber-500"
+            className={primaryBtnClass}
           >
-            <Check className="h-4 w-4" aria-hidden />
+            <Check className="h-4 w-4" strokeWidth={1.5} aria-hidden />
             Apply {selected.size} selected
           </button>
           <button
             type="button"
             onClick={onDismiss}
-            className="rounded-full px-3 py-2 text-sm text-stone-600 hover:bg-stone-200/60 dark:text-stone-400 dark:hover:bg-stone-800/60"
+            className={ghostBtnClass}
           >
             Dismiss all
           </button>

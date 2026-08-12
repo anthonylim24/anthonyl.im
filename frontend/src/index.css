@@ -826,9 +826,17 @@ body {
   --trips-ink-secondary: #78716c;
   --trips-ink-tertiary: #a8a29e;
   --trips-border: rgba(28, 25, 23, 0.08);
-  --trips-accent: #b45309;
-  --trips-accent-hover: #92400e;
+  --trips-accent: #92400e;
+  --trips-accent-hover: #78350f;
   --trips-focus: rgba(180, 83, 9, 0.45);
+  /* Accent fallbacks: app chrome is amber, so the accent classes still
+     resolve outside a `data-trip-accent` subtree. */
+  --ta: #92400e;
+  --ta-strong: #78350f;
+  --ta-soft: rgba(180, 83, 9, 0.1);
+  --ta-ring: rgba(180, 83, 9, 0.45);
+  --ta-bloom-a: rgba(217, 119, 6, 0.1);
+  --ta-bloom-b: rgba(120, 113, 108, 0.08);
   color-scheme: light dark;
   background-color: var(--trips-canvas);
   color: var(--trips-ink);
@@ -850,6 +858,12 @@ html.dark .trips,
   --trips-accent: #d97706;
   --trips-accent-hover: #f59e0b;
   --trips-focus: rgba(245, 158, 11, 0.5);
+  --ta: #d97706;
+  --ta-strong: #f59e0b;
+  --ta-soft: rgba(217, 119, 6, 0.1);
+  --ta-ring: rgba(245, 158, 11, 0.5);
+  --ta-bloom-a: rgba(245, 158, 11, 0.14);
+  --ta-bloom-b: rgba(168, 162, 158, 0.1);
   background-image:
     radial-gradient(ellipse 70% 45% at 0% 0%, rgba(217, 119, 6, 0.08), transparent 55%),
     radial-gradient(ellipse 50% 35% at 100% 10%, rgba(120, 113, 108, 0.1), transparent 50%);
@@ -861,4 +875,162 @@ html.dark .trips,
 
 .trips .font-mono-trips {
   font-family: "Fragment Mono", ui-monospace, monospace;
+}
+
+/* ───────────────────────────────────────────────────────
+   Per-trip accent
+
+   `data-trip-accent` on any trip-scoped subtree (overview, day page,
+   editor) swaps one variable set, so every accent moment inside follows
+   the trip's chosen colour. App chrome outside such a subtree keeps the
+   amber `--trips-accent` defaults above.
+
+   Hues are the OKLCH equivalents of rose-500 / amber-500 / emerald-500 /
+   sky-500 / violet-500, with lightness solved so `--ta` clears 4.5:1
+   against canvas, surface, AND its own `--ta-soft` tint in both themes;
+   chroma is pulled back at those lightness extremes to stay in gamut.
+   ─────────────────────────────────────────────────────── */
+
+.trips [data-trip-accent] {
+  --ta-bloom-b: oklch(77% 0.14 70 / 0.07);
+  --trips-accent: var(--ta);
+  --trips-accent-hover: var(--ta-strong);
+  --trips-focus: var(--ta-ring);
+}
+
+.trips [data-trip-accent="rose"] {
+  --ta: oklch(51% 0.198 16.4);
+  --ta-strong: oklch(44% 0.198 16.4);
+  --ta-soft: oklch(51% 0.198 16.4 / 0.12);
+  --ta-ring: oklch(51% 0.198 16.4 / 0.45);
+  --ta-bloom-a: oklch(65% 0.21 16.4 / 0.1);
+}
+
+.trips [data-trip-accent="amber"] {
+  --ta: oklch(50% 0.108 70.1);
+  --ta-strong: oklch(43% 0.108 70.1);
+  --ta-soft: oklch(50% 0.108 70.1 / 0.12);
+  --ta-ring: oklch(50% 0.108 70.1 / 0.45);
+  --ta-bloom-a: oklch(77% 0.16 70.1 / 0.12);
+  --ta-bloom-b: oklch(62% 0.012 60 / 0.08);
+}
+
+.trips [data-trip-accent="emerald"] {
+  --ta: oklch(48% 0.104 162.5);
+  --ta-strong: oklch(41% 0.104 162.5);
+  --ta-soft: oklch(48% 0.104 162.5 / 0.12);
+  --ta-ring: oklch(48% 0.104 162.5 / 0.45);
+  --ta-bloom-a: oklch(70% 0.15 162.5 / 0.1);
+}
+
+.trips [data-trip-accent="sky"] {
+  --ta: oklch(49% 0.106 237.3);
+  --ta-strong: oklch(42% 0.106 237.3);
+  --ta-soft: oklch(49% 0.106 237.3 / 0.12);
+  --ta-ring: oklch(49% 0.106 237.3 / 0.45);
+  --ta-bloom-a: oklch(69% 0.15 237.3 / 0.1);
+}
+
+.trips [data-trip-accent="violet"] {
+  --ta: oklch(52% 0.201 292.7);
+  --ta-strong: oklch(45% 0.201 292.7);
+  --ta-soft: oklch(52% 0.201 292.7 / 0.12);
+  --ta-ring: oklch(52% 0.201 292.7 / 0.45);
+  --ta-bloom-a: oklch(61% 0.22 292.7 / 0.1);
+  --ta-bloom-b: oklch(66% 0.18 16.4 / 0.06);
+}
+
+html.dark .trips [data-trip-accent] {
+  --ta-bloom-b: oklch(80% 0.13 70 / 0.1);
+}
+
+html.dark .trips [data-trip-accent="rose"] {
+  --ta: oklch(68% 0.172 16.4);
+  --ta-strong: oklch(76% 0.163 16.4);
+  --ta-soft: oklch(68% 0.172 16.4 / 0.1);
+  --ta-ring: oklch(68% 0.172 16.4 / 0.5);
+  --ta-bloom-a: oklch(72% 0.17 16.4 / 0.16);
+}
+
+html.dark .trips [data-trip-accent="amber"] {
+  --ta: oklch(67% 0.132 70.1);
+  --ta-strong: oklch(75% 0.125 70.1);
+  --ta-soft: oklch(67% 0.132 70.1 / 0.1);
+  --ta-ring: oklch(67% 0.132 70.1 / 0.5);
+  --ta-bloom-a: oklch(80% 0.14 70.1 / 0.16);
+  --ta-bloom-b: oklch(70% 0.012 60 / 0.08);
+}
+
+html.dark .trips [data-trip-accent="emerald"] {
+  --ta: oklch(65% 0.119 162.5);
+  --ta-strong: oklch(73% 0.113 162.5);
+  --ta-soft: oklch(65% 0.119 162.5 / 0.1);
+  --ta-ring: oklch(65% 0.119 162.5 / 0.5);
+  --ta-bloom-a: oklch(75% 0.13 162.5 / 0.14);
+}
+
+html.dark .trips [data-trip-accent="sky"] {
+  --ta: oklch(65% 0.118 237.3);
+  --ta-strong: oklch(73% 0.112 237.3);
+  --ta-soft: oklch(65% 0.118 237.3 / 0.1);
+  --ta-ring: oklch(65% 0.118 237.3 / 0.5);
+  --ta-bloom-a: oklch(74% 0.13 237.3 / 0.14);
+}
+
+html.dark .trips [data-trip-accent="violet"] {
+  --ta: oklch(68% 0.175 292.7);
+  --ta-strong: oklch(76% 0.166 292.7);
+  --ta-soft: oklch(68% 0.175 292.7 / 0.1);
+  --ta-ring: oklch(68% 0.175 292.7 / 0.5);
+  --ta-bloom-a: oklch(70% 0.19 292.7 / 0.16);
+}
+
+/* Signature hero bloom, two drifting radial layers reading the accent vars. */
+.trip-bloom-a {
+  background-image: radial-gradient(ellipse at top right, var(--ta-bloom-a), transparent 55%);
+}
+
+.trip-bloom-b {
+  background-image: radial-gradient(ellipse at bottom left, var(--ta-bloom-b), transparent 55%);
+}
+
+/* Split action (button + disclosure): two `rounded-xl` buttons share one
+   outline. Unlayered, so it wins over the utilities' border-radius. */
+.trip-split > button {
+  border-radius: 0;
+}
+
+.trip-split > button:first-of-type {
+  border-start-start-radius: 0.75rem;
+  border-end-start-radius: 0.75rem;
+  padding-inline-end: 0.625rem;
+}
+
+.trip-split > button:last-of-type {
+  border-start-end-radius: 0.75rem;
+  border-end-end-radius: 0.75rem;
+  padding-inline: 0.5rem;
+  /* Divider tracks the button's own text colour, so one rule serves the
+     filled and the bordered variant. */
+  border-inline-start: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+}
+
+/* "This just changed" flash on items an applied AI suggestion touched. */
+@keyframes trip-flash {
+  from {
+    background-color: var(--ta-soft);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+.trip-flash {
+  animation: trip-flash 2.6s cubic-bezier(0.33, 0, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trip-flash {
+    animation: none;
+  }
 }

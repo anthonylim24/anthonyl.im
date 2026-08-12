@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react"
+import { accentIconClass, focusRingClass, iconBtnClass, inputClass, popoverClass } from "../ui"
 
 // Custom dual-month range calendar — no external date library. Dates are ISO
 // yyyy-mm-dd strings end to end (matching the trip model), so there's no
@@ -85,7 +86,7 @@ function Month({
       </div>
       <div className="mt-2 grid grid-cols-7 text-center" role="rowgroup" aria-hidden>
         {WEEKDAYS.map((w, i) => (
-          <span key={i} className="py-1 text-[11px] font-medium text-stone-400 dark:text-stone-500">
+          <span key={i} className="py-1 text-[11px] font-medium text-stone-600 dark:text-stone-400">
             {w}
           </span>
         ))}
@@ -110,17 +111,17 @@ function Month({
               className={[
                 "relative mx-auto my-0.5 flex h-10 w-10 items-center justify-center text-[13px] tabular-nums outline-none transition-colors duration-150",
                 isEdge
-                  ? "rounded-full bg-amber-800 font-semibold text-white dark:bg-amber-500 dark:text-stone-950"
+                  ? "rounded-lg bg-[color:var(--trips-accent)] font-semibold text-white dark:text-stone-950"
                   : inRange(iso)
-                    ? "rounded-none bg-amber-100/80 text-amber-950 dark:bg-amber-500/15 dark:text-amber-200"
-                    : "rounded-full text-stone-700 hover:bg-stone-200/70 dark:text-stone-300 dark:hover:bg-stone-800",
-                iso === today && !isEdge ? "font-semibold text-amber-800 dark:text-amber-400" : "",
-                "focus-visible:ring-2 focus-visible:ring-amber-600 focus-visible:ring-offset-1",
+                    ? "rounded-none bg-[color:var(--ta-soft)] text-stone-900 dark:text-stone-100"
+                    : "rounded-lg text-stone-700 hover:bg-stone-200/70 dark:text-stone-300 dark:hover:bg-stone-800",
+                iso === today && !isEdge ? `font-semibold ${accentIconClass}` : "",
+                `${focusRingClass} focus-visible:ring-offset-1`,
               ].join(" ")}
             >
               {Number(iso.slice(8, 10))}
               {iso === today && !isEdge && (
-                <span className="absolute bottom-1 h-1 w-1 rounded-full bg-amber-600" aria-hidden />
+                <span className="absolute bottom-1 h-1 w-1 rounded-full bg-[color:var(--trips-accent)]" aria-hidden />
               )}
             </button>
           )
@@ -215,9 +216,9 @@ export function DateRangeField({ startDate, endDate, onChange }: DateRangeFieldP
         aria-haspopup="dialog"
         aria-labelledby={labelId}
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-3 rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-left text-sm text-stone-900 transition hover:border-stone-400 focus:border-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-600/25 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:hover:border-stone-600"
+        className={`flex items-center gap-3 text-left hover:border-stone-400 dark:hover:border-stone-600 ${inputClass}`}
       >
-        <CalendarDays className="h-4 w-4 shrink-0 text-amber-700 dark:text-amber-400" aria-hidden />
+        <CalendarDays className={`h-4 w-4 shrink-0 ${accentIconClass}`} strokeWidth={1.5} aria-hidden />
         <span id={labelId} className={startDate ? "" : "text-stone-500 dark:text-stone-400"}>
           {startDate && endDate ? formatRangeLabel(startDate, endDate) : "Select trip dates"}
         </span>
@@ -232,16 +233,16 @@ export function DateRangeField({ startDate, endDate, onChange }: DateRangeFieldP
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={reduce ? { opacity: 0 } : { opacity: 0, y: -4, scale: 0.99 }}
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-            className="absolute left-0 top-[calc(100%+0.5rem)] z-40 rounded-2xl border border-stone-200 bg-white p-4 shadow-xl shadow-stone-950/10 dark:border-stone-700 dark:bg-stone-900 dark:shadow-black/40"
+            className={`absolute left-0 top-[calc(100%+0.5rem)] z-40 p-4 ${popoverClass}`}
           >
             <div className="flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => shiftMonth(-1)}
                 aria-label="Previous month"
-                className="rounded-full p-2 text-stone-500 transition hover:bg-stone-100 hover:text-stone-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600 dark:hover:bg-stone-800 dark:hover:text-stone-200"
+                className={iconBtnClass}
               >
-                <ChevronLeft className="h-4 w-4" aria-hidden />
+                <ChevronLeft className="h-4 w-4" strokeWidth={1.5} aria-hidden />
               </button>
               <p className="text-xs text-stone-500 dark:text-stone-400" aria-live="polite">
                 {selecting ? "Now pick the last day" : "Pick the first day"}
@@ -250,9 +251,9 @@ export function DateRangeField({ startDate, endDate, onChange }: DateRangeFieldP
                 type="button"
                 onClick={() => shiftMonth(1)}
                 aria-label="Next month"
-                className="rounded-full p-2 text-stone-500 transition hover:bg-stone-100 hover:text-stone-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600 dark:hover:bg-stone-800 dark:hover:text-stone-200"
+                className={iconBtnClass}
               >
-                <ChevronRight className="h-4 w-4" aria-hidden />
+                <ChevronRight className="h-4 w-4" strokeWidth={1.5} aria-hidden />
               </button>
             </div>
             <div ref={gridRef} className="mt-2 flex gap-6">

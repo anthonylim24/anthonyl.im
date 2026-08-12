@@ -8,11 +8,13 @@ import { TimezoneField } from "./components/TimezoneField"
 import { DEFAULT_ITINERARY_PROMPT, type GeneratePreferences } from "./types"
 import {
   SERIF,
+  accentIconClass,
   alertErrorClass,
   ghostBtnClass,
   inputClass,
   labelClass,
   primaryBtnClass,
+  quietBtnClass,
   softPanelClass,
 } from "./ui"
 
@@ -148,9 +150,9 @@ export function TripCreate() {
           ).map((opt) => (
             <label
               key={opt.id}
-              className={`relative flex cursor-pointer gap-3 rounded-xl border p-4 transition focus-within:ring-2 focus-within:ring-amber-600/40 ${
+              className={`relative flex cursor-pointer gap-3 rounded-xl border p-4 transition focus-within:ring-2 focus-within:ring-[color:var(--trips-focus)] ${
                 mode === opt.id
-                  ? "border-amber-600/70 bg-amber-50/50 dark:border-amber-500/60 dark:bg-amber-950/20"
+                  ? "border-[color:var(--trips-accent)] bg-[color:var(--ta-soft)]"
                   : "border-stone-200 hover:border-stone-300 dark:border-stone-700 dark:hover:border-stone-600"
               }`}
             >
@@ -163,7 +165,8 @@ export function TripCreate() {
                 className="sr-only"
               />
               <opt.Icon
-                className={`mt-0.5 h-4 w-4 shrink-0 ${mode === opt.id ? "text-amber-800 dark:text-amber-400" : "text-stone-400"}`}
+                className={`mt-0.5 h-4 w-4 shrink-0 ${mode === opt.id ? accentIconClass : "text-stone-500 dark:text-stone-400"}`}
+                strokeWidth={1.5}
                 aria-hidden
               />
               <span>
@@ -249,7 +252,7 @@ export function TripCreate() {
         </div>
         <div>
           <label htmlFor="trip-tags" className={labelClass}>
-            Tags <span className="font-normal normal-case tracking-normal text-stone-400">(optional)</span>
+            Tags <span className="font-normal normal-case tracking-normal text-stone-500 dark:text-stone-400">(optional)</span>
           </label>
           <input
             id="trip-tags"
@@ -261,7 +264,7 @@ export function TripCreate() {
         </div>
         <div>
           <label htmlFor="trip-desc" className={labelClass}>
-            Notes <span className="font-normal normal-case tracking-normal text-stone-400">(optional)</span>
+            Notes <span className="font-normal normal-case tracking-normal text-stone-500 dark:text-stone-400">(optional)</span>
           </label>
           <textarea
             id="trip-desc"
@@ -291,7 +294,7 @@ export function TripCreate() {
           <button
             type="button"
             onClick={() => setShowPrefs((s) => !s)}
-            className="text-sm font-medium text-amber-800 underline-offset-2 hover:underline dark:text-amber-400"
+            className={quietBtnClass}
             aria-expanded={showPrefs}
           >
             {showPrefs ? "Hide traveler preferences" : "Add traveler preferences"}
@@ -335,7 +338,7 @@ export function TripCreate() {
             {busy === "idle" ? (
               mode === "ai" ? (
                 <>
-                  <Sparkles className="h-4 w-4" aria-hidden />
+                  <Sparkles className="h-4 w-4" strokeWidth={1.5} aria-hidden />
                   Create & generate
                 </>
               ) : (
@@ -343,7 +346,7 @@ export function TripCreate() {
               )
             ) : (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} aria-hidden />
                 {busy === "creating" ? "Creating trip…" : "Generating itinerary…"}
               </>
             )}
