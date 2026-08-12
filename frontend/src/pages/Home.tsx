@@ -568,8 +568,6 @@ export function Home() {
         </motion.div>
       )}
 
-      {/* Bottom breathing room */}
-      <div className="h-8" />
     </motion.div>
   )
 }

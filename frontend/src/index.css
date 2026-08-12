@@ -44,13 +44,16 @@ body {
 .breathwork-layout,
 .breathwork {
   max-width: 100%;
+  height: 100%;
   overflow-x: clip;
+  overflow-y: hidden;
 }
 
 @supports not (overflow: clip) {
   .breathwork-layout,
   .breathwork {
     overflow-x: hidden;
+    overflow-y: hidden;
   }
 }
 
@@ -99,11 +102,11 @@ body {
 }
 
 .session-content {
-  padding-bottom: calc(8.75rem + env(safe-area-inset-bottom, 0px));
+  min-height: 0;
 }
 
 .session-controls {
-  bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
 }
 
 /* iOS Safari shell: size to the *small* viewport (URL-bar showing) so the
@@ -116,11 +119,11 @@ body {
   height: 100svh;
 }
 
-/* Mobile bottom nav — standard pattern: position:fixed bottom-0 with safe-
-   area padding for the home indicator. Class lives here so jsdom doesn't
-   choke on the env() expression in inline styles. */
+/* Mobile bottom nav — float the capsule with bottom-4, then lift the whole
+   pill by the home-indicator inset. Do not pad inside the pill: that made
+   the footer taller while still overlapping content. */
 .bw-mobile-nav {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  margin-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* Idle dim — desaturate color, never opacity. Keyboard focus is always findable.
@@ -180,7 +183,7 @@ body {
     justify-content: center;
     align-items: center;
     gap: 0.75rem 1.5rem;
-    padding-bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: 0;
   }
 
   .session-orb {
@@ -196,10 +199,10 @@ body {
   }
 
   .session-controls {
-    bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
     width: calc(100% - 1.5rem);
     max-width: none;
     gap: 0.75rem;
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
   }
 }
 

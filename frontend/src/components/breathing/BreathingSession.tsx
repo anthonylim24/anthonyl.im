@@ -590,7 +590,7 @@ export function BreathingSession({
 
       <div
         data-testid="session-content"
-        className="session-content relative z-10 flex w-full max-w-md flex-1 flex-col items-center justify-center px-5"
+        className="session-content relative z-10 flex w-full max-w-md min-h-0 flex-1 flex-col items-center justify-center px-5"
       >
         {/* Phase text above orb */}
         <div className="relative z-10 mb-3">
@@ -696,7 +696,7 @@ export function BreathingSession({
         data-testid="session-controls"
         data-dimmed={controlsDimmed ? 'true' : 'false'}
         className={cn(
-          'session-controls session-controls-fade absolute left-1/2 z-10 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-4',
+          'session-controls session-controls-fade relative z-10 mt-auto flex w-full max-w-[calc(100vw-2rem)] flex-wrap items-center justify-center gap-4 px-4 pt-3',
           'transition-colors duration-500 motion-reduce:transition-none',
         )}
         role="toolbar"

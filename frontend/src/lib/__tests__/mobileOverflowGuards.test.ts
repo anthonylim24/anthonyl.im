@@ -17,9 +17,9 @@ describe('mobile overflow guardrails', () => {
     expect(sessionSource).not.toContain('-mx-5 mb-3 overflow-x-auto')
   })
 
-  it('keeps the mobile session footer tied to the dynamic viewport instead of leaving browser chrome gaps', () => {
-    expect(sessionSource).toContain('h-[calc(100dvh-5.5rem)]')
-    expect(sessionSource).toContain('min-h-[calc(100svh-5.5rem)]')
+  it('lets the mobile session column fill the layout scroller instead of guessing a dvh offset', () => {
+    expect(sessionSource).toContain('md:hidden flex h-full min-h-0')
+    expect(sessionSource).not.toContain('h-[calc(100dvh-5.5rem)]')
     expect(sessionSource).not.toContain('h-[calc(100svh-8.5rem)]')
     expect(sessionSource).not.toContain('max-h-[calc(100dvh-8.5rem)]')
   })

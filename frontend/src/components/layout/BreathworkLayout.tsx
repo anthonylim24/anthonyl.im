@@ -89,18 +89,14 @@ export function BreathworkLayout() {
   const reducedMotion = useReducedMotion()
   const isSessionRoute = location.pathname.startsWith('/breathwork/session')
   const glassRootRef = useRef<HTMLDivElement>(null)
+  const mainRef = useRef<HTMLElement>(null)
 
-  // Static bottom space — nav height (4rem) + breathing room (3.5rem) +
-  // safe-area-inset-bottom for the home indicator. The previous formula
-  // added a dynamic `visualViewport`-derived offset, which on real iOS
-  // either left the nav hidden behind the URL bar or, on iOS 13+ (where
-  // position:fixed is anchored to the visual viewport), pushed it
-  // off-screen. The static value pairs cleanly with the Navigation's
-  // standard `bottom: 0 + padding-bottom: env(safe-area-inset-bottom)`.
+  // Nav capsule is ~3.75rem tall, sits `bottom-4` (1rem) above the home
+  // indicator, plus a 0.5rem gap so the last row isn't tucked under it.
   const contentStyle = {
     '--mobile-content-bottom-space': isSessionRoute
       ? '0px'
-      : 'calc(7.5rem + env(safe-area-inset-bottom, 0px))',
+      : 'calc(5.25rem + env(safe-area-inset-bottom, 0px))',
   } as CSSProperties
 
   return (
@@ -113,22 +109,30 @@ export function BreathworkLayout() {
 
       <LeavesVideo reducedMotion={reducedMotion} />
 
-      <div ref={glassRootRef}>
-        {/* Content */}
-        <div className="breathwork relative z-0 min-h-screen min-h-[100svh] col-fade-in bg-transparent">
+      <div ref={glassRootRef} className="h-full">
+        <div className="breathwork relative z-0 flex h-full min-h-0 flex-col bg-transparent col-fade-in">
           <Header />
-          <main>
+          <main
+            ref={mainRef}
+            className={
+              isSessionRoute
+                ? 'min-h-0 flex-1 overflow-hidden md:overflow-y-auto'
+                : 'min-h-0 flex-1 overflow-x-clip overflow-y-auto'
+            }
+          >
             <div
-              className={`w-full mx-auto px-5 sm:px-8 lg:px-12 py-6 sm:py-10 pb-[var(--mobile-content-bottom-space)] md:pb-10 bg-transparent ${
-                isSessionRoute ? 'max-w-5xl' : 'max-w-3xl'
+              className={`w-full mx-auto px-5 sm:px-8 lg:px-12 bg-transparent ${
+                isSessionRoute
+                  ? 'flex h-full min-h-0 flex-col max-w-5xl py-4 pb-0 md:block md:h-auto md:py-10 md:pb-10'
+                  : 'max-w-3xl py-6 sm:py-10 pb-[var(--mobile-content-bottom-space)] md:pb-24'
               }`}
               style={contentStyle}
             >
-              <AnimatedOutlet />
+              <AnimatedOutlet fill={isSessionRoute} />
             </div>
           </main>
         </div>
-        <Navigation rootRef={glassRootRef} />
+        <Navigation rootRef={glassRootRef} scrollRootRef={mainRef} />
       </div>
     </div>
   )

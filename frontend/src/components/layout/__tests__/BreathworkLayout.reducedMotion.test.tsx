@@ -62,5 +62,22 @@ describe('BreathworkLayout reduced motion', () => {
 
     expect(content?.style.getPropertyValue('--mobile-content-bottom-space')).toBe('0px')
     expect(content?.style.getPropertyValue('--mobile-content-bottom-space')).not.toContain('7.5rem')
+    expect(content?.style.getPropertyValue('--mobile-content-bottom-space')).not.toContain('5.25rem')
+  })
+
+  it('reserves only the floating nav height on non-session pages', () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={['/breathwork']}>
+        <BreathworkLayout />
+      </MemoryRouter>,
+    )
+
+    const content = container.querySelector<HTMLElement>(
+      '[style*="--mobile-content-bottom-space"]',
+    )
+
+    expect(content?.style.getPropertyValue('--mobile-content-bottom-space')).toBe(
+      'calc(5.25rem + env(safe-area-inset-bottom, 0px))',
+    )
   })
 })

@@ -34,7 +34,13 @@ export function useScrollMappedHide(
     translateX,
     maxHidden,
     enabled,
-  }: { translateX: string; maxHidden: number; enabled: boolean },
+    scrollRootRef,
+  }: {
+    translateX: string
+    maxHidden: number
+    enabled: boolean
+    scrollRootRef?: RefObject<HTMLElement | null>
+  },
 ) {
   useEffect(() => {
     const el = ref.current
@@ -45,7 +51,10 @@ export function useScrollMappedHide(
       return
     }
 
-    let lastY = window.scrollY
+    const scrollRoot = scrollRootRef?.current ?? null
+    const readY = () => (scrollRoot ? scrollRoot.scrollTop : window.scrollY)
+
+    let lastY = readY()
     let offset = 0
     let raf = 0
     let pending = false
@@ -56,7 +65,7 @@ export function useScrollMappedHide(
     }
 
     const onScroll = () => {
-      const y = window.scrollY
+      const y = readY()
       const dy = y - lastY
       lastY = y
       if (y < 8) {
@@ -71,11 +80,12 @@ export function useScrollMappedHide(
     }
 
     apply()
-    window.addEventListener('scroll', onScroll, { passive: true })
+    const target: EventTarget = scrollRoot ?? window
+    target.addEventListener('scroll', onScroll, { passive: true })
 
     return () => {
-      window.removeEventListener('scroll', onScroll)
+      target.removeEventListener('scroll', onScroll)
       cancelAnimationFrame(raf)
     }
-  }, [ref, translateX, maxHidden, enabled])
+  }, [ref, translateX, maxHidden, enabled, scrollRootRef])
 }

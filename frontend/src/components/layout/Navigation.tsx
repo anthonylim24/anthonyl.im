@@ -32,9 +32,11 @@ const MOBILE_MAX_HIDDEN = 160
 interface NavigationProps {
   /** Kept for layout compatibility; the nav no longer samples a glass root. */
   rootRef: RefObject<HTMLElement | null>
+  /** Scroll container that drives hide-on-scroll. Defaults to the window. */
+  scrollRootRef?: RefObject<HTMLElement | null>
 }
 
-export function Navigation({ rootRef }: NavigationProps) {
+export function Navigation({ rootRef, scrollRootRef }: NavigationProps) {
   void rootRef
   const location = useLocation()
   const { trigger: haptic } = useHaptics()
@@ -55,6 +57,7 @@ export function Navigation({ rootRef }: NavigationProps) {
     translateX: '-50%',
     maxHidden: MOBILE_MAX_HIDDEN,
     enabled,
+    scrollRootRef,
   })
 
   if (isSessionRoute) return null
@@ -64,7 +67,7 @@ export function Navigation({ rootRef }: NavigationProps) {
       <nav
         ref={mobileNavRef}
         aria-label="Primary"
-        className="bw-mobile-nav md:hidden fixed bottom-4 left-1/2 z-50 pb-2 !pb-2 flex items-center gap-1 rounded-full px-2 py-2 will-change-transform"
+        className="bw-mobile-nav md:hidden fixed bottom-4 left-1/2 z-50 flex items-center gap-1 rounded-full px-2 py-2 will-change-transform"
         style={{
           transform: 'translate3d(-50%, 0px, 0)',
           background: 'var(--bw-surface)',

@@ -29,11 +29,13 @@ const reducedVariants = {
 interface PageTransitionProps {
   children: ReactNode
   reducedMotion?: boolean
+  className?: string
 }
 
-export function PageTransition({ children, reducedMotion }: PageTransitionProps) {
+export function PageTransition({ children, reducedMotion, className }: PageTransitionProps) {
   return (
     <motion.div
+      className={className}
       variants={reducedMotion ? reducedVariants : variants}
       initial="enter"
       animate="visible"

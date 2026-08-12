@@ -443,9 +443,9 @@ export function Session() {
   }
 
   return (
-    <>
+    <div className="h-full min-h-0 md:h-auto">
       {/* ═══ MOBILE LAYOUT ═══════════════════════════════ */}
-      <div className="md:hidden flex h-[calc(100dvh-5.5rem)] min-h-[calc(100svh-5.5rem)] max-w-full flex-col overflow-hidden">
+      <div className="md:hidden flex h-full min-h-0 max-w-full flex-col overflow-hidden">
         <motion.div
           variants={stagger}
           initial="hidden"
@@ -652,7 +652,7 @@ export function Session() {
           initial="hidden"
           animate="show"
           data-testid="mobile-session-action-bar"
-          className="shrink-0 border-t border-bw-border bg-bw-canvas pt-3 pb-[max(1rem,env(safe-area-inset-bottom,0px))]"
+          className="shrink-0 border-t border-bw-border bg-bw-canvas pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))]"
         >
           <div
             className="mb-3 flex items-center justify-between gap-3"
@@ -975,6 +975,6 @@ export function Session() {
           </div>
         </aside>
       </div>
-    </>
+    </div>
   )
 }
