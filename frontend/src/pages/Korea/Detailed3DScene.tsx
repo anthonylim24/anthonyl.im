@@ -17,6 +17,7 @@ import {
   LineBasicMaterial,
   Mesh,
   MeshBasicMaterial,
+  MeshPhysicalMaterial,
   MeshStandardMaterial,
   PerspectiveCamera,
   Raycaster,
@@ -73,10 +74,8 @@ interface Detailed3DSceneProps {
   // each tick. Consumed by MapModeCompass so the compass dial
   // rotates as the user orbits the camera.
   yawRef?: { current: number }
-  /** Optional effect toggles wired from the debug menu. Default values
-   *  come from `loadEffectPrefs()` in the parent so user choices
-   *  persist across sessions. When omitted, all effects are treated as
-   *  off (safe fallback for callers that haven't been updated). */
+  /** Tier-default effect prefs from the parent (no traveler debug UI).
+   *  When omitted, effects are treated as off. */
   effects?: EffectPrefs
 }
 
@@ -123,6 +122,12 @@ export function Detailed3DScene({
 
   const apiKey = useMemo(() => readApiKey(), [])
   const [keyMissing, setKeyMissing] = useState(!apiKey)
+
+  // Missing tiles key → fall through to list view in the parent shell.
+  useEffect(() => {
+    if (!apiKey) onWebglError?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiKey])
 
   useEffect(() => {
     if (!apiKey) {
@@ -335,21 +340,42 @@ export function Detailed3DScene({
       if (ev.scene) applyTileQualityHints(ev.scene, renderer)
     })
 
-    // ── YOU marker — small emissive sphere + ring at origin ────
+    // ── YOU marker — frosted rose orb at origin ────
     const youMarker = new Mesh(
-      new SphereGeometry(8, 24, 16),
-      new MeshStandardMaterial({
-        color: 0xff4d6d,
-        emissive: 0xff4d6d,
-        emissiveIntensity: 0.7,
-        roughness: 0.3,
+      new SphereGeometry(10, 32, 24),
+      new MeshPhysicalMaterial({
+        color: 0xf43f5e,
+        emissive: 0xf43f5e,
+        emissiveIntensity: 0.45,
+        roughness: 0.22,
+        metalness: 0.05,
+        clearcoat: 0.7,
+        clearcoatRoughness: 0.25,
+        transmission: 0.35,
+        thickness: 4,
+        ior: 1.4,
         // YOU is the trip's geometric + visual anchor — fog should
         // never dim it. Atmospheric haze layers behind it, never on it.
         fog: false,
       }),
     )
-    youMarker.position.set(0, 6, 0)
+    youMarker.position.set(0, 8, 0)
     scene.add(youMarker)
+
+    const youHalo = new Mesh(
+      new RingGeometry(14, 20, 48),
+      new MeshBasicMaterial({
+        color: 0xf43f5e,
+        transparent: true,
+        opacity: 0.55,
+        depthWrite: false,
+        fog: false,
+      }),
+    )
+    youHalo.rotation.x = -Math.PI / 2
+    youHalo.position.set(0, 1.5, 0)
+    youHalo.renderOrder = 40
+    scene.add(youHalo)
 
     const cosUserLat = Math.cos(anchorLat * DEG2RAD)
 
@@ -375,20 +401,27 @@ export function Detailed3DScene({
       const localX = -eastM
       const localZ = northM
       const radius =
-        p.priority === "scheduled" ? 18 : p.priority === "core" ? 14 : 11
+        p.priority === "scheduled" ? 16 : p.priority === "core" ? 13 : 10
       const mesh = new Mesh(
-        new SphereGeometry(radius, 18, 14),
-        new MeshStandardMaterial({
+        new SphereGeometry(radius, 24, 18),
+        new MeshPhysicalMaterial({
           color: p.color,
           emissive: p.color,
-          emissiveIntensity: 0.55,
-          roughness: 0.3,
-          metalness: 0,
+          emissiveIntensity: 0.35,
+          roughness: 0.18,
+          metalness: 0.08,
+          clearcoat: 0.85,
+          clearcoatRoughness: 0.2,
+          transmission: 0.45,
+          thickness: 3,
+          ior: 1.45,
+          transparent: true,
+          opacity: 0.95,
         }),
       )
-      // Floating ~60 m above the ground so the orb pops above tall
+      // Floating ~56 m above the ground so the orb pops above tall
       // rooftops without getting lost in the building mesh.
-      mesh.position.set(localX, 60, localZ)
+      mesh.position.set(localX, 56, localZ)
       mesh.userData.placeId = p.id
       scene.add(mesh)
 
@@ -396,24 +429,20 @@ export function Detailed3DScene({
       // place's real lat/lng — makes the spot it represents
       // unambiguous on the photogrammetric mesh.
       const beam = new Mesh(
-        new CylinderGeometry(1.2, 1.2, 60, 8, 1, true),
+        new CylinderGeometry(0.9, 1.6, 56, 10, 1, true),
         new MeshBasicMaterial({
           color: p.color,
           transparent: true,
-          opacity: 0.6,
+          opacity: 0.45,
           depthWrite: false,
         }),
       )
-      beam.position.set(localX, 30, localZ)
+      beam.position.set(localX, 28, localZ)
       beam.renderOrder = 50
       scene.add(beam)
 
-      // HTML label — same data-place-id contract as the orbital
-      // scene so external code can introspect. Made clickable so
-      // tapping the label fires the same focus flow as tapping the
-      // orb; pointer-events:auto on the label itself, the
-      // surrounding overlay div remains pointer-events:none so the
-      // map underneath stays draggable.
+      // HTML label — clickable; overlay parent stays pointer-events:none
+      // so the map underneath remains draggable.
       const label = document.createElement("div")
       label.dataset.placeId = p.id
       label.style.transform = "translate3d(-9999px,-9999px,0)"
@@ -422,23 +451,27 @@ export function Detailed3DScene({
       label.className =
         "pointer-events-auto absolute left-0 top-0 select-none text-center"
       const distLabel = p.distanceLabel ?? ""
+      const safeName = escapeHtml(p.name)
+      const shortName = safeName.length > 22 ? `${safeName.slice(0, 21)}…` : safeName
       const igBadge = p.subcategory === "instagram"
         ? `<span class="inline-flex h-3 w-3 shrink-0 items-center justify-center text-rose-600 dark:text-rose-400" aria-label="From Instagram"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-3 w-3"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.5" fill="currentColor" stroke="none"/></svg></span>`
         : ""
       label.innerHTML = `
-        <div class="-translate-y-1 text-xl drop-shadow-[0_2px_8px_rgba(0,0,0,0.55)] leading-none">${p.icon}</div>
-        <div class="-mt-0.5 inline-flex max-w-[11rem] flex-col items-center gap-0.5 rounded-2xl bg-white/92 px-2 py-1 shadow-md ring-1 ring-stone-200 backdrop-blur-md dark:bg-stone-900/92 dark:ring-stone-700">
-          <div class="flex max-w-full items-center justify-center gap-1 leading-tight">
-            ${igBadge}
-            <span class="truncate text-[10px] font-semibold text-stone-900 dark:text-stone-100">
-              ${escapeHtml(p.name).length > 22 ? escapeHtml(p.name).slice(0, 21) + "…" : escapeHtml(p.name)}
-            </span>
+        <div class="inline-flex max-w-[12rem] flex-col items-center gap-1">
+          <span class="h-2.5 w-2.5 rounded-full shadow-[0_0_0_2px_rgba(255,254,250,0.85)]" style="background:${escapeHtml(p.color)}"></span>
+          <div class="inline-flex max-w-full flex-col items-center gap-0.5 rounded-2xl border border-[rgba(28,25,23,0.08)] bg-[rgba(255,254,250,0.92)] px-2.5 py-1 shadow-[0_8px_20px_rgba(28,25,23,0.14)] backdrop-blur-md dark:border-[rgba(255,252,245,0.08)] dark:bg-[rgba(28,25,23,0.88)]">
+            <div class="flex max-w-full items-center justify-center gap-1 leading-tight">
+              ${igBadge}
+              <span class="truncate text-[10px] font-semibold tracking-tight text-stone-900 dark:text-stone-100">
+                ${shortName}
+              </span>
+            </div>
+            ${
+              distLabel
+                ? `<div class="rounded-full px-1.5 py-px text-[10px] font-bold tabular-nums leading-none" style="background:${escapeHtml(p.color)}26;color:${escapeHtml(p.color)};">${escapeHtml(distLabel)}</div>`
+                : ""
+            }
           </div>
-          ${
-            distLabel
-              ? `<div class="rounded-full px-1.5 py-px text-[10px] font-bold tabular-nums leading-none" style="background:${p.color}26;color:${p.color};">${escapeHtml(distLabel)}</div>`
-              : ""
-          }
         </div>
       `
       const onLabelClick = (e: MouseEvent) => {
@@ -459,17 +492,15 @@ export function Detailed3DScene({
       })
     }
 
-    // YOU label — CSS-anchored to viewport center via translate so
-    // the user always knows where origin is.
+    // YOU label — projected from world origin each frame.
     const youLabel = document.createElement("div")
     youLabel.className =
       "pointer-events-none absolute select-none text-center"
     youLabel.style.transform = "translate3d(-9999px,-9999px,0)"
     youLabel.style.visibility = "hidden"
     youLabel.innerHTML = `
-      <div class="flex flex-col items-center gap-0.5">
-        <div class="text-2xl drop-shadow-[0_2px_8px_rgba(0,0,0,0.55)] leading-none">📍</div>
-        <div class="inline-block rounded-full bg-rose-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white shadow-lg ring-1 ring-rose-300/60">You</div>
+      <div class="flex flex-col items-center gap-1">
+        <div class="inline-block rounded-full bg-rose-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white shadow-[0_8px_20px_rgba(244,63,94,0.45)] ring-1 ring-rose-200/50">You</div>
       </div>
     `
     overlay.appendChild(youLabel)
@@ -1157,7 +1188,7 @@ export function Detailed3DScene({
       ktx2.dispose()
       for (const m of markers) {
         m.mesh.geometry.dispose()
-        ;(m.mesh.material as MeshStandardMaterial).dispose()
+        ;(m.mesh.material as MeshPhysicalMaterial).dispose()
         m.beam.geometry.dispose()
         ;(m.beam.material as MeshBasicMaterial).dispose()
         m.label.removeEventListener("click", m.onLabelClick)
@@ -1172,7 +1203,9 @@ export function Detailed3DScene({
       ;(buildingRing.material as MeshBasicMaterial).dispose()
       selectionPill.remove()
       youMarker.geometry.dispose()
-      ;(youMarker.material as MeshStandardMaterial).dispose()
+      ;(youMarker.material as MeshPhysicalMaterial).dispose()
+      youHalo.geometry.dispose()
+      ;(youHalo.material as MeshBasicMaterial).dispose()
       renderer.dispose()
       try {
         mount.removeChild(renderer.domElement)
@@ -1185,17 +1218,35 @@ export function Detailed3DScene({
 
   if (keyMissing) {
     return (
-      <div className="relative flex h-full w-full items-center justify-center bg-stone-100 dark:bg-stone-950">
-        <div className="mx-4 max-w-md rounded-2xl border border-stone-200 bg-white p-5 text-center shadow-md dark:border-stone-800 dark:bg-stone-900">
-          <div className="text-xs font-mono uppercase tracking-widest text-stone-500">
-            Detailed 3D
-          </div>
-          <h3 className="mt-2 text-base font-semibold text-stone-900 dark:text-stone-100">
-            Google Map Tiles API key required
+      <div className="relative flex h-full w-full items-center justify-center bg-[#F5F2ED] dark:bg-[#171613]">
+        <div className="mx-4 max-w-sm rounded-2xl border border-[rgba(28,25,23,0.08)] bg-[rgba(255,254,250,0.94)] p-5 text-center shadow-[0_16px_40px_rgba(28,25,23,0.12)] backdrop-blur-xl dark:border-[rgba(255,252,245,0.06)] dark:bg-[rgba(28,25,23,0.9)]">
+          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-stone-500">
+            Map Mode
+          </p>
+          <h3 className="mt-2 text-base font-semibold tracking-tight text-stone-900 dark:text-stone-100">
+            3D map unavailable
           </h3>
           <p className="mt-2 text-xs leading-relaxed text-stone-600 dark:text-stone-400">
-            Set <code className="rounded bg-stone-100 px-1 dark:bg-stone-800">VITE_GOOGLE_MAP_TILES_API_KEY</code> in your env to stream Google Photorealistic 3D Tiles. The same key can be reused from <code className="rounded bg-stone-100 px-1 dark:bg-stone-800">VITE_GOOGLE_PLACES_API_KEY</code> if you enable the Map Tiles API on it. 1,000 free root-tileset requests per month.
+            Photorealistic tiles couldn’t load. Switch to list view to browse today’s places.
           </p>
+          {import.meta.env.DEV && (
+            <details className="mt-3 text-left text-[10px] text-stone-500">
+              <summary className="cursor-pointer select-none">Details</summary>
+              <p className="mt-1 leading-relaxed">
+                Set <code className="rounded bg-stone-100 px-1 dark:bg-stone-800">VITE_GOOGLE_MAP_TILES_API_KEY</code>{" "}
+                (or enable Map Tiles on <code className="rounded bg-stone-100 px-1 dark:bg-stone-800">VITE_GOOGLE_PLACES_API_KEY</code>).
+              </p>
+            </details>
+          )}
+          {onWebglError && (
+            <button
+              type="button"
+              onClick={onWebglError}
+              className="mt-4 inline-flex h-10 items-center justify-center rounded-full bg-rose-600 px-4 text-xs font-semibold text-white transition hover:bg-rose-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60"
+            >
+              Open list
+            </button>
+          )}
         </div>
       </div>
     )
@@ -1205,14 +1256,10 @@ export function Detailed3DScene({
     <div className="relative h-full w-full overflow-hidden">
       <div ref={mountRef} className="absolute inset-0" />
       <div ref={overlayRef} className="pointer-events-none absolute inset-0 z-10" aria-hidden />
-      {/* Bottom-right attribution pill. Visually hidden per product
-          decision — kept in the DOM (sr-only) so screen readers and
-          automated TOS audits can still discover the Google + sources
-          attribution that the Map Tiles API requires when any 3D tile
-          is on screen. Auto-updates via the tick loop. */}
+      {/* Google Map Tiles attribution — required when tiles are shown. */}
       <div
         ref={attributionRef}
-        className="sr-only"
+        className="pointer-events-none absolute bottom-3 right-3 z-20 max-w-[55vw] truncate rounded-full border border-[rgba(28,25,23,0.08)] bg-[rgba(255,254,250,0.78)] px-2.5 py-1 text-[9px] font-medium tracking-wide text-stone-500 shadow-sm backdrop-blur-md dark:border-[rgba(255,252,245,0.06)] dark:bg-[rgba(28,25,23,0.72)] dark:text-stone-400"
         aria-label="Map data attribution"
       >
         Data: Google

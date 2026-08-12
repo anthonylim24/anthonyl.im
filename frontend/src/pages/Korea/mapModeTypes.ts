@@ -73,5 +73,7 @@ export interface UserLocation {
   lat: number
   lng: number
   label?: string
-  source: "geolocation" | "test-anchor" | "hotel"
+  /** `geolocation` = device is in the day's trip area.
+   *  `day-center` = mocked to the median of today's places (or hotel). */
+  source: "geolocation" | "day-center"
 }
