@@ -1,6 +1,6 @@
-import { test, expect, describe, mock, beforeAll, afterAll } from 'bun:test';
+import { test, expect, describe, mock, beforeAll } from 'bun:test';
 import { createTranscriber, mergeSegments } from './transcribe';
-import { writeFile, rm, mkdtemp } from 'node:fs/promises';
+import { writeFile, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -17,9 +17,10 @@ beforeAll(async () => {
   audioPath = join(tmpDir, 'x.m4a');
   await writeFile(audioPath, '');
 });
-afterAll(async () => {
-  if (tmpDir) await rm(tmpDir, { recursive: true, force: true });
-});
+// Do not rm the temp dir in afterAll. createReadStream opens lazily, so a
+// cleanup here races the stream and surfaces as "Unhandled error between
+// tests" (ENOENT) with a non-zero bun exit even when every test passed.
+// The runner's /tmp is ephemeral.
 
 describe('mergeSegments', () => {
   test('picks higher avg_logprob per overlapping span', () => {
