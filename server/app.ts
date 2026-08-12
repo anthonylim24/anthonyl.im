@@ -255,6 +255,20 @@ app.get("/sw.js", async (c) => {
   return c.body(await file.text());
 });
 
+// Twilio SMS proof-of-consent page — static HTML (no SPA shell) so compliance
+// crawlers that do not execute JS still see the full opt-in disclosure.
+app.get("/sms-consent", async (c) => {
+  const file = Bun.file(join(distPath, "sms-consent.html"));
+  if (!(await file.exists())) {
+    return c.text("SMS consent page not found", 404);
+  }
+  c.header("Cache-Control", "no-cache, no-store, must-revalidate");
+  c.header("Pragma", "no-cache");
+  c.header("Content-Type", "text/html; charset=utf-8");
+  return c.html(await file.text());
+});
+
+
 // Serve static assets — content-hashed bundles get long-cache so the new
 // bundle hashes (the only files referenced by the fresh index.html) are
 // immutable + browser-cached, while the entry HTML stays no-cache below.
