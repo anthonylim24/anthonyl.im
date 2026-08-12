@@ -17,32 +17,32 @@ body {
   height: auto;
   margin: 0;
   padding: 0;
+  /* svh = URL-bar-showing viewport. dvh/lvh here forces extra document
+     height on iOS equal to the URL-bar delta, so the page rubber-bands
+     past the real content. */
   min-height: 100%;
-  min-height: 100dvh;
+  min-height: 100svh;
 }
 
-/* Clip horizontal overflow at the viewport without creating a nested
-   scrollport. `overflow-x: hidden` on html+body computes overflow-y to
-   auto and steals sticky/document pan on iOS; `clip` does not. Live
-   sessions still lock the document via `useBodyScrollLock`. */
 html {
-  overflow-x: clip;
   -webkit-overflow-scrolling: touch;
-}
-
-@supports not (overflow: clip) {
-  html {
-    overflow-x: hidden;
-  }
+  overscroll-behavior-y: none;
 }
 
 #root {
   width: 100%;
   height: auto;
   min-height: 100%;
-  min-height: 100dvh;
+  min-height: 100svh;
   margin: 0;
   padding: 0;
+  overflow-x: clip;
+}
+
+@supports not (overflow: clip) {
+  #root {
+    overflow-x: hidden;
+  }
 }
 
 /* BreathFlow is a normal document. Do not pin this shell or give it a
@@ -52,7 +52,7 @@ html {
 .breathwork {
   max-width: 100%;
   height: auto;
-  min-height: 100dvh;
+  min-height: 100svh;
   overflow: visible;
 }
 
@@ -123,6 +123,13 @@ html {
    the footer taller while still overlapping content. */
 .bw-mobile-nav {
   margin-bottom: env(safe-area-inset-bottom, 0px);
+  transition: transform 280ms cubic-bezier(0.33, 0, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bw-mobile-nav {
+    transition: none;
+  }
 }
 
 /* Idle dim — desaturate color, never opacity. Keyboard focus is always findable.
@@ -233,9 +240,10 @@ html {
    z-index can still swallow touch-scroll momentum on WebKit ≤ iOS 15. */
 .leaves-overlay {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
   width: 100%;
-  height: 100%;
+  height: 100svh;
   object-fit: cover;
   object-position: center top;
   filter: grayscale(1) contrast(0.62) brightness(1.12);

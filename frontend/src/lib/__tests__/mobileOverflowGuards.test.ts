@@ -7,11 +7,12 @@ import layoutSource from '../../components/layout/BreathworkLayout.tsx?raw'
 describe('mobile overflow guardrails', () => {
   it('keeps BreathFlow pages clipped at the viewport without a nested scrollport', () => {
     expect(indexCss).toContain('.breathwork-layout')
-    expect(indexCss).toMatch(/html \{\s*overflow-x:\s*clip/)
+    expect(indexCss).toMatch(/#root \{[\s\S]*?overflow-x:\s*clip/)
     expect(indexCss).toMatch(/\.breathwork-layout,\s*\n\.breathwork \{[\s\S]*?overflow:\s*visible/)
     expect(indexCss).not.toMatch(/\.breathwork-layout \{\s*position:\s*fixed/)
     expect(indexCss).not.toContain('.bw-page-scroll')
     expect(indexCss).not.toContain('touch-action: pan-y pinch-zoom')
+    expect(indexCss).not.toMatch(/html,\s*\nbody \{[\s\S]*?min-height:\s*100dvh/)
   })
 
   it('lets the document grow instead of pinning html/body/#root to 100%', () => {

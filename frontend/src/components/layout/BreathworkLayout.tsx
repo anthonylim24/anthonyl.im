@@ -71,8 +71,6 @@ const LeavesVideo = memo(function LeavesVideo({ reducedMotion }: { reducedMotion
       className="leaves-overlay"
       style={{
         mixBlendMode: 'multiply',
-        top: 0,
-        bottom: 'auto',
       }}
     />
   )
@@ -125,7 +123,7 @@ export function BreathworkLayout() {
               className={`w-full mx-auto px-5 sm:px-8 lg:px-12 bg-transparent ${
                 isSessionRoute
                   ? 'max-w-5xl py-4 pb-0 md:py-10 md:pb-10'
-                  : 'max-w-3xl py-6 sm:py-10'
+                  : 'max-w-3xl pt-6 sm:pt-10'
               }`}
             >
               <AnimatedOutlet />

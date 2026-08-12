@@ -448,7 +448,7 @@ export function Session() {
       <div className="md:hidden max-w-full">
         <div
           data-testid="mobile-session-scroller"
-          className="pb-48"
+          className="pb-[calc(8rem+env(safe-area-inset-bottom,0px))]"
         >
         <motion.div
           variants={stagger}

@@ -3,8 +3,8 @@
  *
  * Paper capsule tab bar. Opaque surface, 1px border, no refraction.
  *
- *  • Mobile (<md): centered floating capsule, scroll-maps its translateY
- *    1:1 with the gesture (see useScrollMappedHide).
+ *  • Mobile (<md): centered floating capsule; hides on scroll-down and
+ *    returns on scroll-up (see useScrollMappedHide).
  *  • Desktop (>=md): always-visible dock at bottom-right with the
  *    primary "Breathe" CTA.
  *
