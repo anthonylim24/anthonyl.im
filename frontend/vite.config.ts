@@ -16,10 +16,8 @@ export default defineConfig({
     // own chunk so it can be cached independently of our Map Mode glue
     // code. We lift the warning ceiling to 650 kB to silence the noise
     // for that one intentionally-large vendor chunk.
-    // The "three" chunk now also carries the GLTF / DRACO / KTX2
-    // loaders + OrbitControls used by the Detailed-3D scene. It's
-    // still gz<200 KB and is cached aggressively under our service
-    // worker contract — lift the noisy warning ceiling.
+    // The "three" chunk also carries the GLTF / DRACO / KTX2 loaders
+    // + OrbitControls used by Map Mode's photorealistic tiles scene.
     chunkSizeWarningLimit: 720,
     rollupOptions: {
       output: {
@@ -31,9 +29,8 @@ export default defineConfig({
         advancedChunks: {
           groups: [
             { name: 'three', test: /[\\/]node_modules[\\/]three[\\/]/, priority: 100 },
-            // 3DTilesRendererJS only loads when the Detailed-3D debug
-            // toggle is on — keep it in its own chunk so the default
-            // Map Mode bundle stays slim.
+            // 3DTilesRendererJS only loads when Map Mode opens — keep
+            // it in its own chunk so other Korea routes stay slim.
             { name: 'tiles3d', test: /[\\/]node_modules[\\/]3d-tiles-renderer[\\/]/, priority: 95 },
             { name: 'react-vendor', test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/, priority: 90 },
             // motion/react is used by both Places (text-only) and MapMode
