@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from "react"
-import { Link, useParams } from "react-router-dom"
+import { Link, useLocation, useParams } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
 import { ArrowUpRight, ExternalLink, Globe2, MapPin, Pencil, Phone } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
@@ -60,6 +60,56 @@ function telHref(contact: string): string | null {
   return digits.length >= 7 ? `tel:${digits}` : null
 }
 
+/** `#item-…` deep links from the trip overview. Malformed escapes fall back
+ *  to the raw fragment rather than throwing. */
+function anchorIdFrom(hash: string): string | null {
+  if (!hash.startsWith("#item-")) return null
+  const raw = hash.slice(1)
+  try {
+    return decodeURIComponent(raw)
+  } catch {
+    return raw
+  }
+}
+
+/**
+ * Receiving half of the overview's `#item-{id}` links: once the day has
+ * rendered, bring the targeted element into view and mark it. Re-runs on
+ * router navigation and on a plain `hashchange`.
+ */
+function useAnchorTarget(ready: boolean): string | null {
+  const { hash, pathname } = useLocation()
+  const reduce = useReducedMotion()
+  const [target, setTarget] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!ready) return
+    const locate = () => {
+      const id = anchorIdFrom(window.location.hash)
+      const el = id ? document.getElementById(id) : null
+      if (!el || !id) {
+        setTarget(null)
+        return
+      }
+      el.scrollIntoView(reduce ? { block: "center" } : { behavior: "smooth", block: "center" })
+      setTarget(id)
+    }
+    locate()
+    window.addEventListener("hashchange", locate)
+    return () => window.removeEventListener("hashchange", locate)
+  }, [ready, hash, pathname, reduce])
+
+  return target
+}
+
+/** Arrival marker for a deep-linked item: a one-shot accent fade plus a
+ *  persistent ring, or the ring alone when motion is reduced. */
+function useAnchorHighlight(active: boolean): string {
+  const reduce = useReducedMotion()
+  if (!active) return ""
+  return reduce ? `ring-2 ${ACCENT.ring}` : `trip-flash ring-2 ${ACCENT.ring}`
+}
+
 export function TripDayPage() {
   const { tripId, dayId } = useParams<{ tripId: string; dayId: string }>()
   const getToken = useGetToken()
@@ -67,6 +117,7 @@ export function TripDayPage() {
   const [state, setState] = useState<LoadState>({ status: "loading" })
   const [mapOpen, setMapOpen] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
+  const anchorTarget = useAnchorTarget(state.status === "success")
   const reload = useCallback(() => {
     setState({ status: "loading" })
     setReloadKey((k) => k + 1)
@@ -149,7 +200,7 @@ export function TripDayPage() {
       <div className={pageClass} data-trip-accent={resolveAccent(trip.appearance?.accent)}>
         <motion.p
           {...fadeUp(0)}
-          className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono-trips text-[11px] uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400"
+          className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono-trips text-[11px] uppercase tracking-[0.18em] text-stone-600 dark:text-stone-400"
         >
           <Link
             to={`/trips/${trip.slug ?? trip.id}`}
@@ -166,7 +217,7 @@ export function TripDayPage() {
           {isToday && (
             <span className={`flex items-center gap-1.5 ${a.text}`}>
               <span aria-hidden>·</span>
-              <span className={`inline-block h-1.5 w-1.5 animate-pulse rounded-full motion-reduce:animate-none ${a.dot}`} aria-hidden />
+              <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.dot}`} aria-hidden />
               live
             </span>
           )}
@@ -197,7 +248,7 @@ export function TripDayPage() {
 
         <motion.dl
           {...fadeUp(0.16)}
-          className="mt-7 grid grid-cols-2 gap-x-10 gap-y-5 border-t border-stone-200/80 pt-5 sm:grid-cols-3 dark:border-stone-800/80"
+          className="mt-7 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-stone-200/80 pt-5 sm:grid-cols-3 sm:gap-x-10 dark:border-stone-800/80"
         >
           {day.city && <Meta label="City" value={day.city} />}
           {day.weather && (
@@ -218,7 +269,7 @@ export function TripDayPage() {
               Map Mode
             </button>
           ) : (
-            <p className="text-xs text-stone-500 dark:text-stone-400">
+            <p className="max-w-[42ch] break-words text-xs text-stone-600 dark:text-stone-400">
               Map Mode needs places with coordinates. Add them in the editor or run Enhance.
             </p>
           )}
@@ -255,7 +306,13 @@ export function TripDayPage() {
             <DossierSectionHeader num="01" eyebrow="Booked moments" title="Reservations" />
             <div className="relative mt-6 space-y-5 pl-6 before:absolute before:bottom-2 before:left-[7px] before:top-2 before:w-px before:bg-stone-200/90 sm:pl-8 sm:before:left-[11px] dark:before:bg-stone-800/90">
               {reservations.map((item, i) => (
-                <ReservationTimelineItem key={item.id} item={item} index={i} accentDot={a.dot} />
+                <ReservationTimelineItem
+                  key={item.id}
+                  item={item}
+                  index={i}
+                  accentDot={a.dot}
+                  flash={anchorTarget === `item-${item.id}`}
+                />
               ))}
             </div>
           </section>
@@ -273,15 +330,15 @@ export function TripDayPage() {
                 className="py-8 first:pt-0 sm:py-10"
               >
                 {block.section && (
-                  <div className="flex items-baseline justify-between gap-x-6">
+                  <div className="flex items-baseline justify-between gap-x-4 sm:gap-x-6">
                     <h3
-                      className="font-display text-xl font-medium tracking-[-0.01em] text-stone-900 sm:text-2xl dark:text-stone-100"
+                      className="min-w-0 break-words font-display text-xl font-medium tracking-[-0.01em] text-stone-900 sm:text-2xl dark:text-stone-100"
                       style={SERIF}
                     >
                       {block.section.title}
                     </h3>
                     {block.section.time && (
-                      <span className="shrink-0 font-mono-trips text-[11px] uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">
+                      <span className="shrink-0 font-mono-trips text-[11px] uppercase tracking-[0.14em] text-stone-600 dark:text-stone-400">
                         {block.section.time}
                         {block.section.endTime ? ` – ${block.section.endTime}` : ""}
                       </span>
@@ -303,7 +360,7 @@ export function TripDayPage() {
                 {block.items.length > 0 && (
                   <ul className="mt-4 space-y-2.5 text-[15px] leading-relaxed text-stone-700 dark:text-stone-300">
                     {block.items.map((item) => (
-                      <NarrativeItem key={item.id} item={item} />
+                      <NarrativeItem key={item.id} item={item} flash={anchorTarget === `item-${item.id}`} />
                     ))}
                   </ul>
                 )}
@@ -312,39 +369,43 @@ export function TripDayPage() {
           </section>
         )}
 
+        {/* Forward first on phones — the thumb reaches the top row, and the
+            next day is what an in-trip reader wants. */}
         <nav
-          className="mt-12 grid grid-cols-1 gap-2 border-t border-stone-200/80 pt-6 sm:grid-cols-2 sm:gap-6 dark:border-stone-800/80"
+          className="mt-12 grid grid-cols-1 gap-1 border-t border-stone-200/80 pt-6 sm:grid-cols-2 sm:gap-6 dark:border-stone-800/80"
           aria-label="Adjacent days"
         >
-          {prev ? (
-            <Link
-              to={`/trips/${trip.slug ?? trip.id}/day/${prev.id}`}
-              className={`group -mx-2 flex min-h-14 items-center gap-4 rounded-xl px-2 py-3 transition-colors hover:bg-stone-100/50 dark:hover:bg-stone-900/40 ${focusRingClass}`}
-            >
-              <ArrowUpRight className="h-4 w-4 shrink-0 -rotate-[135deg] text-stone-500 transition dark:text-stone-400 group-hover:-translate-x-0.5 motion-reduce:group-hover:translate-x-0" aria-hidden />
-              <span className="min-w-0">
-                <span className="block font-mono-trips text-[10px] uppercase tracking-[0.18em] text-stone-600 dark:text-stone-400">Previous · Day {dayIndex}</span>
-                <span className="block truncate font-display text-base font-medium text-stone-900 dark:text-stone-100" style={SERIF}>
-                  {prev.title ?? `Day ${dayIndex}`}
-                </span>
-              </span>
-            </Link>
-          ) : (
-            <span />
-          )}
           {next && (
             <Link
+              rel="next"
               to={`/trips/${trip.slug ?? trip.id}/day/${next.id}`}
-              className={`group -mx-2 flex min-h-14 items-center justify-end gap-4 rounded-xl px-2 py-3 text-right transition-colors hover:bg-stone-100/50 dark:hover:bg-stone-900/40 ${focusRingClass}`}
+              className={`group order-1 -mx-2 flex min-h-14 items-center justify-between gap-4 rounded-xl px-2 py-3 transition-colors hover:bg-stone-100/50 sm:order-2 sm:justify-end sm:text-right dark:hover:bg-stone-900/40 ${focusRingClass}`}
             >
               <span className="min-w-0">
                 <span className="block font-mono-trips text-[10px] uppercase tracking-[0.18em] text-stone-600 dark:text-stone-400">Next · Day {dayIndex + 2}</span>
-                <span className="block truncate font-display text-base font-medium text-stone-900 dark:text-stone-100" style={SERIF}>
+                <span className="line-clamp-2 break-words font-display text-base font-medium text-stone-900 dark:text-stone-100" style={SERIF}>
                   {next.title ?? `Day ${dayIndex + 2}`}
                 </span>
               </span>
               <ArrowUpRight className="h-4 w-4 shrink-0 rotate-45 text-stone-500 transition dark:text-stone-400 group-hover:translate-x-0.5 motion-reduce:group-hover:translate-x-0" aria-hidden />
             </Link>
+          )}
+          {prev ? (
+            <Link
+              rel="prev"
+              to={`/trips/${trip.slug ?? trip.id}/day/${prev.id}`}
+              className={`group order-2 -mx-2 flex min-h-14 items-center gap-4 rounded-xl px-2 py-3 transition-colors hover:bg-stone-100/50 sm:order-1 dark:hover:bg-stone-900/40 ${focusRingClass}`}
+            >
+              <ArrowUpRight className="h-4 w-4 shrink-0 -rotate-[135deg] text-stone-500 transition dark:text-stone-400 group-hover:-translate-x-0.5 motion-reduce:group-hover:translate-x-0" aria-hidden />
+              <span className="min-w-0">
+                <span className="block font-mono-trips text-[10px] uppercase tracking-[0.18em] text-stone-600 dark:text-stone-400">Previous · Day {dayIndex}</span>
+                <span className="line-clamp-2 break-words font-display text-base font-medium text-stone-900 dark:text-stone-100" style={SERIF}>
+                  {prev.title ?? `Day ${dayIndex}`}
+                </span>
+              </span>
+            </Link>
+          ) : (
+            <span className="hidden sm:order-1 sm:block" />
           )}
         </nav>
 
@@ -372,16 +433,28 @@ export function TripDayPage() {
 function Meta({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <dt className="font-mono-trips text-[10px] uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">{label}</dt>
+      <dt className="font-mono-trips text-[10px] uppercase tracking-[0.18em] text-stone-600 dark:text-stone-400">{label}</dt>
       <dd className="mt-1 break-words text-sm leading-snug text-stone-800 dark:text-stone-200">{value}</dd>
     </div>
   )
 }
 
-function ReservationTimelineItem({ item, index, accentDot }: { item: ItineraryItem; index: number; accentDot: string }) {
+function ReservationTimelineItem({
+  item,
+  index,
+  accentDot,
+  flash,
+}: {
+  item: ItineraryItem
+  index: number
+  accentDot: string
+  flash: boolean
+}) {
   const reduce = useReducedMotion()
+  const highlight = useAnchorHighlight(flash)
   const Icon = itemIcon(item.kind, item.location?.category, item.reservation?.type)
   const phone = item.reservation?.contact ? telHref(item.reservation.contact) : null
+  const time = item.time ? `${item.time}${item.endTime ? ` – ${item.endTime}` : ""}` : null
   return (
     <motion.div
       initial={reduce ? false : { opacity: 0, y: 10 }}
@@ -390,14 +463,11 @@ function ReservationTimelineItem({ item, index, accentDot }: { item: ItineraryIt
       transition={{ duration: 0.35, ease: EASE, delay: reduce ? 0 : index * 0.04 }}
       className="relative"
     >
-      <span className={`absolute -left-[23px] top-5 h-2.5 w-2.5 rounded-full ring-2 ring-[var(--trips-canvas)] sm:-left-[29px] ${accentDot}`} aria-hidden />
-      {item.time && (
-        <p className="mb-1 font-mono-trips text-[11px] uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">
-          {item.time}
-          {item.endTime ? ` – ${item.endTime}` : ""}
-        </p>
-      )}
-      <div className="rounded-xl border border-stone-200/90 bg-[var(--trips-surface)] p-4 dark:border-stone-800 dark:bg-stone-900/50">
+      <span className={`absolute -left-[23px] top-8 h-2.5 w-2.5 rounded-full ring-2 ring-[var(--trips-canvas)] sm:-left-[29px] ${accentDot}`} aria-hidden />
+      <div
+        id={`item-${item.id}`}
+        className={`rounded-xl border border-stone-200/90 bg-[var(--trips-surface)] p-4 dark:border-stone-800 dark:bg-stone-900/50 ${highlight}`}
+      >
         <div className="flex items-start gap-3">
           <span
             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${ACCENT.softBg} ${ACCENT.text}`}
@@ -406,20 +476,27 @@ function ReservationTimelineItem({ item, index, accentDot }: { item: ItineraryIt
             <Icon className="h-4 w-4" strokeWidth={1.5} />
           </span>
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100">{item.title}</h3>
-              <StatusChip status={item.status} />
-              {item.reservation?.status && item.reservation.status !== "confirmed" && (
-                <span className="text-[10px] uppercase tracking-wider text-stone-600 capitalize dark:text-stone-400">{item.reservation.status}</span>
+            <div className="flex items-start justify-between gap-x-3 gap-y-1">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                <h3 className="min-w-0 break-words text-sm font-semibold text-stone-900 dark:text-stone-100">{item.title}</h3>
+                <StatusChip status={item.status} />
+                {item.reservation?.status && item.reservation.status !== "confirmed" && (
+                  <span className="text-[10px] uppercase tracking-wider text-stone-600 capitalize dark:text-stone-400">{item.reservation.status}</span>
+                )}
+              </div>
+              {time && (
+                <span className="shrink-0 pt-0.5 font-mono-trips text-[11px] uppercase tracking-[0.14em] tabular-nums text-stone-600 dark:text-stone-400">
+                  {time}
+                </span>
               )}
             </div>
             {item.notes && (
-              <p className="mt-1 text-sm text-stone-700 dark:text-stone-300">
+              <p className="mt-1 break-words text-sm text-stone-700 dark:text-stone-300">
                 <LinkifiedText>{item.notes}</LinkifiedText>
               </p>
             )}
             {item.reservation?.confirmation && (
-              <p className="mt-1 font-mono-trips text-xs text-stone-500 dark:text-stone-400">
+              <p className="mt-1 break-words font-mono-trips text-xs text-stone-600 dark:text-stone-400">
                 Conf · {item.reservation.confirmation}
               </p>
             )}
@@ -450,10 +527,13 @@ function ReservationTimelineItem({ item, index, accentDot }: { item: ItineraryIt
   )
 }
 
-function NarrativeItem({ item }: { item: ItineraryItem }) {
+function NarrativeItem({ item, flash }: { item: ItineraryItem; flash: boolean }) {
+  const highlight = useAnchorHighlight(flash)
   const Icon = itemIcon(item.kind, item.location?.category)
   return (
-    <li className="flex gap-3 break-words">
+    // `-mx-2 px-2` keeps the text on the same optical line as the headings
+    // while giving the arrival highlight room to breathe.
+    <li id={`item-${item.id}`} className={`-mx-2 flex gap-3 break-words rounded-lg px-2 ${highlight}`}>
       <Icon
         className="mt-1 h-4 w-4 shrink-0 text-stone-500 dark:text-stone-400"
         strokeWidth={1.5}
@@ -461,7 +541,7 @@ function NarrativeItem({ item }: { item: ItineraryItem }) {
       />
       <span className="min-w-0 flex-1 break-words">
         {item.time && (
-          <span className="mr-2 font-mono-trips text-[11px] uppercase tracking-[0.12em] text-stone-500 dark:text-stone-400">
+          <span className="mr-2 font-mono-trips text-[11px] uppercase tracking-[0.12em] text-stone-600 dark:text-stone-400">
             {item.time}
           </span>
         )}
@@ -477,7 +557,7 @@ function NarrativeItem({ item }: { item: ItineraryItem }) {
             href={mapsUrl(item.location.address)}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-0.5 block text-xs text-stone-500 underline decoration-stone-300 underline-offset-2 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200"
+            className={`mt-0.5 block break-words [overflow-wrap:anywhere] rounded text-xs text-stone-600 underline decoration-stone-300 underline-offset-2 hover:text-stone-900 dark:text-stone-400 dark:decoration-stone-600 dark:hover:text-stone-200 ${focusRingClass}`}
           >
             {item.location.address}
           </a>
