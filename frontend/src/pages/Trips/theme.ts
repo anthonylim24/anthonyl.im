@@ -60,7 +60,9 @@ export const ACCENT: AccentTheme = {
   bloomB: "trip-bloom-b",
   text: "text-[color:var(--ta)]",
   textStrong: "text-[color:var(--ta-strong)]",
-  textHover: "group-hover:text-[color:var(--ta-strong)]",
+  // Both variants are spelled out: a call site's own `dark:text-*` would
+  // otherwise win over a bare `group-hover:` at equal specificity.
+  textHover: "group-hover:text-[color:var(--ta-strong)] dark:group-hover:text-[color:var(--ta-strong)]",
   dot: "bg-[color:var(--ta)]",
   softBg: "bg-[color:var(--ta-soft)]",
   border: "border-[color:var(--ta-ring)]",
