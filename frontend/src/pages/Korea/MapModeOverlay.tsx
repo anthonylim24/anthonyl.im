@@ -74,8 +74,19 @@ export function MapModeOverlay({
   const [selected, setSelected] = useState<RankedPlace | null>(null)
   const [sheetInitialMode, setSheetInitialMode] = useState<"compact" | "expanded">("compact")
   const [webglFailed, setWebglFailed] = useState<boolean>(() => !isWebglSupported())
-  const [effects] = useState(() => loadEffectPrefs(detectTier(), reduce ?? false))
+  const [effects, setEffects] = useState(() => loadEffectPrefs(detectTier(), reduce ?? false))
+  // Which lat,lng the current places payload was ranked for (reactive).
+  const [rankedKey, setRankedKey] = useState<string | null>(null)
   const userNeighborhood = useNeighborhoodLabel(location?.lat, location?.lng)
+
+  // If reduced-motion resolves after first paint, drop the heavy effects.
+  useEffect(() => {
+    if (!reduce) return
+    setEffects((prev) => {
+      if (!prev.fog && !prev.godRays && !prev.maxQuality) return prev
+      return { ...prev, fog: false, godRays: false, maxQuality: false }
+    })
+  }, [reduce])
 
   const honoredFocusRef = useRef(false)
   useEffect(() => {
@@ -244,18 +255,15 @@ export function MapModeOverlay({
     requestDeviceLocation()
   }, [])
 
-  // Bootstrap fetch once per day/url after device lookup settles.
-  // Deliberately omits `deviceCoords` so tapping "Use my location" does
-  // not tear down the 3D scene — resolve + re-rank handle coord changes.
+  // Bootstrap places immediately (parallel with geolocation). Distances
+  // are provisional until resolve + re-rank; the 3D scene waits for
+  // `mapReady` so Google tiles only mount once at the final anchor.
   useEffect(() => {
-    if (!deviceReady) return
     rankedForRef.current = null
+    setRankedKey(null)
     setState({ status: "loading" })
-    const queryKey = `${deviceCoords?.lat ?? 0},${deviceCoords?.lng ?? 0}`
-    const qs = new URLSearchParams({
-      lat: String(deviceCoords?.lat ?? 0),
-      lng: String(deviceCoords?.lng ?? 0),
-    })
+    const queryKey = "0,0"
+    const qs = new URLSearchParams({ lat: "0", lng: "0" })
     let cancelled = false
     void (async () => {
       try {
@@ -268,6 +276,7 @@ export function MapModeOverlay({
         const data = (await r.json()) as PlacesResponse
         if (!cancelled) {
           rankedForRef.current = queryKey
+          setRankedKey(queryKey)
           setState({ status: "success", data })
         }
       } catch (err) {
@@ -282,12 +291,13 @@ export function MapModeOverlay({
     return () => {
       cancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- deviceCoords read at deviceReady edge only
-  }, [daySlug, deviceReady, getToken, placesUrl])
+  }, [daySlug, getToken, placesUrl])
 
-  // Resolve YOU / day-center once places are known.
+  // Resolve YOU / day-center once places are known and geo has settled
+  // (or failed). While geo is pending we still show places in list mode.
   useEffect(() => {
     if (state.status !== "success") return
+    if (!deviceReady) return
     const places = state.data.places.map((p) => ({ lat: p.lat, lng: p.lng }))
     const fallback = state.data.meta.center
       ? { lat: state.data.meta.center.lat, lng: state.data.meta.center.lng }
@@ -311,7 +321,7 @@ export function MapModeOverlay({
       }
       return resolved
     })
-  }, [state, deviceCoords])
+  }, [state, deviceCoords, deviceReady])
 
   // Refresh distances when the resolved anchor differs from what we
   // last ranked for (abroad → day median, or live GPS refresh).
@@ -337,6 +347,7 @@ export function MapModeOverlay({
         if (!cancelled) {
           // Set only after success so Strict Mode cleanup+rerun still fetches.
           rankedForRef.current = key
+          setRankedKey(key)
           setState({ status: "success", data })
         }
       } catch {
@@ -359,12 +370,20 @@ export function MapModeOverlay({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return
-      if (selected) setSelected(null)
+      if (selected) closeSheetWithMorph()
       else onClose()
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [selected, onClose])
+
+  const locationKey = location ? `${location.lat},${location.lng}` : null
+  /** 3D scene waits until distances match the resolved YOU anchor. */
+  const mapReady =
+    state.status === "success" &&
+    locationKey !== null &&
+    rankedKey === locationKey &&
+    location != null
 
   const filteredPlaces = useMemo(() => {
     if (state.status !== "success") return []
@@ -513,7 +532,9 @@ export function MapModeOverlay({
       </motion.header>
 
       <div className="absolute inset-0 overflow-hidden">
-        {(state.status === "loading" || !deviceReady) && <LoadingPulse reduce={!!reduce} />}
+        {(state.status === "loading" || (showOrbs && !mapReady && state.status !== "error")) && (
+          <LoadingPulse reduce={!!reduce} />
+        )}
 
         {state.status === "error" && (
           <div className="absolute inset-0 flex items-center justify-center px-6">
@@ -528,8 +549,33 @@ export function MapModeOverlay({
                 type="button"
                 onClick={() => {
                   rankedForRef.current = null
+                  setRankedKey(null)
+                  setLocation(null)
                   setDeviceReady(false)
                   requestDeviceLocation()
+                  // Re-trigger bootstrap by bumping nothing — daySlug effect
+                  // only re-runs on day change; force a manual reload:
+                  setState({ status: "loading" })
+                  void (async () => {
+                    try {
+                      const token = await getToken()
+                      const headers: Record<string, string> = {}
+                      if (token) headers["Authorization"] = `Bearer ${token}`
+                      const base =
+                        placesUrl ?? `/api/korea/day/${encodeURIComponent(daySlug)}/places`
+                      const r = await fetch(`${base}?lat=0&lng=0`, { headers })
+                      if (!r.ok) throw new Error(`Places fetch ${r.status}`)
+                      const data = (await r.json()) as PlacesResponse
+                      rankedForRef.current = "0,0"
+                      setRankedKey("0,0")
+                      setState({ status: "success", data })
+                    } catch (err) {
+                      setState({
+                        status: "error",
+                        message: err instanceof Error ? err.message : String(err),
+                      })
+                    }
+                  })()
                 }}
                 className="mt-4 inline-flex h-10 items-center justify-center rounded-full bg-rose-600 px-4 text-xs font-semibold text-white transition hover:bg-rose-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60"
               >
@@ -553,7 +599,7 @@ export function MapModeOverlay({
               </div>
             )}
 
-            {showOrbs && (
+            {showOrbs && mapReady && (
               <>
                 <div ref={sceneContainerRef} className="absolute inset-0">
                   <Suspense fallback={<LoadingPulse reduce={!!reduce} />}>
@@ -565,8 +611,8 @@ export function MapModeOverlay({
                       selectedId={selected?.id ?? null}
                       reducedMotion={reduce ?? undefined}
                       onWebglError={() => setWebglFailed(true)}
-                      userLat={location?.lat}
-                      userLng={location?.lng}
+                      userLat={location.lat}
+                      userLng={location.lng}
                       yawRef={yawRef}
                       effects={effects}
                     />
