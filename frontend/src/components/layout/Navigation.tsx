@@ -34,7 +34,8 @@ interface NavigationProps {
   rootRef: RefObject<HTMLElement | null>
 }
 
-export function Navigation({ rootRef: _rootRef }: NavigationProps) {
+export function Navigation({ rootRef }: NavigationProps) {
+  void rootRef
   const location = useLocation()
   const { trigger: haptic } = useHaptics()
   const reducedMotion = useReducedMotion()
