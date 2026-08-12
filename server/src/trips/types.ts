@@ -226,7 +226,8 @@ export const daySchema = z.object({
   id: z.string().min(1).max(64),
   date: isoDate,
   title: z.string().max(200).optional(),
-  emoji: z.string().max(8).optional(),
+  // ZWJ / flag emoji sequences regularly exceed 8 UTF-16 code units.
+  emoji: z.string().max(32).optional(),
   city: z.string().max(80).optional(),
   notes: z.string().max(8000).optional(),
   neighborhoods: z.array(z.string().min(1).max(80)).max(12).optional(),
@@ -346,7 +347,8 @@ export const aiItemSchema = z.object({
 
 export const aiDaySchema = z.object({
   title: z.string().max(200).optional(),
-  emoji: z.string().max(8).optional(),
+  // ZWJ / flag emoji sequences regularly exceed 8 UTF-16 code units.
+  emoji: z.string().max(32).optional(),
   city: z.string().max(80).optional(),
   notes: z.string().max(4000).optional(),
   neighborhoods: z.array(z.string().min(1).max(80)).max(12).optional(),

@@ -5,7 +5,7 @@ import { z } from "zod"
 
 import { koreaSnapshot, type Snapshot, type Day, type Reservation } from "../data/koreaSnapshot"
 import { koreaPlaces, type PlaceDef } from "../data/koreaPlaces"
-import { GEMINI_BASE, GEMINI_MODEL } from "../igPlaces/gemini"
+import { GEMINI_BASE, GEMINI_MODEL, geminiThinking } from "../igPlaces/gemini"
 
 const koreaChat = new Hono()
 
@@ -202,9 +202,9 @@ koreaChat.post("/", zValidator("json", chatSchema), async (c) => {
     generationConfig: {
       temperature: 0.45,
       maxOutputTokens: 1024,
-      // No reasoning budget — this is conversational Q&A over a context we
-      // already assembled, so latency matters more than deep planning.
-      thinkingConfig: { thinkingBudget: 0 },
+      // Conversational Q&A over a pre-assembled context — minimize thinking
+      // latency. Gemini 3 Flash-Lite defaults to minimal; be explicit.
+      thinkingConfig: geminiThinking("minimal"),
     },
   }
 

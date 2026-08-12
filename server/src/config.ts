@@ -60,7 +60,8 @@ export const config = {
   // (transcript + OCR + place extraction with Maps grounding in one call),
   // (b) the skip-video text extractor, (c) the Groq-Whisper 429 fallback,
   // and (d) the last-resort text extractor when the primary chain yields
-  // 0 places. Model is set app-wide in gemini.ts → GEMINI_MODEL.
+  // 0 places. Model is set app-wide in gemini.ts → GEMINI_MODEL
+  // (trips generation uses TRIPS_GEMINI_MODEL = gemini-3.6-flash).
   geminiApiKey: process.env.GEMINI_API_KEY,
   // Bright Data Web Scraper API — initial Instagram post metadata fetch
   // (caption + videoUrl + locationTag) + comments fallback. Synchronous

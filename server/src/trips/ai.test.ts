@@ -1,5 +1,18 @@
 import { describe, expect, test } from "bun:test"
-import { applySuggestions, computeTravelLegs, enhanceTrip, generateItinerary } from "./ai"
+import {
+  applySuggestions,
+  computeTravelLegs,
+  createGeminiLlm,
+  createTripsLlm,
+  enhanceTrip,
+  extractModelJson,
+  generateItinerary,
+  normalizeAiItem,
+  normalizeTime,
+  salvageItinerary,
+  salvageSuggestions,
+  withLlmFallback,
+} from "./ai"
 import type { EnhancementRun, Trip } from "./types"
 
 function makeTrip(overrides: Partial<Trip> = {}): Trip {
@@ -286,16 +299,24 @@ describe("applySuggestions", () => {
   })
 })
 
-import { createGeminiLlm } from "./ai"
-
 describe("createGeminiLlm", () => {
-  test("sends Maps-grounded request and joins text parts", async () => {
+  test("sends Maps-grounded request and joins non-thought text parts", async () => {
     let captured: { url: string; body: Record<string, unknown> } | null = null
     const fetchImpl = (async (url: RequestInfo | URL, init?: RequestInit) => {
       captured = { url: String(url), body: JSON.parse(String(init?.body)) as Record<string, unknown> }
       return new Response(
         JSON.stringify({
-          candidates: [{ content: { parts: [{ text: '{"summary":' }, { text: '"ok","days":[]}' }] } }],
+          candidates: [
+            {
+              content: {
+                parts: [
+                  { thought: true, text: "planning {not json}" },
+                  { text: '{"summary":' },
+                  { text: '"ok","days":[]}' },
+                ],
+              },
+            },
+          ],
         }),
         { status: 200 },
       )
@@ -304,14 +325,38 @@ describe("createGeminiLlm", () => {
     const llm = createGeminiLlm("test-key", fetchImpl)
     const out = await llm({ system: "SYS", user: "USER" })
     expect(out).toBe('{"summary":"ok","days":[]}')
-    expect(captured!.url).toContain("gemini-3.1-flash-lite:generateContent")
+    expect(captured!.url).toContain("gemini-3.6-flash:generateContent")
     expect(captured!.body.tools).toEqual([{ googleMaps: {} }])
+    const gen = captured!.body.generationConfig as { thinkingConfig: { thinkingLevel: string } }
+    expect(gen.thinkingConfig).toEqual({ thinkingLevel: "low" })
     const contents = captured!.body.contents as Array<{ parts: Array<{ text: string }> }>
     expect(contents[0]!.parts[0]!.text).toContain("SYS")
     expect(contents[0]!.parts[0]!.text).toContain("USER")
   })
 
-  test("throws with status + body on API errors", async () => {
+  test("retries JSON-only when Maps-grounded call fails", async () => {
+    const calls: Array<Record<string, unknown>> = []
+    const fetchImpl = (async (_url: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>
+      calls.push(body)
+      if (calls.length === 1) return new Response("Maps unavailable", { status: 400 })
+      return new Response(
+        JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"ok":true}' }] } }] }),
+        { status: 200 },
+      )
+    }) as typeof fetch
+
+    const llm = createGeminiLlm("test-key", fetchImpl)
+    const out = await llm({ system: "s", user: "u" })
+    expect(out).toBe('{"ok":true}')
+    expect(calls).toHaveLength(2)
+    expect(calls[0]!.tools).toEqual([{ googleMaps: {} }])
+    expect(calls[1]!.tools).toBeUndefined()
+    const gen = calls[1]!.generationConfig as { responseMimeType?: string }
+    expect(gen.responseMimeType).toBe("application/json")
+  })
+
+  test("throws with status + body on API errors after JSON retry also fails", async () => {
     const fetchImpl = (async () => new Response("quota exceeded", { status: 429 })) as typeof fetch
     const llm = createGeminiLlm("test-key", fetchImpl)
     await expect(llm({ system: "s", user: "u" })).rejects.toThrow(/429.*quota/)
@@ -320,11 +365,55 @@ describe("createGeminiLlm", () => {
   test("throws on an empty candidate response", async () => {
     const fetchImpl = (async () => new Response(JSON.stringify({ candidates: [] }), { status: 200 })) as typeof fetch
     const llm = createGeminiLlm("test-key", fetchImpl)
+    // First Maps attempt fails empty → JSON retry also empty → throws
     await expect(llm({ system: "s", user: "u" })).rejects.toThrow(/empty/)
   })
 })
 
-import { extractModelJson, salvageSuggestions, salvageItinerary } from "./ai"
+describe("withLlmFallback", () => {
+  test("returns primary output when it succeeds", async () => {
+    const llm = withLlmFallback(
+      async () => "primary",
+      async () => "fallback",
+    )
+    expect(await llm({ system: "s", user: "u" })).toBe("primary")
+  })
+
+  test("falls through to secondary when primary throws", async () => {
+    const llm = withLlmFallback(
+      async () => {
+        throw new Error("boom")
+      },
+      async () => "fallback",
+    )
+    expect(await llm({ system: "s", user: "u" })).toBe("fallback")
+  })
+
+  test("createTripsLlm returns null when neither key is set", () => {
+    expect(createTripsLlm({})).toBeNull()
+  })
+})
+
+describe("normalizeTime / normalizeAiItem", () => {
+  test("pads and converts common time variants", () => {
+    expect(normalizeTime("9:00")).toBe("09:00")
+    expect(normalizeTime("09:30")).toBe("09:30")
+    expect(normalizeTime("9:00 pm")).toBe("21:00")
+    expect(normalizeTime("12:15 am")).toBe("00:15")
+  })
+
+  test("coerces string coordinates and pads times before schema", () => {
+    const out = normalizeAiItem({
+      kind: "place",
+      title: "Cafe",
+      time: "9:30",
+      location: { name: "Cafe", lat: "35.6", lng: "139.7" },
+    }) as { time: string; location: { lat: number; lng: number } }
+    expect(out.time).toBe("09:30")
+    expect(out.location.lat).toBe(35.6)
+    expect(out.location.lng).toBe(139.7)
+  })
+})
 
 describe("extractModelJson", () => {
   test("parses double-encoded JSON (grounded Gemini failure mode)", () => {
@@ -395,5 +484,29 @@ describe("salvage parsing", () => {
     expect(out.days.length).toBe(2)
     expect(out.days[0]!.items.length).toBe(1)
     expect(out.days[1]!.items.length).toBe(0)
+  })
+
+  test("salvageItinerary accepts unpadded times and string lat/lng", () => {
+    const raw = JSON.stringify({
+      days: [
+        {
+          title: "Morning",
+          emoji: "👨‍👩‍👧‍👦",
+          items: [
+            {
+              kind: "place",
+              title: "Cafe",
+              time: "9:00",
+              location: { name: "Cafe", lat: "35.66", lng: "139.70", category: "cafe" },
+            },
+          ],
+        },
+      ],
+    })
+    const out = salvageItinerary(raw)
+    expect(out.days[0]!.emoji).toBe("👨‍👩‍👧‍👦")
+    expect(out.days[0]!.items).toHaveLength(1)
+    expect(out.days[0]!.items[0]!.time).toBe("09:00")
+    expect(out.days[0]!.items[0]!.location!.lat).toBe(35.66)
   })
 })
