@@ -717,20 +717,20 @@ export function Session() {
       </div>
 
       {/* ═══ DESKTOP LAYOUT ══════════════════════════════ */}
-      <div
-        className="hidden md:flex md:flex-col max-w-2xl mx-auto"
-      >
+      <div className="hidden md:grid md:grid-cols-[minmax(0,1fr)_17rem] lg:grid-cols-[minmax(0,1fr)_19rem] md:gap-8 lg:gap-10 md:items-start">
         <motion.div
           variants={stagger}
           initial="hidden"
           animate="show"
-          className="flex-1 space-y-8 pb-4"
+          className="min-w-0 space-y-8 pb-4"
         >
-          {/* Header */}
           <motion.div variants={fadeUp}>
             <h1 className="font-display text-4xl font-semibold text-bw leading-none">
               Session Setup
             </h1>
+            <p className="mt-2 text-sm text-bw-tertiary">
+              Pick a protocol. Start stays on the right.
+            </p>
           </motion.div>
 
         {/* Technique Selection — border-separated list */}
@@ -893,14 +893,23 @@ export function Session() {
           />
         </motion.div>
 
-        {/* Round Counter */}
-        <motion.div variants={fadeUp} className="border-t border-bw-border pt-8">
-          <div className="space-y-6">
+        </motion.div>
+
+        <aside className="md:sticky md:top-20 self-start">
+          <p className="text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">
+            Start this session
+          </p>
+          <p className="mt-2 text-lg font-medium leading-snug text-bw">{protocol.name}</p>
+          <p className="mt-1 text-[11px] font-mono tabular-nums text-bw-tertiary">
+            {cadenceLabel} · {formatTime(estimatedDuration)}
+          </p>
+
+          <div className="mt-6 border-t border-bw-border pt-5">
             <label className="text-[10px] font-medium text-bw-secondary tracking-[0.07em] uppercase">
               Number of Rounds
             </label>
             <div
-              className="flex items-center justify-center gap-10"
+              className="mt-4 flex items-center justify-center gap-6"
               role="group"
               aria-label={`Session rounds, ${rounds} selected`}
             >
@@ -911,15 +920,15 @@ export function Session() {
                 aria-label={`Decrease rounds, currently ${rounds} rounds selected`}
                 onClick={() => { haptic(15); setRounds((r) => Math.max(MIN_SESSION_ROUNDS, r - 1)) }}
                 disabled={rounds <= MIN_SESSION_ROUNDS}
-                className="h-12 w-12 border border-bw-border hover:bg-bw-hover disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 text-bw"
+                className="flex h-11 w-11 items-center justify-center border border-bw-border text-bw transition-all duration-300 hover:bg-bw-hover disabled:cursor-not-allowed disabled:opacity-25"
               >
                 <Minus className="h-4 w-4" aria-hidden="true" />
               </motion.button>
-              <div className="text-center min-w-[80px]">
-                <span className="font-mono text-3xl font-normal tabular-nums text-bw leading-none">
+              <div className="min-w-12 text-center">
+                <span className="font-mono text-3xl font-normal tabular-nums leading-none text-bw">
                   {rounds}
                 </span>
-                <span className="block text-[10px] text-bw-secondary mt-2 font-medium tracking-[0.07em] uppercase">
+                <span className="mt-2 block text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary">
                   rounds
                 </span>
               </div>
@@ -930,50 +939,41 @@ export function Session() {
                 aria-label={`Increase rounds, currently ${rounds} rounds selected`}
                 onClick={() => { haptic(15); setRounds((r) => Math.min(maxRounds, r + 1)) }}
                 disabled={rounds >= maxRounds}
-                className="h-12 w-12 border border-bw-border hover:bg-bw-hover disabled:opacity-25 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-300 text-bw"
+                className="flex h-11 w-11 items-center justify-center border border-bw-border text-bw transition-all duration-300 hover:bg-bw-hover disabled:cursor-not-allowed disabled:opacity-25"
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
               </motion.button>
             </div>
-
-            <div className="flex items-center justify-center gap-2 py-3 border-t border-bw-border">
+            <div className="mt-4 flex items-center justify-center gap-2">
               <Clock className="h-3.5 w-3.5 text-bw-tertiary" aria-hidden="true" />
               <span className="text-xs text-bw-tertiary">Estimated</span>
-              <span className="font-mono font-medium text-sm text-bw tabular-nums">
+              <span className="font-mono text-sm font-medium tabular-nums text-bw">
                 {formatTime(estimatedDuration)}
               </span>
             </div>
           </div>
-        </motion.div>
 
-        </motion.div>
-
-        {/* Pinned Start Button */}
-        <motion.div
-          variants={fadeUp}
-          initial="hidden"
-          animate="show"
-          className="shrink-0 border-t border-bw-border bg-bw-canvas pt-3 pb-1"
-        >
-          {startSafetyHelpText ? (
-            <p
-              id="desktop-start-safety-help"
-              className="mb-2 text-center text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary"
+          <div className="shrink-0 border-t border-bw-border bg-bw-canvas pt-3 pb-1 mt-5">
+            {startSafetyHelpText ? (
+              <p
+                id="desktop-start-safety-help"
+                className="mb-2 text-center text-[10px] font-medium uppercase tracking-[0.07em] text-bw-secondary"
+              >
+                {startSafetyHelpText}
+              </p>
+            ) : null}
+            <button
+              type="button"
+              onClick={handleStartSession}
+              disabled={!canStartSession}
+              aria-describedby={startSafetyHelpText ? 'desktop-start-safety-help' : undefined}
+              className="flex min-h-11 w-full items-center justify-center gap-3 border border-bw-accent bg-bw-accent px-6 py-3.5 text-sm font-medium text-bw-accent-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:border-bw-border disabled:bg-bw-active disabled:text-bw-tertiary disabled:hover:opacity-100"
             >
-              {startSafetyHelpText}
-            </p>
-          ) : null}
-          <button
-            type="button"
-            onClick={handleStartSession}
-            disabled={!canStartSession}
-            aria-describedby={startSafetyHelpText ? 'desktop-start-safety-help' : undefined}
-            className="w-full py-3.5 px-6 border border-bw-accent bg-bw-accent font-medium text-bw-accent-foreground text-sm flex items-center justify-center gap-3 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:border-bw-border disabled:bg-bw-active disabled:text-bw-tertiary disabled:hover:opacity-100"
-          >
-            <Play className="h-4 w-4" aria-hidden="true" />
-            <span>Enter {protocol.name}</span>
-          </button>
-        </motion.div>
+              <Play className="h-4 w-4" aria-hidden="true" />
+              <span>Enter {protocol.name}</span>
+            </button>
+          </div>
+        </aside>
       </div>
     </>
   )

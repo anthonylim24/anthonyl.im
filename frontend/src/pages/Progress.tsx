@@ -107,72 +107,72 @@ export function Progress() {
 
   return (
     <motion.div className="pb-4" variants={stagger} initial="hidden" animate="show">
-      <div className="space-y-10 sm:space-y-12">
-        {/* Header */}
-        <motion.div variants={fadeUp} className="flex items-center justify-between gap-4">
-          <div>
-            <h1 className="font-display text-4xl font-semibold text-bw leading-none">
-              Progress
-            </h1>
-          </div>
-          <div className="relative">
-            {showClearConfirm ? (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-bw-tertiary">Clear all?</span>
+      <div className="space-y-8 sm:space-y-10">
+        <motion.div variants={fadeUp}>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h1 className="font-display text-4xl font-semibold text-bw leading-none">
+                Progress
+              </h1>
+            </div>
+            <div className="relative">
+              {showClearConfirm ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-bw-tertiary">Clear all?</span>
+                  <button
+                    type="button"
+                    aria-label="Confirm clear history"
+                    onClick={handleClearHistory}
+                    className="min-h-11 min-w-11 px-3 py-2 text-xs font-medium border border-bw-destructive-border text-bw-destructive hover:bg-bw-destructive-hover transition-colors duration-300"
+                  >
+                    Yes
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Cancel clear history"
+                    onClick={() => {
+                      setShowClearConfirm(false)
+                      setHistoryStatus('Clear history cancelled.')
+                    }}
+                    className="min-h-11 min-w-11 px-3 py-2 text-xs font-medium border border-bw-border text-bw-secondary hover:text-bw transition-colors duration-300"
+                  >
+                    No
+                  </button>
+                </div>
+              ) : (
                 <button
                   type="button"
-                  aria-label="Confirm clear history"
-                  onClick={handleClearHistory}
-                  className="min-h-11 min-w-11 px-3 py-2 text-xs font-medium border border-bw-destructive-border text-bw-destructive hover:bg-bw-destructive-hover transition-colors duration-300"
-                >
-                  Yes
-                </button>
-                <button
-                  type="button"
-                  aria-label="Cancel clear history"
+                  aria-label="Clear session history"
                   onClick={() => {
-                    setShowClearConfirm(false)
-                    setHistoryStatus('Clear history cancelled.')
+                    haptic('error')
+                    setShowClearConfirm(true)
+                    setHistoryStatus('Clear history requires confirmation.')
                   }}
-                  className="min-h-11 min-w-11 px-3 py-2 text-xs font-medium border border-bw-border text-bw-secondary hover:text-bw transition-colors duration-300"
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center px-3 py-2 text-xs text-bw-tertiary hover:text-bw-destructive transition-colors duration-300"
                 >
-                  No
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                aria-label="Clear session history"
-                onClick={() => {
-                  haptic('error')
-                  setShowClearConfirm(true)
-                  setHistoryStatus('Clear history requires confirmation.')
-                }}
-                className="inline-flex min-h-11 min-w-11 items-center justify-center px-3 py-2 text-xs text-bw-tertiary hover:text-bw-destructive transition-colors duration-300"
-              >
-                <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
-            )}
+              )}
+            </div>
           </div>
+          {historyStatus ? (
+            <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+              {historyStatus}
+            </p>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => {
+              haptic('success')
+              navigate('/breathwork/session?technique=box_breathing')
+            }}
+            aria-label="Start a breathing session"
+            className="mt-5 flex min-h-11 w-full items-center justify-center gap-2.5 border border-bw-accent bg-bw-accent px-4 py-3 text-sm font-medium text-bw-accent-foreground transition-opacity hover:opacity-90"
+          >
+            <Play className="h-4 w-4" aria-hidden="true" />
+            Start Session
+          </button>
         </motion.div>
-        {historyStatus ? (
-          <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-            {historyStatus}
-          </p>
-        ) : null}
-        <motion.button
-          type="button"
-          variants={fadeUp}
-          onClick={() => {
-            haptic('success')
-            navigate('/breathwork/session?technique=box_breathing')
-          }}
-          aria-label="Start a breathing session"
-          className="flex min-h-11 w-full items-center justify-center gap-2.5 border border-bw-accent bg-bw-accent px-4 py-3 text-sm font-medium text-bw-accent-foreground transition-opacity hover:opacity-90"
-        >
-          <Play className="h-4 w-4" aria-hidden="true" />
-          Start Session
-        </motion.button>
 
         {/* ── Two-column grid on md+ ── */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10 sm:gap-12">

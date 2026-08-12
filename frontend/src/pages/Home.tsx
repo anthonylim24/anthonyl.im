@@ -180,92 +180,45 @@ export function Home() {
       initial="hidden"
       animate="show"
     >
-      {/* ── Greeting ────────────────────────────────────── */}
-      <motion.div variants={fadeUp} className="pt-2 pb-8 md:pb-16">
+      {/* ── Greeting: one line of context, then the action ── */}
+      <motion.div variants={fadeUp} className="pt-1 pb-4 md:pb-5">
         <p className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary">
-          BreathFlow
-        </p>
-        <h1 className="font-display text-3xl md:text-5xl font-semibold text-bw leading-[0.95] mt-1">
-          {getGreeting()}
-        </h1>
-        <p className="text-xs text-bw-tertiary mt-2 md:mt-3 font-medium tracking-wide hidden md:block">
           {isNewUser
-            ? 'Your first session takes about 5 minutes'
+            ? 'First session · about 5 minutes'
             : getStreakMessage(streak, dailyGoalMet)}
         </p>
+        <h1 className="font-display text-3xl md:text-4xl font-semibold text-bw leading-[0.95] mt-1">
+          {getGreeting()}
+        </h1>
       </motion.div>
 
       {isNewUser ? (
-        /* ── Welcome State ──────────────────────────────── */
-        <>
-          {/* Mobile welcome */}
-          <motion.div variants={fadeUp} className="pb-8 md:hidden">
-            <p className="text-xs text-bw-tertiary leading-relaxed mb-6">
-              Your first session takes about 5 minutes
-            </p>
-            <button
-              type="button"
-              aria-label={`Start your first session, ${buildProtocolDetailLabel(
-                suggestedProtocol.name,
-                suggestedDuration,
-                recommendation.primary.rounds,
-              )}`}
-              onClick={() => { haptic('success'); navigate(suggestedPath) }}
-              className="flex min-h-11 w-full items-center justify-center gap-2.5 border border-bw-accent bg-bw-accent py-4 font-medium text-bw-accent-foreground text-sm transition-all hover:opacity-90"
-            >
-              <Play className="h-4 w-4" aria-hidden="true" />
-              Start your first session
-            </button>
-            <button
-              type="button"
-              onClick={handleBrowseTechniques}
-              className="mt-3 flex min-h-11 w-full items-center justify-center py-2 text-xs font-medium text-bw-tertiary transition-colors hover:text-bw-secondary"
-            >
-              Browse all techniques
-            </button>
-          </motion.div>
-
-          {/* Desktop welcome */}
-          <motion.div variants={fadeUp} className="hidden md:block pb-16 border-b border-bw-border">
-            <button
-              type="button"
-              aria-label={`Start your first session, ${buildProtocolDetailLabel(
-                suggestedProtocol.name,
-                suggestedDuration,
-                recommendation.primary.rounds,
-              )}`}
-              onClick={() => { haptic('success'); navigate(suggestedPath) }}
-              className="flex min-h-11 items-center gap-3 border border-bw-accent bg-bw-accent px-8 py-4 font-medium text-bw-accent-foreground text-sm transition-all hover:opacity-90"
-            >
-              <Play className="h-4 w-4" aria-hidden="true" />
-              Start your first session
-            </button>
-            <button
-              type="button"
-              onClick={handleBrowseTechniques}
-              className="mt-3 inline-flex min-h-11 items-center text-xs font-medium text-bw-tertiary transition-colors hover:text-bw-secondary"
-            >
-              Or browse all techniques
-            </button>
-          </motion.div>
-        </>
-      ) : (
-        /* ── Returning: one quiet count, not a dashboard ── */
-        <motion.div variants={fadeUp} className="pb-4 md:pb-10 md:border-b md:border-bw-border">
-          <p className="text-sm text-bw">
-            {dailyGoalMet ? 'Today is logged.' : getStreakMessage(streak, dailyGoalMet)}
-          </p>
-          {streak > 0 ? (
-            <p className="mt-1 text-xs text-bw-tertiary">
-              {streak} {streak === 1 ? 'day' : 'days'} this stretch
-              {dailySessionCount > 0 ? `. ${dailySessionCount} today.` : '.'}
-            </p>
-          ) : null}
+        <motion.div variants={fadeUp} className="pb-5">
+          <button
+            type="button"
+            aria-label={`Start your first session, ${buildProtocolDetailLabel(
+              suggestedProtocol.name,
+              suggestedDuration,
+              recommendation.primary.rounds,
+            )}`}
+            onClick={() => { haptic('success'); navigate(suggestedPath) }}
+            className="flex min-h-11 w-full items-center justify-center gap-2.5 border border-bw-accent bg-bw-accent py-3.5 font-medium text-bw-accent-foreground text-sm transition-opacity hover:opacity-90 md:w-auto md:px-8"
+          >
+            <Play className="h-4 w-4" aria-hidden="true" />
+            Start your first session
+          </button>
+          <button
+            type="button"
+            onClick={handleBrowseTechniques}
+            className="mt-1 flex min-h-11 w-full items-center justify-center py-2 text-xs font-medium text-bw-tertiary transition-colors hover:text-bw-secondary md:mt-0 md:inline-flex md:w-auto md:px-1"
+          >
+            Browse all techniques
+          </button>
         </motion.div>
-      )}
+      ) : null}
 
       {/* ── Protocol Lab ───────────────────────────────── */}
-      <motion.section variants={fadeUp} className="pt-3 md:pt-8" aria-labelledby="protocol-lab-heading">
+      <motion.section variants={fadeUp} className="pt-0" aria-labelledby="protocol-lab-heading">
         <div className="border-y border-bw-border py-5 md:py-6">
           <div className="flex items-start justify-between gap-4">
             <div>

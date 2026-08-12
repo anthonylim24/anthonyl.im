@@ -119,7 +119,9 @@ export function BreathworkLayout() {
           <Header />
           <main>
             <div
-              className="w-full max-w-3xl mx-auto px-5 sm:px-8 lg:px-12 py-6 sm:py-10 pb-[var(--mobile-content-bottom-space)] md:pb-10 bg-transparent"
+              className={`w-full mx-auto px-5 sm:px-8 lg:px-12 py-6 sm:py-10 pb-[var(--mobile-content-bottom-space)] md:pb-10 bg-transparent ${
+                isSessionRoute ? 'max-w-5xl' : 'max-w-3xl'
+              }`}
               style={contentStyle}
             >
               <AnimatedOutlet />
