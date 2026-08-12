@@ -168,7 +168,7 @@ PR opened ─────► .github/workflows/pr.yml ─┬─► pr-server-tes
                                            ├─► pr-frontend-build
                                            ├─► pr-frontend-tests
                                            ├─► pr-cloud-setup
-                                           └─► pr-gate (aggregate; required by branch protection)
+                                           └─► pr-gate (aggregate; starts immediately; required by branch protection)
 
 PR opened ─────► .github/workflows/preview.yml ─► build + publish
                                               → https://anthonyl.im/preview/pr/<n>/
@@ -181,7 +181,7 @@ merge to main ─► .github/workflows/deploy.yml ─► test → build → stag
 
 Shared install/cache lives in `.github/actions/setup-ci`. Lockfiles are text `bun.lock` (Dependabot `package-ecosystem: bun`). Never reintroduce binary `bun.lockb`.
 
-**Branch protection on `main` requires the `pr-gate` aggregate check.** This is enforced for admins too (`enforce_admins: true` in `.github/branch-protection.json`), so a red gate genuinely blocks merge — `gh pr merge --admin` will refuse. To inspect or re-apply the protection:
+**Branch protection on `main` requires the `pr-gate` aggregate check.** This is enforced for admins too (`enforce_admins: true` in `.github/branch-protection.json`), so a red gate genuinely blocks merge — `gh pr merge --admin` will refuse. `pr-gate` starts immediately (it must not use `needs:`) so merge UIs wait instead of racing GitHub's required-check registration. To inspect or re-apply the protection:
 
 ```bash
 gh api repos/anthonylim24/anthonyl.im/branches/main/protection

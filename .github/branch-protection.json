@@ -2,10 +2,17 @@
   "//": "Branch protection config for `main`. Apply via:",
   "//apply": "gh api --method PUT repos/anthonylim24/anthonyl.im/branches/main/protection --input .github/branch-protection.json",
   "//verify": "gh api repos/anthonylim24/anthonyl.im/branches/main/protection",
+  "//checks": "app_id 15368 is GitHub Actions. Keep the required context named pr-gate; the workflow must register that check immediately (no needs:).",
   "required_status_checks": {
     "strict": true,
     "contexts": [
       "pr-gate"
+    ],
+    "checks": [
+      {
+        "context": "pr-gate",
+        "app_id": 15368
+      }
     ]
   },
   "enforce_admins": true,

@@ -1,7 +1,7 @@
 # CI/CD system (agent memory)
 
 > Canonical reference for future agents touching workflows, gates, deploy, or Dependabot.
-> Last upgraded: 2026-08-12 (remote PR previews + text `bun.lock` + atomic deploy).
+> Last upgraded: 2026-08-12 (remote PR previews + pr-gate registers immediately so merge UIs wait).
 
 ## Architecture (one glance)
 
@@ -12,7 +12,7 @@ PR → .github/workflows/pr.yml
         ├─ pr-frontend-build        tsc -b && vite build (stub .env)
         ├─ pr-frontend-tests        vitest run
         ├─ pr-cloud-setup           .codex/setup.sh → check.sh + invariant lints
-        └─ pr-gate (aggregate)      ← ONLY context required by branch protection
+        └─ pr-gate (aggregate)      ← starts immediately; ONLY required context
 
 PR → .github/workflows/preview.yml   (NOT a merge gate)
         ├─ vite build with VITE_BASE=/preview/pr/<n>/ (FRONTEND_ENV, SW off)
@@ -30,7 +30,9 @@ merge to main → .github/workflows/deploy.yml
         └─ smoke: /health JSON + SPA shells (/ /chatbot /breathwork /korea /trips)
 ```
 
-Branch protection config: `.github/branch-protection.json` (`contexts: ["pr-gate"]`, `enforce_admins: true`).
+Branch protection config: `.github/branch-protection.json` (`contexts` + GitHub Actions `checks`: `pr-gate`, `enforce_admins: true`).
+
+`pr-gate` **must not** use `needs:`. A `needs:` aggregate is not registered as a check-run until every sibling finishes, so Cursor / `gh pr checks` see a green rollup and squash-merge fails with "required status checks have not completed yet". The job polls siblings instead, and also posts a commit status on the PR head SHA so the combined Statuses API is not stuck `pending` with zero contexts.
 
 ## Shared setup action
 
@@ -91,6 +93,7 @@ Secrets: `SSH_HOST`, `SSH_USERNAME`, `SSH_KEY`, `FRONTEND_ENV`. Droplet runtime 
 | Preview HTML served as production SPA | Preview router is mounted **before** the SPA fallback; missing trees 404 |
 | Production SW caching `/preview/` | `sw.js` bypasses `/preview/`; bump `CACHE_VERSION` when changing that |
 | `oven-sh/setup-bun` 503 / socket hang up | `.github/actions/setup-ci` retries Bun setup twice with pauses |
+| Merge UI green but squash blocked ("status checks have not completed") | `pr-gate` must start with no `needs:` so the required check is in_progress immediately; also posts a `pr-gate` commit status on the PR head SHA |
 
 ## What is intentionally NOT in the cloud verify gate
 
@@ -104,7 +107,7 @@ Frontend **unit** tests ARE in GitHub `pr-gate` (`pr-frontend-tests`). Older doc
 
 When changing CI/CD:
 
-1. Keep `pr-gate` as the sole required status check name (or update `.github/branch-protection.json` + re-apply via `gh api`).
+1. Keep `pr-gate` as the sole required status check name (or update `.github/branch-protection.json` + re-apply via `gh api`). Do not give `pr-gate` a `needs:` list.
 2. Update this file + the CI/CD sections in `AGENTS.md` / `CLAUDE.md` + `deploy/README.md`.
 3. Prefer extending `.github/actions/setup-ci` over copy-pasting cache/install steps.
 4. Never remove `appLoad.test.ts` or `verify_frontend_typescript` without a replacement.
