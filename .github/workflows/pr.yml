@@ -16,15 +16,23 @@ name: PR Checks
 #   - Frontend build already runs `tsc -b` (`bun run build`); the dedicated
 #     typecheck job still exists for a faster --noEmit fail path and clearer
 #     failure attribution.
+#   - `pr-gate` starts immediately (no `needs:`) so GitHub registers the
+#     required check as in_progress from the first seconds of the run.
+#     A `needs:` aggregate is invisible until siblings finish, which makes
+#     merge UIs (Cursor, `gh pr checks`) think CI is green and then fail
+#     squash-merge with "required status checks have not completed yet".
 
 on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
+  # Merge-queue PRs never fire `pull_request`; without this, required
+  # checks stay unreported and the queue blocks forever.
+  merge_group:
 
 concurrency:
-  group: pr-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  group: ${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || format('merge-group-{0}', github.sha) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -126,38 +134,95 @@ jobs:
           bash .claude/cloud/cloud-setup.test.sh
 
   # ─── Aggregate status ───────────────────────────────────────────────
-  # Single check branch protection depends on. Add/remove jobs above
-  # without re-configuring the protected branch — just update `needs`.
+  # Single check branch protection depends on. Starts with no `needs:` so
+  # GitHub reports `pr-gate` as in_progress immediately (see file header).
+  # Add/remove sibling jobs by updating REQUIRED_JOBS below — do not add
+  # `needs:` back or the merge-race returns.
   pr-gate:
     name: pr-gate
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    needs:
-      - pr-server-tests
-      - pr-frontend-typecheck
-      - pr-frontend-build
-      - pr-frontend-tests
-      - pr-cloud-setup
-    if: always()
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      actions: read
+      statuses: write
     steps:
-      - name: Gate result
+      - name: Wait for sibling jobs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || github.sha }}
+          DETAILS_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          results=(
-            "${{ needs.pr-server-tests.result }}"
-            "${{ needs.pr-frontend-typecheck.result }}"
-            "${{ needs.pr-frontend-build.result }}"
-            "${{ needs.pr-frontend-tests.result }}"
-            "${{ needs.pr-cloud-setup.result }}"
+          set -euo pipefail
+
+          REQUIRED_JOBS=(
+            pr-server-tests
+            pr-frontend-typecheck
+            pr-frontend-build
+            pr-frontend-tests
+            pr-cloud-setup
           )
-          failed=0
-          for r in "${results[@]}"; do
-            if [ "$r" != "success" ]; then
-              failed=1
+
+          post_status() {
+            local state="$1"
+            local desc="$2"
+            gh api --method POST "repos/${REPO}/statuses/${HEAD_SHA}" \
+              -f state="$state" \
+              -f context=pr-gate \
+              -f description="$desc" \
+              -f target_url="$DETAILS_URL" >/dev/null \
+              || echo "::warning::Failed to post commit status '$state' for pr-gate"
+          }
+
+          post_status pending "PR checks running"
+
+          deadline=$((SECONDS + 1320)) # 22 minutes; job timeout is 25
+          while (( SECONDS < deadline )); do
+            if ! json="$(gh api "repos/${REPO}/actions/runs/${RUN_ID}/jobs?per_page=100")"; then
+              echo "WARN: failed to list jobs for run ${RUN_ID}; retrying"
+              sleep 8
+              continue
             fi
+
+            pending=()
+            failed=()
+            for name in "${REQUIRED_JOBS[@]}"; do
+              # sort_by(.id)|last is the latest attempt; last on [] is null
+              # (max_by on [] errors in some jq versions and would trip set -e).
+              job="$(jq -c --arg n "$name" '[.jobs[] | select(.name == $n)] | sort_by(.id) | last // empty' <<<"$json")"
+              if [[ -z "$job" ]]; then
+                pending+=("$name")
+                continue
+              fi
+              status="$(jq -r '.status // empty' <<<"$job")"
+              conclusion="$(jq -r '.conclusion // empty' <<<"$job")"
+              if [[ -z "$status" || "$status" != "completed" ]]; then
+                pending+=("$name")
+                continue
+              fi
+              if [[ "$conclusion" != "success" ]]; then
+                failed+=("$name=$conclusion")
+              fi
+            done
+
+            if (( ${#pending[@]} == 0 )); then
+              if (( ${#failed[@]} > 0 )); then
+                echo "::error::One or more PR checks failed — not safe to merge."
+                printf '  %s\n' "${failed[@]}"
+                post_status failure "One or more PR checks failed"
+                exit 1
+              fi
+              post_status success "All PR checks passed"
+              echo "All PR checks passed."
+              exit 0
+            fi
+
+            echo "Waiting on: ${pending[*]}"
+            sleep 8
           done
-          if [ "$failed" -ne 0 ]; then
-            echo "::error::One or more PR checks failed — not safe to merge."
-            printf '  %s\n' "${results[@]}"
-            exit 1
-          fi
-          echo "All PR checks passed."
+
+          echo "::error::Timed out waiting for sibling PR jobs to complete."
+          post_status failure "Timed out waiting for PR checks"
+          exit 1
