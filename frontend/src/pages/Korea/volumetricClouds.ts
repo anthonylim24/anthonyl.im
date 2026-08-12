@@ -100,11 +100,11 @@ const PHASE: Record<GradeKind, PhaseUniforms> = {
     density: 0.85,
   },
   dusk: {
-    cloudColor: new Color("#c0606a"),
-    highlightColor: new Color("#ffb46a"),
-    hazeColor: new Color("#d68a4a"),
-    coverage: 0.60,
-    density: 1.00,
+    cloudColor: new Color("#c89880"),
+    highlightColor: new Color("#ffc4a0"),
+    hazeColor: new Color("#c89870"),
+    coverage: 0.48,
+    density: 0.75,
   },
   evening: {
     cloudColor: new Color("#5a6a86"),
@@ -146,8 +146,8 @@ const SKY_FRAGMENT = /* glsl */ `
 
   const float CLOUD_BOT = 1200.0;
   const float CLOUD_TOP = 2400.0;
-  const int   STEPS = 24;
-  const int   LIGHT_STEPS = 6;
+  const int   STEPS = 16;
+  const int   LIGHT_STEPS = 4;
 
   float hash(vec3 p) {
     p = mod(p, 1024.0);
@@ -244,6 +244,8 @@ export class VolumetricClouds {
   private cloudRT: WebGLRenderTarget
   private invViewProj = new Matrix4()
   private noiseTex: DataTexture
+  private lookDir = new Vector3()
+  private clearHold = new Color()
 
   constructor(opts: VolumetricCloudsOptions) {
     this.renderer = opts.renderer
@@ -298,6 +300,10 @@ export class VolumetricClouds {
       this.skyMat.uniforms.uDensity.value * (1 - lerp) + phase.density * lerp
   }
 
+  setSunDirection(x: number, y: number, z: number): void {
+    this.skyMat.uniforms.uSunDir.value.set(x, y, z).normalize()
+  }
+
   setTime(seconds: number): void {
     this.skyMat.uniforms.uTime.value = seconds
   }
@@ -309,6 +315,19 @@ export class VolumetricClouds {
   render(): void {
     const cam = this.camera
     cam.updateMatrixWorld()
+    cam.getWorldDirection(this.lookDir)
+    // Looking down at the city: skip the ray march (transparent).
+    if (this.lookDir.y < -0.15) {
+      const prev = this.renderer.getRenderTarget()
+      const prevAlpha = this.renderer.getClearAlpha()
+      this.renderer.getClearColor(this.clearHold)
+      this.renderer.setRenderTarget(this.cloudRT)
+      this.renderer.setClearColor(0x000000, 0)
+      this.renderer.clear(true, false, false)
+      this.renderer.setRenderTarget(prev)
+      this.renderer.setClearColor(this.clearHold, prevAlpha)
+      return
+    }
     this.invViewProj.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse).invert()
     this.skyMat.uniforms.uCameraPos.value.copy(cam.position)
     this.skyMat.uniforms.uInvViewProj.value.copy(this.invViewProj)

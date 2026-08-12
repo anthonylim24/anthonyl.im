@@ -15,6 +15,13 @@
 
 export type DeviceTier = "low" | "medium" | "high"
 
+export interface DeviceSignals {
+  cores: number
+  mem: number
+  dpr: number
+  gpu: string
+}
+
 export interface EffectPrefs {
   /** `THREE.FogExp2` on `scene.fog` — atmospheric haze that tints with
    *  the time-of-day color table. ~0.05 ms/frame. */
@@ -24,15 +31,52 @@ export interface EffectPrefs {
    *  — defaults to off on low-tier GPUs. */
   godRays: boolean
   /** CSS filter chain on the renderer canvas (see `cssFilterFor`).
-   *  Compositor-only — effectively free, on by default. */
+   *  Compositor-only — effectively free, on by default. When a shader
+   *  grade is active (god rays / max quality) the CSS filter is
+   *  skipped so the two don't stack. */
   grade: boolean
-  /** "Max Quality" pipeline — HDR EffectComposer with AgX tone mapping,
-   *  per-phase bloom, ray-marched volumetric clouds, in-shader grade,
-   *  SMAA. Opt-in; persisted when previously enabled. */
+  /** "Max Quality" pipeline — HDR EffectComposer with bloom, ray-
+   *  marched volumetric clouds, in-shader grade, SMAA. Opt-in;
+   *  persisted when previously enabled. */
   maxQuality: boolean
 }
 
 const PREFS_KEY = "korea-d3d-effects"
+
+const WEAK_GPU =
+  /(Mali|Adreno [3-5]|PowerVR|Intel.*HD Graphics [2-5]|SwiftShader)/i
+const APPLE_GPU = /Apple\s*(GPU|A1[5-9]|A[2-9]\d|M[1-9])/i
+
+export function isAppleGpu(gpu: string): boolean {
+  return APPLE_GPU.test(gpu)
+}
+
+/**
+ * Pure tier bucket from sniffed signals. Exported so unit tests can
+ * cover iPhone-class devices without spinning a WebGL context.
+ *
+ * High-DPR is *not* a demotion — it's retina. The previous heuristic
+ * required `dpr <= 2` and `cores >= 8`, which classified every modern
+ * iPhone (6 cores, 3× DPR, `deviceMemory` often undefined) as medium
+ * and skipped god rays on the device we actually target.
+ */
+export function tierFromSignals(s: DeviceSignals): DeviceTier {
+  if (WEAK_GPU.test(s.gpu)) return "low"
+  // Safari often withholds the unmasked renderer string AND reports
+  // hardwareConcurrency as 4. A 3× phone with 4+ cores is still
+  // iPhone-class — don't let missing deviceMemory (0) or a privacy
+  // core-count demote the device we actually target.
+  const appleLike =
+    isAppleGpu(s.gpu) ||
+    (s.gpu === "" && s.dpr >= 3 && s.cores >= 4)
+  if (appleLike) {
+    if (s.dpr >= 3 || s.cores >= 6) return "high"
+    return "medium"
+  }
+  if (s.cores <= 4 || (s.mem > 0 && s.mem <= 2)) return "low"
+  if (s.cores >= 8 && s.mem >= 8) return "high"
+  return "medium"
+}
 
 /** One-shot device sniff. Lives at module scope so we don't redo the
  *  WebGL context probe on every Map Mode open — opening + tossing a
@@ -42,7 +86,9 @@ export function detectTier(): DeviceTier {
   if (typeof window === "undefined" || typeof navigator === "undefined") return "low"
 
   const cores = (navigator.hardwareConcurrency as number | undefined) ?? 4
-  const mem = ((navigator as Navigator & { deviceMemory?: number }).deviceMemory) ?? 4
+  // iOS Safari typically omits deviceMemory — don't treat missing as 4 GB
+  // of a weak machine; pass 0 so Apple GPU rules decide.
+  const mem = ((navigator as Navigator & { deviceMemory?: number }).deviceMemory) ?? 0
   const dpr = window.devicePixelRatio ?? 1
 
   // GPU string sniff — opt-in via WEBGL_debug_renderer_info. Lots of
@@ -72,11 +118,7 @@ export function detectTier(): DeviceTier {
     return "low"
   }
 
-  const weakGpu = /(Mali|Adreno [3-5]|PowerVR|Intel.*HD Graphics [2-5]|SwiftShader)/i.test(gpu)
-  if (weakGpu) return "low"
-  if (cores <= 4 || mem <= 2) return "low"
-  if (cores >= 8 && mem >= 8 && dpr <= 2) return "high"
-  return "medium"
+  return tierFromSignals({ cores, mem, dpr, gpu })
 }
 
 /** Tier-default effect prefs. `prefersReducedMotion` forces the cheap
