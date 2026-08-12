@@ -131,8 +131,9 @@ export function MapModeOverlay({
     const onUp = (e: PointerEvent) => {
       lastTapRef.current = { x: e.clientX, y: e.clientY, at: performance.now() }
     }
-    el.addEventListener("pointerup", onUp)
-    return () => el.removeEventListener("pointerup", onUp)
+    // Capture so label/canvas taps still record before stopPropagation.
+    el.addEventListener("pointerup", onUp, true)
+    return () => el.removeEventListener("pointerup", onUp, true)
   }, [showOrbs])
 
   type VTDocument = Document & {
@@ -141,20 +142,40 @@ export function MapModeOverlay({
 
   function openSheetWithMorph(place: RankedPlace, mode: "compact" | "expanded") {
     const tap = lastTapRef.current
-    const fresh = tap && performance.now() - tap.at < 800
-    morphAnchorRef.current = {
-      x: fresh ? tap!.x : window.innerWidth / 2,
-      y: fresh ? tap!.y : window.innerHeight * 0.4,
-      color: place.color,
-    }
+    const fresh = tap && performance.now() - tap.at < 1500 ? tap : null
+    morphAnchorRef.current = fresh
+      ? { x: fresh.x, y: fresh.y, color: place.color }
+      : null
     setSheetInitialMode(mode)
     const doc = document as VTDocument
-    if (!doc.startViewTransition || reduce) {
+    const canMorph = !reduce && fresh !== null && typeof doc.startViewTransition === "function"
+    if (!canMorph) {
       setSelected(place)
       return
     }
-    doc.startViewTransition(() => {
+    // Named stand-in gives the VT "before" snapshot something to morph from.
+    const standIn = document.createElement("div")
+    standIn.setAttribute("aria-hidden", "true")
+    standIn.style.cssText = [
+      "position:fixed",
+      "z-index:40",
+      "width:44px",
+      "height:44px",
+      `left:${fresh!.x - 22}px`,
+      `top:${fresh!.y - 22}px`,
+      "border-radius:9999px",
+      `background:radial-gradient(circle at 32% 28%, rgba(255,255,255,0.55), ${place.color}66 65%, ${place.color}22 100%)`,
+      `box-shadow:0 0 0 1px ${place.color}55, 0 6px 20px ${place.color}55`,
+      "pointer-events:none",
+      "view-transition-name:place-detail-morph",
+    ].join(";")
+    document.body.appendChild(standIn)
+    const transition = doc.startViewTransition!(() => {
+      standIn.remove()
       setSelected(place)
+    })
+    transition.finished.catch(() => {
+      if (standIn.isConnected) standIn.remove()
     })
   }
 
@@ -205,7 +226,8 @@ export function MapModeOverlay({
     setLocating(true)
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setDeviceCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude })
+        const next = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+        setDeviceCoords((prev) => (coordsEqual(prev, next) ? prev : next))
         setDeviceReady(true)
         setLocating(false)
       },
@@ -222,13 +244,14 @@ export function MapModeOverlay({
     requestDeviceLocation()
   }, [])
 
-  // Bootstrap fetch: once device lookup settles, pull places with a
-  // provisional anchor (live coords when available, else 0,0 — server
-  // still returns places + meta.center; distances refine after resolve).
+  // Bootstrap fetch once per day/url after device lookup settles.
+  // Deliberately omits `deviceCoords` so tapping "Use my location" does
+  // not tear down the 3D scene — resolve + re-rank handle coord changes.
   useEffect(() => {
     if (!deviceReady) return
     rankedForRef.current = null
     setState({ status: "loading" })
+    const queryKey = `${deviceCoords?.lat ?? 0},${deviceCoords?.lng ?? 0}`
     const qs = new URLSearchParams({
       lat: String(deviceCoords?.lat ?? 0),
       lng: String(deviceCoords?.lng ?? 0),
@@ -243,7 +266,10 @@ export function MapModeOverlay({
         const r = await fetch(`${base}?${qs.toString()}`, { headers })
         if (!r.ok) throw new Error(`Places fetch ${r.status}`)
         const data = (await r.json()) as PlacesResponse
-        if (!cancelled) setState({ status: "success", data })
+        if (!cancelled) {
+          rankedForRef.current = queryKey
+          setState({ status: "success", data })
+        }
       } catch (err) {
         if (!cancelled) {
           setState({
@@ -256,10 +282,10 @@ export function MapModeOverlay({
     return () => {
       cancelled = true
     }
-  }, [daySlug, deviceReady, deviceCoords, getToken, placesUrl])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deviceCoords read at deviceReady edge only
+  }, [daySlug, deviceReady, getToken, placesUrl])
 
-  // Resolve YOU / day-center once places are known, then re-fetch if
-  // the ranking anchor moved (e.g. device was abroad → day median).
+  // Resolve YOU / day-center once places are known.
   useEffect(() => {
     if (state.status !== "success") return
     const places = state.data.places.map((p) => ({ lat: p.lat, lng: p.lng }))
@@ -287,18 +313,12 @@ export function MapModeOverlay({
     })
   }, [state, deviceCoords])
 
-  // When the resolved anchor differs from the bootstrap query, refresh
-  // distances so pills reflect the day-center (or live) YOU.
+  // Refresh distances when the resolved anchor differs from what we
+  // last ranked for (abroad → day median, or live GPS refresh).
   useEffect(() => {
     if (!location || state.status !== "success") return
     const key = `${location.lat},${location.lng}`
-    const bootstrapKey = `${deviceCoords?.lat ?? 0},${deviceCoords?.lng ?? 0}`
-    if (key === bootstrapKey) {
-      rankedForRef.current = key
-      return
-    }
     if (rankedForRef.current === key) return
-    rankedForRef.current = key
 
     const qs = new URLSearchParams({
       lat: String(location.lat),
@@ -314,7 +334,11 @@ export function MapModeOverlay({
         const r = await fetch(`${base}?${qs.toString()}`, { headers })
         if (!r.ok) return
         const data = (await r.json()) as PlacesResponse
-        if (!cancelled) setState({ status: "success", data })
+        if (!cancelled) {
+          // Set only after success so Strict Mode cleanup+rerun still fetches.
+          rankedForRef.current = key
+          setState({ status: "success", data })
+        }
       } catch {
         /* keep prior payload; distances may be slightly off */
       }
@@ -322,7 +346,7 @@ export function MapModeOverlay({
     return () => {
       cancelled = true
     }
-  }, [location, state.status, deviceCoords, daySlug, getToken, placesUrl])
+  }, [location, state.status, daySlug, getToken, placesUrl])
 
   useEffect(() => {
     const previous = document.body.style.overflow
