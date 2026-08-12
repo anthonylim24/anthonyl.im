@@ -161,7 +161,7 @@ export const ItemRow = memo(function ItemRow({
               onChange={(e) => patch({ title: e.target.value })}
               // Below 768px a global rule pins inputs to 16px (iOS zoom guard),
               // so the band tightens its tracking instead of its size.
-              className={`min-h-11 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1 py-1 font-mono-trips text-[11px] uppercase tracking-[0.06em] text-stone-700 transition placeholder:text-stone-500 hover:border-stone-300 focus:border-[color:var(--trips-accent)] focus:outline-none sm:min-h-0 sm:tracking-[0.16em] dark:text-stone-300 dark:hover:border-stone-700`}
+              className={`min-h-11 min-w-0 flex-1 text-ellipsis rounded-md border border-transparent bg-transparent px-1 py-1 font-mono-trips text-[11px] uppercase tracking-[0.06em] text-stone-700 transition placeholder:text-stone-500 hover:border-stone-300 focus:border-[color:var(--trips-accent)] focus:outline-none sm:min-h-0 sm:tracking-[0.16em] dark:text-stone-300 dark:hover:border-stone-700`}
             />
           ) : (
             <span
