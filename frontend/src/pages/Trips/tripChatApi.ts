@@ -1,4 +1,7 @@
 import { readSseStream } from "../../lib/sseStream"
+import { streamKoreaChat } from "../Korea/koreaChatApi"
+import { isKoreaSeedTrip, wrapTripChatPrompt } from "./tripChatFallback"
+import type { Trip } from "./types"
 
 export interface TripChatMessage {
   role: "user" | "assistant"
@@ -10,10 +13,18 @@ export interface TripChatResult {
   error?: string
 }
 
+function isMissingChatRoute(status: number, error: string): boolean {
+  if (status !== 404) return false
+  return error !== "day not found" && error !== "trip not found"
+}
+
 /**
  * Streams a reply from the trip concierge (Gemini, server-relayed as SSE).
  * Same wire format as the Korea concierge: each `data:` line is a
  * JSON-encoded text delta, terminated by `[DONE]`.
+ *
+ * When `POST /api/trips/:id/chat` is not on the server yet (PR preview
+ * hits production), falls back to `/api/korea/chat` with trip context.
  */
 export async function streamTripChat(
   tripId: string,
@@ -23,6 +34,7 @@ export async function streamTripChat(
   getToken: () => Promise<string | null>,
   onUpdate: (content: string) => void,
   signal?: AbortSignal,
+  trip?: Trip,
 ): Promise<TripChatResult> {
   const token = await getToken()
   const response = await fetch(`/api/trips/${encodeURIComponent(tripId)}/chat`, {
@@ -42,18 +54,34 @@ export async function streamTripChat(
   })
 
   if (!response.ok) {
+    let error = ""
     let message = `Request failed (${response.status})`
     try {
       const body = await response.json()
+      error = typeof body?.error === "string" ? body.error : ""
       if (response.status === 404) {
-        const err = typeof body?.error === "string" ? body.error : ""
-        if (err === "day not found") message = "This day is no longer on the trip."
-        else if (err === "trip not found") message = "This trip could not be found."
+        if (error === "day not found") message = "This day is no longer on the trip."
+        else if (error === "trip not found") message = "This trip could not be found."
         else message = "Concierge is not available on this server yet."
       } else if (body?.message) message = body.message
       else if (body?.error) message = String(body.error)
     } catch {
       if (response.status === 404) message = "Concierge is not available on this server yet."
+    }
+
+    if (isMissingChatRoute(response.status, error)) {
+      if ((trip && isKoreaSeedTrip(trip)) || tripId === "korea-2026") {
+        return streamKoreaChat(prompt, messages, dayId, onUpdate, signal)
+      }
+      if (trip) {
+        return streamKoreaChat(
+          wrapTripChatPrompt(trip, prompt, dayId),
+          messages,
+          undefined,
+          onUpdate,
+          signal,
+        )
+      }
     }
     throw new Error(message)
   }

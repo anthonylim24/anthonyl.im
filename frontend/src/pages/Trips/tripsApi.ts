@@ -107,53 +107,16 @@ export const applySuggestions = (getToken: GetToken, id: string, runId: string, 
     { method: "POST", body: JSON.stringify({ suggestionIds }) },
   )
 
-export interface CatalogPlace {
-  tripId: string
-  tripName: string
-  tripSlug?: string
-  dayId: string
-  dayTitle?: string
-  date: string
-  city: string
-  neighborhood: string
-  itemId: string
-  name: string
-  address?: string
-  category?: string
-  lat?: number
-  lng?: number
-  sourceUrl?: string
-}
-
-export interface CatalogNeighborhoodGroup {
-  neighborhood: string
-  places: CatalogPlace[]
-}
-
-export interface CatalogCityGroup {
-  city: string
-  neighborhoods: CatalogNeighborhoodGroup[]
-}
-
-export interface CatalogTripGroup {
-  tripId: string
-  tripName: string
-  tripSlug?: string
-  cities: CatalogCityGroup[]
-}
-
-export interface PlaceCatalogResponse {
-  total: number
-  offset: number
-  limit: number
-  hasMore: boolean
-  groups: CatalogTripGroup[]
-}
-
-export const listPlaceCatalog = (getToken: GetToken, opts?: { offset?: number; limit?: number }) => {
-  const params = new URLSearchParams()
-  if (opts?.offset != null) params.set("offset", String(opts.offset))
-  if (opts?.limit != null) params.set("limit", String(opts.limit))
-  const qs = params.toString()
-  return request<PlaceCatalogResponse>(getToken, `/places-catalog${qs ? `?${qs}` : ""}`)
+/** Other trips' Instagram places, via list+get (routes that exist on production). */
+export async function listForeignInstagramTrips(getToken: GetToken, currentTripId: string): Promise<Trip[]> {
+  const summaries = await listTrips(getToken)
+  const others = summaries.filter((s) => s.id !== currentTripId)
+  const loaded = await Promise.all(
+    others.map((s) =>
+      getTrip(getToken, s.id)
+        .then((r) => r.trip)
+        .catch(() => null),
+    ),
+  )
+  return loaded.filter((t): t is Trip => t != null)
 }

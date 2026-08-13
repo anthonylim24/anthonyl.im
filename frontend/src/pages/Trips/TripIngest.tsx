@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
-import { ChevronDown, Loader2, MapPin, Plus } from "lucide-react"
+import { ChevronDown, Loader2, Plus } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
 import { IgIcon } from "../Korea/IgIcon"
 import { isInstagramUrl } from "../Korea/isInstagramUrl"
@@ -17,11 +17,8 @@ import {
   alertErrorClass,
   checkboxClass,
   chipBtnClass,
-  hintClass,
-  inputClass,
-  labelClass,
+  compactInputClass,
   mutedInkClass,
-  primaryBtnClass,
   quietBtnClass,
   spinnerClass,
   wrapAnywhereClass,
@@ -56,6 +53,12 @@ function jobStatusLabel(job: Job): string {
 
 function placeKey(jobId: number, placeId: number): string {
   return `${jobId}:${placeId}`
+}
+
+function placeLabel(place: PlaceResult): string {
+  return place.name_romanized && place.name_romanized !== place.name
+    ? `${place.name} (${place.name_romanized})`
+    : place.name
 }
 
 export function TripIngest({
@@ -200,14 +203,14 @@ export function TripIngest({
 
   if (unavailable && visibleJobs.length === 0) {
     return (
-      <p className={`mt-3 text-sm leading-relaxed ${mutedInkClass}`}>
+      <p className={`mt-2 text-xs leading-relaxed ${mutedInkClass}`}>
         Instagram extraction isn’t configured on this server.
       </p>
     )
   }
 
   return (
-    <div className="mt-3">
+    <div className="mt-2">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -224,80 +227,75 @@ export function TripIngest({
       </button>
 
       {open && (
-        <div className="mt-3 rounded-xl border border-stone-200/80 p-3 dark:border-stone-800">
-          <form onSubmit={(e) => void handleSubmit(e)} className="space-y-3">
-            <div>
-              <label htmlFor={urlId} className={labelClass}>
-                Instagram URL
-              </label>
-              <input
-                id={urlId}
-                type="url"
-                inputMode="url"
-                autoComplete="url"
-                value={url}
-                placeholder="https://www.instagram.com/reel/…"
-                onChange={(e) => setUrl(e.target.value)}
-                aria-invalid={url.length > 0 && !isInstagramUrl(url) ? true : undefined}
-                className={`mt-1.5 text-[16px] sm:text-sm ${inputClass}`}
-              />
-              <p className={hintClass}>
-                {url && !isInstagramUrl(url)
-                  ? "Use an instagram.com post or Reel URL."
-                  : "Paste a post or Reel. Extracted places are added to this day."}
-              </p>
-            </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <label htmlFor={skipId} className="inline-flex min-h-11 items-center gap-2.5 text-sm text-stone-700 dark:text-stone-300">
-                <input
-                  id={skipId}
-                  type="checkbox"
-                  checked={skipVideo}
-                  onChange={(e) => setSkipVideo(e.target.checked)}
-                  className={checkboxClass}
-                />
-                Caption only, skip video
-              </label>
-              <button type="submit" disabled={!canSubmit} className={primaryBtnClass}>
-                {submitting ? (
-                  <Loader2 className={`h-4 w-4 ${spinnerClass}`} aria-hidden />
-                ) : (
-                  <IgIcon className="h-4 w-4" aria-hidden />
-                )}
-                {submitting ? "Submitting" : "Extract places"}
-              </button>
-            </div>
+        <div className="mt-2">
+          <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <label htmlFor={urlId} className="sr-only">
+              Instagram URL
+            </label>
+            <input
+              id={urlId}
+              type="url"
+              inputMode="url"
+              autoComplete="url"
+              value={url}
+              placeholder="Paste a post or Reel URL"
+              onChange={(e) => setUrl(e.target.value)}
+              aria-invalid={url.length > 0 && !isInstagramUrl(url) ? true : undefined}
+              className={`min-w-0 flex-1 text-[16px] sm:text-sm ${compactInputClass}`}
+            />
+            <button
+              type="submit"
+              disabled={!canSubmit}
+              aria-label={submitting ? "Submitting" : "Extract places"}
+              className={`${chipBtnClass} w-full sm:w-auto`}
+            >
+              {submitting ? (
+                <Loader2 className={`h-3.5 w-3.5 ${spinnerClass}`} aria-hidden />
+              ) : (
+                <IgIcon className="h-3.5 w-3.5" aria-hidden />
+              )}
+              {submitting ? "Submitting" : "Extract"}
+            </button>
           </form>
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <label htmlFor={skipId} className="inline-flex min-h-11 items-center gap-2 text-xs text-stone-600 dark:text-stone-400">
+              <input
+                id={skipId}
+                type="checkbox"
+                checked={skipVideo}
+                onChange={(e) => setSkipVideo(e.target.checked)}
+                className={checkboxClass}
+              />
+              Caption only
+            </label>
+            {url && !isInstagramUrl(url) && (
+              <p className={`text-xs ${mutedInkClass}`}>Use an instagram.com URL.</p>
+            )}
+          </div>
 
           {submitError && (
-            <div className={`mt-4 ${alertErrorClass}`} role="alert">
+            <div className={`mt-2 ${alertErrorClass}`} role="alert">
               {submitError}
             </div>
           )}
           {addError && (
-            <div className={`mt-4 ${alertErrorClass}`} role="alert">
+            <div className={`mt-2 ${alertErrorClass}`} role="alert">
               {addError}
             </div>
           )}
 
           {visibleJobs.length > 0 && (
-            <ul className="mt-4 divide-y divide-stone-200/80 dark:divide-stone-800/80" aria-live="polite">
+            <ul className="mt-2 divide-y divide-stone-200/70 dark:divide-stone-800/70" aria-live="polite">
               {visibleJobs.map((job) => (
-                <li key={job.id} className="py-4 first:pt-0">
-                  <div className="flex items-start gap-3">
-                    <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[color:var(--ta-soft)] text-[color:var(--ta)]">
-                      {job.status === "pending" || job.status === "running" ? (
-                        <Loader2 className={`h-4 w-4 ${spinnerClass}`} aria-hidden />
-                      ) : (
-                        <IgIcon className="h-4 w-4" aria-hidden />
-                      )}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className={`text-sm font-medium text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}>
-                        {shortIgPath(job.url)}
-                      </p>
-                      <p className={`mt-0.5 text-xs ${mutedInkClass} ${wrapAnywhereClass}`}>{jobStatusLabel(job)}</p>
-                    </div>
+                <li key={job.id} className="py-2">
+                  <div className="flex items-center gap-2">
+                    {(job.status === "pending" || job.status === "running") && (
+                      <Loader2 className={`h-3.5 w-3.5 shrink-0 ${spinnerClass}`} aria-hidden />
+                    )}
+                    <p className={`min-w-0 flex-1 truncate text-xs font-medium text-stone-800 dark:text-stone-200 ${wrapAnywhereClass}`}>
+                      {shortIgPath(job.url)}
+                      <span className={`ml-1.5 font-normal ${mutedInkClass}`}>{jobStatusLabel(job)}</span>
+                    </p>
                     {(job.status === "failed" || job.status === "dead") && (
                       <button type="button" onClick={() => void handleRetry(job)} className={quietBtnClass}>
                         Retry
@@ -306,47 +304,40 @@ export function TripIngest({
                   </div>
 
                   {job.status === "done" && job.places.length === 0 && (
-                    <p className={`mt-3 pl-12 text-sm ${mutedInkClass}`}>No places found in this post.</p>
+                    <p className={`mt-1 text-xs ${mutedInkClass}`}>No places found.</p>
                   )}
 
                   {job.places.length > 0 && (
-                    <ul className="mt-3 space-y-2 pl-0 sm:pl-12">
+                    <ul className="mt-1">
                       {job.places.map((place) => {
                         const key = placeKey(job.id, place.id)
                         const already = resolvedDay ? dayHasPlaceNamed(resolvedDay, place.name) : false
                         const added = Boolean(addedKeys[key]) || already
                         const busy = addingKey === key
+                        const meta = [place.category, place.address].filter(Boolean).join(" · ")
                         return (
-                          <li
-                            key={place.id}
-                            className="flex flex-col gap-2 rounded-xl border border-stone-200/80 bg-[var(--trips-surface)] p-3 sm:flex-row sm:items-center sm:justify-between dark:border-stone-800/80"
-                          >
-                            <div className="min-w-0">
-                              <p className={`text-sm font-medium text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}>
-                                {place.name}
-                                {place.name_romanized && place.name_romanized !== place.name
-                                  ? ` (${place.name_romanized})`
-                                  : ""}
+                          <li key={place.id} className="flex items-center gap-2 py-1">
+                            <div className="min-w-0 flex-1">
+                              <p className={`truncate text-sm text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}>
+                                {placeLabel(place)}
                               </p>
-                              <p className={`mt-0.5 flex items-start gap-1.5 text-xs ${mutedInkClass}`}>
-                                <MapPin className="mt-0.5 h-3 w-3 shrink-0" aria-hidden />
-                                <span className={wrapAnywhereClass}>
-                                  {[place.category, place.address].filter(Boolean).join(" · ") || "No address yet"}
-                                </span>
-                              </p>
+                              {meta ? (
+                                <p className={`truncate text-[11px] ${mutedInkClass}`}>{meta}</p>
+                              ) : null}
                             </div>
                             <button
                               type="button"
                               disabled={added || busy || !resolvedDay}
                               onClick={() => void handleAdd(job, place)}
+                              aria-label={added ? `${place.name} is on this day` : `Add ${place.name} to this day`}
                               className={added ? quietBtnClass : chipBtnClass}
                             >
                               {busy ? (
                                 <Loader2 className={`h-3.5 w-3.5 ${spinnerClass}`} aria-hidden />
-                              ) : (
+                              ) : added ? null : (
                                 <Plus className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
                               )}
-                              {added ? "On this day" : "Add to this day"}
+                              {added ? "Added" : "Add"}
                             </button>
                           </li>
                         )

@@ -155,7 +155,7 @@ describe("TripIngest", () => {
       expect(screen.getByText("Sushi Saito")).toBeTruthy()
     })
 
-    await user.click(screen.getByRole("button", { name: /add to this day/i }))
+    await user.click(screen.getByRole("button", { name: /add sushi saito to this day/i }))
     await waitFor(() => {
       expect(onDaysChange).toHaveBeenCalled()
     })

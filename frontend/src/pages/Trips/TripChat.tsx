@@ -202,9 +202,19 @@ export function TripChat() {
       const setAssistant = (content: string) =>
         setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content } : m)))
 
-      const canonicalId = trip?.id ?? tripId
+      let activeTrip = trip
+      if (!activeTrip) {
+        try {
+          activeTrip = (await getTrip(getToken, tripId)).trip
+          setTrip(activeTrip)
+        } catch {
+          activeTrip = null
+        }
+      }
+
+      const canonicalId = activeTrip?.id ?? tripId
       const focusedDayId =
-        dayId && trip?.days.some((d) => d.id === dayId) ? dayId : undefined
+        dayId && activeTrip?.days.some((d) => d.id === dayId) ? dayId : undefined
 
       try {
         const { content, error } = await streamTripChat(
@@ -215,6 +225,7 @@ export function TripChat() {
           getToken,
           setAssistant,
           controller.signal,
+          activeTrip ?? undefined,
         )
         if (error) setAssistant(`⚠️ ${error}`)
         else if (!content.trim()) {
