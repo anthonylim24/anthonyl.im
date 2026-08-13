@@ -97,10 +97,11 @@ describe("conciergeSuggestions", () => {
     ])
   })
 
-  it("falls back when the itinerary is still empty", () => {
+  it("uses destinations when days are still empty", () => {
     expect(conciergeSuggestions(trip())).toEqual([
+      "Where should we eat in Tokyo?",
+      "What's a realistic pace for this itinerary?",
       "What should I add to this itinerary first?",
-      "Help me think through a day's flow.",
     ])
   })
 })

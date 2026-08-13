@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
-import { Instagram, Loader2, MapPin, Plus } from "lucide-react"
+import { Image as ImageIcon, Loader2, MapPin, Plus } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
 import { isInstagramUrl } from "../Korea/isInstagramUrl"
 import {
@@ -259,7 +259,7 @@ export function TripIngest({
             {submitting ? (
               <Loader2 className={`h-4 w-4 ${spinnerClass}`} aria-hidden />
             ) : (
-              <Instagram className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+              <ImageIcon className="h-4 w-4" strokeWidth={1.5} aria-hidden />
             )}
             {submitting ? "Submitting" : "Extract places"}
           </button>
@@ -307,7 +307,7 @@ export function TripIngest({
                   {job.status === "pending" || job.status === "running" ? (
                     <Loader2 className={`h-4 w-4 ${spinnerClass}`} aria-hidden />
                   ) : (
-                    <Instagram className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+                    <ImageIcon className="h-4 w-4" strokeWidth={1.5} aria-hidden />
                   )}
                 </span>
                 <div className="min-w-0 flex-1">

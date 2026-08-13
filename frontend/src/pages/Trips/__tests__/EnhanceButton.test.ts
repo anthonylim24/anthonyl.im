@@ -26,12 +26,12 @@ describe("clampEnhancePanel", () => {
 
   it("keeps the panel inside a narrow viewport", () => {
     const pos = clampEnhancePanel(
-      { top: 20, bottom: 60, right: 360 },
+      { top: 20, bottom: 60, right: 280 },
       180,
-      { width: 390, height: 844 },
+      { width: 300, height: 844 },
     )
     expect(pos.left).toBeGreaterThanOrEqual(8)
-    expect(pos.left + pos.width).toBeLessThanOrEqual(390 - 8)
-    expect(pos.width).toBe(390 - 16)
+    expect(pos.left + pos.width).toBeLessThanOrEqual(300 - 8)
+    expect(pos.width).toBe(300 - 16)
   })
 })

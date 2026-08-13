@@ -58,7 +58,7 @@ export function conciergeSuggestions(trip: Trip, dayId?: string): string[] {
     uniquePush(out, "What's a realistic pace for this itinerary?")
   }
 
-  if (out.length === 0) {
+  if (out.length < MAX) {
     uniquePush(out, "What should I add to this itinerary first?")
     uniquePush(out, "Help me think through a day's flow.")
   }
