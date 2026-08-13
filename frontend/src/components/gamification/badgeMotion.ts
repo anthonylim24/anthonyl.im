@@ -23,10 +23,10 @@ const reducedBadgeFade = {
   show: { opacity: 1, transition: instant },
 }
 
-export function getBadgeMotionConfig(reducedMotion: boolean, earned: boolean) {
+export function getBadgeMotionConfig(reducedMotion: boolean, earned: boolean, fineHover = true) {
   return {
     variants: reducedMotion ? reducedBadgeFade : badgeFade,
     transition: reducedMotion ? instant : decelTween,
-    whileHover: earned && !reducedMotion ? { opacity: 0.85 } : undefined,
+    whileHover: earned && !reducedMotion && fineHover ? { opacity: 0.85 } : undefined,
   }
 }

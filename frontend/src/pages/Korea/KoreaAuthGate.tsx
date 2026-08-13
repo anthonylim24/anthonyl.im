@@ -34,7 +34,7 @@ export function KoreaAuthGate({ children }: KoreaAuthGateProps) {
 
 function SignInCard() {
   return (
-    <div className="korea relative min-h-screen overflow-hidden bg-gradient-to-b from-stone-50 via-rose-50/40 to-amber-50/30 text-stone-900 dark:from-stone-950 dark:via-rose-950/20 dark:to-stone-950 dark:text-stone-100">
+    <div className="korea relative min-h-svh overflow-hidden bg-gradient-to-b from-stone-50 via-rose-50/40 to-amber-50/30 text-stone-900 dark:from-stone-950 dark:via-rose-950/20 dark:to-stone-950 dark:text-stone-100">
       <motion.div
         aria-hidden
         className="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-rose-300/30 blur-3xl dark:bg-rose-900/20"
@@ -48,7 +48,7 @@ function SignInCard() {
         transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
       />
 
-      <div className="relative mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-5 py-10">
+      <div className="relative mx-auto flex min-h-svh max-w-md flex-col items-center justify-center px-5 py-10">
         <motion.div
           initial={{ opacity: 0, y: 12, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}

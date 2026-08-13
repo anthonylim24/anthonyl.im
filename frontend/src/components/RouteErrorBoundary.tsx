@@ -78,7 +78,7 @@ export class RouteErrorBoundary extends Component<Props, State> {
     return (
       <div
         role="alert"
-        className="flex min-h-screen flex-col items-center justify-center gap-4 bg-stone-50 px-6 py-10 text-center text-stone-900 dark:bg-stone-950 dark:text-stone-100"
+        className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-stone-50 px-6 py-10 text-center text-stone-900 dark:bg-stone-950 dark:text-stone-100"
       >
         <h1
           className={`max-w-md font-serif text-2xl sm:text-3xl ${accent}`}

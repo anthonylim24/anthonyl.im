@@ -10,6 +10,7 @@ import { fetchExtractedPlaces, setExtractedPlaceDays } from './placesApi'
 import type { ExtractedPlace, BusynessLevel } from './placesApi'
 import { BusynessBadge } from './BusynessBadge'
 import { useTweenNumber } from './useTweenNumber'
+import { useFineHover } from '@/hooks/useFineHover'
 
 // Spring curves reused by the chips and cards — match the shared
 // cubic-bezier(0.16, 1, 0.3, 1) feel from the design system but tuned for
@@ -17,23 +18,6 @@ import { useTweenNumber } from './useTweenNumber'
 // `damping` keeps it from oscillating on the second hop.
 const FLIP_SPRING = { type: 'spring' as const, stiffness: 520, damping: 38, mass: 0.6 }
 const CHIP_SPRING = { type: 'spring' as const, stiffness: 600, damping: 30, mass: 0.4 }
-
-// ── Hooks ─────────────────────────────────────────────────────────────────────
-
-// True only on desktops with a real pointer at >=md (Tailwind's 768 px). Mobile
-// is touch-first; we don't want a hover-lift firing under a finger.
-function useDesktopHoverCapable(): boolean {
-  const [ok, setOk] = useState(false)
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return
-    const mq = window.matchMedia('(min-width: 768px) and (hover: hover) and (pointer: fine)')
-    const update = () => setOk(mq.matches)
-    update()
-    mq.addEventListener('change', update)
-    return () => mq.removeEventListener('change', update)
-  }, [])
-  return ok
-}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -415,7 +399,7 @@ function PlaceCard({
   const kakaoUrl = kakaoMapsUrl(place)
 
   // Hover lift on ≥md with a real pointer only — touch devices skip it.
-  const isDesktopHoverCapable = useDesktopHoverCapable()
+  const isDesktopHoverCapable = useFineHover()
 
   return (
     <motion.article

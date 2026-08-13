@@ -3,7 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="transparent" />
+    <meta name="theme-color" content="#F5F2ED" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F5F2ED" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#171613" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -97,10 +99,6 @@
         // Swap favicon to the Korea variant
         const favicon = document.querySelector('link[rel="icon"][type="image/svg+xml"]');
         if (favicon) favicon.setAttribute('href', assetBase + '/favicon-korea.svg');
-
-        // Theme color: warm rose tint
-        const themeColor = document.querySelector('meta[name="theme-color"]');
-        if (themeColor) themeColor.setAttribute('content', '#FBF6EE');
 
         document.title = title;
         setRouteMeta('meta[name="description"]', 'name', 'description', description);

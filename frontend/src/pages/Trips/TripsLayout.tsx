@@ -17,7 +17,7 @@ function TripsAuthGate({ children }: { children: ReactNode }) {
     <>
       <SignedIn>{children}</SignedIn>
       <SignedOut>
-        <div className="flex min-h-[70vh] items-center justify-center px-5 py-16">
+        <div className="flex min-h-[70dvh] items-center justify-center px-5 py-16">
           <div className="w-full max-w-md text-center">
             <div
               className={`mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-stone-200/80 bg-[var(--trips-surface)] shadow-sm dark:border-stone-800 ${accentIconClass}`}
@@ -53,7 +53,7 @@ export function TripsLayout() {
   }, [])
 
   return (
-    <div className="trips min-h-screen text-stone-900 dark:text-stone-100">
+    <div className="trips min-h-dvh text-stone-900 dark:text-stone-100">
       <TripsAuthGate>
         <a
           href="#trips-main"

@@ -4,6 +4,7 @@ import { cn } from "./lib/utils";
 import { invokeDeepseek } from "./lib/apiService";
 import { useFavicon } from "./hooks/useFavicon";
 import { getPostHogConfig } from "./lib/analytics";
+import { syncThemeColor } from "./lib/themeColor";
 
 const MessageContent = lazy(() => import("./components/message-content"));
 
@@ -84,6 +85,10 @@ function App() {
   const shouldAutoScroll = useRef(true);
 
   useFavicon();
+
+  useEffect(() => {
+    syncThemeColor(shadowMode ? "light" : "dark");
+  }, [shadowMode]);
 
   // Shadow mode keyboard shortcut
   useEffect(() => {

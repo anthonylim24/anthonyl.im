@@ -484,7 +484,7 @@ export function Session() {
         </motion.div>
 
         {/* Technique rail */}
-        <motion.div variants={fadeUp} className="mb-3 max-w-full overflow-x-auto overflow-y-hidden overscroll-x-contain no-scrollbar">
+        <motion.div variants={fadeUp} className="mb-3 max-w-full overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x no-scrollbar">
           <div
             className="flex w-max min-w-full gap-2"
             role="group"

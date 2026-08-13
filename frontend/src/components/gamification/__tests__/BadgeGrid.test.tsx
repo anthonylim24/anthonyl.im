@@ -68,5 +68,7 @@ describe('BadgeGrid', () => {
     expect(animatedEarned.variants.hidden).toEqual({ opacity: 0, y: 6 })
     expect(animatedEarned.whileHover).toEqual({ opacity: 0.85 })
     expect(animatedEarned.transition).toMatchObject({ type: 'tween' })
+
+    expect(getBadgeMotionConfig(false, true, false).whileHover).toBeUndefined()
   })
 })

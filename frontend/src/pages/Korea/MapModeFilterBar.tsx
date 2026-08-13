@@ -105,7 +105,7 @@ export function MapModeFilterBar({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1], delay: 0.06 }}
         aria-label="Filter places"
-        className="pointer-events-auto flex max-w-full items-center gap-1.5 overflow-x-auto rounded-full border border-[rgba(28,25,23,0.08)] bg-[rgba(255,254,250,0.88)] px-2 py-1.5 shadow-[0_8px_28px_rgba(28,25,23,0.08)] backdrop-blur-xl sm:max-w-3xl dark:border-[rgba(255,252,245,0.06)] dark:bg-[rgba(28,25,23,0.78)] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        className="pointer-events-auto flex max-w-full items-center gap-1.5 overflow-x-auto touch-pan-x rounded-full border border-[rgba(28,25,23,0.08)] bg-[rgba(255,254,250,0.88)] px-2 py-1.5 shadow-[0_8px_28px_rgba(28,25,23,0.08)] backdrop-blur-xl sm:max-w-3xl dark:border-[rgba(255,252,245,0.06)] dark:bg-[rgba(28,25,23,0.78)] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
         style={{
           WebkitMaskImage:
             "linear-gradient(to right, transparent 0, black 16px, black calc(100% - 16px), transparent 100%)",

@@ -1,6 +1,16 @@
 @import "tailwindcss";
 @config "../tailwind.config.js";
 
+/* Hover only on devices that can actually hover. Touch would otherwise
+   leave :hover stuck after tap. */
+@custom-variant hover {
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      @slot;
+    }
+  }
+}
+
 /* ═══════════════════════════════════════════════════════
    BASE RESET
    ═══════════════════════════════════════════════════════ */
@@ -22,11 +32,12 @@ body {
 
 html {
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: none;
+  overscroll-behavior: none;
+  touch-action: manipulation;
 }
 
 body {
-  overscroll-behavior-y: none;
+  overscroll-behavior: none;
 }
 
 #root {
@@ -85,6 +96,52 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════
+   NATIVE FEEL
+   ═══════════════════════════════════════════════════════ */
+
+a,
+button,
+summary,
+label[for],
+[role="button"],
+[role="tab"],
+[role="menuitem"],
+input[type="button"],
+input[type="submit"],
+input[type="reset"] {
+  touch-action: manipulation;
+}
+
+button,
+summary,
+[role="button"],
+[role="tab"],
+[role="menuitem"],
+input[type="button"],
+input[type="submit"],
+input[type="reset"] {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+@media (hover: none) {
+  :where(
+    a,
+    button,
+    summary,
+    [role="button"],
+    [role="tab"],
+    [role="menuitem"],
+    input[type="button"],
+    input[type="submit"],
+    input[type="reset"]
+  ):not(:disabled):active {
+    opacity: 0.72;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
    SAFE AREAS
    ═══════════════════════════════════════════════════════ */
 
@@ -123,13 +180,19 @@ body {
 .session-controls-fade[data-dimmed="true"] button:where(.text-bw-destructive, [class*="destructive"]) {
   color: var(--bw-destructive);
 }
-.session-controls-fade[data-dimmed="true"]:hover button,
 .session-controls-fade[data-dimmed="true"]:focus-within button {
   color: var(--bw-text);
 }
-.session-controls-fade[data-dimmed="true"]:hover button:where(.text-bw-destructive, [class*="destructive"]),
 .session-controls-fade[data-dimmed="true"]:focus-within button:where(.text-bw-destructive, [class*="destructive"]) {
   color: var(--bw-destructive);
+}
+@media (hover: hover) and (pointer: fine) {
+  .session-controls-fade[data-dimmed="true"]:hover button {
+    color: var(--bw-text);
+  }
+  .session-controls-fade[data-dimmed="true"]:hover button:where(.text-bw-destructive, [class*="destructive"]) {
+    color: var(--bw-destructive);
+  }
 }
 
 .session-orb {
@@ -203,10 +266,13 @@ body {
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(28, 25, 23, 0.10); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(28, 25, 23, 0.18); }
 
 .dark ::-webkit-scrollbar-thumb { background: rgba(255, 252, 245, 0.08); }
-.dark ::-webkit-scrollbar-thumb:hover { background: rgba(255, 252, 245, 0.15); }
+
+@media (hover: hover) and (pointer: fine) {
+  ::-webkit-scrollbar-thumb:hover { background: rgba(28, 25, 23, 0.18); }
+  .dark ::-webkit-scrollbar-thumb:hover { background: rgba(255, 252, 245, 0.15); }
+}
 
 @media (max-width: 768px) {
   ::-webkit-scrollbar { display: none; }
@@ -311,9 +377,15 @@ body {
   color: var(--chat-mid);
   border: 1px solid var(--chat-line);
 }
-.chat-suggestion:hover {
+.chat-suggestion:active {
   color: var(--chat-text);
   border-color: var(--chat-mid);
+}
+@media (hover: hover) and (pointer: fine) {
+  .chat-suggestion:hover {
+    color: var(--chat-text);
+    border-color: var(--chat-mid);
+  }
 }
 
 .chat-input-box {
@@ -333,8 +405,13 @@ body {
 .chat-send {
   color: var(--chat-mid);
 }
-.chat-send:hover:not(:disabled) {
+.chat-send:active:not(:disabled) {
   color: var(--chat-text);
+}
+@media (hover: hover) and (pointer: fine) {
+  .chat-send:hover:not(:disabled) {
+    color: var(--chat-text);
+  }
 }
 
 .chat-scroll-btn {
@@ -342,8 +419,13 @@ body {
   border: 1px solid var(--chat-line);
   background: var(--chat-bg);
 }
-.chat-scroll-btn:hover {
+.chat-scroll-btn:active {
   color: var(--chat-text);
+}
+@media (hover: hover) and (pointer: fine) {
+  .chat-scroll-btn:hover {
+    color: var(--chat-text);
+  }
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -695,6 +777,7 @@ body {
   overflow-y: hidden;
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
 }
 
 .scroll-snap-x > * {
@@ -770,7 +853,12 @@ body {
   .message-content pre { font-size: 12px; }
 }
 
+/* iOS Safari zooms focused fields below 16px. Floor on phones and on any
+   WebKit that exposes the iOS callout (iPad landscape is often >768px). */
 @media screen and (max-width: 768px) {
+  input, textarea, select { font-size: 16px !important; }
+}
+@supports (-webkit-touch-callout: none) {
   input, textarea, select { font-size: 16px !important; }
 }
 

@@ -33,7 +33,7 @@ export function KoreaLayout() {
   return (
     <KoreaAuthGate>
       <EntityIndexProvider>
-        <div className="korea min-h-screen bg-stone-50 text-stone-900 antialiased selection:bg-stone-900 selection:text-stone-50 dark:bg-stone-950 dark:text-stone-100 dark:selection:bg-stone-100 dark:selection:text-stone-900">
+        <div className="korea min-h-dvh bg-stone-50 text-stone-900 antialiased selection:bg-stone-900 selection:text-stone-50 dark:bg-stone-950 dark:text-stone-100 dark:selection:bg-stone-100 dark:selection:text-stone-900">
           {state.status === "success" && <DayTreeNav days={state.data.days} />}
 
           <main className="pb-20">
