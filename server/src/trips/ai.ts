@@ -10,6 +10,7 @@ import {
   newId,
   nowIso,
   tripDates,
+  type EnhancementOutcome,
   type EnhancementRun,
   type EnhancementSuggestion,
   type ItineraryItem,
@@ -340,7 +341,7 @@ function normalizeSuggestion(rawSug: unknown): unknown {
   const s = { ...(rawSug as Record<string, unknown>) }
   for (const key of ["proposedChanges", "proposedItem", "proposedOrder"] as const) {
     if (typeof s[key] === "string") {
-      s.detail = [s.detail, s[key]].filter((v) => typeof v === "string" && v).join(" — ")
+      s.detail = [s.detail, s[key]].filter((v) => typeof v === "string" && v).join(" · ")
       delete s[key]
     }
   }
@@ -350,10 +351,20 @@ function normalizeSuggestion(rawSug: unknown): unknown {
   return s
 }
 
-export function salvageSuggestions(raw: string): { summary?: string; suggestions: AiSuggestion[] } {
+export function salvageSuggestions(raw: string): {
+  summary?: string
+  outcome?: EnhancementOutcome
+  outcomeReason?: string
+  suggestions: AiSuggestion[]
+} {
   const loose = parseModelJson(
     raw,
-    z.object({ summary: z.string().max(2000).optional(), suggestions: z.array(z.unknown()).max(60).default([]) }),
+    z.object({
+      summary: z.string().max(2000).optional(),
+      outcome: z.enum(["added_places", "no_adds_needed", "no_adds_possible"]).optional(),
+      outcomeReason: z.string().max(2000).optional(),
+      suggestions: z.array(z.unknown()).max(60).default([]),
+    }),
   )
   let dropped = 0
   const suggestions: AiSuggestion[] = []
@@ -363,7 +374,12 @@ export function salvageSuggestions(raw: string): { summary?: string; suggestions
     else dropped++
   }
   if (dropped > 0) console.warn(`[trips/ai] enhancement: dropped ${dropped} malformed suggestion(s)`)
-  return { summary: loose.summary, suggestions }
+  return {
+    summary: loose.summary,
+    outcome: loose.outcome,
+    outcomeReason: loose.outcomeReason,
+    suggestions,
+  }
 }
 
 // ── Itinerary generation ─────────────────────────────────────────────────
@@ -485,40 +501,49 @@ export async function generateItinerary(args: {
     }
   })
 
-  // Best-effort geocoding for AI places missing coordinates, so every
-  // AI-added place lands in Map Mode rather than existing only as text.
-  // Parallel batches keep long trips under the client/proxy timeout —
-  // sequential 40×8s geocodes previously hung generation for minutes.
   if (geocode) {
-    const pending = days
-      .flatMap((d) => d.items)
-      .filter((i) => i.location && (i.location.lat == null || i.location.lng == null))
-      .slice(0, 40)
-    const destination = trip.destinations[0]
-    const CONCURRENCY = 6
-    for (let i = 0; i < pending.length; i += CONCURRENCY) {
-      const batch = pending.slice(i, i + CONCURRENCY)
-      await Promise.all(
-        batch.map(async (item) => {
-          const loc = item.location!
-          try {
-            const hit = await geocode([loc.name, loc.address, destination].filter(Boolean).join(", "))
-            if (hit) {
-              loc.lat = hit.lat
-              loc.lng = hit.lng
-              loc.address = loc.address ?? hit.address
-              loc.placeId = hit.placeId
-              loc.confidence = "medium"
-            }
-          } catch {
-            // leave un-geocoded; UI surfaces missing-coordinate places in list view
-          }
-        }),
-      )
-    }
+    await fillMissingCoordinates(
+      days.flatMap((d) => d.items),
+      geocode,
+      trip.destinations[0],
+    )
   }
 
   return { summary: parsed.summary, appearance, days }
+}
+
+/** Best-effort geocoding for AI places missing coordinates, so every
+ *  AI-added place lands in Map Mode rather than existing only as text.
+ *  Parallel batches keep long trips under the client/proxy timeout. */
+export async function fillMissingCoordinates(
+  items: ItineraryItem[],
+  geocode: Geocoder,
+  destination?: string,
+): Promise<void> {
+  const pending = items
+    .filter((i) => i.location && (i.location.lat == null || i.location.lng == null))
+    .slice(0, 40)
+  const CONCURRENCY = 6
+  for (let i = 0; i < pending.length; i += CONCURRENCY) {
+    const batch = pending.slice(i, i + CONCURRENCY)
+    await Promise.all(
+      batch.map(async (item) => {
+        const loc = item.location!
+        try {
+          const hit = await geocode([loc.name, loc.address, destination].filter(Boolean).join(", "))
+          if (hit) {
+            loc.lat = hit.lat
+            loc.lng = hit.lng
+            loc.address = loc.address ?? hit.address
+            loc.placeId = hit.placeId
+            loc.confidence = "medium"
+          }
+        } catch {
+          // leave un-geocoded; UI surfaces missing-coordinate places in list view
+        }
+      }),
+    )
+  }
 }
 
 // ── Enhancement ──────────────────────────────────────────────────────────
@@ -528,25 +553,32 @@ const ENHANCEMENT_SYSTEM = `You are a travel-itinerary review agent. You receive
 Output a single JSON object:
 {
   "summary": string,                        // 1-3 sentences on the overall state of the plan
+  "outcome": "added_places" | "no_adds_needed" | "no_adds_possible",
+  "outcomeReason": string,                  // REQUIRED. 1-3 sentences: why you added places, or why you did not.
   "suggestions": [
     {
       "kind": "add" | "edit" | "remove" | "reorder" | "warning" | "info",
-      "dayId": string,                      // day the suggestion applies to (from input)
+      "dayId": string,                      // REQUIRED for add/edit/remove/reorder — must be a dayId from input
       "itemId": string,                     // REQUIRED for edit/remove: the target item id from input
-      "title": string,                      // short imperative, e.g. "Swap lunch and museum order"
+      "title": string,                      // short imperative, e.g. "Add a late lunch near Insadong"
       "detail": string,                     // why, with specifics; cite the signal that triggered it
       "confidence": "high" | "medium" | "low",
-      "proposedItem": { ... },              // for "add": same item shape as itinerary items (kind/title/time/notes/location)
+      "proposedItem": { ... },              // REQUIRED for "add": kind/title/time/notes/location (location.name + address)
       "proposedChanges": { ... },           // for "edit": only the changed fields
       "proposedOrder": [string]             // for "reorder": full list of the day's item ids in new order
     }
   ]
 }
 
-Review for: schedule realism (too packed / large gaps), travel time between consecutive stops (use the provided distances), better geographic ordering, weather conflicts (outdoor plans on high-rain days), places that may be closed or need hour verification (verify with Google Maps grounding when available; otherwise flag as "warning" with confidence "low" rather than asserting), missing meals, and nearby alternatives worth adding.
+Your primary job is to add worthwhile stops when the day has room. Review for: missing meals, empty or thin days (fewer than 4 place items), long gaps between timed stops, nearby alternatives that fit the day's geography, weather conflicts (outdoor plans on high-rain days), travel-time backtracking, and places that may need hour verification (verify with Google Maps grounding when available; otherwise flag as "warning" with confidence "low").
 
 Rules:
-- Preserve the traveler's intent. Suggest, don't rewrite wholesale. Max ~8 suggestions.
+- ALWAYS set outcome + outcomeReason. The traveler must understand why places were or were not added.
+- If a day is empty, thin, missing a meal, or has a long gap, emit at least one "add" with a full proposedItem (kind "place", title, location.name, location.address; lat/lng when known). Set outcome to "added_places".
+- If the day is already well-paced (meals covered, 4–7 clustered stops, no useful gap), set outcome to "no_adds_needed" and explain specifically (e.g. "Day 2 already has lunch, dinner, and five clustered Jongno stops; another venue would overpack the afternoon.").
+- If you wanted to add but could not (unknown area, no grounded venue, traveler asked to keep it sparse), set outcome to "no_adds_possible" and say why.
+- Never emit kind "add" without a proposedItem object and a valid dayId. Use "info" if you only have a tip.
+- Preserve the traveler's intent. Do not rewrite wholesale. Max ~8 suggestions.
 - Never claim a place is closed/open as fact — phrase as a check ("verify hours") with appropriate confidence.
 - Only reference itemIds and dayIds that exist in the input.`
 
@@ -609,6 +641,7 @@ export async function enhanceTrip(args: {
   prompt?: string
   llm: LlmCall
   fetchWeather?: WeatherFetcher
+  geocode?: Geocoder | null
 }): Promise<EnhancementRun> {
   const { trip, scope, dayId, llm } = args
   const days = scope === "day" ? trip.days.filter((d) => d.id === dayId) : trip.days
@@ -626,6 +659,8 @@ export async function enhanceTrip(args: {
   if (days.length === 0) {
     run.status = "error"
     run.error = "day not found"
+    run.outcome = "no_adds_possible"
+    run.outcomeReason = "That day is not on this trip, so nothing was added."
     return run
   }
 
@@ -683,6 +718,7 @@ export async function enhanceTrip(args: {
     const validItemIds = new Set(days.flatMap((d) => d.items.map((i) => i.id)))
     run.suggestions = parsed.suggestions
       .filter((s) => !s.dayId || validDayIds.has(s.dayId))
+      .filter((s) => s.kind !== "add" || (s.dayId && validDayIds.has(s.dayId) && s.proposedItem))
       .filter((s) => !(s.kind === "edit" || s.kind === "remove") || (s.itemId && validItemIds.has(s.itemId)))
       .map(
         (s): EnhancementSuggestion => ({
@@ -723,11 +759,118 @@ export async function enhanceTrip(args: {
           proposedOrder: s.proposedOrder,
         }),
       )
+    if (args.geocode) {
+      await fillMissingCoordinates(
+        run.suggestions.flatMap((s) => (s.proposedItem ? [s.proposedItem] : [])),
+        args.geocode,
+        trip.destinations[0],
+      )
+    }
+    const addableCount = addableSuggestionIds(run).length
+    const resolved = resolveEnhancementOutcome({
+      suggestions: run.suggestions,
+      summary: parsed.summary,
+      modelOutcome: parsed.outcome,
+      modelReason: parsed.outcomeReason,
+      // Route auto-applies these next; stamp the outcome the traveler will see.
+      appliedAddCount: addableCount,
+    })
+    run.outcome = resolved.outcome
+    run.outcomeReason = resolved.outcomeReason
   } catch (err) {
     run.status = "error"
     run.error = err instanceof Error ? err.message : String(err)
+    run.outcome = "no_adds_possible"
+    run.outcomeReason = "The AI review failed before it could add places."
   }
   return run
+}
+
+/** Adds safe to land on the itinerary: real day + a place with a name. */
+export function isAddableSuggestion(s: EnhancementSuggestion): boolean {
+  if (s.kind !== "add" || !s.dayId || !s.proposedItem) return false
+  if (s.proposedItem.kind === "place") {
+    return Boolean(s.proposedItem.location?.name?.trim())
+  }
+  return Boolean(s.proposedItem.title.trim())
+}
+
+export function addableSuggestionIds(run: EnhancementRun): string[] {
+  return run.suggestions.filter(isAddableSuggestion).map((s) => s.id)
+}
+
+export function resolveEnhancementOutcome(args: {
+  suggestions: EnhancementSuggestion[]
+  summary?: string
+  modelOutcome?: EnhancementOutcome
+  modelReason?: string
+  appliedAddCount: number
+}): { outcome: EnhancementOutcome; outcomeReason: string } {
+  const addableAdds = args.suggestions.filter(isAddableSuggestion).length
+  const anyAdds = args.suggestions.filter((s) => s.kind === "add").length
+  const reason = args.modelReason?.trim() || args.summary?.trim()
+  if (args.appliedAddCount > 0) {
+    return {
+      outcome: "added_places",
+      outcomeReason:
+        reason ||
+        `Added ${args.appliedAddCount} new stop${args.appliedAddCount === 1 ? "" : "s"} to fill gaps in the itinerary.`,
+    }
+  }
+  if (args.modelOutcome === "added_places" && addableAdds === 0) {
+    return {
+      outcome: "no_adds_possible",
+      outcomeReason: "Suggested adds were dropped (invalid day or missing place data).",
+    }
+  }
+  if (addableAdds > 0 || anyAdds > 0) {
+    return {
+      outcome: "no_adds_possible",
+      outcomeReason: reason || "Suggested places could not be added (missing day or place data).",
+    }
+  }
+  if (args.modelOutcome === "no_adds_possible") {
+    return {
+      outcome: "no_adds_possible",
+      outcomeReason: reason || "Could not find additional places that fit this day's pace and geography.",
+    }
+  }
+  return {
+    outcome: "no_adds_needed",
+    outcomeReason:
+      reason || "The itinerary already covers meals and clustered stops; adding more would overpack the day.",
+  }
+}
+
+/** Apply every valid add suggestion and stamp the run with the final outcome. */
+export function autoApplyAddSuggestions(
+  trip: Trip,
+  run: EnhancementRun,
+): { trip: Trip; run: EnhancementRun; applied: string[]; skipped: string[] } {
+  const ids = addableSuggestionIds(run)
+  if (ids.length === 0) {
+    const resolved = resolveEnhancementOutcome({
+      suggestions: run.suggestions,
+      summary: run.summary,
+      modelOutcome: run.outcome,
+      modelReason: run.outcomeReason,
+      appliedAddCount: 0,
+    })
+    return { trip, run: { ...run, ...resolved }, applied: [], skipped: [] }
+  }
+  const result = applySuggestions(trip, run, ids)
+  const nextRun: EnhancementRun = {
+    ...run,
+    appliedSuggestionIds: [...run.appliedSuggestionIds, ...result.applied],
+    ...resolveEnhancementOutcome({
+      suggestions: run.suggestions,
+      summary: run.summary,
+      modelOutcome: run.outcome,
+      modelReason: run.outcomeReason,
+      appliedAddCount: result.applied.length,
+    }),
+  }
+  return { trip: result.trip, run: nextRun, applied: result.applied, skipped: result.skipped }
 }
 
 // ── Applying accepted suggestions ────────────────────────────────────────
@@ -747,7 +890,7 @@ export function applySuggestions(trip: Trip, run: EnhancementRun, suggestionIds:
       skipped.push(id)
       continue
     }
-    const day = days.find((d) => d.id === s.dayId) ?? days[0]
+    const day = s.dayId ? days.find((d) => d.id === s.dayId) : undefined
     let ok = false
     switch (s.kind) {
       case "add":
