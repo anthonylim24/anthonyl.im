@@ -217,7 +217,7 @@ function App() {
   /* ── Render ── */
 
   return (
-    <div className={cn("font-mono transition-colors duration-700", themeClass)} style={rootStyle}>
+    <div className={cn("transition-colors duration-700", themeClass)} style={rootStyle}>
       {/* Decorative overlays — z-index 1, BELOW content z-index 10 */}
       <video
         ref={leavesVideoRef}
@@ -247,16 +247,16 @@ function App() {
           <div className="transition-all duration-700 col-fade-in">
             <h1
               className={cn(
-                "font-mono font-medium tracking-[0.07em] uppercase chat-text transition-all duration-700",
-                hasMessages ? "text-[10px]" : "text-[10px] sm:text-[11px]",
+                "font-display font-medium tracking-[0.08em] uppercase chat-text transition-all duration-700",
+                hasMessages ? "text-[11px]" : "text-[12px] sm:text-[13px]",
               )}
             >
               Anthony Lim
             </h1>
             <p
               className={cn(
-                "font-mono chat-mid transition-all duration-700 mt-1",
-                hasMessages ? "text-[10px]" : "text-[10px] sm:text-[11px]",
+                "font-display chat-mid transition-all duration-700 mt-1 tracking-[0.04em]",
+                hasMessages ? "text-[11px]" : "text-[12px] sm:text-[13px]",
               )}
             >
               Software Engineer
@@ -278,7 +278,7 @@ function App() {
                   return (
                     <div key={message.id} className={cn("animate-message-in", isUser && "flex justify-end")}>
                       {isUser ? (
-                        <div className="chat-user-bubble max-w-[85%] sm:max-w-[75%] text-[14px] leading-[1.7] font-mono px-4 py-2.5 rounded-lg transition-colors duration-700">
+                        <div className="chat-user-bubble max-w-[85%] sm:max-w-[75%] text-[15px] leading-[1.6] font-display px-4 py-2.5 rounded-lg transition-colors duration-700 tracking-[0.01em]">
                           {message.content}
                         </div>
                       ) : (
@@ -304,7 +304,7 @@ function App() {
               className="col-fade-in stagger-2 py-4 sm:py-10"
               style={{ display: "flex", flexDirection: "column", justifyContent: "center", height: "100%" }}
             >
-              <h2 className="font-mono font-normal leading-[1.5] chat-text transition-colors duration-700 text-base sm:text-lg">
+              <h2 className="font-display font-normal leading-[1.45] chat-body transition-colors duration-700 text-xl sm:text-2xl tracking-[0.01em]">
                 Ask me anything about Anthony&apos;s
                 <br />
                 experience, skills, and background.
@@ -338,7 +338,7 @@ function App() {
                   key={q}
                   onClick={() => handleSubmit(undefined, q)}
                   disabled={isLoading}
-                  className="chat-suggestion text-left text-[12px] font-mono leading-[1.6] px-3 py-2.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="chat-suggestion text-left text-[14px] leading-[1.5] px-3 py-2.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {q}
                 </button>
@@ -363,7 +363,7 @@ function App() {
                     key={q}
                     onClick={() => handleSubmit(undefined, q)}
                     disabled={isLoading}
-                    className="chat-suggestion text-[11px] font-mono transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="chat-suggestion text-[13px] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{ flexShrink: 0, scrollSnapAlign: "start", padding: "0.375rem 0.75rem" }}
                   >
                     {q}

@@ -264,65 +264,68 @@ body {
 
 /* Chatbot theme tokens — scoped to mode class */
 .chatbot-dark {
-  --chat-bg: #080808;
-  --chat-text: #b4b4b4;
-  --chat-body: #a3a3a3;
-  --chat-bright: #e0e0e0;
-  --chat-mid: #404040;
-  --chat-line: #181818;
-  --chat-code-bg: rgba(255, 255, 255, 0.04);
-  --chat-code-text: #999;
-  --chat-user-bg: #181818;
-  --chat-user-text: #e0e0e0;
-  --chat-skeleton: rgba(255, 255, 255, 0.06);
-  --chat-skeleton-light: rgba(255, 255, 255, 0.04);
-  --chat-footer: #282828;
-  --chat-placeholder: #303030;
+  /* Warm night parchment — ink on deep umber */
+  --chat-bg: #171613;
+  --chat-text: #cfc6b8;
+  --chat-body: #b5aaa0;
+  --chat-bright: #e7e3de;
+  --chat-mid: #6f6760;
+  --chat-line: rgba(255, 252, 245, 0.08);
+  --chat-code-bg: rgba(255, 252, 245, 0.04);
+  --chat-code-text: #a8a29e;
+  --chat-user-bg: #2a2622;
+  --chat-user-text: #e7e3de;
+  --chat-skeleton: rgba(255, 252, 245, 0.06);
+  --chat-skeleton-light: rgba(255, 252, 245, 0.04);
+  --chat-footer: #6f6760;
+  --chat-placeholder: #5a534c;
   --chat-link: #C9A227;
-  --hljs-fg: #c8c8c8;
-  --hljs-comment: #6a6a6a;
-  --hljs-keyword: #a3a3a3;
-  --hljs-string: #b8a078;
-  --hljs-number: #9a9a9a;
-  --hljs-title: #d0d0d0;
-  --hljs-attr: #8a8a8a;
-  --hljs-built_in: #a8a8a8;
-  --hljs-literal: #9a9a9a;
-  --hljs-meta: #707070;
-  background-color: #080808;
+  --hljs-fg: #cfc6b8;
+  --hljs-comment: #6f6760;
+  --hljs-keyword: #b5aaa0;
+  --hljs-string: #c4a574;
+  --hljs-number: #a8a29e;
+  --hljs-title: #e7e3de;
+  --hljs-attr: #a8a29e;
+  --hljs-built_in: #b5aaa0;
+  --hljs-literal: #a8a29e;
+  --hljs-meta: #6f6760;
+  background-color: #171613;
 }
 
 .chatbot-shadow {
+  /* Warm daylight parchment — subdued iron-gall ink */
   --chat-bg: #f2efe9;
-  --chat-text: #1a1a1a;
-  --chat-body: #6b6b6b;
-  --chat-bright: #3f3f3f;
-  --chat-mid: #888;
-  --chat-line: #d8d5cf;
-  --chat-code-bg: rgba(0, 0, 0, 0.04);
-  --chat-code-text: #5c5c5c;
-  --chat-user-bg: #1a1a1a;
+  --chat-text: #3d3429;
+  --chat-body: #5f574f;
+  --chat-bright: #2c241c;
+  --chat-mid: #8a8073;
+  --chat-line: #ddd4c5;
+  --chat-code-bg: rgba(60, 45, 30, 0.045);
+  --chat-code-text: #6b6358;
+  --chat-user-bg: #2c241c;
   --chat-user-text: #f2efe9;
-  --chat-skeleton: rgba(0, 0, 0, 0.08);
-  --chat-skeleton-light: rgba(0, 0, 0, 0.05);
-  --chat-footer: #bbb;
-  --chat-placeholder: #ccc;
+  --chat-skeleton: rgba(60, 45, 30, 0.08);
+  --chat-skeleton-light: rgba(60, 45, 30, 0.05);
+  --chat-footer: #a39889;
+  --chat-placeholder: #b8aea0;
   --chat-link: #B8860B;
-  --hljs-fg: #5c5c5c;
-  --hljs-comment: #8a8a8a;
-  --hljs-keyword: #4a4a4a;
-  --hljs-string: #7a5c28;
-  --hljs-number: #666;
-  --hljs-title: #3f3f3f;
-  --hljs-attr: #5a5a5a;
-  --hljs-built_in: #555;
-  --hljs-literal: #666;
-  --hljs-meta: #888;
+  --hljs-fg: #5f574f;
+  --hljs-comment: #8a8073;
+  --hljs-keyword: #4a4036;
+  --hljs-string: #8a6a2b;
+  --hljs-number: #6b6358;
+  --hljs-title: #2c241c;
+  --hljs-attr: #6b6358;
+  --hljs-built_in: #5f574f;
+  --hljs-literal: #6b6358;
+  --hljs-meta: #8a8073;
   background-color: #f2efe9;
 }
 
 /* Chatbot utility classes — consume CSS vars for zero-cost theme switching */
 .chat-text { color: var(--chat-text); }
+.chat-body { color: var(--chat-body); }
 .chat-mid { color: var(--chat-mid); }
 .chat-border { border-color: var(--chat-line); }
 .chat-user-bubble { background: var(--chat-user-bg); color: var(--chat-user-text); }
@@ -334,10 +337,12 @@ body {
 .chat-suggestion {
   color: var(--chat-mid);
   border: 1px solid var(--chat-line);
+  font-family: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+  letter-spacing: 0.015em;
 }
 .chat-suggestion:hover {
-  color: var(--chat-text);
-  border-color: var(--chat-mid);
+  color: var(--chat-body);
+  border-color: color-mix(in srgb, var(--chat-mid) 70%, var(--chat-line));
 }
 
 .chat-input-box {
@@ -472,7 +477,7 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════
-   MESSAGE CONTENT — assistant prose (Inter) + mono code
+   MESSAGE CONTENT — parchment serif prose + mono code
    ═══════════════════════════════════════════════════════ */
 
 .message-content {
@@ -481,9 +486,11 @@ body {
   overflow-wrap: break-word;
   word-wrap: break-word;
   word-break: break-word;
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-  font-size: 14px;
-  line-height: 1.7;
+  font-family: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+  font-size: 17px;
+  font-weight: 400;
+  line-height: 1.65;
+  letter-spacing: 0.01em;
   color: var(--chat-body);
 }
 
@@ -497,11 +504,12 @@ body {
 
 .message-content :where(pre, code, .message-codeblock-lang, .message-codeblock-copy, .message-think) {
   font-family: "Fragment Mono", ui-monospace, monospace;
+  letter-spacing: 0;
 }
 
 .message-content p { margin: 0; }
-.message-content p + p { margin-top: 0.75rem; }
-.message-content strong { color: var(--chat-bright); font-weight: 500; }
+.message-content p + p { margin-top: 0.85rem; }
+.message-content strong { color: var(--chat-bright); font-weight: 600; }
 .message-content em { font-style: italic; }
 .message-content del {
   color: var(--chat-mid);
@@ -588,9 +596,9 @@ body {
 .message-content th {
   padding: 0.5rem 0.75rem;
   text-align: left;
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.05em;
+  font-size: 0.78em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--chat-bright);
   white-space: normal;
@@ -728,26 +736,26 @@ body {
 }
 
 .message-content :where(h1, h2, h3, h4) {
+  font-family: inherit;
   color: var(--chat-bright);
   font-weight: 500;
   margin: 1.25rem 0 0.5rem;
-  line-height: 1.35;
+  line-height: 1.3;
+  letter-spacing: 0.02em;
 }
 .message-content :where(h1, h2, h3, h4):first-child { margin-top: 0; }
 .message-content h1 {
-  font-size: 16px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: 1.35em;
+  font-weight: 600;
 }
 .message-content h2 {
-  font-size: 14px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: 1.2em;
+  font-weight: 600;
 }
 .message-content h3,
 .message-content h4 {
-  font-size: 14px;
-  text-transform: none;
+  font-size: 1.05em;
+  font-weight: 500;
 }
 
 .message-content hr {
