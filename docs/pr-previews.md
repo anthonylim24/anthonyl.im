@@ -22,10 +22,17 @@ The sticky PR comment (`<!-- pr-preview -->`) and the GitHub deployment
 
 - **Is:** the PR's Vite production build, with `base=/preview/pr/<n>/`,
   service worker **off**, Clerk/Supabase keys from `FRONTEND_ENV`.
-- **Is not:** a copy of the PR's server. `/api/*` still hits **production**
-  Hono. API-only PRs will not look different in the preview.
+- **Is:** a loopback copy of the PR's `/api/*` server (IG worker off),
+  proxied by production Hono at `/preview/pr/<n>/api/*`. The preview
+  frontend sets `VITE_API_BASE=/preview/pr/<n>` and falls back to
+  production `/api` if that proxy is not on this origin yet (the first
+  deploy of the proxy itself).
 - **Is not** a merge gate. `.github/workflows/preview.yml` is independent of
   `pr-gate`. A droplet blip must not block merge.
+- **Is not** a second public port. The sidecar binds `127.0.0.1` only.
+  Cap is **1** live preview API (`PREVIEW_API_MAX`) so the 1 GB droplet
+  does not run a stack of Hono processes. Older PRs keep their frontend
+  and fall back to production `/api`.
 
 Korea and Trips still require a **Clerk session** on `anthonyl.im` (same
 origin, so a phone already signed in to production is enough). Previews
@@ -82,17 +89,24 @@ PR opened/sync
   → GitHub Actions (.github/workflows/preview.yml)
       ├─ bun install (root + frontend) via setup-ci
       ├─ FRONTEND_ENV → frontend/.env  (VITE_DEV_BEARER stripped)
-      ├─ VITE_BASE=/preview/pr/<n>/  VITE_ENABLE_SERVICE_WORKER=false
+      ├─ VITE_BASE=/preview/pr/<n>/  VITE_API_BASE=/preview/pr/<n>
+      ├─ VITE_ENABLE_SERVICE_WORKER=false
       ├─ vite build on the runner (never on the 1 GB droplet)
       ├─ bun server/src/previewStamp.ts  → preview.json + HTML chrome
-      ├─ tar dist → SCP → droplet
-      └─ deploy/publish-preview.sh publish <n> <tarball>
+      ├─ tar dist + server/src → SCP → droplet
+      └─ deploy/publish-preview.sh publish <n> <frontend.tgz> <api.tgz>
          atomic mv ~/previews/.staging/<n> → ~/previews/<n>
+         bun --smol server/src/previewApi.ts on 127.0.0.1:41xx
 ```
 
 Production Hono (`server/src/preview.ts`) serves `~/previews/<n>/` at
 `/preview/pr/<n>/` **before** the SPA fallback, so a missing preview is a
-404, not production `index.html`.
+404, not production `index.html`. `/preview/pr/<n>/api/*` is reverse-proxied
+to the sidecar when `api.json` is present (`X-Preview-API: 1`).
+
+New npm dependencies in a PR are **not** installed on the droplet for the
+sidecar — it uses production `~/anthonyl.im/node_modules`. A PR that adds
+a server package will not preview that import until the package is on main.
 
 On PR close the cleanup job deletes `~/previews/<n>/`. A prune pass also
 drops trees older than 14 days and caps the droplet at 20 previews.
@@ -120,6 +134,8 @@ Do not add fork-PR previews without moving them off `anthonyl.im`.
 | `SITE_URL` | `https://anthonyl.im` | droplet `.env` |
 | `PREVIEW_MAX_AGE_DAYS` | `14` | `publish-preview.sh` |
 | `PREVIEW_MAX_COUNT` | `20` | `publish-preview.sh` |
+| `PREVIEW_API_MAX` | `1` | `publish-preview.sh` |
+| `PROD_ROOT` | `~/anthonyl.im` | `publish-preview.sh` (node_modules) |
 | `CLERK_AGENT_USER_ID` | unset (endpoint 404s) | droplet `.env` |
 | `AGENT_LOGIN_SECRET` | unset (`gh` collaborator token still works) | droplet `.env` |
 
@@ -129,9 +145,12 @@ Do not add fork-PR previews without moving them off `anthonyl.im`.
 | --- | --- |
 | `.github/workflows/preview.yml` | CI publish + cleanup |
 | `deploy/publish-preview.sh` | atomic extract / remove / prune |
-| `server/src/preview.ts` | path guard, stamp, Hono router, wait helper |
+| `server/src/preview.ts` | path guard, stamp, Hono router, API proxy, wait helper |
+| `server/src/previewApi.ts` | loopback API sidecar entry |
+| `server/src/previewApiApp.ts` | API-only Hono app (no SPA, no IG worker) |
 | `server/src/previewStamp.ts` | CLI used by CI after `vite build` |
 | `scripts/wait-for-preview.ts` | agent poller |
 | `scripts/clerk-agent-login.ts` | mint a Clerk Agent Task URL for `/korea` + `/trips` screenshots |
 | `server/src/routes/agentSession.ts` | `POST /api/agent/session` (secret or GitHub collaborator token) |
 | `frontend/src/lib/routerBasename.ts` | React Router `basename` from Vite `base` |
+| `frontend/src/lib/apiBase.ts` | `VITE_API_BASE` rewrite + production fallback |

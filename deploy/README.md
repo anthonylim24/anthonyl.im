@@ -28,11 +28,17 @@ CI builds the frontend on a GH Actions runner (zero OOM risk vs. building on the
 
 Same-repo PRs also get a remote frontend preview at `https://anthonyl.im/preview/pr/<n>/` so a phone or a cloud agent can review UI without a laptop. That pipeline is `.github/workflows/preview.yml` (not a merge gate). Agent guide: [`docs/pr-previews.md`](../docs/pr-previews.md).
 
+The preview frontend calls `/preview/pr/<n>/api/*`, which production Hono
+proxies to a loopback `bun --smol` sidecar of the PR's server (IG worker
+off, cap 1). Until that proxy is on production, the client falls back to
+`/api`.
+
 Optional droplet env (defaults are fine):
 
 ```
 PREVIEW_ROOT=/root/previews    # where published trees live; default ~/previews
 SITE_URL=https://anthonyl.im   # used for preview index links
+PREVIEW_API_MAX=1              # live preview API processes (1 GB RAM)
 ```
 
 ## GitHub Secrets

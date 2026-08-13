@@ -96,12 +96,18 @@ export const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 export const GEMINI_MODEL = 'gemini-3.7-flash'
 
 /** Gemini 3 thinking levels. Prefer these over the 2.5-era `thinkingBudget`
- *  — budget is accepted for back-compat but can behave unexpectedly on 3.x. */
+ *  — budget is accepted for back-compat but can behave unexpectedly on 3.x.
+ *
+ *  `minimal` is rejected by gemini-3.7-flash (400 INVALID_ARGUMENT:
+ *  "Thinking level MINIMAL is not supported for this model"). Chat used
+ *  to send it and the concierge streamed a generic unavailable error.
+ *  Remap to `low` so every Gemini surface stays valid on the app model. */
 export type GeminiThinkingLevel = 'minimal' | 'low' | 'medium' | 'high'
 
 export function geminiThinking(level: GeminiThinkingLevel = 'low'): {
-  thinkingLevel: GeminiThinkingLevel
+  thinkingLevel: Exclude<GeminiThinkingLevel, 'minimal'>
 } {
+  if (level === 'minimal') return { thinkingLevel: 'low' }
   return { thinkingLevel: level }
 }
 

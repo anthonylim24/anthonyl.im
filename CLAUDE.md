@@ -64,7 +64,7 @@ anthonyl.im/
 │   └── schema.sql               # Database schema
 ├── .github/workflows/deploy.yml # Deploy on merge (atomic swap + smoke)
 ├── .github/workflows/pr.yml     # PR gate → pr-gate aggregate check
-├── .github/workflows/preview.yml # Remote PR frontend previews (not a merge gate)
+├── .github/workflows/preview.yml # Remote PR frontend + API previews (not a merge gate)
 ├── .github/actions/setup-ci/    # Shared Bun + node_modules cache action
 ├── docs/ci-cd.md                # CI/CD agent memory (read before changing CI)
 ├── docs/pr-previews.md          # Remote PR preview URLs + agent screenshot flow
@@ -172,7 +172,7 @@ PR opened ─────► .github/workflows/pr.yml ─┬─► pr-server-tes
 
 PR opened ─────► .github/workflows/preview.yml ─► build + publish
                                               → https://anthonyl.im/preview/pr/<n>/
-                                              (not a merge gate; see docs/pr-previews.md)
+                                              (frontend + loopback API sidecar; not a merge gate)
 
 merge to main ─► .github/workflows/deploy.yml ─► test → build → stage next → SCP dist
                                               → atomic swap → PM2 restart (rollback on fail)
