@@ -10,6 +10,7 @@ import {
   List as ListIcon,
   Eye,
 } from "lucide-react"
+import { apiFetch } from "@/lib/apiBase"
 import { useGetToken } from "@/lib/safeAuth"
 import { isWebglSupported } from "./webglSupport"
 import { MapModeCompass } from "./MapModeCompass"
@@ -274,7 +275,7 @@ export function MapModeOverlay({
         const headers: Record<string, string> = {}
         if (token) headers["Authorization"] = `Bearer ${token}`
         const base = placesUrl ?? `/api/korea/day/${encodeURIComponent(daySlug)}/places`
-        const r = await fetch(`${base}?${qs.toString()}`, { headers })
+        const r = await apiFetch(`${base}?${qs.toString()}`, { headers })
         if (!r.ok) throw new Error(`Places fetch ${r.status}`)
         const data = (await r.json()) as PlacesResponse
         if (!cancelled) {
@@ -344,7 +345,7 @@ export function MapModeOverlay({
         const headers: Record<string, string> = {}
         if (token) headers["Authorization"] = `Bearer ${token}`
         const base = placesUrl ?? `/api/korea/day/${encodeURIComponent(daySlug)}/places`
-        const r = await fetch(`${base}?${qs.toString()}`, { headers })
+        const r = await apiFetch(`${base}?${qs.toString()}`, { headers })
         if (!r.ok) return
         const data = (await r.json()) as PlacesResponse
         if (!cancelled) {

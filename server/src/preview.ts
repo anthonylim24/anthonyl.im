@@ -47,6 +47,36 @@ export type PreviewMeta = {
   siteUrl?: string;
 };
 
+export type PreviewApiTarget = {
+  port: number;
+  pid?: number;
+};
+
+const PREVIEW_API_HEADER = "X-Preview-API";
+const PREVIEW_API_FILENAME = "api.json";
+
+export function previewApiUpstreamPath(pr: string, pathname: string): string {
+  const prefix = `${PREVIEW_PR_PREFIX}/${pr}`;
+  if (pathname === prefix || pathname === `${prefix}/`) return "/";
+  if (pathname.startsWith(`${prefix}/`)) return pathname.slice(prefix.length);
+  return pathname;
+}
+
+export async function readPreviewApiTarget(prRoot: string): Promise<PreviewApiTarget | null> {
+  try {
+    const raw = await readFile(join(prRoot, PREVIEW_API_FILENAME), "utf8");
+    const parsed = JSON.parse(raw) as Partial<PreviewApiTarget>;
+    if (typeof parsed.port !== "number" || !Number.isInteger(parsed.port)) return null;
+    if (parsed.port < 1 || parsed.port > 65535) return null;
+    return {
+      port: parsed.port,
+      ...(typeof parsed.pid === "number" ? { pid: parsed.pid } : {}),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export type PreviewRequest = {
   pr: string;
   rest: string;
@@ -101,6 +131,7 @@ export function resolvePreviewPath(
 export function shouldSpaFallback(rest: string): boolean {
   if (!rest || rest.endsWith("/")) return true;
   if (rest.startsWith("assets/")) return false;
+  if (rest === "api" || rest.startsWith("api/")) return false;
   return !ASSET_EXT_RE.test(rest);
 }
 
@@ -449,11 +480,64 @@ async function servePreviewFile(c: Context, root: string, siteUrl: string) {
   return new Response(Bun.file(filePath).stream(), { headers });
 }
 
+async function proxyPreviewApi(
+  c: Context,
+  root: string,
+  fetchImpl: typeof fetch,
+): Promise<Response> {
+  const pr = c.req.param("pr");
+  if (!isPreviewPrId(pr)) {
+    return c.json({ error: "invalid_pr" }, 400);
+  }
+  const prRoot = resolvePreviewPath(root, pr, "");
+  if (!prRoot) return c.json({ error: "invalid_pr" }, 400);
+
+  const target = await readPreviewApiTarget(prRoot);
+  if (!target) {
+    return c.json({ error: "preview_api_not_published" }, 404);
+  }
+
+  const url = new URL(c.req.url);
+  const upstreamPath = previewApiUpstreamPath(pr, url.pathname);
+  const upstream = `http://127.0.0.1:${target.port}${upstreamPath}${url.search}`;
+
+  const headers = new Headers(c.req.raw.headers);
+  headers.delete("host");
+  headers.delete("content-length");
+
+  const method = c.req.method;
+  const init: RequestInit = {
+    method,
+    headers,
+    signal: c.req.raw.signal,
+    redirect: "manual",
+  };
+  if (method !== "GET" && method !== "HEAD") {
+    init.body = c.req.raw.body;
+    Object.assign(init, { duplex: "half" });
+  }
+
+  let upstreamRes: Response;
+  try {
+    upstreamRes = await fetchImpl(upstream, init);
+  } catch (err) {
+    console.error(`[preview-api] proxy ${pr} → :${target.port} failed:`, err);
+    return c.json({ error: "preview_api_unreachable" }, 502);
+  }
+
+  const out = new Headers(upstreamRes.headers);
+  out.set(PREVIEW_API_HEADER, "1");
+  out.set("X-Robots-Tag", "noindex, nofollow");
+  return new Response(upstreamRes.body, { status: upstreamRes.status, headers: out });
+}
+
 export function createPreviewRouter(opts: {
   root: string;
   siteUrl?: string;
+  fetchImpl?: typeof fetch;
 }): Hono {
   const siteUrl = (opts.siteUrl ?? "https://anthonyl.im").replace(/\/+$/, "");
+  const fetchImpl = opts.fetchImpl ?? fetch;
   const app = new Hono();
 
   const listing = async (c: Context) => {
@@ -468,6 +552,9 @@ export function createPreviewRouter(opts: {
 
   app.get("/preview", listing);
   app.get("/preview/", listing);
+
+  app.all("/preview/pr/:pr/api", (c) => proxyPreviewApi(c, opts.root, fetchImpl));
+  app.all("/preview/pr/:pr/api/*", (c) => proxyPreviewApi(c, opts.root, fetchImpl));
 
   app.get("/preview/pr/:pr", (c) => {
     const pr = c.req.param("pr");

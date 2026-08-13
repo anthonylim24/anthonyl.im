@@ -1,3 +1,4 @@
+import { apiFetch } from "../../lib/apiBase"
 import { readSseStream } from "../../lib/sseStream"
 import { streamKoreaChat } from "../Korea/koreaChatApi"
 import { isKoreaSeedTrip, wrapTripChatPrompt } from "./tripChatFallback"
@@ -23,8 +24,9 @@ function isMissingChatRoute(status: number, error: string): boolean {
  * Same wire format as the Korea concierge: each `data:` line is a
  * JSON-encoded text delta, terminated by `[DONE]`.
  *
- * When `POST /api/trips/:id/chat` is not on the server yet (PR preview
- * hits production), falls back to `/api/korea/chat` with trip context.
+ * When `POST /api/trips/:id/chat` is not on the server yet, falls back
+ * to `/api/korea/chat` with trip context. Preview builds prefer
+ * `/preview/pr/<n>/api` via `apiFetch`.
  */
 export async function streamTripChat(
   tripId: string,
@@ -37,7 +39,7 @@ export async function streamTripChat(
   trip?: Trip,
 ): Promise<TripChatResult> {
   const token = await getToken()
-  const response = await fetch(`/api/trips/${encodeURIComponent(tripId)}/chat`, {
+  const response = await apiFetch(`/api/trips/${encodeURIComponent(tripId)}/chat`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

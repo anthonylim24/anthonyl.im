@@ -13,6 +13,8 @@
 // just for this — turf would add ~30 KB minified and we only need two
 // trivial geometry primitives.
 
+import { apiFetch } from "../../lib/apiBase"
+
 interface Dong {
   /** Human-readable short name, e.g. "강남구 압구정동". The "서울특별시 " /
    *  "부산광역시 " prefix is stripped by the build script because the
@@ -39,7 +41,7 @@ export function loadAllKoreaDongs(): Promise<Dong[]> {
   // The server ignores the query string and serves the current JSON,
   // but a fresh URL forces clients with the year-immutable cached v1
   // response to re-fetch instead of reusing the stale entry.
-  inflight = fetch("/api/korea/dongs?v=2")
+  inflight = apiFetch("/api/korea/dongs?v=2")
     .then((r) => {
       if (!r.ok) throw new Error(`/api/korea/dongs ${r.status}`)
       return r.json()

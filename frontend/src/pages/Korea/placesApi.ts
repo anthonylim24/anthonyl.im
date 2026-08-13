@@ -1,3 +1,5 @@
+import { apiFetch } from "../../lib/apiBase"
+
 // Fetch helpers for the extracted-places browser at /korea/places.
 
 export type BusynessLevel = 'quiet' | 'moderate' | 'busy' | 'very_busy';
@@ -85,7 +87,7 @@ export async function fetchExtractedPlaces(
   // it the SW returns the previously-cached list on every navigation to
   // /korea/places — so a freshly-extracted place wouldn't appear until
   // the user reloaded. The SW honors the cache mode via request.cache.
-  const res = await fetch(`${BASE}/extracted${qs ? `?${qs}` : ''}`, { headers, cache: 'no-store' });
+  const res = await apiFetch(`${BASE}/extracted${qs ? `?${qs}` : ''}`, { headers, cache: 'no-store' });
   if (!res.ok) {
     let message = `HTTP ${res.status}`;
     try {
@@ -107,7 +109,7 @@ export async function setExtractedPlaceDays(
   days: number[],
 ): Promise<void> {
   const headers = await authHeaders(getToken);
-  const res = await fetch(`${BASE}/extracted/${placeId}/days`, {
+  const res = await apiFetch(`${BASE}/extracted/${placeId}/days`, {
     method: 'PUT',
     headers: { ...headers, 'Content-Type': 'application/json' },
     body: JSON.stringify({ days }),

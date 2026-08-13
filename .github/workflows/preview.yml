@@ -6,9 +6,10 @@ name: PR Preview
 # URL: https://anthonyl.im/preview/pr/<n>/
 #
 # Intentionally NOT part of pr-gate. A droplet blip must not block merge.
-# The preview is the PR's frontend against the production API. Service
-# worker is disabled. Forks and Dependabot are skipped (untrusted HTML
-# would otherwise run on the production origin).
+# The preview is the PR's frontend plus an optional loopback API sidecar
+# (IG worker off, cap 1) proxied at /preview/pr/<n>/api/*. Until that
+# proxy is on production Hono, the frontend falls back to production /api.
+# Service worker is disabled. Forks and Dependabot are skipped.
 #
 # Canonical agent guide: docs/pr-previews.md
 
@@ -59,6 +60,7 @@ jobs:
         working-directory: frontend
         env:
           VITE_BASE: /preview/pr/${{ github.event.pull_request.number }}/
+          VITE_API_BASE: /preview/pr/${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
           umask 077
@@ -69,6 +71,7 @@ jobs:
           # Never bake the local-dev Clerk bypass into a public preview.
           printf '%s\n' "${{ secrets.FRONTEND_ENV }}" | sed '/^[[:space:]]*VITE_DEV_BEARER=/d' > .env
           printf '\nVITE_ENABLE_SERVICE_WORKER=false\n' >> .env
+          printf 'VITE_API_BASE=/preview/pr/%s\n' "$PR_NUMBER" >> .env
           bun run build
           grep -F "/preview/pr/${PR_NUMBER}/assets/" dist/index.html \
             || { echo "::error::built index.html is missing the preview asset base"; exit 1; }
@@ -88,8 +91,10 @@ jobs:
           test -f frontend/dist/preview.json
           grep -q 'data-pr-preview=' frontend/dist/index.html
 
-      - name: Pack dist
-        run: tar -C frontend/dist -czf preview-pr.tar.gz .
+      - name: Pack dist + preview API source
+        run: |
+          tar -C frontend/dist -czf preview-pr.tar.gz .
+          tar -czf preview-api.tar.gz server/src
 
       - name: Upload preview tarball
         uses: appleboy/scp-action@v1.0.0
@@ -99,7 +104,7 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }}
           overwrite: true
           rm: true
-          source: "preview-pr.tar.gz,deploy/publish-preview.sh"
+          source: "preview-pr.tar.gz,preview-api.tar.gz,deploy/publish-preview.sh"
           target: "previews/.incoming/${{ github.event.pull_request.number }}"
 
       - name: Publish on droplet
@@ -114,9 +119,14 @@ jobs:
             INCOMING="$HOME/previews/.incoming/$PR"
             SCRIPT="$INCOMING/deploy/publish-preview.sh"
             TARBALL="$INCOMING/preview-pr.tar.gz"
+            API_TARBALL="$INCOMING/preview-api.tar.gz"
             [ -f "$SCRIPT" ] || SCRIPT="$INCOMING/publish-preview.sh"
             chmod +x "$SCRIPT"
-            bash "$SCRIPT" publish "$PR" "$TARBALL"
+            if [ -f "$API_TARBALL" ]; then
+              bash "$SCRIPT" publish "$PR" "$TARBALL" "$API_TARBALL"
+            else
+              bash "$SCRIPT" publish "$PR" "$TARBALL"
+            fi
             bash "$SCRIPT" prune || true
             rm -rf "$INCOMING"
 
@@ -165,7 +175,7 @@ jobs:
 
           ${NOTE}
 
-          **Agents:** \`bun scripts/wait-for-preview.ts --pr ${PR_NUMBER} --sha ${PR_SHA}\` then screenshot with \`?hidePreviewChrome=1\`. Korea / Trips still need a Clerk session (same as production). This is the PR frontend against the **production API**. See \`docs/pr-previews.md\`.
+          **Agents:** \`bun scripts/wait-for-preview.ts --pr ${PR_NUMBER} --sha ${PR_SHA}\` then screenshot with \`?hidePreviewChrome=1\`. Korea / Trips still need a Clerk session (same as production). Frontend calls \`/preview/pr/${PR_NUMBER}/api/*\` (PR server sidecar) and falls back to production \`/api\` if that proxy is not on this origin yet. See \`docs/pr-previews.md\`.
           EOF
           )
 
@@ -245,6 +255,9 @@ jobs:
           script: |
             set -euo pipefail
             PR="${{ github.event.pull_request.number }}"
+            if [ -f "$HOME/previews/$PR/api.pid" ]; then
+              kill "$(cat "$HOME/previews/$PR/api.pid")" 2>/dev/null || true
+            fi
             rm -rf "$HOME/previews/$PR" "$HOME/previews/.staging/$PR" "$HOME/previews/.incoming/$PR"
             echo "[preview] removed PR $PR"
 
