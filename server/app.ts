@@ -16,6 +16,8 @@ import { createClerkAuth, verifyClerkOptional } from "./src/middleware/clerkAuth
 import { createRateLimit } from "./src/middleware/rateLimit";
 import { bootIgWorker, getQueue, listJobsForUser, listExtractedPlaces, listIgPlaceDays, setIgPlaceDays } from "./src/igPlaces/wire";
 import { createPreviewRouter, getPreviewRoot, previewSiteUrl } from "./src/preview";
+import { createAgentSessionRouter } from "./src/routes/agentSession";
+import { parseAgentOnBehalfOf, parseAllowedRedirectHosts } from "./src/agentTasks";
 import { join, resolve } from "path";
 
 const app = new Hono();
@@ -239,6 +241,22 @@ if (clerkAuth) {
 }
 
 bootIgWorker();
+
+// Clerk Agent Tasks — mint a one-time sign-in URL for AI agents / Playwright
+// against production or PR previews. 404 until CLERK_SECRET_KEY and
+// CLERK_AGENT_USER_ID (or _EMAIL) are set. Never a public bypass.
+const agentSessionRateLimit = createRateLimit({ windowMs: 60_000, max: 10, keyPrefix: "agent-session" });
+app.use("/api/agent/*", agentSessionRateLimit);
+app.route(
+  "/api/agent",
+  createAgentSessionRouter({
+    clerkSecretKey: config.clerkSecretKey,
+    loginSecret: config.agentLoginSecret,
+    onBehalfOf: parseAgentOnBehalfOf(process.env),
+    allowedHosts: parseAllowedRedirectHosts(config.agentRedirectHosts),
+    githubRepo: config.agentGithubRepo,
+  }),
+);
 
 // Remote PR previews — published by .github/workflows/preview.yml into
 // $PREVIEW_ROOT/<pr>/ (default ~/previews). Mounted before static/SPA so a

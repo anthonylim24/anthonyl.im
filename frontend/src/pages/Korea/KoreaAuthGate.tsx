@@ -15,6 +15,8 @@ interface KoreaAuthGateProps {
 //   1. VITE_DEV_BEARER is set → bypass Clerk entirely for local automated
 //      testing (the token comes from safeAuth.useGetToken instead).
 //   2. CLERK_ENABLED is false → no Clerk in this build, no gate to apply.
+// PR previews must NOT use VITE_DEV_BEARER. Agents mint a real session via
+// `bun scripts/clerk-agent-login.ts` (Clerk Agent Tasks) instead.
 // The actual Clerk components are still imported at module top so the
 // call graph is statically analyzable; render is short-circuited before
 // they're rendered.
