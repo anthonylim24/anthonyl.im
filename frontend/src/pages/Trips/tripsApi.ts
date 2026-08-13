@@ -106,3 +106,17 @@ export const applySuggestions = (getToken: GetToken, id: string, runId: string, 
     `/${encodeURIComponent(id)}/enhancements/${encodeURIComponent(runId)}/apply`,
     { method: "POST", body: JSON.stringify({ suggestionIds }) },
   )
+
+/** Other trips' Instagram places, via list+get (routes that exist on production). */
+export async function listForeignInstagramTrips(getToken: GetToken, currentTripId: string): Promise<Trip[]> {
+  const summaries = await listTrips(getToken)
+  const others = summaries.filter((s) => s.id !== currentTripId)
+  const loaded = await Promise.all(
+    others.map((s) =>
+      getTrip(getToken, s.id)
+        .then((r) => r.trip)
+        .catch(() => null),
+    ),
+  )
+  return loaded.filter((t): t is Trip => t != null)
+}

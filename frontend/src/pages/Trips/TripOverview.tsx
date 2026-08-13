@@ -54,7 +54,6 @@ export function TripOverview() {
     setState({ status: "loading" })
     setReloadKey((k) => k + 1)
   }, [])
-
   useEffect(() => {
     if (!tripId) return
     let cancelled = false

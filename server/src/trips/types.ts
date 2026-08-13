@@ -293,6 +293,20 @@ export const generateRequestSchema = z.object({
   replaceExisting: z.boolean().default(false),
 })
 
+export const tripChatRequestSchema = z.object({
+  prompt: z.string().min(1, "Prompt is required").max(2000),
+  dayId: z.string().max(64).optional(),
+  messages: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        content: z.string().max(8000),
+      }),
+    )
+    .max(40)
+    .optional(),
+})
+
 export const enhanceRequestSchema = z.object({
   scope: z.enum(["day", "trip"]),
   dayId: z.string().max(64).optional(),

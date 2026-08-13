@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from "bun:test"
+import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { Hono } from "hono"
 import { MemoryTripStore } from "../trips/store"
 import { KOREA_TRIP_ID } from "../trips/koreaTrip"
@@ -407,5 +407,165 @@ describe("enhance with custom prompt", () => {
     })
     expect(res.status).toBe(200)
     expect(seenUser).toContain("find more vegetarian dinners")
+  })
+})
+
+function geminiSseResponse(deltas: string[]): Response {
+  const encoder = new TextEncoder()
+  const stream = new ReadableStream({
+    start(controller) {
+      for (const d of deltas) {
+        const chunk = { candidates: [{ content: { parts: [{ text: d }] } }] }
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`))
+      }
+      controller.close()
+    },
+  })
+  return new Response(stream, { status: 200, headers: { "Content-Type": "text/event-stream" } })
+}
+
+describe("concierge chat", () => {
+  const realFetch = globalThis.fetch
+  const realKey = process.env.GEMINI_API_KEY
+
+  afterEach(() => {
+    globalThis.fetch = realFetch
+    if (realKey === undefined) delete process.env.GEMINI_API_KEY
+    else process.env.GEMINI_API_KEY = realKey
+  })
+
+  test("rejects unauthenticated chat", async () => {
+    const { app } = makeApp()
+    const trip = await createTrip(app)
+    const res = await app.request(`/api/trips/${trip.id}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: "hi" }),
+    })
+    expect(res.status).toBe(401)
+  })
+
+  test("404 when the focused day is missing", async () => {
+    process.env.GEMINI_API_KEY = "test-key"
+    const { app } = makeApp()
+    const trip = await createTrip(app)
+    const res = await app.request(`/api/trips/${trip.id}/chat`, {
+      method: "POST",
+      headers: AUTH,
+      body: JSON.stringify({ prompt: "hi", dayId: "not-a-day" }),
+    })
+    expect(res.status).toBe(404)
+  })
+
+  test("503 when GEMINI_API_KEY is not configured", async () => {
+    delete process.env.GEMINI_API_KEY
+    const { app } = makeApp()
+    const trip = await createTrip(app)
+    const res = await app.request(`/api/trips/${trip.id}/chat`, {
+      method: "POST",
+      headers: AUTH,
+      body: JSON.stringify({ prompt: "hi" }),
+    })
+    expect(res.status).toBe(503)
+    const body = (await res.json()) as { error: string }
+    expect(body.error).toBe("gemini_not_configured")
+  })
+
+  test("relays Gemini SSE and includes the trip in the system prompt", async () => {
+    process.env.GEMINI_API_KEY = "test-key"
+    let capturedBody: { systemInstruction?: { parts: Array<{ text: string }> } } | null = null
+    globalThis.fetch = (async (_url: string, init?: RequestInit) => {
+      capturedBody = JSON.parse(String(init?.body)) as typeof capturedBody
+      return geminiSseResponse(["Hello", " there"])
+    }) as unknown as typeof fetch
+
+    const { app } = makeApp()
+    const trip = await createTrip(app)
+    const dayId = (trip.days[0] as { id: string }).id
+    const res = await app.request(`/api/trips/${trip.id}/chat`, {
+      method: "POST",
+      headers: AUTH,
+      body: JSON.stringify({ prompt: "What's the plan?", dayId }),
+    })
+    expect(res.status).toBe(200)
+    const text = await res.text()
+    expect(text).toContain(`data: ${JSON.stringify("Hello")}`)
+    expect(text).toContain(`data: ${JSON.stringify(" there")}`)
+    expect(text).toContain("data: [DONE]")
+    const sys = capturedBody?.systemInstruction?.parts[0]?.text ?? ""
+    expect(sys).toContain("Tokyo Long Weekend")
+    expect(sys).toContain("FOCUSED DAY")
+  })
+})
+
+describe("places catalog", () => {
+  test("rejects unauthenticated catalog reads", async () => {
+    const { app } = makeApp()
+    const res = await app.request("/api/trips/places-catalog")
+    expect(res.status).toBe(401)
+  })
+
+  test("is not captured as a trip id", async () => {
+    const { app } = makeApp()
+    const res = await app.request("/api/trips/places-catalog", { headers: AUTH })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { total: number; groups: unknown[] }
+    expect(body.total).toBe(0)
+    expect(body.groups).toEqual([])
+  })
+
+  test("returns Instagram-sourced places grouped by trip, city, and neighborhood", async () => {
+    const { app } = makeApp()
+    const trip = await createTrip(app)
+    const patch = await app.request(`/api/trips/${trip.id}`, {
+      method: "PATCH",
+      headers: AUTH,
+      body: JSON.stringify({
+        days: [
+          {
+            id: "day-1",
+            date: "2026-07-10",
+            city: "Tokyo",
+            neighborhoods: ["Asakusa"],
+            items: [
+              {
+                id: "it-ig",
+                kind: "place",
+                title: "Senso-ji",
+                status: "none",
+                createdBy: "user",
+                links: ["https://www.instagram.com/reel/ABC/"],
+                location: { name: "Senso-ji", source: "user", category: "landmark" },
+              },
+              {
+                id: "it-maps",
+                kind: "place",
+                title: "User cafe",
+                status: "none",
+                createdBy: "user",
+                links: ["https://maps.google.com/?q=cafe"],
+                location: { name: "User cafe", source: "user" },
+              },
+            ],
+          },
+        ],
+      }),
+    })
+    expect(patch.status).toBe(200)
+
+    const res = await app.request("/api/trips/places-catalog?limit=20", { headers: AUTH })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as {
+      total: number
+      groups: Array<{
+        tripName: string
+        cities: Array<{ city: string; neighborhoods: Array<{ neighborhood: string; places: Array<{ name: string }> }> }>
+      }>
+    }
+    expect(body.total).toBe(1)
+    expect(body.groups[0]!.tripName).toBe("Tokyo Long Weekend")
+    expect(body.groups[0]!.cities[0]!.city).toBe("Tokyo")
+    expect(body.groups[0]!.cities[0]!.neighborhoods[0]!.neighborhood).toBe("Asakusa")
+    expect(body.groups[0]!.cities[0]!.neighborhoods[0]!.places[0]!.name).toBe("Senso-ji")
   })
 })

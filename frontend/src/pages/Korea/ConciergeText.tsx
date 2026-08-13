@@ -75,7 +75,15 @@ function parseBlocks(text: string): Block[] {
   return blocks
 }
 
-export function ConciergeText({ text }: { text: string }) {
+export function ConciergeText({
+  text,
+  bulletClass = "bg-rose-400 dark:bg-rose-500",
+  numberClass = "text-rose-500 dark:text-rose-400",
+}: {
+  text: string
+  bulletClass?: string
+  numberClass?: string
+}) {
   const blocks = parseBlocks(text)
   return (
     <div className="space-y-2 text-[15px] leading-relaxed">
@@ -85,7 +93,7 @@ export function ConciergeText({ text }: { text: string }) {
             <ul key={bi} className="ml-1 space-y-1">
               {block.items.map((item, ii) => (
                 <li key={ii} className="flex gap-2">
-                  <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-rose-400 dark:bg-rose-500" aria-hidden />
+                  <span className={`mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full ${bulletClass}`} aria-hidden />
                   <span>{renderInline(item, `${bi}-${ii}`)}</span>
                 </li>
               ))}
@@ -97,7 +105,7 @@ export function ConciergeText({ text }: { text: string }) {
             <ol key={bi} className="ml-1 space-y-1">
               {block.items.map((item, ii) => (
                 <li key={ii} className="flex gap-2">
-                  <span className="mt-px shrink-0 font-semibold text-rose-500 dark:text-rose-400 tabular-nums">
+                  <span className={`mt-px shrink-0 font-semibold tabular-nums ${numberClass}`}>
                     {ii + 1}.
                   </span>
                   <span>{renderInline(item, `${bi}-${ii}`)}</span>

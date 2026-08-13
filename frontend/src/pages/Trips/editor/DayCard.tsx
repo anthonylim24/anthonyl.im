@@ -15,11 +15,12 @@ import {
   subtleInputClass,
   wrapAnywhereClass,
 } from "../ui"
-import type { EnhancementRun, ItemKind, ItineraryItem, TripDay } from "../types"
+import type { EnhancementRun, ItemKind, ItineraryItem, Trip, TripDay } from "../types"
 import { EnhanceButton } from "./EnhanceButton"
 import { IconButton } from "./IconButton"
 import { ItemRow } from "./ItemRow"
 import { SuggestionsPanel } from "./SuggestionsPanel"
+import { TripIngest } from "../TripIngest"
 import type { DayOption } from "./editorUi"
 
 const ADD_KINDS: Array<{ kind: ItemKind; label: string }> = [
@@ -29,6 +30,7 @@ const ADD_KINDS: Array<{ kind: ItemKind; label: string }> = [
 ]
 
 interface DayCardProps {
+  trip: Trip
   day: TripDay
   index: number
   timezone: string
@@ -46,6 +48,7 @@ interface DayCardProps {
 }
 
 export const DayCard = memo(function DayCard({
+  trip,
   day,
   index,
   timezone,
@@ -327,6 +330,8 @@ export const DayCard = memo(function DayCard({
           ))}
         </div>
       )}
+
+      {editable && <TripIngest trip={trip} dayId={day.id} onDaysChange={onChange} />}
     </section>
   )
 })

@@ -1,4 +1,4 @@
-import type { ItineraryItem, ItemKind, TripDay } from "./types"
+import type { ConfidenceLevel, ItineraryItem, ItemKind, TripDay, TripLocation } from "./types"
 
 // Pure itinerary-mutation helpers behind the editor UI. Every function
 // returns new arrays (no in-place mutation) so React state updates and the
@@ -94,4 +94,51 @@ export function convertNoteToPlace(days: TripDay[], dayId: string, itemId: strin
         : i,
     ),
   }))
+}
+
+/** Place extracted from an Instagram post, ready to drop onto a trip day. */
+export interface ExtractedPlaceInput {
+  name: string
+  nameRomanized?: string | null
+  address?: string | null
+  lat?: number | null
+  lng?: number | null
+  category?: string | null
+  confidence?: ConfidenceLevel | null
+  quote?: string | null
+  sourceUrl?: string
+}
+
+export function itemFromExtractedPlace(place: ExtractedPlaceInput): ItineraryItem {
+  const romanized = place.nameRomanized?.trim()
+  const title =
+    romanized && romanized !== place.name ? `${place.name} (${romanized})` : place.name
+  const location: TripLocation = {
+    name: place.name,
+    source: "user",
+  }
+  if (place.address) location.address = place.address
+  if (typeof place.lat === "number") location.lat = place.lat
+  if (typeof place.lng === "number") location.lng = place.lng
+  if (place.category) location.category = place.category
+  if (place.confidence) location.confidence = place.confidence
+  return {
+    ...makeItem("place", title),
+    notes: place.quote?.trim() || undefined,
+    links: place.sourceUrl ? [place.sourceUrl] : undefined,
+    location,
+  }
+}
+
+function placeKey(name: string): string {
+  return name.trim().toLowerCase()
+}
+
+/** True when this day already has a place with the same name. */
+export function dayHasPlaceNamed(day: TripDay, name: string): boolean {
+  const key = placeKey(name)
+  return day.items.some((i) => {
+    if (i.kind !== "place") return false
+    return placeKey(i.title) === key || placeKey(i.location?.name ?? "") === key
+  })
 }

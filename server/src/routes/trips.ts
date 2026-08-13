@@ -9,6 +9,8 @@ import {
   type LlmCall,
   type WeatherFetcher,
 } from "../trips/ai"
+import { streamTripChat } from "../trips/chat"
+import { collectCatalogPlaces, groupCatalogPlaces } from "../trips/placeCatalog"
 import { buildKoreaTrip, KOREA_TRIP_ID } from "../trips/koreaTrip"
 import { isNotProvisionedError, type TripStore } from "../trips/store"
 import {
@@ -19,6 +21,7 @@ import {
   createTripSchema,
   enhanceRequestSchema,
   generateRequestSchema,
+  tripChatRequestSchema,
   newId,
   nowIso,
   emptyDays,
@@ -183,6 +186,25 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     return c.json({ trips: visible.map((t) => summarize(t, userId)) })
   })
 
+  // Static path must be registered before `GET /:id` or "places-catalog"
+  // is treated as a trip id and 404s.
+  trips.get("/places-catalog", async (c) => {
+    await ensureSeeded(deps.store)
+    const userId = userIdOf(c)
+    const limit = Math.min(100, Math.max(1, Number(c.req.query("limit") ?? 20) || 20))
+    const offset = Math.max(0, Number(c.req.query("offset") ?? 0) || 0)
+    const visible = (await deps.store.list()).filter((t) => canView(accessFor(t, userId)))
+    const all = collectCatalogPlaces(visible)
+    const slice = all.slice(offset, offset + limit)
+    return c.json({
+      total: all.length,
+      offset,
+      limit,
+      hasMore: offset + limit < all.length,
+      groups: groupCatalogPlaces(slice),
+    })
+  })
+
   trips.post("/", async (c) => {
     const body = createTripSchema.safeParse(await c.req.json().catch(() => null))
     if (!body.success) return c.json({ error: "invalid trip", issues: body.error.issues }, 400)
@@ -345,6 +367,25 @@ export function createTripsRouter(deps: TripsRouterDeps) {
       await deps.store.saveRun(run)
     }
     return c.json({ trip: next, applied, skipped })
+  })
+
+  // ── AI: concierge chat (SSE) ───────────────────────────────────────────
+
+  trips.post("/:id/chat", async (c) => {
+    await ensureSeeded(deps.store)
+    const result = await loadTrip(c, c.req.param("id"))
+    if ("error" in result) return result.error
+    const body = tripChatRequestSchema.safeParse(await c.req.json().catch(() => null))
+    if (!body.success) return c.json({ error: "invalid request", issues: body.error.issues }, 400)
+    if (body.data.dayId && !result.trip.days.some((d) => d.id === body.data.dayId)) {
+      return c.json({ error: "day not found" }, 404)
+    }
+    return streamTripChat(c, {
+      trip: result.trip,
+      prompt: body.data.prompt,
+      dayId: body.data.dayId,
+      messages: body.data.messages ?? [],
+    })
   })
 
   // ── Map Mode: per-day places in the existing PlacesResponse contract ───
