@@ -1,22 +1,12 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 
-import { OpenAI } from "openai";
 import Groq from "groq-sdk";
-import { config } from "../config";
-import { InvokeRequest } from "../types";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
-import { commonConfig, SYSTEM_PROMPT } from "./constants";
+import { CHAT_COMPLETION_OPTIONS, SYSTEM_PROMPT } from "./constants";
 
 const invoke = new Hono();
-
-const openai = new OpenAI({
-  apiKey: config.deepseekApiKey,
-  baseURL: config.deepseekApiBaseUrl,
-});
-
-const GROQ_MODEL = "openai/gpt-oss-120b";
 
 const messageSchema = z.object({
   role: z.enum(["user", "assistant"]),
@@ -37,20 +27,20 @@ invoke.post("/", zValidator("json", invokeSchema), async (c) => {
 
   const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-  // Include previous messages in the chat context
+  // System first so provider policy + persona bind before history.
   const completion = await groq.chat.completions.create({
     messages: [
-      ...messages,
       {
         role: "system",
         content: SYSTEM_PROMPT,
       },
+      ...messages,
       {
         role: "user",
         content: prompt,
       },
     ],
-    model: GROQ_MODEL,
+    ...CHAT_COMPLETION_OPTIONS,
     stream: true,
   });
 
