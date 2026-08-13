@@ -502,7 +502,7 @@ body {
   word-break: break-word;
 }
 
-.message-content :where(pre, code, .message-codeblock-lang, .message-codeblock-copy, .message-think) {
+.message-content :where(pre, code, .message-codeblock-lang, .message-codeblock-copy) {
   font-family: "Fragment Mono", ui-monospace, monospace;
   letter-spacing: 0;
 }
@@ -708,13 +708,14 @@ body {
 
 /* Think + streaming cursor */
 .message-think {
-  font-size: 12px;
+  font-family: inherit;
+  font-size: 0.88em;
   font-style: italic;
   color: var(--chat-mid);
   margin-bottom: 0.75rem;
   padding-bottom: 0.75rem;
   border-bottom: 1px solid var(--chat-line);
-  line-height: 1.7;
+  line-height: 1.6;
 }
 .message-think-pending { letter-spacing: 0.12em; }
 .message-cursor {
@@ -1076,7 +1077,7 @@ body {
    ═══════════════════════════════════════════════════════ */
 
 @media (max-width: 640px) {
-  .message-content { font-size: 15px; }
+  .message-content { font-size: 16px; }
   .message-content pre { font-size: 12px; }
 }
 
