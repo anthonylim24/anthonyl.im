@@ -65,7 +65,7 @@ function textFromGeminiParts(parts: GeminiPart[] | undefined): string {
 }
 
 /**
- * Preferred trips LLM: Gemini 3.6 Flash with Google Maps grounding.
+ * Preferred trips LLM: Gemini 3.7 Flash with Google Maps grounding.
  * Grounding lets the model verify venues exist and return real coordinates
  * directly (fewer geocode round-trips). On grounding/API failure, retries
  * once in JSON-only mode (Maps + responseMimeType is unsupported).

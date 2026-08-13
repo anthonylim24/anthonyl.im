@@ -99,7 +99,7 @@ export const GEMINI_MODEL = 'gemini-3.5-flash-lite'
 /** Stronger Flash tier for multi-day itinerary planning (Maps grounding +
  *  large structured JSON). Kept separate from GEMINI_MODEL so high-volume
  *  IG extraction stays on the cheaper Flash-Lite path. */
-export const TRIPS_GEMINI_MODEL = 'gemini-3.6-flash'
+export const TRIPS_GEMINI_MODEL = 'gemini-3.7-flash'
 
 /** Gemini 3 thinking levels. Prefer these over the 2.5-era `thinkingBudget`
  *  — budget is accepted for back-compat but can behave unexpectedly on 3.x. */
