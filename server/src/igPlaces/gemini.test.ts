@@ -1,5 +1,5 @@
 import { test, expect, describe, mock } from 'bun:test';
-import { createGeminiExtractor, createGeminiVideoAnalyzer, createGeminiVideoTranscriber } from './gemini';
+import { createGeminiExtractor, createGeminiVideoAnalyzer, createGeminiVideoTranscriber, geminiThinking } from './gemini';
 import type { ExtractionBundle } from './types';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -20,6 +20,15 @@ function mockFetch(handlers: Array<{ url: RegExp; response: () => Response }>) {
     throw new Error(`unexpected fetch: ${url}`);
   });
 }
+
+describe('geminiThinking', () => {
+  test('remaps minimal → low so 3.7 Flash does not 400', () => {
+    expect(geminiThinking('minimal')).toEqual({ thinkingLevel: 'low' })
+    expect(geminiThinking('low')).toEqual({ thinkingLevel: 'low' })
+    expect(geminiThinking('medium')).toEqual({ thinkingLevel: 'medium' })
+    expect(geminiThinking('high')).toEqual({ thinkingLevel: 'high' })
+  })
+})
 
 describe('createGeminiExtractor', () => {
   test('parses JSON-fenced output into VotedPlace[]', async () => {

@@ -202,9 +202,9 @@ koreaChat.post("/", zValidator("json", chatSchema), async (c) => {
     generationConfig: {
       temperature: 0.45,
       maxOutputTokens: 1024,
-      // Conversational Q&A over a pre-assembled context — minimize thinking
-      // latency. Explicit minimal keeps replies snappy on 3.x Flash.
-      thinkingConfig: geminiThinking("minimal"),
+      // Conversational Q&A over a pre-assembled context. `low` is the
+      // snappy 3.7 Flash tier — `minimal` 400s on this model.
+      thinkingConfig: geminiThinking("low"),
     },
   }
 
