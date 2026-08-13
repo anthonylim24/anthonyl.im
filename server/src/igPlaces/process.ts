@@ -21,7 +21,7 @@ export interface ProcessorDeps {
    *  primary extraction yields 0 places, comments are appended to the bundle
    *  and extraction is retried once. */
   fetchComments?: (igUrl: string, opts?: { limit?: number; signal?: AbortSignal }) => Promise<IgComment[]>;
-  /** Optional last-resort extractor (Gemini 3.1 Flash Lite with Maps
+  /** Optional last-resort extractor (Gemini with Maps
    *  grounding). Called only when the primary (+comments) chain yields
    *  0 places. */
   geminiExtract?: (b: ExtractionBundle) => Promise<VotedPlace[]>;
@@ -163,7 +163,7 @@ export function createProcessor(deps: ProcessorDeps) {
       }
 
       // GEMINI LAST-RESORT FALLBACK: primary + comments retry both came back
-      // with 0 places. Try Gemini 3.1 Flash Lite with Maps grounding before
+      // with 0 places. Try Gemini with Maps grounding before
       // giving up — Maps grounding can sometimes resolve a vague mention
       // ("the chicken place near Hannam") to a real venue.
       if (voted.length === 0 && deps.geminiExtract) {

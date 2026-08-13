@@ -282,7 +282,7 @@ export function buildWorld() {
   // Text extractor used as the PRIMARY when the user chose "skip video"
   // on the submit form. Gemini with Maps grounding outperforms gpt-oss-120b
   // on caption-only inputs — see gemini.ts:GEMINI_MODEL for the model
-  // currently being used (Flash Lite by default for cost).
+  // currently being used.
   const geminiPrimaryExtract = config.geminiApiKey
     ? createGeminiExtractor({ apiKey: config.geminiApiKey })
     : undefined;

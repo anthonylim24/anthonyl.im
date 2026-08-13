@@ -1,5 +1,5 @@
 import Groq from "groq-sdk"
-import { GEMINI_BASE, TRIPS_GEMINI_MODEL, geminiThinking } from "../igPlaces/gemini"
+import { GEMINI_BASE, GEMINI_MODEL, geminiThinking } from "../igPlaces/gemini"
 import { haversineMeters } from "../data/koreaPlaces"
 import {
   aiAppearanceSchema,
@@ -65,7 +65,7 @@ function textFromGeminiParts(parts: GeminiPart[] | undefined): string {
 }
 
 /**
- * Preferred trips LLM: Gemini 3.6 Flash with Google Maps grounding.
+ * Preferred trips LLM: Gemini 3.7 Flash with Google Maps grounding.
  * Grounding lets the model verify venues exist and return real coordinates
  * directly (fewer geocode round-trips). On grounding/API failure, retries
  * once in JSON-only mode (Maps + responseMimeType is unsupported).
@@ -75,7 +75,7 @@ export function createGeminiLlm(
   fetchImpl: typeof fetch = fetch,
   opts?: { model?: string },
 ): LlmCall {
-  const model = opts?.model ?? TRIPS_GEMINI_MODEL
+  const model = opts?.model ?? GEMINI_MODEL
   return async ({ system, user, maxTokens }) => {
     const run = async (withMaps: boolean): Promise<string> => {
       const generationConfig: Record<string, unknown> = {

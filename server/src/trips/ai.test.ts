@@ -325,7 +325,7 @@ describe("createGeminiLlm", () => {
     const llm = createGeminiLlm("test-key", fetchImpl)
     const out = await llm({ system: "SYS", user: "USER" })
     expect(out).toBe('{"summary":"ok","days":[]}')
-    expect(captured!.url).toContain("gemini-3.6-flash:generateContent")
+    expect(captured!.url).toContain("gemini-3.7-flash:generateContent")
     expect(captured!.body.tools).toEqual([{ googleMaps: {} }])
     const gen = captured!.body.generationConfig as { thinkingConfig: { thinkingLevel: string } }
     expect(gen.thinkingConfig).toEqual({ thinkingLevel: "low" })

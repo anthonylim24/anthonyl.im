@@ -175,7 +175,7 @@ app.route(
         devBearer: config.igDevBearer,
         devUserId: config.igDevUserId,
       }),
-    // Gemini 3.6 Flash (Maps → JSON retry) with Groq as final fallback —
+    // Gemini 3.7 Flash (Maps → JSON retry) with Groq as final fallback —
     // Groq's on-demand tier 8k-TPM still 413s on full-trip itineraries, so
     // it's last resort only.
     llm: createTripsLlm({
