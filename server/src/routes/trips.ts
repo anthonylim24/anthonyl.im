@@ -9,6 +9,7 @@ import {
   type LlmCall,
   type WeatherFetcher,
 } from "../trips/ai"
+import { streamTripChat } from "../trips/chat"
 import { buildKoreaTrip, KOREA_TRIP_ID } from "../trips/koreaTrip"
 import { isNotProvisionedError, type TripStore } from "../trips/store"
 import {
@@ -19,6 +20,7 @@ import {
   createTripSchema,
   enhanceRequestSchema,
   generateRequestSchema,
+  tripChatRequestSchema,
   newId,
   nowIso,
   emptyDays,
@@ -345,6 +347,24 @@ export function createTripsRouter(deps: TripsRouterDeps) {
       await deps.store.saveRun(run)
     }
     return c.json({ trip: next, applied, skipped })
+  })
+
+  // ── AI: concierge chat (SSE) ───────────────────────────────────────────
+
+  trips.post("/:id/chat", async (c) => {
+    const result = await loadTrip(c, c.req.param("id"))
+    if ("error" in result) return result.error
+    const body = tripChatRequestSchema.safeParse(await c.req.json().catch(() => null))
+    if (!body.success) return c.json({ error: "invalid request", issues: body.error.issues }, 400)
+    if (body.data.dayId && !result.trip.days.some((d) => d.id === body.data.dayId)) {
+      return c.json({ error: "day not found" }, 404)
+    }
+    return streamTripChat(c, {
+      trip: result.trip,
+      prompt: body.data.prompt,
+      dayId: body.data.dayId,
+      messages: body.data.messages ?? [],
+    })
   })
 
   // ── Map Mode: per-day places in the existing PlacesResponse contract ───

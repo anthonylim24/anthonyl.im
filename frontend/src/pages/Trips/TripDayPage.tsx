@@ -11,6 +11,7 @@ import { useAnchorHighlight, useAnchorTarget } from "./anchors"
 import { DossierSectionHeader } from "./components/DossierSectionHeader"
 import { ItemIcon } from "./components/ItemIcon"
 import { StatusChip } from "./components/StatusChip"
+import { TripIngest } from "./TripIngest"
 import type { ItineraryItem, Trip } from "./types"
 import {
   EASE,
@@ -82,6 +83,9 @@ export function TripDayPage() {
   const reload = useCallback(() => {
     setState({ status: "loading" })
     setReloadKey((k) => k + 1)
+  }, [])
+  const applyTrip = useCallback((next: Trip) => {
+    setState((s) => (s.status === "success" ? { ...s, trip: next } : s))
   }, [])
 
   useEffect(() => {
@@ -333,6 +337,18 @@ export function TripDayPage() {
                 )}
               </motion.div>
             ))}
+          </section>
+        )}
+
+        {editable && (
+          <section className="mt-12">
+            <DossierSectionHeader
+              num={reservations.length > 0 ? "02" : "01"}
+              eyebrow="From Instagram"
+              title="Add places from a post"
+              subtitle="Extract a Reel or post and drop the stops onto this day."
+            />
+            <TripIngest trip={trip} dayId={day.id} onTripUpdated={applyTrip} />
           </section>
         )}
 

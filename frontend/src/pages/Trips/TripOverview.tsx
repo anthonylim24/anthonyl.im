@@ -17,6 +17,7 @@ import {
 import { DossierSectionHeader } from "./components/DossierSectionHeader"
 import { ItemIcon } from "./components/ItemIcon"
 import { StatusChip } from "./components/StatusChip"
+import { TripIngest } from "./TripIngest"
 import type { ItineraryItem, Trip, TripDay } from "./types"
 import {
   EASE,
@@ -53,6 +54,9 @@ export function TripOverview() {
   const reload = useCallback(() => {
     setState({ status: "loading" })
     setReloadKey((k) => k + 1)
+  }, [])
+  const applyTrip = useCallback((next: Trip) => {
+    setState((s) => (s.status === "success" ? { ...s, trip: next } : s))
   }, [])
 
   useEffect(() => {
@@ -319,6 +323,20 @@ export function TripOverview() {
               <ReservationRow key={item.id} trip={trip} day={day} item={item} index={i} reduce={!!reduce} />
             ))}
           </ol>
+        </section>
+      )}
+
+      {editable && trip.days.length > 0 && (
+        <section className="mx-auto mt-16 max-w-6xl px-4 sm:mt-20 sm:px-6">
+          <DossierSectionHeader
+            scale="page"
+            animate
+            num={reservations.length > 0 ? "03" : "02"}
+            eyebrow="From Instagram"
+            title="Places from posts"
+            subtitle="Extract restaurants, cafes, and stops from a Reel or post, then drop them onto a day."
+          />
+          <TripIngest trip={trip} onTripUpdated={applyTrip} />
         </section>
       )}
 

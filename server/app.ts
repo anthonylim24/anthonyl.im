@@ -149,6 +149,14 @@ app.use("/api/korea/chat", async (c, next) => {
   await next();
 });
 
+// Trip concierge chat — same SSE shape, scoped to a trip document.
+app.use("/api/trips/:id/chat", async (c, next) => {
+  Object.entries(sseHeaders).forEach(([key, value]) => {
+    c.header(key, value);
+  });
+  await next();
+});
+
 // Rate limiting for public LLM endpoints
 const invokeRateLimit = createRateLimit({ windowMs: 60_000, max: 20, keyPrefix: "invoke" });
 const entityRateLimit = createRateLimit({ windowMs: 60_000, max: 30, keyPrefix: "entity" });

@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest"
 import {
   addItem,
   convertNoteToPlace,
+  dayHasPlaceNamed,
   duplicateItem,
   insertItemAt,
+  itemFromExtractedPlace,
   makeItem,
   moveItem,
   moveItemToDay,
@@ -99,5 +101,44 @@ describe("tripEdits", () => {
     moveItem(days, "day-1", "a", 1)
     removeItem(days, "day-1", "a")
     expect(JSON.stringify(days)).toBe(snapshot)
+  })
+
+  it("turns an extracted Instagram place into a structured itinerary item", () => {
+    const item = itemFromExtractedPlace({
+      name: "麺屋 一燈",
+      nameRomanized: "Menya Isshin",
+      address: "Tokyo",
+      lat: 35.7,
+      lng: 139.8,
+      category: "restaurant",
+      confidence: "high",
+      quote: "Best ramen",
+      sourceUrl: "https://www.instagram.com/reel/ABC/",
+    })
+    expect(item.kind).toBe("place")
+    expect(item.title).toBe("麺屋 一燈 (Menya Isshin)")
+    expect(item.notes).toBe("Best ramen")
+    expect(item.links).toEqual(["https://www.instagram.com/reel/ABC/"])
+    expect(item.location).toMatchObject({
+      name: "麺屋 一燈",
+      address: "Tokyo",
+      lat: 35.7,
+      lng: 139.8,
+      category: "restaurant",
+      confidence: "high",
+      source: "user",
+    })
+  })
+
+  it("detects an existing place by title or location name", () => {
+    const days = makeDays()
+    expect(dayHasPlaceNamed(days[0]!, "Temple")).toBe(true)
+    expect(dayHasPlaceNamed(days[0]!, "temple")).toBe(true)
+    expect(dayHasPlaceNamed(days[0]!, "Buy Suica")).toBe(false)
+    const withLoc = addItem(days, "day-2", {
+      ...makeItem("place", "Somewhere Else"),
+      location: { name: "Hidden Cafe", source: "user" },
+    })
+    expect(dayHasPlaceNamed(withLoc[1]!, "Hidden Cafe")).toBe(true)
   })
 })

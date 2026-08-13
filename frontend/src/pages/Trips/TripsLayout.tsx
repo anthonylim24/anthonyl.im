@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react"
+import { lazy, Suspense, useEffect, type ReactNode } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
 import { ArrowLeft, Compass, Lock } from "lucide-react"
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/clerk-react"
@@ -6,6 +6,8 @@ import { CLERK_ENABLED } from "@/lib/clerk"
 import { ThemeToggle } from "../Korea/ThemeToggle"
 import { applyTheme, getInitialTheme } from "../Korea/koreaUtils"
 import { SERIF, accentIconClass, focusRingClass, iconBtnClass, primaryBtnClass } from "./ui"
+
+const TripChat = lazy(() => import("./TripChat").then((m) => ({ default: m.TripChat })))
 
 const DEV_BEARER: string | null =
   (typeof import.meta !== "undefined" && import.meta.env?.VITE_DEV_BEARER) || null
@@ -96,6 +98,9 @@ export function TripsLayout() {
         <main id="trips-main" className="px-0 pb-28">
           <Outlet />
         </main>
+        <Suspense fallback={null}>
+          <TripChat />
+        </Suspense>
       </TripsAuthGate>
     </div>
   )
