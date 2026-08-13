@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
+import { useFineHover } from "@/hooks/useFineHover"
 import type { Day } from "./types"
 import { cityMeta, formatDate } from "./koreaTheme"
 import { isPastDate } from "./koreaUtils"
@@ -14,6 +15,7 @@ interface DayCardProps {
 
 export function DayCard({ day, index: _index, reservationsCount, isToday = false }: DayCardProps) {
   const reduce = useReducedMotion()
+  const fineHover = useFineHover()
   const cityTag = cityMeta[day.city]?.tag ?? day.city.slice(0, 2).toUpperCase()
   const isPast = !isToday && isPastDate(day.date)
   // Scroll-driven reveal — each card eases into place individually as it
@@ -28,7 +30,7 @@ export function DayCard({ day, index: _index, reservationsCount, isToday = false
       data-reveal-card
     >
       <motion.div
-        whileHover={reduce ? undefined : { y: -2, transition: { duration: 0.18 } }}
+        whileHover={reduce || !fineHover ? undefined : { y: -2, transition: { duration: 0.18 } }}
         whileTap={reduce ? undefined : { scale: 0.99 }}
         className="h-full"
       >

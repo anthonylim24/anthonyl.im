@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { getRouteMetadata } from '@/lib/routeMetadata'
 import { withViteBase } from '@/lib/routerBasename'
+import { syncThemeColor } from '@/lib/themeColor'
 
 export function useFavicon() {
   const { pathname } = useLocation()
@@ -15,9 +16,6 @@ export function useFavicon() {
       link.setAttribute('href', href)
     }
 
-    const themeTag = document.querySelector<HTMLMetaElement>("meta[name='theme-color']")
-    if (themeTag && themeTag.content !== meta.themeColor) {
-      themeTag.content = meta.themeColor
-    }
+    syncThemeColor()
   }, [pathname])
 }

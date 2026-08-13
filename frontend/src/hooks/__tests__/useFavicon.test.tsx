@@ -11,7 +11,9 @@ function FaviconProbe() {
 function setRouteHead(favicon = '/favicon-chat.svg') {
   document.head.innerHTML = `
     <link rel="icon" type="image/svg+xml" href="${favicon}" />
-    <meta name="theme-color" content="transparent" />
+    <meta name="theme-color" content="#F5F2ED" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#F5F2ED" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#171613" />
   `
 }
 

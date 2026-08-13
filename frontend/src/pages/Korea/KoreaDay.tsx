@@ -284,7 +284,7 @@ export function KoreaDay() {
         {day.sections.length > 3 && (
           <nav
             aria-label="Day section jump"
-            className="mt-10 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 text-xs [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            className="mt-10 -mx-1 flex gap-1.5 overflow-x-auto touch-pan-x px-1 pb-1 text-xs [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
           >
             {day.sections.map((sec) => (
               <a

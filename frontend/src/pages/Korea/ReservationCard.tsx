@@ -1,4 +1,5 @@
 import { motion, useReducedMotion } from "motion/react"
+import { useFineHover } from "@/hooks/useFineHover"
 import { MapPin, Phone, ExternalLink } from "lucide-react"
 import type { Reservation } from "./types"
 import { statusMeta, typeMeta, formatDate } from "./koreaTheme"
@@ -43,6 +44,7 @@ function urlForContact(contact: string): string | null {
 
 export function ReservationCard({ reservation, index = 0, compact = false }: ReservationCardProps) {
   const reduce = useReducedMotion()
+  const fineHover = useFineHover()
   const s = statusMeta[reservation.status]
   const t = typeMeta[reservation.type]
 
@@ -56,7 +58,7 @@ export function ReservationCard({ reservation, index = 0, compact = false }: Res
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-50px" }}
       transition={{ type: "spring", stiffness: 380, damping: 28, delay: reduce ? 0 : index * 0.04 }}
-      whileHover={reduce ? undefined : { y: -2, transition: { type: "spring", stiffness: 500, damping: 30 } }}
+      whileHover={reduce || !fineHover ? undefined : { y: -2, transition: { type: "spring", stiffness: 500, damping: 30 } }}
       className={
         "group relative overflow-hidden rounded-2xl border border-stone-200 bg-white/80 p-4 shadow-sm backdrop-blur transition dark:border-stone-800 dark:bg-stone-900/60 " +
         (compact ? "sm:p-3" : "")

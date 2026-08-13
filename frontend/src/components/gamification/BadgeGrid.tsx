@@ -2,6 +2,7 @@ import { motion } from 'motion/react'
 import { BADGES } from '@/lib/gamification'
 import { cn } from '@/lib/utils'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
+import { useFineHover } from '@/hooks/useFineHover'
 import {
   badgeStagger,
   getBadgeMotionConfig,
@@ -47,6 +48,7 @@ interface BadgeGridProps {
 
 export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
   const reducedMotion = useReducedMotion()
+  const fineHover = useFineHover()
   const earnedCount = BADGES.filter((badge) => earnedBadges.includes(badge.id)).length
 
   return (
@@ -60,7 +62,7 @@ export function BadgeGrid({ earnedBadges }: BadgeGridProps) {
     >
       {BADGES.map((badge, index) => {
         const earned = earnedBadges.includes(badge.id)
-        const motionConfig = getBadgeMotionConfig(reducedMotion, earned)
+        const motionConfig = getBadgeMotionConfig(reducedMotion, earned, fineHover)
         const indexLabel = String(index + 1).padStart(2, '0')
 
         if (badge.secret && !earned) {

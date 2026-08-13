@@ -1,6 +1,7 @@
 // Misc cross-page utilities for the Korea route — theme persistence, today
 // detection, reservation ordering, ICS export.
 
+import { syncThemeColor } from "@/lib/themeColor"
 import type { Day, Reservation, Snapshot } from "./types"
 
 // ---------- Theme ----------
@@ -26,6 +27,7 @@ export function applyTheme(theme: Theme) {
       : theme
   root.classList.toggle("dark", effective === "dark")
   root.dataset.koreaTheme = effective
+  syncThemeColor(effective)
 }
 
 export function persistTheme(theme: Theme) {

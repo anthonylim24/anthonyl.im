@@ -74,7 +74,7 @@ export function DayNavigation({ days, timezone }: { days: TripDay[]; timezone: s
         aria-label="Days"
         className="sticky top-14 z-20 -mx-4 mb-4 border-b border-stone-200/70 bg-[color-mix(in_srgb,var(--trips-canvas)_88%,transparent)] px-4 py-2 backdrop-blur-md sm:-mx-6 sm:px-6 lg:hidden dark:border-stone-800/70"
       >
-        <ol ref={chipRailRef} className="flex snap-x gap-1.5 overflow-x-auto pb-0.5">
+        <ol ref={chipRailRef} className="flex snap-x gap-1.5 overflow-x-auto touch-pan-x pb-0.5">
           {days.map((day, idx) => {
             const isActive = day.id === active
             return (

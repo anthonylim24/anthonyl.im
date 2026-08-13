@@ -66,7 +66,7 @@ const TripDayPage = lazy(() =>
 function ChatbotFallback() {
   return (
     <div
-      className="flex min-h-screen items-center justify-center bg-stone-50 text-stone-500 dark:bg-stone-950 dark:text-stone-400"
+      className="flex min-h-dvh items-center justify-center bg-stone-50 text-stone-500 dark:bg-stone-950 dark:text-stone-400"
       role="status"
       aria-label="Loading chatbot"
     >
@@ -78,7 +78,7 @@ function ChatbotFallback() {
 function BreathworkShellFallback() {
   return (
     <div
-      className="breathwork flex min-h-screen items-center justify-center bg-bw-canvas text-stone-500 dark:text-stone-400"
+      className="breathwork flex min-h-dvh items-center justify-center bg-bw-canvas text-stone-500 dark:text-stone-400"
       role="status"
       aria-label="Loading BreathFlow"
     >
@@ -90,7 +90,7 @@ function BreathworkShellFallback() {
 function TripsShellFallback() {
   return (
     <div
-      className="trips flex min-h-screen items-center justify-center bg-stone-50 text-stone-500 dark:bg-stone-950 dark:text-stone-400"
+      className="trips flex min-h-dvh items-center justify-center bg-stone-50 text-stone-500 dark:bg-stone-950 dark:text-stone-400"
       role="status"
       aria-label="Loading trip planner"
     >
@@ -102,7 +102,7 @@ function TripsShellFallback() {
 function KoreaShellFallback() {
   return (
     <div
-      className="korea flex min-h-screen items-center justify-center bg-stone-50 text-stone-500 dark:bg-stone-950 dark:text-stone-400"
+      className="korea flex min-h-dvh items-center justify-center bg-stone-50 text-stone-500 dark:bg-stone-950 dark:text-stone-400"
       role="status"
       aria-label="Loading Korea itinerary"
     >
