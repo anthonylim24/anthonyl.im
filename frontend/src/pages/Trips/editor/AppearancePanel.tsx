@@ -133,7 +133,7 @@ export function AppearancePanel({
                       .slice(0, 80),
                   )
                 }
-                className="min-h-11 w-full bg-transparent px-2.5 py-2 text-sm focus:outline-none"
+                className="min-h-11 w-full bg-transparent px-2.5 py-2 text-sm text-stone-900 focus:outline-none dark:text-stone-100"
               />
             </span>
             <span className={`block ${hintClass}`}>Lowercase letters, numbers, hyphens. Must be unique.</span>

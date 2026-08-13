@@ -148,7 +148,7 @@ export function TripOverview() {
           <div className={`absolute inset-0 ${a.bloomA}`} />
           <div className={`absolute inset-0 ${a.bloomB}`} />
         </div>
-        <div className="relative mx-auto max-w-6xl px-4 pb-8 pt-8 sm:px-6 sm:pb-10 sm:pt-10">
+        <div className="relative mx-auto max-w-6xl px-4 pb-6 pt-6 sm:px-6 sm:pb-10 sm:pt-10">
           <motion.p
             {...fadeUp(0)}
             className={`font-mono-trips text-[11px] uppercase tracking-[0.24em] ${mutedInkClass}`}
@@ -256,7 +256,7 @@ export function TripOverview() {
         </motion.aside>
       )}
 
-      <section className="mx-auto mt-12 max-w-6xl px-4 sm:mt-14 sm:px-6">
+      <section className="mx-auto mt-8 max-w-6xl px-4 sm:mt-14 sm:px-6">
         <DossierSectionHeader
           scale="page"
           animate

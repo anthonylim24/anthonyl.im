@@ -71,7 +71,7 @@ const PAGE_MAX = { form: "max-w-2xl", reading: "max-w-3xl", wide: "max-w-6xl" } 
 /** Page gutters. `<main>` is unconstrained so trip heroes can bleed to the
  *  viewport edge, so every routed page opens with one of these. */
 export function pageClass(width: keyof typeof PAGE_MAX = "wide"): string {
-  return `mx-auto ${PAGE_MAX[width]} px-4 pt-8 sm:px-6 sm:pt-10`
+  return `mx-auto ${PAGE_MAX[width]} px-4 pt-6 sm:px-6 sm:pt-10`
 }
 
 // ── Labels ───────────────────────────────────────────────────────────────
@@ -100,17 +100,17 @@ export const timeCellClass = `font-mono-trips text-[11px] tabular-nums ${mutedIn
  *  rather than a cut mid-glyph. Pair with `title` to expose the full value. */
 const ELLIPSIS = "text-ellipsis"
 
-export const inputClass = `${ELLIPSIS} w-full min-h-11 rounded-xl border border-stone-300/90 bg-[var(--trips-surface)] px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-500 transition focus:border-[color:var(--trips-accent)] focus:outline-none ${FOCUS} dark:border-stone-700 dark:bg-stone-900/80 dark:text-stone-100 dark:placeholder:text-stone-400`
+export const inputClass = `${ELLIPSIS} w-full min-h-11 rounded-xl border border-stone-300/90 bg-[var(--trips-surface)] px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 transition focus:border-[color:var(--trips-accent)] focus:outline-none ${FOCUS} dark:border-stone-700 dark:bg-stone-900/80 dark:text-stone-100 dark:placeholder:text-stone-400`
 
 /** Bordered control for dense editor grids — smaller than `inputClass`.
  *  Width is left to the call site so it can sit in a flex row. Keeps a full
  *  44px target on touch layouts and tightens to 36px from `sm`, like the
  *  compact buttons. */
-export const compactInputClass = `${ELLIPSIS} min-h-11 sm:min-h-9 rounded-lg border border-stone-300/90 bg-[var(--trips-surface)] px-2.5 py-1.5 text-sm text-stone-900 placeholder:text-stone-500 transition focus:border-[color:var(--trips-accent)] focus:outline-none ${FOCUS} dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:placeholder:text-stone-400`
+export const compactInputClass = `${ELLIPSIS} min-h-11 sm:min-h-9 rounded-lg border border-stone-300/90 bg-[var(--trips-surface)] px-2.5 py-1.5 text-sm text-stone-900 placeholder:text-stone-400 transition focus:border-[color:var(--trips-accent)] focus:outline-none ${FOCUS} dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:placeholder:text-stone-400`
 
 /** Borderless inline edit — the field only reveals itself on hover/focus.
  *  Width is left to the call site so it can sit in a flex row. */
-export const subtleInputClass = `${ELLIPSIS} min-h-11 sm:min-h-9 rounded-lg border border-transparent bg-transparent px-2 py-1 text-sm text-stone-900 transition placeholder:text-stone-500 hover:border-stone-300 focus:border-[color:var(--trips-accent)] focus:bg-[var(--trips-surface)] focus:outline-none ${FOCUS} dark:text-stone-100 dark:placeholder:text-stone-400 dark:hover:border-stone-700 dark:focus:bg-stone-900`
+export const subtleInputClass = `${ELLIPSIS} min-h-11 sm:min-h-9 rounded-lg border border-transparent bg-transparent px-2 py-1 text-sm text-stone-900 transition placeholder:text-stone-400 hover:border-stone-300 focus:border-[color:var(--trips-accent)] focus:bg-[var(--trips-surface)] focus:outline-none ${FOCUS} dark:text-stone-100 dark:placeholder:text-stone-400 dark:hover:border-stone-700 dark:focus:bg-stone-900`
 
 export const selectClass = `min-h-11 rounded-xl border border-stone-300/90 bg-[var(--trips-surface)] px-3 py-2 text-sm text-stone-900 transition focus:border-[color:var(--trips-accent)] focus:outline-none ${FOCUS} dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100`
 
@@ -124,7 +124,7 @@ export const fieldShellClass =
 
 /** Borderless input that lives inside `fieldShellClass`. */
 export const bareInputClass =
-  `${ELLIPSIS} w-full min-h-11 bg-transparent text-sm text-stone-900 placeholder:text-stone-500 focus:outline-none dark:text-stone-100 dark:placeholder:text-stone-400`
+  `${ELLIPSIS} w-full min-h-11 bg-transparent text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none dark:text-stone-100 dark:placeholder:text-stone-400`
 
 /** Leading accent glyph inside a field or heading. */
 export const accentIconClass = "text-[color:var(--trips-accent)]"

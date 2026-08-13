@@ -39,9 +39,13 @@ export function SuggestionsPanel({
   onApply: (ids: string[]) => void
   onDismiss: () => void
 }) {
+  const appliedIds = useMemo(() => new Set(run.appliedSuggestionIds), [run])
   const actionableIds = useMemo(
-    () => run.suggestions.filter((s) => APPLICABLE.has(s.kind)).map((s) => s.id),
-    [run],
+    () =>
+      run.suggestions
+        .filter((s) => APPLICABLE.has(s.kind) && !appliedIds.has(s.id))
+        .map((s) => s.id),
+    [run, appliedIds],
   )
   const [selected, setSelected] = useState<Set<string>>(() => new Set(actionableIds))
 
@@ -95,8 +99,10 @@ export function SuggestionsPanel({
             <Sparkles className={`h-4 w-4 shrink-0 ${ACCENT.text}`} strokeWidth={1.5} aria-hidden />
             Enhancement review {run.scope === "day" ? `· ${dayLabel(run.dayId)}` : "· whole trip"}
           </h2>
-          {run.summary && (
-            <p className={`mt-1 text-sm ${mutedInkClass} ${wrapAnywhereClass}`}>{run.summary}</p>
+          {(run.outcomeReason || run.summary) && (
+            <p className={`mt-1 text-sm ${mutedInkClass} ${wrapAnywhereClass}`}>
+              {run.outcomeReason || run.summary}
+            </p>
           )}
         </div>
         <button type="button" onClick={onDismiss} aria-label="Dismiss suggestions" className={iconBtnClass}>
@@ -104,9 +110,13 @@ export function SuggestionsPanel({
         </button>
       </div>
 
-      {run.suggestions.length === 0 ? (
-        <p className={`mt-4 text-sm ${mutedInkClass}`}>No suggestions. This plan already looks solid.</p>
-      ) : (
+      {run.status === "error" ? (
+        <p className={`mt-4 text-sm ${mutedInkClass}`}>
+          {run.error ?? "The review failed before it could propose changes."}
+        </p>
+      ) : run.suggestions.length === 0 && !(run.outcomeReason || run.summary) ? (
+        <p className={`mt-4 text-sm ${mutedInkClass}`}>No places added. This plan already looks solid.</p>
+      ) : run.suggestions.length === 0 ? null : (
         <>
           {actionableIds.length > 1 && (
             <div className="mt-4 flex items-center justify-between gap-3 border-b border-stone-200/80 pb-2 dark:border-stone-800">
@@ -133,7 +143,8 @@ export function SuggestionsPanel({
                     <SuggestionItem
                       key={s.id}
                       suggestion={s}
-                      selectable={APPLICABLE.has(s.kind)}
+                      selectable={APPLICABLE.has(s.kind) && !appliedIds.has(s.id)}
+                      applied={appliedIds.has(s.id)}
                       checked={selected.has(s.id)}
                       onToggle={toggle}
                     />
@@ -168,17 +179,19 @@ export function SuggestionsPanel({
 function SuggestionItem({
   suggestion,
   selectable,
+  applied,
   checked,
   onToggle,
 }: {
   suggestion: EnhancementSuggestion
   selectable: boolean
+  applied: boolean
   checked: boolean
   onToggle: (id: string, on: boolean) => void
 }) {
   return (
-    <li className="rounded-xl border border-stone-200/80 bg-white p-3 dark:border-stone-800 dark:bg-stone-900">
-      <label className="flex items-start gap-3">
+    <li className="rounded-xl border border-stone-200/80 bg-[var(--trips-surface)] p-3 dark:border-stone-800">
+      <label className="flex min-h-11 items-start gap-3">
         {selectable ? (
           <input
             type="checkbox"
@@ -188,7 +201,9 @@ function SuggestionItem({
             aria-label={`Accept: ${suggestion.title}`}
           />
         ) : (
-          <span className="mt-1 h-4 w-4 shrink-0" aria-hidden />
+          <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center" aria-hidden>
+            {applied ? <Check className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400" strokeWidth={2} /> : null}
+          </span>
         )}
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -197,7 +212,10 @@ function SuggestionItem({
               {suggestion.title}
             </span>
             {/* Only low confidence earns a tag — medium and high are noise. */}
-            {suggestion.confidence === "low" && (
+            {applied && (
+              <span className="text-[11px] font-medium text-emerald-800 dark:text-emerald-300">added</span>
+            )}
+            {suggestion.confidence === "low" && !applied && (
               <span className="text-[11px] text-amber-700 dark:text-amber-400">low confidence</span>
             )}
           </div>
