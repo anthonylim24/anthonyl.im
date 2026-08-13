@@ -1,5 +1,5 @@
 import Groq from "groq-sdk"
-import { GEMINI_BASE, TRIPS_GEMINI_MODEL, geminiThinking } from "../igPlaces/gemini"
+import { GEMINI_BASE, GEMINI_MODEL, geminiThinking } from "../igPlaces/gemini"
 import { haversineMeters } from "../data/koreaPlaces"
 import {
   aiAppearanceSchema,
@@ -75,7 +75,7 @@ export function createGeminiLlm(
   fetchImpl: typeof fetch = fetch,
   opts?: { model?: string },
 ): LlmCall {
-  const model = opts?.model ?? TRIPS_GEMINI_MODEL
+  const model = opts?.model ?? GEMINI_MODEL
   return async ({ system, user, maxTokens }) => {
     const run = async (withMaps: boolean): Promise<string> => {
       const generationConfig: Record<string, unknown> = {

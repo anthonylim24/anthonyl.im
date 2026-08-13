@@ -87,19 +87,13 @@ export function coerceSignalSource(input: unknown, fallback: IgSignalSource = 'c
 
 export const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
-/** Single source of truth for which Gemini model every factory in this
- *  module uses (text extraction, video understanding, video transcription).
- *  Flash Lite handles all three workloads (multimodal: text + image + video
- *  + audio + PDF) at the cost-efficient Flash-Lite tier. Trips itinerary
- *  generation opts into a stronger Flash model via `TRIPS_GEMINI_MODEL`.
- *  To swap app-wide, change this one line. Per-call `model` overrides on the
- *  factories still work if a specific surface needs a different tier. */
-export const GEMINI_MODEL = 'gemini-3.5-flash-lite'
-
-/** Stronger Flash tier for multi-day itinerary planning (Maps grounding +
- *  large structured JSON). Kept separate from GEMINI_MODEL so high-volume
- *  IG extraction stays on the cheaper Flash-Lite path. */
-export const TRIPS_GEMINI_MODEL = 'gemini-3.7-flash'
+/** Single source of truth for which Gemini model every Gemini surface uses
+ *  (IG text/video/carousel extraction, geocode dispute resolution, busyness,
+ *  Korea chat, trips generation). 3.7 Flash is the strongest Flash tier —
+ *  better Maps grounding, multimodal OCR, and structured JSON than Flash
+ *  Lite. To swap app-wide, change this one line. Per-call `model` overrides
+ *  on the factories still work if a specific surface needs a different tier. */
+export const GEMINI_MODEL = 'gemini-3.7-flash'
 
 /** Gemini 3 thinking levels. Prefer these over the 2.5-era `thinkingBudget`
  *  — budget is accepted for back-compat but can behave unexpectedly on 3.x. */
@@ -142,11 +136,11 @@ export interface GeminiExtractorDeps {
 export type GeminiExtractor = (bundle: ExtractionBundle) => Promise<VotedPlace[]>;
 
 /**
- * Last-resort text extractor. Gemini 3.1 Flash Lite with Maps grounding so
- * it can confirm whether vague mentions ("the chicken place near Hannam")
- * resolve to a real, addressable venue. Single pass — no self-consistency
- * voting (we're already on the cold fallback path, more API calls aren't
- * worth it). Confidence is taken at face value and mapped to bands.
+ * Last-resort text extractor. Gemini with Maps grounding so it can confirm
+ * whether vague mentions ("the chicken place near Hannam") resolve to a
+ * real, addressable venue. Single pass — no self-consistency voting (we're
+ * already on the cold fallback path, more API calls aren't worth it).
+ * Confidence is taken at face value and mapped to bands.
  */
 export function createGeminiExtractor(deps: GeminiExtractorDeps): GeminiExtractor {
   const f = deps.fetch ?? fetch;
@@ -197,10 +191,10 @@ export function createGeminiExtractor(deps: GeminiExtractorDeps): GeminiExtracto
 // When Google Places and Kakao Local return locations that disagree
 // (different name OR > 200 m apart), we used to flag the row as
 // `geocode_disagree=true` and surface a red banner to the user. Now we
-// run a single Gemini 3.1 Flash Lite call with Maps grounding, give
-// the model both candidates plus the LLM-extracted hint, and ask it
-// to pick (or override with) the canonical venue. Same factory is
-// used live during ingestion AND retroactively by the backfill script.
+// run a single Gemini call with Maps grounding, give the model both
+// candidates plus the LLM-extracted hint, and ask it to pick (or
+// override with) the canonical venue. Same factory is used live during
+// ingestion AND retroactively by the backfill script.
 
 export interface GeminiResolverCandidate {
   source: 'google' | 'kakao';
@@ -618,8 +612,7 @@ export interface GeminiCarouselAnalyzerDeps {
   /** Hard cap on how many images we'll upload per post. Keeps the API
    *  payload bounded and the call latency tight. Default 12 — wide
    *  enough for typical "Seoul restaurants round-up" carousels (most
-   *  have 5-10 slides) and cheap enough that Flash Lite stays under
-   *  the 60-second analyzer budget. */
+   *  have 5-10 slides) while staying under the 60-second analyzer budget. */
   maxImages?: number;
 }
 

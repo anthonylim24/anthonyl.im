@@ -2,7 +2,7 @@
 //
 // Fetches the typical busyness level for an extracted place.
 //
-// Primary: Gemini 3.1 Flash Lite with Google Maps grounding — asks the model
+// Primary: Gemini with Google Maps grounding — asks the model
 // how crowded the venue typically is, using Maps data for grounding.
 //
 // Fallback: When Gemini confidence < 0.6 or the call fails, infers busyness
