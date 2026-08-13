@@ -266,6 +266,7 @@ body {
 .chatbot-dark {
   --chat-bg: #080808;
   --chat-text: #b4b4b4;
+  --chat-body: #a3a3a3;
   --chat-bright: #e0e0e0;
   --chat-mid: #404040;
   --chat-line: #181818;
@@ -293,9 +294,10 @@ body {
 
 .chatbot-shadow {
   --chat-bg: #f2efe9;
-  --chat-text: #5c5c5c;
-  --chat-bright: #3a3a3a;
-  --chat-mid: #8a8a8a;
+  --chat-text: #1a1a1a;
+  --chat-body: #6b6b6b;
+  --chat-bright: #3f3f3f;
+  --chat-mid: #888;
   --chat-line: #d8d5cf;
   --chat-code-bg: rgba(0, 0, 0, 0.04);
   --chat-code-text: #5c5c5c;
@@ -311,7 +313,7 @@ body {
   --hljs-keyword: #4a4a4a;
   --hljs-string: #7a5c28;
   --hljs-number: #666;
-  --hljs-title: #3a3a3a;
+  --hljs-title: #3f3f3f;
   --hljs-attr: #5a5a5a;
   --hljs-built_in: #555;
   --hljs-literal: #666;
@@ -482,7 +484,7 @@ body {
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   font-size: 14px;
   line-height: 1.7;
-  color: var(--chat-text);
+  color: var(--chat-body);
 }
 
 .message-content :where(p, li, td, th, blockquote) {
@@ -541,7 +543,6 @@ body {
 .message-content ol {
   list-style: decimal;
   padding-left: 1.5rem;
-  color: var(--chat-text);
 }
 .message-content ol > li { padding-left: 0.25rem; }
 .message-content li { margin: 0; }
@@ -578,7 +579,7 @@ body {
   table-layout: auto;
   font-size: 13px;
   font-variant-numeric: tabular-nums;
-  color: var(--chat-text);
+  color: inherit;
 }
 .message-content thead {
   background: var(--chat-code-bg);
@@ -597,7 +598,7 @@ body {
 .message-content td {
   padding: 0.5rem 0.75rem;
   border-top: 1px solid var(--chat-line);
-  color: var(--chat-text);
+  color: inherit;
   white-space: normal;
   overflow-wrap: break-word;
   word-break: break-word;

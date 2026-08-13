@@ -282,7 +282,7 @@ function App() {
                           {message.content}
                         </div>
                       ) : (
-                        <div className="min-w-0 max-w-[92%] sm:max-w-[85%]">
+                        <div className="min-w-0 w-full max-w-[36rem]">
                           {message.content ? (
                             <Suspense fallback={<MessageSkeleton />}>
                               <MessageContent content={message.content} isStreaming={isLastAssistant && isStreaming} />
