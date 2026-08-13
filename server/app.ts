@@ -173,6 +173,7 @@ app.route("/api/entity", entityRouter);
 // store on first request and appears as a normal trip.
 const tripsRateLimit = createRateLimit({ windowMs: 60_000, max: 60, keyPrefix: "trips" });
 app.use("/api/trips/*", tripsRateLimit);
+app.use("/api/trips/:id/*", tripsRateLimit);
 app.route(
   "/api/trips",
   createTripsRouter({

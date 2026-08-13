@@ -202,12 +202,16 @@ export function TripChat() {
       const setAssistant = (content: string) =>
         setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content } : m)))
 
+      const canonicalId = trip?.id ?? tripId
+      const focusedDayId =
+        dayId && trip?.days.some((d) => d.id === dayId) ? dayId : undefined
+
       try {
         const { content, error } = await streamTripChat(
-          tripId,
+          canonicalId,
           prompt,
           history,
-          dayId,
+          focusedDayId,
           getToken,
           setAssistant,
           controller.signal,
@@ -226,7 +230,7 @@ export function TripChat() {
         abortRef.current = null
       }
     },
-    [messages, tripId, dayId, getToken],
+    [messages, tripId, dayId, trip, getToken],
   )
 
   const autoGrow = useCallback(() => {

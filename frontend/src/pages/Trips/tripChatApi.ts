@@ -32,7 +32,11 @@ export async function streamTripChat(
       Accept: "text/event-stream",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ prompt, messages, dayId }),
+    body: JSON.stringify({
+      prompt,
+      messages,
+      ...(dayId ? { dayId } : {}),
+    }),
     credentials: "include",
     signal,
   })
@@ -41,10 +45,15 @@ export async function streamTripChat(
     let message = `Request failed (${response.status})`
     try {
       const body = await response.json()
-      if (body?.message) message = body.message
+      if (response.status === 404) {
+        const err = typeof body?.error === "string" ? body.error : ""
+        if (err === "day not found") message = "This day is no longer on the trip."
+        else if (err === "trip not found") message = "This trip could not be found."
+        else message = "Concierge is not available on this server yet."
+      } else if (body?.message) message = body.message
       else if (body?.error) message = String(body.error)
     } catch {
-      /* non-JSON body */
+      if (response.status === 404) message = "Concierge is not available on this server yet."
     }
     throw new Error(message)
   }

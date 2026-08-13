@@ -21,19 +21,9 @@ vi.mock("../../Korea/ingestApi", async (importOriginal) => {
   }
 })
 
-const mockUpdateTrip = vi.fn()
-
-vi.mock("../tripsApi", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../tripsApi")>()
-  return {
-    ...actual,
-    updateTrip: (...args: unknown[]) => mockUpdateTrip(...args),
-  }
-})
-
 import { TripIngest } from "../TripIngest"
 import type { Job } from "../../Korea/ingestApi"
-import type { Trip } from "../types"
+import type { Trip, TripDay } from "../types"
 
 function makeTrip(): Trip {
   return {
@@ -94,14 +84,18 @@ function makeJob(overrides: Partial<Job> = {}): Job {
   }
 }
 
-async function renderIngest(trip = makeTrip(), dayId?: string) {
-  const onTripUpdated = vi.fn()
+async function renderIngest(trip = makeTrip(), dayId = "day-1") {
+  const onDaysChange = vi.fn((fn: (days: TripDay[]) => TripDay[]) => fn(trip.days))
   await act(async () => {
-    render(<TripIngest trip={trip} dayId={dayId} onTripUpdated={onTripUpdated} />)
+    render(<TripIngest trip={trip} dayId={dayId} onDaysChange={onDaysChange} />)
     await Promise.resolve()
     await Promise.resolve()
   })
-  return { onTripUpdated }
+  return { onDaysChange, trip }
+}
+
+async function openPanel(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: /^instagram$/i }))
 }
 
 describe("TripIngest", () => {
@@ -110,14 +104,19 @@ describe("TripIngest", () => {
     mockListJobs.mockResolvedValue([])
     mockSubmitUrl.mockResolvedValue({ jobs: [{ jobId: 1, status: "pending", reused: false }] })
     mockRetryJob.mockResolvedValue(undefined)
-    mockUpdateTrip.mockImplementation(async (_getToken: unknown, _id: string, patch: { days: Trip["days"] }) => ({
-      ...makeTrip(),
-      days: patch.days,
-    }))
+  })
+
+  it("keeps the extractor collapsed until Instagram is opened", async () => {
+    await renderIngest()
+    expect(screen.queryByRole("button", { name: /extract places/i })).toBeNull()
+    expect(screen.getByRole("button", { name: /^instagram$/i })).toBeTruthy()
   })
 
   it("disables extract until the URL is a valid Instagram link", async () => {
+    const user = userEvent.setup()
     await renderIngest()
+    await openPanel(user)
+
     const btn = screen.getByRole("button", { name: /extract places/i }) as HTMLButtonElement
     expect(btn.disabled).toBe(true)
 
@@ -135,6 +134,7 @@ describe("TripIngest", () => {
   it("submits a URL and tracks the new job", async () => {
     const user = userEvent.setup()
     await renderIngest()
+    await openPanel(user)
     fireEvent.change(screen.getByLabelText("Instagram URL"), {
       target: { value: "https://www.instagram.com/reel/ABC123/" },
     })
@@ -145,10 +145,11 @@ describe("TripIngest", () => {
     expect(mockListJobs).toHaveBeenCalled()
   })
 
-  it("adds an extracted place to the focused day", async () => {
+  it("adds an extracted place to the focused day via onDaysChange", async () => {
     mockListJobs.mockResolvedValue([makeJob()])
     const user = userEvent.setup()
-    const { onTripUpdated } = await renderIngest(makeTrip(), "day-1")
+    const { onDaysChange, trip } = await renderIngest(makeTrip(), "day-1")
+    await openPanel(user)
 
     await waitFor(() => {
       expect(screen.getByText("Sushi Saito")).toBeTruthy()
@@ -156,11 +157,13 @@ describe("TripIngest", () => {
 
     await user.click(screen.getByRole("button", { name: /add to this day/i }))
     await waitFor(() => {
-      expect(mockUpdateTrip).toHaveBeenCalled()
+      expect(onDaysChange).toHaveBeenCalled()
     })
-    const patch = mockUpdateTrip.mock.calls[0]![2] as { days: Trip["days"] }
-    expect(patch.days[0]!.items[0]!.title).toBe("Sushi Saito")
-    expect(patch.days[0]!.items[0]!.location?.lat).toBe(35.66)
-    expect(onTripUpdated).toHaveBeenCalled()
+    const updater = onDaysChange.mock.calls[0]![0] as (days: TripDay[]) => TripDay[]
+    const next = updater(trip.days)
+    expect(next[0]!.items[0]!.title).toBe("Sushi Saito")
+    expect(next[0]!.items[0]!.location?.lat).toBe(35.66)
+    expect(next[0]!.items[0]!.links).toEqual(["https://www.instagram.com/reel/ABC123/"])
+    expect(next[1]!.items).toHaveLength(0)
   })
 })

@@ -24,6 +24,7 @@ import { AppearancePanel } from "./editor/AppearancePanel"
 import { DayCard } from "./editor/DayCard"
 import { DayNavigation } from "./editor/DayNavigation"
 import { EnhanceButton } from "./editor/EnhanceButton"
+import { ExtractedPlacesLibrary } from "./ExtractedPlacesLibrary"
 import {
   EditorDock,
   FloatingSaveIndicator,
@@ -473,6 +474,14 @@ export function TripDetail() {
         />
       )}
 
+      {editable && (
+        <ExtractedPlacesLibrary
+          trip={trip}
+          defaultDayId={routerLocation.hash.replace(/^#/, "") || undefined}
+          onDaysChange={setDays}
+        />
+      )}
+
       {/* Days, with the day rail on desktop and the chip rail below `lg`. */}
       <div className="mt-6 lg:mt-8 lg:grid lg:grid-cols-[11rem_minmax(0,1fr)] lg:gap-8">
         <DayNavigation days={trip.days} timezone={trip.timezone} />
@@ -480,6 +489,7 @@ export function TripDetail() {
           {trip.days.map((day, idx) => (
             <DayCard
               key={day.id}
+              trip={trip}
               day={day}
               index={idx}
               timezone={trip.timezone}
