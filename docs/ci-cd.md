@@ -15,9 +15,10 @@ PR → .github/workflows/pr.yml
         └─ pr-gate (aggregate)      ← starts immediately; ONLY required context
 
 PR → .github/workflows/preview.yml   (NOT a merge gate)
-        ├─ vite build with VITE_BASE=/preview/pr/<n>/ (FRONTEND_ENV, SW off)
+        ├─ vite build with VITE_BASE + VITE_API_BASE=/preview/pr/<n>/ (FRONTEND_ENV, SW off)
         ├─ stamp preview.json + HTML chrome
-        ├─ SCP tarball → droplet ~/previews/<n>/
+        ├─ SCP frontend + server/src tarballs → droplet ~/previews/<n>/
+        ├─ optional loopback preview API (cap 1) proxied at /preview/pr/<n>/api/*
         └─ sticky PR comment + GitHub deployment `pr-preview-<n>`
            live URL: https://anthonyl.im/preview/pr/<n>/
 
@@ -91,6 +92,7 @@ Secrets: `SSH_HOST`, `SSH_USERNAME`, `SSH_KEY`, `FRONTEND_ENV`. Droplet runtime 
 | PM2 online but app dead on first request | Post-deploy `/health` + SPA smoke |
 | Stale service worker after deploy | `sw.js` no-cache headers in `server/app.ts`; bump `CACHE_VERSION` on SW behavior changes |
 | Preview HTML served as production SPA | Preview router is mounted **before** the SPA fallback; missing trees 404 |
+| Preview API OOM on 1 GB droplet | One sidecar (`PREVIEW_API_MAX=1`), `bun --smol`, IG worker off, loopback only |
 | Production SW caching `/preview/` | `sw.js` bypasses `/preview/`; bump `CACHE_VERSION` when changing that |
 | `oven-sh/setup-bun` 503 / socket hang up | `.github/actions/setup-ci` retries Bun setup twice with pauses |
 | Merge UI green but squash blocked ("status checks have not completed") | `pr-gate` must start with no `needs:` so the required check is in_progress immediately; also posts a `pr-gate` commit status on the PR head SHA |

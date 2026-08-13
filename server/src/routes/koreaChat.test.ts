@@ -98,6 +98,7 @@ describe("POST /api/korea/chat", () => {
       role: "user",
       parts: [{ text: "What's for dinner?" }],
     })
+    expect(capturedBody.generationConfig.thinkingConfig).toEqual({ thinkingLevel: "low" })
   })
 
   test("maps prior assistant turns to Gemini 'model' role", async () => {

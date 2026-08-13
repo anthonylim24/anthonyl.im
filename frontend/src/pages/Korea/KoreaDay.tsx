@@ -12,6 +12,7 @@ import { LinkifiedText } from "./LinkifiedText"
 import { makeKstDate, slugify, todayKstIso } from "./koreaUtils"
 import { SmartEntity } from "./SmartEntity"
 import { useScrollReveal, REVEAL_CLASSES } from "./_motion/scrollReveal"
+import { apiFetch } from "@/lib/apiBase"
 import { clerkEnabled, useGetToken } from "@/lib/safeAuth"
 import type { IgSave } from "./mapModeTypes"
 
@@ -32,7 +33,7 @@ function useDayIgSaves(slug: string | undefined): IgSave[] {
         const token = await getToken()
         if (!token) return
         const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
-        const r = await fetch(`/api/korea/day/${encodeURIComponent(slug)}/places`, { headers })
+        const r = await apiFetch(`/api/korea/day/${encodeURIComponent(slug)}/places`, { headers })
         if (!r.ok || cancelled) return
         const data = await r.json() as { igSaves?: IgSave[] }
         if (!cancelled) setIgSaves(data.igSaves ?? [])
