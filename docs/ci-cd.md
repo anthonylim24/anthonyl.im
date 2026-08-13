@@ -77,7 +77,7 @@ cd frontend && bun run build && bun run test:run
 3. **PATH for PM2 children** — export `$HOME/.bun/bin:/usr/local/bin:...` and `pm2 start --update-env` so yt-dlp / ffmpeg / dev-browser resolve.
 4. **Smoke is mandatory** — `/health` must return `"status":"ok"`; SPA routes must contain `<div id="root">`.
 5. **No `VITE_DEV_BEARER` in `FRONTEND_ENV`** — production must not bypass Clerk.
-6. **PR previews are not a merge gate** — `.github/workflows/preview.yml` must stay out of `pr-gate`. Same-repo only; never bake `VITE_DEV_BEARER` into a preview. Details: [`docs/pr-previews.md`](pr-previews.md).
+6. **PR previews are not a merge gate** — `.github/workflows/preview.yml` must stay out of `pr-gate`. Same-repo only; never bake `VITE_DEV_BEARER` into a preview. Agents screenshot Clerk-gated preview routes via `bun scripts/clerk-agent-login.ts` (Clerk Agent Tasks). Details: [`docs/pr-previews.md`](pr-previews.md).
 
 Secrets: `SSH_HOST`, `SSH_USERNAME`, `SSH_KEY`, `FRONTEND_ENV`. Droplet runtime secrets live in `~/.env` (copied into the staged tree each deploy). Details: `deploy/README.md`.
 

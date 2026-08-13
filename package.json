@@ -19,7 +19,8 @@
     "test:int": "INTEGRATION=1 bun test --bail",
     "test:eval": "bun run server/src/igPlaces/eval/run.ts",
     "preview:wait": "bun scripts/wait-for-preview.ts",
-    "preview:stamp": "bun server/src/previewStamp.ts"
+    "preview:stamp": "bun server/src/previewStamp.ts",
+    "agent:login": "bun scripts/clerk-agent-login.ts"
   },
   "devDependencies": {
     "@hono/zod-validator": "^0.8.0",

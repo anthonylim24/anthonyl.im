@@ -175,7 +175,7 @@ jobs:
 
           ${NOTE}
 
-          **Agents:** \`bun scripts/wait-for-preview.ts --pr ${PR_NUMBER} --sha ${PR_SHA}\` then screenshot with \`?hidePreviewChrome=1\`. Korea / Trips still need a Clerk session (same as production). Frontend calls \`/preview/pr/${PR_NUMBER}/api/*\` (PR server sidecar) and falls back to production \`/api\` if that proxy is not on this origin yet. See \`docs/pr-previews.md\`.
+          **Agents:** \`bun scripts/wait-for-preview.ts --pr ${PR_NUMBER} --sha ${PR_SHA}\`. For Korea / Trips, \`bun scripts/clerk-agent-login.ts --pr ${PR_NUMBER} --path /korea\` then open the printed URL (Clerk Agent Task; do not bake \`VITE_DEV_BEARER\`). Screenshot with \`?hidePreviewChrome=1\`. Frontend calls \`/preview/pr/${PR_NUMBER}/api/*\` (PR server sidecar) and falls back to production \`/api\` if that proxy is not on this origin yet. See \`docs/pr-previews.md\`.
           EOF
           )
 

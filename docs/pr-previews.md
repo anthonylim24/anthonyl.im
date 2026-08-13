@@ -36,7 +36,9 @@ The sticky PR comment (`<!-- pr-preview -->`) and the GitHub deployment
 
 Korea and Trips still require a **Clerk session** on `anthonyl.im` (same
 origin, so a phone already signed in to production is enough). Previews
-never bake `VITE_DEV_BEARER`.
+never bake `VITE_DEV_BEARER`. Agents mint a real session with
+[Clerk Agent Tasks](https://clerk.com/docs/guides/development/testing/agent-tasks)
+instead — see below.
 
 ## Agent workflow (screenshots)
 
@@ -52,15 +54,31 @@ never bake `VITE_DEV_BEARER`.
    Or poll `GET https://anthonyl.im/preview/pr/<n>/preview.json` until
    `sha` matches (prefix match is OK).
 
-2. Screenshot with Chrome MCP against the preview origin. Append
+2. For Clerk-gated routes (`/korea`, `/trips`), mint a one-time sign-in URL
+   and open it in the agent browser **before** screenshotting:
+
+   ```bash
+   bun scripts/clerk-agent-login.ts --pr <n> --path /korea
+   bun scripts/clerk-agent-login.ts --pr <n> --path /trips
+   ```
+
+   The script prints a Clerk URL. Navigate Chrome MCP / Playwright there;
+   Clerk sets a session cookie on `anthonyl.im` (shared with the preview)
+   and redirects to the page with `?hidePreviewChrome=1`. Auth is
+   `CLERK_SECRET_KEY` + `CLERK_AGENT_USER_ID` locally, or
+   `AGENT_LOGIN_SECRET` / `gh auth token` against production
+   `POST /api/agent/session`.
+
+3. Screenshot remaining public routes (`/`, `/breathwork`) with
    `?hidePreviewChrome=1` so the PR badge is not in the frame.
 
-3. Upload images via `gh api` and link them from the PR body. Local file
+4. Upload images via `gh api` and link them from the PR body. Local file
    paths do not render in GitHub.
 
-4. If the preview is not live yet (serving code not on production, droplet
+5. If the preview is not live yet (serving code not on production, droplet
    down, or this is a fork/Dependabot PR), fall back to a local
-   `cd frontend && bun run dev` and note that in the PR.
+   `cd frontend && bun run dev` with `VITE_DEV_BEARER` (see
+   `deploy/README.md`) and note that in the PR.
 
 Index of published previews: `https://anthonyl.im/preview/`.
 
@@ -118,6 +136,8 @@ Do not add fork-PR previews without moving them off `anthonyl.im`.
 | `PREVIEW_MAX_COUNT` | `20` | `publish-preview.sh` |
 | `PREVIEW_API_MAX` | `1` | `publish-preview.sh` |
 | `PROD_ROOT` | `~/anthonyl.im` | `publish-preview.sh` (node_modules) |
+| `CLERK_AGENT_USER_ID` | unset (endpoint 404s) | droplet `.env` |
+| `AGENT_LOGIN_SECRET` | unset (`gh` collaborator token still works) | droplet `.env` |
 
 ## Files
 
@@ -130,5 +150,7 @@ Do not add fork-PR previews without moving them off `anthonyl.im`.
 | `server/src/previewApiApp.ts` | API-only Hono app (no SPA, no IG worker) |
 | `server/src/previewStamp.ts` | CLI used by CI after `vite build` |
 | `scripts/wait-for-preview.ts` | agent poller |
+| `scripts/clerk-agent-login.ts` | mint a Clerk Agent Task URL for `/korea` + `/trips` screenshots |
+| `server/src/routes/agentSession.ts` | `POST /api/agent/session` (secret or GitHub collaborator token) |
 | `frontend/src/lib/routerBasename.ts` | React Router `basename` from Vite `base` |
 | `frontend/src/lib/apiBase.ts` | `VITE_API_BASE` rewrite + production fallback |
