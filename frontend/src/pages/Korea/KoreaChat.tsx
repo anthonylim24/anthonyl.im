@@ -2,13 +2,16 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useLocation } from "react-router-dom"
 import { MessageCircleHeart, Send, Sparkles, X } from "lucide-react"
+import type { ConciergeSource } from "../../lib/conciergeGrounding"
 import { streamKoreaChat, type KoreaChatMessage } from "./koreaChatApi"
+import { ConciergeSources } from "./ConciergeSources"
 import { ConciergeText } from "./ConciergeText"
 
 interface ChatMessage {
   id: string
   role: "user" | "assistant"
   content: string
+  sources?: ConciergeSource[]
 }
 
 const TRIP_SUGGESTIONS = [
@@ -182,12 +185,15 @@ export function KoreaChat() {
         setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content } : m)))
 
       try {
-        const { content, error } = await streamKoreaChat(prompt, history, slug, setAssistant, controller.signal)
+        const { content, error, sources } = await streamKoreaChat(prompt, history, slug, setAssistant, controller.signal)
         if (error) setAssistant(`⚠️ ${error}`)
         // Defensive fallback: if the stream ended with no text and no error,
         // don't leave the bubble stuck on the typing indicator.
         else if (!content.trim()) {
           setAssistant("I couldn't generate a reply just now. Please try rephrasing.")
+        }
+        if (sources?.length) {
+          setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, sources } : m)))
         }
       } catch (err) {
         if ((err as Error).name !== "AbortError") {
@@ -340,6 +346,7 @@ export function KoreaChat() {
                           ) : (
                             <TypingDots reduce={!!reduce} />
                           )}
+                          {m.sources ? <ConciergeSources sources={m.sources} /> : null}
                         </div>
                       </div>
                     ),

@@ -3,11 +3,16 @@
  *  The server normally JSON-encodes a text delta. Gemini (or a proxy) can
  *  also leak a GenerateContentResponse object, a `{ text }` / `{ content }`
  *  wrapper, an `{ error }`, or raw markdown. Accept all of those so a
- *  well-formed answer is never dropped. */
+ *  well-formed answer is never dropped. Grounded turns may also emit
+ *  `{ places }` / `{ sources }` objects after the text. */
+
+import { asConciergePlaces, asConciergeSources, type ConciergePlace, type ConciergeSource } from "./conciergeGrounding"
 
 export type ConciergeSseDelta =
   | { kind: "text"; text: string }
   | { kind: "error"; error: string }
+  | { kind: "places"; places: ConciergePlace[] }
+  | { kind: "sources"; sources: ConciergeSource[] }
   | { kind: "ignore" }
 
 function textFromGeminiShaped(value: unknown): string {
@@ -52,6 +57,14 @@ function interpretPayload(parsed: unknown): ConciergeSseDelta {
     const obj = parsed as Record<string, unknown>
     if (obj.error != null && obj.error !== "") {
       return { kind: "error", error: errorMessage(obj.error) }
+    }
+    if (Array.isArray(obj.places)) {
+      const places = asConciergePlaces(obj.places)
+      return places.length ? { kind: "places", places } : { kind: "ignore" }
+    }
+    if (Array.isArray(obj.sources)) {
+      const sources = asConciergeSources(obj.sources)
+      return sources.length ? { kind: "sources", sources } : { kind: "ignore" }
     }
     for (const key of ["text", "content", "delta", "message"] as const) {
       if (typeof obj[key] === "string" && obj[key]) {

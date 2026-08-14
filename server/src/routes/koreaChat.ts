@@ -5,8 +5,10 @@ import { z } from "zod"
 
 import { koreaSnapshot, type Snapshot, type Day, type Reservation } from "../data/koreaSnapshot"
 import { koreaPlaces, type PlaceDef } from "../data/koreaPlaces"
+import { sourcesFromGrounding } from "../geminiGrounding"
 import { relayGeminiChatBody } from "../geminiStream"
-import { GEMINI_BASE, GEMINI_MODEL, geminiThinking } from "../igPlaces/gemini"
+import { fetchGeminiStreamWithToolFallback, mapsRetrievalConfig } from "../geminiTools"
+import { geminiThinking } from "../igPlaces/gemini"
 import { withSsePings } from "../ssePing"
 
 const koreaChat = new Hono()
@@ -149,9 +151,9 @@ function buildSystemInstruction(snapshot: Snapshot, slug?: string): string {
     `reservations and timings, neighborhoods, transit, and general logistics.`,
     `Today's date in Korea (KST) is ${nowKst}.`,
     `RULES:`,
-    `1. Answer ONLY from the itinerary data below. If something isn't in the data, say you don't have it rather than inventing details. Never fabricate reservation times, addresses, or confirmation numbers.`,
+    `1. Reservations, times, confirmation numbers, and flight details come ONLY from the itinerary data below — never invent those. For restaurants, hours, reviews, transit, weather, events, and neighborhood questions, use Google Search and Google Maps grounding so answers stay current. Say when a detail is from Maps or the live web rather than the saved itinerary.`,
     `2. Be concise and mobile-friendly: short paragraphs, bullet points, bold the key thing. This is read on a phone, often one-handed.`,
-    `3. When recommending a place, prefer ones in the CURATED PLACES list and mention why (cuisine, neighborhood, what makes it good). Surface walking-distance / same-neighborhood picks first when a focused day is set.`,
+    `3. When recommending a place, prefer ones in the CURATED PLACES list and mention why (cuisine, neighborhood, what makes it good). Surface walking-distance / same-neighborhood picks first when a focused day is set. You may recommend additional Maps-verified venues when the traveler asks.`,
     `4. For reservations, lead with the time and status. Flag anything pending or unconfirmed.`,
     `5. Use a warm, confident concierge tone — like a well-briefed travel host, not a search engine.`,
     `6. Use Markdown for structure (bold, bullets). Keep it tight.`,
@@ -168,14 +170,13 @@ function buildSystemInstruction(snapshot: Snapshot, slug?: string): string {
 // all three; thought parts are dropped. We re-emit `data: <json-string>`
 // plus `data: [DONE]` for the frontend. Roles map user→user, assistant→model.
 
-const TRANSIENT_GEMINI = new Set([500, 502, 503, 504])
-
-async function fetchGeminiStream(url: string, init: RequestInit): Promise<Response> {
-  const first = await fetch(url, init)
-  if (!TRANSIENT_GEMINI.has(first.status)) return first
-  await first.text().catch(() => {})
-  await new Promise((r) => setTimeout(r, 800))
-  return fetch(url, init)
+function koreaLatLngHint(slug?: string): { latitude: number; longitude: number } | null {
+  const focused = slug
+    ? koreaSnapshot.days.find((d) => d.slug === slug || String(d.n) === slug)
+    : undefined
+  if (focused?.city === "Busan") return { latitude: 35.1796, longitude: 129.0756 }
+  if (focused?.city === "Seoul") return { latitude: 37.5665, longitude: 126.978 }
+  return { latitude: 37.5665, longitude: 126.978 }
 }
 
 koreaChat.post("/", zValidator("json", chatSchema), async (c) => {
@@ -201,7 +202,7 @@ koreaChat.post("/", zValidator("json", chatSchema), async (c) => {
     contents: [...history, { role: "user", parts: [{ text: prompt }] }],
     generationConfig: {
       temperature: 0.45,
-      maxOutputTokens: 1024,
+      maxOutputTokens: 2048,
       // Conversational Q&A over a pre-assembled context. `low` is the
       // snappy 3.7 Flash tier — `minimal` 400s on this model.
       thinkingConfig: geminiThinking("low"),
@@ -226,15 +227,13 @@ koreaChat.post("/", zValidator("json", chatSchema), async (c) => {
       await withSsePings(
         () => stream.writeSSE({ event: "ping", data: "" }),
         (async () => {
-          const res = await fetchGeminiStream(
-            `${GEMINI_BASE}/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-              body: JSON.stringify(body),
-              signal: upstreamSignal,
-            },
-          )
+          const res = await fetchGeminiStreamWithToolFallback({
+            apiKey,
+            baseBody: body,
+            toolConfig: mapsRetrievalConfig(koreaLatLngHint(slug)),
+            signal: upstreamSignal,
+            logLabel: "korea-chat",
+          })
 
           if (!res.ok || !res.body) {
             const detail = await res.text().catch(() => "")
@@ -264,6 +263,9 @@ koreaChat.post("/", zValidator("json", chatSchema), async (c) => {
               : "I couldn't find an answer for that. Try rephrasing, or ask about a specific day, restaurant, or reservation."
             await stream.writeSSE({ data: JSON.stringify(reason) })
           }
+
+          const sources = sourcesFromGrounding(relayed.grounding)
+          if (sources.length) await stream.writeSSE({ data: JSON.stringify({ sources }) })
 
           await stream.writeSSE({ data: "[DONE]" })
         })(),

@@ -484,6 +484,7 @@ export function createTripsRouter(deps: TripsRouterDeps) {
       prompt: body.data.prompt,
       dayId: body.data.dayId,
       messages: body.data.messages ?? [],
+      geocode: deps.geocode,
     })
   })
 

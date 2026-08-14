@@ -69,7 +69,7 @@ describe("POST /api/korea/chat", () => {
   test("relays Gemini SSE deltas as JSON-encoded chunks ending with [DONE]", async () => {
     process.env.GEMINI_API_KEY = "test-key"
     let capturedUrl = ""
-    let capturedBody: any = null
+    let capturedBody: { tools?: unknown; systemInstruction?: { parts: Array<{ text: string }> }; contents?: unknown[]; generationConfig?: { thinkingConfig?: unknown } } | null = null
     globalThis.fetch = (async (url: string, init: RequestInit) => {
       capturedUrl = String(url)
       capturedBody = JSON.parse(String(init.body))
@@ -99,6 +99,8 @@ describe("POST /api/korea/chat", () => {
       parts: [{ text: "What's for dinner?" }],
     })
     expect(capturedBody.generationConfig.thinkingConfig).toEqual({ thinkingLevel: "low" })
+    expect(capturedBody.tools).toEqual([{ googleSearch: {} }, { googleMaps: {} }])
+    expect(capturedBody.systemInstruction.parts[0].text).toContain("Google Search and Google Maps")
   })
 
   test("maps prior assistant turns to Gemini 'model' role", async () => {
@@ -220,6 +222,36 @@ describe("POST /api/korea/chat", () => {
     })
     const text = await res.text()
     expect(text).toContain("**Hi**")
+  })
+
+  test("emits web and Maps sources from grounding metadata", async () => {
+    process.env.GEMINI_API_KEY = "test-key"
+    globalThis.fetch = (async () =>
+      geminiRawSse([
+        {
+          candidates: [
+            {
+              content: { parts: [{ text: "Mingles is open late." }] },
+              groundingMetadata: {
+                groundingChunks: [
+                  { maps: { title: "Mingles", uri: "https://maps.google.com/?cid=2" } },
+                  { web: { title: "Hours", uri: "https://example.com/mingles" } },
+                ],
+              },
+            },
+          ],
+        },
+      ])) as unknown as typeof fetch
+
+    const res = await makeApp().request("/api/korea/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: "hours?" }),
+    })
+    const text = await res.text()
+    expect(text).toContain("Mingles is open late.")
+    expect(text).toContain('"sources"')
+    expect(text).toContain("example.com/mingles")
   })
 
   test("surfaces a friendly error when Gemini responds non-OK", async () => {

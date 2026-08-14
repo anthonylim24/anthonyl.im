@@ -1,7 +1,20 @@
 import { streamSSE } from "hono/streaming"
 import type { Context } from "hono"
+import {
+  createAddPlacesFenceFilter,
+  dropPlacesAlreadyOnTrip,
+  enrichPlacesWithGeocode,
+  mergeConciergePlaces,
+  parseAddPlacesTrailer,
+  placeCanBeAdded,
+  placesFromMapsChunks,
+  sourcesFromGrounding,
+  tripPlaceTitles,
+  type PlaceGeocoder,
+} from "../geminiGrounding"
 import { relayGeminiChatBody } from "../geminiStream"
-import { GEMINI_BASE, GEMINI_MODEL, geminiThinking } from "../igPlaces/gemini"
+import { fetchGeminiStreamWithToolFallback, mapsRetrievalConfig } from "../geminiTools"
+import { geminiThinking } from "../igPlaces/gemini"
 import { withSsePings } from "../ssePing"
 import type { ItineraryItem, Trip, TripDay } from "./types"
 
@@ -123,32 +136,54 @@ export function buildTripChatSystemInstruction(trip: Trip, dayId?: string): stri
       `reservations and timings, neighborhoods, transit, and general logistics.`,
     `Today's date in the trip time zone (${trip.timezone}) is ${nowLocal}.`,
     `RULES:`,
-    `1. Answer ONLY from the itinerary data below. If something isn't in the data, say you don't have it rather than inventing details. Never fabricate reservation times, addresses, or confirmation numbers.`,
+    `1. Reservations, times, and confirmation numbers come ONLY from the itinerary data below — never invent those. For restaurants, hours, reviews, transit, weather, events, and neighborhood questions, use Google Search and Google Maps grounding so answers stay current. Say when a detail is from Maps or the live web rather than the saved itinerary.`,
     `2. Be concise and mobile-friendly: short paragraphs, bullet points, bold the key thing. This is read on a phone, often one-handed.`,
-    `3. When recommending a place, prefer ones already on the itinerary and mention why. Surface same-neighborhood / same-city picks first when a focused day is set.`,
+    `3. When recommending a place, prefer ones already on the itinerary and mention why. Surface same-neighborhood / same-city picks first when a focused day is set. You may recommend new venues when the traveler asks — verify each with Maps.`,
     `4. For reservations, lead with the time and status. Flag anything pending, tentative, or needs_review.`,
     `5. Use a warm, confident concierge tone: like a well-briefed travel host, not a search engine.`,
     `6. Use Markdown for structure (bold, bullets). Keep it tight.`,
+    `7. When you recommend a venue that is NOT already on the itinerary and the traveler might add it, append this machine-only block AFTER the reply (never inside a sentence):`,
+    `:::add-places`,
+    `[{"name":"Venue","address":"street address","lat":0,"lng":0,"category":"restaurant","dayId":"${dayId ?? ""}","notes":"one-line why","placeId":"","mapsUrl":""}]`,
+    `:::`,
+    `Use real Maps-verified name + address. Include lat/lng when Maps has them. Omit dayId if unsure. Omit the block for logistics-only answers or places already listed above.`,
     ``,
     `=== ITINERARY DATA ===`,
     buildTripChatContext(trip, dayId),
   ].join("\n")
 }
 
-const TRANSIENT_GEMINI = new Set([500, 502, 503, 504])
-
-async function fetchGeminiStream(url: string, init: RequestInit): Promise<Response> {
-  const first = await fetch(url, init)
-  if (!TRANSIENT_GEMINI.has(first.status)) return first
-  await first.text().catch(() => {})
-  await new Promise((r) => setTimeout(r, 800))
-  return fetch(url, init)
+export function tripLatLngHint(trip: Trip, dayId?: string): { latitude: number; longitude: number } | null {
+  const focused = dayId ? trip.days.filter((d) => d.id === dayId) : []
+  const pools = focused.length ? [focused, trip.days] : [trip.days]
+  for (const days of pools) {
+    const pts: Array<{ lat: number; lng: number }> = []
+    for (const day of days) {
+      for (const item of day.items) {
+        const lat = item.location?.lat
+        const lng = item.location?.lng
+        if (typeof lat === "number" && typeof lng === "number") pts.push({ lat, lng })
+      }
+    }
+    if (pts.length === 0) continue
+    return {
+      latitude: pts.reduce((s, p) => s + p.lat, 0) / pts.length,
+      longitude: pts.reduce((s, p) => s + p.lng, 0) / pts.length,
+    }
+  }
+  return null
 }
 
 /** Relay Gemini SSE into the frontend's `data: <json-string>` + `[DONE]` shape. */
 export async function streamTripChat(
   c: Context,
-  args: { trip: Trip; prompt: string; dayId?: string; messages: TripChatTurn[] },
+  args: {
+    trip: Trip
+    prompt: string
+    dayId?: string
+    messages: TripChatTurn[]
+    geocode?: PlaceGeocoder | null
+  },
 ): Promise<Response> {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) {
@@ -168,13 +203,14 @@ export async function streamTripChat(
     contents: [...history, { role: "user", parts: [{ text: args.prompt }] }],
     generationConfig: {
       temperature: 0.45,
-      maxOutputTokens: 1024,
+      maxOutputTokens: 2048,
       // 3.7 Flash rejects `minimal` (400). `low` is the snappy chat tier.
       thinkingConfig: geminiThinking("low"),
     },
   }
 
   const upstreamSignal = AbortSignal.any([AbortSignal.timeout(60_000), c.req.raw.signal])
+  const toolConfig = mapsRetrievalConfig(tripLatLngHint(args.trip, args.dayId))
 
   return streamSSE(c, async (stream) => {
     let sawText = false
@@ -187,15 +223,13 @@ export async function streamTripChat(
       await withSsePings(
         () => stream.writeSSE({ event: "ping", data: "" }),
         (async () => {
-          const res = await fetchGeminiStream(
-            `${GEMINI_BASE}/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-              body: JSON.stringify(body),
-              signal: upstreamSignal,
-            },
-          )
+          const res = await fetchGeminiStreamWithToolFallback({
+            apiKey,
+            baseBody: body,
+            toolConfig,
+            signal: upstreamSignal,
+            logLabel: "trips-chat",
+          })
 
           if (!res.ok || !res.body) {
             const detail = await res.text().catch(() => "")
@@ -207,23 +241,45 @@ export async function streamTripChat(
             return
           }
 
+          const fence = createAddPlacesFenceFilter()
           const relayed = await relayGeminiChatBody(res.body, async (delta) => {
-            await stream.writeSSE({ data: JSON.stringify(delta) })
+            const visible = fence.push(delta)
+            if (visible) {
+              sawText = true
+              await stream.writeSSE({ data: JSON.stringify(visible) })
+            }
           })
-          sawText = relayed.sawText
+          const { visibleTail, hidden } = fence.end()
+          if (visibleTail) {
+            sawText = true
+            await stream.writeSSE({ data: JSON.stringify(visibleTail) })
+          }
           finishReason = relayed.finishReason
           blockReason = relayed.blockReason
+
+          let places = dropPlacesAlreadyOnTrip(
+            mergeConciergePlaces(parseAddPlacesTrailer(hidden), placesFromMapsChunks(relayed.grounding)),
+            tripPlaceTitles(args.trip.days),
+          )
+          if (places.length && args.geocode) {
+            places = await enrichPlacesWithGeocode(places, args.geocode)
+          }
+          places = places.filter((p) => placeCanBeAdded(p) || Boolean(p.mapsUrl))
+          const sources = sourcesFromGrounding(relayed.grounding)
 
           if (sawText && finishReason === "MAX_TOKENS") {
             await stream.writeSSE({ data: JSON.stringify("\n\n*…trimmed for length. Ask me to continue.*") })
           }
 
-          if (!sawText) {
+          if (!sawText && places.length === 0) {
             const reason = blockReason
               ? "That one's outside what I can help with for this trip."
               : "I couldn't find an answer for that. Try rephrasing, or ask about a specific day, restaurant, or reservation."
             await stream.writeSSE({ data: JSON.stringify(reason) })
           }
+
+          if (places.length) await stream.writeSSE({ data: JSON.stringify({ places }) })
+          if (sources.length) await stream.writeSSE({ data: JSON.stringify({ sources }) })
 
           await stream.writeSSE({ data: "[DONE]" })
         })(),

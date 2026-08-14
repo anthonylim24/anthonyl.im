@@ -1,5 +1,6 @@
 import Groq from "groq-sdk"
 import { textFromGeminiParts, type GeminiPart } from "../geminiStream"
+import { GEMINI_TOOLS_MAPS, GEMINI_TOOLS_SEARCH_AND_MAPS } from "../geminiTools"
 import { GEMINI_BASE, GEMINI_MODEL, geminiThinking } from "../igPlaces/gemini"
 import { haversineMeters } from "../data/koreaPlaces"
 import {
@@ -74,10 +75,10 @@ export function createGroqLlm(apiKey: string): LlmCall {
 }
 
 /**
- * Preferred trips LLM: Gemini 3.7 Flash with Google Maps grounding.
- * Grounding lets the model verify venues exist and return real coordinates
- * directly (fewer geocode round-trips). On grounding/API failure, retries
- * once in JSON-only mode (Maps + responseMimeType is unsupported).
+ * Preferred trips LLM: Gemini 3.7 Flash with Search + Maps grounding.
+ * Maps verifies venues and returns real coordinates; Search covers hours,
+ * events, and seasonal notes. Grounding cannot use application/json mime
+ * type, so the last retry is JSON-only.
  */
 export function createGeminiLlm(
   apiKey: string,
@@ -86,22 +87,24 @@ export function createGeminiLlm(
 ): LlmCall {
   const model = opts?.model ?? GEMINI_MODEL
   return async ({ system, user, maxTokens }) => {
-    const run = async (withMaps: boolean): Promise<string> => {
+    const run = async (mode: "search+maps" | "maps" | "json"): Promise<string> => {
       const generationConfig: Record<string, unknown> = {
         temperature: 0.55,
         maxOutputTokens: maxTokens ?? 16_384,
         thinkingConfig: geminiThinking("low"),
       }
-      // Maps grounding cannot be combined with application/json mime type
-      // (Gemini returns 400 INVALID_ARGUMENT). JSON mode is the no-Maps retry.
-      if (!withMaps) generationConfig.responseMimeType = "application/json"
+      // Maps/Search grounding cannot be combined with application/json mime
+      // type (Gemini returns 400 INVALID_ARGUMENT). JSON mode is the last retry.
+      if (mode === "json") generationConfig.responseMimeType = "application/json"
+      const tools =
+        mode === "search+maps" ? GEMINI_TOOLS_SEARCH_AND_MAPS : mode === "maps" ? GEMINI_TOOLS_MAPS : undefined
 
       const res = await fetchGeminiWithRetry(fetchImpl, `${GEMINI_BASE}/models/${model}:generateContent`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
         body: JSON.stringify({
           contents: [{ role: "user", parts: [{ text: `${system}\n\n${user}` }] }],
-          ...(withMaps ? { tools: [{ googleMaps: {} }] } : {}),
+          ...(tools ? { tools } : {}),
           generationConfig,
         }),
         signal: AbortSignal.timeout(90_000),
@@ -130,11 +133,17 @@ export function createGeminiLlm(
     }
 
     try {
-      return await run(true)
+      return await run("search+maps")
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.warn(`[trips/ai] Maps-grounded Gemini failed (${msg}); retrying JSON-only`)
-      return await run(false)
+      const first = err instanceof Error ? err.message : String(err)
+      console.warn(`[trips/ai] Search+Maps Gemini failed (${first}); retrying Maps-only`)
+      try {
+        return await run("maps")
+      } catch (mapsErr) {
+        const msg = mapsErr instanceof Error ? mapsErr.message : String(mapsErr)
+        console.warn(`[trips/ai] Maps-grounded Gemini failed (${msg}); retrying JSON-only`)
+        return await run("json")
+      }
     }
   }
 }
@@ -152,7 +161,7 @@ export function withLlmFallback(primary: LlmCall, fallback: LlmCall): LlmCall {
   }
 }
 
-/** Gemini (Maps → JSON retry) with Groq as final fallback. */
+/** Gemini (Search+Maps → Maps → JSON retry) with Groq as final fallback. */
 export function createTripsLlm(args: {
   geminiApiKey?: string | null
   groqApiKey?: string | null
@@ -444,7 +453,7 @@ Output a single JSON object with this exact shape:
 Rules:
 - Realistic pacing: 4-7 items per day, geographically clustered to minimize backtracking.
 - Include meals (lunch + dinner) as place items with category "restaurant" or "cafe".
-- Every place item MUST have a location with at least name + address. When Google Maps grounding is available, use it to verify each venue exists and include its real lat/lng; otherwise provide coordinates only when confident.
+- Every place item MUST have a location with at least name + address. When Google Maps grounding is available, use it to verify each venue exists and include its real lat/lng; use Google Search for hours, seasonal closures, and events. Otherwise provide coordinates only when confident.
 - Use "section" items sparingly as morning/afternoon/evening headers, "note" items for tips.
 - Respect the traveler preferences when given. Never invent reservations or claim bookings exist.
 - "notes" at the day level is editorial voice (a travel-dossier one-liner), not logistics; keep logistics in item notes.`
@@ -584,7 +593,7 @@ Output a single JSON object:
   ]
 }
 
-Your primary job is to add worthwhile stops when the day has room. Review for: missing meals, empty or thin days (fewer than 4 place items), long gaps between timed stops, nearby alternatives that fit the day's geography, weather conflicts (outdoor plans on high-rain days), travel-time backtracking, and places that may need hour verification (verify with Google Maps grounding when available; otherwise flag as "warning" with confidence "low").
+Your primary job is to add worthwhile stops when the day has room. Review for: missing meals, empty or thin days (fewer than 4 place items), long gaps between timed stops, nearby alternatives that fit the day's geography, weather conflicts (outdoor plans on high-rain days), travel-time backtracking, and places that may need hour verification (verify with Google Maps grounding and Google Search when available; otherwise flag as "warning" with confidence "low").
 
 Rules:
 - ALWAYS set outcome + outcomeReason. The traveler must understand why places were or were not added.

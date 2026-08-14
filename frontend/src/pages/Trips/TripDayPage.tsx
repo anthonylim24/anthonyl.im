@@ -6,6 +6,7 @@ import { useGetToken } from "@/lib/safeAuth"
 import { EntityIndexProvider } from "../Korea/entityIndex"
 import { LinkifiedText } from "../Korea/LinkifiedText"
 import { getTrip } from "./tripsApi"
+import { useTripChanged } from "./tripsEvents"
 import { ACCENT, calloutTone, formatTripDate, resolveAccent, todayIsoIn } from "./theme"
 import { useAnchorHighlight, useAnchorTarget } from "./anchors"
 import { DossierSectionHeader } from "./components/DossierSectionHeader"
@@ -98,6 +99,12 @@ export function TripDayPage() {
       cancelled = true
     }
   }, [tripId, getToken, reloadKey])
+  useTripChanged(
+    tripId,
+    useCallback((trip) => {
+      setState((current) => (current.status === "success" ? { ...current, trip } : current))
+    }, []),
+  )
 
   if (state.status === "loading") {
     return (

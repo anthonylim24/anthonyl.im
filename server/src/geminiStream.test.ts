@@ -48,6 +48,7 @@ describe("parseGeminiStreamLine", () => {
       delta: "# Dinner",
       finishReason: undefined,
       blockReason: undefined,
+      grounding: undefined,
     })
   })
 
@@ -57,6 +58,30 @@ describe("parseGeminiStreamLine", () => {
       delta: "- Mingles",
       finishReason: "STOP",
       blockReason: undefined,
+      grounding: undefined,
+    })
+  })
+
+  test("extracts Maps grounding metadata", () => {
+    const chunk = {
+      candidates: [
+        {
+          content: { parts: [{ text: "Go." }] },
+          groundingMetadata: {
+            groundingChunks: [{ maps: { title: "Cafe", uri: "https://maps.google.com/?cid=1", placeId: "places/ChIJabcdefgh" } }],
+            webSearchQueries: ["cafe nearby"],
+          },
+        },
+      ],
+    }
+    expect(parseGeminiStreamLine(`data: ${JSON.stringify(chunk)}`)).toEqual({
+      delta: "Go.",
+      finishReason: undefined,
+      blockReason: undefined,
+      grounding: {
+        chunks: [{ kind: "maps", title: "Cafe", uri: "https://maps.google.com/?cid=1", placeId: "ChIJabcdefgh" }],
+        webSearchQueries: ["cafe nearby"],
+      },
     })
   })
 
@@ -65,6 +90,7 @@ describe("parseGeminiStreamLine", () => {
       delta: "",
       finishReason: undefined,
       blockReason: "SAFETY",
+      grounding: undefined,
     })
     expect(parseGeminiStreamLine("")).toBeNull()
     expect(parseGeminiStreamLine("data: [DONE]")).toBeNull()

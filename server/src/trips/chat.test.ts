@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { buildTripChatContext, buildTripChatSystemInstruction } from "./chat"
+import { buildTripChatContext, buildTripChatSystemInstruction, tripLatLngHint } from "./chat"
 import type { Trip } from "./types"
 
 function makeTrip(): Trip {
@@ -29,6 +29,7 @@ function makeTrip(): Trip {
             status: "none",
             createdBy: "user",
             notes: "CONFIDENTIAL_DAY1_NOTE",
+            location: { name: "Senso-ji", source: "user", lat: 35.7148, lng: 139.7967 },
           },
         ],
       },
@@ -83,6 +84,20 @@ describe("buildTripChatSystemInstruction", () => {
     expect(sys).toContain("trip concierge")
     expect(sys).toContain("Tokyo Long Weekend")
     expect(sys).toContain("FOCUSED DAY")
-    expect(sys).toContain("Answer ONLY from the itinerary data")
+    expect(sys).toContain("Google Search and Google Maps")
+    expect(sys).toContain(":::add-places")
+    expect(sys).not.toContain("Answer ONLY from the itinerary data")
+  })
+})
+
+describe("tripLatLngHint", () => {
+  it("averages coords on the focused day", () => {
+    const hint = tripLatLngHint(makeTrip(), "day-1")
+    expect(hint).toEqual({ latitude: 35.7148, longitude: 139.7967 })
+  })
+
+  it("falls back to any located item when the focused day has none", () => {
+    const hint = tripLatLngHint(makeTrip(), "day-2")
+    expect(hint).toEqual({ latitude: 35.7148, longitude: 139.7967 })
   })
 })

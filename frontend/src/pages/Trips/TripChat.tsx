@@ -3,19 +3,27 @@ import { createPortal } from "react-dom"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useLocation } from "react-router-dom"
 import { Maximize2, MessageCircleHeart, Minimize2, Send, Sparkles, X } from "lucide-react"
+import { conciergePlaceKey, type ConciergePlace, type ConciergeSource } from "../../lib/conciergeGrounding"
 import { useGetToken } from "@/lib/safeAuth"
+import { ConciergeSources } from "../Korea/ConciergeSources"
 import { ConciergeText } from "../Korea/ConciergeText"
+import { ConciergePlaceCards } from "./ConciergePlaceCards"
 import { conciergeSuggestions } from "./conciergeSuggestions"
-import { getTrip } from "./tripsApi"
+import { addItem, dayHasPlaceNamed, itemFromConciergePlace } from "./tripEdits"
+import { getTrip, updateTrip } from "./tripsApi"
+import { emitTripChanged } from "./tripsEvents"
 import { streamTripChat, type TripChatMessage } from "./tripChatApi"
 import { resolveAccent } from "./theme"
-import type { Trip } from "./types"
+import type { Trip, TripAccess } from "./types"
 import { ENTER_SPRING, EASE, focusRingClass, mutedInkClass } from "./ui"
 
 interface ChatMessage {
   id: string
   role: "user" | "assistant"
   content: string
+  places?: ConciergePlace[]
+  sources?: ConciergeSource[]
+  addedKeys?: string[]
 }
 
 function newId() {
@@ -81,6 +89,8 @@ export function TripChat() {
   const reduce = useReducedMotion()
   const isDesktop = useMinWidth(768)
   const [trip, setTrip] = useState<Trip | null>(null)
+  const [access, setAccess] = useState<TripAccess>("view")
+  const [addingKey, setAddingKey] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -100,15 +110,22 @@ export function TripChat() {
   useEffect(() => {
     if (!tripId) {
       setTrip(null)
+      setAccess("view")
       return
     }
     let cancelled = false
     void getTrip(getToken, tripId)
-      .then(({ trip: next }) => {
-        if (!cancelled) setTrip(next)
+      .then(({ trip: next, access: nextAccess }) => {
+        if (!cancelled) {
+          setTrip(next)
+          setAccess(nextAccess)
+        }
       })
       .catch(() => {
-        if (!cancelled) setTrip(null)
+        if (!cancelled) {
+          setTrip(null)
+          setAccess("view")
+        }
       })
     return () => {
       cancelled = true
@@ -255,8 +272,10 @@ export function TripChat() {
       let activeTrip = trip
       if (!activeTrip) {
         try {
-          activeTrip = (await getTrip(getToken, tripId)).trip
+          const loaded = await getTrip(getToken, tripId)
+          activeTrip = loaded.trip
           setTrip(activeTrip)
+          setAccess(loaded.access)
         } catch {
           activeTrip = null
         }
@@ -267,7 +286,7 @@ export function TripChat() {
         dayId && activeTrip?.days.some((d) => d.id === dayId) ? dayId : undefined
 
       try {
-        const { content, error } = await streamTripChat(
+        const { content, error, places, sources } = await streamTripChat(
           canonicalId,
           prompt,
           history,
@@ -278,8 +297,13 @@ export function TripChat() {
           activeTrip ?? undefined,
         )
         if (error) setAssistant(`⚠️ ${error}`)
-        else if (!content.trim()) {
+        else if (!content.trim() && !places?.length) {
           setAssistant("I couldn't generate a reply just now. Please try rephrasing.")
+        }
+        if (places?.length || sources?.length) {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === assistantId ? { ...m, places, sources } : m)),
+          )
         }
       } catch (err) {
         if ((err as Error).name !== "AbortError") {
@@ -292,6 +316,55 @@ export function TripChat() {
       }
     },
     [messages, tripId, dayId, trip, getToken],
+  )
+
+  const canEdit = access === "edit" || access === "owner"
+
+  const addPlace = useCallback(
+    async (place: ConciergePlace, targetDayId: string) => {
+      if (!tripId || !canEdit) return
+      const key = conciergePlaceKey(place)
+      setAddingKey(key)
+      try {
+        const { trip: fresh } = await getTrip(getToken, tripId)
+        const day = fresh.days.find((d) => d.id === targetDayId)
+        if (!day) throw new Error("That day is no longer on the trip.")
+        if (dayHasPlaceNamed(day, place.name)) {
+          setTrip(fresh)
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.places?.some((p) => conciergePlaceKey(p) === key)
+                ? { ...m, addedKeys: [...new Set([...(m.addedKeys ?? []), key])] }
+                : m,
+            ),
+          )
+          return
+        }
+        const next = await updateTrip(getToken, fresh.id, {
+          days: addItem(fresh.days, targetDayId, itemFromConciergePlace(place)),
+        })
+        setTrip(next)
+        emitTripChanged(next)
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.places?.some((p) => conciergePlaceKey(p) === key)
+              ? { ...m, addedKeys: [...new Set([...(m.addedKeys ?? []), key])] }
+              : m,
+          ),
+        )
+      } catch (err) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.places?.some((p) => conciergePlaceKey(p) === key)
+              ? { ...m, content: `${m.content}\n\n⚠️ ${(err as Error).message || "Could not add that place."}` }
+              : m,
+          ),
+        )
+      } finally {
+        setAddingKey(null)
+      }
+    },
+    [tripId, canEdit, getToken],
   )
 
   const autoGrow = useCallback(() => {
@@ -426,7 +499,7 @@ export function TripChat() {
                     </span>
                     <p className={`max-w-[18rem] text-sm ${mutedInkClass}`}>
                       {trip
-                        ? `Your concierge for ${trip.name}. Restaurants, the day's plan, reservations, and logistics.`
+                        ? `Your concierge for ${trip.name}. Ask about the plan, or a place to add.`
                         : "Your concierge for this itinerary. Ask about the plan, reservations, or where to eat."}
                     </p>
                   </div>
@@ -450,6 +523,23 @@ export function TripChat() {
                           ) : (
                             <TypingDots reduce={!!reduce} />
                           )}
+                          {m.places && trip ? (
+                            <ConciergePlaceCards
+                              places={m.places}
+                              days={trip.days}
+                              defaultDayId={dayId}
+                              addedKeys={new Set(m.addedKeys)}
+                              addingKey={addingKey}
+                              canEdit={canEdit}
+                              onAdd={(place, targetDayId) => void addPlace(place, targetDayId)}
+                            />
+                          ) : null}
+                          {m.sources ? (
+                            <ConciergeSources
+                              sources={m.sources}
+                              linkClass="break-words underline decoration-[color:var(--ta-ring)] underline-offset-2 decoration-1 transition hover:text-[color:var(--ta-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--trips-focus)]"
+                            />
+                          ) : null}
                         </div>
                       </div>
                     ),

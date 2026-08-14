@@ -643,6 +643,17 @@ function geminiSseResponse(deltas: string[]): Response {
   return new Response(stream, { status: 200, headers: { "Content-Type": "text/event-stream" } })
 }
 
+function geminiRawSse(chunks: unknown[]): Response {
+  const encoder = new TextEncoder()
+  const stream = new ReadableStream({
+    start(controller) {
+      for (const ch of chunks) controller.enqueue(encoder.encode(`data: ${JSON.stringify(ch)}\n\n`))
+      controller.close()
+    },
+  })
+  return new Response(stream, { status: 200, headers: { "Content-Type": "text/event-stream" } })
+}
+
 describe("concierge chat", () => {
   const realFetch = globalThis.fetch
   const realKey = process.env.GEMINI_API_KEY
@@ -695,6 +706,7 @@ describe("concierge chat", () => {
     let capturedBody: {
       systemInstruction?: { parts: Array<{ text: string }> }
       generationConfig?: { thinkingConfig?: { thinkingLevel?: string } }
+      tools?: unknown
     } | null = null
     globalThis.fetch = (async (_url: string, init?: RequestInit) => {
       capturedBody = JSON.parse(String(init?.body)) as typeof capturedBody
@@ -717,7 +729,83 @@ describe("concierge chat", () => {
     const sys = capturedBody?.systemInstruction?.parts[0]?.text ?? ""
     expect(sys).toContain("Tokyo Long Weekend")
     expect(sys).toContain("FOCUSED DAY")
+    expect(sys).toContain("Google Search and Google Maps")
     expect(capturedBody?.generationConfig?.thinkingConfig).toEqual({ thinkingLevel: "low" })
+    expect(capturedBody?.tools).toEqual([{ googleSearch: {} }, { googleMaps: {} }])
+  })
+
+  test("strips the add-places trailer and emits a places event", async () => {
+    process.env.GEMINI_API_KEY = "test-key"
+    globalThis.fetch = (async () =>
+      geminiSseResponse([
+        "Try **Ichiran**.",
+        '\n:::add-places\n[{"name":"Ichiran","address":"Shibuya","lat":35.66,"lng":139.7,"category":"restaurant"}]\n:::',
+      ])) as unknown as typeof fetch
+
+    const { app } = makeApp()
+    const trip = await createTrip(app)
+    const res = await app.request(`/api/trips/${trip.id}/chat`, {
+      method: "POST",
+      headers: AUTH,
+      body: JSON.stringify({ prompt: "ramen?" }),
+    })
+    const text = await res.text()
+    expect(text).toContain(`data: ${JSON.stringify("Try **Ichiran**.")}`)
+    expect(text).not.toContain(":::add-places")
+    expect(text).toContain("Ichiran")
+    expect(text).toContain('"places"')
+    expect(text).toContain("data: [DONE]")
+  })
+
+  test("drops name-only suggested places that have no address, coords, or Maps url", async () => {
+    process.env.GEMINI_API_KEY = "test-key"
+    globalThis.fetch = (async () =>
+      geminiSseResponse([
+        "Maybe that stall.",
+        '\n:::add-places\n[{"name":"Mystery Stall"}]\n:::',
+      ])) as unknown as typeof fetch
+
+    const { app } = makeApp()
+    const trip = await createTrip(app)
+    const res = await app.request(`/api/trips/${trip.id}/chat`, {
+      method: "POST",
+      headers: AUTH,
+      body: JSON.stringify({ prompt: "street food?" }),
+    })
+    const text = await res.text()
+    expect(text).toContain("Maybe that stall.")
+    expect(text).not.toContain('"places"')
+  })
+
+  test("emits Maps sources from grounding metadata", async () => {
+    process.env.GEMINI_API_KEY = "test-key"
+    globalThis.fetch = (async () =>
+      geminiRawSse([
+        {
+          candidates: [
+            {
+              content: { parts: [{ text: "Go to Senso-ji." }] },
+              groundingMetadata: {
+                groundingChunks: [
+                  { maps: { title: "Senso-ji", uri: "https://maps.google.com/?cid=1", placeId: "places/ChIJabcdefgh" } },
+                ],
+              },
+            },
+          ],
+        },
+      ])) as unknown as typeof fetch
+
+    const { app } = makeApp()
+    const trip = await createTrip(app)
+    const res = await app.request(`/api/trips/${trip.id}/chat`, {
+      method: "POST",
+      headers: AUTH,
+      body: JSON.stringify({ prompt: "temple?" }),
+    })
+    const text = await res.text()
+    expect(text).toContain("Senso-ji")
+    expect(text).toContain('"sources"')
+    expect(text).toContain("maps.google.com")
   })
 })
 

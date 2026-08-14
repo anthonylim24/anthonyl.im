@@ -13,13 +13,16 @@ vi.mock("@/lib/safeAuth", () => ({
 }))
 
 const mockGetTrip = vi.fn()
+const mockUpdateTrip = vi.fn()
+const mockStreamTripChat = vi.fn()
 
 vi.mock("../tripsApi", () => ({
   getTrip: (...args: unknown[]) => mockGetTrip(...args),
+  updateTrip: (...args: unknown[]) => mockUpdateTrip(...args),
 }))
 
 vi.mock("../tripChatApi", () => ({
-  streamTripChat: vi.fn(),
+  streamTripChat: (...args: unknown[]) => mockStreamTripChat(...args),
 }))
 
 import { TripChat } from "../TripChat"
@@ -60,7 +63,9 @@ describe("TripChat expand", () => {
   const originalMatchMedia = window.matchMedia
 
   beforeEach(() => {
-    mockGetTrip.mockResolvedValue({ trip: makeTrip() })
+    mockGetTrip.mockResolvedValue({ trip: makeTrip(), access: "owner" })
+    mockUpdateTrip.mockResolvedValue(makeTrip())
+    mockStreamTripChat.mockResolvedValue({ content: "ok" })
   })
 
   afterEach(() => {
@@ -194,5 +199,47 @@ describe("TripChat expand", () => {
     await waitFor(() => {
       expect(document.body.style.overflow).toBe(initialOverflow)
     })
+  })
+})
+
+describe("TripChat add place", () => {
+  beforeEach(() => {
+    mockGetTrip.mockResolvedValue({ trip: makeTrip(), access: "owner" })
+    mockUpdateTrip.mockImplementation(async (_token: unknown, _id: unknown, patch: { days: Trip["days"] }) =>
+      makeTrip({ days: patch.days }),
+    )
+    mockStreamTripChat.mockImplementation(
+      async (
+        _id: unknown,
+        _prompt: unknown,
+        _hist: unknown,
+        _day: unknown,
+        _token: unknown,
+        onUpdate: (content: string) => void,
+      ) => {
+        onUpdate("Try Ichiran.")
+        return {
+          content: "Try Ichiran.",
+          places: [{ name: "Ichiran", address: "Shibuya", lat: 35.66, lng: 139.7, category: "restaurant" }],
+        }
+      },
+    )
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it("adds a suggested place to the itinerary", async () => {
+    renderChat()
+    await openChat()
+    fireEvent.change(screen.getByPlaceholderText("Ask about this trip…"), { target: { value: "ramen?" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+    expect(await screen.findByRole("button", { name: "Add Ichiran to the itinerary" })).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Add Ichiran to the itinerary" }))
+    await waitFor(() => expect(mockUpdateTrip).toHaveBeenCalled())
+    const patch = mockUpdateTrip.mock.calls[0]![2] as { days: Trip["days"] }
+    expect(patch.days[0]!.items.some((item) => item.title === "Ichiran")).toBe(true)
+    expect(await screen.findByRole("button", { name: "Ichiran added" })).toBeDisabled()
   })
 })

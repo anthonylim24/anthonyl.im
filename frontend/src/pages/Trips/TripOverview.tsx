@@ -4,6 +4,7 @@ import { motion, useReducedMotion } from "motion/react"
 import { ArrowUpRight, Pencil } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
 import { getTrip } from "./tripsApi"
+import { useTripChanged } from "./tripsEvents"
 import {
   ACCENT,
   cityTag,
@@ -69,6 +70,12 @@ export function TripOverview() {
       cancelled = true
     }
   }, [tripId, getToken, reloadKey])
+  useTripChanged(
+    tripId,
+    useCallback((trip) => {
+      setState((current) => (current.status === "success" ? { ...current, trip } : current))
+    }, []),
+  )
 
   if (state.status === "loading") {
     return (
