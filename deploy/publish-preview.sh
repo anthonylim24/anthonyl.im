@@ -61,10 +61,19 @@ assert_safe_tarball() {
   done < <(tar -tzf "$tarball")
 }
 
+# Advisory lock for extract / swap / prune. The file name is `publish.lock`
+# (not `global.lock`) so a leaked FD on the old name cannot deadlock us.
+# Never leave FD 9 open across `nohup bun` — the sidecar would hold the
+# lock for its whole lifetime and every later publish would time out.
 acquire_lock() {
   mkdir -p "$LOCK_DIR"
-  exec 9>"$LOCK_DIR/global.lock"
+  exec 9>"$LOCK_DIR/publish.lock"
   flock -w 120 9 || die "could not acquire preview lock"
+}
+
+release_lock() {
+  flock -u 9 2>/dev/null || true
+  exec 9>&-
 }
 
 stop_preview_api() {
@@ -138,6 +147,8 @@ start_preview_api() {
   [ -d "$modules" ] || die "production node_modules missing at $modules (needed by preview API)"
 
   (
+    # Drop the publish flock so the long-lived sidecar cannot inherit it.
+    exec 9>&-
     set -a
     if [ -f "$PROD_ENV" ]; then
       # shellcheck disable=SC1090
@@ -151,7 +162,7 @@ start_preview_api() {
     export NODE_ENV=production
     export NODE_PATH="$modules"
     cd "$api_src"
-    nohup "$bun_bin" --smol server/src/previewApi.ts >"$live/api.log" 2>&1 &
+    nohup "$bun_bin" --smol server/src/previewApi.ts >"$live/api.log" 2>&1 9>&- &
     echo $! >"$live/api.pid"
   )
 
@@ -207,6 +218,8 @@ case "$cmd" in
     mv "$stage" "$live"
     rm -rf "$old"
     log "published $live ($(wc -c < "$live/index.html") bytes index.html)"
+    # Sidecar boot (health polls, other-API teardown) must not hold the lock.
+    release_lock
     if [ -n "$api_tarball" ]; then
       start_preview_api "$pr" "$live" "$api_tarball" || true
     fi

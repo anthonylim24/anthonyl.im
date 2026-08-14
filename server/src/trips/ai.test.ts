@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import {
   applySuggestions,
+  autoApplyAddSuggestions,
   computeTravelLegs,
   createGeminiLlm,
   createTripsLlm,
@@ -9,6 +10,7 @@ import {
   generateItinerary,
   normalizeAiItem,
   normalizeTime,
+  resolveEnhancementOutcome,
   salvageItinerary,
   salvageSuggestions,
   withLlmFallback,
@@ -192,11 +194,80 @@ describe("enhanceTrip", () => {
     expect(run.suggestions[0]!.proposedChanges).toEqual({ time: "08:00" })
     expect(run.suggestions[1]!.proposedItem!.createdBy).toBe("ai")
     expect(run.suggestions[1]!.proposedItem!.location!.source).toBe("ai")
+    expect(run.outcome).toBe("added_places")
+    expect(run.outcomeReason).toBeTruthy()
+  })
+
+  test("drops add suggestions that lack a proposedItem or valid dayId", async () => {
+    const run = await enhanceTrip({
+      trip: makeTrip(),
+      scope: "trip",
+      llm: async () =>
+        JSON.stringify({
+          summary: "Tried to add.",
+          outcome: "added_places",
+          outcomeReason: "Day 2 needs lunch.",
+          suggestions: [
+            { kind: "add", dayId: "day-2", title: "Add lunch", detail: "No meals.", confidence: "high" },
+            {
+              kind: "add",
+              dayId: "day-99",
+              title: "Wrong day",
+              detail: "Bogus day",
+              confidence: "high",
+              proposedItem: { kind: "place", title: "Ghost", location: { name: "Ghost" } },
+            },
+          ],
+        }),
+    })
+    expect(run.status).toBe("complete")
+    expect(run.suggestions.filter((s) => s.kind === "add")).toEqual([])
+    expect(run.outcome).toBe("no_adds_possible")
+    expect(run.outcomeReason).toMatch(/dropped|missing place/i)
+  })
+
+  test("always stamps an outcomeReason when the model returns none", async () => {
+    const run = await enhanceTrip({
+      trip: makeTrip(),
+      scope: "trip",
+      llm: async () => JSON.stringify({ summary: "Solid plan.", suggestions: [] }),
+    })
+    expect(run.status).toBe("complete")
+    expect(run.outcome).toBe("no_adds_needed")
+    expect(run.outcomeReason).toMatch(/Solid plan|already covers/i)
+  })
+
+  test("geocodes proposed add items that are missing coordinates", async () => {
+    const run = await enhanceTrip({
+      trip: makeTrip(),
+      scope: "trip",
+      geocode: async () => ({ lat: 35.66, lng: 139.7, address: "Shibuya", placeId: "pid" }),
+      llm: async () =>
+        JSON.stringify({
+          summary: "Add lunch.",
+          outcome: "added_places",
+          outcomeReason: "Day 2 has no meals.",
+          suggestions: [
+            {
+              kind: "add",
+              dayId: "day-2",
+              title: "Add lunch",
+              detail: "No meals.",
+              confidence: "high",
+              proposedItem: { kind: "place", title: "Ichiran", location: { name: "Ichiran", address: "Shibuya" } },
+            },
+          ],
+        }),
+    })
+    expect(run.suggestions[0]!.proposedItem!.location!.lat).toBe(35.66)
+    expect(run.suggestions[0]!.proposedItem!.location!.placeId).toBe("pid")
   })
 
   test("errors cleanly for an unknown day scope", async () => {
     const run = await enhanceTrip({ trip: makeTrip(), scope: "day", dayId: "day-99", llm: async () => "{}" })
     expect(run.status).toBe("error")
+    expect(run.outcome).toBe("no_adds_possible")
+    expect(run.outcomeReason).toMatch(/not on this trip/i)
   })
 
   test("captures llm failure as an error run", async () => {
@@ -207,6 +278,7 @@ describe("enhanceTrip", () => {
     })
     expect(run.status).toBe("error")
     expect(run.error).toBeTruthy()
+    expect(run.outcomeReason).toMatch(/failed before/i)
   })
 })
 
@@ -296,6 +368,141 @@ describe("applySuggestions", () => {
     const { applied, skipped } = applySuggestions(trip, run, ["sug-edit", "nope"])
     expect(applied).toEqual([])
     expect(skipped).toEqual(["sug-edit", "nope"])
+  })
+
+  test("skips add suggestions that lack a dayId instead of dumping onto day 1", () => {
+    const trip = makeTrip()
+    const run = makeRun(trip)
+    run.suggestions[0]!.dayId = undefined
+    const { trip: next, applied, skipped } = applySuggestions(trip, run, ["sug-add"])
+    expect(applied).toEqual([])
+    expect(skipped).toEqual(["sug-add"])
+    expect(next.days[0]!.items.map((i) => i.title)).not.toContain("Ichiran")
+    expect(next.days[1]!.items.map((i) => i.title)).not.toContain("Ichiran")
+  })
+})
+
+describe("autoApplyAddSuggestions", () => {
+  test("applies valid adds and stamps added_places", () => {
+    const trip = makeTrip()
+    const run: EnhancementRun = {
+      id: "run-1",
+      tripId: trip.id,
+      scope: "trip",
+      status: "complete",
+      appliedSuggestionIds: [],
+      createdAt: "2026-06-01T00:00:00.000Z",
+      suggestions: [
+        {
+          id: "sug-add",
+          kind: "add",
+          dayId: "day-2",
+          title: "Add lunch",
+          detail: "Day 2 has no meals.",
+          confidence: "high",
+          proposedItem: {
+            id: "it-new",
+            kind: "place",
+            title: "Ichiran",
+            status: "needs_review",
+            location: { name: "Ichiran", lat: 35.66, lng: 139.7, source: "ai" },
+            createdBy: "ai",
+          },
+        },
+        {
+          id: "sug-edit",
+          kind: "edit",
+          itemId: "it-a",
+          dayId: "day-1",
+          title: "Start earlier",
+          detail: "Beat crowds.",
+          confidence: "high",
+          proposedChanges: { time: "08:00" },
+        },
+      ],
+    }
+    const result = autoApplyAddSuggestions(trip, run)
+    expect(result.applied).toEqual(["sug-add"])
+    expect(result.trip.days[1]!.items.map((i) => i.title)).toContain("Ichiran")
+    expect(result.trip.days[0]!.items.find((i) => i.id === "it-a")!.time).toBeUndefined()
+    expect(result.run.outcome).toBe("added_places")
+    expect(result.run.outcomeReason).toMatch(/meals|Ichiran|stop/i)
+    expect(result.run.appliedSuggestionIds).toEqual(["sug-add"])
+  })
+
+  test("explains a no-add run", () => {
+    const trip = makeTrip()
+    const run: EnhancementRun = {
+      id: "run-1",
+      tripId: trip.id,
+      scope: "trip",
+      status: "complete",
+      summary: "Already well paced.",
+      appliedSuggestionIds: [],
+      createdAt: "2026-06-01T00:00:00.000Z",
+      suggestions: [],
+    }
+    const result = autoApplyAddSuggestions(trip, run)
+    expect(result.applied).toEqual([])
+    expect(result.run.outcome).toBe("no_adds_needed")
+    expect(result.run.outcomeReason).toMatch(/Already well paced|already covers/)
+  })
+
+  test("does not auto-apply a place add that lacks a location name", () => {
+    const trip = makeTrip()
+    const run: EnhancementRun = {
+      id: "run-1",
+      tripId: trip.id,
+      scope: "trip",
+      status: "complete",
+      appliedSuggestionIds: [],
+      createdAt: "2026-06-01T00:00:00.000Z",
+      suggestions: [
+        {
+          id: "sug-add",
+          kind: "add",
+          dayId: "day-2",
+          title: "Add something",
+          detail: "Vague.",
+          confidence: "low",
+          proposedItem: {
+            id: "it-new",
+            kind: "place",
+            title: "Mystery spot",
+            status: "needs_review",
+            createdBy: "ai",
+          },
+        },
+      ],
+    }
+    const result = autoApplyAddSuggestions(trip, run)
+    expect(result.applied).toEqual([])
+    expect(result.trip.days[1]!.items).toEqual([])
+    expect(result.run.outcome).toBe("no_adds_possible")
+  })
+})
+
+describe("resolveEnhancementOutcome", () => {
+  test("does not keep added_places when every add was filtered out", () => {
+    const resolved = resolveEnhancementOutcome({
+      suggestions: [],
+      modelOutcome: "added_places",
+      modelReason: "Added lunch on day 2.",
+      appliedAddCount: 0,
+    })
+    expect(resolved.outcome).toBe("no_adds_possible")
+    expect(resolved.outcomeReason).toMatch(/dropped/i)
+  })
+
+  test("prefers applied count over a stale model outcome", () => {
+    const resolved = resolveEnhancementOutcome({
+      suggestions: [],
+      modelOutcome: "no_adds_needed",
+      modelReason: "Added a late lunch near the museum.",
+      appliedAddCount: 1,
+    })
+    expect(resolved.outcome).toBe("added_places")
+    expect(resolved.outcomeReason).toBe("Added a late lunch near the museum.")
   })
 })
 

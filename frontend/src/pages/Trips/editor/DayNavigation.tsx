@@ -98,7 +98,7 @@ export function DayNavigation({ days, timezone }: { days: TripDay[]; timezone: s
         </ol>
       </nav>
 
-      <nav aria-label="Days" className="hidden lg:block">
+      <nav aria-label="Days" className="hidden lg:block lg:w-44 lg:shrink-0">
         <ol className="sticky top-20 space-y-0.5 border-l border-stone-200 pl-3 dark:border-stone-800">
           {days.map((day, idx) => {
             const isActive = day.id === active

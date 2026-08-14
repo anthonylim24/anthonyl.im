@@ -334,6 +334,19 @@ export function TripsIndex() {
                               role="alert"
                               onKeyDown={(e) => {
                                 if (e.key === "Escape") closeConfirm(trip.id)
+                                if (e.key !== "Tab") return
+                                const root = e.currentTarget
+                                const buttons = [...root.querySelectorAll<HTMLElement>("button:not([disabled])")]
+                                if (buttons.length < 2) return
+                                const first = buttons[0]!
+                                const last = buttons[buttons.length - 1]!
+                                if (e.shiftKey && document.activeElement === first) {
+                                  e.preventDefault()
+                                  last.focus()
+                                } else if (!e.shiftKey && document.activeElement === last) {
+                                  e.preventDefault()
+                                  first.focus()
+                                }
                               }}
                             >
                               <div className="flex flex-wrap items-center justify-between gap-3 sm:flex-nowrap">
@@ -367,9 +380,23 @@ export function TripsIndex() {
                             <div
                               className="flex flex-wrap items-center justify-between gap-3 bg-red-50/60 px-3 py-3 sm:flex-nowrap dark:bg-red-950/20"
                               role="alertdialog"
+                              aria-modal="true"
                               aria-labelledby={`del-${trip.id}`}
                               onKeyDown={(e) => {
                                 if (e.key === "Escape") closeConfirm(trip.id)
+                                if (e.key !== "Tab") return
+                                const root = e.currentTarget
+                                const buttons = [...root.querySelectorAll<HTMLElement>("button:not([disabled])")]
+                                if (buttons.length < 2) return
+                                const first = buttons[0]!
+                                const last = buttons[buttons.length - 1]!
+                                if (e.shiftKey && document.activeElement === first) {
+                                  e.preventDefault()
+                                  last.focus()
+                                } else if (!e.shiftKey && document.activeElement === last) {
+                                  e.preventDefault()
+                                  first.focus()
+                                }
                               }}
                             >
                               <p

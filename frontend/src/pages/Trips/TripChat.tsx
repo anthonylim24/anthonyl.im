@@ -412,7 +412,7 @@ export function TripChat() {
                     }}
                     rows={1}
                     placeholder="Ask about this trip…"
-                    className="max-h-28 flex-1 resize-none bg-transparent text-[16px] text-stone-900 outline-none placeholder:text-stone-400 sm:text-[15px] dark:text-stone-100 dark:placeholder:text-stone-500"
+                    className="max-h-28 flex-1 resize-none bg-transparent text-[16px] text-stone-900 outline-none placeholder:text-stone-400 sm:text-[15px] dark:text-stone-100 dark:placeholder:text-stone-400"
                   />
                   <button
                     type="submit"

@@ -213,22 +213,25 @@ The IG-places routes and the Korea auth gate normally require a Clerk session. F
 
 **Production safety:** the deploy workflow's `FRONTEND_ENV` secret must NOT include `VITE_DEV_BEARER`. The droplet's `.env` SHOULD NOT include `IG_DEV_BEARER` in production deploys — or if it does, the value must be cryptographically random and treated as a master credential. Playwright's hermetic e2e stack sets `VITE_DEV_BEARER=codex-dev-bearer` on the Vite server to match `IG_DEV_BEARER`.
 
-## Agent sign-in on production / PR previews (Clerk Agent Tasks)
+## Agent sign-in for PR previews (Clerk Agent Tasks)
 
-Previews share the `anthonyl.im` origin, so a real Clerk session cookie works for `/preview/pr/<n>/korea` and `/trips`. Do **not** bake `VITE_DEV_BEARER` into a preview. Instead mint a [Clerk Agent Task](https://clerk.com/docs/guides/development/testing/agent-tasks) URL:
+Do **not** bake `VITE_DEV_BEARER` into a preview. Mint a [Clerk Agent Task](https://clerk.com/docs/guides/development/testing/agent-tasks) URL from a trusted `origin/main` checkout (the helper can send secrets):
 
-```
+```bash
 bun scripts/clerk-agent-login.ts --pr <n> --path /korea
+bun scripts/clerk-agent-login.ts --pr <n> --path /trips
 ```
+
+`CLERK_AGENT_USER_ID` / `CLERK_AGENT_USER_EMAIL` must be a **dedicated screenshot user** with no production trip data and no write access to real itineraries. Do not mint a session for production `/korea` or `/trips`.
 
 Enable Agent Tasks (Beta) on the Clerk instance, then set on the droplet (`~/.env`):
 
-```
+```dotenv
 CLERK_AGENT_USER_ID=user_...          # or CLERK_AGENT_USER_EMAIL=you@example.com
-AGENT_LOGIN_SECRET=<random-48-char>   # optional; `gh auth token` as a collaborator also works
+AGENT_LOGIN_SECRET=<random-48-char>   # optional; `gh auth token` works when AGENT_GITHUB_REPO is set (default anthonylim24/anthonyl.im)
 ```
 
-`POST /api/agent/session` is 404 until `CLERK_SECRET_KEY` and the agent user are set. Redirects are allowlisted to `anthonyl.im` and localhost. Sessions last 30 minutes.
+`POST /api/agent/session` is 404 until `CLERK_SECRET_KEY` and the agent user (`CLERK_AGENT_USER_ID` or `CLERK_AGENT_USER_EMAIL`) are set. Redirects are allowlisted to `anthonyl.im` and localhost. Sessions last 30 minutes.
 
 ## Verify a deploy
 
