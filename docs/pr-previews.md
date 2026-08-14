@@ -108,6 +108,7 @@ PR opened/sync
       └─ deploy/publish-preview.sh publish <n> <frontend.tgz> <api.tgz>
          atomic mv ~/previews/.staging/<n> → ~/previews/<n>
          bun --smol server/src/previewApi.ts on 127.0.0.1:41xx
+         (lock released before the sidecar starts; bun must not inherit flock)
 ```
 
 Production Hono (`server/src/preview.ts`) serves `~/previews/<n>/` at
