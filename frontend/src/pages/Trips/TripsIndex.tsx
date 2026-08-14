@@ -10,7 +10,7 @@ import { TripStatusChip } from "./components/StatusChip"
 import {
   EASE,
   REVEAL_DURATION,
-  SERIF,
+  DISPLAY,
   alertErrorClass,
   dangerBtnClass,
   dangerIconBtnClass,
@@ -236,7 +236,7 @@ export function TripsIndex() {
           <p className={eyebrowClass}>Itinerary workspace</p>
           <h1
             className="mt-2 font-display text-[clamp(2.25rem,5vw,3.25rem)] leading-[1.05] tracking-tight text-stone-900 dark:text-stone-100"
-            style={SERIF}
+            style={DISPLAY}
           >
             Your trips
           </h1>
@@ -286,7 +286,7 @@ export function TripsIndex() {
             <p className={eyebrowClass}>No trips yet</p>
             <h2
               className="mt-3 font-display text-[clamp(2.25rem,5vw,3.25rem)] leading-[1.05] tracking-tight text-stone-900 dark:text-stone-100"
-              style={SERIF}
+              style={DISPLAY}
             >
               Where to next?
             </h2>

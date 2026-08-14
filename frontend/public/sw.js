@@ -1,6 +1,6 @@
 // Korea is now the only installable PWA — bump cache version so iOS
 // clients drop the previously-precached BreathFlow manifest.
-const CACHE_VERSION = 'korea-offline-v11'
+const CACHE_VERSION = 'korea-offline-v12'
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`
 const KOREA_API_CACHE = `${CACHE_VERSION}-korea-api`
 const APP_SHELL = [

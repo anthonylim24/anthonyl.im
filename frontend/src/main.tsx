@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { AppRoutes } from './AppRoutes'
 import { createOptionalClerkTree } from './lib/clerkProvider'
 import { registerServiceWorker } from './lib/serviceWorker'
+import './fonts'
 import './index.css'
 
 registerServiceWorker()

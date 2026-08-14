@@ -20,7 +20,7 @@ import type { ItineraryItem, Trip, TripDay } from "./types"
 import {
   EASE,
   REVEAL_DURATION,
-  SERIF,
+  DISPLAY,
   alertErrorClass,
   focusRingClass,
   focusRingInsetClass,
@@ -139,7 +139,7 @@ export function TripOverview() {
             </span>
           </motion.div>
 
-          <motion.h1 {...fadeUp(2)} className="mt-4 text-stone-900 dark:text-stone-100" style={SERIF}>
+          <motion.h1 {...fadeUp(2)} className="mt-4 text-stone-900 dark:text-stone-100" style={DISPLAY}>
             <span className={`block max-w-[16ch] font-display text-[clamp(2.5rem,7vw,4.25rem)] font-medium leading-[0.98] tracking-[-0.02em] ${wrapAnywhereClass}`}>
               {trip.name}
             </span>
@@ -215,7 +215,7 @@ export function TripOverview() {
               </p>
               <p
                 className={`font-display text-lg font-medium text-stone-900 transition-colors sm:text-xl dark:text-stone-100 ${a.textHover} ${wrapAnywhereClass}`}
-                style={SERIF}
+                style={DISPLAY}
               >
                 {todayDay.emoji && <span aria-hidden className="mr-2">{todayDay.emoji}</span>}
                 Day {trip.days.indexOf(todayDay) + 1}
@@ -365,7 +365,7 @@ function DayRow({
         }`}
       >
         <div className="w-16 shrink-0 sm:w-20">
-          <p className={`font-display text-3xl font-light leading-none tabular-nums ${numeralClass}`} style={SERIF}>
+          <p className={`font-display text-3xl font-light leading-none tabular-nums ${numeralClass}`} style={DISPLAY}>
             {String(index + 1).padStart(2, "0")}
           </p>
           <p className={`mt-1 font-mono-trips text-[10px] uppercase tracking-[0.14em] ${mutedInkClass}`}>
@@ -376,7 +376,7 @@ function DayRow({
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <h3
               className={`font-display text-xl font-medium leading-snug sm:text-2xl ${titleClass} ${wrapAnywhereClass}`}
-              style={SERIF}
+              style={DISPLAY}
             >
               {day.emoji && <span aria-hidden className="mr-1.5 text-lg">{day.emoji}</span>}
               {day.title ?? `Day ${index + 1}`}
@@ -443,7 +443,7 @@ function ReservationRow({
         className={`group flex items-start gap-5 py-5 transition-colors hover:bg-stone-100/30 sm:gap-8 dark:hover:bg-stone-900/25 ${focusRingClass}`}
       >
         <div className="w-[5.5rem] shrink-0 sm:w-[7rem]">
-          <p className="font-display text-3xl font-light leading-none text-stone-900 dark:text-stone-100" style={SERIF}>
+          <p className="font-display text-3xl font-light leading-none text-stone-900 dark:text-stone-100" style={DISPLAY}>
             {dayNum}
           </p>
           <p className={`mt-1 font-mono-trips text-[10px] lowercase tracking-[0.14em] ${mutedInkClass}`}>
@@ -463,7 +463,7 @@ function ReservationRow({
             />
             <h3
               className={`font-display text-xl font-medium leading-snug text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
-              style={SERIF}
+              style={DISPLAY}
             >
               {item.title}
             </h3>

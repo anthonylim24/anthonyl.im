@@ -6,7 +6,7 @@ import { useGetToken } from "@/lib/safeAuth"
 import { applySuggestions, enhanceTrip, getTrip, updateTrip } from "./tripsApi"
 import { insertItemAt, removeItem } from "./tripEdits"
 import {
-  SERIF,
+  DISPLAY,
   alertErrorClass,
   eyebrowClass,
   focusRingClass,
@@ -535,13 +535,13 @@ export function TripDetail() {
                 className={`trip-display-input mt-1 min-h-11 w-full bg-transparent font-display font-medium leading-tight tracking-tight text-stone-900 focus:outline-none dark:text-stone-100 ${focusRingClass}`}
                 value={trip.name}
                 onChange={(e) => scheduleSave({ ...trip, name: e.target.value })}
-                style={SERIF}
+                style={DISPLAY}
               />
             </>
           ) : (
             <h1
               className={`mt-1 font-display text-[clamp(1.75rem,4vw,2.5rem)] font-medium leading-tight tracking-tight text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
-              style={SERIF}
+              style={DISPLAY}
             >
               {trip.name}
             </h1>

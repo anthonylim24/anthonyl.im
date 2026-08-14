@@ -15,7 +15,7 @@ import type { ItineraryItem } from "./types"
 import {
   EASE,
   REVEAL_DURATION,
-  SERIF,
+  DISPLAY,
   alertErrorClass,
   chipBtnClass,
   focusRingClass,
@@ -109,7 +109,7 @@ export function TripDayPage() {
   if (!day) {
     return (
       <div className={PAGE} role="alert">
-        <h1 className="font-display text-3xl tracking-tight text-stone-900 dark:text-stone-100" style={SERIF}>
+        <h1 className="font-display text-3xl tracking-tight text-stone-900 dark:text-stone-100" style={DISPLAY}>
           Day not found
         </h1>
         <p className={`mt-3 text-sm leading-relaxed ${mutedInkClass}`}>
@@ -167,7 +167,7 @@ export function TripDayPage() {
         <motion.div {...fadeUp(1)} className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
           <span
             className={`font-display text-[clamp(3rem,8vw,4.75rem)] font-light leading-[0.85] tabular-nums ${a.text}`}
-            style={SERIF}
+            style={DISPLAY}
             aria-hidden
           >
             {dayIndex + 1}
@@ -175,7 +175,7 @@ export function TripDayPage() {
           {day.emoji && <span aria-hidden className="text-4xl leading-none sm:text-5xl">{day.emoji}</span>}
           <h1
             className={`min-w-0 flex-1 font-display text-[clamp(1.85rem,5vw,3rem)] font-medium leading-[1.05] tracking-[-0.02em] text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
-            style={SERIF}
+            style={DISPLAY}
           >
             {day.title ?? `Day ${dayIndex + 1}`}
           </h1>
@@ -274,7 +274,7 @@ export function TripDayPage() {
                   <div className="flex items-baseline justify-between gap-x-4 sm:gap-x-6">
                     <h3
                       className={`min-w-0 font-display text-xl font-medium tracking-[-0.01em] text-stone-900 sm:text-2xl dark:text-stone-100 ${wrapAnywhereClass}`}
-                      style={SERIF}
+                      style={DISPLAY}
                     >
                       {block.section.title}
                     </h3>
@@ -328,7 +328,7 @@ export function TripDayPage() {
                 </span>
                 <span
                   className={`line-clamp-2 font-display text-base font-medium text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
-                  style={SERIF}
+                  style={DISPLAY}
                 >
                   {next.title ?? `Day ${dayIndex + 2}`}
                 </span>
@@ -349,7 +349,7 @@ export function TripDayPage() {
                 </span>
                 <span
                   className={`line-clamp-2 font-display text-base font-medium text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
-                  style={SERIF}
+                  style={DISPLAY}
                 >
                   {prev.title ?? `Day ${dayIndex}`}
                 </span>

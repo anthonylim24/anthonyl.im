@@ -1,10 +1,14 @@
 export const THEME_COLOR_LIGHT = '#F5F2ED'
 export const THEME_COLOR_DARK = '#171613'
 
+/** Chat canvases. The root app runs its own cool neutral field, so it paints
+ *  the browser chrome with these rather than the site-wide parchment. */
+export const CHAT_THEME_COLORS = { light: '#F3F3F4', dark: '#0C0C0D' } as const
+
 export function isDocumentDark(): boolean {
   return (
     document.documentElement.classList.contains('dark') ||
-    Boolean(document.querySelector('.chatbot-dark'))
+    Boolean(document.querySelector('.chat-dark'))
   )
 }
 

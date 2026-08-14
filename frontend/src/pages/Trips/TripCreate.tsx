@@ -8,7 +8,7 @@ import { DateRangeField } from "./components/DateRangeField"
 import { TimezoneField } from "./components/TimezoneField"
 import { DEFAULT_ITINERARY_PROMPT, type GeneratePreferences } from "./types"
 import {
-  SERIF,
+  DISPLAY,
   accentIconClass,
   alertErrorClass,
   ghostBtnClass,
@@ -247,7 +247,7 @@ export function TripCreate() {
       </p>
       <h1
         className="mt-2 font-display text-[clamp(2.25rem,5vw,3rem)] tracking-tight text-stone-900 dark:text-stone-100"
-        style={SERIF}
+        style={DISPLAY}
       >
         Plan a trip
       </h1>

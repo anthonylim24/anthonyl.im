@@ -1,0 +1,328 @@
+/**
+ * Capture the Chat + Trips surfaces for design review and PR evidence.
+ *
+ * Requires the local stack: Vite on :5173 and the Hono API on :3000 with
+ * IG_DEV_BEARER matching VITE_DEV_BEARER (codex-dev-bearer in the cloud stubs).
+ *
+ *   bun frontend/scripts/capture-redesign.mjs --label before
+ *   bun frontend/scripts/capture-redesign.mjs --label after --video
+ *
+ * Screenshots land in $SCREENSHOT_DIR (default /opt/cursor/artifacts/screenshots)
+ * and videos in $VIDEO_DIR (default /opt/cursor/artifacts/videos), both prefixed
+ * with the label so before/after pairs sort next to each other.
+ *
+ * LLM endpoints are mocked with deterministic SSE so conversations and AI panels
+ * are capturable without provider keys.
+ */
+import { chromium, devices } from "@playwright/test"
+import { mkdir, rename, readdir } from "node:fs/promises"
+import path from "node:path"
+
+const BASE = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173"
+const API = process.env.CAPTURE_API_URL ?? "http://localhost:3000"
+const BEARER = process.env.VITE_DEV_BEARER ?? "codex-dev-bearer"
+const OUT = process.env.SCREENSHOT_DIR ?? "/opt/cursor/artifacts/screenshots"
+const VIDEO_OUT = process.env.VIDEO_DIR ?? "/opt/cursor/artifacts/videos"
+
+const args = process.argv.slice(2)
+const label = valueOf("--label") ?? "shot"
+const withVideo = args.includes("--video")
+const only = valueOf("--only")
+
+function valueOf(flag) {
+  const i = args.indexOf(flag)
+  return i >= 0 ? args[i + 1] : undefined
+}
+
+const DESKTOP = { width: 1440, height: 900 }
+const MOBILE = { width: 390, height: 844 }
+
+await mkdir(OUT, { recursive: true })
+if (withVideo) await mkdir(VIDEO_OUT, { recursive: true })
+
+/* ── Fixtures ─────────────────────────────────────────────────────────── */
+
+async function api(pathname, init = {}) {
+  const res = await fetch(`${API}${pathname}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${BEARER}`,
+      ...(init.headers ?? {}),
+    },
+  })
+  if (!res.ok) throw new Error(`${init.method ?? "GET"} ${pathname} -> ${res.status}`)
+  return res.json()
+}
+
+function isoDaysFromToday(offset) {
+  const d = new Date()
+  d.setUTCDate(d.getUTCDate() + offset)
+  return d.toISOString().slice(0, 10)
+}
+
+/** A trip that is under way today, so the "in progress" states are capturable. */
+async function ensureLiveTrip() {
+  const { trips } = await api("/api/trips")
+  const existing = trips.find((t) => t.name === "Lisbon Research Week")
+  if (existing) return existing.slug ?? existing.id
+
+  const { trip } = await api("/api/trips", {
+    method: "POST",
+    body: JSON.stringify({
+      name: "Lisbon Research Week",
+      destinations: ["Lisbon", "Sintra"],
+      startDate: isoDaysFromToday(-2),
+      endDate: isoDaysFromToday(3),
+      timezone: "Europe/Lisbon",
+      description: "Studio visits, two client dinners, and a day out to Sintra.",
+    }),
+  })
+  return trip.slug ?? trip.id
+}
+
+/* ── Mocked model streams ─────────────────────────────────────────────── */
+
+const CHAT_ANSWER = [
+  "Anthony is a software engineer at DoorDash in San Francisco.\n\n",
+  "He is on the **Local Commerce Service Partner** team, building the platform ",
+  "that lets entrepreneurs run delivery businesses powered by DoorDash.\n\n",
+  "Before that he worked on Dasher Growth and Dasher Platform, and earlier at ",
+  "eBay and Tata Consultancy Services.",
+]
+
+function sseBody(chunks) {
+  return (
+    chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`).join("") + "data: [DONE]\n\n"
+  )
+}
+
+async function mockModelEndpoints(context) {
+  await context.route("**/api/invoke", async (route) => {
+    await route.fulfill({
+      status: 200,
+      headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
+      body: sseBody(CHAT_ANSWER),
+    })
+  })
+}
+
+/* ── Helpers ──────────────────────────────────────────────────────────── */
+
+async function shot(page, name) {
+  const file = path.join(OUT, `${label}-${name}.png`)
+  await page.screenshot({ path: file, fullPage: false })
+  console.log("wrote", file)
+}
+
+async function fullShot(page, name) {
+  const file = path.join(OUT, `${label}-${name}-full.png`)
+  await page.screenshot({ path: file, fullPage: true })
+  console.log("wrote", file)
+}
+
+async function settle(page, ms = 700) {
+  await page.waitForLoadState("networkidle").catch(() => {})
+  await page.waitForTimeout(ms)
+}
+
+async function newContext(browser, { viewport, colorScheme, reducedMotion, video }) {
+  const context = await browser.newContext({
+    ...devices["Desktop Chrome"],
+    viewport,
+    colorScheme,
+    reducedMotion: reducedMotion ? "reduce" : "no-preference",
+    ...(video ? { recordVideo: { dir: VIDEO_OUT, size: viewport } } : {}),
+  })
+  await mockModelEndpoints(context)
+  return context
+}
+
+/** Report page errors loudly: a screenshot of a crashed route is worthless. */
+function watchErrors(page, where) {
+  page.on("pageerror", (e) => console.error(`[pageerror] ${where}: ${e.message}`))
+  page.on("console", (m) => {
+    if (m.type() === "error") console.error(`[console] ${where}: ${m.text()}`)
+  })
+}
+
+const want = (group) => !only || only === group
+
+/* ── Capture ──────────────────────────────────────────────────────────── */
+
+const liveTripSlug = await ensureLiveTrip().catch((e) => {
+  console.warn("could not seed the live trip:", e.message)
+  return null
+})
+
+const browser = await chromium.launch({ headless: true })
+
+try {
+  /* Chat -------------------------------------------------------------- */
+  if (want("chat")) {
+    for (const [mode, viewport] of [
+      ["desktop", DESKTOP],
+      ["mobile", MOBILE],
+    ]) {
+      for (const scheme of ["light", "dark"]) {
+        const context = await newContext(browser, { viewport, colorScheme: scheme })
+        const page = await context.newPage()
+        watchErrors(page, `chat ${mode} ${scheme}`)
+        await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" })
+        await settle(page, 1200)
+        await shot(page, `chat-${mode}-${scheme}-empty`)
+
+        // First suggestion drives a full streamed answer through the mock.
+        const suggestion = page.getByRole("button", { name: /DoorDash/i }).first()
+        if (await suggestion.isVisible().catch(() => false)) {
+          await suggestion.click()
+          await page.waitForTimeout(1500)
+          await shot(page, `chat-${mode}-${scheme}-conversation`)
+        }
+        await context.close()
+      }
+    }
+
+    // Reduced motion, desktop light.
+    const context = await newContext(browser, {
+      viewport: DESKTOP,
+      colorScheme: "light",
+      reducedMotion: true,
+    })
+    const page = await context.newPage()
+    watchErrors(page, "chat reduced-motion")
+    await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" })
+    await settle(page, 1000)
+    await shot(page, "chat-desktop-light-reduced-motion")
+    await context.close()
+  }
+
+  /* Trips -------------------------------------------------------------- */
+  if (want("trips")) {
+    const routes = [
+      ["index", "/trips"],
+      ["create", "/trips/new"],
+      ["overview", "/trips/korea-2026"],
+      ["day", "/trips/korea-2026/day/day-2"],
+      ["editor", "/trips/korea-2026/edit"],
+    ]
+    if (liveTripSlug) routes.push(["overview-live", `/trips/${liveTripSlug}`])
+
+    for (const [mode, viewport] of [
+      ["desktop", DESKTOP],
+      ["mobile", MOBILE],
+    ]) {
+      for (const scheme of ["light", "dark"]) {
+        const context = await newContext(browser, { viewport, colorScheme: scheme })
+        const page = await context.newPage()
+        watchErrors(page, `trips ${mode} ${scheme}`)
+        for (const [name, route] of routes) {
+          await page.goto(`${BASE}${route}`, { waitUntil: "domcontentloaded" })
+          await settle(page, 1100)
+          await shot(page, `trips-${name}-${mode}-${scheme}`)
+        }
+        await context.close()
+      }
+    }
+
+    // Concierge panel, desktop light + mobile dark.
+    for (const [mode, viewport, scheme] of [
+      ["desktop", DESKTOP, "light"],
+      ["mobile", MOBILE, "dark"],
+    ]) {
+      const context = await newContext(browser, { viewport, colorScheme: scheme })
+      const page = await context.newPage()
+      watchErrors(page, `concierge ${mode}`)
+      await page.goto(`${BASE}/trips/korea-2026/day/day-2`, { waitUntil: "domcontentloaded" })
+      await settle(page, 1000)
+      const fab = page
+        .getByRole("button", { name: /concierge|ask|chat/i })
+        .first()
+      if (await fab.isVisible().catch(() => false)) {
+        await fab.click()
+        await page.waitForTimeout(900)
+        await shot(page, `trips-concierge-${mode}-${scheme}`)
+      }
+      await context.close()
+    }
+  }
+
+  /* Out-of-scope regression sweep --------------------------------------- */
+  if (want("regression")) {
+    const context = await newContext(browser, { viewport: DESKTOP, colorScheme: "light" })
+    const page = await context.newPage()
+    watchErrors(page, "regression")
+    for (const [name, route] of [
+      ["korea-index", "/korea"],
+      ["korea-day", "/korea/day/day-2"],
+      ["breathwork-home", "/breathwork"],
+    ]) {
+      await page.goto(`${BASE}${route}`, { waitUntil: "domcontentloaded" })
+      await settle(page, 1200)
+      await shot(page, `regression-${name}`)
+    }
+    await context.close()
+  }
+
+  /* Videos --------------------------------------------------------------- */
+  if (withVideo) {
+    // 1. Chat: ask a question, watch it stream in.
+    {
+      const context = await newContext(browser, {
+        viewport: DESKTOP,
+        colorScheme: "light",
+        video: true,
+      })
+      const page = await context.newPage()
+      watchErrors(page, "video chat")
+      await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" })
+      await settle(page, 1200)
+      const composer = page.getByRole("textbox").first()
+      await composer.click()
+      await composer.type("What does Anthony build at DoorDash?", { delay: 45 })
+      await page.keyboard.press("Enter")
+      await page.waitForTimeout(3500)
+      await context.close()
+      await renameLatestVideo("chat-conversation")
+    }
+
+    // 2. Trips: index to overview to day.
+    {
+      const context = await newContext(browser, {
+        viewport: DESKTOP,
+        colorScheme: "light",
+        video: true,
+      })
+      const page = await context.newPage()
+      watchErrors(page, "video trips")
+      await page.goto(`${BASE}/trips`, { waitUntil: "domcontentloaded" })
+      await settle(page, 1400)
+      await page.getByRole("link", { name: /South Korea/i }).first().click()
+      await settle(page, 1600)
+      await page.mouse.wheel(0, 900)
+      await page.waitForTimeout(900)
+      const firstDay = page.getByRole("link", { name: /Day 2|Apgujeong/i }).first()
+      if (await firstDay.isVisible().catch(() => false)) {
+        await firstDay.click()
+        await settle(page, 1600)
+        await page.mouse.wheel(0, 1200)
+        await page.waitForTimeout(1200)
+      }
+      await context.close()
+      await renameLatestVideo("trips-walkthrough")
+    }
+  }
+} finally {
+  await browser.close()
+}
+
+/** Playwright names videos by page GUID; give the newest one a readable name. */
+async function renameLatestVideo(name) {
+  const files = (await readdir(VIDEO_OUT)).filter((f) => f.endsWith(".webm"))
+  const unnamed = files.filter((f) => !f.startsWith(label))
+  if (unnamed.length === 0) return
+  const newest = unnamed.sort().at(-1)
+  const target = path.join(VIDEO_OUT, `${label}-${name}.webm`)
+  await rename(path.join(VIDEO_OUT, newest), target)
+  console.log("wrote", target)
+}

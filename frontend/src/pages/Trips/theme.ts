@@ -21,33 +21,32 @@ import {
 } from "lucide-react"
 import type { ItemStatus, SuggestionKind, TripAccent, TripCollaborator } from "./types"
 
-// Generic dossier theme system — the Korea itinerary's visual language,
-// parameterized by trip accent and timezone.
+// Trip display metadata: the accent vocabulary, item iconography, and the
+// timezone-aware date helpers every Trips surface shares.
 //
 // The accent itself lives in CSS: `data-trip-accent="<accent>"` on a
-// trip-scoped subtree (see the `.trips` block in index.css) sets `--ta`,
-// `--ta-strong`, `--ta-soft`, `--ta-ring`, `--ta-bloom-a`, `--ta-bloom-b`
-// plus the shared `--trips-accent` / `--trips-focus` chrome vars. Everything
-// below is one set of class strings over those variables, so a page never
-// branches on which accent a trip uses.
+// trip-scoped subtree (see the `.trips` block in index.css) swaps `--ta`,
+// `--ta-strong`, `--ta-soft`, `--ta-ring`, `--ta-ink`, and the two bloom
+// stops. Everything below is one set of class strings over those variables,
+// so a page never branches on which accent a trip uses.
 
 export interface AccentTheme {
-  /** Hero radial bloom layers (accent top-right, warm echo bottom-left). */
+  /** Hero radial bloom layers (accent top-right, cool echo bottom-left). */
   bloomA: string
   bloomB: string
-  /** Accent text: countdowns, eyebrow numerals, status lines. */
+  /** Accent text: countdowns, status lines, active marks. */
   text: string
   /** Hover/pressed accent text. */
   textStrong: string
-  /** Accent text that darkens with the enclosing `group`. */
+  /** Accent text that shifts with the enclosing `group`. */
   textHover: string
-  /** Small dots, pips, filled timeline markers. */
+  /** Filled accent marks. Reserved for genuine live state, not decoration. */
   dot: string
   /** Tint background for "now" / "just changed" surfaces. */
   softBg: string
   /** Accent border for tinted panels and active states. */
   border: string
-  /** Hairline rules next to eyebrows. */
+  /** Hairline rule next to an eyebrow. */
   hairline: string
   /** Static accent ring (flash highlight, active rail segment). */
   ring: string
@@ -60,9 +59,7 @@ export const ACCENT: AccentTheme = {
   bloomB: "trip-bloom-b",
   text: "text-[color:var(--ta)]",
   textStrong: "text-[color:var(--ta-strong)]",
-  // Both variants are spelled out: a call site's own `dark:text-*` would
-  // otherwise win over a bare `group-hover:` at equal specificity.
-  textHover: "group-hover:text-[color:var(--ta-strong)] dark:group-hover:text-[color:var(--ta-strong)]",
+  textHover: "group-hover:text-[color:var(--ta-strong)]",
   dot: "bg-[color:var(--ta)]",
   softBg: "bg-[color:var(--ta-soft)]",
   border: "border-[color:var(--ta-ring)]",
@@ -76,14 +73,24 @@ export const DEFAULT_ACCENT: TripAccent = "amber"
 /** Picker order — also the set `resolveAccent` validates against. */
 export const TRIP_ACCENTS: readonly TripAccent[] = ["rose", "amber", "emerald", "sky", "violet"]
 
-/** Literal swatch colors — the one place per-accent hues are still named,
- *  because the appearance picker has to show all five at once. */
+/** Literal swatch colours for the appearance picker, which is the one place
+ *  all five accents appear at once and therefore cannot read `--ta`. These
+ *  mirror the light-theme values in the `.trips` block of index.css. */
 export const ACCENT_SWATCH: Record<TripAccent, string> = {
-  rose: "bg-rose-500",
-  amber: "bg-amber-500",
-  emerald: "bg-emerald-500",
-  sky: "bg-sky-500",
-  violet: "bg-violet-500",
+  rose: "oklch(50% 0.17 18)",
+  amber: "oklch(50% 0.14 55)",
+  emerald: "oklch(47% 0.1 165)",
+  sky: "oklch(48% 0.14 250)",
+  violet: "oklch(48% 0.16 290)",
+}
+
+/** Human label for an accent, for the picker's accessible name. */
+export const ACCENT_LABEL: Record<TripAccent, string> = {
+  rose: "Rose",
+  amber: "Ember",
+  emerald: "Pine",
+  sky: "Cobalt",
+  violet: "Iris",
 }
 
 /** Safe accent lookup — never returns undefined for bad runtime data. */
@@ -101,7 +108,7 @@ export function visibleTags(tags: readonly string[]): string[] {
   return tags.filter((tag) => !HIDDEN_TAGS.has(tag))
 }
 
-/** "1 editor · 2 viewers" — empty when nobody else is on the trip. */
+/** "1 editor, 2 viewers" — empty when nobody else is on the trip. */
 export function collaboratorSummary(collaborators: readonly TripCollaborator[]): string {
   const editors = collaborators.filter((c) => c.role === "editor").length
   const viewers = collaborators.length - editors
@@ -110,32 +117,35 @@ export function collaboratorSummary(collaborators: readonly TripCollaborator[]):
     viewers > 0 ? `${viewers} viewer${viewers === 1 ? "" : "s"}` : "",
   ]
     .filter((part) => part.length > 0)
-    .join(" · ")
+    .join(", ")
 }
 
 // ── Item display metadata ────────────────────────────────────────────────
 
+/** Status badges are square-cornered, tinted with the semantic tokens, and
+ *  the only colour on a page besides the trip accent. `null` means the state
+ *  is the default and earns no badge at all. */
 export const itemStatusMeta: Record<ItemStatus, { label: string; chip: string; dot: string } | null> = {
   none: null,
   booked: {
     label: "Booked",
-    chip: "bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-100 dark:border-emerald-900/60",
-    dot: "bg-emerald-600 dark:bg-emerald-400",
+    chip: "border-[color:var(--tr-ok)] bg-[var(--tr-ok-soft)] text-[color:var(--tr-ok)]",
+    dot: "bg-[color:var(--tr-ok)]",
   },
   optional: {
     label: "Optional",
-    chip: "bg-stone-100 text-stone-700 border-stone-300 dark:bg-stone-900/60 dark:text-stone-300 dark:border-stone-700",
-    dot: "bg-stone-400 dark:bg-stone-500",
+    chip: "border-[color:var(--tr-line-strong)] bg-transparent text-[color:var(--tr-ink-muted)]",
+    dot: "bg-[color:var(--tr-ink-faint)]",
   },
   needs_review: {
     label: "Needs review",
-    chip: "bg-amber-50 text-amber-950 border-amber-300 dark:bg-amber-950/40 dark:text-amber-100 dark:border-amber-900/60",
-    dot: "bg-amber-600 dark:bg-amber-400",
+    chip: "border-[color:var(--tr-warn)] bg-[var(--tr-warn-soft)] text-[color:var(--tr-warn)]",
+    dot: "bg-[color:var(--tr-warn)]",
   },
   completed: {
     label: "Done",
-    chip: "bg-stone-100 text-stone-600 border-stone-300 dark:bg-stone-900/60 dark:text-stone-400 dark:border-stone-800",
-    dot: "bg-stone-400 dark:bg-stone-600",
+    chip: "border-[color:var(--tr-line)] bg-[var(--tr-overlay)] text-[color:var(--tr-ink-muted)]",
+    dot: "bg-[color:var(--tr-ink-faint)]",
   },
 }
 
@@ -143,11 +153,11 @@ export const itemStatusMeta: Record<ItemStatus, { label: string; chip: string; d
 export function suggestionBadgeClass(kind: SuggestionKind): string {
   switch (kind) {
     case "add":
-      return "bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-100 dark:border-emerald-900/60"
+      return "border-[color:var(--tr-ok)] bg-[var(--tr-ok-soft)] text-[color:var(--tr-ok)]"
     case "remove":
-      return "bg-red-50 text-red-900 border-red-300 dark:bg-red-950/40 dark:text-red-100 dark:border-red-900/60"
+      return "border-[color:var(--tr-danger-ring)] bg-[var(--tr-danger-soft)] text-[color:var(--tr-danger)]"
     default:
-      return "bg-stone-100 text-stone-700 border-stone-300 dark:bg-stone-900/70 dark:text-stone-300 dark:border-stone-700"
+      return "border-[color:var(--tr-line-strong)] bg-[var(--tr-overlay)] text-[color:var(--tr-ink-muted)]"
   }
 }
 
@@ -194,17 +204,17 @@ export function itemIcon(kind: string, category?: string, reservationType?: stri
 export function calloutTone(tone: "info" | "warn" | "success" | "alert"): string {
   switch (tone) {
     case "info":
-      return "border-stone-200 bg-stone-50/80 dark:bg-stone-900/40 dark:border-stone-800"
+      return "border-[color:var(--tr-line-strong)] bg-[var(--tr-overlay)]"
     case "warn":
-      return "border-amber-200 bg-amber-50/80 dark:bg-amber-950/25 dark:border-amber-900/50"
+      return "border-[color:var(--tr-warn)] bg-[var(--tr-warn-soft)]"
     case "success":
-      return "border-emerald-200 bg-emerald-50/80 dark:bg-emerald-950/25 dark:border-emerald-900/50"
+      return "border-[color:var(--tr-ok)] bg-[var(--tr-ok-soft)]"
     case "alert":
-      return "border-rose-300 bg-rose-50/80 dark:bg-rose-950/40 dark:border-rose-900/60"
+      return "border-[color:var(--tr-danger-ring)] bg-[var(--tr-danger-soft)]"
   }
 }
 
-// ── Timezone-aware date helpers (KST logic, parameterized) ───────────────
+// ── Timezone-aware date helpers ──────────────────────────────────────────
 
 export function formatTripDate(iso: string, timezone: string, opts?: Intl.DateTimeFormatOptions): string {
   return new Intl.DateTimeFormat("en-US", {
@@ -235,7 +245,7 @@ export function daysUntilIn(iso: string, timezone: string): number {
 
 /** Two-letter city tag — explicit config wins, else derived from the name. */
 export function cityTag(city: string | undefined, tags?: Record<string, string>): string {
-  if (!city) return "··"
+  if (!city) return "--"
   if (tags?.[city]) return tags[city]!
   const words = city.trim().split(/\s+/)
   return (words.length > 1 ? words[0]![0]! + words[1]![0]! : city.slice(0, 2)).toUpperCase()

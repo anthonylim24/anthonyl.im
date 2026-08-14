@@ -67,8 +67,6 @@ body {
   -webkit-tap-highlight-color: transparent;
   font-optical-sizing: auto;
 
-  /* Chatbot tokens — resolved via .chatbot-dark / .chatbot-shadow below */
-
   /* Easing — slow deceleration, no bounce */
   --ease-decel: cubic-bezier(0.33, 0, 0, 1);
   --spring-smooth: cubic-bezier(0.33, 0, 0, 1);
@@ -155,18 +153,87 @@ input[type="reset"] {
 }
 
 /* ═══════════════════════════════════════════════════════
-   SHADOW MODE OVERLAY (dany.works-inspired leaf shadows)
-   ═══════════════════════════════════════════════════════ */
+   CHAT (site root) — console
+   ═══════════════════════════════════════════════════════
 
-/* Leaves overlay — viewport-sized WRAPPER (a div), never the <video>.
-   inset:0 + width/height:auto stretches a non-replaced box to the
-   visual viewport without 100vw/100vh (those add a full extra scroll
-   page on iOS). A replaced <video> with the same rules keeps its
-   intrinsic size, so object-fit never runs — put the video on
-   .leaves-overlay-media instead.
-   z-index stays BELOW content (z-10) so WebKit ≤ iOS 15 does not
-   swallow touch-scroll momentum. */
-.leaves-overlay {
+   One accent (electric blue), a cool neutral field, and real moving
+   footage as the page's only vivid moment. Tokens live here; the React
+   tree reads them through arbitrary Tailwind values, so a theme swap is
+   a class on the shell rather than a `dark:` variant on every element. */
+
+.chat {
+  --ch-canvas: #f3f3f4;
+  --ch-surface: #fcfcfd;
+  --ch-raised: #ffffff;
+  --ch-ink: #18181b;
+  --ch-ink-muted: #52525b;
+  --ch-ink-faint: #6f6f78;
+  --ch-line: rgba(24, 24, 27, 0.12);
+  --ch-line-strong: rgba(24, 24, 27, 0.24);
+  --ch-accent: #1d4ed8;
+  --ch-accent-strong: #1b3fae;
+  --ch-accent-soft: rgba(29, 78, 216, 0.1);
+  --ch-accent-ink: #ffffff;
+  --ch-focus: rgba(29, 78, 216, 0.5);
+  --ch-danger: #b42318;
+  --ch-danger-soft: rgba(180, 35, 24, 0.08);
+  --ch-shadow: 0 24px 60px -40px rgba(17, 20, 32, 0.55);
+  --ch-r-panel: 12px;
+  --ch-r-control: 8px;
+
+  font-family: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  background-color: var(--ch-canvas);
+  color: var(--ch-ink);
+  color-scheme: light;
+}
+
+.chat-dark {
+  --ch-canvas: #0c0c0d;
+  --ch-surface: #151517;
+  --ch-raised: #1b1b1e;
+  --ch-ink: #e7e7e9;
+  --ch-ink-muted: #a1a1aa;
+  --ch-ink-faint: #8b8b94;
+  --ch-line: rgba(231, 231, 233, 0.12);
+  --ch-line-strong: rgba(231, 231, 233, 0.24);
+  --ch-accent: #93b4ff;
+  --ch-accent-strong: #b6ceff;
+  --ch-accent-soft: rgba(147, 180, 255, 0.14);
+  --ch-accent-ink: #0c0c0d;
+  --ch-focus: rgba(147, 180, 255, 0.55);
+  --ch-danger: #ff9d95;
+  --ch-danger-soft: rgba(255, 157, 149, 0.12);
+  --ch-shadow: 0 24px 60px -40px rgba(0, 0, 0, 0.9);
+  color-scheme: dark;
+}
+
+.chat .chat-display {
+  font-family: var(--font-display-chat, "Geist Variable"), ui-sans-serif, system-ui, sans-serif;
+}
+
+.chat .chat-mono {
+  font-family: "Geist Mono Variable", ui-monospace, SFMono-Regular, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Match the html canvas to the shell so iOS safe areas and overscroll never
+   flash a different colour around the 100dvh root. */
+html:has(.chat-light) {
+  background-color: #f3f3f4;
+}
+
+html:has(.chat-dark) {
+  background-color: #0c0c0d;
+}
+
+/* ── Ambience: real leaf footage, filmed light ──────────────────────────
+   A viewport-sized WRAPPER (a div), never the <video>. `inset: 0` plus
+   `width/height: auto` stretches a non-replaced box to the visual viewport
+   without 100vw/100vh (those add a full extra scroll page on iOS). A replaced
+   <video> with the same rules keeps its intrinsic size, so object-fit never
+   runs; the video carries .chat-ambience-media instead. z-index stays below
+   content so WebKit does not swallow touch-scroll momentum. */
+.chat-ambience {
   position: fixed;
   inset: 0;
   display: block;
@@ -175,16 +242,32 @@ input[type="reset"] {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  filter: grayscale(1) contrast(0.62) brightness(1.12);
+  filter: grayscale(1) contrast(0.7) brightness(1.14);
   mix-blend-mode: multiply;
   pointer-events: none;
-  z-index: 1;
+  z-index: 0;
   contain: layout paint;
   opacity: 0;
   transition: opacity 700ms var(--ease-out-expo);
 }
 
-.leaves-overlay-media {
+.chat-ambience[data-visible="true"] {
+  opacity: 0.42;
+}
+
+/* Dark mode keeps the same footage but reads it as light through leaves
+   rather than shadow cast on paper, so the page is never flat in either
+   theme. */
+.chat-dark .chat-ambience {
+  filter: grayscale(1) contrast(1.15) brightness(0.55);
+  mix-blend-mode: screen;
+}
+
+.chat-dark .chat-ambience[data-visible="true"] {
+  opacity: 0.22;
+}
+
+.chat-ambience-media {
   position: absolute;
   inset: 0;
   display: block;
@@ -197,17 +280,30 @@ input[type="reset"] {
   pointer-events: none;
 }
 
-/* Match html canvas to the chatbot shell so iOS safe areas / overscroll
-   do not flash the default parchment around a 100dvh root. */
-html:has(.chatbot-shadow) {
-  background-color: #f2efe9;
+/* Paper tooth. Fixed and pointer-events-none so it never repaints on scroll. */
+.chat-grain {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='cn'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23cn)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
 }
 
-html:has(.chatbot-dark) {
-  background-color: #080808;
+.chat-dark .chat-grain {
+  opacity: 0.05;
 }
 
-/* Column fade-in — dany.works entry animation */
+/* The transcript can grow long; skip layout and paint for messages that are
+   scrolled out of view. */
+.chat-message {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 120px;
+}
+
+/* Column fade-in for the first paint of the shell. */
 @keyframes col-fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -215,106 +311,6 @@ html:has(.chatbot-dark) {
 
 .col-fade-in {
   animation: col-fade-in 560ms cubic-bezier(0.33, 0, 0, 1) forwards;
-}
-
-/* Chatbot theme tokens — scoped to mode class */
-.chatbot-dark {
-  --chat-bg: #080808;
-  --chat-text: #b4b4b4;
-  --chat-bright: #e0e0e0;
-  --chat-mid: #404040;
-  --chat-line: #181818;
-  --chat-code-bg: rgba(255, 255, 255, 0.04);
-  --chat-code-text: #999;
-  --chat-user-bg: #181818;
-  --chat-user-text: #e0e0e0;
-  --chat-skeleton: rgba(255, 255, 255, 0.06);
-  --chat-skeleton-light: rgba(255, 255, 255, 0.04);
-  --chat-footer: #282828;
-  --chat-placeholder: #303030;
-  background-color: #080808;
-}
-
-.chatbot-shadow {
-  --chat-bg: #f2efe9;
-  --chat-text: #1a1a1a;
-  --chat-bright: #000;
-  --chat-mid: #888;
-  --chat-line: #d8d5cf;
-  --chat-code-bg: rgba(0, 0, 0, 0.04);
-  --chat-code-text: #444;
-  --chat-user-bg: #1a1a1a;
-  --chat-user-text: #f2efe9;
-  --chat-skeleton: rgba(0, 0, 0, 0.08);
-  --chat-skeleton-light: rgba(0, 0, 0, 0.05);
-  --chat-footer: #bbb;
-  --chat-placeholder: #ccc;
-  background-color: #f2efe9;
-}
-
-/* Chatbot utility classes — consume CSS vars for zero-cost theme switching */
-.chat-text { color: var(--chat-text); }
-.chat-mid { color: var(--chat-mid); }
-.chat-border { border-color: var(--chat-line); }
-.chat-user-bubble { background: var(--chat-user-bg); color: var(--chat-user-text); }
-.chat-typing-dot { background-color: var(--chat-mid); }
-.chat-skeleton { background: var(--chat-skeleton); }
-.chat-skeleton-light { background: var(--chat-skeleton-light); }
-.chat-footer { color: var(--chat-footer); }
-
-.chat-suggestion {
-  color: var(--chat-mid);
-  border: 1px solid var(--chat-line);
-}
-.chat-suggestion:active {
-  color: var(--chat-text);
-  border-color: var(--chat-mid);
-}
-@media (hover: hover) and (pointer: fine) {
-  .chat-suggestion:hover {
-    color: var(--chat-text);
-    border-color: var(--chat-mid);
-  }
-}
-
-.chat-input-box {
-  border: 1px solid var(--chat-line);
-}
-.chat-input-box:focus-within {
-  border-color: var(--chat-mid);
-}
-
-.chat-input {
-  color: var(--chat-text);
-}
-.chat-input::placeholder {
-  color: var(--chat-placeholder);
-}
-
-.chat-send {
-  color: var(--chat-mid);
-}
-.chat-send:active:not(:disabled) {
-  color: var(--chat-text);
-}
-@media (hover: hover) and (pointer: fine) {
-  .chat-send:hover:not(:disabled) {
-    color: var(--chat-text);
-  }
-}
-
-.chat-scroll-btn {
-  color: var(--chat-mid);
-  border: 1px solid var(--chat-line);
-  background: var(--chat-bg);
-}
-.chat-scroll-btn:active {
-  color: var(--chat-text);
-}
-@media (hover: hover) and (pointer: fine) {
-  .chat-scroll-btn:hover {
-    color: var(--chat-text);
-  }
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -418,7 +414,8 @@ html:has(.chatbot-dark) {
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
 ::selection { background: rgba(180, 180, 180, 0.2); color: #e0e0e0; }
-.chatbot-shadow ::selection { background: rgba(26, 26, 26, 0.15); color: #1a1a1a; }
+.chat-light ::selection { background: rgba(29, 78, 216, 0.16); color: #18181b; }
+.chat-dark ::selection { background: rgba(147, 180, 255, 0.24); color: #e7e7e9; }
 .breathwork ::selection { background: rgba(26, 26, 26, 0.12); color: #1a1a1a; }
 .dark .breathwork ::selection { background: rgba(180, 180, 180, 0.2); color: #b4b4b4; }
 :focus-visible { outline: 2px solid rgba(28, 25, 23, 0.3); outline-offset: 2px; }
@@ -882,69 +879,115 @@ html:has(.chatbot-dark) {
 }
 
 /* ═══════════════════════════════════════════════════════
-   TRIPS — warm parchment shell (aligned with shared tokens)
-   ═══════════════════════════════════════════════════════ */
+   TRIPS — cool field notebook
+   ═══════════════════════════════════════════════════════
+
+   A planning tool, so the neutral field is cool and quiet and the only
+   saturated colour on a page is the trip's own accent. Everything below is
+   a token; components read them through arbitrary Tailwind values
+   (`text-[color:var(--tr-ink)]`), which is why almost no Trips component
+   carries a `dark:` variant. Swapping the theme swaps this block.
+
+   `--trips-*` and `--ta*` aliases are kept so any surface that still reads
+   the older names resolves to the same values. */
 
 .trips {
-  --trips-canvas: #f5f2ed;
-  --trips-surface: #fffefa;
-  --trips-ink: #1c1917;
-  --trips-ink-secondary: #78716c;
-  --trips-ink-tertiary: #a8a29e;
-  --trips-border: rgba(28, 25, 23, 0.08);
-  --trips-accent: #92400e;
-  --trips-accent-hover: #78350f;
-  --trips-focus: rgba(180, 83, 9, 0.45);
-  /* Accent fallbacks: app chrome is amber, so the accent classes still
-     resolve outside a `data-trip-accent` subtree. */
-  --ta: #92400e;
-  --ta-strong: #78350f;
-  --ta-soft: rgba(180, 83, 9, 0.1);
-  --ta-ring: rgba(180, 83, 9, 0.45);
-  --ta-bloom-a: rgba(217, 119, 6, 0.1);
-  --ta-bloom-b: rgba(120, 113, 108, 0.08);
-  /* `rounded-lg`/`rounded-md` resolve through this shadcn token, which the
-     chatbot theme zeroes at `:root`. Without it every compact control in the
+  /* Neutral field */
+  --tr-canvas: #eff1f3;
+  --tr-surface: #fafbfc;
+  --tr-raised: #fdfeff;
+  --tr-ink: #111418;
+  --tr-ink-muted: #4c5966;
+  --tr-ink-faint: #66727f;
+  --tr-line: rgba(17, 20, 24, 0.1);
+  --tr-line-strong: rgba(17, 20, 24, 0.2);
+  --tr-shadow: 0 22px 48px -34px rgba(17, 20, 24, 0.45);
+  --tr-overlay: rgba(17, 20, 24, 0.05);
+
+  /* Semantic status. Small badges only, never a second page accent. */
+  --tr-ok: #0f6b4f;
+  --tr-ok-soft: rgba(15, 107, 79, 0.1);
+  --tr-warn: #8a5300;
+  --tr-warn-soft: rgba(138, 83, 0, 0.1);
+  --tr-danger: #b42318;
+  --tr-danger-soft: rgba(180, 35, 24, 0.08);
+  --tr-danger-ring: rgba(180, 35, 24, 0.45);
+
+  /* Shape: panels 12px, controls 8px, full radius only for the save pill,
+     toggle thumbs, and status dots. */
+  --tr-r-panel: 12px;
+  --tr-r-control: 8px;
+  /* `rounded-lg` / `rounded-md` resolve through this shadcn token, which the
+     chat theme zeroes at `:root`. Without it every compact control in the
      Trips vocabulary renders square. */
   --radius: 0.5rem;
-  color-scheme: light dark;
-  background-color: var(--trips-canvas);
-  color: var(--trips-ink);
-  /* Soft grain: atmosphere without competing with content */
-  background-image:
-    radial-gradient(ellipse 80% 50% at 10% -10%, rgba(180, 83, 9, 0.05), transparent 55%),
-    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(120, 113, 108, 0.06), transparent 50%);
+
+  /* App chrome accent (outside a trip): ember. Individual trips override
+     the whole `--ta*` set through `data-trip-accent` below. */
+  --ta: oklch(50% 0.14 55);
+  --ta-strong: oklch(43% 0.14 55);
+  --ta-soft: oklch(50% 0.14 55 / 0.12);
+  --ta-ring: oklch(50% 0.14 55 / 0.45);
+  --ta-ink: #ffffff;
+  --ta-bloom-a: oklch(72% 0.15 55 / 0.16);
+  --ta-bloom-b: oklch(60% 0.06 250 / 0.12);
+
+  /* Aliases (older call sites) */
+  --trips-canvas: var(--tr-canvas);
+  --trips-surface: var(--tr-surface);
+  --trips-accent: var(--ta);
+  --trips-accent-hover: var(--ta-strong);
+  --trips-focus: var(--ta-ring);
+
+  color-scheme: light;
+  background-color: var(--tr-canvas);
+  color: var(--tr-ink);
+  font-family: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
 }
 
 html.dark .trips,
 .trips.dark,
 :root.dark .trips {
-  --trips-canvas: #171613;
-  --trips-surface: hsl(40 6% 11%);
-  --trips-ink: #e7e3de;
-  --trips-ink-secondary: #a8a29e;
-  --trips-ink-tertiary: #78716c;
-  --trips-border: rgba(255, 252, 245, 0.06);
-  --trips-accent: #d97706;
-  --trips-accent-hover: #f59e0b;
-  --trips-focus: rgba(245, 158, 11, 0.5);
-  --ta: #d97706;
-  --ta-strong: #f59e0b;
-  --ta-soft: rgba(217, 119, 6, 0.1);
-  --ta-ring: rgba(245, 158, 11, 0.5);
-  --ta-bloom-a: rgba(245, 158, 11, 0.14);
-  --ta-bloom-b: rgba(168, 162, 158, 0.1);
-  background-image:
-    radial-gradient(ellipse 70% 45% at 0% 0%, rgba(217, 119, 6, 0.08), transparent 55%),
-    radial-gradient(ellipse 50% 35% at 100% 10%, rgba(120, 113, 108, 0.1), transparent 50%);
+  --tr-canvas: #0d1013;
+  --tr-surface: #14181c;
+  --tr-raised: #1a1f25;
+  --tr-ink: #e6e9ec;
+  --tr-ink-muted: #a2aeba;
+  --tr-ink-faint: #8794a1;
+  --tr-line: rgba(230, 233, 236, 0.1);
+  --tr-line-strong: rgba(230, 233, 236, 0.2);
+  --tr-shadow: 0 24px 60px -40px rgba(0, 0, 0, 0.85);
+  --tr-overlay: rgba(230, 233, 236, 0.06);
+
+  --tr-ok: #5fd3a8;
+  --tr-ok-soft: rgba(95, 211, 168, 0.12);
+  --tr-warn: #e2ac5a;
+  --tr-warn-soft: rgba(226, 172, 90, 0.12);
+  --tr-danger: #ff9d95;
+  --tr-danger-soft: rgba(255, 157, 149, 0.12);
+  --tr-danger-ring: rgba(255, 157, 149, 0.5);
+
+  --ta: oklch(74% 0.13 60);
+  --ta-strong: oklch(82% 0.11 60);
+  --ta-soft: oklch(74% 0.13 60 / 0.14);
+  --ta-ring: oklch(74% 0.13 60 / 0.5);
+  --ta-ink: #12151a;
+  --ta-bloom-a: oklch(74% 0.13 60 / 0.18);
+  --ta-bloom-b: oklch(60% 0.08 250 / 0.16);
+
+  color-scheme: dark;
 }
 
 .trips .font-display {
-  font-family: "Cormorant Garamond", Georgia, serif;
+  font-family: var(--font-display-trips, "Bricolage Grotesque Variable"), ui-sans-serif, system-ui,
+    sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.025em;
 }
 
 .trips .font-mono-trips {
-  font-family: "Fragment Mono", ui-monospace, monospace;
+  font-family: "Geist Mono Variable", ui-monospace, SFMono-Regular, monospace;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Below 768px every input is pinned to 16px so iOS doesn't zoom on focus.
@@ -967,115 +1010,154 @@ html.dark .trips,
   inset: -6px;
 }
 
+/* Long itinerary lists: skip layout and paint for rows that are off screen. */
+.trips .trip-row {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 112px;
+}
+
 /* ───────────────────────────────────────────────────────
    Per-trip accent
 
    `data-trip-accent` on any trip-scoped subtree (overview, day page,
    editor) swaps one variable set, so every accent moment inside follows
    the trip's chosen colour. App chrome outside such a subtree keeps the
-   amber `--trips-accent` defaults above.
+   ember defaults above.
 
-   Hues are the OKLCH equivalents of rose-500 / amber-500 / emerald-500 /
-   sky-500 / violet-500, with lightness solved so `--ta` clears 4.5:1
-   against canvas, surface, AND its own `--ta-soft` tint in both themes;
-   chroma is pulled back at those lightness extremes to stay in gamut.
+   Lightness is solved so `--ta` clears 4.5:1 against canvas, surface, AND
+   its own `--ta-soft` tint in both themes; chroma is pulled back at those
+   lightness extremes to stay in gamut and to keep the field cool. Hues stay
+   recognisable per key because the key is what a user picked.
    ─────────────────────────────────────────────────────── */
 
 .trips [data-trip-accent] {
-  --ta-bloom-b: oklch(77% 0.14 70 / 0.07);
+  --ta-bloom-b: oklch(60% 0.06 250 / 0.12);
+  --ta-ink: #ffffff;
   --trips-accent: var(--ta);
   --trips-accent-hover: var(--ta-strong);
   --trips-focus: var(--ta-ring);
 }
 
 .trips [data-trip-accent="rose"] {
-  --ta: oklch(51% 0.198 16.4);
-  --ta-strong: oklch(44% 0.198 16.4);
-  --ta-soft: oklch(51% 0.198 16.4 / 0.12);
-  --ta-ring: oklch(51% 0.198 16.4 / 0.45);
-  --ta-bloom-a: oklch(65% 0.21 16.4 / 0.1);
+  --ta: oklch(50% 0.17 18);
+  --ta-strong: oklch(43% 0.17 18);
+  --ta-soft: oklch(50% 0.17 18 / 0.12);
+  --ta-ring: oklch(50% 0.17 18 / 0.45);
+  --ta-bloom-a: oklch(68% 0.18 18 / 0.14);
 }
 
 .trips [data-trip-accent="amber"] {
-  --ta: oklch(50% 0.108 70.1);
-  --ta-strong: oklch(43% 0.108 70.1);
-  --ta-soft: oklch(50% 0.108 70.1 / 0.12);
-  --ta-ring: oklch(50% 0.108 70.1 / 0.45);
-  --ta-bloom-a: oklch(77% 0.16 70.1 / 0.12);
-  --ta-bloom-b: oklch(62% 0.012 60 / 0.08);
+  --ta: oklch(50% 0.14 55);
+  --ta-strong: oklch(43% 0.14 55);
+  --ta-soft: oklch(50% 0.14 55 / 0.12);
+  --ta-ring: oklch(50% 0.14 55 / 0.45);
+  --ta-bloom-a: oklch(72% 0.15 55 / 0.16);
 }
 
 .trips [data-trip-accent="emerald"] {
-  --ta: oklch(48% 0.104 162.5);
-  --ta-strong: oklch(41% 0.104 162.5);
-  --ta-soft: oklch(48% 0.104 162.5 / 0.12);
-  --ta-ring: oklch(48% 0.104 162.5 / 0.45);
-  --ta-bloom-a: oklch(70% 0.15 162.5 / 0.1);
+  --ta: oklch(47% 0.1 165);
+  --ta-strong: oklch(40% 0.1 165);
+  --ta-soft: oklch(47% 0.1 165 / 0.12);
+  --ta-ring: oklch(47% 0.1 165 / 0.45);
+  --ta-bloom-a: oklch(70% 0.12 165 / 0.14);
 }
 
 .trips [data-trip-accent="sky"] {
-  --ta: oklch(49% 0.106 237.3);
-  --ta-strong: oklch(42% 0.106 237.3);
-  --ta-soft: oklch(49% 0.106 237.3 / 0.12);
-  --ta-ring: oklch(49% 0.106 237.3 / 0.45);
-  --ta-bloom-a: oklch(69% 0.15 237.3 / 0.1);
+  --ta: oklch(48% 0.14 250);
+  --ta-strong: oklch(41% 0.14 250);
+  --ta-soft: oklch(48% 0.14 250 / 0.12);
+  --ta-ring: oklch(48% 0.14 250 / 0.45);
+  --ta-bloom-a: oklch(70% 0.13 250 / 0.14);
+  --ta-bloom-b: oklch(62% 0.09 30 / 0.1);
 }
 
 .trips [data-trip-accent="violet"] {
-  --ta: oklch(52% 0.201 292.7);
-  --ta-strong: oklch(45% 0.201 292.7);
-  --ta-soft: oklch(52% 0.201 292.7 / 0.12);
-  --ta-ring: oklch(52% 0.201 292.7 / 0.45);
-  --ta-bloom-a: oklch(61% 0.22 292.7 / 0.1);
-  --ta-bloom-b: oklch(66% 0.18 16.4 / 0.06);
+  --ta: oklch(48% 0.16 290);
+  --ta-strong: oklch(41% 0.16 290);
+  --ta-soft: oklch(48% 0.16 290 / 0.12);
+  --ta-ring: oklch(48% 0.16 290 / 0.45);
+  --ta-bloom-a: oklch(66% 0.16 290 / 0.14);
+  --ta-bloom-b: oklch(62% 0.09 30 / 0.1);
 }
 
 html.dark .trips [data-trip-accent] {
-  --ta-bloom-b: oklch(80% 0.13 70 / 0.1);
+  --ta-bloom-b: oklch(60% 0.08 250 / 0.16);
+  --ta-ink: #12151a;
 }
 
 html.dark .trips [data-trip-accent="rose"] {
-  --ta: oklch(68% 0.172 16.4);
-  --ta-strong: oklch(76% 0.163 16.4);
-  --ta-soft: oklch(68% 0.172 16.4 / 0.1);
-  --ta-ring: oklch(68% 0.172 16.4 / 0.5);
-  --ta-bloom-a: oklch(72% 0.17 16.4 / 0.16);
+  --ta: oklch(72% 0.15 18);
+  --ta-strong: oklch(80% 0.13 18);
+  --ta-soft: oklch(72% 0.15 18 / 0.14);
+  --ta-ring: oklch(72% 0.15 18 / 0.5);
+  --ta-bloom-a: oklch(72% 0.15 18 / 0.18);
 }
 
 html.dark .trips [data-trip-accent="amber"] {
-  --ta: oklch(67% 0.132 70.1);
-  --ta-strong: oklch(75% 0.125 70.1);
-  --ta-soft: oklch(67% 0.132 70.1 / 0.1);
-  --ta-ring: oklch(67% 0.132 70.1 / 0.5);
-  --ta-bloom-a: oklch(80% 0.14 70.1 / 0.16);
-  --ta-bloom-b: oklch(70% 0.012 60 / 0.08);
+  --ta: oklch(74% 0.13 60);
+  --ta-strong: oklch(82% 0.11 60);
+  --ta-soft: oklch(74% 0.13 60 / 0.14);
+  --ta-ring: oklch(74% 0.13 60 / 0.5);
+  --ta-bloom-a: oklch(74% 0.13 60 / 0.18);
 }
 
 html.dark .trips [data-trip-accent="emerald"] {
-  --ta: oklch(65% 0.119 162.5);
-  --ta-strong: oklch(73% 0.113 162.5);
-  --ta-soft: oklch(65% 0.119 162.5 / 0.1);
-  --ta-ring: oklch(65% 0.119 162.5 / 0.5);
-  --ta-bloom-a: oklch(75% 0.13 162.5 / 0.14);
+  --ta: oklch(74% 0.12 165);
+  --ta-strong: oklch(82% 0.1 165);
+  --ta-soft: oklch(74% 0.12 165 / 0.14);
+  --ta-ring: oklch(74% 0.12 165 / 0.5);
+  --ta-bloom-a: oklch(74% 0.12 165 / 0.18);
 }
 
 html.dark .trips [data-trip-accent="sky"] {
-  --ta: oklch(65% 0.118 237.3);
-  --ta-strong: oklch(73% 0.112 237.3);
-  --ta-soft: oklch(65% 0.118 237.3 / 0.1);
-  --ta-ring: oklch(65% 0.118 237.3 / 0.5);
-  --ta-bloom-a: oklch(74% 0.13 237.3 / 0.14);
+  --ta: oklch(74% 0.11 250);
+  --ta-strong: oklch(82% 0.09 250);
+  --ta-soft: oklch(74% 0.11 250 / 0.14);
+  --ta-ring: oklch(74% 0.11 250 / 0.5);
+  --ta-bloom-a: oklch(74% 0.11 250 / 0.18);
 }
 
 html.dark .trips [data-trip-accent="violet"] {
-  --ta: oklch(68% 0.175 292.7);
-  --ta-strong: oklch(76% 0.166 292.7);
-  --ta-soft: oklch(68% 0.175 292.7 / 0.1);
-  --ta-ring: oklch(68% 0.175 292.7 / 0.5);
-  --ta-bloom-a: oklch(70% 0.19 292.7 / 0.16);
+  --ta: oklch(74% 0.13 290);
+  --ta-strong: oklch(82% 0.11 290);
+  --ta-soft: oklch(74% 0.13 290 / 0.14);
+  --ta-ring: oklch(74% 0.13 290 / 0.5);
+  --ta-bloom-a: oklch(74% 0.13 290 / 0.18);
 }
 
-/* Signature hero bloom, two drifting radial layers reading the accent vars. */
+/* ── Trip hero plate ────────────────────────────────────────────────────
+   One generated contour texture (a scanned elevation map) blended over the
+   accent bloom, so all five accents share a single 119 KB asset. The gradient
+   sits underneath and carries the tint, which means the hero still reads
+   correctly while the image is decoding or if it never loads. */
+.trip-plate {
+  position: relative;
+  isolation: isolate;
+  background-color: var(--tr-surface);
+  background-image: radial-gradient(120% 90% at 85% 10%, var(--ta-bloom-a), transparent 62%),
+    radial-gradient(90% 80% at 0% 100%, var(--ta-bloom-b), transparent 60%);
+}
+
+.trip-plate::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("/media/trip-contour.webp");
+  background-size: cover;
+  background-position: center right;
+  mix-blend-mode: multiply;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* On the dark canvas the same scan reads as engraved light, not printed ink. */
+html.dark .trip-plate::after {
+  mix-blend-mode: screen;
+  filter: invert(1);
+  opacity: 0.12;
+}
+
+/* Signature hero bloom, two radial layers reading the accent vars. */
 .trip-bloom-a {
   background-image: radial-gradient(ellipse at top right, var(--ta-bloom-a), transparent 55%);
 }
@@ -1084,21 +1166,21 @@ html.dark .trips [data-trip-accent="violet"] {
   background-image: radial-gradient(ellipse at bottom left, var(--ta-bloom-b), transparent 55%);
 }
 
-/* Split action (button + disclosure): two `rounded-xl` buttons share one
-   outline. Unlayered, so it wins over the utilities' border-radius. */
+/* Split action (button + disclosure): two controls share one outline.
+   Unlayered, so it wins over the utilities' border-radius. */
 .trip-split > button {
   border-radius: 0;
 }
 
 .trip-split > button:first-of-type {
-  border-start-start-radius: 0.75rem;
-  border-end-start-radius: 0.75rem;
+  border-start-start-radius: var(--tr-r-control);
+  border-end-start-radius: var(--tr-r-control);
   padding-inline-end: 0.625rem;
 }
 
 .trip-split > button:last-of-type {
-  border-start-end-radius: 0.75rem;
-  border-end-end-radius: 0.75rem;
+  border-start-end-radius: var(--tr-r-control);
+  border-end-end-radius: var(--tr-r-control);
   padding-inline: 0.5rem;
   /* A chevron alone is narrower than the 44px touch floor; tightens with the
      compact buttons from `sm`. */

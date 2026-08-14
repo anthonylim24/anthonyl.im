@@ -1,6 +1,6 @@
 import { motion, useReducedMotion } from "motion/react"
 import { ACCENT } from "../theme"
-import { EASE, REVEAL_DURATION, SERIF, mutedInkClass, wrapAnywhereClass } from "../ui"
+import { EASE, REVEAL_DURATION, DISPLAY, mutedInkClass, wrapAnywhereClass } from "../ui"
 
 type Scale = "page" | "section"
 
@@ -45,7 +45,7 @@ export function DossierSectionHeader({
         <span aria-hidden className={`h-px w-8 ${ACCENT.hairline}`} />
         <span>{eyebrow}</span>
       </p>
-      <h2 className={`${TITLE_CLASS[scale]} text-stone-900 dark:text-stone-100`} style={SERIF}>
+      <h2 className={`${TITLE_CLASS[scale]} text-stone-900 dark:text-stone-100`} style={DISPLAY}>
         {title}
       </h2>
       {subtitle && (

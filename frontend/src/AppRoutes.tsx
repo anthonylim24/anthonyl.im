@@ -67,9 +67,9 @@ const TripDayPage = lazy(() =>
 function ChatbotFallback() {
   return (
     <div
-      className="flex min-h-dvh items-center justify-center bg-stone-50 text-stone-500 dark:bg-stone-950 dark:text-stone-400"
+      className="chat chat-light flex min-h-dvh items-center justify-center bg-[var(--ch-canvas)] text-[color:var(--ch-ink-muted)]"
       role="status"
-      aria-label="Loading chatbot"
+      aria-label="Loading the assistant"
     >
       <span className="text-sm">Loading…</span>
     </div>
@@ -91,7 +91,7 @@ function BreathworkShellFallback() {
 function TripsShellFallback() {
   return (
     <div
-      className="trips flex min-h-dvh items-center justify-center bg-stone-50 text-stone-500 dark:bg-stone-950 dark:text-stone-400"
+      className="trips flex min-h-dvh items-center justify-center bg-[var(--tr-canvas)] text-[color:var(--tr-ink-muted)]"
       role="status"
       aria-label="Loading trip planner"
     >

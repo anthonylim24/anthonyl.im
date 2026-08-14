@@ -13,7 +13,7 @@ interface State {
 const appCopy: Record<Props['app'], { heading: string; accent: string }> = {
   chatbot: {
     heading: 'Something went wrong loading the chat.',
-    accent: 'text-stone-900 dark:text-stone-100',
+    accent: 'text-[#1d4ed8] dark:text-[#93b4ff]',
   },
   breathwork: {
     heading: 'Couldn\'t load BreathFlow.',
@@ -25,7 +25,7 @@ const appCopy: Record<Props['app'], { heading: string; accent: string }> = {
   },
   trips: {
     heading: 'Something went wrong loading the trip planner.',
-    accent: 'text-amber-800 dark:text-amber-300',
+    accent: 'text-[oklch(50%_0.14_55)] dark:text-[oklch(74%_0.13_60)]',
   },
 }
 
