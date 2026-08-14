@@ -36,10 +36,11 @@ The sticky PR comment (`<!-- pr-preview -->`) and the GitHub deployment
 
 Korea and Trips still require a Clerk session on this origin. Previews
 never bake `VITE_DEV_BEARER`. Agents mint a session for a **dedicated
-screenshot identity** (no production trip data, no write access) via
+screenshot identity** via
 [Clerk Agent Tasks](https://clerk.com/docs/guides/development/testing/agent-tasks)
-— see below. Do not sign in to production `/korea` or `/trips` for
-screenshots.
+— see below. That user is not a personal production login. It can view
+and edit the shared `korea-2026` seed trip (`sharedWithAllUsers`). Do
+not sign in to production `/korea` or `/trips` for screenshots.
 
 ## Agent workflow (screenshots)
 
@@ -55,30 +56,42 @@ screenshots.
    Or poll `GET https://anthonyl.im/preview/pr/<n>/preview.json` until
    `sha` matches (prefix match is OK).
 
-2. For Clerk-gated preview routes, mint a one-time sign-in URL from a
-   **trusted `origin/main` checkout** (not the PR worktree — the helper
-   can send `CLERK_SECRET_KEY` / `AGENT_LOGIN_SECRET` / `gh auth token`)
-   and open it in the agent browser **before** screenshotting. Use the
-   matching path; `--path /korea` will not land on Trips:
+2. For Clerk-gated preview routes, mint a one-time sign-in URL and open
+   it in the agent browser **before** screenshotting. Use the matching
+   path; `--path /korea` will not land on Trips:
 
    ```bash
-   git fetch origin main
-   # run from a main checkout / worktree, not this PR's tree
    bun scripts/clerk-agent-login.ts --pr <n> --path /korea
    bun scripts/clerk-agent-login.ts --pr <n> --path /trips
    ```
+
+   The helper re-execs from a fetched `origin/main` worktree before
+   sending `CLERK_SECRET_KEY` / `AGENT_LOGIN_SECRET` / `gh auth token`.
+   Do not skip that (no `--skip-main-check`) on a PR worktree.
 
    The script prints a Clerk URL. Navigate Chrome MCP / Playwright there;
    Clerk sets a cookie for the **dedicated screenshot user** and redirects
    to `/preview/pr/<n>/korea` or `/trips` with `?hidePreviewChrome=1`.
    Do not pass `--redirect https://anthonyl.im/korea` (production).
 
-   Auth is `CLERK_SECRET_KEY` + `CLERK_AGENT_USER_ID` or
-   `CLERK_AGENT_USER_EMAIL` locally, or `AGENT_LOGIN_SECRET` /
-   `gh auth token` (token path requires `AGENT_GITHUB_REPO`, default
-   `anthonylim24/anthonyl.im`) against production `POST /api/agent/session`.
+   Auth (first match):
+
+   1. `CLERK_SECRET_KEY` + `CLERK_AGENT_USER_ID` / `_EMAIL`, or the
+      helper's dedicated screenshot-user default → Clerk API directly.
+   2. `AGENT_LOGIN_SECRET` → production `POST /api/agent/session`.
+   3. `gh auth token` with **push/admin** *or* a GitHub App installation
+      that includes `AGENT_GITHUB_REPO` (default `anthonylim24/anthonyl.im`).
+      Cursor cloud `ghs_` tokens have no `permissions.push` and cannot
+      `GET /user`; production accepts them when
+      `GET /installation/repositories` lists this repo.
+
    `--api` / `AGENT_SESSION_API` is allowlisted to `anthonyl.im` and
    loopback so the bearer is not sent to an arbitrary origin.
+
+   **Cursor Cloud:** `gh` tokens fail the old push-only check. Prefer
+   path 1 (`CLERK_SECRET_KEY` is enough; the helper defaults the
+   screenshot user). Path 3 works after this installation-token check
+   is on production. Do not bake `VITE_DEV_BEARER` into previews.
 
 3. Screenshot remaining public routes (`/`, `/breathwork`) with
    `?hidePreviewChrome=1` so the PR badge is not in the frame.
@@ -131,9 +144,11 @@ Same-origin untrusted HTML can read production cookies. Mitigations:
 - Dependabot skipped
 - No `VITE_DEV_BEARER` in the preview bundle
 - Preview JS never falls back to production `/api`
-- Agent login uses a dedicated Clerk screenshot user (empty / non-production
-  data, no itinerary writes) — never a personal production session
-- Login helper must run from `origin/main`, not PR-controlled code
+- Agent login uses a dedicated Clerk screenshot user — never a personal
+  production session. That user can edit the shared `korea-2026` seed
+  (`sharedWithAllUsers`); do not treat it as write-isolated.
+- Login helper re-execs from `origin/main` before sending credentials.
+  Do not run a PR-controlled copy with `--skip-main-check`.
 - `X-Robots-Tag: noindex, nofollow` + `robots.txt` `Disallow: /preview/`
 - Production service worker **bypasses** `/preview/` (and `CACHE_VERSION`
   was bumped when that bypass landed). Preview builds set
@@ -153,7 +168,7 @@ Do not add fork-PR previews without moving them off `anthonyl.im`.
 | `PREVIEW_API_MAX` | `1` | `publish-preview.sh` |
 | `PROD_ROOT` | `~/anthonyl.im` | `publish-preview.sh` (node_modules) |
 | `CLERK_AGENT_USER_ID` | unset (endpoint 404s unless `CLERK_AGENT_USER_EMAIL` is set) | droplet `.env` |
-| `AGENT_LOGIN_SECRET` | unset (`gh` collaborator token still works when `AGENT_GITHUB_REPO` is set; default `anthonylim24/anthonyl.im`) | droplet `.env` |
+| `AGENT_LOGIN_SECRET` | unset (`gh` push/admin **or** installation token still works when `AGENT_GITHUB_REPO` is set; default `anthonylim24/anthonyl.im`) | droplet `.env` |
 
 ## Files
 
@@ -167,6 +182,6 @@ Do not add fork-PR previews without moving them off `anthonyl.im`.
 | `server/src/previewStamp.ts` | CLI used by CI after `vite build` |
 | `scripts/wait-for-preview.ts` | agent poller |
 | `scripts/clerk-agent-login.ts` | mint a Clerk Agent Task URL for `/korea` + `/trips` screenshots |
-| `server/src/routes/agentSession.ts` | `POST /api/agent/session` (secret or GitHub collaborator token) |
+| `server/src/routes/agentSession.ts` | `POST /api/agent/session` (secret, collaborator push/admin, or installation token for this repo) |
 | `frontend/src/lib/routerBasename.ts` | React Router `basename` from Vite `base` |
 | `frontend/src/lib/apiBase.ts` | `VITE_API_BASE` rewrite (no production `/api` fallback) |
