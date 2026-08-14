@@ -152,10 +152,15 @@ describe("useLoadedTrip", () => {
   })
 
   it("does not carry a live tokyo add onto osaka", async () => {
-    mockGetTrip.mockImplementation(async (_token: unknown, id: string) => ({
-      trip: makeTrip({ id }),
-      access: "owner",
-    }))
+    let resolveOsaka!: (value: { trip: Trip; access: string }) => void
+    mockGetTrip.mockImplementation(async (_token: unknown, id: string) => {
+      if (id === "osaka") {
+        return new Promise((resolve) => {
+          resolveOsaka = resolve
+        })
+      }
+      return { trip: makeTrip({ id }), access: "owner" }
+    })
     const { rerender } = render(<Probe tripId="tokyo" />)
     await waitFor(() => {
       expect(screen.getByText("success:tokyo:2026-01-01T00:00:00Z:none")).toBeTruthy()
@@ -172,6 +177,14 @@ describe("useLoadedTrip", () => {
     expect(screen.getByText("success:tokyo:2026-01-01T00:00:01Z:p1")).toBeTruthy()
 
     rerender(<Probe tripId="osaka" />)
+    await waitFor(() => {
+      expect(screen.getByText("loading")).toBeTruthy()
+    })
+    expect(screen.queryByText(/success:tokyo/)).toBeNull()
+
+    await act(async () => {
+      resolveOsaka({ trip: makeTrip({ id: "osaka" }), access: "owner" })
+    })
     await waitFor(() => {
       expect(screen.getByText("success:osaka:2026-01-01T00:00:00Z:none")).toBeTruthy()
     })
