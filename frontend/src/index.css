@@ -1133,3 +1133,17 @@ html.dark .trips [data-trip-accent="violet"] {
     animation: none;
   }
 }
+
+/* Expanded concierge: stretch with top/bottom so a viewport height + top
+   offset cannot push the composer below the visible edge. */
+@media (min-width: 768px) {
+  .trips .trip-chat-panel-expanded {
+    top: 1rem;
+    right: 1rem;
+    bottom: 1rem;
+    left: auto;
+    width: min(36rem, calc(100vw - 2rem));
+    height: auto;
+    max-height: none;
+  }
+}

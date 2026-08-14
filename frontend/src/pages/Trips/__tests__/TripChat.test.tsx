@@ -79,7 +79,8 @@ describe("TripChat expand", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Expand chat" }))
     expect(dialog).toHaveAttribute("data-expanded", "true")
-    expect(dialog.className).toContain("md:h-[calc(100dvh-2rem)]")
+    expect(dialog.className).toContain("trip-chat-panel-expanded")
+    expect(dialog.className).not.toMatch(/md:h-\[calc\(100dvh/)
     expect(screen.getByRole("button", { name: "Shrink chat" })).toHaveAttribute("aria-pressed", "true")
     const composer = within(dialog).getByPlaceholderText("Ask about this trip…")
     expect(composer).toBeVisible()

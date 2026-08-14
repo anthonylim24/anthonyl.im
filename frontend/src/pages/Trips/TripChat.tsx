@@ -22,13 +22,13 @@ function newId() {
 }
 
 const PANEL_SHELL =
-  "fixed inset-x-0 bottom-0 z-[60] mx-auto flex w-full flex-col overflow-hidden rounded-t-3xl border border-stone-200 bg-[var(--trips-surface)] shadow-2xl dark:border-stone-800 md:inset-x-auto md:rounded-3xl"
+  "trip-chat-panel fixed inset-x-0 bottom-0 z-[60] mx-auto flex w-full flex-col overflow-hidden rounded-t-3xl border border-stone-200 bg-[var(--trips-surface)] shadow-2xl dark:border-stone-800 md:inset-x-auto md:rounded-3xl"
 
 const PANEL_COMPACT =
   `${PANEL_SHELL} h-[min(86dvh,40rem)] md:bottom-6 md:right-6 md:h-[min(600px,calc(100dvh-3rem))] md:w-[min(400px,calc(100vw-2rem))]`
 
-const PANEL_EXPANDED =
-  `${PANEL_SHELL} h-[min(92dvh,calc(100svh-0.75rem))] md:top-4 md:bottom-4 md:right-4 md:h-[calc(100dvh-2rem)] md:w-[min(36rem,calc(100vw-2rem))]`
+/** Desktop size lives in `.trip-chat-panel-expanded` — inset stretch, no height. */
+const PANEL_EXPANDED = `${PANEL_SHELL} trip-chat-panel-expanded h-[min(92dvh,calc(100svh-0.75rem))]`
 
 const HEADER_ICON_BTN =
   `flex h-11 w-11 items-center justify-center rounded-full text-stone-500 transition hover:bg-stone-100 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100 ${focusRingClass}`
