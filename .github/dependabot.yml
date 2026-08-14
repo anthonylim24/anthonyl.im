@@ -28,6 +28,11 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - "dependencies"
+    # typescript-eslint cannot load TypeScript 7.0 (no compiler API until 7.1).
+    # Keep the `typescript` package on 6.0.x for lint; tsc uses `typescript7`.
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
     groups:
       minor-and-patch:
         update-types:

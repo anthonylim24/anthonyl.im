@@ -30,7 +30,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Enable auto-merge
-        run: gh pr merge --auto --squash "$PR_URL"
+        run: |
+          if ! gh pr merge --auto --squash "$PR_URL"; then
+            echo "::warning::Could not enable auto-merge (repo setting or permissions). PR still needs a human merge after pr-gate."
+            exit 0
+          fi
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

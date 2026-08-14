@@ -42,6 +42,12 @@ build/Release
 node_modules/
 jspm_packages/
 
+# npm lockfiles — this repo uses Bun text lockfiles (bun.lock) only.
+# Leftover package-lock.json files make Dependabot open npm_and_yarn PRs
+# that rewrite package.json without a matching bun.lock and fail CI.
+package-lock.json
+**/package-lock.json
+
 # Snowpack dependency directory (https://snowpack.dev/)
 web_modules/
 
