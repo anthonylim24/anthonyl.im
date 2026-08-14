@@ -14,7 +14,11 @@ export function ConciergeSources({
   const maps = sources.filter((s) => s.kind === "maps")
   const web = sources.filter((s) => s.kind === "web")
   return (
-    <footer className="mt-2.5 space-y-1.5 border-t border-stone-200/80 pt-2 text-[11px] leading-relaxed text-stone-600 dark:border-stone-700/80 dark:text-stone-400">
+    <footer
+      className="mt-2.5 space-y-1.5 border-t border-stone-200/80 pt-2 text-[11px] leading-relaxed text-stone-600 dark:border-stone-700/80 dark:text-stone-400"
+      aria-label="Sources"
+      aria-live="polite"
+    >
       {maps.length > 0 ? (
         <p>
           <span translate="no">Google Maps</span>

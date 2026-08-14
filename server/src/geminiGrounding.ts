@@ -66,11 +66,16 @@ export function venueNameFromMapsTitle(title: string): string | null {
   return clip(name, 200) ?? null
 }
 
+function venueMatchKey(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
 function keysOverlap(a: string, b: string): boolean {
-  if (a === b) return true
-  if (a.length >= 4 && b.includes(a)) return true
-  if (b.length >= 4 && a.includes(b)) return true
-  return false
+  return venueMatchKey(a) === venueMatchKey(b)
 }
 
 export function safeHttpUrl(value: unknown): string | undefined {
@@ -100,7 +105,12 @@ function clip(value: unknown, max: number): string | undefined {
 }
 
 function finiteCoord(value: unknown, min: number, max: number): number | undefined {
-  const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN
+  const n =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && value.trim()
+        ? Number(value)
+        : NaN
   if (!Number.isFinite(n) || n < min || n > max) return undefined
   return n
 }
@@ -133,7 +143,7 @@ export function asConciergePlace(raw: unknown): ConciergePlace | null {
 export function parseAddPlacesTrailer(hidden: string): ConciergePlace[] {
   const text = hidden.trim()
   if (!text) return []
-  const stripped = text.replace(new RegExp(`^${ADD_PLACES_FENCE}\\b`), "").replace(/:::\s*$/, "").trim()
+  const stripped = text.replace(/^:::add-places\b/, "").replace(/:::\s*$/, "").trim()
   const start = stripped.indexOf("[")
   const end = stripped.lastIndexOf("]")
   if (start < 0 || end <= start) return []
@@ -236,27 +246,42 @@ export function sourcesFromGrounding(grounding: GeminiGrounding | undefined): Co
   return out.slice(0, 8)
 }
 
+const GEOCODE_TIMEOUT_MS = 10_000
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), ms)
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      () => {
+        clearTimeout(timer)
+        resolve(null)
+      },
+    )
+  })
+}
+
 export async function enrichPlacesWithGeocode(
   places: ConciergePlace[],
   geocode: PlaceGeocoder,
+  timeoutMs = GEOCODE_TIMEOUT_MS,
 ): Promise<ConciergePlace[]> {
   return Promise.all(
     places.map(async (place) => {
       if (typeof place.lat === "number" && typeof place.lng === "number") return place
       const query = [place.name, place.address].filter(Boolean).join(", ")
       if (!query) return place
-      try {
-        const geo = await geocode(query)
-        if (!geo) return place
-        return {
-          ...place,
-          lat: geo.lat,
-          lng: geo.lng,
-          address: place.address ?? geo.address,
-          placeId: place.placeId ?? geo.placeId,
-        }
-      } catch {
-        return place
+      const geo = await withTimeout(geocode(query), timeoutMs)
+      if (!geo) return place
+      return {
+        ...place,
+        lat: geo.lat,
+        lng: geo.lng,
+        address: place.address ?? geo.address,
+        placeId: place.placeId ?? geo.placeId,
       }
     }),
   )

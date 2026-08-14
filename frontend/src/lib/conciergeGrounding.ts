@@ -2,6 +2,21 @@
 
 export const ADD_PLACES_FENCE = ":::add-places"
 
+const PLACE_CATEGORIES = new Set([
+  "restaurant",
+  "cafe",
+  "bar",
+  "shopping",
+  "activity",
+  "hotel",
+  "landmark",
+  "other",
+  "market",
+  "museum",
+  "park",
+  "transit",
+])
+
 export interface ConciergePlace {
   name: string
   address?: string
@@ -28,9 +43,22 @@ function clip(value: unknown, max: number): string | undefined {
 }
 
 function finiteCoord(value: unknown, min: number, max: number): number | undefined {
-  const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN
+  const n =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && value.trim()
+        ? Number(value)
+        : NaN
   if (!Number.isFinite(n) || n < min || n > max) return undefined
   return n
+}
+
+export function normalizePlaceId(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  const id = trimmed.startsWith("places/") ? trimmed.slice("places/".length) : trimmed
+  return /^[A-Za-z0-9_-]{8,256}$/.test(id) ? id : undefined
 }
 
 export function safeHttpUrl(value: unknown): string | undefined {
@@ -56,13 +84,13 @@ export function asConciergePlace(raw: unknown): ConciergePlace | null {
   const lng = finiteCoord(obj.lng, -180, 180)
   if (lat != null) place.lat = lat
   if (lng != null) place.lng = lng
-  const category = clip(obj.category, 40)
-  if (category) place.category = category
+  const categoryRaw = typeof obj.category === "string" ? obj.category.trim().toLowerCase() : ""
+  if (categoryRaw && PLACE_CATEGORIES.has(categoryRaw)) place.category = categoryRaw
   const dayId = clip(obj.dayId, 64)
   if (dayId) place.dayId = dayId
   const notes = clip(obj.notes, 400)
   if (notes) place.notes = notes
-  const placeId = clip(obj.placeId, 256)
+  const placeId = normalizePlaceId(obj.placeId)
   if (placeId) place.placeId = placeId
   const mapsUrl = safeHttpUrl(obj.mapsUrl ?? obj.uri)
   if (mapsUrl) place.mapsUrl = mapsUrl
@@ -97,8 +125,11 @@ export function visibleConciergeText(text: string): string {
   const idx = text.search(/(?:^|\n)\s*:::add-places\b/)
   if (idx >= 0) return text.slice(0, idx).trimEnd()
   const partial = text.lastIndexOf(":::")
-  if (partial >= 0 && text.length - partial < ADD_PLACES_FENCE.length + 1) {
-    return text.slice(0, partial).trimEnd()
+  if (partial >= 0) {
+    const tail = text.slice(partial)
+    if (ADD_PLACES_FENCE.startsWith(tail) && tail.length < ADD_PLACES_FENCE.length) {
+      return text.slice(0, partial).trimEnd()
+    }
   }
   return text
 }

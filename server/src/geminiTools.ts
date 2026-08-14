@@ -29,7 +29,17 @@ export function toolsIncludeMaps(tools: GeminiToolList | undefined): boolean {
 export function mapsRetrievalConfig(
   latLng: { latitude: number; longitude: number } | null | undefined,
 ): { retrievalConfig: { latLng: { latitude: number; longitude: number } } } | undefined {
-  if (!latLng || !Number.isFinite(latLng.latitude) || !Number.isFinite(latLng.longitude)) return undefined
+  if (
+    !latLng ||
+    !Number.isFinite(latLng.latitude) ||
+    !Number.isFinite(latLng.longitude) ||
+    latLng.latitude < -90 ||
+    latLng.latitude > 90 ||
+    latLng.longitude < -180 ||
+    latLng.longitude > 180
+  ) {
+    return undefined
+  }
   return { retrievalConfig: { latLng } }
 }
 
@@ -48,8 +58,26 @@ export async function fetchGeminiWithTransientRetry(
   const first = await fetchImpl(url, init)
   if (!TRANSIENT_GEMINI.has(first.status)) return first
   await first.text().catch(() => {})
-  await new Promise((r) => setTimeout(r, 800))
+  await delay(800, init.signal)
   return fetchImpl(url, init)
+}
+
+function delay(ms: number, signal?: AbortSignal | null): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason instanceof Error ? signal.reason : new DOMException("Aborted", "AbortError"))
+      return
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort)
+      resolve()
+    }, ms)
+    const onAbort = () => {
+      clearTimeout(timer)
+      reject(signal?.reason instanceof Error ? signal.reason : new DOMException("Aborted", "AbortError"))
+    }
+    signal?.addEventListener("abort", onAbort, { once: true })
+  })
 }
 
 export async function fetchGeminiStreamWithToolFallback(args: {
@@ -62,7 +90,6 @@ export async function fetchGeminiStreamWithToolFallback(args: {
 }): Promise<Response> {
   const f = args.fetchImpl ?? fetch
   const url = `${GEMINI_BASE}/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`
-  let lastDetail = ""
 
   for (const tools of CHAT_TOOL_ATTEMPTS) {
     const body: Record<string, unknown> = { ...args.baseBody }
@@ -81,11 +108,9 @@ export async function fetchGeminiStreamWithToolFallback(args: {
     )
     if (res.ok) return res
     if (res.status !== 400) return res
-    lastDetail = await res.text().catch(() => "")
-    console.warn(
-      `[${args.logLabel}] Gemini 400 with tools=${describeGeminiTools(tools)}; retrying (${lastDetail.slice(0, 160)})`,
-    )
+    await res.text().catch(() => {})
+    console.warn(`[${args.logLabel}] Gemini 400 with tools=${describeGeminiTools(tools)}; retrying`)
   }
 
-  return new Response(lastDetail || "gemini tool fallback exhausted", { status: 400 })
+  return new Response("gemini tool fallback exhausted", { status: 400 })
 }

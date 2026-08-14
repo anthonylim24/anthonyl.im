@@ -1,18 +1,17 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from "react"
+import { lazy, Suspense, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
 import { ArrowUpRight, ExternalLink, Globe2, MapPin, Pencil, Phone } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
 import { EntityIndexProvider } from "../Korea/entityIndex"
 import { LinkifiedText } from "../Korea/LinkifiedText"
-import { getTrip } from "./tripsApi"
-import { useTripChanged } from "./tripsEvents"
+import { useLoadedTrip } from "./useLoadedTrip"
 import { ACCENT, calloutTone, formatTripDate, resolveAccent, todayIsoIn } from "./theme"
 import { useAnchorHighlight, useAnchorTarget } from "./anchors"
 import { DossierSectionHeader } from "./components/DossierSectionHeader"
 import { ItemIcon } from "./components/ItemIcon"
 import { StatusChip } from "./components/StatusChip"
-import type { ItineraryItem, Trip } from "./types"
+import type { ItineraryItem } from "./types"
 import {
   EASE,
   REVEAL_DURATION,
@@ -35,11 +34,6 @@ import {
 const MapModeOverlay = lazy(() =>
   import("../Korea/MapModeOverlay").then((m) => ({ default: m.MapModeOverlay })),
 )
-
-type LoadState =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "success"; trip: Trip; editable: boolean }
 
 /** `<main>` is unconstrained so trip heroes can be full-bleed. */
 const PAGE = pageClass("reading")
@@ -76,35 +70,9 @@ export function TripDayPage() {
   const { tripId, dayId } = useParams<{ tripId: string; dayId: string }>()
   const getToken = useGetToken()
   const reduce = useReducedMotion()
-  const [state, setState] = useState<LoadState>({ status: "loading" })
+  const { state, reload } = useLoadedTrip(tripId, getToken)
   const [mapOpen, setMapOpen] = useState(false)
-  const [reloadKey, setReloadKey] = useState(0)
   const anchorTarget = useAnchorTarget(state.status === "success")
-  const reload = useCallback(() => {
-    setState({ status: "loading" })
-    setReloadKey((k) => k + 1)
-  }, [])
-  useEffect(() => {
-    if (!tripId) return
-    let cancelled = false
-    void (async () => {
-      try {
-        const { trip, access } = await getTrip(getToken, tripId)
-        if (!cancelled) setState({ status: "success", trip, editable: access === "edit" || access === "owner" })
-      } catch (err) {
-        if (!cancelled) setState({ status: "error", message: err instanceof Error ? err.message : String(err) })
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [tripId, getToken, reloadKey])
-  useTripChanged(
-    tripId,
-    useCallback((trip) => {
-      setState((current) => (current.status === "success" ? { ...current, trip } : current))
-    }, []),
-  )
 
   if (state.status === "loading") {
     return (

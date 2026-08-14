@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import {
   extractGeminiTextDelta,
   extractGeminiTextFromBody,
+  mergeGeminiGrounding,
   parseGeminiStreamLine,
   relayGeminiChatBody,
   textFromGeminiParts,
@@ -82,6 +83,39 @@ describe("parseGeminiStreamLine", () => {
         chunks: [{ kind: "maps", title: "Cafe", uri: "https://maps.google.com/?cid=1", placeId: "ChIJabcdefgh" }],
         webSearchQueries: ["cafe nearby"],
       },
+    })
+  })
+
+  test("drops grounding chunks with an unsafe uri", () => {
+    const chunk = {
+      candidates: [
+        {
+          content: { parts: [{ text: "Go." }] },
+          groundingMetadata: { groundingChunks: [{ web: { title: "X", uri: "javascript:alert(1)" } }] },
+        },
+      ],
+    }
+    expect(parseGeminiStreamLine(`data: ${JSON.stringify(chunk)}`)?.grounding).toBeUndefined()
+  })
+
+  test("merges grounding chunks across stream lines and dedupes by uri", () => {
+    const first = mergeGeminiGrounding(undefined, {
+      chunks: [{ kind: "maps", title: "A", uri: "https://maps.google.com/?cid=1" }],
+      webSearchQueries: ["a"],
+    })
+    const merged = mergeGeminiGrounding(first, {
+      chunks: [
+        { kind: "maps", title: "A again", uri: "https://maps.google.com/?cid=1" },
+        { kind: "web", title: "Guide", uri: "https://example.com/guide" },
+      ],
+      webSearchQueries: ["a", "b"],
+    })
+    expect(merged).toEqual({
+      chunks: [
+        { kind: "maps", title: "A", uri: "https://maps.google.com/?cid=1" },
+        { kind: "web", title: "Guide", uri: "https://example.com/guide" },
+      ],
+      webSearchQueries: ["a", "b"],
     })
   })
 

@@ -136,7 +136,7 @@ export function buildTripChatSystemInstruction(trip: Trip, dayId?: string): stri
       `reservations and timings, neighborhoods, transit, and general logistics.`,
     `Today's date in the trip time zone (${trip.timezone}) is ${nowLocal}.`,
     `RULES:`,
-    `1. Reservations, times, and confirmation numbers come ONLY from the itinerary data below — never invent those. For restaurants, hours, reviews, transit, weather, events, and neighborhood questions, use Google Search and Google Maps grounding so answers stay current. Say when a detail is from Maps or the live web rather than the saved itinerary.`,
+    `1. Reservations, times, and confirmation numbers come ONLY from the itinerary data below — never invent those. For restaurants, hours, reviews, transit, weather, events, and neighborhood questions, use Google Search and Google Maps grounding when those tools are available so answers stay current. Say when a detail is from Maps or the live web; if a tool is missing, do not claim the answer is Maps-verified or from the live web.`,
     `2. Be concise and mobile-friendly: short paragraphs, bullet points, bold the key thing. This is read on a phone, often one-handed.`,
     `3. When recommending a place, prefer ones already on the itinerary and mention why. Surface same-neighborhood / same-city picks first when a focused day is set. You may recommend new venues when the traveler asks — verify each with Maps.`,
     `4. For reservations, lead with the time and status. Flag anything pending, tentative, or needs_review.`,
@@ -286,8 +286,8 @@ export async function streamTripChat(
         })(),
       )
     } catch (error) {
-      if ((error as Error).name === "AbortError" && c.req.raw.signal.aborted) return
-      if ((error as Error).name === "AbortError") {
+      if (c.req.raw.signal.aborted) return
+      if (upstreamSignal.aborted) {
         await stream.writeSSE({
           data: JSON.stringify({ error: "That took too long. Please try again." }),
         })

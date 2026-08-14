@@ -31,6 +31,7 @@ describe("parseAddPlacesTrailer", () => {
 describe("asConciergePlace", () => {
   test("drops javascript: maps urls and out-of-range coords", () => {
     expect(asConciergePlace({ name: "X", mapsUrl: "javascript:alert(1)", lat: 200 })).toEqual({ name: "X" })
+    expect(asConciergePlace({ name: "X", lat: "", lng: " " })).toEqual({ name: "X" })
     expect(safeHttpUrl("https://maps.google.com/?cid=1")).toContain("maps.google.com")
   })
 })
@@ -99,6 +100,29 @@ describe("merge + filter places", () => {
     expect(places).toEqual([{ name: "Hongs Zzuggumi", mapsUrl: "https://maps.google.com/?cid=1" }])
   })
 
+  test("does not merge overlapping but distinct venue names", () => {
+    const merged = mergeConciergePlaces(
+      [{ name: "Cafe", address: "1 Main" }],
+      [{ name: "Cafe Kitsune", mapsUrl: "https://maps.google.com/?cid=9", placeId: "ChIJabcdefgh" }],
+    )
+    expect(merged).toEqual([{ name: "Cafe", address: "1 Main" }])
+  })
+
+  test("still matches a venue when Maps adds a parenthetical", () => {
+    const merged = mergeConciergePlaces(
+      [{ name: "Hongs Zzuggumi (홍스쭈꾸미)", address: "146 Eoulmadang-ro" }],
+      [{ name: "Hongs Zzuggumi", mapsUrl: "https://maps.google.com/?cid=1", placeId: "ChIJabcdefgh" }],
+    )
+    expect(merged).toEqual([
+      {
+        name: "Hongs Zzuggumi (홍스쭈꾸미)",
+        address: "146 Eoulmadang-ro",
+        mapsUrl: "https://maps.google.com/?cid=1",
+        placeId: "ChIJabcdefgh",
+      },
+    ])
+  })
+
   test("when the model sent a trailer, Maps chunks only enrich that venue", () => {
     const merged = mergeConciergePlaces(
       [{ name: "Hongs Zzuggumi", address: "146 Eoulmadang-ro" }],
@@ -149,5 +173,14 @@ describe("enrichPlacesWithGeocode", () => {
     expect(out[0]).toEqual({ name: "Has coords", lat: 10, lng: 20 })
     expect(out[1]).toEqual({ name: "Missing", lat: 1, lng: 2, address: "Found St", placeId: "ChIJxxxxxxxx" })
     expect(placeCanBeAdded(out[1]!)).toBe(true)
+  })
+
+  test("gives up when geocode hangs past the timeout", async () => {
+    const out = await enrichPlacesWithGeocode(
+      [{ name: "Missing" }],
+      () => new Promise(() => {}),
+      20,
+    )
+    expect(out).toEqual([{ name: "Missing" }])
   })
 })

@@ -6,7 +6,7 @@ import {
   type ConciergePlace,
 } from "../../lib/conciergeGrounding"
 import type { TripDay } from "./types"
-import { accentChipBtnClass, compactSelectClass, mutedInkClass, wrapAnywhereClass } from "./ui"
+import { accentChipBtnClass, compactSelectClass, focusRingClass, mutedInkClass, wrapAnywhereClass } from "./ui"
 
 function dayLabel(day: TripDay, index: number): string {
   return day.title?.trim() || `Day ${index + 1}`
@@ -80,7 +80,7 @@ function ConciergePlaceCard({
               href={place.mapsUrl}
               target="_blank"
               rel="noreferrer"
-              className={`block text-sm font-medium text-stone-900 underline decoration-stone-300 underline-offset-2 hover:decoration-current dark:text-stone-100 ${wrapAnywhereClass}`}
+              className={`inline-flex min-h-11 items-center text-sm font-medium text-stone-900 underline decoration-stone-300 underline-offset-2 hover:decoration-current dark:text-stone-100 ${focusRingClass} ${wrapAnywhereClass}`}
             >
               {place.name}
             </a>
@@ -117,7 +117,14 @@ function ConciergePlaceCard({
             type="button"
             disabled={added || adding || !addable || !dayId}
             onClick={() => onAdd(place, dayId)}
-            aria-label={added ? `${place.name} added` : `Add ${place.name} to the itinerary`}
+            aria-busy={adding}
+            aria-label={
+              added
+                ? `${place.name} added`
+                : adding
+                  ? `Adding ${place.name}`
+                  : `Add ${place.name} to the itinerary`
+            }
             className={accentChipBtnClass}
           >
             <Plus className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />

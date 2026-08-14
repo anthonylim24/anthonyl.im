@@ -151,7 +151,7 @@ function buildSystemInstruction(snapshot: Snapshot, slug?: string): string {
     `reservations and timings, neighborhoods, transit, and general logistics.`,
     `Today's date in Korea (KST) is ${nowKst}.`,
     `RULES:`,
-    `1. Reservations, times, confirmation numbers, and flight details come ONLY from the itinerary data below — never invent those. For restaurants, hours, reviews, transit, weather, events, and neighborhood questions, use Google Search and Google Maps grounding so answers stay current. Say when a detail is from Maps or the live web rather than the saved itinerary.`,
+    `1. Reservations, times, confirmation numbers, and flight details come ONLY from the itinerary data below — never invent those. For restaurants, hours, reviews, transit, weather, events, and neighborhood questions, use Google Search and Google Maps grounding when those tools are available so answers stay current. Say when a detail is from Maps or the live web; if a tool is missing, do not claim the answer is Maps-verified or from the live web.`,
     `2. Be concise and mobile-friendly: short paragraphs, bullet points, bold the key thing. This is read on a phone, often one-handed.`,
     `3. When recommending a place, prefer ones in the CURATED PLACES list and mention why (cuisine, neighborhood, what makes it good). Surface walking-distance / same-neighborhood picks first when a focused day is set. You may recommend additional Maps-verified venues when the traveler asks.`,
     `4. For reservations, lead with the time and status. Flag anything pending or unconfirmed.`,
@@ -273,8 +273,8 @@ koreaChat.post("/", zValidator("json", chatSchema), async (c) => {
       )
     } catch (error) {
       // Client disconnects abort the upstream fetch — that's expected, not an error to log loudly.
-      if ((error as Error).name === "AbortError" && c.req.raw.signal.aborted) return
-      if ((error as Error).name === "AbortError") {
+      if (c.req.raw.signal.aborted) return
+      if (upstreamSignal.aborted) {
         await stream.writeSSE({
           data: JSON.stringify({ error: "That took too long. Please try again." }),
         })

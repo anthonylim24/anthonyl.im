@@ -18,6 +18,7 @@ describe("gemini tool helpers", () => {
 
   test("omits invalid retrieval coords", () => {
     expect(mapsRetrievalConfig(null)).toBeUndefined()
+    expect(mapsRetrievalConfig({ latitude: 999, longitude: 139.7 })).toBeUndefined()
     expect(mapsRetrievalConfig({ latitude: 35.6, longitude: 139.7 })).toEqual({
       retrievalConfig: { latLng: { latitude: 35.6, longitude: 139.7 } },
     })
@@ -65,6 +66,27 @@ describe("fetchGeminiStreamWithToolFallback", () => {
     expect(res.status).toBe(200)
     expect(tools[0]).toEqual(GEMINI_TOOLS_SEARCH_AND_MAPS)
     expect(tools[1]).toEqual([{ googleMaps: {} }])
+  })
+
+  test("aborts the 5xx retry delay instead of starting a second fetch", async () => {
+    const controller = new AbortController()
+    let calls = 0
+    const fetchImpl = (async () => {
+      calls++
+      controller.abort()
+      return new Response("boom", { status: 503 })
+    }) as typeof fetch
+
+    await expect(
+      fetchGeminiStreamWithToolFallback({
+        apiKey: "k",
+        baseBody: {},
+        signal: controller.signal,
+        logLabel: "test",
+        fetchImpl,
+      }),
+    ).rejects.toBeDefined()
+    expect(calls).toBe(1)
   })
 
   test("does not fallback on a non-400 error", async () => {
