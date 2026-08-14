@@ -40,7 +40,7 @@ import {
 /** Left column of a trip row and of the loading skeleton. */
 const markColumnClass = "w-[4.5rem] shrink-0 sm:w-20"
 
-const captionClass = `font-mono-trips text-[10px] uppercase tracking-[0.16em] ${mutedInkClass}`
+const captionClass = `font-mono-trips text-[11px] ${mutedInkClass}`
 
 const metaIconClass = `h-3.5 w-3.5 shrink-0 ${mutedInkClass}`
 

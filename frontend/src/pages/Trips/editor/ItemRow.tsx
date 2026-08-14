@@ -173,12 +173,12 @@ export const ItemRow = memo(function ItemRow({
                 aria-label="Section heading"
                 disabled={locked}
                 onChange={(e) => patch({ title: e.target.value })}
-                className={`min-w-0 flex-1 font-mono-trips text-[11px] uppercase tracking-[0.06em] sm:tracking-[0.16em] ${subtleInputClass}`}
+                className={`min-w-0 flex-1 text-sm font-semibold ${subtleInputClass}`}
               />
             </>
           ) : (
             <span
-              className={`min-w-0 flex-1 px-1 py-1 font-mono-trips text-[11px] uppercase tracking-[0.06em] text-[color:var(--tr-ink)] sm:tracking-[0.16em] ${wrapAnywhereClass}`}
+              className={`min-w-0 flex-1 px-1 py-1 text-sm font-semibold text-[color:var(--tr-ink)] ${wrapAnywhereClass}`}
             >
               {item.title}
             </span>

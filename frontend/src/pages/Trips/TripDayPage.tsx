@@ -456,15 +456,14 @@ function PlaceOrNote({ item, flash }: { item: ItineraryItem; flash: boolean }) {
           className={`mt-0.5 h-4 w-4 shrink-0 ${mutedInkClass}`}
         />
         <div className={`min-w-0 flex-1 ${wrapAnywhereClass}`}>
-          <p className="text-sm leading-relaxed">
-            <span className="font-medium">{item.title}</span>
-            {item.notes ? (
-              <span className={mutedInkClass}>
-                {", "}
-                <LinkifiedText>{item.notes}</LinkifiedText>
-              </span>
-            ) : null}
-          </p>
+          <p className="text-sm font-medium leading-relaxed">{item.title}</p>
+          {item.notes ? (
+            // The note is its own sentence; running it into the title with a
+            // comma reads as one long run-on once the note is a full line.
+            <p className={`mt-0.5 text-sm leading-relaxed ${mutedInkClass}`}>
+              <LinkifiedText>{item.notes}</LinkifiedText>
+            </p>
+          ) : null}
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <StatusChip status={item.status} />
             {item.location?.address ? (

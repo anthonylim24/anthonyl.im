@@ -218,7 +218,9 @@ export function TripCreate() {
 
   if (!mode) {
     return (
-      <div className={pageClass("reading")}>
+      // One decision, so the step is composed as a moment rather than a page
+      // with a hole under it.
+      <div className={`${pageClass("reading")} flex min-h-[calc(100dvh-9rem)] flex-col justify-center pb-16`}>
         <motion.h1
           initial={reduce ? false : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}

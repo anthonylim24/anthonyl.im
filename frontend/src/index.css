@@ -1148,16 +1148,19 @@ html.dark .trips [data-trip-accent="violet"] {
   background-image: url("/media/trip-contour.webp");
   background-size: cover;
   background-position: center right;
+  /* The scan is printed on cream paper; grayscale keeps the plate's hue coming
+     from the trip accent underneath rather than from the stock. */
+  filter: grayscale(1);
   mix-blend-mode: multiply;
-  opacity: 0.5;
+  opacity: 0.6;
   pointer-events: none;
 }
 
 /* On the dark canvas the same scan reads as engraved light, not printed ink. */
 html.dark .trip-plate::after {
   mix-blend-mode: screen;
-  filter: invert(1);
-  opacity: 0.12;
+  filter: grayscale(1) invert(1);
+  opacity: 0.14;
 }
 
 /* Signature hero bloom, two radial layers reading the accent vars. */
