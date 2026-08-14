@@ -27,9 +27,9 @@ const CUES: Record<TechniqueId, PhaseCues> = {
     [BREATH_PHASES.EXHALE]: 'Stretch the exhale long and soft.',
   },
   [TECHNIQUE_IDS.BOX_BREATHING]: {
-    [BREATH_PHASES.INHALE]: 'Up the side — breathe in.',
+    [BREATH_PHASES.INHALE]: 'Up the side. Breathe in.',
     [BREATH_PHASES.HOLD_IN]: 'Hold. Shoulders stay soft.',
-    [BREATH_PHASES.EXHALE]: 'Down the side — breathe out.',
+    [BREATH_PHASES.EXHALE]: 'Down the side. Breathe out.',
     [BREATH_PHASES.HOLD_OUT]: 'Stay empty. Stay easy.',
   },
   [TECHNIQUE_IDS.FOUR_SEVEN_EIGHT]: {
@@ -48,7 +48,7 @@ const CUES: Record<TechniqueId, PhaseCues> = {
     [BREATH_PHASES.EXHALE]: 'Slow out through pursed lips.',
   },
   [TECHNIQUE_IDS.POWER_BREATHING]: {
-    [BREATH_PHASES.INHALE]: 'Full breath in — fill up.',
+    [BREATH_PHASES.INHALE]: 'Full breath in. Fill up.',
     [BREATH_PHASES.EXHALE]: 'Let it go. Fast and loose.',
   },
 }

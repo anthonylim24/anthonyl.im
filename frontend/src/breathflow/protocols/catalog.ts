@@ -9,7 +9,7 @@ export const PROTOCOLS: readonly BreathingProtocol[] = [
   {
     id: TECHNIQUE_IDS.CYCLIC_SIGHING,
     name: 'Cyclic Sighing',
-    description: 'Double inhale, long sigh out — the fastest studied route to calm.',
+    description: 'Double inhale, long sigh out. The fastest studied route to calm.',
     science:
       'A physiological sigh is a normal inhale topped with a short second sip of air, followed by an extended '
       + 'exhale. The second inhale reinflates collapsed air sacs so more carbon dioxide leaves on the long '
@@ -42,7 +42,7 @@ export const PROTOCOLS: readonly BreathingProtocol[] = [
   {
     id: TECHNIQUE_IDS.RESONANCE_BREATHING,
     name: 'Resonance Breathing',
-    description: 'Six breaths a minute — the cadence where heart and breath sync.',
+    description: 'Six breaths a minute, the cadence where heart and breath sync.',
     science:
       'Breathing at roughly six breaths per minute drives heart rate variability to its maximum by aligning '
       + 'the breath with the baroreflex, the pressure-sensing loop between heart and brain. Decades of HRV '
@@ -134,7 +134,7 @@ export const PROTOCOLS: readonly BreathingProtocol[] = [
   {
     id: TECHNIQUE_IDS.BOX_BREATHING,
     name: 'Box Breathing',
-    description: 'Four equal sides — in, hold, out, hold — for steady focus under pressure.',
+    description: 'Four equal sides (in, hold, out, hold) for steady focus under pressure.',
     science:
       'Box breathing (also called tactical breathing) paces the breath around four equal counts. The equal '
       + 'holds keep carbon dioxide steady while the counting task occupies working memory, which is why it '
@@ -167,7 +167,7 @@ export const PROTOCOLS: readonly BreathingProtocol[] = [
   {
     id: TECHNIQUE_IDS.FOUR_SEVEN_EIGHT,
     name: '4-7-8 Downshift',
-    description: 'Inhale 4, hold 7, exhale 8 — a long-exhale ritual built for sleep.',
+    description: 'Inhale 4, hold 7, exhale 8. A long-exhale ritual built for sleep.',
     science:
       'The 4-7-8 pattern combines a brief hold with an exhale twice as long as the inhale, an unusually '
       + 'strong parasympathetic bias. Small controlled studies report acute improvements in heart rate '
@@ -203,7 +203,7 @@ export const PROTOCOLS: readonly BreathingProtocol[] = [
     description: 'Progressive breath holds that raise your comfort with air hunger.',
     science:
       'The urge to breathe is driven mostly by rising carbon dioxide, not falling oxygen. Repeated relaxed '
-      + 'holds — lengthening a little each round — teach the brain to tolerate higher CO2 before sounding '
+      + 'holds, lengthening a little each round, teach the brain to tolerate higher CO2 before sounding '
       + 'the alarm, a training approach borrowed from freediving static-apnea tables. Physiological studies '
       + 'of trained breath-holders document markedly blunted ventilatory responses to CO2.',
     evidenceLabel: 'Physiological studies',
@@ -230,7 +230,7 @@ export const PROTOCOLS: readonly BreathingProtocol[] = [
       { phase: BREATH_PHASES.REST, seconds: 10 },
     ],
     holdIncrementSeconds: 5,
-    caution: 'Holds lengthen by 5 seconds each round. End the hold early any time — never strain.',
+    caution: 'Holds lengthen by 5 seconds each round. End the hold early any time. Never strain.',
     safetyNotice:
       'Breath holds are practiced seated or lying down only. Never practice holds in or near water, while '
       + 'driving, or standing. Stop immediately if you feel dizzy, tingling, or panicked.',
@@ -251,7 +251,7 @@ export const PROTOCOLS: readonly BreathingProtocol[] = [
     description: 'Short inhale, slow pursed-lip exhale to settle breath after exertion.',
     science:
       'Exhaling through pursed lips creates gentle back-pressure that keeps airways open longer, slows the '
-      + 'breath, and improves gas exchange — a pattern-retraining strategy studied for reducing '
+      + 'breath, and improves gas exchange, a pattern-retraining strategy studied for reducing '
       + 'breathlessness. After exertion it shortens the time back to an easy, nose-led breathing rhythm.',
     evidenceLabel: 'Clinical trials',
     evidenceLevel: 'strong',
@@ -281,7 +281,7 @@ export const PROTOCOLS: readonly BreathingProtocol[] = [
     description: 'Fast, full rounds of deliberate over-breathing for short-term arousal.',
     science:
       'Rapid deep breathing temporarily lowers carbon dioxide and activates the sympathetic nervous system '
-      + '— the opposite of the calming techniques. Research on voluntary hyperventilation practices shows '
+      + '(the opposite of the calming techniques). Research on voluntary hyperventilation practices shows '
       + 'measurable adrenaline release, which is why this style is used briefly and deliberately before '
       + 'effort, never for relaxation.',
     evidenceLabel: 'Mechanistic studies',
@@ -305,7 +305,7 @@ export const PROTOCOLS: readonly BreathingProtocol[] = [
       { phase: BREATH_PHASES.INHALE, seconds: 2 },
       { phase: BREATH_PHASES.EXHALE, seconds: 2 },
     ],
-    caution: 'Lightheadedness means slow down or stop — it is a signal, not a goal.',
+    caution: 'Lightheadedness means slow down or stop. It is a signal, not a goal.',
     safetyNotice:
       'Hyperventilation-style breathing is practiced seated or lying down only. Never practice in or near '
       + 'water, while driving, or standing. Stop immediately if you feel lightheaded or numb.',

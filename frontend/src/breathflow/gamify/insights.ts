@@ -26,15 +26,15 @@ export interface InsightInput {
 
 const CATEGORY_EFFECTS: Record<ProtocolCategory, string> = {
   calm: 'Long, slow exhales like these nudge the nervous system toward its rest state.',
-  focus: 'Even-count breathing steadies attention — the count itself clears mental noise.',
+  focus: 'Even-count breathing steadies attention. The count itself clears mental noise.',
   sleep: 'The exhale-heavy pattern lowers arousal, easing the handoff into sleep.',
-  performance: 'This was a training stimulus, not relaxation — treat it like a workout.',
+  performance: 'This was a training stimulus, not relaxation. Treat it like a workout.',
   recovery: 'Slow pursed-lip exhales help the breath settle back to an easy rhythm.',
 }
 
 const EFFECT_OVERRIDES: Partial<Record<string, string>> = {
   [TECHNIQUE_IDS.CO2_TOLERANCE]:
-    'You trained tolerance to air hunger — the urge to breathe should arrive a little later each week.',
+    'You trained tolerance to air hunger. The urge to breathe should arrive a little later each week.',
   [TECHNIQUE_IDS.POWER_BREATHING]:
     'You deliberately raised arousal. Expect alertness now and a dip as it wears off.',
 }
@@ -45,7 +45,7 @@ const NEXT_STEP_OVERRIDES: Partial<Record<string, string>> = {
 }
 
 const CATEGORY_NEXT_STEPS: Record<ProtocolCategory, string> = {
-  calm: 'Same time tomorrow — consistency is what compounds.',
+  calm: 'Same time tomorrow. Consistency is what compounds.',
   focus: 'Start the task now, while attention is primed.',
   sleep: 'Keep the lights low and head to bed while the calm holds.',
   performance: 'Balance training days with one gentle session.',
