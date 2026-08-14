@@ -5,7 +5,6 @@ import { useGetToken } from "@/lib/safeAuth"
 import { useLoadedTrip } from "./useLoadedTrip"
 import {
   ACCENT,
-  cityTag,
   collaboratorSummary,
   daysUntilIn,
   formatTripDate,
@@ -338,9 +337,11 @@ function DayCard({
           >
             {index + 1}
           </span>
-          <span className={`font-mono-trips text-[11px] ${mutedInkClass}`}>
-            {cityTag(day.city, trip.appearance?.cityTags)}
-          </span>
+          {day.city ? (
+            <span className={`max-w-[10rem] truncate text-xs ${mutedInkClass}`} title={day.city}>
+              {day.city}
+            </span>
+          ) : null}
         </div>
         <div className={`min-w-0 ${isLead ? "md:flex-1" : ""}`}>
           <h3

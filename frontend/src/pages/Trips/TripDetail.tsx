@@ -533,7 +533,7 @@ export function TripDetail() {
               disabled={editorLocked}
               // `trip-display-input` beats the global 16px input floor: this
               // is display type, so the iOS zoom guard does not apply.
-              className={`trip-display-input min-h-11 w-full bg-transparent font-display font-medium leading-tight tracking-tight text-[color:var(--tr-ink)] focus:outline-none ${focusRingClass}`}
+              className={`trip-display-input min-h-11 w-full overflow-hidden bg-transparent font-display font-medium leading-tight tracking-tight text-ellipsis text-[color:var(--tr-ink)] focus:outline-none ${focusRingClass}`}
               value={trip.name}
               onChange={(e) => scheduleSave({ ...trip, name: e.target.value })}
               style={DISPLAY}
