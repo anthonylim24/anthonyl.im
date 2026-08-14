@@ -2,6 +2,8 @@ import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { Check, Globe2 } from "lucide-react"
 import {
+  ENTER_SPRING,
+  EXIT_FADE,
   accentIconClass,
   bareInputClass,
   fieldShellClass,
@@ -10,10 +12,10 @@ import {
   popoverClass,
 } from "../ui"
 
-// Searchable timezone combobox built on Intl — no dependency, always current
-// with the runtime's IANA database. Zones are shown with live GMT offsets and
-// a friendly city name; the detected zone and a short common list float to
-// the top so the right answer is usually one click.
+// Searchable timezone combobox built on Intl. No extra dependency, always
+// current with the runtime's IANA database. Zones are shown with live GMT
+// offsets and a friendly city name. The detected zone and a short common
+// list float to the top so the right answer is usually one click.
 
 interface TimezoneFieldProps {
   value: string
@@ -37,7 +39,7 @@ const COMMON_ZONES = [
 
 function allZones(): string[] {
   try {
-    // supportedValuesOf is es2022 — not in this project's TS lib yet, but
+    // supportedValuesOf is es2022, not in this project's TS lib yet, but
     // present in every browser this app supports. Fallback keeps old engines
     // working with the common list.
     const intl = Intl as typeof Intl & { supportedValuesOf?: (key: string) => string[] }
@@ -153,7 +155,7 @@ export function TimezoneField({ value, onChange, invalid, describedBy }: Timezon
 
   return (
     <div ref={rootRef} className="relative">
-      <div className={`${fieldShellClass} ${invalid ? "border-red-400 dark:border-red-800" : ""}`}>
+      <div className={`${fieldShellClass} ${invalid ? "border-[color:var(--tr-danger)]" : ""}`}>
         <Globe2 className={`h-4 w-4 shrink-0 ${accentIconClass}`} strokeWidth={1.5} aria-hidden />
         <input
           role="combobox"
@@ -165,7 +167,7 @@ export function TimezoneField({ value, onChange, invalid, describedBy }: Timezon
           aria-invalid={invalid ? true : undefined}
           aria-describedby={describedBy}
           value={open ? query : `${cityLabel(value)} (${offsetLabel(value)})`}
-          placeholder="Search city or zone…"
+          placeholder="Search city or zone"
           onFocus={() => {
             setOpen(true)
             setQuery("")
@@ -188,10 +190,10 @@ export function TimezoneField({ value, onChange, invalid, describedBy }: Timezon
             id={listId}
             role="listbox"
             aria-label="Time zones"
-            initial={reduce ? { opacity: 0 } : { opacity: 0, y: -6 }}
+            initial={reduce ? { opacity: 0 } : { opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+            exit={{ opacity: 0, transition: reduce ? { duration: 0 } : EXIT_FADE }}
+            transition={reduce ? { duration: 0 } : ENTER_SPRING}
             className={`absolute left-0 right-0 top-[calc(100%+0.5rem)] z-40 max-h-72 overflow-auto py-1.5 ${popoverClass}`}
           >
             {options.length === 0 && (
@@ -202,7 +204,7 @@ export function TimezoneField({ value, onChange, invalid, describedBy }: Timezon
               return (
                 <li key={opt.tz} role="presentation">
                   {showGroup && (
-                    <div className={`px-4 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide ${mutedInkClass}`} aria-hidden>
+                    <div className={`px-4 pb-1 pt-2 text-[10px] font-semibold ${mutedInkClass}`} aria-hidden>
                       {GROUP_LABEL[opt.group]}
                     </div>
                   )}
@@ -214,8 +216,8 @@ export function TimezoneField({ value, onChange, invalid, describedBy }: Timezon
                     aria-selected={opt.tz === value}
                     onMouseEnter={() => setActiveIndex(i)}
                     onClick={() => select(opt.tz)}
-                    className={`flex min-h-11 w-full items-center justify-between gap-3 px-4 py-2 text-left text-sm transition-colors ${
-                      i === activeIndex ? menuItemActiveClass : "text-stone-700 dark:text-stone-300"
+                    className={`flex min-h-11 w-full items-center justify-between gap-3 px-4 py-2 text-left text-sm ${
+                      i === activeIndex ? menuItemActiveClass : ""
                     }`}
                   >
                     <span className="min-w-0 truncate">
