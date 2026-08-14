@@ -3,8 +3,12 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import type { EnhancementRun, ItineraryItem, Trip } from "../types"
 
+const { mockGetToken } = vi.hoisted(() => ({
+  mockGetToken: vi.fn().mockResolvedValue("test-token"),
+}))
+
 vi.mock("@/lib/safeAuth", () => ({
-  useGetToken: () => vi.fn().mockResolvedValue("test-token"),
+  useGetToken: () => mockGetToken,
   clerkEnabled: true,
 }))
 
@@ -147,6 +151,7 @@ describe("TripDetail enhance", () => {
     renderEditor()
     const name = await screen.findByLabelText("Trip name")
     fireEvent.change(name, { target: { value: "Tokyo Rewrite" } })
+    await waitFor(() => expect(name).toHaveValue("Tokyo Rewrite"))
 
     fireEvent.click(screen.getByRole("button", { name: "Enhance trip" }))
 
