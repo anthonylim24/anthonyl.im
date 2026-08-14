@@ -51,6 +51,7 @@ After the design read, set three dials. Every layout, motion, and density decisi
 **Baseline:** `8 / 6 / 4`. Use these unless the design read overrides them. Do not ask the user to edit this file - overrides happen conversationally.
 
 ### 1.A Dial Inference (design read → dial values)
+
 | Signal | VARIANCE | MOTION | DENSITY |
 |---|---|---|---|
 | "minimalist / clean / calm / editorial / Linear-style" | 5-6 | 3-4 | 2-3 |
@@ -62,6 +63,7 @@ After the design read, set three dials. Every layout, motion, and density decisi
 | "redesign - overhaul" | +2 | +2 | match existing |
 
 ### 1.B Use-Case Presets
+
 | Use case | VARIANCE | MOTION | DENSITY |
 |---|---|---|---|
 | Landing (SaaS, mainstream) | 7 | 6 | 4 |
@@ -84,6 +86,7 @@ Use these (or user-overridden values) as global variables. Cross-references thro
 Once you have the design read (Section 0) and dials (Section 1), pick the right foundation. Do not invent CSS for things that have an official package. Do not pretend an aesthetic trend is an official system.
 
 ### 2.A When to reach for a real design system (use official packages)
+
 | Brief reads as… | Reach for | Why |
 |---|---|---|
 | Microsoft / enterprise SaaS / dashboards | `@fluentui/react-components` or `@fluentui/web-components` | Official Fluent UI, Microsoft tokens, accessibility done |
@@ -96,7 +99,7 @@ Once you have the design read (Section 0) and dials (Section 1), pick the right 
 | US public-sector / trust-first | `uswds` | Same |
 | Fast local-business / agency MVP | Bootstrap 5.3 | Boring, fast, works |
 | Modern accessible React foundation | `@radix-ui/themes` | Primitives + polished theme |
-| Modern SaaS where you own the components | shadcn/ui (`npx shadcn@latest add ...`) | You own the code, easy to customise; never ship default state |
+| Modern SaaS where you own the components | shadcn/ui (`npx shadcn@4.18.0 add ...`) | You own the code, easy to customise; never ship default state |
 | Tailwind-based modern SaaS / AI marketing | Tailwind v4 utilities + `dark:` variant | Default for indie + small team builds |
 
 **Honesty rule:** if the brief reads as one of the systems above, install and use the **official** package. Do not recreate its CSS by hand. Do not import a system's tokens but then override 90% of them.
@@ -124,7 +127,7 @@ For these directions, there is **no single official package**. Build with native
 Unless the design read picks a real design system (Section 2.A), these are the defaults:
 
 ### 3.A Stack
-* **Framework:** React or Next.js. Default to Server Components (RSC).
+* **Framework:** React or Next.js. Default to Server Components (RSC) only on Next.js App Router or another explicitly RSC-enabled stack. Standalone Vite/React SPAs stay client-rendered.
   * **RSC SAFETY:** Global state works ONLY in Client Components. In Next.js, wrap providers in a `"use client"` component.
   * **INTERACTIVITY ISOLATION:** Any component using Motion, scroll listeners, or pointer physics MUST be an isolated leaf with `'use client'` at the top. Server Components render static layouts only.
 * **Styling:** **Tailwind v4** (default). Tailwind v3 only if the existing project demands it.
@@ -412,7 +415,9 @@ export function StickyStack({ cards }: { cards: React.ReactNode[] }) {
       {cards.map((card, i) => (
         <div
           key={i}
-          className="stack-card sticky top-0 min-h-[100dvh] flex items-center justify-center"
+          className={reduce
+            ? "stack-card min-h-[100dvh] flex items-center justify-center"
+            : "stack-card sticky top-0 min-h-[100dvh] flex items-center justify-center"}
         >
           {card}
         </div>
@@ -443,14 +448,14 @@ export function HorizontalPan({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (reduce || !wrap.current || !track.current) return;
     const ctx = gsap.context(() => {
-      const distance = track.current!.scrollWidth - window.innerWidth;
+      const getDistance = () => Math.max(0, track.current!.scrollWidth - window.innerWidth);
       gsap.to(track.current, {
-        x: -distance,
+        x: () => -getDistance(),
         ease: "none",
         scrollTrigger: {
           trigger: wrap.current,
           start: "top top",                              // pin starts when section top hits viewport top
-          end: () => `+=${distance}`,                    // scroll distance = track width minus viewport
+          end: () => `+=${getDistance()}`,               // recompute after resize / refresh
           pin: true,
           scrub: 1,
           invalidateOnRefresh: true,
@@ -488,13 +493,11 @@ export function RevealStagger({ items }: { items: string[] }) {
         <motion.li
           key={item}
           initial={reduce ? false : { opacity: 0, y: 24 }}
-          whileInView={{ opacity: 1, y: 0 }}
+          whileInView={reduce ? { opacity: 1 } : { opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.3 }}
-          transition={{
-            duration: 0.6,
-            delay: i * 0.06,
-            ease: [0.16, 1, 0.3, 1],
-          }}
+          transition={reduce
+            ? { duration: 0 }
+            : { type: "spring", stiffness: 380, damping: 32, delay: i * 0.06 }}
         >
           {item}
         </motion.li>
@@ -559,7 +562,7 @@ NEVER spam arbitrary `z-50` or `z-10`. Use z-index strictly for systemic layer c
 
 ### MOTION_INTENSITY (Level 1-10)
 * **1-3 (Static):** No automatic animations. CSS `:hover` and `:active` states only. `prefers-reduced-motion` is the default mode anyway.
-* **4-7 (Fluid CSS):** `transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1)`. `animation-delay` cascades for load-ins. Focus on `transform` and `opacity`.
+* **4-7 (Fluid CSS):** `transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1)`. `animation-delay` cascades for load-ins. Animate only `transform` and `opacity`.
 * **8-10 (Advanced Choreography):** Complex scroll-triggered reveals, parallax, scroll-driven animation (CSS `animation-timeline` or GSAP ScrollTrigger). Use Motion hooks. **NEVER use `window.addEventListener('scroll')`** - it is a hard ban, not a "prefer-not." See Section 5.D for the allowed alternatives.
 
 ### VISUAL_DENSITY (Level 1-10)
@@ -839,7 +842,7 @@ The Reference Vocabulary (Section 10) names patterns. The Block Library implemen
 **Status:** schema defined here. Blocks will be added iteratively. Do not freelance new blocks without following this schema.
 
 ### 12.A File Location
-```
+```text
 skills/taste-skill/blocks/
   hero/
     asymmetric-split.md
@@ -1003,8 +1006,8 @@ npm install @carbon/react @carbon/styles
 npm install @radix-ui/themes
 
 # shadcn/ui (open code, owned components)
-npx shadcn@latest init
-npx shadcn@latest add button card badge separator input
+npx shadcn@4.18.0 init
+npx shadcn@4.18.0 add button card badge separator input
 
 # Primer CSS (GitHub product/devtool UI)
 npm install --save @primer/css
@@ -1195,6 +1198,9 @@ But that is **web glassmorphism / frosted-glass approximation**, not official Ap
     background: rgb(255 255 255 / .96);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+  }
+  .dark .liquid-glass-web-approx {
+    background: rgb(15 23 42 / .96);
   }
 }
 ```

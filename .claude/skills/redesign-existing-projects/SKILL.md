@@ -40,7 +40,7 @@ Check for these problems and fix them:
 - **Perfectly even gradients.** Break the uniformity with radial gradients, noise overlays, or mesh gradients instead of standard linear 45-degree fades.
 - **Inconsistent lighting direction.** Audit all shadows to ensure they suggest a single, consistent light source.
 - **Random dark sections in a light mode page (or vice versa).** A single dark-background section breaking an otherwise light page looks like a copy-paste accident. Either commit to a full dark mode or keep a consistent background tone throughout. If contrast is needed, use a slightly darker shade of the same palette — not a sudden jump to `#111` in the middle of a cream page.
-- **Empty, flat sections with no visual depth.** Sections that are just text on a plain background feel unfinished. Add high-quality background imagery (blurred, overlaid, or masked), subtle patterns, or ambient gradients. Use reliable placeholder sources like `https://picsum.photos/seed/{name}/1920/1080` when real assets are not available. Experiment with background images behind hero sections, feature blocks, or CTAs — even a subtle full-width photo at low opacity adds presence.
+- **Empty, flat sections with no visual depth.** Sections that are just text on a plain background feel unfinished. Add high-quality background imagery (blurred, overlaid, or masked), subtle patterns, or ambient gradients. Use local assets or project fixtures. Remote placeholders such as `https://picsum.photos/seed/{name}/1920/1080` are development-only and must not ship in production. Experiment with background images behind hero sections, feature blocks, or CTAs — even a subtle full-width photo at low opacity adds presence.
 
 ### Layout
 
@@ -50,7 +50,7 @@ Check for these problems and fix them:
 - **Complex flexbox percentage math.** Replace with CSS Grid for reliable multi-column structures.
 - **No max-width container.** Add a container constraint (around 1200-1440px) with auto margins so content doesn't stretch edge-to-edge on wide screens.
 - **Cards of equal height forced by flexbox.** Allow variable heights or use masonry when content varies in length.
-- **Uniform border-radius on everything.** Vary the radius: tighter on inner elements, softer on containers.
+- **Uniform border-radius on everything.** Use one documented radius scale. Vary a value only when a written exception (inner vs container, squircles for swatches) justifies it.
 - **No overlap or depth.** Elements sit flat next to each other. Use negative margins to create layering and visual depth.
 - **Symmetrical vertical padding.** Top and bottom padding are always identical. Adjust optically — bottom padding often needs to be slightly larger.
 - **Dashboard always has a left sidebar.** Try top navigation, a floating command menu, or a collapsible panel instead.
@@ -65,7 +65,9 @@ Check for these problems and fix them:
 - **No hover states on buttons.** Add background shift, slight scale, or translate on hover.
 - **No active/pressed feedback.** Add a subtle `scale(0.98)` or `translateY(1px)` on press to simulate a physical click.
 - **Instant transitions with zero duration.** Add smooth transitions (200-300ms) to all interactive elements.
+- **Touch targets below 44 × 44 px.** Every interactive control needs a minimum 44 × 44 px hit area.
 - **Missing focus ring.** Ensure visible focus indicators for keyboard navigation. This is an accessibility requirement, not optional.
+- **Motion without a reduced-motion path.** Place transitions, transforms, smooth scrolling, and reveal effects behind `@media (prefers-reduced-motion: no-preference)` (or `useReducedMotion()`). Reduced-motion users get an equivalent static presentation.
 - **No loading states.** Replace generic circular spinners with skeleton loaders that match the layout shape.
 - **No empty states.** An empty dashboard showing nothing is a missed opportunity. Design a composed "getting started" view.
 - **No error states.** Add clear, inline error messages for forms. Do not use `window.alert()`.
@@ -111,7 +113,7 @@ Check for these problems and fix them:
 
 ### Code Quality
 
-- **Div soup.** Use semantic HTML: `<nav>`, `<main>`, `<article>`, `<aside>`, `<section>`.
+- **Div soup.** Use semantic HTML: `<nav>`, `<main>`, `<article>`, `<aside>`, `<section>`. Custom controls that are not native form elements need explicit keyboard handling and ARIA (role, name, pressed/expanded/checked).
 - **Inline styles mixed with CSS classes.** Move all styling to the project's styling system.
 - **Hardcoded pixel widths.** Use relative units (`%`, `rem`, `em`, `max-width`) for flexible layouts.
 - **Missing alt text on images.** Describe image content for screen readers. Never leave `alt=""` or `alt="image"` on meaningful images.
@@ -146,7 +148,7 @@ When upgrading a project, pull from these high-impact techniques to replace gene
 
 ### Motion Upgrades
 - **Smooth scroll with inertia.** Decouple scrolling from browser defaults for a heavier, cinematic feel.
-- **Staggered entry.** Elements cascade in with slight delays, combining Y-axis translation with opacity fade. Never mount everything at once.
+- **Staggered entry.** Elements cascade in with slight delays, combining Y-axis translation with opacity fade. Keep the DOM content available immediately — do not delay mounting for motion. Honor `prefers-reduced-motion` with a static presentation.
 - **Spring physics.** Replace linear easing with spring-based motion for a natural, weighty feel on all interactive elements.
 - **Scroll-driven reveals.** Content entering through expanding masks, wipes, or draw-on SVG paths tied to scroll progress.
 
