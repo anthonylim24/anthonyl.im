@@ -209,12 +209,13 @@ koreaChat.post("/", zValidator("json", chatSchema), async (c) => {
     },
   }
 
-  // Abort the upstream Gemini stream when EITHER the 60s budget elapses OR
-  // the client disconnects (panel closed / navigated away). Without the
-  // client-disconnect link, an orphaned Gemini stream would run — and bill —
-  // to completion with no listener; on a 1 GB droplet that adds up fast.
+  // Abort the upstream Gemini stream when EITHER the 120s budget elapses OR
+  // the client disconnects (panel closed / navigated away). Search + Maps
+  // grounding can sit quiet before the first token; 60s was cutting that off.
+  // Without the client-disconnect link, an orphaned Gemini stream would run
+  // — and bill — to completion with no listener; on a 1 GB droplet that adds up.
   const upstreamSignal = AbortSignal.any([
-    AbortSignal.timeout(60_000),
+    AbortSignal.timeout(120_000),
     c.req.raw.signal,
   ])
 
@@ -273,6 +274,13 @@ koreaChat.post("/", zValidator("json", chatSchema), async (c) => {
     } catch (error) {
       // Client disconnects abort the upstream fetch — that's expected, not an error to log loudly.
       if ((error as Error).name === "AbortError" && c.req.raw.signal.aborted) return
+      if ((error as Error).name === "AbortError") {
+        await stream.writeSSE({
+          data: JSON.stringify({ error: "That took too long. Please try again." }),
+        })
+        await stream.writeSSE({ data: "[DONE]" })
+        return
+      }
       console.error("[korea-chat] streaming error:", error)
       await stream.writeSSE({ data: JSON.stringify({ error: "Streaming error occurred" }) })
       await stream.writeSSE({ data: "[DONE]" })

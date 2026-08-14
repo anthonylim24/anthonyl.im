@@ -209,7 +209,8 @@ export async function streamTripChat(
     },
   }
 
-  const upstreamSignal = AbortSignal.any([AbortSignal.timeout(60_000), c.req.raw.signal])
+  // Search + Maps grounding can sit quiet for a while before the first token.
+  const upstreamSignal = AbortSignal.any([AbortSignal.timeout(120_000), c.req.raw.signal])
   const toolConfig = mapsRetrievalConfig(tripLatLngHint(args.trip, args.dayId))
 
   return streamSSE(c, async (stream) => {
@@ -286,6 +287,13 @@ export async function streamTripChat(
       )
     } catch (error) {
       if ((error as Error).name === "AbortError" && c.req.raw.signal.aborted) return
+      if ((error as Error).name === "AbortError") {
+        await stream.writeSSE({
+          data: JSON.stringify({ error: "That took too long. Please try again." }),
+        })
+        await stream.writeSSE({ data: "[DONE]" })
+        return
+      }
       console.error("[trips-chat] streaming error:", error)
       await stream.writeSSE({ data: JSON.stringify({ error: "Streaming error occurred" }) })
       await stream.writeSSE({ data: "[DONE]" })
