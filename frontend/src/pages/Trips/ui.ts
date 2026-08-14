@@ -44,7 +44,7 @@ export function revealDelay(step: number): number {
  *  toast): they settle rather than slide to a stop. */
 export const ENTER_SPRING = { type: "spring", stiffness: 420, damping: 34, mass: 0.7 } as const
 
-/** Exits stay a short fade — anything longer keeps a focusable control alive
+/** Exits stay a short fade - anything longer keeps a focusable control alive
  *  in the DOM after focus has already moved on. */
 export const EXIT_FADE = { duration: 0.12, ease: EASE } as const
 
@@ -79,7 +79,7 @@ export const focusRingInsetClass = FOCUS_INSET
 export const inkClass = "text-[color:var(--tr-ink)]"
 
 /** Secondary ink: 7.5:1 on the light canvas, 8.1:1 on the dark one. The named
- *  floor for muted copy — anything lighter fails AA. */
+ *  floor for muted copy - anything lighter fails AA. */
 export const mutedInkClass = "text-[color:var(--tr-ink-muted)]"
 
 /** Tertiary ink. Large type and non-text marks only; it does not clear AA at
@@ -87,7 +87,7 @@ export const mutedInkClass = "text-[color:var(--tr-ink-muted)]"
 export const faintInkClass = "text-[color:var(--tr-ink-faint)]"
 
 /** User-authored strings (titles, addresses, notes) that may be one long
- *  unbroken run — Korean addresses overflow narrow columns without this. */
+ *  unbroken run - Korean addresses overflow narrow columns without this. */
 export const wrapAnywhereClass = "break-words [overflow-wrap:anywhere]"
 
 /** Long lists of rows: skip layout and paint for anything off screen. */
@@ -118,7 +118,7 @@ export const labelClass = `block text-[13px] font-medium ${mutedInkClass}`
  *  a page, because a label above every heading is the templated-AI rhythm. */
 export const eyebrowClass = `font-mono-trips text-[11px] uppercase tracking-[0.18em] ${mutedInkClass}`
 
-/** Mono field label for the editor's dense forms — the quieter sibling of
+/** Mono field label for the editor's dense forms - the quieter sibling of
  *  `labelClass`, sized for a grid rather than a full-width form page. */
 export const fieldLabelClass = `block font-mono-trips text-[11px] uppercase tracking-[0.14em] ${mutedInkClass}`
 
@@ -128,7 +128,7 @@ export const metaLabelClass = `text-[12px] font-medium ${mutedInkClass}`
 /** Explanatory line under a field. */
 export const hintClass = `mt-1.5 text-xs leading-relaxed ${mutedInkClass}`
 
-/** Mono tabular time — keeps times aligned down a list of rows. */
+/** Mono tabular time - keeps times aligned down a list of rows. */
 export const timeCellClass = `font-mono-trips text-[11px] tabular-nums ${mutedInkClass}`
 
 /** Display heading sizes. Pass `style={DISPLAY}` alongside. */
@@ -148,19 +148,19 @@ const FIELD_BASE = `${ELLIPSIS} border border-[color:var(--tr-line-strong)] bg-[
 
 export const inputClass = `${FIELD_BASE} w-full min-h-11 rounded-[var(--tr-r-control)] px-3.5 py-2.5 text-sm`
 
-/** Bordered control for dense editor grids — smaller than `inputClass`.
+/** Bordered control for dense editor grids - smaller than `inputClass`.
  *  Width is left to the call site so it can sit in a flex row. Keeps a full
  *  44px target on touch layouts and tightens to 36px from `sm`. */
 export const compactInputClass = `${FIELD_BASE} min-h-11 sm:min-h-9 rounded-[var(--tr-r-control)] px-2.5 py-1.5 text-sm`
 
-/** Borderless inline edit — the field only reveals itself on hover/focus. */
+/** Borderless inline edit - the field only reveals itself on hover/focus. */
 export const subtleInputClass = `${ELLIPSIS} min-h-11 sm:min-h-9 rounded-[var(--tr-r-control)] border border-transparent bg-transparent px-2 py-1 text-sm text-[color:var(--tr-ink)] placeholder:text-[color:var(--tr-ink-muted)] transition hover:border-[color:var(--tr-line-strong)] focus:border-[color:var(--ta)] focus:bg-[var(--tr-raised)] focus:outline-none ${FOCUS}`
 
 export const selectClass = `${FIELD_BASE} min-h-11 rounded-[var(--tr-r-control)] px-3 py-2 text-sm`
 
 export const compactSelectClass = `${FIELD_BASE} min-h-11 sm:min-h-9 rounded-[var(--tr-r-control)] px-2 py-1 text-xs`
 
-export const checkboxClass = `h-4 w-4 rounded-[3px] border-[color:var(--tr-line-strong)] accent-[var(--ta)] ${FOCUS}`
+export const checkboxClass = `h-4 w-4 rounded-[var(--tr-r-mark)] border-[color:var(--tr-line-strong)] accent-[var(--ta)] ${FOCUS}`
 
 /** Bordered shell wrapping a bare input plus an icon (combobox fields). */
 export const fieldShellClass =
@@ -234,10 +234,10 @@ export const overlayHoverClass = "hover:bg-[var(--tr-overlay)]"
  *  against the surface it sits on. */
 export const ghostOnTintBtnClass = `${BTN} min-h-11 px-3.5 py-2 text-sm font-medium text-[color:var(--tr-ink)] ${overlayHoverClass} ${FOCUS} disabled:cursor-not-allowed disabled:opacity-50`
 
-/** Neutral-ink action — reserved for the one "enter Map Mode" style CTA. */
+/** Neutral-ink action - reserved for the one "enter Map Mode" style CTA. */
 export const inkBtnClass = `${BTN} min-h-11 bg-[color:var(--tr-ink)] px-5 py-2.5 text-sm font-semibold text-[color:var(--tr-canvas)] hover:opacity-90 ${FOCUS} focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`
 
-/** State-advancing action (Publish) — the only success-tinted button. */
+/** State-advancing action (Publish) - the only success-tinted button. */
 export const successBtnClass = `${BTN} min-h-11 border border-[color:var(--tr-ok)] bg-[var(--tr-ok-soft)] px-4 py-2 text-sm font-semibold text-[color:var(--tr-ok)] hover:bg-[var(--tr-overlay)] ${FOCUS} disabled:cursor-not-allowed disabled:opacity-50`
 
 export const dangerBtnClass = `${BTN} min-h-11 bg-[color:var(--tr-danger)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--tr-danger-ring)] disabled:cursor-not-allowed disabled:opacity-50`
@@ -257,13 +257,13 @@ export const dangerChipBtnClass = `inline-flex min-h-11 items-center justify-cen
 
 /** Secondary link or button inside a sentence. The vertical padding buys a
  *  44px-tall target without changing the line box it sits in. */
-export const inlineLinkClass = `inline-block rounded-[3px] py-1.5 -my-1.5 underline underline-offset-2 decoration-[color:var(--ta-ring)] hover:decoration-[color:var(--ta)] ${FOCUS}`
+export const inlineLinkClass = `inline-block rounded-[var(--tr-r-mark)] py-1.5 -my-1.5 underline underline-offset-2 decoration-[color:var(--ta-ring)] hover:decoration-[color:var(--ta)] ${FOCUS}`
 
 /** 44x44 icon-only button. */
 export const iconBtnClass = `inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--tr-r-control)] ${mutedInkClass} transition duration-200 ${EASE_CSS} hover:bg-[var(--tr-overlay)] hover:text-[color:var(--tr-ink)] motion-reduce:transition-none ${FOCUS} disabled:cursor-not-allowed disabled:opacity-30`
 
 /** 44x44 destructive icon-only button. The glyph reddens on hover over a
- *  neutral surface — no red tint under grey text, no stacked tints. */
+ *  neutral surface - no red tint under grey text, no stacked tints. */
 export const dangerIconBtnClass = `inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--tr-r-control)] ${mutedInkClass} transition duration-200 ${EASE_CSS} hover:bg-[var(--tr-overlay)] hover:text-[color:var(--tr-danger)] motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--tr-danger-ring)] disabled:cursor-not-allowed disabled:opacity-30`
 
 // ── Formatting helpers ───────────────────────────────────────────────────

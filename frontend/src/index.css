@@ -917,6 +917,9 @@ html:has(.chat-dark) {
      toggle thumbs, and status dots. */
   --tr-r-panel: 12px;
   --tr-r-control: 8px;
+  /* Marks smaller than a control (checkbox, inline link underlay) would look
+     wrong at 8px, so the scale has one documented third step. */
+  --tr-r-mark: 3px;
   /* `rounded-lg` / `rounded-md` resolve through this shadcn token, which the
      chat theme zeroes at `:root`. Without it every compact control in the
      Trips vocabulary renders square. */

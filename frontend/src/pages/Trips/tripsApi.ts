@@ -11,7 +11,7 @@ import type {
   TripSummary,
 } from "./types"
 
-// Fetch helpers for /api/trips. Every call is authenticated — pass Clerk's
+// Fetch helpers for /api/trips. Every call is authenticated - pass Clerk's
 // getToken (from useGetToken) so the server can resolve the user.
 
 export type GetToken = () => Promise<string | null>

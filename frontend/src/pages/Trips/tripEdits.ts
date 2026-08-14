@@ -24,7 +24,7 @@ export function addItem(days: TripDay[], dayId: string, item: ItineraryItem): Tr
   return mapDay(days, dayId, (day) => ({ ...day, items: [...day.items, item] }))
 }
 
-/** Insert an item at a position, clamped into range — the undo path for a
+/** Insert an item at a position, clamped into range - the undo path for a
  *  deleted item, which must land back where it was. */
 export function insertItemAt(days: TripDay[], dayId: string, item: ItineraryItem, index: number): TripDay[] {
   return mapDay(days, dayId, (day) => {

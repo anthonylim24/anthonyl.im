@@ -70,7 +70,7 @@ export const ACCENT: AccentTheme = {
 
 export const DEFAULT_ACCENT: TripAccent = "amber"
 
-/** Picker order — also the set `resolveAccent` validates against. */
+/** Picker order - also the set `resolveAccent` validates against. */
 export const TRIP_ACCENTS: readonly TripAccent[] = ["rose", "amber", "emerald", "sky", "violet"]
 
 /** Literal swatch colours for the appearance picker, which is the one place
@@ -93,7 +93,7 @@ export const ACCENT_LABEL: Record<TripAccent, string> = {
   violet: "Iris",
 }
 
-/** Safe accent lookup — never returns undefined for bad runtime data. */
+/** Safe accent lookup - never returns undefined for bad runtime data. */
 export function resolveAccent(accent?: string | null): TripAccent {
   return TRIP_ACCENTS.includes(accent as TripAccent) ? (accent as TripAccent) : DEFAULT_ACCENT
 }
@@ -108,7 +108,7 @@ export function visibleTags(tags: readonly string[]): string[] {
   return tags.filter((tag) => !HIDDEN_TAGS.has(tag))
 }
 
-/** "1 editor, 2 viewers" — empty when nobody else is on the trip. */
+/** "1 editor, 2 viewers" - empty when nobody else is on the trip. */
 export function collaboratorSummary(collaborators: readonly TripCollaborator[]): string {
   const editors = collaborators.filter((c) => c.role === "editor").length
   const viewers = collaborators.length - editors
@@ -161,7 +161,7 @@ export function suggestionBadgeClass(kind: SuggestionKind): string {
   }
 }
 
-// ── Icons — Lucide only; user-entered emoji (day.emoji, callout.icon) is
+// ── Icons - Lucide only; user-entered emoji (day.emoji, callout.icon) is
 //    content and stays text. ────────────────────────────────────────────
 
 export const reservationTypeIcon: Record<string, LucideIcon> = {
@@ -243,7 +243,7 @@ export function daysUntilIn(iso: string, timezone: string): number {
   return Math.round(ms / 86_400_000)
 }
 
-/** Two-letter city tag — explicit config wins, else derived from the name. */
+/** Two-letter city tag - explicit config wins, else derived from the name. */
 export function cityTag(city: string | undefined, tags?: Record<string, string>): string {
   if (!city) return "--"
   if (tags?.[city]) return tags[city]!

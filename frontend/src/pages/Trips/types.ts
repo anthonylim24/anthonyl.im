@@ -163,7 +163,7 @@ export interface GeneratePreferences {
   transport?: string
 }
 
-// Default AI prompt — kept in sync with DEFAULT_ITINERARY_PROMPT on the server.
+// Default AI prompt - kept in sync with DEFAULT_ITINERARY_PROMPT on the server.
 export const DEFAULT_ITINERARY_PROMPT =
   "Build a practical, well-paced itinerary for this trip. Include activities, meals, " +
   "neighborhoods, realistic travel times, and logical routing. Prefer useful structure " +
