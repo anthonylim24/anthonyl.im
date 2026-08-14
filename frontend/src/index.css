@@ -1133,3 +1133,23 @@ html.dark .trips [data-trip-accent="violet"] {
     animation: none;
   }
 }
+
+/* Token host for the portaled concierge — must not paint a page canvas. */
+.trips.trip-chat-portal {
+  background-color: transparent;
+  background-image: none;
+}
+
+/* Expanded concierge: inset stretch. !important beats any leftover height
+   utility so the composer cannot sit below the visible edge. */
+@media (min-width: 768px) {
+  .trips .trip-chat-panel-expanded {
+    top: 1rem !important;
+    right: 1rem !important;
+    bottom: 1rem;
+    left: auto !important;
+    width: min(36rem, calc(100vw - 2rem)) !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+}
