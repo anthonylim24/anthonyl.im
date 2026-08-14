@@ -61,7 +61,9 @@ function isoDaysFromToday(offset) {
   return d.toISOString().slice(0, 10)
 }
 
-/** A trip that is under way today, so the "in progress" states are capturable. */
+/** A trip that is under way today, so the "in progress" states are capturable.
+ *  Seeded through the public API rather than a fixture file, so the shapes stay
+ *  honest. Idempotent: a second run reuses the trip the first run created. */
 async function ensureLiveTrip() {
   const { trips } = await api("/api/trips")
   const existing = trips.find((t) => t.name === "Lisbon Research Week")
@@ -73,12 +75,62 @@ async function ensureLiveTrip() {
       name: "Lisbon Research Week",
       destinations: ["Lisbon", "Sintra"],
       startDate: isoDaysFromToday(-2),
-      endDate: isoDaysFromToday(3),
+      endDate: isoDaysFromToday(4),
       timezone: "Europe/Lisbon",
+      status: "active",
       description: "Studio visits, two client dinners, and a day out to Sintra.",
     }),
   })
-  return trip.slug ?? trip.id
+
+  const slug = trip.slug ?? trip.id
+  const plan = [
+    ["Arrival and Baixa walk", "Lisbon", ["Baixa", "Chiado"]],
+    ["Studio visits in Marvila", "Lisbon", ["Marvila", "Beato"]],
+    ["Sintra day out", "Sintra", ["Sintra", "Colares"]],
+    ["Alfama and fado", "Lisbon", ["Alfama", "Graca"]],
+    ["Beach reset", "Cascais", ["Cascais", "Guincho"]],
+    ["Client dinners", "Lisbon", ["Principe Real"]],
+    ["Fly home", "Lisbon", ["Aeroporto"]],
+  ]
+  const days = plan.map(([title, city, neighborhoods], i) => ({
+    id: `day-${i + 1}`,
+    date: isoDaysFromToday(i - 2),
+    title,
+    city,
+    neighborhoods,
+    weather: { highC: 27 + (i % 3), lowC: 18 + (i % 2), condition: "clear" },
+    items: [
+      {
+        id: `d${i + 1}-i1`,
+        kind: "reservation",
+        title: i === 0 ? "TAP 1042 to Lisbon" : `${title} booking`,
+        time: "10:00",
+        status: "booked",
+        notes: "Confirmation in the wallet.",
+        reservation: { type: i === 0 ? "flight" : "appointment", status: "confirmed" },
+        createdBy: "user",
+      },
+      {
+        id: `d${i + 1}-i2`,
+        kind: "place",
+        title: i === 0 ? "Manteigaria" : `${city} walk`,
+        time: "16:30",
+        status: "none",
+        notes: "Short stop before dinner.",
+        location: { name: title, source: "user", category: "landmark" },
+        createdBy: "user",
+      },
+    ],
+  }))
+
+  await api(`/api/trips/${slug}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      days,
+      appearance: { accent: "sky", subtitle: "Seven days of studio visits and long dinners" },
+    }),
+  })
+  return slug
 }
 
 /* ── Mocked model streams ─────────────────────────────────────────────── */
@@ -97,12 +149,29 @@ function sseBody(chunks) {
   )
 }
 
-async function mockModelEndpoints(context) {
+async function mockModelEndpoints(context, { failChat = false } = {}) {
   await context.route("**/api/invoke", async (route) => {
+    if (failChat) {
+      await route.fulfill({ status: 500, body: JSON.stringify({ error: "upstream unavailable" }) })
+      return
+    }
     await route.fulfill({
       status: 200,
       headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
       body: sseBody(CHAT_ANSWER),
+    })
+  })
+}
+
+/** Empty-state captures need a user with no trips, which the seeded store
+ *  cannot give us, so the list response is emptied at the network edge. */
+async function mockEmptyTripList(context) {
+  await context.route("**/api/trips", async (route) => {
+    if (route.request().method() !== "GET") return route.fallback()
+    await route.fulfill({
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ trips: [] }),
     })
   })
 }
@@ -126,7 +195,7 @@ async function settle(page, ms = 700) {
   await page.waitForTimeout(ms)
 }
 
-async function newContext(browser, { viewport, colorScheme, reducedMotion, video }) {
+async function newContext(browser, { viewport, colorScheme, reducedMotion, video, failChat }) {
   const context = await browser.newContext({
     ...devices["Desktop Chrome"],
     viewport,
@@ -134,7 +203,7 @@ async function newContext(browser, { viewport, colorScheme, reducedMotion, video
     reducedMotion: reducedMotion ? "reduce" : "no-preference",
     ...(video ? { recordVideo: { dir: VIDEO_OUT, size: viewport } } : {}),
   })
-  await mockModelEndpoints(context)
+  await mockModelEndpoints(context, { failChat })
   return context
 }
 
@@ -184,17 +253,39 @@ try {
     }
 
     // Reduced motion, desktop light.
-    const context = await newContext(browser, {
-      viewport: DESKTOP,
-      colorScheme: "light",
-      reducedMotion: true,
-    })
-    const page = await context.newPage()
-    watchErrors(page, "chat reduced-motion")
-    await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" })
-    await settle(page, 1000)
-    await shot(page, "chat-desktop-light-reduced-motion")
-    await context.close()
+    {
+      const context = await newContext(browser, {
+        viewport: DESKTOP,
+        colorScheme: "light",
+        reducedMotion: true,
+      })
+      const page = await context.newPage()
+      watchErrors(page, "chat reduced-motion")
+      await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" })
+      await settle(page, 1000)
+      await shot(page, "chat-desktop-light-reduced-motion")
+      await context.close()
+    }
+
+    // Error state: the model endpoint refuses, the UI must recover inline.
+    {
+      const context = await newContext(browser, {
+        viewport: DESKTOP,
+        colorScheme: "light",
+        failChat: true,
+      })
+      const page = await context.newPage()
+      watchErrors(page, "chat error")
+      await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" })
+      await settle(page, 1000)
+      const suggestion = page.getByRole("button", { name: /DoorDash/i }).first()
+      if (await suggestion.isVisible().catch(() => false)) {
+        await suggestion.click()
+        await page.waitForTimeout(1500)
+        await shot(page, "chat-desktop-light-error")
+      }
+      await context.close()
+    }
   }
 
   /* Trips -------------------------------------------------------------- */
@@ -206,7 +297,10 @@ try {
       ["day", "/trips/korea-2026/day/day-2"],
       ["editor", "/trips/korea-2026/edit"],
     ]
-    if (liveTripSlug) routes.push(["overview-live", `/trips/${liveTripSlug}`])
+    if (liveTripSlug) {
+      routes.push(["overview-live", `/trips/${liveTripSlug}`])
+      routes.push(["day-live", `/trips/${liveTripSlug}/day/day-3`])
+    }
 
     for (const [mode, viewport] of [
       ["desktop", DESKTOP],
@@ -242,6 +336,41 @@ try {
         await fab.click()
         await page.waitForTimeout(900)
         await shot(page, `trips-concierge-${mode}-${scheme}`)
+      }
+      await context.close()
+    }
+
+    // Empty state: a signed-in user with no trips yet.
+    for (const [mode, viewport, scheme] of [
+      ["desktop", DESKTOP, "light"],
+      ["mobile", MOBILE, "light"],
+    ]) {
+      const context = await newContext(browser, { viewport, colorScheme: scheme })
+      await mockEmptyTripList(context)
+      const page = await context.newPage()
+      watchErrors(page, `trips empty ${mode}`)
+      await page.goto(`${BASE}/trips`, { waitUntil: "domcontentloaded" })
+      await settle(page, 1100)
+      await shot(page, `trips-index-empty-${mode}-${scheme}`)
+      await context.close()
+    }
+
+    // Reduced motion, desktop light: the same pages with every animation off.
+    {
+      const context = await newContext(browser, {
+        viewport: DESKTOP,
+        colorScheme: "light",
+        reducedMotion: true,
+      })
+      const page = await context.newPage()
+      watchErrors(page, "trips reduced-motion")
+      for (const [name, route] of [
+        ["index", "/trips"],
+        ["overview", "/trips/korea-2026"],
+      ]) {
+        await page.goto(`${BASE}${route}`, { waitUntil: "domcontentloaded" })
+        await settle(page, 1100)
+        await shot(page, `trips-${name}-desktop-light-reduced-motion`)
       }
       await context.close()
     }
