@@ -155,9 +155,12 @@ describe("TripDetail enhance", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Enhance trip" }))
 
-    await waitFor(() => expect(mockUpdateTrip).toHaveBeenCalled())
-    const flushed = mockUpdateTrip.mock.calls[0]?.[2] as { name?: string; days?: Trip["days"] }
-    expect(flushed.name).toBe("Tokyo Rewrite")
+    await waitFor(() => {
+      const flushed = mockUpdateTrip.mock.calls
+        .map((call) => call[2] as { name?: string })
+        .find((patch) => patch.name === "Tokyo Rewrite")
+      expect(flushed?.name).toBe("Tokyo Rewrite")
+    })
 
     await waitFor(() => {
       expect(screen.getAllByText(/lunch at Ichiran/i).length).toBeGreaterThan(0)
