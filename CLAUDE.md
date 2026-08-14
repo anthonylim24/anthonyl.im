@@ -540,7 +540,7 @@ When creating a pull request that includes frontend changes (any modifications t
 
 **Process:**
 1. Prefer the remote PR preview (`https://anthonyl.im/preview/pr/<n>/`). Wait with `bun scripts/wait-for-preview.ts --pr <n> --sha <head-sha>` (see [`docs/pr-previews.md`](docs/pr-previews.md)). No local Vite server required.
-2. For Clerk-gated routes (`/korea`, `/trips`), mint a session first: `bun scripts/clerk-agent-login.ts --pr <n> --path /korea` (or `/trips`). Open the printed Clerk URL in Chrome MCP so the session cookie is set, then screenshot. Public routes only need `?hidePreviewChrome=1`.
+2. For Clerk-gated preview routes (`/korea`, `/trips`), mint a session from a trusted `origin/main` checkout: `bun scripts/clerk-agent-login.ts --pr <n> --path /korea` or `--path /trips` (use the matching path). Open the printed Clerk URL in Chrome MCP. This is a dedicated screenshot identity — do not sign in to production `/korea` or `/trips`. Public routes only need `?hidePreviewChrome=1`.
 3. **Upload screenshots to GitHub** using `gh api` so they get permanent URLs visible in the PR. Local file paths and repo blob URLs do not render in PR descriptions. Use: `gh api --method POST repos/{owner}/{repo}/issues/{pr_number}/comments --field body="![screenshot](url)"` or upload via the GitHub upload endpoint.
 4. Add the uploaded screenshot URLs to the PR description body
 
