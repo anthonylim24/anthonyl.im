@@ -44,9 +44,14 @@ export function useSessionEngine(
   const [state, setState] = useState<EngineState>(createIdleState)
   const stateRef = useRef(state)
   const configRef = useRef(config)
-  configRef.current = config
   const onEventRef = useRef(onEvent)
-  onEventRef.current = onEvent
+
+  useEffect(() => {
+    configRef.current = config
+  }, [config])
+  useEffect(() => {
+    onEventRef.current = onEvent
+  }, [onEvent])
 
   const applyState = useCallback((next: EngineState) => {
     stateRef.current = next

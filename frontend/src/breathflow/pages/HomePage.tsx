@@ -52,7 +52,8 @@ export function HomePage() {
   const [windowId, setWindowId] = useState<LengthWindowId>('standard')
   const windowSeconds = LENGTH_WINDOWS.find((w) => w.id === windowId)?.seconds ?? 300
 
-  const streak = useMemo(() => useHistoryStore.getState().getStreak(), [sessions])
+  // getStreak() returns a primitive, so the selector subscription is stable.
+  const streak = useHistoryStore((state) => state.getStreak())
   const isFirstRun = sessions.length === 0
   const dailyGoalMet = dailySessionCount > 0
 

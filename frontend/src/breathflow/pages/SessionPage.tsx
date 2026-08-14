@@ -576,31 +576,28 @@ function ActiveSession({
   onVisualTap,
 }: ActiveSessionProps) {
   const setSoundEnabled = useSettingsStore((s) => s.setSoundEnabled)
-  const [controlsVisible, setControlsVisible] = useState(true)
-  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const running = engine.status === 'running'
   const paused = engine.status === 'paused'
   // Controls stay visible when paused, focused, or under reduced motion.
-  const alwaysVisible = paused || reducedMotion
+  const [hidden, setHidden] = useState(false)
+  const [focusWithin, setFocusWithin] = useState(false)
+  const [interactionStamp, setInteractionStamp] = useState(0)
+  const alwaysVisible = paused || reducedMotion || focusWithin
+  const controlsVisible = alwaysVisible || !hidden
 
   const showControls = useCallback(() => {
-    setControlsVisible(true)
-    if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
-    hideTimerRef.current = setTimeout(() => setControlsVisible(false), CONTROLS_HIDE_MS)
+    setHidden(false)
+    setInteractionStamp(Date.now())
   }, [])
 
+  // Auto-hide after 3s of running without interaction. The timeout callback
+  // is the only place hiding happens, so pausing/focus never races it.
   useEffect(() => {
-    if (alwaysVisible) {
-      if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
-      setControlsVisible(true)
-      return
-    }
-    showControls()
-    return () => {
-      if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
-    }
-  }, [alwaysVisible, showControls])
+    if (alwaysVisible) return
+    const timeout = setTimeout(() => setHidden(true), CONTROLS_HIDE_MS)
+    return () => clearTimeout(timeout)
+  }, [alwaysVisible, interactionStamp])
 
   const phaseIndex = engine.phaseIndex
   const cue = getCoachingCue(protocol.id, engine.phase)
@@ -609,8 +606,8 @@ function ActiveSession({
   return (
     <div
       className="fixed inset-0 z-50 flex flex-col bg-bw-canvas"
-      onPointerMove={alwaysVisible ? undefined : showControls}
-      onPointerDown={alwaysVisible ? undefined : showControls}
+      onPointerMove={showControls}
+      onPointerDown={showControls}
     >
       <LiveAnnouncer message={announcement} />
 
@@ -681,9 +678,14 @@ function ActiveSession({
       <div
         className={[
           'pb-[max(1.5rem,env(safe-area-inset-bottom))] transition-opacity duration-300',
-          controlsVisible || alwaysVisible ? 'opacity-100' : 'opacity-0',
+          controlsVisible ? 'opacity-100' : 'opacity-0',
         ].join(' ')}
-        onFocus={() => setControlsVisible(true)}
+        onFocus={() => setFocusWithin(true)}
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setFocusWithin(false)
+          }
+        }}
       >
         <div className="mx-auto flex max-w-sm items-center justify-center gap-2 px-6">
           <button

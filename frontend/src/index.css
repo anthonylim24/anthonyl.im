@@ -48,15 +48,6 @@ body {
   padding: 0;
 }
 
-/* Short pages fill the *small* viewport (URL bar showing). 100vh on iOS is
-   the large viewport and lets the document rest past the last content. */
-.breathwork-layout {
-  max-width: 100%;
-  height: auto;
-  min-height: 100svh;
-  overflow: visible;
-}
-
 .breathwork {
   max-width: 100%;
   height: auto;
@@ -77,17 +68,6 @@ body {
   font-optical-sizing: auto;
 
   /* Chatbot tokens — resolved via .chatbot-dark / .chatbot-shadow below */
-
-  /* Breathwork tokens — parchment + ink */
-  --breath-canvas: #F5F2ED;
-  --breath-ink: #1C1917;
-  --breath-ink-secondary: #5F574F;
-  --breath-ink-tertiary: #6F6760;
-  --breath-surface: #FFFEFA;
-  --breath-accent: #B8860B;
-  --breath-well: rgba(28, 25, 23, 0.03);
-  --breath-border: rgba(28, 25, 23, 0.08);
-  --breath-border-hover: rgba(28, 25, 23, 0.14);
 
   /* Easing — slow deceleration, no bounce */
   --ease-decel: cubic-bezier(0.33, 0, 0, 1);
@@ -153,111 +133,6 @@ input[type="reset"] {
 .pb-safe {
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }
-
-.session-content {
-  min-height: 0;
-}
-
-.session-controls {
-  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
-}
-
-/* iOS Safari shell: size to the *small* viewport (URL-bar showing) so the
-   container never hides behind the address bar. Fallback to 100% for
-   pre-Safari-15.4. JS in BreathingSession.tsx tags this class on the
-   container; we keep the `height: 100svh` here (rather than inline) because
-   jsdom doesn't parse svh as a valid CSS value. */
-.session-shell {
-  height: 100%;       /* fallback */
-  height: 100svh;
-}
-
-/* Idle dim — desaturate color, never opacity. Keyboard focus is always findable.
-   Stop button preserves its destructive color even when dimmed. */
-.session-controls-fade[data-dimmed="true"] button {
-  color: var(--bw-text-tertiary);
-}
-.session-controls-fade[data-dimmed="true"] button:where(.text-bw-destructive, [class*="destructive"]) {
-  color: var(--bw-destructive);
-}
-.session-controls-fade[data-dimmed="true"]:focus-within button {
-  color: var(--bw-text);
-}
-.session-controls-fade[data-dimmed="true"]:focus-within button:where(.text-bw-destructive, [class*="destructive"]) {
-  color: var(--bw-destructive);
-}
-@media (hover: hover) and (pointer: fine) {
-  .session-controls-fade[data-dimmed="true"]:hover button {
-    color: var(--bw-text);
-  }
-  .session-controls-fade[data-dimmed="true"]:hover button:where(.text-bw-destructive, [class*="destructive"]) {
-    color: var(--bw-destructive);
-  }
-}
-
-.session-orb {
-  width: clamp(10rem, 52vw, 24rem);
-  height: clamp(10rem, 52vw, 24rem);
-  max-width: min(82vw, 24rem);
-  max-height: min(48vh, 24rem);
-}
-
-.session-orb::after {
-  content: "";
-  position: absolute;
-  left: 18%;
-  right: 18%;
-  bottom: 4%;
-  height: 14%;
-  border-radius: 50%;
-  background: radial-gradient(ellipse, rgba(28, 25, 23, 0.16), transparent 72%);
-  pointer-events: none;
-  z-index: -1;
-}
-
-.dark .session-orb::after {
-  background: radial-gradient(ellipse, rgba(0, 0, 0, 0.45), transparent 72%);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .session-start-cta:hover {
-    transform: scale(1.03);
-  }
-}
-
-/* Tesla / phone landscape / any short landscape panel: row layout so the
-   orb stays large and controls stay reachable. Coach copy hides; the live
-   region still announces it. */
-@media (orientation: landscape) and (max-height: 700px) {
-  .session-content {
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: center;
-    align-items: center;
-    gap: 0.75rem 1.5rem;
-    padding-bottom: 0;
-  }
-
-  .session-orb {
-    width: min(72svh, 48vw, 20rem);
-    height: min(72svh, 48vw, 20rem);
-    max-width: min(72svh, 48vw, 20rem);
-    max-height: min(72svh, 48vw, 20rem);
-  }
-
-  .session-coach,
-  .session-safety-cue {
-    display: none;
-  }
-
-  .session-controls {
-    width: calc(100% - 1.5rem);
-    max-width: none;
-    gap: 0.75rem;
-    padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
-  }
-}
-
 
 /* ═══════════════════════════════════════════════════════
    SCROLLBAR
@@ -510,18 +385,6 @@ html:has(.chatbot-dark) {
    orb's breath. Skipped under prefers-reduced-motion (the class is only
    applied to the inner group when motion is allowed, but we guard here too
    for belt-and-suspenders). */
-@keyframes box-light-pulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50%      { transform: scale(1.22); opacity: 0.72; }
-}
-.box-light-pulse {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: box-light-pulse 1.6s ease-in-out infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-  .box-light-pulse { animation: none; }
-}
 
 .stagger-1 { animation-delay: 0.08s; }
 .stagger-2 { animation-delay: 0.16s; }
@@ -534,14 +397,6 @@ html:has(.chatbot-dark) {
    AURA ANIMATIONS
    ═══════════════════════════════════════════════════════ */
 
-@keyframes aura-float {
-  0%, 100% { transform: translateY(0px) rotate(0deg); }
-  30%       { transform: translateY(-7px) rotate(1.2deg); }
-  70%       { transform: translateY(-4px) rotate(-0.8deg); }
-}
-.aura-float {
-  animation: aura-float 3.2s ease-in-out infinite;
-}
 
 /* ═══════════════════════════════════════════════════════
    MESSAGE CONTENT
@@ -730,20 +585,6 @@ html:has(.chatbot-dark) {
    CARD SYSTEM (simplified)
    ═══════════════════════════════════════════════════════ */
 
-/* Grain texture overlay — selective use on cards */
-.grain-surface::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: var(--noise);
-  background-repeat: repeat;
-  background-size: 256px 256px;
-  pointer-events: none;
-  opacity: 0.08;
-  mix-blend-mode: multiply;
-  border-radius: inherit;
-}
-
 /* ── Breathwork base — warm parchment + precise sans ── */
 .breathwork {
   background-color: var(--bw-canvas, #EFEDE6);
@@ -759,18 +600,6 @@ html:has(.chatbot-dark) {
    BREATHWORK BACKGROUNDS
    ═══════════════════════════════════════════════════════ */
 
-/* Clean canvas — editorial */
-.breath-bg {
-  background:
-    linear-gradient(180deg, rgba(247, 245, 239, 0.5) 0%, rgba(239, 237, 230, 0) 34%),
-    var(--bw-canvas, #EFEDE6);
-}
-.dark .breath-bg {
-  background:
-    linear-gradient(180deg, rgba(99, 180, 142, 0.04) 0%, rgba(16, 22, 19, 0) 38%),
-    var(--bw-canvas, #101613);
-}
-
 /* BreathFlow phase-strip cursor: sweeps one breath cycle. */
 @media (prefers-reduced-motion: no-preference) {
   .bf-sweep {
@@ -783,19 +612,6 @@ html:has(.chatbot-dark) {
 @keyframes bf-sweep {
   from { transform: translate3d(0, 0, 0); }
   to { transform: translate3d(calc(100% - 2px), 0, 0); }
-}
-
-/* Live cadence preview for protocol timing strips */
-.breath-pattern-cursor {
-  animation-name: breath-pattern-cursor;
-  animation-timing-function: linear;
-  animation-iteration-count: infinite;
-  transform: translate3d(0, 0, 0);
-}
-
-@keyframes breath-pattern-cursor {
-  from { transform: translate3d(0, 0, 0); }
-  to { transform: translate3d(calc(100% - 1px), 0, 0); }
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -899,8 +715,6 @@ html:has(.chatbot-dark) {
    PERFORMANCE
    ═══════════════════════════════════════════════════════ */
 
-.session-item { content-visibility: auto; contain-intrinsic-size: 0 80px; }
-.session-history-item { content-visibility: auto; contain-intrinsic-size: 0 100px; }
 .transform-gpu { transform: translateZ(0); }
 
 /* IG ingest dashboard — running-job sweep animation */

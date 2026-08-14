@@ -3,27 +3,28 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import App from './App'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 import { routerBasename } from './lib/routerBasename'
-import {
-  loadBreathworkNotFoundPage,
-  loadHomePage,
-  loadProgressPage,
-  loadSessionPage,
-  loadSettingsPage,
-} from './lib/breathworkRoutePreload'
 
 // Lazy load the BreathFlow shell and pages for better initial bundle size.
 const BreathworkLayout = lazy(() =>
-  import('./components/layout/BreathworkLayout').then((module) => ({
-    default: module.BreathworkLayout,
+  import('./breathflow/pages/BreathflowLayout').then((module) => ({
+    default: module.BreathflowLayout,
   })),
 )
-const Home = lazy(() => loadHomePage().then((module) => ({ default: module.Home })))
-const Session = lazy(() => loadSessionPage().then((module) => ({ default: module.Session })))
-const Progress = lazy(() => loadProgressPage().then((module) => ({ default: module.Progress })))
-const Settings = lazy(() => loadSettingsPage().then((module) => ({ default: module.Settings })))
+const Home = lazy(() =>
+  import('./breathflow/pages/HomePage').then((module) => ({ default: module.HomePage })),
+)
+const Session = lazy(() =>
+  import('./breathflow/pages/SessionPage').then((module) => ({ default: module.SessionPage })),
+)
+const Progress = lazy(() =>
+  import('./breathflow/pages/ProgressPage').then((module) => ({ default: module.ProgressPage })),
+)
+const Settings = lazy(() =>
+  import('./breathflow/pages/SettingsPage').then((module) => ({ default: module.SettingsPage })),
+)
 const BreathworkNotFound = lazy(() =>
-  loadBreathworkNotFoundPage().then((module) => ({
-    default: module.BreathworkNotFound,
+  import('./breathflow/pages/NotFoundPage').then((module) => ({
+    default: module.NotFoundPage,
   })),
 )
 const KoreaLayout = lazy(() =>
