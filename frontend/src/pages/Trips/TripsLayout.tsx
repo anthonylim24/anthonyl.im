@@ -49,6 +49,8 @@ function TripsAuthGate({ children }: { children: ReactNode }) {
 export function TripsLayout() {
   const location = useLocation()
   const atIndex = location.pathname === "/trips" || location.pathname === "/trips/"
+  // Concierge FAB only lives on overview + day pages; keep the extra pad there.
+  const chatPad = /\/trips\/(?!new(?:\/|$))[^/]+(?:\/day\/[^/]+)?\/?$/.test(location.pathname)
 
   useEffect(() => {
     applyTheme(getInitialTheme())
@@ -95,7 +97,7 @@ export function TripsLayout() {
         </header>
         {/* Unconstrained so trip-scoped pages can bleed their hero gradient to
             the viewport edge; each routed page owns its own gutters. */}
-        <main id="trips-main" className="px-0 pb-28">
+        <main id="trips-main" className={chatPad ? "px-0 pb-28" : "px-0 pb-10 sm:pb-14"}>
           <Outlet />
         </main>
         <Suspense fallback={null}>

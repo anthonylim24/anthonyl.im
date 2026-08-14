@@ -7,9 +7,9 @@ name: PR Preview
 #
 # Intentionally NOT part of pr-gate. A droplet blip must not block merge.
 # The preview is the PR's frontend plus an optional loopback API sidecar
-# (IG worker off, cap 1) proxied at /preview/pr/<n>/api/*. Until that
-# proxy is on production Hono, the frontend falls back to production /api.
-# Service worker is disabled. Forks and Dependabot are skipped.
+# (IG worker off, cap 1) proxied at /preview/pr/<n>/api/*. Preview JS does
+# not fall back to production /api (same-origin Clerk cookies must not hit
+# live data). Service worker is disabled. Forks and Dependabot are skipped.
 #
 # Canonical agent guide: docs/pr-previews.md
 
@@ -175,7 +175,7 @@ jobs:
 
           ${NOTE}
 
-          **Agents:** \`bun scripts/wait-for-preview.ts --pr ${PR_NUMBER} --sha ${PR_SHA}\`. For Korea / Trips, \`bun scripts/clerk-agent-login.ts --pr ${PR_NUMBER} --path /korea\` then open the printed URL (Clerk Agent Task; do not bake \`VITE_DEV_BEARER\`). Screenshot with \`?hidePreviewChrome=1\`. Frontend calls \`/preview/pr/${PR_NUMBER}/api/*\` (PR server sidecar) and falls back to production \`/api\` if that proxy is not on this origin yet. See \`docs/pr-previews.md\`.
+          **Agents:** \`bun scripts/wait-for-preview.ts --pr ${PR_NUMBER} --sha ${PR_SHA}\`. Run the login helper from a trusted \`origin/main\` checkout (not this PR — it sends secrets). Korea: \`bun scripts/clerk-agent-login.ts --pr ${PR_NUMBER} --path /korea\`. Trips: \`bun scripts/clerk-agent-login.ts --pr ${PR_NUMBER} --path /trips\`. Open the printed URL (dedicated screenshot Clerk user; do not bake \`VITE_DEV_BEARER\`, do not sign in to production \`/korea\` or \`/trips\`). Screenshot with \`?hidePreviewChrome=1\`. Frontend calls \`/preview/pr/${PR_NUMBER}/api/*\` only (no production \`/api\` fallback). See \`docs/pr-previews.md\`.
           EOF
           )
 

@@ -93,6 +93,7 @@ Secrets: `SSH_HOST`, `SSH_USERNAME`, `SSH_KEY`, `FRONTEND_ENV`. Droplet runtime 
 | Stale service worker after deploy | `sw.js` no-cache headers in `server/app.ts`; bump `CACHE_VERSION` on SW behavior changes |
 | Preview HTML served as production SPA | Preview router is mounted **before** the SPA fallback; missing trees 404 |
 | Preview API OOM on 1 GB droplet | One sidecar (`PREVIEW_API_MAX=1`), `bun --smol`, IG worker off, loopback only |
+| Preview publish stuck on `could not acquire preview lock` | Sidecar must not inherit flock (`9>&-`); lock released before API boot; lock file is `publish.lock` |
 | Production SW caching `/preview/` | `sw.js` bypasses `/preview/`; bump `CACHE_VERSION` when changing that |
 | `oven-sh/setup-bun` 503 / socket hang up | `.github/actions/setup-ci` retries Bun setup twice with pauses |
 | Merge UI green but squash blocked ("status checks have not completed") | `pr-gate` must start with no `needs:` so the required check is in_progress immediately; also posts a `pr-gate` commit status on the PR head SHA |

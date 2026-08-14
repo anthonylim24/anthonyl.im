@@ -12,6 +12,10 @@ import {
   verifyGithubPushAccess,
   type AgentOnBehalfOf,
 } from "../agentTasks";
+import { consumeRateLimit, hashedIdentityKey } from "../middleware/rateLimit";
+
+const IDENTITY_WINDOW_MS = 60_000;
+const IDENTITY_MAX = 10;
 
 const bodySchema = z.object({
   redirectUrl: z.string().url().max(2000),
@@ -73,6 +77,15 @@ export function createAgentSessionRouter(deps: AgentSessionDeps) {
     }
     if (!secretOk && !githubOk) {
       return c.json({ error: "unauthorized" }, 401);
+    }
+
+    const identity = consumeRateLimit(`agent-session-id:${hashedIdentityKey(token)}`, {
+      windowMs: IDENTITY_WINDOW_MS,
+      max: IDENTITY_MAX,
+    });
+    if (!identity.ok) {
+      c.header("Retry-After", String(identity.retryAfter));
+      return c.json({ error: "rate_limited" }, 429);
     }
 
     const body = c.req.valid("json");

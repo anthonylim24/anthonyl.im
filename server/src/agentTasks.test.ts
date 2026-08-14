@@ -2,6 +2,8 @@ import { describe, expect, test, mock } from "bun:test";
 import {
   AgentTaskError,
   createClerkAgentTask,
+  fetchWithTimeout,
+  isAllowedAgentApiBase,
   isAllowedAgentRedirect,
   parseAgentOnBehalfOf,
   parseAllowedRedirectHosts,
@@ -52,6 +54,8 @@ describe("isAllowedAgentRedirect", () => {
   test("allows loopback http for local Clerk instances", () => {
     expect(isAllowedAgentRedirect("http://localhost:5173/korea")).toBe(true);
     expect(isAllowedAgentRedirect("http://127.0.0.1:3000/trips")).toBe(true);
+    expect(isAllowedAgentRedirect("http://[::1]:3000/korea")).toBe(true);
+    expect(isAllowedAgentRedirect("http://[0:0:0:0:0:0:0:1]/trips")).toBe(true);
   });
 
   test("rejects open redirects and non-https production", () => {
@@ -61,6 +65,23 @@ describe("isAllowedAgentRedirect", () => {
     expect(isAllowedAgentRedirect("https://user:pass@anthonyl.im/korea")).toBe(false);
     expect(isAllowedAgentRedirect("not a url")).toBe(false);
     expect(isAllowedAgentRedirect("javascript:alert(1)")).toBe(false);
+  });
+});
+
+describe("isAllowedAgentApiBase", () => {
+  test("allows production and loopback origins only", () => {
+    expect(isAllowedAgentApiBase("https://anthonyl.im")).toBe(true);
+    expect(isAllowedAgentApiBase("https://anthonyl.im/")).toBe(true);
+    expect(isAllowedAgentApiBase("http://127.0.0.1:3000")).toBe(true);
+    expect(isAllowedAgentApiBase("http://[::1]:3000")).toBe(true);
+  });
+
+  test("rejects arbitrary --api origins before a bearer is sent", () => {
+    expect(isAllowedAgentApiBase("https://evil.example")).toBe(false);
+    expect(isAllowedAgentApiBase("https://anthonyl.im.evil.com")).toBe(false);
+    expect(isAllowedAgentApiBase("http://anthonyl.im")).toBe(false);
+    expect(isAllowedAgentApiBase("https://user:pass@anthonyl.im")).toBe(false);
+    expect(isAllowedAgentApiBase("not a url")).toBe(false);
   });
 });
 
@@ -133,6 +154,49 @@ describe("createClerkAgentTask", () => {
       expect((err as AgentTaskError).status).toBe(503);
     }
   });
+
+  test("converts a stalled Clerk request into AgentTaskError", async () => {
+    const fetchImpl = ((_url: string, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          const err = new Error("aborted");
+          err.name = "AbortError";
+          reject(err);
+        });
+      })) as unknown as typeof fetch;
+
+    try {
+      await createClerkAgentTask({
+        secretKey: "sk_test",
+        onBehalfOf: { userId: "user_1" },
+        redirectUrl: "https://anthonyl.im/korea",
+        fetchImpl,
+        timeoutMs: 20,
+      });
+      throw new Error("expected throw");
+    } catch (err) {
+      expect(err).toBeInstanceOf(AgentTaskError);
+      expect((err as AgentTaskError).status).toBe(502);
+      expect((err as AgentTaskError).message).toMatch(/timed out/);
+    }
+  });
+
+  test("times out when headers arrive but the body never completes", async () => {
+    const fetchImpl = mock(async () =>
+      new Response(new ReadableStream({ start() { /* never enqueue or close */ } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    ) as unknown as typeof fetch;
+
+    try {
+      await fetchWithTimeout(fetchImpl, "https://api.clerk.com/v1/agents/tasks", {}, 20);
+      throw new Error("expected throw");
+    } catch (err) {
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).name).toBe("AbortError");
+    }
+  });
 });
 
 describe("verifyGithubPushAccess", () => {
@@ -155,5 +219,12 @@ describe("verifyGithubPushAccess", () => {
       throw new Error("should not fetch");
     }) as unknown as typeof fetch;
     expect(await verifyGithubPushAccess("gho_x", "../etc/passwd", fetchImpl)).toBe(false);
+  });
+
+  test("treats GitHub transport failures as unauthorized", async () => {
+    const fetchImpl = mock(async () => {
+      throw new Error("ECONNRESET");
+    }) as unknown as typeof fetch;
+    expect(await verifyGithubPushAccess("gho_x", "anthonylim24/anthonyl.im", fetchImpl)).toBe(false);
   });
 });

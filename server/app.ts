@@ -13,7 +13,7 @@ import { createTripsRouter } from "./src/routes/trips";
 import { getTripStore } from "./src/trips/store";
 import { createGoogleGeocoder, createTripsLlm } from "./src/trips/ai";
 import { createClerkAuth, verifyClerkOptional } from "./src/middleware/clerkAuth";
-import { createRateLimit } from "./src/middleware/rateLimit";
+import { createRateLimit, trustedProxyClientAddress } from "./src/middleware/rateLimit";
 import { bootIgWorker, getQueue, listJobsForUser, listExtractedPlaces, listIgPlaceDays, setIgPlaceDays } from "./src/igPlaces/wire";
 import { createPreviewRouter, getPreviewRoot, previewSiteUrl } from "./src/preview";
 import { createAgentSessionRouter } from "./src/routes/agentSession";
@@ -245,7 +245,12 @@ bootIgWorker();
 // Clerk Agent Tasks — mint a one-time sign-in URL for AI agents / Playwright
 // against production or PR previews. 404 until CLERK_SECRET_KEY and
 // CLERK_AGENT_USER_ID (or _EMAIL) are set. Never a public bypass.
-const agentSessionRateLimit = createRateLimit({ windowMs: 60_000, max: 10, keyPrefix: "agent-session" });
+const agentSessionRateLimit = createRateLimit({
+  windowMs: 60_000,
+  max: 10,
+  keyPrefix: "agent-session",
+  key: trustedProxyClientAddress,
+});
 app.use("/api/agent/*", agentSessionRateLimit);
 app.route(
   "/api/agent",

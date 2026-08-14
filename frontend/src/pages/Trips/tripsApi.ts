@@ -76,10 +76,16 @@ export type UpdateTripPatch = {
   description?: string | null
 }
 
-export const updateTrip = (getToken: GetToken, id: string, patch: UpdateTripPatch) =>
+export const updateTrip = (
+  getToken: GetToken,
+  id: string,
+  patch: UpdateTripPatch,
+  init?: Pick<RequestInit, "signal">,
+) =>
   request<{ trip: Trip }>(getToken, `/${encodeURIComponent(id)}`, {
     method: "PATCH",
     body: JSON.stringify(patch),
+    signal: init?.signal,
   }).then((r) => r.trip)
 
 export const deleteTrip = (getToken: GetToken, id: string) =>
@@ -95,11 +101,44 @@ export const generateItinerary = (
     body: JSON.stringify(input),
   })
 
-export const enhanceTrip = (getToken: GetToken, id: string, scope: "day" | "trip", dayId?: string, prompt?: string) =>
-  request<{ run: EnhancementRun; trip?: Trip }>(getToken, `/${encodeURIComponent(id)}/enhance`, {
+export interface EnhanceTripResult {
+  run: EnhancementRun
+  trip?: Trip
+  applied?: string[]
+  error?: string
+  message?: string
+}
+
+/** 502 still returns `{ run, trip }` so the editor can show why nothing was added. */
+export async function enhanceTrip(
+  getToken: GetToken,
+  id: string,
+  scope: "day" | "trip",
+  dayId?: string,
+  prompt?: string,
+): Promise<EnhanceTripResult> {
+  const token = await getToken()
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  }
+  const res = await fetch(`/api/trips/${encodeURIComponent(id)}/enhance`, {
     method: "POST",
+    headers,
+    cache: "no-store",
     body: JSON.stringify({ scope, dayId, prompt: prompt?.trim() || undefined }),
   })
+  let body: EnhanceTripResult | null
+  try {
+    body = (await res.json()) as EnhanceTripResult
+  } catch {
+    throw new Error(`HTTP ${res.status}`)
+  }
+  if (typeof body !== "object" || body === null) throw new Error(`HTTP ${res.status}`)
+  if (res.ok) return body
+  if (res.status === 502 && body.run) return body
+  throw new Error(body.message || body.error || `HTTP ${res.status}`)
+}
 
 export const applySuggestions = (getToken: GetToken, id: string, runId: string, suggestionIds: string[]) =>
   request<{ trip: Trip; applied: string[]; skipped: string[] }>(
