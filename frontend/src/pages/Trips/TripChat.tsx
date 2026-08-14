@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useLocation } from "react-router-dom"
-import { MessageCircleHeart, Send, Sparkles, X } from "lucide-react"
+import { Maximize2, MessageCircleHeart, Minimize2, Send, Sparkles, X } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
 import { ConciergeText } from "../Korea/ConciergeText"
 import { conciergeSuggestions } from "./conciergeSuggestions"
@@ -20,6 +20,18 @@ interface ChatMessage {
 function newId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
+
+const PANEL_SHELL =
+  "fixed inset-x-0 bottom-0 z-[60] mx-auto flex w-full flex-col overflow-hidden rounded-t-3xl border border-stone-200 bg-[var(--trips-surface)] shadow-2xl dark:border-stone-800 md:inset-x-auto md:rounded-3xl"
+
+const PANEL_COMPACT =
+  `${PANEL_SHELL} h-[min(86dvh,40rem)] md:bottom-6 md:right-6 md:h-[min(600px,calc(100dvh-3rem))] md:w-[min(400px,calc(100vw-2rem))]`
+
+const PANEL_EXPANDED =
+  `${PANEL_SHELL} h-[min(96dvh,100svh)] md:inset-y-4 md:right-4 md:h-auto md:w-[min(36rem,calc(100vw-2rem))]`
+
+const HEADER_ICON_BTN =
+  `flex h-11 w-11 items-center justify-center rounded-full text-stone-500 transition hover:bg-stone-100 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100 ${focusRingClass}`
 
 /** Concierge lives on the trip dossier and day pages, not the index, create, or editor. */
 export function useTripChatRoute(): { tripId?: string; dayId?: string } {
@@ -43,6 +55,7 @@ export function TripChat() {
   const reduce = useReducedMotion()
   const [trip, setTrip] = useState<Trip | null>(null)
   const [open, setOpen] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState("")
   const [streaming, setStreaming] = useState(false)
@@ -97,6 +110,11 @@ export function TripChat() {
   const handleClose = useCallback(() => {
     abortRef.current?.abort()
     setOpen(false)
+    setExpanded(false)
+  }, [])
+
+  const toggleExpanded = useCallback(() => {
+    setExpanded((current) => !current)
   }, [])
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
@@ -121,6 +139,10 @@ export function TripChat() {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        if (expanded) {
+          setExpanded(false)
+          return
+        }
         handleClose()
         return
       }
@@ -144,17 +166,18 @@ export function TripChat() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [open, handleClose])
+  }, [open, expanded, handleClose])
 
   useEffect(() => {
     if (!open) return
-    if (!window.matchMedia("(max-width: 767px)").matches) return
+    const lockPage = expanded || window.matchMedia("(max-width: 767px)").matches
+    if (!lockPage) return
     const prev = document.body.style.overflow
     document.body.style.overflow = "hidden"
     return () => {
       document.body.style.overflow = prev
     }
-  }, [open])
+  }, [open, expanded])
 
   useEffect(() => {
     const vv = window.visualViewport
@@ -296,7 +319,11 @@ export function TripChat() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.18, ease: EASE }}
               onClick={handleClose}
-              className="fixed inset-0 z-[55] bg-stone-950/40 md:pointer-events-none md:bg-transparent"
+              className={
+                expanded
+                  ? "fixed inset-0 z-[55] bg-stone-950/40"
+                  : "fixed inset-0 z-[55] bg-stone-950/40 md:pointer-events-none md:bg-transparent"
+              }
               aria-hidden
             />
 
@@ -306,7 +333,8 @@ export function TripChat() {
               role="dialog"
               aria-modal="true"
               aria-labelledby={titleId}
-              className="fixed inset-x-0 bottom-0 z-[60] mx-auto flex h-[min(86dvh,40rem)] w-full flex-col overflow-hidden rounded-t-3xl border border-stone-200 bg-[var(--trips-surface)] shadow-2xl dark:border-stone-800 md:inset-x-auto md:bottom-6 md:right-6 md:h-[min(600px,calc(100dvh-3rem))] md:w-[min(400px,calc(100vw-2rem))] md:rounded-3xl"
+              data-expanded={expanded ? "true" : "false"}
+              className={expanded ? PANEL_EXPANDED : PANEL_COMPACT}
               style={kbInset > 0 ? { bottom: kbInset } : undefined}
             >
               <header className="flex items-center gap-3 border-b border-stone-200/80 px-4 py-3 dark:border-stone-800/80">
@@ -319,14 +347,26 @@ export function TripChat() {
                   </h2>
                   <p className={`truncate text-xs ${mutedInkClass}`}>{subtitle}</p>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleClose}
-                  aria-label="Close chat"
-                  className={`flex h-11 w-11 items-center justify-center rounded-full text-stone-500 transition hover:bg-stone-100 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100 ${focusRingClass}`}
-                >
-                  <X className="h-5 w-5" />
-                </button>
+                <div className="flex shrink-0 items-center">
+                  <button
+                    type="button"
+                    onClick={toggleExpanded}
+                    aria-label={expanded ? "Shrink chat" : "Expand chat"}
+                    aria-pressed={expanded}
+                    title={expanded ? "Shrink chat" : "Expand chat"}
+                    className={HEADER_ICON_BTN}
+                  >
+                    {expanded ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleClose}
+                    aria-label="Close chat"
+                    className={HEADER_ICON_BTN}
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
               </header>
 
               <div
@@ -412,7 +452,7 @@ export function TripChat() {
                     }}
                     rows={1}
                     placeholder="Ask about this trip…"
-                    className="max-h-28 flex-1 resize-none bg-transparent text-[16px] text-stone-900 outline-none placeholder:text-stone-400 sm:text-[15px] dark:text-stone-100 dark:placeholder:text-stone-400"
+                    className={`flex-1 resize-none bg-transparent text-[16px] text-stone-900 outline-none placeholder:text-stone-400 sm:text-[15px] dark:text-stone-100 dark:placeholder:text-stone-400 ${expanded ? "max-h-48" : "max-h-28"}`}
                   />
                   <button
                     type="submit"
