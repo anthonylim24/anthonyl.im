@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type RefObject } from 'react'
 import { useReducedMotion } from '../platform/useReducedMotion'
 
 interface Mote {
@@ -25,19 +25,13 @@ function createMotes(colors: [string, string]): Mote[] {
 
 interface OrbParticleFieldProps {
   colors: [string, string]
-  amplitude: number
+  amplitudeRef: RefObject<number>
 }
 
-export function OrbParticleField({ colors, amplitude }: OrbParticleFieldProps) {
+export function OrbParticleField({ colors, amplitudeRef }: OrbParticleFieldProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const amplitudeRef = useRef(amplitude)
   const requestRenderRef = useRef<(() => void) | null>(null)
   const reducedMotion = useReducedMotion()
-
-  useEffect(() => {
-    amplitudeRef.current = amplitude
-    requestRenderRef.current?.()
-  }, [amplitude])
 
   useEffect(() => {
     if (reducedMotion) return

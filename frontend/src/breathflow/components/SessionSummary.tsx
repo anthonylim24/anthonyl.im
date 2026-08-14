@@ -71,7 +71,7 @@ export function SessionSummary({
       {newBadges.length > 0 && (
         <ul className="mt-4 space-y-2" aria-label="New badges">
           {newBadges.map((badge) => (
-            <li key={badge.id} className="border-l-2 border-bw-accent pl-3">
+            <li key={badge.id} className="bg-bw-accent-subtle px-3 py-2">
               <p className="text-sm font-medium text-bw">{badge.name}</p>
               <p className="truncate text-xs text-bw-secondary">{badge.description}</p>
             </li>

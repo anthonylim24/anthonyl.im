@@ -47,10 +47,10 @@ export function PhaseStrip({ protocol, customDurations, animated = false, classN
         {animated && (
           <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
             <div
-              className="bf-sweep absolute inset-y-0 w-full"
+              className="bf-sweep absolute inset-y-0 left-0 w-full"
               style={{ animationDuration: `${cycleSeconds}s` }}
             >
-              <div className="absolute inset-y-0 left-0 w-px bg-bw-accent" />
+              <div className="absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-transparent via-bw-accent to-transparent opacity-70" />
             </div>
           </div>
         )}
