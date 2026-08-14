@@ -11,7 +11,7 @@ import { normalizeGeminiMarkdown } from "./conciergeMarkdown"
 const REMARK_PLUGINS = [remarkGfm]
 
 const linkClass =
-  "break-words underline decoration-rose-500/50 underline-offset-2 decoration-1 transition hover:decoration-rose-500 hover:text-rose-700 dark:hover:text-rose-300"
+  "break-words underline decoration-rose-500/50 underline-offset-2 decoration-1 transition hover:decoration-rose-500 hover:text-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:hover:text-rose-300"
 
 function heading(Tag: "h1" | "h2" | "h3" | "h4" | "h5" | "h6") {
   return function ConciergeHeading({ children }: { children?: ReactNode }) {

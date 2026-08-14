@@ -103,4 +103,24 @@ describe("relayGeminiChatBody", () => {
     expect(deltas).toEqual(["**Hi**"])
     expect(result.sawText).toBe(true)
   })
+
+  test("flushes a UTF-8 character split across chunks", async () => {
+    const chunk = { candidates: [{ content: { parts: [{ text: "안녕" }] } }] }
+    const bytes = new TextEncoder().encode(`data: ${JSON.stringify(chunk)}\n\n`)
+    const splitAt = bytes.indexOf(0xec) + 1 // mid-character of 안 (U+C548)
+    expect(splitAt).toBeGreaterThan(1)
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(bytes.slice(0, splitAt))
+        controller.enqueue(bytes.slice(splitAt))
+        controller.close()
+      },
+    })
+    const deltas: string[] = []
+    const result = await relayGeminiChatBody(stream, async (d) => {
+      deltas.push(d)
+    })
+    expect(deltas.join("")).toBe("안녕")
+    expect(result.sawText).toBe(true)
+  })
 })

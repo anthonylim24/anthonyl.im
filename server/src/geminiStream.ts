@@ -96,7 +96,12 @@ export async function relayGeminiChatBody(
 
   while (true) {
     const { done, value } = await reader.read()
-    if (done) break
+    if (done) {
+      const tail = decoder.decode()
+      raw += tail
+      buffer += tail
+      break
+    }
     const decoded = decoder.decode(value, { stream: true })
     raw += decoded
     buffer += decoded

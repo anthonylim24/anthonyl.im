@@ -4,7 +4,11 @@ import { normalizeGeminiMarkdown } from "../conciergeMarkdown"
 describe("normalizeGeminiMarkdown", () => {
   it("unwraps a whole-message markdown fence", () => {
     expect(normalizeGeminiMarkdown("```markdown\n**Mingles**\n```")).toBe("**Mingles**")
-    expect(normalizeGeminiMarkdown("```\n- one\n```")).toBe("- one")
+    expect(normalizeGeminiMarkdown("```md\n- one\n```")).toBe("- one")
+  })
+
+  it("leaves a bare code fence as a code block", () => {
+    expect(normalizeGeminiMarkdown("```\nUA 123\n```")).toBe("```\nUA 123\n```")
   })
 
   it("strips an opening fence while the close is still streaming", () => {

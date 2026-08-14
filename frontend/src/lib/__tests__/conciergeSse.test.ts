@@ -10,9 +10,13 @@ describe("parseConciergeSsePayload", () => {
   })
 
   it("treats raw markdown as text when JSON.parse fails", () => {
-    expect(parseConciergeSsePayload("## Dinner\n- Mingles")).toEqual({
+    expect(parseConciergeSsePayload("## Dinner")).toEqual({
       kind: "text",
-      text: "## Dinner\n- Mingles",
+      text: "## Dinner\n",
+    })
+    expect(parseConciergeSsePayload("- Mingles")).toEqual({
+      kind: "text",
+      text: "- Mingles\n",
     })
   })
 
@@ -42,6 +46,12 @@ describe("parseConciergeSsePayload", () => {
     expect(parseConciergeSsePayload(JSON.stringify({ error: "boom" }))).toEqual({
       kind: "error",
       error: "boom",
+    })
+    expect(
+      parseConciergeSsePayload(JSON.stringify({ error: { code: 429, message: "rate limited" } })),
+    ).toEqual({
+      kind: "error",
+      error: "rate limited",
     })
   })
 

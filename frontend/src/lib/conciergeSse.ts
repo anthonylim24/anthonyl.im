@@ -51,7 +51,7 @@ function interpretPayload(parsed: unknown): ConciergeSseDelta {
   if (parsed && typeof parsed === "object") {
     const obj = parsed as Record<string, unknown>
     if (obj.error != null && obj.error !== "") {
-      return { kind: "error", error: String(obj.error) }
+      return { kind: "error", error: errorMessage(obj.error) }
     }
     for (const key of ["text", "content", "delta", "message"] as const) {
       if (typeof obj[key] === "string" && obj[key]) {
@@ -64,11 +64,23 @@ function interpretPayload(parsed: unknown): ConciergeSseDelta {
   return { kind: "ignore" }
 }
 
+function errorMessage(err: unknown): string {
+  if (typeof err === "string") return err
+  if (err && typeof err === "object") {
+    const e = err as Record<string, unknown>
+    if (typeof e.message === "string" && e.message) return e.message
+    if (typeof e.status === "string" && e.status) return e.status
+  }
+  return String(err)
+}
+
 export function parseConciergeSsePayload(data: string): ConciergeSseDelta {
   if (!data || data === "[DONE]") return { kind: "ignore" }
   try {
     return interpretPayload(JSON.parse(data) as unknown)
   } catch {
-    return { kind: "text", text: data }
+    // SSE framing ate the trailing newline. Keep GFM line breaks intact
+    // when Gemini (or a proxy) streams raw markdown instead of JSON.
+    return { kind: "text", text: data.endsWith("\n") ? data : `${data}\n` }
   }
 }

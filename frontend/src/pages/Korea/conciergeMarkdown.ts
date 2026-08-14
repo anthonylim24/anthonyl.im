@@ -4,8 +4,8 @@
  *  emit a handful of HTML tags, and use unicode bullets. Strip / rewrite
  *  those so remark-gfm sees ordinary CommonMark + GFM. */
 
-const COMPLETE_FENCE = /^```(?:markdown|md|gfm|text)?[ \t]*\n([\s\S]*?)\n```[ \t]*$/i
-const OPEN_FENCE = /^```(?:markdown|md|gfm|text)?[ \t]*\n([\s\S]*)$/i
+const COMPLETE_FENCE = /^```(?:markdown|md|gfm)[ \t]*\n([\s\S]*?)\n```[ \t]*$/i
+const OPEN_FENCE = /^```(?:markdown|md|gfm)[ \t]*\n([\s\S]*)$/i
 const THINK_BLOCK = /<think\b[^>]*>[\s\S]*?<\/think>/gi
 const HTML_BREAK = /<br\s*\/?>/gi
 const HTML_P_JOIN = /<\/p>\s*<p\b[^>]*>/gi

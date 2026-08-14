@@ -76,7 +76,7 @@ describe("streamKoreaChat", () => {
       sseResponse([`data: ## Dinner\n\n`, `data: - **Mingles**\n\n`, `data: [DONE]\n\n`]),
     )
     const result = await streamKoreaChat("hi", [], undefined, () => {})
-    expect(result.content).toBe("## Dinner- **Mingles**")
+    expect(result.content).toBe("## Dinner\n- **Mingles**\n")
   })
 
   it("extracts text from a leaked Gemini chunk object", async () => {
