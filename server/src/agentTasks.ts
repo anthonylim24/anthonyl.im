@@ -37,6 +37,19 @@ export const DEFAULT_TASK_DESCRIPTION = "Automated test / PR preview screenshot"
 export const DEFAULT_SESSION_SECONDS = 1800;
 export const DEFAULT_UPSTREAM_TIMEOUT_MS = 10_000;
 
+/**
+ * Dedicated Clerk screenshot identity for this repo's login helper.
+ * Production still requires CLERK_AGENT_USER_ID / _EMAIL on the droplet.
+ * Cloud agents often have CLERK_SECRET_KEY but not the user id — the helper
+ * falls back to this user (not a personal production session).
+ */
+export const DEFAULT_CLERK_AGENT_USER_ID = "user_3HtDY4Oexea4W5jv3ZZDi0b3Grk";
+
+const GITHUB_API = "https://api.github.com";
+const GITHUB_API_VERSION = "2022-11-28";
+const AGENT_GITHUB_UA = "anthonyl.im-agent-session";
+const INSTALLATION_REPO_PAGE_CAP = 5;
+
 /** URL.hostname for IPv6 is often `[::1]`; strip brackets before comparing. */
 export function normalizeHostname(host: string): string {
   return host.replace(/^\[|\]$/g, "").toLowerCase();
@@ -258,38 +271,124 @@ export async function createClerkAgentTask(opts: {
   return { url, agentTaskId };
 }
 
-/** True when the token can push to `owner/repo` (collaborator / GitHub App). */
-export async function verifyGithubPushAccess(
+function githubApiHeaders(token: string): HeadersInit {
+  return {
+    Authorization: `Bearer ${token}`,
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": GITHUB_API_VERSION,
+    "User-Agent": AGENT_GITHUB_UA,
+  };
+}
+
+/**
+ * Next page of GET /installation/repositories. Only follows https
+ * api.github.com/installation/repositories so a forged Link cannot redirect
+ * the bearer to an arbitrary host.
+ */
+export function nextGithubInstallationReposUrl(linkHeader: string | null): string | null {
+  if (!linkHeader) return null;
+  for (const part of linkHeader.split(",")) {
+    const urlMatch = /<([^>]+)>/.exec(part);
+    if (!urlMatch || !/\brel="next"/i.test(part)) continue;
+    let url: URL;
+    try {
+      url = new URL(urlMatch[1]);
+    } catch {
+      return null;
+    }
+    if (url.protocol !== "https:") return null;
+    if (url.hostname !== "api.github.com") return null;
+    if (url.pathname !== "/installation/repositories") return null;
+    return url.toString();
+  }
+  return null;
+}
+
+function repoFullNameEquals(value: unknown, repo: string): boolean {
+  return typeof value === "string" && value.toLowerCase() === repo.toLowerCase();
+}
+
+async function installationIncludesRepo(
+  token: string,
+  repo: string,
+  fetchImpl: typeof fetch,
+  timeoutMs: number,
+): Promise<boolean> {
+  let url: string | null = `${GITHUB_API}/installation/repositories?per_page=100`;
+  for (let page = 0; page < INSTALLATION_REPO_PAGE_CAP && url; page++) {
+    let res: Response;
+    try {
+      res = await fetchWithTimeout(
+        fetchImpl,
+        url,
+        { headers: githubApiHeaders(token) },
+        timeoutMs,
+      );
+    } catch {
+      return false;
+    }
+    if (!res.ok) return false;
+    const body = (await res.json().catch(() => null)) as {
+      repositories?: Array<{ full_name?: unknown }>;
+    } | null;
+    const repos = body?.repositories;
+    if (!Array.isArray(repos)) return false;
+    if (repos.some((entry) => repoFullNameEquals(entry?.full_name, repo))) {
+      return true;
+    }
+    url = nextGithubInstallationReposUrl(res.headers.get("link"));
+  }
+  return false;
+}
+
+/**
+ * True when the bearer may mint a Clerk agent session for this repo.
+ *
+ * Accepts:
+ * - collaborator / PAT with `permissions.push` or `permissions.admin`
+ * - GitHub App installation token whose installation includes `owner/repo`
+ *
+ * Installation membership is enough. Do not also require
+ * `permissions.push` on the listed repo: Cursor cloud `ghs_` tokens
+ * expose the field but every flag is false (validated 2026-08-14:
+ * GET /user 403, GET /repos and GET /installation/repositories both
+ * report admin/maintain/pull/push/triage false while listing this repo).
+ *
+ * Rejects public-read (GET /repos 200 with no push and no installation)
+ * and pull-only collaborator tokens.
+ */
+export async function verifyGithubAgentAccess(
   token: string,
   repo: string,
   fetchImpl: typeof fetch = fetch,
   timeoutMs: number = DEFAULT_UPSTREAM_TIMEOUT_MS,
 ): Promise<boolean> {
   if (!token || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) return false;
-  let res: Response;
+
   try {
-    res = await fetchWithTimeout(
+    const res = await fetchWithTimeout(
       fetchImpl,
-      `https://api.github.com/repos/${repo}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/vnd.github+json",
-          "X-GitHub-Api-Version": "2022-11-28",
-          "User-Agent": "anthonyl.im-agent-session",
-        },
-      },
+      `${GITHUB_API}/repos/${repo}`,
+      { headers: githubApiHeaders(token) },
       timeoutMs,
     );
+    if (res.ok) {
+      const body = (await res.json().catch(() => null)) as {
+        permissions?: { push?: boolean; admin?: boolean };
+      } | null;
+      if (body?.permissions?.push === true || body?.permissions?.admin === true) {
+        return true;
+      }
+    }
   } catch {
-    return false;
+    // Fall through to the installation-token check.
   }
-  if (!res.ok) return false;
-  const body = (await res.json().catch(() => null)) as {
-    permissions?: { push?: boolean; admin?: boolean };
-  } | null;
-  return body?.permissions?.push === true || body?.permissions?.admin === true;
+
+  return installationIncludesRepo(token, repo, fetchImpl, timeoutMs);
 }
+
+/** @deprecated Use {@link verifyGithubAgentAccess}. */
+export const verifyGithubPushAccess = verifyGithubAgentAccess;
 
 export async function mintAgentSessionRemote(opts: {
   apiBase: string;

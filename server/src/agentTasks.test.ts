@@ -9,6 +9,9 @@ import {
   parseAllowedRedirectHosts,
   previewAgentRedirectUrl,
   secretsEqual,
+  DEFAULT_CLERK_AGENT_USER_ID,
+  nextGithubInstallationReposUrl,
+  verifyGithubAgentAccess,
   verifyGithubPushAccess,
 } from "./agentTasks";
 
@@ -38,6 +41,11 @@ describe("parseAgentOnBehalfOf", () => {
     expect(parseAgentOnBehalfOf({ CLERK_AGENT_USER_IDENTIFIER: "phone" })).toEqual({
       identifier: "phone",
     });
+    expect(parseAgentOnBehalfOf({})).toBeNull();
+  });
+
+  test("does not bake the screenshot user — the login helper applies that default", () => {
+    expect(DEFAULT_CLERK_AGENT_USER_ID).toMatch(/^user_[A-Za-z0-9]+$/);
     expect(parseAgentOnBehalfOf({})).toBeNull();
   });
 });
@@ -199,32 +207,166 @@ describe("createClerkAgentTask", () => {
   });
 });
 
-describe("verifyGithubPushAccess", () => {
-  test("requires push or admin on the repo", async () => {
-    const fetchImpl = mock(async () =>
-      new Response(JSON.stringify({ permissions: { push: true, pull: true } }), { status: 200 }),
-    ) as unknown as typeof fetch;
-    expect(await verifyGithubPushAccess("gho_x", "anthonylim24/anthonyl.im", fetchImpl)).toBe(true);
+describe("nextGithubInstallationReposUrl", () => {
+  test("returns the next installation-repos URL", () => {
+    expect(
+      nextGithubInstallationReposUrl(
+        '<https://api.github.com/installation/repositories?per_page=100&page=2>; rel="next", <https://api.github.com/installation/repositories?per_page=100&page=3>; rel="last"',
+      ),
+    ).toBe("https://api.github.com/installation/repositories?per_page=100&page=2");
   });
 
-  test("rejects public-read tokens without permissions.push", async () => {
-    const fetchImpl = mock(async () =>
-      new Response(JSON.stringify({ id: 1 }), { status: 200 }),
-    ) as unknown as typeof fetch;
-    expect(await verifyGithubPushAccess("gho_x", "anthonylim24/anthonyl.im", fetchImpl)).toBe(false);
+  test("rejects forged Link hosts and missing next", () => {
+    expect(nextGithubInstallationReposUrl(null)).toBeNull();
+    expect(
+      nextGithubInstallationReposUrl(
+        '<https://evil.example/installation/repositories?page=2>; rel="next"',
+      ),
+    ).toBeNull();
+    expect(
+      nextGithubInstallationReposUrl(
+        '<https://api.github.com/user/repos?page=2>; rel="next"',
+      ),
+    ).toBeNull();
+    expect(
+      nextGithubInstallationReposUrl(
+        '<https://api.github.com/installation/repositories?page=2>; rel="last"',
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("verifyGithubAgentAccess", () => {
+  test("accepts collaborator push or admin without an installation call", async () => {
+    const fetchImpl = mock(async (url: string) => {
+      expect(String(url)).toContain("/repos/anthonylim24/anthonyl.im");
+      return new Response(JSON.stringify({ permissions: { push: true, pull: true } }), { status: 200 });
+    }) as unknown as typeof fetch;
+    expect(await verifyGithubAgentAccess("gho_x", "anthonylim24/anthonyl.im", fetchImpl)).toBe(true);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  test("rejects public-read tokens that are not an installation on this repo", async () => {
+    const fetchImpl = mock(async (url: string) => {
+      if (String(url).includes("/repos/")) {
+        return new Response(JSON.stringify({ id: 1 }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ message: "Bad credentials" }), { status: 403 });
+    }) as unknown as typeof fetch;
+    expect(await verifyGithubAgentAccess("gho_x", "anthonylim24/anthonyl.im", fetchImpl)).toBe(false);
+  });
+
+  test("rejects pull-only collaborator tokens", async () => {
+    const fetchImpl = mock(async (url: string) => {
+      if (String(url).includes("/repos/")) {
+        return new Response(JSON.stringify({ permissions: { pull: true, push: false } }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ message: "Not Found" }), { status: 404 });
+    }) as unknown as typeof fetch;
+    expect(await verifyGithubAgentAccess("gho_x", "anthonylim24/anthonyl.im", fetchImpl)).toBe(false);
+  });
+
+  test("accepts an installation token even when the listed repo reports push:false", async () => {
+    // Cursor cloud ghs_ tokens expose permissions but every flag is false.
+    const noPerms = { admin: false, maintain: false, pull: false, push: false, triage: false };
+    const fetchImpl = mock(async (url: string) => {
+      if (String(url).includes("/repos/")) {
+        return new Response(JSON.stringify({ permissions: noPerms }), { status: 200 });
+      }
+      expect(String(url)).toContain("/installation/repositories");
+      return new Response(
+        JSON.stringify({
+          total_count: 1,
+          repositories: [{ full_name: "anthonylim24/anthonyl.im", permissions: noPerms }],
+        }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+    expect(await verifyGithubAgentAccess("ghs_x", "anthonylim24/anthonyl.im", fetchImpl)).toBe(true);
+  });
+
+  test("matches installation repo names case-insensitively", async () => {
+    const fetchImpl = mock(async (url: string) => {
+      if (String(url).includes("/repos/")) {
+        return new Response(JSON.stringify({ id: 1 }), { status: 200 });
+      }
+      return new Response(
+        JSON.stringify({ repositories: [{ full_name: "AnthonyLim24/anthonyl.im" }] }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+    expect(await verifyGithubAgentAccess("ghs_x", "anthonylim24/anthonyl.im", fetchImpl)).toBe(true);
+  });
+
+  test("rejects an installation token for a different repo", async () => {
+    const fetchImpl = mock(async (url: string) => {
+      if (String(url).includes("/repos/")) {
+        return new Response(JSON.stringify({ id: 1 }), { status: 200 });
+      }
+      return new Response(
+        JSON.stringify({ repositories: [{ full_name: "other/repo" }] }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+    expect(await verifyGithubAgentAccess("ghs_x", "anthonylim24/anthonyl.im", fetchImpl)).toBe(false);
+  });
+
+  test("follows a trusted installation Link next page", async () => {
+    const fetchImpl = mock(async (url: string) => {
+      const href = String(url);
+      if (href.includes("/repos/")) {
+        return new Response(JSON.stringify({ id: 1 }), { status: 200 });
+      }
+      if (!href.includes("page=2")) {
+        return new Response(
+          JSON.stringify({ repositories: [{ full_name: "other/repo" }] }),
+          {
+            status: 200,
+            headers: {
+              Link: '<https://api.github.com/installation/repositories?per_page=100&page=2>; rel="next"',
+            },
+          },
+        );
+      }
+      return new Response(
+        JSON.stringify({ repositories: [{ full_name: "anthonylim24/anthonyl.im" }] }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+    expect(await verifyGithubAgentAccess("ghs_x", "anthonylim24/anthonyl.im", fetchImpl)).toBe(true);
   });
 
   test("rejects malformed repo names without calling GitHub", async () => {
     const fetchImpl = mock(async () => {
       throw new Error("should not fetch");
     }) as unknown as typeof fetch;
-    expect(await verifyGithubPushAccess("gho_x", "../etc/passwd", fetchImpl)).toBe(false);
+    expect(await verifyGithubAgentAccess("gho_x", "../etc/passwd", fetchImpl)).toBe(false);
   });
 
-  test("treats GitHub transport failures as unauthorized", async () => {
-    const fetchImpl = mock(async () => {
+  test("falls through to installation after a repo transport failure", async () => {
+    const fetchImpl = mock(async (url: string) => {
+      if (String(url).includes("/repos/")) {
+        throw new Error("ECONNRESET");
+      }
+      return new Response(
+        JSON.stringify({ repositories: [{ full_name: "anthonylim24/anthonyl.im" }] }),
+        { status: 200 },
+      );
+    }) as unknown as typeof fetch;
+    expect(await verifyGithubAgentAccess("ghs_x", "anthonylim24/anthonyl.im", fetchImpl)).toBe(true);
+  });
+
+  test("treats installation transport failures as unauthorized", async () => {
+    const fetchImpl = mock(async (url: string) => {
+      if (String(url).includes("/repos/")) {
+        return new Response(JSON.stringify({ id: 1 }), { status: 200 });
+      }
       throw new Error("ECONNRESET");
     }) as unknown as typeof fetch;
-    expect(await verifyGithubPushAccess("gho_x", "anthonylim24/anthonyl.im", fetchImpl)).toBe(false);
+    expect(await verifyGithubAgentAccess("gho_x", "anthonylim24/anthonyl.im", fetchImpl)).toBe(false);
+  });
+
+  test("keeps verifyGithubPushAccess as an alias", async () => {
+    expect(verifyGithubPushAccess).toBe(verifyGithubAgentAccess);
   });
 });

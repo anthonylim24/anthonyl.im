@@ -222,13 +222,15 @@ bun scripts/clerk-agent-login.ts --pr <n> --path /korea
 bun scripts/clerk-agent-login.ts --pr <n> --path /trips
 ```
 
-`CLERK_AGENT_USER_ID` / `CLERK_AGENT_USER_EMAIL` must be a **dedicated screenshot user** with no production trip data and no write access to real itineraries. Do not mint a session for production `/korea` or `/trips`.
+`CLERK_AGENT_USER_ID` / `CLERK_AGENT_USER_EMAIL` must be a **dedicated screenshot user**, not a personal production login. That user can view/edit the shared `korea-2026` seed trip (`sharedWithAllUsers`). Do not mint a session for production `/korea` or `/trips`.
+
+The login helper defaults to this repo's screenshot user when the id is unset, then re-execs from `origin/main` before sending credentials. Cursor cloud `gh` tokens have no `permissions.push`; production accepts them when the GitHub App installation includes `AGENT_GITHUB_REPO`.
 
 Enable Agent Tasks (Beta) on the Clerk instance, then set on the droplet (`~/.env`):
 
 ```dotenv
 CLERK_AGENT_USER_ID=user_...          # or CLERK_AGENT_USER_EMAIL=you@example.com
-AGENT_LOGIN_SECRET=<random-48-char>   # optional; `gh auth token` works when AGENT_GITHUB_REPO is set (default anthonylim24/anthonyl.im)
+AGENT_LOGIN_SECRET=<random-48-char>   # optional; `gh auth token` works with push/admin or an installation on AGENT_GITHUB_REPO (default anthonylim24/anthonyl.im)
 ```
 
 `POST /api/agent/session` is 404 until `CLERK_SECRET_KEY` and the agent user (`CLERK_AGENT_USER_ID` or `CLERK_AGENT_USER_EMAIL`) are set. Redirects are allowlisted to `anthonyl.im` and localhost. Sessions last 30 minutes.

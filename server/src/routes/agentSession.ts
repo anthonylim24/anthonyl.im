@@ -9,7 +9,7 @@ import {
   DEFAULT_TASK_DESCRIPTION,
   isAllowedAgentRedirect,
   secretsEqual,
-  verifyGithubPushAccess,
+  verifyGithubAgentAccess,
   type AgentOnBehalfOf,
 } from "../agentTasks";
 import { consumeRateLimit, hashedIdentityKey } from "../middleware/rateLimit";
@@ -30,7 +30,7 @@ export type AgentSessionDeps = {
   allowedHosts: readonly string[];
   githubRepo?: string;
   createTask?: typeof createClerkAgentTask;
-  verifyGithub?: typeof verifyGithubPushAccess;
+  verifyGithub?: typeof verifyGithubAgentAccess;
 };
 
 function bearerToken(header: string | undefined): string | null {
@@ -42,7 +42,7 @@ function bearerToken(header: string | undefined): string | null {
 export function createAgentSessionRouter(deps: AgentSessionDeps) {
   const agent = new Hono();
   const createTask = deps.createTask ?? createClerkAgentTask;
-  const verifyGithub = deps.verifyGithub ?? verifyGithubPushAccess;
+  const verifyGithub = deps.verifyGithub ?? verifyGithubAgentAccess;
   const configured = Boolean(deps.clerkSecretKey && deps.onBehalfOf);
 
   agent.use("*", async (c, next) => {
@@ -54,7 +54,7 @@ export function createAgentSessionRouter(deps: AgentSessionDeps) {
     c.json(
       {
         error: "method_not_allowed",
-        hint: "POST /api/agent/session with Authorization: Bearer <AGENT_LOGIN_SECRET or gh auth token>",
+        hint: "POST /api/agent/session with Authorization: Bearer <AGENT_LOGIN_SECRET or gh auth token (push or installation)>",
       },
       405,
     ),

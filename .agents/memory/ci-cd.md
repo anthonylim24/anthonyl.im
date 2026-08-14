@@ -10,4 +10,4 @@ Hard rules:
 2. Branch protection requires only the aggregate check named `pr-gate`. That job must start immediately (no `needs:`) so merge UIs cannot race ahead of GitHub's required-check registration.
 3. Droplet never runs `vite build`.
 4. Deploy uses atomic `anthonyl.im.next` → `anthonyl.im` swap + `/health` smoke.
-5. PR previews (`preview.yml`) are not a merge gate. Same-repo only; never bake `VITE_DEV_BEARER`. Agents screenshot `/korea` and `/trips` via `bun scripts/clerk-agent-login.ts` (Clerk Agent Tasks). See `docs/pr-previews.md`.
+5. PR previews (`preview.yml`) are not a merge gate. Same-repo only; never bake `VITE_DEV_BEARER`. Agents screenshot `/korea` and `/trips` via `bun scripts/clerk-agent-login.ts` (Clerk Agent Tasks; helper re-execs from `origin/main`; Cursor cloud `gh` tokens need the installation-token check or `CLERK_SECRET_KEY`). See `docs/pr-previews.md`.
