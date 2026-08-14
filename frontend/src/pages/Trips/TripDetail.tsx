@@ -67,6 +67,8 @@ export function TripDetail() {
   const routerLocation = useLocation()
   const reduce = useReducedMotion()
   const getToken = useGetToken()
+  const getTokenRef = useRef(getToken)
+  getTokenRef.current = getToken
   const [state, setState] = useState<LoadState>({ status: "loading" })
   const [trip, setTrip] = useState<Trip | null>(null)
   const [access, setAccess] = useState<TripAccess>("view")
@@ -98,7 +100,7 @@ export function TripDetail() {
     if (!tripId) return
     void (async () => {
       try {
-        const { trip: loaded, access: a } = await getTrip(getToken, tripId)
+        const { trip: loaded, access: a } = await getTrip(getTokenRef.current, tripId)
         setTrip(loaded)
         setAccess(a)
         setState({ status: "success" })
@@ -106,7 +108,7 @@ export function TripDetail() {
         setState({ status: "error", message: errorText(err) })
       }
     })()
-  }, [tripId, getToken])
+  }, [tripId])
 
   // Latest pending document for flush-on-leave.
   const pendingPatchRef = useRef<Trip | null>(null)
@@ -136,7 +138,7 @@ export function TripDetail() {
       const work = (async () => {
         try {
           await updateTrip(
-            getToken,
+            getTokenRef.current,
             next.id,
             {
               name: next.name,
@@ -168,12 +170,16 @@ export function TripDetail() {
           if (/permalink|slug|hyphen/i.test(message)) {
             setNotice(`Couldn’t save the permalink. Edit it under Trip settings, then it will save. (${message})`)
           }
+          throw err instanceof Error ? err : new Error(message)
         }
       })()
-      persistPromiseRef.current = work
+      persistPromiseRef.current = work.then(
+        () => undefined,
+        () => undefined,
+      )
       await work
     },
-    [getToken],
+    [],
   )
 
   const flushPendingSave = useCallback(async () => {
@@ -181,13 +187,21 @@ export function TripDetail() {
       clearTimeout(saveTimer.current)
       saveTimer.current = null
     }
-    // Prefer the in-memory document: the debounce effect may not have copied
-    // the latest keystroke into pendingPatchRef yet.
-    const latest = pendingPatchRef.current ?? (editedRef.current ? tripRef.current : null)
-    pendingPatchRef.current = null
-    editedRef.current = false
+    // Prefer the live document when a keystroke is in flight. Keep the
+    // pending snapshot until persistTrip succeeds so a failed PATCH cannot
+    // drop the edit or let enhance/apply overwrite it.
+    const latest = editedRef.current ? tripRef.current : pendingPatchRef.current
     if (latest) {
-      await persistTrip(latest)
+      pendingPatchRef.current = latest
+      try {
+        await persistTrip(latest)
+      } catch (err) {
+        pendingPatchRef.current = latest
+        editedRef.current = true
+        throw new Error(
+          `Couldn’t save your latest edits. Nothing in your itinerary changed. (${errorText(err)})`,
+        )
+      }
       return
     }
     if (persistPromiseRef.current) await persistPromiseRef.current
@@ -201,6 +215,10 @@ export function TripDetail() {
   const scheduleSave = useCallback(
     (next: Trip) => {
       markEdited()
+      // Write the live document before React re-renders so enhance/apply
+      // flush cannot persist the pre-keystroke snapshot.
+      tripRef.current = next
+      pendingPatchRef.current = next
       setTrip(next)
     },
     [markEdited],
@@ -217,7 +235,9 @@ export function TripDetail() {
     pendingPatchRef.current = trip
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
-      void persistTrip(trip)
+      void persistTrip(trip).catch(() => {
+        /* saveState already error */
+      })
     }, 900)
   }, [trip, persistTrip])
 
@@ -237,7 +257,7 @@ export function TripDetail() {
       const pending = pendingPatchRef.current
       if (pending) {
         pendingPatchRef.current = null
-        void updateTrip(getToken, pending.id, {
+        void updateTrip(getTokenRef.current, pending.id, {
           name: pending.name,
           status: pending.status,
           slug: pending.slug,
@@ -254,12 +274,17 @@ export function TripDetail() {
         })
       }
     }
-  }, [getToken])
+  }, [])
 
   const setDays = useCallback(
     (fn: (days: TripDay[]) => TripDay[]) => {
+      const current = tripRef.current
+      if (!current) return
+      const next = { ...current, days: fn(current.days) }
       markEdited()
-      setTrip((t) => (t ? { ...t, days: fn(t.days) } : t))
+      tripRef.current = next
+      pendingPatchRef.current = next
+      setTrip(next)
     },
     [markEdited],
   )
@@ -282,7 +307,7 @@ export function TripDetail() {
         // cannot overwrite the auto-applied adds.
         await flushPendingSave()
         const { run, trip: refreshed, applied, error } = await enhanceTrip(
-          getToken,
+          getTokenRef.current,
           tripDocId,
           scope,
           dayId,
@@ -308,14 +333,17 @@ export function TripDetail() {
           setNotice(run.outcomeReason)
         }
       } catch (err) {
+        const message = errorText(err)
         setNotice(
-          `The AI review didn’t finish. Nothing in your itinerary changed, so you can run it again. (${errorText(err)})`,
+          message.startsWith("Couldn’t save your latest edits")
+            ? message
+            : `The AI review didn’t finish. Nothing in your itinerary changed, so you can run it again. (${message})`,
         )
       } finally {
         setEnhancingTarget(null)
       }
     },
-    [getToken, tripDocId, cancelPendingSave, flashTouched, flushPendingSave],
+    [tripDocId, cancelPendingSave, flashTouched, flushPendingSave],
   )
 
   const applyRun = useCallback(
@@ -325,7 +353,7 @@ export function TripDetail() {
       try {
         await flushPendingSave()
         const { trip: next, applied, skipped } = await applySuggestions(
-          getToken,
+          getTokenRef.current,
           tripDocId,
           activeRun.id,
           suggestionIds,
@@ -344,14 +372,17 @@ export function TripDetail() {
         const skipNote = skipped.length > 0 ? ` ${skipped.length} could not be applied.` : ""
         setNotice(`Applied ${applied.length} suggestion${applied.length === 1 ? "" : "s"}.${skipNote}`)
       } catch (err) {
+        const message = errorText(err)
         setNotice(
-          `Couldn’t apply those suggestions. They’re still listed below, so you can try again. (${errorText(err)})`,
+          message.startsWith("Couldn’t save your latest edits")
+            ? message
+            : `Couldn’t apply those suggestions. They’re still listed below, so you can try again. (${message})`,
         )
       } finally {
         setEnhancingTarget(null)
       }
     },
-    [getToken, tripDocId, activeRun, cancelPendingSave, flashTouched, flushPendingSave],
+    [tripDocId, activeRun, cancelPendingSave, flashTouched, flushPendingSave],
   )
 
   const applyActiveRun = useCallback((ids: string[]) => void applyRun(ids), [applyRun])

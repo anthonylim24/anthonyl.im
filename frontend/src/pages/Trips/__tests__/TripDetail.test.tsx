@@ -3,8 +3,12 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import type { EnhancementRun, ItineraryItem, Trip } from "../types"
 
+const { mockGetToken } = vi.hoisted(() => ({
+  mockGetToken: vi.fn().mockResolvedValue("test-token"),
+}))
+
 vi.mock("@/lib/safeAuth", () => ({
-  useGetToken: () => vi.fn().mockResolvedValue("test-token"),
+  useGetToken: () => mockGetToken,
   clerkEnabled: true,
 }))
 
@@ -147,6 +151,7 @@ describe("TripDetail enhance", () => {
     renderEditor()
     const name = await screen.findByLabelText("Trip name")
     fireEvent.change(name, { target: { value: "Tokyo Rewrite" } })
+    await waitFor(() => expect(name).toHaveValue("Tokyo Rewrite"))
 
     fireEvent.click(screen.getByRole("button", { name: "Enhance trip" }))
 
@@ -158,6 +163,24 @@ describe("TripDetail enhance", () => {
       expect(screen.getAllByText(/lunch at Ichiran/i).length).toBeGreaterThan(0)
     })
     expect(mockEnhanceTrip).toHaveBeenCalled()
+  })
+
+  it("keeps pending edits and skips enhance when the flush PATCH fails", async () => {
+    const trip = makeTrip()
+    mockGetTrip.mockResolvedValue({ trip, access: "owner" })
+    mockUpdateTrip.mockRejectedValue(new Error("network down"))
+
+    renderEditor()
+    const name = await screen.findByLabelText("Trip name")
+    fireEvent.change(name, { target: { value: "Tokyo Rewrite" } })
+    await waitFor(() => expect(name).toHaveValue("Tokyo Rewrite"))
+
+    fireEvent.click(screen.getByRole("button", { name: "Enhance trip" }))
+
+    await waitFor(() => expect(mockUpdateTrip).toHaveBeenCalled())
+    expect(mockEnhanceTrip).not.toHaveBeenCalled()
+    expect(name).toHaveValue("Tokyo Rewrite")
+    expect(screen.getByText(/couldn’t save your latest edits/i)).toBeInTheDocument()
   })
 
   it("gives a one-day trip the full editor width instead of the nav track", async () => {

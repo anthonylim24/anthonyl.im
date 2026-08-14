@@ -9,8 +9,8 @@ export npm_config_registry="$PUBLIC_NPM_REGISTRY"
 # Frontend-required dev tooling. Keeping this list explicit (rather than
 # just trusting `node_modules` existence) catches the recent cloud failure
 # mode where root-level `bun install` ran but the frontend tree was empty,
-# so `tsc -b` resolved the root's TS 5.x and choked on `ignoreDeprecations`.
-FRONTEND_REQUIRED_PACKAGES=(react react-dom vite typescript '@vitejs/plugin-react')
+# so `tsc -b` resolved an older TypeScript from the root tree.
+FRONTEND_REQUIRED_PACKAGES=(react react-dom vite typescript typescript7 '@vitejs/plugin-react')
 ROOT_REQUIRED_PACKAGES=(hono zod openai)
 
 run_bun_install() {
@@ -130,30 +130,29 @@ EOF
   return 1
 }
 
-# Verifies the frontend's TypeScript resolves to the pinned ~6.0 line so
-# `tsc -b` matches what the build expects. This catches the cloud-sandbox
-# failure mode where only the root tree was installed and `bunx tsc`
-# silently fell back to the root's TS 5.x, which rejects
-# `ignoreDeprecations: "6.0"` in tsconfig.app.json and can't see the
-# vite / plugin-react types pinned by frontend/package.json.
+# Verifies the frontend's TypeScript 7 compiler (`typescript7`) resolves
+# to the pinned ~7.0.2 line so `tsc -b` matches what the build expects.
+# The `typescript` package stays on 6.0.x for typescript-eslint.
 verify_frontend_typescript() {
   local ts_version
-  if ! ts_version="$(cd "$ROOT_DIR/frontend" && bunx --bun tsc --version 2>/dev/null)"; then
+  # typescript@6 satisfies typescript-eslint; typescript7 is the ~7.0.2 compiler.
+  if ! ts_version="$(cd "$ROOT_DIR/frontend" && ./node_modules/typescript7/bin/tsc --version 2>/dev/null)"; then
     cat >&2 <<'EOF'
-[codex-deps] ERROR: could not run `tsc --version` in frontend/.
+[codex-deps] ERROR: could not run `typescript7/bin/tsc --version` in frontend/.
 [codex-deps] This usually means frontend/node_modules is missing.
 [codex-deps] Run: bash .codex/setup.sh
 EOF
     return 1
   fi
 
-  if [[ "$ts_version" =~ ^Version[[:space:]]6\. ]]; then
+  # ~7.0.2 → >=7.0.2 <7.1.0. Reject 7.0.1 (too old) and 7.1.x / 8.x (wrong line).
+  if [[ "$ts_version" =~ ^Version[[:space:]]7\.0\.([0-9]+)([[:space:]]|$) ]] && (( BASH_REMATCH[1] >= 2 )); then
     echo "[codex-deps] frontend ${ts_version}"
     return 0
   fi
 
   cat >&2 <<EOF
-[codex-deps] ERROR: frontend TypeScript reports "${ts_version}" but ~6.0 is expected.
+[codex-deps] ERROR: frontend TypeScript reports "${ts_version}" but ~7.0.2 (>=7.0.2 <7.1.0) is expected.
 [codex-deps] This usually means frontend/node_modules wasn't installed and tsc is
 [codex-deps] resolving from the root tree. Fix: bash .codex/setup.sh
 EOF

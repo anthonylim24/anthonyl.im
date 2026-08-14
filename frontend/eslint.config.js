@@ -4,6 +4,8 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 
+// typescript-eslint has no TypeScript 7 compiler API yet (needs 7.1).
+// `typescript` is 6.0.x for lint; `typescript7` is the ~7.0.2 typechecker.
 export default tseslint.config(
   { ignores: ['dist'] },
   {
