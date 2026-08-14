@@ -160,6 +160,40 @@ describe("TripDetail enhance", () => {
     expect(mockEnhanceTrip).toHaveBeenCalled()
   })
 
+  it("gives a one-day trip the full editor width instead of the nav track", async () => {
+    const trip = makeTrip({
+      name: "Empty Kyoto Day",
+      destinations: ["Kyoto"],
+      startDate: "2026-10-02",
+      endDate: "2026-10-02",
+      days: [
+        {
+          id: "day-1",
+          date: "2026-10-02",
+          title: "Higashiyama",
+          items: [
+            {
+              id: "it-fushimi",
+              kind: "place",
+              title: "Fushimi Inari Taisha",
+              time: "08:00",
+              status: "needs_review",
+              location: { name: "Fushimi Inari Taisha", source: "ai" },
+              createdBy: "ai",
+            },
+          ],
+        },
+      ],
+    })
+    mockGetTrip.mockResolvedValue({ trip, access: "owner" })
+
+    renderEditor()
+    expect(await screen.findByDisplayValue("Fushimi Inari Taisha")).toBeInTheDocument()
+    expect(screen.queryByRole("navigation", { name: "Days" })).toBeNull()
+    expect(screen.getByTestId("trip-itinerary").className).toMatch(/flex-1/)
+    expect(screen.getByTestId("trip-itinerary").className).toMatch(/min-w-0/)
+  })
+
   it("shows the 502 run reason instead of a generic failure", async () => {
     const trip = makeTrip()
     mockGetTrip.mockResolvedValue({ trip, access: "owner" })

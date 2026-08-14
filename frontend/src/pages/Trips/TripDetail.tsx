@@ -574,10 +574,12 @@ export function TripDetail() {
         />
       )}
 
-      {/* Days, with the day rail on desktop and the chip rail below `lg`. */}
-      <div className="mt-6 lg:mt-8 lg:grid lg:grid-cols-[11rem_minmax(0,1fr)] lg:gap-8">
+      {/* Days: flex so a one-day trip (no day rail) still takes the full
+          width. A two-column grid parked the itinerary in the 11rem nav
+          track whenever DayNavigation returned null. */}
+      <div className="mt-6 lg:mt-8 lg:flex lg:items-start lg:gap-8">
         <DayNavigation days={trip.days} timezone={trip.timezone} />
-        <div className="space-y-8">
+        <div data-testid="trip-itinerary" className="min-w-0 flex-1 space-y-8">
           {trip.days.map((day, idx) => (
             <DayCard
               key={day.id}
