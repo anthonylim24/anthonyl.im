@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react"
+import { createPortal } from "react-dom"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useLocation } from "react-router-dom"
 import { Maximize2, MessageCircleHeart, Minimize2, Send, Sparkles, X } from "lucide-react"
@@ -27,8 +28,33 @@ const PANEL_SHELL =
 const PANEL_COMPACT =
   `${PANEL_SHELL} h-[min(86dvh,40rem)] md:bottom-6 md:right-6 md:h-[min(600px,calc(100dvh-3rem))] md:w-[min(400px,calc(100vw-2rem))]`
 
-/** Desktop size lives in `.trip-chat-panel-expanded` — inset stretch, no height. */
-const PANEL_EXPANDED = `${PANEL_SHELL} trip-chat-panel-expanded h-[min(92dvh,calc(100svh-0.75rem))]`
+const PANEL_EXPANDED_MOBILE =
+  `${PANEL_SHELL} trip-chat-panel-expanded h-[min(92dvh,calc(100svh-0.75rem))]`
+
+/** No height utility — desktop size is an inline inset so Tailwind cannot clip the composer. */
+const PANEL_EXPANDED_DESKTOP = `${PANEL_SHELL} trip-chat-panel-expanded`
+
+const EXPANDED_DESKTOP_STYLE: CSSProperties = {
+  top: 16,
+  right: 16,
+  bottom: 16,
+  left: "auto",
+  width: "min(36rem, calc(100vw - 2rem))",
+  height: "auto",
+  maxHeight: "none",
+}
+
+function useMinWidth(px: number): boolean {
+  const [matches, setMatches] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia(`(min-width: ${px}px)`)
+    const sync = () => setMatches(mq.matches)
+    sync()
+    mq.addEventListener("change", sync)
+    return () => mq.removeEventListener("change", sync)
+  }, [px])
+  return matches
+}
 
 const HEADER_ICON_BTN =
   `flex h-11 w-11 items-center justify-center rounded-full text-stone-500 transition hover:bg-stone-100 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100 ${focusRingClass}`
@@ -53,6 +79,7 @@ export function TripChat() {
   const { tripId, dayId } = useTripChatRoute()
   const getToken = useGetToken()
   const reduce = useReducedMotion()
+  const isDesktop = useMinWidth(768)
   const [trip, setTrip] = useState<Trip | null>(null)
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
@@ -280,17 +307,31 @@ export function TripChat() {
 
   if (!tripId) return null
 
-  const panelMotion = reduce
-    ? { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.15 } }
-    : {
-        initial: { opacity: 0, y: 28, scale: 0.98 },
-        animate: { opacity: 1, y: 0, scale: 1 },
-        exit: { opacity: 0, y: 18, scale: 0.985 },
-        transition: ENTER_SPRING,
-      }
+  const accent = resolveAccent(trip?.appearance?.accent)
+  const panelClass = expanded
+    ? isDesktop
+      ? PANEL_EXPANDED_DESKTOP
+      : PANEL_EXPANDED_MOBILE
+    : PANEL_COMPACT
+  const panelStyle: CSSProperties = {
+    ...(kbInset > 0 ? { bottom: kbInset } : {}),
+    ...(expanded && isDesktop
+      ? { ...EXPANDED_DESKTOP_STYLE, bottom: kbInset > 0 ? kbInset : 16 }
+      : {}),
+  }
+
+  const panelMotion =
+    reduce || expanded
+      ? { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.15 } }
+      : {
+          initial: { opacity: 0, y: 28, scale: 0.98 },
+          animate: { opacity: 1, y: 0, scale: 1 },
+          exit: { opacity: 0, y: 18, scale: 0.985 },
+          transition: ENTER_SPRING,
+        }
 
   return (
-    <div data-trip-accent={resolveAccent(trip?.appearance?.accent)}>
+    <div data-trip-accent={accent}>
       <AnimatePresence>
         {!open && (
           <motion.button
@@ -310,6 +351,9 @@ export function TripChat() {
         )}
       </AnimatePresence>
 
+      {typeof document !== "undefined" &&
+        createPortal(
+          <div className="trips trip-chat-portal" data-trip-accent={accent}>
       <AnimatePresence>
         {open && (
           <>
@@ -334,8 +378,8 @@ export function TripChat() {
               aria-modal="true"
               aria-labelledby={titleId}
               data-expanded={expanded ? "true" : "false"}
-              className={expanded ? PANEL_EXPANDED : PANEL_COMPACT}
-              style={kbInset > 0 ? { bottom: kbInset } : undefined}
+              className={panelClass}
+              style={panelStyle}
             >
               <header className="flex shrink-0 items-center gap-3 border-b border-stone-200/80 px-4 py-3 dark:border-stone-800/80">
                 <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[color:var(--ta-soft)] text-[color:var(--ta)]">
@@ -413,8 +457,9 @@ export function TripChat() {
                 )}
               </div>
 
+              <div className="shrink-0">
               {messages.length === 0 && suggestions.length > 0 && (
-                <div className="flex shrink-0 flex-wrap gap-2 px-4 pb-2">
+                <div className="flex flex-wrap gap-2 px-4 pb-2">
                   {suggestions.map((s) => (
                     <button
                       key={s}
@@ -433,7 +478,7 @@ export function TripChat() {
                   e.preventDefault()
                   void send(input)
                 }}
-                className="shrink-0 border-t border-stone-200/80 px-3 pt-3 dark:border-stone-800/80"
+                className="border-t border-stone-200/80 px-3 pt-3 dark:border-stone-800/80"
                 style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)" }}
               >
                 <div className="flex items-end gap-2 rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 focus-within:border-[color:var(--trips-accent)] focus-within:ring-2 focus-within:ring-[color:var(--trips-focus)] dark:border-stone-700 dark:bg-stone-900">
@@ -464,10 +509,14 @@ export function TripChat() {
                   </button>
                 </div>
               </form>
+              </div>
             </motion.div>
           </>
         )}
       </AnimatePresence>
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }

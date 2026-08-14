@@ -57,12 +57,15 @@ async function openChat() {
 }
 
 describe("TripChat expand", () => {
+  const originalMatchMedia = window.matchMedia
+
   beforeEach(() => {
     mockGetTrip.mockResolvedValue({ trip: makeTrip() })
   })
 
   afterEach(() => {
     document.body.style.overflow = ""
+    window.matchMedia = originalMatchMedia
     vi.clearAllMocks()
   })
 
@@ -89,6 +92,31 @@ describe("TripChat expand", () => {
     fireEvent.click(screen.getByRole("button", { name: "Shrink chat" }))
     expect(dialog).toHaveAttribute("data-expanded", "false")
     expect(within(dialog).getByPlaceholderText("Ask about this trip…")).toHaveClass("max-h-28")
+  })
+
+  it("pins an expanded desktop panel with inset styles", async () => {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: (query: string) => ({
+        matches: query.includes("768"),
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+        dispatchEvent: () => false,
+        onchange: null,
+      }),
+    })
+
+    renderChat()
+    const dialog = await openChat()
+    fireEvent.click(screen.getByRole("button", { name: "Expand chat" }))
+    await waitFor(() => {
+      expect(dialog).toHaveStyle({ top: "16px", height: "auto" })
+    })
+    expect(dialog.className).not.toMatch(/h-\[min\(92dvh/)
+    expect(within(dialog).getByPlaceholderText("Ask about this trip…")).toBeVisible()
   })
 
   it("collapses on the first Escape, then closes", async () => {
