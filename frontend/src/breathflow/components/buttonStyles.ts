@@ -1,10 +1,10 @@
 /**
- * Shared button classes. Shape rule: interactive controls are 8px radius
- * (rounded-lg via --radius), min 44px touch targets, tactile :active press.
+ * Shared button classes. Shape rule: interactive controls are 6px
+ * (rounded-md), min 44px touch targets, tactile :active press.
  */
 
 const BASE =
-  'inline-flex items-center justify-center gap-2 rounded-lg text-sm font-medium '
+  'inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium '
   + 'min-h-11 px-5 select-none transition-[background-color,border-color,transform,opacity] duration-200 '
   + 'active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 '
   + 'focus-visible:outline-bw-accent disabled:opacity-40 disabled:pointer-events-none'
@@ -21,7 +21,7 @@ export const btnDestructive =
 
 /** Square icon button, still a 44px target. */
 export const btnIcon =
-  'inline-flex items-center justify-center rounded-lg min-h-11 min-w-11 text-bw-secondary '
+  'inline-flex items-center justify-center rounded-md min-h-11 min-w-11 text-bw-secondary '
   + 'transition-[background-color,transform] duration-200 active:scale-[0.96] hover:bg-bw-hover hover:text-bw '
   + 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent '
   + 'disabled:opacity-40 disabled:pointer-events-none'

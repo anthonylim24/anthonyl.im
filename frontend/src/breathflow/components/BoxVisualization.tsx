@@ -53,7 +53,7 @@ export function BoxVisualization({
         pathLength={4}
         fill="none"
         stroke="var(--bw-border)"
-        strokeWidth={3}
+        strokeWidth={1.25}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -64,7 +64,7 @@ export function BoxVisualization({
           pathLength={4}
           fill="none"
           stroke={accentColor}
-          strokeWidth={4}
+          strokeWidth={1.75}
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeDasharray="1 3"
@@ -77,7 +77,7 @@ export function BoxVisualization({
           pathLength={4}
           fill="none"
           stroke={accentColor}
-          strokeWidth={4}
+          strokeWidth={1.75}
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeDasharray="4 4"

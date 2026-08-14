@@ -8,6 +8,8 @@ interface ActivityHeatmapProps {
   weeks?: number
 }
 
+const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'] as const
+
 function intensityClass(count: number): string {
   if (count === 0) return 'bg-bw-hover'
   if (count === 1) return 'bg-bw-accent/35'
@@ -15,9 +17,9 @@ function intensityClass(count: number): string {
   return 'bg-bw-accent'
 }
 
-/** Sessions per local day, one cell per day, one column per week. */
+/** Sessions per local day, Monday-start weeks, weekday labels across the top. */
 export function ActivityHeatmap({ sessions, weeks = 12 }: ActivityHeatmapProps) {
-  const { columns, monthLabels } = useMemo(() => {
+  const { rows, monthLabels } = useMemo(() => {
     const counts = new Map<string, number>()
     for (const session of sessions) {
       const key = getLocalDateKey(session.date)
@@ -25,51 +27,58 @@ export function ActivityHeatmap({ sessions, weeks = 12 }: ActivityHeatmapProps) 
     }
 
     const today = getLocalDayStart()
-    const mondayOffset = today.getDay() === 0 ? 6 : today.getDay() - 1 // Monday = 0
+    const mondayOffset = today.getDay() === 0 ? 6 : today.getDay() - 1
     const start = addLocalDays(today, -(mondayOffset + (weeks - 1) * 7))
 
-    const cells: { key: string; count: number; date: Date; inFuture: boolean }[] = []
-    for (let offset = 0; offset < weeks * 7; offset++) {
-      const date = addLocalDays(start, offset)
-      const key = formatLocalDateKey(date)
-      cells.push({ key, count: counts.get(key) ?? 0, date, inFuture: date > today })
+    const weekRows: { key: string; count: number; date: Date; inFuture: boolean }[][] = []
+    const labels: string[] = []
+
+    for (let week = 0; week < weeks; week++) {
+      const cells = []
+      for (let day = 0; day < 7; day++) {
+        const date = addLocalDays(start, week * 7 + day)
+        const key = formatLocalDateKey(date)
+        cells.push({ key, count: counts.get(key) ?? 0, date, inFuture: date > today })
+      }
+      weekRows.push(cells)
+
+      const first = cells[0]?.date
+      const prev = weekRows[week - 1]?.[0]?.date
+      if (!first) {
+        labels.push('')
+      } else if (!prev || prev.getMonth() !== first.getMonth()) {
+        labels.push(first.toLocaleDateString(undefined, { month: 'short' }))
+      } else {
+        labels.push('')
+      }
     }
 
-    const cols: (typeof cells)[] = []
-    for (let i = 0; i < cells.length; i += 7) {
-      cols.push(cells.slice(i, i + 7))
-    }
-
-    const labels = cols.map((col, index) => {
-      const first = col[0]?.date
-      if (!first) return ''
-      const prev = cols[index - 1]?.[0]?.date
-      const month = first.toLocaleDateString(undefined, { month: 'short' })
-      if (!prev) return month
-      return prev.getMonth() === first.getMonth() ? '' : month
-    })
-
-    return { columns: cols, monthLabels: labels }
+    return { rows: weekRows, monthLabels: labels }
   }, [sessions, weeks])
 
   return (
     <div aria-label="Practice activity by day" role="img" className="overflow-x-auto pb-1">
-      <div className="flex gap-1">
-        {columns.map((column, columnIndex) => (
-          <div key={columnIndex} className="flex flex-col gap-1">
-            {column.map((cell) => (
+      <div className="mb-1.5 grid grid-cols-[2.5rem_repeat(7,minmax(0,1fr))] gap-1 text-[10px] text-bw-tertiary">
+        <span />
+        {WEEKDAYS.map((day, index) => (
+          <span key={`${day}-${index}`} className="text-center">{day}</span>
+        ))}
+      </div>
+      <div className="space-y-1">
+        {rows.map((week, weekIndex) => (
+          <div
+            key={monthLabels[weekIndex] + week[0]?.key}
+            className="grid grid-cols-[2.5rem_repeat(7,minmax(0,1fr))] items-center gap-1"
+          >
+            <span className="text-[10px] text-bw-tertiary">{monthLabels[weekIndex]}</span>
+            {week.map((cell) => (
               <div
                 key={cell.key}
                 title={`${cell.key}: ${cell.count} session${cell.count === 1 ? '' : 's'}`}
-                className={`h-3 w-3 rounded-[3px] ${cell.inFuture ? 'bg-transparent' : intensityClass(cell.count)}`}
+                className={`mx-auto h-3 w-3 ${cell.inFuture ? 'bg-transparent' : intensityClass(cell.count)}`}
               />
             ))}
           </div>
-        ))}
-      </div>
-      <div className="mt-1.5 flex gap-1">
-        {monthLabels.map((label, index) => (
-          <span key={index} className="w-3 text-[9px] text-bw-tertiary">{label}</span>
         ))}
       </div>
     </div>

@@ -6,7 +6,7 @@ export function NotFoundPage() {
   return (
     <div className="flex flex-col items-start gap-4 pt-14">
       <p className="text-sm text-bw-tertiary">404</p>
-      <h1 className="text-2xl font-semibold tracking-tight text-bw">
+      <h1 className="bf-display text-3xl tracking-tight text-bw">
         This page took a breath and left.
       </h1>
       <p className="max-w-sm text-sm leading-relaxed text-bw-secondary">

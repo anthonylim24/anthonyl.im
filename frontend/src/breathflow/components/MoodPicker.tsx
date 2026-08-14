@@ -23,11 +23,11 @@ export function MoodPicker({ label, value, onChange }: MoodPickerProps) {
               aria-checked={selected}
               onClick={() => onChange(selected ? undefined : option.value)}
               className={[
-                'min-h-11 rounded-lg border px-3.5 text-sm transition-colors duration-200 active:scale-[0.98]',
+                'min-h-11 px-1 text-sm transition-colors duration-200 active:scale-[0.98]',
                 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent',
                 selected
-                  ? 'border-bw-accent bg-bw-accent text-bw-accent-foreground font-medium'
-                  : 'border-bw-border bg-bw-surface text-bw-secondary hover:bg-bw-hover',
+                  ? 'font-medium text-bw underline decoration-bw-accent decoration-1 underline-offset-8'
+                  : 'text-bw-secondary hover:text-bw',
               ].join(' ')}
             >
               {option.label}

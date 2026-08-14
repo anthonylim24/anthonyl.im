@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom'
-import { Award, Repeat2, TrendingUp } from 'lucide-react'
 import type { MoodValue } from '@/lib/mood'
 import { formatDuration } from './format'
 import { getBadge } from '../gamify/badges'
@@ -52,9 +51,9 @@ export function SessionSummary({
   return (
     <div className="mx-auto w-full max-w-md">
       <p className="text-sm text-bw-secondary">Session complete</p>
-      <h2 className="mt-1 text-2xl font-semibold tracking-tight text-bw">{protocol.name}</h2>
+      <h2 className="bf-display mt-1 text-2xl tracking-tight text-bw">{protocol.name}</h2>
 
-      <dl className="mt-5 grid grid-cols-3 gap-4">
+      <dl className="mt-6 flex flex-wrap gap-x-8 gap-y-4">
         <Stat label="Duration" value={formatDuration(session.durationSeconds)} />
         <Stat label="Rounds" value={String(session.rounds)} />
         <Stat label="XP earned" value={`+${result.xpEarned}`} />
@@ -64,8 +63,7 @@ export function SessionSummary({
       </dl>
 
       {result.isPersonalBest && (
-        <p className="mt-4 flex items-center gap-2 text-sm font-medium text-bw-accent">
-          <TrendingUp size={16} strokeWidth={1.75} aria-hidden="true" />
+        <p className="mt-4 text-sm font-medium text-bw-accent">
           New personal best hold
         </p>
       )}
@@ -73,12 +71,9 @@ export function SessionSummary({
       {newBadges.length > 0 && (
         <ul className="mt-4 space-y-2" aria-label="New badges">
           {newBadges.map((badge) => (
-            <li key={badge.id} className="flex items-center gap-3 rounded-2xl bg-bw-accent-subtle p-3">
-              <Award size={18} strokeWidth={1.75} aria-hidden="true" className="shrink-0 text-bw-accent" />
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-bw">{badge.name}</p>
-                <p className="truncate text-xs text-bw-secondary">{badge.description}</p>
-              </div>
+            <li key={badge.id} className="border-l-2 border-bw-accent pl-3">
+              <p className="text-sm font-medium text-bw">{badge.name}</p>
+              <p className="truncate text-xs text-bw-secondary">{badge.description}</p>
             </li>
           ))}
         </ul>
@@ -102,7 +97,6 @@ export function SessionSummary({
         </Link>
         {!advanced && (
           <button type="button" className={`${btnSecondary} flex-1`} onClick={onRepeat}>
-            <Repeat2 size={16} strokeWidth={1.75} aria-hidden="true" />
             Repeat
           </button>
         )}

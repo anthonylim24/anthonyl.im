@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Repeat2 } from 'lucide-react'
 import type { TechniqueId } from '@/lib/constants'
 import { formatMoodShift } from '@/lib/mood'
 import type { CompletedSession } from '@/stores/historyStore'
@@ -75,9 +74,9 @@ export function HistoryList({ sessions }: HistoryListProps) {
               <Link
                 to={buildSessionPath(buildRepeatParams(session))}
                 aria-label={`Repeat ${protocol.name} session`}
-                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-bw-secondary transition-colors duration-150 hover:bg-bw-hover hover:text-bw focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent"
+                className="inline-flex min-h-11 items-center px-2 text-xs text-bw-secondary transition-colors duration-150 hover:text-bw-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent"
               >
-                <Repeat2 size={16} strokeWidth={1.75} aria-hidden="true" />
+                Repeat
               </Link>
             </li>
           )
@@ -104,11 +103,11 @@ function FilterChip({ active, onClick, label }: { active: boolean; onClick: () =
       aria-pressed={active}
       onClick={onClick}
       className={[
-        'min-h-11 rounded-lg border px-3 text-xs transition-colors duration-150',
+        'min-h-11 px-1 text-xs transition-colors duration-150',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent',
         active
-          ? 'border-bw-accent bg-bw-accent-subtle font-medium text-bw'
-          : 'border-bw-border text-bw-secondary hover:bg-bw-hover',
+          ? 'font-medium text-bw underline decoration-bw-accent decoration-1 underline-offset-8'
+          : 'text-bw-secondary hover:text-bw',
       ].join(' ')}
     >
       {label}

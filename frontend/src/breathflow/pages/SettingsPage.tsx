@@ -19,7 +19,7 @@ import { SettingsAccount } from './SettingsAccount'
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="border-t border-bw-border py-5 first:border-t-0">
-      <h2 className="text-sm font-semibold text-bw">{title}</h2>
+      <h2 className="text-sm font-medium text-bw">{title}</h2>
       <div className="mt-3">{children}</div>
     </section>
   )
@@ -120,7 +120,7 @@ export function SettingsPage() {
 
   return (
     <div className="pb-8">
-      <h1 className="mb-2 text-2xl font-semibold tracking-tight text-bw">Settings</h1>
+      <h1 className="bf-display mb-2 text-3xl tracking-tight text-bw">Settings</h1>
 
       <Section title="Appearance">
         <Toggle
@@ -146,7 +146,7 @@ export function SettingsPage() {
                 title={unlocked ? orbTheme.name : `Unlocks at level ${orbTheme.unlockLevel}`}
                 onClick={() => setSelectedTheme(orbTheme.id)}
                 className={[
-                  'relative flex h-11 w-11 items-center justify-center rounded-full transition-transform duration-150 active:scale-95',
+                  'relative flex h-11 w-11 items-center justify-center rounded-lg transition-transform duration-150 active:scale-95',
                   'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent',
                   selected ? 'ring-2 ring-bw-accent ring-offset-2 ring-offset-bw-canvas' : '',
                   !unlocked ? 'opacity-45' : '',

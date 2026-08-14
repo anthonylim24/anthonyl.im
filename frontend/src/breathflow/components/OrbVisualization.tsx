@@ -15,10 +15,9 @@ interface OrbVisualizationProps {
 }
 
 /**
- * The breathing orb: a single soft sphere whose scale follows the breath
- * amplitude. Motion is the instruction (grow = inhale, shrink = exhale),
- * so under reduced motion it renders a static orb and the text cues carry
- * the session instead.
+ * Breath instrument: three hairline rings around a core whose scale
+ * follows breath amplitude. Grow is inhale, shrink is exhale. Under
+ * reduced motion the rings stay put and the text cues carry the session.
  */
 export function OrbVisualization({
   phases,
@@ -29,7 +28,7 @@ export function OrbVisualization({
   colors,
   reducedMotion,
 }: OrbVisualizationProps) {
-  const [core, halo] = colors
+  const [core] = colors
   const { target, frozen, duration } = getPhaseScaleTarget(
     phases,
     phaseIndex,
@@ -37,37 +36,37 @@ export function OrbVisualization({
     secondsLeftInPhase,
     status,
   )
+  const running = status === 'running'
+  const scale = reducedMotion ? 0.85 : (running ? target : frozen)
 
-  const surface = (
-    <div
-      className="h-full w-full rounded-full"
-      style={{
-        background: `radial-gradient(circle at 34% 30%, ${halo} 0%, ${core} 62%, color-mix(in srgb, ${core} 82%, #10161366) 100%)`,
-        boxShadow: `0 24px 80px -24px color-mix(in srgb, ${core} 55%, transparent), inset 0 1px 0 color-mix(in srgb, ${halo} 60%, transparent)`,
-      }}
-    />
+  const instrument = (
+    <svg aria-hidden="true" viewBox="0 0 240 240" className="h-full w-full">
+      <circle cx="120" cy="120" r="108" fill="none" stroke="var(--bw-border)" strokeWidth="1" />
+      <circle cx="120" cy="120" r="78" fill="none" stroke={core} strokeWidth="1.25" opacity="0.55" />
+      <circle cx="120" cy="120" r="48" fill="none" stroke={core} strokeWidth="1.25" />
+      <circle cx="120" cy="120" r="14" fill={core} />
+    </svg>
   )
 
   if (reducedMotion) {
     return (
       <div aria-hidden="true" className="h-56 w-56 sm:h-64 sm:w-64" style={{ transform: 'scale(0.85)' }}>
-        {surface}
+        {instrument}
       </div>
     )
   }
 
-  const running = status === 'running'
   return (
     <motion.div
       aria-hidden="true"
       className="h-56 w-56 sm:h-64 sm:w-64"
       initial={false}
-      animate={{ scale: running ? target : frozen }}
+      animate={{ scale }}
       transition={running
         ? { duration, ease: 'easeInOut' }
         : { duration: 0.3, ease: 'easeOut' }}
     >
-      {surface}
+      {instrument}
     </motion.div>
   )
 }

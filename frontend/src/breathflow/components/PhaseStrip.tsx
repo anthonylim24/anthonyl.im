@@ -11,9 +11,9 @@ interface PhaseStripProps {
 }
 
 /**
- * Proportional strip of one breath cycle: each phase gets a segment sized by
- * its seconds, with a slow cursor sweeping one full cycle when animation is
- * allowed. Orientation, not decoration: it shows the cadence at a glance.
+ * Typographic score of one breath cycle: each phase is named with its
+ * seconds, sitting on a proportional hairline. A cursor sweeps the rule
+ * when animation is allowed.
  */
 export function PhaseStrip({ protocol, customDurations, animated = false, className }: PhaseStripProps) {
   const cycleSeconds = getRoundSeconds(protocol, 0, customDurations)
@@ -21,22 +21,27 @@ export function PhaseStrip({ protocol, customDurations, animated = false, classN
 
   return (
     <div className={className}>
-      <div className="relative flex h-8 w-full gap-px overflow-hidden rounded-lg">
+      <p className="bf-display text-[12px] leading-relaxed text-bw-secondary">
         {protocol.phases.map(({ phase }, index) => {
           const seconds = getPhaseSecondsForRound(protocol, phase, 0, customDurations)
-          const isInhale = phase === 'inhale' || phase === 'deep_inhale'
+          const label = PHASE_LABELS[phase].toLowerCase()
           return (
-            <div
-              key={`${phase}-${index}`}
-              className={`flex items-center justify-center overflow-hidden ${
-                isInhale ? 'bg-bw-accent-subtle' : 'bg-bw-hover'
-              }`}
+            <span key={`${phase}-${index}`}>
+              {index > 0 && <span className="text-bw-tertiary"> · </span>}
+              {seconds}s {label}
+            </span>
+          )
+        })}
+      </p>
+      <div className="relative mt-2 flex h-px w-full overflow-hidden bg-bw-border">
+        {protocol.phases.map(({ phase }, index) => {
+          const seconds = getPhaseSecondsForRound(protocol, phase, 0, customDurations)
+          return (
+            <span
+              key={`${phase}-seg-${index}`}
+              className="block h-full"
               style={{ width: `${(seconds / cycleSeconds) * 100}%` }}
-            >
-              <span className="truncate px-1 text-[10px] font-medium text-bw-secondary">
-                {seconds}s
-              </span>
-            </div>
+            />
           )
         })}
         {animated && (
@@ -45,24 +50,10 @@ export function PhaseStrip({ protocol, customDurations, animated = false, classN
               className="bf-sweep absolute inset-y-0 w-full"
               style={{ animationDuration: `${cycleSeconds}s` }}
             >
-              <div className="absolute inset-y-0 left-0 w-0.5 bg-bw-accent" />
+              <div className="absolute inset-y-0 left-0 w-px bg-bw-accent" />
             </div>
           </div>
         )}
-      </div>
-      <div className="mt-1.5 flex w-full gap-px">
-        {protocol.phases.map(({ phase }, index) => {
-          const seconds = getPhaseSecondsForRound(protocol, phase, 0, customDurations)
-          return (
-            <span
-              key={`${phase}-label-${index}`}
-              className="truncate text-[10px] text-bw-tertiary"
-              style={{ width: `${(seconds / cycleSeconds) * 100}%` }}
-            >
-              {PHASE_LABELS[phase]}
-            </span>
-          )
-        })}
       </div>
     </div>
   )

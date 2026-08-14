@@ -16,7 +16,7 @@ import { buildSessionPath } from '../session/urlParams'
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="border-t border-bw-border pt-5">
-      <h2 className="text-sm font-semibold text-bw">{title}</h2>
+      <h2 className="text-sm font-medium text-bw">{title}</h2>
       <div className="mt-3">{children}</div>
     </section>
   )
@@ -41,7 +41,7 @@ export function ProgressPage() {
   if (sessions.length === 0) {
     return (
       <div className="flex flex-col items-start gap-4 pt-10">
-        <h1 className="text-2xl font-semibold tracking-tight text-bw">Progress</h1>
+        <h1 className="bf-display text-3xl tracking-tight text-bw">Progress</h1>
         <p className="text-sm text-bw-secondary">No sessions yet.</p>
         <p className="max-w-sm text-sm leading-relaxed text-bw-secondary">
           Complete your first session and your practice, streaks, and holds
@@ -62,7 +62,7 @@ export function ProgressPage() {
   return (
     <div className="space-y-6 pb-8">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-bw">Progress</h1>
+        <h1 className="bf-display text-3xl tracking-tight text-bw">Progress</h1>
 
         {/* This week: sentence-first, not a stat-card wall. */}
         <p className="mt-4 max-w-lg text-lg leading-relaxed tracking-tight text-bw">

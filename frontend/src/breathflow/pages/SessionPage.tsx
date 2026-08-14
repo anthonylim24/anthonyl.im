@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
-  BookOpen,
   Minus,
   Pause,
   Play,
@@ -45,7 +44,7 @@ import { CadenceEditor } from '../components/CadenceEditor'
 import { LiveAnnouncer } from '../components/LiveAnnouncer'
 import { MoodPicker } from '../components/MoodPicker'
 import { OrbVisualization } from '../components/OrbVisualization'
-import { PebbleVisualization } from '../components/PebbleVisualization'
+import { TideVisualization } from '../components/TideVisualization'
 import { PhaseStrip } from '../components/PhaseStrip'
 import { SafetyChecklist } from '../components/SafetyChecklist'
 import { SessionSummary } from '../components/SessionSummary'
@@ -363,10 +362,10 @@ function SessionSetup({
 
   return (
     <div className="pb-8">
-      <h1 className="text-2xl font-semibold tracking-tight text-bw">Breathe</h1>
+      <h1 className="bf-display text-3xl tracking-tight text-bw">Breathe</h1>
 
       {/* Technique switch */}
-      <div className="mt-4 grid grid-cols-2 gap-1.5 sm:grid-cols-3" role="group" aria-label="Technique">
+      <div className="mt-5 grid grid-cols-2 gap-x-3 gap-y-1 sm:grid-cols-3" role="group" aria-label="Technique">
         {PROTOCOLS.map((entry) => {
           const selected = entry.id === protocol.id
           return (
@@ -376,11 +375,11 @@ function SessionSetup({
               aria-pressed={selected}
               onClick={() => onUpdate({ techniqueId: entry.id })}
               className={[
-                'min-h-11 rounded-lg border px-3 py-2 text-left text-sm transition-colors duration-150 active:scale-[0.99]',
+                'min-h-11 border-l-2 px-3 py-2 text-left text-sm transition-colors duration-150 active:scale-[0.99]',
                 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent',
                 selected
-                  ? 'border-bw-accent bg-bw-accent-subtle font-medium text-bw'
-                  : 'border-bw-border bg-bw-surface text-bw-secondary hover:bg-bw-hover',
+                  ? 'border-bw-accent font-medium text-bw'
+                  : 'border-transparent text-bw-secondary hover:text-bw',
               ].join(' ')}
             >
               <span className="block truncate">{entry.name}</span>
@@ -393,10 +392,10 @@ function SessionSetup({
         })}
       </div>
 
-      <div className="mt-6 rounded-2xl border border-bw-border bg-bw-surface p-4 sm:p-5">
+      <div className="mt-8 border-t border-bw-border pt-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold tracking-tight text-bw">{protocol.name}</h2>
+            <h2 className="bf-display text-xl tracking-tight text-bw">{protocol.name}</h2>
             <p className="mt-0.5 text-sm text-bw-secondary">{protocol.description}</p>
           </div>
           <p className="text-sm tabular-nums text-bw-secondary">{formatDuration(planned)}</p>
@@ -454,10 +453,7 @@ function SessionSetup({
         {/* Science */}
         <details className="group border-t border-bw-border-subtle pt-2">
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-sm text-bw [&::-webkit-details-marker]:hidden">
-            <span className="flex items-center gap-2">
-              <BookOpen size={15} strokeWidth={1.75} aria-hidden="true" className="text-bw-tertiary" />
-              Why it works
-            </span>
+            <span>Why it works</span>
             <span className="text-xs capitalize text-bw-tertiary group-open:hidden">
               {protocol.evidenceLevel} evidence
             </span>
@@ -504,14 +500,14 @@ function SessionSetup({
       )}
 
       {blockedByViewport && (
-        <div role="alert" className="mt-6 rounded-2xl border border-bw-destructive-border bg-bw-destructive-subtle p-4">
+        <div role="alert" className="mt-6 border-l-2 border-bw-destructive bg-bw-destructive-subtle px-4 py-3">
           <p className="text-sm font-medium text-bw">Not available here</p>
           <p className="mt-1 text-sm leading-relaxed text-bw-secondary">{CONSTRAINED_VIEWPORT_MESSAGE}</p>
         </div>
       )}
 
       {blockedByRecovery && !blockedByViewport && (
-        <div role="status" className="mt-6 rounded-2xl border border-bw-border bg-bw-surface p-4">
+        <div role="status" className="mt-6 border-l-2 border-bw-accent pl-4">
           <p className="text-sm font-medium text-bw">Recovery in progress</p>
           <p className="mt-1 text-sm tabular-nums text-bw-secondary">
             Breathe easy for {recoveryRemaining}s before the next intense session.
@@ -528,7 +524,6 @@ function SessionSetup({
           disabled={startDisabled}
           onClick={onStart}
         >
-          <Play size={16} strokeWidth={1.75} aria-hidden="true" />
           Start
         </button>
       </div>
@@ -613,7 +608,7 @@ function ActiveSession({
 
       {/* Round counter */}
       <div className="pt-[max(1.5rem,env(safe-area-inset-top))] text-center">
-        <p className="text-sm tabular-nums text-bw-secondary">
+        <p className="bf-display text-sm text-bw-secondary">
           Round {engine.roundNumber} of {engine.totalRounds}
         </p>
         {advanced && (
@@ -632,7 +627,7 @@ function ActiveSession({
           className="cursor-default rounded-full focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-bw-accent"
         >
           {altVisual && !reducedMotion ? (
-            <PebbleVisualization
+            <TideVisualization
               phases={protocol.phases}
               phaseIndex={phaseIndex}
               phaseSeconds={engine.phaseSeconds}
@@ -664,10 +659,10 @@ function ActiveSession({
         </button>
 
         <div className="text-center">
-          <p className="text-2xl font-semibold tracking-tight text-bw">
+          <p className="text-xl font-medium tracking-tight text-bw">
             {paused ? 'Paused' : PHASE_LABELS[engine.phase]}
           </p>
-          <p className="mt-1 text-4xl font-semibold tabular-nums tracking-tight text-bw" aria-hidden="true">
+          <p className="bf-display mt-2 text-5xl tracking-tight text-bw" aria-hidden="true">
             {formatClock(engine.secondsLeftInPhase)}
           </p>
           <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-bw-secondary">{cue}</p>

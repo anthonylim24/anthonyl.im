@@ -26,7 +26,7 @@ export interface PhaseScaleTarget {
 }
 
 /**
- * The scale target driving the orb / companion visualizations. Motion
+ * The scale target driving the instrument / tide visualizations. Motion
  * animates from the currently rendered value, so resume-from-pause and
  * mid-phase mounting need no special casing: animate to `target` over
  * `duration` seconds while running, or settle on `frozen` when paused.

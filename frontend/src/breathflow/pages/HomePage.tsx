@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Play, ShieldCheck } from 'lucide-react'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore } from '@/stores/historyStore'
 import { PhaseStrip } from '../components/PhaseStrip'
@@ -52,7 +51,6 @@ export function HomePage() {
   const [windowId, setWindowId] = useState<LengthWindowId>('standard')
   const windowSeconds = LENGTH_WINDOWS.find((w) => w.id === windowId)?.seconds ?? 300
 
-  // getStreak() returns a primitive, so the selector subscription is stable.
   const streak = useHistoryStore((state) => state.getStreak())
   const isFirstRun = sessions.length === 0
   const dailyGoalMet = dailySessionCount > 0
@@ -73,18 +71,17 @@ export function HomePage() {
   const showRecoveryNotice = goal === 'perform' && recovery.isActive
 
   return (
-    <div className="space-y-9 pb-8">
-      {/* Greeting */}
-      <div className="pt-2">
-        <h1 className="text-3xl font-semibold tracking-tight text-bw sm:text-4xl">
+    <div className="space-y-12 pb-8">
+      <div className="pt-4">
+        <h1 className="bf-display text-[clamp(2.25rem,6vw,3.5rem)] leading-[1.05] tracking-tight text-balance text-bw">
           {getGreeting(hour)}.
         </h1>
         {isFirstRun ? (
-          <p className="mt-2 max-w-sm text-sm leading-relaxed text-bw-secondary">
+          <p className="mt-4 max-w-sm text-sm leading-relaxed text-bw-secondary">
             One guided breathing session is enough to feel the shift. About 5 minutes.
           </p>
         ) : (
-          <p className="mt-2 text-sm text-bw-secondary">
+          <p className="mt-4 text-sm text-bw-secondary">
             {streak > 0
               ? `${streak}-day streak. ${dailyGoalMet ? 'Practiced today.' : 'A session today keeps it going.'}`
               : 'A five-minute session starts a new streak.'}
@@ -92,9 +89,8 @@ export function HomePage() {
         )}
       </div>
 
-      {/* Tuner */}
       <div className="space-y-3">
-        <div role="group" aria-label="Goal" className="flex flex-wrap gap-1.5">
+        <div role="group" aria-label="Goal" className="flex flex-wrap gap-x-4 gap-y-1">
           {GOALS.map((option) => (
             <TunerChip
               key={option.id}
@@ -104,7 +100,7 @@ export function HomePage() {
             />
           ))}
         </div>
-        <div role="group" aria-label="Session length" className="flex flex-wrap gap-1.5">
+        <div role="group" aria-label="Session length" className="flex flex-wrap gap-x-4 gap-y-1">
           {LENGTH_WINDOWS.map((option) => (
             <TunerChip
               key={option.id}
@@ -117,7 +113,7 @@ export function HomePage() {
       </div>
 
       {showRecoveryNotice && (
-        <div role="status" className="rounded-2xl border border-bw-border bg-bw-surface p-4">
+        <div role="status" className="border-l-2 border-bw-accent pl-4">
           <p className="text-sm font-medium text-bw">Recovery in progress</p>
           <p className="mt-1 text-sm tabular-nums text-bw-secondary">
             Breathe easy for {recovery.remainingSeconds}s. Intense protocols are held back until then.
@@ -125,26 +121,27 @@ export function HomePage() {
         </div>
       )}
 
-      {/* Recommended */}
-      <RecommendedCard ranked={recommendation.top} reducedMotion={reducedMotion} primary />
-      <div className="grid gap-2 sm:grid-cols-2">
-        {recommendation.alternatives.map((alt) => (
-          <AlternativeRow key={alt.protocol.id} ranked={alt} />
-        ))}
-      </div>
+      <RecommendedBlock ranked={recommendation.top} reducedMotion={reducedMotion} />
 
-      {/* Recent */}
+      <ol className="space-y-2">
+        {recommendation.alternatives.map((alt, index) => (
+          <li key={alt.protocol.id}>
+            <AlternativeRow ranked={alt} index={index + 2} />
+          </li>
+        ))}
+      </ol>
+
       {recent.length > 0 && (
-        <section className="border-t border-bw-border pt-5">
-          <h2 className="text-sm font-semibold text-bw">Pick up where you left off</h2>
-          <ul className="mt-2 divide-y divide-bw-border-subtle">
+        <section className="border-t border-bw-border pt-6">
+          <h2 className="text-sm font-medium text-bw">Pick up where you left off</h2>
+          <ul className="mt-3 space-y-1">
             {recent.map((session) => {
               const protocol = getProtocol(session.techniqueId)
               return (
                 <li key={session.id}>
                   <Link
                     to={buildSessionPath(buildRepeatParams(session))}
-                    className="flex min-h-11 items-center justify-between gap-3 rounded-lg py-2 transition-colors duration-150 hover:bg-bw-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent"
+                    className="flex min-h-11 items-center justify-between gap-3 py-2 transition-colors duration-150 hover:text-bw-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent"
                   >
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-medium text-bw">
@@ -168,39 +165,35 @@ export function HomePage() {
         </section>
       )}
 
-      {/* Catalog */}
-      <section className="border-t border-bw-border pt-5">
-        <h2 className="text-lg font-semibold tracking-tight text-bw">Every technique</h2>
-        <div className="mt-4 space-y-7">
+      <section className="border-t border-bw-border pt-6">
+        <h2 className="text-sm font-medium text-bw">Every technique</h2>
+        <div className="mt-6 space-y-8">
           {CATEGORY_ORDER.map(({ id, label, blurb }) => {
             const protocols = PROTOCOLS.filter((protocol) => protocol.category === id)
             if (protocols.length === 0) return null
             return (
               <div key={id}>
-                <div className="flex items-baseline gap-3">
-                  <h3 className="text-sm font-semibold text-bw">{label}</h3>
-                  <p className="text-xs text-bw-tertiary">{blurb}</p>
-                </div>
-                <ul className="mt-2 space-y-1.5">
+                <p className="text-sm text-bw">
+                  {label}
+                  <span className="ml-2 text-xs text-bw-tertiary">{blurb}</span>
+                </p>
+                <ul className="mt-2">
                   {protocols.map((protocol) => (
                     <li key={protocol.id}>
                       <Link
                         to={buildSessionPath({ techniqueId: protocol.id, rounds: protocol.defaultRounds })}
-                        className="block rounded-2xl border border-bw-border bg-bw-surface p-3.5 transition-colors duration-150 hover:bg-bw-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent"
+                        className="block py-2.5 transition-colors duration-150 hover:text-bw-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent"
                       >
-                        <span className="flex items-center justify-between gap-3">
+                        <span className="flex items-baseline justify-between gap-3">
                           <span className="text-sm font-medium text-bw">{protocol.name}</span>
                           {isAdvancedProtocol(protocol) && (
-                            <span className="flex shrink-0 items-center gap-1 text-[11px] text-bw-secondary">
-                              <ShieldCheck size={13} strokeWidth={1.75} aria-hidden="true" />
-                              Safety check
-                            </span>
+                            <span className="shrink-0 text-[11px] text-bw-secondary">Safety check</span>
                           )}
                         </span>
-                        <span className="mt-0.5 block text-xs leading-relaxed text-bw-secondary">
+                        <span className="mt-0.5 block max-w-md text-xs leading-relaxed text-bw-secondary">
                           {protocol.description}
                         </span>
-                        <span className="mt-1.5 block text-[11px] capitalize text-bw-tertiary">
+                        <span className="mt-1 block text-[11px] capitalize text-bw-tertiary">
                           {protocol.evidenceLevel} evidence · {protocol.intensity} ·{' '}
                           {protocol.breathsPerMinute} breaths/min
                         </span>
@@ -224,11 +217,11 @@ function TunerChip({ active, onClick, label }: { active: boolean; onClick: () =>
       aria-pressed={active}
       onClick={onClick}
       className={[
-        'min-h-11 rounded-lg border px-3.5 text-sm transition-colors duration-150 active:scale-[0.98]',
+        'min-h-11 text-sm transition-colors duration-150 active:scale-[0.98]',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent',
         active
-          ? 'border-bw-accent bg-bw-accent text-bw-accent-foreground font-medium'
-          : 'border-bw-border bg-bw-surface text-bw-secondary hover:bg-bw-hover',
+          ? 'font-medium text-bw underline decoration-bw-accent decoration-1 underline-offset-8'
+          : 'text-bw-secondary hover:text-bw',
       ].join(' ')}
     >
       {label}
@@ -236,59 +229,54 @@ function TunerChip({ active, onClick, label }: { active: boolean; onClick: () =>
   )
 }
 
-function RecommendedCard({
+function RecommendedBlock({
   ranked,
   reducedMotion,
-  primary,
 }: {
   ranked: RankedProtocol
   reducedMotion: boolean
-  primary?: boolean
 }) {
   const { protocol, rounds, plannedSeconds } = ranked
   const advanced = isAdvancedProtocol(protocol)
   const startPath = `${buildSessionPath({ techniqueId: protocol.id, rounds })}${advanced ? '' : '&autostart=1'}`
 
   return (
-    <section
-      aria-label="Recommended session"
-      className="rounded-2xl border border-bw-border bg-bw-surface p-5 sm:p-6"
-    >
-      <p className="text-xs font-medium text-bw-secondary">Recommended now</p>
+    <section aria-label="Recommended session" className="sm:pl-8">
+      <p className="text-xs text-bw-secondary">Recommended now</p>
       <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-xl font-semibold tracking-tight text-bw sm:text-2xl">{protocol.name}</h2>
-        <p className="text-sm tabular-nums text-bw-secondary">
+        <h2 className="bf-display text-2xl tracking-tight text-balance text-bw sm:text-3xl">
+          {protocol.name}
+        </h2>
+        <p className="bf-display text-sm text-bw-secondary">
           {formatDuration(plannedSeconds)} · {rounds} rounds
         </p>
       </div>
-      <p className="mt-1 max-w-md text-sm leading-relaxed text-bw-secondary">{protocol.purpose}</p>
+      <p className="mt-3 max-w-md text-sm leading-relaxed text-bw-secondary">{protocol.purpose}</p>
       <p className="mt-1.5 text-xs capitalize text-bw-tertiary">
         {protocol.evidenceLevel} evidence · {protocol.intensity}
         {advanced && ' · safety check required'}
       </p>
 
-      <PhaseStrip protocol={protocol} animated={!reducedMotion} className="mt-4" />
+      <PhaseStrip protocol={protocol} animated={!reducedMotion} className="mt-5" />
 
-      {primary && (
-        <Link to={startPath} className={`${btnPrimary} mt-5 w-full sm:w-auto sm:min-w-44`}>
-          <Play size={16} strokeWidth={1.75} aria-hidden="true" />
-          Begin
-        </Link>
-      )}
+      <Link to={startPath} className={`${btnPrimary} mt-6 w-full sm:w-auto sm:min-w-44`}>
+        Begin
+      </Link>
     </section>
   )
 }
 
-function AlternativeRow({ ranked }: { ranked: RankedProtocol }) {
+function AlternativeRow({ ranked, index }: { ranked: RankedProtocol; index: number }) {
   const { protocol, rounds, plannedSeconds } = ranked
   return (
     <Link
       to={buildSessionPath({ techniqueId: protocol.id, rounds })}
-      className="flex min-h-11 items-center justify-between gap-3 rounded-2xl border border-bw-border bg-bw-surface px-4 py-3 transition-colors duration-150 hover:bg-bw-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent"
+      className="flex min-h-11 items-center justify-between gap-3 py-2 transition-colors duration-150 hover:text-bw-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent"
     >
       <span className="min-w-0">
-        <span className="block truncate text-sm font-medium text-bw">{protocol.name}</span>
-        <span className="block text-xs tabular-nums text-bw-secondary">
+        <span className="bf-display mr-3 text-xs text-bw-tertiary">{String(index).padStart(2, '0')}</span>
+        <span className="text-sm font-medium text-bw">{protocol.name}</span>
+        <span className="ml-2 text-xs tabular-nums text-bw-secondary">
           {formatDuration(plannedSeconds)} · {rounds} rounds
         </span>
       </span>

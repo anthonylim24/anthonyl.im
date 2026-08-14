@@ -16,7 +16,7 @@ export function SafetyChecklist({ protocol, checkedItems, onToggle }: SafetyChec
   if (checklist.length === 0) return null
 
   return (
-    <section aria-label="Safety check" className="rounded-2xl border border-bw-border bg-bw-surface p-4">
+    <section aria-label="Safety check" className="border-l-2 border-bw-accent pl-4">
       <h3 className="text-sm font-semibold text-bw">Safety check</h3>
       {protocol.safetyNotice && (
         <p className="mt-1.5 text-sm leading-relaxed text-bw-secondary">{protocol.safetyNotice}</p>
