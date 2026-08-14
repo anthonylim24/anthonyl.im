@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import indexCss from '../../index.css?raw'
-import appSource from '../../App.tsx?raw'
+import chatAppSource from '../../chat/ChatApp.tsx?raw'
+import leafSource from '../../chat/LeafAmbience.tsx?raw'
 
 describe('mobile overflow guardrails', () => {
   it('keeps the document free of nested scrollports and fixed containing blocks on #root', () => {
@@ -10,14 +11,14 @@ describe('mobile overflow guardrails', () => {
   })
 
   it('covers the chatbot leaves video with a viewport wrapper, not intrinsic video size', () => {
-    expect(indexCss).toMatch(/\.leaves-overlay \{[\s\S]*?contain:\s*layout paint/)
-    expect(indexCss).toMatch(/\.leaves-overlay \{[\s\S]*?inset:\s*0/)
-    expect(indexCss).not.toMatch(/\.leaves-overlay \{[\s\S]*?width:\s*100vw/)
-    expect(indexCss).not.toMatch(/\.leaves-overlay \{[\s\S]*?height:\s*100vh/)
-    expect(indexCss).toMatch(/\.leaves-overlay-media \{[\s\S]*?object-fit:\s*cover/)
-    expect(appSource).toContain('className="leaves-overlay"')
-    expect(appSource).toContain('className="leaves-overlay-media"')
-    expect(appSource).not.toMatch(/<video[^>]*className="leaves-overlay"/)
+    expect(indexCss).toMatch(/\.chat-ambience \{[\s\S]*?contain:\s*layout paint/)
+    expect(indexCss).toMatch(/\.chat-ambience \{[\s\S]*?inset:\s*0/)
+    expect(indexCss).not.toMatch(/\.chat-ambience \{[\s\S]*?width:\s*100vw/)
+    expect(indexCss).not.toMatch(/\.chat-ambience \{[\s\S]*?height:\s*100vh/)
+    expect(indexCss).toMatch(/\.chat-ambience-media \{[\s\S]*?object-fit:\s*cover/)
+    expect(leafSource).toContain('className="chat-ambience"')
+    expect(leafSource).toContain('className="chat-ambience-media"')
+    expect(leafSource).not.toMatch(/<video[^>]*className="chat-ambience"/)
   })
 
   it('lets the document grow instead of pinning html/body/#root to 100%', () => {
@@ -25,16 +26,18 @@ describe('mobile overflow guardrails', () => {
     expect(indexCss).toMatch(/#root \{[\s\S]*?height:\s*auto/)
   })
 
-  it('keeps the chatbot viewport pin on App rootStyle, not on #root', () => {
-    expect(appSource).toMatch(/const rootStyle = \{[\s\S]*?height:\s*"100dvh"[\s\S]*?overflow:\s*"hidden"/)
-    expect(appSource).toMatch(/minHeight:\s*"100svh"/)
+  it('keeps the chatbot viewport pin on the app shell, not on #root', () => {
+    expect(chatAppSource).toContain('min-h-[100dvh]')
+    expect(chatAppSource).toMatch(/height:\s*'100dvh'/)
+    expect(chatAppSource).toContain('overflow-hidden')
+    expect(chatAppSource).not.toContain('h-screen')
     const rootBlock = indexCss.match(/#root \{[^}]+\}/)?.[0] ?? ''
     expect(rootBlock).toContain('height: auto')
     expect(rootBlock).not.toContain('overflow')
   })
 
   it('pauses the looping leaves video when reduced motion is preferred', () => {
-    expect(appSource).toContain('prefers-reduced-motion: reduce')
-    expect(appSource).toMatch(/media\.matches[\s\S]*v\.pause\(\)/)
+    expect(leafSource).toContain('prefers-reduced-motion: reduce')
+    expect(leafSource).toMatch(/media\.matches[\s\S]*video\.pause\(\)/)
   })
 })

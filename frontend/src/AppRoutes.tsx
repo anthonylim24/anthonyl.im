@@ -1,6 +1,6 @@
 import { lazy, Suspense, type ReactNode } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
-import App from './App'
+import { ChatApp } from './chat/ChatApp'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 import { routerBasename } from './lib/routerBasename'
 
@@ -142,7 +142,7 @@ export function AppRoutes() {
           path="/"
           element={
             <Guarded app="chatbot" fallback={<ChatbotFallback />}>
-              <App />
+              <ChatApp />
             </Guarded>
           }
         />
@@ -150,7 +150,7 @@ export function AppRoutes() {
           path="/chatbot"
           element={
             <Guarded app="chatbot" fallback={<ChatbotFallback />}>
-              <App />
+              <ChatApp />
             </Guarded>
           }
         />
