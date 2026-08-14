@@ -162,11 +162,17 @@ export function EnhanceButton({
     update()
     const raf = requestAnimationFrame(update)
     window.addEventListener("resize", update)
-    window.addEventListener("scroll", update, true)
+    // Scroll listeners are banned for scroll-driven effects because they run on
+    // every frame of every scroll. This one is different in kind: it exists
+    // only while an anchored panel is open, it repositions that panel against
+    // its trigger, and it is passive so it cannot block scrolling. The panel is
+    // fixed-position (it has to escape the editor's overflow), so there is no
+    // pure-CSS way to keep it attached.
+    window.addEventListener("scroll", update, { capture: true, passive: true })
     return () => {
       cancelAnimationFrame(raf)
       window.removeEventListener("resize", update)
-      window.removeEventListener("scroll", update, true)
+      window.removeEventListener("scroll", update, { capture: true })
     }
   }, [open, prompt])
 

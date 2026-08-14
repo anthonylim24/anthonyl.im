@@ -217,7 +217,7 @@ export function TripDayPage() {
         {day.notes ? (
           <motion.div
             {...fadeUp(reduce, 3)}
-            className={`mt-5 max-w-[60ch] whitespace-pre-line text-base leading-relaxed ${wrapAnywhereClass}`}
+            className={`mt-5 max-w-[60ch] whitespace-pre-line text-base leading-[1.8] ${wrapAnywhereClass}`}
           >
             <LinkifiedText>{day.notes}</LinkifiedText>
           </motion.div>
@@ -298,7 +298,7 @@ export function TripDayPage() {
                         {callout.icon}
                       </span>
                     ) : null}
-                    <p className={`min-w-0 flex-1 ${wrapAnywhereClass}`}>
+                    <p className={`min-w-0 flex-1 leading-[1.8] ${wrapAnywhereClass}`}>
                       <LinkifiedText>{callout.body}</LinkifiedText>
                     </p>
                   </div>
@@ -374,7 +374,7 @@ function SectionBlock({ section, flash }: { section: ItineraryItem; flash: boole
         {section.title}
       </h3>
       {lines.length > 0 ? (
-        <ul className="mt-3 space-y-2 text-sm leading-relaxed">
+        <ul className="mt-3 space-y-2 text-sm leading-[1.8]">
           {lines.map((line, li) => (
             <li key={li} className={wrapAnywhereClass}>
               <LinkifiedText>{line.replace(/^-\s*/, "")}</LinkifiedText>
@@ -410,7 +410,7 @@ function ReservationCard({ item, flash }: { item: ItineraryItem; flash: boolean 
             {item.reservation ? <ReservationChip status={item.reservation.status} /> : null}
           </div>
           {item.notes ? (
-            <p className={`mt-1 text-sm ${wrapAnywhereClass}`}>
+            <p className={`mt-1 text-sm leading-[1.8] ${wrapAnywhereClass}`}>
               <LinkifiedText>{item.notes}</LinkifiedText>
             </p>
           ) : null}
@@ -460,7 +460,7 @@ function PlaceOrNote({ item, flash }: { item: ItineraryItem; flash: boolean }) {
           {item.notes ? (
             // The note is its own sentence; running it into the title with a
             // comma reads as one long run-on once the note is a full line.
-            <p className={`mt-0.5 text-sm leading-relaxed ${mutedInkClass}`}>
+            <p className={`mt-0.5 text-sm leading-[1.8] ${mutedInkClass}`}>
               <LinkifiedText>{item.notes}</LinkifiedText>
             </p>
           ) : null}

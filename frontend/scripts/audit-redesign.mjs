@@ -94,11 +94,22 @@ try {
           if (rect.width === 0 || rect.height === 0) continue
           const style = getComputedStyle(el)
           if (style.visibility === "hidden" || style.display === "none") continue
+          // Skip links and other sr-only affordances measure 1px until focused.
+          if (rect.width <= 1 || rect.height <= 1) continue
           // An element can buy its target through a padded ::after overlay.
           const after = getComputedStyle(el, "::after")
           const grown = after.content !== "none" && after.position === "absolute"
           const h = grown ? rect.height + 12 : rect.height
           const w = grown ? rect.width + 12 : rect.width
+          // WCAG 2.5.8 exempts a target inside a sentence and holds it to 24px.
+          // The entity chips inside itinerary prose are exactly that case.
+          const inline = style.display.startsWith("inline")
+          if (inline) {
+            if (h + 0.5 < 24 || w + 0.5 < 24) {
+              bad.push(`inline ${el.tagName.toLowerCase()} ${Math.round(w)}x${Math.round(h)}`)
+            }
+            continue
+          }
           if (h + 0.5 < floor || w + 0.5 < 24) {
             bad.push(`${el.tagName.toLowerCase()}.${(el.className || "").toString().slice(0, 40)} ${Math.round(w)}x${Math.round(h)}`)
           }
