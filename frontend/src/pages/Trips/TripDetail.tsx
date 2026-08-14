@@ -204,10 +204,10 @@ export function TripDetail() {
       clearTimeout(saveTimer.current)
       saveTimer.current = null
     }
-    // Prefer the live document when a keystroke is in flight. Keep the
-    // pending snapshot until persistTrip succeeds so a failed PATCH cannot
-    // drop the edit or let enhance/apply overwrite it.
-    const latest = editedRef.current ? tripRef.current : pendingPatchRef.current
+    // Always persist the live document. Dirty flags can be false after a
+    // remount or a completed debounce while the input still shows the edit;
+    // enhance/apply must not run against a stale server copy.
+    const latest = tripRef.current ?? pendingPatchRef.current
     if (latest) {
       pendingPatchRef.current = latest
       try {
