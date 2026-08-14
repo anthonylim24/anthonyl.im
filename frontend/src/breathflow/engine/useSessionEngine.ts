@@ -14,6 +14,8 @@ import {
 export interface SessionEngineHandle {
   status: EngineState['status']
   phase: BreathPhase
+  /** 0-based index into protocol.phases. */
+  phaseIndex: number
   phaseSeconds: number
   secondsLeftInPhase: number
   /** 1-based for display ("Round n of N"). */
@@ -103,6 +105,7 @@ export function useSessionEngine(
   return useMemo(() => ({
     status: state.status,
     phase: getCurrentPhase(config, state),
+    phaseIndex: state.phaseIndex,
     phaseSeconds: getCurrentPhaseSeconds(config, state),
     secondsLeftInPhase: state.secondsLeftInPhase,
     roundNumber: state.roundIndex + 1,

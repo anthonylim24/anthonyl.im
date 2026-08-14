@@ -8,10 +8,17 @@ export function isDocumentDark(): boolean {
   )
 }
 
+export interface ThemeColorOverrides {
+  light: string
+  dark: string
+}
+
 /** Paint the browser chrome to match the active canvas (light or dark). */
-export function syncThemeColor(mode?: 'light' | 'dark'): void {
+export function syncThemeColor(mode?: 'light' | 'dark', overrides?: ThemeColorOverrides): void {
   const dark = mode ? mode === 'dark' : isDocumentDark()
-  const color = dark ? THEME_COLOR_DARK : THEME_COLOR_LIGHT
+  const color = dark
+    ? (overrides?.dark ?? THEME_COLOR_DARK)
+    : (overrides?.light ?? THEME_COLOR_LIGHT)
   const tags = [...document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')]
   const [primary, ...extras] = tags
   for (const extra of extras) extra.remove()
