@@ -21,10 +21,8 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "ignoreDeprecations": "6.0",
 
-    /* Shadcn */
-    "baseUrl": ".",
+    /* Shadcn — paths are relative to this file (TS 7 dropped baseUrl) */
     "paths": {
       "@/*": [
         "./src/*"

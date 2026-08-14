@@ -18,16 +18,14 @@ need: Playwright + Chromium so end-to-end tests can run.
 
 **Setup must complete before any build/verify command.** The recent cloud
 failure was a `bun run build` invocation that ran before frontend deps were
-installed; `tsc -b` then resolved the root's TypeScript 5.x and rejected
-`ignoreDeprecations: "6.0"`.
+installed; `tsc -b` then resolved an older TypeScript from the root tree.
 
 If you see any of these symptoms, run `bash .claude/cloud/setup.sh` first:
 
-- `error TS5103: Invalid value for '--ignoreDeprecations'`
 - `error TS2307: Cannot find module 'vite'`
 - `error TS2307: Cannot find module '@vitejs/plugin-react'`
 - `[codex-deps] missing frontend dependency: …`
-- `[codex-deps] ERROR: frontend TypeScript reports "Version 5.x" but ~6.0 is expected`
+- `[codex-deps] ERROR: frontend TypeScript reports "Version 5.x" but ~7.0 is expected`
 
 ## Why mirror, not fork
 
@@ -52,7 +50,7 @@ stack. Not part of every loop.
    partial, `ensure_dependencies` re-runs `bun install` in both roots and
    exits with an actionable error if that still doesn't recover.
 2. **Frontend TypeScript pre-flight** — `bunx --bun tsc --version` must
-   report `Version 6.x` so `tsc -b` matches the build's expectations.
+   report `Version 7.x` so `tsc -b` matches the build's expectations.
 3. **Server tests** (`bun test --bail server/src`) — includes
    `appLoad.test.ts`, a module-load smoke test that imports `server/app.ts`
    and evaluates the full route/worker dependency graph. This catches

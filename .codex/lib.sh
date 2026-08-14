@@ -9,7 +9,7 @@ export npm_config_registry="$PUBLIC_NPM_REGISTRY"
 # Frontend-required dev tooling. Keeping this list explicit (rather than
 # just trusting `node_modules` existence) catches the recent cloud failure
 # mode where root-level `bun install` ran but the frontend tree was empty,
-# so `tsc -b` resolved the root's TS 5.x and choked on `ignoreDeprecations`.
+# so `tsc -b` resolved an older TypeScript from the root tree.
 FRONTEND_REQUIRED_PACKAGES=(react react-dom vite typescript '@vitejs/plugin-react')
 ROOT_REQUIRED_PACKAGES=(hono zod openai)
 
@@ -130,12 +130,11 @@ EOF
   return 1
 }
 
-# Verifies the frontend's TypeScript resolves to the pinned ~6.0 line so
+# Verifies the frontend's TypeScript resolves to the pinned ~7.0 line so
 # `tsc -b` matches what the build expects. This catches the cloud-sandbox
 # failure mode where only the root tree was installed and `bunx tsc`
-# silently fell back to the root's TS 5.x, which rejects
-# `ignoreDeprecations: "6.0"` in tsconfig.app.json and can't see the
-# vite / plugin-react types pinned by frontend/package.json.
+# silently fell back to an older TypeScript from the root tree and can't
+# see the vite / plugin-react types pinned by frontend/package.json.
 verify_frontend_typescript() {
   local ts_version
   if ! ts_version="$(cd "$ROOT_DIR/frontend" && bunx --bun tsc --version 2>/dev/null)"; then
@@ -147,13 +146,13 @@ EOF
     return 1
   fi
 
-  if [[ "$ts_version" =~ ^Version[[:space:]]6\. ]]; then
+  if [[ "$ts_version" =~ ^Version[[:space:]]7\. ]]; then
     echo "[codex-deps] frontend ${ts_version}"
     return 0
   fi
 
   cat >&2 <<EOF
-[codex-deps] ERROR: frontend TypeScript reports "${ts_version}" but ~6.0 is expected.
+[codex-deps] ERROR: frontend TypeScript reports "${ts_version}" but ~7.0 is expected.
 [codex-deps] This usually means frontend/node_modules wasn't installed and tsc is
 [codex-deps] resolving from the root tree. Fix: bash .codex/setup.sh
 EOF

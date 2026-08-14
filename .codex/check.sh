@@ -38,7 +38,7 @@ ensure_dependencies
 # Pre-flight: confirm the frontend's pinned TypeScript is what `tsc -b`
 # will actually run. Catches the cloud failure mode where root install
 # happened but frontend install didn't, so `tsc` silently fell back to
-# the root's TS 5.x and exploded on `ignoreDeprecations: "6.0"`.
+# an older TypeScript from the root tree.
 verify_frontend_typescript
 
 cd "$ROOT_DIR"
