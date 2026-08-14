@@ -1146,7 +1146,7 @@ html.dark .trips [data-trip-accent="violet"] {
   .trips .trip-chat-panel-expanded {
     top: 1rem !important;
     right: 1rem !important;
-    bottom: 1rem !important;
+    bottom: 1rem;
     left: auto !important;
     width: min(36rem, calc(100vw - 2rem)) !important;
     height: auto !important;

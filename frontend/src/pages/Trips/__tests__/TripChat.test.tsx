@@ -146,4 +146,38 @@ describe("TripChat expand", () => {
     const dialog = await openChat()
     expect(dialog).toHaveAttribute("data-expanded", "false")
   })
+
+  it("locks page scroll when an open compact chat crosses to mobile", async () => {
+    let matches = true
+    let onChange: (() => void) | undefined
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: (query: string) => ({
+        get matches() {
+          return query.includes("768") ? matches : !matches
+        },
+        media: query,
+        addEventListener: (_event: string, cb: () => void) => {
+          onChange = cb
+        },
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+        dispatchEvent: () => false,
+        onchange: null,
+      }),
+    })
+
+    renderChat()
+    await openChat()
+    await waitFor(() => {
+      expect(document.body.style.overflow).not.toBe("hidden")
+    })
+
+    matches = false
+    onChange?.()
+    await waitFor(() => {
+      expect(document.body.style.overflow).toBe("hidden")
+    })
+  })
 })

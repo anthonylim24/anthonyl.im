@@ -197,14 +197,14 @@ export function TripChat() {
 
   useEffect(() => {
     if (!open) return
-    const lockPage = expanded || window.matchMedia("(max-width: 767px)").matches
+    const lockPage = expanded || !isDesktop
     if (!lockPage) return
     const prev = document.body.style.overflow
     document.body.style.overflow = "hidden"
     return () => {
       document.body.style.overflow = prev
     }
-  }, [open, expanded])
+  }, [open, expanded, isDesktop])
 
   useEffect(() => {
     const vv = window.visualViewport
