@@ -381,11 +381,6 @@ html:has(.chatbot-dark) {
 }
 .animate-slide-up { animation: slide-up-fade 0.6s var(--spring-smooth) forwards; }
 
-/* BoxVisualization — gentle pulse on the traveling light's halo. Echoes the
-   orb's breath. Skipped under prefers-reduced-motion (the class is only
-   applied to the inner group when motion is allowed, but we guard here too
-   for belt-and-suspenders). */
-
 .stagger-1 { animation-delay: 0.08s; }
 .stagger-2 { animation-delay: 0.16s; }
 .stagger-3 { animation-delay: 0.24s; }
@@ -458,7 +453,7 @@ html:has(.chatbot-dark) {
   }
 
   /* ── BreathFlow "Forest" tokens: deep green + bone. One accent, locked.
-     Radius rule: interactive controls 8px, cards 16px, orb surfaces circular. ── */
+     Radius rule: controls 6px, panels 8px max, instrument rings circular. ── */
   .breathwork {
     color-scheme: light;
     --background: 51 22% 92%;
@@ -480,7 +475,7 @@ html:has(.chatbot-dark) {
     --border: 130 8% 80%;
     --input: 130 8% 80%;
     --ring: 157 48% 26% / 0.32;
-    --radius: 0.5rem;
+    --radius: 0.375rem;
 
     /* Semantic bw tokens: bone neutrals + green-black ink */
     --bw-canvas: #EFEDE6;
@@ -585,15 +580,31 @@ html:has(.chatbot-dark) {
    CARD SYSTEM (simplified)
    ═══════════════════════════════════════════════════════ */
 
-/* ── Breathwork base — warm parchment + precise sans ── */
+/* ── BreathFlow base — Forest instrument: Geist body, Fragment Mono display ── */
 .breathwork {
   background-color: var(--bw-canvas, #EFEDE6);
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
   font-size: 15px;
-  line-height: 1.65;
+  line-height: 1.6;
 }
 .dark .breathwork {
   background-color: var(--bw-canvas, #101613);
+}
+.breathwork .bf-display {
+  font-family: "Fragment Mono", ui-monospace, monospace;
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
+}
+.bf-grain {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  opacity: 0.045;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 240 240' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='bfn'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.62' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.09  0 0 0 0 0.18  0 0 0 0 0.14  0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23bfn)'/%3E%3C/svg%3E");
+}
+.dark .bf-grain {
+  opacity: 0.06;
 }
 
 /* ═══════════════════════════════════════════════════════

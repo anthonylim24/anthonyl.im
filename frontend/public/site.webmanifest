@@ -7,8 +7,8 @@
   "display": "standalone",
   "orientation": "portrait-primary",
   "categories": ["health", "fitness", "lifestyle"],
-  "background_color": "#F5F2ED",
-  "theme_color": "#F5F2ED",
+  "background_color": "#EFEDE6",
+  "theme_color": "#EFEDE6",
   "icons": [
     {
       "src": "/icons/breathflow-192.png",
