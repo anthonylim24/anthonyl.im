@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { CheckCircle2, Loader2, Undo2, X } from "lucide-react"
 import { ACCENT } from "../theme"
-import { ENTER_SPRING, EXIT_FADE, focusRingClass, spinnerClass } from "../ui"
+import { ENTER_SPRING, EXIT_FADE, focusRingClass, spinnerClass, wrapAnywhereClass } from "../ui"
 
 export type SaveState = "saved" | "saving" | "dirty" | "error"
 
@@ -93,6 +93,35 @@ export interface PendingUndo {
 /** Wrapper id so the page can tell whether focus is still parked in the toast
  *  when the undo window closes. */
 export const UNDO_TOAST_ID = "trip-undo-toast"
+
+/** Outcome / error copy after enhance. Lives in the dock so it never
+ *  inserts a banner above the itinerary and jumps the viewport. */
+export function EditorNotice({ notice, onDismiss }: { notice: string | null; onDismiss: () => void }) {
+  const reduce = useReducedMotion()
+  return (
+    <div role="status" aria-live="polite">
+      <AnimatePresence>
+        {notice && (
+          <motion.div
+            key={notice}
+            {...dockMotion(!!reduce)}
+            className={`${pillClass} pointer-events-auto max-w-[min(24rem,calc(100vw-2.5rem))] items-start border-stone-300 bg-white/95 py-2.5 text-stone-700 dark:border-stone-700 dark:bg-stone-900/95 dark:text-stone-200`}
+          >
+            <span className={`min-w-0 text-left leading-snug ${wrapAnywhereClass}`}>{notice}</span>
+            <button
+              type="button"
+              onClick={onDismiss}
+              aria-label="Dismiss notice"
+              className={`-mr-1 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-stone-500 transition hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-100 ${focusRingClass}`}
+            >
+              <X className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
 
 /** Six-second reprieve after a delete — the editor's only undo affordance.
  *  Takes focus on appearing, because the delete button that had focus is the

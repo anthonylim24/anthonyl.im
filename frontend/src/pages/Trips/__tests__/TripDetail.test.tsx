@@ -217,6 +217,58 @@ describe("TripDetail enhance", () => {
     expect(screen.getByTestId("trip-itinerary").className).toMatch(/min-w-0/)
   })
 
+  it("keeps day editor chrome mounted while enhance runs", async () => {
+    const trip = makeTrip()
+    mockGetTrip.mockResolvedValue({ trip, access: "owner" })
+    let finish!: (value: { run: EnhancementRun; trip: Trip; applied: string[] }) => void
+    mockEnhanceTrip.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve
+      }),
+    )
+
+    renderEditor()
+    await screen.findByLabelText("Trip name")
+    expect(screen.getByDisplayValue("Arrival")).toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: "Enhance day" })).toHaveLength(2)
+
+    fireEvent.click(screen.getByRole("button", { name: "Enhance trip" }))
+    await waitFor(() => expect(mockEnhanceTrip).toHaveBeenCalled())
+
+    expect(screen.getByDisplayValue("Arrival")).toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: "Enhance day" }).length).toBeGreaterThan(0)
+
+    finish({ run: makeRun(trip, []), trip, applied: [] })
+    await waitFor(() => expect(screen.getByRole("button", { name: "Enhance trip" })).toBeEnabled())
+  })
+
+  it("does not scroll to a day hash when enhance refreshes the trip", async () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    const trip = makeTrip()
+    mockGetTrip.mockResolvedValue({ trip, access: "owner" })
+    const enhanced = makeTrip({ name: "Tokyo Rewrite" })
+    mockEnhanceTrip.mockResolvedValue({ run: makeRun(enhanced), trip: enhanced, applied: ["sug-add"] })
+
+    render(
+      <MemoryRouter initialEntries={["/trips/trip-1/edit#day-2"]}>
+        <Routes>
+          <Route path="/trips/:tripId/edit" element={<TripDetail />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+    await screen.findByLabelText("Trip name")
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled())
+    scrollIntoView.mockClear()
+
+    fireEvent.click(screen.getByRole("button", { name: "Enhance trip" }))
+    await waitFor(() => expect(mockEnhanceTrip).toHaveBeenCalled())
+    await waitFor(() => {
+      expect(screen.getAllByText(/lunch at Ichiran/i).length).toBeGreaterThan(0)
+    })
+    expect(scrollIntoView).not.toHaveBeenCalled()
+  })
+
   it("shows the 502 run reason instead of a generic failure", async () => {
     const trip = makeTrip()
     mockGetTrip.mockResolvedValue({ trip, access: "owner" })
