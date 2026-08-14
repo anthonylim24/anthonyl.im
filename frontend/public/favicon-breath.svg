@@ -1,26 +1,7 @@
 <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="canvas" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#FFFEFA"/>
-      <stop offset="100%" stop-color="#F5F2ED"/>
-    </linearGradient>
-    <radialGradient id="nebula" cx="46%" cy="42%" r="58%">
-      <stop offset="0%" stop-color="#D6AD47"/>
-      <stop offset="55%" stop-color="#B8860B"/>
-      <stop offset="100%" stop-color="#5F574F"/>
-    </radialGradient>
-    <radialGradient id="glass" cx="34%" cy="30%" r="70%">
-      <stop offset="0%" stop-color="#FFFEFA" stop-opacity="0.55"/>
-      <stop offset="42%" stop-color="#D6AD47" stop-opacity="0.18"/>
-      <stop offset="100%" stop-color="#B8860B" stop-opacity="0.08"/>
-    </radialGradient>
-  </defs>
-  <rect width="32" height="32" rx="8" fill="url(#canvas)"/>
-  <circle cx="16" cy="15.4" r="10.6" fill="url(#nebula)"/>
-  <circle cx="16" cy="15.4" r="10.6" fill="url(#glass)"/>
-  <circle cx="16" cy="15.4" r="10.6" fill="none" stroke="#1C1917" opacity="0.12"/>
-  <ellipse cx="12.6" cy="11.8" rx="3.1" ry="1.8" fill="#FFFEFA" opacity="0.42"/>
-  <circle cx="22.2" cy="12.4" r="0.7" fill="#FFFEFA" opacity="0.7"/>
-  <circle cx="10.4" cy="19.6" r="0.45" fill="#D6AD47" opacity="0.8"/>
-  <rect x="0.5" y="0.5" width="31" height="31" rx="7.5" fill="none" stroke="#1C1917" opacity="0.08"/>
+  <rect width="32" height="32" fill="#EFEDE6"/>
+  <circle cx="16" cy="16" r="11.2" fill="none" stroke="#22624A" stroke-width="1.1"/>
+  <circle cx="16" cy="16" r="7.6" fill="none" stroke="#22624A" stroke-width="1.1"/>
+  <circle cx="16" cy="16" r="4" fill="none" stroke="#161D18" stroke-width="0.9"/>
+  <circle cx="16" cy="16" r="1.6" fill="#22624A"/>
 </svg>

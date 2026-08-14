@@ -1,0 +1,39 @@
+import { MOOD_OPTIONS, type MoodValue } from '@/lib/mood'
+
+interface MoodPickerProps {
+  label: string
+  value: MoodValue | undefined
+  /** Tapping the selected option again clears it (undefined). */
+  onChange: (value: MoodValue | undefined) => void
+}
+
+/** Optional 1–5 calm scale: Tense, Unsettled, Neutral, Settled, Calm. */
+export function MoodPicker({ label, value, onChange }: MoodPickerProps) {
+  return (
+    <fieldset>
+      <legend className="mb-2 text-sm text-bw-secondary">{label}</legend>
+      <div role="group" aria-label={label} className="flex flex-wrap gap-1.5">
+        {MOOD_OPTIONS.map((option) => {
+          const selected = value === option.value
+          return (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => onChange(selected ? undefined : option.value)}
+              className={[
+                'min-h-11 px-1 text-sm transition-colors duration-200 active:scale-[0.98] motion-reduce:active:scale-100',
+                'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent',
+                selected
+                  ? 'font-medium text-bw underline decoration-bw-accent decoration-1 underline-offset-8'
+                  : 'text-bw-secondary hover:text-bw',
+              ].join(' ')}
+            >
+              {option.label}
+            </button>
+          )
+        })}
+      </div>
+    </fieldset>
+  )
+}

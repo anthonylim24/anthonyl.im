@@ -48,15 +48,6 @@ body {
   padding: 0;
 }
 
-/* Short pages fill the *small* viewport (URL bar showing). 100vh on iOS is
-   the large viewport and lets the document rest past the last content. */
-.breathwork-layout {
-  max-width: 100%;
-  height: auto;
-  min-height: 100svh;
-  overflow: visible;
-}
-
 .breathwork {
   max-width: 100%;
   height: auto;
@@ -65,7 +56,7 @@ body {
 }
 
 :root {
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   line-height: 1.5;
   font-weight: 400;
   color-scheme: light dark;
@@ -77,17 +68,6 @@ body {
   font-optical-sizing: auto;
 
   /* Chatbot tokens — resolved via .chatbot-dark / .chatbot-shadow below */
-
-  /* Breathwork tokens — parchment + ink */
-  --breath-canvas: #F5F2ED;
-  --breath-ink: #1C1917;
-  --breath-ink-secondary: #5F574F;
-  --breath-ink-tertiary: #6F6760;
-  --breath-surface: #FFFEFA;
-  --breath-accent: #B8860B;
-  --breath-well: rgba(28, 25, 23, 0.03);
-  --breath-border: rgba(28, 25, 23, 0.08);
-  --breath-border-hover: rgba(28, 25, 23, 0.14);
 
   /* Easing — slow deceleration, no bounce */
   --ease-decel: cubic-bezier(0.33, 0, 0, 1);
@@ -154,115 +134,6 @@ input[type="reset"] {
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }
 
-.session-content {
-  min-height: 0;
-}
-
-.session-controls {
-  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
-}
-
-/* iOS Safari shell: size to the *small* viewport (URL-bar showing) so the
-   container never hides behind the address bar. Fallback to 100% for
-   pre-Safari-15.4. JS in BreathingSession.tsx tags this class on the
-   container; we keep the `height: 100svh` here (rather than inline) because
-   jsdom doesn't parse svh as a valid CSS value. */
-.session-shell {
-  height: 100%;       /* fallback */
-  height: 100svh;
-}
-
-/* Idle dim — desaturate color, never opacity. Keyboard focus is always findable.
-   Stop button preserves its destructive color even when dimmed. */
-.session-controls-fade[data-dimmed="true"] button {
-  color: var(--bw-text-tertiary);
-}
-.session-controls-fade[data-dimmed="true"] button:where(.text-bw-destructive, [class*="destructive"]) {
-  color: var(--bw-destructive);
-}
-.session-controls-fade[data-dimmed="true"]:focus-within button {
-  color: var(--bw-text);
-}
-.session-controls-fade[data-dimmed="true"]:focus-within button:where(.text-bw-destructive, [class*="destructive"]) {
-  color: var(--bw-destructive);
-}
-@media (hover: hover) and (pointer: fine) {
-  .session-controls-fade[data-dimmed="true"]:hover button {
-    color: var(--bw-text);
-  }
-  .session-controls-fade[data-dimmed="true"]:hover button:where(.text-bw-destructive, [class*="destructive"]) {
-    color: var(--bw-destructive);
-  }
-}
-
-.session-orb {
-  width: clamp(10rem, 52vw, 24rem);
-  height: clamp(10rem, 52vw, 24rem);
-  max-width: min(82vw, 24rem);
-  max-height: min(48vh, 24rem);
-}
-
-.session-orb::after {
-  content: "";
-  position: absolute;
-  left: 10%;
-  right: 10%;
-  bottom: 2%;
-  height: 22%;
-  border-radius: 50%;
-  background:
-    radial-gradient(ellipse, color-mix(in oklab, var(--bw-accent) 28%, transparent), transparent 72%),
-    radial-gradient(ellipse, rgba(28, 25, 23, 0.14), transparent 78%);
-  pointer-events: none;
-  z-index: -1;
-}
-
-.dark .session-orb::after {
-  background:
-    radial-gradient(ellipse, color-mix(in oklab, var(--bw-accent) 34%, transparent), transparent 70%),
-    radial-gradient(ellipse, rgba(0, 0, 0, 0.5), transparent 78%);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .session-start-cta:hover {
-    transform: scale(1.03);
-  }
-}
-
-/* Tesla / phone landscape / any short landscape panel: row layout so the
-   orb stays large and controls stay reachable. Coach copy hides; the live
-   region still announces it. */
-@media (orientation: landscape) and (max-height: 700px) {
-  .session-content {
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: center;
-    align-items: center;
-    gap: 0.75rem 1.5rem;
-    padding-bottom: 0;
-  }
-
-  .session-orb {
-    width: min(72svh, 48vw, 20rem);
-    height: min(72svh, 48vw, 20rem);
-    max-width: min(72svh, 48vw, 20rem);
-    max-height: min(72svh, 48vw, 20rem);
-  }
-
-  .session-coach,
-  .session-safety-cue {
-    display: none;
-  }
-
-  .session-controls {
-    width: calc(100% - 1.5rem);
-    max-width: none;
-    gap: 0.75rem;
-    padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
-  }
-}
-
-
 /* ═══════════════════════════════════════════════════════
    SCROLLBAR
    ═══════════════════════════════════════════════════════ */
@@ -311,54 +182,6 @@ input[type="reset"] {
   contain: layout paint;
   opacity: 0;
   transition: opacity 700ms var(--ease-out-expo);
-}
-
-.breath-stardust {
-  position: fixed;
-  inset: 0;
-  display: block;
-  width: auto;
-  height: auto;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  pointer-events: none;
-  z-index: 1;
-  opacity: 0.2;
-  mix-blend-mode: multiply;
-  contain: layout paint;
-}
-
-.breath-stardust-media {
-  position: absolute;
-  inset: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
-  max-width: none;
-  max-height: none;
-  object-fit: cover;
-  pointer-events: none;
-}
-
-.dark .breath-stardust {
-  opacity: 0.16;
-  mix-blend-mode: screen;
-}
-
-.breath-starfield {
-  position: fixed;
-  inset: 0;
-  display: block;
-  width: auto;
-  height: auto;
-  pointer-events: none;
-  z-index: 2;
-  contain: layout paint;
-}
-
-.breath-hero-fade {
-  background: linear-gradient(180deg, transparent, var(--bw-canvas, #F5F2ED));
 }
 
 .leaves-overlay-media {
@@ -558,23 +381,6 @@ html:has(.chatbot-dark) {
 }
 .animate-slide-up { animation: slide-up-fade 0.6s var(--spring-smooth) forwards; }
 
-/* BoxVisualization — gentle pulse on the traveling light's halo. Echoes the
-   orb's breath. Skipped under prefers-reduced-motion (the class is only
-   applied to the inner group when motion is allowed, but we guard here too
-   for belt-and-suspenders). */
-@keyframes box-light-pulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50%      { transform: scale(1.22); opacity: 0.72; }
-}
-.box-light-pulse {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: box-light-pulse 1.6s ease-in-out infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-  .box-light-pulse { animation: none; }
-}
-
 .stagger-1 { animation-delay: 0.08s; }
 .stagger-2 { animation-delay: 0.16s; }
 .stagger-3 { animation-delay: 0.24s; }
@@ -586,14 +392,6 @@ html:has(.chatbot-dark) {
    AURA ANIMATIONS
    ═══════════════════════════════════════════════════════ */
 
-@keyframes aura-float {
-  0%, 100% { transform: translateY(0px) rotate(0deg); }
-  30%       { transform: translateY(-7px) rotate(1.2deg); }
-  70%       { transform: translateY(-4px) rotate(-0.8deg); }
-}
-.aura-float {
-  animation: aura-float 3.2s ease-in-out infinite;
-}
 
 /* ═══════════════════════════════════════════════════════
    MESSAGE CONTENT
@@ -654,118 +452,120 @@ html:has(.chatbot-dark) {
     --radius: 0rem;
   }
 
+  /* ── BreathFlow "Forest" tokens: deep green + bone. One accent, locked.
+     Radius rule: controls 6px, panels 8px max, instrument rings circular. ── */
   .breathwork {
     color-scheme: light;
-    --background: 36 31% 95%;
-    --foreground: 20 10% 10%;
-    --card: 45 100% 99%;
-    --card-foreground: 20 10% 10%;
-    --popover: 45 100% 99%;
-    --popover-foreground: 20 10% 10%;
-    --primary: 43 89% 38%;
-    --primary-foreground: 36 31% 95%;
-    --secondary: 28 11% 45%;
-    --secondary-foreground: 20 10% 10%;
-    --muted: 28 13% 83%;
-    --muted-foreground: 28 11% 45%;
-    --accent: 43 89% 38%;
-    --accent-foreground: 36 31% 95%;
+    --background: 51 22% 92%;
+    --foreground: 140 14% 10%;
+    --card: 45 33% 95%;
+    --card-foreground: 140 14% 10%;
+    --popover: 45 33% 95%;
+    --popover-foreground: 140 14% 10%;
+    --primary: 157 48% 26%;
+    --primary-foreground: 45 33% 95%;
+    --secondary: 137 9% 37%;
+    --secondary-foreground: 140 14% 10%;
+    --muted: 130 8% 82%;
+    --muted-foreground: 137 9% 37%;
+    --accent: 157 48% 26%;
+    --accent-foreground: 45 33% 95%;
     --destructive: 4 77% 40%;
     --destructive-foreground: 0 0% 100%;
-    --border: 30 15% 83%;
-    --input: 30 15% 83%;
-    --ring: 43 89% 38% / 0.28;
-    --radius: 0.5rem;
+    --border: 130 8% 80%;
+    --input: 130 8% 80%;
+    --ring: 157 48% 26% / 0.32;
+    --radius: 0.375rem;
 
-    /* Semantic bw tokens — warm parchment + ink */
-    --bw-canvas: #F5F2ED;
-    --bw-surface: #FFFEFA;
-    --bw-text: #1C1917;
-    --bw-text-secondary: #5F574F;
-    --bw-text-tertiary: #6F6760;
-    --bw-text-faint: #D8D1C7;
-    --bw-border: rgba(28, 25, 23, 0.08);
-    --bw-border-subtle: rgba(28, 25, 23, 0.05);
-    --bw-hover: rgba(184, 134, 11, 0.06);
-    --bw-active: rgba(184, 134, 11, 0.1);
-    --bw-nav-bg: #F5F2ED;
-    --bw-nav-bg-mobile: #F5F2ED;
-    --bw-nav-border: rgba(28, 25, 23, 0.08);
-    --bw-nav-shadow: 0 16px 40px rgba(28, 25, 23, 0.06);
-    --bw-chart-grid: rgba(28, 25, 23, 0.06);
-    --bw-chart-tick: rgba(28, 25, 23, 0.45);
-    --bw-tooltip-bg: rgba(255, 254, 250, 0.98);
-    --bw-tooltip-border: rgba(28, 25, 23, 0.08);
-    --bw-tooltip-label: rgba(28, 25, 23, 0.88);
-    --bw-tooltip-item: rgba(95, 87, 79, 0.9);
+    /* Semantic bw tokens: bone neutrals + green-black ink */
+    --bw-canvas: #EFEDE6;
+    --bw-surface: #F7F5EF;
+    --bw-text: #161D18;
+    --bw-text-secondary: #56655B;
+    --bw-text-tertiary: #6E7D72;
+    --bw-text-faint: #D3D4C9;
+    --bw-border: rgba(22, 29, 24, 0.10);
+    --bw-border-subtle: rgba(22, 29, 24, 0.06);
+    --bw-hover: rgba(34, 98, 74, 0.06);
+    --bw-active: rgba(34, 98, 74, 0.10);
+    --bw-nav-bg: #EFEDE6;
+    --bw-nav-bg-mobile: #F3F1EA;
+    --bw-nav-border: rgba(22, 29, 24, 0.10);
+    --bw-nav-shadow: 0 16px 40px rgba(22, 29, 24, 0.06);
+    --bw-chart-grid: rgba(22, 29, 24, 0.06);
+    --bw-chart-tick: rgba(22, 29, 24, 0.45);
+    --bw-tooltip-bg: rgba(247, 245, 239, 0.98);
+    --bw-tooltip-border: rgba(22, 29, 24, 0.10);
+    --bw-tooltip-label: rgba(22, 29, 24, 0.88);
+    --bw-tooltip-item: rgba(86, 101, 91, 0.9);
     --bw-phase-divider: color-mix(in srgb, var(--bw-surface) 42%, transparent);
-    --bw-dialog-scrim: rgba(28, 25, 23, 0.18);
+    --bw-dialog-scrim: rgba(22, 29, 24, 0.18);
 
-    /* Accent tokens */
-    --bw-accent: #B8860B;
-    --bw-accent-light: #D6AD47;
-    --bw-accent-subtle: rgba(184, 134, 11, 0.12);
-    --bw-accent-foreground: #1C1917;
-    --bw-success: #6B8F71;
+    /* Single locked accent: deep green */
+    --bw-accent: #22624A;
+    --bw-accent-light: #3E8266;
+    --bw-accent-subtle: rgba(34, 98, 74, 0.10);
+    --bw-accent-foreground: #F7F5EF;
+    --bw-success: #2F6B4F;
     --bw-destructive: #B42318;
     --bw-destructive-border: rgba(180, 35, 24, 0.24);
     --bw-destructive-subtle: rgba(180, 35, 24, 0.05);
     --bw-destructive-hover: rgba(180, 35, 24, 0.10);
   }
 
-  /* ── Dark overrides (matches chatbot dark) ── */
+  /* ── Dark overrides: forest black ── */
   .dark .breathwork {
     color-scheme: dark;
-    --background: 30 10% 8%;
-    --foreground: 30 13% 89%;
-    --card: 40 6% 11%;
-    --card-foreground: 30 13% 89%;
-    --popover: 40 6% 11%;
-    --popover-foreground: 30 13% 89%;
-    --primary: 48 67% 47%;
-    --primary-foreground: 30 10% 8%;
-    --secondary: 30 5% 63%;
-    --secondary-foreground: 30 13% 89%;
-    --muted: 30 4% 20%;
-    --muted-foreground: 30 5% 63%;
-    --accent: 48 67% 47%;
-    --accent-foreground: 30 10% 8%;
+    --background: 150 16% 8%;
+    --foreground: 120 11% 90%;
+    --card: 150 15% 11%;
+    --card-foreground: 120 11% 90%;
+    --popover: 150 15% 11%;
+    --popover-foreground: 120 11% 90%;
+    --primary: 152 34% 55%;
+    --primary-foreground: 150 16% 8%;
+    --secondary: 137 8% 67%;
+    --secondary-foreground: 120 11% 90%;
+    --muted: 150 8% 20%;
+    --muted-foreground: 137 8% 67%;
+    --accent: 152 34% 55%;
+    --accent-foreground: 150 16% 8%;
     --destructive: 0 91% 71%;
     --destructive-foreground: 0 0% 98%;
-    --border: 30 5% 18%;
-    --input: 30 5% 18%;
-    --ring: 48 67% 47% / 0.35;
+    --border: 150 8% 18%;
+    --input: 150 8% 18%;
+    --ring: 152 34% 55% / 0.35;
 
     /* Semantic bw tokens (dark) */
-    --bw-canvas: #171613;
-    --bw-surface: hsl(40 6% 11%);
-    --bw-text: #E7E3DE;
-    --bw-text-secondary: #A8A29E;
-    --bw-text-tertiary: #8D8782;
-    --bw-text-faint: rgba(231, 227, 222, 0.18);
-    --bw-border: rgba(255, 252, 245, 0.06);
-    --bw-border-subtle: rgba(255, 252, 245, 0.04);
-    --bw-hover: rgba(201, 162, 39, 0.08);
-    --bw-active: rgba(201, 162, 39, 0.12);
-    --bw-nav-bg: hsl(40 6% 11%);
-    --bw-nav-bg-mobile: hsl(40 6% 11%);
-    --bw-nav-border: rgba(255, 252, 245, 0.06);
+    --bw-canvas: #101613;
+    --bw-surface: #171F1A;
+    --bw-text: #E4E8E2;
+    --bw-text-secondary: #A3B2A7;
+    --bw-text-tertiary: #7C8B80;
+    --bw-text-faint: rgba(228, 232, 226, 0.16);
+    --bw-border: rgba(228, 232, 226, 0.08);
+    --bw-border-subtle: rgba(228, 232, 226, 0.05);
+    --bw-hover: rgba(99, 180, 142, 0.08);
+    --bw-active: rgba(99, 180, 142, 0.12);
+    --bw-nav-bg: #101613;
+    --bw-nav-bg-mobile: #151C17;
+    --bw-nav-border: rgba(228, 232, 226, 0.08);
     --bw-nav-shadow: 0 16px 40px rgba(0, 0, 0, 0.24);
-    --bw-chart-grid: rgba(255, 252, 245, 0.06);
-    --bw-chart-tick: rgba(231, 227, 222, 0.45);
-    --bw-tooltip-bg: rgba(28, 27, 24, 0.98);
-    --bw-tooltip-border: rgba(255, 252, 245, 0.06);
-    --bw-tooltip-label: rgba(231, 227, 222, 0.88);
-    --bw-tooltip-item: rgba(168, 162, 158, 0.88);
+    --bw-chart-grid: rgba(228, 232, 226, 0.06);
+    --bw-chart-tick: rgba(228, 232, 226, 0.45);
+    --bw-tooltip-bg: rgba(20, 27, 22, 0.98);
+    --bw-tooltip-border: rgba(228, 232, 226, 0.08);
+    --bw-tooltip-label: rgba(228, 232, 226, 0.88);
+    --bw-tooltip-item: rgba(163, 178, 167, 0.88);
     --bw-phase-divider: color-mix(in srgb, var(--bw-text) 24%, transparent);
     --bw-dialog-scrim: rgba(0, 0, 0, 0.42);
 
-    /* Accent tokens */
-    --bw-accent: #C9A227;
-    --bw-accent-light: #E1C45C;
-    --bw-accent-subtle: rgba(201, 162, 39, 0.16);
-    --bw-accent-foreground: #171613;
-    --bw-success: #8DAF92;
+    /* Single locked accent: green, lifted for dark contrast */
+    --bw-accent: #63B48E;
+    --bw-accent-light: #8ACCAB;
+    --bw-accent-subtle: rgba(99, 180, 142, 0.14);
+    --bw-accent-foreground: #101613;
+    --bw-success: #7FBE9C;
     --bw-destructive: #F87171;
     --bw-destructive-border: rgba(248, 113, 113, 0.28);
     --bw-destructive-subtle: rgba(248, 113, 113, 0.08);
@@ -780,58 +580,49 @@ html:has(.chatbot-dark) {
    CARD SYSTEM (simplified)
    ═══════════════════════════════════════════════════════ */
 
-/* Grain texture overlay — selective use on cards */
-.grain-surface::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: var(--noise);
-  background-repeat: repeat;
-  background-size: 256px 256px;
-  pointer-events: none;
-  opacity: 0.08;
-  mix-blend-mode: multiply;
-  border-radius: inherit;
-}
-
-/* ── Breathwork base — warm parchment + precise sans ── */
+/* ── BreathFlow base — Forest instrument: Geist body, Fragment Mono display ── */
 .breathwork {
-  background-color: var(--bw-canvas, #F5F2ED);
-  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background-color: var(--bw-canvas, #EFEDE6);
+  font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
   font-size: 15px;
-  line-height: 1.65;
+  line-height: 1.6;
 }
 .dark .breathwork {
-  background-color: var(--bw-canvas, #171613);
+  background-color: var(--bw-canvas, #101613);
+}
+.breathwork .bf-display {
+  font-family: "Fragment Mono", ui-monospace, monospace;
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
+}
+.bf-grain {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  opacity: 0.045;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 240 240' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='bfn'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.62' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.09  0 0 0 0 0.18  0 0 0 0 0.14  0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23bfn)'/%3E%3C/svg%3E");
+}
+.dark .bf-grain {
+  opacity: 0.06;
 }
 
 /* ═══════════════════════════════════════════════════════
    BREATHWORK BACKGROUNDS
    ═══════════════════════════════════════════════════════ */
 
-/* Clean canvas — editorial */
-.breath-bg {
-  background:
-    linear-gradient(180deg, rgba(255, 254, 250, 0.42) 0%, rgba(245, 242, 237, 0) 34%),
-    var(--bw-canvas, #F5F2ED);
-}
-.dark .breath-bg {
-  background:
-    linear-gradient(180deg, rgba(201, 162, 39, 0.05) 0%, rgba(23, 22, 19, 0) 38%),
-    var(--bw-canvas, #171613);
+/* BreathFlow phase-strip cursor: sweeps one breath cycle. */
+@media (prefers-reduced-motion: no-preference) {
+  .bf-sweep {
+    animation-name: bf-sweep;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+  }
 }
 
-/* Live cadence preview for protocol timing strips */
-.breath-pattern-cursor {
-  animation-name: breath-pattern-cursor;
-  animation-timing-function: linear;
-  animation-iteration-count: infinite;
-  transform: translate3d(0, 0, 0);
-}
-
-@keyframes breath-pattern-cursor {
+@keyframes bf-sweep {
   from { transform: translate3d(0, 0, 0); }
-  to { transform: translate3d(calc(100% - 1px), 0, 0); }
+  to { transform: translate3d(calc(100% - 2px), 0, 0); }
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -935,8 +726,6 @@ html:has(.chatbot-dark) {
    PERFORMANCE
    ═══════════════════════════════════════════════════════ */
 
-.session-item { content-visibility: auto; contain-intrinsic-size: 0 80px; }
-.session-history-item { content-visibility: auto; contain-intrinsic-size: 0 100px; }
 .transform-gpu { transform: translateZ(0); }
 
 /* IG ingest dashboard — running-job sweep animation */
