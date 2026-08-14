@@ -1,9 +1,12 @@
 import { lazy, Suspense } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { CLERK_ENABLED } from '@/lib/clerk'
 import { useDocumentMetadata } from '@/hooks/useDocumentMetadata'
 import { useFavicon } from '@/hooks/useFavicon'
 import { BREATHFLOW_ROUTE_METADATA } from '@/lib/routeMetadata'
+import { BreathFlowMark } from '../components/BreathFlowMark'
+import { BreathStarfield } from '../components/BreathStarfield'
+import { BreathStardust } from '../components/BreathStardust'
 import { useBreathflowTheme } from '../platform/useBreathflowTheme'
 
 const CloudSync = lazy(() =>
@@ -37,6 +40,8 @@ function mobileNavLinkClass(isActive: boolean): string {
 }
 
 export function BreathflowLayout() {
+  const location = useLocation()
+  const isSessionRoute = location.pathname.startsWith('/breathwork/session')
   useBreathflowTheme()
   useFavicon()
   useDocumentMetadata({
@@ -47,6 +52,8 @@ export function BreathflowLayout() {
   return (
     <div className="breathwork relative min-h-[100svh] bg-bw-canvas font-sans text-bw antialiased">
       <div className="bf-grain" aria-hidden="true" />
+      <BreathStardust />
+      {isSessionRoute ? null : <BreathStarfield />}
 
       {CLERK_ENABLED && (
         <Suspense fallback={null}>
@@ -65,8 +72,9 @@ export function BreathflowLayout() {
         <NavLink
           to="/breathwork"
           end
-          className="bf-display inline-flex min-h-11 items-center rounded-md text-[15px] tracking-tight text-bw focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-bw-accent"
+          className="bf-display inline-flex min-h-11 items-center gap-2 rounded-md text-[15px] tracking-tight text-bw focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-bw-accent"
         >
+          <BreathFlowMark size={22} className="h-[22px] w-[22px]" />
           BreathFlow
         </NavLink>
         <nav aria-label="Primary" className="hidden items-center gap-1 sm:flex">
