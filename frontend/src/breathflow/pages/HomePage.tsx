@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { withViteBase } from '@/lib/routerBasename'
 import { useGamificationStore } from '@/stores/gamificationStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 import { useHistoryStore } from '@/stores/historyStore'
 import { BreathFlowMark } from '../components/BreathFlowMark'
 import { PhaseStrip } from '../components/PhaseStrip'
@@ -43,6 +44,7 @@ export function HomePage() {
   const checkResets = useGamificationStore((state) => state.checkResets)
   const recovery = useRecoveryStatus()
   const reducedMotion = useReducedMotion()
+  const theme = useSettingsStore((state) => state.theme)
 
   useEffect(() => {
     checkResets()
@@ -82,6 +84,7 @@ export function HomePage() {
             width={576}
             height={324}
             decoding="async"
+            fetchPriority={theme === 'dark' ? 'auto' : 'high'}
             className="h-full w-full object-cover object-center dark:hidden"
           />
           <img
@@ -90,6 +93,7 @@ export function HomePage() {
             width={768}
             height={768}
             decoding="async"
+            fetchPriority={theme === 'dark' ? 'high' : 'auto'}
             className="hidden h-full w-full object-cover object-center dark:block"
           />
         </div>

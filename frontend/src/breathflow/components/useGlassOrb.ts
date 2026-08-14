@@ -339,10 +339,10 @@ export function useGlassOrb({
       let currentWidth = 0
       let currentHeight = 0
 
-      const applySize = (cssW: number, cssH: number) => {
+      const applySize = () => {
         const dpr = Math.min(window.devicePixelRatio || 1, 2)
-        const w = Math.max(1, Math.round(cssW * dpr))
-        const h = Math.max(1, Math.round(cssH * dpr))
+        const w = Math.max(1, Math.round(canvas.clientWidth * dpr))
+        const h = Math.max(1, Math.round(canvas.clientHeight * dpr))
         if (w === currentWidth && h === currentHeight) return
         currentWidth = w
         currentHeight = h
@@ -383,14 +383,12 @@ export function useGlassOrb({
         if (!document.hidden) scheduleRender()
       }
       ro = new ResizeObserver(() => {
-        const rect = canvas.getBoundingClientRect()
-        applySize(rect.width, rect.height)
+        applySize()
         scheduleRender()
       })
       ro.observe(canvas)
       document.addEventListener('visibilitychange', onVisibility)
-      const rect = canvas.getBoundingClientRect()
-      applySize(rect.width, rect.height)
+      applySize()
       scheduleRender()
     }
 

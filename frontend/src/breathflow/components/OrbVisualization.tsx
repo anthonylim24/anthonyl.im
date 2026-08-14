@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react'
 import { motion } from 'motion/react'
+import { useSettingsStore } from '@/stores/settingsStore'
 import type { EngineStatus } from '../engine/sessionEngine'
 import type { ProtocolPhase } from '../protocols/types'
 import { OrbParticleField } from './OrbParticleField'
@@ -65,7 +66,7 @@ export function OrbVisualization({
   const running = status === 'running'
   const scale = reducedMotion ? 0.85 : (running ? target : frozen)
   const amplitude = Math.min(1, Math.max(0, (scale - 0.62) / 0.48))
-  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+  const theme = useSettingsStore((state) => state.theme)
   const color1 = useMemo(() => hexToVec3(core), [core])
   const color2 = useMemo(() => hexToVec3(halo), [halo])
   const glFailed = useGlassOrb({
@@ -74,7 +75,7 @@ export function OrbVisualization({
     color1,
     color2,
     reducedMotion,
-    dark: isDark,
+    dark: theme === 'dark',
   })
 
   const glass = !reducedMotion && !glFailed

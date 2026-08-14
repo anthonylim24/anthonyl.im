@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { CLERK_ENABLED } from '@/lib/clerk'
 import { useDocumentMetadata } from '@/hooks/useDocumentMetadata'
 import { useFavicon } from '@/hooks/useFavicon'
@@ -40,6 +40,8 @@ function mobileNavLinkClass(isActive: boolean): string {
 }
 
 export function BreathflowLayout() {
+  const location = useLocation()
+  const isSessionRoute = location.pathname.startsWith('/breathwork/session')
   useBreathflowTheme()
   useFavicon()
   useDocumentMetadata({
@@ -51,7 +53,7 @@ export function BreathflowLayout() {
     <div className="breathwork relative min-h-[100svh] bg-bw-canvas font-sans text-bw antialiased">
       <div className="bf-grain" aria-hidden="true" />
       <BreathStardust />
-      <BreathStarfield />
+      {isSessionRoute ? null : <BreathStarfield />}
 
       {CLERK_ENABLED && (
         <Suspense fallback={null}>
