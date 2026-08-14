@@ -457,6 +457,50 @@ describe("enhancement endpoints", () => {
     expect(enhanced.days[0]!.items.map((i) => i.title)).toContain("Ichiran")
   })
 
+  test("does not recreate a trip deleted while enhance is running", async () => {
+    let release!: () => void
+    const hold = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const { app, store } = makeApp({
+      llm: async () => {
+        await hold
+        return JSON.stringify({
+          summary: "One tweak.",
+          suggestions: [
+            {
+              kind: "add",
+              dayId: "day-1",
+              title: "Add lunch",
+              detail: "No meals on day 1",
+              confidence: "medium",
+              proposedItem: {
+                kind: "place",
+                title: "Ichiran",
+                location: { name: "Ichiran", lat: 35.66, lng: 139.7, category: "restaurant" },
+              },
+            },
+          ],
+        })
+      },
+    })
+    const trip = await createTrip(app)
+    const started = await startEnhance(app, trip.id)
+    await store.delete(trip.id)
+    release()
+    for (let i = 0; i < 50; i++) {
+      await Bun.sleep(5)
+      const run = await store.getRun(trip.id, started.id)
+      if (run && run.status !== "running") {
+        expect(run.status).toBe("error")
+        expect(run.outcomeReason).toMatch(/failed before/i)
+        expect(await store.get(trip.id)).toBeNull()
+        return
+      }
+    }
+    throw new Error("enhancement did not finish")
+  })
+
   test("returns the trip that matches a just-finished run", async () => {
     const { app, store } = makeApp({ llm: llmSuggest })
     const trip = await createTrip(app)

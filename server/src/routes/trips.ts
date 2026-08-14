@@ -114,23 +114,20 @@ async function persistEnhancementRun(args: {
       return
     }
     for (let attempt = 0; attempt < PERSIST_RETRIES; attempt++) {
-      const fresh = (await args.store.get(args.tripId)) ?? args.snapshot
+      const fresh = await args.store.get(args.tripId)
+      if (!fresh) throw new Error("Trip was deleted before enhancement completion")
       const seenUpdatedAt = fresh.updatedAt
       const applied = applyCompletedEnhancement(fresh, run)
       if (applied.trip === fresh) {
         await args.store.saveRun(applied.run)
         return
       }
-      const wrote =
-        attempt < PERSIST_RETRIES - 1
-          ? await args.store.updateIfUnchanged(applied.trip, seenUpdatedAt)
-          : (await args.store.update(applied.trip), true)
-      if (wrote) {
+      if (await args.store.updateIfUnchanged(applied.trip, seenUpdatedAt)) {
         await args.store.saveRun(applied.run)
         return
       }
     }
-    await args.store.saveRun(run)
+    throw new Error("Trip changed while applying enhancement")
   } catch (err) {
     const failed: EnhancementRun = {
       ...args.pending,
