@@ -166,6 +166,23 @@ export function SessionPage() {
   const engine = useSessionEngine(engineConfig, handleEngineEvent)
   const isActive = engine.status === 'running' || engine.status === 'paused'
 
+  // Home's Begin CTA deep-links with autostart=1: start immediately for
+  // non-safety-gated protocols, then drop the flag from the URL.
+  const autostart = useMemo(
+    () => new URLSearchParams(location.search).get('autostart') === '1',
+    [location.search],
+  )
+  const autostartHandledRef = useRef(false)
+  useEffect(() => {
+    if (!autostart || autostartHandledRef.current) return
+    autostartHandledRef.current = true
+    navigate(`/breathwork/session?${buildSessionSearch(params)}`, { replace: true })
+    if (!advanced && engine.status === 'idle') {
+      completedRef.current = false
+      engine.start()
+    }
+  }, [autostart, advanced, engine, navigate, params])
+
   useWakeLock(isActive)
   useScrollLock(isActive)
 
