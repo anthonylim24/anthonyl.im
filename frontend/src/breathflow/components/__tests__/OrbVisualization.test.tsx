@@ -10,7 +10,9 @@ vi.mock('../useGlassOrb', () => ({
 }))
 
 vi.mock('../OrbParticleField', () => ({
-  OrbParticleField: () => <canvas data-testid="orb-particle-field" />,
+  OrbParticleField: () => (
+    <canvas aria-hidden="true" data-testid="orb-particle-field" />
+  ),
 }))
 
 const phases = [
