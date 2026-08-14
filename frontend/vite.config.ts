@@ -49,6 +49,8 @@ export default defineConfig({
             { name: 'radix', test: /[\\/]node_modules[\\/]@radix-ui[\\/]/, priority: 60 },
             { name: 'state', test: /[\\/]node_modules[\\/]zustand[\\/]/, priority: 50 },
             { name: 'icons', test: /[\\/]node_modules[\\/]lucide-react[\\/]/, priority: 40 },
+            // Shared by the homepage chatbot and the trip concierge.
+            { name: 'markdown', test: /[\\/]node_modules[\\/](react-markdown|remark-gfm|remark-parse|remark-rehype|unified)[\\/]/, priority: 38 },
             {
               name: 'korea-map',
               test: /[\\/]pages[\\/]Korea[\\/](MapMode|Detailed3D|mapLocation|deviceTier|godRays|maxQuality|volumetric|timeOfDay|mapSun|mapGrade|adaptiveQuality)/,

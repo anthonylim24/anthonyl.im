@@ -71,6 +71,25 @@ describe("streamKoreaChat", () => {
     )
   })
 
+  it("accumulates raw markdown when a payload is not JSON", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      sseResponse([`data: ## Dinner\n\n`, `data: - **Mingles**\n\n`, `data: [DONE]\n\n`]),
+    )
+    const result = await streamKoreaChat("hi", [], undefined, () => {})
+    expect(result.content).toBe("## Dinner- **Mingles**")
+  })
+
+  it("extracts text from a leaked Gemini chunk object", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      sseResponse([
+        `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: "Hi" }] } }] })}\n\n`,
+        `data: [DONE]\n\n`,
+      ]),
+    )
+    const result = await streamKoreaChat("hi", [], undefined, () => {})
+    expect(result.content).toBe("Hi")
+  })
+
   it("forwards prompt, history and slug in the request body", async () => {
     const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(sseResponse([`data: [DONE]\n\n`]))
     await streamKoreaChat(
