@@ -158,6 +158,70 @@ describe("POST /api/korea/chat", () => {
     expect(text).toContain("trimmed for length")
   })
 
+  test("skips thought parts and relays visible markdown", async () => {
+    process.env.GEMINI_API_KEY = "test-key"
+    globalThis.fetch = (async () =>
+      geminiRawSse([
+        {
+          candidates: [
+            {
+              content: {
+                parts: [{ thought: true, text: "planning" }, { text: "## Dinner\n- **Mingles**" }],
+              },
+            },
+          ],
+        },
+      ])) as unknown as typeof fetch
+
+    const res = await makeApp().request("/api/korea/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: "dinner?" }),
+    })
+    const text = await res.text()
+    expect(text).toContain(JSON.stringify("## Dinner\n- **Mingles**"))
+    expect(text).not.toContain("planning")
+  })
+
+  test("relays NDJSON Gemini chunks that omit the data: prefix", async () => {
+    process.env.GEMINI_API_KEY = "test-key"
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream({
+      start(controller) {
+        const chunk = { candidates: [{ content: { parts: [{ text: "> reserved" }] } }] }
+        controller.enqueue(encoder.encode(`${JSON.stringify(chunk)}\n`))
+        controller.close()
+      },
+    })
+    globalThis.fetch = (async () =>
+      new Response(stream, { status: 200, headers: { "Content-Type": "application/json" } })) as unknown as typeof fetch
+
+    const res = await makeApp().request("/api/korea/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: "hi" }),
+    })
+    const text = await res.text()
+    expect(text).toContain(JSON.stringify("> reserved"))
+  })
+
+  test("relays a single JSON body when Gemini does not stream", async () => {
+    process.env.GEMINI_API_KEY = "test-key"
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({ candidates: [{ content: { parts: [{ text: "```markdown\n**Hi**\n```" }] } }] }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      )) as unknown as typeof fetch
+
+    const res = await makeApp().request("/api/korea/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: "hi" }),
+    })
+    const text = await res.text()
+    expect(text).toContain("**Hi**")
+  })
+
   test("surfaces a friendly error when Gemini responds non-OK", async () => {
     process.env.GEMINI_API_KEY = "test-key"
     globalThis.fetch = (async () =>

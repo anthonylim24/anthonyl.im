@@ -5,6 +5,7 @@ import { z } from "zod"
 
 import { koreaSnapshot, type Snapshot, type Day, type Reservation } from "../data/koreaSnapshot"
 import { koreaPlaces, type PlaceDef } from "../data/koreaPlaces"
+import { relayGeminiChatBody } from "../geminiStream"
 import { GEMINI_BASE, GEMINI_MODEL, geminiThinking } from "../igPlaces/gemini"
 import { withSsePings } from "../ssePing"
 
@@ -162,22 +163,10 @@ function buildSystemInstruction(snapshot: Snapshot, slug?: string): string {
 
 // ─── Gemini SSE relay ──────────────────────────────────────────────────
 //
-// Gemini's streamGenerateContent?alt=sse emits `data: {GenerateContentResponse}`
-// events. We parse each, pull the text delta, and re-emit it in the exact
-// shape the frontend already parses for /api/invoke: `data: <json-string>`
-// with a trailing `data: [DONE]`. Roles map user→user, assistant→model.
-
-interface GeminiStreamChunk {
-  candidates?: Array<{
-    content?: { parts?: Array<{ text?: string }> }
-    finishReason?: string
-  }>
-  promptFeedback?: { blockReason?: string }
-}
-
-function extractDelta(chunk: GeminiStreamChunk): string {
-  return chunk.candidates?.[0]?.content?.parts?.map((p) => p.text).filter(Boolean).join("") ?? ""
-}
+// Gemini may emit SSE `data: {GenerateContentResponse}`, NDJSON (no
+// `data:` prefix), or a single JSON body. parseGeminiStreamLine accepts
+// all three; thought parts are dropped. We re-emit `data: <json-string>`
+// plus `data: [DONE]` for the frontend. Roles map user→user, assistant→model.
 
 const TRANSIENT_GEMINI = new Set([500, 502, 503, 504])
 
@@ -255,40 +244,12 @@ koreaChat.post("/", zValidator("json", chatSchema), async (c) => {
             return
           }
 
-          const reader = res.body.getReader()
-          const decoder = new TextDecoder()
-          let buffer = ""
-
-          const flushLine = async (line: string) => {
-            const trimmed = line.trim()
-            if (!trimmed.startsWith("data:")) return
-            const payload = trimmed.slice(5).trim()
-            if (!payload || payload === "[DONE]") return
-            try {
-              const json = JSON.parse(payload) as GeminiStreamChunk
-              if (json.promptFeedback?.blockReason) blockReason = json.promptFeedback.blockReason
-              const fr = json.candidates?.[0]?.finishReason
-              if (fr) finishReason = fr
-              const delta = extractDelta(json)
-              if (delta) {
-                sawText = true
-                await stream.writeSSE({ data: JSON.stringify(delta) })
-              }
-            } catch {
-              // Ignore partial/keepalive lines — Gemini occasionally emits
-              // non-JSON whitespace between events.
-            }
-          }
-
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-            buffer += decoder.decode(value, { stream: true })
-            const lines = buffer.split("\n")
-            buffer = lines.pop() ?? ""
-            for (const line of lines) await flushLine(line)
-          }
-          if (buffer) await flushLine(buffer)
+          const relayed = await relayGeminiChatBody(res.body, async (delta) => {
+            await stream.writeSSE({ data: JSON.stringify(delta) })
+          })
+          sawText = relayed.sawText
+          finishReason = relayed.finishReason
+          blockReason = relayed.blockReason
 
           // Truncated mid-thought — tell the user so a cut-off sentence isn't mistaken for the full answer.
           if (sawText && finishReason === "MAX_TOKENS") {
