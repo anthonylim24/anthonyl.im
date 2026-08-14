@@ -180,7 +180,10 @@ export const DayCard = memo(function DayCard({
             Details
           </button>
           {detailsOpen && (
-            <div className="mt-2 space-y-3 rounded-xl border border-stone-200/80 p-3 dark:border-stone-800">
+            <fieldset
+              disabled={locked}
+              className="mt-2 m-0 min-w-0 space-y-3 rounded-xl border border-stone-200/80 p-3 dark:border-stone-800"
+            >
               <label className="block">
                 <span className={labelClass}>Neighborhoods (comma-separated)</span>
                 <input
@@ -271,7 +274,7 @@ export const DayCard = memo(function DayCard({
                   the live forecast on each Enhance run.
                 </p>
               )}
-            </div>
+            </fieldset>
           )}
         </div>
       )}
@@ -339,7 +342,7 @@ export const DayCard = memo(function DayCard({
         </div>
       )}
 
-      {editable && <TripIngest trip={trip} dayId={day.id} onDaysChange={onChange} />}
+      {editable && <TripIngest trip={trip} dayId={day.id} locked={locked} onDaysChange={onChange} />}
     </section>
   )
 })

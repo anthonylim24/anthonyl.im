@@ -21,7 +21,7 @@ function isMissingChatRoute(status: number, error: string): boolean {
 
 function isLostConnection(err: unknown): boolean {
   const message = err instanceof Error ? err.message : String(err)
-  return /network error|failed to fetch|load failed|opaqueredirect/i.test(message)
+  return /network\s*error|failed to fetch|load failed|opaqueredirect/i.test(message)
 }
 
 function chatRequestFailed(err: unknown): never {

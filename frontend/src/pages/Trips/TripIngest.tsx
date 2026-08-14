@@ -64,10 +64,12 @@ function placeLabel(place: PlaceResult): string {
 export function TripIngest({
   trip,
   dayId,
+  locked = false,
   onDaysChange,
 }: {
   trip: Trip
   dayId: string
+  locked?: boolean
   onDaysChange: (fn: (days: TripDay[]) => TripDay[]) => void
 }) {
   const getToken = useGetToken()
@@ -134,7 +136,7 @@ export function TripIngest({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!canSubmit) return
+    if (!canSubmit || locked) return
     setSubmitting(true)
     setSubmitError(null)
     try {
@@ -161,7 +163,7 @@ export function TripIngest({
   }
 
   const handleAdd = async (job: Job, place: PlaceResult) => {
-    if (!resolvedDay) return
+    if (locked || !resolvedDay) return
     const key = placeKey(job.id, place.id)
     if (addingKey || addedKeys[key]) return
     if (dayHasPlaceNamed(resolvedDay, place.name)) {
@@ -239,13 +241,14 @@ export function TripIngest({
               autoComplete="url"
               value={url}
               placeholder="Paste a post or Reel URL"
+              disabled={locked}
               onChange={(e) => setUrl(e.target.value)}
               aria-invalid={url.length > 0 && !isInstagramUrl(url) ? true : undefined}
               className={`min-w-0 flex-1 text-[16px] sm:text-sm ${compactInputClass}`}
             />
             <button
               type="submit"
-              disabled={!canSubmit}
+              disabled={!canSubmit || locked}
               aria-label={submitting ? "Submitting" : "Extract places"}
               className={`${chipBtnClass} w-full sm:w-auto`}
             >
@@ -263,6 +266,7 @@ export function TripIngest({
                 id={skipId}
                 type="checkbox"
                 checked={skipVideo}
+                disabled={locked}
                 onChange={(e) => setSkipVideo(e.target.checked)}
                 className={checkboxClass}
               />
@@ -297,7 +301,7 @@ export function TripIngest({
                       <span className={`ml-1.5 font-normal ${mutedInkClass}`}>{jobStatusLabel(job)}</span>
                     </p>
                     {(job.status === "failed" || job.status === "dead") && (
-                      <button type="button" onClick={() => void handleRetry(job)} className={quietBtnClass}>
+                      <button type="button" disabled={locked} onClick={() => void handleRetry(job)} className={quietBtnClass}>
                         Retry
                       </button>
                     )}
@@ -327,7 +331,7 @@ export function TripIngest({
                             </div>
                             <button
                               type="button"
-                              disabled={added || busy || !resolvedDay}
+                              disabled={added || busy || !resolvedDay || locked}
                               onClick={() => void handleAdd(job, place)}
                               aria-label={added ? `${place.name} is on this day` : `Add ${place.name} to this day`}
                               className={added ? quietBtnClass : chipBtnClass}

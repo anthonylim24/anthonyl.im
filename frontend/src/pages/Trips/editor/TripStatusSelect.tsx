@@ -12,10 +12,12 @@ const TRIP_STATUSES: readonly TripStatus[] = ["draft", "active", "archived", "co
 export function TripStatusSelect({
   status,
   editable,
+  disabled = false,
   onChange,
 }: {
   status: TripStatus
   editable: boolean
+  disabled?: boolean
   onChange: (status: TripStatus) => void
 }) {
   if (!editable) return <TripStatusChip status={status} />
@@ -27,8 +29,9 @@ export function TripStatusSelect({
       <select
         value={status}
         aria-label="Trip status"
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value as TripStatus)}
-        className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0"
+        className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0 disabled:cursor-not-allowed"
       >
         {TRIP_STATUSES.map((s) => (
           <option key={s} value={s} className="capitalize">

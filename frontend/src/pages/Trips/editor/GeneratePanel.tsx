@@ -20,12 +20,14 @@ import { DEFAULT_ITINERARY_PROMPT, type GeneratePreferences, type Trip } from ".
 export function GeneratePanel({
   getToken,
   tripId,
+  locked = false,
   initialPrompt,
   preferences,
   onGenerated,
 }: {
   getToken: GetToken
   tripId: string
+  locked?: boolean
   initialPrompt?: string
   preferences?: GeneratePreferences
   onGenerated: (trip: Trip) => void
@@ -35,7 +37,7 @@ export function GeneratePanel({
   const [error, setError] = useState<string | null>(null)
 
   const generate = async () => {
-    if (busy) return
+    if (busy || locked) return
     setBusy(true)
     setError(null)
     try {
@@ -72,6 +74,7 @@ export function GeneratePanel({
         value={prompt}
         rows={3}
         aria-label="AI prompt"
+        disabled={locked}
         onChange={(e) => setPrompt(e.target.value)}
         className={`mt-3 ${inputClass}`}
       />
@@ -81,7 +84,7 @@ export function GeneratePanel({
         </p>
       )}
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <button type="button" onClick={() => void generate()} disabled={busy} className={primaryBtnClass}>
+        <button type="button" onClick={() => void generate()} disabled={busy || locked} className={primaryBtnClass}>
           {busy ? (
             <Loader2 className={`h-4 w-4 ${spinnerClass}`} aria-hidden />
           ) : (

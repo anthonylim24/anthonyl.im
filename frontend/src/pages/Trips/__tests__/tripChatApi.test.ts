@@ -201,4 +201,13 @@ describe("streamTripChat", () => {
       /lost its connection/i,
     )
   })
+
+  it("maps Firefox's NetworkError fetch failure the same way", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(
+      new TypeError("NetworkError when attempting to fetch resource."),
+    )
+    await expect(streamTripChat("tokyo", "hi", [], undefined, getToken, () => {})).rejects.toThrow(
+      /lost its connection/i,
+    )
+  })
 })

@@ -14,16 +14,25 @@ describe("withSsePings", () => {
     expect(pings.length).toBe(1)
   })
 
-  test("still resolves when the ping writer throws after the first write", async () => {
+  test("swallows later ping write failures so work still resolves", async () => {
     let writes = 0
-    const result = await withSsePings(
+    let resolveWork!: (value: number) => void
+    const work = new Promise<number>((resolve) => {
+      resolveWork = resolve
+    })
+    const done = withSsePings(
       async () => {
         writes += 1
         if (writes > 1) throw new Error("closed")
       },
-      Promise.resolve(7),
+      work,
+      20,
     )
-    expect(result).toBe(7)
+    await Bun.sleep(5)
     expect(writes).toBe(1)
+    await Bun.sleep(30)
+    expect(writes).toBeGreaterThan(1)
+    resolveWork(7)
+    expect(await done).toBe(7)
   })
 })

@@ -79,9 +79,25 @@ function photoUrlFor(query: string): string {
   return `https://source.unsplash.com/featured/1200x800/?${encodeURIComponent(query)}&sig=${seed}`
 }
 
+const PERSIST_RETRIES = 3
+
+function applyCompletedEnhancement(trip: Trip, run: EnhancementRun): { trip: Trip; run: EnhancementRun } {
+  let next = trip
+  let nextRun = run
+  if (run.weatherByDate && Object.keys(run.weatherByDate).length > 0) {
+    next = {
+      ...next,
+      days: next.days.map((d) => (run.weatherByDate![d.date] ? { ...d, weather: run.weatherByDate![d.date] } : d)),
+      updatedAt: nowIso(),
+    }
+  }
+  const appliedAdds = autoApplyAddSuggestions(next, nextRun)
+  return { trip: appliedAdds.trip, run: appliedAdds.run }
+}
+
 /** Finish an enhancement off the request thread: apply weather + add
- *  suggestions, then persist. Re-reads the trip so a concurrent PATCH is
- *  not overwritten. The pending run id is kept so the editor can poll. */
+ *  suggestions, then persist. Re-reads the trip and CAS-writes so a
+ *  concurrent PATCH is remeshed instead of overwritten. */
 async function persistEnhancementRun(args: {
   store: TripStore
   tripId: string
@@ -93,23 +109,28 @@ async function persistEnhancementRun(args: {
     const run = await args.work
     run.id = args.pending.id
     run.createdAt = args.pending.createdAt
-    const fresh = (await args.store.get(args.tripId)) ?? args.snapshot
-    let trip = fresh
-    let nextRun = run
-    if (run.status === "complete" && run.weatherByDate && Object.keys(run.weatherByDate).length > 0) {
-      trip = {
-        ...trip,
-        days: trip.days.map((d) => (run.weatherByDate![d.date] ? { ...d, weather: run.weatherByDate![d.date] } : d)),
-        updatedAt: nowIso(),
+    if (run.status !== "complete") {
+      await args.store.saveRun(run)
+      return
+    }
+    for (let attempt = 0; attempt < PERSIST_RETRIES; attempt++) {
+      const fresh = (await args.store.get(args.tripId)) ?? args.snapshot
+      const seenUpdatedAt = fresh.updatedAt
+      const applied = applyCompletedEnhancement(fresh, run)
+      if (applied.trip === fresh) {
+        await args.store.saveRun(applied.run)
+        return
+      }
+      const wrote =
+        attempt < PERSIST_RETRIES - 1
+          ? await args.store.updateIfUnchanged(applied.trip, seenUpdatedAt)
+          : (await args.store.update(applied.trip), true)
+      if (wrote) {
+        await args.store.saveRun(applied.run)
+        return
       }
     }
-    if (run.status === "complete") {
-      const appliedAdds = autoApplyAddSuggestions(trip, run)
-      trip = appliedAdds.trip
-      nextRun = appliedAdds.run
-    }
-    if (trip !== fresh) await args.store.update(trip)
-    await args.store.saveRun(nextRun)
+    await args.store.saveRun(run)
   } catch (err) {
     const failed: EnhancementRun = {
       ...args.pending,
@@ -420,9 +441,12 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     if ("error" in result) return result.error
     const run = await deps.store.getRun(result.trip.id, c.req.param("runId"))
     if (!run) return c.json({ error: "run not found" }, 404)
+    // Re-read after the run: persist may have finished between loadTrip and
+    // getRun, and the client stops polling on a terminal status.
+    const trip = (await deps.store.get(result.trip.id)) ?? result.trip
     return c.json({
       run,
-      trip: result.trip,
+      trip,
       applied: run.appliedSuggestionIds,
       ...(run.status === "error"
         ? { error: "enhancement_failed" as const, message: run.error ?? "enhancement failed" }

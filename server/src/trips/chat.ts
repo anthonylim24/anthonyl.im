@@ -193,77 +193,79 @@ export async function streamTripChat(
     let blockReason: string | undefined
 
     try {
-      // Start Gemini immediately, then write a ping so a reverse proxy does
-      // not 502 while the model thinks. The client ignores empty payloads.
-      const res = await withSsePings(
+      // Keep pings going through header wait AND body consumption — a long
+      // quiet read can otherwise idle-timeout the reverse proxy.
+      await withSsePings(
         () => stream.writeSSE({ event: "ping", data: "" }),
-        fetchGeminiStream(
-          `${GEMINI_BASE}/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-            body: JSON.stringify(body),
-            signal: upstreamSignal,
-          },
-        ),
-      )
+        (async () => {
+          const res = await fetchGeminiStream(
+            `${GEMINI_BASE}/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+              body: JSON.stringify(body),
+              signal: upstreamSignal,
+            },
+          )
 
-      if (!res.ok || !res.body) {
-        const detail = await res.text().catch(() => "")
-        console.error(`[trips-chat] gemini ${res.status}: ${detail.slice(0, 300)}`)
-        await stream.writeSSE({
-          data: JSON.stringify({ error: "The assistant is unavailable right now. Please try again." }),
-        })
-        await stream.writeSSE({ data: "[DONE]" })
-        return
-      }
-
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ""
-
-      const flushLine = async (line: string) => {
-        const trimmed = line.trim()
-        if (!trimmed.startsWith("data:")) return
-        const payload = trimmed.slice(5).trim()
-        if (!payload || payload === "[DONE]") return
-        try {
-          const json = JSON.parse(payload) as GeminiStreamChunk
-          if (json.promptFeedback?.blockReason) blockReason = json.promptFeedback.blockReason
-          const fr = json.candidates?.[0]?.finishReason
-          if (fr) finishReason = fr
-          const delta = extractDelta(json)
-          if (delta) {
-            sawText = true
-            await stream.writeSSE({ data: JSON.stringify(delta) })
+          if (!res.ok || !res.body) {
+            const detail = await res.text().catch(() => "")
+            console.error(`[trips-chat] gemini ${res.status}: ${detail.slice(0, 300)}`)
+            await stream.writeSSE({
+              data: JSON.stringify({ error: "The assistant is unavailable right now. Please try again." }),
+            })
+            await stream.writeSSE({ data: "[DONE]" })
+            return
           }
-        } catch {
-          /* Gemini keepalive / partial lines */
-        }
-      }
 
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split("\n")
-        buffer = lines.pop() ?? ""
-        for (const line of lines) await flushLine(line)
-      }
-      if (buffer) await flushLine(buffer)
+          const reader = res.body.getReader()
+          const decoder = new TextDecoder()
+          let buffer = ""
 
-      if (sawText && finishReason === "MAX_TOKENS") {
-        await stream.writeSSE({ data: JSON.stringify("\n\n*…trimmed for length. Ask me to continue.*") })
-      }
+          const flushLine = async (line: string) => {
+            const trimmed = line.trim()
+            if (!trimmed.startsWith("data:")) return
+            const payload = trimmed.slice(5).trim()
+            if (!payload || payload === "[DONE]") return
+            try {
+              const json = JSON.parse(payload) as GeminiStreamChunk
+              if (json.promptFeedback?.blockReason) blockReason = json.promptFeedback.blockReason
+              const fr = json.candidates?.[0]?.finishReason
+              if (fr) finishReason = fr
+              const delta = extractDelta(json)
+              if (delta) {
+                sawText = true
+                await stream.writeSSE({ data: JSON.stringify(delta) })
+              }
+            } catch {
+              /* Gemini keepalive / partial lines */
+            }
+          }
 
-      if (!sawText) {
-        const reason = blockReason
-          ? "That one's outside what I can help with for this trip."
-          : "I couldn't find an answer for that. Try rephrasing, or ask about a specific day, restaurant, or reservation."
-        await stream.writeSSE({ data: JSON.stringify(reason) })
-      }
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            buffer += decoder.decode(value, { stream: true })
+            const lines = buffer.split("\n")
+            buffer = lines.pop() ?? ""
+            for (const line of lines) await flushLine(line)
+          }
+          if (buffer) await flushLine(buffer)
 
-      await stream.writeSSE({ data: "[DONE]" })
+          if (sawText && finishReason === "MAX_TOKENS") {
+            await stream.writeSSE({ data: JSON.stringify("\n\n*…trimmed for length. Ask me to continue.*") })
+          }
+
+          if (!sawText) {
+            const reason = blockReason
+              ? "That one's outside what I can help with for this trip."
+              : "I couldn't find an answer for that. Try rephrasing, or ask about a specific day, restaurant, or reservation."
+            await stream.writeSSE({ data: JSON.stringify(reason) })
+          }
+
+          await stream.writeSSE({ data: "[DONE]" })
+        })(),
+      )
     } catch (error) {
       if ((error as Error).name === "AbortError" && c.req.raw.signal.aborted) return
       console.error("[trips-chat] streaming error:", error)

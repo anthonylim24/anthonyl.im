@@ -7,7 +7,7 @@ import { createTripsRouter, type TripsRouterDeps } from "./trips"
 const AUTH = { Authorization: "Bearer test-token", "Content-Type": "application/json" }
 
 function makeApp(overrides: Partial<TripsRouterDeps> = {}) {
-  const store = new MemoryTripStore()
+  const store = overrides.store ?? new MemoryTripStore()
   const deps: TripsRouterDeps = {
     store,
     verifyAuth: async (header) => {
@@ -399,6 +399,88 @@ describe("enhancement endpoints", () => {
     expect(body.message).toBeTruthy()
     expect(body.run.status).toBe("error")
     expect(body.run.outcomeReason).toMatch(/failed before/i)
+  })
+
+  test("remeshes a concurrent PATCH instead of overwriting it", async () => {
+    const store = new MemoryTripStore()
+    const origGet = store.get.bind(store)
+    const origUpdate = store.update.bind(store)
+    let sneakOnNextGet = false
+    let sneaked = false
+    store.get = async (id) => {
+      const trip = await origGet(id)
+      if (sneakOnNextGet && !sneaked && trip) {
+        sneaked = true
+        await origUpdate({
+          ...trip,
+          name: "Sneak edit",
+          updatedAt: "2099-01-01T00:00:00.000Z",
+        })
+        return trip
+      }
+      return trip
+    }
+
+    let release!: () => void
+    const hold = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const { app } = makeApp({
+      store,
+      llm: async () => {
+        await hold
+        return JSON.stringify({
+          summary: "One tweak.",
+          suggestions: [
+            {
+              kind: "add",
+              dayId: "day-1",
+              title: "Add lunch",
+              detail: "No meals on day 1",
+              confidence: "medium",
+              proposedItem: {
+                kind: "place",
+                title: "Ichiran",
+                location: { name: "Ichiran", address: "Shibuya", lat: 35.66, lng: 139.7, category: "restaurant" },
+              },
+            },
+          ],
+        })
+      },
+    })
+    const trip = await createTrip(app)
+    const started = await startEnhance(app, trip.id)
+    sneakOnNextGet = true
+    release()
+    const { trip: enhanced } = await waitForEnhance(app, trip.id, started.id)
+    expect(enhanced.name).toBe("Sneak edit")
+    expect(enhanced.days[0]!.items.map((i) => i.title)).toContain("Ichiran")
+  })
+
+  test("returns the trip that matches a just-finished run", async () => {
+    const { app, store } = makeApp({ llm: llmSuggest })
+    const trip = await createTrip(app)
+    const started = await startEnhance(app, trip.id)
+    await waitForEnhance(app, trip.id, started.id)
+
+    const fresh = await store.get(trip.id)
+    expect(fresh).toBeTruthy()
+    const origGet = store.get.bind(store)
+    let reads = 0
+    store.get = async (id) => {
+      reads += 1
+      if (reads === 1) {
+        return { ...fresh!, name: "Stale snapshot", updatedAt: "2000-01-01T00:00:00.000Z" }
+      }
+      return origGet(id)
+    }
+
+    const res = await app.request(`/api/trips/${trip.id}/enhancements/${started.id}`, { headers: AUTH })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { trip: { name: string }; run: { status: string } }
+    expect(body.run.status).toBe("complete")
+    expect(body.trip.name).toBe(fresh!.name)
+    expect(body.trip.name).not.toBe("Stale snapshot")
   })
 
   test("requires dayId for day scope", async () => {

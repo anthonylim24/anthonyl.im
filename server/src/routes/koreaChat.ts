@@ -234,77 +234,79 @@ koreaChat.post("/", zValidator("json", chatSchema), async (c) => {
     let blockReason: string | undefined
 
     try {
-      const res = await withSsePings(
+      await withSsePings(
         () => stream.writeSSE({ event: "ping", data: "" }),
-        fetchGeminiStream(
-          `${GEMINI_BASE}/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-            body: JSON.stringify(body),
-            signal: upstreamSignal,
-          },
-        ),
-      )
+        (async () => {
+          const res = await fetchGeminiStream(
+            `${GEMINI_BASE}/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+              body: JSON.stringify(body),
+              signal: upstreamSignal,
+            },
+          )
 
-      if (!res.ok || !res.body) {
-        const detail = await res.text().catch(() => "")
-        console.error(`[korea-chat] gemini ${res.status}: ${detail.slice(0, 300)}`)
-        await stream.writeSSE({ data: JSON.stringify({ error: "The assistant is unavailable right now. Please try again." }) })
-        await stream.writeSSE({ data: "[DONE]" })
-        return
-      }
-
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ""
-
-      const flushLine = async (line: string) => {
-        const trimmed = line.trim()
-        if (!trimmed.startsWith("data:")) return
-        const payload = trimmed.slice(5).trim()
-        if (!payload || payload === "[DONE]") return
-        try {
-          const json = JSON.parse(payload) as GeminiStreamChunk
-          if (json.promptFeedback?.blockReason) blockReason = json.promptFeedback.blockReason
-          const fr = json.candidates?.[0]?.finishReason
-          if (fr) finishReason = fr
-          const delta = extractDelta(json)
-          if (delta) {
-            sawText = true
-            await stream.writeSSE({ data: JSON.stringify(delta) })
+          if (!res.ok || !res.body) {
+            const detail = await res.text().catch(() => "")
+            console.error(`[korea-chat] gemini ${res.status}: ${detail.slice(0, 300)}`)
+            await stream.writeSSE({ data: JSON.stringify({ error: "The assistant is unavailable right now. Please try again." }) })
+            await stream.writeSSE({ data: "[DONE]" })
+            return
           }
-        } catch {
-          // Ignore partial/keepalive lines — Gemini occasionally emits
-          // non-JSON whitespace between events.
-        }
-      }
 
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split("\n")
-        buffer = lines.pop() ?? ""
-        for (const line of lines) await flushLine(line)
-      }
-      if (buffer) await flushLine(buffer)
+          const reader = res.body.getReader()
+          const decoder = new TextDecoder()
+          let buffer = ""
 
-      // Truncated mid-thought — tell the user so a cut-off sentence isn't mistaken for the full answer.
-      if (sawText && finishReason === "MAX_TOKENS") {
-        await stream.writeSSE({ data: JSON.stringify("\n\n*…trimmed for length — ask me to continue.*") })
-      }
+          const flushLine = async (line: string) => {
+            const trimmed = line.trim()
+            if (!trimmed.startsWith("data:")) return
+            const payload = trimmed.slice(5).trim()
+            if (!payload || payload === "[DONE]") return
+            try {
+              const json = JSON.parse(payload) as GeminiStreamChunk
+              if (json.promptFeedback?.blockReason) blockReason = json.promptFeedback.blockReason
+              const fr = json.candidates?.[0]?.finishReason
+              if (fr) finishReason = fr
+              const delta = extractDelta(json)
+              if (delta) {
+                sawText = true
+                await stream.writeSSE({ data: JSON.stringify(delta) })
+              }
+            } catch {
+              // Ignore partial/keepalive lines — Gemini occasionally emits
+              // non-JSON whitespace between events.
+            }
+          }
 
-      // 200 with no text at all (safety block, empty candidate). Surface a
-      // real reply instead of leaving the UI on a perpetual typing indicator.
-      if (!sawText) {
-        const reason = blockReason
-          ? "That one's outside what I can help with for this trip."
-          : "I couldn't find an answer for that. Try rephrasing, or ask about a specific day, restaurant, or reservation."
-        await stream.writeSSE({ data: JSON.stringify(reason) })
-      }
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            buffer += decoder.decode(value, { stream: true })
+            const lines = buffer.split("\n")
+            buffer = lines.pop() ?? ""
+            for (const line of lines) await flushLine(line)
+          }
+          if (buffer) await flushLine(buffer)
 
-      await stream.writeSSE({ data: "[DONE]" })
+          // Truncated mid-thought — tell the user so a cut-off sentence isn't mistaken for the full answer.
+          if (sawText && finishReason === "MAX_TOKENS") {
+            await stream.writeSSE({ data: JSON.stringify("\n\n*…trimmed for length — ask me to continue.*") })
+          }
+
+          // 200 with no text at all (safety block, empty candidate). Surface a
+          // real reply instead of leaving the UI on a perpetual typing indicator.
+          if (!sawText) {
+            const reason = blockReason
+              ? "That one's outside what I can help with for this trip."
+              : "I couldn't find an answer for that. Try rephrasing, or ask about a specific day, restaurant, or reservation."
+            await stream.writeSSE({ data: JSON.stringify(reason) })
+          }
+
+          await stream.writeSSE({ data: "[DONE]" })
+        })(),
+      )
     } catch (error) {
       // Client disconnects abort the upstream fetch — that's expected, not an error to log loudly.
       if ((error as Error).name === "AbortError" && c.req.raw.signal.aborted) return

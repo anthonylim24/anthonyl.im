@@ -457,11 +457,12 @@ export function TripDetail() {
     }
     // Only on hash change / first arrival — a later enhance refresh of
     // `trip` must not steal the viewport back to the anchored day.
-    if (scrolledHashRef.current === hash) return
+    const scrollKey = `${trip.id}:${hash}`
+    if (scrolledHashRef.current === scrollKey) return
     const id = window.setTimeout(() => {
       const el = document.getElementById(hash)
       if (!el) return
-      scrolledHashRef.current = hash
+      scrolledHashRef.current = scrollKey
       el.scrollIntoView(reduce ? { block: "start" } : { behavior: "smooth", block: "start" })
     }, 80)
     return () => window.clearTimeout(id)
@@ -533,6 +534,7 @@ export function TripDetail() {
             <TripStatusSelect
               status={trip.status}
               editable={editable}
+              disabled={editorLocked}
               onChange={(status) => scheduleSave({ ...trip, status })}
             />
             <span aria-hidden>·</span>
@@ -550,6 +552,7 @@ export function TripDetail() {
           {editable && trip.status === "draft" && (
             <button
               type="button"
+              disabled={editorLocked}
               onClick={() => {
                 scheduleSave({ ...trip, status: "active" })
                 setNotice("Trip published. It’s now active for everyone who can see it.")
@@ -580,6 +583,7 @@ export function TripDetail() {
         <GeneratePanel
           getToken={getToken}
           tripId={trip.id}
+          locked={editorLocked}
           initialPrompt={navState?.retryGenerate?.prompt}
           preferences={navState?.retryGenerate?.preferences}
           onGenerated={(next) => {
@@ -605,6 +609,7 @@ export function TripDetail() {
       {editable && (
         <ExtractedPlacesLibrary
           trip={trip}
+          locked={editorLocked}
           defaultDayId={routerLocation.hash.replace(/^#/, "") || undefined}
           onDaysChange={setDays}
         />
@@ -646,6 +651,7 @@ export function TripDetail() {
           <p className={eyebrowClass}>Trip settings</p>
           <AppearancePanel
             trip={trip}
+            locked={editorLocked}
             onChange={(appearance) => scheduleSave({ ...trip, appearance })}
             onSlugChange={(slug) => scheduleSave({ ...trip, slug })}
           />
