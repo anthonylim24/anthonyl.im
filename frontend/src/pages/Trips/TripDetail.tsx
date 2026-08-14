@@ -111,12 +111,15 @@ export function TripDetail() {
         const { trip: loaded, access: a } = await getTrip(getTokenRef.current, tripId)
         if (cancelled) return
         // A slower first fetch (Strict Mode remount, CI) must not clobber
-        // keystrokes the traveler already made.
-        if (editedRef.current || pendingPatchRef.current) {
+        // keystrokes on THIS trip. A different tripId must still load.
+        const pending = pendingPatchRef.current ?? (editedRef.current ? tripRef.current : null)
+        if (pending && pending.id === loaded.id) {
           setAccess(a)
           setState({ status: "success" })
           return
         }
+        pendingPatchRef.current = null
+        editedRef.current = false
         setTrip(loaded)
         setAccess(a)
         setState({ status: "success" })
