@@ -4,18 +4,25 @@
  * sign in without the interactive Clerk modal.
  *
  *   bun scripts/clerk-agent-login.ts --pr 123 --path /korea
- *   bun scripts/clerk-agent-login.ts --redirect 'https://anthonyl.im/korea'
+ *   bun scripts/clerk-agent-login.ts --pr 123 --path /trips
+ *
+ * Run this helper from a trusted `origin/main` checkout, not a PR worktree —
+ * it can send CLERK_SECRET_KEY / AGENT_LOGIN_SECRET / `gh auth token`.
  *
  * Prints the one-time Clerk URL on stdout. Navigate the agent browser there;
- * Clerk sets a real session cookie and redirects to the target page.
+ * Clerk sets a session cookie and redirects to the preview page.
  *
  * Auth (first match):
  *   1. CLERK_SECRET_KEY + CLERK_AGENT_USER_ID (or _EMAIL) → call Clerk directly
  *   2. AGENT_LOGIN_SECRET → POST https://anthonyl.im/api/agent/session
  *   3. `gh auth token` as a repo collaborator → same production endpoint
+ *
+ * `--api` / AGENT_SESSION_API must be anthonyl.im or loopback. The minted
+ * session is a dedicated screenshot identity (no production trip writes).
  */
 import {
   createClerkAgentTask,
+  isAllowedAgentApiBase,
   mintAgentSessionRemote,
   parseAgentOnBehalfOf,
   previewAgentRedirectUrl,
@@ -29,8 +36,8 @@ function arg(flag: string, argv: string[]): string | undefined {
 
 function usage(): never {
   console.error(`usage:
-  bun scripts/clerk-agent-login.ts --pr <n> [--path /korea]
-  bun scripts/clerk-agent-login.ts --redirect <absolute-url>
+  bun scripts/clerk-agent-login.ts --pr <n> [--path /korea|/trips]
+  bun scripts/clerk-agent-login.ts --redirect <preview-or-localhost-url>
 
 Then open the printed URL in the agent browser (Chrome MCP / Playwright).`);
   process.exit(2);
@@ -87,6 +94,13 @@ try {
   }
 
   const apiBase = arg("api", argv) ?? process.env.AGENT_SESSION_API ?? siteUrl;
+  if (!isAllowedAgentApiBase(apiBase)) {
+    console.error(
+      `Refusing to send credentials to untrusted API origin: ${apiBase}\n` +
+        "Use https://anthonyl.im or a loopback --api (http://127.0.0.1:3000).",
+    );
+    process.exit(1);
+  }
   const result = await mintAgentSessionRemote({
     apiBase,
     bearer,

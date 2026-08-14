@@ -25,12 +25,22 @@ export const DEFAULT_AGENT_REDIRECT_HOSTS = [
   "www.anthonyl.im",
   "localhost",
   "127.0.0.1",
+  "::1",
 ] as const;
+
+/** Origins that may receive AGENT_LOGIN_SECRET / gh tokens from the login helper. */
+export const DEFAULT_AGENT_SESSION_API_HOSTS = DEFAULT_AGENT_REDIRECT_HOSTS;
 
 export const DEFAULT_AGENT_GITHUB_REPO = "anthonylim24/anthonyl.im";
 export const DEFAULT_AGENT_NAME = "anthonyl-im-agent";
 export const DEFAULT_TASK_DESCRIPTION = "Automated test / PR preview screenshot";
 export const DEFAULT_SESSION_SECONDS = 1800;
+export const DEFAULT_UPSTREAM_TIMEOUT_MS = 10_000;
+
+/** URL.hostname for IPv6 is often `[::1]`; strip brackets before comparing. */
+export function normalizeHostname(host: string): string {
+  return host.replace(/^\[|\]$/g, "").toLowerCase();
+}
 
 /** Length-independent comparison so login-secret checks do not leak size. */
 export function secretsEqual(expected: string | undefined, provided: string): boolean {
@@ -61,6 +71,17 @@ export function parseAllowedRedirectHosts(
   return fromEnv.length > 0 ? fromEnv : [...DEFAULT_AGENT_REDIRECT_HOSTS];
 }
 
+function isAllowedAgentOrigin(
+  url: URL,
+  allowedHosts: readonly string[],
+): boolean {
+  if (url.username || url.password) return false;
+  const host = normalizeHostname(url.hostname);
+  if (!allowedHosts.some((h) => normalizeHostname(h) === host)) return false;
+  if (LOCAL_HOSTS.has(host)) return url.protocol === "http:" || url.protocol === "https:";
+  return url.protocol === "https:";
+}
+
 /**
  * Open-redirect guard for Clerk Agent Task `redirectUrl`.
  * Production hosts must be https; loopback may use http for local Clerk instances.
@@ -75,11 +96,57 @@ export function isAllowedAgentRedirect(
   } catch {
     return false;
   }
-  if (url.username || url.password) return false;
-  const host = url.hostname.toLowerCase();
-  if (!allowedHosts.some((h) => h.toLowerCase() === host)) return false;
-  if (LOCAL_HOSTS.has(host)) return url.protocol === "http:" || url.protocol === "https:";
-  return url.protocol === "https:";
+  return isAllowedAgentOrigin(url, allowedHosts);
+}
+
+/**
+ * Guard for `--api` / AGENT_SESSION_API. Distinct from redirect allowlisting
+ * so a user-supplied origin cannot receive the login bearer.
+ */
+export function isAllowedAgentApiBase(
+  raw: string,
+  allowedHosts: readonly string[] = DEFAULT_AGENT_SESSION_API_HOSTS,
+): boolean {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return false;
+  }
+  return isAllowedAgentOrigin(url, allowedHosts);
+}
+
+export async function fetchWithTimeout(
+  fetchImpl: typeof fetch,
+  url: string,
+  init: RequestInit | undefined,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const aborted = new Promise<Response>((_resolve, reject) => {
+    controller.signal.addEventListener(
+      "abort",
+      () => {
+        const err = new Error("The operation was aborted");
+        err.name = "AbortError";
+        reject(err);
+      },
+      { once: true },
+    );
+  });
+  try {
+    return await Promise.race([
+      fetchImpl(url, { ...init, signal: controller.signal }),
+      aborted,
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function isAbortError(err: unknown): boolean {
+  return err instanceof Error && err.name === "AbortError";
 }
 
 /** Convenience URL for screenshotting a published PR preview. */
@@ -123,6 +190,7 @@ export async function createClerkAgentTask(opts: {
   sessionMaxDurationInSeconds?: number;
   apiUrl?: string;
   fetchImpl?: typeof fetch;
+  timeoutMs?: number;
 }): Promise<AgentTaskResult> {
   const apiUrl = (opts.apiUrl ?? "https://api.clerk.com").replace(/\/+$/, "");
   const onBehalfOf =
@@ -139,14 +207,27 @@ export async function createClerkAgentTask(opts: {
       opts.sessionMaxDurationInSeconds ?? DEFAULT_SESSION_SECONDS,
   };
 
-  const res = await (opts.fetchImpl ?? fetch)(`${apiUrl}/v1/agents/tasks`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${opts.secretKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(
+      opts.fetchImpl ?? fetch,
+      `${apiUrl}/v1/agents/tasks`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${opts.secretKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      },
+      opts.timeoutMs ?? DEFAULT_UPSTREAM_TIMEOUT_MS,
+    );
+  } catch (err) {
+    throw new AgentTaskError(
+      isAbortError(err) ? "Clerk Agent Tasks request timed out" : "Clerk Agent Tasks request failed",
+      502,
+    );
+  }
 
   const json: unknown = await res.json().catch(() => null);
   if (!res.ok) {
@@ -174,16 +255,27 @@ export async function verifyGithubPushAccess(
   token: string,
   repo: string,
   fetchImpl: typeof fetch = fetch,
+  timeoutMs: number = DEFAULT_UPSTREAM_TIMEOUT_MS,
 ): Promise<boolean> {
   if (!token || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) return false;
-  const res = await fetchImpl(`https://api.github.com/repos/${repo}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-      "User-Agent": "anthonyl.im-agent-session",
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(
+      fetchImpl,
+      `https://api.github.com/repos/${repo}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          "User-Agent": "anthonyl.im-agent-session",
+        },
+      },
+      timeoutMs,
+    );
+  } catch {
+    return false;
+  }
   if (!res.ok) return false;
   const body = (await res.json().catch(() => null)) as {
     permissions?: { push?: boolean; admin?: boolean };
@@ -198,20 +290,36 @@ export async function mintAgentSessionRemote(opts: {
   agentName?: string;
   taskDescription?: string;
   fetchImpl?: typeof fetch;
+  timeoutMs?: number;
 }): Promise<AgentTaskResult> {
   const apiBase = opts.apiBase.replace(/\/+$/, "");
-  const res = await (opts.fetchImpl ?? fetch)(`${apiBase}/api/agent/session`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${opts.bearer}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      redirectUrl: opts.redirectUrl,
-      agentName: opts.agentName,
-      taskDescription: opts.taskDescription,
-    }),
-  });
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(
+      opts.fetchImpl ?? fetch,
+      `${apiBase}/api/agent/session`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${opts.bearer}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          redirectUrl: opts.redirectUrl,
+          agentName: opts.agentName,
+          taskDescription: opts.taskDescription,
+        }),
+      },
+      opts.timeoutMs ?? DEFAULT_UPSTREAM_TIMEOUT_MS,
+    );
+  } catch (err) {
+    throw new AgentTaskError(
+      isAbortError(err)
+        ? "agent session mint timed out"
+        : "agent session mint request failed",
+      502,
+    );
+  }
   const json = (await res.json().catch(() => null)) as {
     url?: unknown;
     agentTaskId?: unknown;

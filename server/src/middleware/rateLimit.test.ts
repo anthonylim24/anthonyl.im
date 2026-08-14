@@ -1,6 +1,6 @@
 import { test, expect, describe } from "bun:test";
 import { Hono } from "hono";
-import { createRateLimit } from "./rateLimit";
+import { createRateLimit, trustedProxyClientAddress } from "./rateLimit";
 
 function makeApp(max: number, windowMs = 60_000) {
   const app = new Hono();
@@ -36,17 +36,44 @@ describe("createRateLimit", () => {
 
   test("different x-forwarded-for values get independent buckets", async () => {
     const app = makeApp(1);
-    // First IP exhausts its bucket
     await app.request("/", { headers: { "x-forwarded-for": "10.1.1.1" } });
     const blocked = await app.request("/", {
       headers: { "x-forwarded-for": "10.1.1.1" },
     });
     expect(blocked.status).toBe(429);
 
-    // Second IP still has quota
     const allowed = await app.request("/", {
       headers: { "x-forwarded-for": "10.1.1.2" },
     });
     expect(allowed.status).toBe(200);
+  });
+
+  test("trustedProxyClientAddress uses the last X-Forwarded-For hop", async () => {
+    const app = new Hono();
+    app.use(
+      "/*",
+      createRateLimit({
+        windowMs: 60_000,
+        max: 1,
+        keyPrefix: "trusted-xff",
+        key: trustedProxyClientAddress,
+      }),
+    );
+    app.get("/", (c) => c.json({ ok: true }));
+
+    const first = await app.request("/", {
+      headers: { "x-forwarded-for": "198.51.100.1, 203.0.113.10" },
+    });
+    expect(first.status).toBe(200);
+
+    const rotatedClient = await app.request("/", {
+      headers: { "x-forwarded-for": "198.51.100.99, 203.0.113.10" },
+    });
+    expect(rotatedClient.status).toBe(429);
+
+    const otherPeer = await app.request("/", {
+      headers: { "x-forwarded-for": "198.51.100.1, 203.0.113.11" },
+    });
+    expect(otherPeer.status).toBe(200);
   });
 });

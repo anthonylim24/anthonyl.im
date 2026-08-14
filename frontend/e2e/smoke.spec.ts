@@ -33,7 +33,20 @@ test('breathwork home renders without page errors', async ({ page }) => {
 })
 
 test('korea skips the Clerk sign-in wall under VITE_DEV_BEARER', async ({ page }) => {
-  await page.goto('/korea')
+  const targetingRemotePreview =
+    typeof process.env.E2E_BASE_URL === 'string' &&
+    /\/preview\/pr\//.test(process.env.E2E_BASE_URL)
+  test.skip(
+    targetingRemotePreview && !process.env.VITE_DEV_BEARER,
+    'Remote previews are Clerk-gated; mint a session with clerk-agent-login.ts instead of VITE_DEV_BEARER',
+  )
+
+  const errors: string[] = []
+  page.on('pageerror', (e) => errors.push(e.message))
+
+  const response = await page.goto('/korea')
+  expect(response?.status(), '/korea should not 5xx').toBeLessThan(500)
+  await expect(page).toHaveTitle(/.+/)
   await expect(page.getByRole('button', { name: /sign in to continue/i })).toHaveCount(0)
-  await expect(page.locator('#root')).not.toBeEmpty()
+  expect(errors, 'no uncaught page errors').toEqual([])
 })

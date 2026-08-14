@@ -19,16 +19,10 @@ export function apiUrl(path: string): string {
 export const PREVIEW_API_HEADER = "X-Preview-API"
 
 /**
- * Fetch an `/api/...` path. Preview builds first try
- * `/preview/pr/<n>/api/...`. If production Hono has not mounted the
- * preview-API proxy yet (no `X-Preview-API` header, 404), fall back to
- * production `/api` so the UI still works.
+ * Fetch an `/api/...` path. Preview builds call
+ * `/preview/pr/<n>/api/...` only — they must not fall back to production
+ * `/api`, which would send a same-origin Clerk cookie to live data.
  */
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
-  const rewritten = apiUrl(path)
-  const res = await fetch(rewritten, init)
-  if (!previewApiBase() || rewritten === path) return res
-  if (res.headers.get(PREVIEW_API_HEADER) === "1") return res
-  if (res.status === 404) return fetch(path, init)
-  return res
+  return fetch(apiUrl(path), init)
 }

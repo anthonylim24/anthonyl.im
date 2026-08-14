@@ -113,4 +113,16 @@ describe("POST /api/agent/session", () => {
     const res = await hono.request("/api/agent/session");
     expect(res.status).toBe(404);
   });
+
+  test("429 after the authenticated identity exceeds the window", async () => {
+    const { app: hono } = app({ loginSecret: "identity-limit-secret" });
+    const body = { redirectUrl: "https://anthonyl.im/korea" };
+    for (let i = 0; i < 10; i++) {
+      const res = await post(hono, body, "identity-limit-secret");
+      expect(res.status).toBe(200);
+    }
+    const limited = await post(hono, body, "identity-limit-secret");
+    expect(limited.status).toBe(429);
+    expect((await limited.json() as { error: string }).error).toBe("rate_limited");
+  });
 });
