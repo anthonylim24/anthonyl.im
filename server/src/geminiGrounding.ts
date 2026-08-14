@@ -58,6 +58,21 @@ export function placeKey(name: string): string {
   return name.trim().toLowerCase()
 }
 
+/** Maps grounding titles are often "Venue - Google Maps" or "Review of Venue". */
+export function venueNameFromMapsTitle(title: string): string | null {
+  let name = title.trim().replace(/\s+[—–-]\s+Google Maps\s*$/i, "").trim()
+  if (!name || /^google maps$/i.test(name)) return null
+  if (/^reviews?\s+of\b/i.test(name)) return null
+  return clip(name, 200) ?? null
+}
+
+function keysOverlap(a: string, b: string): boolean {
+  if (a === b) return true
+  if (a.length >= 4 && b.includes(a)) return true
+  if (b.length >= 4 && a.includes(b)) return true
+  return false
+}
+
 export function safeHttpUrl(value: unknown): string | undefined {
   if (typeof value !== "string" || !value.trim()) return undefined
   try {
@@ -151,7 +166,7 @@ export function placesFromMapsChunks(grounding: GeminiGrounding | undefined): Co
   const seen = new Set<string>()
   for (const chunk of grounding.chunks) {
     if (chunk.kind !== "maps") continue
-    const name = clip(chunk.title, 200)
+    const name = venueNameFromMapsTitle(chunk.title)
     if (!name) continue
     const key = placeKey(name)
     if (seen.has(key)) continue
@@ -167,11 +182,16 @@ export function placesFromMapsChunks(grounding: GeminiGrounding | undefined): Co
 
 export function mergeConciergePlaces(fromTrailer: ConciergePlace[], fromMaps: ConciergePlace[]): ConciergePlace[] {
   const byKey = new Map<string, ConciergePlace>()
-  for (const place of fromMaps) byKey.set(placeKey(place.name), definedFields(place))
-  for (const place of fromTrailer) {
+  for (const place of fromTrailer) byKey.set(placeKey(place.name), definedFields(place))
+  for (const place of fromMaps) {
     const key = placeKey(place.name)
-    const prev = byKey.get(key)
-    byKey.set(key, prev ? { ...prev, ...definedFields(place), name: place.name } : definedFields(place))
+    const matchKey = [...byKey.keys()].find((k) => keysOverlap(k, key))
+    if (matchKey) {
+      const prev = byKey.get(matchKey)!
+      byKey.set(matchKey, { ...definedFields(place), ...prev, name: prev.name })
+      continue
+    }
+    if (fromTrailer.length === 0) byKey.set(key, definedFields(place))
   }
   return [...byKey.values()].slice(0, 8)
 }

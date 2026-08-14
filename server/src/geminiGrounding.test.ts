@@ -87,6 +87,35 @@ describe("merge + filter places", () => {
       { name: "Senso-ji", mapsUrl: "https://maps.google.com/?cid=9", placeId: "ChIJabcdefgh" },
     ])
   })
+
+  test("strips Google Maps listing titles and drops review pages", () => {
+    const places = placesFromMapsChunks({
+      chunks: [
+        { kind: "maps", title: "Hongs Zzuggumi - Google Maps", uri: "https://maps.google.com/?cid=1" },
+        { kind: "maps", title: "Review of Hongs Zzuggumi - Google Maps", uri: "https://maps.google.com/?cid=2" },
+      ],
+      webSearchQueries: [],
+    })
+    expect(places).toEqual([{ name: "Hongs Zzuggumi", mapsUrl: "https://maps.google.com/?cid=1" }])
+  })
+
+  test("when the model sent a trailer, Maps chunks only enrich that venue", () => {
+    const merged = mergeConciergePlaces(
+      [{ name: "Hongs Zzuggumi", address: "146 Eoulmadang-ro" }],
+      [
+        { name: "Hongs Zzuggumi", mapsUrl: "https://maps.google.com/?cid=1", placeId: "ChIJabcdefgh" },
+        { name: "Unrelated Cafe", mapsUrl: "https://maps.google.com/?cid=9" },
+      ],
+    )
+    expect(merged).toEqual([
+      {
+        name: "Hongs Zzuggumi",
+        address: "146 Eoulmadang-ro",
+        mapsUrl: "https://maps.google.com/?cid=1",
+        placeId: "ChIJabcdefgh",
+      },
+    ])
+  })
 })
 
 describe("sourcesFromGrounding", () => {
