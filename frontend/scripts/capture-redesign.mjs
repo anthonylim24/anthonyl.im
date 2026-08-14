@@ -358,8 +358,7 @@ try {
       const context = await newContext(browser, { viewport, colorScheme: scheme })
       const page = await context.newPage()
       watchErrors(page, `concierge ${mode}`)
-      await page.goto(`${BASE}/trips/korea-2026/day/day-2`, { waitUntil: "domcontentloaded" })
-      await settle(page, 1000)
+      await gotoRoute(page, `${BASE}/trips/korea-2026/day/day-2`, "concierge day")
       const fab = page
         .getByRole("button", { name: /concierge|ask|chat/i })
         .first()
@@ -380,8 +379,7 @@ try {
       await mockEmptyTripList(context)
       const page = await context.newPage()
       watchErrors(page, `trips empty ${mode}`)
-      await page.goto(`${BASE}/trips`, { waitUntil: "domcontentloaded" })
-      await settle(page, 1100)
+      await gotoRoute(page, `${BASE}/trips`, "empty index")
       await shot(page, `trips-index-empty-${mode}-${scheme}`)
       await context.close()
     }
