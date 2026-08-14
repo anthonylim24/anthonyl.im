@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { ItineraryItem, Trip } from "../types"
 
@@ -41,10 +41,26 @@ function makeTrip(overrides: Partial<Trip> = {}): Trip {
 const getToken = async () => "token"
 
 function Probe({ tripId }: { tripId: string }) {
-  const { state } = useLoadedTrip(tripId, getToken)
-  if (state.status === "loading") return <div>loading</div>
+  const { state, reload } = useLoadedTrip(tripId, getToken)
+  if (state.status === "loading") {
+    return (
+      <div>
+        <div>loading</div>
+        <button type="button" onClick={reload}>
+          reload
+        </button>
+      </div>
+    )
+  }
   if (state.status === "error") return <div>{`error:${state.message}`}</div>
-  return <div>{`success:${state.trip.updatedAt}:${state.trip.days[0]?.items.length ?? 0}`}</div>
+  return (
+    <div>
+      <div>{`success:${state.trip.updatedAt}:${state.trip.days[0]?.items.length ?? 0}`}</div>
+      <button type="button" onClick={reload}>
+        reload
+      </button>
+    </div>
+  )
 }
 
 describe("useLoadedTrip", () => {
@@ -101,5 +117,36 @@ describe("useLoadedTrip", () => {
     )
 
     expect(screen.getByText("success:2026-01-01T00:00:02Z:1")).toBeTruthy()
+  })
+
+  it("keeps a concierge add across reload when getTrip is stale", async () => {
+    mockGetTrip.mockResolvedValueOnce({ trip: makeTrip(), access: "owner" })
+    render(<Probe tripId="tokyo" />)
+    await waitFor(() => {
+      expect(screen.getByText("success:2026-01-01T00:00:00Z:0")).toBeTruthy()
+    })
+
+    const live = makeTrip({
+      updatedAt: "2026-01-01T00:00:01Z",
+      days: [{ id: "day-1", date: "2026-07-10", items: [ICHIRAN] }],
+    })
+    act(() => emitTripChanged(live))
+    expect(screen.getByText("success:2026-01-01T00:00:01Z:1")).toBeTruthy()
+
+    let resolveGet!: (value: { trip: Trip; access: string }) => void
+    mockGetTrip.mockReturnValue(
+      new Promise((resolve) => {
+        resolveGet = resolve
+      }),
+    )
+    fireEvent.click(screen.getByRole("button", { name: "reload" }))
+    expect(screen.getByText("loading")).toBeTruthy()
+
+    await act(async () => {
+      resolveGet({ trip: makeTrip(), access: "owner" })
+    })
+    await waitFor(() => {
+      expect(screen.getByText("success:2026-01-01T00:00:01Z:1")).toBeTruthy()
+    })
   })
 })

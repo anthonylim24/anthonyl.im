@@ -12,8 +12,13 @@ export function useLoadedTrip(tripId: string | undefined, getToken: GetToken) {
   const [state, setState] = useState<TripDocumentState>({ status: "loading" })
   const [reloadKey, setReloadKey] = useState(0)
   const liveTripRef = useRef<Trip | null>(null)
+  const tripIdRef = useRef(tripId)
   const getTokenRef = useRef(getToken)
   getTokenRef.current = getToken
+  if (tripIdRef.current !== tripId) {
+    tripIdRef.current = tripId
+    liveTripRef.current = null
+  }
 
   const reload = useCallback(() => {
     setState({ status: "loading" })
@@ -23,7 +28,6 @@ export function useLoadedTrip(tripId: string | undefined, getToken: GetToken) {
   useEffect(() => {
     if (!tripId) return
     let cancelled = false
-    liveTripRef.current = null
     void (async () => {
       try {
         const { trip, access } = await getTrip(getTokenRef.current, tripId)
