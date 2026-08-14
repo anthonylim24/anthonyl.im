@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { ChevronDown, ChevronLeft, ChevronRight, Plus } from "lucide-react"
+import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useGetToken } from "@/lib/safeAuth"
 import { formatTripDate } from "./theme"
 import { addItem, dayHasPlaceNamed, itemFromExtractedPlace } from "./tripEdits"
@@ -7,14 +8,39 @@ import { collectCatalogPlaces, groupCatalogPlaces, type CatalogPlace } from "./p
 import { listForeignInstagramTrips } from "./tripsApi"
 import type { Trip, TripDay } from "./types"
 import {
+  DISPLAY,
+  EASE,
+  EXIT_FADE,
+  REVEAL_DURATION,
   chipBtnClass,
   compactSelectClass,
+  displayCardClass,
+  dividerClass,
+  focusRingClass,
+  hintClass,
   mutedInkClass,
   quietBtnClass,
+  skeletonClass,
   wrapAnywhereClass,
 } from "./ui"
 
 const PAGE_SIZE = 20
+
+function CatalogSkeleton() {
+  return (
+    <ul className="mt-3 space-y-2" aria-hidden>
+      {[0, 1, 2].map((i) => (
+        <li key={i} className="flex items-center gap-2 py-1.5">
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div className={`h-4 w-2/3 ${skeletonClass}`} />
+            <div className={`h-3 w-1/3 ${skeletonClass}`} />
+          </div>
+          <div className={`h-9 w-16 ${skeletonClass}`} />
+        </li>
+      ))}
+    </ul>
+  )
+}
 
 export function ExtractedPlacesLibrary({
   trip,
@@ -28,6 +54,7 @@ export function ExtractedPlacesLibrary({
   onDaysChange: (fn: (days: TripDay[]) => TripDay[]) => void
 }) {
   const getToken = useGetToken()
+  const reduce = useReducedMotion()
   const [open, setOpen] = useState(() => collectCatalogPlaces([trip]).length > 0)
   const [offset, setOffset] = useState(0)
   const [foreign, setForeign] = useState<CatalogPlace[]>([])
@@ -108,21 +135,25 @@ export function ExtractedPlacesLibrary({
           {total > 0 ? <span className={`ml-1.5 font-normal ${mutedInkClass}`}>{total}</span> : null}
         </span>
         <ChevronDown
-          className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`}
+          className={`h-3.5 w-3.5 transition-transform duration-200 motion-reduce:transition-none ${open ? "rotate-180" : ""}`}
           strokeWidth={1.5}
           aria-hidden
         />
       </button>
 
-      {open && (
-        <div className="mt-3">
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={reduce ? { opacity: 0 } : { opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reduce ? { opacity: 0 } : { opacity: 0, y: 4 }}
+            transition={reduce ? EXIT_FADE : { duration: REVEAL_DURATION, ease: EASE }}
+            className="mt-3"
+          >
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className={`text-xs leading-relaxed ${mutedInkClass}`}>
-              Instagram places, grouped by trip, city, then neighborhood.
-            </p>
             {trip.days.length > 0 && (
               <label className="flex min-h-11 items-center gap-2 sm:min-h-9">
-                <span className={`shrink-0 text-[11px] uppercase tracking-[0.14em] ${mutedInkClass}`}>Add to</span>
+                <span className={`shrink-0 text-[13px] font-medium ${mutedInkClass}`}>Add to</span>
                 <select
                   value={targetDayId}
                   disabled={locked}
@@ -132,7 +163,7 @@ export function ExtractedPlacesLibrary({
                   {trip.days.map((day, i) => (
                     <option key={day.id} value={day.id}>
                       Day {i + 1}
-                      {day.title?.trim() ? ` · ${day.title}` : ""} · {formatTripDate(day.date, trip.timezone)}
+                      {day.title?.trim() ? ` ${day.title}` : ""}, {formatTripDate(day.date, trip.timezone)}
                     </option>
                   ))}
                 </select>
@@ -141,35 +172,34 @@ export function ExtractedPlacesLibrary({
           </div>
 
           {loading && total === 0 ? (
-            <p className={`mt-2 text-xs ${mutedInkClass}`} role="status">
-              Loading places…
-            </p>
+            <div role="status" aria-label="Loading places">
+              <CatalogSkeleton />
+            </div>
           ) : total === 0 ? (
-            <p className={`mt-2 text-xs ${mutedInkClass}`}>
-              None yet. Extract a post on a day below, then add it.
-            </p>
+            <div className="mt-3">
+              <p className="text-sm">No extracted places yet</p>
+              <p className={hintClass}>Extract a post on a day, then add it here.</p>
+            </div>
           ) : (
             <div className="mt-3 space-y-4">
               {groups.map((group) => (
                 <article key={group.tripId}>
-                  <h3 className={`text-sm font-semibold text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}>
+                  <h3 className={`${displayCardClass} ${wrapAnywhereClass}`} style={DISPLAY}>
                     {group.tripName}
                     {group.tripId === trip.id ? (
-                      <span className={`ml-1.5 text-[11px] font-medium ${mutedInkClass}`}>This trip</span>
+                      <span className={`ml-1.5 text-[13px] font-medium ${mutedInkClass}`}>This trip</span>
                     ) : null}
                   </h3>
                   <div className="mt-1.5 space-y-3">
                     {group.cities.map((city) => (
                       <div key={`${group.tripId}-${city.city}`}>
-                        <p className={`font-mono-trips text-[10px] uppercase tracking-[0.16em] ${mutedInkClass}`}>
-                          {city.city}
-                        </p>
+                        <p className={`text-[13px] font-medium ${mutedInkClass}`}>{city.city}</p>
                         {city.neighborhoods.map((hood) => (
                           <div key={`${group.tripId}-${city.city}-${hood.neighborhood}`} className="mt-1">
-                            <p className={`text-[11px] font-medium text-stone-600 dark:text-stone-400 ${wrapAnywhereClass}`}>
+                            <p className={`text-[12px] ${mutedInkClass} ${wrapAnywhereClass}`}>
                               {hood.neighborhood}
                             </p>
-                            <ul className="mt-0.5 divide-y divide-stone-200/70 dark:divide-stone-800/70">
+                            <ul className={`mt-0.5 ${dividerClass}`}>
                               {hood.places.map((place) => (
                                 <CatalogRow
                                   key={`${place.tripId}-${place.itemId}`}
@@ -194,8 +224,8 @@ export function ExtractedPlacesLibrary({
 
           {total > PAGE_SIZE && (
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-              <p className={`text-[11px] ${mutedInkClass}`}>
-                {pageStart}–{pageEnd} of {total}
+              <p className={`font-mono-trips text-[11px] ${mutedInkClass}`}>
+                {pageStart}-{pageEnd} of {total}
               </p>
               <div className="flex gap-1">
                 <button
@@ -219,8 +249,9 @@ export function ExtractedPlacesLibrary({
               </div>
             </div>
           )}
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </section>
   )
 }
@@ -244,7 +275,9 @@ function CatalogRow({
   const onThisTrip =
     place.tripId === currentTrip.id &&
     currentTrip.days.some((d) => dayHasPlaceNamed(d, place.name))
-  const meta = [place.category, place.address].filter(Boolean).join(" · ")
+  const category = place.category?.trim()
+  const address = place.address?.trim()
+  const meta = category && address ? `${category} · ${address}` : category || address || ""
 
   return (
     <li className="flex items-center gap-2 py-1.5">
@@ -254,14 +287,14 @@ function CatalogRow({
             href={place.sourceUrl}
             target="_blank"
             rel="noreferrer"
-            className={`block truncate text-sm text-stone-900 hover:underline dark:text-stone-100 ${wrapAnywhereClass}`}
+            className={`block truncate text-sm hover:underline ${focusRingClass} ${wrapAnywhereClass}`}
           >
             {place.name}
           </a>
         ) : (
-          <p className={`truncate text-sm text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}>{place.name}</p>
+          <p className={`truncate text-sm ${wrapAnywhereClass}`}>{place.name}</p>
         )}
-        {meta ? <p className={`truncate text-[11px] ${mutedInkClass}`}>{meta}</p> : null}
+        {meta ? <p className={`truncate font-mono-trips text-[11px] ${mutedInkClass}`}>{meta}</p> : null}
       </div>
       {onThisDay ? (
         <span className={`shrink-0 text-[11px] ${mutedInkClass}`}>Added</span>

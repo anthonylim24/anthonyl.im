@@ -202,6 +202,43 @@ describe("TripChat expand", () => {
   })
 })
 
+describe("TripChat errors", () => {
+  beforeEach(() => {
+    mockGetTrip.mockResolvedValue({ trip: makeTrip(), access: "owner" })
+    mockStreamTripChat.mockResolvedValue({ content: "ok" })
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it("shows an inline error with retry after a failed reply", async () => {
+    mockStreamTripChat
+      .mockRejectedValueOnce(new Error("The concierge lost its connection. Please try again."))
+      .mockImplementationOnce(
+        async (
+          _id: unknown,
+          _prompt: unknown,
+          _hist: unknown,
+          _day: unknown,
+          _token: unknown,
+          onUpdate: (content: string) => void,
+        ) => {
+          onUpdate("Here is a plan.")
+          return { content: "Here is a plan." }
+        },
+      )
+    renderChat()
+    await openChat()
+    fireEvent.change(screen.getByPlaceholderText("Ask about this trip…"), { target: { value: "plan?" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+    expect(await screen.findByRole("alert")).toHaveTextContent("The concierge lost its connection.")
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }))
+    expect(await screen.findByText("Here is a plan.")).toBeTruthy()
+    expect(mockStreamTripChat).toHaveBeenCalledTimes(2)
+  })
+})
+
 describe("TripChat add place", () => {
   beforeEach(() => {
     mockGetTrip.mockResolvedValue({ trip: makeTrip(), access: "owner" })

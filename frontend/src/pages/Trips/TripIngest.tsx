@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
-import { ChevronDown, Loader2, Plus } from "lucide-react"
+import { ChevronDown, Plus } from "lucide-react"
+import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useGetToken } from "@/lib/safeAuth"
 import { IgIcon } from "../Korea/IgIcon"
 import { isInstagramUrl } from "../Korea/isInstagramUrl"
@@ -14,13 +15,18 @@ import {
 import { addItem, dayHasPlaceNamed, itemFromExtractedPlace } from "./tripEdits"
 import type { Trip, TripDay } from "./types"
 import {
+  EASE,
+  EXIT_FADE,
+  REVEAL_DURATION,
   alertErrorClass,
   checkboxClass,
   chipBtnClass,
   compactInputClass,
+  dividerClass,
+  hintClass,
   mutedInkClass,
   quietBtnClass,
-  spinnerClass,
+  skeletonClass,
   wrapAnywhereClass,
 } from "./ui"
 
@@ -61,6 +67,15 @@ function placeLabel(place: PlaceResult): string {
     : place.name
 }
 
+function JobRowSkeleton() {
+  return (
+    <div className="space-y-2 py-2" aria-hidden>
+      <div className={`h-3.5 w-2/3 ${skeletonClass}`} />
+      <div className={`h-3 w-1/3 ${skeletonClass}`} />
+    </div>
+  )
+}
+
 export function TripIngest({
   trip,
   dayId,
@@ -77,6 +92,7 @@ export function TripIngest({
   const skipId = useId()
   const getTokenRef = useRef(getToken)
   getTokenRef.current = getToken
+  const reduce = useReducedMotion()
 
   const [open, setOpen] = useState(false)
   const [url, setUrl] = useState("")
@@ -153,9 +169,9 @@ export function TripIngest({
     } catch (err) {
       if (err instanceof ApiNotConfiguredError) {
         setUnavailable(true)
-        setSubmitError("Instagram extraction isn’t available on this server.")
+        setSubmitError("Instagram extraction is not available on this server.")
       } else {
-        setSubmitError(err instanceof Error ? err.message : "Couldn’t submit that URL.")
+        setSubmitError(err instanceof Error ? err.message : "Could not submit that URL.")
       }
     } finally {
       setSubmitting(false)
@@ -187,7 +203,7 @@ export function TripIngest({
       onDaysChange((days) => addItem(days, resolvedDay.id, item))
       setAddedKeys((prev) => ({ ...prev, [key]: resolvedDay.id }))
     } catch (err) {
-      setAddError(err instanceof Error ? err.message : "Couldn’t add that place.")
+      setAddError(err instanceof Error ? err.message : "Could not add that place.")
     } finally {
       setAddingKey(null)
     }
@@ -206,7 +222,7 @@ export function TripIngest({
   if (unavailable && visibleJobs.length === 0) {
     return (
       <p className={`mt-2 text-xs leading-relaxed ${mutedInkClass}`}>
-        Instagram extraction isn’t configured on this server.
+        Instagram extraction is not configured on this server.
       </p>
     )
   }
@@ -222,14 +238,21 @@ export function TripIngest({
         <IgIcon className="h-3.5 w-3.5" aria-hidden />
         Instagram
         <ChevronDown
-          className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`}
+          className={`h-3.5 w-3.5 transition-transform duration-200 motion-reduce:transition-none ${open ? "rotate-180" : ""}`}
           strokeWidth={1.5}
           aria-hidden
         />
       </button>
 
-      {open && (
-        <div className="mt-2">
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={reduce ? { opacity: 0 } : { opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reduce ? { opacity: 0 } : { opacity: 0, y: 4 }}
+            transition={reduce ? EXIT_FADE : { duration: REVEAL_DURATION, ease: EASE }}
+            className="mt-2"
+          >
           <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <label htmlFor={urlId} className="sr-only">
               Instagram URL
@@ -252,16 +275,12 @@ export function TripIngest({
               aria-label={submitting ? "Submitting" : "Extract places"}
               className={`${chipBtnClass} w-full sm:w-auto`}
             >
-              {submitting ? (
-                <Loader2 className={`h-3.5 w-3.5 ${spinnerClass}`} aria-hidden />
-              ) : (
-                <IgIcon className="h-3.5 w-3.5" aria-hidden />
-              )}
+              {submitting ? null : <IgIcon className="h-3.5 w-3.5" aria-hidden />}
               {submitting ? "Submitting" : "Extract"}
             </button>
           </form>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-            <label htmlFor={skipId} className="inline-flex min-h-11 items-center gap-2 text-xs text-stone-600 dark:text-stone-400">
+            <label htmlFor={skipId} className={`inline-flex min-h-11 items-center gap-2 text-xs ${mutedInkClass}`}>
               <input
                 id={skipId}
                 type="checkbox"
@@ -279,81 +298,108 @@ export function TripIngest({
 
           {submitError && (
             <div className={`mt-2 ${alertErrorClass}`} role="alert">
-              {submitError}
+              <p>{submitError}</p>
+              <button
+                type="button"
+                disabled={locked || submitting}
+                onClick={() => void handleSubmit({ preventDefault() {} } as React.FormEvent)}
+                className={`${quietBtnClass} mt-2`}
+              >
+                Try again
+              </button>
             </div>
           )}
           {addError && (
             <div className={`mt-2 ${alertErrorClass}`} role="alert">
-              {addError}
+              <p>{addError}</p>
             </div>
           )}
 
-          {visibleJobs.length > 0 && (
-            <ul className="mt-2 divide-y divide-stone-200/70 dark:divide-stone-800/70" aria-live="polite">
-              {visibleJobs.map((job) => (
-                <li key={job.id} className="py-2">
-                  <div className="flex items-center gap-2">
-                    {(job.status === "pending" || job.status === "running") && (
-                      <Loader2 className={`h-3.5 w-3.5 shrink-0 ${spinnerClass}`} aria-hidden />
-                    )}
-                    <p className={`min-w-0 flex-1 truncate text-xs font-medium text-stone-800 dark:text-stone-200 ${wrapAnywhereClass}`}>
-                      {shortIgPath(job.url)}
-                      <span className={`ml-1.5 font-normal ${mutedInkClass}`}>{jobStatusLabel(job)}</span>
-                    </p>
-                    {(job.status === "failed" || job.status === "dead") && (
-                      <button type="button" disabled={locked} onClick={() => void handleRetry(job)} className={quietBtnClass}>
-                        Retry
-                      </button>
-                    )}
-                  </div>
+          {visibleJobs.length === 0 ? (
+            <div className="mt-3">
+              <p className="text-sm">No posts extracted yet</p>
+              <p className={hintClass}>Paste an Instagram URL to pull places onto this day.</p>
+            </div>
+          ) : (
+            <ul className={`mt-2 ${dividerClass}`} aria-live="polite">
+              {visibleJobs.map((job) => {
+                const live = job.status === "pending" || job.status === "running"
+                const failed = job.status === "failed" || job.status === "dead"
+                return (
+                  <li key={job.id} className="py-2">
+                    <div className="flex items-center gap-2">
+                      <p className={`min-w-0 flex-1 truncate text-xs font-medium ${wrapAnywhereClass}`}>
+                        {shortIgPath(job.url)}
+                        <span className={`ml-1.5 font-normal ${mutedInkClass}`}>{jobStatusLabel(job)}</span>
+                      </p>
+                    </div>
 
-                  {job.status === "done" && job.places.length === 0 && (
-                    <p className={`mt-1 text-xs ${mutedInkClass}`}>No places found.</p>
-                  )}
+                    {live ? <JobRowSkeleton /> : null}
 
-                  {job.places.length > 0 && (
-                    <ul className="mt-1">
-                      {job.places.map((place) => {
-                        const key = placeKey(job.id, place.id)
-                        const already = resolvedDay ? dayHasPlaceNamed(resolvedDay, place.name) : false
-                        const added = Boolean(addedKeys[key]) || already
-                        const busy = addingKey === key
-                        const meta = [place.category, place.address].filter(Boolean).join(" · ")
-                        return (
-                          <li key={place.id} className="flex items-center gap-2 py-1">
-                            <div className="min-w-0 flex-1">
-                              <p className={`truncate text-sm text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}>
-                                {placeLabel(place)}
-                              </p>
-                              {meta ? (
-                                <p className={`truncate text-[11px] ${mutedInkClass}`}>{meta}</p>
-                              ) : null}
-                            </div>
-                            <button
-                              type="button"
-                              disabled={added || busy || !resolvedDay || locked}
-                              onClick={() => void handleAdd(job, place)}
-                              aria-label={added ? `${place.name} is on this day` : `Add ${place.name} to this day`}
-                              className={added ? quietBtnClass : chipBtnClass}
-                            >
-                              {busy ? (
-                                <Loader2 className={`h-3.5 w-3.5 ${spinnerClass}`} aria-hidden />
-                              ) : added ? null : (
-                                <Plus className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
-                              )}
-                              {added ? "Added" : "Add"}
-                            </button>
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  )}
-                </li>
-              ))}
+                    {failed ? (
+                      <div className={`mt-2 ${alertErrorClass}`} role="alert">
+                        <p>{job.last_error?.trim() || "This extraction failed."}</p>
+                        <button
+                          type="button"
+                          disabled={locked}
+                          onClick={() => void handleRetry(job)}
+                          className={`${quietBtnClass} mt-2`}
+                        >
+                          Retry
+                        </button>
+                      </div>
+                    ) : null}
+
+                    {job.status === "done" && job.places.length === 0 && (
+                      <p className={`mt-1 text-xs ${mutedInkClass}`}>No places found.</p>
+                    )}
+
+                    {job.places.length > 0 && (
+                      <ul className="mt-1">
+                        {job.places.map((place) => {
+                          const key = placeKey(job.id, place.id)
+                          const already = resolvedDay ? dayHasPlaceNamed(resolvedDay, place.name) : false
+                          const added = Boolean(addedKeys[key]) || already
+                          const busy = addingKey === key
+                          const category = place.category?.trim()
+                          const address = place.address?.trim()
+                          const meta =
+                            category && address ? `${category} · ${address}` : category || address || ""
+                          return (
+                            <li key={place.id} className="flex items-center gap-2 py-1">
+                              <div className="min-w-0 flex-1">
+                                <p className={`truncate text-sm ${wrapAnywhereClass}`}>
+                                  {placeLabel(place)}
+                                </p>
+                                {meta ? (
+                                  <p className={`truncate font-mono-trips text-[11px] ${mutedInkClass}`}>{meta}</p>
+                                ) : null}
+                              </div>
+                              <button
+                                type="button"
+                                disabled={added || busy || !resolvedDay || locked}
+                                onClick={() => void handleAdd(job, place)}
+                                aria-label={added ? `${place.name} is on this day` : `Add ${place.name} to this day`}
+                                className={added ? quietBtnClass : chipBtnClass}
+                              >
+                                {busy || added ? null : (
+                                  <Plus className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
+                                )}
+                                {added ? "Added" : busy ? "Adding" : "Add"}
+                              </button>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           )}
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

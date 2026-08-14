@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSPrope
 import { createPortal } from "react-dom"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useLocation } from "react-router-dom"
-import { Maximize2, MessageCircleHeart, Minimize2, Send, Sparkles, X } from "lucide-react"
+import { Maximize2, MessageCircle, Minimize2, Send, X } from "lucide-react"
 import { conciergePlaceKey, type ConciergePlace, type ConciergeSource } from "../../lib/conciergeGrounding"
 import { useGetToken } from "@/lib/safeAuth"
 import { ConciergeSources } from "../Korea/ConciergeSources"
@@ -15,7 +15,22 @@ import { emitTripChanged } from "./tripsEvents"
 import { streamTripChat, type TripChatMessage } from "./tripChatApi"
 import { resolveAccent } from "./theme"
 import type { Trip, TripAccess } from "./types"
-import { ENTER_SPRING, EASE, focusRingClass, mutedInkClass } from "./ui"
+import {
+  DISPLAY,
+  ENTER_SPRING,
+  EXIT_FADE,
+  alertErrorClass,
+  chipBtnClass,
+  displayCardClass,
+  fieldShellClass,
+  focusRingClass,
+  ghostOnTintBtnClass,
+  iconBtnClass,
+  inkClass,
+  labelClass,
+  mutedInkClass,
+  skeletonClass,
+} from "./ui"
 
 interface ChatMessage {
   id: string
@@ -24,6 +39,8 @@ interface ChatMessage {
   places?: ConciergePlace[]
   sources?: ConciergeSource[]
   addedKeys?: string[]
+  error?: string
+  placeError?: { key: string; message: string }
 }
 
 function newId() {
@@ -31,7 +48,7 @@ function newId() {
 }
 
 const PANEL_SHELL =
-  "trip-chat-panel fixed inset-x-0 bottom-0 z-[60] mx-auto flex w-full flex-col overflow-hidden rounded-t-3xl border border-stone-200 bg-[var(--trips-surface)] shadow-2xl dark:border-stone-800 md:inset-x-auto md:rounded-3xl"
+  "trip-chat-panel fixed inset-x-0 bottom-0 z-[60] mx-auto flex w-full flex-col overflow-hidden rounded-t-[var(--tr-r-panel)] border border-[color:var(--tr-line)] bg-[var(--tr-surface)] shadow-[var(--tr-shadow)] md:inset-x-auto md:rounded-[var(--tr-r-panel)]"
 
 const PANEL_COMPACT =
   `${PANEL_SHELL} h-[min(86dvh,40rem)] md:bottom-6 md:right-6 md:h-[min(600px,calc(100dvh-3rem))] md:w-[min(400px,calc(100vw-2rem))]`
@@ -39,7 +56,7 @@ const PANEL_COMPACT =
 const PANEL_EXPANDED_MOBILE =
   `${PANEL_SHELL} trip-chat-panel-expanded h-[min(92dvh,calc(100svh-0.75rem))]`
 
-/** No height utility — desktop size is an inline inset so Tailwind cannot clip the composer. */
+/** No height utility - desktop size is an inline inset so Tailwind cannot clip the composer. */
 const PANEL_EXPANDED_DESKTOP = `${PANEL_SHELL} trip-chat-panel-expanded`
 
 const EXPANDED_DESKTOP_STYLE: CSSProperties = {
@@ -52,6 +69,12 @@ const EXPANDED_DESKTOP_STYLE: CSSProperties = {
   maxHeight: "none",
 }
 
+const LAUNCHER_CLASS =
+  `fixed right-4 z-40 inline-flex h-11 min-w-11 items-center justify-center gap-2 rounded-full bg-[color:var(--ta)] px-0 text-[color:var(--ta-ink)] shadow-[var(--tr-shadow)] outline-none hover:bg-[color:var(--ta-strong)] active:translate-y-px motion-reduce:active:translate-y-0 md:px-4 ${focusRingClass}`
+
+const SCRIM =
+  "bg-[color-mix(in_srgb,var(--tr-ink)_40%,transparent)]"
+
 function useMinWidth(px: number): boolean {
   const [matches, setMatches] = useState(false)
   useEffect(() => {
@@ -63,9 +86,6 @@ function useMinWidth(px: number): boolean {
   }, [px])
   return matches
 }
-
-const HEADER_ICON_BTN =
-  `flex h-11 w-11 items-center justify-center rounded-full text-stone-500 transition hover:bg-stone-100 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100 ${focusRingClass}`
 
 /** Concierge lives on the trip dossier and day pages, not the index, create, or editor. */
 export function useTripChatRoute(): { tripId?: string; dayId?: string } {
@@ -106,6 +126,8 @@ export function TripChat() {
   const inFlightRef = useRef(false)
   const pinnedRef = useRef(true)
   const titleId = useId()
+  const subtitleId = useId()
+  const composerId = useId()
 
   useEffect(() => {
     if (!tripId) {
@@ -144,12 +166,10 @@ export function TripChat() {
 
   const focusedDay = dayId && trip ? trip.days.find((d) => d.id === dayId) : undefined
   const subtitle = focusedDay
-    ? focusedDay.title?.trim()
-      ? `Knows ${focusedDay.title}`
-      : "Knows today's plan"
+    ? focusedDay.title?.trim() || "Today's plan"
     : trip
       ? trip.destinations.slice(0, 2).join(" · ") || trip.name
-      : "Ask about this trip"
+      : "This trip"
 
   const handleClose = useCallback(() => {
     abortRef.current?.abort()
@@ -249,17 +269,25 @@ export function TripChat() {
   }, [])
 
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, opts?: { retryOf?: string }) => {
       const prompt = text.trim()
       if (!prompt || !tripId || inFlightRef.current) return
       inFlightRef.current = true
 
-      const history: TripChatMessage[] = messages.map((m) => ({ role: m.role, content: m.content }))
+      const history: TripChatMessage[] = messages
+        .filter((m) => m.id !== opts?.retryOf)
+        .map((m) => ({ role: m.role, content: m.content }))
       const userMsg: ChatMessage = { id: newId(), role: "user", content: prompt }
       const assistantId = newId()
 
-      setMessages((prev) => [...prev, userMsg, { id: assistantId, role: "assistant", content: "" }])
-      setInput("")
+      setMessages((prev) => {
+        const base = opts?.retryOf ? prev.filter((m) => m.id !== opts.retryOf) : prev
+        if (opts?.retryOf) {
+          return [...base, { id: assistantId, role: "assistant", content: "" }]
+        }
+        return [...base, userMsg, { id: assistantId, role: "assistant", content: "" }]
+      })
+      if (!opts?.retryOf) setInput("")
       setStreaming(true)
       pinnedRef.current = true
 
@@ -267,7 +295,7 @@ export function TripChat() {
       abortRef.current = controller
 
       const setAssistant = (content: string) =>
-        setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content } : m)))
+        setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content, error: undefined } : m)))
 
       let activeTrip = trip
       if (!activeTrip) {
@@ -296,9 +324,20 @@ export function TripChat() {
           controller.signal,
           activeTrip ?? undefined,
         )
-        if (error) setAssistant(`⚠️ ${error}`)
-        else if (!content.trim() && !places?.length) {
-          setAssistant("I couldn't generate a reply just now. Please try rephrasing.")
+        if (error) {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === assistantId ? { ...m, content, error } : m)),
+          )
+        } else if (!content.trim() && !places?.length) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId
+                ? { ...m, error: "The concierge could not generate a reply. Try again." }
+                : m,
+            ),
+          )
+        } else if (content) {
+          setAssistant(content)
         }
         if (places?.length || sources?.length) {
           setMessages((prev) =>
@@ -307,7 +346,13 @@ export function TripChat() {
         }
       } catch (err) {
         if ((err as Error).name !== "AbortError") {
-          setAssistant(`⚠️ ${(err as Error).message || "Something went wrong. Please try again."}`)
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId
+                ? { ...m, error: (err as Error).message || "Something went wrong. Please try again." }
+                : m,
+            ),
+          )
         }
       } finally {
         setStreaming(false)
@@ -316,6 +361,16 @@ export function TripChat() {
       }
     },
     [messages, tripId, dayId, trip, getToken],
+  )
+
+  const retryReply = useCallback(
+    (assistantId: string) => {
+      const idx = messages.findIndex((m) => m.id === assistantId)
+      const prior = idx > 0 ? messages[idx - 1] : undefined
+      if (!prior || prior.role !== "user") return
+      void send(prior.content, { retryOf: assistantId })
+    },
+    [messages, send],
   )
 
   const canEdit = access === "edit" || access === "owner"
@@ -334,7 +389,11 @@ export function TripChat() {
           setMessages((prev) =>
             prev.map((m) =>
               m.places?.some((p) => conciergePlaceKey(p) === key)
-                ? { ...m, addedKeys: [...new Set([...(m.addedKeys ?? []), key])] }
+                ? {
+                    ...m,
+                    addedKeys: [...new Set([...(m.addedKeys ?? []), key])],
+                    placeError: m.placeError?.key === key ? undefined : m.placeError,
+                  }
                 : m,
             ),
           )
@@ -348,7 +407,11 @@ export function TripChat() {
         setMessages((prev) =>
           prev.map((m) =>
             m.places?.some((p) => conciergePlaceKey(p) === key)
-              ? { ...m, addedKeys: [...new Set([...(m.addedKeys ?? []), key])] }
+              ? {
+                  ...m,
+                  addedKeys: [...new Set([...(m.addedKeys ?? []), key])],
+                  placeError: m.placeError?.key === key ? undefined : m.placeError,
+                }
               : m,
           ),
         )
@@ -356,7 +419,13 @@ export function TripChat() {
         setMessages((prev) =>
           prev.map((m) =>
             m.places?.some((p) => conciergePlaceKey(p) === key)
-              ? { ...m, content: `${m.content}\n\n⚠️ ${(err as Error).message || "Could not add that place."}` }
+              ? {
+                  ...m,
+                  placeError: {
+                    key,
+                    message: (err as Error).message || "Could not add that place.",
+                  },
+                }
               : m,
           ),
         )
@@ -381,7 +450,7 @@ export function TripChat() {
   if (!tripId) return null
 
   const accent = resolveAccent(trip?.appearance?.accent)
-  const panelClass = expanded
+  const panelClassName = expanded
     ? isDesktop
       ? PANEL_EXPANDED_DESKTOP
       : PANEL_EXPANDED_MOBILE
@@ -395,11 +464,11 @@ export function TripChat() {
 
   const panelMotion =
     reduce || expanded
-      ? { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.15 } }
+      ? { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: EXIT_FADE }
       : {
           initial: { opacity: 0, y: 28, scale: 0.98 },
           animate: { opacity: 1, y: 0, scale: 1 },
-          exit: { opacity: 0, y: 18, scale: 0.985 },
+          exit: { opacity: 0 },
           transition: ENTER_SPRING,
         }
 
@@ -415,11 +484,12 @@ export function TripChat() {
             initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.86 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.86 }}
-            transition={reduce ? { duration: 0.15 } : { type: "spring", stiffness: 400, damping: 28 }}
-            className={`fixed right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[color:var(--trips-accent)] text-white shadow-lg outline-none hover:bg-[color:var(--trips-accent-hover)] ${focusRingClass} dark:text-stone-950`}
+            transition={reduce ? EXIT_FADE : ENTER_SPRING}
+            className={LAUNCHER_CLASS}
             style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 1.25rem)" }}
           >
-            <MessageCircleHeart className="h-6 w-6" strokeWidth={2} />
+            <MessageCircle className="h-5 w-5" strokeWidth={1.5} aria-hidden />
+            <span className="hidden text-sm font-semibold md:inline">Ask concierge</span>
           </motion.button>
         )}
       </AnimatePresence>
@@ -434,12 +504,12 @@ export function TripChat() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.18, ease: EASE }}
+              transition={EXIT_FADE}
               onClick={handleClose}
               className={
                 expanded
-                  ? "fixed inset-0 z-[55] bg-stone-950/40"
-                  : "fixed inset-0 z-[55] bg-stone-950/40 md:pointer-events-none md:bg-transparent"
+                  ? `fixed inset-0 z-[55] ${SCRIM}`
+                  : `fixed inset-0 z-[55] ${SCRIM} md:pointer-events-none md:bg-transparent`
               }
               aria-hidden
             />
@@ -450,19 +520,19 @@ export function TripChat() {
               role="dialog"
               aria-modal="true"
               aria-labelledby={titleId}
+              aria-describedby={subtitleId}
               data-expanded={expanded ? "true" : "false"}
-              className={panelClass}
+              className={panelClassName}
               style={panelStyle}
             >
-              <header className="flex shrink-0 items-center gap-3 border-b border-stone-200/80 px-4 py-3 dark:border-stone-800/80">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[color:var(--ta-soft)] text-[color:var(--ta)]">
-                  <Sparkles className="h-4 w-4" strokeWidth={2} />
-                </span>
+              <header className="flex shrink-0 items-center gap-2 border-b border-[color:var(--tr-line)] px-4 py-2">
                 <div className="min-w-0 flex-1">
-                  <h2 id={titleId} className="truncate text-[15px] font-semibold text-stone-900 dark:text-stone-100">
+                  <h2 id={titleId} className={`truncate text-[15px] font-semibold ${inkClass}`}>
                     Trip Concierge
                   </h2>
-                  <p className={`truncate text-xs ${mutedInkClass}`}>{subtitle}</p>
+                  <p id={subtitleId} className={`truncate text-xs ${mutedInkClass}`}>
+                    {subtitle}
+                  </p>
                 </div>
                 <div className="flex shrink-0 items-center">
                   <button
@@ -471,17 +541,21 @@ export function TripChat() {
                     aria-label={expanded ? "Shrink chat" : "Expand chat"}
                     aria-pressed={expanded}
                     title={expanded ? "Shrink chat" : "Expand chat"}
-                    className={HEADER_ICON_BTN}
+                    className={iconBtnClass}
                   >
-                    {expanded ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
+                    {expanded ? (
+                      <Minimize2 className="h-5 w-5" strokeWidth={1.5} aria-hidden />
+                    ) : (
+                      <Maximize2 className="h-5 w-5" strokeWidth={1.5} aria-hidden />
+                    )}
                   </button>
                   <button
                     type="button"
                     onClick={handleClose}
                     aria-label="Close chat"
-                    className={HEADER_ICON_BTN}
+                    className={iconBtnClass}
                   >
-                    <X className="h-5 w-5" />
+                    <X className="h-5 w-5" strokeWidth={1.5} aria-hidden />
                   </button>
                 </div>
               </header>
@@ -489,40 +563,57 @@ export function TripChat() {
               <div
                 ref={scrollRef}
                 onScroll={handleScroll}
+                role="log"
+                aria-live="polite"
+                aria-relevant="additions"
+                aria-busy={streaming}
                 className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4"
                 style={{ WebkitOverflowScrolling: "touch" }}
               >
                 {messages.length === 0 ? (
-                  <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
-                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[color:var(--ta-soft)] text-[color:var(--ta)]">
-                      <MessageCircleHeart className="h-6 w-6" />
-                    </span>
-                    <p className={`max-w-[18rem] text-sm ${mutedInkClass}`}>
+                  <div className="flex h-full flex-col justify-end gap-3">
+                    <p className={displayCardClass} style={DISPLAY}>
+                      {trip?.name ?? "This trip"}
+                    </p>
+                    <p className={`max-w-[36ch] text-sm leading-relaxed ${mutedInkClass}`}>
                       {trip
-                        ? `Your concierge for ${trip.name}. Ask about the plan, or a place to add.`
-                        : "Your concierge for this itinerary. Ask about the plan, reservations, or where to eat."}
+                        ? "The concierge has this trip's days, reservations, and saved places. Ask about the plan or a place to add."
+                        : "The concierge has this itinerary. Ask about the plan, a reservation, or a place to add."}
                     </p>
                   </div>
                 ) : (
                   messages.map((m) =>
                     m.role === "user" ? (
                       <div key={m.id} className="flex justify-end">
-                        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-[color:var(--trips-accent)] px-3.5 py-2 text-[15px] leading-relaxed text-white shadow-sm dark:text-stone-950">
+                        <p className="max-w-[85%] rounded-[var(--tr-r-control)] bg-[color:var(--ta-soft)] px-3.5 py-2 text-[15px] leading-relaxed text-[color:var(--tr-ink)]">
                           {m.content}
-                        </div>
+                        </p>
                       </div>
                     ) : (
                       <div key={m.id} className="flex justify-start">
-                        <div className="max-w-[88%] rounded-2xl rounded-bl-md bg-stone-100 px-3.5 py-2.5 text-stone-800 dark:bg-stone-800/80 dark:text-stone-100">
+                        <div className={`max-w-[88%] ${inkClass}`}>
                           {m.content ? (
                             <ConciergeText
                               text={m.content}
                               bulletClass="bg-[color:var(--ta)]"
                               numberClass="text-[color:var(--ta)]"
                             />
-                          ) : (
-                            <TypingDots reduce={!!reduce} />
+                          ) : m.error ? null : (
+                            <StreamingReply />
                           )}
+                          {m.error ? (
+                            <div className={`mt-2 ${alertErrorClass}`} role="alert">
+                              <p>{m.error}</p>
+                              <button
+                                type="button"
+                                onClick={() => void retryReply(m.id)}
+                                disabled={streaming}
+                                className={`${ghostOnTintBtnClass} mt-2`}
+                              >
+                                Try again
+                              </button>
+                            </div>
+                          ) : null}
                           {m.places && trip ? (
                             <ConciergePlaceCards
                               places={m.places}
@@ -531,6 +622,8 @@ export function TripChat() {
                               addedKeys={new Set(m.addedKeys)}
                               addingKey={addingKey}
                               canEdit={canEdit}
+                              errorKey={m.placeError?.key}
+                              errorMessage={m.placeError?.message}
                               onAdd={(place, targetDayId) => void addPlace(place, targetDayId)}
                             />
                           ) : null}
@@ -555,7 +648,7 @@ export function TripChat() {
                       key={s}
                       type="button"
                       onClick={() => void send(s)}
-                      className={`min-h-11 rounded-full border border-stone-200 bg-[var(--trips-surface)] px-3 py-1.5 text-left text-xs font-medium text-stone-600 transition hover:border-[color:var(--ta-ring)] hover:bg-[color:var(--ta-soft)] hover:text-[color:var(--ta-strong)] dark:border-stone-700 dark:text-stone-300 ${focusRingClass}`}
+                      className={`${chipBtnClass} text-left`}
                     >
                       {s}
                     </button>
@@ -568,11 +661,15 @@ export function TripChat() {
                   e.preventDefault()
                   void send(input)
                 }}
-                className="border-t border-stone-200/80 px-3 pt-3 dark:border-stone-800/80"
+                className="border-t border-[color:var(--tr-line)] px-3 pt-3"
                 style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)" }}
               >
-                <div className="flex items-end gap-2 rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 focus-within:border-[color:var(--trips-accent)] focus-within:ring-2 focus-within:ring-[color:var(--trips-focus)] dark:border-stone-700 dark:bg-stone-900">
+                <label htmlFor={composerId} className={labelClass}>
+                  Message
+                </label>
+                <div className={`${fieldShellClass} mt-1.5 items-end py-1.5`}>
                   <textarea
+                    id={composerId}
                     ref={inputRef}
                     value={input}
                     onChange={(e) => {
@@ -587,15 +684,15 @@ export function TripChat() {
                     }}
                     rows={1}
                     placeholder="Ask about this trip…"
-                    className={`flex-1 resize-none bg-transparent text-[16px] text-stone-900 outline-none placeholder:text-stone-400 sm:text-[15px] dark:text-stone-100 dark:placeholder:text-stone-400 ${expanded ? "max-h-48" : "max-h-28"}`}
+                    className={`min-h-11 flex-1 resize-none bg-transparent py-2 text-[16px] text-[color:var(--tr-ink)] outline-none placeholder:text-[color:var(--tr-ink-muted)] sm:text-[15px] ${expanded ? "max-h-48" : "max-h-28"}`}
                   />
                   <button
                     type="submit"
                     disabled={!input.trim() || streaming}
                     aria-label="Send message"
-                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[color:var(--trips-accent)] text-white transition enabled:hover:bg-[color:var(--trips-accent-hover)] disabled:cursor-not-allowed disabled:opacity-40 dark:text-stone-950 ${focusRingClass}`}
+                    className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--tr-r-control)] bg-[color:var(--ta)] text-[color:var(--ta-ink)] transition hover:bg-[color:var(--ta-strong)] active:translate-y-px motion-reduce:active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40 ${focusRingClass}`}
                   >
-                    <Send className="h-4 w-4" />
+                    <Send className="h-4 w-4" strokeWidth={1.5} aria-hidden />
                   </button>
                 </div>
               </form>
@@ -611,21 +708,12 @@ export function TripChat() {
   )
 }
 
-function TypingDots({ reduce }: { reduce: boolean }) {
+function StreamingReply() {
   return (
-    <div className="flex items-center gap-1 py-1" aria-label="Concierge is typing">
-      {[0, 1, 2].map((i) =>
-        reduce ? (
-          <span key={i} className="h-1.5 w-1.5 rounded-full bg-stone-400 opacity-70 dark:bg-stone-500" />
-        ) : (
-          <motion.span
-            key={i}
-            className="h-1.5 w-1.5 rounded-full bg-stone-400 dark:bg-stone-500"
-            animate={{ opacity: [0.3, 1, 0.3], y: [0, -2, 0] }}
-            transition={{ duration: 1, repeat: Infinity, delay: i * 0.15, ease: "easeInOut" }}
-          />
-        ),
-      )}
+    <div className="space-y-2 py-1" role="status" aria-label="Writing a reply">
+      <div className={`h-3 w-[88%] ${skeletonClass}`} />
+      <div className={`h-3 w-[64%] ${skeletonClass}`} />
+      <div className={`h-3 w-[76%] ${skeletonClass}`} />
     </div>
   )
 }
