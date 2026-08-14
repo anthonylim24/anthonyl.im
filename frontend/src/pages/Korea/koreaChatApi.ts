@@ -1,3 +1,4 @@
+import { apiFetch } from "../../lib/apiBase"
 import { readSseStream } from "../../lib/sseStream"
 
 export interface KoreaChatMessage {
@@ -29,7 +30,7 @@ export async function streamKoreaChat(
   onUpdate: (content: string) => void,
   signal?: AbortSignal,
 ): Promise<KoreaChatResult> {
-  const response = await fetch("/api/korea/chat", {
+  const response = await apiFetch("/api/korea/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
     body: JSON.stringify({ prompt, messages, slug }),

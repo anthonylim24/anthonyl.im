@@ -28,11 +28,17 @@ CI builds the frontend on a GH Actions runner (zero OOM risk vs. building on the
 
 Same-repo PRs also get a remote frontend preview at `https://anthonyl.im/preview/pr/<n>/` so a phone or a cloud agent can review UI without a laptop. That pipeline is `.github/workflows/preview.yml` (not a merge gate). Agent guide: [`docs/pr-previews.md`](../docs/pr-previews.md).
 
+The preview frontend calls `/preview/pr/<n>/api/*`, which production Hono
+proxies to a loopback `bun --smol` sidecar of the PR's server (IG worker
+off, cap 1). Until that proxy is on production, the client falls back to
+`/api`.
+
 Optional droplet env (defaults are fine):
 
 ```
 PREVIEW_ROOT=/root/previews    # where published trees live; default ~/previews
 SITE_URL=https://anthonyl.im   # used for preview index links
+PREVIEW_API_MAX=1              # live preview API processes (1 GB RAM)
 ```
 
 ## GitHub Secrets
@@ -83,6 +89,9 @@ SUPABASE_SERVICE_ROLE_KEY=eyJh...
 # server runtime — optional
 KAKAO_REST_API_KEY=KakaoAK ...
 CEREBRAS_API_KEY=csk_...
+CLERK_AGENT_USER_ID=user_...           # Clerk Agent Tasks: who agents sign in as
+AGENT_LOGIN_SECRET=...                 # optional mint secret for POST /api/agent/session
+AGENT_GITHUB_REPO=anthonylim24/anthonyl.im
 
 # Gemini API key. One key powers four surfaces:
 #   1. Primary video analyzer (transcript + OCR + places in one call)
@@ -202,7 +211,24 @@ The IG-places routes and the Korea auth gate normally require a Clerk session. F
    # Open http://localhost:3000/korea/places — no sign-in required
    ```
 
-**Production safety:** the deploy workflow's `FRONTEND_ENV` secret must NOT include `VITE_DEV_BEARER`. The droplet's `.env` SHOULD NOT include `IG_DEV_BEARER` in production deploys — or if it does, the value must be cryptographically random and treated as a master credential.
+**Production safety:** the deploy workflow's `FRONTEND_ENV` secret must NOT include `VITE_DEV_BEARER`. The droplet's `.env` SHOULD NOT include `IG_DEV_BEARER` in production deploys — or if it does, the value must be cryptographically random and treated as a master credential. Playwright's hermetic e2e stack sets `VITE_DEV_BEARER=codex-dev-bearer` on the Vite server to match `IG_DEV_BEARER`.
+
+## Agent sign-in on production / PR previews (Clerk Agent Tasks)
+
+Previews share the `anthonyl.im` origin, so a real Clerk session cookie works for `/preview/pr/<n>/korea` and `/trips`. Do **not** bake `VITE_DEV_BEARER` into a preview. Instead mint a [Clerk Agent Task](https://clerk.com/docs/guides/development/testing/agent-tasks) URL:
+
+```
+bun scripts/clerk-agent-login.ts --pr <n> --path /korea
+```
+
+Enable Agent Tasks (Beta) on the Clerk instance, then set on the droplet (`~/.env`):
+
+```
+CLERK_AGENT_USER_ID=user_...          # or CLERK_AGENT_USER_EMAIL=you@example.com
+AGENT_LOGIN_SECRET=<random-48-char>   # optional; `gh auth token` as a collaborator also works
+```
+
+`POST /api/agent/session` is 404 until `CLERK_SECRET_KEY` and the agent user are set. Redirects are allowlisted to `anthonyl.im` and localhost. Sessions last 30 minutes.
 
 ## Verify a deploy
 

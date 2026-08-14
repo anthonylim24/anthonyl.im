@@ -9,6 +9,7 @@ import {
   getPreviewRoot,
   isPreviewPrId,
   parsePreviewPath,
+  previewApiUpstreamPath,
   previewBasePath,
   resolvePreviewPath,
   shouldSpaFallback,
@@ -75,6 +76,8 @@ describe("shouldSpaFallback", () => {
     expect(shouldSpaFallback("assets/index-hash.js")).toBe(false);
     expect(shouldSpaFallback("favicon-chat.svg")).toBe(false);
     expect(shouldSpaFallback("preview.json")).toBe(false);
+    expect(shouldSpaFallback("api/korea/chat")).toBe(false);
+    expect(shouldSpaFallback("api")).toBe(false);
   });
 });
 
@@ -229,6 +232,55 @@ describe("createPreviewRouter", () => {
     expect(meta.pr).toBe(42);
     expect(meta.sha).toBe("deadbeefcafebabe");
     expect(meta.base).toBe(previewBasePath(42));
+  });
+
+  test("proxies /preview/pr/:n/api/* to the loopback preview API", async () => {
+    const { app, root } = await seededApp();
+    await writeFile(join(root, "42", "api.json"), JSON.stringify({ port: 4123, pid: 99 }));
+
+    let capturedUrl = "";
+    let capturedMethod = "";
+    const fetchImpl: typeof fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      capturedUrl = String(input);
+      capturedMethod = String(init?.method ?? "GET");
+      return new Response(JSON.stringify({ from: "preview-api" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch;
+
+    const proxied = new Hono();
+    proxied.route("/", createPreviewRouter({ root, siteUrl: "https://anthonyl.im", fetchImpl }));
+
+    const res = await proxied.request("https://anthonyl.im/preview/pr/42/api/korea/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: "hi" }),
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-preview-api")).toBe("1");
+    expect(await res.json()).toEqual({ from: "preview-api" });
+    expect(capturedUrl).toBe("http://127.0.0.1:4123/api/korea/chat");
+    expect(capturedMethod).toBe("POST");
+  });
+
+  test("404s JSON when the preview API is not published", async () => {
+    const { app } = await seededApp();
+    const res = await app.request("https://anthonyl.im/preview/pr/42/api/korea/chat", {
+      method: "POST",
+      body: "{}",
+    });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "preview_api_not_published" });
+  });
+});
+
+describe("previewApiUpstreamPath", () => {
+  test("strips the preview mount so the sidecar sees /api/...", () => {
+    expect(previewApiUpstreamPath("42", "/preview/pr/42/api/korea/chat")).toBe("/api/korea/chat");
+    expect(previewApiUpstreamPath("42", "/preview/pr/42/api/trips/x/chat")).toBe(
+      "/api/trips/x/chat",
+    );
   });
 });
 

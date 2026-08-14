@@ -7,6 +7,7 @@
 // notes) and wrap them in <SmartEntity> popovers.
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react"
+import { apiFetch } from "../../lib/apiBase"
 import type { EntityType } from "./entityLinks"
 
 export interface EntityRef {
@@ -52,7 +53,7 @@ async function fetchEntities(): Promise<EntityRef[]> {
   if (inflight) return inflight
   inflight = (async () => {
     try {
-      const r = await fetch("/api/korea/entities")
+      const r = await apiFetch("/api/korea/entities")
       if (!r.ok) return []
       const rows = (await r.json()) as EntityRef[]
       return Array.isArray(rows) ? rows : []

@@ -566,7 +566,10 @@ describe("concierge chat", () => {
 
   test("relays Gemini SSE and includes the trip in the system prompt", async () => {
     process.env.GEMINI_API_KEY = "test-key"
-    let capturedBody: { systemInstruction?: { parts: Array<{ text: string }> } } | null = null
+    let capturedBody: {
+      systemInstruction?: { parts: Array<{ text: string }> }
+      generationConfig?: { thinkingConfig?: { thinkingLevel?: string } }
+    } | null = null
     globalThis.fetch = (async (_url: string, init?: RequestInit) => {
       capturedBody = JSON.parse(String(init?.body)) as typeof capturedBody
       return geminiSseResponse(["Hello", " there"])
@@ -588,6 +591,7 @@ describe("concierge chat", () => {
     const sys = capturedBody?.systemInstruction?.parts[0]?.text ?? ""
     expect(sys).toContain("Tokyo Long Weekend")
     expect(sys).toContain("FOCUSED DAY")
+    expect(capturedBody?.generationConfig?.thinkingConfig).toEqual({ thinkingLevel: "low" })
   })
 })
 

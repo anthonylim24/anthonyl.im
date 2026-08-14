@@ -72,6 +72,13 @@ export const config = {
 
   clerkSecretKey: process.env.CLERK_SECRET_KEY,
   clerkPublishableKey: process.env.CLERK_PUBLISHABLE_KEY ?? process.env.VITE_CLERK_PUBLISHABLE_KEY,
+  // Clerk Agent Tasks (PR-preview screenshots / agent login). Unset →
+  // POST /api/agent/session returns 404. Never bake a frontend bypass.
+  agentLoginSecret: process.env.AGENT_LOGIN_SECRET,
+  clerkAgentUserId: process.env.CLERK_AGENT_USER_ID,
+  clerkAgentUserEmail: process.env.CLERK_AGENT_USER_EMAIL,
+  agentGithubRepo: process.env.AGENT_GITHUB_REPO ?? "anthonylim24/anthonyl.im",
+  agentRedirectHosts: process.env.AGENT_REDIRECT_HOSTS,
 
   igWorkerEnabled: isTruthy(process.env.IG_WORKER_ENABLED ?? 'true'),
   igWorkerConcurrency: Number(process.env.IG_WORKER_CONCURRENCY ?? 3),

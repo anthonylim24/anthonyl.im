@@ -1,3 +1,4 @@
+import { apiFetch } from './apiBase';
 import { readSseStream } from './sseStream';
 
 interface Message {
@@ -28,7 +29,7 @@ export async function invokeDeepseek(
   }, WATCHDOG_INTERVAL_MS);
 
   try {
-    const response = await fetch('/api/invoke', {
+    const response = await apiFetch('/api/invoke', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

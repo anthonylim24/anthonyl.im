@@ -31,3 +31,9 @@ test('breathwork home renders without page errors', async ({ page }) => {
   await expect(page).toHaveTitle(/.+/)
   expect(errors, 'no uncaught page errors').toEqual([])
 })
+
+test('korea skips the Clerk sign-in wall under VITE_DEV_BEARER', async ({ page }) => {
+  await page.goto('/korea')
+  await expect(page.getByRole('button', { name: /sign in to continue/i })).toHaveCount(0)
+  await expect(page.locator('#root')).not.toBeEmpty()
+})

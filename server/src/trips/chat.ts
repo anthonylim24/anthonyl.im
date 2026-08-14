@@ -169,7 +169,8 @@ export async function streamTripChat(
     generationConfig: {
       temperature: 0.45,
       maxOutputTokens: 1024,
-      thinkingConfig: geminiThinking("minimal"),
+      // 3.7 Flash rejects `minimal` (400). `low` is the snappy chat tier.
+      thinkingConfig: geminiThinking("low"),
     },
   }
 

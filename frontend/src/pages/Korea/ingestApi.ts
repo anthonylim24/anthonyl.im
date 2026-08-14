@@ -1,3 +1,5 @@
+import { apiFetch } from "../../lib/apiBase"
+
 // Fetch helpers for the Instagram place ingestion pipeline.
 // Each helper accepts a `getToken` function (from Clerk's useAuth()) so it can
 // attach a fresh JWT to every request.
@@ -128,7 +130,7 @@ export async function submitUrl(
   const headers = await authHeaders(getToken)
   const body: Record<string, unknown> = { url }
   if (opts?.skipVideo) body.skipVideo = true
-  const res = await fetch(BASE, {
+  const res = await apiFetch(BASE, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify(body),
@@ -142,7 +144,7 @@ export async function listJobs(
   limit = 200,
 ): Promise<Job[]> {
   const headers = await authHeaders(getToken)
-  const res = await fetch(`${BASE}/jobs?limit=${limit}`, { headers })
+  const res = await apiFetch(`${BASE}/jobs?limit=${limit}`, { headers })
   await throwOnError(res)
   return res.json() as Promise<Job[]>
 }
@@ -152,7 +154,7 @@ export async function retryJob(
   jobId: number,
 ): Promise<void> {
   const token = await getToken()
-  const r = await fetch(`${BASE}/jobs/${jobId}/retry`, {
+  const r = await apiFetch(`${BASE}/jobs/${jobId}/retry`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token ?? ''}` },
   })
@@ -171,7 +173,7 @@ export async function reextractJob(
   jobId: number,
 ): Promise<void> {
   const token = await getToken()
-  const r = await fetch(`${BASE}/jobs/${jobId}/reextract`, {
+  const r = await apiFetch(`${BASE}/jobs/${jobId}/reextract`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token ?? ''}` },
   })
@@ -189,7 +191,7 @@ export async function fetchStats(
   getToken: () => Promise<string | null>,
 ): Promise<Stats> {
   const headers = await authHeaders(getToken)
-  const res = await fetch(`${BASE}/_stats`, { headers })
+  const res = await apiFetch(`${BASE}/_stats`, { headers })
   await throwOnError(res)
   return res.json() as Promise<Stats>
 }

@@ -1,3 +1,4 @@
+import { apiFetch } from "../../lib/apiBase"
 import type {
   EnhancementRun,
   GeneratePreferences,
@@ -25,7 +26,7 @@ async function request<T>(
     ...(init.body ? { "Content-Type": "application/json" } : {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   }
-  const res = await fetch(`/api/trips${path}`, { ...init, headers, cache: "no-store" })
+  const res = await apiFetch(`/api/trips${path}`, { ...init, headers, cache: "no-store" })
   if (!res.ok) {
     let message = `HTTP ${res.status}`
     try {

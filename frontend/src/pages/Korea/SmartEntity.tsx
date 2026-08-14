@@ -20,6 +20,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from
 import { createPortal } from "react-dom"
 import { motion, AnimatePresence, useReducedMotion } from "motion/react"
 import { ExternalLink, Loader2 } from "lucide-react"
+import { apiFetch } from "../../lib/apiBase"
 import { resolveLinks, type EntityLink, type EntityType } from "./entityLinks"
 
 interface SmartEntityProps {
@@ -60,7 +61,7 @@ async function fetchAbout(name: string, type: EntityType, city?: string): Promis
 
   const promise = (async () => {
     try {
-      const r = await fetch("/api/entity/about", {
+      const r = await apiFetch("/api/entity/about", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, type, city }),

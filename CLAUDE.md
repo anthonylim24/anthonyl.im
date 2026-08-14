@@ -64,7 +64,7 @@ anthonyl.im/
 │   └── schema.sql               # Database schema
 ├── .github/workflows/deploy.yml # Deploy on merge (atomic swap + smoke)
 ├── .github/workflows/pr.yml     # PR gate → pr-gate aggregate check
-├── .github/workflows/preview.yml # Remote PR frontend previews (not a merge gate)
+├── .github/workflows/preview.yml # Remote PR frontend + API previews (not a merge gate)
 ├── .github/actions/setup-ci/    # Shared Bun + node_modules cache action
 ├── docs/ci-cd.md                # CI/CD agent memory (read before changing CI)
 ├── docs/pr-previews.md          # Remote PR preview URLs + agent screenshot flow
@@ -172,7 +172,7 @@ PR opened ─────► .github/workflows/pr.yml ─┬─► pr-server-tes
 
 PR opened ─────► .github/workflows/preview.yml ─► build + publish
                                               → https://anthonyl.im/preview/pr/<n>/
-                                              (not a merge gate; see docs/pr-previews.md)
+                                              (frontend + loopback API sidecar; not a merge gate)
 
 merge to main ─► .github/workflows/deploy.yml ─► test → build → stage next → SCP dist
                                               → atomic swap → PM2 restart (rollback on fail)
@@ -540,7 +540,7 @@ When creating a pull request that includes frontend changes (any modifications t
 
 **Process:**
 1. Prefer the remote PR preview (`https://anthonyl.im/preview/pr/<n>/`). Wait with `bun scripts/wait-for-preview.ts --pr <n> --sha <head-sha>` (see [`docs/pr-previews.md`](docs/pr-previews.md)). No local Vite server required.
-2. Use Chrome MCP to navigate the preview URLs (append `?hidePreviewChrome=1`) and capture screenshots.
+2. For Clerk-gated routes (`/korea`, `/trips`), mint a session first: `bun scripts/clerk-agent-login.ts --pr <n> --path /korea` (or `/trips`). Open the printed Clerk URL in Chrome MCP so the session cookie is set, then screenshot. Public routes only need `?hidePreviewChrome=1`.
 3. **Upload screenshots to GitHub** using `gh api` so they get permanent URLs visible in the PR. Local file paths and repo blob URLs do not render in PR descriptions. Use: `gh api --method POST repos/{owner}/{repo}/issues/{pr_number}/comments --field body="![screenshot](url)"` or upload via the GitHub upload endpoint.
 4. Add the uploaded screenshot URLs to the PR description body
 

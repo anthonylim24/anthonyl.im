@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { apiFetch } from "../../lib/apiBase"
 import type { Snapshot, DayDetailResponse } from "./types"
 
 // Module-level cache so navigating /korea ↔ /korea/day/:slug doesn't re-fetch.
@@ -9,7 +10,7 @@ function fetchSnapshotOnce(): Promise<Snapshot> {
   if (snapshotCache) return Promise.resolve(snapshotCache)
   if (snapshotPromise) return snapshotPromise
 
-  snapshotPromise = fetch("/api/korea")
+  snapshotPromise = apiFetch("/api/korea")
     .then((res) => {
       if (!res.ok) throw new Error(`Korea snapshot fetch failed: ${res.status}`)
       return res.json() as Promise<Snapshot>
@@ -87,7 +88,7 @@ export function useKoreaDay(slug: string | undefined): LoadState<DayDetailRespon
     let cancelled = false
     setState({ status: "loading", data: null, error: null })
 
-    fetch(`/api/korea/day/${encodeURIComponent(slug)}`)
+    apiFetch(`/api/korea/day/${encodeURIComponent(slug)}`)
       .then((res) => {
         if (!res.ok) throw new Error(`Day fetch failed: ${res.status}`)
         return res.json() as Promise<DayDetailResponse>
