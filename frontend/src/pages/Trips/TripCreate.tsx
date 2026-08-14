@@ -205,10 +205,20 @@ export function TripCreate() {
           Object.entries(prefs).filter(([, v]) => v && v.trim()),
         ) as GeneratePreferences
         try {
-          await generateItinerary(getToken, trip.id, {
+          const generated = await generateItinerary(getToken, trip.id, {
             prompt: prompt.trim() || undefined,
             preferences: Object.keys(preferences).length ? preferences : undefined,
           })
+          const empty = generated.trip.days.every((d) => d.items.length === 0)
+          if (empty) {
+            navigate(`/trips/${trip.id}/edit`, {
+              state: {
+                notice: "The AI draft came back empty. Your days are ready; run Generate to try again.",
+                retryGenerate: { prompt: prompt.trim() || undefined, preferences },
+              },
+            })
+            return
+          }
         } catch (err) {
           navigate(`/trips/${trip.id}/edit`, {
             state: {
@@ -359,10 +369,7 @@ export function TripCreate() {
       </div>
 
       <fieldset className={`mt-5 ${panelClass}`}>
-        <legend className="sr-only">How should we start it?</legend>
-        <p aria-hidden className={labelClass}>
-          How should we start it?
-        </p>
+        <legend className={labelClass}>How should we start it?</legend>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
           {MODE_OPTIONS.map((opt) => {
             const selected = mode === opt.id

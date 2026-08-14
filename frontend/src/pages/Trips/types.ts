@@ -120,6 +120,8 @@ export interface TripSummary {
 
 export type SuggestionKind = "add" | "edit" | "remove" | "reorder" | "warning" | "info"
 
+export type EnhancementOutcome = "added_places" | "no_adds_needed" | "no_adds_possible"
+
 export interface EnhancementSuggestion {
   id: string
   kind: SuggestionKind
@@ -140,8 +142,11 @@ export interface EnhancementRun {
   dayId?: string
   status: "complete" | "error"
   summary?: string
+  outcome?: EnhancementOutcome
+  outcomeReason?: string
   suggestions: EnhancementSuggestion[]
   appliedSuggestionIds: string[]
+  weatherByDate?: Record<string, DayWeather>
   error?: string
   createdAt: string
 }

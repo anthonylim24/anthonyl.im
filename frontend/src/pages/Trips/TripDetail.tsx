@@ -86,6 +86,9 @@ export function TripDetail() {
   const [recentIds, setRecentIds] = useState<Set<string>>(() => new Set())
   const recentTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveGenRef = useRef(0)
+  const persistAbortRef = useRef<AbortController | null>(null)
+  const persistPromiseRef = useRef<Promise<void> | null>(null)
   const editable = access === "edit" || access === "owner"
   // Stable across keystrokes (the URL param may be a slug), so every handler
   // below can be a stable identity and memoized day cards stay memoized.
@@ -107,42 +110,88 @@ export function TripDetail() {
 
   // Latest pending document for flush-on-leave.
   const pendingPatchRef = useRef<Trip | null>(null)
+  const editedRef = useRef(false)
+  const tripRef = useRef<Trip | null>(null)
+  tripRef.current = trip
+
+  const cancelPendingSave = useCallback(() => {
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current)
+      saveTimer.current = null
+    }
+    pendingPatchRef.current = null
+    editedRef.current = false
+    saveGenRef.current += 1
+    persistAbortRef.current?.abort()
+    persistAbortRef.current = null
+  }, [])
 
   const persistTrip = useCallback(
     async (next: Trip) => {
+      const gen = saveGenRef.current
+      persistAbortRef.current?.abort()
+      const ac = new AbortController()
+      persistAbortRef.current = ac
       setSaveState("saving")
-      try {
-        await updateTrip(getToken, next.id, {
-          name: next.name,
-          status: next.status,
-          slug: next.slug,
-          appearance: next.appearance,
-          destinations: next.destinations,
-          startDate: next.startDate,
-          endDate: next.endDate,
-          timezone: next.timezone,
-          tags: next.tags,
-          description: next.description ?? null,
-          days: next.days,
-        })
-        // Ignore stale responses if a newer edit is already queued.
-        if (pendingPatchRef.current && pendingPatchRef.current !== next) return
-        pendingPatchRef.current = null
-        setSaveState("saved")
-      } catch (err: unknown) {
-        setSaveState("error")
-        const message = errorText(err)
-        // A rejected permalink is a fixable input problem, not a transient
-        // failure, so it needs to say so instead of hiding behind the pill.
-        if (/permalink|slug|hyphen/i.test(message)) {
-          setNotice(`Couldn’t save the permalink. Edit it under Trip settings, then it will save. (${message})`)
+      const work = (async () => {
+        try {
+          await updateTrip(
+            getToken,
+            next.id,
+            {
+              name: next.name,
+              status: next.status,
+              slug: next.slug,
+              appearance: next.appearance,
+              destinations: next.destinations,
+              startDate: next.startDate,
+              endDate: next.endDate,
+              timezone: next.timezone,
+              tags: next.tags,
+              description: next.description ?? null,
+              days: next.days,
+            },
+            { signal: ac.signal },
+          )
+          if (saveGenRef.current !== gen) return
+          // Ignore stale responses if a newer edit is already queued.
+          if (pendingPatchRef.current && pendingPatchRef.current !== next) return
+          pendingPatchRef.current = null
+          setSaveState("saved")
+        } catch (err: unknown) {
+          if (ac.signal.aborted || (err instanceof Error && err.name === "AbortError")) return
+          if (saveGenRef.current !== gen) return
+          setSaveState("error")
+          const message = errorText(err)
+          // A rejected permalink is a fixable input problem, not a transient
+          // failure, so it needs to say so instead of hiding behind the pill.
+          if (/permalink|slug|hyphen/i.test(message)) {
+            setNotice(`Couldn’t save the permalink. Edit it under Trip settings, then it will save. (${message})`)
+          }
         }
-      }
+      })()
+      persistPromiseRef.current = work
+      await work
     },
     [getToken],
   )
 
-  const editedRef = useRef(false)
+  const flushPendingSave = useCallback(async () => {
+    if (saveTimer.current) {
+      clearTimeout(saveTimer.current)
+      saveTimer.current = null
+    }
+    // Prefer the in-memory document: the debounce effect may not have copied
+    // the latest keystroke into pendingPatchRef yet.
+    const latest = pendingPatchRef.current ?? (editedRef.current ? tripRef.current : null)
+    pendingPatchRef.current = null
+    editedRef.current = false
+    if (latest) {
+      await persistTrip(latest)
+      return
+    }
+    if (persistPromiseRef.current) await persistPromiseRef.current
+  }, [persistTrip])
 
   const markEdited = useCallback(() => {
     editedRef.current = true
@@ -217,16 +266,47 @@ export function TripDetail() {
 
   const dayOptions = useDayOptions(trip?.days ?? [], trip?.timezone ?? "UTC")
 
+  const flashTouched = useCallback((ids: Set<string>) => {
+    setRecentIds(ids)
+    if (recentTimer.current) clearTimeout(recentTimer.current)
+    recentTimer.current = setTimeout(() => setRecentIds(new Set()), 3200)
+  }, [])
+
   const runEnhance = useCallback(
     async (scope: "day" | "trip", dayId?: string, prompt?: string) => {
       if (!tripDocId) return
       setEnhancingTarget(scope === "day" ? (dayId ?? null) : "trip")
       setActiveRun(null)
       try {
-        const { run, trip: refreshed } = await enhanceTrip(getToken, tripDocId, scope, dayId, prompt)
-        // The server auto-syncs day.weather from the live forecast during the run.
+        // Flush local edits first so enhance sees them and a stale PATCH
+        // cannot overwrite the auto-applied adds.
+        await flushPendingSave()
+        const { run, trip: refreshed, applied, error } = await enhanceTrip(
+          getToken,
+          tripDocId,
+          scope,
+          dayId,
+          prompt,
+        )
+        cancelPendingSave()
+        // Server auto-applies valid add suggestions and may sync day.weather.
         if (refreshed) setTrip(refreshed)
+        setSaveState("saved")
         setActiveRun(run)
+        const addedIds = new Set<string>()
+        for (const id of applied ?? run.appliedSuggestionIds) {
+          const s = run.suggestions.find((x) => x.id === id)
+          if (s?.kind === "add" && s.proposedItem?.id) addedIds.add(s.proposedItem.id)
+        }
+        if (addedIds.size > 0) flashTouched(addedIds)
+        if (run.status === "error" || error) {
+          setNotice(
+            run.outcomeReason ??
+              `The AI review didn’t finish. Nothing in your itinerary changed, so you can run it again. (${run.error ?? error ?? "unknown error"})`,
+          )
+        } else if (run.outcomeReason) {
+          setNotice(run.outcomeReason)
+        }
       } catch (err) {
         setNotice(
           `The AI review didn’t finish. Nothing in your itinerary changed, so you can run it again. (${errorText(err)})`,
@@ -235,15 +315,22 @@ export function TripDetail() {
         setEnhancingTarget(null)
       }
     },
-    [getToken, tripDocId],
+    [getToken, tripDocId, cancelPendingSave, flashTouched, flushPendingSave],
   )
 
   const applyRun = useCallback(
     async (suggestionIds: string[]) => {
       if (!tripDocId || !activeRun) return
+      setEnhancingTarget("apply")
       try {
-        const { trip: next, applied } = await applySuggestions(getToken, tripDocId, activeRun.id, suggestionIds)
-        // Flash the items the accepted suggestions touched (added or edited).
+        await flushPendingSave()
+        const { trip: next, applied, skipped } = await applySuggestions(
+          getToken,
+          tripDocId,
+          activeRun.id,
+          suggestionIds,
+        )
+        cancelPendingSave()
         const touched = new Set<string>()
         for (const id of applied) {
           const s = activeRun.suggestions.find((x) => x.id === id)
@@ -253,17 +340,18 @@ export function TripDetail() {
         setTrip(next)
         setActiveRun(null)
         setSaveState("saved")
-        setRecentIds(touched)
-        if (recentTimer.current) clearTimeout(recentTimer.current)
-        recentTimer.current = setTimeout(() => setRecentIds(new Set()), 3200)
-        setNotice(`Applied ${applied.length} suggestion${applied.length === 1 ? "" : "s"}.`)
+        flashTouched(touched)
+        const skipNote = skipped.length > 0 ? ` ${skipped.length} could not be applied.` : ""
+        setNotice(`Applied ${applied.length} suggestion${applied.length === 1 ? "" : "s"}.${skipNote}`)
       } catch (err) {
         setNotice(
           `Couldn’t apply those suggestions. They’re still listed below, so you can try again. (${errorText(err)})`,
         )
+      } finally {
+        setEnhancingTarget(null)
       }
     },
-    [getToken, tripDocId, activeRun],
+    [getToken, tripDocId, activeRun, cancelPendingSave, flashTouched, flushPendingSave],
   )
 
   const applyActiveRun = useCallback((ids: string[]) => void applyRun(ids), [applyRun])
@@ -357,6 +445,8 @@ export function TripDetail() {
 
   const mapDay = mapDayId ? trip.days.find((d) => d.id === mapDayId) : null
   const mapDayIndex = mapDay ? trip.days.findIndex((d) => d.id === mapDay.id) : -1
+  const editorLocked = enhancingTarget !== null
+  const canEdit = editable && !editorLocked
 
   return (
     <div className={PAGE} data-trip-accent={resolveAccent(trip.appearance?.accent)}>
@@ -372,6 +462,7 @@ export function TripDetail() {
               </label>
               <input
                 id="trip-editor-name"
+                disabled={editorLocked}
                 // `trip-display-input` beats the global 16px input floor: this
                 // is display type, so the iOS zoom guard doesn't apply.
                 className={`trip-display-input mt-1 min-h-11 w-full bg-transparent font-display font-medium leading-tight tracking-tight text-stone-900 focus:outline-none dark:text-stone-100 ${focusRingClass}`}
@@ -391,7 +482,7 @@ export function TripDetail() {
           <div className={`mt-2 flex flex-wrap items-center gap-x-2 gap-y-2 text-sm ${mutedInkClass}`}>
             <TripStatusSelect
               status={trip.status}
-              editable={editable}
+              editable={canEdit}
               onChange={(status) => scheduleSave({ ...trip, status })}
             />
             <span aria-hidden>·</span>
@@ -456,6 +547,7 @@ export function TripDetail() {
           initialPrompt={navState?.retryGenerate?.prompt}
           preferences={navState?.retryGenerate?.preferences}
           onGenerated={(next) => {
+            cancelPendingSave()
             setTrip(next)
             setSaveState("saved")
             setNotice(null)
@@ -482,10 +574,12 @@ export function TripDetail() {
         />
       )}
 
-      {/* Days, with the day rail on desktop and the chip rail below `lg`. */}
-      <div className="mt-6 lg:mt-8 lg:grid lg:grid-cols-[11rem_minmax(0,1fr)] lg:gap-8">
+      {/* Days: flex so a one-day trip (no day rail) still takes the full
+          width. A two-column grid parked the itinerary in the 11rem nav
+          track whenever DayNavigation returned null. */}
+      <div className="mt-6 lg:mt-8 lg:flex lg:items-start lg:gap-8">
         <DayNavigation days={trip.days} timezone={trip.timezone} />
-        <div className="space-y-8">
+        <div data-testid="trip-itinerary" className="min-w-0 flex-1 space-y-8">
           {trip.days.map((day, idx) => (
             <DayCard
               key={day.id}
@@ -493,7 +587,7 @@ export function TripDetail() {
               day={day}
               index={idx}
               timezone={trip.timezone}
-              editable={editable}
+              editable={canEdit}
               dayOptions={dayOptions}
               enhancing={enhancingTarget === day.id}
               recentIds={recentIds}
@@ -510,7 +604,7 @@ export function TripDetail() {
       </div>
 
       {/* Trip settings: once-per-trip configuration, out of the editing path. */}
-      {editable && (
+      {canEdit && (
         <section aria-label="Trip settings" className="mt-12 border-t border-stone-200/80 pt-8 dark:border-stone-800/80">
           <p className={eyebrowClass}>Trip settings</p>
           <AppearancePanel

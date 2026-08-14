@@ -127,6 +127,10 @@ export interface Trip {
 
 export type SuggestionKind = "add" | "edit" | "remove" | "reorder" | "warning" | "info"
 
+/** What the enhancement decided about adding places. Always set on a
+ *  complete run so the UI can explain a no-op as well as a successful add. */
+export type EnhancementOutcome = "added_places" | "no_adds_needed" | "no_adds_possible"
+
 export interface EnhancementSuggestion {
   id: string
   kind: SuggestionKind
@@ -147,6 +151,10 @@ export interface EnhancementRun {
   dayId?: string
   status: "complete" | "error"
   summary?: string
+  /** Structured add/no-add decision. Required when status is complete. */
+  outcome?: EnhancementOutcome
+  /** 1–3 sentences: why places were added, or why they were not. */
+  outcomeReason?: string
   suggestions: EnhancementSuggestion[]
   appliedSuggestionIds: string[]
   /** Live forecast fetched during the run — auto-merged onto day.weather
@@ -394,8 +402,12 @@ export const aiSuggestionSchema = z.object({
   proposedOrder: z.array(z.string().max(64)).max(200).optional(),
 })
 
+export const enhancementOutcomeSchema = z.enum(["added_places", "no_adds_needed", "no_adds_possible"])
+
 export const aiEnhancementSchema = z.object({
   summary: z.string().max(2000).optional(),
+  outcome: enhancementOutcomeSchema.optional(),
+  outcomeReason: z.string().max(2000).optional(),
   suggestions: z.array(aiSuggestionSchema).max(40).default([]),
 })
 

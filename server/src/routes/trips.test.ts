@@ -273,7 +273,7 @@ describe("enhancement endpoints", () => {
       ],
     })
 
-  test("creates a run, lists it, and applies accepted suggestions", async () => {
+  test("creates a run, auto-applies add suggestions, and lists the run", async () => {
     const { app } = makeApp({ llm: llmSuggest })
     const trip = await createTrip(app)
 
@@ -283,8 +283,23 @@ describe("enhancement endpoints", () => {
       body: JSON.stringify({ scope: "trip" }),
     })
     expect(enhanceRes.status).toBe(200)
-    const { run } = (await enhanceRes.json()) as { run: { id: string; suggestions: Array<{ id: string }> } }
+    const { run, trip: enhanced, applied } = (await enhanceRes.json()) as {
+      run: {
+        id: string
+        outcome?: string
+        outcomeReason?: string
+        appliedSuggestionIds: string[]
+        suggestions: Array<{ id: string }>
+      }
+      trip: { days: Array<{ items: Array<{ title: string }> }> }
+      applied: string[]
+    }
     expect(run.suggestions.length).toBe(1)
+    expect(applied).toEqual([run.suggestions[0]!.id])
+    expect(run.appliedSuggestionIds).toEqual(applied)
+    expect(run.outcome).toBe("added_places")
+    expect(run.outcomeReason).toBeTruthy()
+    expect(enhanced.days[0]!.items.map((i) => i.title)).toContain("Ichiran")
 
     const listRes = await app.request(`/api/trips/${trip.id}/enhancements`, { headers: AUTH })
     const { runs } = (await listRes.json()) as { runs: Array<{ id: string }> }
@@ -296,12 +311,90 @@ describe("enhancement endpoints", () => {
       body: JSON.stringify({ suggestionIds: [run.suggestions[0]!.id] }),
     })
     expect(applyRes.status).toBe(200)
-    const { trip: updated, applied } = (await applyRes.json()) as {
-      trip: { days: Array<{ items: Array<{ title: string }> }> }
+    const { applied: reapplied, skipped } = (await applyRes.json()) as { applied: string[]; skipped: string[] }
+    expect(reapplied).toEqual([])
+    expect(skipped).toEqual([run.suggestions[0]!.id])
+  })
+
+  test("leaves edit suggestions reviewable and surfaces a no-add reason", async () => {
+    const { app } = makeApp({
+      llm: async () =>
+        JSON.stringify({
+          summary: "One timing tweak; meals are covered.",
+          outcome: "no_adds_needed",
+          outcomeReason: "Day 1 already has a full cluster of stops; adding more would overpack the morning.",
+          suggestions: [
+            {
+              kind: "edit",
+              dayId: "day-1",
+              itemId: "it-a",
+              title: "Start earlier",
+              detail: "Beat crowds.",
+              confidence: "high",
+              proposedChanges: { time: "08:00" },
+            },
+          ],
+        }),
+    })
+    const trip = await createTrip(app)
+    await app.request(`/api/trips/${trip.id}`, {
+      method: "PATCH",
+      headers: AUTH,
+      body: JSON.stringify({
+        days: [
+          {
+            id: "day-1",
+            date: trip.days[0]!.date,
+            items: [
+              {
+                id: "it-a",
+                kind: "place",
+                title: "Osaka Castle",
+                status: "none",
+                createdBy: "user",
+                location: { name: "Osaka Castle", lat: 34.69, lng: 135.53, source: "user" },
+              },
+            ],
+          },
+        ],
+      }),
+    })
+    const enhanceRes = await app.request(`/api/trips/${trip.id}/enhance`, {
+      method: "POST",
+      headers: AUTH,
+      body: JSON.stringify({ scope: "trip" }),
+    })
+    expect(enhanceRes.status).toBe(200)
+    const { run, applied, trip: enhanced } = (await enhanceRes.json()) as {
+      run: { outcome?: string; outcomeReason?: string; suggestions: Array<{ kind: string }> }
       applied: string[]
+      trip: { days: Array<{ items: Array<{ id: string; time?: string }> }> }
     }
-    expect(applied.length).toBe(1)
-    expect(updated.days[0]!.items.map((i) => i.title)).toContain("Ichiran")
+    expect(applied).toEqual([])
+    expect(run.suggestions.map((s) => s.kind)).toEqual(["edit"])
+    expect(enhanced.days[0]!.items.find((i) => i.id === "it-a")!.time).toBeUndefined()
+    expect(run.outcome).toBe("no_adds_needed")
+    expect(run.outcomeReason).toMatch(/overpack|meals|cluster/i)
+  })
+
+  test("returns a parseable error body when the model fails", async () => {
+    const { app } = makeApp({ llm: async () => "not json at all" })
+    const trip = await createTrip(app)
+    const res = await app.request(`/api/trips/${trip.id}/enhance`, {
+      method: "POST",
+      headers: AUTH,
+      body: JSON.stringify({ scope: "trip" }),
+    })
+    expect(res.status).toBe(502)
+    const body = (await res.json()) as {
+      error?: string
+      message?: string
+      run?: { status?: string; outcomeReason?: string }
+    }
+    expect(body.error).toBe("enhancement_failed")
+    expect(body.message).toBeTruthy()
+    expect(body.run?.status).toBe("error")
+    expect(body.run?.outcomeReason).toMatch(/failed before/i)
   })
 
   test("requires dayId for day scope", async () => {

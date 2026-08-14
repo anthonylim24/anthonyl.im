@@ -86,19 +86,47 @@ export function EnhanceButton({
 
   useEffect(() => {
     if (!open) return
+    const panel = panelRef.current
+    const focusable = panel?.querySelector<HTMLElement>("textarea, button, input")
+    focusable?.focus()
+    let closing = false
+    const onFocus = (e: FocusEvent) => {
+      if (closing) return
+      if (!panel || panel.contains(e.target as Node) || rootRef.current?.contains(e.target as Node)) return
+      focusable?.focus()
+    }
+    document.addEventListener("focusin", onFocus)
     const onDown = (e: MouseEvent | TouchEvent) => {
       const target = e.target as Node
       if (rootRef.current?.contains(target)) return
       if (panelRef.current?.contains(target)) return
-      setOpen(false)
+      closing = true
+      close(true)
     }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close(true)
+      if (e.key === "Escape") {
+        e.preventDefault()
+        close(true)
+        return
+      }
+      if (e.key !== "Tab" || !panel) return
+      const nodes = [...panel.querySelectorAll<HTMLElement>("textarea, button, input")]
+      if (nodes.length === 0) return
+      const first = nodes[0]!
+      const last = nodes[nodes.length - 1]!
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault()
+        first.focus()
+      }
     }
     document.addEventListener("mousedown", onDown)
     document.addEventListener("touchstart", onDown)
     document.addEventListener("keydown", onKey)
     return () => {
+      document.removeEventListener("focusin", onFocus)
       document.removeEventListener("mousedown", onDown)
       document.removeEventListener("touchstart", onDown)
       document.removeEventListener("keydown", onKey)
@@ -177,6 +205,7 @@ export function EnhanceButton({
     <motion.div
       ref={panelRef}
       role="dialog"
+      aria-modal="true"
       aria-label={`${label} focus`}
       initial={reduce ? { opacity: 0 } : sheet ? { opacity: 0, y: 24 } : { opacity: 0, y: -6, scale: 0.98 }}
       animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
@@ -195,6 +224,9 @@ export function EnhanceButton({
             : { top: -9999, left: -9999, width: DESKTOP_WIDTH, visibility: "hidden" }
       }
     >
+      <p className={`mb-2 text-xs leading-relaxed ${mutedInkClass}`}>
+        Adds places when a day has room, then explains why.
+      </p>
       <label className={labelClass} htmlFor={promptId}>
         Focus for this review
       </label>
@@ -257,7 +289,7 @@ export function EnhanceButton({
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.16 }}
-                    onClick={() => close(false)}
+                    onClick={() => close(true)}
                     className="fixed inset-0 z-[65] bg-stone-950/40"
                     aria-hidden
                   />

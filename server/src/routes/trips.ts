@@ -2,6 +2,7 @@ import { Hono, type Context } from "hono"
 import { categoryColor, categoryIcon, formatDistance, haversineMeters, type PlaceCategory } from "../data/koreaPlaces"
 import {
   applySuggestions,
+  autoApplyAddSuggestions,
   enhanceTrip,
   fetchOpenMeteoWeather,
   generateItinerary,
@@ -330,20 +331,40 @@ export function createTripsRouter(deps: TripsRouterDeps) {
       prompt: body.data.prompt,
       llm: deps.llm,
       fetchWeather: deps.fetchWeather ?? fetchOpenMeteoWeather,
+      geocode: deps.geocode,
     })
-    await deps.store.saveRun(run)
     // Trusted auto-sync: refresh day.weather from the live forecast fetched
     // during the run (metadata, not an itinerary change — no review needed).
-    let trip = result.trip
-    if (run.weatherByDate && Object.keys(run.weatherByDate).length > 0) {
+    // Re-read after the LLM call so a concurrent PATCH is not overwritten.
+    const fresh = (await resolveTrip(result.trip.id)) ?? result.trip
+    let trip = fresh
+    if (run.status === "complete" && run.weatherByDate && Object.keys(run.weatherByDate).length > 0) {
       trip = {
         ...trip,
         days: trip.days.map((d) => (run.weatherByDate![d.date] ? { ...d, weather: run.weatherByDate![d.date] } : d)),
         updatedAt: nowIso(),
       }
-      await deps.store.update(trip)
     }
-    return c.json({ run, trip }, run.status === "error" ? 502 : 200)
+    // Valid add suggestions land on the itinerary immediately. Edit/remove/
+    // reorder stay reviewable. The run always carries an outcomeReason so a
+    // no-add result is explained rather than looking like a silent failure.
+    let applied: string[] = []
+    let nextRun = run
+    if (run.status === "complete") {
+      const appliedAdds = autoApplyAddSuggestions(trip, run)
+      trip = appliedAdds.trip
+      nextRun = appliedAdds.run
+      applied = appliedAdds.applied
+    }
+    if (trip !== result.trip) await deps.store.update(trip)
+    await deps.store.saveRun(nextRun)
+    if (nextRun.status === "error") {
+      return c.json(
+        { run: nextRun, trip, error: "enhancement_failed", message: nextRun.error ?? "enhancement failed" },
+        502,
+      )
+    }
+    return c.json({ run: nextRun, trip, applied })
   })
 
   trips.get("/:id/enhancements", async (c) => {
