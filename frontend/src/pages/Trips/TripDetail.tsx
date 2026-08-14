@@ -170,9 +170,13 @@ export function TripDetail() {
           if (/permalink|slug|hyphen/i.test(message)) {
             setNotice(`Couldn’t save the permalink. Edit it under Trip settings, then it will save. (${message})`)
           }
+          throw err instanceof Error ? err : new Error(message)
         }
       })()
-      persistPromiseRef.current = work
+      persistPromiseRef.current = work.then(
+        () => undefined,
+        () => undefined,
+      )
       await work
     },
     [],
@@ -183,16 +187,21 @@ export function TripDetail() {
       clearTimeout(saveTimer.current)
       saveTimer.current = null
     }
-    // Prefer the live document when a keystroke is in flight: persistTrip
-    // identity used to churn every render (unstable getToken), which could
-    // snapshot the pre-edit trip into pendingPatchRef before React committed
-    // the input. tripRef is assigned during render, so it is the source of
-    // truth for what the editor is showing.
+    // Prefer the live document when a keystroke is in flight. Keep the
+    // pending snapshot until persistTrip succeeds so a failed PATCH cannot
+    // drop the edit or let enhance/apply overwrite it.
     const latest = editedRef.current ? tripRef.current : pendingPatchRef.current
-    pendingPatchRef.current = null
-    editedRef.current = false
     if (latest) {
-      await persistTrip(latest)
+      pendingPatchRef.current = latest
+      try {
+        await persistTrip(latest)
+      } catch (err) {
+        pendingPatchRef.current = latest
+        editedRef.current = true
+        throw new Error(
+          `Couldn’t save your latest edits. Nothing in your itinerary changed. (${errorText(err)})`,
+        )
+      }
       return
     }
     if (persistPromiseRef.current) await persistPromiseRef.current
@@ -226,7 +235,9 @@ export function TripDetail() {
     pendingPatchRef.current = trip
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
-      void persistTrip(trip)
+      void persistTrip(trip).catch(() => {
+        /* saveState already error */
+      })
     }, 900)
   }, [trip, persistTrip])
 
@@ -267,14 +278,13 @@ export function TripDetail() {
 
   const setDays = useCallback(
     (fn: (days: TripDay[]) => TripDay[]) => {
+      const current = tripRef.current
+      if (!current) return
+      const next = { ...current, days: fn(current.days) }
       markEdited()
-      setTrip((t) => {
-        if (!t) return t
-        const next = { ...t, days: fn(t.days) }
-        tripRef.current = next
-        pendingPatchRef.current = next
-        return next
-      })
+      tripRef.current = next
+      pendingPatchRef.current = next
+      setTrip(next)
     },
     [markEdited],
   )
@@ -323,8 +333,11 @@ export function TripDetail() {
           setNotice(run.outcomeReason)
         }
       } catch (err) {
+        const message = errorText(err)
         setNotice(
-          `The AI review didn’t finish. Nothing in your itinerary changed, so you can run it again. (${errorText(err)})`,
+          message.startsWith("Couldn’t save your latest edits")
+            ? message
+            : `The AI review didn’t finish. Nothing in your itinerary changed, so you can run it again. (${message})`,
         )
       } finally {
         setEnhancingTarget(null)
@@ -359,8 +372,11 @@ export function TripDetail() {
         const skipNote = skipped.length > 0 ? ` ${skipped.length} could not be applied.` : ""
         setNotice(`Applied ${applied.length} suggestion${applied.length === 1 ? "" : "s"}.${skipNote}`)
       } catch (err) {
+        const message = errorText(err)
         setNotice(
-          `Couldn’t apply those suggestions. They’re still listed below, so you can try again. (${errorText(err)})`,
+          message.startsWith("Couldn’t save your latest edits")
+            ? message
+            : `Couldn’t apply those suggestions. They’re still listed below, so you can try again. (${message})`,
         )
       } finally {
         setEnhancingTarget(null)

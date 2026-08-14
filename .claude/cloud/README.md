@@ -25,7 +25,7 @@ If you see any of these symptoms, run `bash .claude/cloud/setup.sh` first:
 - `error TS2307: Cannot find module 'vite'`
 - `error TS2307: Cannot find module '@vitejs/plugin-react'`
 - `[codex-deps] missing frontend dependency: …`
-- `[codex-deps] ERROR: frontend TypeScript reports "Version 5.x" but ~7.0 is expected`
+- `[codex-deps] ERROR: frontend TypeScript reports "Version 5.x" but ~7.0.2 (>=7.0.2 <7.1.0) is expected`
 
 ## Why mirror, not fork
 
@@ -49,8 +49,10 @@ stack. Not part of every loop.
 1. **Dependency auto-repair** — if `frontend/node_modules` is missing or
    partial, `ensure_dependencies` re-runs `bun install` in both roots and
    exits with an actionable error if that still doesn't recover.
-2. **Frontend TypeScript pre-flight** — `bunx --bun tsc --version` must
-   report `Version 7.x` so `tsc -b` matches the build's expectations.
+2. **Frontend TypeScript pre-flight** — `frontend/node_modules/typescript7/bin/tsc --version`
+   must report `Version 7.0.x` with `x >= 2` (`~7.0.2`, i.e. `>=7.0.2 <7.1.0`)
+   so `tsc -b` matches the build's expectations. The `typescript` package
+   stays on 6.0.x for `typescript-eslint` until that stack supports TS 7.1.
 3. **Server tests** (`bun test --bail server/src`) — includes
    `appLoad.test.ts`, a module-load smoke test that imports `server/app.ts`
    and evaluates the full route/worker dependency graph. This catches

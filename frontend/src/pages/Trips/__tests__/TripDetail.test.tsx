@@ -165,6 +165,24 @@ describe("TripDetail enhance", () => {
     expect(mockEnhanceTrip).toHaveBeenCalled()
   })
 
+  it("keeps pending edits and skips enhance when the flush PATCH fails", async () => {
+    const trip = makeTrip()
+    mockGetTrip.mockResolvedValue({ trip, access: "owner" })
+    mockUpdateTrip.mockRejectedValue(new Error("network down"))
+
+    renderEditor()
+    const name = await screen.findByLabelText("Trip name")
+    fireEvent.change(name, { target: { value: "Tokyo Rewrite" } })
+    await waitFor(() => expect(name).toHaveValue("Tokyo Rewrite"))
+
+    fireEvent.click(screen.getByRole("button", { name: "Enhance trip" }))
+
+    await waitFor(() => expect(mockUpdateTrip).toHaveBeenCalled())
+    expect(mockEnhanceTrip).not.toHaveBeenCalled()
+    expect(name).toHaveValue("Tokyo Rewrite")
+    expect(screen.getByText(/couldn’t save your latest edits/i)).toBeInTheDocument()
+  })
+
   it("gives a one-day trip the full editor width instead of the nav track", async () => {
     const trip = makeTrip({
       name: "Empty Kyoto Day",
