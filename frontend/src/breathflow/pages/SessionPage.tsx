@@ -40,6 +40,7 @@ import { useRecoveryStatus } from '../safety/useRecoveryStatus'
 import { completeSession, type CompletionResult } from '../session/completeSession'
 import { buildSessionSearch, parseSessionSearch } from '../session/urlParams'
 import { BoxVisualization } from '../components/BoxVisualization'
+import { BreathStarfield } from '../components/BreathStarfield'
 import { CadenceEditor } from '../components/CadenceEditor'
 import { LiveAnnouncer } from '../components/LiveAnnouncer'
 import { MoodPicker } from '../components/MoodPicker'
@@ -596,6 +597,7 @@ function ActiveSession({
       onPointerMove={showControls}
       onPointerDown={showControls}
     >
+      <BreathStarfield inline />
       {/* Round counter */}
       <div className="pt-[max(1.5rem,env(safe-area-inset-top))] text-center">
         <p className="bf-display text-sm text-bw-secondary">

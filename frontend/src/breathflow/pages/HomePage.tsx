@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { withViteBase } from '@/lib/routerBasename'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore } from '@/stores/historyStore'
+import { BreathFlowMark } from '../components/BreathFlowMark'
 import { PhaseStrip } from '../components/PhaseStrip'
 import { btnPrimary } from '../components/buttonStyles'
 import { formatDuration, formatLocalDate } from '../components/format'
@@ -72,10 +74,31 @@ export function HomePage() {
 
   return (
     <div className="space-y-12 pb-8">
-      <div className="pt-4">
-        <h1 className="bf-display text-[clamp(2.25rem,6vw,3.5rem)] leading-[1.05] tracking-tight text-balance text-bw">
-          {getGreeting(hour)}.
-        </h1>
+      <div className="relative pt-4">
+        <div className="pointer-events-none absolute -right-2 top-0 h-28 w-28 opacity-80 sm:h-36 sm:w-36" aria-hidden="true">
+          <img
+            src={withViteBase('/breathflow-hero-orb.webp')}
+            alt=""
+            width={576}
+            height={324}
+            decoding="async"
+            className="h-full w-full object-cover object-center dark:hidden"
+          />
+          <img
+            src={withViteBase('/breathflow-orb-dark.webp')}
+            alt=""
+            width={768}
+            height={768}
+            decoding="async"
+            className="hidden h-full w-full object-cover object-center dark:block"
+          />
+        </div>
+        <div className="relative flex items-end gap-3 pr-28 sm:pr-36">
+          <h1 className="bf-display text-[clamp(2.25rem,6vw,3.5rem)] leading-[1.05] tracking-tight text-balance text-bw">
+            {getGreeting(hour)}.
+          </h1>
+          <BreathFlowMark size={36} className="mb-1 hidden h-9 w-9 sm:block" />
+        </div>
         {isFirstRun ? (
           <p className="mt-4 max-w-sm text-sm leading-relaxed text-bw-secondary">
             One guided breathing session is enough to feel the shift. About 5 minutes.
