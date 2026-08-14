@@ -347,10 +347,15 @@ async function installationIncludesRepo(
  * Accepts:
  * - collaborator / PAT with `permissions.push` or `permissions.admin`
  * - GitHub App installation token whose installation includes `owner/repo`
- *   (Cursor cloud `ghs_` tokens: GET /user is 403 and classic permissions
- *   are all false, but GET /installation/repositories lists the repo)
  *
- * Rejects public-read (GET /repos 200 with no push) and `permissions.pull`.
+ * Installation membership is enough. Do not also require
+ * `permissions.push` on the listed repo: Cursor cloud `ghs_` tokens
+ * expose the field but every flag is false (validated 2026-08-14:
+ * GET /user 403, GET /repos and GET /installation/repositories both
+ * report admin/maintain/pull/push/triage false while listing this repo).
+ *
+ * Rejects public-read (GET /repos 200 with no push and no installation)
+ * and pull-only collaborator tokens.
  */
 export async function verifyGithubAgentAccess(
   token: string,

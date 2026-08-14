@@ -266,18 +266,18 @@ describe("verifyGithubAgentAccess", () => {
     expect(await verifyGithubAgentAccess("gho_x", "anthonylim24/anthonyl.im", fetchImpl)).toBe(false);
   });
 
-  test("accepts an installation token whose repo list includes this repo", async () => {
+  test("accepts an installation token even when the listed repo reports push:false", async () => {
+    // Cursor cloud ghs_ tokens expose permissions but every flag is false.
+    const noPerms = { admin: false, maintain: false, pull: false, push: false, triage: false };
     const fetchImpl = mock(async (url: string) => {
       if (String(url).includes("/repos/")) {
-        return new Response(JSON.stringify({ permissions: { admin: false, push: false, pull: false } }), {
-          status: 200,
-        });
+        return new Response(JSON.stringify({ permissions: noPerms }), { status: 200 });
       }
       expect(String(url)).toContain("/installation/repositories");
       return new Response(
         JSON.stringify({
           total_count: 1,
-          repositories: [{ full_name: "anthonylim24/anthonyl.im" }],
+          repositories: [{ full_name: "anthonylim24/anthonyl.im", permissions: noPerms }],
         }),
         { status: 200 },
       );
