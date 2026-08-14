@@ -23,6 +23,7 @@
 import {
   createClerkAgentTask,
   isAllowedAgentApiBase,
+  isAllowedAgentRedirect,
   mintAgentSessionRemote,
   parseAgentOnBehalfOf,
   previewAgentRedirectUrl,
@@ -67,6 +68,10 @@ if (!redirectUrl && prRaw) {
   redirectUrl = previewAgentRedirectUrl({ siteUrl, pr, path });
 }
 if (!redirectUrl) usage();
+if (!isAllowedAgentRedirect(redirectUrl)) {
+  console.error(`Refusing disallowed redirectUrl: ${redirectUrl}`);
+  process.exit(1);
+}
 
 const onBehalfOf = parseAgentOnBehalfOf(process.env);
 const clerkKey = process.env.CLERK_SECRET_KEY?.trim();

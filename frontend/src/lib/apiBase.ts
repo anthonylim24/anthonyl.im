@@ -22,7 +22,12 @@ export const PREVIEW_API_HEADER = "X-Preview-API"
  * Fetch an `/api/...` path. Preview builds call
  * `/preview/pr/<n>/api/...` only — they must not fall back to production
  * `/api`, which would send a same-origin Clerk cookie to live data.
+ * Sidecar 3xx responses are not followed (the proxy already uses
+ * `redirect: "manual"`); a Location of `/api/...` would otherwise leak
+ * the session to production.
  */
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
-  return fetch(apiUrl(path), init)
+  const url = apiUrl(path)
+  if (!previewApiBase()) return fetch(url, init)
+  return fetch(url, { ...init, redirect: "manual" })
 }

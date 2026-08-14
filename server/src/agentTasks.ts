@@ -124,7 +124,7 @@ export async function fetchWithTimeout(
 ): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  const aborted = new Promise<Response>((_resolve, reject) => {
+  const aborted = new Promise<never>((_resolve, reject) => {
     controller.signal.addEventListener(
       "abort",
       () => {
@@ -136,10 +136,18 @@ export async function fetchWithTimeout(
     );
   });
   try {
-    return await Promise.race([
+    const res = await Promise.race([
       fetchImpl(url, { ...init, signal: controller.signal }),
       aborted,
     ]);
+    // Keep the deadline through body consumption — headers-only timeouts
+    // leave res.json() free to hang on a stalled stream.
+    const body = await Promise.race([res.arrayBuffer(), aborted]);
+    return new Response(body, {
+      status: res.status,
+      statusText: res.statusText,
+      headers: res.headers,
+    });
   } finally {
     clearTimeout(timer);
   }

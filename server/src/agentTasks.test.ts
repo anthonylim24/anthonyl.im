@@ -2,6 +2,7 @@ import { describe, expect, test, mock } from "bun:test";
 import {
   AgentTaskError,
   createClerkAgentTask,
+  fetchWithTimeout,
   isAllowedAgentApiBase,
   isAllowedAgentRedirect,
   parseAgentOnBehalfOf,
@@ -177,6 +178,23 @@ describe("createClerkAgentTask", () => {
       expect(err).toBeInstanceOf(AgentTaskError);
       expect((err as AgentTaskError).status).toBe(502);
       expect((err as AgentTaskError).message).toMatch(/timed out/);
+    }
+  });
+
+  test("times out when headers arrive but the body never completes", async () => {
+    const fetchImpl = mock(async () =>
+      new Response(new ReadableStream({ start() { /* never enqueue or close */ } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    ) as unknown as typeof fetch;
+
+    try {
+      await fetchWithTimeout(fetchImpl, "https://api.clerk.com/v1/agents/tasks", {}, 20);
+      throw new Error("expected throw");
+    } catch (err) {
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).name).toBe("AbortError");
     }
   });
 });
