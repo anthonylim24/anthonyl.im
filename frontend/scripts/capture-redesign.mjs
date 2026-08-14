@@ -20,7 +20,13 @@ import path from "node:path"
 
 const BASE = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173"
 const API = process.env.CAPTURE_API_URL ?? "http://localhost:3000"
-const BEARER = process.env.VITE_DEV_BEARER ?? "codex-dev-bearer"
+/** The cloud sandbox injects a production-shaped `VITE_DEV_BEARER`, which the
+ *  local stack does not accept, so the fallback below is tried before giving
+ *  up on the fixtures. */
+const BEARER_CANDIDATES = [process.env.CAPTURE_BEARER, process.env.VITE_DEV_BEARER, "codex-dev-bearer"].filter(
+  (value, index, all) => Boolean(value) && all.indexOf(value) === index,
+)
+let BEARER = BEARER_CANDIDATES[0]
 const OUT = process.env.SCREENSHOT_DIR ?? "/opt/cursor/artifacts/screenshots"
 const VIDEO_OUT = process.env.VIDEO_DIR ?? "/opt/cursor/artifacts/videos"
 
@@ -43,16 +49,24 @@ if (withVideo) await mkdir(VIDEO_OUT, { recursive: true })
 /* ── Fixtures ─────────────────────────────────────────────────────────── */
 
 async function api(pathname, init = {}) {
-  const res = await fetch(`${API}${pathname}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${BEARER}`,
-      ...(init.headers ?? {}),
-    },
-  })
-  if (!res.ok) throw new Error(`${init.method ?? "GET"} ${pathname} -> ${res.status}`)
-  return res.json()
+  let lastStatus = 0
+  for (const candidate of BEARER_CANDIDATES) {
+    const res = await fetch(`${API}${pathname}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${candidate}`,
+        ...(init.headers ?? {}),
+      },
+    })
+    if (res.ok) {
+      BEARER = candidate
+      return res.json()
+    }
+    lastStatus = res.status
+    if (res.status !== 401) break
+  }
+  throw new Error(`${init.method ?? "GET"} ${pathname} -> ${lastStatus}`)
 }
 
 function isoDaysFromToday(offset) {

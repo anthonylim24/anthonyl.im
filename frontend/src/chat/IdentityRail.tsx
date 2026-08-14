@@ -22,21 +22,27 @@ export function IdentityRail({ condensed, theme }: IdentityRailProps) {
     <aside
       data-condensed={condensed ? 'true' : 'false'}
       className={cn(
-        'min-w-0 px-4 pt-4 lg:flex lg:flex-col lg:justify-start lg:px-8 lg:pb-16 lg:pt-16',
-        condensed ? 'pb-3' : 'pb-6',
+        'min-w-0 px-4 pt-4 lg:flex lg:flex-col lg:px-8 lg:pb-16 lg:pt-16',
+        // At rest the hero sits on the optical centre of its column; once the
+        // transcript owns the page the rail rides at the top out of the way.
+        condensed ? 'pb-3 lg:justify-start' : 'pb-6 lg:justify-center',
       )}
     >
       {!condensed ? (
-        <div className="mb-6 flex items-center gap-6 col-fade-in">
+        <div className="mb-7 flex items-center gap-5 col-fade-in">
           <img
             src={withViteBase('/logos/doordash.svg')}
             alt="DoorDash"
-            className={cn('h-7 w-auto', theme === 'dark' && 'invert')}
+            width={24}
+            height={24}
+            className={cn('h-5 w-auto opacity-80', theme === 'dark' && 'invert')}
           />
           <img
             src={withViteBase('/logos/ebay.svg')}
             alt="eBay"
-            className={cn('h-7 w-auto', theme === 'dark' && 'invert')}
+            width={24}
+            height={24}
+            className={cn('h-6 w-auto opacity-80', theme === 'dark' && 'invert')}
           />
         </div>
       ) : null}
@@ -67,24 +73,22 @@ export function IdentityRail({ condensed, theme }: IdentityRailProps) {
         </p>
       ) : null}
 
-      {!condensed ? (
-        <p className="mt-5 text-sm text-[color:var(--ch-ink)]">
-          <a
-            className={linkClass}
-            href={CHAT_LINKEDIN_HREF}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            LinkedIn
-          </a>
-          <span aria-hidden="true" className="px-2 text-[color:var(--ch-ink-faint)]">
-            ·
-          </span>
-          <a className={linkClass} href={`mailto:${CHAT_EMAIL}`}>
-            {CHAT_EMAIL}
-          </a>
-        </p>
-      ) : null}
+      <p className={cn('text-sm text-[color:var(--ch-ink)]', condensed ? 'mt-3' : 'mt-5')}>
+        <a
+          className={linkClass}
+          href={CHAT_LINKEDIN_HREF}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          LinkedIn
+        </a>
+        <span aria-hidden="true" className="px-2 text-[color:var(--ch-ink-faint)]">
+          ·
+        </span>
+        <a className={linkClass} href={`mailto:${CHAT_EMAIL}`}>
+          {condensed ? 'Email' : CHAT_EMAIL}
+        </a>
+      </p>
     </aside>
   )
 }

@@ -2,8 +2,6 @@ import { useCallback, useRef, useState } from 'react'
 import { Leaf, Send, Sun, Moon, Eraser } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
-  CHAT_EMAIL,
-  CHAT_LINKEDIN_HREF,
 } from './IdentityRail'
 import type { ResolvedTheme } from './useChatAppearance'
 
@@ -20,7 +18,6 @@ export const CHAT_DISCLAIMER =
 interface ComposerProps {
   hasMessages: boolean
   isLoading: boolean
-  showContacts: boolean
   theme: ResolvedTheme
   ambience: boolean
   onSend: (text: string) => void
@@ -35,13 +32,9 @@ const controlClass =
 const suggestionClass =
   'min-h-11 rounded-[var(--ch-r-control)] border border-[color:var(--ch-line)] bg-[var(--ch-surface)] px-3 py-2.5 text-left text-sm leading-snug text-[color:var(--ch-ink)] transition-transform duration-150 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--ch-focus)] disabled:cursor-not-allowed disabled:opacity-50'
 
-const contactClass =
-  'inline-flex min-h-11 items-center text-sm text-[color:var(--ch-accent)] underline-offset-4 transition-transform duration-150 hover:underline active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--ch-focus)]'
-
 export function Composer({
   hasMessages,
   isLoading,
-  showContacts,
   theme,
   ambience,
   onSend,
@@ -183,25 +176,6 @@ export function Composer({
           </button>
         ) : null}
       </div>
-
-      {showContacts ? (
-        <p className="mt-1 text-sm text-[color:var(--ch-ink)]">
-          <a
-            className={contactClass}
-            href={CHAT_LINKEDIN_HREF}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            LinkedIn
-          </a>
-          <span aria-hidden="true" className="px-2 text-[color:var(--ch-ink-faint)]">
-            ·
-          </span>
-          <a className={contactClass} href={`mailto:${CHAT_EMAIL}`}>
-            {CHAT_EMAIL}
-          </a>
-        </p>
-      ) : null}
 
       <p className="mt-1 text-sm leading-relaxed text-[color:var(--ch-ink-muted)]">
         {CHAT_DISCLAIMER}

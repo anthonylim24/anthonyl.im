@@ -242,7 +242,7 @@ html:has(.chat-dark) {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  filter: grayscale(1) contrast(0.7) brightness(1.14);
+  filter: grayscale(1) contrast(0.62) brightness(1.2) blur(1px);
   mix-blend-mode: multiply;
   pointer-events: none;
   z-index: 0;
@@ -252,19 +252,19 @@ html:has(.chat-dark) {
 }
 
 .chat-ambience[data-visible="true"] {
-  opacity: 0.42;
+  opacity: 0.2;
 }
 
 /* Dark mode keeps the same footage but reads it as light through leaves
    rather than shadow cast on paper, so the page is never flat in either
    theme. */
 .chat-dark .chat-ambience {
-  filter: grayscale(1) contrast(1.15) brightness(0.55);
+  filter: grayscale(1) contrast(1.05) brightness(0.6) blur(1px);
   mix-blend-mode: screen;
 }
 
 .chat-dark .chat-ambience[data-visible="true"] {
-  opacity: 0.22;
+  opacity: 0.14;
 }
 
 .chat-ambience-media {

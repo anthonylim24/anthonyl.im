@@ -58,7 +58,17 @@ export function ChatApp() {
       <LeafAmbience enabled={appearance.ambience} />
       <div className="chat-grain" aria-hidden="true" />
 
-      <div className="relative z-10 mx-auto grid h-full min-h-0 w-full max-w-[1400px] grid-cols-1 grid-rows-[auto_minmax(0,1fr)] safe-top lg:grid-cols-[minmax(18rem,26rem)_1fr] lg:grid-rows-1">
+      {/* The rail hands its width back to the transcript once a conversation
+          exists: a state transition, not decoration. */}
+      <div
+        className={cn(
+          'relative z-10 mx-auto grid h-full min-h-0 w-full max-w-[1400px] grid-cols-1 grid-rows-[auto_minmax(0,1fr)] safe-top lg:grid-rows-1',
+          'transition-[grid-template-columns] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none',
+          hasMessages
+            ? 'lg:grid-cols-[minmax(13rem,17rem)_1fr]'
+            : 'lg:grid-cols-[minmax(18rem,26rem)_1fr]',
+        )}
+      >
         <IdentityRail condensed={hasMessages} theme={appearance.theme} />
         <div className="flex min-h-0 min-w-0 flex-col">
           <Conversation
@@ -70,7 +80,6 @@ export function ChatApp() {
           <Composer
             hasMessages={hasMessages}
             isLoading={session.isLoading}
-            showContacts={hasMessages}
             theme={appearance.theme}
             ambience={appearance.ambience}
             onSend={session.send}

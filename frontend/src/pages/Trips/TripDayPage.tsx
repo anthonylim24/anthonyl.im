@@ -6,7 +6,7 @@ import { useGetToken } from "@/lib/safeAuth"
 import { EntityIndexProvider } from "../Korea/entityIndex"
 import { LinkifiedText } from "../Korea/LinkifiedText"
 import { useLoadedTrip } from "./useLoadedTrip"
-import { ACCENT, calloutTone, formatTripDate, resolveAccent, todayIsoIn } from "./theme"
+import { ACCENT, calloutTone, formatTripDate, hasForecast, resolveAccent, todayIsoIn } from "./theme"
 import { useAnchorHighlight, useAnchorTarget } from "./anchors"
 import { ItemIcon } from "./components/ItemIcon"
 import { ReservationChip, StatusChip } from "./components/StatusChip"
@@ -188,7 +188,7 @@ export function TripDayPage() {
           <p>
             {formatTripDate(day.date, trip.timezone, { weekday: "long", month: "long" })}
           </p>
-          {day.weather ? (
+          {hasForecast(day.weather) ? (
             <p className={mutedInkClass}>
               {day.weather.highC}°C / {day.weather.lowC}°C, {day.weather.condition}
             </p>

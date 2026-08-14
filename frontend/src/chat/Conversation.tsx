@@ -54,15 +54,25 @@ export function Conversation({ messages, isLoading, error, onRetry }: Conversati
     isLoading && last?.role === 'assistant',
   )
 
+  const isEmpty = messages.length === 0 && !isLoading && !error
+
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-3 lg:px-8"
+        className="flex min-h-0 flex-1 flex-col overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-6 lg:px-8 lg:py-10"
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
-        <div role="log" aria-live="polite" aria-relevant="additions" className="flex flex-col gap-5">
+        {/* The transcript sits on the composer and grows upward, so a short
+            conversation does not leave a hole between the first answer and the
+            input the reader is about to use. */}
+        <div
+          role="log"
+          aria-live="polite"
+          aria-relevant="additions"
+          className="mt-auto flex flex-col gap-5"
+        >
           {messages.map((message, index) => {
             const isUser = message.role === 'user'
             const isLastAssistant = !isUser && index === messages.length - 1
@@ -96,6 +106,8 @@ export function Conversation({ messages, isLoading, error, onRetry }: Conversati
           })}
         </div>
 
+        {isEmpty ? <EmptyTranscript /> : null}
+
         {error ? (
           <div
             role="alert"
@@ -126,6 +138,32 @@ export function Conversation({ messages, isLoading, error, onRetry }: Conversati
           <ChevronDown strokeWidth={1.5} className="h-5 w-5" />
         </button>
       ) : null}
+    </div>
+  )
+}
+
+/** What the assistant can actually answer, so the first question is an easy
+ *  one. Every line here is grounded in the profile the model is briefed with. */
+const KNOWN_TOPICS = [
+  ['Roles and teams', 'DoorDash, eBay, and the work before them'],
+  ['Craft', 'the stacks, tools, and problems he works in'],
+  ['Getting in touch', 'the fastest way to reach him'],
+] as const
+
+function EmptyTranscript() {
+  return (
+    <div className="mt-auto max-w-[42ch] pb-2">
+      <p className="chat-mono text-xs tracking-[0.14em] text-[color:var(--ch-ink-muted)] uppercase">
+        This assistant knows
+      </p>
+      <dl className="mt-3 space-y-2">
+        {KNOWN_TOPICS.map(([term, detail]) => (
+          <div key={term} className="flex flex-wrap items-baseline gap-x-2">
+            <dt className="text-[15px] text-[color:var(--ch-ink)]">{term}</dt>
+            <dd className="text-[15px] text-[color:var(--ch-ink-muted)]">{detail}</dd>
+          </div>
+        ))}
+      </dl>
     </div>
   )
 }

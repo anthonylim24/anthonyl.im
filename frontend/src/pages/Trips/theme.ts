@@ -19,7 +19,7 @@ import {
   UtensilsCrossed,
   type LucideIcon,
 } from "lucide-react"
-import type { ItemStatus, SuggestionKind, TripAccent, TripCollaborator } from "./types"
+import type { DayWeather, ItemStatus, SuggestionKind, TripAccent, TripCollaborator } from "./types"
 
 // Trip display metadata: the accent vocabulary, item iconography, and the
 // timezone-aware date helpers every Trips surface shares.
@@ -212,6 +212,17 @@ export function calloutTone(tone: "info" | "warn" | "success" | "alert"): string
     case "alert":
       return "border-[color:var(--tr-danger-ring)] bg-[var(--tr-danger-soft)]"
   }
+}
+
+/** Whether a day's forecast is worth printing.
+ *
+ *  Migrated days carry `{ highC: 0, lowC: 0 }` as a placeholder for "we never
+ *  fetched this", and a Seoul day in May rendering `0 / 0` reads as a broken
+ *  page rather than as missing data. A genuine freezing day has a high above
+ *  its low, so the placeholder is the only pair this rejects. */
+export function hasForecast(weather?: DayWeather | null): weather is DayWeather {
+  if (!weather) return false
+  return !(weather.highC === 0 && weather.lowC === 0)
 }
 
 // ── Timezone-aware date helpers ──────────────────────────────────────────

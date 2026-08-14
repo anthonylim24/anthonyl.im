@@ -1,7 +1,7 @@
 import { memo, useCallback, useId, useState } from "react"
 import { AnimatePresence } from "motion/react"
 import { ChevronDown, Map as MapIcon, Plus, Trash2 } from "lucide-react"
-import { ACCENT, formatTripDate } from "../theme"
+import { ACCENT, formatTripDate, hasForecast } from "../theme"
 import { addItem, makeItem } from "../tripEdits"
 import {
   chipBtnClass,
@@ -289,7 +289,7 @@ export const DayCard = memo(function DayCard({
                   </button>
                 </div>
               </div>
-              {day.weather && (
+              {hasForecast(day.weather) && (
                 <p className={`text-xs ${mutedInkClass}`}>
                   Weather: {day.weather.highC}°C / {day.weather.lowC}°C, {day.weather.condition}. Updated from the
                   live forecast each time you run Enhance.

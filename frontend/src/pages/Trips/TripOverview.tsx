@@ -9,6 +9,7 @@ import {
   collaboratorSummary,
   daysUntilIn,
   formatTripDate,
+  hasForecast,
   resolveAccent,
   todayIsoIn,
 } from "./theme"
@@ -362,13 +363,13 @@ function DayCard({
           <div className={`mt-4 grid grid-cols-2 gap-x-4 gap-y-1 text-xs ${mutedInkClass}`}>
             <span>{formatTripDate(day.date, trip.timezone)}</span>
             {booked > 0 ? <span>{booked} booked</span> : null}
-            {day.weather ? (
+            {hasForecast(day.weather) ? (
               <span className="font-mono-trips tabular-nums">
                 {day.weather.highC}° / {day.weather.lowC}°
               </span>
             ) : null}
             {hoods.length > 0 ? (
-              <span className={`truncate ${hoods.length === 1 && !day.weather && booked === 0 ? "" : "col-span-2"}`}>
+              <span className={`truncate ${hoods.length === 1 && !hasForecast(day.weather) && booked === 0 ? "" : "col-span-2"}`}>
                 {hoods.join(", ")}
               </span>
             ) : null}
