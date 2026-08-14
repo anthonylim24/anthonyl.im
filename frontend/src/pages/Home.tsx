@@ -187,6 +187,8 @@ export function Home() {
           alt=""
           width={1600}
           height={900}
+          fetchPriority="high"
+          decoding="async"
           className="h-44 w-full object-cover object-[center_42%] sm:h-56 md:h-64 dark:hidden"
         />
         <img
@@ -194,6 +196,7 @@ export function Home() {
           alt=""
           width={768}
           height={768}
+          decoding="async"
           className="hidden h-44 w-full object-cover object-center sm:h-56 md:h-64 dark:block"
         />
         <div className="breath-hero-fade pointer-events-none absolute inset-x-0 bottom-0 h-16" />

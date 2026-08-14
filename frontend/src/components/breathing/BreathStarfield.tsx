@@ -69,18 +69,20 @@ export const BreathStarfield = memo(function BreathStarfield() {
     }
 
     const draw = (now: number) => {
+      raf = 0
       if (cancelled) return
       resize()
       const dt = Math.min(0.05, (now - last) / 1000)
       last = now
       const width = canvas.width
       const height = canvas.height
+      const moving = !document.hidden
 
       ctx.clearRect(0, 0, width, height)
       ctx.globalCompositeOperation = 'lighter'
 
       for (const star of stars) {
-        if (!document.hidden) {
+        if (moving) {
           star.x += star.vx
           star.y += star.vy
           star.phase += dt * 1.4
@@ -99,13 +101,24 @@ export const BreathStarfield = memo(function BreathStarfield() {
 
       ctx.globalAlpha = 1
       ctx.globalCompositeOperation = 'source-over'
+      if (moving) schedule()
+    }
+
+    const schedule = () => {
+      if (cancelled || raf !== 0) return
       raf = requestAnimationFrame(draw)
     }
 
-    raf = requestAnimationFrame(draw)
+    const onVisibility = () => {
+      if (!document.hidden) schedule()
+    }
+
+    document.addEventListener('visibilitychange', onVisibility)
+    schedule()
     return () => {
       cancelled = true
       cancelAnimationFrame(raf)
+      document.removeEventListener('visibilitychange', onVisibility)
     }
   }, [reducedMotion])
 
