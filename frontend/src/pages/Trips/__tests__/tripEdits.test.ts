@@ -5,6 +5,7 @@ import {
   dayHasPlaceNamed,
   duplicateItem,
   insertItemAt,
+  itemFromConciergePlace,
   itemFromExtractedPlace,
   makeItem,
   moveItem,
@@ -127,6 +128,33 @@ describe("tripEdits", () => {
       category: "restaurant",
       confidence: "high",
       source: "user",
+    })
+  })
+
+  it("builds an AI place item from a concierge suggestion", () => {
+    const item = itemFromConciergePlace({
+      name: "Ichiran",
+      address: "Shibuya",
+      lat: 35.66,
+      lng: 139.7,
+      category: "restaurant",
+      notes: "Late-night ramen",
+      mapsUrl: "https://maps.google.com/?cid=1",
+      placeId: "ChIJabcdefgh",
+    })
+    expect(item.kind).toBe("place")
+    expect(item.createdBy).toBe("ai")
+    expect(item.notes).toBe("Late-night ramen")
+    expect(item.links).toEqual(["https://maps.google.com/?cid=1"])
+    expect(item.location).toMatchObject({
+      name: "Ichiran",
+      address: "Shibuya",
+      lat: 35.66,
+      lng: 139.7,
+      category: "restaurant",
+      source: "ai",
+      confidence: "high",
+      placeId: "ChIJabcdefgh",
     })
   })
 

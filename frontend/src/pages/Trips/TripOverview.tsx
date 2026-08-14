@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
 import { ArrowUpRight, Pencil } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
-import { getTrip } from "./tripsApi"
+import { useLoadedTrip } from "./useLoadedTrip"
 import {
   ACCENT,
   cityTag,
@@ -36,11 +35,6 @@ import {
   wrapAnywhereClass,
 } from "./ui"
 
-type LoadState =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "success"; trip: Trip; editable: boolean }
-
 /** `<main>` is unconstrained so the hero bloom can be full-bleed. */
 const gutterClass = pageClass()
 
@@ -48,27 +42,7 @@ export function TripOverview() {
   const { tripId } = useParams<{ tripId: string }>()
   const getToken = useGetToken()
   const reduce = useReducedMotion()
-  const [state, setState] = useState<LoadState>({ status: "loading" })
-  const [reloadKey, setReloadKey] = useState(0)
-  const reload = useCallback(() => {
-    setState({ status: "loading" })
-    setReloadKey((k) => k + 1)
-  }, [])
-  useEffect(() => {
-    if (!tripId) return
-    let cancelled = false
-    void (async () => {
-      try {
-        const { trip, access } = await getTrip(getToken, tripId)
-        if (!cancelled) setState({ status: "success", trip, editable: access === "edit" || access === "owner" })
-      } catch (err) {
-        if (!cancelled) setState({ status: "error", message: err instanceof Error ? err.message : String(err) })
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [tripId, getToken, reloadKey])
+  const { state, reload } = useLoadedTrip(tripId, getToken)
 
   if (state.status === "loading") {
     return (

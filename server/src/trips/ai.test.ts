@@ -533,7 +533,7 @@ describe("createGeminiLlm", () => {
     const out = await llm({ system: "SYS", user: "USER" })
     expect(out).toBe('{"summary":"ok","days":[]}')
     expect(captured!.url).toContain("gemini-3.7-flash:generateContent")
-    expect(captured!.body.tools).toEqual([{ googleMaps: {} }])
+    expect(captured!.body.tools).toEqual([{ googleSearch: {} }, { googleMaps: {} }])
     const gen = captured!.body.generationConfig as { thinkingConfig: { thinkingLevel: string } }
     expect(gen.thinkingConfig).toEqual({ thinkingLevel: "low" })
     const contents = captured!.body.contents as Array<{ parts: Array<{ text: string }> }>
@@ -557,12 +557,12 @@ describe("createGeminiLlm", () => {
     expect(calls).toBe(2)
   })
 
-  test("retries JSON-only when Maps-grounded call fails", async () => {
+  test("retries Maps then JSON when Search+Maps fails", async () => {
     const calls: Array<Record<string, unknown>> = []
     const fetchImpl = (async (_url: RequestInfo | URL, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as Record<string, unknown>
       calls.push(body)
-      if (calls.length === 1) return new Response("Maps unavailable", { status: 400 })
+      if (calls.length < 3) return new Response("grounding unavailable", { status: 400 })
       return new Response(
         JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"ok":true}' }] } }] }),
         { status: 200 },
@@ -572,10 +572,11 @@ describe("createGeminiLlm", () => {
     const llm = createGeminiLlm("test-key", fetchImpl)
     const out = await llm({ system: "s", user: "u" })
     expect(out).toBe('{"ok":true}')
-    expect(calls).toHaveLength(2)
-    expect(calls[0]!.tools).toEqual([{ googleMaps: {} }])
-    expect(calls[1]!.tools).toBeUndefined()
-    const gen = calls[1]!.generationConfig as { responseMimeType?: string }
+    expect(calls).toHaveLength(3)
+    expect(calls[0]!.tools).toEqual([{ googleSearch: {} }, { googleMaps: {} }])
+    expect(calls[1]!.tools).toEqual([{ googleMaps: {} }])
+    expect(calls[2]!.tools).toBeUndefined()
+    const gen = calls[2]!.generationConfig as { responseMimeType?: string }
     expect(gen.responseMimeType).toBe("application/json")
   })
 

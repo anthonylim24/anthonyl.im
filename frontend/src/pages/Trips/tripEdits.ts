@@ -1,3 +1,4 @@
+import type { ConciergePlace } from "../../lib/conciergeGrounding"
 import type { ConfidenceLevel, ItineraryItem, ItemKind, TripDay, TripLocation } from "./types"
 
 // Pure itinerary-mutation helpers behind the editor UI. Every function
@@ -107,6 +108,26 @@ export interface ExtractedPlaceInput {
   confidence?: ConfidenceLevel | null
   quote?: string | null
   sourceUrl?: string
+}
+
+export function itemFromConciergePlace(place: ConciergePlace): ItineraryItem {
+  const location: TripLocation = {
+    name: place.name,
+    source: "ai",
+    confidence: place.lat != null && place.lng != null ? "high" : "medium",
+  }
+  if (place.address) location.address = place.address
+  if (typeof place.lat === "number") location.lat = place.lat
+  if (typeof place.lng === "number") location.lng = place.lng
+  if (place.category) location.category = place.category
+  if (place.placeId) location.placeId = place.placeId
+  return {
+    ...makeItem("place", place.name),
+    notes: place.notes?.trim() || undefined,
+    links: place.mapsUrl ? [place.mapsUrl] : undefined,
+    createdBy: "ai",
+    location,
+  }
 }
 
 export function itemFromExtractedPlace(place: ExtractedPlaceInput): ItineraryItem {

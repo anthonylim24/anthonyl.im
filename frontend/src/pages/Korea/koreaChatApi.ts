@@ -1,4 +1,5 @@
 import { apiFetch } from "../../lib/apiBase"
+import { type ConciergeSource } from "../../lib/conciergeGrounding"
 import { parseConciergeSsePayload } from "../../lib/conciergeSse"
 import { readSseStream } from "../../lib/sseStream"
 
@@ -10,6 +11,7 @@ export interface KoreaChatMessage {
 export interface KoreaChatResult {
   content: string
   error?: string
+  sources?: ConciergeSource[]
 }
 
 /**
@@ -55,6 +57,7 @@ export async function streamKoreaChat(
 
   let content = ""
   let streamError: string | undefined
+  let sources: ConciergeSource[] | undefined
 
   const handleData = (data: string) => {
     const parsed = parseConciergeSsePayload(data)
@@ -63,10 +66,12 @@ export async function streamKoreaChat(
       onUpdate(content)
     } else if (parsed.kind === "error") {
       streamError = parsed.error
+    } else if (parsed.kind === "sources") {
+      sources = parsed.sources
     }
   }
 
   await readSseStream(response.body, { onData: handleData, signal })
 
-  return { content, error: streamError }
+  return { content, error: streamError, sources }
 }

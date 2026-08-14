@@ -42,6 +42,29 @@ describe("parseConciergeSsePayload", () => {
     })
   })
 
+  it("reads grounded { places } and { sources } events", () => {
+    expect(
+      parseConciergeSsePayload(
+        JSON.stringify({
+          places: [{ name: "Ichiran", address: "Shibuya", lat: 35.6, lng: 139.7 }],
+        }),
+      ),
+    ).toEqual({
+      kind: "places",
+      places: [{ name: "Ichiran", address: "Shibuya", lat: 35.6, lng: 139.7 }],
+    })
+    expect(
+      parseConciergeSsePayload(
+        JSON.stringify({
+          sources: [{ kind: "maps", title: "Ichiran", uri: "https://maps.google.com/?cid=1" }],
+        }),
+      ),
+    ).toEqual({
+      kind: "sources",
+      sources: [{ kind: "maps", title: "Ichiran", uri: "https://maps.google.com/?cid=1" }],
+    })
+  })
+
   it("surfaces { error } objects", () => {
     expect(parseConciergeSsePayload(JSON.stringify({ error: "boom" }))).toEqual({
       kind: "error",
