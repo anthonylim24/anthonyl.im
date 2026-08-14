@@ -53,9 +53,10 @@ function Probe({ tripId }: { tripId: string }) {
     )
   }
   if (state.status === "error") return <div>{`error:${state.message}`}</div>
+  const firstItem = state.trip.days[0]?.items[0]
   return (
     <div>
-      <div>{`success:${state.trip.updatedAt}:${state.trip.days[0]?.items.length ?? 0}`}</div>
+      <div>{`success:${state.trip.id}:${state.trip.updatedAt}:${firstItem?.id ?? "none"}`}</div>
       <button type="button" onClick={reload}>
         reload
       </button>
@@ -96,7 +97,7 @@ describe("useLoadedTrip", () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText("success:2026-01-01T00:00:01Z:1")).toBeTruthy()
+      expect(screen.getByText("success:tokyo:2026-01-01T00:00:01Z:p1")).toBeTruthy()
     })
   })
 
@@ -104,7 +105,7 @@ describe("useLoadedTrip", () => {
     mockGetTrip.mockResolvedValue({ trip: makeTrip(), access: "owner" })
     render(<Probe tripId="tokyo" />)
     await waitFor(() => {
-      expect(screen.getByText("success:2026-01-01T00:00:00Z:0")).toBeTruthy()
+      expect(screen.getByText("success:tokyo:2026-01-01T00:00:00Z:none")).toBeTruthy()
     })
 
     act(() =>
@@ -116,14 +117,14 @@ describe("useLoadedTrip", () => {
       ),
     )
 
-    expect(screen.getByText("success:2026-01-01T00:00:02Z:1")).toBeTruthy()
+    expect(screen.getByText("success:tokyo:2026-01-01T00:00:02Z:p1")).toBeTruthy()
   })
 
   it("keeps a concierge add across reload when getTrip is stale", async () => {
     mockGetTrip.mockResolvedValueOnce({ trip: makeTrip(), access: "owner" })
     render(<Probe tripId="tokyo" />)
     await waitFor(() => {
-      expect(screen.getByText("success:2026-01-01T00:00:00Z:0")).toBeTruthy()
+      expect(screen.getByText("success:tokyo:2026-01-01T00:00:00Z:none")).toBeTruthy()
     })
 
     const live = makeTrip({
@@ -131,7 +132,7 @@ describe("useLoadedTrip", () => {
       days: [{ id: "day-1", date: "2026-07-10", items: [ICHIRAN] }],
     })
     act(() => emitTripChanged(live))
-    expect(screen.getByText("success:2026-01-01T00:00:01Z:1")).toBeTruthy()
+    expect(screen.getByText("success:tokyo:2026-01-01T00:00:01Z:p1")).toBeTruthy()
 
     let resolveGet!: (value: { trip: Trip; access: string }) => void
     mockGetTrip.mockReturnValue(
@@ -146,7 +147,33 @@ describe("useLoadedTrip", () => {
       resolveGet({ trip: makeTrip(), access: "owner" })
     })
     await waitFor(() => {
-      expect(screen.getByText("success:2026-01-01T00:00:01Z:1")).toBeTruthy()
+      expect(screen.getByText("success:tokyo:2026-01-01T00:00:01Z:p1")).toBeTruthy()
+    })
+  })
+
+  it("does not carry a live tokyo add onto osaka", async () => {
+    mockGetTrip.mockImplementation(async (_token: unknown, id: string) => ({
+      trip: makeTrip({ id }),
+      access: "owner",
+    }))
+    const { rerender } = render(<Probe tripId="tokyo" />)
+    await waitFor(() => {
+      expect(screen.getByText("success:tokyo:2026-01-01T00:00:00Z:none")).toBeTruthy()
+    })
+
+    act(() =>
+      emitTripChanged(
+        makeTrip({
+          updatedAt: "2026-01-01T00:00:01Z",
+          days: [{ id: "day-1", date: "2026-07-10", items: [ICHIRAN] }],
+        }),
+      ),
+    )
+    expect(screen.getByText("success:tokyo:2026-01-01T00:00:01Z:p1")).toBeTruthy()
+
+    rerender(<Probe tripId="osaka" />)
+    await waitFor(() => {
+      expect(screen.getByText("success:osaka:2026-01-01T00:00:00Z:none")).toBeTruthy()
     })
   })
 })

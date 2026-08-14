@@ -28,6 +28,7 @@ export function useLoadedTrip(tripId: string | undefined, getToken: GetToken) {
   useEffect(() => {
     if (!tripId) return
     let cancelled = false
+    setState({ status: "loading" })
     void (async () => {
       try {
         const { trip, access } = await getTrip(getTokenRef.current, tripId)
