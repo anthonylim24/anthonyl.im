@@ -1,4 +1,5 @@
 import Groq from "groq-sdk"
+import { textFromGeminiParts, type GeminiPart } from "../geminiStream"
 import { GEMINI_BASE, GEMINI_MODEL, geminiThinking } from "../igPlaces/gemini"
 import { haversineMeters } from "../data/koreaPlaces"
 import {
@@ -70,14 +71,6 @@ export function createGroqLlm(apiKey: string): LlmCall {
     if (!("choices" in completion)) throw new Error("unexpected streaming response")
     return completion.choices[0]?.message?.content ?? ""
   }
-}
-
-type GeminiPart = { text?: string; thought?: boolean }
-
-function textFromGeminiParts(parts: GeminiPart[] | undefined): string {
-  // Thought summaries (when present) must not be concatenated into the JSON
-  // payload — they contain braces that break extractModelJson.
-  return parts?.filter((p) => !p.thought && p.text).map((p) => p.text!).join("") ?? ""
 }
 
 /**

@@ -153,7 +153,7 @@ describe("TripDetail enhance", () => {
     fireEvent.change(name, { target: { value: "Tokyo Rewrite" } })
     await waitFor(() => expect(name).toHaveValue("Tokyo Rewrite"))
 
-    fireEvent.click(screen.getByRole("button", { name: "Enhance trip" }))
+    fireEvent.click(screen.getByRole("button", { name: /^Enhance trip$/ }))
 
     await waitFor(() => {
       const flushed = mockUpdateTrip.mock.calls
@@ -178,7 +178,7 @@ describe("TripDetail enhance", () => {
     fireEvent.change(name, { target: { value: "Tokyo Rewrite" } })
     await waitFor(() => expect(name).toHaveValue("Tokyo Rewrite"))
 
-    fireEvent.click(screen.getByRole("button", { name: "Enhance trip" }))
+    fireEvent.click(screen.getByRole("button", { name: /^Enhance trip$/ }))
 
     await waitFor(() => expect(mockUpdateTrip).toHaveBeenCalled())
     expect(mockEnhanceTrip).not.toHaveBeenCalled()
@@ -235,7 +235,7 @@ describe("TripDetail enhance", () => {
     expect(screen.getByDisplayValue("Arrival")).toBeInTheDocument()
     expect(screen.getAllByRole("button", { name: "Enhance day" })).toHaveLength(2)
 
-    fireEvent.click(screen.getByRole("button", { name: "Enhance trip" }))
+    fireEvent.click(screen.getByRole("button", { name: /^Enhance trip$/ }))
     await waitFor(() => expect(mockEnhanceTrip).toHaveBeenCalled())
 
     expect(screen.getByDisplayValue("Arrival")).toBeInTheDocument()
@@ -250,7 +250,7 @@ describe("TripDetail enhance", () => {
     expect(screen.getByLabelText("Trip permalink")).toBeDisabled()
 
     finish({ run: makeRun(trip, []), trip, applied: [] })
-    await waitFor(() => expect(screen.getByRole("button", { name: "Enhance trip" })).toBeEnabled())
+    await waitFor(() => expect(screen.getByRole("button", { name: /^Enhance trip$/ })).toBeEnabled())
   })
 
   it("does not scroll to a day hash when enhance refreshes the trip", async () => {
@@ -272,7 +272,7 @@ describe("TripDetail enhance", () => {
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalled())
     scrollIntoView.mockClear()
 
-    fireEvent.click(screen.getByRole("button", { name: "Enhance trip" }))
+    fireEvent.click(screen.getByRole("button", { name: /^Enhance trip$/ }))
     await waitFor(() => expect(mockEnhanceTrip).toHaveBeenCalled())
     await waitFor(() => {
       expect(screen.getAllByText(/lunch at Ichiran/i).length).toBeGreaterThan(0)
@@ -314,6 +314,37 @@ describe("TripDetail enhance", () => {
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalled())
   })
 
+  it("loads the next trip even when the previous one has unsaved edits", async () => {
+    const tripA = makeTrip({ id: "trip-1" })
+    const tripB = makeTrip({ id: "trip-2", name: "Osaka Weekend" })
+    mockGetTrip.mockImplementation(async (_token: unknown, id: unknown) => ({
+      trip: id === "trip-2" ? tripB : tripA,
+      access: "owner" as const,
+    }))
+
+    render(
+      <MemoryRouter initialEntries={["/trips/trip-1/edit"]}>
+        <Routes>
+          <Route
+            path="/trips/:tripId/edit"
+            element={
+              <>
+                <Link to="/trips/trip-2/edit">Open other trip</Link>
+                <TripDetail />
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    )
+    const name = await screen.findByLabelText("Trip name")
+    fireEvent.change(name, { target: { value: "Tokyo Rewrite" } })
+    await waitFor(() => expect(name).toHaveValue("Tokyo Rewrite"))
+
+    fireEvent.click(screen.getByRole("link", { name: "Open other trip" }))
+    await waitFor(() => expect(screen.getByLabelText("Trip name")).toHaveValue("Osaka Weekend"))
+  })
+
   it("shows the 502 run reason instead of a generic failure", async () => {
     const trip = makeTrip()
     mockGetTrip.mockResolvedValue({ trip, access: "owner" })
@@ -333,7 +364,7 @@ describe("TripDetail enhance", () => {
 
     renderEditor()
     await screen.findByLabelText("Trip name")
-    fireEvent.click(screen.getByRole("button", { name: "Enhance trip" }))
+    fireEvent.click(screen.getByRole("button", { name: /^Enhance trip$/ }))
     await waitFor(() => expect(mockEnhanceTrip).toHaveBeenCalled())
     await waitFor(() => {
       expect(screen.getAllByText(/failed before it could add places/i).length).toBeGreaterThan(0)

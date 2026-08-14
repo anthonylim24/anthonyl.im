@@ -1,5 +1,6 @@
 import { streamSSE } from "hono/streaming"
 import type { Context } from "hono"
+import { relayGeminiChatBody } from "../geminiStream"
 import { GEMINI_BASE, GEMINI_MODEL, geminiThinking } from "../igPlaces/gemini"
 import { withSsePings } from "../ssePing"
 import type { ItineraryItem, Trip, TripDay } from "./types"
@@ -134,18 +135,6 @@ export function buildTripChatSystemInstruction(trip: Trip, dayId?: string): stri
   ].join("\n")
 }
 
-interface GeminiStreamChunk {
-  candidates?: Array<{
-    content?: { parts?: Array<{ text?: string }> }
-    finishReason?: string
-  }>
-  promptFeedback?: { blockReason?: string }
-}
-
-function extractDelta(chunk: GeminiStreamChunk): string {
-  return chunk.candidates?.[0]?.content?.parts?.map((p) => p.text).filter(Boolean).join("") ?? ""
-}
-
 const TRANSIENT_GEMINI = new Set([500, 502, 503, 504])
 
 async function fetchGeminiStream(url: string, init: RequestInit): Promise<Response> {
@@ -218,39 +207,12 @@ export async function streamTripChat(
             return
           }
 
-          const reader = res.body.getReader()
-          const decoder = new TextDecoder()
-          let buffer = ""
-
-          const flushLine = async (line: string) => {
-            const trimmed = line.trim()
-            if (!trimmed.startsWith("data:")) return
-            const payload = trimmed.slice(5).trim()
-            if (!payload || payload === "[DONE]") return
-            try {
-              const json = JSON.parse(payload) as GeminiStreamChunk
-              if (json.promptFeedback?.blockReason) blockReason = json.promptFeedback.blockReason
-              const fr = json.candidates?.[0]?.finishReason
-              if (fr) finishReason = fr
-              const delta = extractDelta(json)
-              if (delta) {
-                sawText = true
-                await stream.writeSSE({ data: JSON.stringify(delta) })
-              }
-            } catch {
-              /* Gemini keepalive / partial lines */
-            }
-          }
-
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-            buffer += decoder.decode(value, { stream: true })
-            const lines = buffer.split("\n")
-            buffer = lines.pop() ?? ""
-            for (const line of lines) await flushLine(line)
-          }
-          if (buffer) await flushLine(buffer)
+          const relayed = await relayGeminiChatBody(res.body, async (delta) => {
+            await stream.writeSSE({ data: JSON.stringify(delta) })
+          })
+          sawText = relayed.sawText
+          finishReason = relayed.finishReason
+          blockReason = relayed.blockReason
 
           if (sawText && finishReason === "MAX_TOKENS") {
             await stream.writeSSE({ data: JSON.stringify("\n\n*…trimmed for length. Ask me to continue.*") })

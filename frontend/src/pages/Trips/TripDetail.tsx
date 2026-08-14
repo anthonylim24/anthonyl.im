@@ -97,25 +97,41 @@ export function TripDetail() {
   // below can be a stable identity and memoized day cards stay memoized.
   const tripDocId = trip?.id
 
-  useEffect(() => {
-    if (!tripId) return
-    void (async () => {
-      try {
-        const { trip: loaded, access: a } = await getTrip(getTokenRef.current, tripId)
-        setTrip(loaded)
-        setAccess(a)
-        setState({ status: "success" })
-      } catch (err) {
-        setState({ status: "error", message: errorText(err) })
-      }
-    })()
-  }, [tripId])
-
   // Latest pending document for flush-on-leave.
   const pendingPatchRef = useRef<Trip | null>(null)
   const editedRef = useRef(false)
   const tripRef = useRef<Trip | null>(null)
   tripRef.current = trip
+
+  useEffect(() => {
+    if (!tripId) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const { trip: loaded, access: a } = await getTrip(getTokenRef.current, tripId)
+        if (cancelled) return
+        // A slower first fetch (Strict Mode remount, CI) must not clobber
+        // keystrokes on THIS trip. A different tripId must still load.
+        const pending = pendingPatchRef.current ?? (editedRef.current ? tripRef.current : null)
+        if (pending && pending.id === loaded.id) {
+          setAccess(a)
+          setState({ status: "success" })
+          return
+        }
+        pendingPatchRef.current = null
+        editedRef.current = false
+        setTrip(loaded)
+        setAccess(a)
+        setState({ status: "success" })
+      } catch (err) {
+        if (cancelled) return
+        setState({ status: "error", message: errorText(err) })
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [tripId])
 
   const cancelPendingSave = useCallback(() => {
     if (saveTimer.current) {
@@ -188,10 +204,10 @@ export function TripDetail() {
       clearTimeout(saveTimer.current)
       saveTimer.current = null
     }
-    // Prefer the live document when a keystroke is in flight. Keep the
-    // pending snapshot until persistTrip succeeds so a failed PATCH cannot
-    // drop the edit or let enhance/apply overwrite it.
-    const latest = editedRef.current ? tripRef.current : pendingPatchRef.current
+    // Always persist the live document. Dirty flags can be false after a
+    // remount or a completed debounce while the input still shows the edit;
+    // enhance/apply must not run against a stale server copy.
+    const latest = tripRef.current ?? pendingPatchRef.current
     if (latest) {
       pendingPatchRef.current = latest
       try {

@@ -1,4 +1,5 @@
 import { apiFetch } from "../../lib/apiBase"
+import { parseConciergeSsePayload } from "../../lib/conciergeSse"
 import { readSseStream } from "../../lib/sseStream"
 import { streamKoreaChat } from "../Korea/koreaChatApi"
 import { isKoreaSeedTrip, wrapTripChatPrompt } from "./tripChatFallback"
@@ -122,18 +123,12 @@ export async function streamTripChat(
   let streamError: string | undefined
 
   const handleData = (data: string) => {
-    if (data === "[DONE]") return
-    try {
-      const parsed = JSON.parse(data)
-      if (typeof parsed === "string") {
-        content += parsed
-        onUpdate(content)
-      } else if (parsed && typeof parsed === "object" && "error" in parsed) {
-        streamError = String((parsed as { error: unknown }).error)
-      }
-    } catch {
-      content += data
+    const parsed = parseConciergeSsePayload(data)
+    if (parsed.kind === "text") {
+      content += parsed.text
       onUpdate(content)
+    } else if (parsed.kind === "error") {
+      streamError = parsed.error
     }
   }
 
