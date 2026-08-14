@@ -102,4 +102,28 @@ describe("enhanceTrip", () => {
     expect(spy).toHaveBeenCalledTimes(3)
     expect(String(spy.mock.calls[1]![0])).toContain("/enhancements/run-1")
   })
+
+  it("stops polling when the session expires", async () => {
+    const running = makeRun({
+      status: "running",
+      outcome: undefined,
+      outcomeReason: undefined,
+      error: undefined,
+    })
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ run: running }), {
+          status: 202,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "unauthorized" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+
+    await expect(enhanceTrip(getToken, "trip-1", "trip")).rejects.toThrow(/sign in again/i)
+  })
 })

@@ -182,4 +182,23 @@ describe("streamTripChat", () => {
       "GEMINI_API_KEY is not set on the server.",
     )
   })
+
+  it("asks the traveler to sign in again on 401", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ error: "unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      }),
+    )
+    await expect(streamTripChat("tokyo", "hi", [], undefined, getToken, () => {})).rejects.toThrow(
+      /sign in again/i,
+    )
+  })
+
+  it("maps a dropped fetch to a retryable connection error", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("network error"))
+    await expect(streamTripChat("tokyo", "hi", [], undefined, getToken, () => {})).rejects.toThrow(
+      /lost its connection/i,
+    )
+  })
 })

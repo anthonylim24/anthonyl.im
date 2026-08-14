@@ -1,6 +1,7 @@
 import { streamSSE } from "hono/streaming"
 import type { Context } from "hono"
 import { GEMINI_BASE, GEMINI_MODEL, geminiThinking } from "../igPlaces/gemini"
+import { withSsePings } from "../ssePing"
 import type { ItineraryItem, Trip, TripDay } from "./types"
 
 const MAX_NOTE = 400
@@ -194,17 +195,18 @@ export async function streamTripChat(
     try {
       // Start Gemini immediately, then write a ping so a reverse proxy does
       // not 502 while the model thinks. The client ignores empty payloads.
-      const pending = fetchGeminiStream(
-        `${GEMINI_BASE}/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-          body: JSON.stringify(body),
-          signal: upstreamSignal,
-        },
+      const res = await withSsePings(
+        () => stream.writeSSE({ event: "ping", data: "" }),
+        fetchGeminiStream(
+          `${GEMINI_BASE}/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+            body: JSON.stringify(body),
+            signal: upstreamSignal,
+          },
+        ),
       )
-      await stream.writeSSE({ event: "ping", data: "" })
-      const res = await pending
 
       if (!res.ok || !res.body) {
         const detail = await res.text().catch(() => "")

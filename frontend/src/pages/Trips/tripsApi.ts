@@ -141,6 +141,9 @@ async function pollEnhancement(
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       cache: "no-store",
     })
+    if (res.status === 401 || res.status === 403) {
+      throw new Error("Please sign in again to finish the AI review.")
+    }
     if (!res.ok) continue
     const body = await readEnhanceBody(res)
     if (body.run && body.run.status !== "running") {

@@ -6,6 +6,7 @@ import { z } from "zod"
 import { koreaSnapshot, type Snapshot, type Day, type Reservation } from "../data/koreaSnapshot"
 import { koreaPlaces, type PlaceDef } from "../data/koreaPlaces"
 import { GEMINI_BASE, GEMINI_MODEL, geminiThinking } from "../igPlaces/gemini"
+import { withSsePings } from "../ssePing"
 
 const koreaChat = new Hono()
 
@@ -233,17 +234,18 @@ koreaChat.post("/", zValidator("json", chatSchema), async (c) => {
     let blockReason: string | undefined
 
     try {
-      const pending = fetchGeminiStream(
-        `${GEMINI_BASE}/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-          body: JSON.stringify(body),
-          signal: upstreamSignal,
-        },
+      const res = await withSsePings(
+        () => stream.writeSSE({ event: "ping", data: "" }),
+        fetchGeminiStream(
+          `${GEMINI_BASE}/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+            body: JSON.stringify(body),
+            signal: upstreamSignal,
+          },
+        ),
       )
-      await stream.writeSSE({ event: "ping", data: "" })
-      const res = await pending
 
       if (!res.ok || !res.body) {
         const detail = await res.text().catch(() => "")
