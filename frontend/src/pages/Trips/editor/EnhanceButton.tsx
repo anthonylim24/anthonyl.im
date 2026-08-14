@@ -6,11 +6,12 @@ import {
   EASE,
   accentChipBtnClass,
   chipBtnClass,
+  hintClass,
   inputClass,
   labelClass,
   mutedInkClass,
+  panelClass,
   primaryBtnClass,
-  softPanelClass,
   spinnerClass,
 } from "../ui"
 
@@ -20,6 +21,9 @@ const DESKTOP_WIDTH = 320
 
 type PanelMode = "sheet" | "anchored"
 type PanelPos = { top: number; left: number; width: number; placement: "below" | "above" }
+
+const ENHANCE_HELP =
+  "Enhance adds places on days that have room, then lists other edits for you to accept. Notes you already wrote stay as they are."
 
 /** Keep the custom-focus panel inside the viewport. Used on desktop; phones
  *  get a bottom sheet instead. */
@@ -74,6 +78,7 @@ export function EnhanceButton({
   const [pos, setPos] = useState<PanelPos | null>(null)
   const [kbInset, setKbInset] = useState(0)
   const promptId = useId()
+  const helpId = useId()
   const reduce = useReducedMotion()
   const rootRef = useRef<HTMLDivElement>(null)
   const disclosureRef = useRef<HTMLButtonElement>(null)
@@ -207,14 +212,15 @@ export function EnhanceButton({
       role="dialog"
       aria-modal="true"
       aria-label={`${label} focus`}
+      aria-describedby={`${helpId}-panel`}
       initial={reduce ? { opacity: 0 } : sheet ? { opacity: 0, y: 24 } : { opacity: 0, y: -6, scale: 0.98 }}
       animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1 }}
       exit={reduce ? { opacity: 0 } : sheet ? { opacity: 0, y: 16 } : { opacity: 0 }}
       transition={{ duration: reduce ? 0.12 : 0.16, ease: EASE }}
       className={
         sheet
-          ? `fixed inset-x-0 z-[70] mx-auto w-full max-w-lg rounded-t-2xl border border-stone-200/80 bg-[var(--trips-surface)] p-4 shadow-2xl dark:border-stone-800 ${softPanelClass}`
-          : `fixed z-[70] p-3 shadow-xl shadow-stone-950/10 dark:shadow-black/40 ${softPanelClass}`
+          ? `fixed inset-x-0 z-[70] mx-auto w-full max-w-lg rounded-t-[var(--tr-r-panel)] p-4 shadow-[var(--tr-shadow)] ${panelClass}`
+          : `fixed z-[70] p-3 shadow-[var(--tr-shadow)] ${panelClass}`
       }
       style={
         sheet
@@ -224,8 +230,8 @@ export function EnhanceButton({
             : { top: -9999, left: -9999, width: DESKTOP_WIDTH, visibility: "hidden" }
       }
     >
-      <p className={`mb-2 text-xs leading-relaxed ${mutedInkClass}`}>
-        Adds places when a day has room, then explains why.
+      <p id={`${helpId}-panel`} className={`mb-2 ${hintClass}`}>
+        {ENHANCE_HELP}
       </p>
       <label className={labelClass} htmlFor={promptId}>
         Focus for this review
@@ -255,7 +261,16 @@ export function EnhanceButton({
 
   return (
     <div ref={rootRef} className="trip-split relative inline-flex">
-      <button type="button" onClick={() => run(false)} disabled={disabled} className={base}>
+      <p id={helpId} className="sr-only">
+        {ENHANCE_HELP}
+      </p>
+      <button
+        type="button"
+        onClick={() => run(false)}
+        disabled={disabled}
+        className={base}
+        aria-describedby={helpId}
+      >
         {busy ? (
           <Loader2 className={`${iconSize} ${spinnerClass}`} aria-hidden />
         ) : (
@@ -271,9 +286,14 @@ export function EnhanceButton({
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={`${label} with a custom focus`}
+        aria-describedby={helpId}
         className={base}
       >
-        <ChevronDown className={`${iconSize} transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
+        <ChevronDown
+          className={`${iconSize} transition-transform ${open ? "rotate-180" : ""}`}
+          strokeWidth={1.5}
+          aria-hidden
+        />
       </button>
 
       {typeof document !== "undefined" &&
@@ -287,9 +307,9 @@ export function EnhanceButton({
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
-                    transition={{ duration: 0.16 }}
+                    transition={{ duration: reduce ? 0 : 0.16 }}
                     onClick={() => close(true)}
-                    className="fixed inset-0 z-[65] bg-stone-950/40"
+                    className="fixed inset-0 z-[65] bg-[color:var(--tr-ink)]/40"
                     aria-hidden
                   />
                 )}

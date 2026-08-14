@@ -17,7 +17,7 @@ function dockMotion(reduce: boolean) {
   }
 }
 
-/** Bottom-right stack: undo toast above the save pill, both non-blocking. */
+/** Bottom-right stack: undo toast above notices, both non-blocking. */
 export function EditorDock({ children }: { children: ReactNode }) {
   return (
     <div className="pointer-events-none fixed bottom-5 right-5 z-40 flex flex-col items-end gap-2">
@@ -27,10 +27,10 @@ export function EditorDock({ children }: { children: ReactNode }) {
 }
 
 const pillClass =
-  "flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-medium shadow-lg backdrop-blur"
+  "flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-medium shadow-[var(--tr-shadow)] backdrop-blur"
 
 /** Appears while edits are unsaved or in flight, lingers on "Saved" for a
- *  moment, then fades away. */
+ *  moment, then fades away. Spring entry tells the traveler a write started. */
 export function FloatingSaveIndicator({ saveState }: { saveState: SaveState }) {
   const reduce = useReducedMotion()
   const [showSaved, setShowSaved] = useState(false)
@@ -57,18 +57,18 @@ export function FloatingSaveIndicator({ saveState }: { saveState: SaveState }) {
             {...dockMotion(!!reduce)}
             className={`${pillClass} ${
               saveState === "error"
-                ? "border-red-200 bg-red-50/95 text-red-800 dark:border-red-900/50 dark:bg-red-950/90 dark:text-red-300"
-                : "border-stone-200 bg-white/95 text-stone-600 dark:border-stone-700 dark:bg-stone-900/95 dark:text-stone-300"
+                ? "border-[color:var(--tr-danger-ring)] bg-[var(--tr-danger-soft)] text-[color:var(--tr-danger)]"
+                : "border-[color:var(--tr-line-strong)] bg-[var(--tr-raised)] text-[color:var(--tr-ink-muted)]"
             }`}
           >
             {saveState === "error" ? (
               <>
-                <X className="h-3.5 w-3.5 text-red-600" aria-hidden />
+                <X className="h-3.5 w-3.5 text-[color:var(--tr-danger)]" aria-hidden />
                 Couldn’t save. Retries on your next edit.
               </>
             ) : saveState === "saved" ? (
               <>
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                <CheckCircle2 className="h-3.5 w-3.5 text-[color:var(--tr-ok)]" aria-hidden />
                 All changes saved
               </>
             ) : (
@@ -105,14 +105,14 @@ export function EditorNotice({ notice, onDismiss }: { notice: string | null; onD
           <motion.div
             key={notice}
             {...dockMotion(!!reduce)}
-            className={`${pillClass} pointer-events-auto max-w-[min(24rem,calc(100vw-2.5rem))] items-start border-stone-300 bg-white/95 py-2.5 text-stone-700 dark:border-stone-700 dark:bg-stone-900/95 dark:text-stone-200`}
+            className={`${pillClass} pointer-events-auto max-w-[min(24rem,calc(100vw-2.5rem))] items-start border-[color:var(--tr-line-strong)] bg-[var(--tr-raised)] py-2.5 text-[color:var(--tr-ink)]`}
           >
             <span className={`min-w-0 text-left leading-snug ${wrapAnywhereClass}`}>{notice}</span>
             <button
               type="button"
               onClick={onDismiss}
               aria-label="Dismiss notice"
-              className={`-mr-1 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-stone-500 transition hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-100 ${focusRingClass}`}
+              className={`-mr-1 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[color:var(--tr-ink-muted)] transition hover:text-[color:var(--tr-ink)] ${focusRingClass}`}
             >
               <X className="h-4 w-4" strokeWidth={1.5} aria-hidden />
             </button>
@@ -123,7 +123,7 @@ export function EditorNotice({ notice, onDismiss }: { notice: string | null; onD
   )
 }
 
-/** Six-second reprieve after a delete — the editor's only undo affordance.
+/** Six-second reprieve after a delete - the editor's only undo affordance.
  *  Takes focus on appearing, because the delete button that had focus is the
  *  control that just unmounted. */
 export function UndoToast({ undo, onUndo }: { undo: PendingUndo | null; onUndo: () => void }) {
@@ -135,7 +135,7 @@ export function UndoToast({ undo, onUndo }: { undo: PendingUndo | null; onUndo: 
           <motion.div
             key={undo.key}
             {...dockMotion(!!reduce)}
-            className={`${pillClass} pointer-events-auto border-stone-300 bg-white/95 text-stone-700 dark:border-stone-700 dark:bg-stone-900/95 dark:text-stone-200`}
+            className={`${pillClass} pointer-events-auto border-[color:var(--tr-line-strong)] bg-[var(--tr-raised)] text-[color:var(--tr-ink)]`}
           >
             <span className="max-w-[14rem] truncate">
               Deleted {undo.title ? `“${undo.title}”` : "this item"}

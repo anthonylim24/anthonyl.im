@@ -8,16 +8,20 @@ import { insertItemAt, removeItem } from "./tripEdits"
 import {
   DISPLAY,
   alertErrorClass,
-  eyebrowClass,
+  displaySectionClass,
   focusRingClass,
+  formatRangeFull,
   inlineLinkClass,
   mutedInkClass,
   pageClass,
+  panelClass,
   secondaryBtnClass,
+  sectionSpaceClass,
+  skeletonClass,
   successBtnClass,
   wrapAnywhereClass,
 } from "./ui"
-import { formatTripDate, resolveAccent } from "./theme"
+import { resolveAccent } from "./theme"
 import { AppearancePanel } from "./editor/AppearancePanel"
 import { DayCard } from "./editor/DayCard"
 import { DayNavigation } from "./editor/DayNavigation"
@@ -39,7 +43,7 @@ import { useDayOptions } from "./editor/hooks"
 import type { EnhancementRun, ItineraryItem, Trip, TripAccess, TripDay } from "./types"
 import type { GeneratePreferences } from "./types"
 
-// Map Mode pulls in three.js — keep it lazy so the editor stays light.
+// Map Mode pulls in three.js - keep it lazy so the editor stays light.
 const MapModeOverlay = lazy(() =>
   import("../Korea/MapModeOverlay").then((m) => ({ default: m.MapModeOverlay })),
 )
@@ -82,7 +86,7 @@ export function TripDetail() {
   const [enhancingTarget, setEnhancingTarget] = useState<string | null>(null)
   const [activeRun, setActiveRun] = useState<EnhancementRun | null>(null)
   const [deleted, setDeleted] = useState<DeletedItem | null>(null)
-  // Item ids touched by the last applied suggestions — drives the accent
+  // Item ids touched by the last applied suggestions - drives the accent
   // "this just changed" flash, cleared after the flash finishes.
   const [recentIds, setRecentIds] = useState<Set<string>>(() => new Set())
   const recentTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -243,7 +247,7 @@ export function TripDetail() {
 
   // Debounced document save: any edit marks the trip dirty; 900ms after the
   // last keystroke metadata + days are PATCHed (including appearance). The
-  // timer is armed from an effect rather than from inside a state updater —
+  // timer is armed from an effect rather than from inside a state updater -
   // scheduling there makes the updater impure, and React replays it, which
   // duplicates non-idempotent edits such as insert and add.
   useEffect(() => {
@@ -341,7 +345,7 @@ export function TripDetail() {
           prompt,
         )
         cancelPendingSave()
-        // Keep the day the traveler was looking at — a trip refresh plus
+        // Keep the day the traveler was looking at - a trip refresh plus
         // the review panel must not yank the viewport back to the header.
         holdScroll()
         // Server auto-applies valid add suggestions and may sync day.weather.
@@ -471,7 +475,7 @@ export function TripDetail() {
       scrolledHashRef.current = null
       return
     }
-    // Only on hash change / first arrival — a later enhance refresh of
+    // Only on hash change / first arrival - a later enhance refresh of
     // `trip` must not steal the viewport back to the anchored day.
     const scrollKey = `${trip.id}:${hash}`
     if (scrolledHashRef.current === scrollKey) return
@@ -487,9 +491,10 @@ export function TripDetail() {
   if (state.status === "loading") {
     return (
       <div className={`${PAGE} space-y-4`} role="status" aria-label="Loading trip">
-        <div className="h-12 w-2/3 animate-pulse rounded-xl bg-stone-200/60 dark:bg-stone-900" />
+        <div className={`h-12 w-2/3 ${skeletonClass}`} />
+        <div className={`h-14 w-full ${skeletonClass}`} />
         {[0, 1, 2].map((i) => (
-          <div key={i} className="h-40 animate-pulse rounded-2xl bg-stone-200/60 dark:bg-stone-900" />
+          <div key={i} className={`h-40 rounded-[var(--tr-r-panel)] ${skeletonClass}`} />
         ))}
       </div>
     )
@@ -517,84 +522,79 @@ export function TripDetail() {
 
   return (
     <div className={PAGE} data-trip-accent={resolveAccent(trip.appearance?.accent)}>
-      {/* Trip header: identity on the left, the two things you do with a whole
-          trip on the right. */}
-      <header className="flex flex-col gap-4 border-b border-stone-200/80 pb-6 sm:flex-row sm:items-start sm:justify-between dark:border-stone-800/80">
-        <div className="min-w-0 flex-1">
-          <p className={eyebrowClass}>Itinerary editor</p>
-          {editable ? (
-            <>
-              <label className="sr-only" htmlFor="trip-editor-name">
-                Trip name
-              </label>
-              <input
-                id="trip-editor-name"
-                disabled={editorLocked}
-                // `trip-display-input` beats the global 16px input floor: this
-                // is display type, so the iOS zoom guard doesn't apply.
-                className={`trip-display-input mt-1 min-h-11 w-full bg-transparent font-display font-medium leading-tight tracking-tight text-stone-900 focus:outline-none dark:text-stone-100 ${focusRingClass}`}
-                value={trip.name}
-                onChange={(e) => scheduleSave({ ...trip, name: e.target.value })}
-                style={DISPLAY}
-              />
-            </>
-          ) : (
-            <h1
-              className={`mt-1 font-display text-[clamp(1.75rem,4vw,2.5rem)] font-medium leading-tight tracking-tight text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
+      <header className="min-w-0">
+        {editable ? (
+          <>
+            <label className="sr-only" htmlFor="trip-editor-name">
+              Trip name
+            </label>
+            <input
+              id="trip-editor-name"
+              disabled={editorLocked}
+              // `trip-display-input` beats the global 16px input floor: this
+              // is display type, so the iOS zoom guard does not apply.
+              className={`trip-display-input min-h-11 w-full bg-transparent font-display font-medium leading-tight tracking-tight text-[color:var(--tr-ink)] focus:outline-none ${focusRingClass}`}
+              value={trip.name}
+              onChange={(e) => scheduleSave({ ...trip, name: e.target.value })}
               style={DISPLAY}
-            >
-              {trip.name}
-            </h1>
-          )}
-          <div className={`mt-2 flex flex-wrap items-center gap-x-2 gap-y-2 text-sm ${mutedInkClass}`}>
-            <TripStatusSelect
-              status={trip.status}
-              editable={editable}
-              disabled={editorLocked}
-              onChange={(status) => scheduleSave({ ...trip, status })}
             />
-            <span aria-hidden>·</span>
-            <span className={wrapAnywhereClass}>
-              {trip.destinations.join(" · ")} · {formatTripDate(trip.startDate, trip.timezone)} →{" "}
-              {formatTripDate(trip.endDate, trip.timezone)} · {trip.timezone}
-            </span>
-          </div>
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <Link to={`/trips/${trip.slug ?? trip.id}`} className={secondaryBtnClass}>
-            <Eye className="h-4 w-4" strokeWidth={1.5} aria-hidden />
-            View
-          </Link>
-          {editable && trip.status === "draft" && (
-            <button
-              type="button"
-              disabled={editorLocked}
-              onClick={() => {
-                scheduleSave({ ...trip, status: "active" })
-                setNotice("Trip published. It’s now active for everyone who can see it.")
-              }}
-              className={successBtnClass}
-            >
-              <Globe2 className="h-4 w-4" strokeWidth={1.5} aria-hidden />
-              Publish
-            </button>
-          )}
-          {editable && (
-            <EnhanceButton
-              label="Enhance trip"
-              busyLabel="Reviewing trip…"
-              busy={enhancingTarget === "trip"}
-              disabled={enhancingTarget !== null}
-              variant="solid"
-              promptPlaceholder="Optional focus, e.g. “tighten the pacing and add more local food”"
-              onRun={(prompt) => void runEnhance("trip", undefined, prompt)}
-            />
-          )}
-        </div>
+          </>
+        ) : (
+          <h1
+            className={`font-display text-[clamp(1.75rem,4vw,2.5rem)] font-medium leading-tight tracking-tight text-[color:var(--tr-ink)] ${wrapAnywhereClass}`}
+            style={DISPLAY}
+          >
+            {trip.name}
+          </h1>
+        )}
+        <p className={`mt-2 text-sm ${mutedInkClass} ${wrapAnywhereClass}`}>
+          {trip.destinations.join(", ")}, {formatRangeFull(trip.startDate, trip.endDate)}, {trip.timezone}
+        </p>
       </header>
 
-      {/* AI generation for an empty itinerary — also the retry path when
-          generation failed during the create flow. */}
+      <div className="sticky top-14 z-20 -mx-4 mt-5 border-y border-[color:var(--tr-line)] bg-[color-mix(in_srgb,var(--tr-canvas)_92%,transparent)] px-4 py-2 backdrop-blur-md sm:-mx-6 sm:px-6">
+        <div className="flex flex-wrap items-center gap-2">
+          <TripStatusSelect
+            status={trip.status}
+            editable={editable}
+            disabled={editorLocked}
+            onChange={(status) => scheduleSave({ ...trip, status })}
+          />
+          <FloatingSaveIndicator saveState={saveState} />
+          <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+            <Link to={`/trips/${trip.slug ?? trip.id}`} className={secondaryBtnClass}>
+              <Eye className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+              View
+            </Link>
+            {editable && trip.status === "draft" && (
+              <button
+                type="button"
+                disabled={editorLocked}
+                onClick={() => {
+                  scheduleSave({ ...trip, status: "active" })
+                  setNotice("Trip published. It’s now active for everyone who can see it.")
+                }}
+                className={successBtnClass}
+              >
+                <Globe2 className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+                Publish
+              </button>
+            )}
+            {editable && (
+              <EnhanceButton
+                label="Enhance trip"
+                busyLabel="Reviewing trip…"
+                busy={enhancingTarget === "trip"}
+                disabled={enhancingTarget !== null}
+                variant="solid"
+                promptPlaceholder="Optional focus, e.g. “tighten the pacing and add more local food”"
+                onRun={(prompt) => void runEnhance("trip", undefined, prompt)}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+
       {editable && trip.days.every((d) => d.items.length === 0) && (
         <GeneratePanel
           getToken={getToken}
@@ -611,8 +611,6 @@ export function TripDetail() {
         />
       )}
 
-      {/* Trip-wide enhancement review stays at the top; day-scoped runs
-          render inside their day card. */}
       {activeRun && activeRun.scope === "trip" && (
         <SuggestionsPanel
           run={activeRun}
@@ -631,40 +629,52 @@ export function TripDetail() {
         />
       )}
 
-      {/* Days: flex so a one-day trip (no day rail) still takes the full
-          width. A two-column grid parked the itinerary in the 11rem nav
-          track whenever DayNavigation returned null. */}
+      {/* Flex so a one-day trip (no day rail) still takes the full width. A
+          two-column grid parked the itinerary in the 11rem nav track whenever
+          DayNavigation returned null. */}
       <div className="mt-6 lg:mt-8 lg:flex lg:items-start lg:gap-8">
         <DayNavigation days={trip.days} timezone={trip.timezone} />
         <div data-testid="trip-itinerary" className="min-w-0 flex-1 space-y-8">
-          {trip.days.map((day, idx) => (
-            <DayCard
-              key={day.id}
-              trip={trip}
-              day={day}
-              index={idx}
-              timezone={trip.timezone}
-              editable={editable}
-              locked={editorLocked}
-              dayOptions={dayOptions}
-              enhancing={enhancingTarget === day.id}
-              recentIds={recentIds}
-              run={activeRun && activeRun.scope === "day" && activeRun.dayId === day.id ? activeRun : null}
-              onApplyRun={applyActiveRun}
-              onDismissRun={dismissRun}
-              onChange={setDays}
-              onOpenMap={openMap}
-              onEnhance={enhanceDay}
-              onDeleteItem={deleteItem}
-            />
-          ))}
+          {trip.days.length === 0 ? (
+            <div className={`${panelClass} px-5 py-8`}>
+              <p className="text-sm font-medium text-[color:var(--tr-ink)]">No days on this trip</p>
+              <p className={`mt-1.5 text-sm leading-relaxed ${mutedInkClass}`}>
+                {editable
+                  ? "Generate a draft to fill the dates, or add a place once days exist."
+                  : "This itinerary has not been planned yet."}
+              </p>
+            </div>
+          ) : (
+            trip.days.map((day, idx) => (
+              <DayCard
+                key={day.id}
+                trip={trip}
+                day={day}
+                index={idx}
+                timezone={trip.timezone}
+                editable={editable}
+                locked={editorLocked}
+                dayOptions={dayOptions}
+                enhancing={enhancingTarget === day.id}
+                recentIds={recentIds}
+                run={activeRun && activeRun.scope === "day" && activeRun.dayId === day.id ? activeRun : null}
+                onApplyRun={applyActiveRun}
+                onDismissRun={dismissRun}
+                onChange={setDays}
+                onOpenMap={openMap}
+                onEnhance={enhanceDay}
+                onDeleteItem={deleteItem}
+              />
+            ))
+          )}
         </div>
       </div>
 
-      {/* Trip settings: once-per-trip configuration, out of the editing path. */}
       {editable && (
-        <section aria-label="Trip settings" className="mt-12 border-t border-stone-200/80 pt-8 dark:border-stone-800/80">
-          <p className={eyebrowClass}>Trip settings</p>
+        <section aria-label="Trip settings" className={sectionSpaceClass}>
+          <h2 className={displaySectionClass} style={DISPLAY}>
+            Trip settings
+          </h2>
           <AppearancePanel
             trip={trip}
             locked={editorLocked}
@@ -677,15 +687,13 @@ export function TripDetail() {
       <EditorDock>
         <EditorNotice notice={notice} onDismiss={() => setNotice(null)} />
         <UndoToast undo={deleted} onUndo={undoDelete} />
-        <FloatingSaveIndicator saveState={saveState} />
       </EditorDock>
 
-      {/* Map Mode */}
       {mapDay && (
         <Suspense
           fallback={
             <div
-              className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/80 text-sm text-stone-300"
+              className="fixed inset-0 z-50 flex items-center justify-center bg-[color:var(--tr-ink)]/80 text-sm text-[color:var(--tr-canvas)]"
               role="status"
             >
               Loading map…

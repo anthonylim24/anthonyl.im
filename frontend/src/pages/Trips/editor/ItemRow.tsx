@@ -11,9 +11,11 @@ import {
   compactInputClass,
   compactSelectClass,
   dangerChipBtnClass,
+  faintInkClass,
   fieldLabelClass,
   iconBtnClass,
   mutedInkClass,
+  rowPerfClass,
   staticFieldClass,
   staticValueClass,
   subtleInputClass,
@@ -34,7 +36,7 @@ interface ItemRowProps {
   locked?: boolean
   dayOptions: DayOption[]
   highlight: boolean
-  /** True when any item in the day is timed — keeps the time gutter (and so
+  /** True when any item in the day is timed - keeps the time gutter (and so
    *  every title) aligned without reserving it on untimed days. */
   showTime: boolean
   onChange: (fn: (days: TripDay[]) => TripDay[]) => void
@@ -98,7 +100,8 @@ export const ItemRow = memo(function ItemRow({
   const highlightClass = useAnchorHighlight(highlight)
   const [expanded, setExpanded] = useState(false)
   const rowRef = useRef<HTMLLIElement>(null)
-  const panelId = useId()
+  const uid = useId()
+  const panelId = `${uid}-panel`
   const isSection = item.kind === "section"
   const isPlace = item.kind === "place" || item.kind === "reservation"
   const mapped = item.location?.lat != null && item.location?.lng != null
@@ -149,30 +152,33 @@ export const ItemRow = memo(function ItemRow({
       animate={{ opacity: 1, y: 0 }}
       exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.98 }}
       transition={{ duration: 0.22, ease: EASE }}
-      className={`relative ${
+      className={`relative ${rowPerfClass} ${
         isSection
-          ? "rounded-lg bg-stone-100/80 px-3 py-1.5 dark:bg-stone-800/50"
-          : "rounded-xl border border-stone-200/80 bg-[var(--trips-surface)] px-3 py-2 transition-shadow hover:border-stone-300 dark:border-stone-800 dark:hover:border-stone-700"
+          ? "rounded-[var(--tr-r-control)] bg-[var(--tr-overlay)] px-3 py-1.5"
+          : "rounded-[var(--tr-r-panel)] border border-[color:var(--tr-line)] bg-[var(--tr-surface)] px-3 py-2"
       } ${highlightClass}`}
     >
       {isSection ? (
-        // A divider, not a card: full-width tinted band, uppercase mono.
         <div className="flex items-center gap-2" onClick={toggleFromRow}>
           {editable ? (
-            <input
-              value={item.title}
-              placeholder="Section heading…"
-              title={item.title || undefined}
-              aria-label="Section heading"
-              disabled={locked}
-              onChange={(e) => patch({ title: e.target.value })}
-              // Below 768px a global rule pins inputs to 16px (iOS zoom guard),
-              // so the band tightens its tracking instead of its size.
-              className={`min-h-11 min-w-0 flex-1 text-ellipsis rounded-md border border-transparent bg-transparent px-1 py-1 font-mono-trips text-[11px] uppercase tracking-[0.06em] text-stone-700 transition placeholder:text-stone-400 hover:border-stone-300 focus:border-[color:var(--trips-accent)] focus:outline-none sm:min-h-0 sm:tracking-[0.16em] dark:text-stone-300 dark:hover:border-stone-700`}
-            />
+            <>
+              <label className="sr-only" htmlFor={`${uid}-section`}>
+                Section heading
+              </label>
+              <input
+                id={`${uid}-section`}
+                value={item.title}
+                placeholder="Section heading"
+                title={item.title || undefined}
+                aria-label="Section heading"
+                disabled={locked}
+                onChange={(e) => patch({ title: e.target.value })}
+                className={`min-w-0 flex-1 font-mono-trips text-[11px] uppercase tracking-[0.06em] sm:tracking-[0.16em] ${subtleInputClass}`}
+              />
+            </>
           ) : (
             <span
-              className={`min-w-0 flex-1 px-1 py-1 font-mono-trips text-[11px] uppercase tracking-[0.06em] text-stone-700 sm:tracking-[0.16em] dark:text-stone-300 ${wrapAnywhereClass}`}
+              className={`min-w-0 flex-1 px-1 py-1 font-mono-trips text-[11px] uppercase tracking-[0.06em] text-[color:var(--tr-ink)] sm:tracking-[0.16em] ${wrapAnywhereClass}`}
             >
               {item.title}
             </span>
@@ -184,8 +190,6 @@ export const ItemRow = memo(function ItemRow({
         <div
           onClick={toggleFromRow}
           className={`grid items-center gap-x-2 gap-y-1 ${
-            // The time gutter costs too much width at 390px, so below `sm` the
-            // time moves to the second line and the columns close up.
             showTime
               ? "grid-cols-[1.25rem_1rem_minmax(0,1fr)_auto] sm:grid-cols-[1.25rem_3.5rem_1rem_minmax(0,1fr)_auto]"
               : "grid-cols-[1.25rem_1rem_minmax(0,1fr)_auto]"
@@ -199,19 +203,14 @@ export const ItemRow = memo(function ItemRow({
           >
             <MapPin
               className={`h-[15px] w-[15px] ${
-                mapped
-                  ? "fill-[color:var(--ta-soft)] text-[color:var(--ta)]"
-                  : "text-stone-400 dark:text-stone-500"
+                mapped ? "fill-[color:var(--ta-soft)] text-[color:var(--ta)]" : faintInkClass
               }`}
-              strokeWidth={mapped ? 2 : 1.5}
+              strokeWidth={1.5}
               aria-hidden
             />
           </span>
           {showTime && (
-            <span
-              className={`hidden truncate text-right sm:block ${timeCellClass}`}
-              title={item.endTime ? `${item.time} – ${item.endTime}` : undefined}
-            >
+            <span className={`hidden truncate text-right sm:block ${timeCellClass}`} title={item.endTime ? `${item.time} - ${item.endTime}` : undefined}>
               {item.time ?? ""}
             </span>
           )}
@@ -219,20 +218,26 @@ export const ItemRow = memo(function ItemRow({
             kind={item.kind}
             category={item.location?.category}
             reservationType={item.reservation?.type}
-            className={`h-4 w-4 shrink-0 ${isPlace ? ACCENT.text : "text-stone-500 dark:text-stone-400"}`}
+            className={`h-4 w-4 shrink-0 ${isPlace ? ACCENT.text : mutedInkClass}`}
           />
           {editable ? (
-            <input
-              value={item.title}
-              placeholder="Title…"
-              title={item.title || undefined}
-              aria-label="Item title"
-              disabled={locked}
-              onChange={(e) => patch({ title: e.target.value })}
-              className={`w-full min-w-0 ${subtleInputClass} ${
-                item.status === "completed" ? `line-through ${mutedInkClass}` : ""
-              }`}
-            />
+            <>
+              <label className="sr-only" htmlFor={`${uid}-title`}>
+                Item title
+              </label>
+              <input
+                id={`${uid}-title`}
+                value={item.title}
+                placeholder="Title"
+                title={item.title || undefined}
+                aria-label="Item title"
+                disabled={locked}
+                onChange={(e) => patch({ title: e.target.value })}
+                className={`w-full min-w-0 ${subtleInputClass} ${
+                  item.status === "completed" ? `line-through ${mutedInkClass}` : ""
+                }`}
+              />
+            </>
           ) : (
             <span
               className={`w-full min-w-0 ${staticValueClass} ${wrapAnywhereClass} ${
@@ -246,21 +251,19 @@ export const ItemRow = memo(function ItemRow({
             <span className="hidden items-center gap-1.5 sm:inline-flex">{chips}</span>
             {disclosure}
           </span>
-          {/* Second line: only rendered when it carries something. Chips live
-              here below `sm`, where the first line has no room for them. */}
           {(metaLocation || needsPin || hasChips || (showTime && item.time)) && (
             <div
-              className={`flex flex-wrap items-center gap-x-2 gap-y-1 px-2 text-xs text-stone-600 dark:text-stone-400 ${
+              className={`flex flex-wrap items-center gap-x-2 gap-y-1 px-2 text-xs ${mutedInkClass} ${
                 showTime ? "col-span-2 col-start-3 sm:col-start-4" : "col-span-2 col-start-3"
               } ${metaLocation || needsPin ? "" : "sm:hidden"}`}
             >
               {showTime && item.time && (
                 <span className={`sm:hidden ${timeCellClass}`}>
-                  {item.endTime ? `${item.time}–${item.endTime}` : item.time}
+                  {item.endTime ? `${item.time}-${item.endTime}` : item.time}
                 </span>
               )}
               {metaLocation && <span className={`min-w-0 ${wrapAnywhereClass}`}>{metaLocation}</span>}
-              {needsPin && <span className="text-amber-700 dark:text-amber-400">no pin yet</span>}
+              {needsPin && <span className="text-[color:var(--tr-warn)]">no pin yet</span>}
               {hasChips && <span className="flex items-center gap-1.5 sm:hidden">{chips}</span>}
             </div>
           )}
@@ -268,13 +271,17 @@ export const ItemRow = memo(function ItemRow({
       )}
 
       {expanded && (
-        <div id={panelId} className="mt-3 space-y-3 border-t border-stone-100 pt-3 dark:border-stone-800">
+        <div id={panelId} className="mt-3 space-y-3 border-t border-[color:var(--tr-line)] pt-3">
           {editable && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <span className={fieldLabelClass}>Times</span>
                 <div className="mt-1 flex items-center gap-1.5">
+                  <label className="sr-only" htmlFor={`${uid}-start`}>
+                    Start time
+                  </label>
                   <input
+                    id={`${uid}-start`}
                     type="time"
                     value={item.time ?? ""}
                     aria-label="Start time"
@@ -282,10 +289,14 @@ export const ItemRow = memo(function ItemRow({
                     onChange={(e) => patch({ time: e.target.value || undefined })}
                     className={`w-full tabular-nums ${compactInputClass}`}
                   />
-                  <span className="shrink-0 text-stone-400 dark:text-stone-500" aria-hidden>
-                    –
+                  <span className={`shrink-0 ${faintInkClass}`} aria-hidden>
+                    -
                   </span>
+                  <label className="sr-only" htmlFor={`${uid}-end`}>
+                    End time
+                  </label>
                   <input
+                    id={`${uid}-end`}
                     type="time"
                     value={item.endTime ?? ""}
                     aria-label="End time"
@@ -296,30 +307,34 @@ export const ItemRow = memo(function ItemRow({
                 </div>
               </div>
               <div>
-                <span className={fieldLabelClass}>Status</span>
-                <select
-                  value={item.status}
-                  aria-label="Item status"
-                  disabled={locked}
-                  onChange={(e) => patch({ status: e.target.value as ItemStatus })}
-                  className={`mt-1 w-full ${compactSelectClass}`}
-                >
-                  {STATUS_OPTIONS.map((s) => (
-                    <option key={s.value} value={s.value}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
+                <label className="block" htmlFor={`${uid}-status`}>
+                  <span className={fieldLabelClass}>Status</span>
+                  <select
+                    id={`${uid}-status`}
+                    value={item.status}
+                    aria-label="Item status"
+                    disabled={locked}
+                    onChange={(e) => patch({ status: e.target.value as ItemStatus })}
+                    className={`mt-1 w-full ${compactSelectClass}`}
+                  >
+                    {STATUS_OPTIONS.map((s) => (
+                      <option key={s.value} value={s.value}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               </div>
             </div>
           )}
 
           {editable ? (
-            <label className="block">
+            <label className="block" htmlFor={`${uid}-notes`}>
               <span className={fieldLabelClass}>Notes</span>
               <textarea
+                id={`${uid}-notes`}
                 value={item.notes ?? ""}
-                placeholder="Notes, links, reminders…"
+                placeholder="Notes, links, reminders"
                 rows={3}
                 disabled={locked}
                 onChange={(e) => patch({ notes: e.target.value || undefined })}
@@ -363,23 +378,23 @@ export const ItemRow = memo(function ItemRow({
                 }
               />
               {item.location?.lat != null && item.location?.lng != null ? (
-                <p
-                  className={`col-span-full inline-flex items-center gap-1.5 text-xs text-stone-600 dark:text-stone-400 ${wrapAnywhereClass}`}
-                >
+                <p className={`col-span-full inline-flex items-center gap-1.5 text-xs ${mutedInkClass} ${wrapAnywhereClass}`}>
                   <MapPin className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} aria-hidden />
                   {item.location.lat.toFixed(4)}, {item.location.lng.toFixed(4)}
-                  {item.location.confidence ? ` · ${item.location.confidence} confidence` : ""} · appears in Map Mode
+                  {item.location.confidence
+                    ? ` (${item.location.confidence} confidence, appears in Map Mode)`
+                    : " (appears in Map Mode)"}
                 </p>
               ) : (
-                <p className="col-span-full text-xs text-amber-700 dark:text-amber-400">
-                  No coordinates yet. Run “Enhance day” or add them so this place appears in Map Mode.
+                <p className="col-span-full text-xs text-[color:var(--tr-warn)]">
+                  No coordinates yet. Run Enhance day or add them so this place appears in Map Mode.
                 </p>
               )}
             </div>
           )}
 
           {editable && (
-            <div className="flex flex-wrap items-end gap-x-4 gap-y-3 border-t border-stone-100 pt-3 dark:border-stone-800">
+            <div className="flex flex-wrap items-end gap-x-4 gap-y-3 border-t border-[color:var(--tr-line)] pt-3">
               <div>
                 <span className={fieldLabelClass}>Arrange</span>
                 <div className="mt-0.5 flex items-center">
@@ -415,11 +430,12 @@ export const ItemRow = memo(function ItemRow({
                   )}
                 </div>
               </div>
-              <label className="block">
+              <label className="block" htmlFor={`${uid}-move-day`}>
                 <span className={fieldLabelClass}>Move to day</span>
                 <span className="mt-1 flex items-center gap-1.5">
-                  <ArrowRightLeft className="h-4 w-4 shrink-0 text-stone-500 dark:text-stone-400" strokeWidth={1.5} aria-hidden />
+                  <ArrowRightLeft className={`h-4 w-4 shrink-0 ${mutedInkClass}`} strokeWidth={1.5} aria-hidden />
                   <select
+                    id={`${uid}-move-day`}
                     value={dayId}
                     disabled={locked}
                     onChange={(e) => onChange((days) => moveItemToDay(days, dayId, item.id, e.target.value))}

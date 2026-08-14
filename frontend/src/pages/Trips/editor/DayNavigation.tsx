@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useReducedMotion } from "motion/react"
 import { ACCENT, formatTripDate } from "../theme"
-import { focusRingClass } from "../ui"
+import { focusRingClass, mutedInkClass, overlayHoverClass } from "../ui"
 import type { TripDay } from "../types"
 import { dayIdsFrom, daysKey } from "./hooks"
 
@@ -26,7 +26,7 @@ function useActiveDay(key: string): string | null {
       },
       // Top band only: a day counts as active once its header clears the
       // sticky chrome and until the next one takes over.
-      { rootMargin: "-120px 0px -55% 0px", threshold: 0 },
+      { rootMargin: "-160px 0px -55% 0px", threshold: 0 },
     )
     for (const id of dayIds) {
       const el = document.getElementById(id)
@@ -44,10 +44,13 @@ function bookedCount(day: TripDay): number {
   return n
 }
 
+const chipBase = `inline-flex h-11 min-w-11 items-center justify-center rounded-[var(--tr-r-control)] px-2.5 text-xs font-medium tabular-nums ${focusRingClass}`
+const railLinkBase = `flex min-h-11 items-center gap-1.5 rounded-[var(--tr-r-control)] px-2 py-1.5 text-[13px] ${focusRingClass}`
+
 /**
- * Day navigation in two shapes: a sticky chip rail below `lg` (the mobile
- * editor had no way to jump between days) and the desktop rail. Both share
- * one scroll-spy so the active day is never ambiguous.
+ * Day navigation in two shapes: a sticky chip rail below `lg` and the
+ * desktop rail. Both share one scroll-spy so the active day is never
+ * ambiguous.
  */
 export function DayNavigation({ days, timezone }: { days: TripDay[]; timezone: string }) {
   const active = useActiveDay(daysKey(days))
@@ -72,7 +75,7 @@ export function DayNavigation({ days, timezone }: { days: TripDay[]; timezone: s
     <>
       <nav
         aria-label="Days"
-        className="sticky top-14 z-20 -mx-4 mb-4 border-b border-stone-200/70 bg-[color-mix(in_srgb,var(--trips-canvas)_88%,transparent)] px-4 py-2 backdrop-blur-md sm:-mx-6 sm:px-6 lg:hidden dark:border-stone-800/70"
+        className="sticky top-[7.25rem] z-20 -mx-4 mb-4 border-b border-[color:var(--tr-line)] bg-[color-mix(in_srgb,var(--tr-canvas)_88%,transparent)] px-4 py-2 backdrop-blur-md sm:-mx-6 sm:px-6 lg:hidden"
       >
         <ol ref={chipRailRef} className="flex snap-x gap-1.5 overflow-x-auto touch-pan-x pb-0.5">
           {days.map((day, idx) => {
@@ -84,10 +87,8 @@ export function DayNavigation({ days, timezone }: { days: TripDay[]; timezone: s
                   data-day-chip={day.id}
                   aria-current={isActive ? "true" : undefined}
                   aria-label={`Day ${idx + 1}, ${formatTripDate(day.date, timezone)}`}
-                  className={`inline-flex h-11 min-w-11 items-center justify-center rounded-lg px-2.5 text-xs font-medium tabular-nums transition ${focusRingClass} ${
-                    isActive
-                      ? `${ACCENT.softBg} ${ACCENT.text}`
-                      : "text-stone-600 hover:bg-stone-200/60 hover:text-stone-900 dark:text-stone-400 dark:hover:bg-stone-800/60 dark:hover:text-stone-100"
+                  className={`${chipBase} ${
+                    isActive ? `${ACCENT.softBg} ${ACCENT.text}` : `${mutedInkClass} ${overlayHoverClass}`
                   }`}
                 >
                   D{idx + 1}
@@ -99,7 +100,7 @@ export function DayNavigation({ days, timezone }: { days: TripDay[]; timezone: s
       </nav>
 
       <nav aria-label="Days" className="hidden lg:block lg:w-44 lg:shrink-0">
-        <ol className="sticky top-20 space-y-0.5 border-l border-stone-200 pl-3 dark:border-stone-800">
+        <ol className="sticky top-[7.25rem] space-y-0.5 border-l border-[color:var(--tr-line)] pl-3">
           {days.map((day, idx) => {
             const isActive = day.id === active
             const booked = bookedCount(day)
@@ -109,10 +110,10 @@ export function DayNavigation({ days, timezone }: { days: TripDay[]; timezone: s
                 <a
                   href={`#${day.id}`}
                   aria-current={isActive ? "true" : undefined}
-                  className={`flex min-h-11 items-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] transition ${focusRingClass} ${
+                  className={`${railLinkBase} ${
                     isActive
                       ? `${ACCENT.softBg} ${ACCENT.text} font-medium`
-                      : "text-stone-600 hover:bg-stone-200/60 hover:text-stone-900 dark:text-stone-400 dark:hover:bg-stone-800/60 dark:hover:text-stone-100"
+                      : `${mutedInkClass} ${overlayHoverClass} hover:text-[color:var(--tr-ink)]`
                   }`}
                 >
                   <span className="shrink-0 font-medium">Day {idx + 1}</span>
@@ -121,7 +122,7 @@ export function DayNavigation({ days, timezone }: { days: TripDay[]; timezone: s
                   </span>
                   {booked > 0 && (
                     <span
-                      className="ml-auto shrink-0 font-mono-trips text-[10px] tabular-nums text-stone-600 dark:text-stone-400"
+                      className="ml-auto shrink-0 font-mono-trips text-[10px] tabular-nums text-[color:var(--tr-ink-muted)]"
                       title={`${booked} booked`}
                     >
                       {booked}

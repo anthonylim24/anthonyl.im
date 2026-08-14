@@ -1,4 +1,4 @@
-import { memo, useCallback, useState } from "react"
+import { memo, useCallback, useId, useState } from "react"
 import { AnimatePresence } from "motion/react"
 import { ChevronDown, Map as MapIcon, Plus, Trash2 } from "lucide-react"
 import { ACCENT, formatTripDate } from "../theme"
@@ -7,8 +7,9 @@ import {
   chipBtnClass,
   compactInputClass,
   compactSelectClass,
-  labelClass,
+  fieldLabelClass,
   mutedInkClass,
+  panelClass,
   quietBtnClass,
   secondaryBtnClass,
   staticValueClass,
@@ -68,31 +69,36 @@ export const DayCard = memo(function DayCard({
   onDeleteItem,
 }: DayCardProps) {
   const [detailsOpen, setDetailsOpen] = useState(false)
+  const uid = useId()
   const hasMappable = day.items.some((i) => i.location?.lat != null && i.location?.lng != null)
   const showTime = day.items.some((i) => i.kind !== "section" && Boolean(i.time))
   const patchDay = (p: Partial<TripDay>) => onChange((days) => days.map((d) => (d.id === day.id ? { ...d, ...p } : d)))
   const openMap = useCallback(() => onOpenMap(day.id), [onOpenMap, day.id])
   const enhance = useCallback((prompt?: string) => onEnhance(day.id, prompt), [onEnhance, day.id])
+  const dateLabel = formatTripDate(day.date, timezone)
 
   return (
     <section
       id={day.id}
       aria-label={`Day ${index + 1}`}
       aria-busy={enhancing}
-      className={`scroll-mt-32 rounded-2xl border bg-[var(--trips-surface)] p-5 transition-colors duration-300 lg:scroll-mt-24 dark:bg-stone-900/50 ${
-        enhancing ? ACCENT.border : "border-stone-200/80 dark:border-stone-800"
-      }`}
+      className={`scroll-mt-[8.5rem] p-5 lg:scroll-mt-[8rem] ${panelClass} ${enhancing ? ACCENT.border : ""}`}
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
-          <p className={`font-mono-trips text-[11px] uppercase tracking-[0.18em] ${ACCENT.text}`}>
-            Day {index + 1} · {formatTripDate(day.date, timezone)}
-            {day.city ? ` · ${day.city}` : ""}
+          <p className={`text-sm ${mutedInkClass}`}>
+            Day {index + 1}
+            {day.city ? `, ${day.city}` : ""}
+            <span className="mt-0.5 block font-mono-trips text-[12px] tabular-nums">{dateLabel}</span>
           </p>
-          <div className="mt-0.5 flex items-center gap-1.5">
+          <div className="mt-1 flex items-center gap-1.5">
             {editable ? (
               <>
+                <label className="sr-only" htmlFor={`${uid}-emoji`}>
+                  Day {index + 1} emoji
+                </label>
                 <input
+                  id={`${uid}-emoji`}
                   value={day.emoji ?? ""}
                   placeholder="✦"
                   maxLength={4}
@@ -101,9 +107,13 @@ export const DayCard = memo(function DayCard({
                   onChange={(e) => patchDay({ emoji: e.target.value || undefined })}
                   className={`w-11 shrink-0 text-center text-xl ${subtleInputClass}`}
                 />
+                <label className="sr-only" htmlFor={`${uid}-title`}>
+                  Day {index + 1} title
+                </label>
                 <input
+                  id={`${uid}-title`}
                   value={day.title ?? ""}
-                  placeholder="Day theme…"
+                  placeholder="Day theme"
                   title={day.title || undefined}
                   aria-label={`Day ${index + 1} title`}
                   disabled={locked}
@@ -119,7 +129,6 @@ export const DayCard = memo(function DayCard({
             )}
           </div>
         </div>
-        {/* Own row below `sm` so the title input keeps the full width. */}
         <div className="flex shrink-0 items-center gap-2">
           {editable && (
             <EnhanceButton
@@ -146,24 +155,27 @@ export const DayCard = memo(function DayCard({
       </div>
 
       {editable ? (
-        <textarea
-          value={day.notes ?? ""}
-          placeholder="Day theme prose, the editorial line under the title on the trip page…"
-          aria-label={`Day ${index + 1} theme`}
-          rows={day.notes ? Math.min(4, day.notes.split("\n").length) : 1}
-          disabled={locked}
-          onChange={(e) => patchDay({ notes: e.target.value })}
-          // `field-sizing-content` grows the box with wrapped prose; `rows` is
-          // the fallback where it isn't supported.
-          className={`mt-2 w-full resize-none field-sizing-content ${subtleInputClass}`}
-        />
+        <>
+          <label className="sr-only" htmlFor={`${uid}-theme`}>
+            Day {index + 1} theme
+          </label>
+          <textarea
+            id={`${uid}-theme`}
+            value={day.notes ?? ""}
+            placeholder="Day theme prose, the editorial line under the title on the trip page"
+            aria-label={`Day ${index + 1} theme`}
+            rows={day.notes ? Math.min(4, day.notes.split("\n").length) : 1}
+            disabled={locked}
+            onChange={(e) => patchDay({ notes: e.target.value })}
+            className={`mt-2 w-full resize-none field-sizing-content ${subtleInputClass}`}
+          />
+        </>
       ) : (
         day.notes && (
           <p className={`mt-2 whitespace-pre-line ${staticValueClass} ${wrapAnywhereClass}`}>{day.notes}</p>
         )
       )}
 
-      {/* Day details: display metadata for the dossier pages */}
       {editable && (
         <div className="mt-2">
           <button
@@ -180,12 +192,9 @@ export const DayCard = memo(function DayCard({
             Details
           </button>
           {detailsOpen && (
-            <fieldset
-              disabled={locked}
-              className="mt-2 m-0 min-w-0 space-y-3 rounded-xl border border-stone-200/80 p-3 dark:border-stone-800"
-            >
+            <fieldset disabled={locked} className={`mt-2 m-0 min-w-0 space-y-3 p-3 ${panelClass}`}>
               <label className="block">
-                <span className={labelClass}>Neighborhoods (comma-separated)</span>
+                <span className={fieldLabelClass}>Neighborhoods (comma-separated)</span>
                 <input
                   value={(day.neighborhoods ?? []).join(", ")}
                   placeholder="Samseong, COEX, Bongeunsa"
@@ -201,11 +210,15 @@ export const DayCard = memo(function DayCard({
                 />
               </label>
               <div>
-                <span className={labelClass}>Callouts</span>
+                <span className={fieldLabelClass}>Callouts</span>
                 <div className="mt-1 space-y-2">
                   {(day.callouts ?? []).map((c, ci) => (
                     <div key={ci} className="flex items-start gap-2">
+                      <label className="sr-only" htmlFor={`${uid}-callout-icon-${ci}`}>
+                        Callout icon
+                      </label>
                       <input
+                        id={`${uid}-callout-icon-${ci}`}
                         value={c.icon}
                         maxLength={4}
                         aria-label="Callout icon"
@@ -218,7 +231,11 @@ export const DayCard = memo(function DayCard({
                         }
                         className={`w-11 shrink-0 px-1 text-center ${compactInputClass}`}
                       />
+                      <label className="sr-only" htmlFor={`${uid}-callout-tone-${ci}`}>
+                        Callout tone
+                      </label>
                       <select
+                        id={`${uid}-callout-tone-${ci}`}
                         value={c.tone}
                         aria-label="Callout tone"
                         onChange={(e) =>
@@ -236,10 +253,14 @@ export const DayCard = memo(function DayCard({
                           </option>
                         ))}
                       </select>
+                      <label className="sr-only" htmlFor={`${uid}-callout-body-${ci}`}>
+                        Callout text
+                      </label>
                       <input
+                        id={`${uid}-callout-body-${ci}`}
                         value={c.body}
                         aria-label="Callout text"
-                        placeholder="Heads-up text…"
+                        placeholder="Heads-up text"
                         onChange={(e) =>
                           patchDay({
                             callouts: (day.callouts ?? []).map((x, xi) =>
@@ -270,8 +291,8 @@ export const DayCard = memo(function DayCard({
               </div>
               {day.weather && (
                 <p className={`text-xs ${mutedInkClass}`}>
-                  Weather: {day.weather.highC}°C / {day.weather.lowC}°C · {day.weather.condition}. Auto-synced from
-                  the live forecast on each Enhance run.
+                  Weather: {day.weather.highC}°C / {day.weather.lowC}°C, {day.weather.condition}. Updated from the
+                  live forecast each time you run Enhance.
                 </p>
               )}
             </fieldset>
@@ -279,7 +300,6 @@ export const DayCard = memo(function DayCard({
         </div>
       )}
 
-      {/* Day-scoped enhancement review renders here, inside the day. */}
       <AnimatePresence>
         {run && (
           <SuggestionsPanel run={run} dayOptions={dayOptions} onApply={onApplyRun} onDismiss={onDismissRun} />
@@ -287,15 +307,14 @@ export const DayCard = memo(function DayCard({
       </AnimatePresence>
 
       {day.items.length === 0 ? (
-        <div
-          className={`mt-3 rounded-xl border border-dashed border-stone-200 px-4 py-6 text-center text-sm dark:border-stone-700 ${mutedInkClass}`}
-        >
-          Nothing planned yet{editable ? ". Add a place, note, or section below." : "."}
+        <div className={`mt-3 px-1 py-6 ${mutedInkClass}`}>
+          <p className="text-sm font-medium text-[color:var(--tr-ink)]">Nothing planned</p>
+          <p className="mt-1 text-sm leading-relaxed">
+            {editable ? "Add a place, note, or section to start this day." : "This day has no stops yet."}
+          </p>
         </div>
       ) : (
-        // Timeline rail: a vertical line down the day, the itinerary
-        // affordance that makes order legible at a glance.
-        <ul className="relative mt-4 space-y-2 pl-4 before:absolute before:bottom-3 before:left-[3px] before:top-3 before:w-px before:bg-stone-200 dark:before:bg-stone-800">
+        <ul className="relative mt-4 space-y-2 pl-4 before:absolute before:bottom-3 before:left-[3px] before:top-3 before:w-px before:bg-[color:var(--tr-line)]">
           <AnimatePresence initial={false}>
             {day.items.map((item, itemIdx) => (
               <ItemRow

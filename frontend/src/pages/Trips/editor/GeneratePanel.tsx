@@ -1,21 +1,22 @@
-import { useState } from "react"
-import { motion } from "motion/react"
+import { useId, useState } from "react"
+import { motion, useReducedMotion } from "motion/react"
 import { Loader2, Sparkles } from "lucide-react"
-import { ACCENT } from "../theme"
 import { generateItinerary, type GetToken } from "../tripsApi"
 import {
   EASE,
   alertErrorClass,
+  hintClass,
   inputClass,
+  labelClass,
   mutedInkClass,
+  panelClass,
   primaryBtnClass,
-  softPanelClass,
   spinnerClass,
   wrapAnywhereClass,
 } from "../ui"
 import { DEFAULT_ITINERARY_PROMPT, type GeneratePreferences, type Trip } from "../types"
 
-/** AI generation for an empty itinerary — also the retry path when
+/** AI generation for an empty itinerary - also the retry path when
  *  generation failed during the create flow. */
 export function GeneratePanel({
   getToken,
@@ -35,6 +36,8 @@ export function GeneratePanel({
   const [prompt, setPrompt] = useState(initialPrompt ?? DEFAULT_ITINERARY_PROMPT)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const reduce = useReducedMotion()
+  const promptId = useId()
 
   const generate = async () => {
     if (busy || locked) return
@@ -56,27 +59,24 @@ export function GeneratePanel({
 
   return (
     <motion.section
-      initial={{ opacity: 0, y: 8 }}
+      initial={reduce ? { opacity: 0 } : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.28, ease: EASE }}
+      transition={reduce ? { duration: 0 } : { duration: 0.28, ease: EASE }}
       aria-label="Generate itinerary with AI"
-      className={`mt-6 p-5 motion-reduce:transition-none ${softPanelClass}`}
+      className={`mt-6 p-5 ${panelClass}`}
     >
-      <h2 className="flex items-center gap-2 text-base font-semibold text-stone-900 dark:text-stone-100">
-        <Sparkles className={`h-4 w-4 ${ACCENT.text}`} strokeWidth={1.5} aria-hidden />
-        Draft this itinerary with AI
-      </h2>
-      <p className={`mt-1 text-sm ${mutedInkClass}`}>
-        The itinerary is empty. Generate a structured starting point, then reshape it. Every place
-        the AI adds lands on the map.
-      </p>
+      <h2 className="text-base font-semibold text-[color:var(--tr-ink)]">Draft this itinerary</h2>
+      <label className={`mt-3 ${labelClass}`} htmlFor={promptId}>
+        What to include
+      </label>
       <textarea
+        id={promptId}
         value={prompt}
         rows={3}
         aria-label="AI prompt"
         disabled={locked}
         onChange={(e) => setPrompt(e.target.value)}
-        className={`mt-3 ${inputClass}`}
+        className={`mt-1.5 ${inputClass}`}
       />
       {error && (
         <p className={`mt-3 ${alertErrorClass} ${wrapAnywhereClass}`} role="alert">
@@ -84,7 +84,13 @@ export function GeneratePanel({
         </p>
       )}
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <button type="button" onClick={() => void generate()} disabled={busy || locked} className={primaryBtnClass}>
+        <button
+          type="button"
+          onClick={() => void generate()}
+          disabled={busy || locked}
+          className={primaryBtnClass}
+          aria-describedby={`${promptId}-help`}
+        >
           {busy ? (
             <Loader2 className={`h-4 w-4 ${spinnerClass}`} aria-hidden />
           ) : (
@@ -98,6 +104,9 @@ export function GeneratePanel({
           </span>
         )}
       </div>
+      <p id={`${promptId}-help`} className={hintClass}>
+        This replaces the empty days with a structured starting point. Every place it adds lands on the map.
+      </p>
     </motion.section>
   )
 }

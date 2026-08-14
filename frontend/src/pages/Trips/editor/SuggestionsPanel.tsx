@@ -1,30 +1,41 @@
-import { useMemo, useState } from "react"
-import { motion } from "motion/react"
-import { Check, Sparkles, X } from "lucide-react"
-import { ACCENT } from "../theme"
-import { SuggestionChip } from "../components/StatusChip"
+import { useId, useMemo, useState } from "react"
+import { motion, useReducedMotion } from "motion/react"
+import { Check, X } from "lucide-react"
+import { ACCENT, suggestionBadgeClass } from "../theme"
 import {
   EASE,
   checkboxClass,
-  fieldLabelClass,
   ghostBtnClass,
+  hintClass,
   iconBtnClass,
   mutedInkClass,
+  panelClass,
   primaryBtnClass,
   quietBtnClass,
-  softPanelClass,
   wrapAnywhereClass,
 } from "../ui"
-import type { EnhancementRun, EnhancementSuggestion } from "../types"
+import type { EnhancementRun, EnhancementSuggestion, SuggestionKind } from "../types"
 import type { DayOption } from "./editorUi"
 
 const APPLICABLE = new Set(["add", "edit", "remove", "reorder"])
+
+const KIND_LABEL: Record<SuggestionKind, string> = {
+  add: "Add",
+  edit: "Edit",
+  remove: "Remove",
+  reorder: "Reorder",
+  warning: "Warning",
+  info: "Note",
+}
 
 interface Group {
   key: string
   label: string | null
   suggestions: EnhancementSuggestion[]
 }
+
+const badgeClass =
+  "inline-flex shrink-0 items-center justify-center border px-1.5 py-0.5 text-[11px] font-medium"
 
 /** Review an enhancement run: accept per suggestion, grouped by day for
  *  trip-wide runs so the list reads as an itinerary rather than a feed. */
@@ -39,6 +50,8 @@ export function SuggestionsPanel({
   onApply: (ids: string[]) => void
   onDismiss: () => void
 }) {
+  const reduce = useReducedMotion()
+  const confidenceHelpId = useId()
   const appliedIds = useMemo(() => new Set(run.appliedSuggestionIds), [run])
   const actionableIds = useMemo(
     () =>
@@ -86,18 +99,18 @@ export function SuggestionsPanel({
 
   return (
     <motion.section
-      initial={{ opacity: 0, y: 8 }}
+      initial={reduce ? { opacity: 0 } : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -6 }}
-      transition={{ duration: 0.28, ease: EASE }}
+      exit={reduce ? { opacity: 0 } : { opacity: 0, y: -6 }}
+      transition={reduce ? { duration: 0 } : { duration: 0.28, ease: EASE }}
       aria-label="AI enhancement suggestions"
-      className={`mt-5 p-5 motion-reduce:transition-none ${softPanelClass} ${ACCENT.border}`}
+      className={`mt-5 p-5 ${panelClass} ${ACCENT.border}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="flex items-center gap-2 text-base font-semibold text-stone-900 dark:text-stone-100">
-            <Sparkles className={`h-4 w-4 shrink-0 ${ACCENT.text}`} strokeWidth={1.5} aria-hidden />
-            Enhancement review {run.scope === "day" ? `· ${dayLabel(run.dayId)}` : "· whole trip"}
+          <h2 className="text-base font-semibold text-[color:var(--tr-ink)]">
+            Enhancement review
+            {run.scope === "day" ? `, ${dayLabel(run.dayId)}` : ", whole trip"}
           </h2>
           {(run.outcomeReason || run.summary) && (
             <p className={`mt-1 text-sm ${mutedInkClass} ${wrapAnywhereClass}`}>
@@ -119,8 +132,8 @@ export function SuggestionsPanel({
       ) : run.suggestions.length === 0 ? null : (
         <>
           {actionableIds.length > 1 && (
-            <div className="mt-4 flex items-center justify-between gap-3 border-b border-stone-200/80 pb-2 dark:border-stone-800">
-              <span className={fieldLabelClass} role="status">
+            <div className="mt-4 flex items-center justify-between gap-3 border-b border-[color:var(--tr-line)] pb-2">
+              <span className={`text-xs ${mutedInkClass}`} role="status">
                 {selected.size} of {actionableIds.length} selected
               </span>
               <button
@@ -132,20 +145,26 @@ export function SuggestionsPanel({
               </button>
             </div>
           )}
+          {run.suggestions.some((s) => s.confidence) && (
+            <p id={confidenceHelpId} className={hintClass}>
+              High means the change is a clear fit. Medium means check the time and place. Low means
+              treat it as a guess.
+            </p>
+          )}
           <div className="mt-3 space-y-4">
             {groups.map((group) => (
               <div key={group.key}>
-                {group.label && (
-                  <p className={fieldLabelClass}>{group.label}</p>
-                )}
+                {group.label && <p className={`text-sm font-medium text-[color:var(--tr-ink)]`}>{group.label}</p>}
                 <ul className={`space-y-2 ${group.label ? "mt-2" : ""}`}>
                   {group.suggestions.map((s) => (
                     <SuggestionItem
                       key={s.id}
                       suggestion={s}
+                      dayLabel={dayLabel(s.dayId)}
                       selectable={APPLICABLE.has(s.kind) && !appliedIds.has(s.id)}
                       applied={appliedIds.has(s.id)}
                       checked={selected.has(s.id)}
+                      confidenceHelpId={confidenceHelpId}
                       onToggle={toggle}
                     />
                   ))}
@@ -178,19 +197,34 @@ export function SuggestionsPanel({
 
 function SuggestionItem({
   suggestion,
+  dayLabel,
   selectable,
   applied,
   checked,
+  confidenceHelpId,
   onToggle,
 }: {
   suggestion: EnhancementSuggestion
+  dayLabel?: string
   selectable: boolean
   applied: boolean
   checked: boolean
+  confidenceHelpId: string
   onToggle: (id: string, on: boolean) => void
 }) {
+  const affected = [
+    dayLabel ? `On ${dayLabel}` : null,
+    suggestion.proposedItem?.title
+      ? suggestion.proposedItem.title
+      : suggestion.itemId
+        ? `item ${suggestion.itemId}`
+        : null,
+  ]
+    .filter(Boolean)
+    .join(", ")
+
   return (
-    <li className="rounded-xl border border-stone-200/80 bg-[var(--trips-surface)] p-3 dark:border-stone-800">
+    <li className="border-t border-[color:var(--tr-line)] pt-3 first:border-t-0 first:pt-0">
       <label className="flex min-h-11 items-start gap-3">
         {selectable ? (
           <input
@@ -202,23 +236,34 @@ function SuggestionItem({
           />
         ) : (
           <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center" aria-hidden>
-            {applied ? <Check className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400" strokeWidth={2} /> : null}
+            {applied ? <Check className="h-3.5 w-3.5 text-[color:var(--tr-ok)]" strokeWidth={1.5} /> : null}
           </span>
         )}
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <SuggestionChip kind={suggestion.kind} />
-            <span className={`text-sm font-medium text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}>
+            <span className={`${badgeClass} ${suggestionBadgeClass(suggestion.kind)}`}>
+              {KIND_LABEL[suggestion.kind]}
+            </span>
+            <span className={`text-sm font-medium text-[color:var(--tr-ink)] ${wrapAnywhereClass}`}>
               {suggestion.title}
             </span>
-            {/* Only low confidence earns a tag — medium and high are noise. */}
             {applied && (
-              <span className="text-[11px] font-medium text-emerald-800 dark:text-emerald-300">added</span>
+              <span className="text-[11px] font-medium text-[color:var(--tr-ok)]">added</span>
             )}
-            {suggestion.confidence === "low" && !applied && (
-              <span className="text-[11px] text-amber-700 dark:text-amber-400">low confidence</span>
+            {suggestion.confidence && !applied && (
+              <span
+                className={`text-[11px] ${
+                  suggestion.confidence === "low" ? "text-[color:var(--tr-warn)]" : mutedInkClass
+                }`}
+                aria-describedby={confidenceHelpId}
+              >
+                {suggestion.confidence} confidence
+              </span>
             )}
           </div>
+          {affected && (
+            <p className={`mt-1 text-xs ${mutedInkClass} ${wrapAnywhereClass}`}>{affected}</p>
+          )}
           {suggestion.detail && (
             <p className={`mt-1 text-sm ${mutedInkClass} ${wrapAnywhereClass}`}>{suggestion.detail}</p>
           )}
