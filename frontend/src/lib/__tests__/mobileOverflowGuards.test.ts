@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import indexCss from '../../index.css?raw'
+import appSource from '../../App.tsx?raw'
 import homeSource from '../../pages/Home.tsx?raw'
 import sessionSource from '../../pages/Session.tsx?raw'
 import layoutSource from '../../components/layout/BreathworkLayout.tsx?raw'
@@ -13,12 +14,23 @@ describe('mobile overflow guardrails', () => {
     expect(indexCss).toMatch(/\.leaves-overlay \{[\s\S]*?inset:\s*0/)
     expect(indexCss).not.toMatch(/\.leaves-overlay \{[\s\S]*?width:\s*100vw/)
     expect(indexCss).not.toMatch(/\.leaves-overlay \{[\s\S]*?height:\s*100vh/)
+    expect(indexCss).toMatch(/\.leaves-overlay-media \{[\s\S]*?width:\s*100%/)
+    expect(indexCss).toMatch(/\.leaves-overlay-media \{[\s\S]*?height:\s*100%/)
+    expect(indexCss).toMatch(/\.leaves-overlay-media \{[\s\S]*?object-fit:\s*cover/)
     expect(indexCss).not.toMatch(/\.breathwork-layout \{\s*position:\s*fixed/)
     expect(indexCss).not.toContain('.bw-page-scroll')
     expect(indexCss).not.toContain('.bw-mobile-nav')
     expect(indexCss).not.toContain('touch-action: pan-y pinch-zoom')
     expect(indexCss).not.toMatch(/html,\s*\nbody \{[\s\S]*?min-height:\s*100dvh/)
     expect(indexCss).not.toMatch(/\.breathwork-layout,\s*\n\.breathwork \{[\s\S]*?min-height:\s*100vh/)
+  })
+
+  it('covers the chatbot leaves video with a viewport wrapper, not intrinsic video size', () => {
+    expect(appSource).toContain('className="leaves-overlay"')
+    expect(appSource).toContain('className="leaves-overlay-media"')
+    expect(appSource).not.toMatch(/<video[\s\S]*?className="leaves-overlay"/)
+    expect(layoutSource).toContain('className="leaves-overlay"')
+    expect(layoutSource).toContain('className="leaves-overlay-media"')
   })
 
   it('lets the document grow instead of pinning html/body/#root to 100%', () => {
