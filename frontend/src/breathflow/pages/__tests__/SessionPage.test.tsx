@@ -176,6 +176,22 @@ describe('SessionPage', () => {
     expect(liveRegions.some((region) => /Hold/.test(region.textContent ?? ''))).toBe(true)
   })
 
+  it('makes hidden session controls inert after idle', () => {
+    vi.useFakeTimers()
+    renderSession(BOX_FAST)
+
+    fireEvent.click(screen.getByRole('button', { name: /start/i }))
+    const controls = screen.getByTestId('session-controls')
+    expect(controls).not.toHaveAttribute('inert')
+
+    act(() => {
+      vi.advanceTimersByTime(3000)
+    })
+
+    expect(controls).toHaveAttribute('inert')
+    expect(controls).toHaveAttribute('aria-hidden', 'true')
+  })
+
   it('mood before the session persists onto the saved record', () => {
     vi.useFakeTimers()
     renderSession(BOX_FAST)

@@ -163,7 +163,8 @@ void main() {
 
 interface UseGlassOrbOptions {
   canvasRef: RefObject<HTMLCanvasElement | null>
-  amplitude: number
+  /** Live breath amplitude, authored by the Motion wrapper each frame. */
+  amplitudeRef: RefObject<number>
   color1: [number, number, number]
   color2: [number, number, number]
   reducedMotion: boolean
@@ -255,13 +256,12 @@ function destroyGL(state: GLState) {
 
 export function useGlassOrb({
   canvasRef,
-  amplitude,
+  amplitudeRef,
   color1,
   color2,
   reducedMotion,
   dark,
 }: UseGlassOrbOptions): boolean {
-  const amplitudeRef = useRef(amplitude)
   const color1Ref = useRef(color1)
   const color2Ref = useRef(color2)
   const darkRef = useRef(dark)
@@ -269,12 +269,11 @@ export function useGlassOrb({
   const [failed, setFailed] = useState(false)
 
   useEffect(() => {
-    amplitudeRef.current = amplitude
     color1Ref.current = color1
     color2Ref.current = color2
     darkRef.current = dark
     requestRenderRef.current?.()
-  }, [amplitude, color1, color2, dark])
+  }, [color1, color2, dark])
 
   useEffect(() => {
     if (reducedMotion) return
@@ -335,7 +334,6 @@ export function useGlassOrb({
       const { program, vao, uniforms } = state
       const startTime = performance.now()
       let frozenTime = 0
-      let currentAmplitude = amplitudeRef.current
       let currentWidth = 0
       let currentHeight = 0
 
@@ -352,7 +350,7 @@ export function useGlassOrb({
       }
 
       const draw = (now: number) => {
-        currentAmplitude += (amplitudeRef.current - currentAmplitude) * 0.12
+        const currentAmplitude = amplitudeRef.current
         const time = document.hidden ? frozenTime : (now - startTime) / 1000
         if (!document.hidden) frozenTime = time
 

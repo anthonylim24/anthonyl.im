@@ -27,13 +27,13 @@ describe('OrbParticleField', () => {
   })
 
   it('renders an orbiting mote canvas', () => {
-    render(<OrbParticleField colors={['#22624A', '#63B48E']} amplitude={0.6} />)
+    render(<OrbParticleField colors={['#22624A', '#63B48E']} amplitudeRef={{ current: 0.6 }} />)
     expect(screen.getByTestId('orb-particle-field')).toBeInTheDocument()
   })
 
   it('hides motes when reduced motion is requested', () => {
     vi.mocked(useReducedMotion).mockReturnValue(true)
-    render(<OrbParticleField colors={['#22624A', '#63B48E']} amplitude={0.6} />)
+    render(<OrbParticleField colors={['#22624A', '#63B48E']} amplitudeRef={{ current: 0.6 }} />)
     expect(screen.queryByTestId('orb-particle-field')).toBeNull()
   })
 })

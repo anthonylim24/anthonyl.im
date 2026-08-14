@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { LayoutGroup, motion } from 'motion/react'
 import { Link } from 'react-router-dom'
 import { withViteBase } from '@/lib/routerBasename'
 import { useGamificationStore } from '@/stores/gamificationStore'
@@ -7,6 +8,9 @@ import { useHistoryStore } from '@/stores/historyStore'
 import { BreathFlowMark } from '../components/BreathFlowMark'
 import { PhaseStrip } from '../components/PhaseStrip'
 import { btnPrimary } from '../components/buttonStyles'
+import { InkChip } from '../motion/InkChip'
+import { Notice } from '../motion/Notice'
+import { chromeTransition } from '../motion/tokens'
 import { formatDuration, formatLocalDate } from '../components/format'
 import { useReducedMotion } from '../platform/useReducedMotion'
 import { getProtocol, isAdvancedProtocol, PROTOCOLS } from '../protocols/catalog'
@@ -117,35 +121,40 @@ export function HomePage() {
       </div>
 
       <div className="space-y-3">
-        <div role="group" aria-label="Goal" className="flex flex-wrap gap-x-4 gap-y-1">
-          {GOALS.map((option) => (
-            <TunerChip
-              key={option.id}
-              active={goal === option.id}
-              onClick={() => setGoal(option.id)}
-              label={option.label}
-            />
-          ))}
-        </div>
-        <div role="group" aria-label="Session length" className="flex flex-wrap gap-x-4 gap-y-1">
-          {LENGTH_WINDOWS.map((option) => (
-            <TunerChip
-              key={option.id}
-              active={windowId === option.id}
-              onClick={() => setWindowId(option.id)}
-              label={`${option.label} · ${Math.round(option.seconds / 60)} min`}
-            />
-          ))}
-        </div>
+        <LayoutGroup id="home-goal">
+          <div role="group" aria-label="Goal" className="flex flex-wrap gap-x-4 gap-y-1">
+            {GOALS.map((option) => (
+              <InkChip
+                key={option.id}
+                active={goal === option.id}
+                onClick={() => setGoal(option.id)}
+                label={option.label}
+                layoutId="home-goal-ink"
+              />
+            ))}
+          </div>
+        </LayoutGroup>
+        <LayoutGroup id="home-length">
+          <div role="group" aria-label="Session length" className="flex flex-wrap gap-x-4 gap-y-1">
+            {LENGTH_WINDOWS.map((option) => (
+              <InkChip
+                key={option.id}
+                active={windowId === option.id}
+                onClick={() => setWindowId(option.id)}
+                label={`${option.label} · ${Math.round(option.seconds / 60)} min`}
+                layoutId="home-length-ink"
+              />
+            ))}
+          </div>
+        </LayoutGroup>
       </div>
 
       {showRecoveryNotice && (
-        <div role="status" className="border-l-2 border-bw-accent pl-4">
-          <p className="text-sm font-medium text-bw">Recovery in progress</p>
-          <p className="mt-1 text-sm tabular-nums text-bw-secondary">
+        <Notice title="Recovery in progress" live={false}>
+          <p className="tabular-nums">
             Breathe easy for {recovery.remainingSeconds}s. Intense protocols are held back until then.
           </p>
-        </div>
+        </Notice>
       )}
 
       <RecommendedBlock ranked={recommendation.top} reducedMotion={reducedMotion} />
@@ -237,25 +246,6 @@ export function HomePage() {
   )
 }
 
-function TunerChip({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={[
-        'min-h-11 text-sm transition-colors duration-150 active:scale-[0.98] motion-reduce:active:scale-100',
-        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent',
-        active
-          ? 'font-medium text-bw underline decoration-bw-accent decoration-1 underline-offset-8'
-          : 'text-bw-secondary hover:text-bw',
-      ].join(' ')}
-    >
-      {label}
-    </button>
-  )
-}
-
 function RecommendedBlock({
   ranked,
   reducedMotion,
@@ -271,9 +261,15 @@ function RecommendedBlock({
     <section aria-label="Recommended session" className="sm:pl-8">
       <p className="text-xs text-bw-secondary">Recommended now</p>
       <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="bf-display text-2xl tracking-tight text-balance text-bw sm:text-3xl">
+        <motion.h2
+          key={protocol.id}
+          initial={reducedMotion ? false : { opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={chromeTransition}
+          className="bf-display text-2xl tracking-tight text-balance text-bw sm:text-3xl"
+        >
           {protocol.name}
-        </h2>
+        </motion.h2>
         <p className="bf-display text-sm text-bw-secondary">
           {formatDuration(plannedSeconds)} · {rounds} rounds
         </p>

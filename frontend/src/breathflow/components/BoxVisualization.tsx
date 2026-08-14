@@ -1,5 +1,8 @@
 import { motion } from 'motion/react'
 import type { EngineStatus } from '../engine/sessionEngine'
+import { boxPoint } from '../motion/geometry'
+import { chromeTransition, EASE_SETTLE } from '../motion/tokens'
+import { useLockedPhaseDuration } from '../motion/useLockedPhaseDuration'
 
 interface BoxVisualizationProps {
   /** 0-based index into Box Breathing's four phases (in, hold, out, hold). */
@@ -30,8 +33,6 @@ export function BoxVisualization({
   accentColor,
   reducedMotion,
 }: BoxVisualizationProps) {
-  // Path starts bottom-left, drawn counter-clockwise? No: up left side, across
-  // top, down right, along bottom back to start. pathLength=4 → 1 per side.
   const d = `M ${INSET} ${SIZE - INSET} L ${INSET} ${INSET} L ${SIZE - INSET} ${INSET} L ${SIZE - INSET} ${SIZE - INSET} Z`
 
   const progressInPhase = phaseSeconds > 0
@@ -40,6 +41,15 @@ export function BoxVisualization({
   const traced = Math.min(4, phaseIndex + progressInPhase)
   const targetTraced = Math.min(4, phaseIndex + 1)
   const running = status === 'running'
+  const lockedDuration = useLockedPhaseDuration(
+    phaseIndex,
+    phaseSeconds,
+    secondsLeftInPhase,
+    status,
+  )
+  const duration = running ? lockedDuration : chromeTransition.duration
+  const ease = running ? 'linear' : EASE_SETTLE
+  const cursor = boxPoint(running ? targetTraced : traced)
 
   return (
     <svg
@@ -47,7 +57,6 @@ export function BoxVisualization({
       viewBox={`0 0 ${SIZE} ${SIZE}`}
       className="h-56 w-56 sm:h-64 sm:w-64"
     >
-      {/* Base square. */}
       <path
         d={d}
         pathLength={4}
@@ -58,35 +67,44 @@ export function BoxVisualization({
         strokeLinejoin="round"
       />
       {reducedMotion ? (
-        // Static: highlight the active side, no continuous motion.
-        <path
-          d={d}
-          pathLength={4}
-          fill="none"
-          stroke={accentColor}
-          strokeWidth={1.75}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeDasharray="1 3"
-          strokeDashoffset={-phaseIndex}
-        />
+        <>
+          <path
+            d={d}
+            pathLength={4}
+            fill="none"
+            stroke={accentColor}
+            strokeWidth={1.75}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeDasharray="1 3"
+            strokeDashoffset={-phaseIndex}
+          />
+          <circle cx={boxPoint(traced).x} cy={boxPoint(traced).y} r={3.5} fill={accentColor} />
+        </>
       ) : (
-        <motion.path
-          key={roundIndex}
-          d={d}
-          pathLength={4}
-          fill="none"
-          stroke={accentColor}
-          strokeWidth={1.75}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeDasharray="4 4"
-          initial={{ strokeDashoffset: 4 - traced }}
-          animate={{ strokeDashoffset: running ? 4 - targetTraced : 4 - traced }}
-          transition={running
-            ? { duration: Math.max(0.2, secondsLeftInPhase), ease: 'linear' }
-            : { duration: 0.3, ease: 'easeOut' }}
-        />
+        <>
+          <motion.path
+            key={roundIndex}
+            d={d}
+            pathLength={4}
+            fill="none"
+            stroke={accentColor}
+            strokeWidth={1.75}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeDasharray="4 4"
+            initial={{ strokeDashoffset: 4 - traced }}
+            animate={{ strokeDashoffset: running ? 4 - targetTraced : 4 - traced }}
+            transition={{ duration, ease }}
+          />
+          <motion.circle
+            r={3.5}
+            fill={accentColor}
+            initial={false}
+            animate={{ cx: cursor.x, cy: cursor.y }}
+            transition={{ duration, ease }}
+          />
+        </>
       )}
     </svg>
   )

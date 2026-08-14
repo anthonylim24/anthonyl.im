@@ -1,4 +1,7 @@
+import { motion } from 'motion/react'
 import { Check } from 'lucide-react'
+import { pressSpring } from '../motion/tokens'
+import { useReducedMotion } from '../platform/useReducedMotion'
 import type { BreathingProtocol } from '../protocols/types'
 
 interface SafetyChecklistProps {
@@ -13,10 +16,11 @@ interface SafetyChecklistProps {
  */
 export function SafetyChecklist({ protocol, checkedItems, onToggle }: SafetyChecklistProps) {
   const checklist = protocol.safetyChecklist ?? []
+  const reducedMotion = useReducedMotion()
   if (checklist.length === 0) return null
 
   return (
-    <section aria-label="Safety check" className="border-l-2 border-bw-accent pl-4">
+    <section aria-label="Safety check" className="bg-bw-accent-subtle px-4 py-3">
       <h3 className="text-sm font-semibold text-bw">Safety check</h3>
       {protocol.safetyNotice && (
         <p className="mt-1.5 text-sm leading-relaxed text-bw-secondary">{protocol.safetyNotice}</p>
@@ -58,7 +62,16 @@ export function SafetyChecklist({ protocol, checkedItems, onToggle }: SafetyChec
                   checked ? 'border-bw-accent bg-bw-accent text-bw-accent-foreground' : 'border-bw-border bg-bw-surface',
                 ].join(' ')}
               >
-                {checked && <Check size={13} strokeWidth={2.5} />}
+                {checked ? (
+                  <motion.span
+                    initial={reducedMotion ? false : { scale: 0.55, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={pressSpring}
+                    className="flex"
+                  >
+                    <Check size={13} strokeWidth={2.5} />
+                  </motion.span>
+                ) : null}
               </span>
               <span className="min-w-0 break-words text-sm leading-snug text-bw">{item}</span>
             </label>

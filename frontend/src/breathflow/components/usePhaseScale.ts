@@ -13,6 +13,7 @@ const PHASE_AMPLITUDE: Record<BreathPhase, number> = {
 }
 
 export interface PhaseScaleTarget {
+  phase: BreathPhase
   /** Amplitude at the start of the current phase. */
   from: number
   /** Scale to animate toward for the current phase. */
@@ -53,6 +54,7 @@ export function getPhaseScaleTarget(
     : 1
 
   return {
+    phase,
     from,
     target,
     frozen: from + (target - from) * progress,

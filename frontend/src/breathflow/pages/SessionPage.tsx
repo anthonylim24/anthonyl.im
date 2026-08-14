@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { LayoutGroup, motion } from 'motion/react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
+  ChevronDown,
   Minus,
   Pause,
   Play,
@@ -51,6 +53,8 @@ import { SafetyChecklist } from '../components/SafetyChecklist'
 import { SessionSummary } from '../components/SessionSummary'
 import { btnIcon, btnPrimary } from '../components/buttonStyles'
 import { formatClock, formatDuration } from '../components/format'
+import { Notice } from '../motion/Notice'
+import { chromeTransition, inkSpring, pressSpring } from '../motion/tokens'
 
 const CONTROLS_HIDE_MS = 3000
 const EASTER_EGG_TAPS = 5
@@ -360,32 +364,46 @@ function SessionSetup({
       <h1 className="bf-display text-3xl tracking-tight text-bw">Breathe</h1>
 
       {/* Technique switch */}
-      <div className="mt-5 grid grid-cols-2 gap-x-3 gap-y-1 sm:grid-cols-3" role="group" aria-label="Technique">
-        {PROTOCOLS.map((entry) => {
-          const selected = entry.id === protocol.id
-          return (
-            <button
-              key={entry.id}
-              type="button"
-              aria-pressed={selected}
-              onClick={() => onUpdate({ techniqueId: entry.id })}
-              className={[
-                'min-h-11 border-l-2 px-3 py-2 text-left text-sm transition-colors duration-150 active:scale-[0.99] motion-reduce:active:scale-100',
-                'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent',
-                selected
-                  ? 'border-bw-accent font-medium text-bw'
-                  : 'border-transparent text-bw-secondary hover:text-bw',
-              ].join(' ')}
-            >
-              <span className="block truncate">{entry.name}</span>
-              <span className="block text-[11px] capitalize text-bw-tertiary">
-                {entry.category}
-                {isAdvancedProtocol(entry) ? ' · safety check' : ''}
-              </span>
-            </button>
-          )
-        })}
-      </div>
+      <LayoutGroup id="session-technique">
+        <div className="mt-5 grid grid-cols-2 gap-x-3 gap-y-1 sm:grid-cols-3" role="group" aria-label="Technique">
+          {PROTOCOLS.map((entry) => {
+            const selected = entry.id === protocol.id
+            return (
+              <motion.button
+                key={entry.id}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => onUpdate({ techniqueId: entry.id })}
+                whileTap={reducedMotion ? undefined : { scale: 0.99 }}
+                transition={pressSpring}
+                className={[
+                  'relative min-h-11 px-3 py-2 text-left text-sm',
+                  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent',
+                  selected ? 'font-medium text-bw' : 'text-bw-secondary hover:text-bw',
+                ].join(' ')}
+              >
+                {selected ? (
+                  reducedMotion ? (
+                    <span aria-hidden="true" className="absolute inset-0 bg-bw-accent-subtle" />
+                  ) : (
+                    <motion.span
+                      aria-hidden="true"
+                      layoutId="session-technique-ink"
+                      className="absolute inset-0 bg-bw-accent-subtle"
+                      transition={inkSpring}
+                    />
+                  )
+                ) : null}
+                <span className="relative block truncate">{entry.name}</span>
+                <span className="relative block text-[11px] capitalize text-bw-tertiary">
+                  {entry.category}
+                  {isAdvancedProtocol(entry) ? ' · safety check' : ''}
+                </span>
+              </motion.button>
+            )
+          })}
+        </div>
+      </LayoutGroup>
 
       <div className="mt-8 border-t border-bw-border pt-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -433,8 +451,11 @@ function SessionSetup({
         <details className="group mt-2 border-t border-bw-border-subtle pt-2">
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-sm text-bw [&::-webkit-details-marker]:hidden">
             Cadence
-            <span className="text-xs text-bw-tertiary group-open:hidden">
-              {customDurations ? 'Custom' : 'Default'}
+            <span className="flex items-center gap-2">
+              <span className="text-xs text-bw-tertiary group-open:hidden">
+                {customDurations ? 'Custom' : 'Default'}
+              </span>
+              <DetailsChevron />
             </span>
           </summary>
           <CadenceEditor
@@ -449,8 +470,11 @@ function SessionSetup({
         <details className="group border-t border-bw-border-subtle pt-2">
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-sm text-bw [&::-webkit-details-marker]:hidden">
             <span>Why it works</span>
-            <span className="text-xs capitalize text-bw-tertiary group-open:hidden">
-              {protocol.evidenceLevel} evidence
+            <span className="flex items-center gap-2">
+              <span className="text-xs capitalize text-bw-tertiary group-open:hidden">
+                {protocol.evidenceLevel} evidence
+              </span>
+              <DetailsChevron />
             </span>
           </summary>
           <div className="pb-2 pt-1">
@@ -495,38 +519,39 @@ function SessionSetup({
       )}
 
       {blockedByViewport && (
-        <div role="alert" className="mt-6 border-l-2 border-bw-destructive bg-bw-destructive-subtle px-4 py-3">
-          <p className="text-sm font-medium text-bw">Not available here</p>
-          <p className="mt-1 text-sm leading-relaxed text-bw-secondary">{CONSTRAINED_VIEWPORT_MESSAGE}</p>
-        </div>
+        <Notice role="alert" tone="danger" title="Not available here" className="mt-6">
+          {CONSTRAINED_VIEWPORT_MESSAGE}
+        </Notice>
       )}
 
       {blockedByRecovery && !blockedByViewport && (
-        <div role="status" className="mt-6 border-l-2 border-bw-accent pl-4">
-          <p className="text-sm font-medium text-bw">Recovery in progress</p>
-          <p className="mt-1 text-sm tabular-nums text-bw-secondary">
+        <Notice title="Recovery in progress" className="mt-6" live={false}>
+          <p className="tabular-nums">
             Breathe easy for {recoveryRemaining}s before the next intense session.
           </p>
-        </div>
+        </Notice>
       )}
 
       {/* Start */}
       <div className="mt-7">
         <p className="mb-2.5 text-center text-sm text-bw-secondary">{READY_CUE}</p>
-        <button
+        <motion.button
           type="button"
           className={`${btnPrimary} w-full`}
           disabled={startDisabled}
           onClick={onStart}
+          whileTap={reducedMotion || startDisabled ? undefined : { scale: 0.98 }}
+          transition={pressSpring}
         >
           Start
-        </button>
+        </motion.button>
       </div>
 
       {/* Global disclosure */}
-      <details className="mt-8">
-        <summary className="min-h-11 cursor-pointer list-none py-2 text-xs text-bw-tertiary [&::-webkit-details-marker]:hidden">
+      <details className="group mt-8">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between py-2 text-xs text-bw-tertiary [&::-webkit-details-marker]:hidden">
           {SAFETY_DISCLOSURE.title}
+          <DetailsChevron />
         </summary>
         <ul className="mt-1 space-y-1.5">
           {SAFETY_DISCLOSURE.points.map((point) => (
@@ -592,8 +617,11 @@ function ActiveSession({
   const isBox = protocol.id === TECHNIQUE_IDS.BOX_BREATHING
 
   return (
-    <div
+    <motion.div
       className="fixed inset-0 z-50 flex flex-col bg-bw-canvas"
+      initial={reducedMotion ? false : { opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={chromeTransition}
       onPointerMove={showControls}
       onPointerDown={showControls}
     >
@@ -651,22 +679,44 @@ function ActiveSession({
         </button>
 
         <div className="text-center">
-          <p className="text-xl font-medium tracking-tight text-bw">
+          <motion.p
+            key={paused ? 'paused' : engine.phase}
+            initial={reducedMotion ? false : { opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={chromeTransition}
+            className="text-xl font-medium tracking-tight text-bw"
+          >
             {paused ? 'Paused' : PHASE_LABELS[engine.phase]}
-          </p>
+          </motion.p>
           <p className="bf-display mt-2 text-5xl tracking-tight text-bw" aria-hidden="true">
             {formatClock(engine.secondsLeftInPhase)}
           </p>
-          <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-bw-secondary">{cue}</p>
+          <motion.p
+            key={`${paused ? 'paused' : engine.phase}-cue`}
+            initial={reducedMotion ? false : { opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={chromeTransition}
+            className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-bw-secondary"
+          >
+            {cue}
+          </motion.p>
         </div>
       </div>
 
       {/* Controls dock */}
-      <div
-        className={[
-          'pb-[max(1.5rem,env(safe-area-inset-bottom))] transition-opacity duration-300',
-          controlsVisible ? 'opacity-100' : 'opacity-0',
-        ].join(' ')}
+      <motion.div
+        id="session-controls"
+        data-testid="session-controls"
+        initial={false}
+        animate={{
+          opacity: controlsVisible ? 1 : 0,
+          y: reducedMotion ? 0 : (controlsVisible ? 0 : 8),
+        }}
+        transition={chromeTransition}
+        aria-hidden={!controlsVisible}
+        inert={!controlsVisible ? true : undefined}
+        className="pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+        style={{ pointerEvents: controlsVisible ? 'auto' : 'none' }}
         onFocus={() => setFocusWithin(true)}
         onBlur={(event) => {
           if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
@@ -680,30 +730,57 @@ function ActiveSession({
             className={btnIcon}
             aria-label={soundEnabled ? 'Mute sound' : 'Unmute sound'}
             onClick={() => setSoundEnabled(!soundEnabled)}
+            tabIndex={controlsVisible ? 0 : -1}
           >
             {soundEnabled
               ? <Volume2 size={18} strokeWidth={1.75} aria-hidden="true" />
               : <VolumeX size={18} strokeWidth={1.75} aria-hidden="true" />}
           </button>
-          <button
+          <motion.button
             type="button"
             className={`${btnPrimary} flex-1`}
             onClick={running ? engine.pause : engine.resume}
+            whileTap={reducedMotion ? undefined : { scale: 0.98 }}
+            transition={pressSpring}
+            tabIndex={controlsVisible ? 0 : -1}
           >
             {running
               ? <Pause size={16} strokeWidth={1.75} aria-hidden="true" />
               : <Play size={16} strokeWidth={1.75} aria-hidden="true" />}
             {running ? 'Pause' : 'Resume'}
-          </button>
-          <button type="button" className={btnIcon} aria-label="Restart session" onClick={engine.restart}>
+          </motion.button>
+          <button
+            type="button"
+            className={btnIcon}
+            aria-label="Restart session"
+            onClick={engine.restart}
+            tabIndex={controlsVisible ? 0 : -1}
+          >
             <RotateCcw size={18} strokeWidth={1.75} aria-hidden="true" />
           </button>
-          <button type="button" className={btnIcon} aria-label="Stop and discard session" onClick={engine.stop}>
+          <button
+            type="button"
+            className={btnIcon}
+            aria-label="Stop and discard session"
+            onClick={engine.stop}
+            tabIndex={controlsVisible ? 0 : -1}
+          >
             <Square size={18} strokeWidth={1.75} aria-hidden="true" />
           </button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+function DetailsChevron() {
+  return (
+    <ChevronDown
+      size={14}
+      strokeWidth={1.75}
+      aria-hidden="true"
+      className="text-bw-tertiary transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] group-open:rotate-180 motion-reduce:transition-none"
+    />
   )
 }
 

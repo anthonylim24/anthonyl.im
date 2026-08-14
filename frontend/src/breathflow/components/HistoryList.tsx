@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
+import { LayoutGroup } from 'motion/react'
 import { Link } from 'react-router-dom'
+import { InkChip } from '../motion/InkChip'
 import type { TechniqueId } from '@/lib/constants'
 import { formatMoodShift } from '@/lib/mood'
 import type { CompletedSession } from '@/stores/historyStore'
@@ -35,17 +37,27 @@ export function HistoryList({ sessions }: HistoryListProps) {
   return (
     <div>
       {techniquesInHistory.length > 1 && (
-        <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label="Filter by technique">
-          <FilterChip active={filter === 'all'} onClick={() => setFilter('all')} label="All" />
-          {techniquesInHistory.map((protocol) => (
-            <FilterChip
-              key={protocol.id}
-              active={filter === protocol.id}
-              onClick={() => setFilter(protocol.id)}
-              label={protocol.name}
+        <LayoutGroup id="history-filter">
+          <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label="Filter by technique">
+            <InkChip
+              active={filter === 'all'}
+              onClick={() => setFilter('all')}
+              label="All"
+              layoutId="history-filter-ink"
+              className="text-xs"
             />
-          ))}
-        </div>
+            {techniquesInHistory.map((protocol) => (
+              <InkChip
+                key={protocol.id}
+                active={filter === protocol.id}
+                onClick={() => setFilter(protocol.id)}
+                label={protocol.name}
+                layoutId="history-filter-ink"
+                className="text-xs"
+              />
+            ))}
+          </div>
+        </LayoutGroup>
       )}
 
       <ul className="divide-y divide-bw-border-subtle">
@@ -96,21 +108,3 @@ export function HistoryList({ sessions }: HistoryListProps) {
   )
 }
 
-function FilterChip({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={[
-        'min-h-11 min-w-11 px-1 text-xs transition-colors duration-150',
-        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent',
-        active
-          ? 'font-medium text-bw underline decoration-bw-accent decoration-1 underline-offset-8'
-          : 'text-bw-secondary hover:text-bw',
-      ].join(' ')}
-    >
-      {label}
-    </button>
-  )
-}

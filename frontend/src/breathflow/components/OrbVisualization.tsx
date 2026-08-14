@@ -1,6 +1,8 @@
 import { useMemo, useRef } from 'react'
 import { motion } from 'motion/react'
 import { useSettingsStore } from '@/stores/settingsStore'
+import { breathEase, chromeTransition, EASE_SETTLE, scaleToAmplitude } from '../motion/tokens'
+import { useLockedPhaseDuration } from '../motion/useLockedPhaseDuration'
 import type { EngineStatus } from '../engine/sessionEngine'
 import type { ProtocolPhase } from '../protocols/types'
 import { OrbParticleField } from './OrbParticleField'
@@ -28,14 +30,45 @@ function hexToVec3(hex: string): [number, number, number] {
   ]
 }
 
-function RingsInstrument({ core }: { core: string }) {
+function RingsInstrument({
+  core,
+  scale,
+  duration,
+  ease,
+  reducedMotion,
+}: {
+  core: string
+  scale: number
+  duration: number
+  ease: readonly [number, number, number, number]
+  reducedMotion: boolean
+}) {
   return (
-    <svg aria-hidden="true" viewBox="0 0 240 240" className="h-full w-full" data-testid="orb-rings">
-      <circle cx="120" cy="120" r="108" fill="none" stroke="var(--bw-border)" strokeWidth="1" />
-      <circle cx="120" cy="120" r="78" fill="none" stroke={core} strokeWidth="1.25" opacity="0.55" />
-      <circle cx="120" cy="120" r="48" fill="none" stroke={core} strokeWidth="1.25" />
-      <circle cx="120" cy="120" r="14" fill={core} />
-    </svg>
+    <div className="relative h-full w-full">
+      <svg aria-hidden="true" viewBox="0 0 240 240" className="absolute inset-0 h-full w-full" data-testid="orb-rings">
+        <circle cx="120" cy="120" r="110" fill="none" stroke="var(--bw-border)" strokeWidth="1" />
+      </svg>
+      {reducedMotion ? (
+        <svg aria-hidden="true" viewBox="0 0 240 240" className="absolute inset-0 h-full w-full">
+          <circle cx="120" cy="120" r="78" fill="none" stroke={core} strokeWidth="1.25" opacity="0.55" />
+          <circle cx="120" cy="120" r="48" fill="none" stroke={core} strokeWidth="1.25" />
+          <circle cx="120" cy="120" r="14" fill={core} />
+        </svg>
+      ) : (
+        <motion.div
+          className="absolute inset-0"
+          initial={false}
+          animate={{ scale }}
+          transition={{ duration, ease }}
+        >
+          <svg aria-hidden="true" viewBox="0 0 240 240" className="h-full w-full">
+            <circle cx="120" cy="120" r="78" fill="none" stroke={core} strokeWidth="1.25" opacity="0.55" />
+            <circle cx="120" cy="120" r="48" fill="none" stroke={core} strokeWidth="1.25" />
+            <circle cx="120" cy="120" r="14" fill={core} />
+          </svg>
+        </motion.div>
+      )}
+    </div>
   )
 }
 
@@ -56,8 +89,14 @@ export function OrbVisualization({
 }: OrbVisualizationProps) {
   const [core, halo] = colors
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const { target, frozen, duration } = getPhaseScaleTarget(
+  const { phase, target, frozen } = getPhaseScaleTarget(
     phases,
+    phaseIndex,
+    phaseSeconds,
+    secondsLeftInPhase,
+    status,
+  )
+  const lockedDuration = useLockedPhaseDuration(
     phaseIndex,
     phaseSeconds,
     secondsLeftInPhase,
@@ -65,13 +104,15 @@ export function OrbVisualization({
   )
   const running = status === 'running'
   const scale = reducedMotion ? 0.85 : (running ? target : frozen)
-  const amplitude = Math.min(1, Math.max(0, (scale - 0.62) / 0.48))
+  const duration = running ? lockedDuration : chromeTransition.duration
+  const ease = running ? breathEase(phase) : EASE_SETTLE
+  const amplitudeRef = useRef(scaleToAmplitude(scale))
   const theme = useSettingsStore((state) => state.theme)
   const color1 = useMemo(() => hexToVec3(core), [core])
   const color2 = useMemo(() => hexToVec3(halo), [halo])
   const glFailed = useGlassOrb({
     canvasRef,
-    amplitude,
+    amplitudeRef,
     color1,
     color2,
     reducedMotion,
@@ -87,15 +128,29 @@ export function OrbVisualization({
         data-testid="glass-orb-canvas"
         className="absolute inset-0 h-full w-full"
       />
-      <OrbParticleField colors={colors} amplitude={amplitude} />
+      <OrbParticleField colors={colors} amplitudeRef={amplitudeRef} />
     </div>
   ) : (
-    <RingsInstrument core={core} />
+    <RingsInstrument
+      core={core}
+      scale={scale}
+      duration={duration}
+      ease={ease}
+      reducedMotion={reducedMotion}
+    />
   )
 
   if (reducedMotion) {
     return (
       <div aria-hidden="true" className="h-56 w-56 sm:h-64 sm:w-64" style={{ transform: 'scale(0.85)' }}>
+        {instrument}
+      </div>
+    )
+  }
+
+  if (!glass) {
+    return (
+      <div aria-hidden="true" className="relative h-56 w-56 sm:h-64 sm:w-64">
         {instrument}
       </div>
     )
@@ -107,9 +162,11 @@ export function OrbVisualization({
       className="bf-glass-orb relative h-56 w-56 sm:h-64 sm:w-64"
       initial={false}
       animate={{ scale }}
-      transition={running
-        ? { duration, ease: 'easeInOut' }
-        : { duration: 0.3, ease: 'easeOut' }}
+      transition={{ duration, ease }}
+      onUpdate={(latest) => {
+        const next = typeof latest.scale === 'number' ? latest.scale : scale
+        amplitudeRef.current = scaleToAmplitude(next)
+      }}
     >
       {instrument}
     </motion.div>
