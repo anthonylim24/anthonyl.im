@@ -78,6 +78,21 @@ export function getPhaseBaseSeconds(
 }
 
 /**
+ * Progressive-hold duration for a 0-based round. The increment is applied
+ * to the (possibly custom) base, then clamped so later rounds cannot
+ * exceed the hold_in maximum.
+ */
+export function getProgressiveHoldSeconds(
+  protocol: BreathingProtocol,
+  roundIndex: number,
+  custom?: CustomPhaseDurations,
+): number {
+  const base = getPhaseBaseSeconds(protocol, BREATH_PHASES.HOLD_IN, custom)
+  const increment = protocol.holdIncrementSeconds ?? 0
+  return clampPhaseSeconds(BREATH_PHASES.HOLD_IN, base + roundIndex * increment)
+}
+
+/**
  * Actual duration of a phase in a given 0-based round, applying the
  * progressive-hold increment to hold_in when the protocol defines one.
  */
@@ -87,11 +102,10 @@ export function getPhaseSecondsForRound(
   roundIndex: number,
   custom?: CustomPhaseDurations,
 ): number {
-  const base = getPhaseBaseSeconds(protocol, phase, custom)
   if (phase === BREATH_PHASES.HOLD_IN && protocol.holdIncrementSeconds) {
-    return base + roundIndex * protocol.holdIncrementSeconds
+    return getProgressiveHoldSeconds(protocol, roundIndex, custom)
   }
-  return base
+  return getPhaseBaseSeconds(protocol, phase, custom)
 }
 
 /** Duration of one full round (all phases) in a given 0-based round. */

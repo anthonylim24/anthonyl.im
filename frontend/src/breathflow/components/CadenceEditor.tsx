@@ -57,7 +57,13 @@ export function CadenceEditor({ protocol, rounds, customDurations, onChange }: C
                 >
                   <Minus size={16} strokeWidth={1.75} aria-hidden="true" />
                 </button>
-                <span className="w-9 text-center text-sm font-medium tabular-nums text-bw">
+                <span
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                  className="w-9 text-center text-sm font-medium tabular-nums text-bw"
+                >
+                  <span className="sr-only">{PHASE_LABELS[phase]} </span>
                   {seconds}s
                 </span>
                 <button
@@ -80,7 +86,12 @@ export function CadenceEditor({ protocol, rounds, customDurations, onChange }: C
           <p className="text-xs font-medium text-bw">
             Hold ladder: +{protocol.holdIncrementSeconds}s each round
           </p>
-          <p className="mt-1 break-words text-xs tabular-nums text-bw-secondary">
+          <p
+            aria-live="polite"
+            aria-atomic="true"
+            className="mt-1 break-words text-xs tabular-nums text-bw-secondary"
+          >
+            <span className="sr-only">Hold ladder: </span>
             {ladder.map((seconds) => `${seconds}s`).join(', ')}
           </p>
         </div>

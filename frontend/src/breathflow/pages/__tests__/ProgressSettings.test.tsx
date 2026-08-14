@@ -62,6 +62,7 @@ describe('ProgressPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /clear history/i }))
     expect(useHistoryStore.getState().sessions).toHaveLength(1)
+    expect(screen.getByRole('button', { name: /delete history/i })).toHaveFocus()
 
     fireEvent.click(screen.getByRole('button', { name: /delete history/i }))
     expect(useHistoryStore.getState().sessions).toHaveLength(0)
@@ -125,6 +126,7 @@ describe('SettingsPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /clear all data/i }))
     expect(useHistoryStore.getState().sessions).toHaveLength(1) // not yet
+    expect(screen.getByRole('button', { name: /erase everything/i })).toHaveFocus()
 
     fireEvent.click(screen.getByRole('button', { name: /erase everything/i }))
     expect(useHistoryStore.getState().sessions).toHaveLength(0)

@@ -180,7 +180,7 @@ describe('SessionPage', () => {
     vi.useFakeTimers()
     renderSession(BOX_FAST)
 
-    fireEvent.click(screen.getByRole('radio', { name: 'Tense' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Tense' }))
     fireEvent.click(screen.getByRole('button', { name: /start/i }))
     act(() => {
       vi.advanceTimersByTime(4000)
@@ -189,7 +189,7 @@ describe('SessionPage', () => {
     expect(useHistoryStore.getState().sessions[0].moodBefore).toBe(1)
 
     // After-mood from the summary persists too.
-    fireEvent.click(screen.getByRole('radio', { name: 'Calm' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Calm' }))
     expect(useHistoryStore.getState().sessions[0].moodAfter).toBe(5)
   })
 })

@@ -217,7 +217,7 @@ function TunerChip({ active, onClick, label }: { active: boolean; onClick: () =>
       aria-pressed={active}
       onClick={onClick}
       className={[
-        'min-h-11 text-sm transition-colors duration-150 active:scale-[0.98]',
+        'min-h-11 text-sm transition-colors duration-150 active:scale-[0.98] motion-reduce:active:scale-100',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent',
         active
           ? 'font-medium text-bw underline decoration-bw-accent decoration-1 underline-offset-8'

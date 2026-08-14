@@ -103,7 +103,7 @@ function FilterChip({ active, onClick, label }: { active: boolean; onClick: () =
       aria-pressed={active}
       onClick={onClick}
       className={[
-        'min-h-11 px-1 text-xs transition-colors duration-150',
+        'min-h-11 min-w-11 px-1 text-xs transition-colors duration-150',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent',
         active
           ? 'font-medium text-bw underline decoration-bw-accent decoration-1 underline-offset-8'

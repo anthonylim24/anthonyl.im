@@ -60,7 +60,7 @@ export function SafetyChecklist({ protocol, checkedItems, onToggle }: SafetyChec
               >
                 {checked && <Check size={13} strokeWidth={2.5} />}
               </span>
-              <span className="text-sm leading-snug text-bw">{item}</span>
+              <span className="min-w-0 break-words text-sm leading-snug text-bw">{item}</span>
             </label>
           )
         })}

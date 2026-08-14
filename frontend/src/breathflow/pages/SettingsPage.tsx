@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Check, Lock } from 'lucide-react'
 import { CLERK_ENABLED } from '@/lib/clerk'
 import {
@@ -87,6 +87,11 @@ export function SettingsPage() {
   const [importError, setImportError] = useState<string | null>(null)
   const [confirmingClear, setConfirmingClear] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const confirmClearRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (confirmingClear) confirmClearRef.current?.focus()
+  }, [confirmingClear])
 
   function handleExport() {
     const data = buildBreathFlowExportData(localStorage)
@@ -146,7 +151,7 @@ export function SettingsPage() {
                 title={unlocked ? orbTheme.name : `Unlocks at level ${orbTheme.unlockLevel}`}
                 onClick={() => setSelectedTheme(orbTheme.id)}
                 className={[
-                  'relative flex h-11 w-11 items-center justify-center rounded-lg transition-transform duration-150 active:scale-95',
+                  'relative flex h-11 w-11 items-center justify-center rounded-lg transition-transform duration-150 active:scale-95 motion-reduce:active:scale-100',
                   'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent',
                   selected ? 'ring-2 ring-bw-accent ring-offset-2 ring-offset-bw-canvas' : '',
                   !unlocked ? 'opacity-45' : '',
@@ -178,7 +183,7 @@ export function SettingsPage() {
             value={soundVolume}
             disabled={!soundEnabled}
             onChange={(event) => setSoundVolume(Number(event.target.value))}
-            className="mt-2 h-11 w-full accent-[var(--bw-accent)] disabled:opacity-40"
+            className="mt-2 h-11 w-full accent-[var(--bw-accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent disabled:opacity-40"
             aria-label="Sound volume"
           />
         </label>
@@ -239,11 +244,11 @@ export function SettingsPage() {
         <div className="mt-5">
           {confirmingClear ? (
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <p className="flex-1 text-sm text-bw-secondary">
+              <p role="status" aria-live="polite" aria-atomic="true" className="flex-1 text-sm text-bw-secondary">
                 Erase history, progress, badges, and settings from this device?
               </p>
               <div className="flex gap-2">
-                <button type="button" className={btnDestructive} onClick={handleClearAll}>
+                <button ref={confirmClearRef} type="button" className={btnDestructive} onClick={handleClearAll}>
                   Erase everything
                 </button>
                 <button type="button" className={btnSecondary} onClick={() => setConfirmingClear(false)}>

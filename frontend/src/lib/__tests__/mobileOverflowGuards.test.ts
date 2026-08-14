@@ -24,4 +24,17 @@ describe('mobile overflow guardrails', () => {
     expect(indexCss).toMatch(/html,\s*\nbody \{[\s\S]*?height:\s*auto/)
     expect(indexCss).toMatch(/#root \{[\s\S]*?height:\s*auto/)
   })
+
+  it('keeps the chatbot viewport pin on App rootStyle, not on #root', () => {
+    expect(appSource).toMatch(/const rootStyle = \{[\s\S]*?height:\s*"100dvh"[\s\S]*?overflow:\s*"hidden"/)
+    expect(appSource).toMatch(/minHeight:\s*"100svh"/)
+    const rootBlock = indexCss.match(/#root \{[^}]+\}/)?.[0] ?? ''
+    expect(rootBlock).toContain('height: auto')
+    expect(rootBlock).not.toContain('overflow')
+  })
+
+  it('pauses the looping leaves video when reduced motion is preferred', () => {
+    expect(appSource).toContain('prefers-reduced-motion: reduce')
+    expect(appSource).toMatch(/media\.matches[\s\S]*v\.pause\(\)/)
+  })
 })

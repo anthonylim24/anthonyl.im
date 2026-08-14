@@ -17,6 +17,7 @@ export function HoldChart({ sessions, limit = 20 }: HoldChartProps) {
   const points = useMemo(() => {
     return sessions
       .filter((session) => session.maxHoldTime > 0)
+      .sort((a, b) => Date.parse(b.date) - Date.parse(a.date))
       .slice(0, limit)
       .reverse()
       .map((session) => ({ hold: session.maxHoldTime, date: session.date }))

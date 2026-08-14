@@ -6,7 +6,8 @@
 const BASE =
   'inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium '
   + 'min-h-11 px-5 select-none transition-[background-color,border-color,transform,opacity] duration-200 '
-  + 'active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 '
+  + 'active:scale-[0.98] motion-reduce:active:scale-100 motion-reduce:transition-none '
+  + 'focus-visible:outline-2 focus-visible:outline-offset-2 '
   + 'focus-visible:outline-bw-accent disabled:opacity-40 disabled:pointer-events-none'
 
 export const btnPrimary = `${BASE} bg-bw-accent text-bw-accent-foreground hover:bg-bw-accent-light`
@@ -22,6 +23,8 @@ export const btnDestructive =
 /** Square icon button, still a 44px target. */
 export const btnIcon =
   'inline-flex items-center justify-center rounded-md min-h-11 min-w-11 text-bw-secondary '
-  + 'transition-[background-color,transform] duration-200 active:scale-[0.96] hover:bg-bw-hover hover:text-bw '
+  + 'transition-[background-color,transform] duration-200 active:scale-[0.96] '
+  + 'motion-reduce:active:scale-100 motion-reduce:transition-none '
+  + 'hover:bg-bw-hover hover:text-bw '
   + 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent '
   + 'disabled:opacity-40 disabled:pointer-events-none'

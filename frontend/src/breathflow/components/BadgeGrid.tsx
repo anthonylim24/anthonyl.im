@@ -18,8 +18,8 @@ export function BadgeGrid({ earnedBadgeIds }: BadgeGridProps) {
         const isEarned = earned.has(badge.id)
         return (
           <div key={badge.id} className={isEarned ? '' : 'opacity-50'}>
-            <dt className="text-sm font-medium text-bw">{badge.name}</dt>
-            <dd className="mt-0.5 text-xs leading-snug text-bw-secondary">
+            <dt className="break-words text-sm font-medium text-bw [overflow-wrap:anywhere]">{badge.name}</dt>
+            <dd className="mt-0.5 break-words text-xs leading-snug text-bw-secondary [overflow-wrap:anywhere]">
               {isEarned ? badge.description : `Locked: ${badge.description.toLowerCase()}`}
             </dd>
           </div>

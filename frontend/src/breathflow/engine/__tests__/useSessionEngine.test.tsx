@@ -79,6 +79,18 @@ describe('useSessionEngine', () => {
     expect(result.current.holdTimes).toEqual([])
   })
 
+  it('replays missed seconds when the interval fires late', () => {
+    const { result } = renderHook(() => useSessionEngine(config))
+    act(() => result.current.start())
+
+    const origin = performance.now()
+    vi.spyOn(performance, 'now').mockImplementation(() => origin + 5000)
+    act(() => vi.advanceTimersByTime(1000))
+
+    expect(result.current.phase).toBe('hold_in')
+    expect(result.current.secondsLeftInPhase).toBe(3)
+  })
+
   it('completes after the final round and emits complete exactly once', () => {
     const events: string[] = []
     const { result } = renderHook(() => useSessionEngine(config, (e) => events.push(e.type)))

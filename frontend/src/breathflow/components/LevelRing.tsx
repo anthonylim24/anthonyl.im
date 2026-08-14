@@ -14,7 +14,7 @@ export function LevelRing({ xp }: LevelRingProps) {
         {progress.level}
       </p>
       <div className="min-w-0 pb-1">
-        <p className="text-lg font-medium tracking-tight text-bw">{progress.title}</p>
+        <p className="break-words text-lg font-medium tracking-tight text-bw [overflow-wrap:anywhere]">{progress.title}</p>
         <p className="mt-0.5 text-sm tabular-nums text-bw-secondary">
           {progress.xpForNextLevel > 0
             ? `${progress.xpIntoLevel} / ${progress.xpForNextLevel} XP into the next level`

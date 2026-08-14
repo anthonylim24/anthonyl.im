@@ -72,9 +72,11 @@ describe('completeSession persistence bridge', () => {
     const result = completeSession({
       techniqueId: 'co2_tolerance',
       rounds: 8,
-      holdTimes: [15, 20, 25, 30, 35, 40, 45, 50],
+      holdTimes: [15, 20, 25, 30, 35, 40, 45, 45],
     })
-    const expected = Array.from({ length: 8 }, (_, i) => 31 + 5 * i).reduce((a, b) => a + b, 0)
+    // Hold is clamped at 45s, so the last two rounds share the same hold.
+    const expected = Array.from({ length: 8 }, (_, i) => 16 + Math.min(15 + 5 * i, 45))
+      .reduce((a, b) => a + b, 0)
     expect(result.session.durationSeconds).toBe(expected)
   })
 
@@ -85,8 +87,8 @@ describe('completeSession persistence bridge', () => {
   })
 
   it('applies the streak multiplier from consecutive local days', () => {
-    // Simulate an existing session yesterday.
-    const yesterday = new Date()
+    const now = new Date()
+    const yesterday = new Date(now)
     yesterday.setDate(yesterday.getDate() - 1)
     useHistoryStore.getState().addSession({
       techniqueId: 'box_breathing',
@@ -98,7 +100,7 @@ describe('completeSession persistence bridge', () => {
       avgHoldTime: 0,
     })
 
-    const result = completeSession({ techniqueId: 'box_breathing', rounds: 19, holdTimes: [] })
+    const result = completeSession({ techniqueId: 'box_breathing', rounds: 19, holdTimes: [], now })
     expect(result.streak).toBe(2)
     expect(result.xpEarned).toBe(Math.round(50 * 1.2))
   })

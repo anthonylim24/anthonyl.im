@@ -173,7 +173,11 @@ export function scoreProtocol(
 
 /** Score every protocol; return the top pick plus two alternatives. */
 export function recommendProtocols(input: RecommendationInput): Recommendation {
-  const ranked = PROTOCOLS
+  const candidates = input.recoveryActive
+    ? PROTOCOLS.filter((protocol) => !isAdvancedProtocol(protocol))
+    : PROTOCOLS
+
+  const ranked = candidates
     .map((protocol) => {
       const rounds = getRoundsForWindow(protocol, input.windowSeconds)
       const plannedSeconds = plannedSessionSeconds(protocol, rounds)

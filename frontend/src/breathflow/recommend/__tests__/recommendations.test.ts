@@ -106,10 +106,12 @@ describe('recommendation engine', () => {
     }
   })
 
-  it('recovery window pushes advanced protocols out even for Perform', () => {
+  it('recovery window excludes advanced protocols from the top pick and both alternatives', () => {
     const sessions = Array.from({ length: 10 }, () => makeSession())
     const result = recommendProtocols(input({ goal: 'perform', sessions, recoveryActive: true }))
-    expect(['co2_tolerance', 'power_breathing']).not.toContain(result.top.protocol.id)
+    const ids = [result.top, ...result.alternatives].map((ranked) => ranked.protocol.id)
+    expect(ids).not.toContain('co2_tolerance')
+    expect(ids).not.toContain('power_breathing')
     expect(result.top.protocol.id).toBe('box_breathing')
   })
 

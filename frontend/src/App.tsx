@@ -103,15 +103,21 @@ function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Video play/pause
+  // Video play/pause — honor reduced motion so the looping leaves stay still.
   useEffect(() => {
     const v = leavesVideoRef.current;
     if (!v) return;
-    if (shadowMode) {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => {
+      if (!shadowMode || media.matches) {
+        v.pause();
+        return;
+      }
       v.play().catch(() => {});
-    } else {
-      v.pause();
-    }
+    };
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
   }, [shadowMode]);
 
   // PostHog (deferred — bundle-defer-third-party)

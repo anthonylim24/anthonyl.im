@@ -1,11 +1,11 @@
-import { BREATH_PHASES } from '@/lib/constants'
-import { getPhaseBaseSeconds, type CustomPhaseDurations } from './cadence'
+import { getProgressiveHoldSeconds, type CustomPhaseDurations } from './cadence'
 import type { BreathingProtocol } from './types'
 
 /**
  * The full hold ladder for a progressive-hold protocol (CO2 Tolerance Table):
- * hold_in duration per round = base + roundIndex * holdIncrementSeconds.
- * A custom hold_in replaces the base; the increment still applies.
+ * hold_in duration per round = clamp(base + roundIndex * holdIncrementSeconds).
+ * A custom hold_in replaces the base; the increment still applies, and every
+ * rung is re-clamped so later rounds cannot exceed the hold_in maximum.
  * Returns an empty array for protocols without a hold increment.
  */
 export function getHoldLadder(
@@ -13,11 +13,12 @@ export function getHoldLadder(
   rounds: number,
   custom?: CustomPhaseDurations,
 ): number[] {
-  const increment = protocol.holdIncrementSeconds
-  if (!increment) return []
+  if (!protocol.holdIncrementSeconds) return []
 
-  const base = getPhaseBaseSeconds(protocol, BREATH_PHASES.HOLD_IN, custom)
-  return Array.from({ length: Math.max(0, rounds) }, (_, roundIndex) => base + roundIndex * increment)
+  return Array.from(
+    { length: Math.max(0, rounds) },
+    (_, roundIndex) => getProgressiveHoldSeconds(protocol, roundIndex, custom),
+  )
 }
 
 export function hasProgressiveHolds(protocol: BreathingProtocol): boolean {

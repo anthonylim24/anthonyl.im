@@ -65,7 +65,7 @@ export function BreathflowLayout() {
         <NavLink
           to="/breathwork"
           end
-          className="bf-display rounded-md text-[15px] tracking-tight text-bw focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-bw-accent"
+          className="bf-display inline-flex min-h-11 items-center rounded-md text-[15px] tracking-tight text-bw focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-bw-accent"
         >
           BreathFlow
         </NavLink>

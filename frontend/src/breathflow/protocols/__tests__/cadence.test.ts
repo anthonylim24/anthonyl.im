@@ -83,10 +83,12 @@ describe('planned durations', () => {
 
   it('co2 includes the progressive hold ladder', () => {
     const co2 = getProtocol('co2_tolerance')
-    // Round i: 3 + (15 + 5i) + 3 + 10 = 31 + 5i
+    // Round i: 3 + clamp(15 + 5i, 45) + 3 + 10
     expect(getRoundSeconds(co2, 0)).toBe(31)
     expect(getRoundSeconds(co2, 3)).toBe(46)
-    const expected = Array.from({ length: 8 }, (_, i) => 31 + 5 * i).reduce((a, b) => a + b, 0)
+    expect(getRoundSeconds(co2, 7)).toBe(61)
+    const expected = Array.from({ length: 8 }, (_, i) => 16 + Math.min(15 + 5 * i, 45))
+      .reduce((a, b) => a + b, 0)
     expect(plannedSessionSeconds(co2, 8)).toBe(expected)
   })
 
@@ -113,7 +115,14 @@ describe('progressive holds', () => {
 
   it('ladder tracks rounds so changing rounds previews the full ladder', () => {
     expect(getHoldLadder(getProtocol('co2_tolerance'), 8)).toHaveLength(8)
-    expect(getHoldLadder(getProtocol('co2_tolerance'), 8)[7]).toBe(50)
+    expect(getHoldLadder(getProtocol('co2_tolerance'), 8)[6]).toBe(45)
+    expect(getHoldLadder(getProtocol('co2_tolerance'), 8)[7]).toBe(45)
+  })
+
+  it('clamps every ladder rung to the hold_in maximum', () => {
+    const co2 = getProtocol('co2_tolerance')
+    expect(getHoldLadder(co2, 4, { hold_in: 45 })).toEqual([45, 45, 45, 45])
+    expect(getPhaseSecondsForRound(co2, 'hold_in', 3, { hold_in: 40 })).toBe(45)
   })
 
   it('per-round hold seconds flow into the engine phase durations', () => {

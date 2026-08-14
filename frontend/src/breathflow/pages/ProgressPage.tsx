@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getAverageMoodShift } from '@/lib/mood'
 import { useGamificationStore } from '@/stores/gamificationStore'
@@ -30,6 +30,11 @@ export function ProgressPage() {
   const earnedBadges = useGamificationStore((state) => state.earnedBadges)
 
   const [confirmingClear, setConfirmingClear] = useState(false)
+  const confirmClearRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (confirmingClear) confirmClearRef.current?.focus()
+  }, [confirmingClear])
 
   const week = useMemo(() => getWeekSummary(sessions), [sessions])
   const moodTrend = useMemo(() => getAverageMoodShift(sessions), [sessions])
@@ -127,11 +132,12 @@ export function ProgressPage() {
       <section className="border-t border-bw-border pt-5">
         {confirmingClear ? (
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <p className="flex-1 text-sm text-bw-secondary">
+            <p role="status" aria-live="polite" aria-atomic="true" className="flex-1 text-sm text-bw-secondary">
               Delete all {sessions.length} sessions? This cannot be undone.
             </p>
             <div className="flex gap-2">
               <button
+                ref={confirmClearRef}
                 type="button"
                 className={btnDestructive}
                 onClick={() => {

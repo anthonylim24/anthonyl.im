@@ -33,6 +33,11 @@ function getAudioContext(): AudioContext | null {
 
 /** Test seam. */
 export function resetAudioContextForTests(): void {
+  try {
+    void sharedContext?.close()
+  } catch {
+    // Ignore — the context may already be closed or be a stub.
+  }
   sharedContext = null
 }
 
@@ -107,6 +112,10 @@ export function playCue(kind: CueKind, settings: AudioSettings): void {
 
       oscillator.connect(gain)
       gain.connect(context.destination)
+      oscillator.onended = () => {
+        oscillator.disconnect()
+        gain.disconnect()
+      }
       oscillator.start(startAt)
       oscillator.stop(endAt + 0.05)
     }

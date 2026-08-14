@@ -253,65 +253,59 @@ export function SessionPage() {
     }
   }
 
-  if (summary) {
-    return (
-      <div className="py-6">
-        <LiveAnnouncer message={announcement} />
-        <SessionSummary
-          protocol={summary.protocol}
-          result={summary.result}
-          insight={summary.insight}
-          moodAfter={moodAfter}
-          onMoodAfter={handleMoodAfter}
-          onRepeat={handleRepeat}
-        />
-      </div>
-    )
-  }
-
-  if (isActive) {
-    return (
-      <ActiveSession
-        protocol={protocol}
-        engine={engine}
-        advanced={advanced}
-        reducedMotion={reducedMotion}
-        altVisual={altVisual}
-        orbColors={orbTheme.colors}
-        soundEnabled={soundEnabled}
-        announcement={announcement}
-        onVisualTap={handleVisualTap}
-      />
-    )
-  }
-
   return (
-    <div>
+    <>
       <LiveAnnouncer message={announcement} />
-      <SessionSetup
-        protocol={protocol}
-        rounds={rounds}
-        customDurations={customDurations}
-        moodBefore={moodBefore}
-        onMoodBefore={setMoodBefore}
-        checkedSafety={checkedSafety}
-        onToggleSafety={(index) => {
-          setCheckedSafety((current) => {
-            const next = new Set(current)
-            if (next.has(index)) next.delete(index)
-            else next.add(index)
-            return next
-          })
-        }}
-        blockedByRecovery={blockedByRecovery}
-        recoveryRemaining={recovery.remainingSeconds}
-        blockedByViewport={blockedByViewport}
-        startDisabled={startDisabled}
-        onUpdate={updateParams}
-        onStart={handleStart}
-        reducedMotion={reducedMotion}
-      />
-    </div>
+      {summary ? (
+        <div className="py-6">
+          <SessionSummary
+            protocol={summary.protocol}
+            result={summary.result}
+            insight={summary.insight}
+            moodAfter={moodAfter}
+            onMoodAfter={handleMoodAfter}
+            onRepeat={handleRepeat}
+          />
+        </div>
+      ) : isActive ? (
+        <ActiveSession
+          protocol={protocol}
+          engine={engine}
+          advanced={advanced}
+          reducedMotion={reducedMotion}
+          altVisual={altVisual}
+          orbColors={orbTheme.colors}
+          soundEnabled={soundEnabled}
+          onVisualTap={handleVisualTap}
+        />
+      ) : (
+        <div>
+          <SessionSetup
+            protocol={protocol}
+            rounds={rounds}
+            customDurations={customDurations}
+            moodBefore={moodBefore}
+            onMoodBefore={setMoodBefore}
+            checkedSafety={checkedSafety}
+            onToggleSafety={(index) => {
+              setCheckedSafety((current) => {
+                const next = new Set(current)
+                if (next.has(index)) next.delete(index)
+                else next.add(index)
+                return next
+              })
+            }}
+            blockedByRecovery={blockedByRecovery}
+            recoveryRemaining={recovery.remainingSeconds}
+            blockedByViewport={blockedByViewport}
+            startDisabled={startDisabled}
+            onUpdate={updateParams}
+            onStart={handleStart}
+            reducedMotion={reducedMotion}
+          />
+        </div>
+      )}
+    </>
   )
 }
 
@@ -375,7 +369,7 @@ function SessionSetup({
               aria-pressed={selected}
               onClick={() => onUpdate({ techniqueId: entry.id })}
               className={[
-                'min-h-11 border-l-2 px-3 py-2 text-left text-sm transition-colors duration-150 active:scale-[0.99]',
+                'min-h-11 border-l-2 px-3 py-2 text-left text-sm transition-colors duration-150 active:scale-[0.99] motion-reduce:active:scale-100',
                 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent',
                 selected
                   ? 'border-bw-accent font-medium text-bw'
@@ -555,7 +549,6 @@ interface ActiveSessionProps {
   altVisual: boolean
   orbColors: [string, string]
   soundEnabled: boolean
-  announcement: string
   onVisualTap: () => void
 }
 
@@ -567,7 +560,6 @@ function ActiveSession({
   altVisual,
   orbColors,
   soundEnabled,
-  announcement,
   onVisualTap,
 }: ActiveSessionProps) {
   const setSoundEnabled = useSettingsStore((s) => s.setSoundEnabled)
@@ -604,8 +596,6 @@ function ActiveSession({
       onPointerMove={showControls}
       onPointerDown={showControls}
     >
-      <LiveAnnouncer message={announcement} />
-
       {/* Round counter */}
       <div className="pt-[max(1.5rem,env(safe-area-inset-top))] text-center">
         <p className="bf-display text-sm text-bw-secondary">
