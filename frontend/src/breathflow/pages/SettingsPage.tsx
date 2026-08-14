@@ -57,13 +57,14 @@ function Toggle({
       <span
         aria-hidden="true"
         className={[
-          'relative h-7 w-12 shrink-0 rounded-full transition-colors duration-200 ease-[cubic-bezier(0.16,1,0.3,1)]',
+          'relative h-7 w-12 shrink-0 rounded-full transition-colors duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none',
           'peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-bw-accent',
           checked ? 'bg-bw-accent' : 'bg-bw-faint',
         ].join(' ')}
       >
         <motion.span
           className="absolute top-1 left-0 h-5 w-5 rounded-full bg-bw-surface shadow-sm"
+          initial={false}
           animate={{ x: checked ? 24 : 4 }}
           transition={reducedMotion ? { duration: 0 } : toggleSpring}
         />

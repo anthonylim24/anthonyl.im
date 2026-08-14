@@ -107,7 +107,6 @@ export function OrbVisualization({
   const duration = running ? lockedDuration : chromeTransition.duration
   const ease = running ? breathEase(phase) : EASE_SETTLE
   const amplitudeRef = useRef(scaleToAmplitude(scale))
-  amplitudeRef.current = scaleToAmplitude(scale)
   const theme = useSettingsStore((state) => state.theme)
   const color1 = useMemo(() => hexToVec3(core), [core])
   const color2 = useMemo(() => hexToVec3(halo), [halo])

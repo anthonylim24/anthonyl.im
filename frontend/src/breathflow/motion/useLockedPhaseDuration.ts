@@ -11,7 +11,9 @@ export function useLockedPhaseDuration(
   secondsLeftInPhase: number,
   status: EngineStatus,
 ): number {
-  const durationRef = useRef(Math.max(0.2, phaseSeconds))
+  const durationRef = useRef(
+    Math.max(0.2, status === 'running' ? secondsLeftInPhase : phaseSeconds),
+  )
   const phaseRef = useRef(phaseIndex)
   const statusRef = useRef(status)
 

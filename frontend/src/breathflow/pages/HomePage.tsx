@@ -150,7 +150,7 @@ export function HomePage() {
       </div>
 
       {showRecoveryNotice && (
-        <Notice title="Recovery in progress">
+        <Notice title="Recovery in progress" live={false}>
           <p className="tabular-nums">
             Breathe easy for {recovery.remainingSeconds}s. Intense protocols are held back until then.
           </p>

@@ -26,7 +26,7 @@ export function InkChip({
       whileTap={reducedMotion ? undefined : { scale: 0.98 }}
       transition={pressSpring}
       className={[
-        'relative min-h-11 px-1 text-sm',
+        'relative min-h-11 min-w-11 px-1 text-sm break-words wrap-anywhere',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent',
         active ? 'font-medium text-bw' : 'text-bw-secondary hover:text-bw',
         className,

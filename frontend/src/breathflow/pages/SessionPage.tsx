@@ -525,7 +525,7 @@ function SessionSetup({
       )}
 
       {blockedByRecovery && !blockedByViewport && (
-        <Notice title="Recovery in progress" className="mt-6">
+        <Notice title="Recovery in progress" className="mt-6" live={false}>
           <p className="tabular-nums">
             Breathe easy for {recoveryRemaining}s before the next intense session.
           </p>

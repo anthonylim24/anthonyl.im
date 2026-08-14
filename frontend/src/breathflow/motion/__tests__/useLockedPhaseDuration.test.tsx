@@ -36,6 +36,13 @@ describe('useLockedPhaseDuration', () => {
     expect(getByTestId('duration').textContent).toBe('4')
   })
 
+  it('uses remaining time when mounting mid-phase', () => {
+    const { getByTestId } = render(
+      <Harness phaseIndex={0} phaseSeconds={4} secondsLeftInPhase={1.5} status="running" />,
+    )
+    expect(getByTestId('duration').textContent).toBe('1.5')
+  })
+
   it('relocks when the phase changes or the session resumes', () => {
     const { rerender, getByTestId } = render(
       <Harness phaseIndex={0} phaseSeconds={4} secondsLeftInPhase={4} status="running" />,

@@ -3,6 +3,7 @@ import type { EngineStatus } from '../engine/sessionEngine'
 import { buildTideCrest, buildTidePath } from '../motion/geometry'
 import { breathEase, chromeTransition, EASE_SETTLE } from '../motion/tokens'
 import { useLockedPhaseDuration } from '../motion/useLockedPhaseDuration'
+import { useReducedMotion } from '../platform/useReducedMotion'
 import type { ProtocolPhase } from '../protocols/types'
 import { getPhaseScaleTarget } from './usePhaseScale'
 
@@ -29,6 +30,7 @@ export function TideVisualization({
   colors,
 }: TideVisualizationProps) {
   const [core] = colors
+  const reducedMotion = useReducedMotion()
   const { phase, target, frozen } = getPhaseScaleTarget(
     phases,
     phaseIndex,
@@ -45,7 +47,9 @@ export function TideVisualization({
   const running = status === 'running'
   const level = running ? target : frozen
   const fill = 0.28 + ((level - 0.62) / 0.48) * 0.5
-  const duration = running ? lockedDuration : chromeTransition.duration
+  const duration = reducedMotion
+    ? 0
+    : (running ? lockedDuration : chromeTransition.duration)
   const ease = running ? breathEase(phase) : EASE_SETTLE
   const tide = buildTidePath(fill)
   const crest = buildTideCrest(fill)
