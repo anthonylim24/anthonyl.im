@@ -89,7 +89,9 @@ export function EnhanceButton({
     const panel = panelRef.current
     const focusable = panel?.querySelector<HTMLElement>("textarea, button, input")
     focusable?.focus()
+    let closing = false
     const onFocus = (e: FocusEvent) => {
+      if (closing) return
       if (!panel || panel.contains(e.target as Node) || rootRef.current?.contains(e.target as Node)) return
       focusable?.focus()
     }
@@ -98,6 +100,7 @@ export function EnhanceButton({
       const target = e.target as Node
       if (rootRef.current?.contains(target)) return
       if (panelRef.current?.contains(target)) return
+      closing = true
       close(true)
     }
     const onKey = (e: KeyboardEvent) => {

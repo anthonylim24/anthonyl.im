@@ -127,12 +127,13 @@ export async function enhanceTrip(
     cache: "no-store",
     body: JSON.stringify({ scope, dayId, prompt: prompt?.trim() || undefined }),
   })
-  let body: EnhanceTripResult
+  let body: EnhanceTripResult | null
   try {
     body = (await res.json()) as EnhanceTripResult
   } catch {
     throw new Error(`HTTP ${res.status}`)
   }
+  if (typeof body !== "object" || body === null) throw new Error(`HTTP ${res.status}`)
   if (res.ok) return body
   if (res.status === 502 && body.run) return body
   throw new Error(body.message || body.error || `HTTP ${res.status}`)

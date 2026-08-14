@@ -321,6 +321,7 @@ export function TripDetail() {
   const applyRun = useCallback(
     async (suggestionIds: string[]) => {
       if (!tripDocId || !activeRun) return
+      setEnhancingTarget("apply")
       try {
         await flushPendingSave()
         const { trip: next, applied, skipped } = await applySuggestions(
@@ -346,6 +347,8 @@ export function TripDetail() {
         setNotice(
           `Couldn’t apply those suggestions. They’re still listed below, so you can try again. (${errorText(err)})`,
         )
+      } finally {
+        setEnhancingTarget(null)
       }
     },
     [getToken, tripDocId, activeRun, cancelPendingSave, flashTouched, flushPendingSave],
@@ -442,6 +445,8 @@ export function TripDetail() {
 
   const mapDay = mapDayId ? trip.days.find((d) => d.id === mapDayId) : null
   const mapDayIndex = mapDay ? trip.days.findIndex((d) => d.id === mapDay.id) : -1
+  const editorLocked = enhancingTarget !== null
+  const canEdit = editable && !editorLocked
 
   return (
     <div className={PAGE} data-trip-accent={resolveAccent(trip.appearance?.accent)}>
@@ -457,6 +462,7 @@ export function TripDetail() {
               </label>
               <input
                 id="trip-editor-name"
+                disabled={editorLocked}
                 // `trip-display-input` beats the global 16px input floor: this
                 // is display type, so the iOS zoom guard doesn't apply.
                 className={`trip-display-input mt-1 min-h-11 w-full bg-transparent font-display font-medium leading-tight tracking-tight text-stone-900 focus:outline-none dark:text-stone-100 ${focusRingClass}`}
@@ -476,7 +482,7 @@ export function TripDetail() {
           <div className={`mt-2 flex flex-wrap items-center gap-x-2 gap-y-2 text-sm ${mutedInkClass}`}>
             <TripStatusSelect
               status={trip.status}
-              editable={editable}
+              editable={canEdit}
               onChange={(status) => scheduleSave({ ...trip, status })}
             />
             <span aria-hidden>·</span>
@@ -579,7 +585,7 @@ export function TripDetail() {
               day={day}
               index={idx}
               timezone={trip.timezone}
-              editable={editable}
+              editable={canEdit}
               dayOptions={dayOptions}
               enhancing={enhancingTarget === day.id}
               recentIds={recentIds}
@@ -596,7 +602,7 @@ export function TripDetail() {
       </div>
 
       {/* Trip settings: once-per-trip configuration, out of the editing path. */}
-      {editable && (
+      {canEdit && (
         <section aria-label="Trip settings" className="mt-12 border-t border-stone-200/80 pt-8 dark:border-stone-800/80">
           <p className={eyebrowClass}>Trip settings</p>
           <AppearancePanel

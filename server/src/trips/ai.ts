@@ -524,25 +524,31 @@ export async function fillMissingCoordinates(
     .filter((i) => i.location && (i.location.lat == null || i.location.lng == null))
     .slice(0, 40)
   const CONCURRENCY = 6
+  const deadline = Date.now() + 12_000
   for (let i = 0; i < pending.length; i += CONCURRENCY) {
+    if (Date.now() >= deadline) break
     const batch = pending.slice(i, i + CONCURRENCY)
-    await Promise.all(
-      batch.map(async (item) => {
-        const loc = item.location!
-        try {
-          const hit = await geocode([loc.name, loc.address, destination].filter(Boolean).join(", "))
-          if (hit) {
-            loc.lat = hit.lat
-            loc.lng = hit.lng
-            loc.address = loc.address ?? hit.address
-            loc.placeId = hit.placeId
-            loc.confidence = "medium"
+    const remaining = Math.max(1, deadline - Date.now())
+    await Promise.race([
+      Promise.all(
+        batch.map(async (item) => {
+          const loc = item.location!
+          try {
+            const hit = await geocode([loc.name, loc.address, destination].filter(Boolean).join(", "))
+            if (hit) {
+              loc.lat = hit.lat
+              loc.lng = hit.lng
+              loc.address = loc.address ?? hit.address
+              loc.placeId = hit.placeId
+              loc.confidence = "medium"
+            }
+          } catch {
+            // leave un-geocoded; UI surfaces missing-coordinate places in list view
           }
-        } catch {
-          // leave un-geocoded; UI surfaces missing-coordinate places in list view
-        }
-      }),
-    )
+        }),
+      ),
+      new Promise<void>((resolve) => setTimeout(resolve, remaining)),
+    ])
   }
 }
 

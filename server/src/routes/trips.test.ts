@@ -327,7 +327,7 @@ describe("enhancement endpoints", () => {
             {
               kind: "edit",
               dayId: "day-1",
-              itemId: "missing-until-patched",
+              itemId: "it-a",
               title: "Start earlier",
               detail: "Beat crowds.",
               confidence: "high",
@@ -337,17 +337,42 @@ describe("enhancement endpoints", () => {
         }),
     })
     const trip = await createTrip(app)
+    await app.request(`/api/trips/${trip.id}`, {
+      method: "PATCH",
+      headers: AUTH,
+      body: JSON.stringify({
+        days: [
+          {
+            id: "day-1",
+            date: trip.days[0]!.date,
+            items: [
+              {
+                id: "it-a",
+                kind: "place",
+                title: "Osaka Castle",
+                status: "none",
+                createdBy: "user",
+                location: { name: "Osaka Castle", lat: 34.69, lng: 135.53, source: "user" },
+              },
+            ],
+          },
+        ],
+      }),
+    })
     const enhanceRes = await app.request(`/api/trips/${trip.id}/enhance`, {
       method: "POST",
       headers: AUTH,
       body: JSON.stringify({ scope: "trip" }),
     })
     expect(enhanceRes.status).toBe(200)
-    const { run, applied } = (await enhanceRes.json()) as {
+    const { run, applied, trip: enhanced } = (await enhanceRes.json()) as {
       run: { outcome?: string; outcomeReason?: string; suggestions: Array<{ kind: string }> }
       applied: string[]
+      trip: { days: Array<{ items: Array<{ id: string; time?: string }> }> }
     }
     expect(applied).toEqual([])
+    expect(run.suggestions.map((s) => s.kind)).toEqual(["edit"])
+    expect(enhanced.days[0]!.items.find((i) => i.id === "it-a")!.time).toBeUndefined()
     expect(run.outcome).toBe("no_adds_needed")
     expect(run.outcomeReason).toMatch(/overpack|meals|cluster/i)
   })

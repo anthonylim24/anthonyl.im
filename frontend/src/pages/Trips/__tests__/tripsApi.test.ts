@@ -45,6 +45,13 @@ describe("enhanceTrip", () => {
     expect(result.trip?.id).toBe("trip-1")
   })
 
+  it("throws when a 502 body is not an object", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("null", { status: 502, headers: { "Content-Type": "application/json" } }),
+    )
+    await expect(enhanceTrip(getToken, "trip-1", "trip")).rejects.toThrow(/HTTP 502/)
+  })
+
   it("throws a normal HTTP error when 502 has no run body", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ error: "enhancement_failed", message: "down" }), {

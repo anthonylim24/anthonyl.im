@@ -335,7 +335,9 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     })
     // Trusted auto-sync: refresh day.weather from the live forecast fetched
     // during the run (metadata, not an itinerary change — no review needed).
-    let trip = result.trip
+    // Re-read after the LLM call so a concurrent PATCH is not overwritten.
+    const fresh = (await resolveTrip(result.trip.id)) ?? result.trip
+    let trip = fresh
     if (run.status === "complete" && run.weatherByDate && Object.keys(run.weatherByDate).length > 0) {
       trip = {
         ...trip,
