@@ -28,6 +28,7 @@ import {
   emptyDays,
   slugify,
   updateTripSchema,
+  type EnhancementRun,
   type Trip,
 } from "../trips/types"
 
@@ -76,6 +77,49 @@ function asPlaceCategory(category: string | undefined): PlaceCategory {
 function photoUrlFor(query: string): string {
   const seed = query.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 50)
   return `https://source.unsplash.com/featured/1200x800/?${encodeURIComponent(query)}&sig=${seed}`
+}
+
+/** Finish an enhancement off the request thread: apply weather + add
+ *  suggestions, then persist. Re-reads the trip so a concurrent PATCH is
+ *  not overwritten. The pending run id is kept so the editor can poll. */
+async function persistEnhancementRun(args: {
+  store: TripStore
+  tripId: string
+  snapshot: Trip
+  pending: EnhancementRun
+  work: Promise<EnhancementRun>
+}): Promise<void> {
+  try {
+    const run = await args.work
+    run.id = args.pending.id
+    run.createdAt = args.pending.createdAt
+    const fresh = (await args.store.get(args.tripId)) ?? args.snapshot
+    let trip = fresh
+    let nextRun = run
+    if (run.status === "complete" && run.weatherByDate && Object.keys(run.weatherByDate).length > 0) {
+      trip = {
+        ...trip,
+        days: trip.days.map((d) => (run.weatherByDate![d.date] ? { ...d, weather: run.weatherByDate![d.date] } : d)),
+        updatedAt: nowIso(),
+      }
+    }
+    if (run.status === "complete") {
+      const appliedAdds = autoApplyAddSuggestions(trip, run)
+      trip = appliedAdds.trip
+      nextRun = appliedAdds.run
+    }
+    if (trip !== fresh) await args.store.update(trip)
+    await args.store.saveRun(nextRun)
+  } catch (err) {
+    const failed: EnhancementRun = {
+      ...args.pending,
+      status: "error",
+      outcome: "no_adds_possible",
+      outcomeReason: "The AI review failed before it could add places.",
+      error: err instanceof Error ? err.message : String(err),
+    }
+    await args.store.saveRun(failed)
+  }
 }
 
 // Seed the Korea trip once per store so it appears as a normal trip.
@@ -313,6 +357,11 @@ export function createTripsRouter(deps: TripsRouterDeps) {
   })
 
   // ── AI: enhancement (reviewable suggestions) ───────────────────────────
+  //
+  // The LLM call (Gemini Maps + JSON retry + Groq) regularly exceeds reverse-
+  // proxy idle timeouts, which used to surface as a naked 502. Start the run
+  // immediately and finish it in the background; the editor polls GET
+  // /enhancements/:runId until status leaves "running".
 
   trips.post("/:id/enhance", async (c) => {
     const result = await loadTrip(c, c.req.param("id"), true)
@@ -324,53 +373,61 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     }
     if (!deps.llm) return c.json({ error: "ai_not_configured", message: "GEMINI_API_KEY or GROQ_API_KEY missing" }, 503)
 
-    const run = await enhanceTrip({
-      trip: result.trip,
+    const pending: EnhancementRun = {
+      id: newId("run"),
+      tripId: result.trip.id,
       scope: body.data.scope,
-      dayId: body.data.dayId,
-      prompt: body.data.prompt,
-      llm: deps.llm,
-      fetchWeather: deps.fetchWeather ?? fetchOpenMeteoWeather,
-      geocode: deps.geocode,
+      dayId: body.data.scope === "day" ? body.data.dayId : undefined,
+      status: "running",
+      suggestions: [],
+      appliedSuggestionIds: [],
+      createdAt: nowIso(),
+    }
+    await deps.store.saveRun(pending)
+
+    const tripId = result.trip.id
+    const snapshot = result.trip
+    const llm = deps.llm
+    void persistEnhancementRun({
+      store: deps.store,
+      tripId,
+      snapshot,
+      pending,
+      work: enhanceTrip({
+        trip: snapshot,
+        scope: body.data.scope,
+        dayId: body.data.dayId,
+        prompt: body.data.prompt,
+        llm,
+        fetchWeather: deps.fetchWeather ?? fetchOpenMeteoWeather,
+        geocode: deps.geocode,
+      }),
+    }).catch((err) => {
+      console.warn("[trips/enhance] background run failed:", err instanceof Error ? err.message : err)
     })
-    // Trusted auto-sync: refresh day.weather from the live forecast fetched
-    // during the run (metadata, not an itinerary change — no review needed).
-    // Re-read after the LLM call so a concurrent PATCH is not overwritten.
-    const fresh = (await resolveTrip(result.trip.id)) ?? result.trip
-    let trip = fresh
-    if (run.status === "complete" && run.weatherByDate && Object.keys(run.weatherByDate).length > 0) {
-      trip = {
-        ...trip,
-        days: trip.days.map((d) => (run.weatherByDate![d.date] ? { ...d, weather: run.weatherByDate![d.date] } : d)),
-        updatedAt: nowIso(),
-      }
-    }
-    // Valid add suggestions land on the itinerary immediately. Edit/remove/
-    // reorder stay reviewable. The run always carries an outcomeReason so a
-    // no-add result is explained rather than looking like a silent failure.
-    let applied: string[] = []
-    let nextRun = run
-    if (run.status === "complete") {
-      const appliedAdds = autoApplyAddSuggestions(trip, run)
-      trip = appliedAdds.trip
-      nextRun = appliedAdds.run
-      applied = appliedAdds.applied
-    }
-    if (trip !== result.trip) await deps.store.update(trip)
-    await deps.store.saveRun(nextRun)
-    if (nextRun.status === "error") {
-      return c.json(
-        { run: nextRun, trip, error: "enhancement_failed", message: nextRun.error ?? "enhancement failed" },
-        502,
-      )
-    }
-    return c.json({ run: nextRun, trip, applied })
+
+    return c.json({ run: pending }, 202)
   })
 
   trips.get("/:id/enhancements", async (c) => {
     const result = await loadTrip(c, c.req.param("id"))
     if ("error" in result) return result.error
     return c.json({ runs: await deps.store.listRuns(result.trip.id) })
+  })
+
+  trips.get("/:id/enhancements/:runId", async (c) => {
+    const result = await loadTrip(c, c.req.param("id"))
+    if ("error" in result) return result.error
+    const run = await deps.store.getRun(result.trip.id, c.req.param("runId"))
+    if (!run) return c.json({ error: "run not found" }, 404)
+    return c.json({
+      run,
+      trip: result.trip,
+      applied: run.appliedSuggestionIds,
+      ...(run.status === "error"
+        ? { error: "enhancement_failed" as const, message: run.error ?? "enhancement failed" }
+        : {}),
+    })
   })
 
   trips.post("/:id/enhancements/:runId/apply", async (c) => {

@@ -541,6 +541,22 @@ describe("createGeminiLlm", () => {
     expect(contents[0]!.parts[0]!.text).toContain("USER")
   })
 
+  test("retries a transient 5xx on the same Maps-grounded request", async () => {
+    let calls = 0
+    const fetchImpl = (async () => {
+      calls++
+      if (calls === 1) return new Response("Internal error encountered", { status: 502 })
+      return new Response(
+        JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"ok":true}' }] } }] }),
+        { status: 200 },
+      )
+    }) as typeof fetch
+
+    const llm = createGeminiLlm("test-key", fetchImpl)
+    await expect(llm({ system: "s", user: "u" })).resolves.toBe('{"ok":true}')
+    expect(calls).toBe(2)
+  })
+
   test("retries JSON-only when Maps-grounded call fails", async () => {
     const calls: Array<Record<string, unknown>> = []
     const fetchImpl = (async (_url: RequestInfo | URL, init?: RequestInit) => {

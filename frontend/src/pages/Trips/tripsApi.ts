@@ -109,7 +109,52 @@ export interface EnhanceTripResult {
   message?: string
 }
 
-/** 502 still returns `{ run, trip }` so the editor can show why nothing was added. */
+const ENHANCE_POLL_MS = 180_000
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function readEnhanceBody(res: Response): Promise<EnhanceTripResult> {
+  let body: EnhanceTripResult | null
+  try {
+    body = (await res.json()) as EnhanceTripResult
+  } catch {
+    throw new Error(`HTTP ${res.status}`)
+  }
+  if (typeof body !== "object" || body === null) throw new Error(`HTTP ${res.status}`)
+  return body
+}
+
+async function pollEnhancement(
+  getToken: GetToken,
+  id: string,
+  runId: string,
+): Promise<EnhanceTripResult> {
+  const deadline = Date.now() + ENHANCE_POLL_MS
+  let wait = 400
+  while (Date.now() < deadline) {
+    await sleep(wait)
+    wait = Math.min(Math.round(wait * 1.35), 2000)
+    const token = await getToken()
+    const res = await apiFetch(`/api/trips/${encodeURIComponent(id)}/enhancements/${encodeURIComponent(runId)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      cache: "no-store",
+    })
+    if (!res.ok) continue
+    const body = await readEnhanceBody(res)
+    if (body.run && body.run.status !== "running") {
+      return {
+        ...body,
+        applied: body.applied ?? body.run.appliedSuggestionIds,
+      }
+    }
+  }
+  throw new Error("The AI review is taking too long. Nothing in your itinerary changed, so you can run it again.")
+}
+
+/** Starts a run (202) and polls until it leaves `running`. A legacy 502
+ *  with a `{ run }` body is still accepted so older servers keep working. */
 export async function enhanceTrip(
   getToken: GetToken,
   id: string,
@@ -122,19 +167,14 @@ export async function enhanceTrip(
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   }
-  const res = await fetch(`/api/trips/${encodeURIComponent(id)}/enhance`, {
+  const res = await apiFetch(`/api/trips/${encodeURIComponent(id)}/enhance`, {
     method: "POST",
     headers,
     cache: "no-store",
     body: JSON.stringify({ scope, dayId, prompt: prompt?.trim() || undefined }),
   })
-  let body: EnhanceTripResult | null
-  try {
-    body = (await res.json()) as EnhanceTripResult
-  } catch {
-    throw new Error(`HTTP ${res.status}`)
-  }
-  if (typeof body !== "object" || body === null) throw new Error(`HTTP ${res.status}`)
+  const body = await readEnhanceBody(res)
+  if (body.run?.status === "running") return pollEnhancement(getToken, id, body.run.id)
   if (res.ok) return body
   if (res.status === 502 && body.run) return body
   throw new Error(body.message || body.error || `HTTP ${res.status}`)

@@ -140,7 +140,7 @@ export interface EnhancementRun {
   tripId: string
   scope: "day" | "trip"
   dayId?: string
-  status: "complete" | "error"
+  status: "running" | "complete" | "error"
   summary?: string
   outcome?: EnhancementOutcome
   outcomeReason?: string

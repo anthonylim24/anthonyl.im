@@ -145,6 +145,16 @@ function extractDelta(chunk: GeminiStreamChunk): string {
   return chunk.candidates?.[0]?.content?.parts?.map((p) => p.text).filter(Boolean).join("") ?? ""
 }
 
+const TRANSIENT_GEMINI = new Set([500, 502, 503, 504])
+
+async function fetchGeminiStream(url: string, init: RequestInit): Promise<Response> {
+  const first = await fetch(url, init)
+  if (!TRANSIENT_GEMINI.has(first.status)) return first
+  await first.text().catch(() => {})
+  await new Promise((r) => setTimeout(r, 800))
+  return fetch(url, init)
+}
+
 /** Relay Gemini SSE into the frontend's `data: <json-string>` + `[DONE]` shape. */
 export async function streamTripChat(
   c: Context,
@@ -182,7 +192,9 @@ export async function streamTripChat(
     let blockReason: string | undefined
 
     try {
-      const res = await fetch(
+      // Start Gemini immediately, then write a ping so a reverse proxy does
+      // not 502 while the model thinks. The client ignores empty payloads.
+      const pending = fetchGeminiStream(
         `${GEMINI_BASE}/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`,
         {
           method: "POST",
@@ -191,6 +203,8 @@ export async function streamTripChat(
           signal: upstreamSignal,
         },
       )
+      await stream.writeSSE({ event: "ping", data: "" })
+      const res = await pending
 
       if (!res.ok || !res.body) {
         const detail = await res.text().catch(() => "")

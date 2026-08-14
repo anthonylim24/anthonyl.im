@@ -61,4 +61,45 @@ describe("enhanceTrip", () => {
     )
     await expect(enhanceTrip(getToken, "trip-1", "trip")).rejects.toThrow(/down/)
   })
+
+  it("polls a 202 running run until it completes", async () => {
+    const running = makeRun({
+      status: "running",
+      outcome: undefined,
+      outcomeReason: undefined,
+      error: undefined,
+    })
+    const done = makeRun({
+      status: "complete",
+      outcome: "added_places",
+      outcomeReason: "Added lunch.",
+      error: undefined,
+      appliedSuggestionIds: ["sug-1"],
+    })
+    const spy = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ run: running }), {
+          status: 202,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ run: running, trip: { id: "trip-1" } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ run: done, trip: { id: "trip-1" }, applied: ["sug-1"] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+
+    const result = await enhanceTrip(getToken, "trip-1", "trip")
+    expect(result.run.status).toBe("complete")
+    expect(result.applied).toEqual(["sug-1"])
+    expect(spy).toHaveBeenCalledTimes(3)
+    expect(String(spy.mock.calls[1]![0])).toContain("/enhancements/run-1")
+  })
 })

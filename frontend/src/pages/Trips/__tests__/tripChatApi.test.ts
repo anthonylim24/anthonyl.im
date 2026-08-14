@@ -164,6 +164,13 @@ describe("streamTripChat", () => {
     expect(body.slug).toBeUndefined()
   })
 
+  it("maps a gateway timeout to a retryable concierge error", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("Bad Gateway", { status: 502 }))
+    await expect(streamTripChat("tokyo", "hi", [], undefined, getToken, () => {})).rejects.toThrow(
+      /did not respond in time/i,
+    )
+  })
+
   it("throws the server's friendly message on a non-OK JSON response", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ message: "GEMINI_API_KEY is not set on the server." }), {

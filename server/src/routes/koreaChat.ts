@@ -178,6 +178,16 @@ function extractDelta(chunk: GeminiStreamChunk): string {
   return chunk.candidates?.[0]?.content?.parts?.map((p) => p.text).filter(Boolean).join("") ?? ""
 }
 
+const TRANSIENT_GEMINI = new Set([500, 502, 503, 504])
+
+async function fetchGeminiStream(url: string, init: RequestInit): Promise<Response> {
+  const first = await fetch(url, init)
+  if (!TRANSIENT_GEMINI.has(first.status)) return first
+  await first.text().catch(() => {})
+  await new Promise((r) => setTimeout(r, 800))
+  return fetch(url, init)
+}
+
 koreaChat.post("/", zValidator("json", chatSchema), async (c) => {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) {
@@ -223,7 +233,7 @@ koreaChat.post("/", zValidator("json", chatSchema), async (c) => {
     let blockReason: string | undefined
 
     try {
-      const res = await fetch(
+      const pending = fetchGeminiStream(
         `${GEMINI_BASE}/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`,
         {
           method: "POST",
@@ -232,6 +242,8 @@ koreaChat.post("/", zValidator("json", chatSchema), async (c) => {
           signal: upstreamSignal,
         },
       )
+      await stream.writeSSE({ event: "ping", data: "" })
+      const res = await pending
 
       if (!res.ok || !res.body) {
         const detail = await res.text().catch(() => "")

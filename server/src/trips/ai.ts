@@ -33,6 +33,21 @@ export type WeatherFetcher = (args: {
 
 const GROQ_MODEL = "openai/gpt-oss-120b"
 
+const TRANSIENT_GEMINI = new Set([500, 502, 503, 504])
+
+/** One retry on Google's intermittent 5xx. 429 is left to the Groq fallback. */
+async function fetchGeminiWithRetry(
+  fetchImpl: typeof fetch,
+  url: string,
+  init: RequestInit,
+): Promise<Response> {
+  const first = await fetchImpl(url, init)
+  if (!TRANSIENT_GEMINI.has(first.status)) return first
+  await first.text().catch(() => {})
+  await new Promise((r) => setTimeout(r, 800))
+  return fetchImpl(url, init)
+}
+
 export function createGroqLlm(apiKey: string): LlmCall {
   const groq = new Groq({ apiKey })
   return async ({ system, user, maxTokens }) => {
@@ -88,7 +103,7 @@ export function createGeminiLlm(
       // (Gemini returns 400 INVALID_ARGUMENT). JSON mode is the no-Maps retry.
       if (!withMaps) generationConfig.responseMimeType = "application/json"
 
-      const res = await fetchImpl(`${GEMINI_BASE}/models/${model}:generateContent`, {
+      const res = await fetchGeminiWithRetry(fetchImpl, `${GEMINI_BASE}/models/${model}:generateContent`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
         body: JSON.stringify({
@@ -96,7 +111,7 @@ export function createGeminiLlm(
           ...(withMaps ? { tools: [{ googleMaps: {} }] } : {}),
           generationConfig,
         }),
-        signal: AbortSignal.timeout(120_000),
+        signal: AbortSignal.timeout(90_000),
       })
       if (!res.ok) {
         const body = await res.text().catch(() => "")

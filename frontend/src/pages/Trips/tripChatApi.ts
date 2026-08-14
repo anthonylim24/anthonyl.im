@@ -85,6 +85,9 @@ export async function streamTripChat(
         )
       }
     }
+    if (response.status === 502 || response.status === 504) {
+      throw new Error("The concierge did not respond in time. Please try again.")
+    }
     throw new Error(message)
   }
 
