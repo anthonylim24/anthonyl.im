@@ -225,9 +225,9 @@ function App() {
 
   return (
     <div className={cn("font-mono transition-colors duration-700", themeClass)} style={rootStyle}>
-      {/* Viewport-sized wrapper + object-fit media. A bare <video> with
-          .leaves-overlay keeps its intrinsic box (width/height:auto), so
-          the leaves sit in a corner instead of covering phone/tablet/desktop. */}
+      {/* Viewport-sized wrapper + object-fit media. Putting leaves-overlay
+          on the video itself keeps the intrinsic box (width/height:auto),
+          so the leaves sit in a corner instead of covering every viewport. */}
       <div
         className="leaves-overlay"
         style={{ opacity: shadowMode ? 1 : 0 }}

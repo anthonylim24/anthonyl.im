@@ -28,7 +28,8 @@ describe('mobile overflow guardrails', () => {
   it('covers the chatbot leaves video with a viewport wrapper, not intrinsic video size', () => {
     expect(appSource).toContain('className="leaves-overlay"')
     expect(appSource).toContain('className="leaves-overlay-media"')
-    expect(appSource).not.toMatch(/<video[\s\S]*?className="leaves-overlay"/)
+    expect(appSource).toMatch(/<video[^>]*className="leaves-overlay-media"/)
+    expect(appSource).not.toMatch(/<video[^>]*className="leaves-overlay"/)
     expect(layoutSource).toContain('className="leaves-overlay"')
     expect(layoutSource).toContain('className="leaves-overlay-media"')
   })
