@@ -253,11 +253,3 @@ export function daysUntilIn(iso: string, timezone: string): number {
   const ms = new Date(`${iso}T00:00:00Z`).getTime() - new Date(`${today}T00:00:00Z`).getTime()
   return Math.round(ms / 86_400_000)
 }
-
-/** Two-letter city tag - explicit config wins, else derived from the name. */
-export function cityTag(city: string | undefined, tags?: Record<string, string>): string {
-  if (!city) return "--"
-  if (tags?.[city]) return tags[city]!
-  const words = city.trim().split(/\s+/)
-  return (words.length > 1 ? words[0]![0]! + words[1]![0]! : city.slice(0, 2)).toUpperCase()
-}
