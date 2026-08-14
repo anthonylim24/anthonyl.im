@@ -9,10 +9,12 @@ import type { Trip } from "../types"
  *  bottom of the editor rather than above the days. */
 export function AppearancePanel({
   trip,
+  locked = false,
   onChange,
   onSlugChange,
 }: {
   trip: Trip
+  locked?: boolean
   onChange: (appearance: NonNullable<Trip["appearance"]>) => void
   onSlugChange: (slug: string) => void
 }) {
@@ -44,6 +46,7 @@ export function AppearancePanel({
       </button>
       {open && (
         <div className="space-y-4 border-t border-stone-100 px-5 py-4 dark:border-stone-800">
+        <fieldset disabled={locked} className="m-0 min-w-0 space-y-4 border-0 p-0">
           <div>
             <span className={labelClass}>Accent</span>
             <div className="mt-2 flex flex-wrap gap-1" role="radiogroup" aria-label="Accent color">
@@ -138,6 +141,7 @@ export function AppearancePanel({
             </span>
             <span className={`block ${hintClass}`}>Lowercase letters, numbers, hyphens. Must be unique.</span>
           </label>
+        </fieldset>
         </div>
       )}
     </section>

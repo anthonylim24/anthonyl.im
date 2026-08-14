@@ -149,7 +149,7 @@ export interface EnhancementRun {
   tripId: string
   scope: "day" | "trip"
   dayId?: string
-  status: "complete" | "error"
+  status: "running" | "complete" | "error"
   summary?: string
   /** Structured add/no-add decision. Required when status is complete. */
   outcome?: EnhancementOutcome

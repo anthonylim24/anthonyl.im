@@ -35,6 +35,8 @@ interface DayCardProps {
   index: number
   timezone: string
   editable: boolean
+  /** Enhance in flight: keep edit chrome mounted, just freeze it. */
+  locked: boolean
   dayOptions: DayOption[]
   enhancing: boolean
   recentIds: Set<string>
@@ -53,6 +55,7 @@ export const DayCard = memo(function DayCard({
   index,
   timezone,
   editable,
+  locked,
   dayOptions,
   enhancing,
   recentIds,
@@ -94,6 +97,7 @@ export const DayCard = memo(function DayCard({
                   placeholder="✦"
                   maxLength={4}
                   aria-label={`Day ${index + 1} emoji`}
+                  disabled={locked}
                   onChange={(e) => patchDay({ emoji: e.target.value || undefined })}
                   className={`w-11 shrink-0 text-center text-xl ${subtleInputClass}`}
                 />
@@ -102,6 +106,7 @@ export const DayCard = memo(function DayCard({
                   placeholder="Day theme…"
                   title={day.title || undefined}
                   aria-label={`Day ${index + 1} title`}
+                  disabled={locked}
                   onChange={(e) => patchDay({ title: e.target.value })}
                   className={`w-full truncate text-lg font-semibold ${subtleInputClass}`}
                 />
@@ -121,7 +126,7 @@ export const DayCard = memo(function DayCard({
               label="Enhance day"
               busyLabel="Reviewing day…"
               busy={enhancing}
-              disabled={enhancing}
+              disabled={locked}
               variant="outline"
               promptPlaceholder="Optional focus, e.g. “swap the museum for something outdoors”"
               onRun={enhance}
@@ -146,6 +151,7 @@ export const DayCard = memo(function DayCard({
           placeholder="Day theme prose, the editorial line under the title on the trip page…"
           aria-label={`Day ${index + 1} theme`}
           rows={day.notes ? Math.min(4, day.notes.split("\n").length) : 1}
+          disabled={locked}
           onChange={(e) => patchDay({ notes: e.target.value })}
           // `field-sizing-content` grows the box with wrapped prose; `rows` is
           // the fallback where it isn't supported.
@@ -174,7 +180,10 @@ export const DayCard = memo(function DayCard({
             Details
           </button>
           {detailsOpen && (
-            <div className="mt-2 space-y-3 rounded-xl border border-stone-200/80 p-3 dark:border-stone-800">
+            <fieldset
+              disabled={locked}
+              className="mt-2 m-0 min-w-0 space-y-3 rounded-xl border border-stone-200/80 p-3 dark:border-stone-800"
+            >
               <label className="block">
                 <span className={labelClass}>Neighborhoods (comma-separated)</span>
                 <input
@@ -265,7 +274,7 @@ export const DayCard = memo(function DayCard({
                   the live forecast on each Enhance run.
                 </p>
               )}
-            </div>
+            </fieldset>
           )}
         </div>
       )}
@@ -297,6 +306,7 @@ export const DayCard = memo(function DayCard({
                 isFirst={itemIdx === 0}
                 isLast={itemIdx === day.items.length - 1}
                 editable={editable}
+                locked={locked}
                 dayOptions={dayOptions}
                 highlight={recentIds.has(item.id)}
                 showTime={showTime}
@@ -315,6 +325,7 @@ export const DayCard = memo(function DayCard({
               key={kind}
               type="button"
               aria-label={`Add ${label.toLowerCase()}`}
+              disabled={locked}
               onClick={() =>
                 onChange((days) => {
                   const item = makeItem(kind)
@@ -331,7 +342,7 @@ export const DayCard = memo(function DayCard({
         </div>
       )}
 
-      {editable && <TripIngest trip={trip} dayId={day.id} onDaysChange={onChange} />}
+      {editable && <TripIngest trip={trip} dayId={day.id} locked={locked} onDaysChange={onChange} />}
     </section>
   )
 })

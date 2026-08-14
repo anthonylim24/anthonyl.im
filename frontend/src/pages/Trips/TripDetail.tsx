@@ -1,17 +1,15 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { useReducedMotion } from "motion/react"
-import { Eye, Globe2, X } from "lucide-react"
+import { Eye, Globe2 } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
 import { applySuggestions, enhanceTrip, getTrip, updateTrip } from "./tripsApi"
 import { insertItemAt, removeItem } from "./tripEdits"
 import {
   SERIF,
   alertErrorClass,
-  alertNoticeClass,
   eyebrowClass,
   focusRingClass,
-  iconBtnClass,
   inlineLinkClass,
   mutedInkClass,
   pageClass,
@@ -27,6 +25,7 @@ import { EnhanceButton } from "./editor/EnhanceButton"
 import { ExtractedPlacesLibrary } from "./ExtractedPlacesLibrary"
 import {
   EditorDock,
+  EditorNotice,
   FloatingSaveIndicator,
   UNDO_TOAST_ID,
   UndoToast,
@@ -91,6 +90,8 @@ export function TripDetail() {
   const saveGenRef = useRef(0)
   const persistAbortRef = useRef<AbortController | null>(null)
   const persistPromiseRef = useRef<Promise<void> | null>(null)
+  const scrolledHashRef = useRef<string | null>(null)
+  const restoreScrollRef = useRef<number | null>(null)
   const editable = access === "edit" || access === "owner"
   // Stable across keystrokes (the URL param may be a slug), so every handler
   // below can be a stable identity and memoized day cards stay memoized.
@@ -297,6 +298,16 @@ export function TripDetail() {
     recentTimer.current = setTimeout(() => setRecentIds(new Set()), 3200)
   }, [])
 
+  const holdScroll = useCallback(() => {
+    restoreScrollRef.current = window.scrollY
+  }, [])
+
+  useLayoutEffect(() => {
+    if (restoreScrollRef.current == null) return
+    window.scrollTo({ top: restoreScrollRef.current, left: 0, behavior: "instant" })
+    restoreScrollRef.current = null
+  })
+
   const runEnhance = useCallback(
     async (scope: "day" | "trip", dayId?: string, prompt?: string) => {
       if (!tripDocId) return
@@ -314,6 +325,9 @@ export function TripDetail() {
           prompt,
         )
         cancelPendingSave()
+        // Keep the day the traveler was looking at — a trip refresh plus
+        // the review panel must not yank the viewport back to the header.
+        holdScroll()
         // Server auto-applies valid add suggestions and may sync day.weather.
         if (refreshed) setTrip(refreshed)
         setSaveState("saved")
@@ -343,7 +357,7 @@ export function TripDetail() {
         setEnhancingTarget(null)
       }
     },
-    [tripDocId, cancelPendingSave, flashTouched, flushPendingSave],
+    [tripDocId, cancelPendingSave, flashTouched, flushPendingSave, holdScroll],
   )
 
   const applyRun = useCallback(
@@ -437,15 +451,22 @@ export function TripDetail() {
   useEffect(() => {
     if (state.status !== "success" || !trip) return
     const hash = routerLocation.hash.replace(/^#/, "")
-    if (!hash) return
-    // Wait a frame so day sections exist in the DOM after async load.
+    if (!hash) {
+      scrolledHashRef.current = null
+      return
+    }
+    // Only on hash change / first arrival — a later enhance refresh of
+    // `trip` must not steal the viewport back to the anchored day.
+    const scrollKey = `${trip.id}:${hash}`
+    if (scrolledHashRef.current === scrollKey) return
     const id = window.setTimeout(() => {
-      document
-        .getElementById(hash)
-        ?.scrollIntoView(reduce ? { block: "start" } : { behavior: "smooth", block: "start" })
+      const el = document.getElementById(hash)
+      if (!el) return
+      scrolledHashRef.current = scrollKey
+      el.scrollIntoView(reduce ? { block: "start" } : { behavior: "smooth", block: "start" })
     }, 80)
     return () => window.clearTimeout(id)
-  }, [state.status, trip, routerLocation.hash, reduce])
+  }, [state.status, trip?.id, routerLocation.hash, reduce])
 
   if (state.status === "loading") {
     return (
@@ -477,7 +498,6 @@ export function TripDetail() {
   const mapDay = mapDayId ? trip.days.find((d) => d.id === mapDayId) : null
   const mapDayIndex = mapDay ? trip.days.findIndex((d) => d.id === mapDay.id) : -1
   const editorLocked = enhancingTarget !== null
-  const canEdit = editable && !editorLocked
 
   return (
     <div className={PAGE} data-trip-accent={resolveAccent(trip.appearance?.accent)}>
@@ -513,7 +533,8 @@ export function TripDetail() {
           <div className={`mt-2 flex flex-wrap items-center gap-x-2 gap-y-2 text-sm ${mutedInkClass}`}>
             <TripStatusSelect
               status={trip.status}
-              editable={canEdit}
+              editable={editable}
+              disabled={editorLocked}
               onChange={(status) => scheduleSave({ ...trip, status })}
             />
             <span aria-hidden>·</span>
@@ -531,6 +552,7 @@ export function TripDetail() {
           {editable && trip.status === "draft" && (
             <button
               type="button"
+              disabled={editorLocked}
               onClick={() => {
                 scheduleSave({ ...trip, status: "active" })
                 setNotice("Trip published. It’s now active for everyone who can see it.")
@@ -555,26 +577,13 @@ export function TripDetail() {
         </div>
       </header>
 
-      {notice && (
-        <div className={`mt-4 flex items-start justify-between gap-3 ${alertNoticeClass}`} role="status">
-          <span className={`min-w-0 ${wrapAnywhereClass}`}>{notice}</span>
-          <button
-            type="button"
-            onClick={() => setNotice(null)}
-            aria-label="Dismiss notice"
-            className={`-my-2 shrink-0 ${iconBtnClass}`}
-          >
-            <X className="h-4 w-4" strokeWidth={1.5} aria-hidden />
-          </button>
-        </div>
-      )}
-
       {/* AI generation for an empty itinerary — also the retry path when
           generation failed during the create flow. */}
       {editable && trip.days.every((d) => d.items.length === 0) && (
         <GeneratePanel
           getToken={getToken}
           tripId={trip.id}
+          locked={editorLocked}
           initialPrompt={navState?.retryGenerate?.prompt}
           preferences={navState?.retryGenerate?.preferences}
           onGenerated={(next) => {
@@ -600,6 +609,7 @@ export function TripDetail() {
       {editable && (
         <ExtractedPlacesLibrary
           trip={trip}
+          locked={editorLocked}
           defaultDayId={routerLocation.hash.replace(/^#/, "") || undefined}
           onDaysChange={setDays}
         />
@@ -618,7 +628,8 @@ export function TripDetail() {
               day={day}
               index={idx}
               timezone={trip.timezone}
-              editable={canEdit}
+              editable={editable}
+              locked={editorLocked}
               dayOptions={dayOptions}
               enhancing={enhancingTarget === day.id}
               recentIds={recentIds}
@@ -635,11 +646,12 @@ export function TripDetail() {
       </div>
 
       {/* Trip settings: once-per-trip configuration, out of the editing path. */}
-      {canEdit && (
+      {editable && (
         <section aria-label="Trip settings" className="mt-12 border-t border-stone-200/80 pt-8 dark:border-stone-800/80">
           <p className={eyebrowClass}>Trip settings</p>
           <AppearancePanel
             trip={trip}
+            locked={editorLocked}
             onChange={(appearance) => scheduleSave({ ...trip, appearance })}
             onSlugChange={(slug) => scheduleSave({ ...trip, slug })}
           />
@@ -647,6 +659,7 @@ export function TripDetail() {
       )}
 
       <EditorDock>
+        <EditorNotice notice={notice} onDismiss={() => setNotice(null)} />
         <UndoToast undo={deleted} onUndo={undoDelete} />
         <FloatingSaveIndicator saveState={saveState} />
       </EditorDock>

@@ -19,6 +19,19 @@ function isMissingChatRoute(status: number, error: string): boolean {
   return error !== "day not found" && error !== "trip not found"
 }
 
+function isLostConnection(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err)
+  return /network\s*error|failed to fetch|load failed|opaqueredirect/i.test(message)
+}
+
+function chatRequestFailed(err: unknown): never {
+  if (err instanceof DOMException && err.name === "AbortError") throw err
+  if (isLostConnection(err)) {
+    throw new Error("The concierge lost its connection. Please try again.")
+  }
+  throw err instanceof Error ? err : new Error(String(err))
+}
+
 /**
  * Streams a reply from the trip concierge (Gemini, server-relayed as SSE).
  * Same wire format as the Korea concierge: each `data:` line is a
@@ -39,21 +52,30 @@ export async function streamTripChat(
   trip?: Trip,
 ): Promise<TripChatResult> {
   const token = await getToken()
-  const response = await apiFetch(`/api/trips/${encodeURIComponent(tripId)}/chat`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "text/event-stream",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({
-      prompt,
-      messages,
-      ...(dayId ? { dayId } : {}),
-    }),
-    credentials: "include",
-    signal,
-  })
+  let response: Response
+  try {
+    response = await apiFetch(`/api/trips/${encodeURIComponent(tripId)}/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        prompt,
+        messages,
+        ...(dayId ? { dayId } : {}),
+      }),
+      credentials: "include",
+      signal,
+    })
+  } catch (err) {
+    chatRequestFailed(err)
+  }
+
+  if (response.type === "opaqueredirect" || response.status === 0) {
+    throw new Error("The concierge lost its connection. Please try again.")
+  }
 
   if (!response.ok) {
     let error = ""
@@ -85,6 +107,12 @@ export async function streamTripChat(
         )
       }
     }
+    if (response.status === 401) {
+      throw new Error("Please sign in again to use the concierge.")
+    }
+    if (response.status === 502 || response.status === 504) {
+      throw new Error("The concierge did not respond in time. Please try again.")
+    }
     throw new Error(message)
   }
 
@@ -109,7 +137,11 @@ export async function streamTripChat(
     }
   }
 
-  await readSseStream(response.body, { onData: handleData, signal })
+  try {
+    await readSseStream(response.body, { onData: handleData, signal })
+  } catch (err) {
+    chatRequestFailed(err)
+  }
 
   return { content, error: streamError }
 }

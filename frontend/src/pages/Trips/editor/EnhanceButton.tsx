@@ -88,12 +88,12 @@ export function EnhanceButton({
     if (!open) return
     const panel = panelRef.current
     const focusable = panel?.querySelector<HTMLElement>("textarea, button, input")
-    focusable?.focus()
+    focusable?.focus({ preventScroll: true })
     let closing = false
     const onFocus = (e: FocusEvent) => {
       if (closing) return
       if (!panel || panel.contains(e.target as Node) || rootRef.current?.contains(e.target as Node)) return
-      focusable?.focus()
+      focusable?.focus({ preventScroll: true })
     }
     document.addEventListener("focusin", onFocus)
     const onDown = (e: MouseEvent | TouchEvent) => {
@@ -116,10 +116,10 @@ export function EnhanceButton({
       const last = nodes[nodes.length - 1]!
       if (e.shiftKey && document.activeElement === first) {
         e.preventDefault()
-        last.focus()
+        last.focus({ preventScroll: true })
       } else if (!e.shiftKey && document.activeElement === last) {
         e.preventDefault()
-        first.focus()
+        first.focus({ preventScroll: true })
       }
     }
     document.addEventListener("mousedown", onDown)
@@ -234,7 +234,6 @@ export function EnhanceButton({
         id={promptId}
         value={prompt}
         rows={3}
-        autoFocus
         placeholder={promptPlaceholder}
         onChange={(e) => setPrompt(e.target.value)}
         onKeyDown={(e) => {

@@ -18,10 +18,12 @@ const PAGE_SIZE = 20
 
 export function ExtractedPlacesLibrary({
   trip,
+  locked = false,
   defaultDayId,
   onDaysChange,
 }: {
   trip: Trip
+  locked?: boolean
   defaultDayId?: string
   onDaysChange: (fn: (days: TripDay[]) => TripDay[]) => void
 }) {
@@ -73,7 +75,7 @@ export function ExtractedPlacesLibrary({
   }, [offset, total])
 
   const handleAdd = (place: CatalogPlace) => {
-    if (!targetDay) return
+    if (locked || !targetDay) return
     if (dayHasPlaceNamed(targetDay, place.name)) return
     setAddingId(place.itemId)
     onDaysChange((days) =>
@@ -123,6 +125,7 @@ export function ExtractedPlacesLibrary({
                 <span className={`shrink-0 text-[11px] uppercase tracking-[0.14em] ${mutedInkClass}`}>Add to</span>
                 <select
                   value={targetDayId}
+                  disabled={locked}
                   onChange={(e) => setTargetDayId(e.target.value)}
                   className={`min-w-0 flex-1 sm:w-44 ${compactSelectClass}`}
                 >
@@ -174,6 +177,7 @@ export function ExtractedPlacesLibrary({
                                   currentTrip={trip}
                                   targetDay={targetDay}
                                   adding={addingId === place.itemId}
+                                  locked={locked}
                                   onAdd={() => handleAdd(place)}
                                 />
                               ))}
@@ -226,12 +230,14 @@ function CatalogRow({
   currentTrip,
   targetDay,
   adding,
+  locked = false,
   onAdd,
 }: {
   place: CatalogPlace
   currentTrip: Trip
   targetDay: TripDay | undefined
   adding: boolean
+  locked?: boolean
   onAdd: () => void
 }) {
   const onThisDay = targetDay ? dayHasPlaceNamed(targetDay, place.name) : false
@@ -262,7 +268,7 @@ function CatalogRow({
       ) : (
         <button
           type="button"
-          disabled={adding || !targetDay}
+          disabled={adding || !targetDay || locked}
           onClick={onAdd}
           aria-label={onThisTrip ? `Copy ${place.name} to this day` : `Add ${place.name} to this day`}
           className={chipBtnClass}

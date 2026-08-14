@@ -31,6 +31,7 @@ interface ItemRowProps {
   isFirst: boolean
   isLast: boolean
   editable: boolean
+  locked?: boolean
   dayOptions: DayOption[]
   highlight: boolean
   /** True when any item in the day is timed — keeps the time gutter (and so
@@ -44,12 +45,14 @@ interface ItemRowProps {
  *  skipped by screen readers and renders below AA contrast. */
 function ReadonlyOrInput({
   editable,
+  locked,
   label,
   value,
   placeholder,
   onChange,
 }: {
   editable: boolean
+  locked?: boolean
   label: string
   value: string
   placeholder: string
@@ -69,6 +72,7 @@ function ReadonlyOrInput({
       <input
         value={value}
         placeholder={placeholder}
+        disabled={locked}
         onChange={(e) => onChange(e.target.value)}
         className={`mt-1 w-full ${compactInputClass}`}
       />
@@ -83,6 +87,7 @@ export const ItemRow = memo(function ItemRow({
   isFirst,
   isLast,
   editable,
+  locked = false,
   dayOptions,
   highlight,
   showTime,
@@ -159,6 +164,7 @@ export const ItemRow = memo(function ItemRow({
               placeholder="Section heading…"
               title={item.title || undefined}
               aria-label="Section heading"
+              disabled={locked}
               onChange={(e) => patch({ title: e.target.value })}
               // Below 768px a global rule pins inputs to 16px (iOS zoom guard),
               // so the band tightens its tracking instead of its size.
@@ -221,6 +227,7 @@ export const ItemRow = memo(function ItemRow({
               placeholder="Title…"
               title={item.title || undefined}
               aria-label="Item title"
+              disabled={locked}
               onChange={(e) => patch({ title: e.target.value })}
               className={`w-full min-w-0 ${subtleInputClass} ${
                 item.status === "completed" ? `line-through ${mutedInkClass}` : ""
@@ -271,6 +278,7 @@ export const ItemRow = memo(function ItemRow({
                     type="time"
                     value={item.time ?? ""}
                     aria-label="Start time"
+                    disabled={locked}
                     onChange={(e) => patch({ time: e.target.value || undefined })}
                     className={`w-full tabular-nums ${compactInputClass}`}
                   />
@@ -281,6 +289,7 @@ export const ItemRow = memo(function ItemRow({
                     type="time"
                     value={item.endTime ?? ""}
                     aria-label="End time"
+                    disabled={locked}
                     onChange={(e) => patch({ endTime: e.target.value || undefined })}
                     className={`w-full tabular-nums ${compactInputClass}`}
                   />
@@ -291,6 +300,7 @@ export const ItemRow = memo(function ItemRow({
                 <select
                   value={item.status}
                   aria-label="Item status"
+                  disabled={locked}
                   onChange={(e) => patch({ status: e.target.value as ItemStatus })}
                   className={`mt-1 w-full ${compactSelectClass}`}
                 >
@@ -311,6 +321,7 @@ export const ItemRow = memo(function ItemRow({
                 value={item.notes ?? ""}
                 placeholder="Notes, links, reminders…"
                 rows={3}
+                disabled={locked}
                 onChange={(e) => patch({ notes: e.target.value || undefined })}
                 className={`mt-1 w-full resize-none ${compactInputClass}`}
               />
@@ -328,6 +339,7 @@ export const ItemRow = memo(function ItemRow({
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <ReadonlyOrInput
                 editable={editable}
+                locked={locked}
                 label="Location name"
                 value={item.location?.name ?? ""}
                 placeholder="Place name"
@@ -337,6 +349,7 @@ export const ItemRow = memo(function ItemRow({
               />
               <ReadonlyOrInput
                 editable={editable}
+                locked={locked}
                 label="Address"
                 value={item.location?.address ?? ""}
                 placeholder="Address"
@@ -372,24 +385,29 @@ export const ItemRow = memo(function ItemRow({
                 <div className="mt-0.5 flex items-center">
                   <IconButton
                     label="Move up"
-                    disabled={isFirst}
+                    disabled={isFirst || locked}
                     onClick={() => onChange((days) => moveItem(days, dayId, item.id, -1))}
                   >
                     <ArrowUp className="h-4 w-4" strokeWidth={1.5} aria-hidden />
                   </IconButton>
                   <IconButton
                     label="Move down"
-                    disabled={isLast}
+                    disabled={isLast || locked}
                     onClick={() => onChange((days) => moveItem(days, dayId, item.id, 1))}
                   >
                     <ArrowDown className="h-4 w-4" strokeWidth={1.5} aria-hidden />
                   </IconButton>
-                  <IconButton label="Duplicate" onClick={() => onChange((days) => duplicateItem(days, dayId, item.id))}>
+                  <IconButton
+                    label="Duplicate"
+                    disabled={locked}
+                    onClick={() => onChange((days) => duplicateItem(days, dayId, item.id))}
+                  >
                     <Copy className="h-4 w-4" strokeWidth={1.5} aria-hidden />
                   </IconButton>
                   {item.kind === "note" && (
                     <IconButton
                       label="Convert to place"
+                      disabled={locked}
                       onClick={() => onChange((days) => convertNoteToPlace(days, dayId, item.id))}
                     >
                       <MapPin className="h-4 w-4" strokeWidth={1.5} aria-hidden />
@@ -403,6 +421,7 @@ export const ItemRow = memo(function ItemRow({
                   <ArrowRightLeft className="h-4 w-4 shrink-0 text-stone-500 dark:text-stone-400" strokeWidth={1.5} aria-hidden />
                   <select
                     value={dayId}
+                    disabled={locked}
                     onChange={(e) => onChange((days) => moveItemToDay(days, dayId, item.id, e.target.value))}
                     className={compactSelectClass}
                   >
@@ -416,6 +435,7 @@ export const ItemRow = memo(function ItemRow({
               </label>
               <button
                 type="button"
+                disabled={locked}
                 onClick={() => onDelete(dayId, item, index)}
                 className={`ml-auto ${dangerChipBtnClass}`}
               >

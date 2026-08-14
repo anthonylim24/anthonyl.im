@@ -13,6 +13,8 @@ export interface TripStore {
   get(id: string): Promise<Trip | null>
   create(trip: Trip): Promise<void>
   update(trip: Trip): Promise<void>
+  /** Persist `trip` only if the stored row still has `expectedUpdatedAt`. */
+  updateIfUnchanged(trip: Trip, expectedUpdatedAt: string): Promise<boolean>
   delete(id: string): Promise<void>
   listRuns(tripId: string): Promise<EnhancementRun[]>
   getRun(tripId: string, runId: string): Promise<EnhancementRun | null>
@@ -34,6 +36,12 @@ export class MemoryTripStore implements TripStore {
   }
   async update(trip: Trip) {
     this.trips.set(trip.id, structuredClone(trip))
+  }
+  async updateIfUnchanged(trip: Trip, expectedUpdatedAt: string) {
+    const current = this.trips.get(trip.id)
+    if (!current || current.updatedAt !== expectedUpdatedAt) return false
+    this.trips.set(trip.id, structuredClone(trip))
+    return true
   }
   async delete(id: string) {
     this.trips.delete(id)
@@ -87,6 +95,14 @@ export class SupabaseTripStore implements TripStore {
   }
   async update(trip: Trip) {
     await this.sb.update("trips", { doc: trip, updated_at: trip.updatedAt }, { id: trip.id })
+  }
+  async updateIfUnchanged(trip: Trip, expectedUpdatedAt: string) {
+    const rows = await this.sb.update(
+      "trips",
+      { doc: trip, updated_at: trip.updatedAt },
+      { id: trip.id, updated_at: expectedUpdatedAt },
+    )
+    return rows.length > 0
   }
   async delete(id: string) {
     await this.sb.delete("trip_enhancement_runs", { trip_id: id })
