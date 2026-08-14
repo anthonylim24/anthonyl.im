@@ -36,14 +36,14 @@ export function IdentityRail({ condensed, theme }: IdentityRailProps) {
             alt="DoorDash"
             width={24}
             height={24}
-            className={cn('h-5 w-auto opacity-80', theme === 'dark' && 'invert')}
+            className={cn('h-6 w-auto opacity-90', theme === 'dark' && 'invert')}
           />
           <img
             src={withViteBase('/logos/ebay.svg')}
             alt="eBay"
             width={24}
             height={24}
-            className={cn('h-6 w-auto opacity-80', theme === 'dark' && 'invert')}
+            className={cn('h-7 w-auto opacity-90', theme === 'dark' && 'invert')}
           />
         </div>
       ) : null}

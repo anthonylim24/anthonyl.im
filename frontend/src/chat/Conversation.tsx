@@ -146,9 +146,7 @@ export function Conversation({ messages, isLoading, error, onRetry }: Conversati
 function EmptyTranscript() {
   return (
     <div className="mt-auto max-w-[42ch] pb-2">
-      <p className="chat-mono text-xs tracking-[0.14em] text-[color:var(--ch-ink-muted)] uppercase">
-        This assistant knows
-      </p>
+      <p className="text-sm text-[color:var(--ch-ink-muted)]">This assistant knows</p>
       <dl className="mt-3 space-y-2">
         {CHAT_KNOWN_TOPICS.map(([term, detail]) => (
           <div key={term} className="flex flex-wrap items-baseline gap-x-2">

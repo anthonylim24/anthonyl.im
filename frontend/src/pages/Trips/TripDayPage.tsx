@@ -39,7 +39,7 @@ const MapModeOverlay = lazy(() =>
   import("../Korea/MapModeOverlay").then((m) => ({ default: m.MapModeOverlay })),
 )
 
-const PAGE = pageClass("reading")
+const PAGE = pageClass()
 
 function narrativeBlocks(items: ItineraryItem[]): Array<{ section: ItineraryItem | null; items: ItineraryItem[] }> {
   const blocks: Array<{ section: ItineraryItem | null; items: ItineraryItem[] }> = []
@@ -167,6 +167,10 @@ export function TripDayPage() {
           </Link>
         </motion.div>
 
+        {/* Mobile reads title, then the standing facts, then the timeline.
+            Desktop puts those facts in a sticky aside beside both. */}
+        <div className="flex flex-col lg:grid lg:grid-cols-[minmax(0,44rem)_minmax(0,17rem)] lg:gap-x-12">
+        <div className="order-1 min-w-0 lg:col-start-1 lg:row-start-1">
         <motion.div {...fadeUp(reduce, 1)} className="mt-4 flex flex-wrap items-end gap-x-4 gap-y-2">
           <span
             className={`font-mono-trips text-[clamp(2.5rem,6vw,3.5rem)] leading-none tabular-nums ${ACCENT.text}`}
@@ -184,36 +188,6 @@ export function TripDayPage() {
           </h1>
         </motion.div>
 
-        <motion.div {...fadeUp(reduce, 2)} className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-          <p>
-            {formatTripDate(day.date, trip.timezone, { weekday: "long", month: "long" })}
-          </p>
-          {hasForecast(day.weather) ? (
-            <p className={mutedInkClass}>
-              {day.weather.highC}°C / {day.weather.lowC}°C, {day.weather.condition}
-            </p>
-          ) : null}
-          {isToday ? (
-            <p className={`inline-flex items-center gap-2 font-medium ${ACCENT.text}`}>
-              <span className={`inline-block h-1.5 w-1.5 rounded-full ${ACCENT.dot}`} aria-hidden />
-              Today
-            </p>
-          ) : null}
-        </motion.div>
-
-        {hoods.length > 0 ? (
-          <motion.ul {...fadeUp(reduce, 3)} className="mt-4 flex flex-wrap gap-2" aria-label="Neighborhoods">
-            {hoods.map((name) => (
-              <li
-                key={name}
-                className={`rounded-[var(--tr-r-control)] border border-[color:var(--tr-line)] px-2.5 py-1 text-xs ${mutedInkClass} ${wrapAnywhereClass}`}
-              >
-                {name}
-              </li>
-            ))}
-          </motion.ul>
-        ) : null}
-
         {day.notes ? (
           <motion.div
             {...fadeUp(reduce, 3)}
@@ -223,48 +197,9 @@ export function TripDayPage() {
           </motion.div>
         ) : null}
 
-        <motion.div {...fadeUp(reduce, 4)} className="mt-6 flex flex-wrap items-center gap-3">
-          {hasMappable ? (
-            <button type="button" onClick={() => setMapOpen(true)} className={inkBtnClass}>
-              <Globe2 className="h-4 w-4" strokeWidth={1.5} aria-hidden />
-              Map Mode
-            </button>
-          ) : (
-            <p className={`max-w-[42ch] text-xs ${mutedInkClass} ${wrapAnywhereClass}`}>
-              Map Mode needs places with coordinates. Add them in the editor or run Enhance.
-            </p>
-          )}
-          {editable ? (
-            <Link to={`${tripPath}/edit#${day.id}`} className={secondaryBtnClass}>
-              <Pencil className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
-              Edit this day
-            </Link>
-          ) : null}
-        </motion.div>
+        </div>
 
-        <nav aria-label="Adjacent days" className="mt-4 flex flex-wrap gap-2">
-          {next ? (
-            <Link
-              rel="next"
-              to={`${tripPath}/day/${next.id}`}
-              className={`group order-1 ${ghostBtnClass} ${wrapAnywhereClass} sm:order-2 sm:ml-auto`}
-            >
-              {next.title ?? `Day ${dayIndex + 2}`}
-              <ArrowUpRight className={`h-4 w-4 rotate-45 ${hoverArrowClass}`} strokeWidth={1.5} aria-hidden />
-            </Link>
-          ) : null}
-          {prev ? (
-            <Link
-              rel="prev"
-              to={`${tripPath}/day/${prev.id}`}
-              className={`group order-2 ${ghostBtnClass} ${wrapAnywhereClass} sm:order-1`}
-            >
-              <ArrowUpRight className={`h-4 w-4 -rotate-[135deg] ${hoverArrowBackClass}`} strokeWidth={1.5} aria-hidden />
-              {prev.title ?? `Day ${dayIndex}`}
-            </Link>
-          ) : null}
-        </nav>
-
+        <div className="order-3 mt-8 min-w-0 lg:col-start-1 lg:row-start-2 lg:mt-10">
         {empty ? (
           <div className={`${panelClass} mt-10 px-5 py-8`}>
             <p className={displayCardClass} style={DISPLAY}>
@@ -315,6 +250,87 @@ export function TripDayPage() {
             ))}
           </Timeline>
         )}
+        </div>
+
+        <aside className="order-2 mt-6 space-y-6 lg:sticky lg:top-20 lg:col-start-2 lg:row-start-1 lg:mt-4 lg:self-start">
+        <motion.div {...fadeUp(reduce, 2)} className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm lg:block lg:space-y-1">
+          <p>
+            {formatTripDate(day.date, trip.timezone, { weekday: "long", month: "long" })}
+          </p>
+          {hasForecast(day.weather) ? (
+            <p className={mutedInkClass}>
+              {day.weather.highC}°C / {day.weather.lowC}°C, {day.weather.condition}
+            </p>
+          ) : null}
+          {isToday ? (
+            <p className={`inline-flex items-center gap-2 font-medium ${ACCENT.text}`}>
+              <span className={`inline-block h-1.5 w-1.5 rounded-full ${ACCENT.dot}`} aria-hidden />
+              Today
+            </p>
+          ) : null}
+        </motion.div>
+
+        {hoods.length > 0 ? (
+          <motion.ul {...fadeUp(reduce, 3)} className="flex flex-wrap gap-2" aria-label="Neighborhoods">
+            {hoods.map((name) => (
+              <li
+                key={name}
+                className={`rounded-[var(--tr-r-control)] border border-[color:var(--tr-line)] px-2.5 py-1 text-xs ${mutedInkClass} ${wrapAnywhereClass}`}
+              >
+                {name}
+              </li>
+            ))}
+          </motion.ul>
+        ) : null}
+
+        <motion.div {...fadeUp(reduce, 4)} className="flex flex-wrap items-center gap-3">
+          {hasMappable ? (
+            <button type="button" onClick={() => setMapOpen(true)} className={inkBtnClass}>
+              <Globe2 className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+              Map Mode
+            </button>
+          ) : (
+            <p className={`max-w-[42ch] text-xs ${mutedInkClass} ${wrapAnywhereClass}`}>
+              Map Mode needs places with coordinates. Add them in the editor or run Enhance.
+            </p>
+          )}
+          {editable ? (
+            <Link to={`${tripPath}/edit#${day.id}`} className={secondaryBtnClass}>
+              <Pencil className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
+              Edit this day
+            </Link>
+          ) : null}
+        </motion.div>
+
+        </aside>
+
+        <nav
+          aria-label="Adjacent days"
+          className="order-4 mt-10 flex flex-wrap gap-2 border-t border-[color:var(--tr-line)] pt-4 lg:col-start-2 lg:row-start-2 lg:mt-8"
+        >
+          {next ? (
+            <Link
+              rel="next"
+              to={`${tripPath}/day/${next.id}`}
+              className={`group order-1 ${ghostBtnClass} ${wrapAnywhereClass} sm:order-2 sm:ml-auto`}
+            >
+              {next.title ?? `Day ${dayIndex + 2}`}
+              <ArrowUpRight className={`h-4 w-4 rotate-45 ${hoverArrowClass}`} strokeWidth={1.5} aria-hidden />
+            </Link>
+          ) : null}
+          {prev ? (
+            <Link
+              rel="prev"
+              to={`${tripPath}/day/${prev.id}`}
+              className={`group order-2 ${ghostBtnClass} ${wrapAnywhereClass} sm:order-1`}
+            >
+              <ArrowUpRight className={`h-4 w-4 -rotate-[135deg] ${hoverArrowBackClass}`} strokeWidth={1.5} aria-hidden />
+              {prev.title ?? `Day ${dayIndex}`}
+            </Link>
+          ) : null}
+        </nav>
+        </div>
+
 
         {mapOpen ? (
           <Suspense

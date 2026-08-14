@@ -209,6 +209,24 @@ async function settle(page, ms = 700) {
   await page.waitForTimeout(ms)
 }
 
+/** The trips API rate-limits at 60 requests a minute and a full capture run is
+ *  well over that, so a route that comes back rate-limited is retried once
+ *  after the window rather than screenshotting the error state by accident. */
+async function gotoRoute(page, url, name) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await page.goto(url, { waitUntil: "domcontentloaded" })
+    await settle(page, 1100)
+    const limited = await page
+      .getByText(/rate_limited/i)
+      .first()
+      .isVisible()
+      .catch(() => false)
+    if (!limited) return
+    console.log(`rate limited on ${name}, waiting for the window to clear`)
+    await page.waitForTimeout(20_000)
+  }
+}
+
 async function newContext(browser, { viewport, colorScheme, reducedMotion, video, failChat }) {
   const context = await browser.newContext({
     ...devices["Desktop Chrome"],
@@ -325,8 +343,7 @@ try {
         const page = await context.newPage()
         watchErrors(page, `trips ${mode} ${scheme}`)
         for (const [name, route] of routes) {
-          await page.goto(`${BASE}${route}`, { waitUntil: "domcontentloaded" })
-          await settle(page, 1100)
+          await gotoRoute(page, `${BASE}${route}`, name)
           await shot(page, `trips-${name}-${mode}-${scheme}`)
         }
         await context.close()
