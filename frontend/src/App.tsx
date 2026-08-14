@@ -38,7 +38,9 @@ const grainStyle = {
 const rootStyle = {
   display: "flex",
   flexDirection: "column" as const,
+  width: "100%",
   height: "100dvh",
+  minHeight: "100svh",
   overflow: "hidden",
 };
 
@@ -223,18 +225,24 @@ function App() {
 
   return (
     <div className={cn("font-mono transition-colors duration-700", themeClass)} style={rootStyle}>
-      {/* Decorative overlays — z-index 1, BELOW content z-index 10 */}
-      <video
-        ref={leavesVideoRef}
-        src="https://leaves.anthonylim-ucsc.workers.dev/"
-        loop
-        muted
-        playsInline
-        preload="auto"
-        aria-hidden="true"
+      {/* Viewport-sized wrapper + object-fit media. Putting leaves-overlay
+          on the video itself keeps the intrinsic box (width/height:auto),
+          so the leaves sit in a corner instead of covering every viewport. */}
+      <div
         className="leaves-overlay"
         style={{ opacity: shadowMode ? 1 : 0 }}
-      />
+        aria-hidden="true"
+      >
+        <video
+          ref={leavesVideoRef}
+          src="https://leaves.anthonylim-ucsc.workers.dev/"
+          loop
+          muted
+          playsInline
+          preload="auto"
+          className="leaves-overlay-media"
+        />
+      </div>
       <div className="opacity-[0.04]" style={{ ...overlayStyle, zIndex: 2 }} aria-hidden="true">
         <div className="w-full h-full" style={grainStyle} />
       </div>
