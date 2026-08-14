@@ -83,7 +83,7 @@ describe("POST /api/agent/session", () => {
     expect(verifyGithub).not.toHaveBeenCalled();
   });
 
-  test("200 accepts a GitHub collaborator token", async () => {
+  test("200 accepts a GitHub collaborator or installation token", async () => {
     const verifyGithub = mock(async (token: string) => token === "gho_ok");
     const { app: hono, createTask } = app({ verifyGithub });
     const res = await post(hono, { redirectUrl: "http://localhost:5173/korea" }, "gho_ok");
