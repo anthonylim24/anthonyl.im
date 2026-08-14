@@ -28,7 +28,7 @@ const PANEL_COMPACT =
   `${PANEL_SHELL} h-[min(86dvh,40rem)] md:bottom-6 md:right-6 md:h-[min(600px,calc(100dvh-3rem))] md:w-[min(400px,calc(100vw-2rem))]`
 
 const PANEL_EXPANDED =
-  `${PANEL_SHELL} h-[min(96dvh,100svh)] md:inset-y-4 md:right-4 md:h-auto md:w-[min(36rem,calc(100vw-2rem))]`
+  `${PANEL_SHELL} h-[min(92dvh,calc(100svh-0.75rem))] md:top-4 md:bottom-4 md:right-4 md:h-[calc(100dvh-2rem)] md:w-[min(36rem,calc(100vw-2rem))]`
 
 const HEADER_ICON_BTN =
   `flex h-11 w-11 items-center justify-center rounded-full text-stone-500 transition hover:bg-stone-100 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100 ${focusRingClass}`
@@ -337,7 +337,7 @@ export function TripChat() {
               className={expanded ? PANEL_EXPANDED : PANEL_COMPACT}
               style={kbInset > 0 ? { bottom: kbInset } : undefined}
             >
-              <header className="flex items-center gap-3 border-b border-stone-200/80 px-4 py-3 dark:border-stone-800/80">
+              <header className="flex shrink-0 items-center gap-3 border-b border-stone-200/80 px-4 py-3 dark:border-stone-800/80">
                 <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[color:var(--ta-soft)] text-[color:var(--ta)]">
                   <Sparkles className="h-4 w-4" strokeWidth={2} />
                 </span>
@@ -372,7 +372,7 @@ export function TripChat() {
               <div
                 ref={scrollRef}
                 onScroll={handleScroll}
-                className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4"
+                className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4"
                 style={{ WebkitOverflowScrolling: "touch" }}
               >
                 {messages.length === 0 ? (
@@ -414,7 +414,7 @@ export function TripChat() {
               </div>
 
               {messages.length === 0 && suggestions.length > 0 && (
-                <div className="flex flex-wrap gap-2 px-4 pb-2">
+                <div className="flex shrink-0 flex-wrap gap-2 px-4 pb-2">
                   {suggestions.map((s) => (
                     <button
                       key={s}
@@ -433,7 +433,7 @@ export function TripChat() {
                   e.preventDefault()
                   void send(input)
                 }}
-                className="border-t border-stone-200/80 px-3 pt-3 dark:border-stone-800/80"
+                className="shrink-0 border-t border-stone-200/80 px-3 pt-3 dark:border-stone-800/80"
                 style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)" }}
               >
                 <div className="flex items-end gap-2 rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 focus-within:border-[color:var(--trips-accent)] focus-within:ring-2 focus-within:ring-[color:var(--trips-focus)] dark:border-stone-700 dark:bg-stone-900">
