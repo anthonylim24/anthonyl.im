@@ -49,6 +49,8 @@ describe('BreathworkLayout reduced motion', () => {
     )
 
     expect(document.querySelector('.leaves-overlay')).toBeNull()
+    expect(document.querySelector('[data-testid="breath-starfield"]')).toBeNull()
+    expect(document.querySelector('[data-testid="breath-aura-field"]')).toBeNull()
   })
 
   it('does not reserve floating-footer space on any BreathFlow route', () => {

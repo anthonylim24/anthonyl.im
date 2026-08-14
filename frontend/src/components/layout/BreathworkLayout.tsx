@@ -10,6 +10,9 @@ import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { CLERK_ENABLED } from '@/lib/clerk'
 import { BREATHFLOW_ROUTE_METADATA } from '@/lib/routeMetadata'
+import { BreathStarfield } from '@/components/breathing/BreathStarfield'
+import { BreathStardust } from '@/components/breathing/BreathStardust'
+import { BreathAuraField } from '@/components/breathing/BreathAuraField'
 
 const CloudSync = lazy(() =>
   import('./CloudSync').then((module) => ({ default: module.CloudSync })),
@@ -92,6 +95,9 @@ export function BreathworkLayout() {
       )}
 
       <LeavesVideo reducedMotion={reducedMotion} />
+      <BreathStardust />
+      <BreathStarfield />
+      {isSessionRoute ? null : <BreathAuraField />}
 
       <div className="breathwork relative z-0 bg-transparent col-fade-in">
         <Header />

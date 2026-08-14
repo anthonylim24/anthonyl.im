@@ -16,11 +16,9 @@ const QUAD_VERTS = new Float32Array([
   -1,  1,  1, -1,   1, 1,
 ])
 
-// Fragment shader — Source-engine (HL2) water on a sphere.
-//
-// The silhouette stays circular. Water lives in the normal: dual scrolling
-// procedural normals, Schlick Fresnel, beer-lambert murk, one sun spec,
-// and (high tier) cheap caustic bands. No FBM outline wobble.
+// Fragment shader — x.ai/voice glass marble: space nebula inside refractive
+// glass, iridescent Fresnel, chromatic rim, and orbiting dust motes.
+// Silhouette and breath scale stay circular: radius = 0.16 + amp * 0.22.
 const FRAG = `#version 300 es
 precision highp float;
 
@@ -55,23 +53,60 @@ float fbm2(vec2 p) {
   return noise(p) * 0.65 + noise(p * 2.17 + 17.1) * 0.35;
 }
 
-vec3 waterNormal(vec2 p, float t, float quality) {
-  vec2 uv0 = p * 3.4 + vec2(t * 0.031, t * 0.019);
-  vec2 uv1 = p * 5.7 + vec2(-t * 0.017, t * 0.041);
-  float eps = 0.035;
-  float h0 = noise(uv0);
-  float h1 = noise(uv1);
-  float h = mix(h0, h1, 0.55);
-  float hx = mix(noise(uv0 + vec2(eps, 0.0)), noise(uv1 + vec2(eps, 0.0)), 0.55);
-  float hy = mix(noise(uv0 + vec2(0.0, eps)), noise(uv1 + vec2(0.0, eps)), 0.55);
-  vec3 n = normalize(vec3(h - hx, h - hy, 0.42));
+vec3 glassNormal(vec2 p, float t, float quality) {
+  vec2 uv0 = p * 2.6 + vec2(t * 0.018, t * 0.012);
+  vec2 uv1 = p * 4.8 + vec2(-t * 0.011, t * 0.024);
+  float eps = 0.04;
+  float h = mix(noise(uv0), noise(uv1), 0.5);
+  float hx = mix(noise(uv0 + vec2(eps, 0.0)), noise(uv1 + vec2(eps, 0.0)), 0.5);
+  float hy = mix(noise(uv0 + vec2(0.0, eps)), noise(uv1 + vec2(0.0, eps)), 0.5);
+  vec3 n = normalize(vec3(h - hx, h - hy, 0.62));
   if (quality > 1.5) {
-    vec2 uv2 = p * 9.1 + vec2(t * 0.055, -t * 0.028);
+    vec2 uv2 = p * 8.4 + vec2(t * 0.032, -t * 0.019);
     float h2 = noise(uv2);
-    n.xy += vec2(h2 - noise(uv2 + vec2(eps, 0.0)), h2 - noise(uv2 + vec2(0.0, eps))) * 0.28;
+    n.xy += vec2(h2 - noise(uv2 + vec2(eps, 0.0)), h2 - noise(uv2 + vec2(0.0, eps))) * 0.16;
     n = normalize(n);
   }
   return n;
+}
+
+vec3 nebulaColor(vec2 p, float t, vec3 c1, vec3 c2) {
+  float ang = atan(p.y, p.x);
+  float r = length(p);
+  vec2 swirl = vec2(ang * 0.42 + t * 0.07, r * 2.35 - t * 0.055);
+  float n = fbm2(swirl * 2.2 + 4.0);
+  float n2 = noise(swirl * 5.1 - t * 0.04);
+  vec3 gas = mix(c1, c2, n);
+  gas = mix(gas, c2 * 1.15, n2 * 0.35);
+  float core = pow(max(0.0, 1.0 - r), 3.4);
+  gas += vec3(1.0, 0.93, 0.78) * core * 0.42;
+  gas *= 0.28 + n * 0.92;
+  return gas;
+}
+
+float dustMotes(vec2 p, float t, float radius, float quality) {
+  float acc = 0.0;
+  for (int i = 0; i < 24; i++) {
+    float id = float(i);
+    if (quality < 0.5 && id > 7.0) {
+      continue;
+    }
+    if (quality < 1.5 && id > 15.0) {
+      continue;
+    }
+    float h1 = hash(vec2(id, 3.17));
+    float h2 = hash(vec2(id, 8.91));
+    float h3 = hash(vec2(id, 13.4));
+    float speed = mix(0.11, 0.48, h1) * (0.85 + u_amplitude * 0.35);
+    float ang = t * speed + id * 1.6180339887;
+    float rad = mix(0.42, 1.62, h2) * radius;
+    vec2 pos = vec2(cos(ang), sin(ang) * 0.68 + (h3 - 0.5) * 0.22) * rad;
+    float d = length(p - pos);
+    float size = mix(0.0028, 0.0095, h1) * (0.75 + u_amplitude * 0.55);
+    float twinkle = 0.55 + 0.45 * sin(t * mix(1.1, 2.4, h3) + id);
+    acc += smoothstep(size, 0.0, d) * twinkle;
+  }
+  return acc;
 }
 
 void main() {
@@ -84,63 +119,75 @@ void main() {
   float baseRadius = 0.16 + u_amplitude * 0.22;
   float sdf = dist - baseRadius;
   float edge = smoothstep(0.018, -0.018, sdf);
-  float glow = smoothstep(0.10, -0.02, sdf) * (0.18 + u_amplitude * 0.10);
+  float glow = smoothstep(0.14, -0.01, sdf) * (0.22 + u_amplitude * 0.14);
 
   float effRadius = max(baseRadius, 0.0001);
   float ndist = clamp(dist / effRadius, 0.0, 1.0);
   float sphereZ = sqrt(max(0.0, 1.0 - ndist * ndist));
   vec3 geoNormal = normalize(vec3(fromCenter / effRadius, sphereZ));
 
-  vec3 ripple = waterNormal(fromCenter * 2.4, u_time, u_quality);
-  vec3 normal = normalize(vec3(geoNormal.xy + ripple.xy * 0.38, geoNormal.z));
+  vec3 ripple = glassNormal(fromCenter * 2.1, u_time, u_quality);
+  vec3 normal = normalize(vec3(geoNormal.xy + ripple.xy * 0.22, geoNormal.z));
 
-  vec3 lightDir = normalize(vec3(-0.35, 0.55, 0.72));
+  vec3 lightDir = normalize(vec3(-0.42, 0.58, 0.70));
   vec3 viewDir = vec3(0.0, 0.0, 1.0);
   vec3 halfVec = normalize(lightDir + viewDir);
   float NdotV = max(dot(normal, viewDir), 0.0);
   float NdotH = max(dot(normal, halfVec), 0.0);
   float NdotL = max(dot(normal, lightDir), 0.0);
-  float wrap = max(dot(normal, lightDir) * 0.5 + 0.5, 0.0);
 
-  float F0 = 0.02;
-  float fresnel = F0 + (1.0 - F0) * pow(1.0 - NdotV, 5.0);
+  float F0 = 0.06;
+  float fresnel = F0 + (1.0 - F0) * pow(1.0 - NdotV, 4.2);
 
-  vec2 refractUV = uv + normal.xy * (0.045 * (1.0 - NdotV));
-  float parchment = u_quality > 0.5 ? fbm2(refractUV * 7.0 + 12.0) : noise(refractUV * 6.0);
-  vec3 paperLight = mix(vec3(0.96, 0.94, 0.90), vec3(0.91, 0.88, 0.82), parchment);
-  vec3 paperDark = mix(vec3(0.13, 0.12, 0.10), vec3(0.09, 0.08, 0.07), parchment);
+  vec2 interior = fromCenter / effRadius;
+  vec2 refractOff = normal.xy * (0.06 * (1.0 - NdotV));
+  vec3 nebula = nebulaColor(interior + refractOff, u_time, u_color1, u_color2);
+  if (u_quality > 1.5) {
+    vec3 nebR = nebulaColor(interior + refractOff + vec2(0.012, 0.0), u_time, u_color1, u_color2);
+    vec3 nebB = nebulaColor(interior + refractOff - vec2(0.010, 0.004), u_time, u_color1, u_color2);
+    nebula = vec3(nebR.r, nebula.g, nebB.b);
+  }
+
+  vec2 sceneUV = uv + normal.xy * (0.04 * (1.0 - NdotV));
+  float grain = u_quality > 0.5 ? fbm2(sceneUV * 6.4 + 9.0) : noise(sceneUV * 5.5);
+  vec3 paperLight = mix(vec3(0.96, 0.94, 0.90), vec3(0.90, 0.87, 0.81), grain);
+  vec3 paperDark = mix(vec3(0.10, 0.09, 0.08), vec3(0.05, 0.045, 0.04), grain);
   vec3 scene = mix(paperLight, paperDark, u_dark);
 
   float thickness = 2.0 * sphereZ;
-  float murk = 1.15 + u_amplitude * 0.25;
-  vec3 absorption = exp(-u_color1 * murk * thickness);
-  vec3 transmitted = scene * absorption;
-  transmitted = mix(transmitted, u_color2 * 0.55, 0.22 * (1.0 - ndist));
-  transmitted += u_color2 * pow(wrap, 2.2) * 0.12 * (1.0 - NdotV);
+  vec3 spaceCore = mix(vec3(0.07, 0.06, 0.08), vec3(0.03, 0.025, 0.04), u_dark);
+  vec3 transmitted = mix(spaceCore, nebula, 0.82);
+  transmitted = mix(scene * 0.35, transmitted, 0.78 + 0.16 * sphereZ);
+  transmitted *= exp(-u_color1 * (0.35 + u_amplitude * 0.12) * thickness);
 
-  if (u_quality > 1.5) {
-    vec2 cUV = refractUV * 8.0 + u_time * 0.08;
-    float caustic = pow(max(0.0, noise(cUV) * noise(cUV * 1.7 - u_time * 0.11)), 3.0);
-    transmitted += vec3(caustic) * 0.16 * (1.0 - ndist);
-  }
+  vec3 film = vec3(
+    0.52 + 0.48 * sin(fresnel * 6.28318 + 0.15),
+    0.50 + 0.42 * sin(fresnel * 6.28318 + 2.15),
+    0.58 + 0.40 * sin(fresnel * 6.28318 + 4.20)
+  );
+  vec3 rim = mix(mix(u_color2, vec3(0.97, 0.95, 0.90), 0.45), film, 0.55);
+  rim = mix(rim, rim * 0.55, u_dark * 0.35);
+  vec3 glass = mix(transmitted, rim, fresnel * 0.92);
 
-  vec3 R = reflect(-viewDir, normal);
-  float sky = clamp(R.y * 0.55 + 0.45, 0.0, 1.0);
-  vec3 skyCol = mix(u_color1 * 0.28, mix(u_color2, vec3(0.97, 0.95, 0.90), 0.42), sky);
-  skyCol = mix(skyCol, skyCol * 0.35, u_dark);
-  vec3 water = mix(transmitted, skyCol, fresnel);
+  float specPower = u_quality > 0.5 ? 120.0 : 64.0;
+  float specular = pow(NdotH, specPower) * 1.15;
+  float specHalo = pow(NdotH, 26.0) * 0.20;
+  vec3 specCol = mix(vec3(0.99, 0.97, 0.92), vec3(0.90, 0.86, 0.78), u_dark);
+  glass += specCol * (specular + specHalo);
+  glass *= mix(0.82, 1.0, NdotL);
 
-  float specPower = u_quality > 0.5 ? 96.0 : 48.0;
-  float specular = pow(NdotH, specPower) * 0.95;
-  float specHalo = pow(NdotH, 22.0) * 0.16;
-  vec3 specCol = mix(vec3(0.97, 0.95, 0.90), vec3(0.86, 0.82, 0.74), u_dark);
-  water += specCol * (specular + specHalo);
-  water *= mix(0.78, 1.0, NdotL);
+  float motes = dustMotes(fromCenter, u_time, effRadius, u_quality);
+  vec3 moteCol = mix(u_color2, specCol, 0.55);
+  glass += moteCol * motes * (0.55 + edge * 0.7);
+  float outerDust = dustMotes(fromCenter, u_time * 0.85 + 4.0, effRadius * 1.35, u_quality);
+  float halo = glow * (1.0 - edge);
+  vec3 glowCol = mix(u_color1, u_color2, 0.4) * (0.55 + u_amplitude * 0.35);
+  vec3 color = glass * edge + glowCol * halo + moteCol * outerDust * halo * 1.4;
 
-  float alpha = edge * 0.92 + glow * (1.0 - edge);
-  alpha *= smoothstep(0.52, 0.40, dist);
+  float alpha = edge * 0.96 + halo * 0.85 + outerDust * 0.22;
+  alpha *= smoothstep(0.56, 0.38, dist);
 
-  fragColor = vec4(water * alpha, alpha);
+  fragColor = vec4(color * alpha, alpha);
 }
 `
 

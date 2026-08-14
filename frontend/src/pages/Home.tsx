@@ -21,6 +21,8 @@ import {
 import { buildSessionRoutePath } from '@/lib/sessionRoutes'
 import { formatTime, cn } from '@/lib/utils'
 import { TechniqueGeometryIcon } from '@/components/ui/TechniqueGeometryIcon'
+import { BreathFlowMark } from '@/components/ui/BreathFlowMark'
+import { withViteBase } from '@/lib/routerBasename'
 import { BreathPatternStrip } from '@/components/breathing/BreathPatternStrip'
 import {
   ChevronRight,
@@ -179,6 +181,24 @@ export function Home() {
       initial="hidden"
       animate="show"
     >
+      <motion.div variants={fadeUp} className="breath-hero relative -mx-5 mb-5 overflow-hidden sm:-mx-8 lg:-mx-12" aria-hidden="true">
+        <img
+          src={withViteBase('/breathflow-hero-orb.webp')}
+          alt=""
+          width={1600}
+          height={900}
+          className="h-44 w-full object-cover object-[center_42%] sm:h-56 md:h-64 dark:hidden"
+        />
+        <img
+          src={withViteBase('/breathflow-orb-dark.webp')}
+          alt=""
+          width={768}
+          height={768}
+          className="hidden h-44 w-full object-cover object-center sm:h-56 md:h-64 dark:block"
+        />
+        <div className="breath-hero-fade pointer-events-none absolute inset-x-0 bottom-0 h-16" />
+      </motion.div>
+
       {/* ── Greeting: one line of context, then the action ── */}
       <motion.div variants={fadeUp} className="pt-1 pb-4 md:pb-5">
         <p className="text-[10px] font-medium tracking-[0.07em] uppercase text-bw-secondary">
@@ -186,9 +206,12 @@ export function Home() {
             ? 'About 5 minutes'
             : getStreakMessage(streak, dailyGoalMet)}
         </p>
-        <h1 className="font-display text-3xl md:text-4xl font-semibold text-bw leading-[0.95] mt-1">
-          {getGreeting()}
-        </h1>
+        <div className="mt-1 flex items-end gap-3">
+          <h1 className="font-display text-3xl md:text-4xl font-semibold text-bw leading-[0.95]">
+            {getGreeting()}
+          </h1>
+          <BreathFlowMark size={36} className="mb-0.5 h-9 w-9 opacity-90" />
+        </div>
       </motion.div>
 
       {isNewUser ? (

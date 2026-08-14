@@ -18,7 +18,7 @@ interface AuraNode {
 
 function createAuraNodes(): AuraNode[] {
   return Array.from({ length: AURA_NODE_COUNT }, (_, id) => {
-    const size = Math.floor(Math.random() * 36) + 34
+    const size = Math.floor(Math.random() * 18) + 20
     const speed = Math.random() * 0.65 + 0.35
     const angle = Math.random() * Math.PI * 2
     return {

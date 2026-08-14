@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { CLERK_ENABLED } from '@/lib/clerk'
 import { preloadBreathworkRoute } from '@/lib/breathworkRoutePreload'
 import { useHaptics } from '@/hooks/useHaptics'
+import { BreathFlowMark } from '@/components/ui/BreathFlowMark'
 
 const HeaderAuthControls = lazy(() =>
   import('./HeaderAuthControls').then((module) => ({ default: module.HeaderAuthControls })),
@@ -41,8 +42,9 @@ export function Header() {
           to="/breathwork"
           onPointerEnter={() => preloadBreathworkRoute('/breathwork')}
           onFocus={() => preloadBreathworkRoute('/breathwork')}
-          className="col-start-1 row-start-1 flex h-12 min-h-11 items-center px-5 md:h-16 md:px-6"
+          className="col-start-1 row-start-1 flex h-12 min-h-11 items-center gap-2.5 px-5 md:h-16 md:px-6"
         >
+          <BreathFlowMark size={28} className="h-7 w-7" />
           <span className="font-display text-xl font-semibold leading-none text-bw">
             BreathFlow
           </span>

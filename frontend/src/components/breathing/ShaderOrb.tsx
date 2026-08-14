@@ -5,6 +5,7 @@ import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { useWebGL2 } from '@/hooks/useWebGL2'
 import { useWebGLOrb } from '@/hooks/useWebGLOrb'
 import { ConcentricRings } from './ConcentricRings'
+import { OrbParticleField } from './OrbParticleField'
 import {
   getBreathingVisualizationLabel,
   getInteractiveBreathingVisualizationLabel,
@@ -63,7 +64,6 @@ export function ShaderOrb({
   const ariaLabel = getBreathingVisualizationLabel(phase)
   const interactiveAriaLabel = getInteractiveBreathingVisualizationLabel(phase)
 
-  // Fallback: reduced-motion → static div; no WebGL2 or GL error → SVG ConcentricRings
   if (reducedMotion) {
     const visual = (
       <div
@@ -111,38 +111,46 @@ export function ShaderOrb({
     )
   }
 
+  const orbCanvas = (
+    <>
+      <canvas
+        ref={canvasRef}
+        aria-hidden="true"
+        className="absolute inset-0 h-full w-full"
+        data-testid="shader-orb-canvas"
+        style={{ pointerEvents: 'none' }}
+      />
+      <OrbParticleField amplitude={amplitude} isActive={isActive} />
+    </>
+  )
+
   if (onClick) {
     return (
       <button
         type="button"
         aria-label={interactiveAriaLabel}
         className={cn(
-          'flex appearance-none items-center justify-center border-0 bg-transparent p-0',
+          'relative flex appearance-none items-center justify-center border-0 bg-transparent p-0',
           className,
         )}
         onClick={onClick}
         data-testid="concentric-rings"
         style={{ touchAction: 'manipulation' }}
       >
-        <canvas
-          ref={canvasRef}
-          aria-hidden="true"
-          className="h-full w-full"
-          data-testid="shader-orb-canvas"
-          style={{ pointerEvents: 'none' }}
-        />
+        <div className="relative h-full w-full">{orbCanvas}</div>
       </button>
     )
   }
 
   return (
-    <canvas
-      ref={canvasRef}
+    <div
       role="img"
       aria-label={ariaLabel}
-      className={cn('w-full h-full', className)}
+      className={cn('relative h-full w-full', className)}
       data-testid="concentric-rings"
       style={{ touchAction: 'manipulation' }}
-    />
+    >
+      {orbCanvas}
+    </div>
   )
 }

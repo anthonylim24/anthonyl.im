@@ -4,23 +4,23 @@
       <stop offset="0%" stop-color="#FFFEFA"/>
       <stop offset="100%" stop-color="#F5F2ED"/>
     </linearGradient>
-    <linearGradient id="orb" x1="0" y1="0" x2="1" y2="1">
+    <radialGradient id="nebula" cx="46%" cy="42%" r="58%">
       <stop offset="0%" stop-color="#D6AD47"/>
-      <stop offset="100%" stop-color="#B8860B"/>
-    </linearGradient>
-    <radialGradient id="breath" cx="48%" cy="45%" r="58%">
-      <stop offset="0%" stop-color="#D6AD47" stop-opacity="0.36"/>
-      <stop offset="100%" stop-color="#B8860B" stop-opacity="0"/>
+      <stop offset="55%" stop-color="#B8860B"/>
+      <stop offset="100%" stop-color="#5F574F"/>
+    </radialGradient>
+    <radialGradient id="glass" cx="34%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#FFFEFA" stop-opacity="0.55"/>
+      <stop offset="42%" stop-color="#D6AD47" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#B8860B" stop-opacity="0.08"/>
     </radialGradient>
   </defs>
   <rect width="32" height="32" rx="8" fill="url(#canvas)"/>
-  <circle cx="16" cy="15.25" r="11.75" fill="url(#breath)"/>
-  <path
-    d="M16.28 7.5c4.58.18 8.03 3.83 7.64 8.43-.38 4.54-4.34 8.04-9.04 7.7-4.44-.32-7.5-3.62-7.08-7.9.43-4.42 3.95-8.4 8.48-8.23z"
-    fill="url(#orb)"
-  />
-  <ellipse cx="13.1" cy="11.9" rx="3.35" ry="2" fill="#FFFEFA" opacity="0.35"/>
-  <path d="M10 26q3-2 6 0t6 0" fill="none" stroke="#5F574F" stroke-width="1" opacity="0.58"/>
-  <path d="M11 28q2.5-1.5 5 0t5 0" fill="none" stroke="#B8860B" stroke-width="0.8" opacity="0.38"/>
+  <circle cx="16" cy="15.4" r="10.6" fill="url(#nebula)"/>
+  <circle cx="16" cy="15.4" r="10.6" fill="url(#glass)"/>
+  <circle cx="16" cy="15.4" r="10.6" fill="none" stroke="#1C1917" opacity="0.12"/>
+  <ellipse cx="12.6" cy="11.8" rx="3.1" ry="1.8" fill="#FFFEFA" opacity="0.42"/>
+  <circle cx="22.2" cy="12.4" r="0.7" fill="#FFFEFA" opacity="0.7"/>
+  <circle cx="10.4" cy="19.6" r="0.45" fill="#D6AD47" opacity="0.8"/>
   <rect x="0.5" y="0.5" width="31" height="31" rx="7.5" fill="none" stroke="#1C1917" opacity="0.08"/>
 </svg>
