@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { CHAT_KNOWN_TOPICS } from './copy'
 import type { ChatMessage } from './useChatSession'
 
 const MessageContent = lazy(() => import('../components/message-content'))
@@ -142,14 +143,6 @@ export function Conversation({ messages, isLoading, error, onRetry }: Conversati
   )
 }
 
-/** What the assistant can actually answer, so the first question is an easy
- *  one. Every line here is grounded in the profile the model is briefed with. */
-const KNOWN_TOPICS = [
-  ['Roles and teams', 'DoorDash, eBay, and the work before them'],
-  ['Craft', 'the stacks, tools, and problems he works in'],
-  ['Getting in touch', 'the fastest way to reach him'],
-] as const
-
 function EmptyTranscript() {
   return (
     <div className="mt-auto max-w-[42ch] pb-2">
@@ -157,7 +150,7 @@ function EmptyTranscript() {
         This assistant knows
       </p>
       <dl className="mt-3 space-y-2">
-        {KNOWN_TOPICS.map(([term, detail]) => (
+        {CHAT_KNOWN_TOPICS.map(([term, detail]) => (
           <div key={term} className="flex flex-wrap items-baseline gap-x-2">
             <dt className="text-[15px] text-[color:var(--ch-ink)]">{term}</dt>
             <dd className="text-[15px] text-[color:var(--ch-ink-muted)]">{detail}</dd>

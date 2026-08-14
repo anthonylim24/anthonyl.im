@@ -1,19 +1,11 @@
 import { useCallback, useRef, useState } from 'react'
 import { Leaf, Send, Sun, Moon, Eraser } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { CHAT_DISCLAIMER, CHAT_PLACEHOLDER, CHAT_SUGGESTIONS } from './copy'
 import {
 } from './IdentityRail'
 import type { ResolvedTheme } from './useChatAppearance'
 
-export const CHAT_PLACEHOLDER = "Ask about Anthony's work"
-export const CHAT_SUGGESTIONS = [
-  'What does Anthony build at DoorDash?',
-  'Which stacks does he work in?',
-  'Where has he worked before?',
-  'How do I reach him?',
-] as const
-export const CHAT_DISCLAIMER =
-  "Answers come from a model briefed on Anthony's background. Verify anything important."
 
 interface ComposerProps {
   hasMessages: boolean

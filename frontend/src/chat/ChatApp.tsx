@@ -15,6 +15,7 @@ export function ChatApp() {
   useFavicon()
   const { pathname } = useLocation()
   const appearance = useChatAppearance()
+  const { toggleTheme, toggleAmbience } = appearance
   const session = useChatSession()
   const hasMessages = session.messages.length > 0
 
@@ -40,12 +41,12 @@ export function ChatApp() {
     const handleKeyDown = (event: KeyboardEvent) => {
       const tag = (event.target as HTMLElement | null)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
-      if (event.key === 'd' || event.key === 'D') appearance.toggleTheme()
-      if (event.key === 'a' || event.key === 'A') appearance.toggleAmbience()
+      if (event.key === 'd' || event.key === 'D') toggleTheme()
+      if (event.key === 'a' || event.key === 'A') toggleAmbience()
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [appearance.toggleTheme, appearance.toggleAmbience])
+  }, [toggleTheme, toggleAmbience])
 
   return (
     <div

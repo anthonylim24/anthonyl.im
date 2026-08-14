@@ -15,12 +15,7 @@ vi.mock('@/lib/analytics', () => ({
 }))
 
 import { ChatApp } from '../ChatApp'
-import {
-  CHAT_NAME,
-  CHAT_POSITIONING,
-  CHAT_SUBTEXT,
-} from '../IdentityRail'
-import { CHAT_SUGGESTIONS } from '../Composer'
+import { CHAT_NAME, CHAT_POSITIONING, CHAT_SUBTEXT, CHAT_SUGGESTIONS } from '../copy'
 
 const originalMatchMedia = window.matchMedia
 

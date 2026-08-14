@@ -299,6 +299,9 @@ function TripBody({
   actions: RowActions
 }) {
   const { trip, mark, dayCount, range } = row
+  // Pulled out of `actions` so the JSX passes a plain callback: reading a
+  // function off an object in a `ref` position trips the refs-during-render rule.
+  const { restoreTriggerFocus } = actions
   if (actions.deleteError?.id === trip.id) {
     return (
       <DeleteErrorStrip
@@ -339,7 +342,7 @@ function TripBody({
         {trip.access === "owner" && (
           <button
             type="button"
-            ref={actions.restoreTriggerFocus}
+            ref={restoreTriggerFocus}
             data-trip-id={trip.id}
             onClick={() => actions.openConfirm(trip.id)}
             className={`relative z-10 mt-3 ${dangerIconBtnClass} sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100`}
@@ -373,7 +376,7 @@ function TripBody({
         {trip.access === "owner" && (
           <button
             type="button"
-            ref={actions.restoreTriggerFocus}
+            ref={restoreTriggerFocus}
             data-trip-id={trip.id}
             onClick={() => actions.openConfirm(trip.id)}
             className={`${dangerIconBtnClass} sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100`}

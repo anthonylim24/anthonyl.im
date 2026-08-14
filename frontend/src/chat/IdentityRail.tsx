@@ -1,13 +1,14 @@
 import { withViteBase } from '@/lib/routerBasename'
 import { cn } from '@/lib/utils'
+import {
+  CHAT_EMAIL,
+  CHAT_LINKEDIN_HREF,
+  CHAT_NAME,
+  CHAT_POSITIONING,
+  CHAT_SUBTEXT,
+} from './copy'
 import type { ResolvedTheme } from './useChatAppearance'
 
-export const CHAT_NAME = 'Anthony Lim'
-export const CHAT_POSITIONING = 'Software engineer at DoorDash, based in San Francisco.'
-export const CHAT_SUBTEXT =
-  'Ask this assistant about his work, the teams he has shipped with, or how to reach him.'
-export const CHAT_LINKEDIN_HREF = 'https://www.linkedin.com/in/alim24/'
-export const CHAT_EMAIL = 'anthonylim.ucsc@gmail.com'
 
 interface IdentityRailProps {
   condensed: boolean
