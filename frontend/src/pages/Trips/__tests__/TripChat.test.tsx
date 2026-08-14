@@ -69,8 +69,8 @@ describe("TripChat expand", () => {
     vi.clearAllMocks()
   })
 
-  it("stays off the trips index", () => {
-    renderChat("/trips")
+  it.each(["/trips", "/trips/"])("stays off the trips index: %s", (path) => {
+    renderChat(path)
     expect(screen.queryByRole("button", { name: "Open trip concierge chat" })).toBeNull()
   })
 
@@ -109,14 +109,23 @@ describe("TripChat expand", () => {
       }),
     })
 
+    const initialOverflow = document.body.style.overflow
     renderChat()
     const dialog = await openChat()
+    expect(document.body.style.overflow).toBe(initialOverflow)
+
     fireEvent.click(screen.getByRole("button", { name: "Expand chat" }))
     await waitFor(() => {
-      expect(dialog).toHaveStyle({ top: "16px", height: "auto" })
+      expect(dialog).toHaveStyle({ top: "16px", bottom: "16px", height: "auto" })
     })
+    expect(document.body.style.overflow).toBe("hidden")
     expect(dialog.className).not.toMatch(/h-\[min\(92dvh/)
     expect(within(dialog).getByPlaceholderText("Ask about this trip…")).toBeVisible()
+
+    fireEvent.click(screen.getByRole("button", { name: "Shrink chat" }))
+    await waitFor(() => {
+      expect(document.body.style.overflow).toBe(initialOverflow)
+    })
   })
 
   it("collapses on the first Escape, then closes", async () => {
@@ -168,16 +177,22 @@ describe("TripChat expand", () => {
       }),
     })
 
+    const initialOverflow = document.body.style.overflow
     renderChat()
     await openChat()
     await waitFor(() => {
-      expect(document.body.style.overflow).not.toBe("hidden")
+      expect(document.body.style.overflow).toBe(initialOverflow)
     })
 
     matches = false
     onChange?.()
     await waitFor(() => {
       expect(document.body.style.overflow).toBe("hidden")
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: "Close chat" }))
+    await waitFor(() => {
+      expect(document.body.style.overflow).toBe(initialOverflow)
     })
   })
 })
