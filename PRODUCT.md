@@ -1,13 +1,13 @@
 # anthonyl.im — Impeccable Design Context
 
-This repo hosts three distinct experiences under one shell: a personal AI chatbot, the **BreathFlow** wellness app, and the **Korea Trip** itinerary app. Each has its own visual identity; all share the underlying craft principles below.
+This repo hosts four experiences under one shell: a personal AI chatbot at the root, the **BreathFlow** wellness app, the **Korea Trip** dossier, and the generic **Trips** planner. Each has its own visual identity; all share the underlying craft principles below. The chat app and Trips were redesigned in August 2026 under Taste Skills V2 and carry their own design records in [`docs/design/`](docs/design/).
 
 ## Shared Design Principles (apply to every route)
 
 1. **Craft over convention.** Prefer custom, considered solutions over generic component-library defaults. Spacing, typography weight contrast, surface hierarchy, and motion should feel intentionally designed, not assembled.
 2. **Motion with purpose.** Every animation should serve comprehension (orient, reveal, guide) or affect (calm, anticipation, delight). Decorative-only motion is rejected. Spring physics over linear tweens; respect `prefers-reduced-motion` everywhere.
 3. **Depth through restraint.** No more than one vivid moment per viewport. Use neutral mass to make accents punch. Avoid glassmorphism stacking, gradient text on headings, and generic SaaS gradients.
-4. **Typography as the design language.** Cormorant Garamond for display moments, Inter for body. Weight + size + tracking carry the hierarchy — let the type breathe.
+4. **Typography as the design language.** Weight, size, and tracking carry the hierarchy; let the type breathe. The family is per app, not global: Bricolage Grotesque over Geist in Trips, Geist in the chat app, Cormorant Garamond over Inter in Korea, Geist over Fragment Mono in BreathFlow. All of them are self-hosted through Fontsource (`frontend/src/fonts.ts`); never add a Google Fonts `<link>`.
 5. **One accent, many neutrals.** Each app gets a single signature accent; the rest of the palette stays disciplined.
 
 ## Shared Accessibility Standards
@@ -50,24 +50,28 @@ Each app's *accent* color is its own (see per-app sections).
 
 ## Design Context: `/` and `/chatbot` — Personal AI Chatbot
 
+> Redesigned August 2026 under Taste Skills V2. The commitments live in
+> [`docs/design/chat.md`](docs/design/chat.md); that file wins over any older
+> prose here. What follows is the short version.
+
 ### Users
-Visitors who land on `anthonyl.im` directly. Recruiters, prospective collaborators, friends, curious engineers. They're trying to get a feel for who Anthony is — fast. They scan, they pivot, they leave if it doesn't earn attention.
+Visitors who land on `anthonyl.im` directly. Recruiters, prospective collaborators, friends, curious engineers. They scan, they pivot, they leave if it doesn't earn attention.
 
 ### Brand Personality
-**Quiet, Confident, Crafted.** A staff-engineer's personal site — minimal but not lazy, technical but not cold. The interface should feel like meeting someone who answers questions thoughtfully rather than performing for an audience.
-
-**Emotional goal:** A reassuring "this person ships" feeling. The chatbot is the demo.
+**Quiet, Confident, Crafted.** A staff engineer's personal site. The assistant is the product, so the page is a single viewport with the conversation as the only scrollport, never a scrolling marketing page.
 
 ### Aesthetic Direction
-- **Theme:** Light-first warm parchment with a subtle grain overlay (SVG fractal noise). Dark mode inverts to the same `#171613` canvas.
-- **Surface:** Two-tone — a warm canvas with a single column for chat content. No nested cards.
-- **Accent:** Warm amber `#B8860B`, only on send action + suggested-question pills.
-- **Anti-references:** No purple "AI" gradients. No glowing borders. No "AI typing" indicator with rainbow lights. Stay quiet.
+- **Shell:** asymmetric split. Identity rail plus conversation at `lg` and up, condensing to a header once a transcript exists.
+- **Field:** cool neutral zinc (`#f3f3f4` light, `#0c0c0d` dark), one electric-blue accent (`#1d4ed8` light, `#93b4ff` dark).
+- **Type:** self-hosted Geist Variable, Geist Mono for labels and counts. No 10px primary UI text.
+- **Real visual:** leaf-shadow footage served from our own origin, multiplied on light and screened on dark, behind a labelled `Ambience` control that pauses under reduced motion.
+- **Motion:** CSS only. Importing `motion/react` on this route would drag the motion chunk into the LCP bundle.
+- **Anti-references:** purple AI gradients, glowing borders, rainbow typing indicators, 10px mono chrome, cryptic single-letter toggles.
 
 ### Per-route Tokens
-- Theme class switch: `chatbot-shadow` for light, `chatbot-dark` for dark
-- Grain texture is a *design feature* — keep it
-- 100dvh container so iOS safe areas blend with `html { background: #F5F2ED }`
+- Theme class switch: `chat chat-light` / `chat chat-dark`, defaulting to `prefers-color-scheme` with a stored override
+- Tokens: the `.chat` block in `frontend/src/index.css` (`--ch-*`)
+- Radius: `--ch-r-panel` 12px, `--ch-r-control` 8px, `rounded-full` only for scroll-to-latest
 
 ---
 
@@ -108,6 +112,33 @@ Wellness enthusiasts and people seeking anxiety / stress relief. They open Breat
 2. **Scientific credibility.** Typography, data visualization, and content should convey authority — the app teaches real breathwork protocols.
 3. **The orb is sacred.** The breathing orb is the product. Animation of the orb must be flawless and physics-accurate; surrounding UI fades out during session.
 4. **Habit > novelty.** Gamification exists to drive return visits. Never let the motivational layer overpower the breathwork itself.
+
+---
+
+## Design Context: `/trips/*` — Trip planner
+
+> Redesigned August 2026 under Taste Skills V2. The commitments live in
+> [`docs/design/trips.md`](docs/design/trips.md); that file wins over any older
+> prose here. What follows is the short version.
+
+### Users
+Anthony and whoever he is travelling with, planning on a laptop and executing on a phone. Clerk-gated, so it is a private workspace rather than a public product.
+
+### Brand Personality
+**Cool, precise, editorial.** A field notebook for a trip: the data is the point, the chrome stays out of the way, and each trip wears its own accent.
+
+### Aesthetic Direction
+- **Field:** cool slate (`#eff1f3` light, `#0d1013` dark). The previous warm parchment plus brass palette is the exact family Taste Skills V2 bans as the premium-consumer default, so it was rotated out.
+- **Accent:** five server-validated keys (`rose amber emerald sky violet`) re-solved in OKLCH against the cool field, swapped per trip through `data-trip-accent`. Ember is the chrome default. One accent per page; the semantic ok/warn/danger tokens appear only as small badges.
+- **Type:** Bricolage Grotesque Variable display, Geist Variable body, Geist Mono for dates, times, and counts.
+- **Imagery:** a generated contour plate tinted by the accent behind trip heroes, and a desk photograph for the empty, create, and signed-out states.
+- **Layout families, one use each:** editorial rows (index), quiet card grid (past trips), split hero plus day card grid (overview), timeline (day), two-pane rail and canvas (editor).
+- **Anti-references:** numbered section eyebrows, mono labels above every heading, middle-dot chains, decorative status dots, three consecutive hairline row lists.
+
+### Per-route Tokens
+- Tokens: the `.trips` block in `frontend/src/index.css` (`--tr-*` neutral field, `--ta*` accent)
+- Vocabulary: `frontend/src/pages/Trips/ui.ts` is the only source of colour, radius, focus, and button classes
+- Radius: `--tr-r-panel` 12px, `--tr-r-control` 8px, `rounded-full` only for the save pill, toggle thumbs, and genuine status dots
 
 ---
 
