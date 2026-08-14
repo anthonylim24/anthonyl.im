@@ -10,7 +10,7 @@ export function ItemIcon({
   kind,
   category,
   reservationType,
-  className = "h-4 w-4",
+  className = "h-4 w-4 text-[color:var(--tr-ink-muted)]",
   strokeWidth = 1.5,
 }: {
   kind: string
