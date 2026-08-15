@@ -4,6 +4,8 @@
 Vercel Engineering  
 January 2026
 
+> **Repo override (anthonyl.im):** Frontend network I/O uses **Effect v3**, not raw `fetch` or SWR. Read [`.claude/skills/effect-ts/SKILL.md`](../effect-ts/SKILL.md) (mirrored at `.agents/skills/effect-ts/SKILL.md`) before writing `/api` clients, SSE, or third-party HTTP. This document still applies for React 19 render and bundle performance; Effect I/O rules win on conflict.
+
 > **Note:**  
 > This document is mainly for agents and LLMs to follow when maintaining,  
 > generating, or refactoring React and Next.js codebases. Humans  

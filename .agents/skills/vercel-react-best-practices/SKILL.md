@@ -20,6 +20,8 @@ Reference these guidelines when:
 - Refactoring existing React/Next.js code
 - Optimizing bundle size or load times
 
+In this repo, client `/api` and third-party fetches use Effect v3. Follow the sibling [`effect-ts` skill](../effect-ts/SKILL.md) for I/O; use this skill for React 19 render/bundle performance. Effect I/O rules win when they conflict with generic fetch/SWR examples below.
+
 ## Rule Categories by Priority
 
 | Priority | Category | Impact | Prefix |
