@@ -141,7 +141,9 @@ describe("useLoadedTrip", () => {
       }),
     )
     fireEvent.click(screen.getByRole("button", { name: "reload" }))
-    expect(screen.getByText("loading")).toBeTruthy()
+    // Reload is a transition: keep the current dossier visible (no skeleton flash).
+    expect(screen.getByText("success:tokyo:2026-01-01T00:00:01Z:p1")).toBeTruthy()
+    expect(screen.queryByText("loading")).toBeNull()
 
     await act(async () => {
       resolveGet({ trip: makeTrip(), access: "owner" })

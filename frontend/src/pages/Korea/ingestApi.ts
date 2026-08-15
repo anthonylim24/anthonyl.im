@@ -1,17 +1,16 @@
-import { apiFetch } from "../../lib/apiBase"
-
-// Fetch helpers for the Instagram place ingestion pipeline.
-// Each helper accepts a `getToken` function (from Clerk's useAuth()) so it can
-// attach a fresh JWT to every request.
+import { Effect } from "effect"
+import { bearerHeaders, fetchApi, parseJson, readAuthToken, readErrorMessage } from "../../effect/http"
+import { runPromise } from "../../effect/runtime"
+import { HttpStatusError } from "../../effect/errors"
 
 export type PlaceResult = {
   id: number
   name: string
   name_romanized: string | null
   city: string | null
-  category: 'restaurant' | 'cafe' | 'bar' | 'shopping' | 'activity' | 'hotel' | 'landmark' | 'other'
+  category: "restaurant" | "cafe" | "bar" | "shopping" | "activity" | "hotel" | "landmark" | "other"
   confidence: number
-  confidence_band: 'high' | 'medium' | 'low'
+  confidence_band: "high" | "medium" | "low"
   is_subject: boolean
   supporting_quote: string | null
   address: string | null
@@ -19,18 +18,18 @@ export type PlaceResult = {
   lng: number | null
   geocode_source: string | null
   geocode_disagree: boolean
-  signal_source: 'caption' | 'transcript' | 'ocr' | 'location_tag' | 'multiple' | null
+  signal_source: "caption" | "transcript" | "ocr" | "location_tag" | "multiple" | null
   vote_count: number
 }
 
-export type JobStatus = 'pending' | 'running' | 'done' | 'failed' | 'dead'
-export type JobStep = 'queued' | 'fetching' | 'bundling' | 'extracting' | 'geocoding' | 'saving' | 'done'
+export type JobStatus = "pending" | "running" | "done" | "failed" | "dead"
+export type JobStep = "queued" | "fetching" | "bundling" | "extracting" | "geocoding" | "saving" | "done"
 
 export interface LogLine {
   id: number
   job_id: number
   step: JobStep
-  level: 'info' | 'warn' | 'error'
+  level: "info" | "warn" | "error"
   message: string
   created_at: string
 }
@@ -57,8 +56,6 @@ export type Job = {
   post_id: number | null
   places: PlaceResult[]
   logs: LogLine[]
-  /** Truncated preview of the cached post — caption, transcript, location tag.
-   *  Lets the UI explain "no places found" with the source the LLM actually saw. */
   post_preview: PostPreview | null
 }
 
@@ -76,122 +73,122 @@ type SubmitResult = {
   jobs: Array<{ jobId: number; status: string; reused: boolean; shared_from_other_user?: number }>
 }
 
-const BASE = '/api/korea/places/from-instagram'
-
-async function authHeaders(
-  getToken: () => Promise<string | null>,
-): Promise<Record<string, string>> {
-  const token = await getToken()
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
+const BASE = "/api/korea/places/from-instagram"
 
 /** Common error type so callers can branch on infrastructure misconfig. */
 export class ApiNotConfiguredError extends Error {
-  constructor(message = 'The Instagram places API is not configured on the server.') {
+  readonly _tag = "ApiNotConfiguredError" as const
+  constructor(message = "The Instagram places API is not configured on the server.") {
     super(message)
-    this.name = 'ApiNotConfiguredError'
+    this.name = "ApiNotConfiguredError"
   }
 }
 
-async function throwOnError(res: Response): Promise<void> {
-  // If a server-side SPA fallback caught the request (route not mounted),
-  // we get a 200 with content-type text/html instead of JSON. That's almost
-  // certainly a server-config issue, not a programming error. Detect it
-  // before trying to parse JSON, so the UI can surface a clear message.
-  const ct = res.headers.get('content-type') ?? ''
-  if (res.ok && !ct.includes('application/json')) {
-    throw new ApiNotConfiguredError(
-      `Server returned ${ct || 'no content-type'} instead of JSON — the IG places ` +
-      `endpoint is not mounted. Set CLERK_SECRET_KEY (or IG_DEV_BEARER) on the server.`,
-    )
-  }
-  if (res.ok) return
-  let message = `HTTP ${res.status}`
-  try {
-    const body = await res.json()
-    if (body && typeof body.error === 'string') message = body.error
-    else if (body && typeof body.message === 'string') message = body.message
-  } catch {
-    // ignore parse failures — keep the status-based message
-  }
-  // 503 with our specific error code → upgrade to ApiNotConfiguredError so
-  // the page can show a one-time banner rather than a transient retry spinner.
-  if (res.status === 503 && message.toLowerCase().includes('not_configured')) {
-    throw new ApiNotConfiguredError(message)
-  }
-  throw new Error(message)
-}
+const throwOnError = (res: Response): Effect.Effect<void, Error> =>
+  Effect.gen(function* () {
+    const ct = res.headers.get("content-type") ?? ""
+    if (res.ok && !ct.includes("application/json")) {
+      return yield* Effect.fail(
+        new ApiNotConfiguredError(
+          `Server returned ${ct || "no content-type"} instead of JSON — the IG places ` +
+            `endpoint is not mounted. Set CLERK_SECRET_KEY (or IG_DEV_BEARER) on the server.`,
+        ),
+      )
+    }
+    if (res.ok) return
+    const message = yield* readErrorMessage(res, "error-first")
+    if (res.status === 503 && message.toLowerCase().includes("not_configured")) {
+      return yield* Effect.fail(new ApiNotConfiguredError(message))
+    }
+    return yield* Effect.fail(new HttpStatusError({ status: res.status, message }))
+  })
 
-export async function submitUrl(
+const submitUrlEffect = Effect.fn("IngestService.submitUrl")(function* (
+  getToken: () => Promise<string | null>,
+  url: string,
+  opts?: { skipVideo?: boolean },
+) {
+  const token = yield* readAuthToken(getToken)
+  const body: Record<string, unknown> = { url }
+  if (opts?.skipVideo) body.skipVideo = true
+  const res = yield* fetchApi(BASE, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...bearerHeaders(token) },
+    body: JSON.stringify(body),
+  })
+  yield* throwOnError(res)
+  return yield* parseJson<SubmitResult>(res)
+})
+
+export function submitUrl(
   getToken: () => Promise<string | null>,
   url: string,
   opts?: { skipVideo?: boolean },
 ): Promise<SubmitResult> {
-  const headers = await authHeaders(getToken)
-  const body: Record<string, unknown> = { url }
-  if (opts?.skipVideo) body.skipVideo = true
-  const res = await apiFetch(BASE, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...headers },
-    body: JSON.stringify(body),
-  })
-  await throwOnError(res)
-  return res.json() as Promise<SubmitResult>
+  return runPromise(submitUrlEffect(getToken, url, opts))
 }
 
-export async function listJobs(
+const listJobsEffect = Effect.fn("IngestService.listJobs")(function* (
   getToken: () => Promise<string | null>,
   limit = 200,
-): Promise<Job[]> {
-  const headers = await authHeaders(getToken)
-  const res = await apiFetch(`${BASE}/jobs?limit=${limit}`, { headers })
-  await throwOnError(res)
-  return res.json() as Promise<Job[]>
+) {
+  const token = yield* readAuthToken(getToken)
+  const res = yield* fetchApi(`${BASE}/jobs?limit=${limit}`, { headers: bearerHeaders(token) })
+  yield* throwOnError(res)
+  return yield* parseJson<Job[]>(res)
+})
+
+export function listJobs(getToken: () => Promise<string | null>, limit = 200): Promise<Job[]> {
+  return runPromise(listJobsEffect(getToken, limit))
 }
 
-export async function retryJob(
+const retryJobEffect = Effect.fn("IngestService.retryJob")(function* (
   getToken: () => Promise<string | null>,
   jobId: number,
-): Promise<void> {
-  const token = await getToken()
-  const r = await apiFetch(`${BASE}/jobs/${jobId}/retry`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token ?? ''}` },
+) {
+  const token = yield* readAuthToken(getToken)
+  const r = yield* fetchApi(`${BASE}/jobs/${jobId}/retry`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token ?? ""}` },
   })
   if (!r.ok) {
-    let msg = `HTTP ${r.status}`
-    try {
-      const body = await r.json() as { error?: string }
-      if (body.error) msg = body.error
-    } catch {}
-    throw new Error(msg)
+    const msg = yield* readErrorMessage(r, "error-only")
+    return yield* Effect.fail(new HttpStatusError({ status: r.status, message: msg }))
   }
+})
+
+export function retryJob(getToken: () => Promise<string | null>, jobId: number): Promise<void> {
+  return runPromise(retryJobEffect(getToken, jobId))
 }
 
-export async function reextractJob(
+const reextractJobEffect = Effect.fn("IngestService.reextractJob")(function* (
   getToken: () => Promise<string | null>,
   jobId: number,
-): Promise<void> {
-  const token = await getToken()
-  const r = await apiFetch(`${BASE}/jobs/${jobId}/reextract`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token ?? ''}` },
+) {
+  const token = yield* readAuthToken(getToken)
+  const r = yield* fetchApi(`${BASE}/jobs/${jobId}/reextract`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token ?? ""}` },
   })
   if (!r.ok) {
-    let msg = `HTTP ${r.status}`
-    try {
-      const body = await r.json() as { error?: string }
-      if (body.error) msg = body.error
-    } catch {}
-    throw new Error(msg)
+    const msg = yield* readErrorMessage(r, "error-only")
+    return yield* Effect.fail(new HttpStatusError({ status: r.status, message: msg }))
   }
+})
+
+export function reextractJob(getToken: () => Promise<string | null>, jobId: number): Promise<void> {
+  return runPromise(reextractJobEffect(getToken, jobId))
 }
 
-export async function fetchStats(
+const fetchStatsEffect = Effect.fn("IngestService.fetchStats")(function* (
   getToken: () => Promise<string | null>,
-): Promise<Stats> {
-  const headers = await authHeaders(getToken)
-  const res = await apiFetch(`${BASE}/_stats`, { headers })
-  await throwOnError(res)
-  return res.json() as Promise<Stats>
+) {
+  const token = yield* readAuthToken(getToken)
+  const res = yield* fetchApi(`${BASE}/_stats`, { headers: bearerHeaders(token) })
+  yield* throwOnError(res)
+  return yield* parseJson<Stats>(res)
+})
+
+export function fetchStats(getToken: () => Promise<string | null>): Promise<Stats> {
+  return runPromise(fetchStatsEffect(getToken))
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useId, useMemo, useOptimistic, useRef, useState, useTransition } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useLocation } from "react-router-dom"
 import { MessageCircleHeart, Send, Sparkles, X } from "lucide-react"
@@ -44,8 +44,12 @@ export function KoreaChat() {
   const slug = useFocusedDaySlug()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [optimisticMessages, addOptimistic] = useOptimistic(
+    messages,
+    (current, incoming: ChatMessage[]) => [...current, ...incoming],
+  )
   const [input, setInput] = useState("")
-  const [streaming, setStreaming] = useState(false)
+  const [streaming, startStream] = useTransition()
 
   const [kbInset, setKbInset] = useState(0)
 
@@ -76,7 +80,7 @@ export function KoreaChat() {
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages, scrollToBottom])
+  }, [optimisticMessages, scrollToBottom])
 
   // Focus the input when the panel opens; restore focus to the FAB on close.
   useEffect(() => {
@@ -173,9 +177,8 @@ export function KoreaChat() {
       const userMsg: ChatMessage = { id: newId(), role: "user", content: prompt }
       const assistantId = newId()
 
-      setMessages((prev) => [...prev, userMsg, { id: assistantId, role: "assistant", content: "" }])
+      const pending = [userMsg, { id: assistantId, role: "assistant" as const, content: "" }]
       setInput("")
-      setStreaming(true)
       pinnedRef.current = true
 
       const controller = new AbortController()
@@ -184,30 +187,33 @@ export function KoreaChat() {
       const setAssistant = (content: string) =>
         setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content } : m)))
 
-      try {
-        const { content, error, sources } = await streamKoreaChat(prompt, history, slug, setAssistant, controller.signal)
-        if (error) setAssistant(`⚠️ ${error}`)
-        // Defensive fallback: if the stream ended with no text and no error,
-        // don't leave the bubble stuck on the typing indicator.
-        else if (!content.trim()) {
-          setAssistant("I couldn't generate a reply just now. Please try rephrasing.")
+      startStream(async () => {
+        addOptimistic(pending)
+        setMessages((prev) => [...prev, ...pending])
+        try {
+          const { content, error, sources } = await streamKoreaChat(prompt, history, slug, setAssistant, controller.signal)
+          if (error) setAssistant(`⚠️ ${error}`)
+          // Defensive fallback: if the stream ended with no text and no error,
+          // don't leave the bubble stuck on the typing indicator.
+          else if (!content.trim()) {
+            setAssistant("I couldn't generate a reply just now. Please try rephrasing.")
+          }
+          if (sources?.length) {
+            setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, sources } : m)))
+          }
+        } catch (err) {
+          if ((err as Error).name !== "AbortError") {
+            setAssistant(
+              `⚠️ ${(err as Error).message || "Something went wrong. Please try again."}`,
+            )
+          }
+        } finally {
+          inFlightRef.current = false
+          abortRef.current = null
         }
-        if (sources?.length) {
-          setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, sources } : m)))
-        }
-      } catch (err) {
-        if ((err as Error).name !== "AbortError") {
-          setAssistant(
-            `⚠️ ${(err as Error).message || "Something went wrong. Please try again."}`,
-          )
-        }
-      } finally {
-        setStreaming(false)
-        inFlightRef.current = false
-        abortRef.current = null
-      }
+      })
     },
-    [messages, slug],
+    [addOptimistic, messages, slug, startStream],
   )
 
   // Auto-grow the composer up to the CSS max-height, then let it scroll.
@@ -321,7 +327,7 @@ export function KoreaChat() {
                 className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4"
                 style={{ WebkitOverflowScrolling: "touch" }}
               >
-                {messages.length === 0 ? (
+                {optimisticMessages.length === 0 ? (
                   <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
                     <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-500 dark:bg-rose-950/40 dark:text-rose-400">
                       <MessageCircleHeart className="h-6 w-6" />
@@ -331,7 +337,7 @@ export function KoreaChat() {
                     </p>
                   </div>
                 ) : (
-                  messages.map((m) =>
+                  optimisticMessages.map((m) =>
                     m.role === "user" ? (
                       <div key={m.id} className="flex justify-end">
                         <div className="max-w-[85%] rounded-2xl rounded-br-md bg-rose-500 px-3.5 py-2 text-[15px] leading-relaxed text-white shadow-sm dark:bg-rose-500">

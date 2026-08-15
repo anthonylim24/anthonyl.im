@@ -13,7 +13,9 @@
 // just for this — turf would add ~30 KB minified and we only need two
 // trivial geometry primitives.
 
-import { apiFetch } from "../../lib/apiBase"
+import { Effect } from "effect"
+import { fetchApi, parseJson } from "../../effect/http"
+import { runPromise } from "../../effect/runtime"
 
 interface Dong {
   /** Human-readable short name, e.g. "강남구 압구정동". The "서울특별시 " /
@@ -41,22 +43,21 @@ export function loadAllKoreaDongs(): Promise<Dong[]> {
   // The server ignores the query string and serves the current JSON,
   // but a fresh URL forces clients with the year-immutable cached v1
   // response to re-fetch instead of reusing the stale entry.
-  inflight = apiFetch("/api/korea/dongs?v=2")
-    .then((r) => {
-      if (!r.ok) throw new Error(`/api/korea/dongs ${r.status}`)
-      return r.json()
-    })
-    .then((j: { dongs: Dong[] }) => {
+  inflight = runPromise(
+    Effect.gen(function* () {
+      const r = yield* fetchApi("/api/korea/dongs?v=2")
+      if (!r.ok) return yield* Effect.fail(new Error(`/api/korea/dongs ${r.status}`))
+      const j = yield* parseJson<{ dongs: Dong[] }>(r)
       cache = j.dongs
       return cache
-    })
-    .catch((err) => {
-      // Surface the failure but don't crash Map Mode — the scene
-      // still works without tooltips. Next mount retries.
-      console.warn("[korea] failed to load dongs:", err)
-      inflight = null
-      return [] as Dong[]
-    })
+    }).pipe(
+      Effect.catchAll((err) => {
+        console.warn("[korea] failed to load dongs:", err)
+        inflight = null
+        return Effect.succeed([] as Dong[])
+      }),
+    ),
+  )
   return inflight
 }
 
@@ -93,7 +94,7 @@ export function namesAtLngLat(dongs: Dong[], lng: number, lat: number): string[]
 }
 
 // ── React hook ───────────────────────────────────────────────────────
-import { useEffect, useState } from "react"
+import { useEffect, useState, useTransition } from "react"
 
 /** Returns the dong dataset, lazily loaded on first call. Returns null
  *  while in-flight (or if the fetch failed); shares the module-level
@@ -102,16 +103,17 @@ export function useAllKoreaDongs(): Dong[] | null {
   // Lazy initializer reads the module-level cache, so a remount after
   // first load returns immediately with the dataset.
   const [dongs, setDongs] = useState<Dong[] | null>(() => cache)
+  const [, startTransition] = useTransition()
   useEffect(() => {
     if (cache) return
     let cancelled = false
     void loadAllKoreaDongs().then((d) => {
-      if (!cancelled) setDongs(d)
+      if (!cancelled) startTransition(() => setDongs(d))
     })
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [startTransition])
   return dongs
 }
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useEffectEvent, useMemo, useState, useTransition } from "react"
 import { ChevronDown, ChevronLeft, ChevronRight, Plus } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
 import { formatTripDate } from "./theme"
@@ -28,6 +28,8 @@ export function ExtractedPlacesLibrary({
   onDaysChange: (fn: (days: TripDay[]) => TripDay[]) => void
 }) {
   const getToken = useGetToken()
+  const readToken = useEffectEvent(getToken)
+  const [isRefreshing, startTransition] = useTransition()
   const [open, setOpen] = useState(() => collectCatalogPlaces([trip]).length > 0)
   const [offset, setOffset] = useState(0)
   const [foreign, setForeign] = useState<CatalogPlace[]>([])
@@ -44,14 +46,14 @@ export function ExtractedPlacesLibrary({
   const loadForeign = useCallback(async () => {
     setLoading(true)
     try {
-      const trips = await listForeignInstagramTrips(getToken, trip.id)
-      setForeign(collectCatalogPlaces(trips))
+      const trips = await listForeignInstagramTrips(readToken, trip.id)
+      startTransition(() => setForeign(collectCatalogPlaces(trips)))
     } catch {
-      setForeign([])
+      startTransition(() => setForeign([]))
     } finally {
       setLoading(false)
     }
-  }, [getToken, trip.id])
+  }, [trip.id, startTransition])
 
   useEffect(() => {
     void loadForeign()
@@ -96,7 +98,7 @@ export function ExtractedPlacesLibrary({
   }
 
   return (
-    <section aria-label="Extracted places" className="mt-6">
+    <section aria-label="Extracted places" className="mt-6" aria-busy={loading || isRefreshing}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}

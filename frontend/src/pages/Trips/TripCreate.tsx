@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { useReducedMotion } from "motion/react"
 import { Check, ChevronDown, Loader2, PenLine, Sparkles, type LucideIcon } from "lucide-react"
@@ -125,7 +125,9 @@ export function TripCreate() {
   const [prompt, setPrompt] = useState("")
   const [prefs, setPrefs] = useState<GeneratePreferences>({})
   const [showPrefs, setShowPrefs] = useState(false)
-  const [busy, setBusy] = useState<"idle" | "creating" | "generating">("idle")
+  const [isPending, startTransition] = useTransition()
+  const [phase, setPhase] = useState<"creating" | "generating">("creating")
+  const busy: "idle" | "creating" | "generating" = isPending ? phase : "idle"
   const [elapsed, setElapsed] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [touched, setTouched] = useState(false)
@@ -181,63 +183,64 @@ export function TripCreate() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setTouched(true)
-    if (busy !== "idle") return
+    if (isPending) return
     if (!valid) {
       focusField(problems[0].field)
       return
     }
     setError(null)
-    setBusy("creating")
-    try {
-      const trip = await createTrip(getToken, {
-        name: name.trim(),
-        destinations: destinationList,
-        startDate,
-        endDate,
-        timezone,
-        tags: parseList(tags),
-        description: description.trim() || undefined,
-      })
-      if (mode === "ai") {
-        setElapsed(0)
-        setBusy("generating")
-        const preferences = Object.fromEntries(
-          Object.entries(prefs).filter(([, v]) => v && v.trim()),
-        ) as GeneratePreferences
-        try {
-          const generated = await generateItinerary(getToken, trip.id, {
-            prompt: prompt.trim() || undefined,
-            preferences: Object.keys(preferences).length ? preferences : undefined,
-          })
-          const empty = generated.trip.days.every((d) => d.items.length === 0)
-          if (empty) {
+    startTransition(async () => {
+      setPhase("creating")
+      try {
+        const trip = await createTrip(getToken, {
+          name: name.trim(),
+          destinations: destinationList,
+          startDate,
+          endDate,
+          timezone,
+          tags: parseList(tags),
+          description: description.trim() || undefined,
+        })
+        if (mode === "ai") {
+          setElapsed(0)
+          setPhase("generating")
+          const preferences = Object.fromEntries(
+            Object.entries(prefs).filter(([, v]) => v && v.trim()),
+          ) as GeneratePreferences
+          try {
+            const generated = await generateItinerary(getToken, trip.id, {
+              prompt: prompt.trim() || undefined,
+              preferences: Object.keys(preferences).length ? preferences : undefined,
+            })
+            const empty = generated.trip.days.every((d) => d.items.length === 0)
+            if (empty) {
+              navigate(`/trips/${trip.id}/edit`, {
+                state: {
+                  notice: "The AI draft came back empty. Your days are ready; run Generate to try again.",
+                  retryGenerate: { prompt: prompt.trim() || undefined, preferences },
+                },
+              })
+              return
+            }
+          } catch (err) {
             navigate(`/trips/${trip.id}/edit`, {
               state: {
-                notice: "The AI draft came back empty. Your days are ready; run Generate to try again.",
+                notice: `Trip created, but the AI draft didn’t finish. Your days are empty; run Generate to try again. (${err instanceof Error ? err.message : String(err)})`,
                 retryGenerate: { prompt: prompt.trim() || undefined, preferences },
               },
             })
             return
           }
-        } catch (err) {
-          navigate(`/trips/${trip.id}/edit`, {
-            state: {
-              notice: `Trip created, but the AI draft didn’t finish. Your days are empty; run Generate to try again. (${err instanceof Error ? err.message : String(err)})`,
-              retryGenerate: { prompt: prompt.trim() || undefined, preferences },
-            },
-          })
+          navigate(`/trips/${trip.id}`)
           return
         }
-        navigate(`/trips/${trip.id}`)
-        return
+        navigate(`/trips/${trip.id}/edit`)
+      } catch (err) {
+        setError(
+          `Couldn’t create the trip. Nothing was saved, so you can submit again. (${err instanceof Error ? err.message : String(err)})`,
+        )
       }
-      navigate(`/trips/${trip.id}/edit`)
-    } catch (err) {
-      setError(
-        `Couldn’t create the trip. Nothing was saved, so you can submit again. (${err instanceof Error ? err.message : String(err)})`,
-      )
-      setBusy("idle")
-    }
+    })
   }
 
   return (

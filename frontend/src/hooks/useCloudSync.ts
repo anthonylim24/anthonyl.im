@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useEffectEvent, useRef, useCallback } from 'react'
 import { useAuth, useUser, useSession } from '@clerk/clerk-react'
 import { createClerkSupabaseClient } from '@/lib/supabase'
 import { useHistoryStore, type CompletedSession, type PersonalBest } from '@/stores/historyStore'
@@ -113,13 +113,13 @@ export function useCloudSync() {
   const pendingSyncRef = useRef(false)
   const mergedUserIdRef = useRef<string | null>(null)
 
+  const attachSession = useEffectEvent((next: typeof session) => {
+    supabaseRef.current = next ? createClerkSupabaseClient(next) : null
+  })
+
   // Create Supabase client when session is available
   useEffect(() => {
-    if (session) {
-      supabaseRef.current = createClerkSupabaseClient(session)
-    } else {
-      supabaseRef.current = null
-    }
+    attachSession(session)
   }, [session])
 
   // ─── Upsert profile ──────────────────────────────────────────

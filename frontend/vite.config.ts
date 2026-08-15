@@ -44,6 +44,7 @@ export default defineConfig({
             // The Places page would then drag in 800 KB+ of 3D code it
             // never renders. Splitting motion out keeps Places lean.
             { name: 'motion', test: /[\\/]node_modules[\\/](motion|framer-motion)[\\/]/, priority: 85 },
+            { name: 'effect', test: /[\\/]node_modules[\\/](effect|@effect|@effect-atom)[\\/]/, priority: 82 },
             { name: 'supabase', test: /[\\/]node_modules[\\/]@supabase[\\/]/, priority: 80 },
             { name: 'router', test: /[\\/]node_modules[\\/]react-router/, priority: 70 },
             { name: 'radix', test: /[\\/]node_modules[\\/]@radix-ui[\\/]/, priority: 60 },

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
 import { ArrowRight, CalendarDays, MapPin, Plus, RotateCcw, Trash2, Users } from "lucide-react"
@@ -145,6 +145,7 @@ export function TripsIndex() {
   const navigate = useNavigate()
   const reduce = useReducedMotion()
   const [state, setState] = useState<LoadState>({ status: "loading" })
+  const [isRefreshing, startTransition] = useTransition()
   const [deleting, setDeleting] = useState<string | null>(null)
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<{ id: string; message: string } | null>(null)
@@ -172,7 +173,7 @@ export function TripsIndex() {
     void (async () => {
       try {
         const trips = await listTrips(getToken)
-        if (!cancelled) setState({ status: "success", trips })
+        if (!cancelled) startTransition(() => setState({ status: "success", trips }))
       } catch (err) {
         if (!cancelled) setState({ status: "error", message: err instanceof Error ? err.message : String(err) })
       }
@@ -180,14 +181,19 @@ export function TripsIndex() {
     return () => {
       cancelled = true
     }
-  }, [getToken, reloadKey])
+  }, [getToken, reloadKey, startTransition])
+
+  const [optimisticTrips, removeOptimistic] = useOptimistic(
+    state.status === "success" ? state.trips : [],
+    (current, id: string) => current.filter((trip) => trip.id !== id),
+  )
 
   const grouped = useMemo(() => {
     if (state.status !== "success") return null
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
     const today = todayIsoIn(timezone)
     const buckets: Record<TripBucket, TripRow[]> = { current: [], upcoming: [], past: [] }
-    for (const trip of state.trips) {
+    for (const trip of optimisticTrips) {
       const bucket = bucketFor(trip, today)
       const dayCount = trip.dayCount || dayCountInclusive(trip.startDate, trip.endDate)
       buckets[bucket].push({
@@ -201,26 +207,33 @@ export function TripsIndex() {
       buckets[key].sort((a, b) => a.trip.startDate.localeCompare(b.trip.startDate) * (key === "past" ? -1 : 1))
     }
     return buckets
-  }, [state])
+  }, [optimisticTrips, state])
 
   const onlyPast = grouped !== null && grouped.past.length > 0 && grouped.current.length + grouped.upcoming.length === 0
 
-  const onDelete = async (trip: TripSummary) => {
-    setDeleting(trip.id)
-    setDeleteError(null)
-    try {
-      await deleteTrip(getToken, trip.id)
-      setConfirmId(null)
-      // The row is gone, so focus moves to the page's primary action rather
-      // than falling back to the document.
-      newTripRef.current?.focus()
-      setDeletedName(trip.name)
-      load()
-    } catch (err) {
-      setDeleteError({ id: trip.id, message: err instanceof Error ? err.message : String(err) })
-    } finally {
-      setDeleting(null)
-    }
+  const onDelete = (trip: TripSummary) => {
+    startTransition(async () => {
+      removeOptimistic(trip.id)
+      setDeleting(trip.id)
+      setDeleteError(null)
+      try {
+        await deleteTrip(getToken, trip.id)
+        setConfirmId(null)
+        // The row is gone, so focus moves to the page's primary action rather
+        // than falling back to the document.
+        newTripRef.current?.focus()
+        setDeletedName(trip.name)
+        setState((current) =>
+          current.status === "success"
+            ? { status: "success", trips: current.trips.filter((item) => item.id !== trip.id) }
+            : current,
+        )
+      } catch (err) {
+        setDeleteError({ id: trip.id, message: err instanceof Error ? err.message : String(err) })
+      } finally {
+        setDeleting(null)
+      }
+    })
   }
 
   const closeConfirm = (tripId: string) => {
@@ -280,7 +293,13 @@ export function TripsIndex() {
           </div>
         )}
 
-        {state.status === "success" && state.trips.length === 0 && (
+        {state.status === "success" && isRefreshing && (
+          <p className="mb-3 text-[12px] font-medium uppercase tracking-[0.16em] text-stone-400" aria-live="polite">
+            Refreshing…
+          </p>
+        )}
+
+        {state.status === "success" && optimisticTrips.length === 0 && (
           <div className="relative isolate -mx-4 overflow-hidden px-4 py-10 sm:-mx-6 sm:px-6 sm:py-14">
             <div aria-hidden className={`pointer-events-none absolute inset-0 -z-10 opacity-70 ${ACCENT.bloomA}`} />
             <p className={eyebrowClass}>No trips yet</p>
@@ -304,7 +323,7 @@ export function TripsIndex() {
           </div>
         )}
 
-        {state.status === "success" && grouped && state.trips.length > 0 && (
+        {state.status === "success" && grouped && optimisticTrips.length > 0 && (
           <>
             <div className="space-y-10">
               {sections.map(({ key, title }) => {

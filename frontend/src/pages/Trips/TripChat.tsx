@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react"
+import { useCallback, useEffect, useEffectEvent, useId, useMemo, useOptimistic, useRef, useState, useTransition, type CSSProperties } from "react"
 import { createPortal } from "react-dom"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useLocation } from "react-router-dom"
@@ -86,6 +86,7 @@ export function useTripChatRoute(): { tripId?: string; dayId?: string } {
 export function TripChat() {
   const { tripId, dayId } = useTripChatRoute()
   const getToken = useGetToken()
+  const readToken = useEffectEvent(getToken)
   const reduce = useReducedMotion()
   const isDesktop = useMinWidth(768)
   const [trip, setTrip] = useState<Trip | null>(null)
@@ -94,8 +95,12 @@ export function TripChat() {
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [optimisticMessages, addOptimistic] = useOptimistic(
+    messages,
+    (current, incoming: ChatMessage[]) => [...current, ...incoming],
+  )
   const [input, setInput] = useState("")
-  const [streaming, setStreaming] = useState(false)
+  const [streaming, startStream] = useTransition()
   const [kbInset, setKbInset] = useState(0)
 
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -114,7 +119,7 @@ export function TripChat() {
       return
     }
     let cancelled = false
-    void getTrip(getToken, tripId)
+    void getTrip(readToken, tripId)
       .then(({ trip: next, access: nextAccess }) => {
         if (!cancelled) {
           setTrip(next)
@@ -130,7 +135,7 @@ export function TripChat() {
     return () => {
       cancelled = true
     }
-  }, [tripId, getToken])
+  }, [tripId])
 
   useEffect(() => {
     setMessages([])
@@ -168,7 +173,7 @@ export function TripChat() {
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages, scrollToBottom])
+  }, [optimisticMessages, scrollToBottom])
 
   useEffect(() => {
     if (!open) {
@@ -258,9 +263,8 @@ export function TripChat() {
       const userMsg: ChatMessage = { id: newId(), role: "user", content: prompt }
       const assistantId = newId()
 
-      setMessages((prev) => [...prev, userMsg, { id: assistantId, role: "assistant", content: "" }])
+      const pending = [userMsg, { id: assistantId, role: "assistant" as const, content: "" }]
       setInput("")
-      setStreaming(true)
       pinnedRef.current = true
 
       const controller = new AbortController()
@@ -269,53 +273,57 @@ export function TripChat() {
       const setAssistant = (content: string) =>
         setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content } : m)))
 
-      let activeTrip = trip
-      if (!activeTrip) {
+      startStream(async () => {
+        addOptimistic(pending)
+        setMessages((prev) => [...prev, ...pending])
+
+        let activeTrip = trip
+        if (!activeTrip) {
+          try {
+            const loaded = await getTrip(readToken, tripId)
+            activeTrip = loaded.trip
+            setTrip(activeTrip)
+            setAccess(loaded.access)
+          } catch {
+            activeTrip = null
+          }
+        }
+
+        const canonicalId = activeTrip?.id ?? tripId
+        const focusedDayId =
+          dayId && activeTrip?.days.some((d) => d.id === dayId) ? dayId : undefined
+
         try {
-          const loaded = await getTrip(getToken, tripId)
-          activeTrip = loaded.trip
-          setTrip(activeTrip)
-          setAccess(loaded.access)
-        } catch {
-          activeTrip = null
-        }
-      }
-
-      const canonicalId = activeTrip?.id ?? tripId
-      const focusedDayId =
-        dayId && activeTrip?.days.some((d) => d.id === dayId) ? dayId : undefined
-
-      try {
-        const { content, error, places, sources } = await streamTripChat(
-          canonicalId,
-          prompt,
-          history,
-          focusedDayId,
-          getToken,
-          setAssistant,
-          controller.signal,
-          activeTrip ?? undefined,
-        )
-        if (error) setAssistant(`⚠️ ${error}`)
-        else if (!content.trim() && !places?.length) {
-          setAssistant("I couldn't generate a reply just now. Please try rephrasing.")
-        }
-        if (places?.length || sources?.length) {
-          setMessages((prev) =>
-            prev.map((m) => (m.id === assistantId ? { ...m, places, sources } : m)),
+          const { content, error, places, sources } = await streamTripChat(
+            canonicalId,
+            prompt,
+            history,
+            focusedDayId,
+            readToken,
+            setAssistant,
+            controller.signal,
+            activeTrip ?? undefined,
           )
+          if (error) setAssistant(`⚠️ ${error}`)
+          else if (!content.trim() && !places?.length) {
+            setAssistant("I couldn't generate a reply just now. Please try rephrasing.")
+          }
+          if (places?.length || sources?.length) {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === assistantId ? { ...m, places, sources } : m)),
+            )
+          }
+        } catch (err) {
+          if ((err as Error).name !== "AbortError") {
+            setAssistant(`⚠️ ${(err as Error).message || "Something went wrong. Please try again."}`)
+          }
+        } finally {
+          inFlightRef.current = false
+          abortRef.current = null
         }
-      } catch (err) {
-        if ((err as Error).name !== "AbortError") {
-          setAssistant(`⚠️ ${(err as Error).message || "Something went wrong. Please try again."}`)
-        }
-      } finally {
-        setStreaming(false)
-        inFlightRef.current = false
-        abortRef.current = null
-      }
+      })
     },
-    [messages, tripId, dayId, trip, getToken],
+    [addOptimistic, messages, tripId, dayId, trip, startStream],
   )
 
   const canEdit = access === "edit" || access === "owner"
@@ -326,7 +334,7 @@ export function TripChat() {
       const key = conciergePlaceKey(place)
       setAddingKey(key)
       try {
-        const { trip: fresh } = await getTrip(getToken, tripId)
+        const { trip: fresh } = await getTrip(readToken, tripId)
         const day = fresh.days.find((d) => d.id === targetDayId)
         if (!day) throw new Error("That day is no longer on the trip.")
         if (dayHasPlaceNamed(day, place.name)) {
@@ -340,7 +348,7 @@ export function TripChat() {
           )
           return
         }
-        const next = await updateTrip(getToken, fresh.id, {
+        const next = await updateTrip(readToken, fresh.id, {
           days: addItem(fresh.days, targetDayId, itemFromConciergePlace(place)),
         })
         setTrip(next)
@@ -364,7 +372,7 @@ export function TripChat() {
         setAddingKey(null)
       }
     },
-    [tripId, canEdit, getToken],
+    [tripId, canEdit],
   )
 
   const autoGrow = useCallback(() => {
@@ -492,7 +500,7 @@ export function TripChat() {
                 className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4"
                 style={{ WebkitOverflowScrolling: "touch" }}
               >
-                {messages.length === 0 ? (
+                {optimisticMessages.length === 0 ? (
                   <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
                     <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[color:var(--ta-soft)] text-[color:var(--ta)]">
                       <MessageCircleHeart className="h-6 w-6" />
@@ -504,7 +512,7 @@ export function TripChat() {
                     </p>
                   </div>
                 ) : (
-                  messages.map((m) =>
+                  optimisticMessages.map((m) =>
                     m.role === "user" ? (
                       <div key={m.id} className="flex justify-end">
                         <div className="max-w-[85%] rounded-2xl rounded-br-md bg-[color:var(--trips-accent)] px-3.5 py-2 text-[15px] leading-relaxed text-white shadow-sm dark:text-stone-950">

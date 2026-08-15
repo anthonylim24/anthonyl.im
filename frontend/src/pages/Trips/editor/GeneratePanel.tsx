@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useTransition } from "react"
 import { motion } from "motion/react"
 import { Loader2, Sparkles } from "lucide-react"
 import { ACCENT } from "../theme"
@@ -33,25 +33,24 @@ export function GeneratePanel({
   onGenerated: (trip: Trip) => void
 }) {
   const [prompt, setPrompt] = useState(initialPrompt ?? DEFAULT_ITINERARY_PROMPT)
-  const [busy, setBusy] = useState(false)
+  const [busy, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
-  const generate = async () => {
+  const generate = () => {
     if (busy || locked) return
-    setBusy(true)
     setError(null)
-    try {
-      const { trip } = await generateItinerary(getToken, tripId, {
-        prompt: prompt.trim() || undefined,
-        preferences,
-        replaceExisting: true,
-      })
-      onGenerated(trip)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setBusy(false)
-    }
+    startTransition(async () => {
+      try {
+        const { trip } = await generateItinerary(getToken, tripId, {
+          prompt: prompt.trim() || undefined,
+          preferences,
+          replaceExisting: true,
+        })
+        onGenerated(trip)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err))
+      }
+    })
   }
 
   return (
@@ -84,7 +83,7 @@ export function GeneratePanel({
         </p>
       )}
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <button type="button" onClick={() => void generate()} disabled={busy || locked} className={primaryBtnClass}>
+        <button type="button" onClick={generate} disabled={busy || locked} aria-busy={busy} className={primaryBtnClass}>
           {busy ? (
             <Loader2 className={`h-4 w-4 ${spinnerClass}`} aria-hidden />
           ) : (

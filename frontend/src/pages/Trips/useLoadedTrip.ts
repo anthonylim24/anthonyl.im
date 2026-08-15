@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useEffectEvent, useRef, useState, useTransition } from "react"
 import { getTrip, type GetToken } from "./tripsApi"
 import { mergeFetchedTrip, preferFresherTrip, useTripChanged } from "./tripsEvents"
 import type { Trip } from "./types"
@@ -11,33 +11,35 @@ export type TripDocumentState =
 export function useLoadedTrip(tripId: string | undefined, getToken: GetToken) {
   const [state, setState] = useState<TripDocumentState>({ status: "loading" })
   const [reloadKey, setReloadKey] = useState(0)
+  const [isRefreshing, startTransition] = useTransition()
   const liveTripRef = useRef<Trip | null>(null)
   const tripIdRef = useRef(tripId)
-  const getTokenRef = useRef(getToken)
-  getTokenRef.current = getToken
+  const readToken = useEffectEvent(getToken)
   if (tripIdRef.current !== tripId) {
     tripIdRef.current = tripId
     liveTripRef.current = null
   }
 
   const reload = useCallback(() => {
-    setState({ status: "loading" })
-    setReloadKey((k) => k + 1)
-  }, [])
+    startTransition(() => setReloadKey((k) => k + 1))
+  }, [startTransition])
 
   useEffect(() => {
     if (!tripId) return
     let cancelled = false
-    setState({ status: "loading" })
+    const keepCurrent = liveTripRef.current != null
+    if (!keepCurrent) setState({ status: "loading" })
     void (async () => {
       try {
-        const { trip, access } = await getTrip(getTokenRef.current, tripId)
+        const { trip, access } = await getTrip(readToken, tripId)
         if (cancelled) return
-        setState({
-          status: "success",
-          trip: mergeFetchedTrip(trip, liveTripRef.current),
-          editable: access === "edit" || access === "owner",
-        })
+        startTransition(() =>
+          setState({
+            status: "success",
+            trip: mergeFetchedTrip(trip, liveTripRef.current),
+            editable: access === "edit" || access === "owner",
+          }),
+        )
       } catch (err) {
         if (!cancelled) {
           setState({ status: "error", message: err instanceof Error ? err.message : String(err) })
@@ -47,7 +49,7 @@ export function useLoadedTrip(tripId: string | undefined, getToken: GetToken) {
     return () => {
       cancelled = true
     }
-  }, [tripId, reloadKey])
+  }, [tripId, reloadKey, startTransition])
 
   useTripChanged(
     tripId,
@@ -61,5 +63,5 @@ export function useLoadedTrip(tripId: string | undefined, getToken: GetToken) {
     }, []),
   )
 
-  return { state, reload }
+  return { state, reload, isRefreshing }
 }

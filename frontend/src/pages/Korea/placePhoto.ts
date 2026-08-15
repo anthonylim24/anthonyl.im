@@ -16,6 +16,9 @@
 //
 // Reference: https://www.mediawiki.org/wiki/API:Pageimages
 
+import { Effect } from "effect"
+import { runPromise } from "../../effect/runtime"
+
 // Image budget: every photo lookup returns a SIZE-CAPPED thumbnail URL,
 // never the original full-resolution image. The Wikipedia REST/Action API
 // `pithumbsize` parameter caps width server-side, so the bytes we
@@ -68,8 +71,13 @@ async function searchOne(endpoint: string, query: string, size: number): Promise
       origin: "*",
     }).toString()
 
-  const r = await fetch(url)
-  if (!r.ok) return null
+  const r = await runPromise(
+    Effect.tryPromise({
+      try: () => fetch(url),
+      catch: () => null as Response | null,
+    }).pipe(Effect.catchAll(() => Effect.succeed<Response | null>(null))),
+  )
+  if (!r?.ok) return null
   const j = (await r.json()) as PageImagesResponse
   const pages = j.query?.pages
   if (!pages) return null
@@ -199,18 +207,24 @@ export async function lookupGooglePlacePhoto(args: GooglePlaceLookupArgs): Promi
         },
         maxResultCount: 1,
       }
-      const r = await fetch("https://places.googleapis.com/v1/places:searchText", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Goog-Api-Key": key,
-          // Field mask keeps the response small + cheap. We only need the
-          // first photo's resource name.
-          "X-Goog-FieldMask": "places.photos",
-        },
-        body: JSON.stringify(body),
-      })
-      if (!r.ok) return null
+      const r = await runPromise(
+        Effect.tryPromise({
+          try: () =>
+            fetch("https://places.googleapis.com/v1/places:searchText", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-Goog-Api-Key": key,
+                // Field mask keeps the response small + cheap. We only need the
+                // first photo's resource name.
+                "X-Goog-FieldMask": "places.photos",
+              },
+              body: JSON.stringify(body),
+            }),
+          catch: () => null as Response | null,
+        }).pipe(Effect.catchAll(() => Effect.succeed<Response | null>(null))),
+      )
+      if (!r?.ok) return null
       const j = (await r.json()) as GooglePlacesSearchResponse
       const photoName = j.places?.[0]?.photos?.[0]?.name
       if (!photoName) return null

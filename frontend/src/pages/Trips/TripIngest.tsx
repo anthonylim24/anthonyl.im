@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useEffectEvent, useId, useMemo, useState, useTransition } from "react"
 import { ChevronDown, Loader2, Plus } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
 import { IgIcon } from "../Korea/IgIcon"
@@ -75,8 +75,8 @@ export function TripIngest({
   const getToken = useGetToken()
   const urlId = useId()
   const skipId = useId()
-  const getTokenRef = useRef(getToken)
-  getTokenRef.current = getToken
+  const readToken = useEffectEvent(getToken)
+  const [isRefreshing, startTransition] = useTransition()
 
   const [open, setOpen] = useState(false)
   const [url, setUrl] = useState("")
@@ -94,8 +94,8 @@ export function TripIngest({
 
   const refreshJobs = useCallback(async () => {
     try {
-      const next = await listJobs(getTokenRef.current, 30)
-      setJobs(next)
+      const next = await listJobs(readToken, 30)
+      startTransition(() => setJobs(next))
       setUnavailable(false)
     } catch (err) {
       if (err instanceof ApiNotConfiguredError) setUnavailable(true)
@@ -140,7 +140,7 @@ export function TripIngest({
     setSubmitting(true)
     setSubmitError(null)
     try {
-      const result = await submitUrl(getTokenRef.current, url, { skipVideo })
+      const result = await submitUrl(readToken, url, { skipVideo })
       setUrl("")
       setSessionIds((prev) => {
         const next = [...prev]
@@ -195,7 +195,7 @@ export function TripIngest({
 
   const handleRetry = async (job: Job) => {
     try {
-      await retryJob(getTokenRef.current, job.id)
+      await retryJob(readToken, job.id)
       setSessionIds((prev) => (prev.includes(job.id) ? prev : [...prev, job.id]))
       await refreshJobs()
     } catch (err) {
@@ -212,7 +212,7 @@ export function TripIngest({
   }
 
   return (
-    <div className="mt-2">
+    <div className="mt-2" aria-busy={submitting || isRefreshing}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
