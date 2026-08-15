@@ -1,5 +1,5 @@
-import { lazy, Suspense, useState } from "react"
-import { Link, useParams } from "react-router-dom"
+import { lazy, Suspense, useEffect, useState } from "react"
+import { Link, useParams, useSearchParams } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
 import { ArrowUpRight, ExternalLink, Globe2, MapPin, Pencil, Phone } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
@@ -68,11 +68,30 @@ function telHref(contact: string): string | null {
 
 export function TripDayPage() {
   const { tripId, dayId } = useParams<{ tripId: string; dayId: string }>()
+  const [searchParams, setSearchParams] = useSearchParams()
   const getToken = useGetToken()
   const reduce = useReducedMotion()
   const { state, reload } = useLoadedTrip(tripId, getToken)
-  const [mapOpen, setMapOpen] = useState(false)
+  const [mapOpen, setMapOpen] = useState(() => searchParams.get("map") === "1")
+  const [focusPlaceId, setFocusPlaceId] = useState<string | undefined>(
+    () => searchParams.get("focus") ?? undefined,
+  )
   const anchorTarget = useAnchorTarget(state.status === "success")
+
+  useEffect(() => {
+    if (searchParams.get("map") !== "1") return
+    setMapOpen(true)
+    setFocusPlaceId(searchParams.get("focus") ?? undefined)
+  }, [searchParams])
+
+  const closeMap = () => {
+    setMapOpen(false)
+    if (!searchParams.has("map") && !searchParams.has("focus")) return
+    const next = new URLSearchParams(searchParams)
+    next.delete("map")
+    next.delete("focus")
+    setSearchParams(next, { replace: true })
+  }
 
   if (state.status === "loading") {
     return (
@@ -372,7 +391,8 @@ export function TripDayPage() {
               daySlug={day.id}
               dayTitle={day.title ?? `Day ${dayIndex + 1}`}
               placesUrl={`/api/trips/${encodeURIComponent(trip.id)}/days/${encodeURIComponent(day.id)}/places`}
-              onClose={() => setMapOpen(false)}
+              initialFocusPlaceId={focusPlaceId}
+              onClose={closeMap}
             />
           </Suspense>
         )}

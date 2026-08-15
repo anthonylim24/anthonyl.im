@@ -1,11 +1,13 @@
 import { describe, expect, test } from "bun:test"
 import {
   asConciergePlace,
+  asConciergeMove,
   createAddPlacesFenceFilter,
   dropPlacesAlreadyOnTrip,
   enrichPlacesWithGeocode,
   mergeConciergePlaces,
   parseAddPlacesTrailer,
+  parseTripMovesTrailer,
   placeCanBeAdded,
   placesFromMapsChunks,
   safeHttpUrl,
@@ -25,6 +27,34 @@ describe("parseAddPlacesTrailer", () => {
   test("returns empty for junk", () => {
     expect(parseAddPlacesTrailer("")).toEqual([])
     expect(parseAddPlacesTrailer(":::add-places\nnot-json\n:::")).toEqual([])
+  })
+
+  test("finds add-places when a trip-moves fence follows", () => {
+    const places = parseAddPlacesTrailer(
+      `:::add-places\n[{"name":"Ichiran","address":"Shibuya"}]\n:::\n:::trip-moves\n[{"type":"remove","name":"Ichiran"}]\n:::`,
+    )
+    expect(places[0]?.name).toBe("Ichiran")
+  })
+})
+
+describe("parseTripMovesTrailer", () => {
+  test("reads remove / move / set_time and drops invalid rows", () => {
+    const moves = parseTripMovesTrailer(
+      `:::trip-moves\n[{"type":"remove","name":"Ichiran","dayId":"d1"},{"type":"move","name":"Cafe"},{"type":"set_time","name":"Leeum","time":"14:00"},{"type":"explode","name":"X"}]\n:::`,
+    )
+    expect(moves).toEqual([
+      { type: "remove", name: "Ichiran", dayId: "d1" },
+      { type: "set_time", name: "Leeum", time: "14:00" },
+    ])
+  })
+
+  test("returns empty for junk", () => {
+    expect(parseTripMovesTrailer("")).toEqual([])
+    expect(asConciergeMove({ type: "move", name: "Cafe", toDayId: "d2" })).toEqual({
+      type: "move",
+      name: "Cafe",
+      toDayId: "d2",
+    })
   })
 })
 
@@ -51,6 +81,14 @@ describe("createAddPlacesFenceFilter", () => {
     const fence = createAddPlacesFenceFilter()
     expect(fence.push("see ::: docs")).toBe("see ::: docs")
     expect(fence.end()).toEqual({ visibleTail: "", hidden: "" })
+  })
+
+  test("holds a trip-moves trailer", () => {
+    const fence = createAddPlacesFenceFilter()
+    expect(fence.push("Done.")).toBe("Done.")
+    expect(fence.push("\n:::trip-mo")).toBe("")
+    expect(fence.push("ves\n[{\"type\":\"remove\",\"name\":\"Ichiran\"}]\n:::")).toBe("")
+    expect(parseTripMovesTrailer(fence.end().hidden)[0]).toEqual({ type: "remove", name: "Ichiran" })
   })
 })
 

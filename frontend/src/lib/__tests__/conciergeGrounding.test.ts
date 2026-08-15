@@ -15,6 +15,11 @@ describe("visibleConciergeText", () => {
     expect(visibleConciergeText("See ::: docs")).toBe("See ::: docs")
     expect(visibleConciergeText("ratio 1:::2")).toBe("ratio 1:::2")
   })
+
+  it("strips a trip-moves trailer and a partial fence", () => {
+    expect(visibleConciergeText("Removed.\n:::trip-moves\n[]\n:::")).toBe("Removed.")
+    expect(visibleConciergeText("Removed.\n:::trip-mo")).toBe("Removed.")
+  })
 })
 
 describe("asConciergePlace", () => {

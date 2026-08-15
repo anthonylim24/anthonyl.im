@@ -63,6 +63,12 @@ describe("parseConciergeSsePayload", () => {
       kind: "sources",
       sources: [{ kind: "maps", title: "Ichiran", uri: "https://maps.google.com/?cid=1" }],
     })
+    expect(
+      parseConciergeSsePayload(JSON.stringify({ moves: [{ type: "remove", name: "Ichiran", dayId: "d1" }] })),
+    ).toEqual({
+      kind: "moves",
+      moves: [{ type: "remove", name: "Ichiran", dayId: "d1" }],
+    })
   })
 
   it("surfaces { error } objects", () => {
