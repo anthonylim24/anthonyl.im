@@ -60,7 +60,12 @@ describe("externalMapsHref", () => {
     expect(externalMapsHref({}, ANDROID)).toBeUndefined()
   })
 
-  it("falls back to a safe mapsUrl when there is nothing else to search", () => {
+  it("rejects an arbitrary https mapsUrl", () => {
+    expect(externalMapsHref({ mapsUrl: "https://example.invalid/place" }, ANDROID)).toBeUndefined()
+    expect(externalMapsHref({ mapsUrl: "https://example.invalid/place" }, IPHONE)).toBeUndefined()
+  })
+
+  it("falls back to a recognized mapsUrl when there is nothing else to search", () => {
     expect(externalMapsHref({ mapsUrl: "https://maps.apple.com/?q=Ichiran" }, ANDROID)).toBe(
       "https://maps.apple.com/?q=Ichiran",
     )
@@ -77,5 +82,13 @@ describe("externalMapsLink", () => {
     expect(externalMapsLink({ name: "Ichiran", lat: 35.66, lng: 139.7 }, ANDROID)?.label).toBe(
       "Open Ichiran in Google Maps",
     )
+  })
+
+  it("labels an Apple Maps fallback as Apple Maps on Android", () => {
+    expect(externalMapsLink({ mapsUrl: "https://maps.apple.com/?q=Ichiran" }, ANDROID)).toEqual({
+      href: "https://maps.apple.com/?q=Ichiran",
+      app: "apple",
+      label: "Open this place in Apple Maps",
+    })
   })
 })

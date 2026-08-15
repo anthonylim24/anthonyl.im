@@ -173,7 +173,7 @@ function ConciergePlaceCard({
               href={maps.href}
               target="_blank"
               rel="noopener noreferrer"
-              className={quietBtnClass}
+              className={`${quietBtnClass} sm:min-h-11`}
               aria-label={maps.label}
             >
               <Globe2 className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />

@@ -65,6 +65,14 @@ function isGoogleMapsUrl(href: string): boolean {
   }
 }
 
+function isSupportedMapsUrl(href: string): boolean {
+  return isMapsHost(href, ["maps.apple.com"]) || isGoogleMapsUrl(href)
+}
+
+function mapsAppFromHref(href: string): ExternalMapsApp {
+  return isMapsHost(href, ["maps.apple.com"]) ? "apple" : "google"
+}
+
 function coords(target: ExternalMapsTarget): { lat: number; lng: number } | undefined {
   const { lat, lng } = target
   if (lat == null || lng == null || !Number.isFinite(lat) || !Number.isFinite(lng)) return undefined
@@ -94,14 +102,13 @@ export function externalMapsHref(target: ExternalMapsTarget, userAgent = current
       return `https://maps.apple.com/?ll=${pin.lat},${pin.lng}&q=${encodeURIComponent(q)}`
     }
     if (query) return `https://maps.apple.com/?q=${encodeURIComponent(query)}`
-    if (existing && isMapsHost(existing, ["maps.apple.com"])) return existing
-    return existing
+    return existing && isSupportedMapsUrl(existing) ? existing : undefined
   }
 
   if (existing && isGoogleMapsUrl(existing)) return existing
   if (pin) return `https://www.google.com/maps/search/?api=1&query=${pin.lat},${pin.lng}`
   if (query) return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
-  return existing
+  return existing && isSupportedMapsUrl(existing) ? existing : undefined
 }
 
 export function externalMapsLink(
@@ -110,7 +117,7 @@ export function externalMapsLink(
 ): ExternalMapsLink | undefined {
   const href = externalMapsHref(target, userAgent)
   if (!href) return undefined
-  const app = externalMapsApp(userAgent)
+  const app = mapsAppFromHref(href)
   return {
     href,
     app,
