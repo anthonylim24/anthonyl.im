@@ -24,6 +24,18 @@ function isStopItem(item: ItineraryItem): boolean {
   return item.kind === "place" || item.kind === "reservation"
 }
 
+function isGoogleMapsUrl(value: string): boolean {
+  try {
+    const url = new URL(value)
+    if (url.protocol !== "https:") return false
+    const host = url.hostname.toLowerCase()
+    if (host === "maps.google.com" || host === "www.maps.google.com") return true
+    return (host === "google.com" || host === "www.google.com") && url.pathname.startsWith("/maps")
+  } catch {
+    return false
+  }
+}
+
 const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
 
 function minMatchLength(value: string): number {
@@ -68,9 +80,10 @@ export function findMentionedStops(text: string, trip: Trip, excludeNames: Itera
   for (const day of trip.days) {
     for (const item of day.items) {
       if (!isStopItem(item)) continue
-      for (const name of stopNames(item)) {
+      const names = stopNames(item)
+      if (names.some((name) => excluded.has(normalizeName(name)))) continue
+      for (const name of names) {
         if (name.trim().length < minMatchLength(name)) continue
-        if (excluded.has(normalizeName(name))) continue
         candidates.push({ stop: { day, item }, name })
       }
     }
@@ -101,7 +114,7 @@ export function stopToConciergePlace(stop: TripStop): ConciergePlace {
   if (loc?.category) place.category = loc.category
   if (loc?.placeId) place.placeId = loc.placeId
   if (stop.item.notes) place.notes = stop.item.notes
-  const maps = stop.item.links?.find((l) => /maps\.google|google\.com\/maps/i.test(l))
+  const maps = stop.item.links?.find((l) => isGoogleMapsUrl(l))
   if (maps) place.mapsUrl = maps
   return place
 }
@@ -116,7 +129,9 @@ export interface ResolvedMove {
 
 export function resolveMove(trip: Trip, move: ConciergeMove): ResolvedMove | null {
   const stop = move.itemId
-    ? trip.days.flatMap((day) => day.items.map((item) => ({ day, item }))).find((s) => s.item.id === move.itemId) ??
+    ? trip.days
+        .flatMap((day) => day.items.map((item) => ({ day, item })))
+        .find((s) => isStopItem(s.item) && s.item.id === move.itemId) ??
       findTripStop(trip, move.name, move.dayId ?? move.fromDayId)
     : findTripStop(trip, move.name, move.dayId ?? move.fromDayId)
   if (!stop) return null

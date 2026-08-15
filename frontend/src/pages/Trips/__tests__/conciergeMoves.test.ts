@@ -89,6 +89,15 @@ describe("resolveMove", () => {
 })
 
 describe("stopToConciergePlace", () => {
+  it("skips a stop when any alias is already suggested", () => {
+    const t = trip()
+    t.days[0]!.items[0]!.location = {
+      name: "Sensoji Temple",
+      source: "user",
+    }
+    expect(findMentionedStops("Walk from Senso-ji to the gate.", t, ["Sensoji Temple"])).toEqual([])
+  })
+
   it("copies location fields onto a concierge place", () => {
     const t = trip()
     const place = stopToConciergePlace({ day: t.days[0]!, item: t.days[0]!.items[0]! })
@@ -99,5 +108,15 @@ describe("stopToConciergePlace", () => {
       lat: 35.7,
       category: "landmark",
     })
+  })
+
+  it("keeps only https Google Maps hosts", () => {
+    const t = trip()
+    t.days[0]!.items[0]!.links = [
+      "https://maps.google.attacker.example/foo",
+      "https://www.google.com/maps/place/sensoji",
+    ]
+    const place = stopToConciergePlace({ day: t.days[0]!, item: t.days[0]!.items[0]! })
+    expect(place.mapsUrl).toBe("https://www.google.com/maps/place/sensoji")
   })
 })
