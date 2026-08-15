@@ -49,7 +49,8 @@ export function KoreaChat() {
     (current, incoming: ChatMessage[]) => [...current, ...incoming],
   )
   const [input, setInput] = useState("")
-  const [streaming, startStream] = useTransition()
+  const [, startStream] = useTransition()
+  const [streaming, setStreaming] = useState(false)
 
   const [kbInset, setKbInset] = useState(0)
 
@@ -187,9 +188,12 @@ export function KoreaChat() {
       const setAssistant = (content: string) =>
         setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content } : m)))
 
-      startStream(async () => {
+      startStream(() => {
         addOptimistic(pending)
         setMessages((prev) => [...prev, ...pending])
+      })
+      void (async () => {
+        setStreaming(true)
         try {
           const { content, error, sources } = await streamKoreaChat(prompt, history, slug, setAssistant, controller.signal)
           if (error) setAssistant(`⚠️ ${error}`)
@@ -208,10 +212,11 @@ export function KoreaChat() {
             )
           }
         } finally {
+          setStreaming(false)
           inFlightRef.current = false
           abortRef.current = null
         }
-      })
+      })()
     },
     [addOptimistic, messages, slug, startStream],
   )

@@ -160,7 +160,7 @@ function App() {
   // Auto-scroll when messages change
   useEffect(() => {
     if (shouldAutoScroll.current) scrollToBottom();
-  }, [messages, scrollToBottom]);
+  }, [optimisticMessages, scrollToBottom]);
 
   /* ── Input ── */
 
@@ -179,7 +179,7 @@ function App() {
     (e?: React.FormEvent, submittedInput?: string) => {
       if (e) e.preventDefault();
       const text = (submittedInput || input).trim();
-      if (!text || isPending) return;
+      if (!text || isPending || isStreaming) return;
 
       const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: text, timestamp: Date.now() };
       const asstMsg: ChatMessage = { id: crypto.randomUUID(), role: "assistant", content: "", timestamp: Date.now() };
@@ -190,12 +190,14 @@ function App() {
       if (inputRef.current) inputRef.current.style.height = "auto";
       scrollToBottom();
 
-      startTransition(async () => {
+      startTransition(() => {
         addOptimistic([userMsg, asstMsg]);
         setMessages((prev) => [...prev, userMsg, asstMsg]);
+      });
+      void (async () => {
+        setIsStreaming(true);
         try {
           await invokeDeepseek(text, history, (content) => {
-            setIsStreaming(true);
             setMessages((prev) => {
               const next = [...prev];
               const last = next[next.length - 1];
@@ -214,9 +216,9 @@ function App() {
         } finally {
           setIsStreaming(false);
         }
-      });
+      })();
     },
-    [addOptimistic, input, isPending, messages, scrollToBottom, startTransition],
+    [addOptimistic, input, isPending, isStreaming, messages, scrollToBottom, startTransition],
   );
 
   const handleKeyDown = useCallback(

@@ -100,7 +100,8 @@ export function TripChat() {
     (current, incoming: ChatMessage[]) => [...current, ...incoming],
   )
   const [input, setInput] = useState("")
-  const [streaming, startStream] = useTransition()
+  const [, startStream] = useTransition()
+  const [streaming, setStreaming] = useState(false)
   const [kbInset, setKbInset] = useState(0)
 
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -273,10 +274,12 @@ export function TripChat() {
       const setAssistant = (content: string) =>
         setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content } : m)))
 
-      startStream(async () => {
+      startStream(() => {
         addOptimistic(pending)
         setMessages((prev) => [...prev, ...pending])
-
+      })
+      void (async () => {
+        setStreaming(true)
         let activeTrip = trip
         if (!activeTrip) {
           try {
@@ -318,10 +321,11 @@ export function TripChat() {
             setAssistant(`⚠️ ${(err as Error).message || "Something went wrong. Please try again."}`)
           }
         } finally {
+          setStreaming(false)
           inFlightRef.current = false
           abortRef.current = null
         }
-      })
+      })()
     },
     [addOptimistic, messages, tripId, dayId, trip, startStream],
   )
