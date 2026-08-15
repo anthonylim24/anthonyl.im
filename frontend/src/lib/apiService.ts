@@ -57,7 +57,7 @@ const invokeDeepseekEffect = Effect.fn("ChatService.invokeDeepseek")(function* (
     }
 
     let content = ""
-    yield* readSse(response.body, {
+    const { completed } = yield* readSse(response.body, {
       signal: controller.signal,
       onData: (data) => {
         lastActivity = Date.now()
@@ -75,6 +75,10 @@ const invokeDeepseekEffect = Effect.fn("ChatService.invokeDeepseek")(function* (
         }
       },
     })
+
+    if (!completed) {
+      return yield* Effect.fail(new TimeoutError({ message: "Response timed out — please try again." }))
+    }
 
     return { content } satisfies ApiResponse
   }).pipe(

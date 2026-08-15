@@ -9,6 +9,7 @@ import {
   type ConciergePlace,
   type ConciergeSource,
 } from "../../lib/conciergeGrounding"
+import { formatConciergeError } from "@/effect/chatErrors"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useAuthReady, useGetToken } from "@/lib/safeAuth"
 import { ConciergeSources } from "../Korea/ConciergeSources"
@@ -319,7 +320,7 @@ export function TripChat() {
             controller.signal,
             activeTrip ?? undefined,
           )
-          if (error) setAssistant(`⚠️ ${error}`)
+          if (error) setAssistant(formatConciergeError(content, error))
           else if (!content.trim() && !places?.length && !moves?.length) {
             setAssistant("I couldn't generate a reply just now. Please try rephrasing.")
           }
@@ -330,7 +331,19 @@ export function TripChat() {
           }
         } catch (err) {
           if ((err as Error).name !== "AbortError") {
-            setAssistant(`⚠️ ${(err as Error).message || "Something went wrong. Please try again."}`)
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId
+                  ? {
+                      ...m,
+                      content: formatConciergeError(
+                        m.content,
+                        (err as Error).message || "Something went wrong. Please try again.",
+                      ),
+                    }
+                  : m,
+              ),
+            )
           }
         } finally {
           setStreaming(false)

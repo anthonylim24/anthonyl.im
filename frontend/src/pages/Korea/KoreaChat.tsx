@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useLocation } from "react-router-dom"
 import { MessageCircleHeart, Send, Sparkles, X } from "lucide-react"
+import { formatConciergeError } from "../../effect/chatErrors"
 import type { ConciergeSource } from "../../lib/conciergeGrounding"
 import { streamKoreaChat, type KoreaChatMessage } from "./koreaChatApi"
 import { ConciergeSources } from "./ConciergeSources"
@@ -188,7 +189,7 @@ export function KoreaChat() {
       void (async () => {
         try {
           const { content, error, sources } = await streamKoreaChat(prompt, history, slug, setAssistant, controller.signal)
-          if (error) setAssistant(`⚠️ ${error}`)
+          if (error) setAssistant(formatConciergeError(content, error))
           // Defensive fallback: if the stream ended with no text and no error,
           // don't leave the bubble stuck on the typing indicator.
           else if (!content.trim()) {
@@ -199,8 +200,18 @@ export function KoreaChat() {
           }
         } catch (err) {
           if ((err as Error).name !== "AbortError") {
-            setAssistant(
-              `⚠️ ${(err as Error).message || "Something went wrong. Please try again."}`,
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId
+                  ? {
+                      ...m,
+                      content: formatConciergeError(
+                        m.content,
+                        (err as Error).message || "Something went wrong. Please try again.",
+                      ),
+                    }
+                  : m,
+              ),
             )
           }
         } finally {

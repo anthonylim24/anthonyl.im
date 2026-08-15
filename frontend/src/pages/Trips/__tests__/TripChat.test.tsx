@@ -398,6 +398,31 @@ describe("TripChat add place", () => {
     await waitFor(() => expect(mockUpdateTrip).toHaveBeenCalled())
   })
 
+  it("keeps streamed tokens when the reply is cut off", async () => {
+    mockStreamTripChat.mockImplementation(
+      async (
+        _id: unknown,
+        _prompt: unknown,
+        _hist: unknown,
+        _day: unknown,
+        _token: unknown,
+        onUpdate: (content: string) => void,
+      ) => {
+        onUpdate("Start at Gwangjang")
+        return {
+          content: "Start at Gwangjang",
+          error: "The concierge lost its connection. Please try again.",
+        }
+      },
+    )
+    renderChat()
+    await openChat()
+    fireEvent.change(screen.getByPlaceholderText("Ask about this trip…"), { target: { value: "lunch?" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+    expect(await screen.findByText(/Start at Gwangjang/)).toBeTruthy()
+    expect(screen.getByText(/lost its connection/i)).toBeTruthy()
+  })
+
   it("does not show idle typing dots for a moves-only reply", async () => {
     const withPlace = makeTrip({
       days: [

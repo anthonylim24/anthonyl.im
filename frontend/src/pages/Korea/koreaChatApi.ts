@@ -1,7 +1,7 @@
 import { Effect } from "effect"
 import { type ConciergeSource } from "../../lib/conciergeGrounding"
 import { parseConciergeSsePayload } from "../../lib/conciergeSse"
-import { remapChatFailure } from "../../effect/chatErrors"
+import { errorIfIncomplete, remapChatFailure } from "../../effect/chatErrors"
 import { fetchApi, readErrorMessage } from "../../effect/http"
 import { runPromise } from "../../effect/runtime"
 import { readSse } from "../../effect/sse"
@@ -52,7 +52,7 @@ const streamKoreaChatEffect = Effect.fn("KoreaChatService.stream")(function* (
   let streamError: string | undefined
   let sources: ConciergeSource[] | undefined
 
-  yield* readSse(response.body, {
+  const { completed } = yield* readSse(response.body, {
     signal,
     onData: (data) => {
       const parsed = parseConciergeSsePayload(data)
@@ -67,7 +67,7 @@ const streamKoreaChatEffect = Effect.fn("KoreaChatService.stream")(function* (
     },
   }).pipe(Effect.mapError(remapChatFailure))
 
-  return { content, error: streamError, sources } satisfies KoreaChatResult
+  return { content, error: errorIfIncomplete(completed, streamError), sources } satisfies KoreaChatResult
 })
 
 export function streamKoreaChat(

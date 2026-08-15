@@ -81,6 +81,13 @@ describe("invokeDeepseek", () => {
     await expect(promise).rejects.toThrow("timed out");
   });
 
+  it("throws when the stream closes without [DONE]", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      sseResponse([`data: ${JSON.stringify("Hello")}\n`]),
+    );
+    await expect(invokeDeepseek("hi")).rejects.toThrow("timed out");
+  });
+
   it("onUpdate throwing does not double-append (content equals parsed sum)", async () => {
     let callCount = 0;
     vi.spyOn(globalThis, "fetch").mockResolvedValue(

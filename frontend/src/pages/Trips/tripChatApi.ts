@@ -6,7 +6,7 @@ import {
   type ConciergeSource,
 } from "../../lib/conciergeGrounding"
 import { parseConciergeSsePayload } from "../../lib/conciergeSse"
-import { remapChatFailure } from "../../effect/chatErrors"
+import { errorIfIncomplete, remapChatFailure } from "../../effect/chatErrors"
 import { AuthError, HttpStatusError, StreamError } from "../../effect/errors"
 import { fetchApi, readAuthToken } from "../../effect/http"
 import { runPromise } from "../../effect/runtime"
@@ -142,7 +142,7 @@ const streamTripChatEffect = Effect.fn("TripChatService.stream")(function* (
   let moves: ConciergeMove[] | undefined
   let sources: ConciergeSource[] | undefined
 
-  yield* readSse(response.body, {
+  const { completed } = yield* readSse(response.body, {
     signal,
     onData: (data) => {
       const parsed = parseConciergeSsePayload(data)
@@ -163,7 +163,7 @@ const streamTripChatEffect = Effect.fn("TripChatService.stream")(function* (
 
   return {
     content: visibleConciergeText(content),
-    error: streamError,
+    error: errorIfIncomplete(completed, streamError),
     places,
     moves,
     sources,

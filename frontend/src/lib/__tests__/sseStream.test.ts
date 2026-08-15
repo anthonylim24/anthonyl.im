@@ -14,11 +14,12 @@ function makeStream(chunks: string[]): ReadableStream<Uint8Array> {
 describe("readSseStream", () => {
   it("emits multiple data lines from one chunk", async () => {
     const received: string[] = [];
-    await readSseStream(
+    const result = await readSseStream(
       makeStream([`data: foo\ndata: bar\ndata: [DONE]\n`]),
       { onData: (d) => received.push(d) },
     );
     expect(received).toEqual(["foo", "bar"]);
+    expect(result.completed).toBe(true);
   });
 
   it("handles a data line split across two chunks", async () => {
@@ -41,11 +42,22 @@ describe("readSseStream", () => {
 
   it("flushes a trailing data line with no final newline", async () => {
     const received: string[] = [];
-    await readSseStream(
+    const result = await readSseStream(
       makeStream([`data: tail`]), // no trailing newline
       { onData: (d) => received.push(d) },
     );
     expect(received).toEqual(["tail"]);
+    expect(result.completed).toBe(false);
+  });
+
+  it("reports an incomplete stream when the socket closes without [DONE]", async () => {
+    const received: string[] = [];
+    const result = await readSseStream(
+      makeStream([`data: Hello\n`, `data: , world\n`]),
+      { onData: (d) => received.push(d) },
+    );
+    expect(received).toEqual(["Hello", ", world"]);
+    expect(result.completed).toBe(false);
   });
 
   it("propagates errors from onData", async () => {
