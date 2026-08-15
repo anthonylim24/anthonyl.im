@@ -63,6 +63,19 @@ describe("findMentionedStops", () => {
     const found = findMentionedStops("Start at Senso-ji, then Sushi Saito.", t, ["Sushi Saito"])
     expect(found.map((s) => s.item.id)).toEqual(["a"])
   })
+
+  it("matches two-character Hangul stop names", () => {
+    const t = trip()
+    t.days[0]!.items.push(
+      item({
+        id: "c",
+        title: "경복궁",
+        location: { name: "경복궁", source: "user" },
+      }),
+    )
+    const found = findMentionedStops("아침에 경복궁을 걷자.", t)
+    expect(found.map((s) => s.item.id)).toEqual(["c"])
+  })
 })
 
 describe("resolveMove", () => {

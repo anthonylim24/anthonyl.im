@@ -100,6 +100,7 @@ export function TripChat() {
   const [access, setAccess] = useState<TripAccess>("view")
   const [addingKey, setAddingKey] = useState<string | null>(null)
   const [busyMoveKey, setBusyMoveKey] = useState<string | null>(null)
+  const [movingItemId, setMovingItemId] = useState<string | null>(null)
   const [photo, setPhoto] = useState<PhotoView | null>(null)
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
@@ -197,7 +198,7 @@ export function TripChat() {
   }, [open, reduce])
 
   useEffect(() => {
-    if (!open) return
+    if (!open || photo) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (expanded) {
@@ -227,7 +228,7 @@ export function TripChat() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [open, expanded, handleClose])
+  }, [open, expanded, handleClose, photo])
 
   useEffect(() => {
     if (!open) return
@@ -423,6 +424,7 @@ export function TripChat() {
   const movePlace = useCallback(
     async (place: ConciergePlace, toDayId: string) => {
       if (!tripId || !canEdit || !place.itemId || !place.dayId || place.dayId === toDayId) return
+      setMovingItemId(place.itemId)
       try {
         await persistTripDays((fresh) => moveItemToDay(fresh.days, place.dayId!, place.itemId!, toDayId))
       } catch (err) {
@@ -430,13 +432,15 @@ export function TripChat() {
           (m) => Boolean(m.places?.some((p) => p.itemId === place.itemId)),
           (m) => ({ ...m, content: `${m.content}\n\n⚠️ ${(err as Error).message || "Could not move that place."}` }),
         )
+      } finally {
+        setMovingItemId(null)
       }
     },
     [tripId, canEdit, persistTripDays, patchMessage],
   )
 
   const applyMove = useCallback(
-    async (resolved: ResolvedMove) => {
+    async (messageId: string, resolved: ResolvedMove) => {
       if (!tripId || !canEdit) return
       setBusyMoveKey(resolved.key)
       try {
@@ -453,7 +457,7 @@ export function TripChat() {
           return fresh.days
         })
         patchMessage(
-          (m) => Boolean(m.moves?.length),
+          (m) => m.id === messageId,
           (m) => ({
             ...m,
             appliedMoveKeys: [...new Set([...(m.appliedMoveKeys ?? []), resolved.key])],
@@ -465,7 +469,7 @@ export function TripChat() {
         )
       } catch (err) {
         patchMessage(
-          (m) => Boolean(m.moves?.length),
+          (m) => m.id === messageId,
           (m) => ({ ...m, content: `${m.content}\n\n⚠️ ${(err as Error).message || "Could not update the itinerary."}` }),
         )
       } finally {
@@ -658,6 +662,7 @@ export function TripChat() {
                         streaming={streaming && m.id === lastAssistantId}
                         reduce={!!reduce}
                         addingKey={addingKey}
+                        movingItemId={movingItemId}
                         busyMoveKey={busyMoveKey}
                         canEdit={canEdit}
                         onAdd={(place, targetDayId) => void addPlace(place, targetDayId)}
@@ -665,7 +670,7 @@ export function TripChat() {
                         onMove={(place, toDayId) => void movePlace(place, toDayId)}
                         onPhotos={openPhotos}
                         onMap={openMap}
-                        onConfirmMove={(resolved) => void applyMove(resolved)}
+                        onConfirmMove={(resolved) => void applyMove(m.id, resolved)}
                         onDismissMove={(key) =>
                           setMessages((prev) =>
                             prev.map((msg) =>
@@ -762,6 +767,7 @@ function AssistantBubble({
   streaming,
   reduce,
   addingKey,
+  movingItemId,
   busyMoveKey,
   canEdit,
   onAdd,
@@ -778,6 +784,7 @@ function AssistantBubble({
   streaming: boolean
   reduce: boolean
   addingKey: string | null
+  movingItemId: string | null
   busyMoveKey: string | null
   canEdit: boolean
   onAdd: (place: ConciergePlace, dayId: string) => void
@@ -826,6 +833,7 @@ function AssistantBubble({
             city={trip.destinations[0]}
             addedKeys={new Set(m.addedKeys)}
             addingKey={addingKey}
+            movingItemId={movingItemId}
             canEdit={canEdit}
             variant="suggest"
             onAdd={onAdd}
@@ -842,6 +850,7 @@ function AssistantBubble({
             addedKeys={new Set()}
             removedKeys={new Set(m.removedKeys)}
             addingKey={null}
+            movingItemId={movingItemId}
             canEdit={canEdit}
             variant="itinerary"
             onRemove={onRemove}

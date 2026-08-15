@@ -24,6 +24,12 @@ function isStopItem(item: ItineraryItem): boolean {
   return item.kind === "place" || item.kind === "reservation"
 }
 
+const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u
+
+function minMatchLength(value: string): number {
+  return CJK.test(value) ? 2 : 4
+}
+
 function namesMatch(query: string, candidate: string): boolean {
   const a = normalizeName(query)
   const b = normalizeName(candidate)
@@ -31,7 +37,7 @@ function namesMatch(query: string, candidate: string): boolean {
   if (a === b) return true
   const shorter = a.length <= b.length ? a : b
   const longer = a.length <= b.length ? b : a
-  return shorter.length >= 4 && longer.includes(shorter)
+  return shorter.length >= minMatchLength(shorter) && longer.includes(shorter)
 }
 
 export function dayLabel(day: TripDay, index: number): string {
@@ -63,7 +69,7 @@ export function findMentionedStops(text: string, trip: Trip, excludeNames: Itera
     for (const item of day.items) {
       if (!isStopItem(item)) continue
       for (const name of stopNames(item)) {
-        if (name.trim().length < 4) continue
+        if (name.trim().length < minMatchLength(name)) continue
         if (excluded.has(normalizeName(name))) continue
         candidates.push({ stop: { day, item }, name })
       }

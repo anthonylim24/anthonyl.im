@@ -79,9 +79,9 @@ export function TripDayPage() {
   const anchorTarget = useAnchorTarget(state.status === "success")
 
   useEffect(() => {
-    if (searchParams.get("map") !== "1") return
-    setMapOpen(true)
-    setFocusPlaceId(searchParams.get("focus") ?? undefined)
+    const mapRequested = searchParams.get("map") === "1"
+    setMapOpen(mapRequested)
+    setFocusPlaceId(mapRequested ? (searchParams.get("focus") ?? undefined) : undefined)
   }, [searchParams])
 
   const closeMap = () => {

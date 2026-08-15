@@ -19,8 +19,20 @@ import {
   wrapAnywhereClass,
 } from "./ui"
 
+function safeHttpsUrl(value: string): string | undefined {
+  try {
+    const url = new URL(value)
+    return url.protocol === "https:" ? url.toString() : undefined
+  } catch {
+    return undefined
+  }
+}
+
 function mapsHref(place: ConciergePlace): string | undefined {
-  if (place.mapsUrl) return place.mapsUrl
+  if (place.mapsUrl) {
+    const safe = safeHttpsUrl(place.mapsUrl)
+    if (safe) return safe
+  }
   if (place.address) {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.address)}`
   }
@@ -38,6 +50,7 @@ export function ConciergePlaceCards({
   addedKeys,
   removedKeys,
   addingKey,
+  movingItemId,
   canEdit,
   variant,
   onAdd,
@@ -53,6 +66,7 @@ export function ConciergePlaceCards({
   addedKeys: Set<string>
   removedKeys?: Set<string>
   addingKey: string | null
+  movingItemId?: string | null
   canEdit: boolean
   variant: "suggest" | "itinerary"
   onAdd?: (place: ConciergePlace, dayId: string) => void
@@ -75,6 +89,7 @@ export function ConciergePlaceCards({
           added={addedKeys.has(conciergePlaceKey(place))}
           removed={removedKeys?.has(place.itemId ?? conciergePlaceKey(place)) ?? false}
           adding={addingKey === conciergePlaceKey(place)}
+          moving={movingItemId != null && movingItemId === place.itemId}
           canEdit={canEdit}
           variant={variant}
           onAdd={onAdd}
@@ -96,6 +111,7 @@ function ConciergePlaceCard({
   added,
   removed,
   adding,
+  moving,
   canEdit,
   variant,
   onAdd,
@@ -111,6 +127,7 @@ function ConciergePlaceCard({
   added: boolean
   removed: boolean
   adding: boolean
+  moving: boolean
   canEdit: boolean
   variant: "suggest" | "itinerary"
   onAdd?: (place: ConciergePlace, dayId: string) => void
@@ -164,7 +181,12 @@ function ConciergePlaceCard({
         </div>
 
         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <button type="button" onClick={() => onPhotos(place)} className={quietBtnClass}>
+          <button
+            type="button"
+            onClick={() => onPhotos(place)}
+            aria-label={`Photos of ${place.name}`}
+            className={quietBtnClass}
+          >
             <ImageIcon className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
             Photos
           </button>
@@ -230,6 +252,8 @@ function ConciergePlaceCard({
               <select
                 id={`move-place-day-${place.itemId ?? conciergePlaceKey(place)}`}
                 value={dayId}
+                disabled={moving}
+                aria-busy={moving}
                 onChange={(e) => {
                   const next = e.target.value
                   setDayId(next)

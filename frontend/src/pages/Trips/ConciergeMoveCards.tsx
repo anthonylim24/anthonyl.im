@@ -1,5 +1,5 @@
 import { Check, X } from "lucide-react"
-import { accentChipBtnClass, dangerChipBtnClass, ghostBtnClass, mutedInkClass } from "./ui"
+import { accentChipBtnClass, dangerChipBtnClass, ghostBtnClass, mutedInkClass, wrapAnywhereClass } from "./ui"
 import type { ResolvedMove } from "./conciergeMoves"
 
 export function ConciergeMoveCards({
@@ -23,22 +23,26 @@ export function ConciergeMoveCards({
   if (visible.length === 0) return null
 
   return (
-    <ul className="mt-3 space-y-2" aria-label="Proposed itinerary changes">
+    <ul className="mt-3 space-y-2" aria-label="Proposed itinerary changes" aria-live="polite">
       {visible.map((move) => {
         const applied = appliedKeys.has(move.key)
         const busy = busyKey === move.key
+        const labelId = `concierge-move-${move.key}`
         return (
           <li
             key={move.key}
             className="rounded-2xl border border-stone-200/90 bg-stone-50/90 px-3 py-2.5 dark:border-stone-700/80 dark:bg-stone-900/70"
           >
-            <p className="text-sm leading-snug text-stone-800 dark:text-stone-100">{move.label}</p>
+            <p id={labelId} className={`text-sm leading-snug text-stone-800 dark:text-stone-100 ${wrapAnywhereClass}`}>
+              {move.label}
+            </p>
             {canEdit && !applied ? (
               <div className="mt-2 flex flex-wrap gap-2">
                 <button
                   type="button"
                   disabled={busy}
                   aria-busy={busy}
+                  aria-describedby={labelId}
                   onClick={() => onConfirm(move)}
                   className={move.move.type === "remove" ? dangerChipBtnClass : accentChipBtnClass}
                 >
@@ -48,6 +52,7 @@ export function ConciergeMoveCards({
                 <button
                   type="button"
                   disabled={busy}
+                  aria-describedby={labelId}
                   onClick={() => onDismiss(move.key)}
                   className={ghostBtnClass}
                 >

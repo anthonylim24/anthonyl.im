@@ -1,8 +1,8 @@
-import { useEffect, useId, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { X } from "lucide-react"
 import { lookupGooglePlacePhoto, lookupPhoto } from "../Korea/placePhoto"
-import { focusRingClass, mutedInkClass } from "./ui"
+import { focusRingClass } from "./ui"
 
 export async function lookupConciergePhoto(args: {
   name: string
@@ -46,9 +46,13 @@ export function ConciergePhotoThumb({
   useEffect(() => {
     let cancelled = false
     setFailed(false)
-    void lookupConciergePhoto({ name, city, lat, lng, size: 640 }).then((found) => {
-      if (!cancelled) setUrl(found)
-    })
+    void lookupConciergePhoto({ name, city, lat, lng, size: 640 })
+      .then((found) => {
+        if (!cancelled) setUrl(found)
+      })
+      .catch(() => {
+        if (!cancelled) setUrl(null)
+      })
     return () => {
       cancelled = true
     }
@@ -98,6 +102,9 @@ export function ConciergePhotoViewer({
   onClose: () => void
 }) {
   const titleId = useId()
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const closeRef = useRef<HTMLButtonElement>(null)
+  const restoreRef = useRef<HTMLElement | null>(null)
   const [url, setUrl] = useState<string | null>(initialUrl ?? null)
   const [status, setStatus] = useState<"loading" | "ready" | "empty">(
     initialUrl ? "ready" : "loading",
@@ -106,28 +113,62 @@ export function ConciergePhotoViewer({
   useEffect(() => {
     if (initialUrl) return
     let cancelled = false
-    void lookupConciergePhoto({ name, city, lat, lng, size: 1200 }).then((found) => {
-      if (cancelled) return
-      setUrl(found)
-      setStatus(found ? "ready" : "empty")
-    })
+    void lookupConciergePhoto({ name, city, lat, lng, size: 1200 })
+      .then((found) => {
+        if (cancelled) return
+        setUrl(found)
+        setStatus(found ? "ready" : "empty")
+      })
+      .catch(() => {
+        if (!cancelled) setStatus("empty")
+      })
     return () => {
       cancelled = true
     }
   }, [name, city, lat, lng, initialUrl])
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
+    restoreRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    closeRef.current?.focus()
+    return () => {
+      restoreRef.current?.focus()
     }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
+  }, [])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation()
+        onClose()
+        return
+      }
+      if (e.key !== "Tab") return
+      const root = dialogRef.current
+      if (!root) return
+      const focusable = root.querySelectorAll<HTMLElement>(
+        'button, [href], textarea, input, select, [tabindex]:not([tabindex="-1"])',
+      )
+      if (focusable.length === 0) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      const active = document.activeElement as HTMLElement | null
+      if (e.shiftKey && (active === first || !root.contains(active))) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault()
+        first.focus()
+      }
+    }
+    window.addEventListener("keydown", onKey, true)
+    return () => window.removeEventListener("keydown", onKey, true)
   }, [onClose])
 
   if (typeof document === "undefined") return null
 
   return createPortal(
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
@@ -138,6 +179,7 @@ export function ConciergePhotoViewer({
           {name}
         </h2>
         <button
+          ref={closeRef}
           type="button"
           onClick={onClose}
           aria-label="Close photos"
@@ -148,7 +190,7 @@ export function ConciergePhotoViewer({
       </header>
       <div className="flex min-h-0 flex-1 items-center justify-center px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
         {status === "loading" ? (
-          <p className={`text-sm ${mutedInkClass}`}>Looking up a photo…</p>
+          <p className="text-sm text-stone-400">Looking up a photo…</p>
         ) : url ? (
           <img src={url} alt={name} className="max-h-full max-w-full object-contain" />
         ) : (
