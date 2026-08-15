@@ -57,7 +57,7 @@ const streamTripChatEffect = Effect.fn("TripChatService.stream")(function* (
   signal?: AbortSignal,
   trip?: Trip,
 ) {
-  const token = yield* readAuthToken(getToken)
+  const token = yield* readAuthToken(getToken).pipe(Effect.mapError(remapChatFailure))
   const response = yield* fetchApi(`/api/trips/${encodeURIComponent(tripId)}/chat`, {
     method: "POST",
     headers: {

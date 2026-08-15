@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect, useEffectEvent, useMemo, useState, useRef, useTransition } from "react"
+import { lazy, Suspense, useEffect, useMemo, useState, useRef, useTransition } from "react"
+import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { motion, AnimatePresence, useReducedMotion } from "motion/react"
 import {
   X,
@@ -67,7 +68,7 @@ export function MapModeOverlay({
 }: MapModeOverlayProps) {
   const reduce = useReducedMotion()
   const getToken = useGetToken()
-  const readToken = useEffectEvent(getToken)
+  const readToken = useLatestCallback(getToken)
   const [, startTransition] = useTransition()
   const [deviceCoords, setDeviceCoords] = useState<DeviceCoords>(null)
   const [deviceReady, setDeviceReady] = useState(false)

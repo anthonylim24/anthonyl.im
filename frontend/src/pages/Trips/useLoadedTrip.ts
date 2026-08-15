@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useEffectEvent, useRef, useState, useTransition } from "react"
+import { useCallback, useEffect, useRef, useState, useTransition } from "react"
+import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { getTrip, type GetToken } from "./tripsApi"
 import { mergeFetchedTrip, preferFresherTrip, useTripChanged } from "./tripsEvents"
 import type { Trip } from "./types"
@@ -14,7 +15,7 @@ export function useLoadedTrip(tripId: string | undefined, getToken: GetToken) {
   const [isRefreshing, startTransition] = useTransition()
   const liveTripRef = useRef<Trip | null>(null)
   const tripIdRef = useRef(tripId)
-  const readToken = useEffectEvent(getToken)
+  const readToken = useLatestCallback(getToken)
   if (tripIdRef.current !== tripId) {
     tripIdRef.current = tripId
     liveTripRef.current = null
@@ -27,8 +28,9 @@ export function useLoadedTrip(tripId: string | undefined, getToken: GetToken) {
   useEffect(() => {
     if (!tripId) return
     let cancelled = false
-    const keepCurrent = liveTripRef.current != null
-    if (!keepCurrent) setState({ status: "loading" })
+    setState((current) =>
+      current.status === "success" && current.trip.id === tripId ? current : { status: "loading" },
+    )
     void (async () => {
       try {
         const { trip, access } = await getTrip(readToken, tripId)

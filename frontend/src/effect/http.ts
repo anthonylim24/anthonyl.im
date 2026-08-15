@@ -84,10 +84,11 @@ export const requestJson = <T>(
 ): Effect.Effect<T, Error | HttpStatusError | DecodeError> =>
   Effect.gen(function* () {
     const token = yield* readAuthToken(getToken)
-    const headers: Record<string, string> = {
-      ...(init.body ? { "Content-Type": "application/json" } : {}),
-      ...bearerHeaders(token),
+    const headers = new Headers(init.headers)
+    if (init.body && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json")
     }
+    if (token) headers.set("Authorization", `Bearer ${token}`)
     const res = yield* fetchApi(path, { ...init, headers, cache: "no-store" })
     yield* requireOk(res)
     return yield* parseJson<T>(res)

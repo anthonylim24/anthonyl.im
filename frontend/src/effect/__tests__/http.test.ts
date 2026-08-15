@@ -52,4 +52,20 @@ describe("requestJson", () => {
       message: "Please sign in again.",
     })
   })
+
+  it("keeps caller-provided headers when adding the bearer token", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } }),
+    )
+    await runPromise(
+      requestJson(async () => "tok", "/api/trips", {
+        headers: { Accept: "application/json", "X-Idempotency-Key": "abc" },
+      }),
+    )
+    const init = spy.mock.calls[0]![1] as RequestInit
+    const headers = new Headers(init.headers)
+    expect(headers.get("Accept")).toBe("application/json")
+    expect(headers.get("X-Idempotency-Key")).toBe("abc")
+    expect(headers.get("Authorization")).toBe("Bearer tok")
+  })
 })

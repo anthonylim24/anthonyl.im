@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useEffectEvent, useId, useMemo, useOptimistic, useRef, useState, useTransition, type CSSProperties } from "react"
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react"
 import { createPortal } from "react-dom"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useLocation } from "react-router-dom"
 import { Maximize2, MessageCircleHeart, Minimize2, Send, Sparkles, X } from "lucide-react"
 import { conciergePlaceKey, type ConciergePlace, type ConciergeSource } from "../../lib/conciergeGrounding"
+import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useGetToken } from "@/lib/safeAuth"
 import { ConciergeSources } from "../Korea/ConciergeSources"
 import { ConciergeText } from "../Korea/ConciergeText"
@@ -86,7 +87,7 @@ export function useTripChatRoute(): { tripId?: string; dayId?: string } {
 export function TripChat() {
   const { tripId, dayId } = useTripChatRoute()
   const getToken = useGetToken()
-  const readToken = useEffectEvent(getToken)
+  const readToken = useLatestCallback(getToken)
   const reduce = useReducedMotion()
   const isDesktop = useMinWidth(768)
   const [trip, setTrip] = useState<Trip | null>(null)
@@ -95,12 +96,7 @@ export function TripChat() {
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [optimisticMessages, addOptimistic] = useOptimistic(
-    messages,
-    (current, incoming: ChatMessage[]) => [...current, ...incoming],
-  )
   const [input, setInput] = useState("")
-  const [, startStream] = useTransition()
   const [streaming, setStreaming] = useState(false)
   const [kbInset, setKbInset] = useState(0)
 
@@ -174,7 +170,7 @@ export function TripChat() {
 
   useEffect(() => {
     scrollToBottom()
-  }, [optimisticMessages, scrollToBottom])
+  }, [messages, scrollToBottom])
 
   useEffect(() => {
     if (!open) {
@@ -274,10 +270,7 @@ export function TripChat() {
       const setAssistant = (content: string) =>
         setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content } : m)))
 
-      startStream(() => {
-        addOptimistic(pending)
-        setMessages((prev) => [...prev, ...pending])
-      })
+      setMessages((prev) => [...prev, ...pending])
       void (async () => {
         setStreaming(true)
         let activeTrip = trip
@@ -327,7 +320,7 @@ export function TripChat() {
         }
       })()
     },
-    [addOptimistic, messages, tripId, dayId, trip, startStream],
+    [messages, tripId, dayId, trip, readToken],
   )
 
   const canEdit = access === "edit" || access === "owner"
@@ -504,7 +497,7 @@ export function TripChat() {
                 className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4"
                 style={{ WebkitOverflowScrolling: "touch" }}
               >
-                {optimisticMessages.length === 0 ? (
+                {messages.length === 0 ? (
                   <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
                     <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[color:var(--ta-soft)] text-[color:var(--ta)]">
                       <MessageCircleHeart className="h-6 w-6" />
@@ -516,7 +509,7 @@ export function TripChat() {
                     </p>
                   </div>
                 ) : (
-                  optimisticMessages.map((m) =>
+                  messages.map((m) =>
                     m.role === "user" ? (
                       <div key={m.id} className="flex justify-end">
                         <div className="max-w-[85%] rounded-2xl rounded-br-md bg-[color:var(--trips-accent)] px-3.5 py-2 text-[15px] leading-relaxed text-white shadow-sm dark:text-stone-950">

@@ -287,11 +287,12 @@ export function TripsIndex() {
           </div>
         )}
 
-        {state.status === "success" && isRefreshing && (
-          <p className="mb-3 text-[12px] font-medium uppercase tracking-[0.16em] text-stone-400" aria-live="polite">
-            Refreshing…
-          </p>
-        )}
+        <p
+          className="mb-3 text-[12px] font-medium uppercase tracking-[0.16em] text-stone-400 empty:mb-0"
+          aria-live="polite"
+        >
+          {state.status === "success" && isRefreshing ? "Refreshing…" : ""}
+        </p>
 
         {state.status === "success" && state.trips.length === 0 && (
           <div className="relative isolate -mx-4 overflow-hidden px-4 py-10 sm:-mx-6 sm:px-6 sm:py-14">

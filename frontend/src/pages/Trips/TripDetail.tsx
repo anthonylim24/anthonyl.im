@@ -1,4 +1,5 @@
-import { lazy, Suspense, useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState, useTransition } from "react"
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react"
+import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { useReducedMotion } from "motion/react"
 import { Eye, Globe2 } from "lucide-react"
@@ -66,7 +67,7 @@ export function TripDetail() {
   const routerLocation = useLocation()
   const reduce = useReducedMotion()
   const getToken = useGetToken()
-  const readToken = useEffectEvent(getToken)
+  const readToken = useLatestCallback(getToken)
   const [, startTransition] = useTransition()
   const [state, setState] = useState<LoadState>({ status: "loading" })
   const [trip, setTrip] = useState<Trip | null>(null)

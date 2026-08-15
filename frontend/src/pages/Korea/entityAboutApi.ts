@@ -25,7 +25,7 @@ const fetchAboutEffect = Effect.fn("EntityAboutService.fetch")(function* (
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, type, city }),
   })
-  if (!r.ok) return null
+  if (!r.ok) return yield* Effect.fail(new Error(`/api/entity/about ${r.status}`))
   const j = yield* parseJson<{ description?: string | null }>(r)
   return j.description ?? null
 })
@@ -38,11 +38,12 @@ export function fetchAbout(name: string, type: EntityType, city?: string): Promi
   const pending = inflight.get(key)
   if (pending) return pending
 
-  const promise = runPromise(fetchAboutEffect(name, type, city).pipe(Effect.catchAll(() => Effect.succeed(null))))
+  const promise = runPromise(fetchAboutEffect(name, type, city))
     .then((description) => {
       aboutCache.set(key, { description, fetchedAt: Date.now() })
       return description
     })
+    .catch(() => null)
     .finally(() => {
       inflight.delete(key)
     })

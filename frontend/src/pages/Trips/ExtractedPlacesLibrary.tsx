@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useEffectEvent, useMemo, useState, useTransition } from "react"
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
+import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { ChevronDown, ChevronLeft, ChevronRight, Plus } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
 import { formatTripDate } from "./theme"
@@ -28,7 +29,7 @@ export function ExtractedPlacesLibrary({
   onDaysChange: (fn: (days: TripDay[]) => TripDay[]) => void
 }) {
   const getToken = useGetToken()
-  const readToken = useEffectEvent(getToken)
+  const readToken = useLatestCallback(getToken)
   const [isRefreshing, startTransition] = useTransition()
   const [open, setOpen] = useState(() => collectCatalogPlaces([trip]).length > 0)
   const [offset, setOffset] = useState(0)
@@ -47,11 +48,15 @@ export function ExtractedPlacesLibrary({
     setLoading(true)
     try {
       const trips = await listForeignInstagramTrips(readToken, trip.id)
-      startTransition(() => setForeign(collectCatalogPlaces(trips)))
+      startTransition(() => {
+        setForeign(collectCatalogPlaces(trips))
+        setLoading(false)
+      })
     } catch {
-      startTransition(() => setForeign([]))
-    } finally {
-      setLoading(false)
+      startTransition(() => {
+        setForeign([])
+        setLoading(false)
+      })
     }
   }, [trip.id, startTransition])
 

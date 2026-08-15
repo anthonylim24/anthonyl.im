@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useEffectEvent, useId, useMemo, useState, useTransition } from "react"
+import { useCallback, useEffect, useId, useMemo, useState, useTransition } from "react"
+import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { ChevronDown, Loader2, Plus } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
 import { IgIcon } from "../Korea/IgIcon"
@@ -75,7 +76,7 @@ export function TripIngest({
   const getToken = useGetToken()
   const urlId = useId()
   const skipId = useId()
-  const readToken = useEffectEvent(getToken)
+  const readToken = useLatestCallback(getToken)
   const [isRefreshing, startTransition] = useTransition()
 
   const [open, setOpen] = useState(false)

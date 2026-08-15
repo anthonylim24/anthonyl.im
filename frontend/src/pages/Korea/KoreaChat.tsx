@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useOptimistic, useRef, useState, useTransition } from "react"
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useLocation } from "react-router-dom"
 import { MessageCircleHeart, Send, Sparkles, X } from "lucide-react"
@@ -44,12 +44,7 @@ export function KoreaChat() {
   const slug = useFocusedDaySlug()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [optimisticMessages, addOptimistic] = useOptimistic(
-    messages,
-    (current, incoming: ChatMessage[]) => [...current, ...incoming],
-  )
   const [input, setInput] = useState("")
-  const [, startStream] = useTransition()
   const [streaming, setStreaming] = useState(false)
 
   const [kbInset, setKbInset] = useState(0)
@@ -81,7 +76,7 @@ export function KoreaChat() {
 
   useEffect(() => {
     scrollToBottom()
-  }, [optimisticMessages, scrollToBottom])
+  }, [messages, scrollToBottom])
 
   // Focus the input when the panel opens; restore focus to the FAB on close.
   useEffect(() => {
@@ -188,10 +183,7 @@ export function KoreaChat() {
       const setAssistant = (content: string) =>
         setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content } : m)))
 
-      startStream(() => {
-        addOptimistic(pending)
-        setMessages((prev) => [...prev, ...pending])
-      })
+      setMessages((prev) => [...prev, ...pending])
       void (async () => {
         setStreaming(true)
         try {
@@ -218,7 +210,7 @@ export function KoreaChat() {
         }
       })()
     },
-    [addOptimistic, messages, slug, startStream],
+    [messages, slug],
   )
 
   // Auto-grow the composer up to the CSS max-height, then let it scroll.
@@ -332,7 +324,7 @@ export function KoreaChat() {
                 className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4"
                 style={{ WebkitOverflowScrolling: "touch" }}
               >
-                {optimisticMessages.length === 0 ? (
+                {messages.length === 0 ? (
                   <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
                     <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-500 dark:bg-rose-950/40 dark:text-rose-400">
                       <MessageCircleHeart className="h-6 w-6" />
@@ -342,7 +334,7 @@ export function KoreaChat() {
                     </p>
                   </div>
                 ) : (
-                  optimisticMessages.map((m) =>
+                  messages.map((m) =>
                     m.role === "user" ? (
                       <div key={m.id} className="flex justify-end">
                         <div className="max-w-[85%] rounded-2xl rounded-br-md bg-rose-500 px-3.5 py-2 text-[15px] leading-relaxed text-white shadow-sm dark:bg-rose-500">

@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect, useEffectEvent, useMemo, useState, useTransition } from "react"
+import { lazy, Suspense, useEffect, useMemo, useState, useTransition } from "react"
+import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { ArrowUpRight, Globe2, MapPin } from "lucide-react"
@@ -23,7 +24,7 @@ const MapModeOverlay = lazy(() =>
 /** Fetches IG saves for this day from the same /api/korea/day/:slug/places endpoint. */
 function useDayIgSaves(slug: string | undefined): IgSave[] {
   const getToken = useGetToken()
-  const readToken = useEffectEvent(getToken)
+  const readToken = useLatestCallback(getToken)
   const [igSaves, setIgSaves] = useState<IgSave[]>([])
   const [, startTransition] = useTransition()
 

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useEffectEvent, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
+import { useLatestCallback } from '@/hooks/useLatestCallback'
 import { Link } from 'react-router-dom'
 import { clerkEnabled, useGetToken } from '@/lib/safeAuth'
 import { motion, useReducedMotion } from 'motion/react'
@@ -1180,8 +1181,9 @@ function IngestImpl() {
   const [fetchFailures, setFetchFailures] = useState(0)
   const [apiNotConfigured, setApiNotConfigured] = useState<string | null>(null)
 
-  const readToken = useEffectEvent(getToken)
+  const readToken = useLatestCallback(getToken)
   const [isRefreshing, startTransition] = useTransition()
+  const [refreshInFlight, setRefreshInFlight] = useState(0)
 
   // ── Time ticks ─────────────────────────────────────────────────────────────
 
@@ -1192,13 +1194,18 @@ function IngestImpl() {
   // ── Fetch helpers ──────────────────────────────────────────────────────────
 
   const doFetchJobs = useCallback(async () => {
+    setRefreshInFlight((n) => n + 1)
     try {
       const data = await listJobs(readToken)
-      startTransition(() => setJobs(data))
+      startTransition(() => {
+        setJobs(data)
+        setJobsLoaded(true)
+      })
       setLastRefreshed(new Date())
       setFetchFailures(0)
       setApiNotConfigured(null)
     } catch (err) {
+      setJobsLoaded(true)
       if (err instanceof ApiNotConfiguredError) {
         // Sticky banner — this is a server-config issue that won't fix itself.
         setApiNotConfigured(err.message)
@@ -1206,13 +1213,12 @@ function IngestImpl() {
       }
       setFetchFailures((n) => n + 1)
     } finally {
-      // Mark first-load complete whether it succeeded or failed — the empty-state
-      // / skeleton render branches need to know to stop showing skeletons.
-      setJobsLoaded(true)
+      setRefreshInFlight((n) => n - 1)
     }
-  }, [])
+  }, [readToken, startTransition])
 
   const doFetchStats = useCallback(async () => {
+    setRefreshInFlight((n) => n + 1)
     try {
       const data = await fetchStats(readToken)
       startTransition(() => setStats(data))
@@ -1221,8 +1227,10 @@ function IngestImpl() {
         setApiNotConfigured(err.message)
       }
       // otherwise hide stats silently — per spec
+    } finally {
+      setRefreshInFlight((n) => n - 1)
     }
-  }, [])
+  }, [readToken, startTransition])
 
   // ── Initial fetch ──────────────────────────────────────────────────────────
 
@@ -1300,7 +1308,7 @@ function IngestImpl() {
   const agoLabel = lastRefreshed ? timeAgo(lastRefreshed) : null
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16" aria-busy={submitting || isRefreshing}>
+    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16" aria-busy={submitting || isRefreshing || refreshInFlight > 0}>
       {/* Page header — no entry animation: motion-12 + react-19 can stall
           opacity-0 mounts under tab-restore / fast-paint conditions, and a
           blank header with the rest of the page hidden behind it is worse

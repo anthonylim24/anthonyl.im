@@ -1,4 +1,4 @@
-import { Activity, useState, useRef, useEffect, lazy, Suspense, useCallback, useOptimistic, useTransition } from "react";
+import { Activity, useState, useRef, useEffect, lazy, Suspense, useCallback } from "react";
 import { Send, ChevronDown } from "lucide-react";
 import { cn } from "./lib/utils";
 import { invokeDeepseek } from "./lib/apiService";
@@ -75,12 +75,7 @@ const overlayStyle = {
 
 function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [optimisticMessages, addOptimistic] = useOptimistic(
-    messages,
-    (current, incoming: ChatMessage[]) => [...current, ...incoming],
-  );
   const [input, setInput] = useState("");
-  const [isPending, startTransition] = useTransition();
   const [isStreaming, setIsStreaming] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [shadowMode, setShadowMode] = useState(true);
@@ -160,7 +155,7 @@ function App() {
   // Auto-scroll when messages change
   useEffect(() => {
     if (shouldAutoScroll.current) scrollToBottom();
-  }, [optimisticMessages, scrollToBottom]);
+  }, [messages, scrollToBottom]);
 
   /* ── Input ── */
 
@@ -179,7 +174,7 @@ function App() {
     (e?: React.FormEvent, submittedInput?: string) => {
       if (e) e.preventDefault();
       const text = (submittedInput || input).trim();
-      if (!text || isPending || isStreaming) return;
+      if (!text || isStreaming) return;
 
       const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: text, timestamp: Date.now() };
       const asstMsg: ChatMessage = { id: crypto.randomUUID(), role: "assistant", content: "", timestamp: Date.now() };
@@ -190,10 +185,7 @@ function App() {
       if (inputRef.current) inputRef.current.style.height = "auto";
       scrollToBottom();
 
-      startTransition(() => {
-        addOptimistic([userMsg, asstMsg]);
-        setMessages((prev) => [...prev, userMsg, asstMsg]);
-      });
+      setMessages((prev) => [...prev, userMsg, asstMsg]);
       void (async () => {
         setIsStreaming(true);
         try {
@@ -222,7 +214,7 @@ function App() {
         }
       })();
     },
-    [addOptimistic, input, isPending, isStreaming, messages, scrollToBottom, startTransition],
+    [input, isStreaming, messages, scrollToBottom],
   );
 
   const handleKeyDown = useCallback(
@@ -235,9 +227,9 @@ function App() {
     [handleSubmit],
   );
 
-  const visibleMessages = optimisticMessages;
+  const visibleMessages = messages;
   const hasMessages = visibleMessages.length > 0;
-  const isLoading = isPending || isStreaming;
+  const isLoading = isStreaming;
   const themeClass = shadowMode ? "chatbot-shadow" : "chatbot-dark";
 
   /* ── Render ── */
@@ -301,7 +293,7 @@ function App() {
         <div ref={scrollAreaRef} onScroll={handleScroll} className="px-6" style={scrollAreaStyle}>
           {hasMessages ? (
             <>
-              <div className="space-y-5 py-2" aria-busy={isPending}>
+              <div className="space-y-5 py-2" aria-busy={isStreaming}>
                 {visibleMessages.map((message, index) => {
                   const isUser = message.role === "user";
                   const isLastAssistant = !isUser && index === visibleMessages.length - 1;
@@ -406,7 +398,7 @@ function App() {
             </div>
           </Activity>
 
-          <form onSubmit={handleSubmit} aria-busy={isPending}>
+          <form onSubmit={handleSubmit} aria-busy={isStreaming}>
             <div className="chat-input-box flex items-end gap-3 px-3 py-2 transition-all duration-700">
               <textarea
                 ref={inputRef}
@@ -421,10 +413,10 @@ function App() {
               <button
                 type="submit"
                 disabled={isLoading || !input.trim()}
-                aria-label={isPending ? "Sending" : "Send message"}
+                aria-label={isStreaming ? "Sending" : "Send message"}
                 className="chat-send shrink-0 p-2 transition-all duration-300 disabled:opacity-20 disabled:cursor-not-allowed"
               >
-                <Send className={`w-4 h-4 ${isPending ? "animate-pulse" : ""}`} />
+                <Send className={`w-4 h-4 ${isStreaming ? "animate-pulse" : ""}`} />
               </button>
             </div>
           </form>

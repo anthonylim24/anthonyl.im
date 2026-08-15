@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useTransition } from 'react'
+import { useLatestCallback } from '@/hooks/useLatestCallback'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { clerkEnabled, useGetToken } from '@/lib/safeAuth'
@@ -679,7 +680,7 @@ function PlacesImpl() {
   const [activeBusyness, setActiveBusyness] = useState<BusynessLevel | null>(null)
   const [offset, setOffset] = useState(0)
 
-  const readToken = useEffectEvent(getToken)
+  const readToken = useLatestCallback(getToken)
   const [isRefreshing, startTransition] = useTransition()
 
   const searchRef = useRef(search)
@@ -724,10 +725,11 @@ function PlacesImpl() {
         }
         setTotal(data.total)
         setHasMore(data.hasMore)
+        setLoading(false)
+        setLoadingMore(false)
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load places')
-    } finally {
       setLoading(false)
       setLoadingMore(false)
     }
