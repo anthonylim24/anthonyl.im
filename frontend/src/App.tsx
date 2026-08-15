@@ -1,6 +1,8 @@
 import { Activity, useState, useRef, useEffect, lazy, Suspense, useCallback } from "react";
 import { Send, ChevronDown } from "lucide-react";
 import { cn } from "./lib/utils";
+import { formatConciergeError } from "./effect/chatErrors";
+import { TimeoutError, errorMessage } from "./effect/errors";
 import { invokeDeepseek } from "./lib/apiService";
 import { useFavicon } from "./hooks/useFavicon";
 import { getPostHogConfig } from "./lib/analytics";
@@ -200,12 +202,14 @@ function App() {
           });
         } catch (err) {
           console.error(err);
+          const fallback = errorMessage(err) || "I apologize, but something went wrong. Please try again.";
+          const partial = err instanceof TimeoutError ? err.partialContent : undefined;
           setMessages((prev) => {
             const last = prev[prev.length - 1];
             if (last?.role !== "assistant") return prev;
             return prev.map((message, index) =>
               index === prev.length - 1
-                ? { ...message, content: "I apologize, but something went wrong. Please try again." }
+                ? { ...message, content: formatConciergeError(partial ?? last.content, fallback) }
                 : message,
             );
           });

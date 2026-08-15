@@ -20,6 +20,7 @@ export class StreamError extends Schema.TaggedError<StreamError>()("StreamError"
 /** Chat / invoke watchdog fired after prolonged silence. */
 export class TimeoutError extends Schema.TaggedError<TimeoutError>()("TimeoutError", {
   message: Schema.String,
+  partialContent: Schema.optional(Schema.String),
 }) {}
 
 /** Auth token is missing or the server rejected the session. */

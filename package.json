@@ -3,8 +3,8 @@
   "module": "index.ts",
   "type": "module",
   "scripts": {
-    "start": "bun run server/app.ts",
-    "dev": "pushd frontend && bun run build && popd && bun --watch server/app.ts",
+    "start": "bun run index.ts",
+    "dev": "pushd frontend && bun run build && popd && bun --watch index.ts",
     "codex:setup": "bash .codex/setup.sh",
     "codex:maintenance": "bash .codex/maintenance.sh",
     "codex:dev": "bash .codex/dev.sh",

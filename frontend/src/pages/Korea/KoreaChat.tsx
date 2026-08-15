@@ -5,12 +5,13 @@ import { MessageCircleHeart, Send, Sparkles, X } from "lucide-react"
 import type { ConciergeSource } from "../../lib/conciergeGrounding"
 import { streamKoreaChat, type KoreaChatMessage } from "./koreaChatApi"
 import { ConciergeSources } from "./ConciergeSources"
-import { ConciergeText } from "./ConciergeText"
+import { ConciergeStreamStatus, ConciergeText } from "./ConciergeText"
 
 interface ChatMessage {
   id: string
   role: "user" | "assistant"
   content: string
+  error?: string
   sources?: ConciergeSource[]
 }
 
@@ -188,7 +189,11 @@ export function KoreaChat() {
       void (async () => {
         try {
           const { content, error, sources } = await streamKoreaChat(prompt, history, slug, setAssistant, controller.signal)
-          if (error) setAssistant(`⚠️ ${error}`)
+          if (error) {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === assistantId ? { ...m, content, error } : m)),
+            )
+          }
           // Defensive fallback: if the stream ended with no text and no error,
           // don't leave the bubble stuck on the typing indicator.
           else if (!content.trim()) {
@@ -199,8 +204,12 @@ export function KoreaChat() {
           }
         } catch (err) {
           if ((err as Error).name !== "AbortError") {
-            setAssistant(
-              `⚠️ ${(err as Error).message || "Something went wrong. Please try again."}`,
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId
+                  ? { ...m, error: (err as Error).message || "Something went wrong. Please try again." }
+                  : m,
+              ),
             )
           }
         } finally {
@@ -346,9 +355,10 @@ export function KoreaChat() {
                         <div className="max-w-[88%] rounded-2xl rounded-bl-md bg-stone-100 px-3.5 py-2.5 text-stone-800 dark:bg-stone-800/80 dark:text-stone-100">
                           {m.content ? (
                             <ConciergeText text={m.content} />
-                          ) : (
+                          ) : m.error ? null : (
                             <TypingDots reduce={!!reduce} />
                           )}
+                          <ConciergeStreamStatus error={m.error} />
                           {m.sources ? <ConciergeSources sources={m.sources} /> : null}
                         </div>
                       </div>

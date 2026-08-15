@@ -19,6 +19,7 @@ import { createPreviewRouter, getPreviewRoot, previewSiteUrl } from "./src/previ
 import { createAgentSessionRouter } from "./src/routes/agentSession";
 import { parseAgentOnBehalfOf, parseAllowedRedirectHosts } from "./src/agentTasks";
 import { join, resolve } from "path";
+import { BUN_IDLE_TIMEOUT_SEC } from "./src/httpIdleTimeout";
 
 const app = new Hono();
 const siteUrl = (process.env.SITE_URL || "https://anthonyl.im").replace(/\/+$/, "");
@@ -335,5 +336,9 @@ app.get("*", async (c) => {
   c.header("Expires", "0");
   return c.html(withMeta);
 });
+
+// Bun auto-serves this default export when the entry is `server/app.ts`.
+// Attach idleTimeout so that path keeps SSE alive the same way `index.ts` does.
+Object.assign(app, { idleTimeout: BUN_IDLE_TIMEOUT_SEC });
 
 export default app;

@@ -236,6 +236,17 @@ describe("streamTripChat", () => {
     )
   })
 
+  it("keeps partial text and flags a stream that ends without [DONE]", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      sseResponse([`data: ${JSON.stringify("Hello, wo")}\n\n`]),
+    )
+    const updates: string[] = []
+    const result = await streamTripChat("tokyo", "hi", [], undefined, getToken, (c) => updates.push(c))
+    expect(result.content).toBe("Hello, wo")
+    expect(result.error).toMatch(/lost its connection/i)
+    expect(updates).toEqual(["Hello, wo"])
+  })
+
   it("maps Firefox's NetworkError fetch failure the same way", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(
       new TypeError("NetworkError when attempting to fetch resource."),

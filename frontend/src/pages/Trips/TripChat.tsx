@@ -12,7 +12,7 @@ import {
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useAuthReady, useGetToken } from "@/lib/safeAuth"
 import { ConciergeSources } from "../Korea/ConciergeSources"
-import { ConciergeText } from "../Korea/ConciergeText"
+import { ConciergeStreamStatus, ConciergeText } from "../Korea/ConciergeText"
 import { ConciergeMoveCards } from "./ConciergeMoveCards"
 import { ConciergePhotoViewer } from "./ConciergePhoto"
 import { ConciergePlaceCards } from "./ConciergePlaceCards"
@@ -37,6 +37,7 @@ interface ChatMessage {
   removedKeys?: string[]
   appliedMoveKeys?: string[]
   dismissedMoveKeys?: string[]
+  error?: string
 }
 
 interface PhotoView {
@@ -319,8 +320,11 @@ export function TripChat() {
             controller.signal,
             activeTrip ?? undefined,
           )
-          if (error) setAssistant(`⚠️ ${error}`)
-          else if (!content.trim() && !places?.length && !moves?.length) {
+          if (error) {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === assistantId ? { ...m, content, error } : m)),
+            )
+          } else if (!content.trim() && !places?.length && !moves?.length) {
             setAssistant("I couldn't generate a reply just now. Please try rephrasing.")
           }
           if (places?.length || moves?.length || sources?.length) {
@@ -330,7 +334,13 @@ export function TripChat() {
           }
         } catch (err) {
           if ((err as Error).name !== "AbortError") {
-            setAssistant(`⚠️ ${(err as Error).message || "Something went wrong. Please try again."}`)
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId
+                  ? { ...m, error: (err as Error).message || "Something went wrong. Please try again." }
+                  : m,
+              ),
+            )
           }
         } finally {
           setStreaming(false)
@@ -828,7 +838,7 @@ function AssistantBubble({
             <p className={`text-sm ${mutedInkClass}`}>Looking this up…</p>
             <TypingDots reduce={reduce} />
           </div>
-        ) : m.places?.length || m.moves?.length || m.sources?.length ? null : (
+        ) : m.error || m.places?.length || m.moves?.length || m.sources?.length ? null : (
           <TypingDots reduce={reduce} />
         )}
         {m.places && trip ? (
@@ -882,6 +892,7 @@ function AssistantBubble({
             linkClass="break-words underline decoration-[color:var(--ta-ring)] underline-offset-2 decoration-1 transition hover:text-[color:var(--ta-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--trips-focus)]"
           />
         ) : null}
+        <ConciergeStreamStatus error={m.error} />
       </div>
     </div>
   )

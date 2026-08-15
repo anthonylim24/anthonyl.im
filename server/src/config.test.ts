@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import { parseDevBearer } from "./config"
+import { Hono } from "hono"
+import { parseDevBearer, resolveDevBearers } from "./config"
+import { createClerkAuth, verifyClerkOptional } from "./middleware/clerkAuth"
 
 describe("parseDevBearer", () => {
   test("extracts a plain value", () => {
@@ -22,8 +24,31 @@ describe("parseDevBearer", () => {
   })
 })
 
-import { createClerkAuth, verifyClerkOptional } from "./middleware/clerkAuth"
-import { Hono } from "hono"
+describe("resolveDevBearers", () => {
+  test("accepts IG_DEV_BEARER and process VITE_DEV_BEARER when they differ", () => {
+    expect(
+      resolveDevBearers(
+        { NODE_ENV: "development", IG_DEV_BEARER: "ig-token", VITE_DEV_BEARER: "vite-token" },
+        undefined,
+      ),
+    ).toEqual(["ig-token", "vite-token"])
+  })
+
+  test("reads VITE_DEV_BEARER from the environment when frontend/.env is missing", () => {
+    expect(
+      resolveDevBearers({ NODE_ENV: "development", VITE_DEV_BEARER: "vite-only" }, undefined),
+    ).toBe("vite-only")
+  })
+
+  test("ignores VITE_DEV_BEARER and file bearers in production", () => {
+    expect(
+      resolveDevBearers(
+        { NODE_ENV: "production", IG_DEV_BEARER: "ig-token", VITE_DEV_BEARER: "vite-token" },
+        "file-token",
+      ),
+    ).toBe("ig-token")
+  })
+})
 
 describe("dev bearer arrays", () => {
   test("verifyClerkOptional accepts any bearer in the array", async () => {

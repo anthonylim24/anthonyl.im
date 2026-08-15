@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { TimeoutError } from "../../effect/errors";
 import { invokeDeepseek } from "../apiService";
 
 function sseResponse(lines: string[], status = 200): Response {
@@ -79,6 +80,17 @@ describe("invokeDeepseek", () => {
     try { streamController!.close(); } catch { /* already closed */ }
 
     await expect(promise).rejects.toThrow("timed out");
+  });
+
+  it("throws when the stream closes without [DONE]", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      sseResponse([`data: ${JSON.stringify("Hello")}\n`]),
+    );
+    const updates: string[] = [];
+    const err = await invokeDeepseek("hi", [], (content) => updates.push(content)).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(TimeoutError);
+    expect((err as TimeoutError).partialContent).toBe("Hello");
+    expect(updates).toEqual(["Hello"]);
   });
 
   it("onUpdate throwing does not double-append (content equals parsed sum)", async () => {
