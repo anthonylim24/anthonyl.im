@@ -551,7 +551,7 @@ function NarrativeItem({ item, flash }: { item: ItineraryItem; flash: boolean })
           >
             {item.location.address}
           </a>
-        )}
+        ) : null}
       </span>
     </li>
   )
