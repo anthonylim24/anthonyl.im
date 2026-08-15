@@ -37,6 +37,26 @@ describe("ConciergePlaceCards map chip", () => {
     stubUserAgent(originalUserAgent)
   })
 
+  it("opens itinerary stops in Map Mode", () => {
+    const onMap = vi.fn()
+    render(
+      <ConciergePlaceCards
+        places={[{ ...ichiran, itemId: "p1", dayId: "day-1" }]}
+        days={days}
+        addedKeys={new Set()}
+        addingKey={null}
+        canEdit={false}
+        variant="itinerary"
+        onPhotos={vi.fn()}
+        onMap={onMap}
+      />,
+    )
+    const map = screen.getByRole("button", { name: "Open Ichiran in Map Mode" })
+    expect(screen.queryByRole("link", { name: /Open Ichiran in (Google|Apple) Maps/ })).toBeNull()
+    map.click()
+    expect(onMap).toHaveBeenCalledWith(expect.objectContaining({ name: "Ichiran", itemId: "p1" }))
+  })
+
   it("opens Google Maps on non-Apple browsers", () => {
     stubUserAgent("Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36")
     renderCards()

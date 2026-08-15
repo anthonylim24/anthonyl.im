@@ -35,6 +35,7 @@ export function ConciergePlaceCards({
   onRemove,
   onMove,
   onPhotos,
+  onMap,
 }: {
   places: ConciergePlace[]
   days: TripDay[]
@@ -50,6 +51,7 @@ export function ConciergePlaceCards({
   onRemove?: (place: ConciergePlace) => void
   onMove?: (place: ConciergePlace, toDayId: string) => void
   onPhotos: (place: ConciergePlace) => void
+  onMap?: (place: ConciergePlace) => void
 }) {
   if (places.length === 0 || days.length === 0) return null
   const fallbackDay = days.some((d) => d.id === defaultDayId) ? defaultDayId : days[0]?.id
@@ -72,6 +74,7 @@ export function ConciergePlaceCards({
           onRemove={onRemove}
           onMove={onMove}
           onPhotos={onPhotos}
+          onMap={onMap}
         />
       ))}
     </ul>
@@ -93,6 +96,7 @@ function ConciergePlaceCard({
   onRemove,
   onMove,
   onPhotos,
+  onMap,
 }: {
   place: ConciergePlace
   days: TripDay[]
@@ -108,6 +112,7 @@ function ConciergePlaceCard({
   onRemove?: (place: ConciergePlace) => void
   onMove?: (place: ConciergePlace, toDayId: string) => void
   onPhotos: (place: ConciergePlace) => void
+  onMap?: (place: ConciergePlace) => void
 }) {
   const [dayId, setDayId] = useState(defaultDayId ?? days[0]?.id ?? "")
   const [confirmRemove, setConfirmRemove] = useState(false)
@@ -118,6 +123,7 @@ function ConciergePlaceCard({
     .filter(Boolean)
     .join(" · ")
   const maps = externalMapsLink(place)
+  const canOpenMapMode = Boolean(onMap && (place.itemId || (place.lat != null && place.lng != null)))
 
   return (
     <li className="overflow-hidden rounded-2xl border border-stone-200/90 bg-[var(--trips-surface)] dark:border-stone-700/80">
@@ -162,7 +168,7 @@ function ConciergePlaceCard({
             <ImageIcon className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
             Photos
           </button>
-          {maps ? (
+          {variant === "suggest" && maps ? (
             <a
               href={maps.href}
               target="_blank"
@@ -173,6 +179,17 @@ function ConciergePlaceCard({
               <Globe2 className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
               Map
             </a>
+          ) : null}
+          {variant === "itinerary" && canOpenMapMode ? (
+            <button
+              type="button"
+              onClick={() => onMap?.(place)}
+              className={quietBtnClass}
+              aria-label={`Open ${place.name} in Map Mode`}
+            >
+              <Globe2 className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
+              Map
+            </button>
           ) : null}
 
           {variant === "suggest" && canEdit && onAdd ? (

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react"
 import { createPortal } from "react-dom"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
-import { useLocation } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
 import { Maximize2, MessageCircleHeart, Minimize2, Send, Sparkles, X } from "lucide-react"
 import {
   conciergePlaceKey,
@@ -94,6 +94,7 @@ export function useTripChatRoute(): { tripId?: string; dayId?: string } {
 
 export function TripChat() {
   const { tripId, dayId } = useTripChatRoute()
+  const navigate = useNavigate()
   const getToken = useGetToken()
   const readToken = useLatestCallback(getToken)
   const authReady = useAuthReady()
@@ -506,6 +507,20 @@ export function TripChat() {
     [trip],
   )
 
+  const openMap = useCallback(
+    (place: ConciergePlace) => {
+      if (!tripId) return
+      const targetDay = place.dayId && trip?.days.some((d) => d.id === place.dayId) ? place.dayId : dayId
+      if (!targetDay) return
+      const params = new URLSearchParams({ map: "1" })
+      if (place.itemId) params.set("focus", place.itemId)
+      navigate(`/trips/${encodeURIComponent(tripId)}/day/${encodeURIComponent(targetDay)}?${params}`)
+      setExpanded(false)
+      if (!isDesktop) setOpen(false)
+    },
+    [tripId, trip, dayId, navigate, isDesktop],
+  )
+
   const autoGrow = useCallback(() => {
     const el = inputRef.current
     if (!el) return
@@ -670,6 +685,7 @@ export function TripChat() {
                         onRemove={(place) => void removePlace(place)}
                         onMove={(place, toDayId) => void movePlace(place, toDayId)}
                         onPhotos={openPhotos}
+                        onMap={openMap}
                         onConfirmMove={(resolved) => void applyMove(m.id, resolved)}
                         onDismissMove={(key) =>
                           setMessages((prev) =>
@@ -774,6 +790,7 @@ function AssistantBubble({
   onRemove,
   onMove,
   onPhotos,
+  onMap,
   onConfirmMove,
   onDismissMove,
 }: {
@@ -790,6 +807,7 @@ function AssistantBubble({
   onRemove: (place: ConciergePlace) => void
   onMove: (place: ConciergePlace, toDayId: string) => void
   onPhotos: (place: ConciergePlace) => void
+  onMap: (place: ConciergePlace) => void
   onConfirmMove: (move: ResolvedMove) => void
   onDismissMove: (key: string) => void
 }) {
@@ -853,6 +871,7 @@ function AssistantBubble({
             onRemove={onRemove}
             onMove={onMove}
             onPhotos={onPhotos}
+            onMap={onMap}
           />
         ) : null}
         {resolvedMoves.length > 0 ? (
