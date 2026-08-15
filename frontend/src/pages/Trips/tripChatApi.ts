@@ -1,6 +1,7 @@
 import { Effect } from "effect"
 import { visibleConciergeText, type ConciergePlace, type ConciergeSource } from "../../lib/conciergeGrounding"
 import { parseConciergeSsePayload } from "../../lib/conciergeSse"
+import { remapChatFailure } from "../../effect/chatErrors"
 import { AuthError, HttpStatusError, StreamError } from "../../effect/errors"
 import { fetchApi, readAuthToken } from "../../effect/http"
 import { runPromise } from "../../effect/runtime"
@@ -26,17 +27,24 @@ function isMissingChatRoute(status: number, error: string): boolean {
   return error !== "day not found" && error !== "trip not found"
 }
 
-function isLostConnection(err: unknown): boolean {
-  const message = err instanceof Error ? err.message : String(err)
-  return /network\s*error|failed to fetch|load failed|opaqueredirect/i.test(message)
-}
-
-function remapChatFailure(err: unknown): Error {
-  if (err instanceof DOMException && err.name === "AbortError") return err
-  if (isLostConnection(err)) {
-    return new Error("The concierge lost its connection. Please try again.")
-  }
-  return err instanceof Error ? err : new Error(String(err))
+function streamKoreaAsTripChat(
+  prompt: string,
+  messages: TripChatMessage[],
+  slug: string | undefined,
+  onUpdate: (content: string) => void,
+  signal?: AbortSignal,
+): Promise<TripChatResult> {
+  return streamKoreaChat(
+    prompt,
+    messages,
+    slug,
+    (content) => onUpdate(visibleConciergeText(content)),
+    signal,
+  ).then((result) => ({
+    content: visibleConciergeText(result.content),
+    error: result.error,
+    sources: result.sources,
+  }))
 }
 
 const streamTripChatEffect = Effect.fn("TripChatService.stream")(function* (
@@ -94,14 +102,14 @@ const streamTripChatEffect = Effect.fn("TripChatService.stream")(function* (
     if (isMissingChatRoute(response.status, error)) {
       if ((trip && isKoreaSeedTrip(trip)) || tripId === "korea-2026") {
         return yield* Effect.tryPromise({
-          try: () => streamKoreaChat(prompt, messages, dayId, onUpdate, signal),
+          try: () => streamKoreaAsTripChat(prompt, messages, dayId, onUpdate, signal),
           catch: remapChatFailure,
         })
       }
       if (trip) {
         return yield* Effect.tryPromise({
           try: () =>
-            streamKoreaChat(wrapTripChatPrompt(trip, prompt, dayId), messages, undefined, onUpdate, signal),
+            streamKoreaAsTripChat(wrapTripChatPrompt(trip, prompt, dayId), messages, undefined, onUpdate, signal),
           catch: remapChatFailure,
         })
       }

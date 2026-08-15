@@ -273,9 +273,16 @@ describe('Places page', () => {
 
     expect(mockFetchExtractedPlaces.mock.calls.length).toBe(initialCallCount)
 
-    // Advance past the 300ms debounce — now the fetch fires
+    // Still inside the 80 ms debounce window
     await act(async () => {
-      vi.advanceTimersByTime(350)
+      vi.advanceTimersByTime(50)
+      await Promise.resolve()
+    })
+    expect(mockFetchExtractedPlaces.mock.calls.length).toBe(initialCallCount)
+
+    // Advance past the 80 ms debounce — now the fetch fires
+    await act(async () => {
+      vi.advanceTimersByTime(40)
       await Promise.resolve()
       await Promise.resolve()
     })

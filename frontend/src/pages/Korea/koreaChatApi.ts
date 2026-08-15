@@ -1,6 +1,7 @@
 import { Effect } from "effect"
 import { type ConciergeSource } from "../../lib/conciergeGrounding"
 import { parseConciergeSsePayload } from "../../lib/conciergeSse"
+import { remapChatFailure } from "../../effect/chatErrors"
 import { fetchApi, readErrorMessage } from "../../effect/http"
 import { runPromise } from "../../effect/runtime"
 import { readSse } from "../../effect/sse"
@@ -30,7 +31,11 @@ const streamKoreaChatEffect = Effect.fn("KoreaChatService.stream")(function* (
     body: JSON.stringify({ prompt, messages, slug }),
     credentials: "include",
     signal,
-  })
+  }).pipe(Effect.mapError(remapChatFailure))
+
+  if (response.type === "opaqueredirect" || response.status === 0) {
+    return yield* Effect.fail(new Error("The concierge lost its connection. Please try again."))
+  }
 
   if (!response.ok) {
     let message = `Request failed (${response.status})`
@@ -60,7 +65,7 @@ const streamKoreaChatEffect = Effect.fn("KoreaChatService.stream")(function* (
         sources = parsed.sources
       }
     },
-  })
+  }).pipe(Effect.mapError(remapChatFailure))
 
   return { content, error: streamError, sources } satisfies KoreaChatResult
 })

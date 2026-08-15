@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
 import { ArrowRight, CalendarDays, MapPin, Plus, RotateCcw, Trash2, Users } from "lucide-react"
@@ -183,17 +183,12 @@ export function TripsIndex() {
     }
   }, [getToken, reloadKey, startTransition])
 
-  const [optimisticTrips, removeOptimistic] = useOptimistic(
-    state.status === "success" ? state.trips : [],
-    (current, id: string) => current.filter((trip) => trip.id !== id),
-  )
-
   const grouped = useMemo(() => {
     if (state.status !== "success") return null
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
     const today = todayIsoIn(timezone)
     const buckets: Record<TripBucket, TripRow[]> = { current: [], upcoming: [], past: [] }
-    for (const trip of optimisticTrips) {
+    for (const trip of state.trips) {
       const bucket = bucketFor(trip, today)
       const dayCount = trip.dayCount || dayCountInclusive(trip.startDate, trip.endDate)
       buckets[bucket].push({
@@ -207,13 +202,12 @@ export function TripsIndex() {
       buckets[key].sort((a, b) => a.trip.startDate.localeCompare(b.trip.startDate) * (key === "past" ? -1 : 1))
     }
     return buckets
-  }, [optimisticTrips, state])
+  }, [state])
 
   const onlyPast = grouped !== null && grouped.past.length > 0 && grouped.current.length + grouped.upcoming.length === 0
 
   const onDelete = (trip: TripSummary) => {
-    startTransition(async () => {
-      removeOptimistic(trip.id)
+    void (async () => {
       setDeleting(trip.id)
       setDeleteError(null)
       try {
@@ -233,7 +227,7 @@ export function TripsIndex() {
       } finally {
         setDeleting(null)
       }
-    })
+    })()
   }
 
   const closeConfirm = (tripId: string) => {
@@ -299,7 +293,7 @@ export function TripsIndex() {
           </p>
         )}
 
-        {state.status === "success" && optimisticTrips.length === 0 && (
+        {state.status === "success" && state.trips.length === 0 && (
           <div className="relative isolate -mx-4 overflow-hidden px-4 py-10 sm:-mx-6 sm:px-6 sm:py-14">
             <div aria-hidden className={`pointer-events-none absolute inset-0 -z-10 opacity-70 ${ACCENT.bloomA}`} />
             <p className={eyebrowClass}>No trips yet</p>
@@ -323,7 +317,7 @@ export function TripsIndex() {
           </div>
         )}
 
-        {state.status === "success" && grouped && optimisticTrips.length > 0 && (
+        {state.status === "success" && grouped && state.trips.length > 0 && (
           <>
             <div className="space-y-10">
               {sections.map(({ key, title }) => {

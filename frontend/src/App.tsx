@@ -199,19 +199,23 @@ function App() {
         try {
           await invokeDeepseek(text, history, (content) => {
             setMessages((prev) => {
-              const next = [...prev];
-              const last = next[next.length - 1];
-              if (last?.role === "assistant") last.content = content;
-              return next;
+              const last = prev[prev.length - 1];
+              if (last?.role !== "assistant") return prev;
+              return prev.map((message, index) =>
+                index === prev.length - 1 ? { ...message, content } : message,
+              );
             });
           });
         } catch (err) {
           console.error(err);
           setMessages((prev) => {
-            const next = [...prev];
-            const last = next[next.length - 1];
-            if (last?.role === "assistant") last.content = "I apologize, but something went wrong. Please try again.";
-            return next;
+            const last = prev[prev.length - 1];
+            if (last?.role !== "assistant") return prev;
+            return prev.map((message, index) =>
+              index === prev.length - 1
+                ? { ...message, content: "I apologize, but something went wrong. Please try again." }
+                : message,
+            );
           });
         } finally {
           setIsStreaming(false);

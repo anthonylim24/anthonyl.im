@@ -1,5 +1,4 @@
-import { Cause, Effect, Exit, Layer, ManagedRuntime, Option } from "effect"
-import { ApiClient } from "./services/ApiClient"
+import { Cause, Effect, Exit, Option } from "effect"
 
 /** Unwrap Effect failures as the original tagged / native Error so existing
  *  `instanceof Error` and `.message` checks (tests + UI) keep working.
@@ -14,19 +13,3 @@ export async function runPromise<A, E>(effect: Effect.Effect<A, E>): Promise<A> 
   }
   throw Cause.squash(exit.cause)
 }
-
-export const AppLayer = ApiClient.Default
-
-export const AppRuntime = ManagedRuntime.make(AppLayer)
-
-export function runApp<A, E>(effect: Effect.Effect<A, E, ApiClient>): Promise<A> {
-  return runPromise(effect.pipe(Effect.provide(AppLayer)) as Effect.Effect<A, E>)
-}
-
-export function provideApp<A, E, R>(
-  effect: Effect.Effect<A, E, R | ApiClient>,
-): Effect.Effect<A, E, Exclude<R, ApiClient>> {
-  return effect.pipe(Effect.provide(AppLayer)) as Effect.Effect<A, E, Exclude<R, ApiClient>>
-}
-
-export { Layer }
