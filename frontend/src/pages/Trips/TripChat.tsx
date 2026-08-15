@@ -56,21 +56,8 @@ const PANEL_SHELL =
 const PANEL_COMPACT =
   `${PANEL_SHELL} h-[min(86dvh,40rem)] md:bottom-6 md:right-6 md:h-[min(600px,calc(100dvh-3rem))] md:w-[min(400px,calc(100vw-2rem))]`
 
-const PANEL_EXPANDED_MOBILE =
-  `${PANEL_SHELL} trip-chat-panel-expanded trip-chat-panel-fullscreen inset-0 h-dvh max-h-none rounded-none`
-
-/** No height utility — desktop size is an inline inset so Tailwind cannot clip the composer. */
-const PANEL_EXPANDED_DESKTOP = `${PANEL_SHELL} trip-chat-panel-expanded`
-
-const EXPANDED_DESKTOP_STYLE: CSSProperties = {
-  top: 16,
-  right: 16,
-  bottom: 16,
-  left: "auto",
-  width: "min(36rem, calc(100vw - 2rem))",
-  height: "auto",
-  maxHeight: "none",
-}
+/** Size comes from CSS breakpoints so a phone is fullscreen even if JS media is stale. */
+const PANEL_EXPANDED = `${PANEL_SHELL} trip-chat-panel-expanded`
 
 function useMinWidth(px: number): boolean {
   const [matches, setMatches] = useState(false)
@@ -536,17 +523,10 @@ export function TripChat() {
   }
 
   const accent = resolveAccent(trip?.appearance?.accent)
-  const panelClass = expanded
-    ? isDesktop
-      ? PANEL_EXPANDED_DESKTOP
-      : PANEL_EXPANDED_MOBILE
-    : PANEL_COMPACT
+  const panelClass = expanded ? PANEL_EXPANDED : PANEL_COMPACT
   const panelStyle: CSSProperties = {
-    ...(kbInset > 0 ? { bottom: kbInset } : {}),
-    ...(expanded && isDesktop
-      ? { ...EXPANDED_DESKTOP_STYLE, bottom: kbInset > 0 ? kbInset : 16 }
-      : {}),
-    ...(expanded && !isDesktop
+    ...(kbInset > 0 && !expanded ? { bottom: kbInset } : {}),
+    ...(expanded
       ? { ["--trip-chat-kb" as string]: kbInset > 0 ? `${kbInset}px` : "0px" }
       : {}),
   }
@@ -725,7 +705,7 @@ export function TripChat() {
                 className="border-t border-stone-200/80 px-3 pt-3 dark:border-stone-800/80"
                 style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)" }}
               >
-                <div className="flex items-end gap-1.5 rounded-2xl border border-stone-200 bg-stone-50/90 px-2.5 py-1.5 focus-within:border-[color:var(--trips-accent)] focus-within:ring-2 focus-within:ring-[color:var(--trips-focus)] dark:border-stone-700 dark:bg-stone-900">
+                <div className="flex items-end gap-2 rounded-2xl border border-stone-200 bg-stone-50/90 px-3 py-2 focus-within:border-[color:var(--trips-accent)] focus-within:ring-2 focus-within:ring-[color:var(--trips-focus)] dark:border-stone-700 dark:bg-stone-900">
                   <textarea
                     ref={inputRef}
                     value={input}
@@ -741,13 +721,13 @@ export function TripChat() {
                     }}
                     rows={1}
                     placeholder="Ask about this trip…"
-                    className={`min-h-8 flex-1 resize-none bg-transparent py-1 text-[16px] leading-6 text-stone-900 outline-none placeholder:text-stone-400 sm:text-[15px] dark:text-stone-100 dark:placeholder:text-stone-400 ${expanded ? "max-h-48" : "max-h-28"}`}
+                    className={`min-h-7 flex-1 resize-none bg-transparent py-0.5 text-[16px] leading-6 text-stone-900 outline-none placeholder:text-stone-400 sm:text-[15px] dark:text-stone-100 dark:placeholder:text-stone-400 ${expanded ? "max-h-48" : "max-h-28"}`}
                   />
                   <button
                     type="submit"
                     disabled={!input.trim() || streaming}
                     aria-label="Send message"
-                    className={`relative mb-px flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[color:var(--trips-accent)] text-white transition before:absolute before:-inset-1.5 before:content-[''] enabled:hover:bg-[color:var(--trips-accent-hover)] disabled:cursor-not-allowed disabled:opacity-40 dark:text-stone-950 ${focusRingClass}`}
+                    className={`relative mb-px flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[color:var(--trips-accent)] text-white transition before:absolute before:-inset-2 before:content-[''] enabled:hover:bg-[color:var(--trips-accent-hover)] disabled:cursor-not-allowed disabled:opacity-40 dark:text-stone-950 ${focusRingClass}`}
                   >
                     <Send className="h-3.5 w-3.5" strokeWidth={2} />
                   </button>

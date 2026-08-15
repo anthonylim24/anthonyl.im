@@ -110,7 +110,6 @@ describe("TripChat expand", () => {
     fireEvent.click(screen.getByRole("button", { name: "Expand chat" }))
     expect(dialog).toHaveAttribute("data-expanded", "true")
     expect(dialog.className).toContain("trip-chat-panel-expanded")
-    expect(dialog.className).toContain("trip-chat-panel-fullscreen")
     expect(dialog.className).not.toMatch(/md:h-\[calc\(100dvh/)
     expect(screen.getByRole("button", { name: "Shrink chat" })).toHaveAttribute("aria-pressed", "true")
     const composer = within(dialog).getByPlaceholderText("Ask about this trip…")
@@ -144,10 +143,10 @@ describe("TripChat expand", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Expand chat" }))
     await waitFor(() => {
-      expect(dialog).toHaveStyle({ top: "16px", bottom: "16px", height: "auto" })
+      expect(dialog).toHaveAttribute("data-expanded", "true")
     })
     expect(document.body.style.overflow).toBe("hidden")
-    expect(dialog.className).not.toContain("trip-chat-panel-fullscreen")
+    expect(dialog.className).toContain("trip-chat-panel-expanded")
     expect(dialog.className).not.toMatch(/h-\[min\(92dvh/)
     expect(within(dialog).getByPlaceholderText("Ask about this trip…")).toBeVisible()
 
@@ -294,7 +293,7 @@ describe("TripChat add place", () => {
     expect(await screen.findByRole("button", { name: "Ichiran added" })).toBeDisabled()
     expect(screen.getByRole("button", { name: "View photos of Ichiran" })).toBeTruthy()
     expect(within(screen.getByRole("dialog", { name: "Trip Concierge" })).getByRole("button", { name: "Send message" })).toHaveClass(
-      "h-8",
+      "h-7",
     )
   })
 

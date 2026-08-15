@@ -1140,13 +1140,13 @@ html.dark .trips [data-trip-accent="violet"] {
   background-image: none;
 }
 
-/* Expanded concierge: inset stretch. !important beats any leftover height
-   utility so the composer cannot sit below the visible edge. */
+/* Expanded concierge: desktop inset, phone fullscreen. !important beats
+   leftover height / inset utilities so the composer stays on-screen. */
 @media (min-width: 768px) {
   .trips .trip-chat-panel-expanded {
     top: 1rem !important;
     right: 1rem !important;
-    bottom: 1rem;
+    bottom: var(--trip-chat-kb, 1rem) !important;
     left: auto !important;
     width: min(36rem, calc(100vw - 2rem)) !important;
     height: auto !important;
@@ -1155,7 +1155,7 @@ html.dark .trips [data-trip-accent="violet"] {
 }
 
 @media (max-width: 767px) {
-  .trips .trip-chat-panel-fullscreen {
+  .trips .trip-chat-panel-expanded {
     top: 0 !important;
     right: 0 !important;
     left: 0 !important;
