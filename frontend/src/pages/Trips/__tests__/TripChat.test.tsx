@@ -281,6 +281,17 @@ describe("TripChat add place", () => {
     expect(await screen.findByText("Try the market.")).toBeTruthy()
   })
 
+  it("links the Map chip to an external maps app", async () => {
+    renderChat()
+    await openChat()
+    fireEvent.change(screen.getByPlaceholderText("Ask about this trip…"), { target: { value: "ramen?" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+    const map = await screen.findByRole("link", { name: /Open Ichiran in (Google|Apple) Maps/ })
+    expect(map.getAttribute("href")).toMatch(/^https:\/\/(www\.google\.com\/maps\/|maps\.apple\.com\/)/)
+    expect(map).toHaveAttribute("target", "_blank")
+    expect(screen.queryByRole("button", { name: /Map Mode/ })).toBeNull()
+  })
+
   it("adds a suggested place to the itinerary", async () => {
     renderChat()
     await openChat()

@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from "react"
 import { Link, useParams, useSearchParams } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
 import { ArrowUpRight, ExternalLink, Globe2, MapPin, Pencil, Phone } from "lucide-react"
+import { externalMapsLink } from "@/lib/externalMaps"
 import { useGetToken } from "@/lib/safeAuth"
 import { EntityIndexProvider } from "../Korea/entityIndex"
 import { LinkifiedText } from "../Korea/LinkifiedText"
@@ -57,8 +58,13 @@ function narrativeBlocks(items: ItineraryItem[]): Array<{ section: ItineraryItem
   return blocks.filter((b) => b.section || b.items.length > 0)
 }
 
-function mapsUrl(address: string): string {
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`
+function itemMapsLink(item: ItineraryItem) {
+  return externalMapsLink({
+    name: item.location?.name ?? item.title,
+    address: item.location?.address,
+    lat: item.location?.lat,
+    lng: item.location?.lng,
+  })
 }
 
 function telHref(contact: string): string | null {
@@ -424,6 +430,7 @@ function ReservationTimelineItem({
   const reduce = useReducedMotion()
   const highlight = useAnchorHighlight(flash)
   const phone = item.reservation?.contact ? telHref(item.reservation.contact) : null
+  const maps = itemMapsLink(item)
   const time = item.time ? `${item.time}${item.endTime ? ` – ${item.endTime}` : ""}` : null
   return (
     <motion.li
@@ -475,12 +482,18 @@ function ReservationTimelineItem({
               </p>
             )}
             <div className="mt-3 flex flex-wrap gap-2">
-              {item.location?.address && (
-                <a href={mapsUrl(item.location.address)} target="_blank" rel="noopener noreferrer" className={chipBtnClass}>
+              {maps ? (
+                <a
+                  href={maps.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={maps.label}
+                  className={chipBtnClass}
+                >
                   <MapPin className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
                   Maps
                 </a>
-              )}
+              ) : null}
               {phone && (
                 <a href={phone} className={chipBtnClass}>
                   <Phone className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
@@ -503,6 +516,7 @@ function ReservationTimelineItem({
 
 function NarrativeItem({ item, flash }: { item: ItineraryItem; flash: boolean }) {
   const highlight = useAnchorHighlight(flash)
+  const maps = item.location?.address ? itemMapsLink(item) : undefined
   return (
     // `-mx-2 px-2` keeps the text on the same optical line as the headings
     // while giving the arrival highlight room to breathe.
@@ -525,11 +539,12 @@ function NarrativeItem({ item, flash }: { item: ItineraryItem; flash: boolean })
             · <LinkifiedText>{item.notes}</LinkifiedText>
           </span>
         )}
-        {item.location?.address && (
+        {item.location?.address && maps ? (
           <a
-            href={mapsUrl(item.location.address)}
+            href={maps.href}
             target="_blank"
             rel="noopener noreferrer"
+            aria-label={maps.label}
             // `py-1.5 -my-1.5` is the inline-secondary-link rule: a 44px-tall
             // target that leaves the list rhythm alone.
             className={`mt-0.5 block rounded py-1.5 -my-1.5 text-xs underline decoration-stone-300 underline-offset-2 hover:text-stone-900 dark:decoration-stone-600 dark:hover:text-stone-200 ${mutedInkClass} ${focusRingClass} ${wrapAnywhereClass}`}
