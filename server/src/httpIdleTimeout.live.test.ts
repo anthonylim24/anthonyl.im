@@ -5,6 +5,9 @@ import { BUN_IDLE_TIMEOUT_SEC } from "./httpIdleTimeout"
 import { withSsePings } from "./ssePing"
 
 describe("Bun SSE idle timeout", () => {
+  // Pings are the production keep-alive. A 255s no-ping soak would prove
+  // idleTimeout in isolation but is too slow for CI; the constant is pinned
+  // in httpIdleTimeout.test.ts and wired through Bun.serve in this case.
   test("keeps the socket open through a pause longer than Bun's 10s default", async () => {
     const app = new Hono()
     app.get("/sse", (c) =>

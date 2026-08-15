@@ -37,6 +37,7 @@ const invokeDeepseekEffect = Effect.fn("ChatService.invokeDeepseek")(function* (
     }
   }, WATCHDOG_INTERVAL_MS)
 
+  let content = ""
   const program = Effect.gen(function* () {
     const response = yield* fetchApi("/api/invoke", {
       method: "POST",
@@ -56,7 +57,6 @@ const invokeDeepseekEffect = Effect.fn("ChatService.invokeDeepseek")(function* (
       return yield* Effect.fail(new StreamError({ message: "Response body is null" }))
     }
 
-    let content = ""
     const { completed } = yield* readSse(response.body, {
       signal: controller.signal,
       onData: (data) => {
@@ -77,14 +77,20 @@ const invokeDeepseekEffect = Effect.fn("ChatService.invokeDeepseek")(function* (
     })
 
     if (!completed) {
-      return yield* Effect.fail(new TimeoutError({ message: "Response timed out — please try again." }))
+      return yield* Effect.fail(new TimeoutError({
+        message: "Response timed out — please try again.",
+        partialContent: content || undefined,
+      }))
     }
 
     return { content } satisfies ApiResponse
   }).pipe(
     Effect.catchAll((err) =>
       isTimeoutCause(err)
-        ? Effect.fail(new TimeoutError({ message: "Response timed out — please try again." }))
+        ? Effect.fail(new TimeoutError({
+            message: "Response timed out — please try again.",
+            partialContent: content || undefined,
+          }))
         : Effect.fail(err instanceof Error ? err : new Error(String(err))),
     ),
     Effect.ensuring(Effect.sync(() => clearInterval(watchdog))),

@@ -8,7 +8,6 @@ describe("SSE keep-alive budget", () => {
   })
 
   test("pings fire well inside Bun's default 10s idle window", () => {
-    expect(SSE_PING_MS).toBeLessThan(10_000)
-    expect(SSE_PING_MS).toBeGreaterThan(0)
+    expect(SSE_PING_MS).toBe(4_000)
   })
 })

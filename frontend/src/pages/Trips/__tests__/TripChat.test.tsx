@@ -420,7 +420,7 @@ describe("TripChat add place", () => {
     fireEvent.change(screen.getByPlaceholderText("Ask about this trip…"), { target: { value: "lunch?" } })
     fireEvent.click(screen.getByRole("button", { name: "Send message" }))
     expect(await screen.findByText(/Start at Gwangjang/)).toBeTruthy()
-    expect(screen.getByText(/lost its connection/i)).toBeTruthy()
+    expect(screen.getByRole("status")).toHaveTextContent(/lost its connection/i)
   })
 
   it("does not show idle typing dots for a moves-only reply", async () => {

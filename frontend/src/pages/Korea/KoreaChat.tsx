@@ -2,16 +2,16 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useLocation } from "react-router-dom"
 import { MessageCircleHeart, Send, Sparkles, X } from "lucide-react"
-import { formatConciergeError } from "../../effect/chatErrors"
 import type { ConciergeSource } from "../../lib/conciergeGrounding"
 import { streamKoreaChat, type KoreaChatMessage } from "./koreaChatApi"
 import { ConciergeSources } from "./ConciergeSources"
-import { ConciergeText } from "./ConciergeText"
+import { ConciergeStreamStatus, ConciergeText } from "./ConciergeText"
 
 interface ChatMessage {
   id: string
   role: "user" | "assistant"
   content: string
+  error?: string
   sources?: ConciergeSource[]
 }
 
@@ -189,7 +189,11 @@ export function KoreaChat() {
       void (async () => {
         try {
           const { content, error, sources } = await streamKoreaChat(prompt, history, slug, setAssistant, controller.signal)
-          if (error) setAssistant(formatConciergeError(content, error))
+          if (error) {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === assistantId ? { ...m, content, error } : m)),
+            )
+          }
           // Defensive fallback: if the stream ended with no text and no error,
           // don't leave the bubble stuck on the typing indicator.
           else if (!content.trim()) {
@@ -203,13 +207,7 @@ export function KoreaChat() {
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === assistantId
-                  ? {
-                      ...m,
-                      content: formatConciergeError(
-                        m.content,
-                        (err as Error).message || "Something went wrong. Please try again.",
-                      ),
-                    }
+                  ? { ...m, error: (err as Error).message || "Something went wrong. Please try again." }
                   : m,
               ),
             )
@@ -360,6 +358,7 @@ export function KoreaChat() {
                           ) : (
                             <TypingDots reduce={!!reduce} />
                           )}
+                          <ConciergeStreamStatus error={m.error} />
                           {m.sources ? <ConciergeSources sources={m.sources} /> : null}
                         </div>
                       </div>

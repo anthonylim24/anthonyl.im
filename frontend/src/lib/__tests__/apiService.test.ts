@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { TimeoutError } from "../../effect/errors";
 import { invokeDeepseek } from "../apiService";
 
 function sseResponse(lines: string[], status = 200): Response {
@@ -85,7 +86,11 @@ describe("invokeDeepseek", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       sseResponse([`data: ${JSON.stringify("Hello")}\n`]),
     );
-    await expect(invokeDeepseek("hi")).rejects.toThrow("timed out");
+    const updates: string[] = [];
+    const err = await invokeDeepseek("hi", [], (content) => updates.push(content)).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(TimeoutError);
+    expect((err as TimeoutError).partialContent).toBe("Hello");
+    expect(updates).toEqual(["Hello"]);
   });
 
   it("onUpdate throwing does not double-append (content equals parsed sum)", async () => {

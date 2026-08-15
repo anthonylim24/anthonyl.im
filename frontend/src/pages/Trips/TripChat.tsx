@@ -9,11 +9,10 @@ import {
   type ConciergePlace,
   type ConciergeSource,
 } from "../../lib/conciergeGrounding"
-import { formatConciergeError } from "@/effect/chatErrors"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useAuthReady, useGetToken } from "@/lib/safeAuth"
 import { ConciergeSources } from "../Korea/ConciergeSources"
-import { ConciergeText } from "../Korea/ConciergeText"
+import { ConciergeStreamStatus, ConciergeText } from "../Korea/ConciergeText"
 import { ConciergeMoveCards } from "./ConciergeMoveCards"
 import { ConciergePhotoViewer } from "./ConciergePhoto"
 import { ConciergePlaceCards } from "./ConciergePlaceCards"
@@ -38,6 +37,7 @@ interface ChatMessage {
   removedKeys?: string[]
   appliedMoveKeys?: string[]
   dismissedMoveKeys?: string[]
+  error?: string
 }
 
 interface PhotoView {
@@ -320,8 +320,11 @@ export function TripChat() {
             controller.signal,
             activeTrip ?? undefined,
           )
-          if (error) setAssistant(formatConciergeError(content, error))
-          else if (!content.trim() && !places?.length && !moves?.length) {
+          if (error) {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === assistantId ? { ...m, content, error } : m)),
+            )
+          } else if (!content.trim() && !places?.length && !moves?.length) {
             setAssistant("I couldn't generate a reply just now. Please try rephrasing.")
           }
           if (places?.length || moves?.length || sources?.length) {
@@ -334,13 +337,7 @@ export function TripChat() {
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === assistantId
-                  ? {
-                      ...m,
-                      content: formatConciergeError(
-                        m.content,
-                        (err as Error).message || "Something went wrong. Please try again.",
-                      ),
-                    }
+                  ? { ...m, error: (err as Error).message || "Something went wrong. Please try again." }
                   : m,
               ),
             )
@@ -895,6 +892,7 @@ function AssistantBubble({
             linkClass="break-words underline decoration-[color:var(--ta-ring)] underline-offset-2 decoration-1 transition hover:text-[color:var(--ta-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--trips-focus)]"
           />
         ) : null}
+        <ConciergeStreamStatus error={m.error} />
       </div>
     </div>
   )
