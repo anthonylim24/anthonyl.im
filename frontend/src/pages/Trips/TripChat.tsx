@@ -9,7 +9,8 @@ import {
   type ConciergePlace,
   type ConciergeSource,
 } from "../../lib/conciergeGrounding"
-import { useGetToken } from "@/lib/safeAuth"
+import { useLatestCallback } from "@/hooks/useLatestCallback"
+import { useAuthReady, useGetToken } from "@/lib/safeAuth"
 import { ConciergeSources } from "../Korea/ConciergeSources"
 import { ConciergeText } from "../Korea/ConciergeText"
 import { ConciergeMoveCards } from "./ConciergeMoveCards"
@@ -94,6 +95,8 @@ export function TripChat() {
   const { tripId, dayId } = useTripChatRoute()
   const navigate = useNavigate()
   const getToken = useGetToken()
+  const readToken = useLatestCallback(getToken)
+  const authReady = useAuthReady()
   const reduce = useReducedMotion()
   const isDesktop = useMinWidth(768)
   const [trip, setTrip] = useState<Trip | null>(null)
@@ -125,7 +128,7 @@ export function TripChat() {
       return
     }
     let cancelled = false
-    void getTrip(getToken, tripId)
+    void getTrip(readToken, tripId)
       .then(({ trip: next, access: nextAccess }) => {
         if (!cancelled) {
           setTrip(next)
@@ -141,7 +144,7 @@ export function TripChat() {
     return () => {
       cancelled = true
     }
-  }, [tripId, getToken])
+  }, [tripId, authReady])
 
   useTripChanged(
     tripId,
@@ -276,9 +279,8 @@ export function TripChat() {
       const userMsg: ChatMessage = { id: newId(), role: "user", content: prompt }
       const assistantId = newId()
 
-      setMessages((prev) => [...prev, userMsg, { id: assistantId, role: "assistant", content: "" }])
+      const pending = [userMsg, { id: assistantId, role: "assistant" as const, content: "" }]
       setInput("")
-      setStreaming(true)
       pinnedRef.current = true
 
       const controller = new AbortController()
@@ -287,53 +289,57 @@ export function TripChat() {
       const setAssistant = (content: string) =>
         setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content } : m)))
 
-      let activeTrip = trip
-      if (!activeTrip) {
+      setMessages((prev) => [...prev, ...pending])
+      setStreaming(true)
+      void (async () => {
+        let activeTrip = trip
+        if (!activeTrip) {
+          try {
+            const loaded = await getTrip(readToken, tripId)
+            activeTrip = loaded.trip
+            setTrip(activeTrip)
+            setAccess(loaded.access)
+          } catch {
+            activeTrip = null
+          }
+        }
+
+        const canonicalId = activeTrip?.id ?? tripId
+        const focusedDayId =
+          dayId && activeTrip?.days.some((d) => d.id === dayId) ? dayId : undefined
+
         try {
-          const loaded = await getTrip(getToken, tripId)
-          activeTrip = loaded.trip
-          setTrip(activeTrip)
-          setAccess(loaded.access)
-        } catch {
-          activeTrip = null
-        }
-      }
-
-      const canonicalId = activeTrip?.id ?? tripId
-      const focusedDayId =
-        dayId && activeTrip?.days.some((d) => d.id === dayId) ? dayId : undefined
-
-      try {
-        const { content, error, places, moves, sources } = await streamTripChat(
-          canonicalId,
-          prompt,
-          history,
-          focusedDayId,
-          getToken,
-          setAssistant,
-          controller.signal,
-          activeTrip ?? undefined,
-        )
-        if (error) setAssistant(`⚠️ ${error}`)
-        else if (!content.trim() && !places?.length && !moves?.length) {
-          setAssistant("I couldn't generate a reply just now. Please try rephrasing.")
-        }
-        if (places?.length || moves?.length || sources?.length) {
-          setMessages((prev) =>
-            prev.map((m) => (m.id === assistantId ? { ...m, places, moves, sources } : m)),
+          const { content, error, places, moves, sources } = await streamTripChat(
+            canonicalId,
+            prompt,
+            history,
+            focusedDayId,
+            readToken,
+            setAssistant,
+            controller.signal,
+            activeTrip ?? undefined,
           )
+          if (error) setAssistant(`⚠️ ${error}`)
+          else if (!content.trim() && !places?.length && !moves?.length) {
+            setAssistant("I couldn't generate a reply just now. Please try rephrasing.")
+          }
+          if (places?.length || moves?.length || sources?.length) {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === assistantId ? { ...m, places, moves, sources } : m)),
+            )
+          }
+        } catch (err) {
+          if ((err as Error).name !== "AbortError") {
+            setAssistant(`⚠️ ${(err as Error).message || "Something went wrong. Please try again."}`)
+          }
+        } finally {
+          setStreaming(false)
+          inFlightRef.current = false
+          abortRef.current = null
         }
-      } catch (err) {
-        if ((err as Error).name !== "AbortError") {
-          setAssistant(`⚠️ ${(err as Error).message || "Something went wrong. Please try again."}`)
-        }
-      } finally {
-        setStreaming(false)
-        inFlightRef.current = false
-        abortRef.current = null
-      }
+      })()
     },
-    [messages, tripId, dayId, trip, getToken],
+    [messages, tripId, dayId, trip, readToken],
   )
 
   const canEdit = access === "edit" || access === "owner"
@@ -341,13 +347,13 @@ export function TripChat() {
   const persistTripDays = useCallback(
     async (mutate: (fresh: Trip) => Trip["days"]) => {
       if (!tripId) throw new Error("No trip is open.")
-      const { trip: fresh } = await getTrip(getToken, tripId)
-      const next = await updateTrip(getToken, fresh.id, { days: mutate(fresh) })
+      const { trip: fresh } = await getTrip(readToken, tripId)
+      const next = await updateTrip(readToken, fresh.id, { days: mutate(fresh) })
       setTrip(next)
       emitTripChanged(next)
       return next
     },
-    [tripId, getToken],
+    [tripId, readToken],
   )
 
   const addPlace = useCallback(
@@ -356,7 +362,7 @@ export function TripChat() {
       const key = conciergePlaceKey(place)
       setAddingKey(key)
       try {
-        const { trip: fresh } = await getTrip(getToken, tripId)
+        const { trip: fresh } = await getTrip(readToken, tripId)
         const day = fresh.days.find((d) => d.id === targetDayId)
         if (!day) throw new Error("That day is no longer on the trip.")
         if (dayHasPlaceNamed(day, place.name)) {
@@ -370,7 +376,7 @@ export function TripChat() {
           )
           return
         }
-        const next = await updateTrip(getToken, fresh.id, {
+        const next = await updateTrip(readToken, fresh.id, {
           days: addItem(fresh.days, targetDayId, itemFromConciergePlace(place)),
         })
         setTrip(next)
@@ -394,7 +400,7 @@ export function TripChat() {
         setAddingKey(null)
       }
     },
-    [tripId, canEdit, getToken],
+    [tripId, canEdit, readToken],
   )
 
   const patchMessage = useCallback((match: (m: ChatMessage) => boolean, patch: (m: ChatMessage) => ChatMessage) => {
@@ -822,7 +828,7 @@ function AssistantBubble({
             <p className={`text-sm ${mutedInkClass}`}>Looking this up…</p>
             <TypingDots reduce={reduce} />
           </div>
-        ) : (
+        ) : m.places?.length || m.moves?.length || m.sources?.length ? null : (
           <TypingDots reduce={reduce} />
         )}
         {m.places && trip ? (

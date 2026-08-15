@@ -30,4 +30,11 @@ describe('safeAuth dev-bearer escape hatch', () => {
     const getToken = useGetToken()
     await expect(getToken()).resolves.toBe('dev-test-token')
   })
+
+  test('useAuthReady is true when Clerk is disabled or a dev bearer is set', async () => {
+    vi.stubEnv('VITE_CLERK_PUBLISHABLE_KEY', '')
+    vi.stubEnv('VITE_DEV_BEARER', '')
+    const { useAuthReady } = await import('../safeAuth')
+    expect(useAuthReady()).toBe(true)
+  })
 })

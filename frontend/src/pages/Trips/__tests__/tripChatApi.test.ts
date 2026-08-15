@@ -144,6 +144,21 @@ describe("streamTripChat", () => {
     expect(updates).toEqual(["Hello"])
   })
 
+  it("strips add-places trailers on the Korea chat fallback", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response("Not Found", { status: 404 }))
+      .mockResolvedValueOnce(
+        sseResponse([
+          `data: ${JSON.stringify("Try Ichiran.\n:::add-places\n")}\n\n`,
+          `data: [DONE]\n\n`,
+        ]),
+      )
+    const updates: string[] = []
+    const result = await streamTripChat("korea-2026", "ramen?", [], "day-1", getToken, (c) => updates.push(c))
+    expect(result.content).toBe("Try Ichiran.")
+    expect(updates[updates.length - 1]).toBe("Try Ichiran.")
+  })
+
   it("falls back to Korea chat for korea-2026 even without a trip document", async () => {
     const spy = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response("Not Found", { status: 404 }))

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
+import { useLatestCallback } from '@/hooks/useLatestCallback'
 import { Link } from 'react-router-dom'
 import { clerkEnabled, useGetToken } from '@/lib/safeAuth'
 import { motion, useReducedMotion } from 'motion/react'
@@ -1180,8 +1181,11 @@ function IngestImpl() {
   const [fetchFailures, setFetchFailures] = useState(0)
   const [apiNotConfigured, setApiNotConfigured] = useState<string | null>(null)
 
-  const getTokenRef = useRef(getToken)
-  getTokenRef.current = getToken
+  const readToken = useLatestCallback(getToken)
+  const [isRefreshing, startTransition] = useTransition()
+  const [refreshInFlight, setRefreshInFlight] = useState(0)
+  const jobsSeq = useRef(0)
+  const statsSeq = useRef(0)
 
   // ── Time ticks ─────────────────────────────────────────────────────────────
 
@@ -1192,13 +1196,21 @@ function IngestImpl() {
   // ── Fetch helpers ──────────────────────────────────────────────────────────
 
   const doFetchJobs = useCallback(async () => {
+    const seq = ++jobsSeq.current
+    setRefreshInFlight((n) => n + 1)
     try {
-      const data = await listJobs(getTokenRef.current)
-      setJobs(data)
+      const data = await listJobs(readToken)
+      if (seq !== jobsSeq.current) return
+      startTransition(() => {
+        setJobs(data)
+        setJobsLoaded(true)
+      })
       setLastRefreshed(new Date())
       setFetchFailures(0)
       setApiNotConfigured(null)
     } catch (err) {
+      if (seq !== jobsSeq.current) return
+      setJobsLoaded(true)
       if (err instanceof ApiNotConfiguredError) {
         // Sticky banner — this is a server-config issue that won't fix itself.
         setApiNotConfigured(err.message)
@@ -1206,23 +1218,27 @@ function IngestImpl() {
       }
       setFetchFailures((n) => n + 1)
     } finally {
-      // Mark first-load complete whether it succeeded or failed — the empty-state
-      // / skeleton render branches need to know to stop showing skeletons.
-      setJobsLoaded(true)
+      setRefreshInFlight((n) => n - 1)
     }
-  }, [])
+  }, [readToken, startTransition])
 
   const doFetchStats = useCallback(async () => {
+    const seq = ++statsSeq.current
+    setRefreshInFlight((n) => n + 1)
     try {
-      const data = await fetchStats(getTokenRef.current)
-      setStats(data)
+      const data = await fetchStats(readToken)
+      if (seq !== statsSeq.current) return
+      startTransition(() => setStats(data))
     } catch (err) {
+      if (seq !== statsSeq.current) return
       if (err instanceof ApiNotConfiguredError) {
         setApiNotConfigured(err.message)
       }
       // otherwise hide stats silently — per spec
+    } finally {
+      setRefreshInFlight((n) => n - 1)
     }
-  }, [])
+  }, [readToken, startTransition])
 
   // ── Initial fetch ──────────────────────────────────────────────────────────
 
@@ -1261,7 +1277,7 @@ function IngestImpl() {
     setSubmitNotice(null)
 
     try {
-      const result = await submitUrl(getTokenRef.current, url, { skipVideo })
+      const result = await submitUrl(readToken, url, { skipVideo })
       setUrl('')
 
       // Determine what notice to show, if any
@@ -1300,7 +1316,7 @@ function IngestImpl() {
   const agoLabel = lastRefreshed ? timeAgo(lastRefreshed) : null
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
+    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16" aria-busy={submitting || isRefreshing || refreshInFlight > 0}>
       {/* Page header — no entry animation: motion-12 + react-19 can stall
           opacity-0 mounts under tab-restore / fast-paint conditions, and a
           blank header with the rest of the page hidden behind it is worse
@@ -1459,7 +1475,7 @@ function IngestImpl() {
                     type="button"
                     onClick={async () => {
                       setSubmitNotice(null)
-                      await reextractJob(getTokenRef.current, submitNotice.jobId)
+                      await reextractJob(readToken, submitNotice.jobId)
                       void doFetchJobs()
                     }}
                     className="inline-flex min-h-[28px] items-center rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:bg-stone-800"
@@ -1477,7 +1493,7 @@ function IngestImpl() {
                     type="button"
                     onClick={async () => {
                       setSubmitNotice(null)
-                      await reextractJob(getTokenRef.current, submitNotice.jobId)
+                      await reextractJob(readToken, submitNotice.jobId)
                       void doFetchJobs()
                     }}
                     className="inline-flex min-h-[28px] items-center rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-medium text-rose-700 transition hover:bg-rose-100 dark:border-rose-900/40 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/40"
@@ -1504,11 +1520,11 @@ function IngestImpl() {
             reduce={reduce}
             etaNow={etaNow}
             onRetry={async () => {
-              await retryJob(getTokenRef.current, job.id)
+              await retryJob(readToken, job.id)
               void doFetchJobs()
             }}
             onReextract={async () => {
-              await reextractJob(getTokenRef.current, job.id)
+              await reextractJob(readToken, job.id)
               void doFetchJobs()
             }}
           />

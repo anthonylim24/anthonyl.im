@@ -24,8 +24,26 @@ This repo hosts three distinct experiences under one shell: a personal AI chatbo
 - React 19 + TypeScript + Vite 8
 - Tailwind CSS 4.2 + shadcn/ui (Radix primitives)
 - Zustand (state), Motion (animation), Lucide (icons)
+- Effect v3 for frontend I/O — see [Frontend Effect-TS](#frontend-effect-ts)
 - Bun + Hono (server), Clerk (auth), Supabase (sync), PostHog (analytics)
 - Three.js (Korea Map Mode only)
+
+## Frontend Effect-TS
+
+Write new frontend network I/O in Effect. Full methodology: [`.claude/skills/effect-ts/SKILL.md`](.claude/skills/effect-ts/SKILL.md) (mirrored at `.agents/skills/effect-ts/SKILL.md`). Stable **Effect v3** only — not v4 beta.
+
+| Piece | Location |
+|-------|----------|
+| Tagged errors | `frontend/src/effect/errors.ts` |
+| HTTP (`fetchApi`, `fetchExternal`, `requestJson`, `readAuthToken`) | `frontend/src/effect/http.ts` |
+| SSE | `frontend/src/effect/sse.ts` |
+| `runPromise` unwrap | `frontend/src/effect/runtime.ts` |
+| Chat error remap | `frontend/src/effect/chatErrors.ts` |
+| Stable token reader | `frontend/src/hooks/useLatestCallback.ts` |
+
+**Do:** `Effect.fn` + `runPromise` from `frontend/src/effect/runtime.ts`; same-origin `/api/*` via `fetchApi` / `requestJson`; third-party URLs via `fetchExternal`; `Schema.TaggedError` + `readErrorMessage` modes; `useLatestCallback(getToken)` (never pass `useEffectEvent` as an argument); `useTransition` + latest-request-wins on overlapping refreshes; `Effect.fail` instead of `throw` around `yield*`.
+
+**Do not:** replace `apiFetch` with `@effect/platform` FetchHttpClient; `Schema.decode` `Trip` / `ExtractedPlace` documents; add `Effect.Service` / AppLayer / effect-atom without real injectable deps; hide Map Mode WebGL with React `Activity`; migrate BreathFlow Zustand or `useCloudSync` onto Effect.
 
 ## Shared Tokens
 
@@ -256,6 +274,19 @@ The current UI reads as AI-generated. Specific tells:
 2. **Short-term (design overhaul):** Build light-mode token set, strip glassmorphism/glow excess, normalize all colors to tokens, rebuild visual identity with distinctive typography and asymmetric layouts
 3. **Medium-term:** Container queries, fluid typography, redesign technique cards with hierarchy, rethink stats away from hero metric pattern
 4. **Long-term:** Full WCAG AA audit post-overhaul, evaluate Clerk cookies, consider body font replacement
+
+---
+
+## Agent skills
+
+Read the matching skill before writing code. Effect I/O rules win when they conflict with generic React fetch/SWR examples.
+
+| Skill | When |
+|-------|------|
+| [`.claude/skills/effect-ts/SKILL.md`](.claude/skills/effect-ts/SKILL.md) (mirrored at `.agents/skills/effect-ts/SKILL.md`) | Any frontend `/api`, SSE, or third-party HTTP. Required. |
+| `vercel-react-best-practices` | React 19 render and bundle performance |
+
+Short pointer: [`.agents/memory/effect-ts.md`](.agents/memory/effect-ts.md).
 
 ---
 

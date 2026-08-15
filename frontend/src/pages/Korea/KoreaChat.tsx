@@ -173,9 +173,8 @@ export function KoreaChat() {
       const userMsg: ChatMessage = { id: newId(), role: "user", content: prompt }
       const assistantId = newId()
 
-      setMessages((prev) => [...prev, userMsg, { id: assistantId, role: "assistant", content: "" }])
+      const pending = [userMsg, { id: assistantId, role: "assistant" as const, content: "" }]
       setInput("")
-      setStreaming(true)
       pinnedRef.current = true
 
       const controller = new AbortController()
@@ -184,28 +183,32 @@ export function KoreaChat() {
       const setAssistant = (content: string) =>
         setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content } : m)))
 
-      try {
-        const { content, error, sources } = await streamKoreaChat(prompt, history, slug, setAssistant, controller.signal)
-        if (error) setAssistant(`⚠️ ${error}`)
-        // Defensive fallback: if the stream ended with no text and no error,
-        // don't leave the bubble stuck on the typing indicator.
-        else if (!content.trim()) {
-          setAssistant("I couldn't generate a reply just now. Please try rephrasing.")
+      setMessages((prev) => [...prev, ...pending])
+      setStreaming(true)
+      void (async () => {
+        try {
+          const { content, error, sources } = await streamKoreaChat(prompt, history, slug, setAssistant, controller.signal)
+          if (error) setAssistant(`⚠️ ${error}`)
+          // Defensive fallback: if the stream ended with no text and no error,
+          // don't leave the bubble stuck on the typing indicator.
+          else if (!content.trim()) {
+            setAssistant("I couldn't generate a reply just now. Please try rephrasing.")
+          }
+          if (sources?.length) {
+            setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, sources } : m)))
+          }
+        } catch (err) {
+          if ((err as Error).name !== "AbortError") {
+            setAssistant(
+              `⚠️ ${(err as Error).message || "Something went wrong. Please try again."}`,
+            )
+          }
+        } finally {
+          setStreaming(false)
+          inFlightRef.current = false
+          abortRef.current = null
         }
-        if (sources?.length) {
-          setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, sources } : m)))
-        }
-      } catch (err) {
-        if ((err as Error).name !== "AbortError") {
-          setAssistant(
-            `⚠️ ${(err as Error).message || "Something went wrong. Please try again."}`,
-          )
-        }
-      } finally {
-        setStreaming(false)
-        inFlightRef.current = false
-        abortRef.current = null
-      }
+      })()
     },
     [messages, slug],
   )

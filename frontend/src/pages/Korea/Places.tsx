@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useTransition } from 'react'
+import { useLatestCallback } from '@/hooks/useLatestCallback'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { clerkEnabled, useGetToken } from '@/lib/safeAuth'
@@ -679,8 +680,9 @@ function PlacesImpl() {
   const [activeBusyness, setActiveBusyness] = useState<BusynessLevel | null>(null)
   const [offset, setOffset] = useState(0)
 
-  const getTokenRef = useRef(getToken)
-  getTokenRef.current = getToken
+  const readToken = useLatestCallback(getToken)
+  const [isRefreshing, startTransition] = useTransition()
+  const loadSeq = useRef(0)
 
   const searchRef = useRef(search)
   searchRef.current = search
@@ -703,11 +705,12 @@ function PlacesImpl() {
     append: boolean
   }) => {
     const { append, ...queryOpts } = opts
+    const seq = ++loadSeq.current
     if (append) setLoadingMore(true)
     else setLoading(true)
     setError(null)
     try {
-      const data = await fetchExtractedPlaces(getTokenRef.current, {
+      const data = await fetchExtractedPlaces(readToken, {
         limit: PAGE_SIZE,
         offset: queryOpts.offset,
         category: queryOpts.category ?? undefined,
@@ -715,17 +718,22 @@ function PlacesImpl() {
         busyness: queryOpts.busyness ?? undefined,
         q: queryOpts.q || undefined,
       })
-      if (append) {
-        setPlaces((prev) => [...prev, ...data.places])
-      } else {
-        setPlaces(data.places)
-        setOffset(0)
-      }
-      setTotal(data.total)
-      setHasMore(data.hasMore)
+      if (seq !== loadSeq.current) return
+      startTransition(() => {
+        if (append) {
+          setPlaces((prev) => [...prev, ...data.places])
+        } else {
+          setPlaces(data.places)
+          setOffset(0)
+        }
+        setTotal(data.total)
+        setHasMore(data.hasMore)
+        setLoading(false)
+        setLoadingMore(false)
+      })
     } catch (err) {
+      if (seq !== loadSeq.current) return
       setError(err instanceof Error ? err.message : 'Failed to load places')
-    } finally {
       setLoading(false)
       setLoadingMore(false)
     }
@@ -780,7 +788,7 @@ function PlacesImpl() {
   const animatedTotal = useTweenNumber(total, 320, { reducedMotion: !!reduce })
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
+    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16" aria-busy={loading || isRefreshing}>
       {/* Page header — see Ingest.tsx note on initial={false}. */}
       <motion.header
         initial={false}
@@ -995,7 +1003,7 @@ function PlacesImpl() {
                   <PlaceCard
                     key={place.id}
                     place={place}
-                    getToken={getToken}
+                    getToken={readToken}
                     onUpdated={(placeId, days) => {
                       setPlaces((prev) =>
                         prev.map((p) => p.id === placeId ? { ...p, days } : p)

@@ -1,125 +1,119 @@
-import { apiFetch } from "../../lib/apiBase"
+import { Effect } from "effect"
+import { bearerHeaders, fetchApi, parseJson, readAuthToken, readErrorMessage } from "../../effect/http"
+import { runPromise } from "../../effect/runtime"
+import { HttpStatusError } from "../../effect/errors"
 
-// Fetch helpers for the extracted-places browser at /korea/places.
-
-export type BusynessLevel = 'quiet' | 'moderate' | 'busy' | 'very_busy';
-export type BusynessSource = 'gemini-grounded' | 'kakao' | 'inferred';
+export type BusynessLevel = "quiet" | "moderate" | "busy" | "very_busy"
+export type BusynessSource = "gemini-grounded" | "kakao" | "inferred"
 
 export type ExtractedPlace = {
-  id: number;
-  name: string;
-  name_romanized: string | null;
-  city: string | null;
-  category: 'restaurant' | 'cafe' | 'bar' | 'shopping' | 'activity' | 'hotel' | 'landmark' | 'other';
-  confidence: number;
-  confidence_band: 'high' | 'medium' | 'low';
-  is_subject: boolean;
-  supporting_quote: string | null;
-  signal_source: 'caption' | 'transcript' | 'ocr' | 'location_tag' | 'multiple' | null;
-  vote_count: number;
-  address: string | null;
-  lat: number | null;
-  lng: number | null;
-  phone: string | null;
-  rating: number | null;
-  business_types: string[];
-  geocode_source: 'apify-tag' | 'ig-tag' | 'google' | 'kakao' | 'google+kakao' | 'gemini-grounded' | null;
-  geocode_kakao_id: string | null;
-  geocode_disagree: boolean;
-  google_place_id: string | null;
-  status: 'extracted' | 'verified' | 'rejected';
-  created_at: string;
-  busyness: BusynessLevel | null;
-  busyness_source: BusynessSource | null;
-  busyness_confidence: number | null;
-  /** Day numbers (1-12) this place is assigned to on the Korea itinerary */
-  days: number[];
+  id: number
+  name: string
+  name_romanized: string | null
+  city: string | null
+  category: "restaurant" | "cafe" | "bar" | "shopping" | "activity" | "hotel" | "landmark" | "other"
+  confidence: number
+  confidence_band: "high" | "medium" | "low"
+  is_subject: boolean
+  supporting_quote: string | null
+  signal_source: "caption" | "transcript" | "ocr" | "location_tag" | "multiple" | null
+  vote_count: number
+  address: string | null
+  lat: number | null
+  lng: number | null
+  phone: string | null
+  rating: number | null
+  business_types: string[]
+  geocode_source: "apify-tag" | "ig-tag" | "google" | "kakao" | "google+kakao" | "gemini-grounded" | null
+  geocode_kakao_id: string | null
+  geocode_disagree: boolean
+  google_place_id: string | null
+  status: "extracted" | "verified" | "rejected"
+  created_at: string
+  busyness: BusynessLevel | null
+  busyness_source: BusynessSource | null
+  busyness_confidence: number | null
+  days: number[]
   post: {
-    id: number;
-    url: string;
-    shortcode: string | null;
-    owner_username: string | null;
-    caption: string;
-    fetched_at: string;
-  };
-};
-
-export type ExtractedPlacesResponse = {
-  places: ExtractedPlace[];
-  total: number;
-  hasMore: boolean;
-};
-
-export type PlacesFilter = {
-  limit?: number;
-  offset?: number;
-  category?: string;
-  band?: string;
-  busyness?: BusynessLevel;
-  q?: string;
-};
-
-const BASE = '/api/korea/places/from-instagram';
-
-async function authHeaders(
-  getToken: () => Promise<string | null>,
-): Promise<Record<string, string>> {
-  const token = await getToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
+    id: number
+    url: string
+    shortcode: string | null
+    owner_username: string | null
+    caption: string
+    fetched_at: string
+  }
 }
 
-export async function fetchExtractedPlaces(
+export type ExtractedPlacesResponse = {
+  places: ExtractedPlace[]
+  total: number
+  hasMore: boolean
+}
+
+export type PlacesFilter = {
+  limit?: number
+  offset?: number
+  category?: string
+  band?: string
+  busyness?: BusynessLevel
+  q?: string
+}
+
+const BASE = "/api/korea/places/from-instagram"
+
+const fetchExtractedPlacesEffect = Effect.fn("PlacesService.fetchExtractedPlaces")(function* (
+  getToken: () => Promise<string | null>,
+  opts: PlacesFilter = {},
+) {
+  const token = yield* readAuthToken(getToken)
+  const params = new URLSearchParams()
+  if (opts.limit != null) params.set("limit", String(opts.limit))
+  if (opts.offset != null) params.set("offset", String(opts.offset))
+  if (opts.category) params.set("category", opts.category)
+  if (opts.band) params.set("band", opts.band)
+  if (opts.busyness) params.set("busyness", opts.busyness)
+  if (opts.q) params.set("q", opts.q)
+
+  const qs = params.toString()
+  const res = yield* fetchApi(`${BASE}/extracted${qs ? `?${qs}` : ""}`, {
+    headers: bearerHeaders(token),
+    cache: "no-store",
+  })
+  if (!res.ok) {
+    const message = yield* readErrorMessage(res, "error-only")
+    return yield* Effect.fail(new HttpStatusError({ status: res.status, message }))
+  }
+  return yield* parseJson<ExtractedPlacesResponse>(res)
+})
+
+export function fetchExtractedPlaces(
   getToken: () => Promise<string | null>,
   opts: PlacesFilter = {},
 ): Promise<ExtractedPlacesResponse> {
-  const headers = await authHeaders(getToken);
-  const params = new URLSearchParams();
-  if (opts.limit != null) params.set('limit', String(opts.limit));
-  if (opts.offset != null) params.set('offset', String(opts.offset));
-  if (opts.category) params.set('category', opts.category);
-  if (opts.band) params.set('band', opts.band);
-  if (opts.busyness) params.set('busyness', opts.busyness);
-  if (opts.q) params.set('q', opts.q);
-
-  const qs = params.toString();
-  // `cache: 'no-store'` opts this request out of the service worker's
-  // stale-while-revalidate strategy (see frontend/public/sw.js). Without
-  // it the SW returns the previously-cached list on every navigation to
-  // /korea/places — so a freshly-extracted place wouldn't appear until
-  // the user reloaded. The SW honors the cache mode via request.cache.
-  const res = await apiFetch(`${BASE}/extracted${qs ? `?${qs}` : ''}`, { headers, cache: 'no-store' });
-  if (!res.ok) {
-    let message = `HTTP ${res.status}`;
-    try {
-      const body = await res.json() as { error?: string };
-      if (body.error) message = body.error;
-    } catch { /* ignore */ }
-    throw new Error(message);
-  }
-  return res.json() as Promise<ExtractedPlacesResponse>;
+  return runPromise(fetchExtractedPlacesEffect(getToken, opts))
 }
 
-/**
- * Replaces the day-assignment set for an IG-extracted place.
- * Pass an empty array to remove all assignments.
- */
-export async function setExtractedPlaceDays(
+const setExtractedPlaceDaysEffect = Effect.fn("PlacesService.setExtractedPlaceDays")(function* (
+  getToken: () => Promise<string | null>,
+  placeId: number,
+  days: number[],
+) {
+  const token = yield* readAuthToken(getToken)
+  const res = yield* fetchApi(`${BASE}/extracted/${placeId}/days`, {
+    method: "PUT",
+    headers: { ...bearerHeaders(token), "Content-Type": "application/json" },
+    body: JSON.stringify({ days }),
+  })
+  if (!res.ok && res.status !== 204) {
+    const message = yield* readErrorMessage(res, "error-only")
+    return yield* Effect.fail(new HttpStatusError({ status: res.status, message }))
+  }
+})
+
+export function setExtractedPlaceDays(
   getToken: () => Promise<string | null>,
   placeId: number,
   days: number[],
 ): Promise<void> {
-  const headers = await authHeaders(getToken);
-  const res = await apiFetch(`${BASE}/extracted/${placeId}/days`, {
-    method: 'PUT',
-    headers: { ...headers, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ days }),
-  });
-  if (!res.ok && res.status !== 204) {
-    let message = `HTTP ${res.status}`;
-    try {
-      const body = await res.json() as { error?: string };
-      if (body.error) message = body.error;
-    } catch { /* ignore */ }
-    throw new Error(message);
-  }
+  return runPromise(setExtractedPlaceDaysEffect(getToken, placeId, days))
 }

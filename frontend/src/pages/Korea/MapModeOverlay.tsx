@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect, useMemo, useState, useRef } from "react"
+import { lazy, Suspense, useEffect, useMemo, useState, useRef, useTransition } from "react"
+import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { motion, AnimatePresence, useReducedMotion } from "motion/react"
 import {
   X,
@@ -10,8 +11,8 @@ import {
   List as ListIcon,
   Eye,
 } from "lucide-react"
-import { apiFetch } from "@/lib/apiBase"
-import { useGetToken } from "@/lib/safeAuth"
+import { useAuthReady, useGetToken } from "@/lib/safeAuth"
+import { fetchDayPlaces } from "./dayPlacesApi"
 import { isWebglSupported } from "./webglSupport"
 import { MapModeCompass } from "./MapModeCompass"
 import { coordsEqual, resolveMapLocation } from "./mapLocation"
@@ -67,6 +68,9 @@ export function MapModeOverlay({
 }: MapModeOverlayProps) {
   const reduce = useReducedMotion()
   const getToken = useGetToken()
+  const readToken = useLatestCallback(getToken)
+  const authReady = useAuthReady()
+  const [, startTransition] = useTransition()
   const [deviceCoords, setDeviceCoords] = useState<DeviceCoords>(null)
   const [deviceReady, setDeviceReady] = useState(false)
   const [locating, setLocating] = useState(false)
@@ -267,21 +271,17 @@ export function MapModeOverlay({
     setLocation(null)
     setState({ status: "loading" })
     const queryKey = "0,0"
-    const qs = new URLSearchParams({ lat: "0", lng: "0" })
     let cancelled = false
     void (async () => {
       try {
-        const token = await getToken()
-        const headers: Record<string, string> = {}
-        if (token) headers["Authorization"] = `Bearer ${token}`
         const base = placesUrl ?? `/api/korea/day/${encodeURIComponent(daySlug)}/places`
-        const r = await apiFetch(`${base}?${qs.toString()}`, { headers })
-        if (!r.ok) throw new Error(`Places fetch ${r.status}`)
-        const data = (await r.json()) as PlacesResponse
+        const data = await fetchDayPlaces(readToken, base, { lat: 0, lng: 0 })
         if (!cancelled) {
           rankedForRef.current = queryKey
-          setRankedKey(queryKey)
-          setState({ status: "success", data })
+          startTransition(() => {
+            setRankedKey(queryKey)
+            setState({ status: "success", data })
+          })
         }
       } catch (err) {
         if (!cancelled) {
@@ -295,7 +295,7 @@ export function MapModeOverlay({
     return () => {
       cancelled = true
     }
-  }, [daySlug, getToken, placesUrl, reloadNonce])
+  }, [daySlug, placesUrl, reloadNonce, startTransition, authReady])
 
   // Resolve YOU / day-center once places are known and geo has settled
   // (or failed). While geo is pending we still show places in list mode.
@@ -334,25 +334,18 @@ export function MapModeOverlay({
     const key = `${location.lat},${location.lng}`
     if (rankedForRef.current === key) return
 
-    const qs = new URLSearchParams({
-      lat: String(location.lat),
-      lng: String(location.lng),
-    })
     let cancelled = false
     void (async () => {
       try {
-        const token = await getToken()
-        const headers: Record<string, string> = {}
-        if (token) headers["Authorization"] = `Bearer ${token}`
         const base = placesUrl ?? `/api/korea/day/${encodeURIComponent(daySlug)}/places`
-        const r = await apiFetch(`${base}?${qs.toString()}`, { headers })
-        if (!r.ok) return
-        const data = (await r.json()) as PlacesResponse
+        const data = await fetchDayPlaces(readToken, base, { lat: location.lat, lng: location.lng })
         if (!cancelled) {
           // Set only after success so Strict Mode cleanup+rerun still fetches.
           rankedForRef.current = key
-          setRankedKey(key)
-          setState({ status: "success", data })
+          startTransition(() => {
+            setRankedKey(key)
+            setState({ status: "success", data })
+          })
         }
       } catch {
         /* keep prior payload; distances may be slightly off */
@@ -361,7 +354,7 @@ export function MapModeOverlay({
     return () => {
       cancelled = true
     }
-  }, [location, state.status, daySlug, getToken, placesUrl])
+  }, [location, state.status, daySlug, placesUrl, startTransition, authReady])
 
   useEffect(() => {
     const previous = document.body.style.overflow

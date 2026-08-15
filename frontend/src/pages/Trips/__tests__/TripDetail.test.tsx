@@ -9,6 +9,7 @@ const { mockGetToken } = vi.hoisted(() => ({
 
 vi.mock("@/lib/safeAuth", () => ({
   useGetToken: () => mockGetToken,
+  useAuthReady: () => true,
   clerkEnabled: true,
 }))
 

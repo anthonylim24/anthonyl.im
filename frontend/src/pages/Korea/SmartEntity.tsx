@@ -16,12 +16,12 @@
 // containers). Before this, the popover was caught by ancestor
 // overflow:hidden and got clipped.
 
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useTransition } from "react"
 import { createPortal } from "react-dom"
 import { motion, AnimatePresence, useReducedMotion } from "motion/react"
 import { ExternalLink, Loader2 } from "lucide-react"
-import { apiFetch } from "../../lib/apiBase"
 import { resolveLinks, type EntityLink, type EntityType } from "./entityLinks"
+import { fetchAbout } from "./entityAboutApi"
 
 interface SmartEntityProps {
   name: string
@@ -35,54 +35,6 @@ interface SmartEntityProps {
   className?: string
   /** Compact variant: drops the chevron mark for use inside small chips. */
   compact?: boolean
-}
-
-interface AboutCacheEntry {
-  description: string | null
-  fetchedAt: number
-}
-
-// Frontend module-level cache. The trip's entity corpus is small (~50);
-// every result we ever fetch in this session stays here so re-opening a
-// popover (or rendering the same entity in multiple places) is free.
-const aboutCache = new Map<string, AboutCacheEntry>()
-const inflight = new Map<string, Promise<string | null>>()
-
-function aboutKey(name: string, type: EntityType, city?: string): string {
-  return `${type}|${name.toLowerCase().trim()}|${(city ?? "").toLowerCase().trim()}`
-}
-
-async function fetchAbout(name: string, type: EntityType, city?: string): Promise<string | null> {
-  const key = aboutKey(name, type, city)
-  const cached = aboutCache.get(key)
-  if (cached) return cached.description
-  const pending = inflight.get(key)
-  if (pending) return pending
-
-  const promise = (async () => {
-    try {
-      const r = await apiFetch("/api/entity/about", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, type, city }),
-      })
-      if (!r.ok) return null
-      const j = (await r.json()) as { description?: string | null }
-      return j.description ?? null
-    } catch {
-      return null
-    }
-  })()
-    .then((description) => {
-      aboutCache.set(key, { description, fetchedAt: Date.now() })
-      return description
-    })
-    .finally(() => {
-      inflight.delete(key)
-    })
-
-  inflight.set(key, promise)
-  return promise
 }
 
 // Visual constants
@@ -110,6 +62,7 @@ export function SmartEntity({
   compact = false,
 }: SmartEntityProps) {
   const reduce = useReducedMotion()
+  const [, startTransition] = useTransition()
   const [open, setOpen] = useState(false)
   const [description, setDescription] = useState<string | null | "loading">("loading")
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -121,16 +74,11 @@ export function SmartEntity({
   // Lazy-fetch description on first open. Hydrate immediately on cache hit.
   useEffect(() => {
     if (!open) return
-    const cached = aboutCache.get(aboutKey(name, type, city))
-    if (cached) {
-      setDescription(cached.description)
-      return
-    }
     setDescription("loading")
     let cancelled = false
     void fetchAbout(name, type, city).then((d) => {
       if (cancelled) return
-      setDescription(d)
+      startTransition(() => setDescription(d))
     })
     return () => {
       cancelled = true

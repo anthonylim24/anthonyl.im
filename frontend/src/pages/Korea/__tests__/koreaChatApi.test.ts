@@ -90,6 +90,11 @@ describe("streamKoreaChat", () => {
     expect(result.content).toBe("Hi")
   })
 
+  it("maps a dropped fetch to a retryable connection error", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("Failed to fetch"))
+    await expect(streamKoreaChat("hi", [], undefined, () => {})).rejects.toThrow(/lost its connection/i)
+  })
+
   it("forwards prompt, history and slug in the request body", async () => {
     const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(sseResponse([`data: [DONE]\n\n`]))
     await streamKoreaChat(

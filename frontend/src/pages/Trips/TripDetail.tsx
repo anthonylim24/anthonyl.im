@@ -1,4 +1,5 @@
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react"
+import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { useReducedMotion } from "motion/react"
 import { Eye, Globe2 } from "lucide-react"
@@ -66,8 +67,8 @@ export function TripDetail() {
   const routerLocation = useLocation()
   const reduce = useReducedMotion()
   const getToken = useGetToken()
-  const getTokenRef = useRef(getToken)
-  getTokenRef.current = getToken
+  const readToken = useLatestCallback(getToken)
+  const [, startTransition] = useTransition()
   const [state, setState] = useState<LoadState>({ status: "loading" })
   const [trip, setTrip] = useState<Trip | null>(null)
   const [access, setAccess] = useState<TripAccess>("view")
@@ -108,7 +109,7 @@ export function TripDetail() {
     let cancelled = false
     void (async () => {
       try {
-        const { trip: loaded, access: a } = await getTrip(getTokenRef.current, tripId)
+        const { trip: loaded, access: a } = await getTrip(readToken, tripId)
         if (cancelled) return
         // A slower first fetch (Strict Mode remount, CI) must not clobber
         // keystrokes on THIS trip. A different tripId must still load.
@@ -120,9 +121,11 @@ export function TripDetail() {
         }
         pendingPatchRef.current = null
         editedRef.current = false
-        setTrip(loaded)
-        setAccess(a)
-        setState({ status: "success" })
+        startTransition(() => {
+          setTrip(loaded)
+          setAccess(a)
+          setState({ status: "success" })
+        })
       } catch (err) {
         if (cancelled) return
         setState({ status: "error", message: errorText(err) })
@@ -155,7 +158,7 @@ export function TripDetail() {
       const work = (async () => {
         try {
           await updateTrip(
-            getTokenRef.current,
+            readToken,
             next.id,
             {
               name: next.name,
@@ -274,7 +277,7 @@ export function TripDetail() {
       const pending = pendingPatchRef.current
       if (pending) {
         pendingPatchRef.current = null
-        void updateTrip(getTokenRef.current, pending.id, {
+        void updateTrip(readToken, pending.id, {
           name: pending.name,
           status: pending.status,
           slug: pending.slug,
@@ -334,7 +337,7 @@ export function TripDetail() {
         // cannot overwrite the auto-applied adds.
         await flushPendingSave()
         const { run, trip: refreshed, applied, error } = await enhanceTrip(
-          getTokenRef.current,
+          readToken,
           tripDocId,
           scope,
           dayId,
@@ -383,7 +386,7 @@ export function TripDetail() {
       try {
         await flushPendingSave()
         const { trip: next, applied, skipped } = await applySuggestions(
-          getTokenRef.current,
+          readToken,
           tripDocId,
           activeRun.id,
           suggestionIds,
@@ -597,7 +600,7 @@ export function TripDetail() {
           generation failed during the create flow. */}
       {editable && trip.days.every((d) => d.items.length === 0) && (
         <GeneratePanel
-          getToken={getToken}
+          getToken={readToken}
           tripId={trip.id}
           locked={editorLocked}
           initialPrompt={navState?.retryGenerate?.prompt}

@@ -9,6 +9,7 @@ const { mockGetToken } = vi.hoisted(() => ({
 
 vi.mock("@/lib/safeAuth", () => ({
   useGetToken: () => mockGetToken,
+  useAuthReady: () => true,
   clerkEnabled: true,
 }))
 
@@ -395,5 +396,40 @@ describe("TripChat add place", () => {
     expect(await screen.findByText("Remove Ichiran from Arrival?")).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: "Remove it" }))
     await waitFor(() => expect(mockUpdateTrip).toHaveBeenCalled())
+  })
+
+  it("does not show idle typing dots for a moves-only reply", async () => {
+    const withPlace = makeTrip({
+      days: [
+        {
+          id: "day-1",
+          date: "2026-07-10",
+          title: "Arrival",
+          items: [
+            {
+              id: "p1",
+              kind: "place",
+              title: "Ichiran",
+              status: "none",
+              createdBy: "user",
+              location: { name: "Ichiran", source: "user", address: "Shibuya" },
+            },
+          ],
+        },
+      ],
+    })
+    mockGetTrip.mockResolvedValue({ trip: withPlace, access: "owner" })
+    mockStreamTripChat.mockResolvedValue({
+      content: "",
+      moves: [{ type: "remove", name: "Ichiran", dayId: "day-1" }],
+    })
+
+    renderChat()
+    await openChat()
+    fireEvent.change(screen.getByPlaceholderText("Ask about this trip…"), { target: { value: "drop ichiran" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+    expect(await screen.findByText("Remove Ichiran from Arrival?")).toBeTruthy()
+    expect(screen.queryByLabelText("Concierge is typing")).toBeNull()
+    expect(screen.queryByText("Looking this up…")).toBeNull()
   })
 })
