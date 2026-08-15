@@ -21,6 +21,17 @@ export const fetchApi = (
     catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
   })
 
+/** Absolute-URL fetch for third-party APIs (Wikipedia, Google Places).
+ *  Do not use `fetchApi` here — that helper rewrites relative `/api` paths. */
+export const fetchExternal = (
+  url: string,
+  init?: RequestInit,
+): Effect.Effect<Response, Error> =>
+  Effect.tryPromise({
+    try: () => fetch(url, init),
+    catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
+  })
+
 export const readAuthToken = (getToken: GetToken): Effect.Effect<string | null, Error> =>
   Effect.tryPromise({
     try: () => getToken(),

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { useReducedMotion } from "motion/react"
 import { Check, ChevronDown, Loader2, PenLine, Sparkles, type LucideIcon } from "lucide-react"
+import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useGetToken } from "@/lib/safeAuth"
 import { createTrip, generateItinerary } from "./tripsApi"
 import { DateRangeField } from "./components/DateRangeField"
@@ -109,6 +110,7 @@ function parseList(raw: string): string[] {
 
 export function TripCreate() {
   const getToken = useGetToken()
+  const readToken = useLatestCallback(getToken)
   const navigate = useNavigate()
   const reduce = useReducedMotion()
   const [params] = useSearchParams()
@@ -192,7 +194,7 @@ export function TripCreate() {
     startTransition(async () => {
       setPhase("creating")
       try {
-        const trip = await createTrip(getToken, {
+        const trip = await createTrip(readToken, {
           name: name.trim(),
           destinations: destinationList,
           startDate,
@@ -208,7 +210,7 @@ export function TripCreate() {
             Object.entries(prefs).filter(([, v]) => v && v.trim()),
           ) as GeneratePreferences
           try {
-            const generated = await generateItinerary(getToken, trip.id, {
+            const generated = await generateItinerary(readToken, trip.id, {
               prompt: prompt.trim() || undefined,
               preferences: Object.keys(preferences).length ? preferences : undefined,
             })

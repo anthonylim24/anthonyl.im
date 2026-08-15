@@ -600,7 +600,7 @@ export function TripDetail() {
           generation failed during the create flow. */}
       {editable && trip.days.every((d) => d.items.length === 0) && (
         <GeneratePanel
-          getToken={getToken}
+          getToken={readToken}
           tripId={trip.id}
           locked={editorLocked}
           initialPrompt={navState?.retryGenerate?.prompt}

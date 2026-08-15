@@ -1003,7 +1003,7 @@ function PlacesImpl() {
                   <PlaceCard
                     key={place.id}
                     place={place}
-                    getToken={getToken}
+                    getToken={readToken}
                     onUpdated={(placeId, days) => {
                       setPlaces((prev) =>
                         prev.map((p) => p.id === placeId ? { ...p, days } : p)

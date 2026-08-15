@@ -1,4 +1,5 @@
 import { useState, useTransition } from "react"
+import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { motion } from "motion/react"
 import { Loader2, Sparkles } from "lucide-react"
 import { ACCENT } from "../theme"
@@ -32,6 +33,7 @@ export function GeneratePanel({
   preferences?: GeneratePreferences
   onGenerated: (trip: Trip) => void
 }) {
+  const readToken = useLatestCallback(getToken)
   const [prompt, setPrompt] = useState(initialPrompt ?? DEFAULT_ITINERARY_PROMPT)
   const [busy, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -41,7 +43,7 @@ export function GeneratePanel({
     setError(null)
     startTransition(async () => {
       try {
-        const { trip } = await generateItinerary(getToken, tripId, {
+        const { trip } = await generateItinerary(readToken, tripId, {
           prompt: prompt.trim() || undefined,
           preferences,
           replaceExisting: true,

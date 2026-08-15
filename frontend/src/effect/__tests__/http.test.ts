@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest"
 import { Effect } from "effect"
-import { readErrorMessage, requestJson } from "../http"
+import { fetchExternal, readErrorMessage, requestJson } from "../http"
 import { runPromise } from "../runtime"
 
 afterEach(() => {
@@ -40,6 +40,15 @@ describe("readErrorMessage", () => {
   it("falls back to HTTP status when the body is empty", async () => {
     const res = jsonResponse({}, 502)
     await expect(Effect.runPromise(readErrorMessage(res, "error-only"))).resolves.toBe("HTTP 502")
+  })
+})
+
+describe("fetchExternal", () => {
+  it("calls native fetch with the absolute URL", async () => {
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 204 }))
+    const res = await runPromise(fetchExternal("https://example.test/photo", { method: "GET" }))
+    expect(spy).toHaveBeenCalledWith("https://example.test/photo", { method: "GET" })
+    expect(res.status).toBe(204)
   })
 })
 

@@ -9,6 +9,7 @@ const { mockGetToken } = vi.hoisted(() => ({
 
 vi.mock("@/lib/safeAuth", () => ({
   useGetToken: () => mockGetToken,
+  useAuthReady: () => true,
   clerkEnabled: true,
 }))
 
@@ -108,7 +109,7 @@ describe("TripsIndex", () => {
     fireEvent.click(screen.getByRole("button", { name: "Delete" }))
 
     await waitFor(() => {
-      expect(mockDeleteTrip).toHaveBeenCalledWith(mockGetToken, "trip-1")
+      expect(mockDeleteTrip).toHaveBeenCalledWith(expect.any(Function), "trip-1")
     })
     await waitFor(() => {
       expect(screen.queryByRole("heading", { name: "Tokyo Long Weekend" })).not.toBeInTheDocument()

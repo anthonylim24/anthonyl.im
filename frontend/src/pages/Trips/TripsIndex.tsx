@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { Link, useNavigate } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
 import { ArrowRight, CalendarDays, MapPin, Plus, RotateCcw, Trash2, Users } from "lucide-react"
-import { useGetToken } from "@/lib/safeAuth"
+import { useLatestCallback } from "@/hooks/useLatestCallback"
+import { useAuthReady, useGetToken } from "@/lib/safeAuth"
 import { deleteTrip, listTrips } from "./tripsApi"
 import type { TripSummary } from "./types"
 import { ACCENT, collaboratorSummary, daysUntilIn, todayIsoIn } from "./theme"
@@ -142,6 +143,8 @@ const sections: Array<{ key: TripBucket; title: string }> = [
 
 export function TripsIndex() {
   const getToken = useGetToken()
+  const readToken = useLatestCallback(getToken)
+  const authReady = useAuthReady()
   const navigate = useNavigate()
   const reduce = useReducedMotion()
   const [state, setState] = useState<LoadState>({ status: "loading" })
@@ -172,7 +175,7 @@ export function TripsIndex() {
     let cancelled = false
     void (async () => {
       try {
-        const trips = await listTrips(getToken)
+        const trips = await listTrips(readToken)
         if (!cancelled) startTransition(() => setState({ status: "success", trips }))
       } catch (err) {
         if (!cancelled) setState({ status: "error", message: err instanceof Error ? err.message : String(err) })
@@ -181,7 +184,7 @@ export function TripsIndex() {
     return () => {
       cancelled = true
     }
-  }, [getToken, reloadKey, startTransition])
+  }, [readToken, authReady, reloadKey, startTransition])
 
   const grouped = useMemo(() => {
     if (state.status !== "success") return null
@@ -211,7 +214,7 @@ export function TripsIndex() {
       setDeleting(trip.id)
       setDeleteError(null)
       try {
-        await deleteTrip(getToken, trip.id)
+        await deleteTrip(readToken, trip.id)
         setConfirmId(null)
         // The row is gone, so focus moves to the page's primary action rather
         // than falling back to the document.
