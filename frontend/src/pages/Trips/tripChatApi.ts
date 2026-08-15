@@ -1,5 +1,10 @@
 import { apiFetch } from "../../lib/apiBase"
-import { visibleConciergeText, type ConciergePlace, type ConciergeSource } from "../../lib/conciergeGrounding"
+import {
+  visibleConciergeText,
+  type ConciergeMove,
+  type ConciergePlace,
+  type ConciergeSource,
+} from "../../lib/conciergeGrounding"
 import { parseConciergeSsePayload } from "../../lib/conciergeSse"
 import { readSseStream } from "../../lib/sseStream"
 import { streamKoreaChat } from "../Korea/koreaChatApi"
@@ -15,6 +20,7 @@ export interface TripChatResult {
   content: string
   error?: string
   places?: ConciergePlace[]
+  moves?: ConciergeMove[]
   sources?: ConciergeSource[]
 }
 
@@ -125,6 +131,7 @@ export async function streamTripChat(
   let content = ""
   let streamError: string | undefined
   let places: ConciergePlace[] | undefined
+  let moves: ConciergeMove[] | undefined
   let sources: ConciergeSource[] | undefined
 
   const handleData = (data: string) => {
@@ -136,6 +143,8 @@ export async function streamTripChat(
       streamError = parsed.error
     } else if (parsed.kind === "places") {
       places = parsed.places
+    } else if (parsed.kind === "moves") {
+      moves = parsed.moves
     } else if (parsed.kind === "sources") {
       sources = parsed.sources
     }
@@ -147,5 +156,5 @@ export async function streamTripChat(
     chatRequestFailed(err)
   }
 
-  return { content: visibleConciergeText(content), error: streamError, places, sources }
+  return { content: visibleConciergeText(content), error: streamError, places, moves, sources }
 }

@@ -6,6 +6,7 @@ import {
   enrichPlacesWithGeocode,
   mergeConciergePlaces,
   parseAddPlacesTrailer,
+  parseTripMovesTrailer,
   placeCanBeAdded,
   placesFromMapsChunks,
   sourcesFromGrounding,
@@ -147,6 +148,11 @@ export function buildTripChatSystemInstruction(trip: Trip, dayId?: string): stri
     `[{"name":"Venue","address":"street address","lat":0,"lng":0,"category":"restaurant","dayId":"${dayId ?? ""}","notes":"one-line why","placeId":"","mapsUrl":""}]`,
     `:::`,
     `Use real Maps-verified name + address. Include lat/lng when Maps has them. Omit dayId if unsure. Omit the block for logistics-only answers or places already listed above.`,
+    `8. When the traveler asks to remove, move, or retiming a stop that IS already on the itinerary, append this second machine-only block (never auto-apply; the UI will ask them to confirm):`,
+    `:::trip-moves`,
+    `[{"type":"remove","name":"Exact title","dayId":""},{"type":"move","name":"Exact title","fromDayId":"","toDayId":""},{"type":"set_time","name":"Exact title","dayId":"","time":"13:00"}]`,
+    `:::`,
+    `Use exact titles from the itinerary. Omit the block unless they asked to change the plan.`,
     ``,
     `=== ITINERARY DATA ===`,
     buildTripChatContext(trip, dayId),
@@ -212,6 +218,9 @@ export async function streamTripChat(
   // Search + Maps grounding can sit quiet for a while before the first token.
   const upstreamSignal = AbortSignal.any([AbortSignal.timeout(120_000), c.req.raw.signal])
   const toolConfig = mapsRetrievalConfig(tripLatLngHint(args.trip, args.dayId))
+
+  c.header("Cache-Control", "no-cache")
+  c.header("X-Accel-Buffering", "no")
 
   return streamSSE(c, async (stream) => {
     let sawText = false
@@ -279,7 +288,10 @@ export async function streamTripChat(
             await stream.writeSSE({ data: JSON.stringify(reason) })
           }
 
+          const moves = parseTripMovesTrailer(hidden)
+
           if (places.length) await stream.writeSSE({ data: JSON.stringify({ places }) })
+          if (moves.length) await stream.writeSSE({ data: JSON.stringify({ moves }) })
           if (sources.length) await stream.writeSSE({ data: JSON.stringify({ sources }) })
 
           await stream.writeSSE({ data: "[DONE]" })

@@ -91,16 +91,16 @@ export function MapModeOverlay({
     })
   }, [reduce])
 
-  const honoredFocusRef = useRef(false)
+  const honoredFocusRef = useRef<string | null>(null)
   useEffect(() => {
-    if (honoredFocusRef.current) return
     if (!initialFocusPlaceId) return
+    if (honoredFocusRef.current === initialFocusPlaceId) return
     if (state.status !== "success") return
     const match = state.data.places.find((p) => p.id === initialFocusPlaceId)
     if (match) {
       setSheetInitialMode("compact")
       setSelected(match)
-      honoredFocusRef.current = true
+      honoredFocusRef.current = initialFocusPlaceId
     }
   }, [initialFocusPlaceId, state])
 

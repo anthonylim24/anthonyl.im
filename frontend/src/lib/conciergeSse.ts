@@ -6,12 +6,20 @@
  *  well-formed answer is never dropped. Grounded turns may also emit
  *  `{ places }` / `{ sources }` objects after the text. */
 
-import { asConciergePlaces, asConciergeSources, type ConciergePlace, type ConciergeSource } from "./conciergeGrounding"
+import {
+  asConciergeMoves,
+  asConciergePlaces,
+  asConciergeSources,
+  type ConciergeMove,
+  type ConciergePlace,
+  type ConciergeSource,
+} from "./conciergeGrounding"
 
 export type ConciergeSseDelta =
   | { kind: "text"; text: string }
   | { kind: "error"; error: string }
   | { kind: "places"; places: ConciergePlace[] }
+  | { kind: "moves"; moves: ConciergeMove[] }
   | { kind: "sources"; sources: ConciergeSource[] }
   | { kind: "ignore" }
 
@@ -61,6 +69,10 @@ function interpretPayload(parsed: unknown): ConciergeSseDelta {
     if (Array.isArray(obj.places)) {
       const places = asConciergePlaces(obj.places)
       return places.length ? { kind: "places", places } : { kind: "ignore" }
+    }
+    if (Array.isArray(obj.moves)) {
+      const moves = asConciergeMoves(obj.moves)
+      return moves.length ? { kind: "moves", moves } : { kind: "ignore" }
     }
     if (Array.isArray(obj.sources)) {
       const sources = asConciergeSources(obj.sources)
