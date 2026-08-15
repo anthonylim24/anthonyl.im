@@ -25,6 +25,11 @@ vi.mock("../tripChatApi", () => ({
   streamTripChat: (...args: unknown[]) => mockStreamTripChat(...args),
 }))
 
+vi.mock("../../Korea/placePhoto", () => ({
+  lookupPhoto: vi.fn().mockResolvedValue(null),
+  lookupGooglePlacePhoto: vi.fn().mockResolvedValue(null),
+}))
+
 import { TripChat } from "../TripChat"
 
 function makeTrip(overrides: Partial<Trip> = {}): Trip {
@@ -44,6 +49,22 @@ function makeTrip(overrides: Partial<Trip> = {}): Trip {
     updatedAt: "2026-01-01T00:00:00Z",
     ...overrides,
   }
+}
+
+function stubMatchMedia(desktop: boolean) {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: (query: string) => ({
+      matches: desktop && query.includes("768"),
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+      onchange: null,
+    }),
+  })
 }
 
 function renderChat(path = "/trips/tokyo") {
@@ -80,6 +101,7 @@ describe("TripChat expand", () => {
   })
 
   it("expands and shrinks the open panel", async () => {
+    stubMatchMedia(false)
     renderChat()
     const dialog = await openChat()
     expect(dialog).toHaveAttribute("data-expanded", "false")
@@ -121,9 +143,10 @@ describe("TripChat expand", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Expand chat" }))
     await waitFor(() => {
-      expect(dialog).toHaveStyle({ top: "16px", bottom: "16px", height: "auto" })
+      expect(dialog).toHaveAttribute("data-expanded", "true")
     })
     expect(document.body.style.overflow).toBe("hidden")
+    expect(dialog.className).toContain("trip-chat-panel-expanded")
     expect(dialog.className).not.toMatch(/h-\[min\(92dvh/)
     expect(within(dialog).getByPlaceholderText("Ask about this trip…")).toBeVisible()
 
@@ -230,6 +253,33 @@ describe("TripChat add place", () => {
     vi.clearAllMocks()
   })
 
+  it("shows a looking-up state while the reply streams", async () => {
+    let release: ((value: { content: string }) => void) | undefined
+    mockStreamTripChat.mockImplementation(
+      async (
+        _id: unknown,
+        _prompt: unknown,
+        _hist: unknown,
+        _day: unknown,
+        _token: unknown,
+        onUpdate: (content: string) => void,
+      ) =>
+        new Promise<{ content: string }>((resolve) => {
+          release = (value) => {
+            onUpdate(value.content)
+            resolve(value)
+          }
+        }),
+    )
+    renderChat()
+    await openChat()
+    fireEvent.change(screen.getByPlaceholderText("Ask about this trip…"), { target: { value: "lunch?" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+    expect(await screen.findByText("Looking this up…")).toBeTruthy()
+    release?.({ content: "Try the market." })
+    expect(await screen.findByText("Try the market.")).toBeTruthy()
+  })
+
   it("adds a suggested place to the itinerary", async () => {
     renderChat()
     await openChat()
@@ -241,5 +291,109 @@ describe("TripChat add place", () => {
     const patch = mockUpdateTrip.mock.calls[0]![2] as { days: Trip["days"] }
     expect(patch.days[0]!.items.some((item) => item.title === "Ichiran")).toBe(true)
     expect(await screen.findByRole("button", { name: "Ichiran added" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "View photos of Ichiran" })).toBeTruthy()
+    expect(within(screen.getByRole("dialog", { name: "Trip Concierge" })).getByRole("button", { name: "Send message" })).toHaveClass(
+      "h-7",
+    )
+  })
+
+  it("removes a mentioned itinerary stop after confirm", async () => {
+    const withPlace = makeTrip({
+      days: [
+        {
+          id: "day-1",
+          date: "2026-07-10",
+          title: "Arrival",
+          items: [
+            {
+              id: "p1",
+              kind: "place",
+              title: "Senso-ji",
+              status: "none",
+              createdBy: "user",
+              location: { name: "Senso-ji", source: "user", lat: 35.7, lng: 139.8 },
+            },
+          ],
+        },
+      ],
+    })
+    mockGetTrip.mockResolvedValue({ trip: withPlace, access: "owner" })
+    mockStreamTripChat.mockImplementation(
+      async (
+        _id: unknown,
+        _prompt: unknown,
+        _hist: unknown,
+        _day: unknown,
+        _token: unknown,
+        onUpdate: (content: string) => void,
+      ) => {
+        onUpdate("Senso-ji is the quiet start.")
+        return { content: "Senso-ji is the quiet start." }
+      },
+    )
+    mockUpdateTrip.mockImplementation(async (_token: unknown, _id: unknown, patch: { days: Trip["days"] }) =>
+      makeTrip({ days: patch.days }),
+    )
+
+    renderChat()
+    await openChat()
+    fireEvent.change(screen.getByPlaceholderText("Ask about this trip…"), { target: { value: "temple?" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+    expect(await screen.findByRole("button", { name: "Remove Senso-ji from the itinerary" })).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Remove Senso-ji from the itinerary" }))
+    fireEvent.click(screen.getByRole("button", { name: "Confirm remove Senso-ji" }))
+    await waitFor(() => expect(mockUpdateTrip).toHaveBeenCalled())
+    const patch = mockUpdateTrip.mock.calls[0]![2] as { days: Trip["days"] }
+    expect(patch.days[0]!.items.some((item) => item.id === "p1")).toBe(false)
+  })
+
+  it("confirms a proposed remove move from the model", async () => {
+    const withPlace = makeTrip({
+      days: [
+        {
+          id: "day-1",
+          date: "2026-07-10",
+          title: "Arrival",
+          items: [
+            {
+              id: "p1",
+              kind: "place",
+              title: "Ichiran",
+              status: "none",
+              createdBy: "user",
+              location: { name: "Ichiran", source: "user", address: "Shibuya" },
+            },
+          ],
+        },
+      ],
+    })
+    mockGetTrip.mockResolvedValue({ trip: withPlace, access: "owner" })
+    mockStreamTripChat.mockImplementation(
+      async (
+        _id: unknown,
+        _prompt: unknown,
+        _hist: unknown,
+        _day: unknown,
+        _token: unknown,
+        onUpdate: (content: string) => void,
+      ) => {
+        onUpdate("I can take Ichiran off Arrival.")
+        return {
+          content: "I can take Ichiran off Arrival.",
+          moves: [{ type: "remove", name: "Ichiran", dayId: "day-1" }],
+        }
+      },
+    )
+    mockUpdateTrip.mockImplementation(async (_token: unknown, _id: unknown, patch: { days: Trip["days"] }) =>
+      makeTrip({ days: patch.days }),
+    )
+
+    renderChat()
+    await openChat()
+    fireEvent.change(screen.getByPlaceholderText("Ask about this trip…"), { target: { value: "drop ichiran" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+    expect(await screen.findByText("Remove Ichiran from Arrival?")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Remove it" }))
+    await waitFor(() => expect(mockUpdateTrip).toHaveBeenCalled())
   })
 })

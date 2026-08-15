@@ -1,9 +1,23 @@
-/** Parse Gemini grounding metadata + the concierge `:::add-places` trailer.
+/** Parse Gemini grounding metadata + concierge fence trailers.
  *
- *  Chat streams hide the trailer from the traveler and emit a structured
- *  `{ places }` SSE event the UI can turn into Add-to-itinerary cards. */
+ *  Chat streams hide `:::add-places` / `:::trip-moves` from the traveler and
+ *  emit structured `{ places }` / `{ moves }` SSE events the UI can act on. */
 
 export const ADD_PLACES_FENCE = ":::add-places"
+export const TRIP_MOVES_FENCE = ":::trip-moves"
+export const CONCIERGE_FENCES = [ADD_PLACES_FENCE, TRIP_MOVES_FENCE] as const
+
+export type ConciergeMoveType = "remove" | "move" | "set_time"
+
+export interface ConciergeMove {
+  type: ConciergeMoveType
+  name: string
+  dayId?: string
+  fromDayId?: string
+  toDayId?: string
+  itemId?: string
+  time?: string
+}
 
 const PLACE_CATEGORIES = new Set([
   "restaurant",
@@ -140,21 +154,63 @@ export function asConciergePlace(raw: unknown): ConciergePlace | null {
   return place
 }
 
-export function parseAddPlacesTrailer(hidden: string): ConciergePlace[] {
-  const text = hidden.trim()
-  if (!text) return []
-  const stripped = text.replace(/^:::add-places\b/, "").replace(/:::\s*$/, "").trim()
-  const start = stripped.indexOf("[")
-  const end = stripped.lastIndexOf("]")
-  if (start < 0 || end <= start) return []
-  let parsed: unknown
+function extractFenceJsonArray(text: string, fence: string): unknown[] {
+  const start = text.indexOf(fence)
+  if (start < 0) return []
+  const after = text.slice(start + fence.length)
+  const close = after.indexOf(":::")
+  const body = (close >= 0 ? after.slice(0, close) : after).trim()
+  const from = body.indexOf("[")
+  const to = body.lastIndexOf("]")
+  if (from < 0 || to <= from) return []
   try {
-    parsed = JSON.parse(stripped.slice(start, end + 1))
+    const parsed: unknown = JSON.parse(body.slice(from, to + 1))
+    return Array.isArray(parsed) ? parsed : []
   } catch {
     return []
   }
-  if (!Array.isArray(parsed)) return []
-  return parsed.map(asConciergePlace).filter((p): p is ConciergePlace => p !== null).slice(0, 8)
+}
+
+export function parseAddPlacesTrailer(hidden: string): ConciergePlace[] {
+  if (!hidden.trim()) return []
+  return extractFenceJsonArray(hidden, ADD_PLACES_FENCE)
+    .map(asConciergePlace)
+    .filter((p): p is ConciergePlace => p !== null)
+    .slice(0, 8)
+}
+
+const MOVE_TYPES = new Set<ConciergeMoveType>(["remove", "move", "set_time"])
+const TIME_RE = /^([01]?\d|2[0-3]):[0-5]\d$/
+
+export function asConciergeMove(raw: unknown): ConciergeMove | null {
+  if (!raw || typeof raw !== "object") return null
+  const obj = raw as Record<string, unknown>
+  const type = typeof obj.type === "string" ? obj.type.trim() : ""
+  if (!MOVE_TYPES.has(type as ConciergeMoveType)) return null
+  const name = clip(obj.name, 200)
+  if (!name) return null
+  const move: ConciergeMove = { type: type as ConciergeMoveType, name }
+  const dayId = clip(obj.dayId, 64)
+  if (dayId) move.dayId = dayId
+  const fromDayId = clip(obj.fromDayId, 64)
+  if (fromDayId) move.fromDayId = fromDayId
+  const toDayId = clip(obj.toDayId, 64)
+  if (toDayId) move.toDayId = toDayId
+  const itemId = clip(obj.itemId, 64)
+  if (itemId) move.itemId = itemId
+  const time = typeof obj.time === "string" ? obj.time.trim() : ""
+  if (time && TIME_RE.test(time)) move.time = time
+  if (move.type === "move" && !move.toDayId) return null
+  if (move.type === "set_time" && !move.time) return null
+  return move
+}
+
+export function parseTripMovesTrailer(hidden: string): ConciergeMove[] {
+  if (!hidden.trim()) return []
+  return extractFenceJsonArray(hidden, TRIP_MOVES_FENCE)
+    .map(asConciergeMove)
+    .filter((m): m is ConciergeMove => m !== null)
+    .slice(0, 8)
 }
 
 function definedFields(place: ConciergePlace): ConciergePlace {
@@ -291,7 +347,7 @@ export function placeCanBeAdded(place: ConciergePlace): boolean {
   return Boolean(place.address || (place.lat != null && place.lng != null))
 }
 
-/** Hold back the `:::add-places` trailer so it never reaches the chat bubble. */
+/** Hold back concierge fence trailers so they never reach the chat bubble. */
 export function createAddPlacesFenceFilter(): {
   push: (delta: string) => string
   end: () => { visibleTail: string; hidden: string }
@@ -314,11 +370,11 @@ export function createAddPlacesFenceFilter(): {
       return emit
     }
     const rest = buf.slice(idx)
-    if (ADD_PLACES_FENCE.startsWith(rest) && rest.length < ADD_PLACES_FENCE.length) {
+    if (CONCIERGE_FENCES.some((fence) => fence.startsWith(rest) && rest.length < fence.length)) {
       pending = buf
       return ""
     }
-    if (rest.startsWith(ADD_PLACES_FENCE)) {
+    if (CONCIERGE_FENCES.some((fence) => rest.startsWith(fence))) {
       hiding = true
       hidden = rest
       pending = ""

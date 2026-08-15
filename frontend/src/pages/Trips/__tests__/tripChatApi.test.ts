@@ -45,6 +45,7 @@ describe("streamTripChat", () => {
         `data: ${JSON.stringify("Try Ichiran.\n:::add-places\n")}\n\n`,
         `data: ${JSON.stringify({ places: [{ name: "Ichiran", address: "Shibuya" }] })}\n\n`,
         `data: ${JSON.stringify({ sources: [{ kind: "maps", title: "Ichiran", uri: "https://maps.google.com/?cid=1" }] })}\n\n`,
+        `data: ${JSON.stringify({ moves: [{ type: "remove", name: "Ichiran" }] })}\n\n`,
         `data: [DONE]\n\n`,
       ]),
     )
@@ -52,6 +53,7 @@ describe("streamTripChat", () => {
     const result = await streamTripChat("tokyo", "ramen?", [], undefined, getToken, (c) => updates.push(c))
     expect(result.content).toBe("Try Ichiran.")
     expect(result.places).toEqual([{ name: "Ichiran", address: "Shibuya" }])
+    expect(result.moves).toEqual([{ type: "remove", name: "Ichiran" }])
     expect(result.sources?.[0]?.kind).toBe("maps")
     expect(updates[updates.length - 1]).toBe("Try Ichiran.")
   })
