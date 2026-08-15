@@ -854,7 +854,6 @@ function AssistantBubble({
             variant="suggest"
             onAdd={onAdd}
             onPhotos={onPhotos}
-            onMap={onMap}
           />
         ) : null}
         {mentioned.length > 0 && trip ? (
