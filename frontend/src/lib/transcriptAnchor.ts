@@ -1,9 +1,9 @@
 /** Pin a concierge transcript to the latest user turn instead of chasing
  *  the assistant stream. */
 
-export function lastMessageIdByRole<T extends { id: string; role: string }>(
-  messages: readonly T[],
-  role: T["role"],
+export function lastMessageIdByRole(
+  messages: readonly { id: string; role: string }[],
+  role: string,
 ): string | undefined {
   for (let i = messages.length - 1; i >= 0; i--) {
     if (messages[i]?.role === role) return messages[i]!.id
