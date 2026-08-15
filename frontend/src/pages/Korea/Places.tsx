@@ -682,6 +682,7 @@ function PlacesImpl() {
 
   const readToken = useLatestCallback(getToken)
   const [isRefreshing, startTransition] = useTransition()
+  const loadSeq = useRef(0)
 
   const searchRef = useRef(search)
   searchRef.current = search
@@ -704,6 +705,7 @@ function PlacesImpl() {
     append: boolean
   }) => {
     const { append, ...queryOpts } = opts
+    const seq = ++loadSeq.current
     if (append) setLoadingMore(true)
     else setLoading(true)
     setError(null)
@@ -716,6 +718,7 @@ function PlacesImpl() {
         busyness: queryOpts.busyness ?? undefined,
         q: queryOpts.q || undefined,
       })
+      if (seq !== loadSeq.current) return
       startTransition(() => {
         if (append) {
           setPlaces((prev) => [...prev, ...data.places])
@@ -729,6 +732,7 @@ function PlacesImpl() {
         setLoadingMore(false)
       })
     } catch (err) {
+      if (seq !== loadSeq.current) return
       setError(err instanceof Error ? err.message : 'Failed to load places')
       setLoading(false)
       setLoadingMore(false)

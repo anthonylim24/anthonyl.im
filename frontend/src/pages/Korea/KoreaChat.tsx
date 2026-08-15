@@ -184,8 +184,8 @@ export function KoreaChat() {
         setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content } : m)))
 
       setMessages((prev) => [...prev, ...pending])
+      setStreaming(true)
       void (async () => {
-        setStreaming(true)
         try {
           const { content, error, sources } = await streamKoreaChat(prompt, history, slug, setAssistant, controller.signal)
           if (error) setAssistant(`⚠️ ${error}`)

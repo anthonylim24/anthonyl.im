@@ -414,7 +414,7 @@ function App() {
                 type="submit"
                 disabled={isLoading || !input.trim()}
                 aria-label={isStreaming ? "Sending" : "Send message"}
-                className="chat-send shrink-0 p-2 transition-all duration-300 disabled:opacity-20 disabled:cursor-not-allowed"
+                className="chat-send shrink-0 transition-all duration-300 disabled:opacity-20 disabled:cursor-not-allowed"
               >
                 <Send className={`w-4 h-4 ${isStreaming ? "animate-pulse" : ""}`} />
               </button>

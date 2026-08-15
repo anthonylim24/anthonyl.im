@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from "react"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
+import { useAuthReady } from "@/lib/safeAuth"
 import { getTrip, type GetToken } from "./tripsApi"
 import { mergeFetchedTrip, preferFresherTrip, useTripChanged } from "./tripsEvents"
 import type { Trip } from "./types"
@@ -16,6 +17,7 @@ export function useLoadedTrip(tripId: string | undefined, getToken: GetToken) {
   const liveTripRef = useRef<Trip | null>(null)
   const tripIdRef = useRef(tripId)
   const readToken = useLatestCallback(getToken)
+  const authReady = useAuthReady()
   if (tripIdRef.current !== tripId) {
     tripIdRef.current = tripId
     liveTripRef.current = null
@@ -51,7 +53,7 @@ export function useLoadedTrip(tripId: string | undefined, getToken: GetToken) {
     return () => {
       cancelled = true
     }
-  }, [tripId, reloadKey, startTransition])
+  }, [tripId, reloadKey, startTransition, authReady])
 
   useTripChanged(
     tripId,

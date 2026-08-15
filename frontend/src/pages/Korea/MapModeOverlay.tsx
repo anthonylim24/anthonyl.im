@@ -11,7 +11,7 @@ import {
   List as ListIcon,
   Eye,
 } from "lucide-react"
-import { useGetToken } from "@/lib/safeAuth"
+import { useAuthReady, useGetToken } from "@/lib/safeAuth"
 import { fetchDayPlaces } from "./dayPlacesApi"
 import { isWebglSupported } from "./webglSupport"
 import { MapModeCompass } from "./MapModeCompass"
@@ -69,6 +69,7 @@ export function MapModeOverlay({
   const reduce = useReducedMotion()
   const getToken = useGetToken()
   const readToken = useLatestCallback(getToken)
+  const authReady = useAuthReady()
   const [, startTransition] = useTransition()
   const [deviceCoords, setDeviceCoords] = useState<DeviceCoords>(null)
   const [deviceReady, setDeviceReady] = useState(false)
@@ -294,7 +295,7 @@ export function MapModeOverlay({
     return () => {
       cancelled = true
     }
-  }, [daySlug, placesUrl, reloadNonce, startTransition])
+  }, [daySlug, placesUrl, reloadNonce, startTransition, authReady])
 
   // Resolve YOU / day-center once places are known and geo has settled
   // (or failed). While geo is pending we still show places in list mode.
@@ -353,7 +354,7 @@ export function MapModeOverlay({
     return () => {
       cancelled = true
     }
-  }, [location, state.status, daySlug, placesUrl, startTransition])
+  }, [location, state.status, daySlug, placesUrl, startTransition, authReady])
 
   useEffect(() => {
     const previous = document.body.style.overflow

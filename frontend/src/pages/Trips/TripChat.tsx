@@ -10,7 +10,7 @@ import {
   type ConciergeSource,
 } from "../../lib/conciergeGrounding"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
-import { useGetToken } from "@/lib/safeAuth"
+import { useAuthReady, useGetToken } from "@/lib/safeAuth"
 import { ConciergeSources } from "../Korea/ConciergeSources"
 import { ConciergeText } from "../Korea/ConciergeText"
 import { ConciergeMoveCards } from "./ConciergeMoveCards"
@@ -96,6 +96,7 @@ export function TripChat() {
   const navigate = useNavigate()
   const getToken = useGetToken()
   const readToken = useLatestCallback(getToken)
+  const authReady = useAuthReady()
   const reduce = useReducedMotion()
   const isDesktop = useMinWidth(768)
   const [trip, setTrip] = useState<Trip | null>(null)
@@ -143,7 +144,7 @@ export function TripChat() {
     return () => {
       cancelled = true
     }
-  }, [tripId])
+  }, [tripId, authReady])
 
   useTripChanged(
     tripId,
@@ -289,8 +290,8 @@ export function TripChat() {
         setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content } : m)))
 
       setMessages((prev) => [...prev, ...pending])
+      setStreaming(true)
       void (async () => {
-        setStreaming(true)
         let activeTrip = trip
         if (!activeTrip) {
           try {
@@ -827,7 +828,7 @@ function AssistantBubble({
             <p className={`text-sm ${mutedInkClass}`}>Looking this up…</p>
             <TypingDots reduce={reduce} />
           </div>
-        ) : (
+        ) : m.places?.length || m.moves?.length || m.sources?.length ? null : (
           <TypingDots reduce={reduce} />
         )}
         {m.places && trip ? (

@@ -1184,6 +1184,8 @@ function IngestImpl() {
   const readToken = useLatestCallback(getToken)
   const [isRefreshing, startTransition] = useTransition()
   const [refreshInFlight, setRefreshInFlight] = useState(0)
+  const jobsSeq = useRef(0)
+  const statsSeq = useRef(0)
 
   // ── Time ticks ─────────────────────────────────────────────────────────────
 
@@ -1194,9 +1196,11 @@ function IngestImpl() {
   // ── Fetch helpers ──────────────────────────────────────────────────────────
 
   const doFetchJobs = useCallback(async () => {
+    const seq = ++jobsSeq.current
     setRefreshInFlight((n) => n + 1)
     try {
       const data = await listJobs(readToken)
+      if (seq !== jobsSeq.current) return
       startTransition(() => {
         setJobs(data)
         setJobsLoaded(true)
@@ -1205,6 +1209,7 @@ function IngestImpl() {
       setFetchFailures(0)
       setApiNotConfigured(null)
     } catch (err) {
+      if (seq !== jobsSeq.current) return
       setJobsLoaded(true)
       if (err instanceof ApiNotConfiguredError) {
         // Sticky banner — this is a server-config issue that won't fix itself.
@@ -1218,11 +1223,14 @@ function IngestImpl() {
   }, [readToken, startTransition])
 
   const doFetchStats = useCallback(async () => {
+    const seq = ++statsSeq.current
     setRefreshInFlight((n) => n + 1)
     try {
       const data = await fetchStats(readToken)
+      if (seq !== statsSeq.current) return
       startTransition(() => setStats(data))
     } catch (err) {
+      if (seq !== statsSeq.current) return
       if (err instanceof ApiNotConfiguredError) {
         setApiNotConfigured(err.message)
       }
