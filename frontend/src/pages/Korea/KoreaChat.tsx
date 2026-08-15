@@ -355,7 +355,7 @@ export function KoreaChat() {
                         <div className="max-w-[88%] rounded-2xl rounded-bl-md bg-stone-100 px-3.5 py-2.5 text-stone-800 dark:bg-stone-800/80 dark:text-stone-100">
                           {m.content ? (
                             <ConciergeText text={m.content} />
-                          ) : (
+                          ) : m.error ? null : (
                             <TypingDots reduce={!!reduce} />
                           )}
                           <ConciergeStreamStatus error={m.error} />

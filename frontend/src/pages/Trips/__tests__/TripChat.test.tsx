@@ -423,6 +423,19 @@ describe("TripChat add place", () => {
     expect(screen.getByRole("status")).toHaveTextContent(/lost its connection/i)
   })
 
+  it("does not show typing dots when a cutoff has no tokens", async () => {
+    mockStreamTripChat.mockResolvedValue({
+      content: "",
+      error: "The concierge lost its connection. Please try again.",
+    })
+    renderChat()
+    await openChat()
+    fireEvent.change(screen.getByPlaceholderText("Ask about this trip…"), { target: { value: "lunch?" } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+    expect(await screen.findByRole("status")).toHaveTextContent(/lost its connection/i)
+    expect(screen.queryByLabelText("Concierge is typing")).toBeNull()
+  })
+
   it("does not show idle typing dots for a moves-only reply", async () => {
     const withPlace = makeTrip({
       days: [

@@ -838,7 +838,7 @@ function AssistantBubble({
             <p className={`text-sm ${mutedInkClass}`}>Looking this up…</p>
             <TypingDots reduce={reduce} />
           </div>
-        ) : m.places?.length || m.moves?.length || m.sources?.length ? null : (
+        ) : m.error || m.places?.length || m.moves?.length || m.sources?.length ? null : (
           <TypingDots reduce={reduce} />
         )}
         {m.places && trip ? (

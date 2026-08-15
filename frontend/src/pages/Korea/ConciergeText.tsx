@@ -153,7 +153,7 @@ export function ConciergeStreamStatus({ error }: { error?: string }) {
     <p
       role="status"
       aria-live="polite"
-      className="mt-2 text-[13px] leading-relaxed text-stone-600 dark:text-stone-300"
+      className="mt-2 break-words text-[13px] leading-relaxed text-stone-600 [overflow-wrap:anywhere] dark:text-stone-300"
     >
       ⚠️ {error}
     </p>
