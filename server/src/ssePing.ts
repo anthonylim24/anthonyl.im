@@ -1,4 +1,6 @@
-const SSE_PING_MS = 10_000
+/** Faster than Bun's 10s default idleTimeout so a late ping cannot
+ *  lose the race against the socket closer. */
+export const SSE_PING_MS = 4_000
 
 /** Write an immediate SSE ping, then keep pinging until `work` settles so
  *  reverse proxies do not idle-timeout while Gemini thinks. Ping write

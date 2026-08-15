@@ -21,4 +21,5 @@ test('server/app.ts loads without throwing — catches missing-export regression
   // missing/renamed export anywhere in that graph throws here.
   const mod = await import('../app');
   expect(mod).toBeDefined();
+  expect((mod.default as { idleTimeout?: number }).idleTimeout).toBe(255);
 });
