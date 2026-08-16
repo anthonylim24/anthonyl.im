@@ -37,11 +37,19 @@ function Harness() {
   )
 }
 
-function PanelHarness() {
+function PanelHarness({ keepMounted = false }: { keepMounted?: boolean }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
   const [streaming, setStreaming] = useState(false)
-  const { anchorRef, spacerRef } = useTranscriptAnchor(scrollRef, "u1", `${open}:${streaming}`)
+  const { anchorRef, spacerRef } = useTranscriptAnchor(scrollRef, "u1", streaming, open)
+  const scroller = (
+    <div ref={scrollRef} data-testid="scroller">
+      <div ref={anchorRef} data-testid="anchor">
+        u1
+      </div>
+      <div ref={spacerRef} data-testid="spacer" />
+    </div>
+  )
   return (
     <div>
       <button type="button" onClick={() => setOpen((value) => !value)}>
@@ -50,14 +58,7 @@ function PanelHarness() {
       <button type="button" onClick={() => setStreaming((value) => !value)}>
         stream
       </button>
-      {open ? (
-        <div ref={scrollRef} data-testid="scroller">
-          <div ref={anchorRef} data-testid="anchor">
-            u1
-          </div>
-          <div ref={spacerRef} data-testid="spacer" />
-        </div>
-      ) : null}
+      {keepMounted || open ? scroller : null}
     </div>
   )
 }
@@ -109,6 +110,29 @@ describe("useTranscriptAnchor", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "toggle" }))
       expect(screen.getByTestId("anchor")).toHaveTextContent("u1")
+      expect(scrollTo.mock.calls.length).toBeGreaterThan(afterOpen)
+    } finally {
+      HTMLElement.prototype.scrollTo = originalScrollTo
+    }
+  })
+
+  it("re-pins after an AnimatePresence-style exit that leaves refs attached", () => {
+    const originalScrollTo = HTMLElement.prototype.scrollTo
+    const scrollTo = vi.fn()
+    HTMLElement.prototype.scrollTo = scrollTo
+
+    try {
+      render(<PanelHarness keepMounted />)
+      fireEvent.click(screen.getByRole("button", { name: "toggle" }))
+      const afterOpen = scrollTo.mock.calls.length
+      expect(afterOpen).toBeGreaterThan(0)
+      expect(screen.getByTestId("scroller")).toBeTruthy()
+
+      fireEvent.click(screen.getByRole("button", { name: "toggle" }))
+      expect(screen.getByTestId("scroller")).toBeTruthy()
+      expect(scrollTo.mock.calls.length).toBe(afterOpen)
+
+      fireEvent.click(screen.getByRole("button", { name: "toggle" }))
       expect(scrollTo.mock.calls.length).toBeGreaterThan(afterOpen)
     } finally {
       HTMLElement.prototype.scrollTo = originalScrollTo
