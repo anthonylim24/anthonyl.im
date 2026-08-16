@@ -50,6 +50,6 @@ export function scrollAnchorToTop(container: HTMLElement, anchor: HTMLElement): 
     container.getBoundingClientRect().top,
     anchor.getBoundingClientRect().top,
   )
-  container.scrollTo({ top })
+  container.scrollTo({ top, behavior: "instant" })
   return top
 }

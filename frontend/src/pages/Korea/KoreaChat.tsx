@@ -60,7 +60,7 @@ export function KoreaChat() {
   const inFlightRef = useRef(false)
   const titleId = useId()
   const lastUserId = lastMessageIdByRole(messages, "user")
-  const { anchorRef, spacerRef } = useTranscriptAnchor(scrollRef, lastUserId, streaming)
+  const { anchorRef, spacerRef } = useTranscriptAnchor(scrollRef, lastUserId, `${open}:${streaming}`)
 
   const suggestions = slug ? DAY_SUGGESTIONS : TRIP_SUGGESTIONS
 

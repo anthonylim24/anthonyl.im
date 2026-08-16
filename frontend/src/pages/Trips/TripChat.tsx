@@ -123,7 +123,7 @@ export function TripChat() {
   const inFlightRef = useRef(false)
   const titleId = useId()
   const lastUserId = lastMessageIdByRole(messages, "user")
-  const { anchorRef, spacerRef } = useTranscriptAnchor(scrollRef, lastUserId, streaming)
+  const { anchorRef, spacerRef } = useTranscriptAnchor(scrollRef, lastUserId, `${open}:${streaming}`)
 
   useEffect(() => {
     if (!tripId) {

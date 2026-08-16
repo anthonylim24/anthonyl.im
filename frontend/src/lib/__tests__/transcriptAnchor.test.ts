@@ -81,6 +81,6 @@ describe("DOM helpers", () => {
     expect(applyTurnSpacer(container, anchor, spacer)).toBe(236)
     expect(spacer.style.height).toBe("236px")
     expect(scrollAnchorToTop(container, anchor)).toBe(16)
-    expect(scrollTo).toHaveBeenCalledWith({ top: 16 })
+    expect(scrollTo).toHaveBeenCalledWith({ top: 16, behavior: "instant" })
   })
 })
