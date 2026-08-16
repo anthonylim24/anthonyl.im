@@ -259,6 +259,55 @@ describe("TripChat add place", () => {
     vi.clearAllMocks()
   })
 
+  it("pins the latest user message and does not follow streamed tokens", async () => {
+    const originalScrollTo = HTMLElement.prototype.scrollTo
+    const scrollTo = vi.fn()
+    HTMLElement.prototype.scrollTo = scrollTo
+
+    let pushToken: ((content: string) => void) | undefined
+    let finish: ((value: { content: string }) => void) | undefined
+    mockStreamTripChat.mockImplementation(
+      async (
+        _id: unknown,
+        _prompt: unknown,
+        _hist: unknown,
+        _day: unknown,
+        _token: unknown,
+        onUpdate: (content: string) => void,
+      ) =>
+        new Promise<{ content: string }>((resolve) => {
+          pushToken = onUpdate
+          finish = resolve
+        }),
+    )
+
+    try {
+      renderChat()
+      await openChat()
+      scrollTo.mockClear()
+
+      fireEvent.change(screen.getByPlaceholderText("Ask about this trip…"), { target: { value: "lunch?" } })
+      fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+
+      expect(await screen.findByText("lunch?")).toBeTruthy()
+      expect(document.querySelector("[data-transcript-anchor='latest-user']")).toHaveTextContent("lunch?")
+      expect(document.querySelector("[data-transcript-spacer]")).toBeTruthy()
+      const callsAfterSend = scrollTo.mock.calls.length
+      expect(callsAfterSend).toBeGreaterThan(0)
+
+      pushToken?.("Start at")
+      pushToken?.("Start at Gwangjang Market for the first bowl.")
+      expect(await screen.findByText(/Gwangjang Market/)).toBeTruthy()
+      expect(scrollTo.mock.calls.length).toBe(callsAfterSend)
+
+      finish?.({ content: "Start at Gwangjang Market for the first bowl." })
+      expect(await screen.findByText(/Gwangjang Market/)).toBeTruthy()
+      expect(scrollTo.mock.calls.length).toBe(callsAfterSend)
+    } finally {
+      HTMLElement.prototype.scrollTo = originalScrollTo
+    }
+  })
+
   it("shows a looking-up state while the reply streams", async () => {
     let release: ((value: { content: string }) => void) | undefined
     mockStreamTripChat.mockImplementation(

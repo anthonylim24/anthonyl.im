@@ -2,7 +2,9 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useLocation } from "react-router-dom"
 import { MessageCircleHeart, Send, Sparkles, X } from "lucide-react"
+import { useTranscriptAnchor } from "../../hooks/useTranscriptAnchor"
 import type { ConciergeSource } from "../../lib/conciergeGrounding"
+import { lastMessageIdByRole } from "../../lib/transcriptAnchor"
 import { streamKoreaChat, type KoreaChatMessage } from "./koreaChatApi"
 import { ConciergeSources } from "./ConciergeSources"
 import { ConciergeStreamStatus, ConciergeText } from "./ConciergeText"
@@ -56,8 +58,9 @@ export function KoreaChat() {
   const dialogRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
   const inFlightRef = useRef(false)
-  const pinnedRef = useRef(true)
   const titleId = useId()
+  const lastUserId = lastMessageIdByRole(messages, "user")
+  const { anchorRef, spacerRef } = useTranscriptAnchor(scrollRef, lastUserId, streaming, open)
 
   const suggestions = slug ? DAY_SUGGESTIONS : TRIP_SUGGESTIONS
 
@@ -67,17 +70,6 @@ export function KoreaChat() {
     abortRef.current?.abort()
     setOpen(false)
   }, [])
-
-  // Keep the transcript pinned to the bottom while it's near the bottom —
-  // streaming tokens shouldn't yank the view if the user has scrolled up.
-  const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
-    const el = scrollRef.current
-    if (el && pinnedRef.current) el.scrollTo({ top: el.scrollHeight, behavior })
-  }, [])
-
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages, scrollToBottom])
 
   // Focus the input when the panel opens; restore focus to the FAB on close.
   useEffect(() => {
@@ -156,12 +148,6 @@ export function KoreaChat() {
   // Abort any in-flight stream on unmount.
   useEffect(() => () => abortRef.current?.abort(), [])
 
-  const handleScroll = useCallback(() => {
-    const el = scrollRef.current
-    if (!el) return
-    pinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
-  }, [])
-
   const send = useCallback(
     async (text: string) => {
       const prompt = text.trim()
@@ -176,7 +162,6 @@ export function KoreaChat() {
 
       const pending = [userMsg, { id: assistantId, role: "assistant" as const, content: "" }]
       setInput("")
-      pinnedRef.current = true
 
       const controller = new AbortController()
       abortRef.current = controller
@@ -329,7 +314,6 @@ export function KoreaChat() {
               {/* Transcript */}
               <div
                 ref={scrollRef}
-                onScroll={handleScroll}
                 className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4"
                 style={{ WebkitOverflowScrolling: "touch" }}
               >
@@ -345,7 +329,12 @@ export function KoreaChat() {
                 ) : (
                   messages.map((m) =>
                     m.role === "user" ? (
-                      <div key={m.id} className="flex justify-end">
+                      <div
+                        key={m.id}
+                        ref={m.id === lastUserId ? anchorRef : undefined}
+                        data-transcript-anchor={m.id === lastUserId ? "latest-user" : undefined}
+                        className="flex justify-end"
+                      >
                         <div className="max-w-[85%] rounded-2xl rounded-br-md bg-rose-500 px-3.5 py-2 text-[15px] leading-relaxed text-white shadow-sm dark:bg-rose-500">
                           {m.content}
                         </div>
@@ -365,6 +354,9 @@ export function KoreaChat() {
                     ),
                   )
                 )}
+                {messages.length > 0 ? (
+                  <div ref={spacerRef} data-transcript-spacer="" aria-hidden className="pointer-events-none shrink-0" />
+                ) : null}
               </div>
 
               {/* Suggestions (only before the first message) */}

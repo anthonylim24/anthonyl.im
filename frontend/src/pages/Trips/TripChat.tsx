@@ -9,7 +9,9 @@ import {
   type ConciergePlace,
   type ConciergeSource,
 } from "../../lib/conciergeGrounding"
+import { lastMessageIdByRole } from "../../lib/transcriptAnchor"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
+import { useTranscriptAnchor } from "@/hooks/useTranscriptAnchor"
 import { useAuthReady, useGetToken } from "@/lib/safeAuth"
 import { ConciergeSources } from "../Korea/ConciergeSources"
 import { ConciergeStreamStatus, ConciergeText } from "../Korea/ConciergeText"
@@ -119,8 +121,9 @@ export function TripChat() {
   const dialogRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
   const inFlightRef = useRef(false)
-  const pinnedRef = useRef(true)
   const titleId = useId()
+  const lastUserId = lastMessageIdByRole(messages, "user")
+  const { anchorRef, spacerRef } = useTranscriptAnchor(scrollRef, lastUserId, streaming, open)
 
   useEffect(() => {
     if (!tripId) {
@@ -182,15 +185,6 @@ export function TripChat() {
   const toggleExpanded = useCallback(() => {
     setExpanded((current) => !current)
   }, [])
-
-  const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
-    const el = scrollRef.current
-    if (el && pinnedRef.current) el.scrollTo({ top: el.scrollHeight, behavior })
-  }, [])
-
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages, scrollToBottom])
 
   useEffect(() => {
     if (!open) {
@@ -264,12 +258,6 @@ export function TripChat() {
 
   useEffect(() => () => abortRef.current?.abort(), [])
 
-  const handleScroll = useCallback(() => {
-    const el = scrollRef.current
-    if (!el) return
-    pinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
-  }, [])
-
   const send = useCallback(
     async (text: string) => {
       const prompt = text.trim()
@@ -282,7 +270,6 @@ export function TripChat() {
 
       const pending = [userMsg, { id: assistantId, role: "assistant" as const, content: "" }]
       setInput("")
-      pinnedRef.current = true
 
       const controller = new AbortController()
       abortRef.current = controller
@@ -534,13 +521,7 @@ export function TripChat() {
 
   if (!tripId) return null
 
-  let lastAssistantId: string | undefined
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i]?.role === "assistant") {
-      lastAssistantId = messages[i]!.id
-      break
-    }
-  }
+  const lastAssistantId = lastMessageIdByRole(messages, "assistant")
 
   const accent = resolveAccent(trip?.appearance?.accent)
   const panelClass = expanded ? PANEL_EXPANDED : PANEL_COMPACT
@@ -646,7 +627,6 @@ export function TripChat() {
 
               <div
                 ref={scrollRef}
-                onScroll={handleScroll}
                 className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4"
                 style={{ WebkitOverflowScrolling: "touch" }}
               >
@@ -664,7 +644,12 @@ export function TripChat() {
                 ) : (
                   messages.map((m) =>
                     m.role === "user" ? (
-                      <div key={m.id} className="flex justify-end">
+                      <div
+                        key={m.id}
+                        ref={m.id === lastUserId ? anchorRef : undefined}
+                        data-transcript-anchor={m.id === lastUserId ? "latest-user" : undefined}
+                        className="flex justify-end"
+                      >
                         <div className="max-w-[85%] rounded-2xl rounded-br-md bg-[color:var(--trips-accent)] px-3.5 py-2 text-[15px] leading-relaxed text-white shadow-sm dark:text-stone-950">
                           {m.content}
                         </div>
@@ -700,6 +685,9 @@ export function TripChat() {
                     ),
                   )
                 )}
+                {messages.length > 0 ? (
+                  <div ref={spacerRef} data-transcript-spacer="" aria-hidden className="pointer-events-none shrink-0" />
+                ) : null}
               </div>
 
               <div className="shrink-0">
