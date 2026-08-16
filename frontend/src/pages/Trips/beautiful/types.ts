@@ -13,7 +13,7 @@ export interface ToolChip {
   tone?: "neutral" | "accent" | "success"
 }
 
-export type PromptCommand = "ask" | "enhance" | "generate" | "map" | "add" | "blank"
+export type PromptCommand = "prompt" | "ask" | "enhance" | "generate" | "map" | "add" | "blank"
 
 export interface PromptAttachment {
   id: string

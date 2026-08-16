@@ -52,6 +52,23 @@ const UNDO_WINDOW_MS = 6000
 
 const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err))
 
+/** Elapsed-only phase marks. The enhance API does not stream traces. */
+function enhancePipelinePhases(elapsed: number): AgentPhase[] {
+  const status = (start: number, done?: number): AgentPhase["status"] => {
+    if (elapsed < start) return "pending"
+    if (done == null || elapsed < done) return "running"
+    return "complete"
+  }
+  return [
+    { id: "flush", label: "Save latest edits", status: status(0, 2) },
+    { id: "weather", label: "Weather", detail: "Open-Meteo", status: status(2, 5) },
+    { id: "legs", label: "Travel legs", status: status(5, 8) },
+    { id: "model", label: "Model review", status: status(8) },
+    { id: "geocode", label: "Geocode new places", status: "pending" },
+    { id: "persist", label: "Persist", status: "pending" },
+  ]
+}
+
 type LoadState =
   | { status: "loading" }
   | { status: "error"; message: string }
@@ -438,7 +455,7 @@ export function TripDetail() {
         if (day) setMapDayId(day.id)
         return true
       }
-      if (submit.command === "generate" || submit.command === "enhance" || submit.command === "add" || submit.command === "ask") {
+      if (submit.command === "generate" || submit.command === "enhance" || submit.command === "add" || submit.command === "prompt") {
         void runEnhance("trip", undefined, submit.text || undefined)
         return true
       }
@@ -641,14 +658,7 @@ export function TripDetail() {
           />
           <ThinkingTrace
             title="Enhancement pipeline"
-            phases={[
-              { id: "flush", label: "Save latest edits", status: enhanceElapsed > 1 ? "complete" : "running" },
-              { id: "weather", label: "Weather", status: enhanceElapsed > 1 ? "running" : "pending", detail: "Open-Meteo" },
-              { id: "legs", label: "Travel legs", status: "pending" },
-              { id: "model", label: "Model review", status: "pending" },
-              { id: "geocode", label: "Geocode new places", status: "pending" },
-              { id: "persist", label: "Persist", status: "pending" },
-            ] satisfies AgentPhase[]}
+            phases={enhancePipelinePhases(enhanceElapsed)}
           />
         </div>
       )}

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import { useNavigate } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
 import type { Trip, TripSummary } from "../types"
 import type { PromptSubmit, WorkspaceTrip } from "./types"
 
@@ -116,8 +116,10 @@ export function useTripWorkspace(
 ) {
   const { setCurrentTrip, setPromptHandler, setPromptPlaceholder, openChat } = useWorkspace()
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const onPromptRef = useRef(onPrompt)
   onPromptRef.current = onPrompt
+  const editing = pathname.endsWith("/edit")
 
   useEffect(() => {
     if (!trip) {
@@ -134,7 +136,9 @@ export function useTripWorkspace(
       return
     }
     const key = trip.slug ?? trip.id
-    setPromptPlaceholder("Ask about this trip, or /enhance a focus")
+    setPromptPlaceholder(
+      editing ? "Enhance this trip, or /generate empty days" : "Ask about this trip, or /enhance a focus",
+    )
     setPromptHandler((submit) => {
       if (onPromptRef.current?.(submit) === true) return
       if (submit.command === "map") {
@@ -149,5 +153,5 @@ export function useTripWorkspace(
       openChat({ tab: "ask", draft: submit.text, autoSend: Boolean(submit.text) })
     })
     return () => setPromptHandler(null)
-  }, [trip, navigate, openChat, setPromptHandler, setPromptPlaceholder])
+  }, [trip, editing, navigate, openChat, setPromptHandler, setPromptPlaceholder])
 }

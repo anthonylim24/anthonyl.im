@@ -19,7 +19,7 @@ function parseCommand(raw: string): { command: PromptCommand; text: string } {
       return { command: cmd.id, text: trimmed.slice(cmd.token.length).trim() }
     }
   }
-  return { command: "ask", text: trimmed }
+  return { command: "prompt", text: trimmed }
 }
 
 type SpeechCtor = new () => {
@@ -83,7 +83,7 @@ export function PromptBar({
 
   const submit = (raw = value) => {
     const parsed = parseCommand(raw)
-    if (!parsed.text && parsed.command === "ask" && attachments.length === 0) return
+    if (!parsed.text && (parsed.command === "ask" || parsed.command === "prompt") && attachments.length === 0) return
     onSubmit({ ...parsed, attachments })
     if (controlled === undefined) setValue("")
     setMenu(null)
