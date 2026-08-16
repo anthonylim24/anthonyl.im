@@ -5,6 +5,7 @@ import { ArrowUpRight, ExternalLink, Globe2, MapPin, Pencil, Phone } from "lucid
 import { useGetToken } from "@/lib/safeAuth"
 import { EntityIndexProvider } from "../Korea/entityIndex"
 import { LinkifiedText } from "../Korea/LinkifiedText"
+import { InsightCards, buildTripInsights, useTripWorkspace } from "./beautiful"
 import { useLoadedTrip } from "./useLoadedTrip"
 import { ACCENT, calloutTone, formatTripDate, resolveAccent, todayIsoIn } from "./theme"
 import { useAnchorHighlight, useAnchorTarget } from "./anchors"
@@ -72,6 +73,7 @@ export function TripDayPage() {
   const getToken = useGetToken()
   const reduce = useReducedMotion()
   const { state, reload } = useLoadedTrip(tripId, getToken)
+  useTripWorkspace(state.status === "success" ? state.trip : null)
   const [mapOpen, setMapOpen] = useState(() => searchParams.get("map") === "1")
   const [focusPlaceId, setFocusPlaceId] = useState<string | undefined>(
     () => searchParams.get("focus") ?? undefined,
@@ -221,6 +223,10 @@ export function TripDayPage() {
             <Meta label="Booked" value={`${reservations.length} reservation${reservations.length === 1 ? "" : "s"}`} />
           )}
         </motion.dl>
+
+        <div className="mt-8">
+          <InsightCards cards={buildTripInsights(trip, day.id)} />
+        </div>
 
         <motion.div {...fadeUp(4)} className="mt-7 flex flex-wrap items-center gap-3">
           {hasMappable ? (

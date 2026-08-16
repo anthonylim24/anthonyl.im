@@ -1,7 +1,7 @@
 import { useState } from "react"
-import { ChevronDown } from "lucide-react"
+import { FineTuneCard } from "../beautiful"
 import { ACCENT_SWATCH, TRIP_ACCENTS, resolveAccent } from "../theme"
-import { focusRingInsetClass, hintClass, inputClass, labelClass, mutedInkClass, softPanelClass } from "../ui"
+import { hintClass, inputClass, labelClass, mutedInkClass } from "../ui"
 import type { Trip } from "../types"
 
 /** Configures the dossier-style public pages: accent family, editorial copy,
@@ -24,28 +24,13 @@ export function AppearancePanel({
   const patch = (p: Partial<NonNullable<Trip["appearance"]>>) => onChange({ ...appearance, ...p })
 
   return (
-    <section className={`mt-3 ${softPanelClass}`}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        className={`flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl px-5 py-3.5 text-left ${focusRingInsetClass}`}
+    <div className="mt-3">
+      <FineTuneCard
+        title="Appearance"
+        open={open}
+        onToggle={() => setOpen((o) => !o)}
+        swatch={<span className={`h-3.5 w-3.5 rounded-full ${ACCENT_SWATCH[selectedAccent]}`} aria-hidden />}
       >
-        <span className="flex items-center gap-2.5 text-sm font-semibold text-stone-900 dark:text-stone-100">
-          <span className={`h-3.5 w-3.5 rounded-full ${ACCENT_SWATCH[selectedAccent]}`} aria-hidden />
-          Appearance
-          <span className={`hidden font-normal sm:inline ${mutedInkClass}`}>
-            accent, dossier copy, permalink
-          </span>
-        </span>
-        <ChevronDown
-          className={`h-4 w-4 shrink-0 transition-transform ${mutedInkClass} ${open ? "rotate-180" : ""}`}
-          strokeWidth={1.5}
-          aria-hidden
-        />
-      </button>
-      {open && (
-        <div className="space-y-4 border-t border-stone-100 px-5 py-4 dark:border-stone-800">
         <fieldset disabled={locked} className="m-0 min-w-0 space-y-4 border-0 p-0">
           <div>
             <span className={labelClass}>Accent</span>
@@ -142,8 +127,7 @@ export function AppearancePanel({
             <span className={`block ${hintClass}`}>Lowercase letters, numbers, hyphens. Must be unique.</span>
           </label>
         </fieldset>
-        </div>
-      )}
-    </section>
+      </FineTuneCard>
+    </div>
   )
 }

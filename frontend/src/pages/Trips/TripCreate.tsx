@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { useReducedMotion } from "motion/react"
 import { Check, ChevronDown, Loader2, PenLine, Sparkles, type LucideIcon } from "lucide-react"
+import { LoadingState, PromptBar, TaskRows } from "./beautiful"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useGetToken } from "@/lib/safeAuth"
 import { createTrip, generateItinerary } from "./tripsApi"
@@ -428,20 +429,25 @@ export function TripCreate() {
       {mode === "ai" && (
         <div className={`mt-5 space-y-4 ${panelClass}`}>
           <div>
-            <label htmlFor="trip-prompt" className={labelClass}>
-              AI brief <span className={optionalLabelClass}>(optional)</span>
-            </label>
-            <textarea
-              id="trip-prompt"
-              rows={3}
-              className={`mt-2 ${inputClass}`}
-              value={prompt}
-              placeholder={DEFAULT_ITINERARY_PROMPT}
-              onChange={(e) => setPrompt(e.target.value)}
-              aria-describedby="trip-prompt-hint"
-            />
+            <p className={labelClass}>AI brief <span className={optionalLabelClass}>(optional)</span></p>
+            <div className="mt-2">
+              <PromptBar
+                label="AI prompt"
+                placeholder={DEFAULT_ITINERARY_PROMPT}
+                submitLabel="Use brief"
+                value={prompt}
+                onChange={setPrompt}
+                onSubmit={(submit) => {
+                  if (submit.command === "blank") {
+                    setMode("blank")
+                    return
+                  }
+                  if (submit.text) setPrompt(submit.text)
+                }}
+              />
+            </div>
             <p id="trip-prompt-hint" className={hintClass}>
-              Leave blank to use the balanced default shown here.
+              Send a brief, or /blank to start empty. Leave blank to use the balanced default.
             </p>
           </div>
           <button
@@ -512,18 +518,16 @@ export function TripCreate() {
             Cancel
           </button>
           {generating && (
-            <p
-              className="w-full text-xs text-stone-600 sm:w-auto dark:text-stone-400"
-              role="status"
-              aria-live="polite"
-            >
-              <span className="sr-only">
-                Generating your itinerary. This usually takes 20 to 40 seconds. Stay on this page.
-              </span>
-              <span aria-hidden className="font-mono-trips tabular-nums">
-                {reduce ? "Usually 20–40s. Stay on this page." : `Generating… ${elapsed}s · usually 20–40s`}
-              </span>
-            </p>
+            <div className="w-full space-y-2">
+              <LoadingState label="Generating itinerary" elapsed={elapsed} />
+              <TaskRows
+                tasks={[
+                  { id: "create", label: "Create trip", status: "complete" },
+                  { id: "model", label: "Draft days and places", status: "running", detail: "Usually 20 to 40s" },
+                  { id: "geocode", label: "Geocode places", status: "pending" },
+                ]}
+              />
+            </div>
           )}
         </div>
       </div>

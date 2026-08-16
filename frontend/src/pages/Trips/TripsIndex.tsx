@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
+import { FilterTable, useWorkspace } from "./beautiful"
 import { Link, useNavigate } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
 import { ArrowRight, CalendarDays, MapPin, Plus, RotateCcw, Trash2, Users } from "lucide-react"
@@ -135,18 +136,14 @@ function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`
 }
 
-const sections: Array<{ key: TripBucket; title: string }> = [
-  { key: "current", title: "In progress" },
-  { key: "upcoming", title: "Upcoming" },
-  { key: "past", title: "Past" },
-]
-
 export function TripsIndex() {
   const getToken = useGetToken()
   const readToken = useLatestCallback(getToken)
   const authReady = useAuthReady()
   const navigate = useNavigate()
+  const { setTrips } = useWorkspace()
   const reduce = useReducedMotion()
+  const [filter, setFilter] = useState<"all" | TripBucket>("all")
   const [state, setState] = useState<LoadState>({ status: "loading" })
   const [isRefreshing, startTransition] = useTransition()
   const [deleting, setDeleting] = useState<string | null>(null)
@@ -206,6 +203,26 @@ export function TripsIndex() {
     }
     return buckets
   }, [state])
+
+  useEffect(() => {
+    if (state.status === "success") setTrips(state.trips)
+  }, [state, setTrips])
+
+  const visibleRows = useMemo(() => {
+    if (!grouped) return []
+    if (filter === "all") return [...grouped.current, ...grouped.upcoming, ...grouped.past]
+    return grouped[filter]
+  }, [grouped, filter])
+
+  const filterChips = useMemo(() => {
+    if (!grouped) return []
+    return [
+      { id: "all", label: "All", count: grouped.current.length + grouped.upcoming.length + grouped.past.length },
+      { id: "current", label: "In progress", count: grouped.current.length },
+      { id: "upcoming", label: "Upcoming", count: grouped.upcoming.length },
+      { id: "past", label: "Past", count: grouped.past.length },
+    ]
+  }, [grouped])
 
   const onlyPast = grouped !== null && grouped.past.length > 0 && grouped.current.length + grouped.upcoming.length === 0
 
@@ -323,22 +340,17 @@ export function TripsIndex() {
 
         {state.status === "success" && grouped && state.trips.length > 0 && (
           <>
-            <div className="space-y-10">
-              {sections.map(({ key, title }) => {
-                const rows = grouped[key]
-                if (rows.length === 0) return null
-                return (
-                  <section key={key} aria-labelledby={`bucket-${key}`}>
-                    <h2 id={`bucket-${key}`} className={`flex items-center gap-3 ${eyebrowClass}`}>
-                      {title}
-                      <span aria-hidden className={`h-px w-8 ${ACCENT.hairline}`} />
-                      <span className="tabular-nums">
-                        {rows.length}
-                        <span className="sr-only"> {rows.length === 1 ? "trip" : "trips"}</span>
-                      </span>
-                    </h2>
-                    <ul className={`mt-4 ${rowListClass}`}>
-                      {rows.map(({ trip, mark, dayCount, range }, i) => (
+            <FilterTable
+              label="Trip status"
+              filters={filterChips}
+              active={filter}
+              onFilter={(id) => setFilter(id as typeof filter)}
+            >
+              {visibleRows.length === 0 ? (
+                <p className={`py-8 text-sm ${mutedInkClass}`}>No trips in this view.</p>
+              ) : (
+                <ul className={rowListClass}>
+                  {visibleRows.map(({ trip, mark, dayCount, range }, i) => (
                         <motion.li
                           key={trip.id}
                           initial={reduce ? false : { opacity: 0, y: 8 }}
@@ -509,10 +521,8 @@ export function TripsIndex() {
                         </motion.li>
                       ))}
                     </ul>
-                  </section>
-                )
-              })}
-            </div>
+              )}
+            </FilterTable>
 
             {onlyPast && (
               <div className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2">

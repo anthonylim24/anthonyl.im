@@ -2,6 +2,7 @@ import { Link, useParams } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
 import { ArrowUpRight, Pencil } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
+import { InsightCards, buildTripInsights, useTripWorkspace } from "./beautiful"
 import { useLoadedTrip } from "./useLoadedTrip"
 import {
   ACCENT,
@@ -43,6 +44,7 @@ export function TripOverview() {
   const getToken = useGetToken()
   const reduce = useReducedMotion()
   const { state, reload } = useLoadedTrip(tripId, getToken)
+  useTripWorkspace(state.status === "success" ? state.trip : null)
 
   if (state.status === "loading") {
     return (
@@ -74,6 +76,7 @@ export function TripOverview() {
   }
 
   const { trip, editable } = state
+  const insights = buildTripInsights(trip)
   const a = ACCENT
   const today = todayIsoIn(trip.timezone)
   const todayDay = trip.days.find((d) => d.date === today)
@@ -228,6 +231,12 @@ export function TripOverview() {
             />
           </Link>
         </motion.aside>
+      )}
+
+      {insights.length > 0 && (
+        <div className="mx-auto mt-8 max-w-6xl px-4 sm:px-6">
+          <InsightCards cards={insights} />
+        </div>
       )}
 
       <section className="mx-auto mt-8 max-w-6xl px-4 sm:mt-14 sm:px-6">

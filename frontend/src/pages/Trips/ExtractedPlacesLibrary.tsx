@@ -7,6 +7,7 @@ import { addItem, dayHasPlaceNamed, itemFromExtractedPlace } from "./tripEdits"
 import { collectCatalogPlaces, groupCatalogPlaces, type CatalogPlace } from "./placeCatalog"
 import { listForeignInstagramTrips } from "./tripsApi"
 import type { Trip, TripDay } from "./types"
+import { ContextCards } from "./beautiful"
 import {
   chipBtnClass,
   compactSelectClass,
@@ -157,6 +158,14 @@ export function ExtractedPlacesLibrary({
             </p>
           ) : (
             <div className="mt-3 space-y-4">
+              <ContextCards
+                chunks={page.slice(0, 4).map((place) => ({
+                  id: `${place.tripId}-${place.itemId}`,
+                  title: place.name,
+                  body: [place.address, place.category].filter(Boolean).join(" · ") || "Instagram extract",
+                  source: place.sourceUrl ? "Instagram" : undefined,
+                }))}
+              />
               {groups.map((group) => (
                 <article key={group.tripId}>
                   <h3 className={`text-sm font-semibold text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}>

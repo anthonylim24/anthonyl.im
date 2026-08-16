@@ -1140,9 +1140,52 @@ html.dark .trips [data-trip-accent="violet"] {
   animation: trip-flash 2.6s cubic-bezier(0.33, 0, 0, 1);
 }
 
+.trip-pixel-loader {
+  display: grid;
+  grid-template-columns: repeat(3, 5px);
+  grid-template-rows: repeat(3, 5px);
+  gap: 3px;
+  width: 21px;
+  height: 21px;
+}
+
+.trip-pixel-loader span {
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--trip-accent, var(--trips-accent, #b45309)) 72%, transparent);
+  animation: trip-pixel-pulse 720ms ease-in-out infinite;
+}
+
+.trip-pixel-loader span:nth-child(1) { animation-delay: 0ms; }
+.trip-pixel-loader span:nth-child(2) { animation-delay: 80ms; }
+.trip-pixel-loader span:nth-child(3) { animation-delay: 160ms; }
+.trip-pixel-loader span:nth-child(4) { animation-delay: 80ms; }
+.trip-pixel-loader span:nth-child(5) { animation-delay: 160ms; }
+.trip-pixel-loader span:nth-child(6) { animation-delay: 240ms; }
+.trip-pixel-loader span:nth-child(7) { animation-delay: 160ms; }
+.trip-pixel-loader span:nth-child(8) { animation-delay: 240ms; }
+.trip-pixel-loader span:nth-child(9) { animation-delay: 320ms; }
+
+.trip-pixel-loader[data-static="true"] span {
+  animation: none;
+  opacity: 0.45;
+}
+
+@keyframes trip-pixel-pulse {
+  0%, 100% { opacity: 0.22; transform: scale(0.86); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .trip-flash {
     animation: none;
+  }
+
+  .trip-pixel-loader span {
+    animation: none;
+    opacity: 0.55;
   }
 }
 

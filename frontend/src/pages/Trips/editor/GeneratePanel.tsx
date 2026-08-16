@@ -1,8 +1,9 @@
-import { useState, useTransition } from "react"
+import { useEffect, useState, useTransition } from "react"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
-import { motion } from "motion/react"
+import { motion, useReducedMotion } from "motion/react"
 import { Loader2, Sparkles } from "lucide-react"
 import { ACCENT } from "../theme"
+import { LoadingState, TaskRows } from "../beautiful"
 import { generateItinerary, type GetToken } from "../tripsApi"
 import {
   EASE,
@@ -34,9 +35,18 @@ export function GeneratePanel({
   onGenerated: (trip: Trip) => void
 }) {
   const readToken = useLatestCallback(getToken)
+  const reduce = useReducedMotion()
   const [prompt, setPrompt] = useState(initialPrompt ?? DEFAULT_ITINERARY_PROMPT)
   const [busy, startTransition] = useTransition()
+  const [elapsed, setElapsed] = useState(0)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!busy || reduce) return
+    const startedAt = Date.now()
+    const id = window.setInterval(() => setElapsed(Math.round((Date.now() - startedAt) / 1000)), 1000)
+    return () => window.clearInterval(id)
+  }, [busy, reduce])
 
   const generate = () => {
     if (busy || locked) return
@@ -79,6 +89,17 @@ export function GeneratePanel({
         onChange={(e) => setPrompt(e.target.value)}
         className={`mt-3 ${inputClass}`}
       />
+      {busy && (
+        <div className="mt-4 space-y-3">
+          <LoadingState label="Drafting the itinerary" elapsed={elapsed} />
+          <TaskRows
+            tasks={[
+              { id: "model", label: "Model draft", status: "running", detail: "Structured days and places" },
+              { id: "geocode", label: "Geocode places", status: "pending" },
+            ]}
+          />
+        </div>
+      )}
       {error && (
         <p className={`mt-3 ${alertErrorClass} ${wrapAnywhereClass}`} role="alert">
           The draft didn’t finish. Your days are unchanged, so you can retry below. ({error})

@@ -1,6 +1,7 @@
 import { memo, useCallback, useState } from "react"
 import { AnimatePresence } from "motion/react"
 import { ChevronDown, Map as MapIcon, Plus, Trash2 } from "lucide-react"
+import { FilterTable } from "../beautiful"
 import { ACCENT, formatTripDate } from "../theme"
 import { addItem, makeItem } from "../tripEdits"
 import {
@@ -47,6 +48,7 @@ interface DayCardProps {
   onOpenMap: (dayId: string) => void
   onEnhance: (dayId: string, prompt?: string) => void
   onDeleteItem: (dayId: string, item: ItineraryItem, index: number) => void
+  onSelectionEnhance?: (text: string) => void
 }
 
 export const DayCard = memo(function DayCard({
@@ -66,8 +68,10 @@ export const DayCard = memo(function DayCard({
   onOpenMap,
   onEnhance,
   onDeleteItem,
+  onSelectionEnhance,
 }: DayCardProps) {
   const [detailsOpen, setDetailsOpen] = useState(false)
+  const [itemFilter, setItemFilter] = useState("all")
   const hasMappable = day.items.some((i) => i.location?.lat != null && i.location?.lng != null)
   const showTime = day.items.some((i) => i.kind !== "section" && Boolean(i.time))
   const patchDay = (p: Partial<TripDay>) => onChange((days) => days.map((d) => (d.id === day.id ? { ...d, ...p } : d)))
@@ -282,7 +286,13 @@ export const DayCard = memo(function DayCard({
       {/* Day-scoped enhancement review renders here, inside the day. */}
       <AnimatePresence>
         {run && (
-          <SuggestionsPanel run={run} dayOptions={dayOptions} onApply={onApplyRun} onDismiss={onDismissRun} />
+          <SuggestionsPanel
+            run={run}
+            dayOptions={dayOptions}
+            onApply={onApplyRun}
+            onDismiss={onDismissRun}
+            resolveItem={(s) => trip.days.find((d) => d.id === s.dayId)?.items.find((i) => i.id === s.itemId)}
+          />
         )}
       </AnimatePresence>
 
@@ -293,29 +303,49 @@ export const DayCard = memo(function DayCard({
           Nothing planned yet{editable ? ". Add a place, note, or section below." : "."}
         </div>
       ) : (
-        // Timeline rail: a vertical line down the day, the itinerary
-        // affordance that makes order legible at a glance.
-        <ul className="relative mt-4 space-y-2 pl-4 before:absolute before:bottom-3 before:left-[3px] before:top-3 before:w-px before:bg-stone-200 dark:before:bg-stone-800">
-          <AnimatePresence initial={false}>
-            {day.items.map((item, itemIdx) => (
-              <ItemRow
-                key={item.id}
-                item={item}
-                dayId={day.id}
-                index={itemIdx}
-                isFirst={itemIdx === 0}
-                isLast={itemIdx === day.items.length - 1}
-                editable={editable}
-                locked={locked}
-                dayOptions={dayOptions}
-                highlight={recentIds.has(item.id)}
-                showTime={showTime}
-                onChange={onChange}
-                onDelete={onDeleteItem}
-              />
-            ))}
-          </AnimatePresence>
-        </ul>
+        <div className="mt-4">
+          <FilterTable
+            label={`Day ${index + 1} items`}
+            filters={[
+              { id: "all", label: "All", count: day.items.length },
+              { id: "place", label: "Places", count: day.items.filter((i) => i.kind === "place").length },
+              { id: "reservation", label: "Reservations", count: day.items.filter((i) => i.kind === "reservation").length },
+              { id: "note", label: "Notes", count: day.items.filter((i) => i.kind === "note" || i.kind === "section").length },
+            ]}
+            active={itemFilter}
+            onFilter={setItemFilter}
+          >
+            <ul className="relative space-y-2 pl-4 before:absolute before:bottom-3 before:left-[3px] before:top-3 before:w-px before:bg-stone-200 dark:before:bg-stone-800">
+              <AnimatePresence initial={false}>
+                {day.items.map((item, itemIdx) => {
+                  const match =
+                    itemFilter === "all" ||
+                    item.kind === itemFilter ||
+                    (itemFilter === "note" && (item.kind === "note" || item.kind === "section"))
+                  if (!match) return null
+                  return (
+                    <ItemRow
+                      key={item.id}
+                      item={item}
+                      dayId={day.id}
+                      index={itemIdx}
+                      isFirst={itemIdx === 0}
+                      isLast={itemIdx === day.items.length - 1}
+                      editable={editable}
+                      locked={locked}
+                      dayOptions={dayOptions}
+                      highlight={recentIds.has(item.id)}
+                      showTime={showTime}
+                      onChange={onChange}
+                      onDelete={onDeleteItem}
+                      onSelectionEnhance={onSelectionEnhance}
+                    />
+                  )
+                })}
+              </AnimatePresence>
+            </ul>
+          </FilterTable>
+        </div>
       )}
 
       {editable && (

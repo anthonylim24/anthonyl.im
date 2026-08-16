@@ -26,6 +26,7 @@ import { emitTripChanged, useTripChanged } from "./tripsEvents"
 import { streamTripChat, type TripChatMessage } from "./tripChatApi"
 import { resolveAccent } from "./theme"
 import type { Trip, TripAccess } from "./types"
+import { ContextCards, StreamingText, usePromptRoute, useWorkspace } from "./beautiful"
 import { ENTER_SPRING, EASE, focusRingClass, mutedInkClass } from "./ui"
 
 interface ChatMessage {
@@ -96,6 +97,8 @@ export function useTripChatRoute(): { tripId?: string; dayId?: string } {
 
 export function TripChat() {
   const { tripId, dayId } = useTripChatRoute()
+  const { chatRequest, closeChat } = useWorkspace()
+  const promptUp = usePromptRoute()
   const navigate = useNavigate()
   const getToken = useGetToken()
   const readToken = useLatestCallback(getToken)
@@ -110,6 +113,8 @@ export function TripChat() {
   const [photo, setPhoto] = useState<PhotoView | null>(null)
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  const [tab, setTab] = useState<"ask" | "enhance">("ask")
+  const [enhanceDraft, setEnhanceDraft] = useState("")
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState("")
   const [streaming, setStreaming] = useState(false)
@@ -180,7 +185,9 @@ export function TripChat() {
     abortRef.current?.abort()
     setOpen(false)
     setExpanded(false)
-  }, [])
+    setTab("ask")
+    closeChat()
+  }, [closeChat])
 
   const toggleExpanded = useCallback(() => {
     setExpanded((current) => !current)
@@ -338,6 +345,19 @@ export function TripChat() {
     },
     [messages, tripId, dayId, trip, readToken],
   )
+
+  useEffect(() => {
+    if (!chatRequest) return
+    setOpen(true)
+    setTab(chatRequest.tab)
+    if (chatRequest.tab === "enhance") {
+      setEnhanceDraft(chatRequest.draft)
+    } else if (chatRequest.draft) {
+      if (chatRequest.autoSend) void send(chatRequest.draft)
+      else setInput(chatRequest.draft)
+    }
+    closeChat()
+  }, [chatRequest, closeChat, send])
 
   const canEdit = access === "edit" || access === "owner"
 
@@ -556,7 +576,11 @@ export function TripChat() {
             exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.86 }}
             transition={reduce ? { duration: 0.15 } : { type: "spring", stiffness: 400, damping: 28 }}
             className={`fixed right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[color:var(--trips-accent)] text-white shadow-lg outline-none hover:bg-[color:var(--trips-accent-hover)] ${focusRingClass} dark:text-stone-950`}
-            style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 1.25rem)" }}
+            style={{
+              bottom: promptUp
+                ? "calc(env(safe-area-inset-bottom, 0px) + 5.75rem)"
+                : "calc(env(safe-area-inset-bottom, 0px) + 1.25rem)",
+            }}
           >
             <MessageCircleHeart className="h-6 w-6" strokeWidth={2} />
           </motion.button>
@@ -625,6 +649,25 @@ export function TripChat() {
                 </div>
               </header>
 
+              <div className="flex shrink-0 gap-1 border-b border-stone-200/80 px-3 py-1 dark:border-stone-800/80" role="tablist" aria-label="Concierge mode">
+                {(["ask", "enhance"] as const).map((id) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === id}
+                    onClick={() => setTab(id)}
+                    className={`min-h-11 rounded-xl px-3 text-sm font-medium ${focusRingClass} ${
+                      tab === id
+                        ? "bg-[color:var(--ta-soft)] text-[color:var(--ta)]"
+                        : "text-stone-600 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800"
+                    }`}
+                  >
+                    {id === "ask" ? "Ask" : "Enhance"}
+                  </button>
+                ))}
+              </div>
+
               <div
                 ref={scrollRef}
                 className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4"
@@ -691,7 +734,7 @@ export function TripChat() {
               </div>
 
               <div className="shrink-0">
-              {messages.length === 0 && suggestions.length > 0 && (
+              {tab === "ask" && messages.length === 0 && suggestions.length > 0 && (
                 <div className="flex flex-wrap gap-2 px-4 pb-2">
                   {suggestions.map((s) => (
                     <button
@@ -706,6 +749,34 @@ export function TripChat() {
                 </div>
               )}
 
+              {tab === "enhance" ? (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    if (!trip) return
+                    navigate(`/trips/${trip.slug ?? trip.id}/edit`, {
+                      state: { enhancePrompt: enhanceDraft.trim() || undefined },
+                    })
+                    handleClose()
+                  }}
+                  className="border-t border-stone-200/80 px-3 pt-3 dark:border-stone-800/80"
+                  style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)" }}
+                >
+                  <textarea
+                    value={enhanceDraft}
+                    onChange={(e) => setEnhanceDraft(e.target.value)}
+                    rows={3}
+                    placeholder="Optional focus, e.g. tighten pacing and add local food"
+                    className="min-h-20 w-full resize-none rounded-2xl border border-stone-200 bg-stone-50/90 px-3 py-2 text-[16px] leading-6 text-stone-900 outline-none sm:text-[15px] dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
+                  />
+                  <button
+                    type="submit"
+                    className={`mt-2 min-h-11 w-full rounded-xl bg-[color:var(--trips-accent)] text-sm font-semibold text-white dark:text-stone-950 ${focusRingClass}`}
+                  >
+                    Enhance trip
+                  </button>
+                </form>
+              ) : (
               <form
                 onSubmit={(e) => {
                   e.preventDefault()
@@ -742,6 +813,7 @@ export function TripChat() {
                   </button>
                 </div>
               </form>
+              )}
               </div>
             </motion.div>
           </>
@@ -813,14 +885,13 @@ function AssistantBubble({
     <div className="flex justify-start">
       <div className="max-w-[88%] rounded-2xl rounded-bl-md bg-stone-100 px-3.5 py-2.5 text-stone-800 dark:bg-stone-800/80 dark:text-stone-100">
         {m.content ? (
-          <div>
+          <StreamingText streaming={streaming}>
             <ConciergeText
               text={m.content}
               bulletClass="bg-[color:var(--ta)]"
               numberClass="text-[color:var(--ta)]"
             />
-            {streaming ? <span className="trip-chat-caret" aria-hidden /> : null}
-          </div>
+          </StreamingText>
         ) : streaming ? (
           <div>
             <p className={`text-sm ${mutedInkClass}`}>Looking this up…</p>
@@ -874,10 +945,22 @@ function AssistantBubble({
           />
         ) : null}
         {m.sources ? (
-          <ConciergeSources
-            sources={m.sources}
-            linkClass="break-words underline decoration-[color:var(--ta-ring)] underline-offset-2 decoration-1 transition hover:text-[color:var(--ta-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--trips-focus)]"
-          />
+          <>
+            <div className="mt-2">
+              <ContextCards
+                chunks={m.sources.map((source) => ({
+                  id: source.uri,
+                  title: source.title,
+                  body: source.kind === "maps" ? "Google Maps" : "Web",
+                  source: source.uri,
+                }))}
+              />
+            </div>
+            <ConciergeSources
+              sources={m.sources}
+              linkClass="break-words underline decoration-[color:var(--ta-ring)] underline-offset-2 decoration-1 transition hover:text-[color:var(--ta-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--trips-focus)]"
+            />
+          </>
         ) : null}
         <ConciergeStreamStatus error={m.error} />
       </div>

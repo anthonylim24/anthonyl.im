@@ -21,6 +21,7 @@ import {
   wrapAnywhereClass,
 } from "../ui"
 import type { ItemStatus, ItineraryItem, TripDay } from "../types"
+import { SelectionActions } from "../beautiful"
 import { IconButton } from "./IconButton"
 import { STATUS_OPTIONS, type DayOption } from "./editorUi"
 
@@ -39,6 +40,7 @@ interface ItemRowProps {
   showTime: boolean
   onChange: (fn: (days: TripDay[]) => TripDay[]) => void
   onDelete: (dayId: string, item: ItineraryItem, index: number) => void
+  onSelectionEnhance?: (text: string) => void
 }
 
 /** Viewers get plain text with the input's box metrics: a `disabled` input is
@@ -93,10 +95,12 @@ export const ItemRow = memo(function ItemRow({
   showTime,
   onChange,
   onDelete,
+  onSelectionEnhance,
 }: ItemRowProps) {
   const reduce = useReducedMotion()
   const highlightClass = useAnchorHighlight(highlight)
   const [expanded, setExpanded] = useState(false)
+  const [selection, setSelection] = useState<string | null>(null)
   const rowRef = useRef<HTMLLIElement>(null)
   const panelId = useId()
   const isSection = item.kind === "section"
@@ -229,6 +233,10 @@ export const ItemRow = memo(function ItemRow({
               aria-label="Item title"
               disabled={locked}
               onChange={(e) => patch({ title: e.target.value })}
+              onMouseUp={() => {
+                const text = window.getSelection()?.toString().trim()
+                setSelection(text || null)
+              }}
               className={`w-full min-w-0 ${subtleInputClass} ${
                 item.status === "completed" ? `line-through ${mutedInkClass}` : ""
               }`}
@@ -314,7 +322,7 @@ export const ItemRow = memo(function ItemRow({
             </div>
           )}
 
-          {editable ? (
+          {editable && (
             <label className="block">
               <span className={fieldLabelClass}>Notes</span>
               <textarea
@@ -323,16 +331,29 @@ export const ItemRow = memo(function ItemRow({
                 rows={3}
                 disabled={locked}
                 onChange={(e) => patch({ notes: e.target.value || undefined })}
+                onMouseUp={() => {
+                  const text = window.getSelection()?.toString().trim()
+                  setSelection(text || null)
+                }}
                 className={`mt-1 w-full resize-none ${compactInputClass}`}
               />
             </label>
-          ) : (
-            item.notes && (
-              <div>
-                <span className={fieldLabelClass}>Notes</span>
-                <p className={`${staticFieldClass} whitespace-pre-line`}>{item.notes}</p>
-              </div>
-            )
+          )}
+          {editable && selection && onSelectionEnhance && (
+            <SelectionActions
+              text={selection}
+              onAction={(action, text) => {
+                onSelectionEnhance(action === "enhance" ? text : `${action}: ${text}`)
+                setSelection(null)
+              }}
+              onDismiss={() => setSelection(null)}
+            />
+          )}
+          {!editable && item.notes && (
+            <div>
+              <span className={fieldLabelClass}>Notes</span>
+              <p className={`${staticFieldClass} whitespace-pre-line`}>{item.notes}</p>
+            </div>
           )}
 
           {isPlace && (

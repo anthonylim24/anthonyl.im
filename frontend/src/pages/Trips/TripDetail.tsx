@@ -4,6 +4,7 @@ import { Link, useLocation, useParams } from "react-router-dom"
 import { useReducedMotion } from "motion/react"
 import { Eye, Globe2 } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
+import { LoadingState, ThinkingTrace, useTripWorkspace, type AgentPhase, type PromptSubmit } from "./beautiful"
 import { applySuggestions, enhanceTrip, getTrip, updateTrip } from "./tripsApi"
 import { insertItemAt, removeItem } from "./tripEdits"
 import {
@@ -76,11 +77,14 @@ export function TripDetail() {
   const navState = routerLocation.state as {
     notice?: string
     retryGenerate?: { prompt?: string; preferences?: GeneratePreferences }
+    enhancePrompt?: string
   } | null
   const [notice, setNotice] = useState<string | null>(navState?.notice ?? null)
   const [mapDayId, setMapDayId] = useState<string | null>(null)
   // "trip" or a dayId while that enhancement is in flight.
   const [enhancingTarget, setEnhancingTarget] = useState<string | null>(null)
+  const [enhanceElapsed, setEnhanceElapsed] = useState(0)
+  const consumedEnhanceNav = useRef(false)
   const [activeRun, setActiveRun] = useState<EnhancementRun | null>(null)
   const [deleted, setDeleted] = useState<DeletedItem | null>(null)
   // Item ids touched by the last applied suggestions — drives the accent
@@ -331,6 +335,7 @@ export function TripDetail() {
     async (scope: "day" | "trip", dayId?: string, prompt?: string) => {
       if (!tripDocId) return
       setEnhancingTarget(scope === "day" ? (dayId ?? null) : "trip")
+      setEnhanceElapsed(0)
       setActiveRun(null)
       try {
         // Flush local edits first so enhance sees them and a stale PATCH
@@ -425,6 +430,38 @@ export function TripDetail() {
     (dayId: string, prompt?: string) => void runEnhance("day", dayId, prompt),
     [runEnhance],
   )
+
+  const handlePrompt = useCallback(
+    (submit: PromptSubmit): boolean => {
+      if (submit.command === "map") {
+        const day = tripRef.current?.days.find((d) => d.items.some((i) => i.location?.lat != null))
+        if (day) setMapDayId(day.id)
+        return true
+      }
+      if (submit.command === "generate" || submit.command === "enhance" || submit.command === "add" || submit.command === "ask") {
+        void runEnhance("trip", undefined, submit.text || undefined)
+        return true
+      }
+      return false
+    },
+    [runEnhance],
+  )
+
+  useTripWorkspace(trip, handlePrompt)
+
+  useEffect(() => {
+    if (!enhancingTarget || reduce) return
+    const startedAt = Date.now()
+    const id = window.setInterval(() => setEnhanceElapsed(Math.round((Date.now() - startedAt) / 1000)), 1000)
+    return () => window.clearInterval(id)
+  }, [enhancingTarget, reduce])
+
+  useEffect(() => {
+    const prompt = navState?.enhancePrompt
+    if (!prompt || !trip || consumedEnhanceNav.current) return
+    consumedEnhanceNav.current = true
+    void runEnhance("trip", undefined, prompt)
+  }, [navState?.enhancePrompt, trip, runEnhance])
 
   // Delete is undoable for six seconds; the item keeps its original index so
   // undo restores the day exactly as it was.
@@ -596,6 +633,26 @@ export function TripDetail() {
         </div>
       </header>
 
+      {enhancingTarget && (
+        <div className="mt-5 space-y-3">
+          <LoadingState
+            label={enhancingTarget === "apply" ? "Applying suggestions" : "Reviewing itinerary"}
+            elapsed={enhanceElapsed}
+          />
+          <ThinkingTrace
+            title="Enhancement pipeline"
+            phases={[
+              { id: "flush", label: "Save latest edits", status: enhanceElapsed > 1 ? "complete" : "running" },
+              { id: "weather", label: "Weather", status: enhanceElapsed > 1 ? "running" : "pending", detail: "Open-Meteo" },
+              { id: "legs", label: "Travel legs", status: "pending" },
+              { id: "model", label: "Model review", status: "pending" },
+              { id: "geocode", label: "Geocode new places", status: "pending" },
+              { id: "persist", label: "Persist", status: "pending" },
+            ] satisfies AgentPhase[]}
+          />
+        </div>
+      )}
+
       {/* AI generation for an empty itinerary — also the retry path when
           generation failed during the create flow. */}
       {editable && trip.days.every((d) => d.items.length === 0) && (
@@ -622,6 +679,7 @@ export function TripDetail() {
           dayOptions={dayOptions}
           onApply={applyActiveRun}
           onDismiss={dismissRun}
+          resolveItem={(s) => trip.days.find((d) => d.id === s.dayId)?.items.find((i) => i.id === s.itemId)}
         />
       )}
 
@@ -659,6 +717,7 @@ export function TripDetail() {
               onOpenMap={openMap}
               onEnhance={enhanceDay}
               onDeleteItem={deleteItem}
+              onSelectionEnhance={(text) => void runEnhance("trip", undefined, text)}
             />
           ))}
         </div>
