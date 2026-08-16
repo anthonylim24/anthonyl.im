@@ -5,6 +5,7 @@ import {
   placeCanBeAdded,
   type ConciergePlace,
 } from "../../lib/conciergeGrounding"
+import { externalMapsLink } from "../../lib/externalMaps"
 import { ConciergePhotoThumb } from "./ConciergePhoto"
 import { dayLabel } from "./conciergeMoves"
 import type { TripDay } from "./types"
@@ -18,29 +19,6 @@ import {
   quietBtnClass,
   wrapAnywhereClass,
 } from "./ui"
-
-function safeHttpsUrl(value: string): string | undefined {
-  try {
-    const url = new URL(value)
-    return url.protocol === "https:" ? url.toString() : undefined
-  } catch {
-    return undefined
-  }
-}
-
-function mapsHref(place: ConciergePlace): string | undefined {
-  if (place.mapsUrl) {
-    const safe = safeHttpsUrl(place.mapsUrl)
-    if (safe) return safe
-  }
-  if (place.address) {
-    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.address)}`
-  }
-  if (place.lat != null && place.lng != null) {
-    return `https://www.google.com/maps/search/?api=1&query=${place.lat},${place.lng}`
-  }
-  return undefined
-}
 
 export function ConciergePlaceCards({
   places,
@@ -144,8 +122,8 @@ function ConciergePlaceCard({
   const meta = [place.category, place.address, variant === "itinerary" && onDayLabel ? `on ${onDayLabel}` : null]
     .filter(Boolean)
     .join(" · ")
-  const maps = mapsHref(place)
-  const canMap = Boolean(onMap && (place.itemId || (place.lat != null && place.lng != null)))
+  const maps = externalMapsLink(place)
+  const canOpenMapMode = Boolean(onMap && (place.itemId || (place.lat != null && place.lng != null)))
 
   return (
     <li className="overflow-hidden rounded-2xl border border-stone-200/90 bg-[var(--trips-surface)] dark:border-stone-700/80">
@@ -162,9 +140,9 @@ function ConciergePlaceCard({
           <div className="min-w-0 flex-1">
             {maps ? (
               <a
-                href={maps}
+                href={maps.href}
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
                 className={`inline-flex min-h-11 items-center text-sm font-medium text-stone-900 underline decoration-stone-300 underline-offset-2 hover:decoration-current dark:text-stone-100 ${focusRingClass} ${wrapAnywhereClass}`}
               >
                 {place.name}
@@ -190,7 +168,19 @@ function ConciergePlaceCard({
             <ImageIcon className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
             Photos
           </button>
-          {canMap ? (
+          {variant === "suggest" && maps ? (
+            <a
+              href={maps.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${quietBtnClass} sm:min-h-11`}
+              aria-label={maps.label}
+            >
+              <Globe2 className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
+              Map
+            </a>
+          ) : null}
+          {variant === "itinerary" && canOpenMapMode ? (
             <button
               type="button"
               onClick={() => onMap?.(place)}
