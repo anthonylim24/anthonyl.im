@@ -118,6 +118,31 @@ describe("TripsIndex", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Deleted Tokyo Long Weekend.")
   })
 
+  it("filters the trip table by status chips", async () => {
+    mockListTrips.mockResolvedValue([
+      makeSummary({ startDate: "2026-09-10", endDate: "2026-09-12" }),
+      makeSummary({
+        id: "trip-2",
+        slug: "osaka",
+        name: "Osaka Bites",
+        startDate: "2024-01-01",
+        endDate: "2024-01-03",
+      }),
+    ])
+
+    renderIndex()
+
+    expect(await screen.findByRole("heading", { name: "Tokyo Long Weekend" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Osaka Bites" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("tab", { name: /Past/ }))
+    expect(screen.queryByRole("heading", { name: "Tokyo Long Weekend" })).not.toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Osaka Bites" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("tab", { name: /All/ }))
+    expect(screen.getByRole("heading", { name: "Tokyo Long Weekend" })).toBeInTheDocument()
+  })
+
   it("restores the row and shows an error when delete fails", async () => {
     mockListTrips.mockResolvedValue([makeSummary()])
     mockDeleteTrip.mockRejectedValue(new Error("owners only"))

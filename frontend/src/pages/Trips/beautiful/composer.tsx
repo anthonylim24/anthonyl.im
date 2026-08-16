@@ -102,7 +102,7 @@ export function PromptBar({
     rec.interimResults = false
     rec.onresult = (event) => {
       const spoken = event.results[0]?.[0]?.transcript
-      if (spoken) setValue((prev) => (prev ? `${prev} ${spoken}` : spoken))
+      if (spoken) setValue(value ? `${value} ${spoken}` : spoken)
     }
     rec.onend = () => setListening(false)
     recRef.current = rec
@@ -206,7 +206,7 @@ export function PromptBar({
               <button
                 type="button"
                 onClick={() => {
-                  setValue((prev) => prev.replace(/@[^@]*$/, `@${m.label} `))
+                  setValue(value.replace(/@[^@]*$/, `@${m.label} `))
                   setMenu(null)
                   inputRef.current?.focus()
                 }}

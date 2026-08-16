@@ -42,7 +42,7 @@ export function buildTripInsights(trip: Trip, dayId?: string): InsightCard[] {
       id: "pacing",
       title: "Pacing",
       body: "Every day has at least one stop.",
-      meta: `${trip.itemCount ?? trip.days.reduce((n, d) => n + d.items.length, 0)} items`,
+      meta: `${trip.days.reduce((n, d) => n + d.items.length, 0)} items`,
     })
   }
 
