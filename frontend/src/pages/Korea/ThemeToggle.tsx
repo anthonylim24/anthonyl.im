@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { motion } from "motion/react"
+import { motion, useReducedMotion } from "motion/react"
 import { Moon, Sun, Monitor } from "lucide-react"
 import { applyTheme, getInitialTheme, persistTheme, type Theme } from "./koreaUtils"
 
@@ -18,6 +18,7 @@ const icons: Record<Theme, typeof Sun> = {
 }
 
 export function ThemeToggle() {
+  const reduce = useReducedMotion()
   const [theme, setTheme] = useState<Theme>("system")
 
   useEffect(() => {
@@ -47,8 +48,8 @@ export function ThemeToggle() {
       onClick={cycle}
       title={`Theme: ${labels[theme]} (click for ${labels[next]})`}
       aria-label={`Theme: ${labels[theme]} (click for ${labels[next]})`}
-      whileTap={{ scale: 0.9, rotate: -10 }}
-      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-stone-300/70 bg-stone-50 text-stone-700 transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
+      whileTap={reduce ? undefined : { scale: 0.9, rotate: -10 }}
+      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-stone-300/70 bg-stone-50 text-stone-700 transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
     >
       <Icon className="h-4 w-4" />
     </motion.button>

@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, type ReactNode } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
 import { ArrowLeft, Compass, Lock } from "lucide-react"
-import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/clerk-react"
+import { SignedIn, SignedOut, SignInButton, UserButton, useAuth } from "@clerk/clerk-react"
 import { CLERK_ENABLED } from "@/lib/clerk"
 import { ThemeToggle } from "../Korea/ThemeToggle"
 import { applyTheme, getInitialTheme } from "../Korea/koreaUtils"
@@ -15,6 +15,22 @@ const DEV_BEARER: string | null =
 function TripsAuthGate({ children }: { children: ReactNode }) {
   if (DEV_BEARER) return <>{children}</>
   if (!CLERK_ENABLED) return <>{children}</>
+  return <ClerkTripsGate>{children}</ClerkTripsGate>
+}
+
+function ClerkTripsGate({ children }: { children: ReactNode }) {
+  const { isLoaded } = useAuth()
+  if (!isLoaded) {
+    return (
+      <div
+        className="flex min-h-[70dvh] items-center justify-center px-5 py-16 text-stone-500 dark:text-stone-400"
+        role="status"
+        aria-label="Checking sign-in"
+      >
+        <span className="text-sm">Loading…</span>
+      </div>
+    )
+  }
   return (
     <>
       <SignedIn>{children}</SignedIn>

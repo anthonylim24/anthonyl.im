@@ -1,4 +1,4 @@
-import { Suspense, useEffect } from "react"
+import { lazy, Suspense, useEffect } from "react"
 import { Outlet } from "react-router-dom"
 import { DayTreeNav } from "./DayTreeNav"
 import { useKoreaSnapshot } from "./useKoreaData"
@@ -6,7 +6,8 @@ import { KoreaAuthGate } from "./KoreaAuthGate"
 import { applyTheme, getInitialTheme } from "./koreaUtils"
 import { startImageBudgetMonitor } from "./imageBudget"
 import { EntityIndexProvider } from "./entityIndex"
-import { KoreaChat } from "./KoreaChat"
+
+const KoreaChat = lazy(() => import("./KoreaChat").then((m) => ({ default: m.KoreaChat })))
 
 export function KoreaLayout() {
   const state = useKoreaSnapshot()
@@ -34,9 +35,15 @@ export function KoreaLayout() {
     <KoreaAuthGate>
       <EntityIndexProvider>
         <div className="korea min-h-dvh bg-stone-50 text-stone-900 antialiased selection:bg-stone-900 selection:text-stone-50 dark:bg-stone-950 dark:text-stone-100 dark:selection:bg-stone-100 dark:selection:text-stone-900">
+          <a
+            href="#korea-main"
+            className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:inline-flex focus:min-h-11 focus:items-center focus:rounded-lg focus:bg-rose-600 focus:px-4 focus:text-sm focus:font-medium focus:text-white"
+          >
+            Skip to content
+          </a>
           {state.status === "success" && <DayTreeNav days={state.data.days} />}
 
-          <main className="pb-20">
+          <main id="korea-main" className="pb-20">
             {/* Local Suspense boundary keeps lazy Korea pages from bubbling up
                 to the outer BreathworkShellFallback. React Router's startTransition
                 means the old page stays visible during transitions; null fallback
@@ -47,7 +54,9 @@ export function KoreaLayout() {
           </main>
 
           {/* Trip concierge — floating CTA + chat panel, present on every Korea page. */}
-          <KoreaChat />
+          <Suspense fallback={null}>
+            <KoreaChat />
+          </Suspense>
         </div>
       </EntityIndexProvider>
     </KoreaAuthGate>

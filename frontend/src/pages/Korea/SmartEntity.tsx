@@ -161,7 +161,7 @@ export function SmartEntity({
     // scrolls, for instance).
     const onMove = () => recomputePosition()
     window.addEventListener("resize", onMove)
-    window.addEventListener("scroll", onMove, true)
+    window.addEventListener("scroll", onMove, { capture: true, passive: true })
     return () => {
       window.removeEventListener("resize", onMove)
       window.removeEventListener("scroll", onMove, true)

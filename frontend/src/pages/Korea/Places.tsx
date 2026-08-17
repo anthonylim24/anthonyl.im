@@ -215,8 +215,8 @@ function DayAssignButton({ place, getToken, onUpdated }: DayAssignButtonProps) {
 
   // Compute + keep dialog position in sync with the trigger. We portal the
   // dialog to document.body to escape every PlaceCard's stacking context
-  // (each card creates one via willChange:transform + motion's layout
-  // transforms), so it must be positioned manually relative to the viewport.
+  // (motion `layout` transforms create one), so it must be positioned
+  // manually relative to the viewport.
   useLayoutEffect(() => {
     if (!open) {
       setPos(null)
@@ -243,7 +243,7 @@ function DayAssignButton({ place, getToken, onUpdated }: DayAssignButtonProps) {
     // Re-measure after the dialog mounts so the placement decision can use
     // the real height instead of the estimate.
     const raf = requestAnimationFrame(update)
-    window.addEventListener('scroll', update, true)
+    window.addEventListener('scroll', update, { capture: true, passive: true })
     window.addEventListener('resize', update)
     return () => {
       cancelAnimationFrame(raf)
@@ -337,7 +337,7 @@ function DayAssignButton({ place, getToken, onUpdated }: DayAssignButtonProps) {
                     return (
                       <label
                         key={day.n}
-                        className="flex min-h-[36px] cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 transition hover:bg-stone-50 focus-within:ring-2 focus-within:ring-rose-400/40 dark:hover:bg-stone-900"
+                        className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 transition hover:bg-stone-50 focus-within:ring-2 focus-within:ring-rose-400/40 dark:hover:bg-stone-900"
                       >
                         <input
                           type="checkbox"
@@ -362,7 +362,7 @@ function DayAssignButton({ place, getToken, onUpdated }: DayAssignButtonProps) {
                   onClick={handleSave}
                   disabled={saving || !dirty}
                   aria-busy={saving}
-                  className="inline-flex min-h-[36px] flex-1 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-rose-500 dark:hover:bg-rose-400"
+                  className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-rose-500 dark:hover:bg-rose-400"
                 >
                   {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
                   {saving ? 'Saving…' : 'Save'}
@@ -370,7 +370,7 @@ function DayAssignButton({ place, getToken, onUpdated }: DayAssignButtonProps) {
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="inline-flex min-h-[36px] items-center justify-center rounded-lg border border-stone-200 px-3 py-1.5 text-[12px] font-medium text-stone-600 transition hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:border-stone-700 dark:text-stone-400 dark:hover:bg-stone-900"
+                  className="inline-flex min-h-11 items-center justify-center rounded-lg border border-stone-200 px-3 py-1.5 text-[12px] font-medium text-stone-600 transition hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:border-stone-700 dark:text-stone-400 dark:hover:bg-stone-900"
                 >
                   Cancel
                 </button>
@@ -419,8 +419,7 @@ function PlaceCard({
         boxShadow: '0 12px 28px -16px rgba(28, 25, 23, 0.18), 0 4px 10px -6px rgba(28, 25, 23, 0.12)',
         transition: { type: 'spring', stiffness: 320, damping: 26 },
       }}
-      style={{ willChange: 'transform' }}
-      className="relative rounded-2xl border border-stone-200/80 bg-white p-5 transition-colors dark:border-stone-800/80 dark:bg-stone-900/60"
+      className="cv-card relative rounded-2xl border border-stone-200/80 bg-white p-5 transition-colors dark:border-stone-800/80 dark:bg-stone-900/60"
       aria-label={`Place: ${place.name}`}
     >
       {/* Geocode-disagree warning banner */}
@@ -618,7 +617,7 @@ function FilterChip({
       whileTap={reduce ? undefined : { scale: 0.94 }}
       transition={reduce ? { duration: 0 } : CHIP_SPRING}
       style={{ transformOrigin: 'center' }}
-      className={`inline-flex min-h-[36px] items-center rounded-full border px-3 py-1 text-[12px] font-medium transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 ${
+      className={`inline-flex min-h-11 items-center rounded-full border px-3 py-1 text-[12px] font-medium transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 ${
         active
           ? 'border-rose-300 bg-rose-50 text-rose-700 shadow-[0_0_0_1px_rgba(244,63,94,0.08)_inset] hover:border-rose-400 hover:bg-rose-100 dark:border-rose-700/60 dark:bg-rose-950/40 dark:text-rose-400 dark:hover:bg-rose-950/60'
           : 'border-stone-200 bg-white text-stone-600 hover:border-stone-300 hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-400 dark:hover:bg-stone-800'
@@ -941,7 +940,7 @@ function PlacesImpl() {
               onClick={() =>
                 void load({ category: activeCategory, band: activeBand, busyness: activeBusyness, q: debouncedSearch, offset: 0, append: false })
               }
-              className="inline-flex min-h-[36px] items-center rounded-lg border border-red-300/70 bg-white/60 px-3 py-1 text-[12px] font-medium text-red-700 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/60"
+              className="inline-flex min-h-11 items-center rounded-lg border border-red-300/70 bg-white/60 px-3 py-1 text-[12px] font-medium text-red-700 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/60"
             >
               Retry
             </button>

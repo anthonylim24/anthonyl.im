@@ -589,7 +589,7 @@ function DaySkeleton() {
 function DayError({ message }: { message: string }) {
   return (
     <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6">
-      <h2 className="font-serif text-2xl text-stone-900 dark:text-stone-100">Day not found</h2>
+      <h1 className="font-serif text-2xl text-stone-900 dark:text-stone-100">Day not found</h1>
       <p className="mt-2 text-sm text-stone-600 dark:text-stone-400">{message}</p>
       <Link
         to="/korea"

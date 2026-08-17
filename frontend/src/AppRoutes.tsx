@@ -60,6 +60,15 @@ const TripOverview = lazy(() =>
 const TripDayPage = lazy(() =>
   import('./pages/Trips/TripDayPage').then((module) => ({ default: module.TripDayPage })),
 )
+const SiteNotFound = lazy(() =>
+  import('./pages/SiteNotFound').then((module) => ({ default: module.SiteNotFound })),
+)
+const KoreaNotFound = lazy(() =>
+  import('./pages/Korea/KoreaNotFound').then((module) => ({ default: module.KoreaNotFound })),
+)
+const TripsNotFound = lazy(() =>
+  import('./pages/Trips/TripsNotFound').then((module) => ({ default: module.TripsNotFound })),
+)
 
 // Route-aware skeletons so a lazy chunk that's still streaming (or hung on a
 // stale SW transition) shows recognizable parchment instead of a blank canvas
@@ -182,6 +191,7 @@ export function AppRoutes() {
           <Route path="day/:slug" element={<KoreaDay />} />
           <Route path="ingest" element={<Ingest />} />
           <Route path="places" element={<Places />} />
+          <Route path="*" element={<KoreaNotFound />} />
         </Route>
 
         <Route
@@ -197,7 +207,17 @@ export function AppRoutes() {
           <Route path=":tripId" element={<TripOverview />} />
           <Route path=":tripId/edit" element={<TripDetail />} />
           <Route path=":tripId/day/:dayId" element={<TripDayPage />} />
+          <Route path="*" element={<TripsNotFound />} />
         </Route>
+
+        <Route
+          path="*"
+          element={
+            <Guarded app="chatbot" fallback={<ChatbotFallback />}>
+              <SiteNotFound />
+            </Guarded>
+          }
+        />
       </Routes>
     </BrowserRouter>
   )

@@ -173,7 +173,7 @@ describe('SessionPage', () => {
     })
 
     const liveRegions = screen.getAllByRole('status')
-    expect(liveRegions.some((region) => /Hold/.test(region.textContent ?? ''))).toBe(true)
+    expect(liveRegions.some((region) => /Hold for 1 second/.test(region.textContent ?? ''))).toBe(true)
   })
 
   it('makes hidden session controls inert after idle', () => {
