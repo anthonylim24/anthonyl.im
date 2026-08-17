@@ -29,13 +29,19 @@ UI (React 19)  →  Promise wrapper (runPromise)  →  Effect.fn  →  fetchApi 
 
 | Module | Use for |
 |--------|---------|
-| `frontend/src/effect/http.ts` | `fetchApi` (same-origin `/api`), `fetchExternal` (absolute third-party URLs), `requestJson`, `readAuthToken`, `readErrorMessage`, `parseJson`, `requireOk` |
+| `frontend/src/effect/http.ts` | `fetchApi` (same-origin `/api`), `fetchExternal` (absolute third-party URLs), `requestJson`, `readAuthToken`, `readErrorMessage`, `parseJson`, `requireOk`, `bearerHeaders`, `sleep` |
 | `frontend/src/effect/sse.ts` | `readSse` wrapping `readSseStream` |
 | `frontend/src/effect/runtime.ts` | **Only** `runPromise` — unwraps `FiberFailure` via `Cause.failureOption` so callers see the original `Error` |
-| `frontend/src/effect/errors.ts` | `Schema.TaggedError` types (`HttpStatusError`, `DecodeError`, `StreamError`, `AuthError`, …) |
-| `frontend/src/effect/chatErrors.ts` | `remapChatFailure` / `isLostConnection` |
+| `frontend/src/effect/errors.ts` | `Schema.TaggedError` types (`HttpStatusError`, `DecodeError`, `StreamError`, `TimeoutError` + `partialContent`, `AuthError`, `PollTimeoutError`) and `errorMessage` |
+| `frontend/src/effect/chatErrors.ts` | `remapChatFailure` / `isLostConnection` / `formatConciergeError` / `errorIfIncomplete` |
 | `frontend/src/lib/apiBase.ts` | Transport only. Preview-base rewrite + `redirect: "manual"`. Do not bypass. |
 | `frontend/src/hooks/useLatestCallback.ts` | Stable latest-fn reader for tokens passed into APIs |
+
+Per-route API modules (`Effect.fn` + `runPromise` wrappers — put new I/O here, not ad-hoc `fetch`):
+
+- Trips: `frontend/src/pages/Trips/tripsApi.ts`, `tripChatApi.ts`
+- Korea: `frontend/src/pages/Korea/*Api.ts` (`placesApi`, `koreaChatApi`, `ingestApi`, `entityAboutApi`, `dayPlacesApi`)
+- Chatbot SSE: `frontend/src/lib/apiService.ts`
 
 Keep Zustand for BreathFlow persisted stores. Keep `useCloudSync` on Promise/Supabase. Map Mode WebGL must unmount — do not hide it with React `Activity`.
 
@@ -78,7 +84,7 @@ export function getTrip(getToken: () => Promise<string | null>, id: string) {
 Keep per-endpoint parity. Do not "simplify" to one mode.
 
 - `"message-first"` — trips `requestJson` (default)
-- `"error-first"` — ingest `throwOnError`
+- `"error-first"` — ingest; a **local** helper in `ingestApi.ts` calls `readErrorMessage(res, "error-first")`. There is no shared export named `throwOnError`.
 - `"error-only"` — places + ingest retry/reextract
 - `"message-only"` — Korea chat non-OK
 

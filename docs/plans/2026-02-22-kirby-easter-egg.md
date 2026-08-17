@@ -1,6 +1,7 @@
 # Kirby Easter Egg Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **Status:** CANCELLED. Never implemented. No `KirbyCharacter.tsx`. · Do not execute this plan. Historical artifact. Current behavior: `CLAUDE.md` and the live code.
+> Historical note: this document originally instructed agents to run an executing-plans / subagent skill. Do not execute it now.
 
 **Goal:** Add a hidden easter egg where tapping the breathing orb 5 times in 2 seconds fills the screen with bouncing Kirbys; the orb itself becomes a Kirby that puffs in and out with the breathing cycle.
 

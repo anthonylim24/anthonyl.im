@@ -3,6 +3,8 @@ name: design-taste-frontend
 description: Anti-slop frontend skill for landing pages, portfolios, and redesigns. The agent reads the brief, infers the right design direction, and ships interfaces that do not look templated. Real design systems when applicable, audit-first on redesigns, strict pre-flight check.
 ---
 
+> This repo already has `PRODUCT.md` + `impeccable`. Shared-site type is Inter + Cormorant; BreathFlow uses Geist + Fragment Mono. `lucide-react` is intentional. BreathFlow chrome stays matte (no glassmorphism). Map Mode: glass/refraction is the YOU pin only (`youPin.ts`); places are `MeshStandardMaterial` spheres in `Detailed3DScene.tsx` — do not rebuild glass orbs. Do not apply landing-page Lucide/Inter/glass rules to `/breathwork`, `/korea`, `/trips`. Prefer `impeccable`.
+
 # tasteskill: Anti-Slop Frontend Skill
 
 > Landing pages, portfolios, and redesigns. Not dashboards, not data tables, not multi-step product UI.

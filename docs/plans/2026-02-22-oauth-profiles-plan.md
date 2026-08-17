@@ -1,6 +1,7 @@
 # OAuth Profiles Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+> **Status:** COMPLETED (`useCloudSync` + `CloudSync`). · Do not execute this plan. Historical artifact. Current behavior: `CLAUDE.md` and the live code.
+> Historical note: this document originally instructed agents to run an executing-plans / subagent skill. Do not execute it now.
 
 **Goal:** Add Google OAuth via Clerk, user profiles, and Supabase data persistence to the Breathwork app while keeping anonymous usage fully functional.
 

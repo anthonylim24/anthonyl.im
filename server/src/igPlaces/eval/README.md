@@ -8,7 +8,7 @@ Accuracy evaluation for the Instagram place extraction pipeline.
 bun run server/src/igPlaces/eval/run.ts
 ```
 
-Requires `GROQ_API_KEY` and `GOOGLE_MAPS_API_KEY` in your environment. `KAKAO_REST_API_KEY` is optional (falls back to Google-only geocoding).
+Requires `GROQ_API_KEY` and `GOOGLE_MAPS_API_KEY` in your environment. `KAKAO_REST_API_KEY` is optional (falls back to Google-only geocoding). The harness extracts via Groq (`createExtractor({ groq })` in `eval/run.ts`); it does not call Gemini.
 
 Prints a table of extraction precision/recall, category accuracy, and geo accuracy (within 100 m) per fixture, plus a TOTAL row.
 
@@ -16,9 +16,11 @@ Prints a table of extraction precision/recall, category accuracy, and geo accura
 
 The TOTAL row must not drop more than **5 percentage points** vs the prior baseline on any of the four metrics (`ext-P`, `ext-R`, `cat`, `geo`). Record the baseline in this file after each intentional improvement.
 
+**Baseline: TBD.** One fixture exists at `eval/fixtures/01-geotagged-cafe-seongsu/`. No scored baseline has been recorded — do not invent numbers.
+
 | baseline | ext-P | ext-R | cat  | geo  |
 |----------|-------|-------|------|------|
-| initial  | —     | —     | —    | —    |
+| TBD      | —     | —     | —    | —    |
 
 ## Adding a fixture
 
@@ -46,7 +48,7 @@ The TOTAL row must not drop more than **5 percentage points** vs the prior basel
 
 ## Coverage targets
 
-Aim for ≥10 fixtures covering:
+Aspirational checklist (not current coverage). Aim for ≥10 fixtures covering:
 - Geotagged post, single cafe (fixture 01 — done)
 - Untagged post, single restaurant — name-only geocoding
 - Multi-place listicle ("Top 5 Seoul cafes")

@@ -28,10 +28,11 @@ CI builds the frontend on a GH Actions runner (zero OOM risk vs. building on the
 
 Same-repo PRs also get a remote frontend preview at `https://anthonyl.im/preview/pr/<n>/` so a phone or a cloud agent can review UI without a laptop. That pipeline is `.github/workflows/preview.yml` (not a merge gate). Agent guide: [`docs/pr-previews.md`](../docs/pr-previews.md).
 
-The preview frontend calls `/preview/pr/<n>/api/*`, which production Hono
-proxies to a loopback `bun --smol` sidecar of the PR's server (IG worker
-off, cap 1). Until that proxy is on production, the client falls back to
-`/api`.
+Preview builds call `/preview/pr/<n>/api/*` only. Production Hono proxies
+that mount to a loopback `bun --smol` sidecar of the PR's server (IG
+worker off, cap 1). They must not fall back to production `/api` (would
+send same-origin Clerk cookies to live data). See
+`frontend/src/lib/apiBase.ts` and [`docs/pr-previews.md`](../docs/pr-previews.md).
 
 Optional droplet env (defaults are fine):
 
@@ -134,7 +135,7 @@ Auto-installed by the deploy step. Each installer is idempotent + **non-fatal** 
 The IG video download chain is **three-tier**:
 
 1. **yt-dlp** (primary, ~3-5s when working) — `--socket-timeout 30 --extractor-retries 5 --retry-sleep extractor:exp=1:16:2 --sleep-requests 1 --throttled-rate 50K`. Optional Netscape-format cookies file (single biggest reliability bump for VPS IPs) via `YT_DLP_COOKIES_FILE` env var.
-2. **Direct CDN fetch** (~2-5s) — uses the videoUrl returned by the initial Apify metadata call. Works while the signed URL is fresh (~10-30 min).
+2. **Direct CDN fetch** (~2-5s) — uses the videoUrl returned by the initial Bright Data metadata call. Works while the signed URL is fresh (~10-30 min).
 3. **Headless dev-browser** (~10-30s) — drives Chromium at `https://www.instagram.com/p/SHORTCODE/embed/` and extracts the `<video src>`. Bypasses datacenter-IP login walls.
 
 After all three fail the bundle degrades to caption-only (`renderBundle` still produces a useful prompt).

@@ -1,7 +1,9 @@
 # Kirby Easter Egg — Design Doc
 
+> **Status:** CANCELLED. Never implemented. No `KirbyCharacter.tsx`. · Do not execute this plan. Historical artifact. Current behavior: `CLAUDE.md` and the live code.
+> Historical note: this document originally instructed agents to run an executing-plans skill. Do not execute it now.
+
 **Date:** 2026-02-22
-**Status:** Approved
 
 ---
 

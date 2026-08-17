@@ -1,3 +1,5 @@
+> **Status:** Last written 2026-05-14. Predates the `frontend/src/breathflow/` rebuild. Paths like `components/breathing/`, Fluid Orb, JetBrains Mono, and `<StatNumeral />` as a through-line may be stale. Current BreathFlow: `frontend/src/breathflow/` (`OrbVisualization`, `useGlassOrb`, Geist/Fragment Mono in `index.html`). Treat [`PRODUCT.md`](../PRODUCT.md) + breathflow code as source of truth; use this file for still-valid aesthetic direction (apothecary notebook, no glass on BreathFlow chrome, brass/ink restraint).
+
 # BreathFlow — Interface Design System
 
 > The hub of design decisions for the BreathFlow app. CLAUDE.md holds the brand context and audit; this file holds the *interface-design* commitments — what to build, what to refuse.
@@ -119,14 +121,14 @@ import { StatNumeral } from '@/components/ui/StatNumeral'
 **When to use which size**
 
 - `sm` — Stat strips, inline lists, compact mobile chips.
-- `md` (default) — Desktop stat strips, editorial stat rows (`SessionStatRow`).
+- `md` (default) — Desktop stat strips, editorial stat rows (`Stat` in `SessionSummary`).
 - `lg` — Single hero numeral (e.g., a session-summary headline minute count).
 
 **Tests** — `StatNumeral` renders both numeral and unit as separate spans. In tests, prefer `getByText(/^value$/)` + `getByText(/^unit$/)` over the concatenated string. When the same value appears multiple times on a page (e.g., active days + sessions both = 3), use `getAllByText` and assert count.
 
-### Editorial stat row — `SessionStatRow` pattern (replaces hero-metric grids)
+### Editorial stat row — `Stat` pattern (replaces hero-metric grids)
 
-**Reference:** `frontend/src/components/breathing/SessionSummary.tsx` — the local `SessionStatRow` component.
+**Reference:** `frontend/src/breathflow/components/SessionSummary.tsx` — the local `Stat` component.
 
 Instead of 2/3/4-up card grids, stats stack as labeled lines:
 

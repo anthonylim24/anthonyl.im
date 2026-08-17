@@ -14,13 +14,21 @@ Comprehensive performance optimization guide for React and Next.js applications,
 ## When to Apply
 
 Reference these guidelines when:
-- Writing new React components or Next.js pages
-- Implementing data fetching (client or server-side)
-- Reviewing code for performance issues
-- Refactoring existing React/Next.js code
+- Writing or reviewing React 19 components in this Vite SPA
 - Optimizing bundle size or load times
+- Translating a Vercel/Next example into Vite + Hono
 
 In this repo, client `/api` and third-party fetches use Effect v3. Follow the sibling [`effect-ts` skill](../effect-ts/SKILL.md) for I/O; use this skill for React 19 render/bundle performance. Effect I/O rules win when they conflict with generic fetch/SWR examples below.
+
+## anthonyl.im adaptations
+
+This is a **Vite SPA**, not Next.js. The repo override wins over every `next/dynamic`, SWR, Server Action, and RSC example in the rule files and in `AGENTS.md`.
+
+- **`bundle-dynamic-imports`:** Use `React.lazy` + `Suspense`. Never `import dynamic from 'next/dynamic'`. Bundle splitting is `frontend/vite.config.ts` `advancedChunks` (not `optimizePackageImports`).
+- Server is Hono/Bun (`server/src/routes/*`), not Server Actions / RSC. `async-api-routes`, `server-cache-lru`, and `server-hoist-static-io` apply to Hono. Skip `server-auth-actions`, `server-after-nonblocking`, `server-dedup-props`, and RSC serialization rules.
+- **`client-swr-dedup`:** Skip SWR. Do not add it. Use Effect (`requestJson` / `fetchApi`) plus a **per-loader** `useRef` sequence guard (latest-request-wins). That suppresses stale responses; it does not coalesce in-flight HTTP.
+- `rendering-activity`: OK for menus/dropdowns. **NEVER** hide Map Mode / WebGL with React `Activity` — must unmount (see [`effect-ts`](../effect-ts/SKILL.md)).
+- `bundle-barrel-imports`: `lucide-react` is already split via the `icons` chunk; keep `lucide-react` imports (do not deep-import missing `.d.ts` paths).
 
 ## Rule Categories by Priority
 
@@ -49,7 +57,7 @@ In this repo, client `/api` and third-party fetches use Effect v3. Follow the si
 ### 2. Bundle Size Optimization (CRITICAL)
 
 - `bundle-barrel-imports` - Import directly, avoid barrel files
-- `bundle-dynamic-imports` - Use next/dynamic for heavy components
+- `bundle-dynamic-imports` - Use `React.lazy` (never `next/dynamic`)
 - `bundle-defer-third-party` - Load analytics/logging after hydration
 - `bundle-conditional` - Load modules only when feature is activated
 - `bundle-preload` - Preload on hover/focus for perceived speed
@@ -69,7 +77,7 @@ In this repo, client `/api` and third-party fetches use Effect v3. Follow the si
 
 ### 4. Client-Side Data Fetching (MEDIUM-HIGH)
 
-- `client-swr-dedup` - Use SWR for automatic request deduplication
+- `client-swr-dedup` - **Skip SWR.** Effect + per-loader `useRef` latest-request-wins
 - `client-event-listeners` - Deduplicate global event listeners
 - `client-passive-event-listeners` - Use passive listeners for scroll
 - `client-localstorage-schema` - Version and minimize localStorage data

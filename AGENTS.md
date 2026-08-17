@@ -1,6 +1,16 @@
 # anthonyl.im
 
-This repo hosts three distinct experiences under one shell: a personal AI chatbot, the **BreathFlow** wellness app, and the **Korea Trip** itinerary app. Each has its own visual identity; all share the underlying craft principles below.
+This repo hosts four experiences under one Vite SPA: a personal AI chatbot, **BreathFlow**, the **Korea** itinerary, and a generic **trip planner**. Each has its own visual identity; all share the craft principles below.
+
+**Where to read what**
+
+| Need | File |
+|------|------|
+| Engineering, routes, env, CI, tree | [`CLAUDE.md`](CLAUDE.md) |
+| Design context for Impeccable / UI work | [`PRODUCT.md`](PRODUCT.md) |
+| Skill catalog (what to use, what to ignore) | [`.agents/skills/README.md`](.agents/skills/README.md) |
+| CI/CD | [`docs/ci-cd.md`](docs/ci-cd.md) |
+| PR previews + Clerk screenshot login | [`docs/pr-previews.md`](docs/pr-previews.md) |
 
 ## Shared Design Principles (apply to every route)
 
@@ -21,21 +31,22 @@ This repo hosts three distinct experiences under one shell: a personal AI chatbo
 
 ## Shared Tech Stack
 
-- React 19 + TypeScript + Vite 8
-- Tailwind CSS 4.2 + shadcn/ui (Radix primitives)
-- Zustand (state), Motion (animation), Lucide (icons)
+- React 19 + Vite 8 + React Router v7 (`react-router-dom`, Vite SPA — not the React Router SSR framework)
+- TypeScript: frontend lint `~6.0`, frontend/root **build** `~7.0` via the `typescript7` alias
+- Tailwind CSS 4.3 + shadcn/ui (Radix primitives)
+- Zustand v5 (BreathFlow persisted stores), Motion 13, Lucide icons
 - Effect v3 for frontend I/O — see [Frontend Effect-TS](#frontend-effect-ts)
-- Bun + Hono (server), Clerk (auth), Supabase (sync), PostHog (analytics)
-- Three.js (Korea Map Mode only)
+- Bun + Hono (server), Clerk (`@clerk/clerk-react` ^5, Core 2), Supabase, PostHog
+- Three.js for Map Mode (Korea **and** Trips via shared `MapModeOverlay`)
 
 ## Frontend Effect-TS
 
-Write new frontend network I/O in Effect. Full methodology: [`.claude/skills/effect-ts/SKILL.md`](.claude/skills/effect-ts/SKILL.md) (mirrored at `.agents/skills/effect-ts/SKILL.md`). Stable **Effect v3** only — not v4 beta.
+Write new frontend network I/O in Effect. Full methodology: [`.agents/skills/effect-ts/SKILL.md`](.agents/skills/effect-ts/SKILL.md) (symlinked at `.claude/skills/effect-ts/SKILL.md`). Stable **Effect v3** only — not v4 beta.
 
 | Piece | Location |
 |-------|----------|
-| Tagged errors | `frontend/src/effect/errors.ts` |
-| HTTP (`fetchApi`, `fetchExternal`, `requestJson`, `readAuthToken`) | `frontend/src/effect/http.ts` |
+| Tagged errors (`errorMessage`) | `frontend/src/effect/errors.ts` |
+| HTTP (`fetchApi`, `fetchExternal`, `requestJson`, `readAuthToken`, `bearerHeaders`, `sleep`) | `frontend/src/effect/http.ts` |
 | SSE | `frontend/src/effect/sse.ts` |
 | `runPromise` unwrap | `frontend/src/effect/runtime.ts` |
 | Chat error remap | `frontend/src/effect/chatErrors.ts` |
@@ -44,6 +55,8 @@ Write new frontend network I/O in Effect. Full methodology: [`.claude/skills/eff
 **Do:** `Effect.fn` + `runPromise` from `frontend/src/effect/runtime.ts`; same-origin `/api/*` via `fetchApi` / `requestJson`; third-party URLs via `fetchExternal`; `Schema.TaggedError` + `readErrorMessage` modes; `useLatestCallback(getToken)` (never pass `useEffectEvent` as an argument); `useTransition` + latest-request-wins on overlapping refreshes; `Effect.fail` instead of `throw` around `yield*`.
 
 **Do not:** replace `apiFetch` with `@effect/platform` FetchHttpClient; `Schema.decode` `Trip` / `ExtractedPlace` documents; add `Effect.Service` / AppLayer / effect-atom without real injectable deps; hide Map Mode WebGL with React `Activity`; migrate BreathFlow Zustand or `useCloudSync` onto Effect.
+
+Per-route clients: `frontend/src/pages/Trips/tripsApi.ts`, `tripChatApi.ts`, `frontend/src/pages/Korea/*Api.ts`, `frontend/src/lib/apiService.ts` (homepage chatbot).
 
 ## Shared Tokens
 
@@ -56,8 +69,8 @@ Write new frontend network I/O in Effect. Full methodology: [`.claude/skills/eff
 | Ink Tertiary | `#A8A29E` | `#78716C` | Hint / muted text |
 | Destructive | `#EF4444` | `#EF4444` | Errors, delete |
 | Border | `rgba(28,25,23,0.08)` | `rgba(255,252,245,0.06)` | Subtle edges |
-| Body font | Inter | | All UI text |
-| Display font | Cormorant Garamond | | Headings, brand moments |
+| Body font | Inter (BreathFlow: Geist) | | Shared-site body; BreathFlow uses Geist |
+| Display font | Cormorant Garamond (BreathFlow: Fragment Mono) | | Shared-site display; BreathFlow uses Fragment Mono |
 | Border radius | `0.5rem` (default) / `1rem`+ in Korea orb cards | | Standard rounding |
 | Spring easing | `cubic-bezier(0.16, 1, 0.3, 1)` | | Motion default |
 | Decel easing | `cubic-bezier(0.33, 0, 0, 1)` | | Smooth stops |
@@ -91,6 +104,8 @@ Visitors who land on `anthonyl.im` directly. Recruiters, prospective collaborato
 
 ## Design Context: `/breathwork/*` — BreathFlow
 
+Code lives in `frontend/src/breathflow/` (pages, engine, protocols, gamify, motion, platform). Session state is `useSessionEngine` — not a Zustand `sessionStore`. Implementation fonts: Geist + Fragment Mono (shared-site Inter + Cormorant do not apply here).
+
 ### Users
 Wellness enthusiasts and people seeking anxiety / stress relief. They open BreathFlow when they need to decompress, build a daily breathing habit, or access structured breathwork techniques backed by science. The context is often evening wind-down, pre-performance calm, or mid-day stress breaks — moments that demand a UI that feels immediately calming upon launch.
 
@@ -102,7 +117,7 @@ Wellness enthusiasts and people seeking anxiety / stress relief. They open Breat
 ### Aesthetic Direction
 - **Visual tone:** Warm parchment + ink. Light-first warm beige canvas (`#F5F2ED`), ink typography (`#1C1917`), amber accent (`#B8860B`).
 - **References:** Calm / Headspace's wellness credibility combined with Arc / Linear's craft. More technical than mainstream wellness, warmer than dev tools.
-- **Anti-references:** No SaaS purple, no cartoon-illustrated wellness, no cluttered dashboards.
+- **Anti-references:** No SaaS purple, no cartoon-illustrated wellness, no cluttered dashboards. **No glassmorphism on BreathFlow chrome** (the session orb is a glass/WebGL visualization; surrounding UI stays ink-on-parchment).
 
 ### Per-route Tokens
 
@@ -124,29 +139,30 @@ Wellness enthusiasts and people seeking anxiety / stress relief. They open Breat
 
 1. **Serenity first.** Every design decision should reduce visual noise. White space is a feature.
 2. **Scientific credibility.** Typography, data visualization, and content should convey authority — the app teaches real breathwork protocols.
-3. **The orb is sacred.** The breathing orb is the product. Animation of the orb must be flawless and physics-accurate; surrounding UI fades out during session.
+3. **The orb is sacred.** The breathing orb (`OrbVisualization` / `useGlassOrb`) is the product. Animation must be flawless and physics-accurate; surrounding UI fades out during session. Honor `prefers-reduced-motion`.
 4. **Habit > novelty.** Gamification exists to drive return visits. Never let the motivational layer overpower the breathwork itself.
 
 ---
 
 ## Design Context: `/korea/*` — Korea Trip Itinerary
 
+Legacy Clerk-gated dossier for the May/June 2026 Seoul + Busan trip. Snapshot data also seeds trip `korea-2026` in the generic trips system. **Do not add new destination-specific routes** — new destinations go through `/trips`.
+
 ### Users
-Anthony (primary) and his partner, while planning + executing a 12-day Seoul + Busan trip in late May / early June 2026. Used on phones for in-trip lookups (reservations, nearby places, directions) and on desktop for planning. Authenticated behind Clerk so it's a private dossier.
+Anthony (primary) and his partner, while planning + executing a 12-day Seoul + Busan trip. Used on phones for in-trip lookups and on desktop for planning.
 
 ### Brand Personality
-**Cinematic, Personal, Refined.** A private travel concierge dossier — every reservation accounted for, every neighborhood researched, every recommendation reasoned. Map Mode is the centerpiece moment: a 3D orbital view where YOU sit at the center of the trip universe.
+**Cinematic, Personal, Refined.** A private travel concierge dossier. Map Mode is the centerpiece: Google Photorealistic 3D Tiles of the city, with a glassy YOU pin on the terrain.
 
-**Emotional goals:** Anticipation (the trip is coming, every piece feels considered) and confidence (no detail slips through). Should feel like a hand-bound itinerary booklet animated into the future.
+**Emotional goals:** Anticipation and confidence. Should feel like a hand-bound itinerary booklet animated into the future.
 
 ### Aesthetic Direction
-- **Visual tone:** Warm parchment base inherited from the shared palette, with a **rose / amber gradient bloom** as the signature. Korea's red-and-gold heritage referenced without literal kitsch — no taegukgi flag chrome, but the spirit of it.
-- **Hero gradient:** soft rose top-left → amber bottom-right radial blobs (animated, slow drift). Dark mode swaps to a purple / indigo / mauve nightscape so in-trip evening lookups feel travel-time-of-day appropriate.
-- **Glass orbs (Map Mode):** `MeshPhysicalMaterial` with `transmission: 0.7`, frosted `roughness`, `clearcoat`, subtle `iridescence`. Inner billboard plane carries the place's Wikipedia photo so it appears refracted through the glass. Fresnel rim shell adds an additive edge glow.
-- **YOU pin:** CSS-anchored to viewport center, independent of camera projection. The camera orbits *around* YOU.
-- **References:** Apple Maps' Look Around isometry combined with the small careful detail work of `flighty.app` and the editorial restraint of `monocle.com/travel`.
-- **Anti-references:** Cluttered booking aggregators (Booking.com), generic "trip planner" SaaS dashboards, kitsch tourism brochures, OpenStreetMap defaults.
-- **Theme:** Both light and dark are first-class — light during planning, dark for in-trip evening lookups.
+- **Visual tone:** Warm parchment base with a **rose / amber gradient bloom**. Korea's red-and-gold heritage without kitsch — no taegukgi chrome.
+- **Hero gradient:** soft rose top-left → amber bottom-right radial blobs. Dark mode swaps to a purple / indigo / mauve nightscape.
+- **YOU pin:** glassy `MeshPhysicalMaterial` droplet + water puddle (`youPin.ts`), snapped to the photogrammetry mesh. Label is DOM-projected from world coords — not a fixed CSS viewport-center pin.
+- **Place markers:** category-tinted `MeshStandardMaterial` spheres above terrain (not glass orbs). Glass/refraction is reserved for YOU.
+- **References:** Apple Maps Look Around, `flighty.app`, `monocle.com/travel`.
+- **Anti-references:** Booking.com clutter, generic trip-planner SaaS, tourism brochures, OSM defaults.
 
 ### Per-route Tokens
 
@@ -157,149 +173,107 @@ Anthony (primary) and his partner, while planning + executing a 12-day Seoul + B
 | Accent — supplemental | `#A8A29E` (stone-400) | `#78716C` (stone-500) | Supplemental / extras in Map Mode |
 | Success | `#10B981` (emerald-500) | `#34D399` (emerald-400) | Confirmed booking status |
 | Pending | `#F59E0B` (amber-500) | `#FBBF24` (amber-400) | Reservation pending |
-| Glass orb base | per-place category color | same | `MeshPhysicalMaterial` color tint |
+| Place marker | per-place category color | same | Emissive sphere + ground beam |
 
 ### Korea-specific Principles
 
-1. **YOU is the geometric + visual center.** The Map Mode camera orbits the user — never drifts. The CSS-anchored YOU label is non-negotiable; perspective rotates *around* it.
-2. **Refraction over flat fill.** Where reasonable, prefer materials that refract (glass orbs, frosted overlays) over solid shapes. The trip should feel three-dimensional, not pasted on.
-3. **Distance is information, not chrome.** Every place card / orb label surfaces distance + walking ETA prominently as a colored pill — it's the most-used piece of data, not a footnote.
-4. **Smart links everywhere.** Flight numbers → carrier tracker, KTX → Korail timetable, addresses → Google Maps, phones → `tel:`, times → AM/PM tooltip. Free-form copy gets auto-linked by the `LinkifiedText` engine.
-5. **PWA auto-update is mandatory.** Service worker + client must auto-swap to the latest version after each deploy — users should never see stale Map Mode. Bump `CACHE_VERSION` on every breaking SW change.
+1. **YOU is world-anchored on the mesh.** Camera target can lerp toward a selected place; reset returns to a 45° birds-eye on YOU.
+2. **Refraction is for the YOU pin only.** BreathFlow chrome stays matte.
+3. **Distance is information, not chrome.** Distance + walking ETA as a colored pill.
+4. **Smart links everywhere.** Flight #s, KTX, addresses, phones, times — `LinkifiedText`.
+5. **PWA auto-update is mandatory.** Bump `CACHE_VERSION` in `frontend/public/sw.js` on every breaking SW change. Current version is Korea-primary (`korea-offline-v*`), not `breathflow-offline-v*`.
 
 ### Map Mode-specific Conventions
 
-- Camera target = world origin
-- Default pitch ≈ 0.78 rad (top-down isometric)
-- All bubbles on the same `y = 1.6` plane (depth comes from camera angle, not staggered elevations — the user wants YOU as the unambiguous center)
-- No auto-rotate — scene stays still until dragged
-- Camera radius adapts per viewport (62 → 30 from 320 px → 1440 px)
-- Reset-view crosshair button restores yaw / pitch / radius
-- WebGL fallback: styled list view with the same filter chip bar + photo thumbnails
+- Overlay: `MapModeOverlay.tsx` (`placesUrl`). Scene: `Detailed3DScene.tsx` (Google Photorealistic 3D Tiles via `3d-tiles-renderer`). `MapModeScene.tsx` is gone — do not recreate the orbital bubble plane.
+- Trips pass `/api/trips/:id/days/:dayId/places` (same `PlacesResponse` / `RankedPlace` shape).
+- Reset pitch ≈ `Math.PI / 4`. No auto-rotate. Adaptive tile quality / DPR by device tier.
+- Missing tiles key or no WebGL → `MapModeFallbackList` (same filter chips).
+- **Must unmount** when closed — do not hide with React `Activity`.
+- Concierge chips may open Google/Apple Maps (`lib/externalMaps.ts`); in-app Map Mode stays for day/editor views.
+
+---
+
+## Design Context: `/trips/*` — Generic Trip Planner
+
+Clerk-gated dossier planner. Korea is one seeded trip (`korea-2026`); every new destination is a trip document, not a new route tree.
+
+### Users
+The same travelers as Korea, plus future trips. Phone for in-trip lookups; desktop for planning, AI enhance, and concierge chat.
+
+### Brand Personality
+**Same cinematic dossier language as Korea**, parameterized by a per-trip accent (`data-trip-accent` → `--trips-accent` in `index.css`). Not a SaaS admin table.
+
+### Aesthetic Direction
+- Reuse Korea's parchment, bloom, photorealistic Map Mode, and editorial type.
+- Accent is trip-owned (rose, amber, etc.) — do not invent a second chrome color.
+- Overview (`/trips/:tripId`) is a read-only dossier. Editor is `/trips/:tripId/edit`. Concierge FAB (`TripChat`) lives on overview + day pages, not on create/edit.
+- Instagram ingest is embedded in the editor (`TripIngest`), not a standalone route.
+
+### Trips-specific Principles
+
+1. **Do not add `/japan`-style destination routes.** Extend `server/src/trips/` + `frontend/src/pages/Trips/`.
+2. AI-added places must carry structured `TripLocation` (lat/lng/category/source) — never prose only.
+3. Map Mode contract is the Korea `PlacesResponse` / `RankedPlace` shape.
+4. Frontend I/O is Effect (`tripsApi.ts`, `tripChatApi.ts`).
 
 ---
 
 ## Service Worker / Caching Contract
 
-The app is a PWA. Every deploy must keep these invariants:
+The installable PWA is Korea-scoped (`korea.webmanifest`, `CACHE_VERSION = korea-offline-v*`). BreathFlow has `site.webmanifest` but SW comments treat Korea as the install target. Every deploy must keep:
 
 - **`/sw.js`** served with `Cache-Control: no-cache, no-store, must-revalidate` + `Service-Worker-Allowed: /`
 - **SPA HTML** served with `no-cache, no-store, must-revalidate`
 - **`/assets/*`** content-hashed bundles served with `public, max-age=31536000, immutable`
-- **`CACHE_VERSION`** in `sw.js` MUST be bumped on every SW-behavior change
-- The client (`serviceWorker.ts`) posts `SKIP_WAITING` and reloads on `controllerchange` — gives users seamless updates without a manual hard refresh
+- **`CACHE_VERSION`** MUST be bumped on every SW-behavior change
+- Client (`serviceWorker.ts`) posts `SKIP_WAITING` and reloads on `controllerchange`
+- Preview paths (`/preview/`) must never be cached as production
+
+`frontend/public/robots.txt` and `sitemap.xml` exist (`Disallow: /preview/`).
 
 ---
 
-## Design Audit (March 2025) — BreathFlow
+## Design Audit Status
 
-Comprehensive audit of the BreathFlow frontend. Use these findings to guide any design or accessibility work.
+The March 2025 BreathFlow audit is **historical**. Do not "fix" items that are already closed.
 
-### Anti-Pattern Verdict: FAIL (8/10 AI slop tells)
+**Resolved:** light + dark tokens; `prefers-reduced-motion` (`useReducedMotion` + CSS); viewport pinch-zoom (`user-scalable=no` removed); `robots.txt`; BreathFlow rebuild in `frontend/src/breathflow/` with ARIA (`LiveAnnouncer`, session regions); orb reduced-motion in `OrbVisualization` / `useGlassOrb`.
 
-The current UI reads as AI-generated. Specific tells:
-- Indigo-on-navy gradient palette (the "AI color palette")
-- Dark mode with glowing accents as the only theme
-- Glassmorphism everywhere (38 occurrences across 8 files, 8 redundant glass CSS classes)
-- Gradient text on headings (`App.tsx:258,353`, `Header.tsx:56`)
-- Hero metric layout on dashboard (big number + small label, repeated 4x)
-- Identical technique card grid (4 same-sized cards, same layout)
-- Cards nested inside cards throughout
-- `--spring-bounce` easing used (`KirbyCharacter.tsx:40,69,79`)
+**Still worth watching:** leftover inline hex in some settings/badge surfaces; 44 px touch targets on compact toggles; token completeness.
 
-### Critical Issues (Fix First)
-
-1. **No light theme exists.** Only dark tokens in `:root` and `.breathwork` (index.css:325-370). Only 2 files use `dark:` variants. `color-scheme: dark` hardcoded (index.css:29). Must build entire light token system from scratch.
-
-2. **Zero `prefers-reduced-motion` support.** 0 occurrences in entire codebase. 15+ CSS animations and spring-based Framer Motion animations. The breathing orb is large, continuous, and central — dangerous for vestibular disorders.
-
-3. **Zero ARIA in breathing components.** No `aria-live`, `aria-label`, or `role` attributes in BreathingSession.tsx, Timer.tsx, PhaseIndicator.tsx, or FluidOrb.tsx. Phase transitions and countdown are invisible to screen readers. This is the core product feature.
-
-4. **`user-scalable=no` in viewport meta** (index.html:5). Blocks pinch-to-zoom. WCAG 1.4.4 violation. Remove `maximum-scale=1.0, user-scalable=no`.
-
-### High-Severity Issues
-
-5. **Hard-coded colors bypass tokens.** Inline styles with hex/rgba throughout: Settings.tsx (7), App.tsx (15+), FluidOrb.tsx phase colors, BadgeGrid.tsx gradients. These won't respond to theme changes.
-
-6. **Invalid hex opacity syntax.** PhaseIndicator.tsx and BreathingSession.tsx append opacity hex digits to strings (`${color}1A`). Fragile and non-standard.
-
-7. **FluidOrb is a div with onClick, not a button.** Not keyboard-accessible (no tabIndex, no keyboard handler, no ARIA role). WCAG 2.1.1 violation.
-
-8. **Session controls auto-hide risks keyboard trap.** Controls fade to 20% opacity but remain in DOM. Users tabbing can't see focused element. WCAG 2.1.2 risk.
-
-9. **Touch targets below 44px.** Nav icons: 38x38px. Settings toggle thumbs: 20x20px.
-
-10. **No `robots.txt`.** Returns HTML page (SPA fallback). Lighthouse Best Practices: 77.
-
-11. **Font becoming generic.** DM Sans increasingly common in AI outputs. Display font (Anybody) is distinctive but underused.
-
-### Medium Issues
-
-12. Gradient text on headings (anti-pattern)
-13. Hero metric layout pattern repeated on dashboard
-14. Center-aligned everything (should use asymmetric left-aligned layouts)
-15. No container queries (`@container`) — all responsive via viewport breakpoints
-16. Monotonous spacing (same `gap-4`, `p-6` everywhere, no rhythm)
-17. No fluid typography (fixed Tailwind classes, no `clamp()`)
-18. `background-position` animation on breath gradient — non-GPU property, CPU repaints every frame for 15s
-19. Excessive `will-change` (12+ elements) — remove and let browser auto-optimize
-
-### Low Issues
-
-20. Pure `#fff` in LevelRing (Home.tsx:138) — should tint
-21. Orphaned `App.css` with unused `--text-color` variable
-22. Dead code: `frontend/src/lib/colors.ts` exports unused color object
-23. PostHog API key hardcoded in App.tsx:100 (move to env var)
-24. Profile image in Settings missing `loading="lazy"`
-
-### Lighthouse Scores
-
-| Metric | Desktop | Mobile |
-|--------|---------|--------|
-| Accessibility | 89 | 82 |
-| Best Practices | 77 | 77 |
-| SEO | 91 | 91 |
-
-### Positive Findings (Preserve These)
-
-- **Solid engineering:** Zustand stores, well-structured hooks, proper code-splitting with `lazy()`, clean TypeScript
-- **Token system infrastructure exists:** shadcn/ui HSL CSS variables in tailwind.config.js — just needs light values added
-- **Safe area handling is thorough:** `env(safe-area-inset-*)`, visual viewport API for keyboard avoidance
-- **Performance-conscious:** `content-visibility: auto` on session items, GPU-accelerated transforms, RAF-based pointer tracking
-- **Good animation foundation:** Custom easing curves, spring physics, staggered reveals — technically solid
-
-### Remediation Priority
-
-1. **Immediate:** Remove `user-scalable=no`, add `prefers-reduced-motion`, add ARIA to breathing components, add `robots.txt`
-2. **Short-term (design overhaul):** Build light-mode token set, strip glassmorphism/glow excess, normalize all colors to tokens, rebuild visual identity with distinctive typography and asymmetric layouts
-3. **Medium-term:** Container queries, fluid typography, redesign technique cards with hierarchy, rethink stats away from hero metric pattern
-4. **Long-term:** Full WCAG AA audit post-overhaul, evaluate Clerk cookies, consider body font replacement
+Do not search for deleted files (`FluidOrb.tsx`, `BreathingSession.tsx`, `pages/Home.tsx`, `components/breathing/`, `sessionStore`, `KirbyCharacter.tsx`).
 
 ---
 
 ## Agent skills
 
-Read the matching skill before writing code. Effect I/O rules win when they conflict with generic React fetch/SWR examples.
+Read the matching skill before writing code. Catalog: [`.agents/skills/README.md`](.agents/skills/README.md). Effect I/O rules win when they conflict with generic React fetch/SWR examples.
 
 | Skill | When |
 |-------|------|
-| [`.claude/skills/effect-ts/SKILL.md`](.claude/skills/effect-ts/SKILL.md) (mirrored at `.agents/skills/effect-ts/SKILL.md`) | Any frontend `/api`, SSE, or third-party HTTP. Required. |
-| `vercel-react-best-practices` | React 19 render and bundle performance |
+| [`effect-ts`](.agents/skills/effect-ts/SKILL.md) | Any frontend `/api`, SSE, or third-party HTTP. Required. |
+| `vercel-react-best-practices` | React 19 render and bundle performance. Translate Next.js examples to Vite/`React.lazy` + Hono. |
+| `impeccable` | Design, critique, polish. Reads `PRODUCT.md`. |
+| `clerk` + `clerk-react-patterns` | Clerk auth. Core 2 `@clerk/clerk-react`. See [`.agents/memory/clerk.md`](.agents/memory/clerk.md). |
+| `clerk-testing` / `clerk-cli` | Tests or dashboard/CLI only |
 
-Short pointer: [`.agents/memory/effect-ts.md`](.agents/memory/effect-ts.md).
+**Do not apply** Clerk Next.js / React Router SSR / Expo / Vue / mobile / billing / orgs / webhook skills — wrong stack. `design-taste-frontend` is landing-page only (not BreathFlow/Korea/Trips). Prefer impeccable over `redesign-existing-projects`.
+
+Short pointers: [`.agents/memory/effect-ts.md`](.agents/memory/effect-ts.md), [`.agents/memory/ci-cd.md`](.agents/memory/ci-cd.md), [`.agents/memory/clerk.md`](.agents/memory/clerk.md).
 
 ---
 
 ## CI/CD (agent memory)
 
-Canonical reference: [`docs/ci-cd.md`](docs/ci-cd.md) (mirrored pointer at `.agents/memory/ci-cd.md`).
+Canonical reference: [`docs/ci-cd.md`](docs/ci-cd.md).
 
-- PR gate: `.github/workflows/pr.yml` → aggregate check `pr-gate` (branch-protection required context; starts immediately so merge UIs wait).
-- PR preview (not a gate): `.github/workflows/preview.yml` → `https://anthonyl.im/preview/pr/<n>/` (frontend + loopback `/api` sidecar, cap 1). Agent guide: [`docs/pr-previews.md`](docs/pr-previews.md).
+- PR gate: `.github/workflows/pr.yml` → aggregate check `pr-gate` (branch-protection required context; starts immediately so merge UIs wait). Also runs on `merge_group`.
+- PR preview (not a gate): `.github/workflows/preview.yml` → `https://anthonyl.im/preview/pr/<n>/` (frontend + loopback `/api` sidecar, cap 1). **No production `/api` fallback.** Agent guide: [`docs/pr-previews.md`](docs/pr-previews.md).
 - Deploy on merge: `.github/workflows/deploy.yml` (atomic `anthonyl.im.next` swap + `/health` smoke).
 - Shared setup: `.github/actions/setup-ci` (Bun + `node_modules` caches).
 - Lockfiles: text `bun.lock` only; Dependabot uses `package-ecosystem: bun`. Never commit `bun.lockb`.
-- Local verify: `bash .codex/check.sh` (server tests + frontend typecheck). Full `pr-gate` also runs build + vitest + cloud-setup smoke.
+- Local verify: `bash .codex/check.sh` (or `bash .claude/cloud/verify.sh`) — server tests + frontend typecheck. Full `pr-gate` also runs build + vitest + both cloud-setup invariant scripts.
 
 ---
 
@@ -316,3 +290,5 @@ When creating a pull request that includes frontend changes (any modifications t
 4. Add the uploaded screenshot URLs to the PR description body
 
 If the preview is not live yet (serving code not on production, droplet down) **or** Chrome MCP is unavailable, fall back to `bun run dev` in `frontend/` and note that in the PR. Do not block PR creation on screenshot availability.
+
+This PR is docs/skills only — screenshots are not applicable.

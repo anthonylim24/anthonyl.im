@@ -1,5 +1,7 @@
 # Mobile Adaptation — Design Decisions
 
+> **Status:** SUPERSEDED by `frontend/src/breathflow/` rebuild. · Do not execute this plan. Historical artifact. Current behavior: `CLAUDE.md` and the live code.
+
 ## Paper Artboard
 - **Name**: "BreathFlow - Mobile Flow"
 - **Located in**: Breathwork.paper file, artboard `60-0`, positioned right of the desktop flow artboard
