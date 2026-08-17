@@ -137,11 +137,14 @@ import { shadcn } from '@clerk/ui/themes'
 <ClerkProvider appearance={{ theme: shadcn }} />
 ```
 
-Also import shadcn CSS in your global styles:
+**Tailwind CSS v4:** also import shadcn CSS in your global styles so Tailwind can detect the theme classes:
+
 ```css
 @import 'tailwindcss';
 @import '@clerk/ui/themes/shadcn.css';
 ```
+
+**Tailwind CSS v3:** do not import `@clerk/ui/themes/shadcn.css` or `@import 'tailwindcss'`. Pass shadcn tokens through `appearance.variables` instead (see the [variables](https://clerk.com/docs/nextjs/guides/customizing-clerk/appearance-prop/variables) docs).
 
 > **Core 2 ONLY (skip if current SDK):** Import from `@clerk/themes` and `@clerk/themes/shadcn.css`:
 > ```typescript

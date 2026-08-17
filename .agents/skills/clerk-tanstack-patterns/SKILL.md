@@ -32,13 +32,13 @@ metadata:
 
 ## Setup
 
-```
+```bash
 npm install @clerk/tanstack-react-start
 ```
 
 `.env`:
-```
-CLERK_PUBLISHABLE_KEY=pk_...
+```dotenv
+VITE_CLERK_PUBLISHABLE_KEY=pk_...
 CLERK_SECRET_KEY=sk_...
 ```
 

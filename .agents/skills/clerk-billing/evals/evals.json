@@ -4,14 +4,14 @@
     {
       "id": 1,
       "prompt": "i have a next.js saas app with clerk auth. i need to add a pricing page that shows subscription plans and lets users subscribe. connect clerk billing and render the pricing table.",
-      "expected_output": "A /pricing route renders <PricingTable /> from @clerk/nextjs, with instructions to enable Billing in the Clerk Dashboard (dev gateway or Stripe for production) and a version-pinning note for the experimental APIs.",
+      "expected_output": "A /pricing route renders <PricingTable /> from @clerk/nextjs, with instructions to enable Billing via `clerk enable billing` or the Clerk Dashboard (dev gateway or Stripe for production) and a version-pinning note for the experimental APIs.",
       "scaffold": "nextjs-basic-auth",
       "files": [],
       "assertions": [
         "Creates app/pricing/page.tsx that imports and renders <PricingTable /> from '@clerk/nextjs'",
         "Recommends pinning the Clerk SDK and clerk-js versions because billing APIs are experimental",
-        "States that Billing must be enabled in the Clerk Dashboard → Billing → Settings as a MANUAL step BEFORE rendering <PricingTable /> (surfaces the dashboard.clerk.com link or the error signature 'cannot_render_billing_disabled')",
-        "Does not claim that the Clerk CLI or Backend API can enable billing (the billing_settings toggle is Dashboard-only today)",
+        "States that Billing must be enabled via `clerk enable billing` or Dashboard → Billing → Settings BEFORE rendering <PricingTable /> (surfaces `clerk enable billing`, the dashboard.clerk.com link, or the error signature 'cannot_render_billing_disabled')",
+        "Does not claim that clerk config patch or raw Platform/Backend API calls can enable billing or manage the plans catalog",
         "States that plans must be created in the matching tab (User Plans for B2C / Organization Plans for B2B); slugs are scoped per tab",
         "Does not claim that plans sync to Stripe Products (Clerk Billing is a separate product from Stripe Billing)",
         "Does not import '@clerk/billing' as a separate package (billing APIs ship inside @clerk/nextjs)",
@@ -36,7 +36,7 @@
     {
       "id": 3,
       "prompt": "my b2b saas lets teams subscribe via their organization. i need per-seat billing where adding org members automatically increments the seat count. show me the org-level plan check to protect team-only routes.",
-      "expected_output": "Server component checks orgId is present then uses has({ plan: 'org:team' }) to gate org-scoped routes. Explanation CORRECTS the user's mental model: Clerk Billing uses seat-LIMIT plans (membership caps with fixed per-plan pricing), not Stripe-style per-seat metered billing where the charge scales per member. Recommends tiered plans for charging larger orgs more, and renders the B2B pricing page with <PricingTable for=\"organization\" />.",
+      "expected_output": "Server component checks orgId is present then uses has({ plan: 'org:team' }) to gate org-scoped routes. Explains Organization Plan pricing: seat-limit (fixed-price membership cap) and/or per-seat pricing (base fee, included seats, per-member fee; can combine with a seat cap). Per-seat Billing Plans require @clerk/nextjs v7.5.1+, @clerk/clerk-js v6.16.0+, @clerk/ui v1.16.0+. Renders the B2B pricing page with <PricingTable for=\"organization\" />.",
       "scaffold": "nextjs-basic-auth",
       "files": [],
       "assertions": [
@@ -44,8 +44,8 @@
         "Checks that orgId exists before checking the plan",
         "Uses has({ plan: 'org:team' }) for the org-level entitlement",
         "Redirects to a billing or pricing page when the org lacks the plan",
-        "Corrects the user's assumption of auto-incrementing per-seat billing, states Clerk uses seat-LIMIT plans (fixed price per plan + membership cap), not metered pricing that scales per member",
-        "Suggests creating tiered plans (e.g. starter 5 seats, team 10, enterprise unlimited) as the way to charge bigger orgs more",
+        "Accepts per-seat Organization Plan pricing (base fee, included seats, per-member fee, optional seat cap) and/or fixed-price seat-limit plans; does not treat fixed-price seat limits as the only model",
+        "If documenting per-seat Billing Plans, notes SDK requirements: @clerk/nextjs v7.5.1+, @clerk/clerk-js v6.16.0+, @clerk/ui v1.16.0+",
         "Recommends <PricingTable for=\"organization\" /> for the B2B pricing page",
         "States that the plan must be created under the 'Organization Plans' tab, not 'User Plans'",
         "Does not claim Clerk creates one Stripe subscription item per member, or that seat count equals items.length",
@@ -133,16 +133,16 @@
     {
       "id": 9,
       "prompt": "i'm trying to use clerk billing in my production app but i can't find the billing section in the dashboard and has({ plan }) always returns false. is billing broken?",
-      "expected_output": "Explanation that Clerk Billing must be explicitly enabled in Dashboard → Billing → Settings (this is Dashboard-only, the CLI and Backend API cannot toggle it). Mention that <PricingTable /> will throw 'cannot_render_billing_disabled' in development when this step is skipped.",
+      "expected_output": "Explanation that Clerk Billing must be explicitly enabled via `clerk enable billing` or Dashboard → Billing → Settings. Mention that <PricingTable /> will throw 'cannot_render_billing_disabled' in development when this step is skipped.",
       "scaffold": "nextjs-basic-auth",
       "files": [],
       "assertions": [
-        "States that Billing is not enabled by default and must be explicitly enabled in Dashboard → Billing → Settings",
-        "Surfaces the Dashboard link (dashboard.clerk.com) as the only way to toggle billing today",
+        "States that Billing is not enabled by default and must be explicitly enabled via `clerk enable billing` or Dashboard → Billing → Settings",
+        "Surfaces `clerk enable billing` and/or the Dashboard link (dashboard.clerk.com) as ways to enable billing",
         "Mentions the 'cannot_render_billing_disabled' error code or the '<PricingTable /> cannot be rendered when billing is disabled' message as the developer-facing signal",
         "Explains that has({ plan }) returns false when Billing is not enabled regardless of any Stripe configuration",
-        "Does not claim the Clerk CLI, clerk config patch, Backend API, or Platform API can enable billing",
-        "Does not diagnose this as a code bug before confirming Billing is enabled in Dashboard"
+        "Does not claim clerk config patch, Backend API, or raw Platform API can enable billing",
+        "Does not diagnose this as a code bug before confirming Billing is enabled"
       ]
     },
     {

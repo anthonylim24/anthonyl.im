@@ -48,12 +48,12 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 
 ## Environment Variables
 
-```
-CLERK_PUBLISHABLE_KEY=pk_...
+```dotenv
+VITE_CLERK_PUBLISHABLE_KEY=pk_...
 CLERK_SECRET_KEY=sk_...
 ```
 
-No framework-specific prefix needed (unlike `VITE_` or `NEXT_PUBLIC_`).
+The publishable key is client-facing and must use the `VITE_` prefix. Keep `CLERK_SECRET_KEY` unprefixed and server-only.
 
 ## API Routes
 
@@ -61,20 +61,24 @@ TanStack Start API routes live in `src/routes/api/`:
 
 ```typescript
 // src/routes/api/protected.ts
-import { createAPIFileRoute } from '@tanstack/react-start/api'
+import { createFileRoute } from '@tanstack/react-router'
 import { auth } from '@clerk/tanstack-react-start/server'
 
-export const Route = createAPIFileRoute('/api/protected')({
-  GET: async ({ request }) => {
-    const { isAuthenticated, userId } = await auth()
+export const Route = createFileRoute('/api/protected')({
+  server: {
+    handlers: {
+      GET: async ({ request }) => {
+        const { isAuthenticated, userId } = await auth()
 
-    if (!isAuthenticated) {
-      return new Response('Unauthorized', { status: 401 })
-    }
+        if (!isAuthenticated) {
+          return new Response('Unauthorized', { status: 401 })
+        }
 
-    return new Response(JSON.stringify({ userId }), {
-      headers: { 'Content-Type': 'application/json' },
-    })
+        return new Response(JSON.stringify({ userId }), {
+          headers: { 'Content-Type': 'application/json' },
+        })
+      },
+    },
   },
 })
 ```

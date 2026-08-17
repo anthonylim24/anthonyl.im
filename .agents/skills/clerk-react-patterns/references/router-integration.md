@@ -33,10 +33,12 @@ Configure where users land after sign-in/sign-up:
 ```tsx
 <ClerkProvider
   publishableKey={PUBLISHABLE_KEY}
-  afterSignInUrl="/dashboard"
-  afterSignUpUrl="/onboarding"
+  signInFallbackRedirectUrl="/dashboard"
+  signUpFallbackRedirectUrl="/onboarding"
 >
 ```
+
+Use `signInForceRedirectUrl` / `signUpForceRedirectUrl` only when every sign-in or sign-up must ignore a `redirect_url` query param.
 
 Or via environment variables:
 ```

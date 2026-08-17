@@ -56,7 +56,11 @@ export async function POST(req: NextRequest) {
 		return new Response('Verification failed', { status: 400 })
 	}
 
-	if (evt.type === 'subscription.created' || evt.type === 'subscription.active') {
+	if (
+		evt.type === 'subscription.created' ||
+		evt.type === 'subscription.active' ||
+		evt.type === 'subscription.updated'
+	) {
 		const { id, payer, items, status } = evt.data
 		const entityId = payer.organization_id ?? payer.user_id
 		const plan = items[0]?.plan?.slug
@@ -65,44 +69,67 @@ export async function POST(req: NextRequest) {
 			create: { subscriptionId: id, entityId, plan, status },
 			update: { entityId, plan, status },
 		})
-	}
-
-	if (evt.type === 'subscription.updated') {
-		const { id, payer, items, status } = evt.data
-		const entityId = payer.organization_id ?? payer.user_id
-		const plan = items[0]?.plan?.slug
-		await db.subscriptions.update({
-			where: { subscriptionId: id },
-			data: { entityId, plan, status },
-		})
+		// Persist item projections before any subscriptionItem.* event is processed.
+		for (const item of items ?? []) {
+			await db.subscriptionItems.upsert({
+				where: { itemId: item.id },
+				create: {
+					itemId: item.id,
+					subscriptionId: id,
+					entityId,
+					plan: item.plan?.slug,
+					status: item.status,
+				},
+				update: {
+					subscriptionId: id,
+					entityId,
+					plan: item.plan?.slug,
+					status: item.status,
+				},
+			})
+		}
 	}
 
 	if (evt.type === 'subscription.pastDue') {
 		const { id, status } = evt.data
-		await db.subscriptions.update({
+		await db.subscriptions.upsert({
 			where: { subscriptionId: id },
-			data: { status },
+			create: { subscriptionId: id, status },
+			update: { status },
 		})
 	}
 
 	if (evt.type === 'subscriptionItem.canceled') {
-		// Subscription item events carry only the item, not its parent subscription id.
-		// Identify the record by payer + plan slug.
-		const { payer, plan, canceled_at } = evt.data
+		// Item events carry the item id, not a parent subscription_id back-reference.
+		const { id, payer, plan, canceled_at } = evt.data
 		const entityId = payer?.organization_id ?? payer?.user_id
-		await db.subscriptionItems.update({
-			where: { entityId, plan: plan?.slug },
-			data: { status: 'canceled', canceledAt: canceled_at },
+		await db.subscriptionItems.upsert({
+			where: { itemId: id },
+			create: {
+				itemId: id,
+				entityId,
+				plan: plan?.slug,
+				status: 'canceled',
+				canceledAt: canceled_at,
+			},
+			update: { status: 'canceled', canceledAt: canceled_at },
 		})
 		// Notify user/org admin of cancellation
 	}
 
 	if (evt.type === 'subscriptionItem.pastDue') {
-		const { payer, plan, past_due_at } = evt.data
+		const { id, payer, plan, past_due_at } = evt.data
 		const entityId = payer?.organization_id ?? payer?.user_id
-		await db.subscriptionItems.update({
-			where: { entityId, plan: plan?.slug },
-			data: { status: 'past_due', pastDueAt: past_due_at },
+		await db.subscriptionItems.upsert({
+			where: { itemId: id },
+			create: {
+				itemId: id,
+				entityId,
+				plan: plan?.slug,
+				status: 'past_due',
+				pastDueAt: past_due_at,
+			},
+			update: { status: 'past_due', pastDueAt: past_due_at },
 		})
 		// Notify user/org admin of payment failure
 	}
@@ -223,7 +250,8 @@ The event data IS the item itself, not the parent subscription:
 - Plan slug is nested: `evt.data.items[i].plan?.slug` on subscription events, `evt.data.plan?.slug` on item events
 - Status values use snake_case (`past_due`, `active`, `canceled`), even though event names use camelCase (`subscription.pastDue`)
 - Always return `200` quickly. Handle async work in a queue or background job.
-- Use `upsert` in `subscription.created` handlers to tolerate webhook replays
+- Persist subscription-item projections from `subscription.created` / `subscription.updated` / `subscription.active` **before** relying on `subscriptionItem.*` events
+- Use idempotent `upsert` on every subscription and subscription-item write so replays and out-of-order item events do not fail
 - `CLERK_WEBHOOK_SIGNING_SECRET` must match the Signing Secret from the Clerk Dashboard endpoint
 
 ## Subscription Status Values

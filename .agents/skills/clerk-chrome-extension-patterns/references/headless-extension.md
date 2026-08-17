@@ -50,22 +50,47 @@ async function getSessionToken(): Promise<string | null> {
   return await clerk.session.getToken()
 }
 
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+const API_ORIGIN = process.env.PLASMO_PUBLIC_API_ORIGIN
+const ALLOWED_ORIGINS = new Set(
+  (process.env.PLASMO_PUBLIC_PAGE_VISIT_ORIGINS ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+)
+
+function sanitizePageUrl(rawUrl: string | undefined): string | null {
+  if (!rawUrl) return null
+  try {
+    const parsed = new URL(rawUrl)
+    if (!ALLOWED_ORIGINS.has(parsed.origin)) return null
+    // Strip query strings and fragments before transmission.
+    return `${parsed.origin}${parsed.pathname}`
+  } catch {
+    return null
+  }
+}
+
+chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo, tab) => {
   if (changeInfo.status !== 'complete') return
+
+  const url = sanitizePageUrl(tab.url)
+  if (!url) return
 
   const token = await getSessionToken()
   if (!token) return
 
-  await fetch('https://api.yourapp.com/page-visit', {
+  await fetch(`${API_ORIGIN}/page-visit`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ url: tab.url }),
+    body: JSON.stringify({ url }),
   })
 })
 ```
+
+Only report visits on origins the user explicitly allowlisted (`PLASMO_PUBLIC_PAGE_VISIT_ORIGINS`). Send the origin + pathname only — no query strings, fragments, titles, or tab metadata.
 
 ## Environment Variables
 
@@ -74,6 +99,8 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
 PLASMO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
 CLERK_FRONTEND_API=https://your-app.clerk.accounts.dev
 PLASMO_PUBLIC_CLERK_SYNC_HOST=http://localhost
+PLASMO_PUBLIC_API_ORIGIN=http://localhost:3000
+PLASMO_PUBLIC_PAGE_VISIT_ORIGINS=http://localhost:3000
 ```
 
 `.env.production`:
@@ -81,6 +108,8 @@ PLASMO_PUBLIC_CLERK_SYNC_HOST=http://localhost
 PLASMO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_...
 CLERK_FRONTEND_API=https://clerk.your-domain.com
 PLASMO_PUBLIC_CLERK_SYNC_HOST=https://clerk.your-domain.com
+PLASMO_PUBLIC_API_ORIGIN=https://api.yourapp.com
+PLASMO_PUBLIC_PAGE_VISIT_ORIGINS=https://app.yourapp.com
 ```
 
 ## Manifest Configuration
@@ -93,13 +122,14 @@ PLASMO_PUBLIC_CLERK_SYNC_HOST=https://clerk.your-domain.com
     "permissions": ["cookies", "storage", "tabs"],
     "host_permissions": [
       "$PLASMO_PUBLIC_CLERK_SYNC_HOST/*",
-      "$CLERK_FRONTEND_API/*"
+      "$CLERK_FRONTEND_API/*",
+      "$PLASMO_PUBLIC_API_ORIGIN/*"
     ]
   }
 }
 ```
 
-`host_permissions` for the sync host domain is what allows the extension to read the Clerk session cookie from the web app.
+`host_permissions` for the sync host domain is what allows the extension to read the Clerk session cookie from the web app. Include `$PLASMO_PUBLIC_API_ORIGIN/*` so the page-visit `fetch` can reach your backend. Keep the Sync Host and Clerk Frontend API entries.
 
 ## Register Extension in Clerk
 

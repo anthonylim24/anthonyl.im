@@ -285,7 +285,7 @@ All three remediation commands are themselves interactive by default: `auth logi
 - **Don't ignore the sandbox warning.** If the CLI says host-only Clerk state or system capabilities may be unavailable, rerun the same command on the host before trusting the result.
 - **Don't assume `clerk auth login` is fully unattended from an agent** - it opens a browser and waits for a callback. Prefer `CLERK_PLATFORM_API_KEY` for headless automation. `clerk init --app <id>` or init in an already linked project may still invoke the normal login fallback when a real app target is explicit.
 - **Don't call `clerk link` without `--app` and assume the agent can pick for you** - it only succeeds when silent autolink can determine the app from detected keys.
-- **Don't run `clerk unlink` in agent mode without `--yes`** - it exits with a usage error instead of prompting.
+- **Don't run `clerk unlink` in agent mode without `--yes`** - it is the exception that still requires `--yes` and exits with a usage error instead of prompting.
 - **Don't run `clerk config put` without `--dry-run` first** - it's a full replacement and is destructive.
-- **Don't skip `--yes` on mutations and expect them to work** - agent mode disables prompts, so commands that require confirmation will error.
+- **Don't treat `--yes` as a safety gate for other mutations** - agent mode skips confirmation, so most mutations (`config patch` / `put`, `api -X POST/PATCH/DELETE`, `users create`, `enable` / `disable`) execute immediately. Get external approval first, or preview with `--dry-run` when the command supports it.
 - **Don't leak secret keys into logs** - the CLI never prints the raw secret key, and you shouldn't either.

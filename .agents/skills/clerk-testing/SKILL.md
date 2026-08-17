@@ -7,7 +7,7 @@ license: MIT
 metadata:
   author: clerk
   version: 1.2.0
-compatibility: Requires CLERK_TESTING_TOKEN from Clerk dashboard
+compatibility: Requires CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY
 ---
 
 # Testing
@@ -23,16 +23,19 @@ compatibility: Requires CLERK_TESTING_TOKEN from Clerk dashboard
 ## Mental Model
 
 Test auth = isolated session state. Each test needs fresh auth context.
-- `clerkSetup()` initializes test environment
-- `setupClerkTestingToken()` bypasses bot detection
+- Required env: `CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` (test instance keys only)
+- `clerkSetup()` initializes the test environment and retrieves a Testing Token
+- `setupClerkTestingToken()` injects that token to bypass bot detection
 - `storageState` persists auth between tests for speed
+- `CLERK_TESTING_TOKEN` is optional: set it only to override `clerkSetup()` with a token you minted via the Backend API. Do not require a Dashboard-issued Testing Token.
 
 ## Workflow
 
 1. Identify test framework (Playwright or Cypress)
-2. WebFetch the appropriate URL from decision tree above
-3. Follow official setup instructions
-4. Use `pk_test_*` and `sk_test_*` keys only
+2. Confirm `CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` are set (`pk_test_*` / `sk_test_*`)
+3. WebFetch the appropriate URL from decision tree above
+4. Follow official setup instructions (`clerkSetup()` obtains the Testing Token)
+5. Use `pk_test_*` and `sk_test_*` keys only
 
 ## Best Practices
 

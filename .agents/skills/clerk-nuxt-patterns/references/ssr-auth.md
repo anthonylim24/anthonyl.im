@@ -7,8 +7,8 @@
 | Context | How to get auth |
 |---------|----------------|
 | Vue component (`<script setup>`) | `useAuth()`, `useUser()` composables |
-| Nitro server route | `event.context.auth` |
-| Nuxt plugin (server) | `event.context.auth` via `useNitroApp` |
+| Nitro server route | `event.context.auth()` |
+| Nuxt plugin (server) | `event.context.auth()` via `useNitroApp` |
 
 ## SSR-Safe Page Pattern
 
@@ -55,12 +55,10 @@ Pass the session token to server-side `useFetch` for authenticated API calls:
 ```vue
 <script setup lang="ts">
 const { getToken } = useAuth()
+const token = await getToken.value()
 
 const { data } = await useFetch('/api/protected', {
-  headers: async () => {
-    const token = await getToken()
-    return token ? { Authorization: `Bearer ${token}` } : {}
-  },
+  headers: token ? { Authorization: `Bearer ${token}` } : {},
 })
 </script>
 ```
@@ -71,11 +69,24 @@ When using Pinia with Clerk, hydrate the store with server auth state to avoid c
 
 ```ts
 // plugins/auth-hydration.ts
+import { watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 
 export default defineNuxtPlugin(async () => {
   const store = useAuthStore()
-  await until(store.isLoaded).toBeTruthy()
+  if (store.isLoaded) return
+
+  await new Promise<void>((resolve) => {
+    const stop = watch(
+      () => store.isLoaded,
+      (loaded) => {
+        if (loaded) {
+          stop()
+          resolve()
+        }
+      },
+    )
+  })
 })
 ```
 

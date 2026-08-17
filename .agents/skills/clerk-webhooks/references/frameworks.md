@@ -19,8 +19,9 @@ app.post('/api/webhooks', express.raw({ type: 'application/json' }), async (req,
     const evt = await verifyWebhook(req)
 
     if (evt.type === 'user.created') {
-      const { id, email_addresses, first_name, last_name } = evt.data
-      const email = email_addresses[0]?.email_address
+      const { email_addresses, primary_email_address_id, first_name, last_name } = evt.data
+      const email = email_addresses.find((e) => e.id === primary_email_address_id)?.email_address
+      if (!email) return res.send('Webhook received')
       console.log(`New user: ${first_name} ${last_name} (${email})`)
     }
 
@@ -46,8 +47,9 @@ export const POST: APIRoute = async ({ request }) => {
     })
 
     if (evt.type === 'user.created') {
-      const { id, email_addresses } = evt.data
-      const email = email_addresses[0]?.email_address
+      const { id, email_addresses, primary_email_address_id } = evt.data
+      const email = email_addresses.find((e) => e.id === primary_email_address_id)?.email_address
+      if (!email) return new Response('Webhook received', { status: 200 })
       console.log(`New user: ${id} (${email})`)
     }
 

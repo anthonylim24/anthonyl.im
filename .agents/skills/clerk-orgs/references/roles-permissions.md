@@ -23,6 +23,7 @@ These are the only built-in Permissions. Use them verbatim; do NOT invent shorte
 | `org:sys_memberships:manage` | Invite, remove, and change roles of members |
 | `org:sys_domains:read` | View Verified Domains |
 | `org:sys_domains:manage` | Add / verify / remove Verified Domains |
+| `org:sys_entconns:manage` | Manage self-service Enterprise SSO connections for the Organization |
 | `org:sys_billing:read` | View billing info (subscription, invoices) |
 | `org:sys_billing:manage` | Manage billing (change plan, payment method) |
 
@@ -92,8 +93,11 @@ Three surfaces, same semantics:
 import { auth } from '@clerk/nextjs/server'
 const { has } = await auth()
 has({ role: 'org:admin' })
-has({ permission: 'org:sys_memberships:manage' })
+has({ permission: 'org:sys_memberships:manage' }) // system permission — valid on has()
+has({ permission: 'org:billing:manage' })        // custom permission
 ```
+
+`has()` accepts system permissions. `auth.protect()` in middleware should use a role or a custom permission such as `org:billing:manage`, not a system permission.
 
 ```tsx
 // Client (any React-based SDK)

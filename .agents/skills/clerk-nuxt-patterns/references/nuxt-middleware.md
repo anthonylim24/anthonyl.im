@@ -1,8 +1,19 @@
 # Nuxt Middleware (CRITICAL)
 
-## Built-in Auth Middleware
+## Named Auth Route Middleware
 
-`@clerk/nuxt` auto-registers an `auth` named middleware. Use it with `definePageMeta`:
+Create `app/middleware/auth.ts` and attach it with `definePageMeta`. Use `useAuth()` + `navigateTo()` — do not use `clerkMiddleware()` for client-side navigations.
+
+```ts
+// app/middleware/auth.ts
+export default defineNuxtRouteMiddleware(() => {
+  const { isSignedIn } = useAuth()
+
+  if (!isSignedIn.value) {
+    return navigateTo('/sign-in')
+  }
+})
+```
 
 ```vue
 <script setup lang="ts">
@@ -10,11 +21,9 @@ definePageMeta({ middleware: 'auth' })
 </script>
 ```
 
-This redirects unauthenticated users to the sign-in page automatically.
-
 ## Custom Route Middleware
 
-Create `middleware/require-org.ts` for custom logic:
+Create `app/middleware/require-org.ts` for custom logic:
 
 ```typescript
 export default defineNuxtRouteMiddleware(() => {
@@ -46,7 +55,7 @@ For API-level protection in `server/middleware/auth.ts`:
 import { clerkClient } from '@clerk/nuxt/server'
 
 export default defineEventHandler(async (event) => {
-  const auth = event.context.auth
+  const auth = event.context.auth()
 
   if (getRequestURL(event).pathname.startsWith('/api/protected')) {
     if (!auth?.userId) {
@@ -59,7 +68,7 @@ export default defineEventHandler(async (event) => {
 ## Redirect URLs
 
 Configure in `.env`:
-```
+```dotenv
 NUXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
 NUXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
 NUXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/dashboard

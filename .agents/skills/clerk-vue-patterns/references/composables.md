@@ -51,15 +51,23 @@ const { organization, membership, isLoaded } = useOrganization()
 
 `organization` is `Ref<Organization | null>`. `membership` includes `role`.
 
-## useOrganizationList
+## Org switching
+
+`useOrganizationList` is not exported from `@clerk/vue`. List memberships from `useUser()` and switch with `useClerk().setActive()`:
 
 ```ts
-import { useOrganizationList } from '@clerk/vue'
+import { useClerk, useOrganization, useUser } from '@clerk/vue'
 
-const { userMemberships, setActive } = useOrganizationList()
+const clerk = useClerk()
+const { organization, membership, isLoaded } = useOrganization()
+const { user } = useUser()
+
+async function switchOrg(orgId: string) {
+  await clerk.value?.setActive({ organization: orgId })
+}
+
+const memberships = user.value?.organizationMemberships ?? []
 ```
-
-`userMemberships.data` is an array of memberships. Call `setActive({ organization: id })` to switch.
 
 ## useSignIn / useSignUp
 
@@ -83,4 +91,4 @@ async function submit(email: string, password: string) {
 
 - All composables return refs — access values with `.value` outside of templates
 - Check `isLoaded` before rendering auth-gated UI to prevent flashes
-- `useOrganizationList` returns `userMemberships` as a paginated resource — access `.data` for the array
+- Do not import `useOrganizationList` — switch orgs with `useClerk().setActive()` and `user.organizationMemberships`

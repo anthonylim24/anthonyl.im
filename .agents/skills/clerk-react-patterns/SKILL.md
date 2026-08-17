@@ -35,12 +35,12 @@ metadata:
 
 ## Setup
 
-```
+```bash
 npm install @clerk/react
 ```
 
 `.env`:
-```
+```dotenv
 VITE_CLERK_PUBLISHABLE_KEY=pk_...
 ```
 

@@ -38,38 +38,38 @@ const { isLoaded, isSignedIn, user } = useUser()
 
 ## useClerk()
 
-Access the Clerk instance for programmatic actions:
+Access the Clerk instance for programmatic actions. `clerk` is a ref — use `.value` in `<script setup>`:
 
 ```vue
 <script setup lang="ts">
 const clerk = useClerk()
 
 function handleSignOut() {
-  clerk.signOut()
+  clerk.value?.signOut()
 }
 
 function openProfile() {
-  clerk.openUserProfile()
+  clerk.value?.openUserProfile()
 }
 </script>
 ```
 
 ## useSignIn() / useSignUp()
 
-For custom auth flows:
+For custom auth flows. `signIn` and `setActive` are refs — use `.value` in `<script setup>`:
 
 ```vue
 <script setup lang="ts">
 const { signIn, setActive } = useSignIn()
 
 async function handleLogin(email: string, password: string) {
-  const result = await signIn.create({
+  const result = await signIn.value.create({
     identifier: email,
     password,
   })
 
   if (result.status === 'complete') {
-    await setActive({ session: result.createdSessionId })
+    await setActive.value({ session: result.createdSessionId })
     navigateTo('/dashboard')
   }
 }
@@ -78,12 +78,12 @@ async function handleLogin(email: string, password: string) {
 
 ## Ref vs Value
 
-Composables return `Ref<T>` values. Access with `.value` in `<script setup>` but NOT in templates:
+Composable **properties** (`isSignedIn`, `userId`, `signIn`, `setActive`, `getToken`, `clerk`) are refs. Access with `.value` in `<script setup>` but not in templates:
 
 ```vue
 <script setup lang="ts">
-const { isSignedIn, userId } = useAuth()
-// In script: isSignedIn.value, userId.value
+const { isSignedIn, userId, getToken } = useAuth()
+// In script: isSignedIn.value, userId.value, await getToken.value()
 </script>
 
 <template>

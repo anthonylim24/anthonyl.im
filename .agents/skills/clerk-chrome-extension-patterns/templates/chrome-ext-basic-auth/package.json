@@ -3,10 +3,10 @@
   "displayName": "Clerk Chrome Extension",
   "scripts": { "dev": "plasmo dev", "build": "plasmo build" },
   "dependencies": {
-    "@clerk/chrome-extension": "latest",
-    "plasmo": "latest",
-    "react": "latest",
-    "react-dom": "latest"
+    "@clerk/chrome-extension": "^2.5.21",
+    "plasmo": "^0.90.5",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
   },
   "manifest": {
     "key": "$CRX_PUBLIC_KEY",

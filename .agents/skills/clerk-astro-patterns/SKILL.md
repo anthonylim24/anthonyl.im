@@ -43,12 +43,16 @@ Request → clerkMiddleware() → SSR page → Astro.locals.auth()
 
 ### astro.config.mjs
 
+Install `@astrojs/node` (or another adapter) — `output: 'server'` requires one.
+
 ```ts
 import { defineConfig } from 'astro/config'
 import clerk from '@clerk/astro'
+import node from '@astrojs/node'
 
 export default defineConfig({
   integrations: [clerk()],
+  adapter: node({ mode: 'standalone' }),
   output: 'server',
 })
 ```
@@ -84,7 +88,7 @@ if (!userId) return Astro.redirect('/sign-in')
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | `Astro.locals.auth` is undefined | Missing middleware | Add `clerkMiddleware` to `src/middleware.ts` |
-| Auth works in dev but not production | `output: 'static'` globally | Set `output: 'server'` or `hybrid` for protected pages |
+| Auth works in dev but not production | `output: 'static'` globally | Set `output: 'server'` (requires an adapter), or keep `output: 'static'` and add `export const prerender = false` on protected routes |
 | Static page has no auth | Prerendered pages skip middleware | Use `export const prerender = false` or move to island |
 | Island not reactive to sign-in | Missing `client:load` directive | Add `client:load` to the island component |
 

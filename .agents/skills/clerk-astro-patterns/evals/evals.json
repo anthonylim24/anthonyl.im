@@ -30,13 +30,14 @@
     {
       "id": 3,
       "prompt": "i need to protect an Astro API route at /api/data.ts so only authenticated users can call it. return 401 if not authenticated.",
-      "expected_output": "API route reads Astro.locals.auth() to get userId, returns 401 Response when not authenticated",
+      "expected_output": "API route reads context.locals.auth() to get userId, returns 401 Response when not authenticated, and is request-time rendered",
       "scaffold": "astro-basic-auth",
       "expectations": [
-        "Reads Astro.locals.auth() in the GET or POST handler",
+        "Reads context.locals.auth() in the GET or POST handler",
         "Returns new Response('Unauthorized', { status: 401 }) when userId is falsy",
         "Uses userId in the data fetching logic",
-        "Does NOT require auth in the static prerender path"
+        "Does NOT treat static prerendering as an authentication solution",
+        "Uses export const prerender = false or output: 'server' so the route is request-time rendered"
       ]
     },
     {
@@ -62,7 +63,7 @@
         "Suggests removing export const prerender = true for pages that need auth",
         "OR suggests using client-side useAuth in island components for partially static pages",
         "Does NOT suggest that Astro.locals.auth() works on prerendered pages",
-        "Explains the hybrid rendering approach (output: hybrid in astro.config.mjs)"
+        "Recommends output: 'server' (requires an adapter), or output: 'static' with export const prerender = false on protected routes"
       ]
     },
     {

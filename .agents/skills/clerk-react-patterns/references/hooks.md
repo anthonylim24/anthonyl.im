@@ -48,7 +48,7 @@ export function Profile() {
     <div>
       <img src={user.imageUrl} alt={user.fullName ?? ''} />
       <p>{user.firstName} {user.lastName}</p>
-      <p>{user.emailAddresses[0]?.emailAddress}</p>
+      <p>{user.primaryEmailAddress?.emailAddress}</p>
     </div>
   )
 }
@@ -78,20 +78,34 @@ export function NavBar() {
 ```tsx
 import { useAuth } from '@clerk/react'
 
+function isAllowedUrl(url: string): boolean {
+  if (url.startsWith('/') && !url.startsWith('//')) return true
+  try {
+    const allowed = new Set([
+      window.location.origin,
+      // 'https://api.example.com',
+    ])
+    return allowed.has(new URL(url).origin)
+  } catch {
+    return false
+  }
+}
+
 export function useAuthFetch() {
   const { getToken } = useAuth()
 
   return async function authFetch(url: string, init?: RequestInit) {
+    if (!isAllowedUrl(url)) {
+      throw new Error('Blocked request to untrusted origin')
+    }
+
     const token = await getToken()
     if (!token) throw new Error('Not authenticated')
 
-    return fetch(url, {
-      ...init,
-      headers: {
-        ...init?.headers,
-        Authorization: `Bearer ${token}`,
-      },
-    })
+    const headers = new Headers(init?.headers)
+    headers.set('Authorization', `Bearer ${token}`)
+
+    return fetch(url, { ...init, headers })
   }
 }
 ```

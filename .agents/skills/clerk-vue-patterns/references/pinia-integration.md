@@ -42,21 +42,25 @@ const auth = useAuthStore()
 
 ```ts
 // stores/org.ts
+import { computed } from 'vue'
 import { defineStore } from 'pinia'
-import { useOrganization, useOrganizationList } from '@clerk/vue'
+import { useClerk, useOrganization, useUser } from '@clerk/vue'
 
 export const useOrgStore = defineStore('org', () => {
-  const { organization, membership } = useOrganization()
-  const { userMemberships, setActive } = useOrganizationList()
+  const clerk = useClerk()
+  const { organization, membership, isLoaded } = useOrganization()
+  const { user } = useUser()
+  const memberships = computed(() => user.value?.organizationMemberships ?? [])
 
   function switchOrg(orgId: string) {
-    return setActive.value!({ organization: orgId })
+    return clerk.value?.setActive({ organization: orgId })
   }
 
   return {
+    isLoaded,
     organization,
     membership,
-    userMemberships,
+    memberships,
     switchOrg,
   }
 })

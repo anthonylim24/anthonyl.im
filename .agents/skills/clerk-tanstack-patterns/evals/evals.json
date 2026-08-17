@@ -68,7 +68,7 @@
     },
     {
       "id": 6,
-      "prompt": "i have a tanstack start api route that needs to verify the user is authenticated before processing a webhook or mutation. show me how to protect it.",
+      "prompt": "i have a tanstack start api route that needs to verify the user is authenticated before processing a mutation. show me how to protect it.",
       "expected_output": "API route handler using auth() from server package to verify auth state, returns 401 if not authenticated",
       "scaffold": "tanstack-basic-auth",
       "expectations": [
@@ -77,6 +77,19 @@
         "Extracts userId or sessionId from the auth result",
         "Does NOT use client-side hooks in the server handler",
         "Correct import path used: @clerk/tanstack-react-start/server"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "i need a public tanstack start webhook endpoint that verifies clerk webhook signatures. do not require a signed-in user session.",
+      "expected_output": "Public API route using verifyWebhook from @clerk/tanstack-react-start/webhooks",
+      "scaffold": "tanstack-basic-auth",
+      "expectations": [
+        "Creates a public API route (e.g. /api/webhooks)",
+        "Imports verifyWebhook from @clerk/tanstack-react-start/webhooks",
+        "Calls verifyWebhook on the incoming request",
+        "Does NOT call auth() or require a user session",
+        "Returns 400 when verification fails"
       ]
     }
   ]

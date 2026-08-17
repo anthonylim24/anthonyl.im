@@ -63,37 +63,59 @@ export async function POST(req: NextRequest) {
     return new Response('Verification failed', { status: 400 })
   }
 
-  if (evt.type === 'user.created') {
-    const { id, email_addresses, first_name, last_name } = evt.data
-    const email = email_addresses[0]?.email_address
-    const name = `${first_name ?? ''} ${last_name ?? ''}`.trim()
-    await db.users.create({ data: { clerkId: id, email, name } })
-  }
+  const svixId = req.headers.get('svix-id')
+  if (!svixId) return new Response('Missing svix-id', { status: 400 })
 
-  if (evt.type === 'user.updated') {
-    const { id, email_addresses, first_name, last_name } = evt.data
-    const email = email_addresses[0]?.email_address
-    await db.users.update({ where: { clerkId: id }, data: { email, first_name, last_name } })
-  }
+  await db.$transaction(async (tx) => {
+    const receipt = await tx.webhookReceipts.createMany({
+      data: [{ svixId, eventType: evt.type }],
+      skipDuplicates: true,
+    })
+    if (receipt.count === 0) return // replay — already processed
 
-  if (evt.type === 'user.deleted') {
-    const { id } = evt.data
-    await db.users.delete({ where: { clerkId: id } })
-  }
+    if (evt.type === 'user.created' || evt.type === 'user.updated') {
+      const { id, email_addresses, primary_email_address_id, first_name, last_name } = evt.data
+      const email = email_addresses.find((e) => e.id === primary_email_address_id)?.email_address
+      if (!email) return
+      const name = `${first_name ?? ''} ${last_name ?? ''}`.trim()
+      await tx.users.upsert({
+        where: { clerkId: id },
+        create: { clerkId: id, email, name },
+        update: { email, name },
+      })
+    }
 
-  if (evt.type === 'organizationMembership.created') {
-    const { organization, public_user_data, role } = evt.data
-    const orgId = organization.id
-    const userId = public_user_data.user_id
-    await db.teamMembers.create({ data: { orgId, userId, role } })
-  }
+    if (evt.type === 'user.deleted') {
+      const { id } = evt.data
+      await tx.users.upsert({
+        where: { clerkId: id },
+        create: { clerkId: id, deletedAt: new Date() },
+        update: { deletedAt: new Date() },
+      })
+    }
 
-  if (evt.type === 'organizationMembership.deleted') {
-    const { organization, public_user_data } = evt.data
-    const orgId = organization.id
-    const userId = public_user_data.user_id
-    await db.teamMembers.delete({ where: { orgId_userId: { orgId, userId } } })
-  }
+    if (evt.type === 'organizationMembership.created') {
+      const { organization, public_user_data, role } = evt.data
+      const orgId = organization.id
+      const userId = public_user_data.user_id
+      await tx.teamMembers.upsert({
+        where: { orgId_userId: { orgId, userId } },
+        create: { orgId, userId, role },
+        update: { role },
+      })
+    }
+
+    if (evt.type === 'organizationMembership.deleted') {
+      const { organization, public_user_data } = evt.data
+      const orgId = organization.id
+      const userId = public_user_data.user_id
+      await tx.teamMembers.upsert({
+        where: { orgId_userId: { orgId, userId } },
+        create: { orgId, userId, leftAt: new Date() },
+        update: { leftAt: new Date() },
+      })
+    }
+  })
 
   return new Response('OK', { status: 200 })
 }
@@ -108,6 +130,7 @@ Notification-only handlers still verify the signature. Same pattern as the datab
 import { verifyWebhook } from '@clerk/nextjs/webhooks'
 import { NextRequest } from 'next/server'
 import { Resend } from 'resend'
+import { db } from '@/lib/db'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -121,34 +144,59 @@ export async function POST(req: NextRequest) {
     return new Response('Verification failed', { status: 400 })
   }
 
+  const svixId = req.headers.get('svix-id')
+  if (!svixId) return new Response('Missing svix-id', { status: 400 })
+
   // Step 2: Listen for user.created event
   if (evt.type === 'user.created') {
-    // Step 3: Extract user email and name from webhook payload
-    const { id, email_addresses, first_name, last_name } = evt.data
-    const email = email_addresses[0]?.email_address
+    // Step 3: Extract primary email and name from webhook payload
+    const { email_addresses, primary_email_address_id, first_name, last_name } = evt.data
+    const email = email_addresses.find((e) => e.id === primary_email_address_id)?.email_address
     const name = `${first_name ?? ''} ${last_name ?? ''}`.trim()
+    if (!email) {
+      return new Response('OK', { status: 200 })
+    }
 
-    // Step 4: Call Resend API to send welcome email
-    await resend.emails.send({
-      from: 'noreply@yourdomain.com',
-      to: email,
-      subject: 'Welcome!',
-      html: `<p>Hi ${name}, welcome to our app!</p>`,
-    })
+    // Step 4: Enqueue notifications on an idempotent outbox in the same
+    // transaction as the svix-id receipt. A worker sends Resend / Slack.
+    // Do not call those APIs in the request path before returning 2xx.
+    await db.$transaction(async (tx) => {
+      const receipt = await tx.webhookReceipts.createMany({
+        data: [{ svixId, eventType: evt.type }],
+        skipDuplicates: true,
+      })
+      if (receipt.count === 0) return
 
-    // Step 5: Post notification to Slack channel
-    await fetch(process.env.SLACK_WEBHOOK_URL!, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: `New user signed up: ${name} (${email})`,
-      }),
+      await tx.outbox.create({
+        data: { svixId, kind: 'welcome_email', payload: { email, name } },
+      })
+      await tx.outbox.create({
+        data: { svixId: `${svixId}:slack`, kind: 'slack_new_user', payload: { email, name } },
+      })
     })
   }
 
   // Always return 200 to acknowledge receipt
   return new Response('OK', { status: 200 })
 }
+
+// Worker (separate process): drain the outbox
+// const job = await db.outbox.findFirst({ where: { processedAt: null } })
+// if (job?.kind === 'welcome_email') {
+//   await resend.emails.send({
+//     from: 'noreply@yourdomain.com',
+//     to: job.payload.email,
+//     subject: 'Welcome!',
+//     html: `<p>Hi ${job.payload.name}, welcome to our app!</p>`,
+//   })
+// }
+// if (job?.kind === 'slack_new_user') {
+//   await fetch(process.env.SLACK_WEBHOOK_URL!, {
+//     method: 'POST',
+//     headers: { 'Content-Type': 'application/json' },
+//     body: JSON.stringify({ text: `New user signed up: ${job.payload.name} (${job.payload.email})` }),
+//   })
+// }
 ```
 
 **Also include proxy.ts (Next.js <=15: middleware.ts) to make the route public:**
@@ -179,46 +227,61 @@ export async function POST(req: NextRequest) {
     return new Response('Verification failed', { status: 400 })
   }
 
-  if (evt.type === 'organization.created') {
-    const { id, name } = evt.data
-    await db.workspaces.create({
-      data: { orgId: id, name, createdAt: new Date() },
+  const svixId = req.headers.get('svix-id')
+  if (!svixId) return new Response('Missing svix-id', { status: 400 })
+
+  await db.$transaction(async (tx) => {
+    const receipt = await tx.webhookReceipts.createMany({
+      data: [{ svixId, eventType: evt.type }],
+      skipDuplicates: true,
     })
-  }
+    if (receipt.count === 0) return
 
-  if (evt.type === 'organizationMembership.created') {
-    // Extract organization ID, user ID, and role from payload
-    const { organization, public_user_data, role } = evt.data
-    const orgId = organization.id
-    const userId = public_user_data.user_id
+    if (evt.type === 'organization.created') {
+      const { id, name } = evt.data
+      await tx.workspaces.upsert({
+        where: { orgId: id },
+        create: { orgId: id, name, createdAt: new Date() },
+        update: { name },
+      })
+    }
 
-    // Add to team_members table
-    await db.team_members.create({
-      data: { orgId, userId, role },
-    })
+    if (evt.type === 'organizationMembership.created') {
+      const { organization, public_user_data, role } = evt.data
+      const orgId = organization.id
+      const userId = public_user_data.user_id
 
-    // Create workspace record for new member
-    await db.workspaces.create({
-      data: { orgId, userId, createdAt: new Date() },
-    })
-  }
+      await tx.team_members.upsert({
+        where: { orgId_userId: { orgId, userId } },
+        create: { orgId, userId, role },
+        update: { role },
+      })
 
-  if (evt.type === 'organizationMembership.deleted') {
-    // Extract organization ID and user ID from payload
-    const { organization, public_user_data } = evt.data
-    const orgId = organization.id
-    const userId = public_user_data.user_id
+      await tx.workspaces.upsert({
+        where: { orgId_userId: { orgId, userId } },
+        create: { orgId, userId, createdAt: new Date() },
+        update: {},
+      })
+    }
 
-    // Remove from team_members table
-    await db.team_members.delete({
-      where: { orgId, userId },
-    })
+    if (evt.type === 'organizationMembership.deleted') {
+      const { organization, public_user_data } = evt.data
+      const orgId = organization.id
+      const userId = public_user_data.user_id
 
-    // Remove workspace record
-    await db.workspaces.deleteMany({
-      where: { orgId, userId },
-    })
-  }
+      await tx.team_members.upsert({
+        where: { orgId_userId: { orgId, userId } },
+        create: { orgId, userId, leftAt: new Date() },
+        update: { leftAt: new Date() },
+      })
+
+      await tx.workspaces.upsert({
+        where: { orgId_userId: { orgId, userId } },
+        create: { orgId, userId, leftAt: new Date() },
+        update: { leftAt: new Date() },
+      })
+    }
+  })
 
   // Return 200 status on success
   return new Response('OK', { status: 200 })
@@ -251,13 +314,16 @@ For manual typing of nested payloads, import the JSON types from your framework'
 ### User events (`user.created`, `user.updated`, `user.deleted`)
 ```typescript
 const {
-  id,                  // Clerk user ID
-  email_addresses,     // array; [0].email_address is primary email
+  id,                       // Clerk user ID
+  email_addresses,          // array; pick the entry whose id === primary_email_address_id
+  primary_email_address_id, // do not assume email_addresses[0] is primary
   first_name,
   last_name,
   image_url,
   public_metadata,
 } = evt.data
+// const email = email_addresses.find((e) => e.id === primary_email_address_id)?.email_address
+// if (!email) { /* skip DB write / notification / logging */ }
 ```
 
 ### Organization events (`organization.created`, `organization.updated`, `organization.deleted`)
@@ -309,7 +375,7 @@ const {
 
 ## Webhook Reliability
 
-**Retries**: Svix retries failed webhooks on a set schedule (see [Svix Retry Schedule](https://docs.svix.com/retries)). Return 2xx to succeed, 4xx/5xx to retry. Use the `svix-id` header as an idempotency key to deduplicate retried events.
+**Retries**: Svix retries failed webhooks on a set schedule (see [Svix Retry Schedule](https://docs.svix.com/retries)). Return 2xx to succeed, 4xx/5xx to retry. Store a receipt keyed by the `svix-id` header in the same transaction as idempotent projection writes so retried events do not double-apply.
 
 **Replay**: Failed webhooks can be replayed from Dashboard.
 

@@ -32,14 +32,15 @@
     {
       "id": 3,
       "prompt": "i need to set custom metadata on a user via clerk's backend api. set their plan to 'pro' and onboarded to true",
-      "expected_output": "PATCH /v1/users/{user_id} with public_metadata or private_metadata body, explanation of metadata types and when to use each",
+      "expected_output": "PATCH /v1/users/{user_id}/metadata with public_metadata body (deep merge via updateUserMetadata). Explain metadata types and merge vs replace. No read-spread-write.",
       "scaffold": "nextjs-basic-auth",
       "files": [],
       "expectations": [
-        "Uses PATCH /v1/users/{user_id} endpoint",
+        "Uses PATCH /v1/users/{user_id}/metadata (not PATCH /v1/users/{user_id})",
         "Sets the metadata in the correct field: public_metadata, private_metadata, or unsafe_metadata",
         "Explains the difference between metadata types (client-readable vs server-only vs client-writable)",
         "Includes a properly formed JSON body with the plan and onboarded fields",
+        "Explains that PATCH / updateUserMetadata() deep-merges and does not require read-spread-write",
         "Mentions checking write permissions before executing the update"
       ]
     },
@@ -60,14 +61,14 @@
     {
       "id": 5,
       "prompt": "i'm updating user metadata to add a 'plan' field but it keeps deleting the existing 'role' field. what am i doing wrong?",
-      "expected_output": "Metadata updates overwrite not merge. Read existing metadata first, spread it, then write back.",
+      "expected_output": "Use dedicated metadata endpoints. updateUserMetadata() / PATCH /metadata deep-merges; replaceUserMetadata() / PUT /metadata replaces provided fields. Do not pass metadata to updateUser() or PATCH /users/{id}. No read-spread-write.",
       "scaffold": "nextjs-basic-auth",
       "expectations": [
-        "Explains that updateUser publicMetadata replaces all existing metadata, not merges",
-        "Shows reading the existing user first with getUser(userId)",
-        "Spreads existing metadata before adding new fields ({ ...user.publicMetadata, plan: 'pro' })",
-        "Calls updateUser with the merged metadata object",
-        "Warns that this applies to publicMetadata, privateMetadata, and unsafeMetadata equally"
+        "Explains that updateUser() / PATCH /users/{user_id} must not be used for metadata; use dedicated metadata endpoints",
+        "Shows updateUserMetadata() or PATCH /v1/users/{user_id}/metadata for a deep merge that preserves existing keys",
+        "Shows replaceUserMetadata() or PUT /v1/users/{user_id}/metadata as the full-replace path for a provided field",
+        "Does not require reading existing metadata and spreading it before write",
+        "Warns that PUT / replaceUserMetadata() replaces a provided metadata field in full (no merge at any level)"
       ]
     },
     {

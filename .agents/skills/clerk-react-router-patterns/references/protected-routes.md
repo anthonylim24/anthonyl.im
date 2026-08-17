@@ -35,6 +35,7 @@ export const middleware = [
 For client-only redirects after hydration:
 
 ```tsx
+import { useEffect } from 'react'
 import { useAuth } from '@clerk/react-router'
 import { useNavigate } from 'react-router'
 

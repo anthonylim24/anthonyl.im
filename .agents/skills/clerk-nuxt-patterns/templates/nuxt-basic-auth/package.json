@@ -6,7 +6,7 @@
     "build": "nuxt build"
   },
   "dependencies": {
-    "nuxt": "latest",
-    "@clerk/nuxt": "latest"
+    "nuxt": "^3.16.0",
+    "@clerk/nuxt": "^2.6.0"
   }
 }

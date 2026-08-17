@@ -6,6 +6,8 @@
 // src/pages/api/data.ts
 import type { APIRoute } from 'astro'
 
+export const prerender = false
+
 export const GET: APIRoute = async (context) => {
   const { userId } = context.locals.auth()
 
@@ -73,6 +75,6 @@ export const GET: APIRoute = async (context) => {
 
 ## CRITICAL
 
-- API routes are always SSR — `prerender` does not apply
+- Authenticated API endpoints require request-time rendering: `export const prerender = false` or `output: 'server'`
 - Use `context.locals.auth()` (not `Astro.locals.auth()`) in API routes
 - Return proper HTTP status codes: 401 = not authenticated, 403 = not authorized

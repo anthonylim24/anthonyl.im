@@ -57,13 +57,24 @@ Note: SSO is the one flow that still uses `setActive({ session: createdSessionId
 
 Fully native Google sheet (Credential Manager on Android). Dev build only.
 
-Setup:
-1. `npx expo install expo-crypto`
-2. Env vars in `.env` (values from the Google Cloud OAuth clients configured for the Clerk instance):
+**SDK-version gate:** current `@clerk/expo` (v3.6+ / any install that lists `@clerk/expo-google-signin` as a peer) requires the separate native module. Older v3 installs that still ship Google sign-in inside `@clerk/expo` keep the legacy path below.
+
+Current setup:
+1. `npx expo install @clerk/expo-google-signin expo-crypto` (alongside `@clerk/expo`)
+2. Register both config plugins, then rebuild:
+   ```json
+   { "expo": { "plugins": ["@clerk/expo", "@clerk/expo-google-signin"] } }
+   ```
+3. Env vars in `.env` (values from the Google Cloud OAuth clients configured for the Clerk instance):
    - `EXPO_PUBLIC_CLERK_GOOGLE_WEB_CLIENT_ID` (always required)
    - `EXPO_PUBLIC_CLERK_GOOGLE_IOS_CLIENT_ID` (iOS)
    - `EXPO_PUBLIC_CLERK_GOOGLE_IOS_URL_SCHEME` (iOS — the config plugin writes it into the iOS URL types at prebuild; prebuild fails without it)
-3. `@clerk/expo` config plugin registered, then rebuild.
+   - `EXPO_PUBLIC_CLERK_GOOGLE_ANDROID_CLIENT_ID` (Android — required for the Android OAuth client)
+
+Legacy v3 (Google still bundled in `@clerk/expo`; no `@clerk/expo-google-signin` peer):
+1. `npx expo install expo-crypto`
+2. Same env vars as above (including the Android client ID when targeting Android)
+3. `@clerk/expo` config plugin only, then rebuild.
 
 Full provider-side setup lives at https://clerk.com/docs/guides/configure/auth-strategies/sign-in-with-google — fetch it if the Google Cloud side isn't already configured.
 
@@ -92,7 +103,7 @@ if (Platform.OS !== 'ios' && Platform.OS !== 'android') return null
 
 Always wrap in try/catch and swallow the cancellation codes. On unsupported platforms (web), fall back to `useSSO({ strategy: 'oauth_google' })` or hide the button.
 
-**Next-major note**: native Google sign-in moves to a separate `@clerk/expo-google-signin` package (plus its own config plugin) in the next major version. On v3 the `@clerk/expo/google` import is correct and logs a dev-only migration warning — don't preinstall the new package.
+The hook import stays `@clerk/expo/google` on both paths. The current package supplies the native module and config plugin; the hook still comes from `@clerk/expo`.
 
 ## Native Apple sign-in — `useSignInWithApple()`
 

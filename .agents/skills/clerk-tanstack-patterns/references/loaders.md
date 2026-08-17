@@ -69,6 +69,6 @@ function Projects() {
 
 ## Server vs Client Data
 
-Loaders run on the server during SSR and on the client during navigation. `auth()` works in both because it reads from the Clerk middleware context.
+Route `loader` and `beforeLoad` handlers can run in the browser during client-side navigation. Keep server-only Clerk `auth()` inside a `createServerFn` that those handlers invoke. For auth state in the browser, use client hooks (`useAuth`, `useUser`) instead of importing `auth()` from `@clerk/tanstack-react-start/server`.
 
 [Docs](https://clerk.com/docs/tanstack-react-start/getting-started/quickstart)

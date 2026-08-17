@@ -55,12 +55,13 @@ app.mount('#app')
 <script setup lang="ts">
 import { useAuth, useUser } from '@clerk/vue'
 
-const { isSignedIn, userId, signOut } = useAuth()
+const { isLoaded, isSignedIn, userId, signOut } = useAuth()
 const { user } = useUser()
 </script>
 
 <template>
-  <div v-if="isSignedIn">
+  <div v-if="!isLoaded">Loading...</div>
+  <div v-else-if="isSignedIn">
     <p>Hello {{ user?.firstName }}</p>
     <button @click="signOut()">Sign Out</button>
   </div>
@@ -70,21 +71,33 @@ const { user } = useUser()
 
 ## Org Switching
 
+`@clerk/vue` does not export `useOrganizationList`. Use `useOrganization()`, `useUser().organizationMemberships`, and `useClerk().setActive()`:
+
 ```vue
 <script setup lang="ts">
-import { useOrganizationList } from '@clerk/vue'
+import { useClerk, useOrganization, useUser } from '@clerk/vue'
 
-const { userMemberships, setActive } = useOrganizationList()
+const clerk = useClerk()
+const { isLoaded, organization } = useOrganization()
+const { user } = useUser()
+
+async function switchOrg(orgId: string) {
+  await clerk.value?.setActive({ organization: orgId })
+}
 </script>
 
 <template>
-  <button
-    v-for="mem in userMemberships.data ?? []"
-    :key="mem.organization.id"
-    @click="setActive({ organization: mem.organization.id })"
-  >
-    {{ mem.organization.name }}
-  </button>
+  <div v-if="!isLoaded">Loading...</div>
+  <template v-else>
+    <p v-if="organization">Active: {{ organization.name }}</p>
+    <button
+      v-for="mem in user?.organizationMemberships ?? []"
+      :key="mem.organization.id"
+      @click="switchOrg(mem.organization.id)"
+    >
+      {{ mem.organization.name }}
+    </button>
+  </template>
 </template>
 ```
 
@@ -92,8 +105,9 @@ const { userMemberships, setActive } = useOrganizationList()
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| Composables return `undefined` | Not inside `ClerkProvider` tree | Ensure `app.use(clerkPlugin, { publishableKey })` is called |
+| Composables return `undefined` | Plugin not installed or Clerk not loaded | Call `app.use(clerkPlugin, { publishableKey })` and wait for `isLoaded` |
 | `userId` reactive but not updating | Destructuring loses reactivity | Use `const { userId } = useAuth()` (toRefs-style composable, reactive) |
+
 ## Import Map
 
 | What | Import |

@@ -57,11 +57,11 @@
 		{
 			"id": 5,
 			"prompt": "our enterprise customer wants their employees to sign in via their company's SAML SSO provider. how do i configure clerk organizations to support enterprise SSO for a specific org?",
-			"expected_output": "Explains Enterprise SSO configuration steps, mentions dashboard setup, domain verification, enterprise_sso strategy",
+			"expected_output": "Explains Enterprise SSO configuration steps, mentions dashboard setup for an organization-scoped Enterprise Connection with JIT provisioning, enterprise_sso strategy",
 			"scaffold": "nextjs-basic-auth",
 			"expectations": [
-				"Mentions configuring Enterprise SSO in the Clerk Dashboard for the specific organization",
-				"Explains that domain verification via DNS TXT record is required before SSO-signed users auto-join the org",
+				"Mentions configuring an organization-scoped Enterprise Connection in the Clerk Dashboard",
+				"Explains that JIT provisioning on the Enterprise Connection auto-joins users (Verified Domains / DNS TXT are not required for SSO auto-join)",
 				"References user.enterpriseAccounts (NOT user.samlAccounts) to access SSO session data",
 				"Uses strategy: 'enterprise_sso' (NOT 'saml')",
 				"If accessing provider metadata, reads it from user.enterpriseAccounts[i].enterpriseConnection?.provider (NOT directly from user.enterpriseAccounts[i].provider — that field does not exist on EnterpriseAccount)",

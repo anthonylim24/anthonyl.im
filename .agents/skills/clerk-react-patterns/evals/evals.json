@@ -30,26 +30,28 @@
     {
       "id": 3,
       "prompt": "i want to build a custom sign-in form with email and password fields instead of using the hosted sign-in page. use clerk's useSignIn hook.",
-      "expected_output": "Custom sign-in form using useSignIn() hook with signIn.password() or signIn.create(), then finalize() or setActive()",
+      "expected_output": "Custom sign-in form using useSignIn() with { signIn, errors, fetchStatus }, signIn.password(), then signIn.finalize() on complete; handles needs_client_trust",
       "scaffold": "react-basic-auth",
       "expectations": [
         "Uses useSignIn hook from @clerk/react",
-        "Calls signIn.password({ identifier, password }) or signIn.create({ identifier, password }) to authenticate",
-        "Checks for success before activating the session (via status check, error check, or conditional after the auth call)",
-        "Activates the session using signIn.finalize() or setActive({ session: createdSessionId })",
-        "Catches and displays error messages from the sign-in response"
+        "Destructures { signIn, errors, fetchStatus } from useSignIn() — not isLoaded/setActive (legacy; only if importing a legacy SDK path)",
+        "Calls signIn.password({ emailAddress, password }) or signIn.password({ identifier, password }) to authenticate",
+        "Checks the returned error (or errors.fields) rather than try/catch for Clerk API errors",
+        "Calls signIn.finalize() when signIn.status === 'complete'",
+        "Handles needs_client_trust (and optionally needs_second_factor) with signIn.mfa send/verify methods",
+        "Disables submit while fetchStatus === 'fetching' and surfaces errors.fields"
       ]
     },
     {
       "id": 4,
       "prompt": "i want a user profile page that shows the signed-in user's name, email address, and profile picture. use clerk hooks to get this data.",
-      "expected_output": "Profile page using useUser() hook accessing user.firstName, user.emailAddresses[0], user.imageUrl",
+      "expected_output": "Profile page using useUser() hook accessing user.firstName, user.primaryEmailAddress?.emailAddress, user.imageUrl",
       "scaffold": "react-basic-auth",
       "expectations": [
         "Uses useUser() hook from @clerk/react",
         "Guards on isLoaded before rendering user data",
         "Accesses user.firstName and user.lastName for name",
-        "Accesses user.emailAddresses[0].emailAddress for email",
+        "Accesses user.primaryEmailAddress?.emailAddress for email (not emailAddresses[0])",
         "Displays user.imageUrl in an img element"
       ]
     },

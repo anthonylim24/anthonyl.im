@@ -87,7 +87,7 @@ Do not blend prebuilt components and custom flows for the same auth step (e.g. `
 - Minimum React Native raised to **0.75** in v3.5.0 (iOS SDK now links via SPM podspec). Peer range: `expo >=53 <57`.
 - Native components matured: iOS moved to Expo Modules; native↔JS session sync is automatic and bidirectional — never call `setActive()` after native-component auth.
 - The config plugin accepts a `theme` JSON file for native component styling (see references/prebuilt-components.md).
-- Native Google sign-in will move to a separate `@clerk/expo-google-signin` package in the next major (the `@clerk/expo/google` import keeps working in v3; a dev warning announces the migration). Don't preinstall the new package on v3.
+- Native Google sign-in uses `@clerk/expo-google-signin` (install + config plugin) alongside `@clerk/expo`. The hook import remains `@clerk/expo/google`. Older v3 installs that still bundle Google natively skip the extra package — see references/sso-and-native-auth.md.
 
 ## Common Pitfalls
 

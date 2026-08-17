@@ -2,12 +2,12 @@
 
 ## Auth Context in Nitro
 
-`event.context.auth` is automatically populated by `@clerk/nuxt` for all server routes.
+Call `event.context.auth()` in Nitro event handlers — it is a function, not a static property.
 
 ```typescript
 // server/api/me.get.ts
 export default defineEventHandler(async (event) => {
-  const { userId } = event.context.auth ?? {}
+  const { userId } = event.context.auth()
 
   if (!userId) {
     throw createError({ statusCode: 401, message: 'Unauthorized' })
@@ -26,7 +26,7 @@ Import `clerkClient` from `@clerk/nuxt/server` to access the Clerk backend API:
 import { clerkClient } from '@clerk/nuxt/server'
 
 export default defineEventHandler(async (event) => {
-  const { userId } = event.context.auth ?? {}
+  const { userId } = event.context.auth()
 
   if (!userId) {
     throw createError({ statusCode: 401, message: 'Unauthorized' })
@@ -47,7 +47,7 @@ export default defineEventHandler(async (event) => {
 ```typescript
 // server/api/projects.get.ts
 export default defineEventHandler(async (event) => {
-  const { userId, orgId } = event.context.auth ?? {}
+  const { userId, orgId } = event.context.auth()
 
   if (!userId) {
     throw createError({ statusCode: 401, message: 'Unauthorized' })

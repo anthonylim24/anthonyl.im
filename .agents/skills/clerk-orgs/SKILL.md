@@ -67,7 +67,7 @@ clerk enable orgs
 For additional settings (membership cap, verified domains, admin delete), patch the instance config:
 
 ```bash
-clerk api --platform PATCH /v1/platform/applications/<app_id>/instances/<ins_id>/config \
+clerk api --platform -X PATCH /v1/platform/applications/<app_id>/instances/<ins_id>/config \
   -d '{"organization_settings":{"max_allowed_memberships":50,"domains_enabled":true,"admin_delete_enabled":true}}'
 ```
 
@@ -75,52 +75,52 @@ clerk api --platform PATCH /v1/platform/applications/<app_id>/instances/<ins_id>
 
 ```bash
 # Create:
-clerk api -X POST /v1/organizations \
+clerk api -X POST /organizations \
   -d '{"name":"Acme","slug":"acme","created_by":"user_xxx","max_allowed_memberships":10}'
 
 # List:
-clerk api /v1/organizations --query 'limit=20'
+clerk api /organizations --query 'limit=20'
 
 # Get one:
-clerk api /v1/organizations/<org_id>
+clerk api /organizations/<org_id>
 
 # Update:
-clerk api -X PATCH /v1/organizations/<org_id> -d '{"name":"Acme Inc."}'
+clerk api -X PATCH /organizations/<org_id> -d '{"name":"Acme Inc."}'
 
 # Delete:
-clerk api -X DELETE /v1/organizations/<org_id>
+clerk api -X DELETE /organizations/<org_id>
 ```
 
 ### Memberships
 
 ```bash
 # Add a user to an org:
-clerk api -X POST /v1/organizations/<org_id>/memberships \
+clerk api -X POST /organizations/<org_id>/memberships \
   -d '{"user_id":"user_xxx","role":"org:admin"}'
 
 # List members:
-clerk api /v1/organizations/<org_id>/memberships --query 'limit=50'
+clerk api /organizations/<org_id>/memberships --query 'limit=50'
 
 # Update role:
-clerk api -X PATCH /v1/organizations/<org_id>/memberships/<user_id> \
+clerk api -X PATCH /organizations/<org_id>/memberships/<user_id> \
   -d '{"role":"org:member"}'
 
 # Remove:
-clerk api -X DELETE /v1/organizations/<org_id>/memberships/<user_id>
+clerk api -X DELETE /organizations/<org_id>/memberships/<user_id>
 ```
 
 ### Invitations
 
 ```bash
 # Send:
-clerk api -X POST /v1/organizations/<org_id>/invitations \
+clerk api -X POST /organizations/<org_id>/invitations \
   -d '{"email_address":"alice@example.com","role":"org:member","redirect_url":"https://app.com/accept"}'
 
 # List pending:
-clerk api /v1/organizations/<org_id>/invitations --query 'status=pending'
+clerk api /organizations/<org_id>/invitations --query 'status=pending'
 
 # Revoke:
-clerk api -X POST /v1/organizations/<org_id>/invitations/<inv_id>/revoke \
+clerk api -X POST /organizations/<org_id>/invitations/<inv_id>/revoke \
   -d '{"requesting_user_id":"user_xxx"}'
 ```
 
@@ -172,9 +172,10 @@ app/orgs/[slug]/settings/page.tsx
 Always verify the URL slug matches the active org slug — otherwise users can hit `/orgs/other-org/...` with a stale `orgSlug` in their session:
 
 ```typescript
-export default async function OrgPage({ params }: { params: { slug: string } }) {
+export default async function OrgPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params
   const { orgSlug } = await auth()
-  if (orgSlug !== params.slug) {
+  if (orgSlug !== slug) {
     redirect('/dashboard')  // or whatever your "no-access" flow is
   }
   return <div>Welcome to {orgSlug}</div>
@@ -370,10 +371,11 @@ Server component protecting a slug-scoped admin page:
 import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
 
-export default async function AdminPage({ params }: { params: { slug: string } }) {
+export default async function AdminPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params
   const { orgSlug, has } = await auth()
 
-  if (orgSlug !== params.slug) redirect('/dashboard')
+  if (orgSlug !== slug) redirect('/dashboard')
   if (!has({ role: 'org:admin' })) redirect(`/orgs/${orgSlug}`)
 
   return <div>Admin settings for {orgSlug}</div>

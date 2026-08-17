@@ -56,10 +56,22 @@ This single line auto-configures middleware, plugins, and component auto-imports
 `@clerk/nuxt` auto-imports all Clerk components and composables — no explicit imports needed in `<script setup>`.
 
 - **Composables** (`useAuth`, `useUser`) — client-side reactive, inside `<script setup>`
-- **Server routes** (`clerkClient`) — Nitro server routes, `event.context.auth`
-- **Middleware** (`clerkMiddleware`) — auto-registered, use `auth().protect()` to lock routes
+- **Server routes** (`clerkClient`) — Nitro server routes, call `event.context.auth()`
+- **Route middleware** — create `app/middleware/auth.ts` with `useAuth()` + `navigateTo()`
+- **Server/API middleware** — `clerkMiddleware()` only, not for client navigations
 
 ## Minimal Pattern
+
+```ts
+// app/middleware/auth.ts
+export default defineNuxtRouteMiddleware(() => {
+  const { isSignedIn } = useAuth()
+
+  if (!isSignedIn.value) {
+    return navigateTo('/sign-in')
+  }
+})
+```
 
 ```vue
 <!-- pages/dashboard.vue -->
@@ -75,14 +87,14 @@ const { userId } = useAuth()
 </template>
 ```
 
-> `definePageMeta({ middleware: 'auth' })` uses the built-in auth middleware from `@clerk/nuxt`.
+> Create the named middleware, then attach it with `definePageMeta({ middleware: 'auth' })`.
 
 ## Common Pitfalls
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| Composables return `undefined` on server | useAuth is client-only | Use `event.context.auth` in server routes |
-| Route not protected | Missing `middleware: 'auth'` meta | Add `definePageMeta({ middleware: 'auth' })` |
+| Composables return `undefined` on server | useAuth is client-only | Call `event.context.auth()` in server routes |
+| Route not protected | Missing named middleware or page meta | Create `app/middleware/auth.ts` and add `definePageMeta({ middleware: 'auth' })` |
 | `clerkClient` not available | Wrong import path | Import from `@clerk/nuxt/server` |
 | Hydration mismatch | Rendering auth state before mounted | Wrap in `<ClientOnly>` or check `isLoaded` |
 | Env vars not picked up | Wrong prefix | Nuxt requires `NUXT_PUBLIC_` for public, `NUXT_` for server |

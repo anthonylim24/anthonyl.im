@@ -49,7 +49,7 @@ metadata:
 ## Quick Start (Plasmo)
 
 ```bash
-npx create-plasmo --with-tailwindcss --with-src my-extension
+npx create-plasmo@0.90.5 --with-tailwindcss --with-src my-extension
 cd my-extension
 npm install @clerk/chrome-extension
 ```
@@ -316,23 +316,24 @@ CRX_PUBLIC_KEY="<PUBLIC KEY from Itero>"
 
 Add `chrome-extension://YOUR_STABLE_CRX_ID` to Clerk Dashboard > Allowed Origins.
 
-## Token Cache (persist across popup closes)
+## Storage Cache (persist across popup closes)
 
 ```tsx
-const tokenCache = {
-  async getToken(key: string) {
+const storageCache = {
+  createKey: (...keys: string[]) => keys.join(':'),
+  get: async <T = unknown>(key: string): Promise<T | undefined> => {
     const result = await chrome.storage.local.get(key)
-    return result[key] ?? null
+    return result[key] as T | undefined
   },
-  async saveToken(key: string, token: string) {
-    await chrome.storage.local.set({ [key]: token })
+  set: async (key: string, value: string) => {
+    await chrome.storage.local.set({ [key]: value })
   },
-  async clearToken(key: string) {
+  remove: async (key: string) => {
     await chrome.storage.local.remove(key)
   },
 }
 
-<ClerkProvider publishableKey={PUBLISHABLE_KEY} tokenCache={tokenCache}>
+<ClerkProvider publishableKey={PUBLISHABLE_KEY} storageCache={storageCache}>
 ```
 
 | Storage type | Scope | Clears on |
@@ -355,7 +356,7 @@ const tokenCache = {
 | Auth breaks after rebuild | CRX ID rotated | Configure stable key via `.env.chrome` |
 | `PLASMO_PUBLIC_` var undefined | Wrong env file | Use `.env.development`, not `.env` |
 | Bot protection errors | Cloudflare not supported in extensions | Disable bot protection in Clerk Dashboard |
-| Token cache not persisting | Using `localStorage` in popup | Use `chrome.storage.local` or pass `tokenCache` prop |
+| Storage cache not persisting | Using `localStorage` in popup | Use `chrome.storage.local` or pass `storageCache` prop |
 
 ## Plan Requirements
 

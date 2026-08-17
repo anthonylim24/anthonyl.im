@@ -18,6 +18,8 @@ export function ProtectedRoute() {
 }
 ```
 
+Client-side guards (`ProtectedRoute`, `<Show>`) only control what renders in the browser. They are not authorization boundaries and do not protect data already sent to the client. Authenticate and authorize independently at every server or data boundary (API routes, loaders, actions).
+
 ## Router Setup (React Router v6/v7)
 
 ```tsx

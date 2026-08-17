@@ -1,7 +1,7 @@
 ---
 name: clerk-billing
 description: Clerk Billing for subscription management - render Clerk's PricingTable
-  and in-app checkout drawer, configure subscription plans, seat-limit plans for
+  and in-app checkout drawer, configure subscription plans, seat-based plans for
   B2B, feature entitlements with has(), and billing webhooks. Use for SaaS
   monetization, plan gating, checkout flows, trials, invoicing, and subscription
   lifecycle management.
@@ -41,9 +41,9 @@ metadata:
 | Membership mode (B2C + B2B coexistence) | `https://dashboard.clerk.com/last-active?path=organizations-settings` |
 | Edit features | Plans → click a plan → Features section (no direct URL) |
 
-## Agent-first: Programmatic billing config
+## Agent-first: Enable Billing via CLI
 
-The full billing config (enable toggles, plans, features, plan-feature attachments) is editable via PLAPI without touching the Dashboard. Useful for agents seeding plans, replicating config across instances, or version-controlling billing structure.
+Enable Billing with the CLI (or the Dashboard as an alternative). Do not use `clerk config patch` or raw Platform API calls to toggle billing or manage the plans catalog.
 
 Pre-req: project linked to the Clerk app (`clerk auth login` + `clerk link`, see `clerk-setup`).
 
@@ -51,42 +51,15 @@ Pre-req: project linked to the Clerk app (`clerk auth login` + `clerk link`, see
 
 ```bash
 clerk enable billing                # both targets (default, auto-creates free_user + free_org plans)
-clerk enable billing --for org      # org only
-clerk enable billing --for user     # user only
+clerk enable billing --for orgs     # org only
+clerk enable billing --for users    # user only
 ```
 
-### Pull current billing config
-
-```bash
-clerk config pull --keys billing > billing.json
-```
-
-This writes the current billing config (toggles + plans + features) for the linked instance to `billing.json`.
-
-### Edit and apply
-
-Edit `billing.json` to add/remove plans or features, then preview the diff and apply:
-
-```bash
-clerk config patch --file billing.json --dry-run
-clerk config patch --file billing.json
-```
-
-Pass `--instance prod` to target the production instance instead of dev.
-
-### Raw PATCH (full control)
-
-For one-shot plan/feature updates without a config file:
-
-```bash
-clerk api --platform PATCH /v1/platform/applications/<app_id>/instances/<ins_id>/config \
-  -d '{"billing":{"plans":[{"slug":"pro","name":"Pro","amount":2000,"currency":"usd","payer_type":"user","is_recurring":true}],"features":[{"slug":"export","name":"Export"}]}}'
-```
+Alternative: [Dashboard → Billing → Settings](https://dashboard.clerk.com/last-active?path=billing/settings). Create and edit plans in [Dashboard → Billing → Plans](https://dashboard.clerk.com/last-active?path=billing/plans) (User Plans vs Organization Plans tabs).
 
 ### Notes
 
-- This handles **billing config** (toggles + plans + features catalog). **Subscription lifecycle** (users picking a plan, checkout, renewal, cancellation) still flows through `<PricingTable />` + billing webhooks, see `clerk-webhooks` skill for the lifecycle events.
-- Top-level `features` map manipulation and plan-feature attachments (sync) are fully supported via the PLAPI billing config handler.
+- This handles **enabling billing**. **Subscription lifecycle** (users picking a plan, checkout, renewal, cancellation) still flows through `<PricingTable />` + billing webhooks, see `clerk-webhooks` skill for the lifecycle events.
 
 ## What Do You Need?
 
@@ -94,7 +67,7 @@ clerk api --platform PATCH /v1/platform/applications/<app_id>/instances/<ins_id>
 |------|-----------|
 | `<PricingTable />` props, `<CheckoutButton />`, `<Show>` billing patterns | references/billing-components.md |
 | B2C patterns (individual user subscriptions, `Membership optional` prerequisite) | references/b2c-patterns.md |
-| B2B patterns (org subscriptions, seat-limit plans, admin-gated billing UI) | references/b2b-patterns.md |
+| B2B patterns (org subscriptions, seat-based plans, admin-gated billing UI) | references/b2b-patterns.md |
 | Webhook event catalog, payload shapes, handler templates | references/billing-webhooks.md |
 
 ## References
@@ -103,7 +76,7 @@ clerk api --platform PATCH /v1/platform/applications/<app_id>/instances/<ins_id>
 |-----------|-------------|
 | `references/billing-components.md` | `<PricingTable />` and subscription UI |
 | `references/b2c-patterns.md` | B2C subscription billing patterns |
-| `references/b2b-patterns.md` | B2B billing with organization subscriptions and seat-limit plans |
+| `references/b2b-patterns.md` | B2B billing with organization subscriptions and seat-based plans |
 | `references/billing-webhooks.md` | Subscription lifecycle event handling |
 
 ## Documentation
@@ -245,9 +218,9 @@ export function UpgradePrompt() {
 
 ### 6. B2B Seat-Based Billing with Organizations
 
-Org plans can carry a **seat limit** (membership cap) that Clerk enforces at invite time. Use the `org:` slug prefix on org-side plan checks (e.g. `has({ plan: 'org:team' })`) to keep gating unambiguous. Render the B2B pricing page with `<PricingTable for="organization" />`, and use `<OrganizationProfile />` for the org account billing UI.
+Org plans support **seat limits** (fixed-price membership cap) and **per-seat pricing** (base fee, included seats, per-member fee). Use them independently or together — do not treat a fixed-price seat cap as the only model. Per-seat Billing Plans require `@clerk/nextjs` v7.5.1+, `@clerk/clerk-js` v6.16.0+, and `@clerk/ui` v1.16.0+. Use the `org:` slug prefix on org-side plan checks (e.g. `has({ plan: 'org:team' })`) to keep gating unambiguous. Render the B2B pricing page with `<PricingTable for="organization" />`, and use `<OrganizationProfile />` for the org account billing UI.
 
-See `references/b2b-patterns.md` for tiered plan naming, seat-limit invariants, admin-only billing, and webhook handlers.
+See `references/b2b-patterns.md` for pricing combinations, seat-limit invariants, admin-only billing, and webhook handlers.
 
 ### 7. Display Subscription Status
 
@@ -436,7 +409,7 @@ Use lowercase slugs matching what you define in the dashboard.
 |----------|---------------|------------|
 | B2C SaaS | Individual user | `has({ plan: 'pro' })` on user session |
 | B2B SaaS | Organization | `has({ plan: 'org:team' })` on org session |
-| Seat-limited B2B | Organization | Plan has a seat cap; pricing is per-plan, not per-member, tier your plans for bigger orgs |
+| Seat-based B2B | Organization | Seat limit (fixed-price cap) and/or per-seat pricing (base fee, included seats, per-member fee). Combine freely. Per-seat plans need `@clerk/nextjs` v7.5.1+, `@clerk/clerk-js` v6.16.0+, `@clerk/ui` v1.16.0+ |
 
 For B2B, ensure the user has an active org session. The `has()` check evaluates the active entity (user or org).
 

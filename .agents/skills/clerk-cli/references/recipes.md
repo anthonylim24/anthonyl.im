@@ -32,8 +32,19 @@ clerk users list --email-address alice@example.com
 # Open a user's profile in the dashboard
 clerk users open user_abc123
 clerk users open user_abc123 --print     # print the URL instead of opening
+```
 
-# Create a user (preferred; curated flags)
+**Agent-mode warning:** The commands below mutate data. In agent mode, most mutations skip confirmation and run immediately. Preview with `--dry-run` when the command supports it, then get explicit approval before executing for real.
+
+```sh
+# Create a user (preferred; curated flags) — preview first
+clerk users create \
+  --email alice@example.com \
+  --password 'SuperSecret123!' \
+  --first-name Alice \
+  --last-name Doe \
+  --dry-run
+
 clerk users create \
   --email alice@example.com \
   --password 'SuperSecret123!' \
@@ -42,6 +53,12 @@ clerk users create \
   --yes
 
 # Equivalent raw BAPI call. Use only when curated flags don't cover a field.
+clerk api /users --dry-run -d '{
+  "email_address": ["alice@example.com"],
+  "password": "SuperSecret123!",
+  "first_name": "Alice",
+  "last_name": "Doe"
+}'
 clerk api /users -d '{
   "email_address": ["alice@example.com"],
   "password": "SuperSecret123!",
@@ -50,14 +67,19 @@ clerk api /users -d '{
 }'
 
 # Update (PATCH merges)
+clerk api /users/user_abc123 -X PATCH --dry-run -d '{"first_name":"Alicia"}'
 clerk api /users/user_abc123 -X PATCH -d '{"first_name":"Alicia"}'
 
 # Ban / unban
+clerk api /users/user_abc123/ban -X POST --dry-run
 clerk api /users/user_abc123/ban -X POST
+clerk api /users/user_abc123/unban -X POST --dry-run
 clerk api /users/user_abc123/unban -X POST
 
 # Lock / unlock
+clerk api /users/user_abc123/lock -X POST --dry-run
 clerk api /users/user_abc123/lock -X POST
+clerk api /users/user_abc123/unlock -X POST --dry-run
 clerk api /users/user_abc123/unlock -X POST
 
 # Delete (PREVIEW FIRST)

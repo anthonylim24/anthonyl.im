@@ -19,7 +19,7 @@ export default clerkMiddleware(async (auth, req) => {
     await auth.protect({ role: 'org:admin' })
   }
   if (isBillingRoute(req)) {
-    await auth.protect({ permission: 'org:sys_billing:manage' })
+    await auth.protect({ permission: 'org:billing:manage' })
   }
 })
 ```
@@ -34,9 +34,10 @@ Matcher config is the standard one from `clerk-nextjs-patterns` — nothing org-
 import { auth } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
 
-export default async function OrgPage({ params }: { params: { slug: string } }) {
+export default async function OrgPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params
   const { orgSlug, has } = await auth()
-  if (orgSlug !== params.slug) redirect('/dashboard')
+  if (orgSlug !== slug) redirect('/dashboard')
   if (!has({ role: 'org:admin' })) redirect(`/orgs/${orgSlug}`)
   return <AdminContent />
 }

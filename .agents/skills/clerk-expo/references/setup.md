@@ -12,16 +12,21 @@ Written against `@clerk/expo` v3.6.x (July 2026). Peer requirements: Expo SDK 53
 
 ```bash
 npx expo install @clerk/expo expo-secure-store
-# add expo-dev-client if the app will use native components or native sign-in hooks
-npx expo install expo-dev-client
 ```
 
 `npx expo install` (not `npm install`) ensures Expo-SDK-compatible versions. Additional peer deps are per-strategy — install only what the selected flow needs:
 
+Install `expo-dev-client` **only** when the app will use native components (`@clerk/expo/native`) or native sign-in hooks (`useSignInWithGoogle`, `useSignInWithApple`, `useLocalCredentials`). JS-only custom flows run in Expo Go and do not need it:
+
+```bash
+# native components or native sign-in hooks only — not for Expo Go / JS-only
+npx expo install expo-dev-client
+```
+
 | Feature | Install |
 |---------|---------|
 | Browser SSO/OAuth (`useSSO`) | `npx expo install expo-auth-session expo-web-browser` |
-| Native Google sign-in | `npx expo install expo-crypto` |
+| Native Google sign-in | `npx expo install @clerk/expo-google-signin expo-crypto` (legacy v3: `expo-crypto` only — see sso-and-native-auth.md) |
 | Native Apple sign-in | `npx expo install expo-apple-authentication` |
 | Biometrics (`useLocalCredentials`) | `npx expo install expo-local-authentication` |
 | Passkeys | `npx expo install @clerk/expo-passkeys` |
@@ -48,7 +53,19 @@ Rules:
 
 ## 4. Config plugin
 
-Verify `app.json` / `app.config.js` includes both plugins (`npx expo install` usually adds them):
+`expo-secure-store` is a common plugin for token cache. Register `@clerk/expo` **only** when using native components or native sign-in hooks. JS-only / Expo Go flows should not add the Clerk plugin — it pulls native modules and is unnecessary for hooks-only auth.
+
+JS-only (Expo Go):
+
+```json
+{
+  "expo": {
+    "plugins": ["expo-secure-store"]
+  }
+}
+```
+
+Native components or native sign-in hooks (development build):
 
 ```json
 {
@@ -58,9 +75,9 @@ Verify `app.json` / `app.config.js` includes both plugins (`npx expo install` us
 }
 ```
 
-The `@clerk/expo` plugin registers the native modules (iOS min deployment target 17.0), wires Google sign-in when configured, and optionally accepts a `theme` option for native components (see prebuilt-components.md). Plugin changes require a fresh prebuild: `npx expo prebuild --clean` or rerunning `expo run:*`.
+The `@clerk/expo` plugin registers native modules, wires Google sign-in when configured, and optionally accepts a `theme` option for native components (see prebuilt-components.md). Plugin changes require a fresh prebuild: `npx expo prebuild --clean` or rerunning `expo run:*`. Do not apply native-only settings (deployment targets, entitlements) for JS-only Expo Go apps.
 
-Apps using browser SSO also need a deep-link scheme in `app.json`: `"scheme": "yourapp"`.
+Apps using browser SSO also need a deep-link scheme in `app.json`: `"scheme": "yourapp"`. That scheme only registers the OS deep link. Production apps using `useSSO` must also add the callback URL to Clerk Dashboard → **Native applications** → **Allowlist for mobile SSO redirect**. The `app.json` scheme does not allowlist the redirect.
 
 ## 5. ClerkProvider + token cache
 

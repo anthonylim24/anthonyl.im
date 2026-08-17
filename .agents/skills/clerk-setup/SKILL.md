@@ -59,7 +59,7 @@ clerk doctor --json                   # framework integration health check
 PLAPI exposes secret-key rotation directly. Use raw `clerk api` until the friendly wrapper ships:
 
 ```bash
-clerk api --platform POST /v1/platform/applications/<app_id>/rotate_secret_keys \
+clerk api --platform -X POST /v1/platform/applications/<app_id>/rotate_secret_keys \
   -d '{"delay_old_secrets_expiration_hours": 24, "reason": "scheduled rotation"}'
 ```
 
@@ -278,11 +278,14 @@ import { shadcn } from '@clerk/ui/themes'
 <ClerkProvider appearance={{ theme: shadcn }}>{children}</ClerkProvider>
 ```
 
-Also import the shadcn CSS in your global styles:
+**Tailwind CSS v4:** also import the shadcn CSS in your global styles so Tailwind can detect the theme classes:
+
 ```css
 @import 'tailwindcss';
 @import '@clerk/ui/themes/shadcn.css';
 ```
+
+**Tailwind CSS v3:** do not import `@clerk/ui/themes/shadcn.css` or `@import 'tailwindcss'`. Pass shadcn tokens through `appearance.variables` instead (see the [variables](https://clerk.com/docs/nextjs/guides/customizing-clerk/appearance-prop/variables) docs).
 
 > **Core 2 ONLY (skip if current SDK):** Import from `@clerk/themes` and `@clerk/themes/shadcn.css` instead.
 
@@ -294,10 +297,10 @@ Also import the shadcn CSS in your global styles:
 |-------|----------|
 | Missing `await` on `auth()` | In Next.js 15+, `auth()` is async: `const { userId } = await auth()` |
 | Exposing `CLERK_SECRET_KEY` | Never use the secret key in client code; only `NEXT_PUBLIC_*` keys are safe |
-| Missing middleware matcher | Include API routes: `matcher: ['/((?!.*\\..*|_next).*)', '/']` |
+| Missing middleware matcher | Include API routes: `matcher: ['/((?!.*\\..*\|_next).*)', '/']` |
 | ClerkProvider placement | Must be inside `<body>` in root layout (Core 2: could wrap `<html>`) |
 | Auth routes not public | Allow `/sign-in`, `/sign-up` in middleware config |
-| Landing page requires auth | To keep "/" public, exclude it: `matcher: ['/((?!.*\\..*|_next|^/$).*)', '/api/(.*)']` |
+| Landing page requires auth | To keep "/" public, exclude it: `matcher: ['/((?!.*\\..*\|_next\|^/$).*)', '/api/(.*)']` |
 | Wrong import path | Server code uses `@clerk/nextjs/server`, client uses `@clerk/nextjs` |
 | Wrong package name | Use `@clerk/react` not `@clerk/clerk-react` (Core 2 naming) |
 

@@ -14,11 +14,15 @@ User Prompt: $ARGUMENTS
 
 Before ANY POST / PATCH / PUT / DELETE, you MUST do ALL of the following in your response:
 
-1. **Check CLERK_SECRET_KEY** — verify it is set:
+1. **Check CLERK_SECRET_KEY** — test whether it is set **without printing any portion of its value**:
    ```bash
-   echo $CLERK_SECRET_KEY | head -c 10
+   if [ -z "${CLERK_SECRET_KEY:-}" ]; then
+     echo "CLERK_SECRET_KEY is not set"
+   else
+     echo "CLERK_SECRET_KEY is set"
+   fi
    ```
-   If empty, stop and ask the user. Do not proceed without a valid key.
+   If it is not set, stop and ask the user. Do not proceed without a valid key. Never echo, print, or log the key itself.
 
 2. **Check CLERK_BAPI_SCOPES** — run:
    ```bash
@@ -34,7 +38,11 @@ Before ANY POST / PATCH / PUT / DELETE, you MUST do ALL of the following in your
 
 ## FAST PATH: Common operations (use directly, no spec fetching needed)
 
-For the operations below, skip spec fetching and execute immediately using these exact templates. Substitute `$CLERK_SECRET_KEY`, `$USER_ID`, `$ORG_ID`, `$EMAIL` as needed from the user's context.
+Skip spec fetching and use these exact templates. Substitute `$CLERK_SECRET_KEY`, `$USER_ID`, `$ORG_ID`, `$EMAIL` as needed from the user's context.
+
+**Execution gate (takes precedence over templates):**
+- **GET / read:** execute immediately.
+- **POST / PATCH / PUT / DELETE:** do **not** execute immediately. Complete the CRITICAL checks (including the scope check) **and** get explicit user confirmation first, then run the template.
 
 ### Create organization + invite member (two-step)
 
@@ -59,25 +67,45 @@ curl -s -X POST "https://api.clerk.com/v1/organizations/${ORG_ID}/invitations" \
 
 **Roles:** use `"org:admin"` or `"org:member"` (always prefix with `org:`).
 
-### SDK equivalent (for Next.js / TypeScript projects with `@clerk/nextjs` or `@clerk/backend`)
+### SDK equivalent (Next.js — `@clerk/nextjs/server`)
+
+`clerkClient` is an async factory. Await it, assign the client, then call methods on that instance:
 
 ```typescript
 import { clerkClient } from '@clerk/nextjs/server'
-// OR if using @clerk/backend directly:
-// import { createClerkClient } from '@clerk/backend'
-// const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY })
+
+const client = await clerkClient()
 
 // Step 1: Create organization
-const org = await clerkClient.organizations.createOrganization({
+const org = await client.organizations.createOrganization({
   name: 'Acme Corp',
   createdBy: userId,  // required — the ID of the user creating the org
 })
 
 // Step 2: Invite member to the org
-const invitation = await clerkClient.organizations.createOrganizationInvitation({
+const invitation = await client.organizations.createOrganizationInvitation({
   organizationId: org.id,
   emailAddress: 'user@example.com',
   role: 'org:admin',  // or 'org:member'
+})
+```
+
+### SDK equivalent (`@clerk/backend` — sync factory)
+
+```typescript
+import { createClerkClient } from '@clerk/backend'
+
+const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY })
+
+const org = await clerkClient.organizations.createOrganization({
+  name: 'Acme Corp',
+  createdBy: userId,
+})
+
+const invitation = await clerkClient.organizations.createOrganizationInvitation({
+  organizationId: org.id,
+  emailAddress: 'user@example.com',
+  role: 'org:admin',
 })
 ```
 
@@ -91,26 +119,58 @@ const invitation = await clerkClient.organizations.createOrganizationInvitation(
 | Private | `private_metadata` | **Server only** | **Server only** | Stripe IDs, compliance flags, internal identifiers |
 | Unsafe | `unsafe_metadata` | Client + Server | Client + Server | Ephemeral UI state, onboarding steps (client-writable — avoid sensitive data) |
 
-**For `plan: 'pro'` and `onboarded: true` — use `public_metadata`** (frontend-readable, server-writable):
+**For `plan: 'pro'` and `onboarded: true` — use `public_metadata`** (frontend-readable, server-writable).
+
+Use the dedicated metadata endpoints — do **not** send metadata on `PATCH /v1/users/{user_id}` or `updateUser()`.
+
+- **`PATCH /v1/users/{user_id}/metadata`** / **`updateUserMetadata()`** — deep-merges provided keys (nested objects merge too). Set a key to `null` to remove it. Existing keys you omit are preserved. No read-spread-write.
+- **`PUT /v1/users/{user_id}/metadata`** / **`replaceUserMetadata()`** — replaces each **provided** top-level metadata field in full. Omitted top-level fields (`public_metadata`, `private_metadata`, `unsafe_metadata`) are left untouched.
 
 ```bash
-curl -s -X PATCH "https://api.clerk.com/v1/users/${USER_ID}" \
+# Deep-merge (preserves other public_metadata keys)
+curl -s -X PATCH "https://api.clerk.com/v1/users/${USER_ID}/metadata" \
   -H "Authorization: Bearer $CLERK_SECRET_KEY" \
   -H "Content-Type: application/json" \
   -d '{"public_metadata": {"plan": "pro", "onboarded": true}}' \
   | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Updated user {d[\"id\"]}: public_metadata={d.get(\"public_metadata\")}')"
 ```
 
-**SDK equivalent:**
+**SDK equivalent (Next.js):**
 
 ```typescript
 import { clerkClient } from '@clerk/nextjs/server'
-// OR: import { createClerkClient } from '@clerk/backend'
 
-await clerkClient.users.updateUser(userId, {
-  publicMetadata: { plan: 'pro', onboarded: true },   // readable by client, writable server-only
-  // privateMetadata: { stripeId: 'cus_xxx' },         // server-only read AND write
-  // unsafeMetadata: { step: 'welcome' },              // client-writable, avoid sensitive data
+const client = await clerkClient()
+await client.users.updateUserMetadata(userId, {
+  publicMetadata: { plan: 'pro', onboarded: true },   // deep-merge; other keys kept
+  // privateMetadata: { stripeId: 'cus_xxx' },
+  // unsafeMetadata: { step: 'welcome' },
+})
+```
+
+**SDK equivalent (`@clerk/backend`):**
+
+```typescript
+import { createClerkClient } from '@clerk/backend'
+
+const clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY })
+await clerkClient.users.updateUserMetadata(userId, {
+  publicMetadata: { plan: 'pro', onboarded: true },
+})
+```
+
+To replace a metadata field wholesale (no merge):
+
+```bash
+curl -s -X PUT "https://api.clerk.com/v1/users/${USER_ID}/metadata" \
+  -H "Authorization: Bearer $CLERK_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"public_metadata": {"plan": "pro", "onboarded": true}}'
+```
+
+```typescript
+await client.users.replaceUserMetadata(userId, {
+  publicMetadata: { plan: 'pro', onboarded: true },
 })
 ```
 
@@ -167,7 +227,22 @@ Returns: User object
 **Update user**
 ```
 PATCH /v1/users/{user_id}
-Body (JSON, snake_case): { public_metadata, private_metadata, unsafe_metadata, first_name, last_name, username, ... }
+Body (JSON, snake_case): { first_name, last_name, username, ... }
+Do not send public_metadata / private_metadata / unsafe_metadata here — use the dedicated metadata endpoints.
+```
+
+**Update user metadata (deep merge)**
+```
+PATCH /v1/users/{user_id}/metadata
+Body: { public_metadata?, private_metadata?, unsafe_metadata? }
+Deep-merges provided keys. Set a key to null to remove it. SDK: updateUserMetadata().
+```
+
+**Replace user metadata**
+```
+PUT /v1/users/{user_id}/metadata
+Body: { public_metadata?, private_metadata?, unsafe_metadata? }
+Replaces each provided top-level field in full. Omitted fields are left untouched. SDK: replaceUserMetadata().
 ```
 
 **Delete user — IRREVERSIBLE**
@@ -273,21 +348,26 @@ Use the output to determine the latest version and available tags.
 
 `currentUser()` makes a real API call that counts against rate limits. Use `auth()` for just the session claims — it reads from the token without an API call.
 
-### Metadata Overwrites (Not Merges)
+### Metadata: merge vs replace
 
-`updateUser({ publicMetadata: { role: 'admin' } })` REPLACES all public metadata, not merges. To add a field without losing existing data: read first, spread, then write.
+Do **not** pass metadata on `updateUser()` / `PATCH /v1/users/{user_id}` (removed as of API version 2026-05-12). Do **not** read-spread-write.
 
-Wrong:
+| Operation | REST | SDK | Semantics |
+|-----------|------|-----|-----------|
+| Merge | `PATCH /v1/users/{user_id}/metadata` | `updateUserMetadata()` | Deep-merges provided keys. Nested objects merge. `null` removes a key. Omitted keys are kept. |
+| Replace | `PUT /v1/users/{user_id}/metadata` | `replaceUserMetadata()` | Replaces each **provided** top-level field (`publicMetadata` / `privateMetadata` / `unsafeMetadata`) in full. Omitted top-level fields are left untouched. |
+
 ```typescript
-await clerkClient.users.updateUser(userId, { publicMetadata: { newField: 'value' } })
-```
-This DELETES all other `publicMetadata` fields.
+const client = await clerkClient()
 
-Right:
-```typescript
-const user = await clerkClient.users.getUser(userId)
-await clerkClient.users.updateUser(userId, {
-  publicMetadata: { ...user.publicMetadata, newField: 'value' },
+// Merge: adds/updates `plan`, keeps existing `role`
+await client.users.updateUserMetadata(userId, {
+  publicMetadata: { plan: 'pro' },
+})
+
+// Replace: publicMetadata becomes only `{ plan: 'pro' }` — `role` is dropped
+await client.users.replaceUserMetadata(userId, {
+  publicMetadata: { plan: 'pro' },
 })
 ```
 

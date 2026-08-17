@@ -38,6 +38,8 @@ If the installed `@clerk/expo` is older than 3.4 and hooks don't have this shape
 All flows end the same way. Session tasks (e.g. forced MFA enrollment, org selection) must be handled before navigating:
 
 ```tsx
+import { router, type Href } from 'expo-router'
+
 const navigateAfterAuth = ({ session, decorateUrl }) => {
   if (session?.currentTask) {
     // Route to your session-task UI instead of home.

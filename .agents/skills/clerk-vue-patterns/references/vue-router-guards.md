@@ -6,7 +6,9 @@ For plain Vue (without Nuxt), protect routes using navigation guards.
 
 ```ts
 // router/index.ts
+import { watch, type Ref } from 'vue'
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAuth } from '@clerk/vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -17,10 +19,23 @@ const router = createRouter({
   ],
 })
 
+async function waitUntilTrue(source: Ref<boolean>) {
+  if (source.value) return
+  await new Promise<void>((resolve) => {
+    const stop = watch(source, (value) => {
+      if (value) {
+        stop()
+        resolve()
+      }
+    })
+  })
+}
+
 router.beforeEach(async (to) => {
   if (!to.meta.requiresAuth) return true
 
-  const { userId } = useAuth()
+  const { userId, isLoaded } = useAuth()
+  await waitUntilTrue(isLoaded)
 
   if (!userId.value) return '/sign-in'
   return true
@@ -49,11 +64,15 @@ watchEffect(() => {
 ## Org-Gated Route
 
 ```ts
+import { useAuth, useOrganization } from '@clerk/vue'
+
 router.beforeEach(async (to) => {
   if (!to.meta.requiresOrg) return true
 
-  const { userId } = useAuth()
-  const { organization } = useOrganization()
+  const { userId, isLoaded } = useAuth()
+  const { organization, isLoaded: orgLoaded } = useOrganization()
+  await waitUntilTrue(isLoaded)
+  await waitUntilTrue(orgLoaded)
 
   if (!userId.value) return '/sign-in'
   if (!organization.value) return '/select-org'

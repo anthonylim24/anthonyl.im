@@ -193,7 +193,7 @@ export async function loader(args: Route.LoaderArgs) {
 | Unknown future flag error/warning (v8) | `v8_middleware` flag left in `react-router.config.ts` after upgrading | Remove the `future.v8_middleware` entry — middleware is always on in v8 |
 | `getAuth` returns empty userId | `rootAuthLoader` not called | Call `rootAuthLoader(args)` in `root.tsx` loader |
 | Infinite redirect loop | Redirect target is also protected | Exclude `/sign-in` from protection check |
-| `redirect` not working in action | Using `Response` instead of `throw redirect()` | Use `throw redirect('/path')` from `react-router` |
+| `redirect` not working in action | Returning a raw `Response` instead of `redirect()` | Return `redirect('/path')` from the action. Throw `redirect()` only when short-circuiting (e.g. unauthenticated in a loader) |
 
 ## Import Map
 
