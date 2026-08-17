@@ -104,7 +104,7 @@ destination-specific routes or logic.
 | `KoreaIndex.tsx` | Trip hero, day list, Map Mode entry |
 | `KoreaDay.tsx` | Day detail — reservations, places, timeline |
 | `KoreaChat.tsx` | Concierge SSE (`POST /api/korea/chat`) |
-| `MapModeScene.tsx` | Three.js 3D orbital scene |
+| `Detailed3DScene.tsx` | Photorealistic 3D tiles Map Mode scene (replaced orbital `MapModeScene`) |
 | `MapModeOverlay.tsx` | Shared overlay (Korea + Trips via `placesUrl`) |
 | `PlaceDetailSheet.tsx` | Slide-up detail panel for a place |
 | `Places.tsx` | Full places list with skeleton loaders |
@@ -517,15 +517,15 @@ Legacy Clerk-gated dossier. Snapshot also seeds trip `korea-2026`. Do not add ne
 Anthony (primary) and his partner, while planning + executing a 12-day Seoul + Busan trip in late May / early June 2026. Used on phones for in-trip lookups (reservations, nearby places, directions) and on desktop for planning. Authenticated behind Clerk so it's a private dossier.
 
 ### Brand Personality
-**Cinematic, Personal, Refined.** A private travel concierge dossier — every reservation accounted for, every neighborhood researched, every recommendation reasoned. Map Mode is the centerpiece moment: a 3D orbital view where YOU sit at the center of the trip universe.
+**Cinematic, Personal, Refined.** A private travel concierge dossier — every reservation accounted for, every neighborhood researched, every recommendation reasoned. Map Mode is the centerpiece: Google Photorealistic 3D Tiles with a glassy YOU pin on the terrain.
 
 **Emotional goals:** Anticipation (the trip is coming, every piece feels considered) and confidence (no detail slips through). Should feel like a hand-bound itinerary booklet animated into the future.
 
 ### Aesthetic Direction
 - **Visual tone:** Warm parchment base inherited from the shared palette, with a **rose / amber gradient bloom** as the signature. Korea's red-and-gold heritage referenced without literal kitsch — no taegukgi flag chrome, but the spirit of it.
 - **Hero gradient:** soft rose top-left → amber bottom-right radial blobs (animated, slow drift). Dark mode swaps to a purple / indigo / mauve nightscape so in-trip evening lookups feel travel-time-of-day appropriate.
-- **Glass orbs (Map Mode):** `MeshPhysicalMaterial` with `transmission: 0.7`, frosted `roughness`, `clearcoat`, subtle `iridescence`. Inner billboard plane carries the place's Wikipedia photo so it appears refracted through the glass. Fresnel rim shell adds an additive edge glow.
-- **YOU pin:** CSS-anchored to viewport center, independent of camera projection. The camera orbits *around* YOU.
+- **YOU pin:** glassy `MeshPhysicalMaterial` droplet + water puddle (`youPin.ts`), snapped to the photogrammetry mesh. Label is DOM-projected from world coords.
+- **Place markers:** category-tinted `MeshStandardMaterial` spheres above terrain + ground beams — not glass orbs.
 - **References:** Apple Maps' Look Around isometry combined with the small careful detail work of `flighty.app` and the editorial restraint of `monocle.com/travel`.
 - **Anti-references:** Cluttered booking aggregators (Booking.com), generic "trip planner" SaaS dashboards, kitsch tourism brochures, OpenStreetMap defaults.
 - **Theme:** Both light and dark are first-class — light during planning, dark for in-trip evening lookups.
@@ -539,27 +539,24 @@ Anthony (primary) and his partner, while planning + executing a 12-day Seoul + B
 | Accent — supplemental | `#A8A29E` (stone-400) | `#78716C` (stone-500) | Supplemental / extras in Map Mode |
 | Success | `#10B981` (emerald-500) | `#34D399` (emerald-400) | Confirmed booking status |
 | Pending | `#F59E0B` (amber-500) | `#FBBF24` (amber-400) | Reservation pending |
-| Glass orb base | per-place category color | same | `MeshPhysicalMaterial` color tint |
+| Place marker | per-place category color | same | Emissive sphere + ground beam |
 
 ### Korea-specific Principles
 
-1. **YOU is the geometric + visual center.** The Map Mode camera orbits the user — never drifts. The CSS-anchored YOU label is non-negotiable; perspective rotates *around* it.
-2. **Refraction over flat fill.** Where reasonable, prefer materials that refract (glass orbs, frosted overlays) over solid shapes. The trip should feel three-dimensional, not pasted on.
-3. **Distance is information, not chrome.** Every place card / orb label surfaces distance + walking ETA prominently as a colored pill — it's the most-used piece of data, not a footnote.
+1. **YOU is world-anchored on the mesh.** Camera target can lerp toward a selected place; reset returns to a 45° birds-eye on YOU.
+2. **Refraction is for the YOU pin only.** Place markers stay solid. BreathFlow chrome stays matte.
+3. **Distance is information, not chrome.** Every place card / marker label surfaces distance + walking ETA prominently as a colored pill — it's the most-used piece of data, not a footnote.
 4. **Smart links everywhere.** Flight numbers → carrier tracker, KTX → Korail timetable, addresses → Google Maps, phones → `tel:`, times → AM/PM tooltip. Free-form copy gets auto-linked by the `LinkifiedText` engine.
 5. **PWA auto-update is mandatory.** Service worker + client must auto-swap to the latest version after each deploy — users should never see stale Map Mode. Bump `CACHE_VERSION` on every breaking SW change.
 
 ### Map Mode-specific Conventions
 
-- Camera target = world origin
-- Default pitch ≈ 0.78 rad (top-down isometric)
-- All bubbles on the same `y = 1.6` plane (depth comes from camera angle, not staggered elevations — the user wants YOU as the unambiguous center)
-- No auto-rotate — scene stays still until dragged
-- Camera radius adapts per viewport (62 → 30 from 320 px → 1440 px)
-- Reset-view crosshair button restores yaw / pitch / radius
-- WebGL fallback: styled list view with the same filter chip bar + photo thumbnails
-- Shared by Trips via `placesUrl` — **unmount** when closed (no React `Activity`)
-- Concierge chips may open Google/Apple Maps (`lib/externalMaps.ts`); in-app Map Mode stays for day/editor views
+- Overlay: `MapModeOverlay.tsx` (`placesUrl`). Scene: `Detailed3DScene.tsx` (Google Photorealistic 3D Tiles). `MapModeScene.tsx` is gone.
+- Trips reuse the overlay with `/api/trips/:id/days/:dayId/places`.
+- Reset pitch ≈ `Math.PI / 4`. No auto-rotate. Adaptive tile quality / DPR (`adaptiveQuality.ts`, `deviceTier.ts`).
+- Missing `VITE_GOOGLE_MAP_TILES_API_KEY` (or Places key fallback) or no WebGL → `MapModeFallbackList`.
+- **Must unmount** when closed — do not hide with React `Activity`.
+- Concierge chips may open Google/Apple Maps (`lib/externalMaps.ts`).
 
 ---
 

@@ -152,15 +152,15 @@ Legacy Clerk-gated dossier for the May/June 2026 Seoul + Busan trip. Snapshot da
 Anthony (primary) and his partner, while planning + executing a 12-day Seoul + Busan trip. Used on phones for in-trip lookups and on desktop for planning.
 
 ### Brand Personality
-**Cinematic, Personal, Refined.** A private travel concierge dossier. Map Mode is the centerpiece: a 3D orbital view where YOU sit at the center of the trip universe.
+**Cinematic, Personal, Refined.** A private travel concierge dossier. Map Mode is the centerpiece: Google Photorealistic 3D Tiles of the city, with a glassy YOU pin on the terrain.
 
 **Emotional goals:** Anticipation and confidence. Should feel like a hand-bound itinerary booklet animated into the future.
 
 ### Aesthetic Direction
 - **Visual tone:** Warm parchment base with a **rose / amber gradient bloom**. Korea's red-and-gold heritage without kitsch — no taegukgi chrome.
 - **Hero gradient:** soft rose top-left → amber bottom-right radial blobs. Dark mode swaps to a purple / indigo / mauve nightscape.
-- **Glass orbs (Map Mode):** `MeshPhysicalMaterial` with `transmission: 0.7`, frosted `roughness`, `clearcoat`, subtle `iridescence`. This is the one place glassmorphism is required.
-- **YOU pin:** CSS-anchored to viewport center. The camera orbits *around* YOU.
+- **YOU pin:** glassy `MeshPhysicalMaterial` droplet + water puddle (`youPin.ts`), snapped to the photogrammetry mesh. Label is DOM-projected from world coords — not a fixed CSS viewport-center pin.
+- **Place markers:** category-tinted `MeshStandardMaterial` spheres above terrain (not glass orbs). Glass/refraction is reserved for YOU.
 - **References:** Apple Maps Look Around, `flighty.app`, `monocle.com/travel`.
 - **Anti-references:** Booking.com clutter, generic trip-planner SaaS, tourism brochures, OSM defaults.
 
@@ -173,25 +173,24 @@ Anthony (primary) and his partner, while planning + executing a 12-day Seoul + B
 | Accent — supplemental | `#A8A29E` (stone-400) | `#78716C` (stone-500) | Supplemental / extras in Map Mode |
 | Success | `#10B981` (emerald-500) | `#34D399` (emerald-400) | Confirmed booking status |
 | Pending | `#F59E0B` (amber-500) | `#FBBF24` (amber-400) | Reservation pending |
-| Glass orb base | per-place category color | same | `MeshPhysicalMaterial` color tint |
+| Place marker | per-place category color | same | Emissive sphere + ground beam |
 
 ### Korea-specific Principles
 
-1. **YOU is the geometric + visual center.** The Map Mode camera orbits the user — never drifts.
-2. **Refraction over flat fill** in Map Mode. BreathFlow chrome stays matte.
+1. **YOU is world-anchored on the mesh.** Camera target can lerp toward a selected place; reset returns to a 45° birds-eye on YOU.
+2. **Refraction is for the YOU pin only.** BreathFlow chrome stays matte.
 3. **Distance is information, not chrome.** Distance + walking ETA as a colored pill.
 4. **Smart links everywhere.** Flight #s, KTX, addresses, phones, times — `LinkifiedText`.
 5. **PWA auto-update is mandatory.** Bump `CACHE_VERSION` in `frontend/public/sw.js` on every breaking SW change. Current version is Korea-primary (`korea-offline-v*`), not `breathflow-offline-v*`.
 
 ### Map Mode-specific Conventions
 
-- Shared overlay: `frontend/src/pages/Korea/MapModeOverlay.tsx` (`placesUrl` prop). Trips pass `/api/trips/:id/days/:dayId/places`.
-- Camera target = world origin; default pitch ≈ 0.78 rad; bubbles on `y = 1.6`
-- No auto-rotate; radius adapts 62 → 30 from 320 px → 1440 px
-- Reset-view crosshair restores yaw / pitch / radius
-- WebGL fallback: styled list + filter chips + thumbnails
-- **Must unmount** when closed — do not hide with React `Activity`
-- Concierge place chips may open Google/Apple Maps (`frontend/src/lib/externalMaps.ts`); in-app Map Mode stays for itinerary/day views
+- Overlay: `MapModeOverlay.tsx` (`placesUrl`). Scene: `Detailed3DScene.tsx` (Google Photorealistic 3D Tiles via `3d-tiles-renderer`). `MapModeScene.tsx` is gone — do not recreate the orbital bubble plane.
+- Trips pass `/api/trips/:id/days/:dayId/places` (same `PlacesResponse` / `RankedPlace` shape).
+- Reset pitch ≈ `Math.PI / 4`. No auto-rotate. Adaptive tile quality / DPR by device tier.
+- Missing tiles key or no WebGL → `MapModeFallbackList` (same filter chips).
+- **Must unmount** when closed — do not hide with React `Activity`.
+- Concierge chips may open Google/Apple Maps (`lib/externalMaps.ts`); in-app Map Mode stays for day/editor views.
 
 ---
 
@@ -206,7 +205,7 @@ The same travelers as Korea, plus future trips. Phone for in-trip lookups; deskt
 **Same cinematic dossier language as Korea**, parameterized by a per-trip accent (`data-trip-accent` → `--trips-accent` in `index.css`). Not a SaaS admin table.
 
 ### Aesthetic Direction
-- Reuse Korea's parchment, bloom, Map Mode glass orbs, and editorial type.
+- Reuse Korea's parchment, bloom, photorealistic Map Mode, and editorial type.
 - Accent is trip-owned (rose, amber, etc.) — do not invent a second chrome color.
 - Overview (`/trips/:tripId`) is a read-only dossier. Editor is `/trips/:tripId/edit`. Concierge FAB (`TripChat`) lives on overview + day pages, not on create/edit.
 - Instagram ingest is embedded in the editor (`TripIngest`), not a standalone route.

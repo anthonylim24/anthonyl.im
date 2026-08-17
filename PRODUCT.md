@@ -124,15 +124,15 @@ Wellness enthusiasts and people seeking anxiety / stress relief. They open Breat
 Anthony (primary) and his partner, while planning + executing a 12-day Seoul + Busan trip in late May / early June 2026. Used on phones for in-trip lookups (reservations, places nearby, directions) and on desktop for planning. Authenticated behind Clerk so it's a private dossier.
 
 ### Brand Personality
-**Cinematic, Personal, Refined.** A private travel concierge dossier — every reservation accounted for, every neighborhood researched, every recommendation reasoned. Map Mode is the centerpiece: a 3D orbital view where YOU sit at the center of the trip universe.
+**Cinematic, Personal, Refined.** A private travel concierge dossier — every reservation accounted for, every neighborhood researched, every recommendation reasoned. Map Mode is the centerpiece: Google Photorealistic 3D Tiles with a glassy YOU pin on the terrain.
 
 **Emotional goals:** Anticipation (the trip is coming, every piece feels considered) and confidence (no detail slips through). Should feel like a hand-bound itinerary booklet animated into the future.
 
 ### Aesthetic Direction
 - **Visual tone:** Warm parchment base inherited from the shared palette, with a **rose / amber gradient bloom** as the signature. Korea's red-and-gold heritage referenced without literal kitsch — no taegukgi flag chrome, but the spirit of it.
 - **Hero gradient:** soft rose top-left → amber bottom-right radial blobs (animated, slow drift). Dark mode swaps to a purple / indigo / mauve nightscape so in-trip evening lookups feel travel-time-of-day appropriate.
-- **Glass orbs (Map Mode):** `MeshPhysicalMaterial` with `transmission: 0.7`, frosted `roughness`, `clearcoat`, subtle `iridescence`. Inner billboard plane carries the place's Wikipedia photo so it appears refracted through the glass. Fresnel rim shell adds an additive edge glow.
-- **YOU pin:** CSS-anchored to viewport center, independent of camera projection. The camera orbits *around* YOU.
+- **YOU pin:** glassy `MeshPhysicalMaterial` droplet + water puddle (`youPin.ts`), snapped to the photogrammetry mesh. Label is DOM-projected from world coords.
+- **Place markers:** category-tinted `MeshStandardMaterial` spheres above terrain + ground beams — not glass orbs.
 - **References:** Apple Maps' Look Around isometry combined with the small careful detail work of `flighty.app` and the editorial restraint of `monocle.com/travel`.
 - **Anti-references:** Cluttered booking aggregators (Booking.com), generic "trip planner" SaaS dashboards, kitsch tourism brochures, OpenStreetMap defaults.
 - **Theme:** Both light and dark are first-class — light during planning, dark for in-trip evening lookups.
@@ -146,25 +146,22 @@ Anthony (primary) and his partner, while planning + executing a 12-day Seoul + B
 | Accent — supplemental | `#A8A29E` (stone-400) | `#78716C` (stone-500) | Supplemental / extras in Map Mode |
 | Success | `#10B981` (emerald-500) | `#34D399` (emerald-400) | Confirmed booking status |
 | Pending | `#F59E0B` (amber-500) | `#FBBF24` (amber-400) | Reservation pending |
-| Glass orb base | per-place category color | same | `MeshPhysicalMaterial` color tint |
+| Place marker | per-place category color | same | Emissive sphere + ground beam |
 
 ### Korea-specific Principles
 
-1. **YOU is the geometric + visual center.** The Map Mode camera orbits the user — never drifts. The CSS-anchored YOU label is non-negotiable; perspective rotates *around* it.
-2. **Refraction over flat fill.** Where reasonable, prefer materials that refract (glass orbs, frosted overlays) over solid shapes. The trip should feel three-dimensional, not pasted on.
-3. **Distance is information, not chrome.** Every place card / orb label surfaces distance + walking ETA prominently as a colored pill — it's the most-used piece of data, not a footnote.
+1. **YOU is world-anchored on the mesh.** Camera target can lerp toward a selected place; reset returns to a 45° birds-eye on YOU.
+2. **Refraction is for the YOU pin only.** Place markers stay solid. BreathFlow chrome stays matte.
+3. **Distance is information, not chrome.** Every place card / marker label surfaces distance + walking ETA prominently as a colored pill — it's the most-used piece of data, not a footnote.
 4. **Smart links everywhere.** Flight numbers → carrier tracker, KTX → Korail timetable, addresses → Google Maps, phones → `tel:`, times → AM/PM tooltip. Free-form copy gets auto-linked by the `LinkifiedText` engine.
 5. **PWA auto-update is mandatory.** Service worker + client must auto-swap to the latest version after each deploy — users should never see stale Map Mode. Bump `CACHE_VERSION` on every breaking SW change.
 
 ### Map Mode-specific Conventions
 
-- Camera target = world origin
-- Default pitch ≈ 0.78 rad (top-down isometric)
-- All bubbles on the same `y = 1.6` plane (depth comes from camera angle, not staggered elevations — the user wants YOU as the unambiguous center)
-- No auto-rotate — scene stays still until dragged
-- Camera radius adapts per viewport (62 → 30 from 320 px → 1440 px)
-- Reset-view crosshair button restores yaw / pitch / radius
-- WebGL fallback: styled list view with the same filter chip bar + photo thumbnails
+- Overlay: `MapModeOverlay.tsx`. Scene: `Detailed3DScene.tsx` (Google Photorealistic 3D Tiles). `MapModeScene.tsx` is gone.
+- Reset pitch ≈ `Math.PI / 4`. No auto-rotate. Adaptive tile quality by device tier.
+- Missing tiles key or no WebGL → styled fallback list with the same filter chips.
+- **Must unmount** when closed — do not hide with React `Activity`.
 
 ---
 
@@ -173,7 +170,7 @@ Anthony (primary) and his partner, while planning + executing a 12-day Seoul + B
 - **`<LinkifiedText>`** (Korea) — universal smart-linker. Detects flight numbers (UA / KE / OZ / AA / DL / AS / BA / JL / NH), KTX trains, Korean phones (+82), emails, URLs, Korean street addresses (`-daero` / `-ro` + `-gil`), subway exit references, and 24-hour times (which become hover-tooltip AM/PM via `<Time>`).
 - **`<ReservationCard>`** (Korea) — status pill (✅ / 🟡 / 🔴), category icon, time with AM/PM tooltip, chip row for Maps / Call / Book.
 - **`<DayCard>`** + **`<DayTreeNav>`** (Korea) — city-tinted gradients, spring entry, today-detection ring.
-- **`<MapModeScene>`** (Korea) — Three.js orbital scene with the conventions above. CSS YOU pin anchors center.
+- **`<Detailed3DScene>`** (Korea) — photorealistic 3D tiles Map Mode scene (`MapModeOverlay` consumer). YOU pin is 3D `YouPin` on terrain, not a fixed viewport-center CSS pin.
 - **`<KstClock>`** (Korea) — live Asia/Seoul time pill in the tree nav.
 
 ---
@@ -187,7 +184,7 @@ The same travelers as Korea, plus future trips. Phone for in-trip lookups; deskt
 **Same cinematic dossier language as Korea**, parameterized by a per-trip accent (`data-trip-accent` → `--trips-accent`). Not a SaaS admin table.
 
 ### Aesthetic Direction
-- Reuse Korea's parchment, bloom, Map Mode glass orbs, and editorial type.
+- Reuse Korea's parchment, bloom, photorealistic Map Mode, and editorial type.
 - Accent is trip-owned — do not invent a second chrome color.
 - Overview (`/trips/:tripId`) is a read-only dossier. Editor is `/trips/:tripId/edit`. Concierge FAB on overview + day, not create/edit.
 - Instagram ingest is embedded in the editor, not a standalone route.
@@ -197,7 +194,7 @@ The same travelers as Korea, plus future trips. Phone for in-trip lookups; deskt
 1. **Do not add `/japan`-style destination routes.** Extend the trips system.
 2. AI-added places must carry structured locations — never prose only.
 3. Map Mode uses the Korea `PlacesResponse` / `RankedPlace` shape and **must unmount** when closed.
-4. Inter + Cormorant + Lucide stay. Glass orbs are required in Map Mode only.
+4. Inter + Cormorant + Lucide stay. Glass/refraction is for the YOU pin only.
 
 ## Service Worker / Caching Contract
 
