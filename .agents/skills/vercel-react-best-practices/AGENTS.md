@@ -1431,9 +1431,9 @@ useEffect(() => {
 
 **Impact: MEDIUM-HIGH (automatic deduplication)**
 
-> **anthonyl.im:** Skip this rule. Do not add SWR. Use Effect (`requestJson` / `fetchApi`) and a latest-request-wins sequence guard. See [`effect-ts`](../effect-ts/SKILL.md).
+> **anthonyl.im:** Skip SWR. Do not add it. Use Effect (`requestJson` / `fetchApi`) and a **per-loader** `useRef` sequence guard (latest-request-wins / stale-response suppression). See [`effect-ts`](../effect-ts/SKILL.md). Live example: `frontend/src/pages/Korea/Places.tsx`.
 
-**Incorrect: no deduplication, each instance fetches**
+**Incorrect: no guard, each instance fetches and every response commits**
 
 ```tsx
 function UserList() {
@@ -1446,16 +1446,19 @@ function UserList() {
 }
 ```
 
-**Correct in this repo:** put the request in a `*Api.ts` module (`Effect.fn` + `runPromise`). In the React loader, ignore stale responses:
+**Correct in this repo:** keep the sequence counter on the loader, not a shared module `let seq`:
 
 ```tsx
-let seq = 0
+function TripList({ getToken }: { getToken: () => Promise<string | null> }) {
+  const [trips, setTrips] = useState<Trip[]>([])
+  const loadSeq = useRef(0)
 
-async function refresh(getToken: () => Promise<string | null>) {
-  const id = ++seq
-  const data = await listTrips(getToken)
-  if (id !== seq) return
-  setTrips(data)
+  async function refresh() {
+    const seq = ++loadSeq.current
+    const data = await listTrips(getToken)
+    if (seq !== loadSeq.current) return
+    setTrips(data)
+  }
 }
 ```
 

@@ -26,7 +26,7 @@ This is a **Vite SPA**, not Next.js. The repo override wins over every `next/dyn
 
 - **`bundle-dynamic-imports`:** Use `React.lazy` + `Suspense`. Never `import dynamic from 'next/dynamic'`. Bundle splitting is `frontend/vite.config.ts` `advancedChunks` (not `optimizePackageImports`).
 - Server is Hono/Bun (`server/src/routes/*`), not Server Actions / RSC. `async-api-routes`, `server-cache-lru`, and `server-hoist-static-io` apply to Hono. Skip `server-auth-actions`, `server-after-nonblocking`, `server-dedup-props`, and RSC serialization rules.
-- **`client-swr-dedup`:** Skip. This app has no SWR — do not add it. Use Effect (`requestJson` / `fetchApi`) + latest-request-wins.
+- **`client-swr-dedup`:** Skip SWR. Do not add it. Use Effect (`requestJson` / `fetchApi`) plus a **per-loader** `useRef` sequence guard (latest-request-wins). That suppresses stale responses; it does not coalesce in-flight HTTP.
 - `rendering-activity`: OK for menus/dropdowns. **NEVER** hide Map Mode / WebGL with React `Activity` — must unmount (see [`effect-ts`](../effect-ts/SKILL.md)).
 - `bundle-barrel-imports`: `lucide-react` is already split via the `icons` chunk; keep `lucide-react` imports (do not deep-import missing `.d.ts` paths).
 
@@ -77,7 +77,7 @@ This is a **Vite SPA**, not Next.js. The repo override wins over every `next/dyn
 
 ### 4. Client-Side Data Fetching (MEDIUM-HIGH)
 
-- `client-swr-dedup` - **Skip.** No SWR — Effect + latest-request-wins
+- `client-swr-dedup` - **Skip SWR.** Effect + per-loader `useRef` latest-request-wins
 - `client-event-listeners` - Deduplicate global event listeners
 - `client-passive-event-listeners` - Use passive listeners for scroll
 - `client-localstorage-schema` - Version and minimize localStorage data
