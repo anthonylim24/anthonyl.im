@@ -5,7 +5,7 @@
 - `brew install yt-dlp ffmpeg`
 - Env vars in `.env`:
   - `BRIGHT_DATA_API_KEY`
-  - `GEMINI_API_KEY` (primary video/place extraction)
+  - `GEMINI_API_KEY` (optional — primary for skip-video / caption-only extract; also Whisper 429 fallback, last-resort text extract, and geocode-dispute resolve. Video/OCR path uses Groq + Vision when unset)
   - `GOOGLE_MAPS_API_KEY` (Places New API enabled)
   - `GOOGLE_VISION_API_KEY` (or reuse Maps key if Vision is enabled on the same project)
   - `KAKAO_REST_API_KEY` (optional)

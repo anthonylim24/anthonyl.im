@@ -3,7 +3,7 @@ name: redesign-existing-projects
 description: Upgrades existing websites and apps to premium quality. Audits current design, identifies generic AI patterns, and applies high-end design standards without breaking functionality. Works with any CSS framework or vanilla CSS.
 ---
 
-> This repo already has `PRODUCT.md` + `impeccable`. Inter + Cormorant Garamond + `lucide-react` are intentional. BreathFlow bans glassmorphism; Korea/Trips Map Mode REQUIRES glass orbs. Do not apply landing-page Lucide/Inter/glass rules to `/breathwork`, `/korea`, `/trips`. Prefer `impeccable`.
+> This repo already has `PRODUCT.md` + `impeccable`. Shared-site type is Inter + Cormorant; BreathFlow uses Geist + Fragment Mono. `lucide-react` is intentional. BreathFlow chrome stays matte (no glassmorphism). Map Mode: glass/refraction is the YOU pin only (`youPin.ts`); places are `MeshStandardMaterial` spheres in `Detailed3DScene.tsx` — do not rebuild glass orbs. Do not apply landing-page Lucide/Inter/glass rules to `/breathwork`, `/korea`, `/trips`. Prefer `impeccable`.
 
 # Redesign Skill
 

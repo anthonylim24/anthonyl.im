@@ -30,7 +30,7 @@ These vendor skills are present for completeness. Do **not** apply them here:
 
 ## Design skills with caveats
 
-- **design-taste-frontend** — marketing/landing **only**. Do not use for `/breathwork`, `/korea`, `/trips`. Inter + Cormorant Garamond + `lucide-react` are intentional here.
+- **design-taste-frontend** — marketing/landing **only**. Do not use for `/breathwork`, `/korea`, `/trips`. Shared-site Inter + Cormorant and `lucide-react` are intentional; BreathFlow uses Geist + Fragment Mono.
 - **redesign-existing-projects** — prefer **impeccable** + root `PRODUCT.md`. Do not replace Inter/Lucide.
 
 Short pointers: [`.agents/memory/effect-ts.md`](../memory/effect-ts.md), [`.agents/memory/clerk.md`](../memory/clerk.md).

@@ -292,21 +292,24 @@ Cloud sync (Supabase) is managed by `useCloudSync` + `CloudSync` — authenticat
 Always required at server boot (`config.ts` throws):
 - `KLUSTER_API_KEY` + `KLUSTER_API_BASE_URL` — homepage chatbot LLM (Deepseek via Kluster)
 
+Required for Clerk-gated **production** (`/korea`, `/trips`, IG ingest). Without it, JWT verification fails and `/api/trips` (and other gated routes) return 401:
+- `CLERK_SECRET_KEY` — Clerk JWT verification (`server/src/middleware/clerkAuth.ts`)
+
 Required when the IG worker is enabled (warns if missing):
 - `BRIGHT_DATA_API_KEY` — Instagram post metadata
 - `GOOGLE_MAPS_API_KEY` — geocoding
 - `GROQ_API_KEY` — Whisper + extractor fallback
-- `CLERK_SECRET_KEY` — JWT verification
 - `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`
 
 Optional / feature-gated:
-- `GEMINI_API_KEY` — primary IG video/place extraction + trip/Korea concierge grounding
+- `GEMINI_API_KEY` — optional. Primary for skip-video / caption-only IG extract; also Whisper 429 fallback, last-resort text extract, geocode-dispute resolve, and trip/Korea concierge grounding. Video/OCR path uses Groq + Vision when unset.
 - `CEREBRAS_API_KEY` — Groq 429 fallback
 - `GOOGLE_VISION_API_KEY` — defaults to Maps key
 - `KAKAO_REST_API_KEY` — Korea geocode assist
 - `NOTION_TOKEN` — optional live Korea snapshot fetch
 - `AGENT_LOGIN_SECRET`, `CLERK_AGENT_USER_ID` / `CLERK_AGENT_USER_EMAIL`, `AGENT_GITHUB_REPO` — preview screenshot login
-- `IG_WORKER_*`, `IG_DEV_BEARER` / `VITE_DEV_BEARER` — local Clerk bypass only; **never** in production or PR previews
+- `IG_WORKER_*` — worker knobs
+- `IG_DEV_BEARER` / `VITE_DEV_BEARER` — **non-production** Clerk bypass only. Inert when `NODE_ENV=production`. **Never** set in production or PR previews.
 
 Frontend (`frontend/.env` from CI secret `FRONTEND_ENV`):
 - `VITE_CLERK_PUBLISHABLE_KEY`
@@ -434,8 +437,8 @@ Stay on Effect v3 (`effect@3`). Do not upgrade to Effect v4 beta.
 | Ink Tertiary | `#A8A29E` | `#78716C` | Hint / muted text |
 | Destructive | `#EF4444` | `#EF4444` | Errors, delete |
 | Border | `rgba(28,25,23,0.08)` | `rgba(255,252,245,0.06)` | Subtle edges |
-| Body font | Inter | | All UI text |
-| Display font | Cormorant Garamond | | Headings, brand moments |
+| Body font | Inter (BreathFlow: Geist) | | Shared-site body; BreathFlow uses Geist |
+| Display font | Cormorant Garamond (BreathFlow: Fragment Mono) | | Shared-site display; BreathFlow uses Fragment Mono |
 | Border radius | `0.5rem` (default) / `1rem`+ in Korea orb cards | | Standard rounding |
 | Spring easing | `cubic-bezier(0.16, 1, 0.3, 1)` | | Motion default |
 | Decel easing | `cubic-bezier(0.33, 0, 0, 1)` | | Smooth stops |
@@ -469,7 +472,7 @@ Visitors who land on `anthonyl.im` directly. Recruiters, prospective collaborato
 
 ## Design Context: `/breathwork/*` — BreathFlow
 
-Code: `frontend/src/breathflow/`. Session state is `useSessionEngine`. Orb: `OrbVisualization` / `useGlassOrb`. Chrome stays matte.
+Code: `frontend/src/breathflow/`. Session state is `useSessionEngine`. Orb: `OrbVisualization` / `useGlassOrb`. Chrome stays matte. Implementation fonts: Geist + Fragment Mono.
 
 ### Users
 Wellness enthusiasts and people seeking anxiety / stress relief. They open BreathFlow when they need to decompress, build a daily breathing habit, or access structured breathwork techniques backed by science. The context is often evening wind-down, pre-performance calm, or mid-day stress breaks — moments that demand a UI that feels immediately calming upon launch.

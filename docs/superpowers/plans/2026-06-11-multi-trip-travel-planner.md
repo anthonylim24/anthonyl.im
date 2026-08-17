@@ -1,8 +1,7 @@
 # Multi-Trip Travel Planner Implementation Plan
 
 > **Status:** COMPLETED. Live at `server/src/trips/` + `frontend/src/pages/Trips/`. · Do not execute this plan. Historical artifact. Current behavior: `CLAUDE.md` and the live code.
-
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Historical note: this document originally instructed agents to run an executing-plans / subagent skill. Do not execute it now.
 
 **Goal:** Refactor the hardcoded Korea trip into a modular multi-trip travel planner: trip CRUD with permissions, AI starter-itinerary generation, an editable day-by-day itinerary UI, day/trip AI enhancement with reviewable suggestions, and generic Map Mode integration — with the Korea trip migrated in as a normal trip.
 

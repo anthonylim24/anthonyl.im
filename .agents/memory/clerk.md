@@ -13,3 +13,5 @@ Auth code:
 Preview screenshots (Clerk-gated `/korea` and `/trips`): `bun scripts/clerk-agent-login.ts`. See [`docs/pr-previews.md`](../../docs/pr-previews.md).
 
 Never bake `VITE_DEV_BEARER` / `IG_DEV_BEARER` into production or PR previews — local-only.
+
+Clerk CLI: confirm with the user before any mutation or production-state change. `clerk deploy --mode agent` and `clerk deploy status --mode agent` are read-only.

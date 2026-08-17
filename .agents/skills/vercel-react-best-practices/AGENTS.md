@@ -4,7 +4,7 @@
 Vercel Engineering  
 January 2026
 
-> **Repo override (anthonyl.im):** Frontend network I/O uses **Effect v3**, not raw `fetch` or SWR. Read [`.claude/skills/effect-ts/SKILL.md`](../effect-ts/SKILL.md) (mirrored at `.agents/skills/effect-ts/SKILL.md`) before writing `/api` clients, SSE, or third-party HTTP. This document still applies for React 19 render and bundle performance; Effect I/O rules win on conflict.
+> **Repo override (anthonyl.im):** Vite 8 SPA + Hono, not Next.js. Use `React.lazy`, never `next/dynamic`. No SWR — Effect v3 + latest-request-wins for `/api`. Never hide Map Mode / WebGL with React `Activity`. Read [`effect-ts`](../effect-ts/SKILL.md) before writing `/api` clients, SSE, or third-party HTTP. This document still applies for React 19 render and bundle performance; the repo override and Effect I/O rules win on conflict.
 
 > **Note:**  
 > This document is mainly for agents and LLMs to follow when maintaining,  
@@ -527,24 +527,23 @@ export default function RootLayout({ children }) {
 }
 ```
 
-**Correct: loads after hydration**
+**Correct in this repo: load after first paint (`React.lazy`, not `next/dynamic`)**
 
 ```tsx
-import dynamic from 'next/dynamic'
+import { lazy, Suspense } from 'react'
 
-const Analytics = dynamic(
-  () => import('@vercel/analytics/react').then(m => m.Analytics),
-  { ssr: false }
+const Analytics = lazy(() =>
+  import('./analytics').then((m) => ({ default: m.Analytics })),
 )
 
-export default function RootLayout({ children }) {
+export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <html>
-      <body>
-        {children}
+    <>
+      {children}
+      <Suspense fallback={null}>
         <Analytics />
-      </body>
-    </html>
+      </Suspense>
+    </>
   )
 }
 ```
@@ -553,7 +552,7 @@ export default function RootLayout({ children }) {
 
 **Impact: CRITICAL (directly affects TTI and LCP)**
 
-Use `next/dynamic` to lazy-load large components not needed on initial render.
+> **anthonyl.im:** Use `React.lazy` + `Suspense`. Do not `import dynamic from 'next/dynamic'`.
 
 **Incorrect: Monaco bundles with main chunk ~300KB**
 
@@ -565,18 +564,21 @@ function CodePanel({ code }: { code: string }) {
 }
 ```
 
-**Correct: Monaco loads on demand**
+**Correct in this repo: Monaco loads on demand**
 
 ```tsx
-import dynamic from 'next/dynamic'
+import { lazy, Suspense } from 'react'
 
-const MonacoEditor = dynamic(
-  () => import('./monaco-editor').then(m => m.MonacoEditor),
-  { ssr: false }
+const MonacoEditor = lazy(() =>
+  import('./monaco-editor').then((m) => ({ default: m.MonacoEditor })),
 )
 
 function CodePanel({ code }: { code: string }) {
-  return <MonacoEditor value={code} />
+  return (
+    <Suspense fallback={null}>
+      <MonacoEditor value={code} />
+    </Suspense>
+  )
 }
 ```
 
@@ -1429,7 +1431,7 @@ useEffect(() => {
 
 **Impact: MEDIUM-HIGH (automatic deduplication)**
 
-SWR enables request deduplication, caching, and revalidation across component instances.
+> **anthonyl.im:** Skip this rule. Do not add SWR. Use Effect (`requestJson` / `fetchApi`) and a latest-request-wins sequence guard. See [`effect-ts`](../effect-ts/SKILL.md).
 
 **Incorrect: no deduplication, each instance fetches**
 
@@ -1444,38 +1446,18 @@ function UserList() {
 }
 ```
 
-**Correct: multiple instances share one request**
+**Correct in this repo:** put the request in a `*Api.ts` module (`Effect.fn` + `runPromise`). In the React loader, ignore stale responses:
 
 ```tsx
-import useSWR from 'swr'
+let seq = 0
 
-function UserList() {
-  const { data: users } = useSWR('/api/users', fetcher)
+async function refresh(getToken: () => Promise<string | null>) {
+  const id = ++seq
+  const data = await listTrips(getToken)
+  if (id !== seq) return
+  setTrips(data)
 }
 ```
-
-**For immutable data:**
-
-```tsx
-import { useImmutableSWR } from '@/lib/swr'
-
-function StaticContent() {
-  const { data } = useImmutableSWR('/api/config', fetcher)
-}
-```
-
-**For mutations:**
-
-```tsx
-import { useSWRMutation } from 'swr/mutation'
-
-function UpdateButton() {
-  const { trigger } = useSWRMutation('/api/user', updateUser)
-  return <button onClick={() => trigger()}>Update</button>
-}
-```
-
-Reference: [https://swr.vercel.app](https://swr.vercel.app)
 
 ### 4.4 Version and Minimize localStorage Data
 

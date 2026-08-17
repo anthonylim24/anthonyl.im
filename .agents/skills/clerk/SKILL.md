@@ -39,140 +39,42 @@ All skills are written for the current SDK. When something differs in Core 2, it
 
 ### By Task (this repo)
 
-Use only these Clerk skills here:
+Use **only** these Clerk skills here:
 
 - **Auth / gates / tokens** → `clerk-react-patterns` (`@clerk/clerk-react` Core 2). `KoreaAuthGate`, `TripsAuthGate`, `frontend/src/lib/safeAuth.ts`.
 - **Playwright / test helpers** → `clerk-testing`
 - **Dashboard / CLI ops** → `clerk-cli` (do not invent a new Clerk app)
 - **Router / version detection** → this file (`clerk`)
 
-Skip every other Clerk skill listed below (Next.js, React Router SSR, Expo, Vue, Nuxt, Astro, TanStack, Android, Swift, Chrome extension, billing, orgs, webhooks). See [`.agents/skills/README.md`](../README.md).
+Every other Clerk skill is **upstream vendor reference only**. Do not apply Next.js, React Router SSR (`@clerk/react-router`), Expo, Vue, Nuxt, Astro, TanStack, Android, Swift, Chrome extension, billing, orgs, or webhook patterns. See [`.agents/skills/README.md`](../README.md).
 
-**Adding Clerk to your project** → Use `clerk-setup`
-- Framework detection and quickstart
-- Environment setup, API keys, Keyless flow
-- Migration from other auth providers
+**Clerk CLI confirmation (this repo):** Get explicit user confirmation before any Clerk mutation or production-state change — impersonation, user/org/session writes, `clerk enable` / `disable`, `clerk api` POST/PATCH/PUT/DELETE, config patches, deletes. Preview with `--dry-run` when the command supports it. Agent mode skips interactive `y/n` prompts, so confirmation is external.
 
-**Operating Clerk from the CLI** → Use `clerk-cli`
-- Auth, linking, `doctor`, and environment pulls
-- User, org, session, app, and instance management
-- Impersonating a user (`clerk impersonate`) and local webhook testing (`clerk webhooks listen`)
-- Feature toggles (`clerk enable orgs`, `clerk enable billing`)
-- Backend, Platform, and Frontend API calls through `clerk api`
-- Deploy handoff and deploy status verification
+**Read-only (no confirmation):** `clerk deploy --mode agent` and `clerk deploy status --mode agent` are handoff / status only. They do not run the human deploy wizard and do not mutate production config. Do not run `clerk deploy --mode human` from an agent shell.
 
-**Custom sign-in/sign-up UI** → Use `clerk-custom-ui`
-- Custom authentication flows with `useSignIn` / `useSignUp` hooks
-- Appearance and styling (themes, colors, layout)
-- `<Show>` component for conditional rendering
+### Upstream catalog (do not apply in this repo)
 
-**Advanced Next.js patterns** → Use `clerk-nextjs-patterns`
-- Server vs Client auth APIs
-- Middleware strategies
-- Server Actions, caching
-- API route protection
+Vendor router list, kept so the installed skill pack stays navigable. **Do not follow these routes here.**
 
-**React patterns** → Use `clerk-react-patterns`
-- Hooks (`useAuth`, `useUser`, `useClerk`)
-- Protected routes, auth guards
-- Router integration
-
-**React Router patterns** → Use `clerk-react-router-patterns`
-- Loaders & actions with auth
-- Route protection
-- SSR auth
-
-**Vue patterns** → Use `clerk-vue-patterns`
-- Composables (`useAuth`, `useUser`, `useClerk`)
-- Vue Router guards
-- Pinia auth store integration
-
-**Nuxt patterns** → Use `clerk-nuxt-patterns`
-- Server middleware auth
-- SSR auth with composables
-- Server API routes
-
-**Astro patterns** → Use `clerk-astro-patterns`
-- SSR auth pages
-- Island components with React
-- Middleware & API routes
-
-**TanStack Start patterns** → Use `clerk-tanstack-patterns`
-- Server functions with auth
-- Route protection via loaders
-- Vinxi server integration
-
-**Expo / React Native auth** → Use `clerk-expo`
-- Prebuilt native components (AuthView, UserButton)
-- Custom flows: email, password, SMS/phone OTP, MFA
-- OAuth/SSO and native Google/Apple sign-in
-- Expo Router protected routes, token storage, push notifications
-
-**Chrome Extension patterns** → Use `clerk-chrome-extension-patterns`
-- Background scripts auth
-- Popup auth flows
-- Content scripts with sync host
-
-**B2B / Organizations** → Use `clerk-orgs`
-- Multi-tenant apps
-- Organization slugs in URLs
-- Roles, permissions, RBAC
-- Member management
-
-**Billing & Subscriptions** → Use `clerk-billing`
-- `<PricingTable />` component
-- Plan and feature gating with `has()`
-- Seat-based B2B billing with organizations
-- Subscription lifecycle webhooks
-- Free trials, invoicing
-
-**Webhooks** → Use `clerk-webhooks`
-- Real-time events
-- Data syncing
-- Notifications & integrations
-
-**E2E Testing** → Use `clerk-testing`
-- Playwright/Cypress setup
-- Auth flow testing
-- Test utilities
-
-**Swift / native iOS auth** → Use `clerk-swift`
-- Native iOS Swift and SwiftUI projects
-- ClerkKit and ClerkKitUI implementation guidance
-- Source-driven patterns from `clerk-ios`
-
-**Android / native mobile auth** → Use `clerk-android`
-- Native Android Kotlin and Jetpack Compose projects
-- `clerk-android-api` and `clerk-android-ui` implementation guidance
-- Source-driven patterns from `clerk-android`
-- Do not use for Expo or React Native projects
-
-**Backend REST API** → Use `clerk-backend-api`
-- Browse API tags and endpoints
-- Inspect endpoint schemas
-- Execute API requests with scope enforcement
+**Adding Clerk to a greenfield project** → `clerk-setup` (upstream only)
+**Custom sign-in/sign-up UI** → `clerk-custom-ui` (upstream only)
+**Advanced Next.js patterns** → `clerk-nextjs-patterns` (upstream only)
+**React Router SSR (`@clerk/react-router`)** → `clerk-react-router-patterns` (upstream only)
+**Vue / Nuxt / Astro / TanStack** → `clerk-vue-patterns`, `clerk-nuxt-patterns`, `clerk-astro-patterns`, `clerk-tanstack-patterns` (upstream only)
+**Expo / Chrome extension / Swift / Android** → `clerk-expo`, `clerk-chrome-extension-patterns`, `clerk-swift`, `clerk-android` (upstream only)
+**B2B orgs / billing / webhooks** → `clerk-orgs`, `clerk-billing`, `clerk-webhooks` (upstream only)
+**Backend REST API browser** → `clerk-backend-api` (upstream only)
 
 ## Quick Navigation
 
-If you know your task, you can directly access:
-- `/clerk-setup` - Framework setup
-- `/clerk-cli` - CLI operations and Clerk resource management
-- `/clerk-custom-ui` - Custom flows & appearance
-- `/clerk-nextjs-patterns` - Next.js patterns
-- `/clerk-react-patterns` - React patterns
-- `/clerk-react-router-patterns` - React Router patterns
-- `/clerk-vue-patterns` - Vue patterns
-- `/clerk-nuxt-patterns` - Nuxt patterns
-- `/clerk-astro-patterns` - Astro patterns
-- `/clerk-tanstack-patterns` - TanStack Start patterns
-- `/clerk-expo` - Expo / React Native
-- `/clerk-chrome-extension-patterns` - Chrome Extension patterns
-- `/clerk-orgs` - Organizations
-- `/clerk-billing` - Billing & subscriptions
-- `/clerk-webhooks` - Webhooks
-- `/clerk-testing` - Testing
-- `/clerk-swift` - Swift/native iOS
-- `/clerk-android` - Native Android
-- `/clerk-backend-api` - Backend REST API
+**This repo — use these:**
+- `/clerk` — this router + version detection
+- `/clerk-react-patterns` — Vite SPA hooks, gates, tokens
+- `/clerk-testing` — Playwright helpers
+- `/clerk-cli` — CLI (confirm mutations; `clerk deploy --mode agent` / `clerk deploy status --mode agent` are read-only)
 
-Or describe what you need and I'll recommend the right one.
+**Upstream vendor catalog (do not apply here):**
+- `/clerk-setup`, `/clerk-custom-ui`, `/clerk-nextjs-patterns`, `/clerk-react-router-patterns`
+- `/clerk-vue-patterns`, `/clerk-nuxt-patterns`, `/clerk-astro-patterns`, `/clerk-tanstack-patterns`
+- `/clerk-expo`, `/clerk-chrome-extension-patterns`, `/clerk-swift`, `/clerk-android`
+- `/clerk-orgs`, `/clerk-billing`, `/clerk-webhooks`, `/clerk-backend-api`

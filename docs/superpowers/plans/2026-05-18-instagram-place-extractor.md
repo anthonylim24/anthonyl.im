@@ -1,8 +1,7 @@
 # Instagram Place Extractor Implementation Plan
 
 > **Status:** IMPLEMENTED. Pipeline shipped at `server/src/igPlaces/` (Bright Data + Gemini, not Apify). Ingest UI exists (`Korea/Ingest.tsx`, trips editor). · Do not execute this plan. Historical artifact. Current behavior: `CLAUDE.md` and the live code.
-
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> Historical note: this document originally instructed agents to run an executing-plans / subagent skill. Do not execute it now.
 
 **Goal:** Build a Clerk-authenticated Hono endpoint that takes one or many Instagram URLs, processes them through a durable Postgres queue, and writes extracted places (name, address, lat/lng, category, supporting quote) into Supabase with accuracy-first guards (self-consistency voting + dual-source geocoding + an eval harness).
 
@@ -3580,10 +3579,4 @@ All spec sections are covered by exactly one task.
 
 ## Plan complete
 
-Plan saved to `docs/superpowers/plans/2026-05-18-instagram-place-extractor.md`. Two execution options:
-
-**1. Subagent-Driven (recommended)** — I dispatch a fresh subagent per task, review between tasks, fast iteration.
-
-**2. Inline Execution** — Execute tasks in this session using executing-plans, batch execution with checkpoints.
-
-Which approach?
+Historical artifact. The execution-options prompt below was for the original 2026-05-18 run. Do not execute this plan.

@@ -5,11 +5,9 @@ impactDescription: automatic deduplication
 tags: client, swr, deduplication, data-fetching
 ---
 
-> **anthonyl.im:** See the repo override in [`../SKILL.md`](../SKILL.md) — no SWR here; use Effect + latest-request-wins.
+> **anthonyl.im override (wins):** This app has no SWR. Do **not** add `swr`. Deduplicate `/api` with Effect (`requestJson` / `fetchApi`) and a latest-request-wins sequence guard. See [`effect-ts`](../../effect-ts/SKILL.md) and [`../SKILL.md`](../SKILL.md).
 
-## Use SWR for Automatic Deduplication
-
-SWR enables request deduplication, caching, and revalidation across component instances.
+## Automatic Deduplication (not SWR)
 
 **Incorrect (no deduplication, each instance fetches):**
 
@@ -24,35 +22,32 @@ function UserList() {
 }
 ```
 
-**Correct (multiple instances share one request):**
+**Correct in this repo:** put the request in a `*Api.ts` module (`Effect.fn` + `runPromise`). In the React loader, ignore stale responses:
+
+```tsx
+let seq = 0
+
+async function refresh(getToken: () => Promise<string | null>) {
+  const id = ++seq
+  const data = await listTrips(getToken)
+  if (id !== seq) return
+  setTrips(data)
+}
+```
+
+<details>
+<summary>Upstream SWR examples (do not copy in this repo)</summary>
 
 ```tsx
 import useSWR from 'swr'
-
-function UserList() {
-  const { data: users } = useSWR('/api/users', fetcher)
-}
+const { data: users } = useSWR('/api/users', fetcher)
 ```
-
-**For immutable data:**
-
-```tsx
-import { useImmutableSWR } from '@/lib/swr'
-
-function StaticContent() {
-  const { data } = useImmutableSWR('/api/config', fetcher)
-}
-```
-
-**For mutations:**
 
 ```tsx
 import { useSWRMutation } from 'swr/mutation'
-
-function UpdateButton() {
-  const { trigger } = useSWRMutation('/api/user', updateUser)
-  return <button onClick={() => trigger()}>Update</button>
-}
+const { trigger } = useSWRMutation('/api/user', updateUser)
 ```
 
 Reference: [https://swr.vercel.app](https://swr.vercel.app)
+
+</details>

@@ -43,8 +43,8 @@ Frontend network I/O uses **Effect v3** — do not add raw `fetch` for `/api`. E
 | Ink Tertiary | `#A8A29E` | `#78716C` | Hint / muted text |
 | Destructive | `#EF4444` | `#EF4444` | Errors, delete |
 | Border | `rgba(28,25,23,0.08)` | `rgba(255,252,245,0.06)` | Subtle edges |
-| Body font | Inter | | All UI text |
-| Display font | Cormorant Garamond | | Headings, brand moments |
+| Body font | Inter (BreathFlow: Geist) | | Shared-site body; BreathFlow uses Geist |
+| Display font | Cormorant Garamond (BreathFlow: Fragment Mono) | | Shared-site display; BreathFlow uses Fragment Mono |
 | Border radius | `0.5rem` (default) / `1rem`+ in Korea orb cards | | Standard rounding |
 | Spring easing | `cubic-bezier(0.16, 1, 0.3, 1)` | | Motion default |
 | Decel easing | `cubic-bezier(0.33, 0, 0, 1)` | | Smooth stops |
@@ -78,7 +78,7 @@ Visitors who land on `anthonyl.im` directly. Recruiters, prospective collaborato
 
 ## Design Context: `/breathwork/*` — BreathFlow
 
-Code: `frontend/src/breathflow/`. Session orb is `OrbVisualization` / `useGlassOrb`. Surrounding chrome stays matte — no glassmorphism stacking. Inter + Cormorant + Lucide are intentional.
+Code: `frontend/src/breathflow/`. Session orb is `OrbVisualization` / `useGlassOrb`. Surrounding chrome stays matte — no glassmorphism stacking. Lucide is intentional. Shared-site type is Inter + Cormorant; BreathFlow implementation uses Geist + Fragment Mono (`frontend/src/index.css`, loaded in `frontend/index.html`).
 
 ### Users
 Wellness enthusiasts and people seeking anxiety / stress relief. They open BreathFlow when they need to decompress, build a daily breathing habit, or access structured breathwork techniques backed by science. The context is often evening wind-down, pre-performance calm, or mid-day stress breaks — moments that demand a UI that feels immediately calming upon launch.

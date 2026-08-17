@@ -3,7 +3,7 @@
 > **Status:** IMPLEMENTED. Pipeline shipped at `server/src/igPlaces/` (Bright Data + Gemini, not Apify). Ingest UI exists (`Korea/Ingest.tsx`, trips editor). · Do not execute this plan. Historical artifact. Current behavior: `CLAUDE.md` and the live code.
 
 **Date:** 2026-05-18
-**Status:** Approved (verbal), ready for implementation plan
+**Status:** IMPLEMENTED (historical). Do not execute.
 **Owner:** Anthony Lim
 **Repo:** `anthonyl.im_`
 
