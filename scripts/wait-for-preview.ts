@@ -8,7 +8,8 @@
  * Prints the preview.json body on success. Exit 1 on timeout.
  * Default timeout is 12 minutes so a cold GitHub Actions preview build
  * can finish. Screenshot `${base}` routes with `?hidePreviewChrome=1`.
- * Clerk-gated `/korea` and `/trips` need `bun scripts/clerk-agent-login.ts`.
+ * Clerk-gated `/korea` and `/trips` need `bun scripts/clerk-agent-login.ts`
+ * (applies the session in Chrome; do not paste the ticket URL).
  */
 import { waitForPreview } from "../server/src/preview";
 

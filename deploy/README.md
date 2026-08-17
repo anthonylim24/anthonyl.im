@@ -216,11 +216,10 @@ The IG-places routes and the Korea auth gate normally require a Clerk session. F
 
 ## Agent sign-in for PR previews (Clerk Agent Tasks)
 
-Do **not** bake `VITE_DEV_BEARER` into a preview. Mint a [Clerk Agent Task](https://clerk.com/docs/guides/development/testing/agent-tasks) URL from a trusted `origin/main` checkout (the helper can send secrets):
+Do **not** bake `VITE_DEV_BEARER` into a preview. Apply a [Clerk Agent Task](https://clerk.com/docs/guides/development/testing/agent-tasks) from a trusted `origin/main` checkout (the helper can send secrets). One command covers `/korea` and `/trips`. **Do not paste the ticket URL.**
 
 ```bash
 bun scripts/clerk-agent-login.ts --pr <n> --path /korea
-bun scripts/clerk-agent-login.ts --pr <n> --path /trips
 ```
 
 `CLERK_AGENT_USER_ID` / `CLERK_AGENT_USER_EMAIL` must be a **dedicated screenshot user**, not a personal production login. That user can view/edit the shared `korea-2026` seed trip (`sharedWithAllUsers`). Do not mint a session for production `/korea` or `/trips`.
@@ -234,7 +233,7 @@ CLERK_AGENT_USER_ID=user_...          # or CLERK_AGENT_USER_EMAIL=you@example.co
 AGENT_LOGIN_SECRET=<random-48-char>   # optional; `gh auth token` works with push/admin or an installation on AGENT_GITHUB_REPO (default anthonylim24/anthonyl.im)
 ```
 
-`POST /api/agent/session` is 404 until `CLERK_SECRET_KEY` and the agent user (`CLERK_AGENT_USER_ID` or `CLERK_AGENT_USER_EMAIL`) are set. Redirects are allowlisted to `anthonyl.im` and localhost. Sessions last 30 minutes.
+`POST /api/agent/session` is 404 until `CLERK_SECRET_KEY` and the agent user (`CLERK_AGENT_USER_ID` or `CLERK_AGENT_USER_EMAIL`) are set. Redirects are allowlisted to `anthonyl.im` and localhost. Direct helper mints last 4 hours; the HTTP endpoint still returns `expiresInSeconds: 1800`.
 
 ## Verify a deploy
 

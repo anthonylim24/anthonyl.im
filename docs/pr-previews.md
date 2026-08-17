@@ -56,22 +56,23 @@ not sign in to production `/korea` or `/trips` for screenshots.
    Or poll `GET https://anthonyl.im/preview/pr/<n>/preview.json` until
    `sha` matches (prefix match is OK).
 
-2. For Clerk-gated preview routes, mint a one-time sign-in URL and open
-   it in the agent browser **before** screenshotting. Use the matching
-   path; `--path /korea` will not land on Trips:
+2. For Clerk-gated preview routes, apply a screenshot-user session
+   **before** screenshotting. One command signs Chrome into both
+   `/korea` and `/trips` (same origin cookies):
 
    ```bash
    bun scripts/clerk-agent-login.ts --pr <n> --path /korea
-   bun scripts/clerk-agent-login.ts --pr <n> --path /trips
    ```
 
-   The helper re-execs from a fetched `origin/main` worktree before
-   sending `CLERK_SECRET_KEY` / `AGENT_LOGIN_SECRET` / `gh auth token`.
-   Do not skip that (no `--skip-main-check`) on a PR worktree.
+   The helper mints a Clerk Agent Task + Testing Token and applies them
+   in the running Chrome. **Do not paste a ticket URL** into Chrome MCP
+   / Playwright — one-time JWTs get corrupted when retyped, and browsers
+   without `__clerk_testing_token` hit Clerk bot detection.
 
-   The script prints a Clerk URL. Navigate Chrome MCP / Playwright there;
-   Clerk sets a cookie for the **dedicated screenshot user** and redirects
-   to `/preview/pr/<n>/korea` or `/trips` with `?hidePreviewChrome=1`.
+   It prints the signed-in preview URL on success (never the ticket).
+   Re-execs from a fetched `origin/main` worktree before sending
+   `CLERK_SECRET_KEY` / `AGENT_LOGIN_SECRET` / `gh auth token`.
+   Do not skip that (no `--skip-main-check`) on a PR worktree.
    Do not pass `--redirect https://anthonyl.im/korea` (production).
 
    Auth (first match):
@@ -181,7 +182,7 @@ Do not add fork-PR previews without moving them off `anthonyl.im`.
 | `server/src/previewApiApp.ts` | API-only Hono app (no SPA, no IG worker) |
 | `server/src/previewStamp.ts` | CLI used by CI after `vite build` |
 | `scripts/wait-for-preview.ts` | agent poller |
-| `scripts/clerk-agent-login.ts` | mint a Clerk Agent Task URL for `/korea` + `/trips` screenshots |
+| `scripts/clerk-agent-login.ts` | apply a Clerk screenshot-user session for `/korea` + `/trips` (do not paste tickets) |
 | `server/src/routes/agentSession.ts` | `POST /api/agent/session` (secret, collaborator push/admin, or installation token for this repo) |
 | `frontend/src/lib/routerBasename.ts` | React Router `basename` from Vite `base` |
 | `frontend/src/lib/apiBase.ts` | `VITE_API_BASE` rewrite (no production `/api` fallback) |

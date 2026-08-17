@@ -38,7 +38,7 @@ test('korea skips the Clerk sign-in wall under VITE_DEV_BEARER', async ({ page }
     /\/preview\/pr\//.test(process.env.E2E_BASE_URL)
   test.skip(
     targetingRemotePreview && !process.env.VITE_DEV_BEARER,
-    'Remote previews are Clerk-gated; mint a session with clerk-agent-login.ts instead of VITE_DEV_BEARER',
+    'Remote previews are Clerk-gated; apply a session with clerk-agent-login.ts instead of VITE_DEV_BEARER',
   )
 
   const errors: string[] = []
