@@ -6,7 +6,6 @@ import { useGetToken } from "@/lib/safeAuth"
 import { EntityIndexProvider } from "../Korea/entityIndex"
 import { placeCategoryToEntityType } from "../Korea/entityForReservation"
 import { LinkifiedText } from "../Korea/LinkifiedText"
-import { ReservationCard } from "../Korea/ReservationCard"
 import { SmartEntity } from "../Korea/SmartEntity"
 import { Time } from "../Korea/Time"
 import { useLoadedTrip } from "./useLoadedTrip"
@@ -254,7 +253,7 @@ export function TripDayPage() {
           {day.notes && (
             <motion.div
               {...fadeUp(2)}
-              className="mt-5 max-w-[60ch] whitespace-pre-line text-base leading-relaxed text-stone-700 dark:text-stone-300"
+              className={`mt-5 max-w-[60ch] whitespace-pre-line text-base leading-relaxed text-stone-700 dark:text-stone-300 ${wrapAnywhereClass}`}
             >
               <LinkifiedText>{day.notes}</LinkifiedText>
             </motion.div>
@@ -295,15 +294,8 @@ export function TripDayPage() {
 
           <motion.div {...fadeUp(4)} className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             {hasMappable ? (
-              <button type="button" onClick={() => openMap()} className={`group relative ${inkBtnClass}`}>
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0 rounded-xl border-2 border-[color:var(--ta)] opacity-0 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.08] group-hover:opacity-100 motion-reduce:hidden"
-                />
-                <Globe2
-                  className="h-4 w-4 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:rotate-[14deg] motion-reduce:group-hover:rotate-0"
-                  aria-hidden
-                />
+              <button type="button" onClick={() => openMap()} className={inkBtnClass}>
+                <Globe2 className="h-4 w-4" strokeWidth={1.5} aria-hidden />
                 Enter Map Mode
               </button>
             ) : (
@@ -433,8 +425,11 @@ export function TripDayPage() {
 
         {/* Forward first on phones: the thumb reaches the top row, and the
             next day is what an in-trip reader wants. */}
+        <p className={`mt-10 text-xs ${mutedInkClass}`}>
+          Arrow keys move to the previous or next day.
+        </p>
         <nav
-          className="mt-12 grid grid-cols-1 gap-1 border-t border-stone-200/80 pt-6 sm:grid-cols-2 sm:gap-6 dark:border-stone-800/80"
+          className="mt-3 grid grid-cols-1 gap-1 border-t border-stone-200/80 pt-6 sm:grid-cols-2 sm:gap-6 dark:border-stone-800/80"
           aria-label="Adjacent days"
         >
           {next && (
@@ -567,7 +562,45 @@ function ReservationTimelineItem({
         aria-hidden
       />
       <div id={`item-${item.id}`} className={highlight}>
-        <ReservationCard reservation={reservation} index={index} />
+        <article className="min-w-0">
+          <div className="flex items-start gap-3">
+            <ItemIcon
+              kind={item.kind}
+              category={item.location?.category}
+              reservationType={item.reservation?.type}
+              className="mt-1 h-4 w-4 shrink-0 text-stone-500"
+            />
+            <div className="min-w-0 flex-1">
+              <h3
+                className={`font-display text-xl font-medium leading-snug text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
+                style={SERIF}
+              >
+                <SmartEntity name={reservation.title} type={placeCategoryToEntityType(item.location?.category ?? "place")} />
+              </h3>
+              {reservation.subtitle && (
+                <p className={`mt-1 text-sm ${mutedInkClass} ${wrapAnywhereClass}`}>{reservation.subtitle}</p>
+              )}
+              {reservation.time && (
+                <p className={`mt-1 font-mono-trips text-[12px] tabular-nums ${mutedInkClass}`}>
+                  <Time value={reservation.time} />
+                </p>
+              )}
+              {reservation.address && (
+                <p className={`mt-2 text-sm ${wrapAnywhereClass}`}>
+                  <a href={mapsUrl(reservation.address)} className={inlineLinkClass}>
+                    {reservation.address}
+                  </a>
+                </p>
+              )}
+              {reservation.notes && (
+                <p className={`mt-2 text-sm leading-relaxed ${mutedInkClass} ${wrapAnywhereClass}`}>
+                  <LinkifiedText>{reservation.notes}</LinkifiedText>
+                </p>
+              )}
+            </div>
+            <StatusChip status={item.status} />
+          </div>
+        </article>
         {walk && <WalkLeg walk={walk} />}
       </div>
     </motion.li>

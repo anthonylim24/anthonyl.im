@@ -12,7 +12,6 @@ import {
   mutedInkClass,
   quietBtnClass,
   secondaryBtnClass,
-  staticValueClass,
   subtleInputClass,
   wrapAnywhereClass,
 } from "../ui"
@@ -121,7 +120,7 @@ export const DayCard = memo(function DayCard({
                 />
               </>
             ) : (
-              <h2 className={`text-xl font-semibold tracking-tight ${staticValueClass} ${wrapAnywhereClass}`}>
+              <h2 className={`font-display text-xl font-medium tracking-tight text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`} style={SERIF}>
                 {day.emoji ? `${day.emoji} ` : ""}
                 {day.title ?? ""}
               </h2>
@@ -168,7 +167,7 @@ export const DayCard = memo(function DayCard({
         />
       ) : (
         day.notes && (
-          <p className={`mt-2 whitespace-pre-line ${staticValueClass} ${wrapAnywhereClass}`}>{day.notes}</p>
+          <p className={`mt-2 whitespace-pre-line text-sm leading-relaxed ${mutedInkClass} ${wrapAnywhereClass}`}>{day.notes}</p>
         )
       )}
 

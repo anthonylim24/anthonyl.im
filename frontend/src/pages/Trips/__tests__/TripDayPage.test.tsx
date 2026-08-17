@@ -31,12 +31,6 @@ vi.mock("../../Korea/SmartEntity", () => ({
   SmartEntity: ({ name }: { name: string }) => <span>{name}</span>,
 }))
 
-vi.mock("../../Korea/ReservationCard", () => ({
-  ReservationCard: ({ reservation }: { reservation: { id: string; title: string } }) => (
-    <article>{reservation.title}</article>
-  ),
-}))
-
 vi.mock("../../Korea/MapModeOverlay", () => ({
   MapModeOverlay: ({
     dayTitle,
@@ -167,7 +161,7 @@ describe("TripDayPage", () => {
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument()
   })
 
-  it("uses ReservationCard, keeps times and walk distance, and edits on the living document", async () => {
+  it("renders reservations on the day timeline and edits on the living document", async () => {
     mockGetTrip.mockResolvedValue({ trip: makeTrip(), access: "owner" })
     renderDay("/trips/trip-1/day/day-1")
 

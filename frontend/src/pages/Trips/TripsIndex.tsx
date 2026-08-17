@@ -6,12 +6,11 @@ import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useAuthReady, useGetToken } from "@/lib/safeAuth"
 import { deleteTrip, listTrips } from "./tripsApi"
 import type { TripSummary } from "./types"
-import { ACCENT, collaboratorSummary, daysUntilIn, todayIsoIn } from "./theme"
+import { ACCENT, collaboratorSummary, daysUntilIn, resolveAccent, todayIsoIn } from "./theme"
 import { TripStatusChip } from "./components/StatusChip"
 import {
   EASE,
   ENTER_SPRING,
-  LIFT_SPRING,
   REVEAL_DURATION,
   SERIF,
   alertErrorClass,
@@ -217,7 +216,6 @@ function DeleteConfirmBanner({
     <div
       className="flex flex-wrap items-center justify-between gap-3 bg-red-50/60 px-3 py-3 sm:flex-nowrap dark:bg-red-950/20"
       role="alertdialog"
-      aria-modal="true"
       aria-labelledby={`del-${trip.id}`}
       onKeyDown={trapDialogKeys(onClose)}
     >
@@ -354,9 +352,6 @@ export function TripsIndex() {
   }
 
   const empty = state.status === "success" && state.trips.length === 0
-  const featuredBusy = featured
-    ? deleteError?.id === featured.trip.id || confirmId === featured.trip.id
-    : false
 
   return (
     <div>
@@ -458,17 +453,20 @@ export function TripsIndex() {
       )}
 
       {featured && (
-        <section aria-labelledby={`featured-${featured.trip.id}`} className="relative isolate overflow-hidden">
+        <section
+          aria-labelledby={`featured-${featured.trip.id}`}
+          className="relative isolate overflow-hidden"
+          data-trip-accent={resolveAccent(featured.trip.accent)}
+        >
           <div aria-hidden className="pointer-events-none absolute inset-0">
-            <div className={`absolute inset-0 ${ACCENT.bloomA} trip-bloom-drift`} />
+            <div className={`absolute inset-0 ${ACCENT.bloomA}`} />
             <div className={`absolute inset-0 ${ACCENT.bloomB}`} />
           </div>
           <motion.div
             className={`relative ${pageGutterClass} py-10 sm:py-14`}
             initial={reduce ? false : { opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            whileHover={reduce || featuredBusy ? undefined : { y: -4 }}
-            transition={reduce ? { duration: 0 } : featuredBusy ? ENTER_SPRING : LIFT_SPRING}
+            transition={reduce ? { duration: 0 } : ENTER_SPRING}
           >
             {deleteError?.id === featured.trip.id ? (
               <>
@@ -515,7 +513,7 @@ export function TripsIndex() {
                   aria-label={`Open ${featured.trip.name}`}
                 >
                   <p className={`flex items-center gap-2 font-mono-trips text-[11px] uppercase tracking-[0.22em] ${ACCENT.text}`}>
-                    <span className={`inline-block h-1.5 w-1.5 rounded-full ${ACCENT.dot} trip-pulse`} aria-hidden />
+                    <span className={`inline-block h-1.5 w-1.5 rounded-full ${ACCENT.dot}`} aria-hidden />
                     <span className="sr-only">{featured.mark.label}</span>
                     <span aria-hidden>
                       {featured.mark.value}
@@ -543,7 +541,7 @@ export function TripsIndex() {
                     </span>
                     {plural(featured.trip.itemCount, "stop", "stops")}
                   </p>
-                  <span className={`mt-8 inline-flex ${primaryBtnClass}`}>
+                  <span className={`mt-8 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold ${ACCENT.text}`}>
                     Open trip
                     <ArrowRight className={`h-4 w-4 ${hoverArrowClass}`} strokeWidth={1.5} aria-hidden />
                   </span>
@@ -557,7 +555,7 @@ export function TripsIndex() {
                       setDeleteError(null)
                       setConfirmId(featured.trip.id)
                     }}
-                    className={`${dangerIconBtnClass} absolute right-0 top-0 z-10 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100`}
+                    className={`${dangerIconBtnClass} absolute right-0 top-0 z-10`}
                     aria-label={`Delete ${featured.trip.name}`}
                   >
                     <Trash2 className="h-4 w-4" strokeWidth={1.5} aria-hidden />

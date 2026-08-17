@@ -36,7 +36,6 @@ import {
   overlayHoverClass,
   pageClass,
   revealDelay,
-  successBtnClass,
   wrapAnywhereClass,
 } from "./ui"
 
@@ -134,7 +133,7 @@ export function TripOverview() {
 
             <motion.div {...fadeUp(1)} className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
               <span className={`inline-flex items-center gap-2 text-sm font-medium ${a.text}`}>
-                <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.dot} trip-pulse`} aria-hidden />
+                <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.dot}`} aria-hidden />
                 {statusLine}
               </span>
               <TripClock timezone={trip.timezone} />
@@ -155,7 +154,7 @@ export function TripOverview() {
                   <input
                     id="trip-editor-name"
                     disabled={editorLocked}
-                    className={`trip-display-input min-h-11 w-full max-w-[16ch] bg-transparent font-display font-medium leading-[0.98] tracking-[-0.02em] text-stone-900 focus:outline-none dark:text-stone-100 ${focusRingClass} ${wrapAnywhereClass}`}
+                    className={`trip-display-input min-h-11 w-full bg-transparent font-display font-medium leading-[0.98] tracking-[-0.02em] text-stone-900 focus:outline-none dark:text-stone-100 ${focusRingClass} ${wrapAnywhereClass}`}
                     value={trip.name}
                     onChange={(e) => editor.scheduleSave({ ...trip, name: e.target.value })}
                     style={SERIF}
@@ -164,7 +163,7 @@ export function TripOverview() {
               ) : (
                 <h1 className="text-stone-900 dark:text-stone-100" style={SERIF}>
                   <span
-                    className={`block max-w-[16ch] font-display text-[clamp(2.5rem,7vw,4.25rem)] font-medium leading-[0.98] tracking-[-0.02em] ${wrapAnywhereClass}`}
+                    className={`block font-display text-[clamp(2.5rem,7vw,4.25rem)] font-medium leading-[0.98] tracking-[-0.02em] ${wrapAnywhereClass}`}
                   >
                     {trip.name}
                   </span>
@@ -221,7 +220,7 @@ export function TripOverview() {
                 Places
               </Link>
               {editable && trip.status === "draft" && (
-                <button type="button" disabled={editorLocked} onClick={editor.publish} className={successBtnClass}>
+                <button type="button" disabled={editorLocked} onClick={editor.publish} className={inkBtnClass}>
                   <Globe2 className="h-4 w-4" strokeWidth={1.5} aria-hidden />
                   Publish
                 </button>
@@ -295,18 +294,6 @@ export function TripOverview() {
               </div>
             </Link>
           </div>
-        )}
-
-        {editable && (
-          <section id="trip-settings" aria-label="Trip settings" className="mx-auto mt-8 max-w-6xl px-4 sm:px-6">
-            <p className="font-mono-trips text-[11px] uppercase tracking-[0.2em] text-stone-500">Trip settings</p>
-            <AppearancePanel
-              trip={trip}
-              locked={editorLocked}
-              onChange={(appearance) => editor.scheduleSave({ ...trip, appearance })}
-              onSlugChange={(slug) => editor.scheduleSave({ ...trip, slug })}
-            />
-          </section>
         )}
 
         {editable && trip.days.every((d) => d.items.length === 0) && (
@@ -433,6 +420,18 @@ export function TripOverview() {
         )}
 
         <ReservationLedger trip={trip} today={today} past={past} reduce={!!reduce} />
+
+        {editable && (
+          <section id="trip-settings" aria-label="Trip settings" className="mx-auto mt-16 max-w-6xl px-4 pb-8 sm:px-6">
+            <p className={`font-mono-trips text-[11px] uppercase tracking-[0.2em] ${mutedInkClass}`}>Trip settings</p>
+            <AppearancePanel
+              trip={trip}
+              locked={editorLocked}
+              onChange={(appearance) => editor.scheduleSave({ ...trip, appearance })}
+              onSlugChange={(slug) => editor.scheduleSave({ ...trip, slug })}
+            />
+          </section>
+        )}
 
         <EditorDock>
           <EditorNotice notice={editor.notice} onDismiss={() => editor.setNotice(null)} />

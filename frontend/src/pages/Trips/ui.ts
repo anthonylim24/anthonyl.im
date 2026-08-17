@@ -210,17 +210,17 @@ export const dangerBtnClass = `${BTN} min-h-11 bg-red-700 px-4 py-2 text-sm font
 
 /** Small bordered action (Maps / Call / Booking / Map Mode chip).
  *  Full 44px target on touch layouts, tightens to 36px from `sm`. */
-export const chipBtnClass = `inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-stone-300/90 bg-transparent px-3 text-xs font-medium text-stone-700 transition hover:border-stone-400 hover:bg-stone-100/70 ${FOCUS} disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-9 dark:border-stone-700 dark:text-stone-300 dark:hover:border-stone-600 dark:hover:bg-stone-800/60`
+export const chipBtnClass = `inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-stone-300/90 bg-transparent px-3 text-xs font-medium text-stone-700 transition hover:border-stone-400 hover:bg-stone-100/70 ${FOCUS} disabled:cursor-not-allowed disabled:opacity-40 dark:border-stone-700 dark:text-stone-300 dark:hover:border-stone-600 dark:hover:bg-stone-800/60`
 
 /** Accent-tinted small action (Enhance day, active filters). */
-export const accentChipBtnClass = `inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-[color:var(--ta-ring)] bg-[color:var(--ta-soft)] px-3 text-xs font-medium text-[color:var(--ta)] transition hover:text-[color:var(--ta-strong)] ${FOCUS} disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-9`
+export const accentChipBtnClass = `inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-[color:var(--ta-ring)] bg-[color:var(--ta-soft)] px-3 text-xs font-medium text-[color:var(--ta)] transition hover:text-[color:var(--ta-strong)] ${FOCUS} disabled:cursor-not-allowed disabled:opacity-50`
 
 /** Quiet add-affordance ("Place / Note / Section", "Add callout"). */
-export const quietBtnClass = `inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-medium text-stone-600 transition hover:bg-stone-200/60 hover:text-stone-900 ${FOCUS} disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-9 dark:text-stone-400 dark:hover:bg-stone-800/60 dark:hover:text-stone-100`
+export const quietBtnClass = `inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-medium text-stone-600 transition hover:bg-stone-200/60 hover:text-stone-900 ${FOCUS} disabled:cursor-not-allowed disabled:opacity-50 dark:text-stone-400 dark:hover:bg-stone-800/60 dark:hover:text-stone-100`
 
 /** Destructive action with a text label, sized like `chipBtnClass`. */
 export const dangerChipBtnClass =
-  "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-red-300/80 bg-transparent px-3 text-xs font-medium text-red-700 transition hover:bg-red-50 hover:text-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-9 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-950/40 dark:hover:text-red-200"
+  "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-red-300/80 bg-transparent px-3 text-xs font-medium text-red-700 transition hover:bg-red-50 hover:text-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:cursor-not-allowed disabled:opacity-40 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-950/40 dark:hover:text-red-200"
 
 /** Secondary link or button inside a sentence. The vertical padding buys a
  *  44px-tall target without changing the line box it sits in. */

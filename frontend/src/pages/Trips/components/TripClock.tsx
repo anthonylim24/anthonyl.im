@@ -38,8 +38,9 @@ export function TripClock({ timezone }: { timezone: string }) {
       initial={reduce ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.2 }}
+      aria-label={`${date}, ${time} ${zone}`}
       title={`${date}, ${time} ${zone}`}
-      className={`hidden shrink-0 items-center gap-1.5 text-[11px] font-medium sm:inline-flex ${mutedInkClass}`}
+      className={`inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium ${mutedInkClass}`}
     >
       <span className="font-mono-trips tabular-nums text-stone-800 dark:text-stone-200">{time}</span>
       <span className="font-mono-trips uppercase tracking-[0.12em]">{zone}</span>
