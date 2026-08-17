@@ -69,7 +69,7 @@ Do not blend prebuilt components and custom flows for the same auth step (e.g. `
 
 ## Execution Gates (Do Not Skip)
 
-1. **Publishable key** — Read from `process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` (`.env` file). Never `NEXT_PUBLIC_`, never hardcoded. If no key exists, ask the developer for one (or run `npx clerk@latest init --framework expo`, which installs the SDK and writes the env file) and wait before editing files.
+1. **Publishable key** — Read from `process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` (`.env` file). Never `NEXT_PUBLIC_`, never hardcoded. If no key exists, ask the developer for one (or run `npx clerk@3.1.0 init --framework expo`, which installs the SDK and writes the env file) and wait before editing files.
 2. **Native API dashboard toggle** — Clerk's Native API must be enabled for the instance: Clerk Dashboard → **Native applications** (`https://dashboard.clerk.com/~/native-applications`). Tell the developer to verify this during setup; it is required for any native integration.
 3. **Factor availability** — Before implementing a specific strategy (SMS, email code, social provider), confirm it's enabled for the instance. Derive the Frontend API URL from the publishable key (base64-decode the middle segment) and fetch `<frontendApiUrl>/v1/environment?_is_native=true`, or ask the developer to check the dashboard (**User & authentication**). SMS in particular is instance-configuration-dependent — code written for a disabled factor fails at runtime, not build time.
 4. **Current custom-flows API only** — `useSignIn()` / `useSignUp()` from `@clerk/expo` (v3.4+) return `{ signIn, errors, fetchStatus }` and use method-based flows: `signIn.password()`, `signIn.phoneCode.sendCode()`, `signIn.finalize()`. Never generate the legacy pattern: destructuring `isLoaded`/`setActive` from `useSignIn()`/`useSignUp()` (the current hooks don't return them), or `signIn.create()` chained with `prepareFirstFactor()`/`attemptFirstFactor()` + `setActive({ session })`. That pattern lives at `@clerk/expo/legacy` and is only for maintaining existing legacy code, never for new work. Scope notes: `isLoaded` from `useAuth()`/`useUser()` is current API and required in guards; `signIn.create()` itself still exists for advanced cases — prefer the factor-specific methods.
@@ -87,7 +87,7 @@ Do not blend prebuilt components and custom flows for the same auth step (e.g. `
 - Minimum React Native raised to **0.75** in v3.5.0 (iOS SDK now links via SPM podspec). Peer range: `expo >=53 <57`.
 - Native components matured: iOS moved to Expo Modules; native↔JS session sync is automatic and bidirectional — never call `setActive()` after native-component auth.
 - The config plugin accepts a `theme` JSON file for native component styling (see references/prebuilt-components.md).
-- Native Google sign-in uses `@clerk/expo-google-signin` (install + config plugin) alongside `@clerk/expo`. The hook import remains `@clerk/expo/google`. Older v3 installs that still bundle Google natively skip the extra package — see references/sso-and-native-auth.md.
+- `useSignInWithGoogle()` needs `@clerk/expo-google-signin` (install + config plugin) alongside `@clerk/expo`. `AuthView` renders enabled social providers without that package. The hook import remains `@clerk/expo/google`. Older v3 installs that still bundle Google natively skip the extra package — see references/sso-and-native-auth.md.
 
 ## Common Pitfalls
 

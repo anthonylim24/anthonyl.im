@@ -47,6 +47,8 @@ export default clerkMiddleware(async (auth, req) => {
 
 ## Complete Webhook Handler (Next.js App Router)
 
+`skipDuplicates: true` only suppresses replays when `webhookReceipts.svixId` has a unique database constraint (`@@unique([svixId])` in Prisma, or equivalent). Apply that constraint before using any of the receipt examples below.
+
 ```typescript
 // app/api/webhooks/route.ts
 import { verifyWebhook } from '@clerk/nextjs/webhooks'
@@ -67,6 +69,7 @@ export async function POST(req: NextRequest) {
   if (!svixId) return new Response('Missing svix-id', { status: 400 })
 
   await db.$transaction(async (tx) => {
+    // Requires unique(webhookReceipts.svixId)
     const receipt = await tx.webhookReceipts.createMany({
       data: [{ svixId, eventType: evt.type }],
       skipDuplicates: true,
@@ -161,6 +164,7 @@ export async function POST(req: NextRequest) {
     // transaction as the svix-id receipt. A worker sends Resend / Slack.
     // Do not call those APIs in the request path before returning 2xx.
     await db.$transaction(async (tx) => {
+      // Requires unique(webhookReceipts.svixId)
       const receipt = await tx.webhookReceipts.createMany({
         data: [{ svixId, eventType: evt.type }],
         skipDuplicates: true,
@@ -180,22 +184,40 @@ export async function POST(req: NextRequest) {
   return new Response('OK', { status: 200 })
 }
 
-// Worker (separate process): drain the outbox
-// const job = await db.outbox.findFirst({ where: { processedAt: null } })
-// if (job?.kind === 'welcome_email') {
-//   await resend.emails.send({
-//     from: 'noreply@yourdomain.com',
-//     to: job.payload.email,
-//     subject: 'Welcome!',
-//     html: `<p>Hi ${job.payload.name}, welcome to our app!</p>`,
+// Worker (separate process): claim one pending job atomically, then send.
+// const job = await db.$transaction(async (tx) => {
+//   const next = await tx.outbox.findFirst({ where: { processedAt: null, claimedAt: null } })
+//   if (!next) return null
+//   const claimed = await tx.outbox.updateMany({
+//     where: { id: next.id, processedAt: null, claimedAt: null },
+//     data: { claimedAt: new Date() },
 //   })
-// }
-// if (job?.kind === 'slack_new_user') {
-//   await fetch(process.env.SLACK_WEBHOOK_URL!, {
-//     method: 'POST',
-//     headers: { 'Content-Type': 'application/json' },
-//     body: JSON.stringify({ text: `New user signed up: ${job.payload.name} (${job.payload.email})` }),
-//   })
+//   return claimed.count === 1 ? next : null
+// })
+// try {
+//   if (job?.kind === 'welcome_email') {
+//     await resend.emails.send({
+//       from: 'noreply@yourdomain.com',
+//       to: job.payload.email,
+//       subject: 'Welcome!',
+//       html: `<p>Hi ${job.payload.name}, welcome to our app!</p>`,
+//     })
+//   }
+//   if (job?.kind === 'slack_new_user') {
+//     await fetch(process.env.SLACK_WEBHOOK_URL!, {
+//       method: 'POST',
+//       headers: { 'Content-Type': 'application/json' },
+//       body: JSON.stringify({ text: `New user signed up: ${job.payload.name} (${job.payload.email})` }),
+//     })
+//   }
+//   if (job) await db.outbox.update({ where: { id: job.id }, data: { processedAt: new Date() } })
+// } catch {
+//   if (job) {
+//     await db.outbox.update({
+//       where: { id: job.id },
+//       data: { claimedAt: null, attempts: { increment: 1 } },
+//     })
+//   }
 // }
 ```
 
@@ -231,6 +253,7 @@ export async function POST(req: NextRequest) {
   if (!svixId) return new Response('Missing svix-id', { status: 400 })
 
   await db.$transaction(async (tx) => {
+    // Requires unique(webhookReceipts.svixId)
     const receipt = await tx.webhookReceipts.createMany({
       data: [{ svixId, eventType: evt.type }],
       skipDuplicates: true,

@@ -63,6 +63,8 @@ clerk api --platform -X POST /v1/platform/applications/<app_id>/rotate_secret_ke
   -d '{"delay_old_secrets_expiration_hours": 24, "reason": "scheduled rotation"}'
 ```
 
+This application-level endpoint rotates secret keys for **every instance** in `<app_id>`. Confirm the application identity with the user before running it. To rotate one instance only, use the instance-specific endpoint instead of this application-wide call. Update every affected deployment before the 24-hour grace period expires.
+
 `delay_old_secrets_expiration_hours` keeps the old key valid for the grace period so deploys can roll forward without downtime.
 
 ### Notes for agents

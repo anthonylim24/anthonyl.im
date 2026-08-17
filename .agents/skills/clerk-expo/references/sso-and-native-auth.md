@@ -70,6 +70,15 @@ Current setup:
    - `EXPO_PUBLIC_CLERK_GOOGLE_IOS_CLIENT_ID` (iOS)
    - `EXPO_PUBLIC_CLERK_GOOGLE_IOS_URL_SCHEME` (iOS — the config plugin writes it into the iOS URL types at prebuild; prebuild fails without it)
    - `EXPO_PUBLIC_CLERK_GOOGLE_ANDROID_CLIENT_ID` (Android — required for the Android OAuth client)
+4. Map those same keys into Expo `extra` in `app.config.ts` / `app.json` before rebuilding, so EAS builds expose them on `Constants.expoConfig.extra` for `useSignInWithGoogle()`:
+   ```ts
+   extra: {
+     EXPO_PUBLIC_CLERK_GOOGLE_WEB_CLIENT_ID: process.env.EXPO_PUBLIC_CLERK_GOOGLE_WEB_CLIENT_ID,
+     EXPO_PUBLIC_CLERK_GOOGLE_IOS_CLIENT_ID: process.env.EXPO_PUBLIC_CLERK_GOOGLE_IOS_CLIENT_ID,
+     EXPO_PUBLIC_CLERK_GOOGLE_IOS_URL_SCHEME: process.env.EXPO_PUBLIC_CLERK_GOOGLE_IOS_URL_SCHEME,
+     EXPO_PUBLIC_CLERK_GOOGLE_ANDROID_CLIENT_ID: process.env.EXPO_PUBLIC_CLERK_GOOGLE_ANDROID_CLIENT_ID,
+   }
+   ```
 
 Legacy v3 (Google still bundled in `@clerk/expo`; no `@clerk/expo-google-signin` peer):
 1. `npx expo install expo-crypto`

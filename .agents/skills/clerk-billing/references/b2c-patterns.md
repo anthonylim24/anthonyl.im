@@ -60,17 +60,31 @@ After checkout completes in Clerk's drawer, Clerk refreshes the session with upd
 
 ```typescript
 // app/billing/success/page.tsx
-import { auth } from '@clerk/nextjs/server'
-import { redirect } from 'next/navigation'
+'use client'
 
-export default async function BillingSuccessPage() {
-	const { has } = await auth()
+import { useAuth } from '@clerk/nextjs'
+import { useRouter } from 'next/navigation'
+import { useEffect } from 'react'
 
-	if (!has({ plan: 'pro' })) {
-		return <p>Waiting for subscription to activate...</p>
-	}
+export default function BillingSuccessPage() {
+	const { has, isLoaded } = useAuth()
+	const router = useRouter()
+	const isPro = isLoaded && has({ plan: 'pro' })
 
-	redirect('/dashboard')
+	useEffect(() => {
+		if (isPro) {
+			router.replace('/dashboard')
+			return
+		}
+		if (!isLoaded) return
+		const id = window.setInterval(() => {
+			router.refresh()
+		}, 2000)
+		return () => window.clearInterval(id)
+	}, [isLoaded, isPro, router])
+
+	if (isPro) return null
+	return <p>Waiting for subscription to activate...</p>
 }
 ```
 

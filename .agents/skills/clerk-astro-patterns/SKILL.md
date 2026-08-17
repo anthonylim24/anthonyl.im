@@ -59,7 +59,10 @@ export default defineConfig({
 
 ### src/middleware.ts
 
+`@clerk/astro` v3 exports `createRouteMatcher`. v4 does not — protect each SSR page or API route with `Astro.locals.auth()` / `context.locals.auth()` instead.
+
 ```ts
+// v3
 import { clerkMiddleware, createRouteMatcher } from '@clerk/astro/server'
 
 const isProtectedRoute = createRouteMatcher(['/dashboard(.*)'])
@@ -70,6 +73,21 @@ export const onRequest = clerkMiddleware((auth, context, next) => {
   }
   return next()
 })
+```
+
+```ts
+// v4 — middleware still required so locals.auth() is populated
+import { clerkMiddleware } from '@clerk/astro/server'
+
+export const onRequest = clerkMiddleware()
+```
+
+```astro
+---
+// v4 protected page (same pattern for API routes via context.locals.auth())
+const { userId } = Astro.locals.auth()
+if (!userId) return Astro.redirect('/sign-in')
+---
 ```
 
 ## SSR Page Auth
