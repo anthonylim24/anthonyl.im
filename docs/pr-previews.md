@@ -58,7 +58,7 @@ not sign in to production `/korea` or `/trips` for screenshots.
 
 2. For Clerk-gated preview routes, apply a screenshot-user session
    **before** screenshotting. One command signs Chrome into both
-   `/korea` and `/trips` (same origin cookies):
+   `/korea` and `/trips` (same-origin cookies):
 
    ```bash
    bun scripts/clerk-agent-login.ts --pr <n> --path /korea

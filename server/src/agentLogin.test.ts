@@ -3,12 +3,14 @@ import { AgentTaskError } from "./agentTasks";
 import {
   AGENT_LOGIN_SESSION_SECONDS,
   CLERK_TESTING_TOKEN_PARAM,
+  chromeCookieUnexpired,
   clerkAgentTaskFailed,
   clerkFrontendApiHostFromUrl,
   clerkSessionCookiePresent,
   clerkSignedInCopyPresent,
   clerkSignInWallPresent,
   createClerkTestingToken,
+  isAnthonylImCookieHost,
   isClerkFrontendApiHost,
   isClerkFrontendApiRequest,
   parseClerkTestingTokenResponse,
@@ -66,6 +68,18 @@ describe("isClerkFrontendApiHost / request", () => {
         "https://natural-bee-70.clerk.accounts.dev/v1/agents/tasks?ticket=x",
       ),
     ).toBe("natural-bee-70.clerk.accounts.dev");
+  });
+
+  test("rejects the Backend API and unrelated hosts", () => {
+    expect(clerkFrontendApiHostFromUrl("https://api.clerk.com/v1/testing_tokens")).toBeNull();
+    expect(clerkFrontendApiHostFromUrl("https://anthonyl.im/korea")).toBeNull();
+    expect(clerkFrontendApiHostFromUrl("https://evil.example/v1/client")).toBeNull();
+  });
+
+  test("accepts a custom Clerk satellite domain", () => {
+    expect(clerkFrontendApiHostFromUrl("https://clerk.anthonyl.im/v1/agents/tasks")).toBe(
+      "clerk.anthonyl.im",
+    );
   });
 });
 
@@ -135,6 +149,19 @@ describe("sign-in wall vs signed-in copy", () => {
     expect(clerkSessionCookiePresent(["__client_uat", "__session"])).toBe(true);
     expect(clerkSessionCookiePresent(["__session_ERNhlnnx"])).toBe(true);
   });
+
+  test("scopes session cookies to anthonyl.im and drops expired Chrome rows", () => {
+    expect(isAnthonylImCookieHost(".anthonyl.im")).toBe(true);
+    expect(isAnthonylImCookieHost("anthonyl.im")).toBe(true);
+    expect(isAnthonylImCookieHost("notanthonyl.im")).toBe(false);
+    expect(isAnthonylImCookieHost(".natural-bee-70.clerk.accounts.dev")).toBe(false);
+    expect(chromeCookieUnexpired(0)).toBe(true);
+    const chromeEpochOffsetMs = 11_644_473_600_000;
+    const expiredUtc = (Date.now() - 60_000 + chromeEpochOffsetMs) * 1000;
+    const liveUtc = (Date.now() + 60_000 + chromeEpochOffsetMs) * 1000;
+    expect(chromeCookieUnexpired(expiredUtc)).toBe(false);
+    expect(chromeCookieUnexpired(liveUtc)).toBe(true);
+  });
 });
 
 describe("parseClerkTestingTokenResponse / createClerkTestingToken", () => {
@@ -142,13 +169,21 @@ describe("parseClerkTestingTokenResponse / createClerkTestingToken", () => {
     expect(
       parseClerkTestingTokenResponse({
         object: "testing_token",
-        token: "1713877200-c_2J2MvPu9PnXcuhbPZNao0LOXqK9A7YrnBn0HmIWxy",
+        token: "1713877200-c_fixture",
         expires_at: 1713880800,
       }),
     ).toEqual({
-      token: "1713877200-c_2J2MvPu9PnXcuhbPZNao0LOXqK9A7YrnBn0HmIWxy",
+      token: "1713877200-c_fixture",
       expiresAt: 1713880800,
     });
+  });
+
+  test("reads nested camelCase expiresAt", () => {
+    expect(
+      parseClerkTestingTokenResponse({
+        data: { token: "tok_nested", expiresAt: 99 },
+      }),
+    ).toEqual({ token: "tok_nested", expiresAt: 99 });
   });
 
   test("POSTs /v1/testing_tokens with the secret", async () => {

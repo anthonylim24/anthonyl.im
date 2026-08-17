@@ -12,12 +12,14 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { Database } from "bun:sqlite";
 import {
+  chromeCookieUnexpired,
   clerkAgentTaskFailed,
   clerkFrontendApiHostFromUrl,
   clerkSessionCookiePresent,
   clerkSignedInCopyPresent,
   clerkSignInWallPresent,
   DEFAULT_CLERK_AGENT_CDP_URL,
+  isAnthonylImCookieHost,
   isClerkFrontendApiRequest,
   redactClerkUrl,
   siblingPreviewUrl,
@@ -38,6 +40,8 @@ export type ApplyClerkAgentSessionResult = {
   via: "cdp" | "chrome-tab" | "already-signed-in";
   korea: boolean;
   trips: boolean;
+  /** True only after CDP loaded the Korea and Trips pages. Cookie-only paths are false. */
+  verified: boolean;
 };
 
 const DEFAULT_CHROME_PROFILE = join(homedir(), ".config", "google-chrome");
@@ -88,9 +92,13 @@ export function readChromeCookieNames(profileDir = chromeProfileDir()): string[]
       const db = new Database(copy, { readonly: true });
       try {
         const rows = db
-          .query("SELECT name FROM cookies WHERE host_key LIKE '%anthonyl%' OR host_key LIKE '%clerk%'")
-          .all() as Array<{ name: string }>;
-        for (const row of rows) names.add(row.name);
+          .query("SELECT name, host_key, expires_utc FROM cookies")
+          .all() as Array<{ name: string; host_key: string; expires_utc: number }>;
+        for (const row of rows) {
+          if (!isAnthonylImCookieHost(row.host_key)) continue;
+          if (!chromeCookieUnexpired(row.expires_utc)) continue;
+          names.add(row.name);
+        }
       } finally {
         db.close();
       }
@@ -101,6 +109,10 @@ export function readChromeCookieNames(profileDir = chromeProfileDir()): string[]
     }
   }
   return [...names];
+}
+
+export function hasAppliedClerkSession(profileDir = chromeProfileDir()): boolean {
+  return clerkSessionCookiePresent(readChromeCookieNames(profileDir));
 }
 
 function attachTestingToken(url: string, testingToken?: string): string {
@@ -114,28 +126,27 @@ async function openUrlInExistingChrome(url: string): Promise<void> {
       "Chrome binary not found. Set CLERK_AGENT_CHROME or install google-chrome.",
     );
   }
+  // --no-sandbox is required: the agent container runs Chrome as root.
   const spawned = Bun.spawn([bin, "--no-sandbox", url], {
     stdout: "ignore",
     stderr: "ignore",
     stdin: "ignore",
   });
-  // The existing Chrome instance takes the URL; this process exits quickly.
-  const exited = await Promise.race([
+  // The existing Chrome instance takes the URL. A non-zero exit still means
+  // the URL was handed off to the running browser.
+  await Promise.race([
     spawned.exited,
     new Promise<number>((resolve) => setTimeout(() => resolve(0), 4000)),
   ]);
-  if (exited !== 0 && exited !== undefined) {
-    // Non-zero can still mean "handed off to the running browser".
-  }
 }
 
 async function waitForSessionCookie(profileDir: string, timeoutMs: number): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (clerkSessionCookiePresent(readChromeCookieNames(profileDir))) return true;
+    if (hasAppliedClerkSession(profileDir)) return true;
     await Bun.sleep(750);
   }
-  return clerkSessionCookiePresent(readChromeCookieNames(profileDir));
+  return hasAppliedClerkSession(profileDir);
 }
 
 async function loadPlaywright(): Promise<{
@@ -186,15 +197,20 @@ async function applyViaCdp(opts: {
   }
 
   const fapiHost = clerkFrontendApiHostFromUrl(opts.taskUrl) ?? undefined;
+  const routePattern = fapiHost ? `https://${fapiHost}/v1/**` : "https://*.clerk.accounts.dev/v1/**";
   const handler = async (route: PlaywrightRoute) => {
-    const url = route.request().url();
-    if (opts.testingToken && isClerkFrontendApiRequest(url, fapiHost)) {
-      await route.continue({ url: withClerkTestingToken(url, opts.testingToken) });
-      return;
+    try {
+      const url = route.request().url();
+      if (opts.testingToken && isClerkFrontendApiRequest(url, fapiHost)) {
+        await route.continue({ url: withClerkTestingToken(url, opts.testingToken) });
+        return;
+      }
+    } catch {
+      // Fall through to an unmodified continue.
     }
-    await route.continue();
+    await route.continue().catch(() => undefined);
   };
-  await context.route("**/*", handler);
+  await context.route(routePattern, handler);
 
   const page = await context.newPage();
   try {
@@ -218,37 +234,30 @@ async function applyViaCdp(opts: {
 
     const koreaUrl = siblingPreviewUrl(opts.redirectUrl, "/korea");
     const tripsUrl = siblingPreviewUrl(opts.redirectUrl, "/trips");
-    let korea = clerkSignedInCopyPresent(text) && /daily itinerary|the twelve days/i.test(text);
-    let trips = clerkSignedInCopyPresent(text) && /your trips/i.test(text);
-
-    if (!korea) {
-      await page.goto(koreaUrl, { waitUntil: "domcontentloaded", timeout: opts.timeoutMs });
-      await page.waitForFunction(
-        () =>
-          /daily itinerary|the twelve days|sign in to continue|ticket is invalid/i.test(
-            document.body?.innerText ?? "",
-          ),
-        undefined,
-        { timeout: opts.timeoutMs },
-      );
-      const koreaText = await page.innerText("body");
-      korea = clerkSignedInCopyPresent(koreaText);
-      if (!korea) throw new Error("Korea preview is still a sign-in wall.");
-    }
+    await page.goto(koreaUrl, { waitUntil: "domcontentloaded", timeout: opts.timeoutMs });
+    await page.waitForFunction(
+      () =>
+        /daily itinerary|the twelve days|sign in to continue|ticket is invalid/i.test(
+          document.body?.innerText ?? "",
+        ),
+      undefined,
+      { timeout: opts.timeoutMs },
+    );
+    const korea = clerkSignedInCopyPresent(await page.innerText("body"));
+    if (!korea) throw new Error("Korea preview is still a sign-in wall.");
     await page.goto(tripsUrl, { waitUntil: "domcontentloaded", timeout: opts.timeoutMs });
     await page.waitForFunction(
       () => /your trips|sign in to continue|ticket is invalid/i.test(document.body?.innerText ?? ""),
       undefined,
       { timeout: opts.timeoutMs },
     );
-    const tripsText = await page.innerText("body");
-    trips = clerkSignedInCopyPresent(tripsText);
+    const trips = clerkSignedInCopyPresent(await page.innerText("body"));
     if (!trips) throw new Error("Trips preview is still a sign-in wall.");
 
     await page.goto(opts.redirectUrl, { waitUntil: "domcontentloaded", timeout: opts.timeoutMs });
-    return { redirectUrl: opts.redirectUrl, via: "cdp", korea, trips };
+    return { redirectUrl: opts.redirectUrl, via: "cdp", korea, trips, verified: true };
   } finally {
-    await context.unroute("**/*").catch(() => undefined);
+    await context.unroute(routePattern).catch(() => undefined);
     // Leave the tab open so computerUse can continue from the signed-in page.
   }
 }
@@ -260,16 +269,6 @@ async function applyViaChromeTab(opts: {
   chromeProfile: string;
   timeoutMs: number;
 }): Promise<ApplyClerkAgentSessionResult> {
-  if (clerkSessionCookiePresent(readChromeCookieNames(opts.chromeProfile))) {
-    await openUrlInExistingChrome(opts.redirectUrl);
-    return {
-      redirectUrl: opts.redirectUrl,
-      via: "already-signed-in",
-      korea: true,
-      trips: true,
-    };
-  }
-
   const consumeUrl = attachTestingToken(opts.taskUrl, opts.testingToken);
   await openUrlInExistingChrome(consumeUrl);
   const ok = await waitForSessionCookie(opts.chromeProfile, opts.timeoutMs);
@@ -285,8 +284,9 @@ async function applyViaChromeTab(opts: {
   return {
     redirectUrl: opts.redirectUrl,
     via: "chrome-tab",
-    korea: true,
-    trips: true,
+    korea: false,
+    trips: false,
+    verified: false,
   };
 }
 
@@ -297,13 +297,14 @@ export async function applyClerkAgentSession(
   const cdpUrl = opts.cdpUrl || process.env.CLERK_AGENT_CDP_URL || DEFAULT_CLERK_AGENT_CDP_URL;
   const profile = chromeProfileDir(opts.chromeProfile);
 
-  if (clerkSessionCookiePresent(readChromeCookieNames(profile))) {
+  if (hasAppliedClerkSession(profile)) {
     console.error(`already signed in → ${opts.redirectUrl}`);
     return {
       redirectUrl: opts.redirectUrl,
       via: "already-signed-in",
-      korea: true,
-      trips: true,
+      korea: false,
+      trips: false,
+      verified: false,
     };
   }
 

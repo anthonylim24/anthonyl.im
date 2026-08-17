@@ -30,7 +30,7 @@
  * session is the dedicated screenshot identity — not a personal production
  * login. Do not pass `--redirect https://anthonyl.im/korea`.
  */
-import { chmodSync, existsSync, lstatSync, mkdirSync, realpathSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
@@ -45,10 +45,9 @@ import {
 } from "../server/src/agentTasks";
 import {
   AGENT_LOGIN_SESSION_SECONDS,
-  clerkSessionCookiePresent,
   createClerkTestingToken,
 } from "../server/src/agentLogin";
-import { applyClerkAgentSession, readChromeCookieNames } from "./lib/clerkAgentApply";
+import { applyClerkAgentSession, hasAppliedClerkSession } from "./lib/clerkAgentApply";
 
 const TRUSTED_ENV = "CLERK_AGENT_LOGIN_TRUSTED";
 
@@ -221,12 +220,17 @@ function writeSessionMarker(result: {
   via: string;
   korea: boolean;
   trips: boolean;
+  verified?: boolean;
 }): void {
   try {
+    const dir = join(homedir(), ".cache", "anthonyl-im-agent-login");
+    ensurePrivateDir(dir);
+    const marker = join(dir, "clerk-agent-session.json");
+    rmSync(marker, { force: true });
     writeFileSync(
-      "/tmp/clerk-agent-session.json",
+      marker,
       `${JSON.stringify({ ...result, signedInAt: new Date().toISOString() }, null, 2)}\n`,
-      { mode: 0o600 },
+      { mode: 0o600, flag: "wx" },
     );
   } catch {
     // Marker is diagnostics only.
@@ -258,9 +262,15 @@ if (!isTrustedOriginMain(argv)) {
 
 applyDefaultScreenshotUser();
 
-if (apply && clerkSessionCookiePresent(readChromeCookieNames())) {
+if (apply && hasAppliedClerkSession()) {
   console.error(`already signed in → ${redirectUrl}`);
-  writeSessionMarker({ redirectUrl, via: "already-signed-in", korea: true, trips: true });
+  writeSessionMarker({
+    redirectUrl,
+    via: "already-signed-in",
+    korea: false,
+    trips: false,
+    verified: false,
+  });
   console.log(redirectUrl);
   process.exit(0);
 }

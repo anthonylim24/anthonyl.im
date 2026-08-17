@@ -36,10 +36,18 @@ export function isClerkFrontendApiHost(hostname: string): boolean {
   return host === "clerk.accounts.dev" || host.endsWith(".clerk.accounts.dev");
 }
 
+/**
+ * Host that served the Agent Task URL. Accepts `*.clerk.accounts.dev` and
+ * custom Clerk satellite domains (`clerk.example.com`). Never the Backend
+ * API (`api.clerk.com`) — a testing token must not be attached there.
+ */
 export function clerkFrontendApiHostFromUrl(raw: string): string | null {
   try {
-    const host = new URL(raw).hostname;
-    return isClerkFrontendApiHost(host) ? host : host || null;
+    const host = new URL(raw).hostname.replace(/^\[|\]$/g, "").toLowerCase();
+    if (!host || isClerkBackendApiHost(host)) return null;
+    if (isClerkFrontendApiHost(host)) return host;
+    if (host.startsWith("clerk.")) return host;
+    return null;
   } catch {
     return null;
   }
@@ -108,6 +116,20 @@ export function clerkSessionCookiePresent(names: readonly string[]): boolean {
   return names.some((name) => name === "__session" || name.startsWith("__session_"));
 }
 
+/** App-origin hosts that carry the Clerk `__session` cookie. Preview and production share `anthonyl.im`. */
+export function isAnthonylImCookieHost(hostKey: string): boolean {
+  const host = hostKey.replace(/^\./, "").toLowerCase();
+  return host === "anthonyl.im" || host === "www.anthonyl.im";
+}
+
+/** Chrome `expires_utc` is microseconds since 1601-01-01. `0` is a session cookie. */
+const CHROME_EPOCH_OFFSET_MS = 11_644_473_600_000;
+
+export function chromeCookieUnexpired(expiresUtc: number, nowMs = Date.now()): boolean {
+  if (expiresUtc <= 0) return true;
+  return expiresUtc / 1000 - CHROME_EPOCH_OFFSET_MS > nowMs;
+}
+
 export function parseClerkTestingTokenResponse(json: unknown): ClerkTestingToken {
   const record = json && typeof json === "object" ? (json as Record<string, unknown>) : null;
   const nested =
@@ -121,7 +143,8 @@ export function parseClerkTestingTokenResponse(json: unknown): ClerkTestingToken
   if (!token) {
     throw new AgentTaskError("Clerk testing token response missing token", 502);
   }
-  const expiresAtRaw = record?.expires_at ?? record?.expiresAt ?? nested?.expires_at;
+  const expiresAtRaw =
+    record?.expires_at ?? record?.expiresAt ?? nested?.expires_at ?? nested?.expiresAt;
   const expiresAt = typeof expiresAtRaw === "number" ? expiresAtRaw : 0;
   return { token, expiresAt };
 }
