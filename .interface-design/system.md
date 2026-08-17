@@ -128,7 +128,7 @@ import { StatNumeral } from '@/components/ui/StatNumeral'
 
 ### Editorial stat row — `SessionStatRow` pattern (replaces hero-metric grids)
 
-**Reference:** `frontend/src/components/breathing/SessionSummary.tsx` — the local `SessionStatRow` component.
+**Reference:** `frontend/src/breathflow/components/SessionSummary.tsx` — the local `SessionStatRow` component.
 
 Instead of 2/3/4-up card grids, stats stack as labeled lines:
 
