@@ -13,6 +13,8 @@ metadata:
   version: 2.0.0
 ---
 
+> This repo (anthonyl.im) is a Vite 8 SPA with `@clerk/clerk-react` ^5 (Core 2) and Hono JWT verification. Relevant skills: `clerk`, `clerk-react-patterns`, `clerk-testing`, `clerk-cli`. Do NOT apply Next.js, React Router SSR (`@clerk/react-router`), Expo, Vue, Nuxt, Astro, TanStack, Android, Swift, Chrome extension, billing, orgs, or webhook patterns. Auth code: `frontend/src/lib/clerk.ts`, `clerkProvider.tsx`, `safeAuth.ts`; `KoreaAuthGate` / `TripsAuthGate`; `server/src/middleware/clerkAuth.ts`. Preview screenshots: `bun scripts/clerk-agent-login.ts`. Dev bearer (`VITE_DEV_BEARER` / `IG_DEV_BEARER`) is local-only — never bake into production or PR previews.
+
 # Clerk Skills Router
 
 ## Version Detection
@@ -34,6 +36,17 @@ All skills are written for the current SDK. When something differs in Core 2, it
 ---
 
 ## By Task
+
+### By Task (this repo)
+
+Use only these Clerk skills here:
+
+- **Auth / gates / tokens** → `clerk-react-patterns` (`@clerk/clerk-react` Core 2). `KoreaAuthGate`, `TripsAuthGate`, `frontend/src/lib/safeAuth.ts`.
+- **Playwright / test helpers** → `clerk-testing`
+- **Dashboard / CLI ops** → `clerk-cli` (do not invent a new Clerk app)
+- **Router / version detection** → this file (`clerk`)
+
+Skip every other Clerk skill listed below (Next.js, React Router SSR, Expo, Vue, Nuxt, Astro, TanStack, Android, Swift, Chrome extension, billing, orgs, webhooks). See [`.agents/skills/README.md`](../README.md).
 
 **Adding Clerk to your project** → Use `clerk-setup`
 - Framework detection and quickstart
