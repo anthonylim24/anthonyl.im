@@ -5,6 +5,8 @@ impactDescription: directly affects TTI and LCP
 tags: bundle, dynamic-import, code-splitting, next-dynamic
 ---
 
+> **anthonyl.im:** See the repo override in [`../SKILL.md`](../SKILL.md) — Vite SPA: use `React.lazy`, not `next/dynamic`.
+
 ## Dynamic Imports for Heavy Components
 
 Use `next/dynamic` to lazy-load large components not needed on initial render.

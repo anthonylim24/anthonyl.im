@@ -5,6 +5,8 @@ impactDescription: automatic deduplication
 tags: client, swr, deduplication, data-fetching
 ---
 
+> **anthonyl.im:** See the repo override in [`../SKILL.md`](../SKILL.md) — no SWR here; use Effect + latest-request-wins.
+
 ## Use SWR for Automatic Deduplication
 
 SWR enables request deduplication, caching, and revalidation across component instances.

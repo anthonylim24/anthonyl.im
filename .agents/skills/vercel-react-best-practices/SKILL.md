@@ -22,6 +22,16 @@ Reference these guidelines when:
 
 In this repo, client `/api` and third-party fetches use Effect v3. Follow the sibling [`effect-ts` skill](../effect-ts/SKILL.md) for I/O; use this skill for React 19 render/bundle performance. Effect I/O rules win when they conflict with generic fetch/SWR examples below.
 
+## anthonyl.im adaptations
+
+This is a **Vite SPA**, not Next.js. Translate examples before applying them.
+
+- Use `React.lazy`, not `next/dynamic`. Bundle splitting is `frontend/vite.config.ts` `advancedChunks` (not `optimizePackageImports`).
+- Server is Hono/Bun (`server/src/routes/*`), not Server Actions / RSC. `async-api-routes`, `server-cache-lru`, and `server-hoist-static-io` apply to Hono. Skip `server-auth-actions`, `server-after-nonblocking`, `server-dedup-props`, and RSC serialization rules.
+- No SWR in this app. `client-swr-dedup` does not apply — use Effect + latest-request-wins.
+- `rendering-activity`: OK for menus/dropdowns. **NEVER** hide Map Mode / WebGL with React `Activity` — must unmount (see [`effect-ts`](../effect-ts/SKILL.md)).
+- `bundle-barrel-imports`: `lucide-react` is already split via the `icons` chunk; keep `lucide-react` imports (do not deep-import missing `.d.ts` paths).
+
 ## Rule Categories by Priority
 
 | Priority | Category | Impact | Prefix |
