@@ -268,9 +268,10 @@ Short pointers: [`.agents/memory/effect-ts.md`](.agents/memory/effect-ts.md), [`
 
 Canonical reference: [`docs/ci-cd.md`](docs/ci-cd.md).
 
-- PR gate: `.github/workflows/pr.yml` → aggregate check `pr-gate` (branch-protection required context; starts immediately so merge UIs wait). Also runs on `merge_group`.
+- PR gate: `.github/workflows/pr.yml` → aggregate check `pr-gate` (branch-protection required context; starts immediately so merge UIs wait). Also runs on `merge_group`. Shared job bodies live in `deploy/ci/*.sh`.
 - PR preview (not a gate): `.github/workflows/preview.yml` → `https://anthonyl.im/preview/pr/<n>/` (frontend + loopback `/api` sidecar, cap 1). **No production `/api` fallback.** Agent guide: [`docs/pr-previews.md`](docs/pr-previews.md).
 - Deploy on merge: `.github/workflows/deploy.yml` (atomic `anthonyl.im.next` swap + `/health` smoke).
+- Cursor Origin: [`docs/origin-cicd.md`](docs/origin-cicd.md). Depot (`.depot/workflows/`) or Automations (`deploy/origin/run.sh`). Same `pr-gate` name. Do not enable `ORIGIN_DEPLOY_ENABLED` while GitHub still deploys.
 - Shared setup: `.github/actions/setup-ci` (Bun + `node_modules` caches).
 - Lockfiles: text `bun.lock` only; Dependabot uses `package-ecosystem: bun`. Never commit `bun.lockb`.
 - Local verify: `bash .codex/check.sh` (or `bash .claude/cloud/verify.sh`) — server tests + frontend typecheck. Full `pr-gate` also runs build + vitest + both cloud-setup invariant scripts.

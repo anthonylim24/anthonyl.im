@@ -1,0 +1,50 @@
+name: Build & Deploy
+
+# Depot CI copy of .github/workflows/deploy.yml for Cursor Origin.
+# Gated so GitHub Actions remains the production deployer until you cut over.
+# Set Depot variable ORIGIN_DEPLOY_ENABLED=true when Origin should ship to
+# the droplet on merge to main.
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  KLUSTER_API_KEY: ci-stub
+  KLUSTER_API_BASE_URL: https://example.invalid
+  IG_WORKER_ENABLED: "false"
+
+jobs:
+  deploy:
+    if: vars.ORIGIN_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.depot/actions/setup-ci
+        with:
+          install-root: "true"
+          install-frontend: "true"
+      - name: Deploy to droplet
+        env:
+          FRONTEND_ENV: ${{ secrets.FRONTEND_ENV }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          ORIGIN_DEPLOY_ENABLED: "true"
+          ORIGIN_INSTALLATION_TOKEN: ${{ secrets.ORIGIN_INSTALLATION_TOKEN }}
+          ORIGIN_OWNER: ${{ vars.ORIGIN_OWNER }}
+          ORIGIN_REPO: ${{ vars.ORIGIN_REPO }}
+          ORIGIN_HEAD_SHA: ${{ github.sha }}
+          DEPLOY_GIT_URL: ${{ vars.DEPLOY_GIT_URL }}
+          DEPLOY_GIT_BRANCH: main
+        run: bash deploy/origin/run.sh deploy

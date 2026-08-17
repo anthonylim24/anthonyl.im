@@ -2,7 +2,9 @@
 
 Pointer: full reference lives at [`docs/ci-cd.md`](../../docs/ci-cd.md).
 
-Read that before changing `.github/workflows/*`, `.github/actions/*`, `.github/dependabot.yml`, `.codex/check.sh`, or deploy behavior.
+Read that before changing `.github/workflows/*`, `.github/actions/*`, `.github/dependabot.yml`, `.codex/check.sh`, `.depot/workflows/*`, `deploy/ci/*`, `deploy/origin/*`, or deploy behavior.
+
+Origin CI/CD: [`docs/origin-cicd.md`](../../docs/origin-cicd.md). Depot/Buildkite only work on Origin-hosted repos. Inbound GitHub mirrors keep CI on GitHub unless you attach Automations. Never enable `ORIGIN_DEPLOY_ENABLED` while GitHub Actions still deploys.
 
 Hard rules:
 

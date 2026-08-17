@@ -1,7 +1,7 @@
 # CI/CD system (agent memory)
 
 > Canonical reference for future agents touching workflows, gates, deploy, or Dependabot.
-> Last upgraded: 2026-08-12 (remote PR previews + pr-gate registers immediately so merge UIs wait).
+> Last upgraded: 2026-08-17 (Cursor Origin CI/CD + portable `deploy/ci` scripts).
 
 ## Architecture (one glance)
 
@@ -32,6 +32,8 @@ merge to main → .github/workflows/deploy.yml
 ```
 
 `pr.yml` also triggers on `merge_group` (merge queue).
+
+Cursor Origin does not execute `.github/workflows` by itself. Origin-hosted repos connect **Depot** (`.depot/workflows/`) or **Buildkite**; GitHub mirrors use **Automations** calling `deploy/origin/run.sh`. Same job names (`pr-gate` required). Preview/deploy on Origin stay opt-in (`ORIGIN_PREVIEW_ENABLED` / `ORIGIN_DEPLOY_ENABLED`) so GitHub Actions cannot double-ship. Guide: [`docs/origin-cicd.md`](origin-cicd.md).
 
 `pr-cloud-setup` runs both `.codex/cloud-setup.test.sh` and `.claude/cloud/cloud-setup.test.sh`.
 
@@ -114,7 +116,7 @@ Frontend **unit** tests ARE in GitHub `pr-gate` (`pr-frontend-tests`). Older doc
 
 When changing CI/CD:
 
-1. Keep `pr-gate` as the sole required status check name (or update `.github/branch-protection.json` + re-apply via `gh api`). Do not give `pr-gate` a `needs:` list.
+1. Keep `pr-gate` as the sole required status check name (or update `.github/branch-protection.json` + re-apply via `gh api`). Do not give GitHub `pr-gate` a `needs:` list. Origin/Depot `pr-gate` may use `needs:` — see [`docs/origin-cicd.md`](origin-cicd.md). Put shared job bodies in `deploy/ci/*.sh`.
 2. Update this file + the CI/CD sections in `AGENTS.md` / `CLAUDE.md` + `deploy/README.md`.
 3. Prefer extending `.github/actions/setup-ci` over copy-pasting cache/install steps.
 4. Never remove `appLoad.test.ts` or `verify_frontend_typescript` without a replacement.

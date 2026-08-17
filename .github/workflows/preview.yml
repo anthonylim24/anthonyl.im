@@ -59,44 +59,17 @@ jobs:
           install-frontend: "true"
 
       - name: Build preview frontend
-        working-directory: frontend
         env:
+          FRONTEND_ENV: ${{ secrets.FRONTEND_ENV }}
           VITE_BASE: /preview/pr/${{ github.event.pull_request.number }}/
           VITE_API_BASE: /preview/pr/${{ github.event.pull_request.number }}
-        run: |
-          set -euo pipefail
-          umask 077
-          if [ -z "${{ secrets.FRONTEND_ENV }}" ]; then
-            echo "::error::FRONTEND_ENV secret is missing — cannot bake Clerk/Supabase keys into the preview."
-            exit 1
-          fi
-          # Never bake the local-dev Clerk bypass into a public preview.
-          printf '%s\n' "${{ secrets.FRONTEND_ENV }}" | sed '/^[[:space:]]*VITE_DEV_BEARER=/d' > .env
-          printf '\nVITE_ENABLE_SERVICE_WORKER=false\n' >> .env
-          printf 'VITE_API_BASE=/preview/pr/%s\n' "$PR_NUMBER" >> .env
-          bun run build
-          grep -F "/preview/pr/${PR_NUMBER}/assets/" dist/index.html \
-            || { echo "::error::built index.html is missing the preview asset base"; exit 1; }
-          if grep -E '^[[:space:]]*VITE_DEV_BEARER=' .env >/dev/null; then
-            echo "::error::VITE_DEV_BEARER leaked into the preview .env"
-            exit 1
-          fi
+        run: bash deploy/ci/preview-build.sh
 
       - name: Stamp preview.json + chrome
-        run: |
-          bun server/src/previewStamp.ts \
-            --dir frontend/dist \
-            --pr "$PR_NUMBER" \
-            --sha "$PR_SHA" \
-            --html-url "$PR_URL" \
-            --site-url "$PREVIEW_SITE_URL"
-          test -f frontend/dist/preview.json
-          grep -q 'data-pr-preview=' frontend/dist/index.html
+        run: bash deploy/ci/preview-stamp.sh
 
       - name: Pack dist + preview API source
-        run: |
-          tar -C frontend/dist -czf preview-pr.tar.gz .
-          tar -czf preview-api.tar.gz server/src
+        run: bash deploy/ci/preview-pack.sh
 
       - name: Upload preview tarball
         uses: appleboy/scp-action@v1.0.0

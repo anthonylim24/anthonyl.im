@@ -48,13 +48,13 @@ jobs:
       # Re-run the server gate on main. PR already passed, but a force-push
       # or protection misconfig must not ship red tests.
       - name: Run server tests
-        run: bun test --bail server/src
+        run: bash deploy/ci/server-tests.sh
 
       - name: Build frontend
-        working-directory: frontend
-        run: |
-          echo "${{ secrets.FRONTEND_ENV }}" > .env
-          bun run build
+        env:
+          MODE: production
+          FRONTEND_ENV: ${{ secrets.FRONTEND_ENV }}
+        run: bash deploy/ci/frontend-build.sh
 
       # Stage the next release under ~/anthonyl.im.next (does not touch the
       # live tree yet). System tools install is idempotent + non-fatal.
@@ -69,7 +69,7 @@ jobs:
             export PATH="$HOME/.bun/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 
             NEXT="$HOME/anthonyl.im.next"
-            REPO="git@github.com:anthonylim24/anthonyl.im.git"
+            REPO="${DEPLOY_GIT_URL:-git@github.com:anthonylim24/anthonyl.im.git}"
 
             # Stage into a sibling directory so the live tree keeps serving
             # until the atomic swap step. Shallow clone keeps droplet disk low.
@@ -216,48 +216,4 @@ jobs:
       # Post-deploy smoke. Last line of defense: PM2 "online" can lie if the
       # app crashes on first request. Probe health JSON + SPA shells.
       - name: Post-deploy smoke (live URL healthy + SPA shell)
-        run: |
-          set -euo pipefail
-          BASE="https://anthonyl.im"
-          echo "[smoke] waiting for /health"
-          OK=0
-          for attempt in 1 2 3 4 5 6; do
-            if BODY="$(curl -fsSL --max-time 10 "$BASE/health" 2>/dev/null)"; then
-              if echo "$BODY" | grep -q '"status":"ok"'; then
-                echo "[smoke] /health OK on attempt $attempt — $BODY"
-                OK=1
-                break
-              fi
-              echo "[smoke] /health returned unexpected body: $BODY"
-            else
-              echo "[smoke] /health not ready (attempt $attempt)"
-            fi
-            sleep 3
-          done
-          if [ "$OK" -ne 1 ]; then
-            echo "::error::Post-deploy smoke failed — $BASE/health did not return status ok"
-            exit 1
-          fi
-
-          PATHS=("/" "/chatbot" "/breathwork" "/korea" "/trips")
-          for path in "${PATHS[@]}"; do
-            URL="${BASE}${path}"
-            OK=0
-            for attempt in 1 2 3; do
-              echo "[smoke] attempt $attempt — GET $URL"
-              if BODY="$(curl -fsSL --max-time 15 "$URL")"; then
-                if echo "$BODY" | grep -q '<div id="root">'; then
-                  echo "[smoke] OK — SPA shell served for $path"
-                  OK=1
-                  break
-                fi
-                echo "[smoke] WARN: 200 OK but SPA shell missing for $path; retrying"
-              fi
-              sleep 3
-            done
-            if [ "$OK" -ne 1 ]; then
-              echo "::error::Post-deploy smoke failed — $URL is not serving the SPA shell"
-              exit 1
-            fi
-          done
-          echo "[smoke] all routes OK"
+        run: bash deploy/ci/smoke.sh

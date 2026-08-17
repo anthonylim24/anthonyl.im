@@ -186,9 +186,12 @@ PR opened ─────► .github/workflows/preview.yml ─► build + publis
 merge to main ─► .github/workflows/deploy.yml ─► test → build → stage next → SCP dist
                                               → atomic swap → PM2 restart (rollback on fail)
                                               → smoke (/health + SPA shells)
+
+Cursor Origin ─► Depot `.depot/workflows/` or Automations `deploy/origin/run.sh`
+              (same jobs / same droplet; preview+deploy opt-in — see docs/origin-cicd.md)
 ```
 
-Shared install/cache lives in `.github/actions/setup-ci`. Lockfiles are text `bun.lock` (Dependabot `package-ecosystem: bun`). Never reintroduce binary `bun.lockb`.
+Shared install/cache lives in `.github/actions/setup-ci`. Job bodies live in `deploy/ci/*.sh`. Lockfiles are text `bun.lock` (Dependabot `package-ecosystem: bun`). Never reintroduce binary `bun.lockb`.
 
 **Branch protection on `main` requires the `pr-gate` aggregate check.** This is enforced for admins too (`enforce_admins: true` in `.github/branch-protection.json`), so a red gate genuinely blocks merge — `gh pr merge --admin` will refuse. `pr-gate` starts immediately (it must not use `needs:`) so merge UIs wait instead of racing GitHub's required-check registration. To inspect or re-apply the protection:
 

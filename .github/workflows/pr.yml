@@ -1,6 +1,7 @@
 name: PR Checks
 
 # The PR gate. Everything that lands on `main` flows through here first.
+# Job bodies live in deploy/ci/*.sh (shared with Depot + Origin).
 #
 # Branch protection on `main` requires the aggregate `pr-gate` check
 # (see .github/branch-protection.json). Individual jobs stay visible in
@@ -57,7 +58,7 @@ jobs:
         with:
           install-root: "true"
       - name: Server tests (mocked, includes appLoad smoke)
-        run: bun test --bail server/src
+        run: bash deploy/ci/server-tests.sh
 
   # ─── 2. Frontend typecheck ──────────────────────────────────────────
   pr-frontend-typecheck:
@@ -73,8 +74,7 @@ jobs:
           install-root: "true"
           install-frontend: "true"
       - name: Frontend typecheck (tsc -b --noEmit)
-        working-directory: frontend
-        run: bun run typecheck
+        run: bash deploy/ci/frontend-typecheck.sh
 
   # ─── 3. Frontend build ──────────────────────────────────────────────
   pr-frontend-build:
@@ -89,19 +89,9 @@ jobs:
         with:
           install-frontend: "true"
       - name: Build with CI env stubs
-        working-directory: frontend
-        # Stub frontend env so the build doesn't fail on missing secrets.
-        # Production deploy writes FRONTEND_ENV; this only needs any file
-        # Vite will load for import.meta.env shape checks.
-        run: |
-          if [ ! -f .env ]; then
-            if [ -f .env.local.example ]; then
-              cp .env.local.example .env
-            elif [ -f .env.example ]; then
-              cp .env.example .env
-            fi
-          fi
-          bun run build
+        env:
+          MODE: stub
+        run: bash deploy/ci/frontend-build.sh
 
   # ─── 4. Frontend unit tests ─────────────────────────────────────────
   # Required since PR #397 cleaned the stale BreathFlow-PWA assertions.
@@ -117,8 +107,7 @@ jobs:
         with:
           install-frontend: "true"
       - name: Vitest
-        working-directory: frontend
-        run: bun run test:run
+        run: bash deploy/ci/frontend-tests.sh
 
   # ─── 5. Cloud-agent setup smoke ─────────────────────────────────────
   # Verifies Codex/Claude bootstrap still works end-to-end. Intentionally
@@ -134,14 +123,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-ci
-      - name: Run codex setup (the cloud bootstrap path)
-        run: bash .codex/setup.sh
-      - name: Run codex check (the cloud verify gate)
-        run: bash .codex/check.sh
-      - name: Run setup-invariant lints
-        run: |
-          bash .codex/cloud-setup.test.sh
-          bash .claude/cloud/cloud-setup.test.sh
+      - name: Run codex setup + check + invariant lints
+        run: bash deploy/ci/cloud-setup.sh
 
   # ─── Aggregate status ───────────────────────────────────────────────
   # Single check branch protection depends on. Starts with no `needs:` so

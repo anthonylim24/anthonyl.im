@@ -1,0 +1,85 @@
+name: PR Preview
+
+# Depot CI copy of .github/workflows/preview.yml for Cursor Origin.
+# Gated so GitHub Actions remains the publisher until you cut over.
+# Set Depot variable ORIGIN_PREVIEW_ENABLED=true to enable.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, closed]
+
+concurrency:
+  group: preview-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  deployments: write
+
+env:
+  KLUSTER_API_KEY: ci-stub
+  KLUSTER_API_BASE_URL: https://example.invalid
+  IG_WORKER_ENABLED: "false"
+  PREVIEW_SITE_URL: https://anthonyl.im
+  PR_NUMBER: ${{ github.event.pull_request.number }}
+  PR_SHA: ${{ github.event.pull_request.head.sha }}
+  PR_URL: ${{ github.event.pull_request.html_url }}
+  PREVIEW_URL: https://anthonyl.im/preview/pr/${{ github.event.pull_request.number }}/
+  ORIGIN_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+
+jobs:
+  preview:
+    name: preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: >
+      vars.ORIGIN_PREVIEW_ENABLED == 'true' &&
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.depot/actions/setup-ci
+        with:
+          install-root: "true"
+          install-frontend: "true"
+      - name: Publish preview (same droplet path as GitHub Actions)
+        env:
+          FRONTEND_ENV: ${{ secrets.FRONTEND_ENV }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          ORIGIN_INSTALLATION_TOKEN: ${{ secrets.ORIGIN_INSTALLATION_TOKEN }}
+          ORIGIN_OWNER: ${{ vars.ORIGIN_OWNER }}
+          ORIGIN_REPO: ${{ vars.ORIGIN_REPO }}
+          ORIGIN_PREVIEW_ENABLED: "true"
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.event.pull_request.head.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: bash deploy/origin/run.sh preview
+
+  cleanup:
+    name: preview-cleanup
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: >
+      vars.ORIGIN_PREVIEW_ENABLED == 'true' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Remove preview tree
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USERNAME: ${{ secrets.SSH_USERNAME }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          ORIGIN_INSTALLATION_TOKEN: ${{ secrets.ORIGIN_INSTALLATION_TOKEN }}
+          ORIGIN_OWNER: ${{ vars.ORIGIN_OWNER }}
+          ORIGIN_REPO: ${{ vars.ORIGIN_REPO }}
+        run: bash deploy/origin/run.sh preview-cleanup

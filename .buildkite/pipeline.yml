@@ -1,0 +1,25 @@
+# Optional Buildkite path for Origin-hosted repos.
+# Buildkite-gha compiles the GitHub Actions workflows and reports Origin checks.
+# https://github.com/buildkite/buildkite-gha
+#
+# Prefer connecting Depot from the Origin repo Apps tab. Use this pipeline
+# only if you install Buildkite instead.
+
+steps:
+  - label: ":github: PR checks"
+    key: pr-checks
+    plugins:
+      - github-actions#latest:
+          workflow: .github/workflows/pr.yml
+
+  - label: ":eyes: PR preview"
+    key: preview
+    plugins:
+      - github-actions#latest:
+          workflow: .github/workflows/preview.yml
+
+  - label: ":rocket: Deploy"
+    key: deploy
+    plugins:
+      - github-actions#latest:
+          workflow: .github/workflows/deploy.yml
