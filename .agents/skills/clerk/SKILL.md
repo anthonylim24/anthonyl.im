@@ -13,7 +13,7 @@ metadata:
   version: 2.0.0
 ---
 
-> This repo (anthonyl.im) is a Vite 8 SPA with `@clerk/clerk-react` ^5 (Core 2) and Hono JWT verification. Relevant skills: `clerk`, `clerk-react-patterns`, `clerk-testing`, `clerk-cli`. Do NOT apply Next.js, React Router SSR (`@clerk/react-router`), Expo, Vue, Nuxt, Astro, TanStack, Android, Swift, Chrome extension, billing, orgs, or webhook patterns. Auth code: `frontend/src/lib/clerk.ts`, `clerkProvider.tsx`, `safeAuth.ts`; `KoreaAuthGate` / `TripsAuthGate`; `server/src/middleware/clerkAuth.ts`. Preview screenshots: `bun scripts/clerk-agent-login.ts`. Dev bearer (`VITE_DEV_BEARER` / `IG_DEV_BEARER`) is local-only — never bake into production or PR previews.
+> This repo (anthonyl.im) is a Vite 8 SPA with `@clerk/clerk-react` ^5 (Core 2) and Hono JWT verification. Relevant skills: `clerk`, `clerk-react-patterns`, `clerk-testing`, `clerk-cli`. Do NOT apply Next.js, React Router SSR (`@clerk/react-router`), Expo, Vue, Nuxt, Astro, TanStack, Android, Swift, Chrome extension, billing, orgs, or webhook patterns. Auth code: `frontend/src/lib/clerk.ts`, `clerkProvider.tsx`, `safeAuth.ts`; `KoreaAuthGate` / `TripsAuthGate`; `server/src/middleware/clerkAuth.ts`. Preview screenshots: `bun scripts/clerk-agent-login.ts` (applies the session in Chrome; do not paste ticket URLs). Dev bearer (`VITE_DEV_BEARER` / `IG_DEV_BEARER`) is local-only — never bake into production or PR previews.
 
 # Clerk Skills Router
 

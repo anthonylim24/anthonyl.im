@@ -1,18 +1,23 @@
 #!/usr/bin/env bun
 /**
- * Mint a Clerk Agent Task URL so a browser (Chrome MCP, Playwright) can
- * sign in without the interactive Clerk modal.
+ * Sign the agent Chrome into a Clerk-gated PR preview.
  *
  *   bun scripts/clerk-agent-login.ts --pr 123 --path /korea
- *   bun scripts/clerk-agent-login.ts --pr 123 --path /trips
+ *
+ * Default: mint a Clerk Agent Task + Testing Token, then apply the session
+ * in the running Chrome (CDP when it actually listens; otherwise open a tab
+ * in the existing profile). One login covers `/korea` and `/trips`.
+ *
+ * Do not paste a ticket URL into the browser. One-time JWTs get corrupted
+ * when an LLM retypes them, and automated browsers without a Testing Token
+ * hit Clerk bot detection.
+ *
+ * `--print-url` / `--no-apply` is the mint-only escape hatch.
  *
  * When this checkout is not a clean `origin/main`, the helper re-execs from a
  * fetched main worktree before sending CLERK_SECRET_KEY / AGENT_LOGIN_SECRET
  * / `gh auth token`. Override with CLERK_AGENT_LOGIN_TRUSTED=1 or
  * `--skip-main-check` (tests / already-trusted trees only).
- *
- * Prints the one-time Clerk URL on stdout. Navigate the agent browser there;
- * Clerk sets a session cookie and redirects to the preview page.
  *
  * Auth (first match):
  *   1. CLERK_SECRET_KEY + screenshot user → call Clerk directly
@@ -25,7 +30,7 @@
  * session is the dedicated screenshot identity — not a personal production
  * login. Do not pass `--redirect https://anthonyl.im/korea`.
  */
-import { chmodSync, existsSync, lstatSync, mkdirSync, realpathSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
@@ -38,6 +43,11 @@ import {
   parseAgentOnBehalfOf,
   previewAgentRedirectUrl,
 } from "../server/src/agentTasks";
+import {
+  AGENT_LOGIN_SESSION_SECONDS,
+  createClerkTestingToken,
+} from "../server/src/agentLogin";
+import { applyClerkAgentSession, hasAppliedClerkSession } from "./lib/clerkAgentApply";
 
 const TRUSTED_ENV = "CLERK_AGENT_LOGIN_TRUSTED";
 
@@ -47,13 +57,24 @@ function arg(flag: string, argv: string[]): string | undefined {
   return argv[idx + 1];
 }
 
+function hasFlag(flag: string, argv: string[]): boolean {
+  return argv.includes(`--${flag}`);
+}
+
 function usage(): never {
   console.error(`usage:
   bun scripts/clerk-agent-login.ts --pr <n> [--path /korea|/trips]
   bun scripts/clerk-agent-login.ts --redirect <preview-or-localhost-url>
 
-Then open the printed URL in the agent browser (Chrome MCP / Playwright).`);
+Applies the session in the agent Chrome. Do not paste a ticket URL.
+Mint-only: --print-url`);
   process.exit(2);
+}
+
+function shouldApply(argv: string[]): boolean {
+  if (hasFlag("print-url", argv) || hasFlag("no-apply", argv)) return false;
+  if (process.env.CLERK_AGENT_APPLY === "0") return false;
+  return true;
 }
 
 function ghAuthToken(): string | null {
@@ -194,11 +215,34 @@ function reexecFromOriginMain(argv: string[]): never {
   process.exit(child.exitCode ?? 1);
 }
 
+function writeSessionMarker(result: {
+  redirectUrl: string;
+  via: string;
+  korea: boolean;
+  trips: boolean;
+  verified?: boolean;
+}): void {
+  try {
+    const dir = join(homedir(), ".cache", "anthonyl-im-agent-login");
+    ensurePrivateDir(dir);
+    const marker = join(dir, "clerk-agent-session.json");
+    rmSync(marker, { force: true });
+    writeFileSync(
+      marker,
+      `${JSON.stringify({ ...result, signedInAt: new Date().toISOString() }, null, 2)}\n`,
+      { mode: 0o600, flag: "wx" },
+    );
+  } catch {
+    // Marker is diagnostics only.
+  }
+}
+
 const argv = process.argv.slice(2);
 const siteUrl = arg("site-url", argv) ?? process.env.SITE_URL ?? "https://anthonyl.im";
 const redirectArg = arg("redirect", argv);
 const prRaw = arg("pr", argv);
 const path = arg("path", argv) ?? "/korea";
+const apply = shouldApply(argv);
 
 let redirectUrl = redirectArg;
 if (!redirectUrl && prRaw) {
@@ -218,10 +262,26 @@ if (!isTrustedOriginMain(argv)) {
 
 applyDefaultScreenshotUser();
 
+if (apply && hasAppliedClerkSession()) {
+  console.error(`already signed in → ${redirectUrl}`);
+  writeSessionMarker({
+    redirectUrl,
+    via: "already-signed-in",
+    korea: false,
+    trips: false,
+    verified: false,
+  });
+  console.log(redirectUrl);
+  process.exit(0);
+}
+
 const onBehalfOf = parseAgentOnBehalfOf(process.env);
 const clerkKey = process.env.CLERK_SECRET_KEY?.trim();
 
 try {
+  let taskUrl = "";
+  let via = "";
+
   if (clerkKey && onBehalfOf) {
     const result = await createClerkAgentTask({
       secretKey: clerkKey,
@@ -229,41 +289,66 @@ try {
       redirectUrl,
       agentName: arg("agent-name", argv),
       taskDescription: arg("task", argv) ?? `agent login → ${redirectUrl}`,
+      sessionMaxDurationInSeconds: AGENT_LOGIN_SESSION_SECONDS,
     });
-    const via =
+    taskUrl = result.url;
+    via =
       "userId" in onBehalfOf && onBehalfOf.userId === DEFAULT_CLERK_AGENT_USER_ID
         ? "Clerk API (default screenshot user)"
         : "Clerk API";
-    console.error(`minted via ${via} for ${redirectUrl}`);
-    console.log(result.url);
+  } else {
+    const bearer = process.env.AGENT_LOGIN_SECRET?.trim() || ghAuthToken();
+    if (!bearer) {
+      console.error(
+        "Need CLERK_SECRET_KEY (screenshot user defaults if unset), or AGENT_LOGIN_SECRET, or `gh auth token`.",
+      );
+      process.exit(1);
+    }
+
+    const apiBase = arg("api", argv) ?? process.env.AGENT_SESSION_API ?? siteUrl;
+    if (!isAllowedAgentApiBase(apiBase)) {
+      console.error(
+        `Refusing to send credentials to untrusted API origin: ${apiBase}\n` +
+          "Use https://anthonyl.im or a loopback --api (http://127.0.0.1:3000).",
+      );
+      process.exit(1);
+    }
+    const result = await mintAgentSessionRemote({
+      apiBase,
+      bearer,
+      redirectUrl,
+      agentName: arg("agent-name", argv),
+      taskDescription: arg("task", argv),
+    });
+    taskUrl = result.url;
+    via = `${apiBase}/api/agent/session`;
+  }
+
+  console.error(`minted via ${via} for ${redirectUrl}`);
+
+  if (!apply) {
+    console.log(taskUrl);
     process.exit(0);
   }
 
-  const bearer = process.env.AGENT_LOGIN_SECRET?.trim() || ghAuthToken();
-  if (!bearer) {
-    console.error(
-      "Need CLERK_SECRET_KEY (screenshot user defaults if unset), or AGENT_LOGIN_SECRET, or `gh auth token`.",
-    );
-    process.exit(1);
+  let testingToken: string | undefined;
+  if (clerkKey) {
+    const minted = await createClerkTestingToken({ secretKey: clerkKey });
+    testingToken = minted.token;
+    console.error("minted Clerk testing token (bot-detection bypass)");
+  } else {
+    console.error("CLERK_SECRET_KEY unset; applying without a testing token");
   }
 
-  const apiBase = arg("api", argv) ?? process.env.AGENT_SESSION_API ?? siteUrl;
-  if (!isAllowedAgentApiBase(apiBase)) {
-    console.error(
-      `Refusing to send credentials to untrusted API origin: ${apiBase}\n` +
-        "Use https://anthonyl.im or a loopback --api (http://127.0.0.1:3000).",
-    );
-    process.exit(1);
-  }
-  const result = await mintAgentSessionRemote({
-    apiBase,
-    bearer,
+  const applied = await applyClerkAgentSession({
+    taskUrl,
     redirectUrl,
-    agentName: arg("agent-name", argv),
-    taskDescription: arg("task", argv),
+    testingToken,
+    cdpUrl: arg("cdp-url", argv),
   });
-  console.error(`minted via ${apiBase}/api/agent/session for ${redirectUrl}`);
-  console.log(result.url);
+  writeSessionMarker(applied);
+  console.error(`signed in via ${applied.via} → ${applied.redirectUrl}`);
+  console.log(applied.redirectUrl);
 } catch (err) {
   if (err instanceof AgentTaskError && err.status === 401) {
     console.error(
@@ -274,5 +359,12 @@ try {
     );
   }
   console.error(err instanceof Error ? err.message : err);
+  if (apply) {
+    console.error(
+      "Apply failed. Refusing to print the one-time Agent Task ticket — " +
+        "do not paste those URLs (they are single-use and get corrupted when retyped). " +
+        "Retry, or pass --print-url only as a last-resort mint.",
+    );
+  }
   process.exit(1);
 }
