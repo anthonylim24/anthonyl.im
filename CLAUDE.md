@@ -264,15 +264,16 @@ Routes are lazy-loaded inside `Guarded` (`RouteErrorBoundary` + `Suspense`). All
 | `/korea` | Redirect to `/trips/korea-2026` | Clerk-gated (via trips) |
 | `/korea/day/:slug` | Redirect to `/trips/korea-2026/day/:slug` | Clerk-gated (via trips) |
 | `/korea/places` | Redirect to `/trips/korea-2026/places` | Clerk-gated (via trips) |
-| `/korea/ingest` | Redirect to `/trips/korea-2026?ingest=1` | Clerk-gated (via trips) |
+| `/korea/ingest` | Redirect to `/trips/korea-2026?ingest=1#trip-ingest` | Clerk-gated (via trips) |
 | `/korea/*` | Redirect to `/trips/korea-2026` | Clerk-gated (via trips) |
 | `/trips` | Trip planner — list | Clerk-gated |
 | `/trips/new` | Trip planner — create (blank or AI starter) | Clerk-gated |
-| `/trips/:tripId` | Trip planner — dossier-style overview (Korea seed is `korea-2026`) | Clerk-gated |
-| `/trips/:tripId/day/:dayId` | Trip planner — dossier day page + Map Mode | Clerk-gated |
-| `/trips/:tripId/edit` | Trip planner — itinerary editor (appearance, AI enhance, IG ingest) | Clerk-gated |
+| `/trips/:tripId` | Living document (dossier + inline edit). Korea seed is `korea-2026` | Clerk-gated |
+| `/trips/:tripId/places` | Trip places library | Clerk-gated |
+| `/trips/:tripId/day/:dayId` | Dossier day page + Map Mode | Clerk-gated |
+| `/trips/:tripId/edit` | Redirect to `/trips/:tripId` (hash + query kept) | Clerk-gated |
 
-Not separate routes: `TripChat` FAB (overview + day), `TripIngest` (embedded in the editor). `KoreaChat` remains the `/api/korea/chat` client (trips concierge fallback). Do not add destination-specific routes.
+Not separate routes: `TripChat` FAB (trip + day), `TripIngest` (embedded on the living document). `KoreaChat` remains the `/api/korea/chat` client (trips concierge fallback). Do not add destination-specific routes.
 
 ---
 
@@ -570,7 +571,7 @@ Anthony (primary) and his partner, while planning + executing a 12-day Seoul + B
 
 ## Design Context: `/trips/*` — Generic Trip Planner
 
-Korea-look dossier, parameterized by `data-trip-accent` (`frontend/src/pages/Trips/theme.ts` + `.trips` tokens in `index.css`). Overview is `/trips/:tripId` (`TripOverview`); editor is `/trips/:tripId/edit`. Concierge FAB on overview + day only. Do not add destination-specific routes. Full design notes: [`AGENTS.md`](AGENTS.md) / [`PRODUCT.md`](PRODUCT.md).
+Korea-look dossier, parameterized by `data-trip-accent` (`frontend/src/pages/Trips/theme.ts` + `.trips` tokens in `index.css`). `/trips/:tripId` is the living document (`TripOverview`); `/edit` redirects there. Concierge FAB on the trip and day pages only. Do not add destination-specific routes. Full design notes: [`AGENTS.md`](AGENTS.md) / [`PRODUCT.md`](PRODUCT.md).
 
 ---
 

@@ -86,6 +86,8 @@ export function TripOverview() {
   const a = ACCENT
   const today = todayIsoIn(trip.timezone)
   const todayDay = trip.days.find((d) => d.date === today)
+  const mapHeroDay =
+    todayDay ?? trip.days.find((d) => d.items.some((i) => i.location?.lat != null && i.location?.lng != null))
   const tMinus = daysUntilIn(trip.startDate, trip.timezone)
   const inTrip = today >= trip.startDate && today <= trip.endDate
   const past = today > trip.endDate
@@ -209,8 +211,8 @@ export function TripOverview() {
             )}
 
             <motion.div {...fadeUp(4)} className="mt-7 flex flex-wrap items-center gap-2">
-              {todayDay && (
-                <button type="button" onClick={() => editor.openMap(todayDay.id)} className={inkBtnClass}>
+              {mapHeroDay && (
+                <button type="button" onClick={() => editor.openMap(mapHeroDay.id)} className={inkBtnClass}>
                   <MapIcon className="h-4 w-4" strokeWidth={1.5} aria-hidden />
                   Map Mode
                 </button>
@@ -231,7 +233,7 @@ export function TripOverview() {
                   busyLabel="Reviewing trip…"
                   busy={editor.enhancingTarget === "trip"}
                   disabled={editorLocked}
-                  variant="solid"
+                  variant="outline"
                   promptPlaceholder="Optional focus, e.g. “tighten the pacing and add more local food”"
                   onRun={(prompt) => void editor.runEnhance("trip", undefined, prompt)}
                 />

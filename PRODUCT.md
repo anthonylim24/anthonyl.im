@@ -190,8 +190,8 @@ The same travelers as Korea, plus future trips. Phone for in-trip lookups; deskt
 ### Aesthetic Direction
 - Reuse Korea's parchment, bloom, photorealistic Map Mode, and editorial type.
 - Accent is trip-owned — do not invent a second chrome color.
-- Overview (`/trips/:tripId`) is a read-only dossier. Editor is `/trips/:tripId/edit`. Concierge FAB on overview + day, not create/edit.
-- Instagram ingest is embedded in the editor, not a standalone route.
+- `/trips/:tripId` is the living document (dossier + inline edit). `/trips/:tripId/edit` redirects there. Concierge FAB on the trip and day pages, not index, create, or places.
+- Instagram ingest is embedded on the living document, not a standalone route.
 
 ### Trips-specific Principles
 
