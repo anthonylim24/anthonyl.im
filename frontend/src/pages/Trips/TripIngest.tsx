@@ -66,11 +66,16 @@ export function TripIngest({
   trip,
   dayId,
   locked = false,
+  ingestAnchor = false,
+  defaultOpen = false,
   onDaysChange,
 }: {
   trip: Trip
   dayId: string
   locked?: boolean
+  /** First day on the living document: hash target for `/korea/ingest`. */
+  ingestAnchor?: boolean
+  defaultOpen?: boolean
   onDaysChange: (fn: (days: TripDay[]) => TripDay[]) => void
 }) {
   const getToken = useGetToken()
@@ -79,7 +84,7 @@ export function TripIngest({
   const readToken = useLatestCallback(getToken)
   const [isRefreshing, startTransition] = useTransition()
 
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(defaultOpen)
   const [url, setUrl] = useState("")
   const [skipVideo, setSkipVideo] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -213,7 +218,11 @@ export function TripIngest({
   }
 
   return (
-    <div className="mt-2" aria-busy={submitting || isRefreshing}>
+    <div
+      id={ingestAnchor ? "trip-ingest" : undefined}
+      className="mt-2"
+      aria-busy={submitting || isRefreshing}
+    >
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}

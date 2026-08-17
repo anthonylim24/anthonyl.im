@@ -4,6 +4,7 @@ import { ChevronDown, Map as MapIcon, Plus, Trash2 } from "lucide-react"
 import { ACCENT, formatTripDate } from "../theme"
 import { addItem, makeItem } from "../tripEdits"
 import {
+  SERIF,
   chipBtnClass,
   compactInputClass,
   compactSelectClass,
@@ -48,6 +49,8 @@ interface DayCardProps {
   onOpenMap: (dayId: string) => void
   onEnhance: (dayId: string, prompt?: string) => void
   onDeleteItem: (dayId: string, item: ItineraryItem, index: number) => void
+  ingestAnchor?: boolean
+  ingestOpen?: boolean
 }
 
 export const DayCard = memo(function DayCard({
@@ -67,6 +70,8 @@ export const DayCard = memo(function DayCard({
   onOpenMap,
   onEnhance,
   onDeleteItem,
+  ingestAnchor = false,
+  ingestOpen = false,
 }: DayCardProps) {
   const [detailsOpen, setDetailsOpen] = useState(false)
   const hasMappable = day.items.some((i) => i.location?.lat != null && i.location?.lng != null)
@@ -111,7 +116,8 @@ export const DayCard = memo(function DayCard({
                   aria-label={`Day ${index + 1} title`}
                   disabled={locked}
                   onChange={(e) => patchDay({ title: e.target.value })}
-                  className={`w-full truncate text-xl font-semibold tracking-tight ${subtleInputClass}`}
+                  className={`w-full truncate font-display text-xl font-medium tracking-tight ${subtleInputClass}`}
+                  style={SERIF}
                 />
               </>
             ) : (
@@ -348,7 +354,14 @@ export const DayCard = memo(function DayCard({
             </div>
           }
         >
-          <TripIngest trip={trip} dayId={day.id} locked={locked} onDaysChange={onChange} />
+          <TripIngest
+            trip={trip}
+            dayId={day.id}
+            locked={locked}
+            ingestAnchor={ingestAnchor}
+            defaultOpen={ingestOpen}
+            onDaysChange={onChange}
+          />
         </Suspense>
       )}
     </section>

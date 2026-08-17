@@ -41,4 +41,9 @@ describe("useTripChatRoute", () => {
     renderAt("/trips/tokyo/edit")
     expect(screen.getByText("id: day:")).toBeTruthy()
   })
+
+  it("stays off the places library", () => {
+    renderAt("/trips/tokyo/places")
+    expect(screen.getByText("id: day:")).toBeTruthy()
+  })
 })

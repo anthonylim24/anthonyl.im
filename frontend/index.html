@@ -74,7 +74,31 @@
       (() => {
         const appPath = location.pathname.replace(/^\/preview\/pr\/\d+(?=\/|$)/, '') || '/';
         const assetBase = (location.pathname.match(/^\/preview\/pr\/\d+/) || [''])[0];
-        if (!appPath.startsWith('/korea')) return;
+        if (!appPath.startsWith('/korea') && !appPath.startsWith('/trips/korea-2026') && !appPath.startsWith('/trips')) return;
+        if (appPath.startsWith('/trips') && !appPath.startsWith('/trips/korea-2026')) {
+          const title = 'Trips';
+          const description = 'A private itinerary workspace for days, reservations, and Map Mode.';
+          function setRouteMeta(selector, attribute, value, content) {
+            let element = document.querySelector(selector);
+            if (!element) {
+              element = document.createElement('meta');
+              element.setAttribute(attribute, value);
+              document.head.appendChild(element);
+            }
+            element.setAttribute('content', content);
+          }
+          const favicon = document.querySelector('link[rel="icon"][type="image/svg+xml"]');
+          if (favicon) favicon.setAttribute('href', assetBase + '/favicon-korea.svg');
+          document.title = title;
+          setRouteMeta('meta[name="description"]', 'name', 'description', description);
+          setRouteMeta('meta[property="og:title"]', 'property', 'og:title', title);
+          setRouteMeta('meta[property="og:description"]', 'property', 'og:description', description);
+          setRouteMeta('meta[name="twitter:title"]', 'name', 'twitter:title', title);
+          setRouteMeta('meta[name="twitter:description"]', 'name', 'twitter:description', description);
+          setRouteMeta('meta[name="apple-mobile-web-app-title"]', 'name', 'apple-mobile-web-app-title', 'Trips');
+          setRouteMeta('meta[name="application-name"]', 'name', 'application-name', 'Trips');
+          return;
+        }
 
         const title = 'South Korea Itinerary — Seoul + Busan';
         const description = 'A 12-day Seoul + Busan trip with reservations, weather, smart links, and a 3D Map Mode that puts you at the center.';

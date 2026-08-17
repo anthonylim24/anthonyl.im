@@ -1,9 +1,9 @@
 {
   "name": "South Korea — Seoul + Busan",
   "short_name": "Korea Trip",
-  "description": "Anthony's 12-day Seoul + Busan itinerary with reservations, weather, and a tree-style day navigator.",
-  "start_url": "/korea",
-  "scope": "/korea",
+  "description": "Anthony's 12-day Seoul + Busan itinerary with reservations, weather, and Map Mode.",
+  "start_url": "/trips/korea-2026",
+  "scope": "/trips",
   "display": "standalone",
   "orientation": "any",
   "categories": ["travel", "lifestyle"],
@@ -33,7 +33,7 @@
     {
       "name": "Reservations",
       "short_name": "Bookings",
-      "url": "/korea#reservations"
+      "url": "/trips/korea-2026#reservations"
     }
   ]
 }
