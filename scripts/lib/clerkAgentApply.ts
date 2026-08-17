@@ -232,7 +232,7 @@ async function applyViaCdp(opts: {
       throw new Error("Landed on a Clerk sign-in wall after applying the Agent Task.");
     }
 
-    const koreaUrl = siblingPreviewUrl(opts.redirectUrl, "/korea");
+    const koreaUrl = siblingPreviewUrl(opts.redirectUrl, "/trips/korea-2026");
     const tripsUrl = siblingPreviewUrl(opts.redirectUrl, "/trips");
     await page.goto(koreaUrl, { waitUntil: "domcontentloaded", timeout: opts.timeoutMs });
     await page.waitForFunction(
@@ -244,7 +244,7 @@ async function applyViaCdp(opts: {
       { timeout: opts.timeoutMs },
     );
     const korea = clerkSignedInCopyPresent(await page.innerText("body"));
-    if (!korea) throw new Error("Korea preview is still a sign-in wall.");
+    if (!korea) throw new Error("Korea trip preview is still a sign-in wall.");
     await page.goto(tripsUrl, { waitUntil: "domcontentloaded", timeout: opts.timeoutMs });
     await page.waitForFunction(
       () => /your trips|sign in to continue|ticket is invalid/i.test(document.body?.innerText ?? ""),

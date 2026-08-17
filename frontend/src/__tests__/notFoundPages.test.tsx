@@ -25,7 +25,10 @@ describe('not-found pages', () => {
     expect(
       screen.getByRole('heading', { name: 'This page is not in the dossier.' }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Back to overview' })).toHaveAttribute('href', '/korea')
+    expect(screen.getByRole('link', { name: 'Back to overview' })).toHaveAttribute(
+      'href',
+      '/trips/korea-2026',
+    )
   })
 
   it('keeps unknown trip routes inside the planner', () => {

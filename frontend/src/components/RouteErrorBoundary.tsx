@@ -20,7 +20,7 @@ const appCopy: Record<Props['app'], { heading: string; accent: string }> = {
     accent: 'text-amber-800 dark:text-amber-300',
   },
   korea: {
-    heading: 'Something went wrong loading the Korea itinerary.',
+    heading: 'The Korea itinerary moved to /trips/korea-2026.',
     accent: 'text-rose-800 dark:text-rose-300',
   },
   trips: {

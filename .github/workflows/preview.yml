@@ -170,14 +170,14 @@ jobs:
           | --- | --- |
           | Chatbot | [${PREVIEW_URL}](${PREVIEW_URL}) |
           | BreathFlow | [${PREVIEW_URL}breathwork](${PREVIEW_URL}breathwork) |
-          | Korea | [${PREVIEW_URL}korea](${PREVIEW_URL}korea) |
+          | Korea | [${PREVIEW_URL}trips/korea-2026](${PREVIEW_URL}trips/korea-2026) |
           | Trips | [${PREVIEW_URL}trips](${PREVIEW_URL}trips) |
 
           Commit [\`${SHORT_SHA}\`](${{ github.server_url }}/${{ github.repository }}/commit/${PR_SHA}) · [workflow run](${RUN_URL})
 
           ${NOTE}
 
-          **Agents:** \`bun scripts/wait-for-preview.ts --pr ${PR_NUMBER} --sha ${PR_SHA}\`. Then \`bun scripts/clerk-agent-login.ts --pr ${PR_NUMBER} --path /korea\` (applies a screenshot-user session for Korea + Trips; do not paste the ticket URL). The helper re-execs from \`origin/main\` before sending secrets. Cursor cloud \`gh\` tokens have no push — \`CLERK_SECRET_KEY\` is enough. Do not bake \`VITE_DEV_BEARER\`, do not sign in to production \`/korea\` or \`/trips\`. Screenshot with \`?hidePreviewChrome=1\`. Frontend calls \`/preview/pr/${PR_NUMBER}/api/*\` only (no production \`/api\` fallback). See \`docs/pr-previews.md\`.
+          **Agents:** \`bun scripts/wait-for-preview.ts --pr ${PR_NUMBER} --sha ${PR_SHA}\`. Then \`bun scripts/clerk-agent-login.ts --pr ${PR_NUMBER} --path /trips/korea-2026\` (applies a screenshot-user session for Korea + Trips; do not paste the ticket URL). The helper re-execs from \`origin/main\` before sending secrets. Cursor cloud \`gh\` tokens have no push — \`CLERK_SECRET_KEY\` is enough. Do not bake \`VITE_DEV_BEARER\`, do not sign in to production \`/trips\` or \`/trips/korea-2026\`. Screenshot with \`?hidePreviewChrome=1\`. Frontend calls \`/preview/pr/${PR_NUMBER}/api/*\` only (no production \`/api\` fallback). See \`docs/pr-previews.md\`.
           EOF
           )
 

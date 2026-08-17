@@ -44,7 +44,7 @@ describe('RouteErrorBoundary', () => {
     )
     expect(screen.getByRole('alert')).toBeTruthy()
     expect(
-      screen.getByText(/Something went wrong loading the Korea itinerary\./),
+      screen.getByText(/The Korea itinerary moved to \/trips\/korea-2026\./),
     ).toBeTruthy()
     expect(screen.getByRole('button', { name: /reload/i })).toBeTruthy()
   })
@@ -97,7 +97,7 @@ describe('RouteErrorBoundary', () => {
     )
     await waitFor(() => {
       expect(
-        screen.getByText(/Something went wrong loading the Korea itinerary\./),
+        screen.getByText(/The Korea itinerary moved to \/trips\/korea-2026\./),
       ).toBeTruthy()
     })
   })

@@ -1,6 +1,6 @@
 # anthonyl.im
 
-This repo hosts four experiences under one Vite SPA: a personal AI chatbot (`/`), **BreathFlow** (`/breathwork`), the **Korea** itinerary (`/korea`), and a generic **trip planner** (`/trips`). Design principles live in [`AGENTS.md`](AGENTS.md) and [`PRODUCT.md`](PRODUCT.md). Skill catalog: [`.agents/skills/README.md`](.agents/skills/README.md).
+This repo hosts four experiences under one Vite SPA: a personal AI chatbot (`/`), **BreathFlow** (`/breathwork`), the **Korea** itinerary (`/trips/korea-2026`; `/korea` redirects), and a generic **trip planner** (`/trips`). Design principles live in [`AGENTS.md`](AGENTS.md) and [`PRODUCT.md`](PRODUCT.md). Skill catalog: [`.agents/skills/README.md`](.agents/skills/README.md).
 
 ---
 
@@ -33,7 +33,7 @@ anthonyl.im/
 │   │   ├── sw.js                # CACHE_VERSION = korea-offline-v*
 │   │   ├── robots.txt           # Allow / ; Disallow /preview/
 │   │   ├── site.webmanifest     # BreathFlow (start_url /breathwork)
-│   │   └── korea.webmanifest    # Installable PWA (start_url /korea)
+│   │   └── korea.webmanifest    # Installable PWA (start_url /trips/korea-2026)
 │   ├── vite.config.ts           # advancedChunks: three, tiles3d, effect, markdown, …
 │   └── index.html               # Per-route OG / favicon / manifest swap
 ├── server/
@@ -91,12 +91,16 @@ prose only.
 
 **Permissions:** owner > editor/viewer collaborators > `sharedWithAllUsers`
 (legacy Korea behavior: all signed-in users can view/edit). Only owners delete
-or change collaborators. Legacy `/api/korea/*` routes still serve the bespoke
-Korea UI from the snapshot (backward compat); the snapshot is data, and the
-trips system is the path for all new destination work — do not add new
-destination-specific routes or logic.
+or change collaborators. Legacy `/api/korea/*` routes still serve snapshot
+data (backward compat). Frontend `/korea*` redirects to `/trips/korea-2026`.
+The snapshot is data, and the trips system is the path for all new
+destination work. Do not add new destination-specific routes or logic.
 
 ### Korea Pages (`frontend/src/pages/Korea/`)
+
+Shared Map Mode, places, and linkify implementation. Frontend `/korea*`
+redirects to `/trips/korea-2026`. Keep these files; do not add `/japan`-style
+routes.
 
 | File | Purpose |
 |------|---------|
@@ -257,17 +261,19 @@ Routes are lazy-loaded inside `Guarded` (`RouteErrorBoundary` + `Suspense`). All
 | `/breathwork/progress` | BreathFlow progress | Public |
 | `/breathwork/settings` | BreathFlow settings | Public |
 | `/breathwork/*` | BreathFlow `NotFoundPage` | Public |
-| `/korea` | Korea index | Clerk-gated |
-| `/korea/day/:slug` | Day detail | Clerk-gated |
-| `/korea/places` | Places list | Clerk-gated |
-| `/korea/ingest` | IG ingestion | Clerk-gated |
+| `/korea` | Redirect to `/trips/korea-2026` | Clerk-gated (via trips) |
+| `/korea/day/:slug` | Redirect to `/trips/korea-2026/day/:slug` | Clerk-gated (via trips) |
+| `/korea/places` | Redirect to `/trips/korea-2026/places` | Clerk-gated (via trips) |
+| `/korea/ingest` | Redirect to `/trips/korea-2026?ingest=1` | Clerk-gated (via trips) |
+| `/korea/*` | Redirect to `/trips/korea-2026` | Clerk-gated (via trips) |
 | `/trips` | Trip planner — list | Clerk-gated |
 | `/trips/new` | Trip planner — create (blank or AI starter) | Clerk-gated |
-| `/trips/:tripId` | Trip planner — dossier-style overview (Korea-look, accent-themed) | Clerk-gated |
+| `/trips/:tripId` | Trip planner — dossier-style overview (Korea seed is `korea-2026`) | Clerk-gated |
 | `/trips/:tripId/day/:dayId` | Trip planner — dossier day page + Map Mode | Clerk-gated |
-| `/trips/:tripId/edit` | Trip planner — itinerary editor (appearance, AI enhance, IG ingest) | Clerk-gated |
+| `/trips/:tripId/edit` | Redirect into the living document (`/trips/:tripId`) | Clerk-gated |
+| `/trips/:tripId/places` | Places list for a trip | Clerk-gated |
 
-Not separate routes: `TripChat` FAB (overview + day), `TripIngest` (embedded in editor `DayCard`), `KoreaChat` (every Korea page).
+Not separate routes: `TripChat` FAB (overview + day), `TripIngest` (embedded in the editor). `KoreaChat` remains the `/api/korea/chat` client (trips concierge fallback). Do not add destination-specific routes.
 
 ---
 
@@ -292,7 +298,7 @@ Cloud sync (Supabase) is managed by `useCloudSync` + `CloudSync` — authenticat
 Always required at server boot (`config.ts` throws):
 - `KLUSTER_API_KEY` + `KLUSTER_API_BASE_URL` — homepage chatbot LLM (Deepseek via Kluster)
 
-Required for Clerk-gated **production** (`/korea`, `/trips`, IG ingest). Without it, JWT verification fails and `/api/trips` (and other gated routes) return 401:
+Required for Clerk-gated **production** (`/trips`, `/trips/korea-2026`, IG ingest). Without it, JWT verification fails and `/api/trips` (and other gated routes) return 401:
 - `CLERK_SECRET_KEY` — Clerk JWT verification (`server/src/middleware/clerkAuth.ts`)
 
 Required when the IG worker is enabled (warns if missing):
@@ -333,7 +339,7 @@ See `frontend/.env.example` and `server/src/config.ts`.
 3. Backend staged on Digital Ocean via SSH into `~/anthonyl.im.next` (shallow clone, `bun install --frozen-lockfile`), system tools checked (yt-dlp, ffmpeg, dev-browser).
 4. Frontend `dist/` uploaded via SCP into the staged tree.
 5. Atomic swap `next → live`, PM2 restart; auto-rollback to `prev` if PM2 is not online.
-6. Post-deploy smoke: `/health` JSON + SPA shells on `/`, `/chatbot`, `/breathwork`, `/korea`, `/trips`.
+6. Post-deploy smoke: `/health` JSON + SPA shells on `/`, `/chatbot`, `/breathwork`, `/trips`, `/trips/korea-2026`.
 
 **Server:** Digital Ocean droplet (1 GB RAM). PM2 manages the Bun process. Frontend is static files served by Hono.
 
@@ -512,9 +518,9 @@ Wellness enthusiasts and people seeking anxiety / stress relief. They open Breat
 
 ---
 
-## Design Context: `/korea/*` — Korea Trip Itinerary
+## Design Context: `/trips/korea-2026` — Korea Trip Itinerary
 
-Legacy Clerk-gated dossier. Snapshot also seeds trip `korea-2026`. Do not add new destination-specific routes.
+Clerk-gated dossier at `/trips/korea-2026`. Legacy `/korea*` frontend routes redirect here. Snapshot also seeds trip `korea-2026`. `/api/korea/*` remains. Do not add new destination-specific routes.
 
 ### Users
 Anthony (primary) and his partner, while planning + executing a 12-day Seoul + Busan trip in late May / early June 2026. Used on phones for in-trip lookups (reservations, nearby places, directions) and on desktop for planning. Authenticated behind Clerk so it's a private dossier.
@@ -615,7 +621,7 @@ When creating a pull request that includes frontend changes (any modifications t
 
 **Process:**
 1. Prefer the remote PR preview (`https://anthonyl.im/preview/pr/<n>/`). Wait with `bun scripts/wait-for-preview.ts --pr <n> --sha <head-sha>` (see [`docs/pr-previews.md`](docs/pr-previews.md)). No local Vite server required.
-2. For Clerk-gated preview routes (`/korea`, `/trips`), run `bun scripts/clerk-agent-login.ts --pr <n> --path /korea` once. The helper applies a screenshot-user session in the agent Chrome (Korea + Trips share cookies). **Do not paste the ticket URL** — that is how sign-in walls happen. The helper re-execs from `origin/main` before sending secrets. Cursor cloud `gh` tokens have no push — `CLERK_SECRET_KEY` is enough (screenshot-user default). Dedicated screenshot identity, not a personal production login — do not sign in to production `/korea` or `/trips`. Public routes only need `?hidePreviewChrome=1`.
+2. For Clerk-gated preview routes (`/trips`, `/trips/korea-2026`), run `bun scripts/clerk-agent-login.ts --pr <n> --path /trips/korea-2026` once. The helper applies a screenshot-user session in the agent Chrome (Korea + Trips share cookies). **Do not paste the ticket URL** — that is how sign-in walls happen. The helper re-execs from `origin/main` before sending secrets. Cursor cloud `gh` tokens have no push — `CLERK_SECRET_KEY` is enough (screenshot-user default). Dedicated screenshot identity, not a personal production login — do not sign in to production `/trips` or `/trips/korea-2026`. Public routes only need `?hidePreviewChrome=1`.
 3. **Upload screenshots to GitHub** using `gh api` so they get permanent URLs visible in the PR. Local file paths and repo blob URLs do not render in PR descriptions. Use: `gh api --method POST repos/{owner}/{repo}/issues/{pr_number}/comments --field body="![screenshot](url)"` or upload via the GitHub upload endpoint.
 4. Add the uploaded screenshot URLs to the PR description body
 

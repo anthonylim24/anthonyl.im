@@ -8,6 +8,8 @@ import {
   parseAgentOnBehalfOf,
   parseAllowedRedirectHosts,
   previewAgentRedirectUrl,
+  AGENT_PREVIEW_PATHS,
+  DEFAULT_AGENT_PREVIEW_PATH,
   secretsEqual,
   DEFAULT_CLERK_AGENT_USER_ID,
   nextGithubInstallationReposUrl,
@@ -108,9 +110,14 @@ describe("parseAllowedRedirectHosts", () => {
 });
 
 describe("previewAgentRedirectUrl", () => {
+  test("defaults to the korea-2026 trip and keeps /korea as an allowed path", () => {
+    expect(DEFAULT_AGENT_PREVIEW_PATH).toBe("/trips/korea-2026");
+    expect(AGENT_PREVIEW_PATHS).toEqual(["/trips", "/trips/korea-2026", "/korea"]);
+  });
+
   test("builds a chrome-hidden preview URL", () => {
     expect(previewAgentRedirectUrl({ siteUrl: "https://anthonyl.im/", pr: 42 })).toBe(
-      "https://anthonyl.im/preview/pr/42/korea?hidePreviewChrome=1",
+      "https://anthonyl.im/preview/pr/42/trips/korea-2026?hidePreviewChrome=1",
     );
     expect(
       previewAgentRedirectUrl({

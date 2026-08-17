@@ -27,7 +27,7 @@ async function openMapMode(page, { geolocation, colorScheme = "light" }) {
   await context.setGeolocation(geolocation)
   await page.emulateMedia({ colorScheme })
 
-  await page.goto(`${BASE}/korea/day/day-3`, { waitUntil: "networkidle" })
+  await page.goto(`${BASE}/trips/korea-2026/day/day-3`, { waitUntil: "networkidle" })
   await page.getByRole("button", { name: /Enter Map Mode/i }).click()
 
   // Wait until Map Mode dialog is up and loading has finished (mapReady).
@@ -123,7 +123,7 @@ try {
       colorScheme: "dark",
     })
     const page = await context.newPage()
-    // Prefer the app's own dark class if present on korea shell.
+    // Prefer the app's own dark class if present on the trips shell.
     await openMapMode(page, { geolocation: ABROAD, colorScheme: "dark" })
     await page.evaluate(() => {
       document.documentElement.classList.add("dark")

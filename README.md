@@ -1,6 +1,6 @@
 # anthonyl.im
 
-Personal site: AI chatbot (`/`), BreathFlow (`/breathwork`), Korea itinerary (`/korea`), and a generic trip planner (`/trips`).
+Personal site: AI chatbot (`/`), BreathFlow (`/breathwork`), Korea itinerary (`/trips/korea-2026`; `/korea` redirects), and a generic trip planner (`/trips`).
 
 - Engineering + routing: [`CLAUDE.md`](CLAUDE.md)
 - Design context: [`PRODUCT.md`](PRODUCT.md)
