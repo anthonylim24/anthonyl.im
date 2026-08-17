@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
-import { useReducedMotion } from "motion/react"
-import { Check, ChevronDown, Loader2, PenLine, Sparkles, type LucideIcon } from "lucide-react"
+import { motion, useReducedMotion } from "motion/react"
+import { ChevronDown, Loader2, type LucideIcon, PenLine, Sparkles } from "lucide-react"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useGetToken } from "@/lib/safeAuth"
 import { createTrip, generateItinerary } from "./tripsApi"
@@ -9,9 +9,12 @@ import { DateRangeField } from "./components/DateRangeField"
 import { TimezoneField } from "./components/TimezoneField"
 import { DEFAULT_ITINERARY_PROMPT, type GeneratePreferences } from "./types"
 import {
+  EASE,
+  REVEAL_DURATION,
   SERIF,
   accentIconClass,
   alertErrorClass,
+  displayInputClass,
   ghostBtnClass,
   hintClass,
   inputClass,
@@ -20,18 +23,19 @@ import {
   pageClass,
   primaryBtnClass,
   secondaryBtnClass,
-  softPanelClass,
+  segmentOptionClass,
+  segmentTrackClass,
   spinnerClass,
   wrapAnywhereClass,
 } from "./ui"
 
 const PAGE = pageClass("form")
 
-const panelClass = `p-5 sm:p-6 ${softPanelClass}`
-
 const optionalLabelClass = `font-normal normal-case tracking-normal ${mutedInkClass}`
 
 const fieldErrorClass = "mt-1.5 text-xs font-medium text-red-700 dark:text-red-300"
+
+const composerRuleClass = "border-t border-stone-200/70 pt-5 dark:border-stone-800/70"
 
 type FieldKey = "name" | "destinations" | "dates" | "timezone"
 
@@ -51,9 +55,6 @@ function FieldError({ problem, id }: { problem: FieldProblem | null; id: string 
     </p>
   )
 }
-
-/** Mono editorial tag — marks the recommended path without shouting. */
-const recommendedTagClass = `font-mono-trips text-[10px] uppercase tracking-[0.16em] rounded-md border px-1.5 py-0.5 border-[color:var(--ta-ring)] bg-[color:var(--ta-soft)] ${accentIconClass}`
 
 const PREFERENCE_FIELDS: Array<{ key: keyof GeneratePreferences; label: string; placeholder: string }> = [
   { key: "pace", label: "Pace", placeholder: "Relaxed mornings, busy afternoons" },
@@ -90,16 +91,6 @@ const MODE_OPTIONS: ModeOption[] = [
     Icon: PenLine,
   },
 ]
-
-/** Only the recommended card earns the accent tint; the quiet one stays stone. */
-function modeCardClass(option: ModeOption, selected: boolean): string {
-  if (!selected) {
-    return "border-stone-200 hover:border-stone-300 dark:border-stone-700 dark:hover:border-stone-600"
-  }
-  return option.recommended
-    ? "border-[color:var(--trips-accent)] bg-[color:var(--ta-soft)] ring-1 ring-[color:var(--ta-ring)]"
-    : "border-stone-400 bg-stone-100/70 dark:border-stone-500 dark:bg-stone-800/40"
-}
 
 function parseList(raw: string): string[] {
   return raw
@@ -174,6 +165,7 @@ export function TripCreate() {
   }
 
   const generating = busy === "generating"
+  const selectedMode = MODE_OPTIONS.find((opt) => opt.id === mode)
 
   useEffect(() => {
     if (!generating || reduce) return
@@ -216,7 +208,7 @@ export function TripCreate() {
             })
             const empty = generated.trip.days.every((d) => d.items.length === 0)
             if (empty) {
-              navigate(`/trips/${trip.id}/edit`, {
+              navigate(`/trips/${trip.id}`, {
                 state: {
                   notice: "The AI draft came back empty. Your days are ready; run Generate to try again.",
                   retryGenerate: { prompt: prompt.trim() || undefined, preferences },
@@ -225,7 +217,7 @@ export function TripCreate() {
               return
             }
           } catch (err) {
-            navigate(`/trips/${trip.id}/edit`, {
+            navigate(`/trips/${trip.id}`, {
               state: {
                 notice: `Trip created, but the AI draft didn’t finish. Your days are empty; run Generate to try again. (${err instanceof Error ? err.message : String(err)})`,
                 retryGenerate: { prompt: prompt.trim() || undefined, preferences },
@@ -236,7 +228,7 @@ export function TripCreate() {
           navigate(`/trips/${trip.id}`)
           return
         }
-        navigate(`/trips/${trip.id}/edit`)
+        navigate(`/trips/${trip.id}`)
       } catch (err) {
         setError(
           `Couldn’t create the trip. Nothing was saved, so you can submit again. (${err instanceof Error ? err.message : String(err)})`,
@@ -250,24 +242,17 @@ export function TripCreate() {
       <p className="font-mono-trips text-[11px] uppercase tracking-[0.22em] text-stone-600 dark:text-stone-400">
         New itinerary
       </p>
-      <h1
-        className="mt-2 font-display text-[clamp(2.25rem,5vw,3rem)] tracking-tight text-stone-900 dark:text-stone-100"
-        style={SERIF}
-      >
-        Plan a trip
-      </h1>
-      <p className="mt-2 text-sm leading-relaxed text-stone-600 dark:text-stone-400">
-        Capture the essentials first. You can refine days, reservations, and Map Mode after.
-      </p>
+      <h1 className="sr-only">Plan a trip</h1>
 
-      <div className={`mt-8 space-y-5 ${panelClass}`}>
+      <div className="mt-5 space-y-5">
         <div ref={(el) => void (groupRefs.current.name = el)}>
           <label htmlFor="trip-name" className={labelClass}>
             Trip name
           </label>
           <input
             id="trip-name"
-            className={`mt-2 ${inputClass}`}
+            className={`mt-1 ${displayInputClass} ${wrapAnywhereClass}`}
+            style={SERIF}
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Tokyo Long Weekend"
@@ -278,7 +263,8 @@ export function TripCreate() {
           />
           <FieldError problem={errorFor("name")} id={errorId("name")} />
         </div>
-        <div ref={(el) => void (groupRefs.current.destinations = el)}>
+
+        <div className={composerRuleClass} ref={(el) => void (groupRefs.current.destinations = el)}>
           <label htmlFor="trip-dest" className={labelClass}>
             Destinations
           </label>
@@ -311,7 +297,8 @@ export function TripCreate() {
             </ul>
           )}
         </div>
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-[3fr_2fr]">
+
+        <div className={`grid grid-cols-1 gap-5 sm:grid-cols-[3fr_2fr] ${composerRuleClass}`}>
           <div ref={(el) => void (groupRefs.current.dates = el)}>
             <span className={labelClass} id="trip-dates-label">
               Dates
@@ -346,46 +333,43 @@ export function TripCreate() {
             <p className={hintClass}>Use the destination’s time zone.</p>
           </div>
         </div>
-        <div>
-          <label htmlFor="trip-tags" className={labelClass}>
-            Tags <span className={optionalLabelClass}>(optional)</span>
-          </label>
-          <input
-            id="trip-tags"
-            className={`mt-2 ${inputClass}`}
-            value={tags}
-            onChange={(e) => setTags(e.target.value)}
-            placeholder="anniversary, food"
-          />
-        </div>
-        <div>
-          <label htmlFor="trip-desc" className={labelClass}>
-            Notes <span className={optionalLabelClass}>(optional)</span>
-          </label>
-          <textarea
-            id="trip-desc"
-            rows={2}
-            className={`mt-2 ${inputClass}`}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Occasion, constraints, or anchors collaborators should know."
-          />
+
+        <div className={`grid grid-cols-1 gap-5 sm:grid-cols-2 ${composerRuleClass}`}>
+          <div>
+            <label htmlFor="trip-tags" className={labelClass}>
+              Tags <span className={optionalLabelClass}>(optional)</span>
+            </label>
+            <input
+              id="trip-tags"
+              className={`mt-2 ${inputClass}`}
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              placeholder="anniversary, food"
+            />
+          </div>
+          <div>
+            <label htmlFor="trip-desc" className={labelClass}>
+              Notes <span className={optionalLabelClass}>(optional)</span>
+            </label>
+            <textarea
+              id="trip-desc"
+              rows={2}
+              className={`mt-2 ${inputClass}`}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Occasion, constraints, or anchors collaborators should know."
+            />
+          </div>
         </div>
       </div>
 
-      <fieldset className={`mt-5 ${panelClass}`}>
+      <fieldset className={`mt-8 ${composerRuleClass}`}>
         <legend className={labelClass}>How should we start it?</legend>
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className={`mt-3 ${segmentTrackClass}`}>
           {MODE_OPTIONS.map((opt) => {
             const selected = mode === opt.id
             return (
-              <label
-                key={opt.id}
-                className={`relative flex cursor-pointer gap-3 rounded-xl border p-4 pr-10 transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[color:var(--trips-focus)] motion-reduce:transition-none ${modeCardClass(
-                  opt,
-                  selected,
-                )}`}
-              >
+              <label key={opt.id} className={`cursor-pointer ${segmentOptionClass(selected)}`}>
                 <input
                   type="radio"
                   name="mode"
@@ -395,38 +379,31 @@ export function TripCreate() {
                   className="sr-only"
                 />
                 <opt.Icon
-                  className={`mt-0.5 h-4 w-4 shrink-0 ${
-                    selected && opt.recommended ? accentIconClass : "text-stone-600 dark:text-stone-400"
-                  }`}
+                  className={`h-4 w-4 shrink-0 ${selected && opt.recommended ? accentIconClass : ""}`}
                   strokeWidth={1.5}
                   aria-hidden
                 />
-                <span className="min-w-0">
-                  <span className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-semibold text-stone-900 dark:text-stone-100">{opt.title}</span>
-                    {opt.recommended && <span className={recommendedTagClass}>Recommended</span>}
-                  </span>
-                  <span className="mt-1 block text-xs leading-relaxed text-stone-600 dark:text-stone-400">
-                    {opt.body}
-                  </span>
-                </span>
-                {selected && (
-                  <Check
-                    className={`absolute right-3.5 top-4 h-4 w-4 ${
-                      opt.recommended ? accentIconClass : "text-stone-700 dark:text-stone-300"
-                    }`}
-                    strokeWidth={2}
-                    aria-hidden
-                  />
-                )}
+                {opt.title}
+                {opt.recommended ? <span className="sr-only">, recommended</span> : null}
               </label>
             )
           })}
         </div>
+        {selectedMode ? (
+          <p className={hintClass}>
+            {selectedMode.recommended ? "Recommended. " : ""}
+            {selectedMode.body}
+          </p>
+        ) : null}
       </fieldset>
 
       {mode === "ai" && (
-        <div className={`mt-5 space-y-4 ${panelClass}`}>
+        <motion.div
+          className={`mt-5 space-y-4 ${composerRuleClass}`}
+          initial={reduce ? false : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: REVEAL_DURATION, ease: EASE }}
+        >
           <div>
             <label htmlFor="trip-prompt" className={labelClass}>
               AI brief <span className={optionalLabelClass}>(optional)</span>
@@ -476,7 +453,7 @@ export function TripCreate() {
               ))}
             </div>
           )}
-        </div>
+        </motion.div>
       )}
 
       {error && (

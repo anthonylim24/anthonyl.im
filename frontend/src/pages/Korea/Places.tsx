@@ -58,7 +58,14 @@ const PAGE_SIZE = 50
 
 // Static day index for the Korea trip (May 26 – June 6, 2026).
 // Embedded here to avoid an extra /api/korea fetch just for day labels.
-const KOREA_DAYS: Array<{ n: number; date: string; label: string }> = [
+export interface PlaceDayOption {
+  n: number
+  date: string
+  label: string
+  id?: string
+}
+
+const KOREA_DAYS: PlaceDayOption[] = [
   { n: 1,  date: '2026-05-26', label: 'Day 1 · May 26 · Tue' },
   { n: 2,  date: '2026-05-27', label: 'Day 2 · May 27 · Wed' },
   { n: 3,  date: '2026-05-28', label: 'Day 3 · May 28 · Thu' },
@@ -155,6 +162,7 @@ interface DayAssignButtonProps {
   place: ExtractedPlace
   getToken: () => Promise<string | null>
   onUpdated: (placeId: number, days: number[]) => void
+  days: PlaceDayOption[]
 }
 
 // Approximate dialog height for placement decisions — kept conservative so a
@@ -162,7 +170,7 @@ interface DayAssignButtonProps {
 // would clip it. Refined after first paint via the dialog's measured rect.
 const DAY_DIALOG_ESTIMATED_HEIGHT = 360
 
-function DayAssignButton({ place, getToken, onUpdated }: DayAssignButtonProps) {
+function DayAssignButton({ place, getToken, onUpdated, days }: DayAssignButtonProps) {
   const reduce = useReducedMotion()
   const [open, setOpen] = useState(false)
   const [pendingDays, setPendingDays] = useState<Set<number>>(new Set(place.days ?? []))
@@ -332,7 +340,7 @@ function DayAssignButton({ place, getToken, onUpdated }: DayAssignButtonProps) {
               <fieldset>
                 <legend className="sr-only">Select days for {place.name}</legend>
                 <div className="max-h-48 space-y-0.5 overflow-y-auto pr-1">
-                  {KOREA_DAYS.map((day) => {
+                  {days.map((day) => {
                     const checked = pendingDays.has(day.n)
                     return (
                       <label
@@ -390,10 +398,12 @@ function PlaceCard({
   place,
   getToken,
   onUpdated,
+  days,
 }: {
   place: ExtractedPlace
   getToken: () => Promise<string | null>
   onUpdated: (placeId: number, days: number[]) => void
+  days: PlaceDayOption[]
 }) {
   const reduce = useReducedMotion()
   const gmUrl = googleMapsUrl(place)
@@ -523,7 +533,7 @@ function PlaceCard({
 
       {/* Supporting quote */}
       {place.supporting_quote && (
-        <blockquote className="mt-3 border-l-2 border-rose-200 pl-3 text-[13px] italic leading-relaxed text-stone-600 [overflow-wrap:anywhere] dark:border-rose-900/40 dark:text-stone-400">
+        <blockquote className="mt-3 border-t border-stone-200/80 pt-3 text-[13px] italic leading-relaxed text-stone-600 [overflow-wrap:anywhere] dark:border-stone-800 dark:text-stone-400">
           &ldquo;{place.supporting_quote}&rdquo;
         </blockquote>
       )}
@@ -533,12 +543,11 @@ function PlaceCard({
         <p className="mt-2 text-[11px] text-stone-400 dark:text-stone-500">
           {place.post.owner_username && (
             <span>
-              &mdash;{' '}
               <a
                 href={`https://instagram.com/${place.post.owner_username}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="-mx-0.5 rounded px-0.5 font-medium text-stone-500 transition hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:text-stone-400 dark:hover:text-rose-400"
+                className="-mx-0.5 rounded px-0.5 font-medium text-stone-600 transition hover:text-[color:var(--ta,#be123c)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--trips-focus,rgba(244,63,94,0.5))] dark:text-stone-400"
               >
                 @{place.post.owner_username}
               </a>
@@ -551,7 +560,7 @@ function PlaceCard({
 
       {/* Action links */}
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <DayAssignButton place={place} getToken={getToken} onUpdated={onUpdated} />
+        <DayAssignButton place={place} getToken={getToken} onUpdated={onUpdated} days={days} />
         {place.post && (
           <a
             href={place.post.url}
@@ -617,9 +626,9 @@ function FilterChip({
       whileTap={reduce ? undefined : { scale: 0.94 }}
       transition={reduce ? { duration: 0 } : CHIP_SPRING}
       style={{ transformOrigin: 'center' }}
-      className={`inline-flex min-h-11 items-center rounded-full border px-3 py-1 text-[12px] font-medium transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 ${
+      className={`inline-flex min-h-11 items-center rounded-full border px-3 py-1 text-[12px] font-medium transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--trips-focus,rgba(244,63,94,0.5))] ${
         active
-          ? 'border-rose-300 bg-rose-50 text-rose-700 shadow-[0_0_0_1px_rgba(244,63,94,0.08)_inset] hover:border-rose-400 hover:bg-rose-100 dark:border-rose-700/60 dark:bg-rose-950/40 dark:text-rose-400 dark:hover:bg-rose-950/60'
+          ? 'border-[color:var(--ta-ring,#fda4af)] bg-[color:var(--ta-soft,#fff1f2)] text-[color:var(--ta,#be123c)] hover:border-[color:var(--ta,#be123c)] dark:text-[color:var(--ta-strong,#fb7185)]'
           : 'border-stone-200 bg-white text-stone-600 hover:border-stone-300 hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-400 dark:hover:bg-stone-800'
       }`}
       aria-pressed={active}
@@ -631,7 +640,13 @@ function FilterChip({
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-export function Places() {
+export function Places({
+  days = KOREA_DAYS,
+  ingestTo = "/trips/korea-2026?ingest=1#trip-ingest",
+}: {
+  days?: PlaceDayOption[]
+  ingestTo?: string
+} = {}) {
   // Short-circuit if Clerk wasn't baked into this build — no token, no API.
   if (!clerkEnabled) {
     return (
@@ -659,10 +674,10 @@ export function Places() {
       </div>
     )
   }
-  return <PlacesImpl />
+  return <PlacesImpl days={days} ingestTo={ingestTo} />
 }
 
-function PlacesImpl() {
+function PlacesImpl({ days, ingestTo }: { days: PlaceDayOption[]; ingestTo: string }) {
   const getToken = useGetToken()
   const reduce = useReducedMotion()
 
@@ -796,17 +811,17 @@ function PlacesImpl() {
       >
         <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
           <div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-stone-500 dark:text-stone-500">
+            <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-stone-600 dark:text-stone-400">
               <Link
-                to="/korea/ingest"
-                className="-mx-0.5 inline-flex items-center gap-1 rounded px-0.5 text-stone-400 transition hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:text-stone-500 dark:hover:text-rose-400"
-                aria-label="Back to Ingest"
+                to={ingestTo}
+                className="-mx-0.5 inline-flex items-center gap-1 rounded px-0.5 text-stone-400 transition hover:text-[color:var(--ta,#be123c)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--trips-focus,rgba(244,63,94,0.5))] dark:text-stone-500"
+                aria-label="Add Instagram places to this trip"
               >
                 <ArrowLeft className="h-3 w-3" aria-hidden />
                 Ingest
               </Link>
               <span aria-hidden className="mx-2 inline-block h-px w-6 align-middle bg-stone-300 dark:bg-stone-700" />
-              <span className="text-rose-600 dark:text-rose-400">IG</span>
+              <span className="text-[color:var(--ta,#be123c)]">IG</span>
               <span aria-hidden className="mx-2 inline-block h-px w-6 align-middle bg-stone-300 dark:bg-stone-700" />
               Place browser
             </p>
@@ -974,7 +989,7 @@ function PlacesImpl() {
               <p className="text-[14px] text-stone-500 dark:text-stone-400">
                 No extracted places yet. Submit a link in{' '}
                 <Link
-                  to="/korea/ingest"
+                  to={ingestTo}
                   className="rounded text-rose-600 underline-offset-2 transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:text-rose-400"
                 >
                   Ingest
@@ -1003,9 +1018,10 @@ function PlacesImpl() {
                     key={place.id}
                     place={place}
                     getToken={readToken}
-                    onUpdated={(placeId, days) => {
+                    days={days}
+                    onUpdated={(placeId, assigned) => {
                       setPlaces((prev) =>
-                        prev.map((p) => p.id === placeId ? { ...p, days } : p)
+                        prev.map((p) => p.id === placeId ? { ...p, days: assigned } : p)
                       )
                     }}
                   />

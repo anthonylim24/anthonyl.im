@@ -5,7 +5,16 @@ import { SignedIn, SignedOut, SignInButton, UserButton, useAuth } from "@clerk/c
 import { CLERK_ENABLED } from "@/lib/clerk"
 import { ThemeToggle } from "../Korea/ThemeToggle"
 import { applyTheme, getInitialTheme } from "../Korea/koreaUtils"
-import { SERIF, accentIconClass, focusRingClass, iconBtnClass, primaryBtnClass } from "./ui"
+import {
+  SERIF,
+  accentIconClass,
+  chromeHeaderClass,
+  focusRingClass,
+  iconBtnClass,
+  mutedInkClass,
+  primaryBtnClass,
+  wrapAnywhereClass,
+} from "./ui"
 
 const TripChat = lazy(() => import("./TripChat").then((m) => ({ default: m.TripChat })))
 
@@ -62,11 +71,31 @@ function ClerkTripsGate({ children }: { children: ReactNode }) {
   )
 }
 
+/** Concierge FAB pad: `/trips/:id` and `/trips/:id/day/:dayId` only.
+ *  Index, create, places, and edit must not grow the extra bottom inset. */
+function isTripChatPad(pathname: string): boolean {
+  const segs = pathname.replace(/\/+$/, "").split("/").filter(Boolean)
+  if (segs[0] !== "trips" || !segs[1] || segs[1] === "new") return false
+  if (segs.length === 2) return true
+  return segs.length === 4 && segs[2] === "day"
+}
+
+/** Slug from the URL, no fetch. `korea-2026` → `Korea 2026`. */
+function tripCrumbFromPath(pathname: string): string | null {
+  const segs = pathname.replace(/\/+$/, "").split("/").filter(Boolean)
+  if (segs[0] !== "trips" || !segs[1] || segs[1] === "new") return null
+  return decodeURIComponent(segs[1])
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((part) => (/^\d+$/.test(part) ? part : part.charAt(0).toUpperCase() + part.slice(1)))
+    .join(" ")
+}
+
 export function TripsLayout() {
   const location = useLocation()
   const atIndex = location.pathname === "/trips" || location.pathname === "/trips/"
-  // Concierge FAB only lives on overview + day pages; keep the extra pad there.
-  const chatPad = /\/trips\/(?!new(?:\/|$))[^/]+(?:\/day\/[^/]+)?\/?$/.test(location.pathname)
+  const chatPad = isTripChatPad(location.pathname)
+  const crumb = tripCrumbFromPath(location.pathname)
 
   useEffect(() => {
     applyTheme(getInitialTheme())
@@ -81,26 +110,37 @@ export function TripsLayout() {
         >
           Skip to content
         </a>
-        <header className="sticky top-0 z-30 border-b border-stone-200/60 bg-[color-mix(in_srgb,var(--trips-canvas)_88%,transparent)] backdrop-blur-md dark:border-stone-800/60">
-          <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6 pt-[env(safe-area-inset-top,0px)]">
-            <div className="flex min-w-0 items-center gap-3">
+        <header className={chromeHeaderClass}>
+          <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 pt-[env(safe-area-inset-top,0px)] sm:h-12 sm:px-6">
+            <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 sm:gap-2">
               {!atIndex && (
-                <Link
-                  to="/trips"
-                  className={iconBtnClass}
-                  aria-label="Back to all trips"
-                >
+                <Link to="/trips" className={iconBtnClass} aria-label="Back to all trips">
                   <ArrowLeft className="h-4 w-4" strokeWidth={1.5} aria-hidden />
                 </Link>
               )}
-              <Link
-                to="/trips"
-                className={`-mx-2 inline-flex min-h-11 items-center rounded-lg px-2 font-display text-[1.35rem] leading-none tracking-tight text-stone-900 transition hover:text-[color:var(--trips-accent)] dark:text-stone-100 ${focusRingClass}`}
-                style={SERIF}
-              >
-                Trips
-              </Link>
-            </div>
+              <ol className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+                <li className="shrink-0">
+                  <Link
+                    to="/trips"
+                    className={`-mx-1.5 inline-flex min-h-11 items-center rounded-lg px-1.5 font-display text-[1.15rem] leading-none tracking-tight text-stone-900 transition hover:text-[color:var(--trips-accent)] dark:text-stone-100 ${focusRingClass}`}
+                    style={SERIF}
+                  >
+                    Trips
+                  </Link>
+                </li>
+                {crumb ? (
+                  <li
+                    aria-current="page"
+                    className={`flex min-w-0 items-center gap-1.5 sm:gap-2 ${mutedInkClass}`}
+                  >
+                    <span aria-hidden className="text-stone-300 dark:text-stone-600">
+                      /
+                    </span>
+                    <span className={`truncate text-sm font-medium ${wrapAnywhereClass}`}>{crumb}</span>
+                  </li>
+                ) : null}
+              </ol>
+            </nav>
             <div className="flex items-center gap-1.5 sm:gap-2">
               {/* ThemeToggle is already 44×44; keep the trip-tap wrapper for header rhythm. */}
               <span className="trip-tap-44 inline-flex">

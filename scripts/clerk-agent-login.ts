@@ -2,11 +2,12 @@
 /**
  * Sign the agent Chrome into a Clerk-gated PR preview.
  *
- *   bun scripts/clerk-agent-login.ts --pr 123 --path /korea
+ *   bun scripts/clerk-agent-login.ts --pr 123 --path /trips/korea-2026
  *
  * Default: mint a Clerk Agent Task + Testing Token, then apply the session
  * in the running Chrome (CDP when it actually listens; otherwise open a tab
- * in the existing profile). One login covers `/korea` and `/trips`.
+ * in the existing profile). One login covers `/trips` and `/trips/korea-2026`.
+ * Legacy `/korea` still works (redirects to the seed trip; same cookies).
  *
  * Do not paste a ticket URL into the browser. One-time JWTs get corrupted
  * when an LLM retypes them, and automated browsers without a Testing Token
@@ -28,7 +29,7 @@
  *
  * `--api` / AGENT_SESSION_API must be anthonyl.im or loopback. The minted
  * session is the dedicated screenshot identity — not a personal production
- * login. Do not pass `--redirect https://anthonyl.im/korea`.
+ * login. Do not pass `--redirect https://anthonyl.im/trips`.
  */
 import { chmodSync, existsSync, lstatSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -36,6 +37,7 @@ import { join } from "node:path";
 import {
   AgentTaskError,
   createClerkAgentTask,
+  DEFAULT_AGENT_PREVIEW_PATH,
   DEFAULT_CLERK_AGENT_USER_ID,
   isAllowedAgentApiBase,
   isAllowedAgentRedirect,
@@ -63,7 +65,7 @@ function hasFlag(flag: string, argv: string[]): boolean {
 
 function usage(): never {
   console.error(`usage:
-  bun scripts/clerk-agent-login.ts --pr <n> [--path /korea|/trips]
+  bun scripts/clerk-agent-login.ts --pr <n> [--path /trips/korea-2026|/trips]
   bun scripts/clerk-agent-login.ts --redirect <preview-or-localhost-url>
 
 Applies the session in the agent Chrome. Do not paste a ticket URL.
@@ -241,7 +243,7 @@ const argv = process.argv.slice(2);
 const siteUrl = arg("site-url", argv) ?? process.env.SITE_URL ?? "https://anthonyl.im";
 const redirectArg = arg("redirect", argv);
 const prRaw = arg("pr", argv);
-const path = arg("path", argv) ?? "/korea";
+const path = arg("path", argv) ?? DEFAULT_AGENT_PREVIEW_PATH;
 const apply = shouldApply(argv);
 
 let redirectUrl = redirectArg;

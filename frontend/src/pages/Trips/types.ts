@@ -110,6 +110,7 @@ export interface TripSummary {
   status: TripStatus
   tags: string[]
   description?: string
+  accent?: TripAccent
   collaborators: TripCollaborator[]
   sharedWithAllUsers: boolean
   dayCount: number

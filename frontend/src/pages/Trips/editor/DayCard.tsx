@@ -4,6 +4,7 @@ import { ChevronDown, Map as MapIcon, Plus, Trash2 } from "lucide-react"
 import { ACCENT, formatTripDate } from "../theme"
 import { addItem, makeItem } from "../tripEdits"
 import {
+  SERIF,
   chipBtnClass,
   compactInputClass,
   compactSelectClass,
@@ -11,7 +12,6 @@ import {
   mutedInkClass,
   quietBtnClass,
   secondaryBtnClass,
-  staticValueClass,
   subtleInputClass,
   wrapAnywhereClass,
 } from "../ui"
@@ -48,6 +48,8 @@ interface DayCardProps {
   onOpenMap: (dayId: string) => void
   onEnhance: (dayId: string, prompt?: string) => void
   onDeleteItem: (dayId: string, item: ItineraryItem, index: number) => void
+  ingestAnchor?: boolean
+  ingestOpen?: boolean
 }
 
 export const DayCard = memo(function DayCard({
@@ -67,6 +69,8 @@ export const DayCard = memo(function DayCard({
   onOpenMap,
   onEnhance,
   onDeleteItem,
+  ingestAnchor = false,
+  ingestOpen = false,
 }: DayCardProps) {
   const [detailsOpen, setDetailsOpen] = useState(false)
   const hasMappable = day.items.some((i) => i.location?.lat != null && i.location?.lng != null)
@@ -80,8 +84,10 @@ export const DayCard = memo(function DayCard({
       id={day.id}
       aria-label={`Day ${index + 1}`}
       aria-busy={enhancing}
-      className={`scroll-mt-32 rounded-2xl border bg-[var(--trips-surface)] p-5 transition-colors duration-300 lg:scroll-mt-24 dark:bg-stone-900/50 ${
-        enhancing ? ACCENT.border : "border-stone-200/80 dark:border-stone-800"
+      className={`scroll-mt-32 pt-8 transition-colors duration-300 first:pt-0 lg:scroll-mt-24 ${
+        enhancing
+          ? `-mx-3 rounded-xl border px-3 ${ACCENT.softBg} ${ACCENT.border}`
+          : "border-t border-stone-200/70 first:border-t-0 dark:border-stone-800/70"
       }`}
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -90,7 +96,7 @@ export const DayCard = memo(function DayCard({
             Day {index + 1} · {formatTripDate(day.date, timezone)}
             {day.city ? ` · ${day.city}` : ""}
           </p>
-          <div className="mt-0.5 flex items-center gap-1.5">
+          <div className="mt-1 flex items-center gap-1.5">
             {editable ? (
               <>
                 <input
@@ -109,11 +115,12 @@ export const DayCard = memo(function DayCard({
                   aria-label={`Day ${index + 1} title`}
                   disabled={locked}
                   onChange={(e) => patchDay({ title: e.target.value })}
-                  className={`w-full truncate text-lg font-semibold ${subtleInputClass}`}
+                  className={`w-full truncate font-display text-xl font-medium tracking-tight ${subtleInputClass}`}
+                  style={SERIF}
                 />
               </>
             ) : (
-              <h2 className={`text-lg font-semibold ${staticValueClass} ${wrapAnywhereClass}`}>
+              <h2 className={`font-display text-xl font-medium tracking-tight text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`} style={SERIF}>
                 {day.emoji ? `${day.emoji} ` : ""}
                 {day.title ?? ""}
               </h2>
@@ -160,7 +167,7 @@ export const DayCard = memo(function DayCard({
         />
       ) : (
         day.notes && (
-          <p className={`mt-2 whitespace-pre-line ${staticValueClass} ${wrapAnywhereClass}`}>{day.notes}</p>
+          <p className={`mt-2 whitespace-pre-line text-sm leading-relaxed ${mutedInkClass} ${wrapAnywhereClass}`}>{day.notes}</p>
         )
       )}
 
@@ -181,10 +188,7 @@ export const DayCard = memo(function DayCard({
             Details
           </button>
           {detailsOpen && (
-            <fieldset
-              disabled={locked}
-              className="mt-2 m-0 min-w-0 space-y-3 rounded-xl border border-stone-200/80 p-3 dark:border-stone-800"
-            >
+            <fieldset disabled={locked} className="mt-3 m-0 min-w-0 space-y-3 border-t border-stone-200/70 pt-3 dark:border-stone-800">
               <label className="block">
                 <span className={labelClass}>Neighborhoods (comma-separated)</span>
                 <input
@@ -288,15 +292,13 @@ export const DayCard = memo(function DayCard({
       </AnimatePresence>
 
       {day.items.length === 0 ? (
-        <div
-          className={`mt-3 rounded-xl border border-dashed border-stone-200 px-4 py-6 text-center text-sm dark:border-stone-700 ${mutedInkClass}`}
-        >
+        <p className={`mt-4 py-2 text-sm ${mutedInkClass}`}>
           Nothing planned yet{editable ? ". Add a place, note, or section below." : "."}
-        </div>
+        </p>
       ) : (
         // Timeline rail: a vertical line down the day, the itinerary
         // affordance that makes order legible at a glance.
-        <ul className="relative mt-4 space-y-2 pl-4 before:absolute before:bottom-3 before:left-[3px] before:top-3 before:w-px before:bg-stone-200 dark:before:bg-stone-800">
+        <ul className="relative mt-5 space-y-2 pl-4 before:absolute before:bottom-3 before:left-[3px] before:top-3 before:w-px before:bg-stone-200 dark:before:bg-stone-800">
           <AnimatePresence initial={false}>
             {day.items.map((item, itemIdx) => (
               <ItemRow
@@ -351,7 +353,14 @@ export const DayCard = memo(function DayCard({
             </div>
           }
         >
-          <TripIngest trip={trip} dayId={day.id} locked={locked} onDaysChange={onChange} />
+          <TripIngest
+            trip={trip}
+            dayId={day.id}
+            locked={locked}
+            ingestAnchor={ingestAnchor}
+            defaultOpen={ingestOpen}
+            onDaysChange={onChange}
+          />
         </Suspense>
       )}
     </section>

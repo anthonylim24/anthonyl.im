@@ -55,7 +55,19 @@ vi.mock("../tripsApi", () => ({
   deleteTrip: (...args: unknown[]) => mockDeleteTrip(...args),
 }))
 
+import { todayIsoIn } from "../theme"
 import { TripsIndex } from "../TripsIndex"
+
+function addUtcDays(iso: string, days: number): string {
+  const next = new Date(`${iso}T00:00:00Z`)
+  next.setUTCDate(next.getUTCDate() + days)
+  return next.toISOString().slice(0, 10)
+}
+
+function currentWindow(): { startDate: string; endDate: string } {
+  const today = todayIsoIn(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC")
+  return { startDate: addUtcDays(today, -2), endDate: addUtcDays(today, 5) }
+}
 
 function makeSummary(overrides: Partial<TripSummary> = {}): TripSummary {
   return {
@@ -135,5 +147,39 @@ describe("TripsIndex", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Dismiss" }))
     expect(await screen.findByRole("heading", { name: "Tokyo Long Weekend" })).toBeInTheDocument()
+  })
+
+  it("features an in-progress trip as a hero, not an In progress row", async () => {
+    mockListTrips.mockResolvedValue([
+      makeSummary({ id: "now", slug: "seoul-now", name: "Seoul Now", ...currentWindow() }),
+      makeSummary({ id: "trip-2", slug: "osaka", name: "Osaka Bites" }),
+    ])
+
+    renderIndex()
+
+    expect(await screen.findByRole("heading", { name: "Seoul Now" })).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Open Seoul Now" })).toHaveAttribute("href", "/trips/seoul-now")
+    expect(screen.queryByRole("heading", { name: /In progress/ })).not.toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: /Upcoming/ })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Osaka Bites" })).toBeInTheDocument()
+  })
+
+  it("deletes a featured in-progress trip", async () => {
+    mockListTrips.mockResolvedValue([makeSummary({ name: "Seoul Now", slug: "seoul-now", ...currentWindow() })])
+    mockDeleteTrip.mockResolvedValue(undefined)
+
+    renderIndex()
+
+    expect(await screen.findByRole("heading", { name: "Seoul Now" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Delete Seoul Now" }))
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+
+    await waitFor(() => {
+      expect(mockDeleteTrip).toHaveBeenCalledWith(expect.any(Function), "trip-1")
+    })
+    await waitFor(() => {
+      expect(screen.queryByRole("heading", { name: "Seoul Now" })).not.toBeInTheDocument()
+    })
+    expect(screen.getByRole("status")).toHaveTextContent("Deleted Seoul Now.")
   })
 })

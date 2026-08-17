@@ -144,9 +144,9 @@ Wellness enthusiasts and people seeking anxiety / stress relief. They open Breat
 
 ---
 
-## Design Context: `/korea/*` — Korea Trip Itinerary
+## Design Context: `/trips/korea-2026` — Korea Trip Itinerary
 
-Legacy Clerk-gated dossier for the May/June 2026 Seoul + Busan trip. Snapshot data also seeds trip `korea-2026` in the generic trips system. **Do not add new destination-specific routes** — new destinations go through `/trips`.
+Clerk-gated dossier at `/trips/korea-2026` for the May/June 2026 Seoul + Busan trip. Legacy `/korea*` frontend routes redirect here. Snapshot data also seeds trip `korea-2026`. `/api/korea/*` remains. **Do not add new destination-specific routes** — new destinations go through `/trips`.
 
 ### Users
 Anthony (primary) and his partner, while planning + executing a 12-day Seoul + Busan trip. Used on phones for in-trip lookups and on desktop for planning.
@@ -196,7 +196,7 @@ Anthony (primary) and his partner, while planning + executing a 12-day Seoul + B
 
 ## Design Context: `/trips/*` — Generic Trip Planner
 
-Clerk-gated dossier planner. Korea is one seeded trip (`korea-2026`); every new destination is a trip document, not a new route tree.
+Clerk-gated dossier planner. Korea is the seeded trip at `/trips/korea-2026` (`/korea` redirects). Every new destination is a trip document, not a new route tree.
 
 ### Users
 The same travelers as Korea, plus future trips. Phone for in-trip lookups; desktop for planning, AI enhance, and concierge chat.
@@ -207,7 +207,7 @@ The same travelers as Korea, plus future trips. Phone for in-trip lookups; deskt
 ### Aesthetic Direction
 - Reuse Korea's parchment, bloom, photorealistic Map Mode, and editorial type.
 - Accent is trip-owned (rose, amber, etc.) — do not invent a second chrome color.
-- Overview (`/trips/:tripId`) is a read-only dossier. Editor is `/trips/:tripId/edit`. Concierge FAB (`TripChat`) lives on overview + day pages, not on create/edit.
+- `/trips/:tripId` is the living document (dossier + inline edit). `/trips/:tripId/edit` redirects there. Concierge FAB (`TripChat`) lives on the trip and day pages, not index, create, or places.
 - Instagram ingest is embedded in the editor (`TripIngest`), not a standalone route.
 
 ### Trips-specific Principles
@@ -285,7 +285,7 @@ When creating a pull request that includes frontend changes (any modifications t
 
 **Process:**
 1. Prefer the remote PR preview (`https://anthonyl.im/preview/pr/<n>/`). Wait with `bun scripts/wait-for-preview.ts --pr <n> --sha <head-sha>` (see [`docs/pr-previews.md`](docs/pr-previews.md)). No local Vite server required.
-2. For Clerk-gated preview routes (`/korea`, `/trips`), run `bun scripts/clerk-agent-login.ts --pr <n> --path /korea` once. The helper applies a screenshot-user session in the agent Chrome (Korea + Trips share cookies). **Do not paste the ticket URL** — that is how sign-in walls happen. The helper re-execs from `origin/main` before sending secrets. Cursor cloud `gh` tokens have no push — `CLERK_SECRET_KEY` is enough (screenshot-user default). Dedicated screenshot identity, not a personal production login — do not sign in to production `/korea` or `/trips`. Public routes only need `?hidePreviewChrome=1`.
+2. For Clerk-gated preview routes (`/trips`, `/trips/korea-2026`), run `bun scripts/clerk-agent-login.ts --pr <n> --path /trips/korea-2026` once. The helper applies a screenshot-user session in the agent Chrome (Korea + Trips share cookies). **Do not paste the ticket URL** — that is how sign-in walls happen. The helper re-execs from `origin/main` before sending secrets. Cursor cloud `gh` tokens have no push — `CLERK_SECRET_KEY` is enough (screenshot-user default). Dedicated screenshot identity, not a personal production login — do not sign in to production `/trips` or `/trips/korea-2026`. Public routes only need `?hidePreviewChrome=1`.
 3. **Upload screenshots to GitHub** using `gh api` so they get permanent URLs visible in the PR. Local file paths and repo blob URLs do not render in PR descriptions. Use: `gh api --method POST repos/{owner}/{repo}/issues/{pr_number}/comments --field body="![screenshot](url)"` or upload via the GitHub upload endpoint.
 4. Add the uploaded screenshot URLs to the PR description body
 

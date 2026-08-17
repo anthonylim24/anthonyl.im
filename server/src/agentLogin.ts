@@ -82,7 +82,7 @@ export function previewBaseFromRedirect(redirectUrl: string): string {
 
 export function siblingPreviewUrl(
   redirectUrl: string,
-  path: "/korea" | "/trips",
+  path: "/korea" | "/trips" | "/trips/korea-2026",
 ): string {
   const url = new URL(`${previewBaseFromRedirect(redirectUrl)}${path}`);
   url.searchParams.set("hidePreviewChrome", "1");

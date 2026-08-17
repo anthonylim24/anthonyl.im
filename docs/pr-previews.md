@@ -12,7 +12,7 @@ https://anthonyl.im/preview/pr/<n>/
 | --- | --- |
 | Chatbot | `/preview/pr/<n>/` |
 | BreathFlow | `/preview/pr/<n>/breathwork` |
-| Korea | `/preview/pr/<n>/korea` |
+| Korea | `/preview/pr/<n>/trips/korea-2026` (`/korea` redirects) |
 | Trips | `/preview/pr/<n>/trips` |
 
 The sticky PR comment (`<!-- pr-preview -->`) and the GitHub deployment
@@ -40,7 +40,7 @@ screenshot identity** via
 [Clerk Agent Tasks](https://clerk.com/docs/guides/development/testing/agent-tasks)
 — see below. That user is not a personal production login. It can view
 and edit the shared `korea-2026` seed trip (`sharedWithAllUsers`). Do
-not sign in to production `/korea` or `/trips` for screenshots.
+not sign in to production `/trips` or `/trips/korea-2026` for screenshots.
 
 ## Agent workflow (screenshots)
 
@@ -58,10 +58,10 @@ not sign in to production `/korea` or `/trips` for screenshots.
 
 2. For Clerk-gated preview routes, apply a screenshot-user session
    **before** screenshotting. One command signs Chrome into both
-   `/korea` and `/trips` (same-origin cookies):
+   `/trips` and `/trips/korea-2026` (same-origin cookies; `/korea` redirects):
 
    ```bash
-   bun scripts/clerk-agent-login.ts --pr <n> --path /korea
+   bun scripts/clerk-agent-login.ts --pr <n> --path /trips/korea-2026
    ```
 
    The helper mints a Clerk Agent Task + Testing Token and applies them
@@ -73,7 +73,7 @@ not sign in to production `/korea` or `/trips` for screenshots.
    Re-execs from a fetched `origin/main` worktree before sending
    `CLERK_SECRET_KEY` / `AGENT_LOGIN_SECRET` / `gh auth token`.
    Do not skip that (no `--skip-main-check`) on a PR worktree.
-   Do not pass `--redirect https://anthonyl.im/korea` (production).
+   Do not pass `--redirect https://anthonyl.im/trips` (production).
 
    Auth (first match):
 
@@ -182,7 +182,7 @@ Do not add fork-PR previews without moving them off `anthonyl.im`.
 | `server/src/previewApiApp.ts` | API-only Hono app (no SPA, no IG worker) |
 | `server/src/previewStamp.ts` | CLI used by CI after `vite build` |
 | `scripts/wait-for-preview.ts` | agent poller |
-| `scripts/clerk-agent-login.ts` | apply a Clerk screenshot-user session for `/korea` + `/trips` (do not paste tickets) |
+| `scripts/clerk-agent-login.ts` | apply a Clerk screenshot-user session for `/trips` + `/trips/korea-2026` (do not paste tickets) |
 | `server/src/routes/agentSession.ts` | `POST /api/agent/session` (secret, collaborator push/admin, or installation token for this repo) |
 | `frontend/src/lib/routerBasename.ts` | React Router `basename` from Vite `base` |
 | `frontend/src/lib/apiBase.ts` | `VITE_API_BASE` rewrite (no production `/api` fallback) |

@@ -171,7 +171,8 @@ describe('service worker registration', () => {
     // visitors who installed the legacy app, but the cache namespace
     // is now korea-offline-v*.
     expect(worker).toMatch(/CACHE_VERSION = 'korea-offline-v\d+'/)
-    expect(worker).toContain("'/korea'")
+    expect(worker).toContain("'/trips'")
+    expect(worker).toContain("'/trips/korea-2026'")
     expect(worker).toContain("'/korea.webmanifest'")
     expect(worker).toContain("'/breathwork'")
     expect(worker).toContain("'/breathwork/progress'")

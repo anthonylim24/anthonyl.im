@@ -102,10 +102,19 @@ describe("preview helpers", () => {
     ).toBe("https://anthonyl.im/preview/pr/12");
   });
 
-  test("siblingPreviewUrl switches korea ↔ trips on the same preview", () => {
+  test("siblingPreviewUrl switches korea-2026 ↔ trips on the same preview", () => {
     expect(
-      siblingPreviewUrl("https://anthonyl.im/preview/pr/9/korea?hidePreviewChrome=1", "/trips"),
+      siblingPreviewUrl(
+        "https://anthonyl.im/preview/pr/9/trips/korea-2026?hidePreviewChrome=1",
+        "/trips",
+      ),
     ).toBe("https://anthonyl.im/preview/pr/9/trips?hidePreviewChrome=1");
+    expect(
+      siblingPreviewUrl("https://anthonyl.im/preview/pr/9/trips?hidePreviewChrome=1", "/trips/korea-2026"),
+    ).toBe("https://anthonyl.im/preview/pr/9/trips/korea-2026?hidePreviewChrome=1");
+    expect(
+      siblingPreviewUrl("https://anthonyl.im/preview/pr/9/trips?hidePreviewChrome=1", "/korea"),
+    ).toBe("https://anthonyl.im/preview/pr/9/korea?hidePreviewChrome=1");
   });
 
   test("agent sessions are longer than the 30-minute HTTP default", () => {

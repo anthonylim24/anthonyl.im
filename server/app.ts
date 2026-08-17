@@ -56,6 +56,14 @@ const appPreviews = {
       "https://images.unsplash.com/photo-1538485399081-7c8970ce9eef?auto=format&fit=crop&w=1200&h=630&q=80",
     imageAlt: "Seoul cityscape at twilight with Lotte World Tower and the Han River",
   },
+  trips: {
+    title: "Trips — itinerary workspace",
+    description:
+      "A private itinerary workspace for days, reservations, and photorealistic Map Mode.",
+    imagePathOrUrl:
+      "https://images.unsplash.com/photo-1538485399081-7c8970ce9eef?auto=format&fit=crop&w=1200&h=630&q=80",
+    imageAlt: "City itinerary at twilight",
+  },
 } as const satisfies Record<string, AppPreviewMeta>;
 
 const escapeHtml = (value: string): string =>
@@ -73,7 +81,8 @@ const resolveImageUrl = (imagePathOrUrl: string): string =>
 
 const getPreviewMetaForPath = (pathname: string): AppPreviewMeta => {
   if (pathname.startsWith("/breathwork")) return appPreviews.breathwork;
-  if (pathname.startsWith("/korea")) return appPreviews.korea;
+  if (pathname.startsWith("/korea") || pathname.startsWith("/trips/korea-2026")) return appPreviews.korea;
+  if (pathname.startsWith("/trips")) return appPreviews.trips;
   return appPreviews.chatbot;
 };
 
@@ -324,6 +333,14 @@ app.use(
   }),
 );
 app.use("*", serveStatic({ root: distPath }));
+
+// Legacy Korea dossier URLs fold into the seeded trip.
+app.get("/korea", (c) => c.redirect("/trips/korea-2026", 301));
+app.get("/korea/", (c) => c.redirect("/trips/korea-2026", 301));
+app.get("/korea/places", (c) => c.redirect("/trips/korea-2026/places", 301));
+app.get("/korea/ingest", (c) => c.redirect("/trips/korea-2026?ingest=1", 301));
+app.get("/korea/day/:slug", (c) => c.redirect(`/trips/korea-2026/day/${c.req.param("slug")}`, 301));
+app.get("/korea/*", (c) => c.redirect("/trips/korea-2026", 301));
 
 // Serve index.html for all other routes (SPA fallback). The HTML itself must
 // never be long-cached — it references hashed asset filenames that change on

@@ -973,7 +973,7 @@ html.dark .trips,
    which is display type and never drops below 28px. Opting one input out
    keeps the guard intact everywhere else. */
 .trips input.trip-display-input {
-  font-size: clamp(1.75rem, 4vw, 2.5rem) !important;
+  font-size: clamp(2.5rem, 7vw, 4.25rem) !important;
 }
 
 /* Grows a small control's hit area to 44px without resizing it — for shared
@@ -1149,8 +1149,30 @@ html.dark .trips [data-trip-accent="violet"] {
   animation: trip-flash 2.6s cubic-bezier(0.33, 0, 0, 1);
 }
 
+@keyframes trip-bloom-drift {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(2%, 1.5%, 0) scale(1.04); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+
+.trip-bloom-drift {
+  animation: trip-bloom-drift 18s cubic-bezier(0.33, 0, 0, 1) infinite;
+  will-change: transform;
+}
+
+@keyframes trip-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.85); }
+}
+
+.trip-pulse {
+  animation: trip-pulse 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .trip-flash {
+  .trip-flash,
+  .trip-bloom-drift,
+  .trip-pulse {
     animation: none;
   }
 }

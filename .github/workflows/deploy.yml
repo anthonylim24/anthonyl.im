@@ -239,7 +239,7 @@ jobs:
             exit 1
           fi
 
-          PATHS=("/" "/chatbot" "/breathwork" "/korea" "/trips")
+          PATHS=("/" "/chatbot" "/breathwork" "/trips" "/trips/korea-2026")
           for path in "${PATHS[@]}"; do
             URL="${BASE}${path}"
             OK=0

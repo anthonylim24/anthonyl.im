@@ -28,7 +28,7 @@ merge to main → .github/workflows/deploy.yml
         ├─ SSH: stage ~/anthonyl.im.next (shallow clone + bun install)
         ├─ SCP dist → anthonyl.im.next/frontend/dist
         ├─ SSH: atomic swap next→live, PM2 restart, rollback on failure
-        └─ smoke: /health JSON + SPA shells (/ /chatbot /breathwork /korea /trips)
+        └─ smoke: /health JSON + SPA shells (/ /chatbot /breathwork /trips /trips/korea-2026)
 ```
 
 `pr.yml` also triggers on `merge_group` (merge queue).

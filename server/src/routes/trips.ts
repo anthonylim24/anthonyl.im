@@ -59,6 +59,7 @@ function summarize(trip: Trip, userId: string) {
     status: trip.status,
     tags: trip.tags,
     description: trip.description,
+    accent: trip.appearance?.accent,
     collaborators: trip.collaborators,
     sharedWithAllUsers: trip.sharedWithAllUsers ?? false,
     dayCount: trip.days.length,

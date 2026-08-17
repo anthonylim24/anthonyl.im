@@ -1,6 +1,6 @@
 # anthonyl.im — Impeccable Design Context
 
-This repo hosts four experiences under one Vite SPA: a personal AI chatbot (`/`), **BreathFlow** (`/breathwork`), the **Korea** itinerary (`/korea`), and a generic **trip planner** (`/trips`). Each has its own visual identity; all share the craft principles below.
+This repo hosts four experiences under one Vite SPA: a personal AI chatbot (`/`), **BreathFlow** (`/breathwork`), the **Korea** itinerary (`/trips/korea-2026`; `/korea` redirects), and a generic **trip planner** (`/trips`). Each has its own visual identity; all share the craft principles below.
 
 Frontend network I/O uses **Effect v3** — do not add raw `fetch` for `/api`. Engineering: [`CLAUDE.md`](CLAUDE.md). Skills: [`.agents/skills/README.md`](.agents/skills/README.md).
 
@@ -118,7 +118,9 @@ Wellness enthusiasts and people seeking anxiety / stress relief. They open Breat
 
 ---
 
-## Design Context: `/korea/*` — Korea Trip Itinerary
+## Design Context: `/trips/korea-2026` — Korea Trip Itinerary
+
+Live dossier is `/trips/korea-2026`. Legacy `/korea*` frontend routes redirect there. `/api/korea/*` remains. Do not add destination-specific routes.
 
 ### Users
 Anthony (primary) and his partner, while planning + executing a 12-day Seoul + Busan trip in late May / early June 2026. Used on phones for in-trip lookups (reservations, places nearby, directions) and on desktop for planning. Authenticated behind Clerk so it's a private dossier.
@@ -177,6 +179,8 @@ Anthony (primary) and his partner, while planning + executing a 12-day Seoul + B
 
 ## Design Context: `/trips/*` — Generic Trip Planner
 
+Korea is the seeded trip at `/trips/korea-2026` (`/korea` redirects). Every new destination is a trip document, not a new route tree.
+
 ### Users
 The same travelers as Korea, plus future trips. Phone for in-trip lookups; desktop for planning, AI enhance, and concierge chat.
 
@@ -186,8 +190,8 @@ The same travelers as Korea, plus future trips. Phone for in-trip lookups; deskt
 ### Aesthetic Direction
 - Reuse Korea's parchment, bloom, photorealistic Map Mode, and editorial type.
 - Accent is trip-owned — do not invent a second chrome color.
-- Overview (`/trips/:tripId`) is a read-only dossier. Editor is `/trips/:tripId/edit`. Concierge FAB on overview + day, not create/edit.
-- Instagram ingest is embedded in the editor, not a standalone route.
+- `/trips/:tripId` is the living document (dossier + inline edit). `/trips/:tripId/edit` redirects there. Concierge FAB on the trip and day pages, not index, create, or places.
+- Instagram ingest is embedded on the living document, not a standalone route.
 
 ### Trips-specific Principles
 

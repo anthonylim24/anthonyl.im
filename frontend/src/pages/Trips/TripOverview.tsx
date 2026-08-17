@@ -1,34 +1,37 @@
-import { Link, useParams } from "react-router-dom"
+import { lazy, Suspense, useMemo } from "react"
+import { Link, useSearchParams } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
-import { ArrowUpRight, Pencil } from "lucide-react"
-import { useGetToken } from "@/lib/safeAuth"
-import { useLoadedTrip } from "./useLoadedTrip"
-import {
-  ACCENT,
-  cityTag,
-  collaboratorSummary,
-  daysUntilIn,
-  formatTripDate,
-  resolveAccent,
-  todayIsoIn,
-  visibleTags,
-} from "./theme"
+import { Globe2, Images, Map as MapIcon, Settings2 } from "lucide-react"
+import { EntityIndexProvider } from "../Korea/entityIndex"
+import { LinkifiedText } from "../Korea/LinkifiedText"
+import { ACCENT, collaboratorSummary, daysUntilIn, formatTripDate, resolveAccent, todayIsoIn, visibleTags } from "./theme"
 import { DossierSectionHeader } from "./components/DossierSectionHeader"
 import { ItemIcon } from "./components/ItemIcon"
 import { StatusChip } from "./components/StatusChip"
-import type { ItineraryItem, Trip, TripDay } from "./types"
+import { AppearancePanel } from "./editor/AppearancePanel"
+import { DayCard } from "./editor/DayCard"
+import { DayNavigation } from "./editor/DayNavigation"
+import { EnhanceButton } from "./editor/EnhanceButton"
+import { ExtractedPlacesLibrary } from "./ExtractedPlacesLibrary"
+import { EditorDock, EditorNotice, FloatingSaveIndicator, UndoToast } from "./editor/FloatingSaveIndicator"
+import { GeneratePanel } from "./editor/GeneratePanel"
+import { SuggestionsPanel } from "./editor/SuggestionsPanel"
+import { TripStatusSelect } from "./editor/TripStatusSelect"
+import { TripClock } from "./components/TripClock"
+import { upcomingReservations } from "./reservationView"
 import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
+import { useTripEditor } from "./useTripEditor"
+import type { ItineraryItem, Trip, TripDay } from "./types"
 import {
   EASE,
   REVEAL_DURATION,
   SERIF,
   alertErrorClass,
+  chipBtnClass,
   focusRingClass,
   focusRingInsetClass,
-  hoverArrowClass,
   inkBtnClass,
   inlineLinkClass,
-  metaLabelClass,
   mutedInkClass,
   overlayHoverClass,
   pageClass,
@@ -36,16 +39,19 @@ import {
   wrapAnywhereClass,
 } from "./ui"
 
-/** `<main>` is unconstrained so the hero bloom can be full-bleed. */
+const MapModeOverlay = lazy(() =>
+  import("../Korea/MapModeOverlay").then((m) => ({ default: m.MapModeOverlay })),
+)
+
 const gutterClass = pageClass()
 
 export function TripOverview() {
-  const { tripId } = useParams<{ tripId: string }>()
-  const getToken = useGetToken()
+  const editor = useTripEditor()
   const reduce = useReducedMotion()
-  const { state, reload } = useLoadedTrip(tripId, getToken)
+  const [searchParams] = useSearchParams()
+  const openIngest = searchParams.get("ingest") === "1"
 
-  if (state.status === "loading") {
+  if (editor.state.status === "loading") {
     return (
       <div className={gutterClass} role="status" aria-label="Loading trip">
         <div className="h-4 w-48 animate-pulse rounded bg-stone-200/60 dark:bg-stone-900" />
@@ -59,31 +65,33 @@ export function TripOverview() {
     )
   }
 
-  if (state.status === "error") {
-    if (isMissingTripError(state.message)) return <TripsNotFound />
+  if (editor.state.status === "error" || !editor.trip) {
+    if (editor.state.status === "error" && isMissingTripError(editor.state.message)) return <TripsNotFound />
     return (
       <div className={gutterClass}>
         <div className={alertErrorClass} role="alert">
           <p className={`min-w-0 ${wrapAnywhereClass}`}>
-            Couldn’t open this trip. Check your connection, then try again. ({state.message})
+            Couldn’t open this trip. Check your connection, then try again.
+            {editor.state.status === "error" ? ` (${editor.state.message})` : ""}
           </p>
-          <button type="button" className={`mt-1 font-semibold ${inlineLinkClass}`} onClick={reload}>
-            Retry
-          </button>
+          <Link to="/trips" className={`mt-1 font-semibold ${inlineLinkClass}`}>
+            Back to all trips
+          </Link>
         </div>
       </div>
     )
   }
 
-  const { trip, editable } = state
+  const { trip, editable, editorLocked } = editor
   const a = ACCENT
   const today = todayIsoIn(trip.timezone)
   const todayDay = trip.days.find((d) => d.date === today)
+  const mapHeroDay =
+    todayDay ?? trip.days.find((d) => d.items.some((i) => i.location?.lat != null && i.location?.lng != null))
   const tMinus = daysUntilIn(trip.startDate, trip.timezone)
   const inTrip = today >= trip.startDate && today <= trip.endDate
   const past = today > trip.endDate
   const dayCount = trip.days.length
-
   const statusLine = inTrip
     ? `Day ${trip.days.findIndex((d) => d.date === today) + 1 || 1} of ${dayCount}`
     : past
@@ -93,329 +101,422 @@ export function TripOverview() {
         : tMinus === 1
           ? "1 day to go"
           : `${Math.max(tMinus, 0)} days to go`
-
-  const reservations = trip.days.flatMap((day) =>
-    day.items.filter((i) => i.kind === "reservation").map((item) => ({ day, item })),
+  const next = upcomingReservations(trip.days, today)[0]
+  const hotels = trip.days.flatMap((day) =>
+    day.items.filter((i) => i.kind === "reservation" && i.reservation?.type === "hotel"),
   )
-
+  const neighborhoods = [...new Set(trip.days.flatMap((d) => d.neighborhoods ?? []))]
   const tags = visibleTags(trip.tags)
-  const meta: { label: string; value: string }[] = [
-    { label: "Destinations", value: trip.destinations.join(" · ") },
-    {
-      label: "Dates",
-      value: `${formatTripDate(trip.startDate, trip.timezone)} – ${formatTripDate(trip.endDate, trip.timezone)}`,
-    },
-    { label: "Time zone", value: trip.timezone },
-  ]
-  if (trip.collaborators.length > 0) {
-    meta.push({ label: "Sharing", value: collaboratorSummary(trip.collaborators) })
-  }
-
+  const mapDay = editor.mapDayId ? trip.days.find((d) => d.id === editor.mapDayId) : null
+  const mapDayIndex = mapDay ? trip.days.findIndex((d) => d.id === mapDay.id) : -1
   const fadeUp = (step: number) => ({
-    initial: reduce ? false : { opacity: 0, y: 8 },
+    initial: reduce ? false : { opacity: 0, y: 10 },
     animate: { opacity: 1, y: 0 },
     transition: { duration: REVEAL_DURATION, ease: EASE, delay: revealDelay(step) },
   })
 
   return (
-    <div data-trip-accent={resolveAccent(trip.appearance?.accent)}>
-      <header className="relative overflow-hidden">
-        <div aria-hidden className="pointer-events-none absolute inset-0">
-          <div className={`absolute inset-0 ${a.bloomA}`} />
-          <div className={`absolute inset-0 ${a.bloomB}`} />
-        </div>
-        <div className="relative mx-auto max-w-6xl px-4 pb-6 pt-6 sm:px-6 sm:pb-10 sm:pt-10">
-          <motion.p
-            {...fadeUp(0)}
-            className={`font-mono-trips text-[11px] uppercase tracking-[0.24em] ${mutedInkClass}`}
-          >
-            {trip.appearance?.eyebrow ?? "Itinerary"} · {dayCount} day{dayCount === 1 ? "" : "s"} ·{" "}
-            {formatTripDate(trip.startDate, trip.timezone, { weekday: undefined })} →{" "}
-            {formatTripDate(trip.endDate, trip.timezone, { weekday: undefined })}
-          </motion.p>
-
-          <motion.div {...fadeUp(1)} className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
-            <span className={`inline-flex items-center gap-2 text-sm font-medium ${a.text}`}>
-              <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.dot}`} aria-hidden />
-              {statusLine}
-            </span>
-          </motion.div>
-
-          <motion.h1 {...fadeUp(2)} className="mt-4 text-stone-900 dark:text-stone-100" style={SERIF}>
-            <span className={`block max-w-[16ch] font-display text-[clamp(2.5rem,7vw,4.25rem)] font-medium leading-[0.98] tracking-[-0.02em] ${wrapAnywhereClass}`}>
-              {trip.name}
-            </span>
-            {trip.appearance?.subtitle && (
-              <span className={`mt-3 block max-w-[30ch] font-display text-[clamp(1.2rem,3vw,1.75rem)] font-light italic leading-snug ${mutedInkClass} ${wrapAnywhereClass}`}>
-                {trip.appearance.subtitle}
-              </span>
-            )}
-          </motion.h1>
-
-          {trip.appearance?.headline && (
-            <motion.p
-              {...fadeUp(3)}
-              className="mt-5 max-w-[58ch] text-base leading-relaxed text-stone-700 sm:text-[1.05rem] dark:text-stone-300"
-            >
-              {trip.appearance.headline}
-            </motion.p>
-          )}
-          {!trip.appearance?.headline && trip.description && (
-            <motion.p
-              {...fadeUp(3)}
-              className="mt-5 max-w-[58ch] text-base leading-relaxed text-stone-700 dark:text-stone-300"
-            >
-              {trip.description}
-            </motion.p>
-          )}
-
-          <motion.dl
-            {...fadeUp(4)}
-            className={`mt-8 grid grid-cols-1 gap-x-10 gap-y-5 border-t border-stone-200/80 pt-5 sm:grid-cols-2 dark:border-stone-800/80 ${
-              meta.length > 3 ? "lg:grid-cols-4" : "lg:grid-cols-3"
-            }`}
-          >
-            {meta.map((entry) => (
-              <MetaRow key={entry.label} label={entry.label} value={entry.value} />
-            ))}
-          </motion.dl>
-
-          {tags.length > 0 && (
-            <motion.ul {...fadeUp(5)} className="mt-5 flex flex-wrap gap-1.5" aria-label="Tags">
-              {tags.map((tag) => (
-                <li
-                  key={tag}
-                  className={`rounded-md border border-stone-200/80 px-2 py-0.5 text-xs dark:border-stone-700 ${mutedInkClass} ${wrapAnywhereClass}`}
-                >
-                  {tag}
-                </li>
-              ))}
-            </motion.ul>
-          )}
-
-          {editable && (
-            <motion.div {...fadeUp(6)} className="mt-7">
-              <Link to={`/trips/${trip.slug ?? trip.id}/edit`} className={inkBtnClass}>
-                <Pencil className="h-4 w-4" aria-hidden />
-                Edit itinerary
-              </Link>
-            </motion.div>
-          )}
-        </div>
-      </header>
-
-      {todayDay && (
-        <motion.aside {...fadeUp(2)} className={`border-y ${a.border} ${a.softBg}`}>
-          <Link
-            to={`/trips/${trip.slug ?? trip.id}/day/${todayDay.id}`}
-            className={`group mx-auto flex max-w-6xl items-center gap-4 px-4 py-4 transition-colors sm:px-6 ${overlayHoverClass} ${focusRingInsetClass}`}
-          >
-            <div className="flex min-w-0 flex-wrap items-baseline gap-x-5 gap-y-1">
-              <p className={`flex items-center gap-2 font-mono-trips text-[11px] uppercase tracking-[0.2em] ${a.text}`}>
-                <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.dot}`} aria-hidden />
-                Today · {formatTripDate(todayDay.date, trip.timezone)}
-              </p>
-              <p
-                className={`font-display text-lg font-medium text-stone-900 transition-colors sm:text-xl dark:text-stone-100 ${a.textHover} ${wrapAnywhereClass}`}
-                style={SERIF}
-              >
-                {todayDay.emoji && <span aria-hidden className="mr-2">{todayDay.emoji}</span>}
-                Day {trip.days.indexOf(todayDay) + 1}
-                {todayDay.title ? `, ${todayDay.title}` : ""}
-              </p>
-            </div>
-            <ArrowUpRight
-              className={`ml-auto h-4 w-4 shrink-0 ${hoverArrowClass} ${a.text}`}
-              aria-hidden
-            />
-          </Link>
-        </motion.aside>
-      )}
-
-      <section className="mx-auto mt-8 max-w-6xl px-4 sm:mt-14 sm:px-6">
-        <DossierSectionHeader
-          scale="page"
-          animate
-          num="01"
-          eyebrow={`${dayCount} day${dayCount === 1 ? "" : "s"}`}
-          title="Daily itinerary"
-          subtitle={
-            dayCount === 0
-              ? "No days yet. Open the editor to add structure."
-              : "Open a day for reservations, places, and Map Mode."
-          }
-        />
-        {dayCount === 0 ? (
-          <div className={`mt-8 border border-dashed border-stone-300 px-5 py-10 text-sm dark:border-stone-700 ${mutedInkClass}`}>
-            This trip has no days yet.
-            {editable && (
-              <>
-                {" "}
-                <Link
-                  to={`/trips/${trip.slug ?? trip.id}/edit`}
-                  className={`font-semibold ${inlineLinkClass} ${a.text}`}
-                >
-                  Open the editor
-                </Link>
-                .
-              </>
-            )}
+    <EntityIndexProvider>
+      <div data-trip-accent={resolveAccent(trip.appearance?.accent)}>
+        <header className="relative overflow-hidden">
+          <div aria-hidden className="pointer-events-none absolute inset-0">
+            <div className={`absolute inset-0 ${a.bloomA} trip-bloom-drift`} />
+            <div className={`absolute inset-0 ${a.bloomB}`} />
           </div>
-        ) : (
-          <ol className="mt-2 divide-y divide-stone-200/80 dark:divide-stone-800/80">
-            {trip.days.map((day, i) => (
-              <DayRow
-                key={day.id}
-                trip={trip}
-                day={day}
-                index={i}
-                isToday={day.date === today}
-                isPast={day.date < today}
-                concluded={past}
-                reduce={!!reduce}
-              />
-            ))}
-          </ol>
-        )}
-      </section>
+          <div className="relative mx-auto max-w-6xl px-4 pb-6 pt-6 sm:px-6 sm:pb-10 sm:pt-10">
+            <motion.p
+              {...fadeUp(0)}
+              className={`font-mono-trips text-[11px] uppercase tracking-[0.24em] ${mutedInkClass}`}
+            >
+              {trip.appearance?.eyebrow ?? "Itinerary"} · {dayCount} day{dayCount === 1 ? "" : "s"} ·{" "}
+              {formatTripDate(trip.startDate, trip.timezone, { weekday: undefined })} →{" "}
+              {formatTripDate(trip.endDate, trip.timezone, { weekday: undefined })}
+            </motion.p>
 
-      {reservations.length > 0 && (
-        <section className="mx-auto mt-16 max-w-6xl px-4 sm:mt-20 sm:px-6">
+            <motion.div {...fadeUp(1)} className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
+              <span className={`inline-flex items-center gap-2 text-sm font-medium ${a.text}`}>
+                <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.dot}`} aria-hidden />
+                {statusLine}
+              </span>
+              <TripClock timezone={trip.timezone} />
+              <TripStatusSelect
+                status={trip.status}
+                editable={editable}
+                disabled={editorLocked}
+                onChange={(status) => editor.scheduleSave({ ...trip, status })}
+              />
+            </motion.div>
+
+            <motion.div {...fadeUp(2)} className="mt-4">
+              {editable ? (
+                <>
+                  <label className="sr-only" htmlFor="trip-editor-name">
+                    Trip name
+                  </label>
+                  <input
+                    id="trip-editor-name"
+                    disabled={editorLocked}
+                    className={`trip-display-input min-h-11 w-full bg-transparent font-display font-medium leading-[0.98] tracking-[-0.02em] text-stone-900 focus:outline-none dark:text-stone-100 ${focusRingClass} ${wrapAnywhereClass}`}
+                    value={trip.name}
+                    onChange={(e) => editor.scheduleSave({ ...trip, name: e.target.value })}
+                    style={SERIF}
+                  />
+                </>
+              ) : (
+                <h1 className="text-stone-900 dark:text-stone-100" style={SERIF}>
+                  <span
+                    className={`block font-display text-[clamp(2.5rem,7vw,4.25rem)] font-medium leading-[0.98] tracking-[-0.02em] ${wrapAnywhereClass}`}
+                  >
+                    {trip.name}
+                  </span>
+                </h1>
+              )}
+              {(trip.appearance?.subtitle || trip.appearance?.headline || trip.description) && (
+                <p
+                  className={`mt-4 max-w-[58ch] text-base leading-relaxed text-stone-700 sm:text-[1.05rem] dark:text-stone-300 ${wrapAnywhereClass}`}
+                >
+                  <LinkifiedText>
+                    {trip.appearance?.headline ?? trip.appearance?.subtitle ?? trip.description ?? ""}
+                  </LinkifiedText>
+                </p>
+              )}
+            </motion.div>
+
+            <motion.dl
+              {...fadeUp(3)}
+              className="mt-8 grid grid-cols-1 gap-x-10 gap-y-5 border-t border-stone-200/80 pt-5 sm:grid-cols-2 lg:grid-cols-3 dark:border-stone-800/80"
+            >
+              <MetaRow label="Destinations" value={trip.destinations.join(" · ")} />
+              <MetaRow
+                label="Dates"
+                value={`${formatTripDate(trip.startDate, trip.timezone)} – ${formatTripDate(trip.endDate, trip.timezone)}`}
+              />
+              <MetaRow label="Time zone" value={trip.timezone} />
+              {trip.collaborators.length > 0 && (
+                <MetaRow label="Sharing" value={collaboratorSummary(trip.collaborators)} />
+              )}
+            </motion.dl>
+
+            {tags.length > 0 && (
+              <ul className="mt-5 flex flex-wrap gap-1.5" aria-label="Tags">
+                {tags.map((tag) => (
+                  <li
+                    key={tag}
+                    className={`rounded-md border border-stone-200/80 px-2 py-0.5 text-xs dark:border-stone-700 ${mutedInkClass} ${wrapAnywhereClass}`}
+                  >
+                    {tag}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <motion.div {...fadeUp(4)} className="mt-7 flex flex-wrap items-center gap-2">
+              {mapHeroDay && (
+                <button type="button" onClick={() => editor.openMap(mapHeroDay.id)} className={inkBtnClass}>
+                  <MapIcon className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+                  Map Mode
+                </button>
+              )}
+              <Link to={`/trips/${trip.slug ?? trip.id}/places`} className={chipBtnClass}>
+                <Images className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
+                Places
+              </Link>
+              {editable && trip.status === "draft" && (
+                <button type="button" disabled={editorLocked} onClick={editor.publish} className={inkBtnClass}>
+                  <Globe2 className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+                  Publish
+                </button>
+              )}
+              {editable && (
+                <EnhanceButton
+                  label="Enhance trip"
+                  busyLabel="Reviewing trip…"
+                  busy={editor.enhancingTarget === "trip"}
+                  disabled={editorLocked}
+                  variant="outline"
+                  promptPlaceholder="Optional focus, e.g. “tighten the pacing and add more local food”"
+                  onRun={(prompt) => void editor.runEnhance("trip", undefined, prompt)}
+                />
+              )}
+              {editable && (
+                <a href="#trip-settings" className={chipBtnClass}>
+                  <Settings2 className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
+                  Settings
+                </a>
+              )}
+            </motion.div>
+          </div>
+        </header>
+
+        {todayDay && (
+          <aside className={`border-y ${a.border} ${a.softBg}`}>
+            <Link
+              to={`/trips/${trip.slug ?? trip.id}/day/${todayDay.id}`}
+              className={`group mx-auto flex max-w-6xl items-center gap-4 px-4 py-4 transition-colors sm:px-6 ${overlayHoverClass} ${focusRingInsetClass}`}
+            >
+              <div className="flex min-w-0 flex-wrap items-baseline gap-x-5 gap-y-1">
+                <p className={`flex items-center gap-2 font-mono-trips text-[11px] uppercase tracking-[0.2em] ${a.text}`}>
+                  <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.dot}`} aria-hidden />
+                  Today · {formatTripDate(todayDay.date, trip.timezone)}
+                </p>
+                <p
+                  className={`font-display text-lg font-medium text-stone-900 sm:text-xl dark:text-stone-100 ${wrapAnywhereClass}`}
+                  style={SERIF}
+                >
+                  {todayDay.emoji && <span aria-hidden className="mr-2">{todayDay.emoji}</span>}
+                  Day {trip.days.indexOf(todayDay) + 1}
+                  {todayDay.title ? `, ${todayDay.title}` : ""}
+                </p>
+              </div>
+            </Link>
+          </aside>
+        )}
+
+        {next && (
+          <div className="mx-auto max-w-6xl px-4 pt-6 sm:px-6">
+            <Link
+              to={`/trips/${trip.slug ?? trip.id}/day/${next.day.id}#item-${next.item.id}`}
+              className={`group flex items-start gap-4 border-b border-stone-200/80 px-1 py-4 transition-colors ${overlayHoverClass} ${focusRingClass} dark:border-stone-800`}
+            >
+              <ItemIcon
+                kind={next.item.kind}
+                category={next.item.location?.category}
+                reservationType={next.item.reservation?.type}
+                className="mt-0.5 h-4 w-4 shrink-0 text-stone-500"
+              />
+              <div className="min-w-0">
+                <p className={`font-mono-trips text-[10px] uppercase tracking-[0.16em] ${a.text}`}>Up next</p>
+                <p className={`mt-1 font-medium text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}>
+                  {next.item.title}
+                </p>
+                <p className={`mt-0.5 text-sm ${mutedInkClass}`}>
+                  {formatTripDate(next.day.date, trip.timezone)}
+                  {next.item.time ? ` · ${next.item.time}` : ""}
+                </p>
+              </div>
+            </Link>
+          </div>
+        )}
+
+        {editable && trip.days.every((d) => d.items.length === 0) && (
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <GeneratePanel
+              getToken={editor.readToken}
+              tripId={trip.id}
+              locked={editorLocked}
+              initialPrompt={editor.navState?.retryGenerate?.prompt}
+              preferences={editor.navState?.retryGenerate?.preferences}
+              onGenerated={(nextTrip) => {
+                editor.cancelPendingSave()
+                editor.setTrip(nextTrip)
+                editor.setSaveState("saved")
+                editor.setNotice(null)
+              }}
+            />
+          </div>
+        )}
+
+        {editor.activeRun && editor.activeRun.scope === "trip" && (
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <SuggestionsPanel
+              run={editor.activeRun}
+              dayOptions={editor.dayOptions}
+              onApply={editor.applyActiveRun}
+              onDismiss={editor.dismissRun}
+            />
+          </div>
+        )}
+
+        {editable && (
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <ExtractedPlacesLibrary
+              trip={trip}
+              locked={editorLocked}
+              defaultDayId={editor.routerLocation.hash.replace(/^#/, "") || undefined}
+              onDaysChange={editor.setDays}
+            />
+          </div>
+        )}
+
+        <section className="mx-auto mt-8 max-w-6xl px-4 sm:mt-12 sm:px-6">
           <DossierSectionHeader
             scale="page"
             animate
-            num="02"
-            eyebrow="Booked moments"
-            title="Reservations"
-            subtitle="Confirmed, pending, and tentative bookings across the trip."
+            num="01"
+            eyebrow={`${dayCount} day${dayCount === 1 ? "" : "s"}`}
+            title="Daily itinerary"
+            subtitle={
+              dayCount === 0
+                ? "No days yet. Add dates in settings, then build the days."
+                : editable
+                  ? "Edit in place. Open a day for the in-trip view and Map Mode."
+                  : "Open a day for reservations, places, and Map Mode."
+            }
           />
-          <ol className="mt-2 divide-y divide-stone-200/80 dark:divide-stone-800/80">
-            {reservations.map(({ day, item }, i) => (
-              <ReservationRow key={item.id} trip={trip} day={day} item={item} index={i} reduce={!!reduce} />
-            ))}
-          </ol>
+          {dayCount === 0 ? (
+            <div className={`mt-8 border border-dashed border-stone-300 px-5 py-10 text-sm dark:border-stone-700 ${mutedInkClass}`}>
+              This trip has no days yet.
+            </div>
+          ) : (
+            <div className="mt-6 lg:mt-8 lg:flex lg:items-start lg:gap-8">
+              <DayNavigation days={trip.days} timezone={trip.timezone} />
+              <div data-testid="trip-itinerary" className="min-w-0 flex-1 space-y-10">
+                {trip.days.map((day, idx) => (
+                  <DayCard
+                    key={day.id}
+                    trip={trip}
+                    day={day}
+                    index={idx}
+                    timezone={trip.timezone}
+                    editable={editable}
+                    locked={editorLocked}
+                    dayOptions={editor.dayOptions}
+                    enhancing={editor.enhancingTarget === day.id}
+                    recentIds={editor.recentIds}
+                    run={
+                      editor.activeRun && editor.activeRun.scope === "day" && editor.activeRun.dayId === day.id
+                        ? editor.activeRun
+                        : null
+                    }
+                    onApplyRun={editor.applyActiveRun}
+                    onDismissRun={editor.dismissRun}
+                    onChange={editor.setDays}
+                    onOpenMap={editor.openMap}
+                    onEnhance={editor.enhanceDay}
+                    onDeleteItem={editor.deleteItem}
+                    ingestAnchor={idx === 0}
+                    ingestOpen={idx === 0 && openIngest}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </section>
-      )}
 
-      <footer className="mx-auto mt-16 max-w-6xl px-4 pb-10 sm:px-6">
-        <div className="border-t border-stone-200/80 pt-5 dark:border-stone-800/80">
-          <p className={`font-mono-trips text-[11px] uppercase tracking-[0.18em] ${mutedInkClass}`}>
-            Updated ·{" "}
-            {new Date(trip.updatedAt).toLocaleDateString("en-US", {
-              month: "long",
-              day: "numeric",
-              year: "numeric",
-            })}
-          </p>
-        </div>
-      </footer>
-    </div>
+        {(hotels.length > 0 || neighborhoods.length > 0) && (
+          <section className="mx-auto mt-16 max-w-6xl px-4 sm:px-6">
+            <DossierSectionHeader
+              scale="page"
+              animate
+              num="02"
+              eyebrow="Bases"
+              title="Stays and neighborhoods"
+              subtitle="Where the trip sleeps and walks."
+            />
+            {hotels.length > 0 && (
+              <ul className="mt-4 divide-y divide-stone-200/80 dark:divide-stone-800/80">
+                {hotels.map((item) => (
+                  <li key={item.id} className={`py-3 text-sm text-stone-800 dark:text-stone-200 ${wrapAnywhereClass}`}>
+                    {item.title}
+                    {item.location?.address ? (
+                      <span className={`mt-0.5 block text-xs ${mutedInkClass}`}>{item.location.address}</span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {neighborhoods.length > 0 && (
+              <p className={`mt-4 text-sm ${mutedInkClass} ${wrapAnywhereClass}`}>{neighborhoods.join(" · ")}</p>
+            )}
+          </section>
+        )}
+
+        <ReservationLedger trip={trip} today={today} past={past} reduce={!!reduce} />
+
+        {editable && (
+          <section id="trip-settings" aria-label="Trip settings" className="mx-auto mt-16 max-w-6xl px-4 pb-8 sm:px-6">
+            <p className={`font-mono-trips text-[11px] uppercase tracking-[0.2em] ${mutedInkClass}`}>Trip settings</p>
+            <AppearancePanel
+              trip={trip}
+              locked={editorLocked}
+              onChange={(appearance) => editor.scheduleSave({ ...trip, appearance })}
+              onSlugChange={(slug) => editor.scheduleSave({ ...trip, slug })}
+            />
+          </section>
+        )}
+
+        <EditorDock>
+          <EditorNotice notice={editor.notice} onDismiss={() => editor.setNotice(null)} />
+          <UndoToast undo={editor.deleted} onUndo={editor.undoDelete} />
+          <FloatingSaveIndicator saveState={editor.saveState} />
+        </EditorDock>
+
+        {mapDay && (
+          <Suspense
+            fallback={
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/80 text-sm text-stone-300"
+                role="status"
+              >
+                Loading map…
+              </div>
+            }
+          >
+            <MapModeOverlay
+              daySlug={mapDay.id}
+              dayTitle={mapDay.title ?? `Day ${mapDayIndex + 1}`}
+              placesUrl={`/api/trips/${encodeURIComponent(trip.id)}/days/${encodeURIComponent(mapDay.id)}/places`}
+              onClose={() => editor.setMapDayId(null)}
+            />
+          </Suspense>
+        )}
+      </div>
+    </EntityIndexProvider>
   )
 }
 
 function MetaRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <dt className={metaLabelClass}>{label}</dt>
+      <dt className={`font-mono-trips text-[10px] uppercase tracking-[0.18em] ${mutedInkClass}`}>{label}</dt>
       <dd className={`mt-1 text-sm leading-snug text-stone-800 dark:text-stone-200 ${wrapAnywhereClass}`}>{value}</dd>
     </div>
   )
 }
 
-function DayRow({
+function ReservationLedger({
   trip,
-  day,
-  index,
-  isToday,
-  isPast,
-  concluded,
+  today,
+  past,
   reduce,
 }: {
   trip: Trip
-  day: TripDay
-  index: number
-  isToday: boolean
-  isPast: boolean
-  concluded: boolean
+  today: string
+  past: boolean
   reduce: boolean
 }) {
-  const a = ACCENT
-  const booked = day.items.filter((i) => i.kind === "reservation" || i.status === "booked").length
-  // Elapsed days recede by hue, not opacity: a translucent row composited on
-  // the parchment canvas cannot hold 4.5:1 at any useful level of dimming.
-  // Once the trip is over every day is elapsed, so receding them all would
-  // just print the whole archive quietly — the treatment only earns its keep
-  // while there are days still ahead to contrast against.
-  const elapsed = isPast && !isToday && !concluded
-  const numeralClass = isToday
-    ? a.text
-    : elapsed
-      ? "text-stone-500 dark:text-stone-500"
-      : "text-stone-900 dark:text-stone-100"
-  const titleClass = elapsed ? mutedInkClass : "text-stone-900 dark:text-stone-100"
+  const rows = useMemo(
+    () =>
+      trip.days.flatMap((day) =>
+        day.items.filter((i) => i.kind === "reservation").map((item) => ({ day, item })),
+      ),
+    [trip.days],
+  )
+  if (rows.length === 0) return null
   return (
-    <motion.li
-      initial={reduce ? false : { opacity: 0, y: 8 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-30px" }}
-      transition={{ duration: REVEAL_DURATION, ease: EASE, delay: revealDelay(index) }}
-    >
-      <Link
-        to={`/trips/${trip.slug ?? trip.id}/day/${day.id}`}
-        className={`group flex items-start gap-4 py-5 transition-colors focus-visible:outline-none focus-visible:ring-2 sm:gap-6 ${a.focusRing} ${
-          isToday ? "bg-stone-100/40 dark:bg-stone-900/30" : "hover:bg-stone-100/30 dark:hover:bg-stone-900/25"
-        }`}
-      >
-        <div className="w-16 shrink-0 sm:w-20">
-          <p className={`font-display text-3xl font-light leading-none tabular-nums ${numeralClass}`} style={SERIF}>
-            {String(index + 1).padStart(2, "0")}
-          </p>
-          <p className={`mt-1 font-mono-trips text-[10px] uppercase tracking-[0.14em] ${mutedInkClass}`}>
-            {cityTag(day.city, trip.appearance?.cityTags)}
-          </p>
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <h3
-              className={`font-display text-xl font-medium leading-snug sm:text-2xl ${titleClass} ${wrapAnywhereClass}`}
-              style={SERIF}
-            >
-              {day.emoji && <span aria-hidden className="mr-1.5 text-lg">{day.emoji}</span>}
-              {day.title ?? `Day ${index + 1}`}
-            </h3>
-            {isToday && (
-              <span className={`font-mono-trips text-[10px] uppercase tracking-[0.18em] ${a.text}`}>Today</span>
-            )}
-          </div>
-          {day.notes && (
-            <p className={`mt-1 line-clamp-2 text-sm leading-relaxed ${mutedInkClass} ${wrapAnywhereClass}`}>
-              {day.notes}
-            </p>
-          )}
-          <div className={`mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] ${mutedInkClass}`}>
-            <span className="font-mono-trips uppercase tracking-[0.14em]">{formatTripDate(day.date, trip.timezone)}</span>
-            {booked > 0 && (
-              <span className={`inline-flex items-center gap-1.5 ${a.text}`}>
-                <span className={`inline-block h-1 w-1 rounded-full ${a.dot}`} aria-hidden />
-                {booked} booked
-              </span>
-            )}
-            {day.weather && (
-              <span className="font-mono-trips tabular-nums">
-                {day.weather.highC}° / {day.weather.lowC}°
-              </span>
-            )}
-            {day.neighborhoods && day.neighborhoods.length > 0 && (
-              <span className="truncate">{day.neighborhoods.slice(0, 3).join(" · ")}</span>
-            )}
-          </div>
-        </div>
-        <ArrowUpRight
-          className={`mt-1 h-4 w-4 shrink-0 text-stone-300 group-hover:text-stone-600 dark:text-stone-600 dark:group-hover:text-stone-300 ${hoverArrowClass}`}
-          aria-hidden
-        />
-      </Link>
-    </motion.li>
+    <section id="reservations" className="mx-auto mt-16 max-w-6xl px-4 pb-16 sm:px-6">
+      <DossierSectionHeader
+        scale="page"
+        animate
+        num="03"
+        eyebrow="Booked moments"
+        title="Reservations"
+        subtitle="Confirmed, pending, and tentative bookings across the trip."
+      />
+      <ol className="mt-2 divide-y divide-stone-200/80 dark:divide-stone-800/80">
+        {rows.map(({ day, item }, i) => (
+          <ReservationRow
+            key={item.id}
+            trip={trip}
+            day={day}
+            item={item}
+            index={i}
+            reduce={reduce}
+            elapsed={day.date < today && !past}
+          />
+        ))}
+      </ol>
+    </section>
   )
 }
 
@@ -425,12 +526,14 @@ function ReservationRow({
   item,
   index,
   reduce,
+  elapsed,
 }: {
   trip: Trip
   day: TripDay
   item: ItineraryItem
   index: number
   reduce: boolean
+  elapsed: boolean
 }) {
   const dayNum = new Date(`${day.date}T12:00:00Z`).getUTCDate()
   return (
@@ -445,15 +548,16 @@ function ReservationRow({
         className={`group flex items-start gap-5 py-5 transition-colors hover:bg-stone-100/30 sm:gap-8 dark:hover:bg-stone-900/25 ${focusRingClass}`}
       >
         <div className="w-[5.5rem] shrink-0 sm:w-[7rem]">
-          <p className="font-display text-3xl font-light leading-none text-stone-900 dark:text-stone-100" style={SERIF}>
+          <p
+            className={`font-display text-3xl font-light leading-none ${elapsed ? mutedInkClass : "text-stone-900 dark:text-stone-100"}`}
+            style={SERIF}
+          >
             {dayNum}
           </p>
           <p className={`mt-1 font-mono-trips text-[10px] lowercase tracking-[0.14em] ${mutedInkClass}`}>
             {formatTripDate(day.date, trip.timezone, { day: undefined })}
           </p>
-          {item.time && (
-            <p className={`mt-0.5 font-mono-trips text-[11px] tabular-nums ${mutedInkClass}`}>{item.time}</p>
-          )}
+          {item.time && <p className={`mt-0.5 font-mono-trips text-[11px] tabular-nums ${mutedInkClass}`}>{item.time}</p>}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2.5">
@@ -476,7 +580,6 @@ function ReservationRow({
         </div>
         <div className="flex shrink-0 items-center gap-3 pt-1.5">
           <StatusChip status={item.status} />
-          <ArrowUpRight className={`h-4 w-4 text-stone-500 dark:text-stone-400 ${hoverArrowClass}`} aria-hidden />
         </div>
       </Link>
     </motion.li>

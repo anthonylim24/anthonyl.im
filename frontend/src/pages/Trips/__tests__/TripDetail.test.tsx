@@ -31,7 +31,15 @@ vi.mock("../ExtractedPlacesLibrary", () => ({
   ExtractedPlacesLibrary: () => null,
 }))
 
-import { TripDetail } from "../TripDetail"
+vi.mock("../../Korea/entityIndex", () => ({
+  EntityIndexProvider: ({ children }: { children: unknown }) => children,
+}))
+
+vi.mock("../../Korea/LinkifiedText", () => ({
+  LinkifiedText: ({ children }: { children: unknown }) => children,
+}))
+
+import { TripOverview } from "../TripOverview"
 
 const SENSO: ItineraryItem = {
   id: "it-a",
@@ -97,9 +105,9 @@ function makeRun(trip: Trip, applied: string[] = ["sug-add"]): EnhancementRun {
 
 function renderEditor() {
   return render(
-    <MemoryRouter initialEntries={["/trips/trip-1/edit"]}>
+    <MemoryRouter initialEntries={["/trips/trip-1"]}>
       <Routes>
-        <Route path="/trips/:tripId/edit" element={<TripDetail />} />
+        <Route path="/trips/:tripId" element={<TripOverview />} />
       </Routes>
     </MemoryRouter>,
   )
@@ -216,6 +224,8 @@ describe("TripDetail enhance", () => {
 
     renderEditor()
     expect(await screen.findByDisplayValue("Fushimi Inari Taisha")).toBeInTheDocument()
+    expect(screen.getAllByText("08:00").length).toBeGreaterThan(0)
+    expect(screen.getByLabelText("Day 1 title")).toHaveValue("Higashiyama")
     expect(screen.queryByRole("navigation", { name: "Days" })).toBeNull()
     expect(screen.getByTestId("trip-itinerary").className).toMatch(/flex-1/)
     expect(screen.getByTestId("trip-itinerary").className).toMatch(/min-w-0/)
@@ -263,9 +273,9 @@ describe("TripDetail enhance", () => {
     mockEnhanceTrip.mockResolvedValue({ run: makeRun(enhanced), trip: enhanced, applied: ["sug-add"] })
 
     render(
-      <MemoryRouter initialEntries={["/trips/trip-1/edit#day-2"]}>
+      <MemoryRouter initialEntries={["/trips/trip-1#day-2"]}>
         <Routes>
-          <Route path="/trips/:tripId/edit" element={<TripDetail />} />
+          <Route path="/trips/:tripId" element={<TripOverview />} />
         </Routes>
       </MemoryRouter>,
     )
@@ -292,14 +302,14 @@ describe("TripDetail enhance", () => {
     }))
 
     render(
-      <MemoryRouter initialEntries={["/trips/trip-1/edit#day-1"]}>
+      <MemoryRouter initialEntries={["/trips/trip-1#day-1"]}>
         <Routes>
           <Route
-            path="/trips/:tripId/edit"
+            path="/trips/:tripId"
             element={
               <>
-                <Link to="/trips/trip-2/edit#day-1">Open other trip</Link>
-                <TripDetail />
+                <Link to="/trips/trip-2#day-1">Open other trip</Link>
+                <TripOverview />
               </>
             }
           />
@@ -324,14 +334,14 @@ describe("TripDetail enhance", () => {
     }))
 
     render(
-      <MemoryRouter initialEntries={["/trips/trip-1/edit"]}>
+      <MemoryRouter initialEntries={["/trips/trip-1"]}>
         <Routes>
           <Route
-            path="/trips/:tripId/edit"
+            path="/trips/:tripId"
             element={
               <>
-                <Link to="/trips/trip-2/edit">Open other trip</Link>
-                <TripDetail />
+                <Link to="/trips/trip-2">Open other trip</Link>
+                <TripOverview />
               </>
             }
           />

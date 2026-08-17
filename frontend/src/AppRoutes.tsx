@@ -27,20 +27,23 @@ const BreathworkNotFound = lazy(() =>
     default: module.NotFoundPage,
   })),
 )
-const KoreaLayout = lazy(() =>
-  import('./pages/Korea/KoreaLayout').then((module) => ({ default: module.KoreaLayout })),
+const KoreaIndexRedirect = lazy(() =>
+  import('./pages/Trips/KoreaRedirects').then((module) => ({ default: module.KoreaIndexRedirect })),
 )
-const KoreaIndex = lazy(() =>
-  import('./pages/Korea/KoreaIndex').then((module) => ({ default: module.KoreaIndex })),
+const KoreaDayRedirect = lazy(() =>
+  import('./pages/Trips/KoreaRedirects').then((module) => ({ default: module.KoreaDayRedirect })),
 )
-const KoreaDay = lazy(() =>
-  import('./pages/Korea/KoreaDay').then((module) => ({ default: module.KoreaDay })),
+const KoreaPlacesRedirect = lazy(() =>
+  import('./pages/Trips/KoreaRedirects').then((module) => ({ default: module.KoreaPlacesRedirect })),
 )
-const Ingest = lazy(() =>
-  import('./pages/Korea/Ingest').then((module) => ({ default: module.Ingest })),
+const KoreaIngestRedirect = lazy(() =>
+  import('./pages/Trips/KoreaRedirects').then((module) => ({ default: module.KoreaIngestRedirect })),
 )
-const Places = lazy(() =>
-  import('./pages/Korea/Places').then((module) => ({ default: module.Places })),
+const KoreaCatchRedirect = lazy(() =>
+  import('./pages/Trips/KoreaRedirects').then((module) => ({ default: module.KoreaCatchRedirect })),
+)
+const TripEditRedirect = lazy(() =>
+  import('./pages/Trips/KoreaRedirects').then((module) => ({ default: module.TripEditRedirect })),
 )
 const TripsLayout = lazy(() =>
   import('./pages/Trips/TripsLayout').then((module) => ({ default: module.TripsLayout })),
@@ -51,20 +54,17 @@ const TripsIndex = lazy(() =>
 const TripCreate = lazy(() =>
   import('./pages/Trips/TripCreate').then((module) => ({ default: module.TripCreate })),
 )
-const TripDetail = lazy(() =>
-  import('./pages/Trips/TripDetail').then((module) => ({ default: module.TripDetail })),
-)
 const TripOverview = lazy(() =>
   import('./pages/Trips/TripOverview').then((module) => ({ default: module.TripOverview })),
 )
 const TripDayPage = lazy(() =>
   import('./pages/Trips/TripDayPage').then((module) => ({ default: module.TripDayPage })),
 )
+const TripPlaces = lazy(() =>
+  import('./pages/Trips/TripPlaces').then((module) => ({ default: module.TripPlaces })),
+)
 const SiteNotFound = lazy(() =>
   import('./pages/SiteNotFound').then((module) => ({ default: module.SiteNotFound })),
-)
-const KoreaNotFound = lazy(() =>
-  import('./pages/Korea/KoreaNotFound').then((module) => ({ default: module.KoreaNotFound })),
 )
 const TripsNotFound = lazy(() =>
   import('./pages/Trips/TripsNotFound').then((module) => ({ default: module.TripsNotFound })),
@@ -105,18 +105,6 @@ function TripsShellFallback() {
       aria-label="Loading trip planner"
     >
       <span className="text-sm">Loading trips…</span>
-    </div>
-  )
-}
-
-function KoreaShellFallback() {
-  return (
-    <div
-      className="korea flex min-h-dvh items-center justify-center bg-stone-50 text-stone-500 dark:bg-stone-950 dark:text-stone-400"
-      role="status"
-      aria-label="Loading Korea itinerary"
-    >
-      <span className="text-sm">Loading the dossier…</span>
     </div>
   )
 }
@@ -182,17 +170,43 @@ export function AppRoutes() {
         <Route
           path="/korea"
           element={
-            <Guarded app="korea" fallback={<KoreaShellFallback />}>
-              <KoreaLayout />
+            <Guarded app="trips" fallback={<TripsShellFallback />}>
+              <KoreaIndexRedirect />
             </Guarded>
           }
-        >
-          <Route index element={<KoreaIndex />} />
-          <Route path="day/:slug" element={<KoreaDay />} />
-          <Route path="ingest" element={<Ingest />} />
-          <Route path="places" element={<Places />} />
-          <Route path="*" element={<KoreaNotFound />} />
-        </Route>
+        />
+        <Route
+          path="/korea/day/:slug"
+          element={
+            <Guarded app="trips" fallback={<TripsShellFallback />}>
+              <KoreaDayRedirect />
+            </Guarded>
+          }
+        />
+        <Route
+          path="/korea/places"
+          element={
+            <Guarded app="trips" fallback={<TripsShellFallback />}>
+              <KoreaPlacesRedirect />
+            </Guarded>
+          }
+        />
+        <Route
+          path="/korea/ingest"
+          element={
+            <Guarded app="trips" fallback={<TripsShellFallback />}>
+              <KoreaIngestRedirect />
+            </Guarded>
+          }
+        />
+        <Route
+          path="/korea/*"
+          element={
+            <Guarded app="trips" fallback={<TripsShellFallback />}>
+              <KoreaCatchRedirect />
+            </Guarded>
+          }
+        />
 
         <Route
           path="/trips"
@@ -205,7 +219,8 @@ export function AppRoutes() {
           <Route index element={<TripsIndex />} />
           <Route path="new" element={<TripCreate />} />
           <Route path=":tripId" element={<TripOverview />} />
-          <Route path=":tripId/edit" element={<TripDetail />} />
+          <Route path=":tripId/edit" element={<TripEditRedirect />} />
+          <Route path=":tripId/places" element={<TripPlaces />} />
           <Route path=":tripId/day/:dayId" element={<TripDayPage />} />
           <Route path="*" element={<TripsNotFound />} />
         </Route>

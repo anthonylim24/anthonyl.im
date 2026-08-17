@@ -170,6 +170,15 @@ function isAbortError(err: unknown): boolean {
   return err instanceof Error && err.name === "AbortError";
 }
 
+/** Default Clerk screenshot target. The Korea dossier lives here. */
+export const DEFAULT_AGENT_PREVIEW_PATH = "/trips/korea-2026";
+
+/**
+ * Preferred screenshot paths. `/korea` remains valid as a redirect source
+ * (server 301 + SPA Navigate to `/trips/korea-2026`; same Clerk cookies).
+ */
+export const AGENT_PREVIEW_PATHS = ["/trips", "/trips/korea-2026", "/korea"] as const;
+
 /** Convenience URL for screenshotting a published PR preview. */
 export function previewAgentRedirectUrl(opts: {
   siteUrl: string;
@@ -178,7 +187,7 @@ export function previewAgentRedirectUrl(opts: {
   hidePreviewChrome?: boolean;
 }): string {
   const site = opts.siteUrl.replace(/\/+$/, "");
-  let path = opts.path ?? "/korea";
+  let path = opts.path ?? DEFAULT_AGENT_PREVIEW_PATH;
   if (!path.startsWith("/")) path = `/${path}`;
   const url = new URL(`${site}/preview/pr/${opts.pr}${path}`);
   if (opts.hidePreviewChrome !== false) url.searchParams.set("hidePreviewChrome", "1");

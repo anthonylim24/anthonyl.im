@@ -209,20 +209,20 @@ The IG-places routes and the Korea auth gate normally require a Clerk session. F
    ```bash
    cd frontend && VITE_DEV_BEARER=$IG_DEV_BEARER bun run build
    cd .. && bun run server/app.ts
-   # Open http://localhost:3000/korea/places — no sign-in required
+   # Open http://localhost:3000/trips/korea-2026/places — no sign-in required
    ```
 
 **Production safety:** the deploy workflow's `FRONTEND_ENV` secret must NOT include `VITE_DEV_BEARER`. The droplet's `.env` SHOULD NOT include `IG_DEV_BEARER` in production deploys — or if it does, the value must be cryptographically random and treated as a master credential. Playwright's hermetic e2e stack sets `VITE_DEV_BEARER=codex-dev-bearer` on the Vite server to match `IG_DEV_BEARER`.
 
 ## Agent sign-in for PR previews (Clerk Agent Tasks)
 
-Do **not** bake `VITE_DEV_BEARER` into a preview. Apply a [Clerk Agent Task](https://clerk.com/docs/guides/development/testing/agent-tasks) from a trusted `origin/main` checkout (the helper can send secrets). One command covers `/korea` and `/trips`. **Do not paste the ticket URL.**
+Do **not** bake `VITE_DEV_BEARER` into a preview. Apply a [Clerk Agent Task](https://clerk.com/docs/guides/development/testing/agent-tasks) from a trusted `origin/main` checkout (the helper can send secrets). One command covers `/trips` and `/trips/korea-2026`. **Do not paste the ticket URL.**
 
 ```bash
-bun scripts/clerk-agent-login.ts --pr <n> --path /korea
+bun scripts/clerk-agent-login.ts --pr <n> --path /trips/korea-2026
 ```
 
-`CLERK_AGENT_USER_ID` / `CLERK_AGENT_USER_EMAIL` must be a **dedicated screenshot user**, not a personal production login. That user can view/edit the shared `korea-2026` seed trip (`sharedWithAllUsers`). Do not mint a session for production `/korea` or `/trips`.
+`CLERK_AGENT_USER_ID` / `CLERK_AGENT_USER_EMAIL` must be a **dedicated screenshot user**, not a personal production login. That user can view/edit the shared `korea-2026` seed trip (`sharedWithAllUsers`). Do not mint a session for production `/trips` or `/trips/korea-2026`.
 
 The login helper defaults to this repo's screenshot user when the id is unset, then re-execs from `origin/main` before sending credentials. Cursor cloud `gh` tokens have no `permissions.push`; production accepts them when the GitHub App installation includes `AGENT_GITHUB_REPO`.
 
