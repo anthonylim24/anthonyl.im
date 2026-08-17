@@ -20,6 +20,13 @@ git push → GitHub Actions (.github/workflows/deploy.yml)
               ├─ atomic swap next → live (prev kept for rollback)
               ├─ pm2 restart (--update-env)
               └─ smoke: /health + SPA shells
+
+Cursor Origin uses the same droplet steps via `deploy/origin/run.sh deploy`
+(Depot `.depot/workflows/deploy.yml` or an Origin automation). Enable
+`ORIGIN_DEPLOY_ENABLED=true` only after you stop GitHub Actions from
+deploying — two runners must not swap the live tree at once. Optional
+droplet/CI `DEPLOY_GIT_URL` overrides the hardcoded GitHub clone.
+See [`docs/origin-cicd.md`](../docs/origin-cicd.md).
 ```
 
 CI builds the frontend on a GH Actions runner (zero OOM risk vs. building on the 1 GB droplet) and ships the pre-built `dist` directory. The droplet never runs `vite build`. Concurrent deploys queue (`concurrency: deploy-production`); in-flight deploys are never cancelled mid-flight.

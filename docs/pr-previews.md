@@ -112,6 +112,7 @@ Index of published previews: `https://anthonyl.im/preview/`.
 ```
 PR opened/sync
   → GitHub Actions (.github/workflows/preview.yml)
+    or Origin Depot/Automations (docs/origin-cicd.md; ORIGIN_PREVIEW_ENABLED)
       ├─ bun install (root + frontend) via setup-ci
       ├─ FRONTEND_ENV → frontend/.env  (VITE_DEV_BEARER stripped)
       ├─ VITE_BASE=/preview/pr/<n>/  VITE_API_BASE=/preview/pr/<n>

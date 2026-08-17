@@ -1,0 +1,131 @@
+name: PR Checks
+
+# Depot CI copy of .github/workflows/pr.yml for Cursor Origin.
+# Job names stay identical so Origin required-check key `pr-gate` matches.
+# `pr-gate` may use `needs:` here — the GitHub merge-UI race does not apply
+# to Origin/Depot check registration.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+  merge_group:
+
+concurrency:
+  group: ${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || format('merge-group-{0}', github.sha) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  KLUSTER_API_KEY: ci-stub
+  KLUSTER_API_BASE_URL: https://example.invalid
+  IG_WORKER_ENABLED: "false"
+
+jobs:
+  pr-server-tests:
+    name: pr-server-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.depot/actions/setup-ci
+        with:
+          install-root: "true"
+      - name: Server tests (mocked, includes appLoad smoke)
+        run: bash deploy/ci/server-tests.sh
+
+  pr-frontend-typecheck:
+    name: pr-frontend-typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.depot/actions/setup-ci
+        with:
+          install-root: "true"
+          install-frontend: "true"
+      - name: Frontend typecheck (tsc -b --noEmit)
+        run: bash deploy/ci/frontend-typecheck.sh
+
+  pr-frontend-build:
+    name: pr-frontend-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.depot/actions/setup-ci
+        with:
+          install-frontend: "true"
+      - name: Build with CI env stubs
+        env:
+          MODE: stub
+        run: bash deploy/ci/frontend-build.sh
+
+  pr-frontend-tests:
+    name: pr-frontend-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.depot/actions/setup-ci
+        with:
+          install-frontend: "true"
+      - name: Vitest
+        run: bash deploy/ci/frontend-tests.sh
+
+  pr-cloud-setup:
+    name: pr-cloud-setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: ./.depot/actions/setup-ci
+      - name: Cloud setup + verify gate
+        run: bash deploy/ci/cloud-setup.sh
+
+  pr-gate:
+    name: pr-gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: always()
+    needs:
+      - pr-server-tests
+      - pr-frontend-typecheck
+      - pr-frontend-build
+      - pr-frontend-tests
+      - pr-cloud-setup
+    steps:
+      - name: Require every sibling to succeed
+        run: |
+          set -euo pipefail
+          results=(
+            "${{ needs.pr-server-tests.result }}"
+            "${{ needs.pr-frontend-typecheck.result }}"
+            "${{ needs.pr-frontend-build.result }}"
+            "${{ needs.pr-frontend-tests.result }}"
+            "${{ needs.pr-cloud-setup.result }}"
+          )
+          failed=0
+          for result in "${results[@]}"; do
+            if [[ "$result" != "success" ]]; then
+              echo "::error::sibling result: $result"
+              failed=1
+            fi
+          done
+          if [[ "$failed" -ne 0 ]]; then
+            echo "::error::One or more PR checks failed — not safe to merge."
+            exit 1
+          fi
+          echo "All PR checks passed."
