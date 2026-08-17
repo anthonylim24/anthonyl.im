@@ -45,6 +45,7 @@ describe("streamTripChat", () => {
         `data: ${JSON.stringify("Try Ichiran.\n:::add-places\n")}\n\n`,
         `data: ${JSON.stringify({ places: [{ name: "Ichiran", address: "Shibuya" }] })}\n\n`,
         `data: ${JSON.stringify({ sources: [{ kind: "maps", title: "Ichiran", uri: "https://maps.google.com/?cid=1" }] })}\n\n`,
+        `data: ${JSON.stringify({ moves: [{ type: "remove", name: "Ichiran" }] })}\n\n`,
         `data: [DONE]\n\n`,
       ]),
     )
@@ -52,6 +53,7 @@ describe("streamTripChat", () => {
     const result = await streamTripChat("tokyo", "ramen?", [], undefined, getToken, (c) => updates.push(c))
     expect(result.content).toBe("Try Ichiran.")
     expect(result.places).toEqual([{ name: "Ichiran", address: "Shibuya" }])
+    expect(result.moves).toEqual([{ type: "remove", name: "Ichiran" }])
     expect(result.sources?.[0]?.kind).toBe("maps")
     expect(updates[updates.length - 1]).toBe("Try Ichiran.")
   })
@@ -142,6 +144,21 @@ describe("streamTripChat", () => {
     expect(updates).toEqual(["Hello"])
   })
 
+  it("strips add-places trailers on the Korea chat fallback", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response("Not Found", { status: 404 }))
+      .mockResolvedValueOnce(
+        sseResponse([
+          `data: ${JSON.stringify("Try Ichiran.\n:::add-places\n")}\n\n`,
+          `data: [DONE]\n\n`,
+        ]),
+      )
+    const updates: string[] = []
+    const result = await streamTripChat("korea-2026", "ramen?", [], "day-1", getToken, (c) => updates.push(c))
+    expect(result.content).toBe("Try Ichiran.")
+    expect(updates[updates.length - 1]).toBe("Try Ichiran.")
+  })
+
   it("falls back to Korea chat for korea-2026 even without a trip document", async () => {
     const spy = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response("Not Found", { status: 404 }))
@@ -217,6 +234,17 @@ describe("streamTripChat", () => {
     await expect(streamTripChat("tokyo", "hi", [], undefined, getToken, () => {})).rejects.toThrow(
       /lost its connection/i,
     )
+  })
+
+  it("keeps partial text and flags a stream that ends without [DONE]", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      sseResponse([`data: ${JSON.stringify("Hello, wo")}\n\n`]),
+    )
+    const updates: string[] = []
+    const result = await streamTripChat("tokyo", "hi", [], undefined, getToken, (c) => updates.push(c))
+    expect(result.content).toBe("Hello, wo")
+    expect(result.error).toMatch(/lost its connection/i)
+    expect(updates).toEqual(["Hello, wo"])
   })
 
   it("maps Firefox's NetworkError fetch failure the same way", async () => {

@@ -86,6 +86,7 @@ describe("buildTripChatSystemInstruction", () => {
     expect(sys).toContain("FOCUSED DAY")
     expect(sys).toContain("Google Search and Google Maps")
     expect(sys).toContain(":::add-places")
+    expect(sys).toContain(":::trip-moves")
     expect(sys).not.toContain("Answer ONLY from the itinerary data")
   })
 })

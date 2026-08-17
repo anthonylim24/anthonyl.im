@@ -1,4 +1,7 @@
-import { apiFetch } from "../../lib/apiBase"
+import { Effect } from "effect"
+import { AuthError, HttpStatusError, PollTimeoutError } from "../../effect/errors"
+import { fetchApi, parseJson, readAuthToken, requestJson, sleep } from "../../effect/http"
+import { runPromise } from "../../effect/runtime"
 import type {
   EnhancementRun,
   GeneratePreferences,
@@ -11,33 +14,10 @@ import type {
   TripSummary,
 } from "./types"
 
-// Fetch helpers for /api/trips. Every call is authenticated — pass Clerk's
-// getToken (from useGetToken) so the server can resolve the user.
-
 export type GetToken = () => Promise<string | null>
 
-async function request<T>(
-  getToken: GetToken,
-  path: string,
-  init: RequestInit = {},
-): Promise<T> {
-  const token = await getToken()
-  const headers: Record<string, string> = {
-    ...(init.body ? { "Content-Type": "application/json" } : {}),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  }
-  const res = await apiFetch(`/api/trips${path}`, { ...init, headers, cache: "no-store" })
-  if (!res.ok) {
-    let message = `HTTP ${res.status}`
-    try {
-      const body = (await res.json()) as { error?: string; message?: string }
-      message = body.message || body.error || message
-    } catch {
-      /* keep status message */
-    }
-    throw new Error(message)
-  }
-  return res.json() as Promise<T>
+function request<T>(getToken: GetToken, path: string, init: RequestInit = {}): Promise<T> {
+  return runPromise(requestJson<T>(getToken, `/api/trips${path}`, init))
 }
 
 export interface CreateTripInput {
@@ -111,76 +91,94 @@ export interface EnhanceTripResult {
 
 const ENHANCE_POLL_MS = 180_000
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
+const readEnhanceBody = (res: Response): Effect.Effect<EnhanceTripResult, Error> =>
+  parseJson<EnhanceTripResult>(res).pipe(
+    Effect.flatMap((body) => {
+      if (typeof body !== "object" || body === null) {
+        return Effect.fail(new Error(`HTTP ${res.status}`))
+      }
+      return Effect.succeed(body)
+    }),
+    Effect.mapError(() => new Error(`HTTP ${res.status}`)),
+  )
 
-async function readEnhanceBody(res: Response): Promise<EnhanceTripResult> {
-  let body: EnhanceTripResult | null
-  try {
-    body = (await res.json()) as EnhanceTripResult
-  } catch {
-    throw new Error(`HTTP ${res.status}`)
-  }
-  if (typeof body !== "object" || body === null) throw new Error(`HTTP ${res.status}`)
-  return body
-}
-
-async function pollEnhancement(
+const pollEnhancement = Effect.fn("TripsService.pollEnhancement")(function* (
   getToken: GetToken,
   id: string,
   runId: string,
-): Promise<EnhanceTripResult> {
+) {
   const deadline = Date.now() + ENHANCE_POLL_MS
   let wait = 400
   while (Date.now() < deadline) {
-    await sleep(wait)
+    yield* sleep(wait)
     wait = Math.min(Math.round(wait * 1.35), 2000)
-    const token = await getToken()
-    const res = await apiFetch(`/api/trips/${encodeURIComponent(id)}/enhancements/${encodeURIComponent(runId)}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      cache: "no-store",
-    })
+    const token = yield* readAuthToken(getToken)
+    const res = yield* fetchApi(
+      `/api/trips/${encodeURIComponent(id)}/enhancements/${encodeURIComponent(runId)}`,
+      {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        cache: "no-store",
+      },
+    )
     if (res.status === 401 || res.status === 403) {
-      throw new Error("Please sign in again to finish the AI review.")
+      return yield* Effect.fail(new AuthError({ message: "Please sign in again to finish the AI review." }))
     }
     if (!res.ok) continue
-    const body = await readEnhanceBody(res)
+    const body = yield* readEnhanceBody(res)
     if (body.run && body.run.status !== "running") {
       return {
         ...body,
         applied: body.applied ?? body.run.appliedSuggestionIds,
-      }
+      } satisfies EnhanceTripResult
     }
   }
-  throw new Error("The AI review is taking too long. Nothing in your itinerary changed, so you can run it again.")
-}
+  return yield* Effect.fail(
+    new PollTimeoutError({
+      message: "The AI review is taking too long. Nothing in your itinerary changed, so you can run it again.",
+    }),
+  )
+})
+
+const enhanceTripEffect = Effect.fn("TripsService.enhanceTrip")(function* (
+  getToken: GetToken,
+  id: string,
+  scope: "day" | "trip",
+  dayId?: string,
+  prompt?: string,
+) {
+  const token = yield* readAuthToken(getToken)
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  }
+  const res = yield* fetchApi(`/api/trips/${encodeURIComponent(id)}/enhance`, {
+    method: "POST",
+    headers,
+    cache: "no-store",
+    body: JSON.stringify({ scope, dayId, prompt: prompt?.trim() || undefined }),
+  })
+  const body = yield* readEnhanceBody(res)
+  if (body.run?.status === "running") return yield* pollEnhancement(getToken, id, body.run.id)
+  if (res.ok) return body
+  if (res.status === 502 && body.run) return body
+  return yield* Effect.fail(
+    new HttpStatusError({
+      status: res.status,
+      message: body.message || body.error || `HTTP ${res.status}`,
+    }),
+  )
+})
 
 /** Starts a run (202) and polls until it leaves `running`. A legacy 502
  *  with a `{ run }` body is still accepted so older servers keep working. */
-export async function enhanceTrip(
+export function enhanceTrip(
   getToken: GetToken,
   id: string,
   scope: "day" | "trip",
   dayId?: string,
   prompt?: string,
 ): Promise<EnhanceTripResult> {
-  const token = await getToken()
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  }
-  const res = await apiFetch(`/api/trips/${encodeURIComponent(id)}/enhance`, {
-    method: "POST",
-    headers,
-    cache: "no-store",
-    body: JSON.stringify({ scope, dayId, prompt: prompt?.trim() || undefined }),
-  })
-  const body = await readEnhanceBody(res)
-  if (body.run?.status === "running") return pollEnhancement(getToken, id, body.run.id)
-  if (res.ok) return body
-  if (res.status === 502 && body.run) return body
-  throw new Error(body.message || body.error || `HTTP ${res.status}`)
+  return runPromise(enhanceTripEffect(getToken, id, scope, dayId, prompt))
 }
 
 export const applySuggestions = (getToken: GetToken, id: string, runId: string, suggestionIds: string[]) =>
@@ -190,16 +188,27 @@ export const applySuggestions = (getToken: GetToken, id: string, runId: string, 
     { method: "POST", body: JSON.stringify({ suggestionIds }) },
   )
 
+const listForeignInstagramTripsEffect = Effect.fn("TripsService.listForeignInstagramTrips")(
+  function* (getToken: GetToken, currentTripId: string) {
+    const summaries = yield* Effect.tryPromise({
+      try: () => listTrips(getToken),
+      catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
+    })
+    const others = summaries.filter((s) => s.id !== currentTripId)
+    const loaded = yield* Effect.all(
+      others.map((s) =>
+        Effect.tryPromise({
+          try: () => getTrip(getToken, s.id).then((r) => r.trip),
+          catch: () => null as Trip | null,
+        }).pipe(Effect.catchAll(() => Effect.succeed<Trip | null>(null))),
+      ),
+      { concurrency: "unbounded" },
+    )
+    return loaded.filter((t): t is Trip => t != null)
+  },
+)
+
 /** Other trips' Instagram places, via list+get (routes that exist on production). */
-export async function listForeignInstagramTrips(getToken: GetToken, currentTripId: string): Promise<Trip[]> {
-  const summaries = await listTrips(getToken)
-  const others = summaries.filter((s) => s.id !== currentTripId)
-  const loaded = await Promise.all(
-    others.map((s) =>
-      getTrip(getToken, s.id)
-        .then((r) => r.trip)
-        .catch(() => null),
-    ),
-  )
-  return loaded.filter((t): t is Trip => t != null)
+export function listForeignInstagramTrips(getToken: GetToken, currentTripId: string): Promise<Trip[]> {
+  return runPromise(listForeignInstagramTripsEffect(getToken, currentTripId))
 }

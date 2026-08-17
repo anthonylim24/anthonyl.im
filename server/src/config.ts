@@ -31,11 +31,19 @@ function readFrontendDevBearer(): string | undefined {
   }
 }
 
-/** Accepted dev bearers: the explicit IG_DEV_BEARER plus (in dev) the
- *  frontend's VITE_DEV_BEARER — both work even when they differ, so a
- *  mismatch between .env and frontend/.env no longer 401s local dev. */
-function resolveDevBearers(): string | string[] | undefined {
-  const bearers = [process.env.IG_DEV_BEARER, readFrontendDevBearer()]
+/** Accepted dev bearers: IG_DEV_BEARER plus (in non-production) every
+ *  VITE_DEV_BEARER we can see — process env AND frontend/.env. Cloud
+ *  agents often have the Vite token only in the environment, with no
+ *  frontend/.env file; both must work even when the values differ. */
+export function resolveDevBearers(
+  env: NodeJS.ProcessEnv = process.env,
+  fileBearer: string | undefined = readFrontendDevBearer(),
+): string | string[] | undefined {
+  const fromViteEnv =
+    env.NODE_ENV === "production" ? undefined : env.VITE_DEV_BEARER?.trim() || undefined;
+  const fromFile = env.NODE_ENV === "production" ? undefined : fileBearer;
+  const bearers = [env.IG_DEV_BEARER, fromViteEnv, fromFile]
+    .map((v) => v?.trim())
     .filter((v): v is string => !!v);
   const unique = [...new Set(bearers)];
   if (unique.length === 0) return undefined;

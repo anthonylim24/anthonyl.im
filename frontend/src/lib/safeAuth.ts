@@ -41,6 +41,14 @@ export function useGetToken(): () => Promise<string | null> {
   return useAuth().getToken
 }
 
+/** True once Clerk has finished hydrating (or auth is not in play).
+ *  Use as an effect dependency so the first authed fetch retries after sign-in. */
+export function useAuthReady(): boolean {
+  if (DEV_BEARER || !CLERK_ENABLED) return true
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  return useAuth().isLoaded
+}
+
 const noopGetToken = async (): Promise<string | null> => null
 const devGetToken = async (): Promise<string | null> => DEV_BEARER
 

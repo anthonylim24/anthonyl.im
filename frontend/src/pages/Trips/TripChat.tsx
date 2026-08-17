@@ -1,17 +1,28 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from "react"
 import { createPortal } from "react-dom"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
-import { useLocation } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
 import { Maximize2, MessageCircleHeart, Minimize2, Send, Sparkles, X } from "lucide-react"
-import { conciergePlaceKey, type ConciergePlace, type ConciergeSource } from "../../lib/conciergeGrounding"
-import { useGetToken } from "@/lib/safeAuth"
+import {
+  conciergePlaceKey,
+  type ConciergeMove,
+  type ConciergePlace,
+  type ConciergeSource,
+} from "../../lib/conciergeGrounding"
+import { lastMessageIdByRole } from "../../lib/transcriptAnchor"
+import { useLatestCallback } from "@/hooks/useLatestCallback"
+import { useTranscriptAnchor } from "@/hooks/useTranscriptAnchor"
+import { useAuthReady, useGetToken } from "@/lib/safeAuth"
 import { ConciergeSources } from "../Korea/ConciergeSources"
-import { ConciergeText } from "../Korea/ConciergeText"
+import { ConciergeStreamStatus, ConciergeText } from "../Korea/ConciergeText"
+import { ConciergeMoveCards } from "./ConciergeMoveCards"
+import { ConciergePhotoViewer } from "./ConciergePhoto"
 import { ConciergePlaceCards } from "./ConciergePlaceCards"
+import { findMentionedStops, resolveMoves, stopToConciergePlace, type ResolvedMove } from "./conciergeMoves"
 import { conciergeSuggestions } from "./conciergeSuggestions"
-import { addItem, dayHasPlaceNamed, itemFromConciergePlace } from "./tripEdits"
+import { addItem, dayHasPlaceNamed, itemFromConciergePlace, moveItemToDay, removeItem, updateItem } from "./tripEdits"
 import { getTrip, updateTrip } from "./tripsApi"
-import { emitTripChanged } from "./tripsEvents"
+import { emitTripChanged, useTripChanged } from "./tripsEvents"
 import { streamTripChat, type TripChatMessage } from "./tripChatApi"
 import { resolveAccent } from "./theme"
 import type { Trip, TripAccess } from "./types"
@@ -22,8 +33,21 @@ interface ChatMessage {
   role: "user" | "assistant"
   content: string
   places?: ConciergePlace[]
+  moves?: ConciergeMove[]
   sources?: ConciergeSource[]
   addedKeys?: string[]
+  removedKeys?: string[]
+  appliedMoveKeys?: string[]
+  dismissedMoveKeys?: string[]
+  error?: string
+}
+
+interface PhotoView {
+  name: string
+  city?: string
+  lat?: number
+  lng?: number
+  url?: string | null
 }
 
 function newId() {
@@ -36,21 +60,8 @@ const PANEL_SHELL =
 const PANEL_COMPACT =
   `${PANEL_SHELL} h-[min(86dvh,40rem)] md:bottom-6 md:right-6 md:h-[min(600px,calc(100dvh-3rem))] md:w-[min(400px,calc(100vw-2rem))]`
 
-const PANEL_EXPANDED_MOBILE =
-  `${PANEL_SHELL} trip-chat-panel-expanded h-[min(92dvh,calc(100svh-0.75rem))]`
-
-/** No height utility — desktop size is an inline inset so Tailwind cannot clip the composer. */
-const PANEL_EXPANDED_DESKTOP = `${PANEL_SHELL} trip-chat-panel-expanded`
-
-const EXPANDED_DESKTOP_STYLE: CSSProperties = {
-  top: 16,
-  right: 16,
-  bottom: 16,
-  left: "auto",
-  width: "min(36rem, calc(100vw - 2rem))",
-  height: "auto",
-  maxHeight: "none",
-}
+/** Size comes from CSS breakpoints so a phone is fullscreen even if JS media is stale. */
+const PANEL_EXPANDED = `${PANEL_SHELL} trip-chat-panel-expanded`
 
 function useMinWidth(px: number): boolean {
   const [matches, setMatches] = useState(false)
@@ -85,12 +96,18 @@ export function useTripChatRoute(): { tripId?: string; dayId?: string } {
 
 export function TripChat() {
   const { tripId, dayId } = useTripChatRoute()
+  const navigate = useNavigate()
   const getToken = useGetToken()
+  const readToken = useLatestCallback(getToken)
+  const authReady = useAuthReady()
   const reduce = useReducedMotion()
   const isDesktop = useMinWidth(768)
   const [trip, setTrip] = useState<Trip | null>(null)
   const [access, setAccess] = useState<TripAccess>("view")
   const [addingKey, setAddingKey] = useState<string | null>(null)
+  const [busyMoveKey, setBusyMoveKey] = useState<string | null>(null)
+  const [movingItemId, setMovingItemId] = useState<string | null>(null)
+  const [photo, setPhoto] = useState<PhotoView | null>(null)
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -104,8 +121,9 @@ export function TripChat() {
   const dialogRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
   const inFlightRef = useRef(false)
-  const pinnedRef = useRef(true)
   const titleId = useId()
+  const lastUserId = lastMessageIdByRole(messages, "user")
+  const { anchorRef, spacerRef } = useTranscriptAnchor(scrollRef, lastUserId, streaming, open)
 
   useEffect(() => {
     if (!tripId) {
@@ -114,7 +132,7 @@ export function TripChat() {
       return
     }
     let cancelled = false
-    void getTrip(getToken, tripId)
+    void getTrip(readToken, tripId)
       .then(({ trip: next, access: nextAccess }) => {
         if (!cancelled) {
           setTrip(next)
@@ -130,7 +148,14 @@ export function TripChat() {
     return () => {
       cancelled = true
     }
-  }, [tripId, getToken])
+  }, [tripId, authReady])
+
+  useTripChanged(
+    tripId,
+    useCallback((next) => {
+      setTrip(next)
+    }, []),
+  )
 
   useEffect(() => {
     setMessages([])
@@ -161,15 +186,6 @@ export function TripChat() {
     setExpanded((current) => !current)
   }, [])
 
-  const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
-    const el = scrollRef.current
-    if (el && pinnedRef.current) el.scrollTo({ top: el.scrollHeight, behavior })
-  }, [])
-
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages, scrollToBottom])
-
   useEffect(() => {
     if (!open) {
       fabRef.current?.focus()
@@ -180,7 +196,7 @@ export function TripChat() {
   }, [open, reduce])
 
   useEffect(() => {
-    if (!open) return
+    if (!open || photo) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (expanded) {
@@ -210,7 +226,7 @@ export function TripChat() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [open, expanded, handleClose])
+  }, [open, expanded, handleClose, photo])
 
   useEffect(() => {
     if (!open) return
@@ -242,12 +258,6 @@ export function TripChat() {
 
   useEffect(() => () => abortRef.current?.abort(), [])
 
-  const handleScroll = useCallback(() => {
-    const el = scrollRef.current
-    if (!el) return
-    pinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
-  }, [])
-
   const send = useCallback(
     async (text: string) => {
       const prompt = text.trim()
@@ -258,10 +268,8 @@ export function TripChat() {
       const userMsg: ChatMessage = { id: newId(), role: "user", content: prompt }
       const assistantId = newId()
 
-      setMessages((prev) => [...prev, userMsg, { id: assistantId, role: "assistant", content: "" }])
+      const pending = [userMsg, { id: assistantId, role: "assistant" as const, content: "" }]
       setInput("")
-      setStreaming(true)
-      pinnedRef.current = true
 
       const controller = new AbortController()
       abortRef.current = controller
@@ -269,56 +277,81 @@ export function TripChat() {
       const setAssistant = (content: string) =>
         setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, content } : m)))
 
-      let activeTrip = trip
-      if (!activeTrip) {
+      setMessages((prev) => [...prev, ...pending])
+      setStreaming(true)
+      void (async () => {
+        let activeTrip = trip
+        if (!activeTrip) {
+          try {
+            const loaded = await getTrip(readToken, tripId)
+            activeTrip = loaded.trip
+            setTrip(activeTrip)
+            setAccess(loaded.access)
+          } catch {
+            activeTrip = null
+          }
+        }
+
+        const canonicalId = activeTrip?.id ?? tripId
+        const focusedDayId =
+          dayId && activeTrip?.days.some((d) => d.id === dayId) ? dayId : undefined
+
         try {
-          const loaded = await getTrip(getToken, tripId)
-          activeTrip = loaded.trip
-          setTrip(activeTrip)
-          setAccess(loaded.access)
-        } catch {
-          activeTrip = null
-        }
-      }
-
-      const canonicalId = activeTrip?.id ?? tripId
-      const focusedDayId =
-        dayId && activeTrip?.days.some((d) => d.id === dayId) ? dayId : undefined
-
-      try {
-        const { content, error, places, sources } = await streamTripChat(
-          canonicalId,
-          prompt,
-          history,
-          focusedDayId,
-          getToken,
-          setAssistant,
-          controller.signal,
-          activeTrip ?? undefined,
-        )
-        if (error) setAssistant(`⚠️ ${error}`)
-        else if (!content.trim() && !places?.length) {
-          setAssistant("I couldn't generate a reply just now. Please try rephrasing.")
-        }
-        if (places?.length || sources?.length) {
-          setMessages((prev) =>
-            prev.map((m) => (m.id === assistantId ? { ...m, places, sources } : m)),
+          const { content, error, places, moves, sources } = await streamTripChat(
+            canonicalId,
+            prompt,
+            history,
+            focusedDayId,
+            readToken,
+            setAssistant,
+            controller.signal,
+            activeTrip ?? undefined,
           )
+          if (error) {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === assistantId ? { ...m, content, error } : m)),
+            )
+          } else if (!content.trim() && !places?.length && !moves?.length) {
+            setAssistant("I couldn't generate a reply just now. Please try rephrasing.")
+          }
+          if (places?.length || moves?.length || sources?.length) {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === assistantId ? { ...m, places, moves, sources } : m)),
+            )
+          }
+        } catch (err) {
+          if ((err as Error).name !== "AbortError") {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId
+                  ? { ...m, error: (err as Error).message || "Something went wrong. Please try again." }
+                  : m,
+              ),
+            )
+          }
+        } finally {
+          setStreaming(false)
+          inFlightRef.current = false
+          abortRef.current = null
         }
-      } catch (err) {
-        if ((err as Error).name !== "AbortError") {
-          setAssistant(`⚠️ ${(err as Error).message || "Something went wrong. Please try again."}`)
-        }
-      } finally {
-        setStreaming(false)
-        inFlightRef.current = false
-        abortRef.current = null
-      }
+      })()
     },
-    [messages, tripId, dayId, trip, getToken],
+    [messages, tripId, dayId, trip, readToken],
   )
 
   const canEdit = access === "edit" || access === "owner"
+
+  const persistTripDays = useCallback(
+    async (mutate: (fresh: Trip) => Trip["days"]) => {
+      if (!tripId) throw new Error("No trip is open.")
+      const { trip: fresh } = await getTrip(readToken, tripId)
+      const next = await updateTrip(readToken, fresh.id, { days: mutate(fresh) })
+      setTrip(next)
+      emitTripChanged(next)
+      return next
+    },
+    [tripId, readToken],
+  )
 
   const addPlace = useCallback(
     async (place: ConciergePlace, targetDayId: string) => {
@@ -326,7 +359,7 @@ export function TripChat() {
       const key = conciergePlaceKey(place)
       setAddingKey(key)
       try {
-        const { trip: fresh } = await getTrip(getToken, tripId)
+        const { trip: fresh } = await getTrip(readToken, tripId)
         const day = fresh.days.find((d) => d.id === targetDayId)
         if (!day) throw new Error("That day is no longer on the trip.")
         if (dayHasPlaceNamed(day, place.name)) {
@@ -340,7 +373,7 @@ export function TripChat() {
           )
           return
         }
-        const next = await updateTrip(getToken, fresh.id, {
+        const next = await updateTrip(readToken, fresh.id, {
           days: addItem(fresh.days, targetDayId, itemFromConciergePlace(place)),
         })
         setTrip(next)
@@ -364,7 +397,115 @@ export function TripChat() {
         setAddingKey(null)
       }
     },
-    [tripId, canEdit, getToken],
+    [tripId, canEdit, readToken],
+  )
+
+  const patchMessage = useCallback((match: (m: ChatMessage) => boolean, patch: (m: ChatMessage) => ChatMessage) => {
+    setMessages((prev) => prev.map((m) => (match(m) ? patch(m) : m)))
+  }, [])
+
+  const removePlace = useCallback(
+    async (place: ConciergePlace) => {
+      if (!tripId || !canEdit || !place.itemId || !place.dayId) return
+      const itemId = place.itemId
+      try {
+        await persistTripDays((fresh) => removeItem(fresh.days, place.dayId!, itemId))
+        patchMessage(
+          (m) => Boolean(m.places?.some((p) => p.itemId === itemId) || m.moves?.some((mv) => mv.name === place.name)),
+          (m) => ({ ...m, removedKeys: [...new Set([...(m.removedKeys ?? []), itemId])] }),
+        )
+      } catch (err) {
+        patchMessage(
+          (m) => Boolean(m.places?.some((p) => p.itemId === itemId)),
+          (m) => ({ ...m, content: `${m.content}\n\n⚠️ ${(err as Error).message || "Could not remove that place."}` }),
+        )
+      }
+    },
+    [tripId, canEdit, persistTripDays, patchMessage],
+  )
+
+  const movePlace = useCallback(
+    async (place: ConciergePlace, toDayId: string) => {
+      if (!tripId || !canEdit || !place.itemId || !place.dayId || place.dayId === toDayId) return
+      setMovingItemId(place.itemId)
+      try {
+        await persistTripDays((fresh) => moveItemToDay(fresh.days, place.dayId!, place.itemId!, toDayId))
+      } catch (err) {
+        patchMessage(
+          (m) => Boolean(m.places?.some((p) => p.itemId === place.itemId)),
+          (m) => ({ ...m, content: `${m.content}\n\n⚠️ ${(err as Error).message || "Could not move that place."}` }),
+        )
+      } finally {
+        setMovingItemId(null)
+      }
+    },
+    [tripId, canEdit, persistTripDays, patchMessage],
+  )
+
+  const applyMove = useCallback(
+    async (messageId: string, resolved: ResolvedMove) => {
+      if (!tripId || !canEdit) return
+      setBusyMoveKey(resolved.key)
+      try {
+        await persistTripDays((fresh) => {
+          if (resolved.move.type === "remove") {
+            return removeItem(fresh.days, resolved.stop.day.id, resolved.stop.item.id)
+          }
+          if (resolved.move.type === "move" && resolved.toDay) {
+            return moveItemToDay(fresh.days, resolved.stop.day.id, resolved.stop.item.id, resolved.toDay.id)
+          }
+          if (resolved.move.type === "set_time" && resolved.move.time) {
+            return updateItem(fresh.days, resolved.stop.day.id, resolved.stop.item.id, { time: resolved.move.time })
+          }
+          return fresh.days
+        })
+        patchMessage(
+          (m) => m.id === messageId,
+          (m) => ({
+            ...m,
+            appliedMoveKeys: [...new Set([...(m.appliedMoveKeys ?? []), resolved.key])],
+            removedKeys:
+              resolved.move.type === "remove"
+                ? [...new Set([...(m.removedKeys ?? []), resolved.stop.item.id])]
+                : m.removedKeys,
+          }),
+        )
+      } catch (err) {
+        patchMessage(
+          (m) => m.id === messageId,
+          (m) => ({ ...m, content: `${m.content}\n\n⚠️ ${(err as Error).message || "Could not update the itinerary."}` }),
+        )
+      } finally {
+        setBusyMoveKey(null)
+      }
+    },
+    [tripId, canEdit, persistTripDays, patchMessage],
+  )
+
+  const openPhotos = useCallback(
+    (place: ConciergePlace) => {
+      setPhoto({
+        name: place.name,
+        city: trip?.days.find((d) => d.id === place.dayId)?.city ?? trip?.destinations[0],
+        lat: place.lat,
+        lng: place.lng,
+      })
+    },
+    [trip],
+  )
+
+  const openMap = useCallback(
+    (place: ConciergePlace) => {
+      if (!tripId) return
+      const targetDay = place.dayId && trip?.days.some((d) => d.id === place.dayId) ? place.dayId : dayId
+      if (!targetDay) return
+      const params = new URLSearchParams({ map: "1" })
+      if (place.itemId) params.set("focus", place.itemId)
+      navigate(`/trips/${encodeURIComponent(tripId)}/day/${encodeURIComponent(targetDay)}?${params}`)
+      setExpanded(false)
+      if (!isDesktop) setOpen(false)
+    },
+    [tripId, trip, dayId, navigate, isDesktop],
   )
 
   const autoGrow = useCallback(() => {
@@ -380,16 +521,14 @@ export function TripChat() {
 
   if (!tripId) return null
 
+  const lastAssistantId = lastMessageIdByRole(messages, "assistant")
+
   const accent = resolveAccent(trip?.appearance?.accent)
-  const panelClass = expanded
-    ? isDesktop
-      ? PANEL_EXPANDED_DESKTOP
-      : PANEL_EXPANDED_MOBILE
-    : PANEL_COMPACT
+  const panelClass = expanded ? PANEL_EXPANDED : PANEL_COMPACT
   const panelStyle: CSSProperties = {
-    ...(kbInset > 0 ? { bottom: kbInset } : {}),
-    ...(expanded && isDesktop
-      ? { ...EXPANDED_DESKTOP_STYLE, bottom: kbInset > 0 ? kbInset : 16 }
+    ...(kbInset > 0 && !expanded ? { bottom: kbInset } : {}),
+    ...(expanded
+      ? { ["--trip-chat-kb" as string]: kbInset > 0 ? `${kbInset}px` : "0px" }
       : {}),
   }
 
@@ -488,7 +627,6 @@ export function TripChat() {
 
               <div
                 ref={scrollRef}
-                onScroll={handleScroll}
                 className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4"
                 style={{ WebkitOverflowScrolling: "touch" }}
               >
@@ -506,45 +644,50 @@ export function TripChat() {
                 ) : (
                   messages.map((m) =>
                     m.role === "user" ? (
-                      <div key={m.id} className="flex justify-end">
+                      <div
+                        key={m.id}
+                        ref={m.id === lastUserId ? anchorRef : undefined}
+                        data-transcript-anchor={m.id === lastUserId ? "latest-user" : undefined}
+                        className="flex justify-end"
+                      >
                         <div className="max-w-[85%] rounded-2xl rounded-br-md bg-[color:var(--trips-accent)] px-3.5 py-2 text-[15px] leading-relaxed text-white shadow-sm dark:text-stone-950">
                           {m.content}
                         </div>
                       </div>
                     ) : (
-                      <div key={m.id} className="flex justify-start">
-                        <div className="max-w-[88%] rounded-2xl rounded-bl-md bg-stone-100 px-3.5 py-2.5 text-stone-800 dark:bg-stone-800/80 dark:text-stone-100">
-                          {m.content ? (
-                            <ConciergeText
-                              text={m.content}
-                              bulletClass="bg-[color:var(--ta)]"
-                              numberClass="text-[color:var(--ta)]"
-                            />
-                          ) : (
-                            <TypingDots reduce={!!reduce} />
-                          )}
-                          {m.places && trip ? (
-                            <ConciergePlaceCards
-                              places={m.places}
-                              days={trip.days}
-                              defaultDayId={dayId}
-                              addedKeys={new Set(m.addedKeys)}
-                              addingKey={addingKey}
-                              canEdit={canEdit}
-                              onAdd={(place, targetDayId) => void addPlace(place, targetDayId)}
-                            />
-                          ) : null}
-                          {m.sources ? (
-                            <ConciergeSources
-                              sources={m.sources}
-                              linkClass="break-words underline decoration-[color:var(--ta-ring)] underline-offset-2 decoration-1 transition hover:text-[color:var(--ta-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--trips-focus)]"
-                            />
-                          ) : null}
-                        </div>
-                      </div>
+                      <AssistantBubble
+                        key={m.id}
+                        message={m}
+                        trip={trip}
+                        dayId={dayId}
+                        streaming={streaming && m.id === lastAssistantId}
+                        reduce={!!reduce}
+                        addingKey={addingKey}
+                        movingItemId={movingItemId}
+                        busyMoveKey={busyMoveKey}
+                        canEdit={canEdit}
+                        onAdd={(place, targetDayId) => void addPlace(place, targetDayId)}
+                        onRemove={(place) => void removePlace(place)}
+                        onMove={(place, toDayId) => void movePlace(place, toDayId)}
+                        onPhotos={openPhotos}
+                        onMap={openMap}
+                        onConfirmMove={(resolved) => void applyMove(m.id, resolved)}
+                        onDismissMove={(key) =>
+                          setMessages((prev) =>
+                            prev.map((msg) =>
+                              msg.id === m.id
+                                ? { ...msg, dismissedMoveKeys: [...new Set([...(msg.dismissedMoveKeys ?? []), key])] }
+                                : msg,
+                            ),
+                          )
+                        }
+                      />
                     ),
                   )
                 )}
+                {messages.length > 0 ? (
+                  <div ref={spacerRef} data-transcript-spacer="" aria-hidden className="pointer-events-none shrink-0" />
+                ) : null}
               </div>
 
               <div className="shrink-0">
@@ -571,7 +714,7 @@ export function TripChat() {
                 className="border-t border-stone-200/80 px-3 pt-3 dark:border-stone-800/80"
                 style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)" }}
               >
-                <div className="flex items-end gap-2 rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 focus-within:border-[color:var(--trips-accent)] focus-within:ring-2 focus-within:ring-[color:var(--trips-focus)] dark:border-stone-700 dark:bg-stone-900">
+                <div className="flex items-end gap-2 rounded-2xl border border-stone-200 bg-stone-50/90 px-3 py-2 focus-within:border-[color:var(--trips-accent)] focus-within:ring-2 focus-within:ring-[color:var(--trips-focus)] dark:border-stone-700 dark:bg-stone-900">
                   <textarea
                     ref={inputRef}
                     value={input}
@@ -587,15 +730,15 @@ export function TripChat() {
                     }}
                     rows={1}
                     placeholder="Ask about this trip…"
-                    className={`flex-1 resize-none bg-transparent text-[16px] text-stone-900 outline-none placeholder:text-stone-400 sm:text-[15px] dark:text-stone-100 dark:placeholder:text-stone-400 ${expanded ? "max-h-48" : "max-h-28"}`}
+                    className={`min-h-7 flex-1 resize-none bg-transparent py-0.5 text-[16px] leading-6 text-stone-900 outline-none placeholder:text-stone-400 sm:text-[15px] dark:text-stone-100 dark:placeholder:text-stone-400 ${expanded ? "max-h-48" : "max-h-28"}`}
                   />
                   <button
                     type="submit"
                     disabled={!input.trim() || streaming}
                     aria-label="Send message"
-                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[color:var(--trips-accent)] text-white transition enabled:hover:bg-[color:var(--trips-accent-hover)] disabled:cursor-not-allowed disabled:opacity-40 dark:text-stone-950 ${focusRingClass}`}
+                    className={`relative mb-px flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[color:var(--trips-accent)] text-white transition before:absolute before:-inset-2 before:content-[''] enabled:hover:bg-[color:var(--trips-accent-hover)] disabled:cursor-not-allowed disabled:opacity-40 dark:text-stone-950 ${focusRingClass}`}
                   >
-                    <Send className="h-4 w-4" />
+                    <Send className="h-3.5 w-3.5" strokeWidth={2} />
                   </button>
                 </div>
               </form>
@@ -607,6 +750,137 @@ export function TripChat() {
           </div>,
           document.body,
         )}
+      {photo ? (
+        <ConciergePhotoViewer
+          name={photo.name}
+          city={photo.city}
+          lat={photo.lat}
+          lng={photo.lng}
+          initialUrl={photo.url}
+          onClose={() => setPhoto(null)}
+        />
+      ) : null}
+    </div>
+  )
+}
+
+function AssistantBubble({
+  message: m,
+  trip,
+  dayId,
+  streaming,
+  reduce,
+  addingKey,
+  movingItemId,
+  busyMoveKey,
+  canEdit,
+  onAdd,
+  onRemove,
+  onMove,
+  onPhotos,
+  onMap,
+  onConfirmMove,
+  onDismissMove,
+}: {
+  message: ChatMessage
+  trip: Trip | null
+  dayId?: string
+  streaming: boolean
+  reduce: boolean
+  addingKey: string | null
+  movingItemId: string | null
+  busyMoveKey: string | null
+  canEdit: boolean
+  onAdd: (place: ConciergePlace, dayId: string) => void
+  onRemove: (place: ConciergePlace) => void
+  onMove: (place: ConciergePlace, toDayId: string) => void
+  onPhotos: (place: ConciergePlace) => void
+  onMap: (place: ConciergePlace) => void
+  onConfirmMove: (move: ResolvedMove) => void
+  onDismissMove: (key: string) => void
+}) {
+  const mentioned = useMemo(() => {
+    if (!trip || !m.content) return []
+    const exclude = (m.places ?? []).map((p) => p.name)
+    return findMentionedStops(m.content, trip, exclude).map(stopToConciergePlace)
+  }, [trip, m.content, m.places])
+  const resolvedMoves = useMemo(
+    () => (trip && m.moves?.length ? resolveMoves(trip, m.moves) : []),
+    [trip, m.moves],
+  )
+
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-[88%] rounded-2xl rounded-bl-md bg-stone-100 px-3.5 py-2.5 text-stone-800 dark:bg-stone-800/80 dark:text-stone-100">
+        {m.content ? (
+          <div>
+            <ConciergeText
+              text={m.content}
+              bulletClass="bg-[color:var(--ta)]"
+              numberClass="text-[color:var(--ta)]"
+            />
+            {streaming ? <span className="trip-chat-caret" aria-hidden /> : null}
+          </div>
+        ) : streaming ? (
+          <div>
+            <p className={`text-sm ${mutedInkClass}`}>Looking this up…</p>
+            <TypingDots reduce={reduce} />
+          </div>
+        ) : m.error || m.places?.length || m.moves?.length || m.sources?.length ? null : (
+          <TypingDots reduce={reduce} />
+        )}
+        {m.places && trip ? (
+          <ConciergePlaceCards
+            places={m.places}
+            days={trip.days}
+            defaultDayId={dayId}
+            city={trip.destinations[0]}
+            addedKeys={new Set(m.addedKeys)}
+            addingKey={addingKey}
+            movingItemId={movingItemId}
+            canEdit={canEdit}
+            variant="suggest"
+            onAdd={onAdd}
+            onPhotos={onPhotos}
+          />
+        ) : null}
+        {mentioned.length > 0 && trip ? (
+          <ConciergePlaceCards
+            places={mentioned}
+            days={trip.days}
+            defaultDayId={dayId}
+            city={trip.destinations[0]}
+            addedKeys={new Set()}
+            removedKeys={new Set(m.removedKeys)}
+            addingKey={null}
+            movingItemId={movingItemId}
+            canEdit={canEdit}
+            variant="itinerary"
+            onRemove={onRemove}
+            onMove={onMove}
+            onPhotos={onPhotos}
+            onMap={onMap}
+          />
+        ) : null}
+        {resolvedMoves.length > 0 ? (
+          <ConciergeMoveCards
+            moves={resolvedMoves}
+            appliedKeys={new Set(m.appliedMoveKeys)}
+            dismissedKeys={new Set(m.dismissedMoveKeys)}
+            busyKey={busyMoveKey}
+            canEdit={canEdit}
+            onConfirm={onConfirmMove}
+            onDismiss={onDismissMove}
+          />
+        ) : null}
+        {m.sources ? (
+          <ConciergeSources
+            sources={m.sources}
+            linkClass="break-words underline decoration-[color:var(--ta-ring)] underline-offset-2 decoration-1 transition hover:text-[color:var(--ta-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--trips-focus)]"
+          />
+        ) : null}
+        <ConciergeStreamStatus error={m.error} />
+      </div>
     </div>
   )
 }

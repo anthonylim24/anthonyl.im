@@ -1,6 +1,8 @@
-import { useState, useRef, useEffect, lazy, Suspense, useCallback } from "react";
+import { Activity, useState, useRef, useEffect, lazy, Suspense, useCallback } from "react";
 import { Send, ChevronDown } from "lucide-react";
 import { cn } from "./lib/utils";
+import { formatConciergeError } from "./effect/chatErrors";
+import { TimeoutError, errorMessage } from "./effect/errors";
 import { invokeDeepseek } from "./lib/apiService";
 import { useFavicon } from "./hooks/useFavicon";
 import { getPostHogConfig } from "./lib/analytics";
@@ -76,7 +78,6 @@ const overlayStyle = {
 function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [shadowMode, setShadowMode] = useState(true);
@@ -172,46 +173,52 @@ function App() {
   /* ── Submit ── */
 
   const handleSubmit = useCallback(
-    async (e?: React.FormEvent, submittedInput?: string) => {
+    (e?: React.FormEvent, submittedInput?: string) => {
       if (e) e.preventDefault();
       const text = (submittedInput || input).trim();
-      if (!text || isLoading) return;
+      if (!text || isStreaming) return;
 
       const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: text, timestamp: Date.now() };
       const asstMsg: ChatMessage = { id: crypto.randomUUID(), role: "assistant", content: "", timestamp: Date.now() };
+      const history = messages.map((m) => ({ role: m.role, content: m.content }));
 
-      setMessages((prev) => [...prev, userMsg, asstMsg]);
       setInput("");
-      setIsLoading(true);
       shouldAutoScroll.current = true;
       if (inputRef.current) inputRef.current.style.height = "auto";
       scrollToBottom();
 
-      try {
-        const history = messages.map((m) => ({ role: m.role, content: m.content }));
-        await invokeDeepseek(text, history, (content) => {
-          if (!isStreaming) setIsStreaming(true);
-          setMessages((prev) => {
-            const next = [...prev];
-            const last = next[next.length - 1];
-            if (last?.role === "assistant") last.content = content;
-            return next;
+      setMessages((prev) => [...prev, userMsg, asstMsg]);
+      void (async () => {
+        setIsStreaming(true);
+        try {
+          await invokeDeepseek(text, history, (content) => {
+            setMessages((prev) => {
+              const last = prev[prev.length - 1];
+              if (last?.role !== "assistant") return prev;
+              return prev.map((message, index) =>
+                index === prev.length - 1 ? { ...message, content } : message,
+              );
+            });
           });
-        });
-      } catch (err) {
-        console.error(err);
-        setMessages((prev) => {
-          const next = [...prev];
-          const last = next[next.length - 1];
-          if (last?.role === "assistant") last.content = "I apologize, but something went wrong. Please try again.";
-          return next;
-        });
-      } finally {
-        setIsLoading(false);
-        setIsStreaming(false);
-      }
+        } catch (err) {
+          console.error(err);
+          const fallback = errorMessage(err) || "I apologize, but something went wrong. Please try again.";
+          const partial = err instanceof TimeoutError ? err.partialContent : undefined;
+          setMessages((prev) => {
+            const last = prev[prev.length - 1];
+            if (last?.role !== "assistant") return prev;
+            return prev.map((message, index) =>
+              index === prev.length - 1
+                ? { ...message, content: formatConciergeError(partial ?? last.content, fallback) }
+                : message,
+            );
+          });
+        } finally {
+          setIsStreaming(false);
+        }
+      })();
     },
-    [input, isLoading, isStreaming, messages, scrollToBottom],
+    [input, isStreaming, messages, scrollToBottom],
   );
 
   const handleKeyDown = useCallback(
@@ -224,7 +231,9 @@ function App() {
     [handleSubmit],
   );
 
-  const hasMessages = messages.length > 0;
+  const visibleMessages = messages;
+  const hasMessages = visibleMessages.length > 0;
+  const isLoading = isStreaming;
   const themeClass = shadowMode ? "chatbot-shadow" : "chatbot-dark";
 
   /* ── Render ── */
@@ -288,10 +297,10 @@ function App() {
         <div ref={scrollAreaRef} onScroll={handleScroll} className="px-6" style={scrollAreaStyle}>
           {hasMessages ? (
             <>
-              <div className="space-y-5 py-2">
-                {messages.map((message, index) => {
+              <div className="space-y-5 py-2" aria-busy={isStreaming}>
+                {visibleMessages.map((message, index) => {
                   const isUser = message.role === "user";
-                  const isLastAssistant = !isUser && index === messages.length - 1;
+                  const isLastAssistant = !isUser && index === visibleMessages.length - 1;
                   if (!message.content && !(isLastAssistant && isLoading)) return null;
 
                   return (
@@ -350,7 +359,7 @@ function App() {
 
         {/* ── Footer: suggestions + input ── */}
         <div className="pb-safe px-6 py-4" style={headerFooterStyle}>
-          {!hasMessages ? (
+          <Activity mode={hasMessages ? "hidden" : "visible"} name="chat-suggestions-grid">
             <div className="grid grid-cols-2 gap-2 col-fade-in stagger-3 mb-5">
               {suggestedQuestions.map((q) => (
                 <button
@@ -363,7 +372,8 @@ function App() {
                 </button>
               ))}
             </div>
-          ) : (
+          </Activity>
+          <Activity mode={hasMessages ? "visible" : "hidden"} name="chat-suggestions-row">
             <div className="mb-3" style={{ marginLeft: "-1.5rem", marginRight: "-1.5rem" }}>
               <div
                 className="no-scrollbar"
@@ -390,9 +400,9 @@ function App() {
                 ))}
               </div>
             </div>
-          )}
+          </Activity>
 
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} aria-busy={isStreaming}>
             <div className="chat-input-box flex items-end gap-3 px-3 py-2 transition-all duration-700">
               <textarea
                 ref={inputRef}
@@ -407,9 +417,10 @@ function App() {
               <button
                 type="submit"
                 disabled={isLoading || !input.trim()}
-                className="chat-send shrink-0 p-2 transition-all duration-300 disabled:opacity-20 disabled:cursor-not-allowed"
+                aria-label={isStreaming ? "Sending" : "Send message"}
+                className="chat-send shrink-0 transition-all duration-300 disabled:opacity-20 disabled:cursor-not-allowed"
               >
-                <Send className="w-4 h-4" />
+                <Send className={`w-4 h-4 ${isStreaming ? "animate-pulse" : ""}`} />
               </button>
             </div>
           </form>

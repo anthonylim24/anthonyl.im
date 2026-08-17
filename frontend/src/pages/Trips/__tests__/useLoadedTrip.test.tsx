@@ -120,6 +120,34 @@ describe("useLoadedTrip", () => {
     expect(screen.getByText("success:tokyo:2026-01-01T00:00:02Z:p1")).toBeTruthy()
   })
 
+  it("keeps the loaded dossier visible when reloading without a live edit", async () => {
+    mockGetTrip.mockResolvedValueOnce({ trip: makeTrip(), access: "owner" })
+    render(<Probe tripId="tokyo" />)
+    await waitFor(() => {
+      expect(screen.getByText("success:tokyo:2026-01-01T00:00:00Z:none")).toBeTruthy()
+    })
+
+    let resolveGet!: (value: { trip: Trip; access: string }) => void
+    mockGetTrip.mockReturnValue(
+      new Promise((resolve) => {
+        resolveGet = resolve
+      }),
+    )
+    fireEvent.click(screen.getByRole("button", { name: "reload" }))
+    expect(screen.getByText("success:tokyo:2026-01-01T00:00:00Z:none")).toBeTruthy()
+    expect(screen.queryByText("loading")).toBeNull()
+
+    await act(async () => {
+      resolveGet({
+        trip: makeTrip({ updatedAt: "2026-01-01T00:00:03Z" }),
+        access: "owner",
+      })
+    })
+    await waitFor(() => {
+      expect(screen.getByText("success:tokyo:2026-01-01T00:00:03Z:none")).toBeTruthy()
+    })
+  })
+
   it("keeps a concierge add across reload when getTrip is stale", async () => {
     mockGetTrip.mockResolvedValueOnce({ trip: makeTrip(), access: "owner" })
     render(<Probe tripId="tokyo" />)
@@ -141,7 +169,9 @@ describe("useLoadedTrip", () => {
       }),
     )
     fireEvent.click(screen.getByRole("button", { name: "reload" }))
-    expect(screen.getByText("loading")).toBeTruthy()
+    // Reload is a transition: keep the current dossier visible (no skeleton flash).
+    expect(screen.getByText("success:tokyo:2026-01-01T00:00:01Z:p1")).toBeTruthy()
+    expect(screen.queryByText("loading")).toBeNull()
 
     await act(async () => {
       resolveGet({ trip: makeTrip(), access: "owner" })

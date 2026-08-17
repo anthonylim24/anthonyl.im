@@ -19,6 +19,7 @@ anthonyl.im/
 │   │   │   ├── layout/          # BreathworkLayout, Header, Navigation, CloudSync
 │   │   │   ├── tracking/        # SessionHistory, ProgressChart, PersonalBests
 │   │   │   └── ui/              # Radix primitives + custom shadcn/ui
+│   │   ├── effect/              # Effect-TS HTTP/SSE/runtime — all frontend I/O
 │   │   ├── hooks/               # useBreathingCycle, useWebGLOrb, useReducedMotion, …
 │   │   ├── lib/                 # breathingProtocols, gamification, apiService, …
 │   │   ├── pages/
@@ -155,6 +156,19 @@ INTEGRATION=1 bun test --bail
 ```
 
 **Dev server proxy:** `vite.config.ts` proxies `/api/*` → `http://localhost:3000` so you only need the Vite dev server in the browser. Start the Hono server separately when you need live API responses.
+
+---
+
+## Agent skills
+
+Read the matching skill before writing code. Effect I/O rules win when they conflict with generic React fetch/SWR examples.
+
+| Skill | When |
+|-------|------|
+| [`.claude/skills/effect-ts/SKILL.md`](.claude/skills/effect-ts/SKILL.md) (mirrored at `.agents/skills/effect-ts/SKILL.md`) | Any frontend `/api`, SSE, or third-party HTTP. Required. |
+| `vercel-react-best-practices` | React 19 render and bundle performance |
+
+Short pointer: [`.agents/memory/effect-ts.md`](.agents/memory/effect-ts.md).
 
 ---
 
@@ -357,8 +371,42 @@ Chunk size warning ceiling is 720 KB (intentional — the `three` chunk is large
 - React 19 + TypeScript 6 + Vite 8
 - Tailwind CSS 4.2 + shadcn/ui (Radix primitives)
 - Zustand v5 (state), Motion v12 (animation), Lucide v1 (icons)
+- Effect v3 (`effect`, `@effect/language-service`) for frontend I/O — see [Frontend Effect-TS](#frontend-effect-ts)
 - Bun + Hono (server), Clerk (auth), Supabase (sync), PostHog (analytics)
 - Three.js (Korea Map Mode only)
+
+## Frontend Effect-TS
+
+All new frontend network I/O is Effect. Skill: [`.claude/skills/effect-ts/SKILL.md`](.claude/skills/effect-ts/SKILL.md) (mirrored at `.agents/skills/effect-ts/SKILL.md`). Stay on **stable Effect v3**, not v4 beta.
+
+| Piece | Location |
+|-------|----------|
+| Tagged errors | `frontend/src/effect/errors.ts` |
+| HTTP (`fetchApi`, `fetchExternal`, `requestJson`, `readAuthToken`) | `frontend/src/effect/http.ts` |
+| SSE | `frontend/src/effect/sse.ts` |
+| `runPromise` unwrap | `frontend/src/effect/runtime.ts` |
+| Chat error remap | `frontend/src/effect/chatErrors.ts` |
+| Stable token reader | `frontend/src/hooks/useLatestCallback.ts` |
+
+**Do**
+
+- Write I/O as `Effect.fn("Service.method")(function* () { … })` and expose a Promise wrapper via `runPromise` from `frontend/src/effect/runtime.ts` (unwraps `FiberFailure`)
+- Same-origin `/api/*` through `fetchApi` / `requestJson` so preview-base rewrite + `redirect: "manual"` stay in `apiBase.ts`
+- Third-party absolute URLs through `fetchExternal`
+- `Schema.TaggedError` for typed failures; `readErrorMessage(res, mode)` for per-endpoint error-body priority
+- Pass `useLatestCallback(getToken)` (or `useAuthReady()` as an effect dep) into API helpers — never pass `useEffectEvent` as a function argument
+- `useTransition` for non-urgent list/document commits; latest-request-wins sequence guards on overlapping refreshes
+- `Effect.fail` / `Effect.catchTag` — never `throw` or `try/catch` around `yield*`
+
+**Do not**
+
+- Replace `apiFetch` with `@effect/platform` `FetchHttpClient`
+- `Schema.decode` complex `Trip` / `ExtractedPlace` documents (`Schema.Struct` strips unknown keys)
+- Introduce `Effect.Service` / `AppLayer` / effect-atom unless a module has real injectable dependencies
+- Use React `Activity` to hide Map Mode / WebGL (must unmount)
+- Move BreathFlow Zustand stores or `useCloudSync` Supabase calls onto Effect
+
+Stay on Effect v3 (`effect@3`). Do not upgrade to Effect v4 beta.
 
 ## Shared Tokens
 

@@ -34,7 +34,7 @@ export function conciergeSuggestions(trip: Trip, dayId?: string): string[] {
       uniquePush(out, `Should we plan around the ${focused.weather.condition.toLowerCase()}?`)
     }
     const nextStop = focused.items.find((i) => i.kind === "place" && i.title.trim())
-    if (nextStop && out.length < MAX) uniquePush(out, `What's worth knowing about ${nextStop.title}?`)
+    if (nextStop && out.length < MAX) uniquePush(out, `Show me photos of ${nextStop.title}`)
   } else {
     const pending = trip.days.flatMap((d) =>
       d.items.filter(

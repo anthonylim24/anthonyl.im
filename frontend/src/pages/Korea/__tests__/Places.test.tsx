@@ -273,9 +273,16 @@ describe('Places page', () => {
 
     expect(mockFetchExtractedPlaces.mock.calls.length).toBe(initialCallCount)
 
-    // Advance past the 300ms debounce — now the fetch fires
+    // Still inside the 80 ms debounce window
     await act(async () => {
-      vi.advanceTimersByTime(350)
+      vi.advanceTimersByTime(50)
+      await Promise.resolve()
+    })
+    expect(mockFetchExtractedPlaces.mock.calls.length).toBe(initialCallCount)
+
+    // Advance past the 80 ms debounce — now the fetch fires
+    await act(async () => {
+      vi.advanceTimersByTime(40)
       await Promise.resolve()
       await Promise.resolve()
     })
@@ -287,5 +294,39 @@ describe('Places page', () => {
     expect(lastCall[1].q).toBe('어니언')
 
     vi.useRealTimers()
+  })
+
+  it('ignores a stale filter response after a newer fetch starts', async () => {
+    const stale = makePlace({ id: 99, name: '오래된 카페', name_romanized: 'Old Cafe' })
+    const fresh = makePlace()
+    let resolveStale!: (value: { places: ExtractedPlace[]; total: number; hasMore: boolean }) => void
+    mockFetchExtractedPlaces.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveStale = resolve
+        }),
+    )
+    mockFetchExtractedPlaces.mockResolvedValueOnce({ places: [fresh], total: 1, hasMore: false })
+
+    await renderPlaces()
+    await waitFor(() => expect(mockFetchExtractedPlaces).toHaveBeenCalledTimes(1))
+
+    const cafeChip = screen.getByRole('button', { name: 'Cafe' })
+    await act(async () => {
+      await userEvent.click(cafeChip)
+      await Promise.resolve()
+    })
+    await waitFor(() => expect(mockFetchExtractedPlaces).toHaveBeenCalledTimes(2))
+
+    await act(async () => {
+      resolveStale({ places: [stale], total: 1, hasMore: false })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    await waitFor(() => {
+      expect(screen.getByRole('article', { name: /어니언 성수/i })).toBeTruthy()
+    })
+    expect(screen.queryByRole('article', { name: /오래된 카페/i })).toBeNull()
   })
 })

@@ -6,8 +6,10 @@
 // text (day themes, bullets, callouts, neighborhood picks, reservation
 // notes) and wrap them in <SmartEntity> popovers.
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react"
-import { apiFetch } from "../../lib/apiBase"
+import { createContext, useContext, useEffect, useMemo, useState, useTransition } from "react"
+import { Effect } from "effect"
+import { fetchApi, parseJson } from "../../effect/http"
+import { runPromise } from "../../effect/runtime"
 import type { EntityType } from "./entityLinks"
 
 export interface EntityRef {
@@ -48,19 +50,19 @@ const EntityIndexContext = createContext<EntityIndex>(EMPTY_INDEX)
 let cachedEntries: EntityRef[] | null = null
 let inflight: Promise<EntityRef[]> | null = null
 
-async function fetchEntities(): Promise<EntityRef[]> {
-  if (cachedEntries) return cachedEntries
+const fetchEntitiesEffect = Effect.fn("EntityIndex.fetch")(function* () {
+  const r = yield* fetchApi("/api/korea/entities")
+  if (!r.ok) return [] as EntityRef[]
+  const rows = yield* parseJson<unknown>(r)
+  return Array.isArray(rows) ? (rows as EntityRef[]) : []
+})
+
+function fetchEntities(): Promise<EntityRef[]> {
+  if (cachedEntries) return Promise.resolve(cachedEntries)
   if (inflight) return inflight
-  inflight = (async () => {
-    try {
-      const r = await apiFetch("/api/korea/entities")
-      if (!r.ok) return []
-      const rows = (await r.json()) as EntityRef[]
-      return Array.isArray(rows) ? rows : []
-    } catch {
-      return []
-    }
-  })().then((rows) => {
+  inflight = runPromise(
+    fetchEntitiesEffect().pipe(Effect.catchAll(() => Effect.succeed<EntityRef[]>([]))),
+  ).then((rows) => {
     cachedEntries = rows
     return rows
   })
@@ -134,17 +136,18 @@ function buildIndex(entries: EntityRef[]): EntityIndex {
 
 export function EntityIndexProvider({ children }: { children: React.ReactNode }) {
   const [entries, setEntries] = useState<EntityRef[] | null>(cachedEntries)
+  const [, startTransition] = useTransition()
 
   useEffect(() => {
     if (entries) return
     let cancelled = false
     void fetchEntities().then((rows) => {
-      if (!cancelled) setEntries(rows)
+      if (!cancelled) startTransition(() => setEntries(rows))
     })
     return () => {
       cancelled = true
     }
-  }, [entries])
+  }, [entries, startTransition])
 
   const index = useMemo<EntityIndex>(() => (entries ? buildIndex(entries) : EMPTY_INDEX), [entries])
 

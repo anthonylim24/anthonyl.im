@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
 import { ArrowRight, CalendarDays, MapPin, Plus, RotateCcw, Trash2, Users } from "lucide-react"
-import { useGetToken } from "@/lib/safeAuth"
+import { useLatestCallback } from "@/hooks/useLatestCallback"
+import { useAuthReady, useGetToken } from "@/lib/safeAuth"
 import { deleteTrip, listTrips } from "./tripsApi"
 import type { TripSummary } from "./types"
 import { ACCENT, collaboratorSummary, daysUntilIn, todayIsoIn } from "./theme"
@@ -142,9 +143,12 @@ const sections: Array<{ key: TripBucket; title: string }> = [
 
 export function TripsIndex() {
   const getToken = useGetToken()
+  const readToken = useLatestCallback(getToken)
+  const authReady = useAuthReady()
   const navigate = useNavigate()
   const reduce = useReducedMotion()
   const [state, setState] = useState<LoadState>({ status: "loading" })
+  const [isRefreshing, startTransition] = useTransition()
   const [deleting, setDeleting] = useState<string | null>(null)
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<{ id: string; message: string } | null>(null)
@@ -171,8 +175,8 @@ export function TripsIndex() {
     let cancelled = false
     void (async () => {
       try {
-        const trips = await listTrips(getToken)
-        if (!cancelled) setState({ status: "success", trips })
+        const trips = await listTrips(readToken)
+        if (!cancelled) startTransition(() => setState({ status: "success", trips }))
       } catch (err) {
         if (!cancelled) setState({ status: "error", message: err instanceof Error ? err.message : String(err) })
       }
@@ -180,7 +184,7 @@ export function TripsIndex() {
     return () => {
       cancelled = true
     }
-  }, [getToken, reloadKey])
+  }, [readToken, authReady, reloadKey, startTransition])
 
   const grouped = useMemo(() => {
     if (state.status !== "success") return null
@@ -205,22 +209,28 @@ export function TripsIndex() {
 
   const onlyPast = grouped !== null && grouped.past.length > 0 && grouped.current.length + grouped.upcoming.length === 0
 
-  const onDelete = async (trip: TripSummary) => {
-    setDeleting(trip.id)
-    setDeleteError(null)
-    try {
-      await deleteTrip(getToken, trip.id)
-      setConfirmId(null)
-      // The row is gone, so focus moves to the page's primary action rather
-      // than falling back to the document.
-      newTripRef.current?.focus()
-      setDeletedName(trip.name)
-      load()
-    } catch (err) {
-      setDeleteError({ id: trip.id, message: err instanceof Error ? err.message : String(err) })
-    } finally {
-      setDeleting(null)
-    }
+  const onDelete = (trip: TripSummary) => {
+    void (async () => {
+      setDeleting(trip.id)
+      setDeleteError(null)
+      try {
+        await deleteTrip(readToken, trip.id)
+        setConfirmId(null)
+        // The row is gone, so focus moves to the page's primary action rather
+        // than falling back to the document.
+        newTripRef.current?.focus()
+        setDeletedName(trip.name)
+        setState((current) =>
+          current.status === "success"
+            ? { status: "success", trips: current.trips.filter((item) => item.id !== trip.id) }
+            : current,
+        )
+      } catch (err) {
+        setDeleteError({ id: trip.id, message: err instanceof Error ? err.message : String(err) })
+      } finally {
+        setDeleting(null)
+      }
+    })()
   }
 
   const closeConfirm = (tripId: string) => {
@@ -279,6 +289,13 @@ export function TripsIndex() {
             </button>
           </div>
         )}
+
+        <p
+          className="mb-3 text-[12px] font-medium uppercase tracking-[0.16em] text-stone-400 empty:mb-0"
+          aria-live="polite"
+        >
+          {state.status === "success" && isRefreshing ? "Refreshing…" : ""}
+        </p>
 
         {state.status === "success" && state.trips.length === 0 && (
           <div className="relative isolate -mx-4 overflow-hidden px-4 py-10 sm:-mx-6 sm:px-6 sm:py-14">

@@ -145,3 +145,17 @@ export function ConciergeText({
     </div>
   )
 }
+
+/** Stream failures sit outside the transcript so token updates stay silent. */
+export function ConciergeStreamStatus({ error }: { error?: string }) {
+  if (!error) return null
+  return (
+    <p
+      role="status"
+      aria-live="polite"
+      className="mt-2 break-words text-[13px] leading-relaxed text-stone-600 [overflow-wrap:anywhere] dark:text-stone-300"
+    >
+      ⚠️ {error}
+    </p>
+  )
+}

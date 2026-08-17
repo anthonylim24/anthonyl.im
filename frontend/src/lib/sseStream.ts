@@ -3,10 +3,15 @@ export interface SseReadOptions {
   signal?: AbortSignal;
 }
 
+export interface SseReadResult {
+  /** True only when the server sent a `data: [DONE]` terminator. */
+  completed: boolean;
+}
+
 export async function readSseStream(
   body: ReadableStream<Uint8Array>,
   opts: SseReadOptions,
-): Promise<void> {
+): Promise<SseReadResult> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
@@ -35,13 +40,12 @@ export async function readSseStream(
       const lines = buffer.split('\n');
       buffer = lines.pop() ?? '';
       for (const line of lines) {
-        if (processLine(line)) return;
+        if (processLine(line)) return { completed: true };
       }
     }
     // Flush trailing buffered line
-    if (buffer.trim()) {
-      processLine(buffer);
-    }
+    if (buffer.trim() && processLine(buffer)) return { completed: true };
+    return { completed: false };
   } finally {
     reader.releaseLock();
   }

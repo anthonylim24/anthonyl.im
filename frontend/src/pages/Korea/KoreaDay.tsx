@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react"
+import { lazy, Suspense, useEffect, useMemo, useState, useTransition } from "react"
+import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { ArrowUpRight, Globe2, MapPin } from "lucide-react"
@@ -12,8 +13,8 @@ import { LinkifiedText } from "./LinkifiedText"
 import { makeKstDate, slugify, todayKstIso } from "./koreaUtils"
 import { SmartEntity } from "./SmartEntity"
 import { useScrollReveal, REVEAL_CLASSES } from "./_motion/scrollReveal"
-import { apiFetch } from "@/lib/apiBase"
 import { clerkEnabled, useGetToken } from "@/lib/safeAuth"
+import { fetchDayPlaces } from "./dayPlacesApi"
 import type { IgSave } from "./mapModeTypes"
 
 const MapModeOverlay = lazy(() =>
@@ -23,26 +24,25 @@ const MapModeOverlay = lazy(() =>
 /** Fetches IG saves for this day from the same /api/korea/day/:slug/places endpoint. */
 function useDayIgSaves(slug: string | undefined): IgSave[] {
   const getToken = useGetToken()
+  const readToken = useLatestCallback(getToken)
   const [igSaves, setIgSaves] = useState<IgSave[]>([])
+  const [, startTransition] = useTransition()
 
   useEffect(() => {
     if (!slug || !clerkEnabled) return
     let cancelled = false
     void (async () => {
       try {
-        const token = await getToken()
+        const token = await readToken()
         if (!token) return
-        const headers: Record<string, string> = { Authorization: `Bearer ${token}` }
-        const r = await apiFetch(`/api/korea/day/${encodeURIComponent(slug)}/places`, { headers })
-        if (!r.ok || cancelled) return
-        const data = await r.json() as { igSaves?: IgSave[] }
-        if (!cancelled) setIgSaves(data.igSaves ?? [])
+        const data = await fetchDayPlaces(readToken, `/api/korea/day/${encodeURIComponent(slug)}/places`)
+        if (!cancelled) startTransition(() => setIgSaves(data.igSaves ?? []))
       } catch {
         // Non-fatal — day page works without IG saves
       }
     })()
     return () => { cancelled = true }
-  }, [slug, getToken])
+  }, [slug, startTransition])
 
   return igSaves
 }

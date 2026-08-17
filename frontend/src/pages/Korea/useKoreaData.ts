@@ -1,20 +1,28 @@
-import { useEffect, useRef, useState } from "react"
-import { apiFetch } from "../../lib/apiBase"
+import { useEffect, useRef, useState, useTransition } from "react"
+import { Effect } from "effect"
+import { fetchApi, parseJson } from "../../effect/http"
+import { runPromise } from "../../effect/runtime"
+import { HttpStatusError } from "../../effect/errors"
 import type { Snapshot, DayDetailResponse } from "./types"
 
-// Module-level cache so navigating /korea ↔ /korea/day/:slug doesn't re-fetch.
 let snapshotCache: Snapshot | null = null
 let snapshotPromise: Promise<Snapshot> | null = null
+
+const fetchSnapshotEffect = Effect.fn("KoreaData.fetchSnapshot")(function* () {
+  const res = yield* fetchApi("/api/korea")
+  if (!res.ok) {
+    return yield* Effect.fail(
+      new HttpStatusError({ status: res.status, message: `Korea snapshot fetch failed: ${res.status}` }),
+    )
+  }
+  return yield* parseJson<Snapshot>(res)
+})
 
 function fetchSnapshotOnce(): Promise<Snapshot> {
   if (snapshotCache) return Promise.resolve(snapshotCache)
   if (snapshotPromise) return snapshotPromise
 
-  snapshotPromise = apiFetch("/api/korea")
-    .then((res) => {
-      if (!res.ok) throw new Error(`Korea snapshot fetch failed: ${res.status}`)
-      return res.json() as Promise<Snapshot>
-    })
+  snapshotPromise = runPromise(fetchSnapshotEffect())
     .then((data) => {
       snapshotCache = data
       return data
@@ -26,9 +34,15 @@ function fetchSnapshotOnce(): Promise<Snapshot> {
   return snapshotPromise
 }
 
-// Module-level cache for day detail responses — prevents re-fetching (and
-// skeleton flashes) when navigating back to a previously loaded day page.
 const dayCache = new Map<string, DayDetailResponse>()
+
+const fetchDayEffect = Effect.fn("KoreaData.fetchDay")(function* (slug: string) {
+  const res = yield* fetchApi(`/api/korea/day/${encodeURIComponent(slug)}`)
+  if (!res.ok) {
+    return yield* Effect.fail(new HttpStatusError({ status: res.status, message: `Day fetch failed: ${res.status}` }))
+  }
+  return yield* parseJson<DayDetailResponse>(res)
+})
 
 function getInitialDayState(slug: string | undefined): LoadState<DayDetailResponse> {
   if (slug && dayCache.has(slug)) {
@@ -48,6 +62,7 @@ export function useKoreaSnapshot(): LoadState<Snapshot> {
       ? { status: "success", data: snapshotCache, error: null }
       : { status: "loading", data: null, error: null },
   )
+  const [, startTransition] = useTransition()
 
   useEffect(() => {
     if (snapshotCache) return
@@ -55,7 +70,7 @@ export function useKoreaSnapshot(): LoadState<Snapshot> {
     let cancelled = false
     fetchSnapshotOnce()
       .then((data) => {
-        if (!cancelled) setState({ status: "success", data, error: null })
+        if (!cancelled) startTransition(() => setState({ status: "success", data, error: null }))
       })
       .catch((error: Error) => {
         if (!cancelled) setState({ status: "error", data: null, error })
@@ -64,17 +79,15 @@ export function useKoreaSnapshot(): LoadState<Snapshot> {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [startTransition])
 
   return state
 }
 
 export function useKoreaDay(slug: string | undefined): LoadState<DayDetailResponse> {
   const [state, setState] = useState<LoadState<DayDetailResponse>>(() => getInitialDayState(slug))
-  // Track which slug the committed state belongs to so we can return a
-  // synchronous cache derivation in the brief window between a slug change
-  // and the effect running (avoids stale-previous-day content flash).
   const stateSlugRef = useRef(slug)
+  const [, startTransition] = useTransition()
 
   useEffect(() => {
     if (!slug) return
@@ -88,14 +101,10 @@ export function useKoreaDay(slug: string | undefined): LoadState<DayDetailRespon
     let cancelled = false
     setState({ status: "loading", data: null, error: null })
 
-    apiFetch(`/api/korea/day/${encodeURIComponent(slug)}`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`Day fetch failed: ${res.status}`)
-        return res.json() as Promise<DayDetailResponse>
-      })
+    void runPromise(fetchDayEffect(slug))
       .then((data) => {
         dayCache.set(slug, data)
-        if (!cancelled) setState({ status: "success", data, error: null })
+        if (!cancelled) startTransition(() => setState({ status: "success", data, error: null }))
       })
       .catch((error: Error) => {
         if (!cancelled) setState({ status: "error", data: null, error })
@@ -104,10 +113,8 @@ export function useKoreaDay(slug: string | undefined): LoadState<DayDetailRespon
     return () => {
       cancelled = true
     }
-  }, [slug])
+  }, [slug, startTransition])
 
-  // Slug changed but effect hasn't run yet — derive synchronously from cache
-  // so we don't briefly flash the previous day's content.
   if (stateSlugRef.current !== slug) {
     return getInitialDayState(slug)
   }
