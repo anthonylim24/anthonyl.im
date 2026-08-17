@@ -1,5 +1,7 @@
 # Breathwork App Redesign - Implementation Plan
 
+> **Status:** SUPERSEDED by `frontend/src/breathflow/` rebuild. · Do not execute this plan. Historical artifact. Current behavior: `CLAUDE.md` and the live code.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Redesign the breathwork app with a premium dark-first aesthetic, fluid orb animation, XP/level gamification, achievement badges, and comprehensive test coverage.

@@ -1,3 +1,5 @@
+> **Status:** Last written 2026-05-14. Predates the `frontend/src/breathflow/` rebuild. Paths like `components/breathing/`, Fluid Orb, JetBrains Mono, and `<StatNumeral />` as a through-line may be stale. Current BreathFlow: `frontend/src/breathflow/` (`OrbVisualization`, `useGlassOrb`, Geist/Fragment Mono in `index.html`). Treat [`PRODUCT.md`](../PRODUCT.md) + breathflow code as source of truth; use this file for still-valid aesthetic direction (apothecary notebook, no glass on BreathFlow chrome, brass/ink restraint).
+
 # BreathFlow — Interface Design System
 
 > The hub of design decisions for the BreathFlow app. CLAUDE.md holds the brand context and audit; this file holds the *interface-design* commitments — what to build, what to refuse.

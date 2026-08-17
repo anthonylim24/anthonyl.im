@@ -1,5 +1,7 @@
 # Trips App UI Redesign Plan
 
+> **Status:** COMPLETED 2026-08-12 (WS1–WS9). Editor split into `frontend/src/pages/Trips/editor/`. Also see TripChat, TripIngest. · Do not execute this plan. Historical artifact. Current behavior: `CLAUDE.md` and the live code.
+
 Holistic UI analysis and redesign plan for the multi-trip travel planner (`/trips/*`), produced with the impeccable skill (product register) on a live run of the app. This document is the handoff artifact for implementation agents: every workstream is self-contained, has explicit file targets, exact changes, and acceptance criteria.
 
 **How this was produced.** Three independent inputs, synthesized:

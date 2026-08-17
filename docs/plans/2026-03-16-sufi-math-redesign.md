@@ -1,5 +1,7 @@
 # Sufi-Mathematical Theme Redesign
 
+> **Status:** SUPERSEDED by `frontend/src/breathflow/` rebuild. · Do not execute this plan. Historical artifact. Current behavior: `CLAUDE.md` and the live code.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Replace the current zinc/indigo theme with a monochromatic, Sufi-mathematical aesthetic inspired by Second Nature — warm parchment canvas, Cormorant Garamond + Inter typography, concentric ring geometry replacing the fluid orb, and technique differentiation through geometry instead of color.

@@ -31,6 +31,10 @@ merge to main → .github/workflows/deploy.yml
         └─ smoke: /health JSON + SPA shells (/ /chatbot /breathwork /korea /trips)
 ```
 
+`pr.yml` also triggers on `merge_group` (merge queue).
+
+`pr-cloud-setup` runs both `.codex/cloud-setup.test.sh` and `.claude/cloud/cloud-setup.test.sh`.
+
 Branch protection config: `.github/branch-protection.json` (`contexts` + GitHub Actions `checks`: `pr-gate`, `enforce_admins: true`).
 
 `pr-gate` **must not** use `needs:`. A `needs:` aggregate is not registered as a check-run until every sibling finishes, so Cursor / `gh pr checks` see a green rollup and squash-merge fails with "required status checks have not completed yet". The job polls siblings instead, and also posts a commit status on the PR head SHA so the combined Statuses API is not stuck `pending` with zero contexts.

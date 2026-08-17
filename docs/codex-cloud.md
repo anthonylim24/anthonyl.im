@@ -77,3 +77,7 @@ bash .codex/check.sh
 ```
 
 It runs server tests with safe stub env and then the frontend TypeScript check.
+
+## Claude Code cloud
+
+Setup/verify are `bash .claude/cloud/setup.sh` and `bash .claude/cloud/verify.sh` (wrappers around `.codex/*`). See [`.claude/cloud/README.md`](../.claude/cloud/README.md).

@@ -1,5 +1,7 @@
 # OAuth Profiles Design
 
+> **Status:** COMPLETED (`useCloudSync` + `CloudSync`). · Do not execute this plan. Historical artifact. Current behavior: `CLAUDE.md` and the live code.
+
 Google OAuth via Clerk, user profiles, and Supabase persistence for the Breathwork app.
 
 ## Requirements
