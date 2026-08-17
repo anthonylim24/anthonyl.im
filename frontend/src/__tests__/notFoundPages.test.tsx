@@ -3,7 +3,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 import { SiteNotFound } from '../pages/SiteNotFound'
 import { KoreaNotFound } from '../pages/Korea/KoreaNotFound'
-import { TripsNotFound } from '../pages/Trips/TripsNotFound'
+import { isMissingTripError, TripsNotFound } from '../pages/Trips/TripsNotFound'
 
 describe('not-found pages', () => {
   it('offers a way back from unknown site routes', () => {
@@ -38,5 +38,10 @@ describe('not-found pages', () => {
       screen.getByRole('heading', { name: 'This page is not on the itinerary.' }),
     ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'All trips' })).toHaveAttribute('href', '/trips')
+  })
+
+  it('treats API trip-not-found as a missing document, not a network failure', () => {
+    expect(isMissingTripError('trip not found')).toBe(true)
+    expect(isMissingTripError('HTTP 502')).toBe(false)
   })
 })

@@ -102,8 +102,7 @@ export function TripsLayout() {
               </Link>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2">
-              {/* The toggle is a 32px control owned by the Korea app; `trip-tap-44`
-                  grows its hit area rather than forking the component. */}
+              {/* ThemeToggle is already 44×44; keep the trip-tap wrapper for header rhythm. */}
               <span className="trip-tap-44 inline-flex">
                 <ThemeToggle />
               </span>

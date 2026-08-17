@@ -19,6 +19,7 @@ import {
   wrapAnywhereClass,
 } from "./ui"
 import { formatTripDate, resolveAccent } from "./theme"
+import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import { AppearancePanel } from "./editor/AppearancePanel"
 import { DayCard } from "./editor/DayCard"
 import { DayNavigation } from "./editor/DayNavigation"
@@ -499,6 +500,7 @@ export function TripDetail() {
   }
 
   if (state.status === "error" || !trip) {
+    if (state.status === "error" && isMissingTripError(state.message)) return <TripsNotFound />
     return (
       <div className={PAGE}>
         <div className={alertErrorClass} role="alert">

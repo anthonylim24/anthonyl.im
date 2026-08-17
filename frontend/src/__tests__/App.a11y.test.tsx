@@ -19,7 +19,8 @@ describe('chatbot accessibility', () => {
       'href',
       '#chat-main',
     )
-    expect(screen.getByRole('log')).toHaveAttribute('id', 'chat-main')
+    expect(screen.getByRole('main')).toHaveAttribute('id', 'chat-main')
+    expect(screen.getByRole('log')).toBeInTheDocument()
     expect(screen.getByLabelText('Ask about Anthony')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Switch to dark mode' })).toHaveAttribute(
       'aria-pressed',

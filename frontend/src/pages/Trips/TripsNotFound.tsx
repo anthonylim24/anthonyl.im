@@ -1,6 +1,11 @@
 import { Link } from "react-router-dom"
 import { mutedInkClass, secondaryBtnClass, SERIF } from "./ui"
 
+/** `/:tripId` matches first, so unknown ids never hit the splat 404. */
+export function isMissingTripError(message: string): boolean {
+  return /trip not found/i.test(message)
+}
+
 /** Unknown /trips/* routes: stay inside the planner shell. */
 export function TripsNotFound() {
   return (

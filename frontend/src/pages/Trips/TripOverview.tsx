@@ -17,6 +17,7 @@ import { DossierSectionHeader } from "./components/DossierSectionHeader"
 import { ItemIcon } from "./components/ItemIcon"
 import { StatusChip } from "./components/StatusChip"
 import type { ItineraryItem, Trip, TripDay } from "./types"
+import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import {
   EASE,
   REVEAL_DURATION,
@@ -59,6 +60,7 @@ export function TripOverview() {
   }
 
   if (state.status === "error") {
+    if (isMissingTripError(state.message)) return <TripsNotFound />
     return (
       <div className={gutterClass}>
         <div className={alertErrorClass} role="alert">

@@ -306,13 +306,14 @@ function App() {
           onScroll={handleScroll}
           className="px-6"
           style={scrollAreaStyle}
-          role="log"
-          aria-live="polite"
-          aria-relevant="additions"
-          aria-busy={isStreaming}
         >
-          {hasMessages ? (
-            <>
+          <div
+            role="log"
+            aria-live="polite"
+            aria-relevant="additions"
+            aria-busy={isStreaming}
+          >
+            {hasMessages ? (
               <div className="space-y-5 py-2">
                 {visibleMessages.map((message, index) => {
                   const isUser = message.role === "user";
@@ -339,22 +340,22 @@ function App() {
                     </div>
                   );
                 })}
+                {/* Scroll anchor */}
+                <div className="h-4" />
               </div>
-              {/* Scroll anchor */}
-              <div className="h-4" />
-            </>
-          ) : (
-            <div
-              className="col-fade-in stagger-2 py-4 sm:py-10"
-              style={{ display: "flex", flexDirection: "column", justifyContent: "center", height: "100%" }}
-            >
-              <h2 className="font-mono font-normal leading-[1.5] chat-text transition-colors duration-700 text-base sm:text-lg">
-                Ask me anything about Anthony&apos;s
-                <br />
-                experience, skills, and background.
-              </h2>
-            </div>
-          )}
+            ) : (
+              <div
+                className="col-fade-in stagger-2 py-4 sm:py-10"
+                style={{ display: "flex", flexDirection: "column", justifyContent: "center", height: "100%" }}
+              >
+                <h2 className="font-mono font-normal leading-[1.5] chat-text transition-colors duration-700 text-base sm:text-lg">
+                  Ask me anything about Anthony&apos;s
+                  <br />
+                  experience, skills, and background.
+                </h2>
+              </div>
+            )}
+          </div>
         </main>
 
         {/* Scroll-to-bottom FAB */}
