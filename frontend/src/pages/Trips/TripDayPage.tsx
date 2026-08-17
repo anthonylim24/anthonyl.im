@@ -6,6 +6,7 @@ import { useGetToken } from "@/lib/safeAuth"
 import { EntityIndexProvider } from "../Korea/entityIndex"
 import { LinkifiedText } from "../Korea/LinkifiedText"
 import { useLoadedTrip } from "./useLoadedTrip"
+import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import { ACCENT, calloutTone, formatTripDate, resolveAccent, todayIsoIn } from "./theme"
 import { useAnchorHighlight, useAnchorTarget } from "./anchors"
 import { DossierSectionHeader } from "./components/DossierSectionHeader"
@@ -108,6 +109,7 @@ export function TripDayPage() {
   }
 
   if (state.status === "error") {
+    if (isMissingTripError(state.message)) return <TripsNotFound />
     return (
       <div className={PAGE}>
         <div className={alertErrorClass} role="alert">

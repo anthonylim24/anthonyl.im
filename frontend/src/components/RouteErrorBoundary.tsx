@@ -12,7 +12,7 @@ interface State {
 
 const appCopy: Record<Props['app'], { heading: string; accent: string }> = {
   chatbot: {
-    heading: 'Something went wrong loading the chat.',
+    heading: 'The chat did not load.',
     accent: 'text-stone-900 dark:text-stone-100',
   },
   breathwork: {

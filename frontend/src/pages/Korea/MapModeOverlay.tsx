@@ -59,6 +59,11 @@ const controlBtn =
 
 const easeOutExpo = [0.16, 1, 0.3, 1] as const
 
+function initialMapView(): "orb" | "list" {
+  if (typeof window === "undefined") return "orb"
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "list" : "orb"
+}
+
 export function MapModeOverlay({
   daySlug,
   dayTitle,
@@ -113,7 +118,7 @@ export function MapModeOverlay({
     () => new Set(["scheduled", "core"]),
   )
   const [enabledBusyness, setEnabledBusyness] = useState<Set<BusynessLevel>>(() => new Set())
-  const [viewMode, setViewMode] = useState<"orb" | "list">("orb")
+  const [viewMode, setViewMode] = useState<"orb" | "list">(initialMapView)
   const [birdsEye, setBirdsEye] = useState(false)
   const sceneContainerRef = useRef<HTMLDivElement>(null)
   const yawRef = useRef<number>(0)

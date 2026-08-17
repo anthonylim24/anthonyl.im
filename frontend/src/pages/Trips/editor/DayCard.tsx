@@ -1,4 +1,4 @@
-import { memo, useCallback, useState } from "react"
+import { lazy, memo, Suspense, useCallback, useState } from "react"
 import { AnimatePresence } from "motion/react"
 import { ChevronDown, Map as MapIcon, Plus, Trash2 } from "lucide-react"
 import { ACCENT, formatTripDate } from "../theme"
@@ -20,8 +20,9 @@ import { EnhanceButton } from "./EnhanceButton"
 import { IconButton } from "./IconButton"
 import { ItemRow } from "./ItemRow"
 import { SuggestionsPanel } from "./SuggestionsPanel"
-import { TripIngest } from "../TripIngest"
 import type { DayOption } from "./editorUi"
+
+const TripIngest = lazy(() => import("../TripIngest").then((m) => ({ default: m.TripIngest })))
 
 const ADD_KINDS: Array<{ kind: ItemKind; label: string }> = [
   { kind: "place", label: "Place" },
@@ -342,7 +343,17 @@ export const DayCard = memo(function DayCard({
         </div>
       )}
 
-      {editable && <TripIngest trip={trip} dayId={day.id} locked={locked} onDaysChange={onChange} />}
+      {editable && (
+        <Suspense
+          fallback={
+            <div role="status" aria-label="Loading Instagram importer" className={`mt-2 text-xs ${mutedInkClass}`}>
+              Loading Instagram importer…
+            </div>
+          }
+        >
+          <TripIngest trip={trip} dayId={day.id} locked={locked} onDaysChange={onChange} />
+        </Suspense>
+      )}
     </section>
   )
 })

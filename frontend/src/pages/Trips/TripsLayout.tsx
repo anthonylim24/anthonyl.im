@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, type ReactNode } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
 import { ArrowLeft, Compass, Lock } from "lucide-react"
-import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/clerk-react"
+import { SignedIn, SignedOut, SignInButton, UserButton, useAuth } from "@clerk/clerk-react"
 import { CLERK_ENABLED } from "@/lib/clerk"
 import { ThemeToggle } from "../Korea/ThemeToggle"
 import { applyTheme, getInitialTheme } from "../Korea/koreaUtils"
@@ -15,6 +15,22 @@ const DEV_BEARER: string | null =
 function TripsAuthGate({ children }: { children: ReactNode }) {
   if (DEV_BEARER) return <>{children}</>
   if (!CLERK_ENABLED) return <>{children}</>
+  return <ClerkTripsGate>{children}</ClerkTripsGate>
+}
+
+function ClerkTripsGate({ children }: { children: ReactNode }) {
+  const { isLoaded } = useAuth()
+  if (!isLoaded) {
+    return (
+      <div
+        className="flex min-h-[70dvh] items-center justify-center px-5 py-16 text-stone-500 dark:text-stone-400"
+        role="status"
+        aria-label="Checking sign-in"
+      >
+        <span className="text-sm">Loading…</span>
+      </div>
+    )
+  }
   return (
     <>
       <SignedIn>{children}</SignedIn>
@@ -86,8 +102,7 @@ export function TripsLayout() {
               </Link>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2">
-              {/* The toggle is a 32px control owned by the Korea app; `trip-tap-44`
-                  grows its hit area rather than forking the component. */}
+              {/* ThemeToggle is already 44×44; keep the trip-tap wrapper for header rhythm. */}
               <span className="trip-tap-44 inline-flex">
                 <ThemeToggle />
               </span>
@@ -97,7 +112,11 @@ export function TripsLayout() {
         </header>
         {/* Unconstrained so trip-scoped pages can bleed their hero gradient to
             the viewport edge; each routed page owns its own gutters. */}
-        <main id="trips-main" className={chatPad ? "px-0 pb-28" : "px-0 pb-10 sm:pb-14"}>
+        <main
+          id="trips-main"
+          tabIndex={-1}
+          className={`${chatPad ? "px-0 pb-28" : "px-0 pb-10 sm:pb-14"} outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--trips-accent)]`}
+        >
           <Outlet />
         </main>
         <Suspense fallback={null}>

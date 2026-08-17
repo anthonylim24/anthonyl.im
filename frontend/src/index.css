@@ -360,6 +360,15 @@ html:has(.chatbot-dark) {
 }
 .animate-pulse { animation: pulse 2s ease-in-out infinite; }
 
+.cv-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 14rem;
+}
+.cv-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 4.5rem;
+}
+
 @keyframes shimmer {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }

@@ -71,6 +71,8 @@ export function ConciergePhotoThumb({
         <img
           src={url}
           alt=""
+          loading="lazy"
+          decoding="async"
           className="h-full w-full object-cover"
           onError={() => setFailed(true)}
         />
@@ -192,7 +194,7 @@ export function ConciergePhotoViewer({
         {status === "loading" ? (
           <p className="text-sm text-stone-400">Looking up a photo…</p>
         ) : url ? (
-          <img src={url} alt={name} className="max-h-full max-w-full object-contain" />
+          <img src={url} alt={name} decoding="async" className="max-h-full max-w-full object-contain" />
         ) : (
           <p className="max-w-xs text-center text-sm text-stone-400">
             No photo found for {name}. Try Maps for a street view.

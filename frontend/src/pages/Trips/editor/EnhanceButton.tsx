@@ -157,7 +157,7 @@ export function EnhanceButton({
     update()
     const raf = requestAnimationFrame(update)
     window.addEventListener("resize", update)
-    window.addEventListener("scroll", update, true)
+    window.addEventListener("scroll", update, { capture: true, passive: true })
     return () => {
       cancelAnimationFrame(raf)
       window.removeEventListener("resize", update)
@@ -174,7 +174,7 @@ export function EnhanceButton({
     }
     update()
     vv.addEventListener("resize", update)
-    vv.addEventListener("scroll", update)
+    vv.addEventListener("scroll", update, { passive: true })
     return () => {
       vv.removeEventListener("resize", update)
       vv.removeEventListener("scroll", update)

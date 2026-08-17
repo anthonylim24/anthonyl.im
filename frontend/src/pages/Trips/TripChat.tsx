@@ -248,7 +248,7 @@ export function TripChat() {
     }
     update()
     vv.addEventListener("resize", update)
-    vv.addEventListener("scroll", update)
+    vv.addEventListener("scroll", update, { passive: true })
     return () => {
       vv.removeEventListener("resize", update)
       vv.removeEventListener("scroll", update)

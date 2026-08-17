@@ -65,7 +65,7 @@ export function HistoryList({ sessions }: HistoryListProps) {
           const protocol = getProtocol(session.techniqueId)
           const moodShift = formatMoodShift(session.moodBefore, session.moodAfter)
           return (
-            <li key={session.id} className="flex items-center gap-3 py-2.5">
+            <li key={session.id} className="cv-row flex items-center gap-3 py-2.5">
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-bw">
                   {protocol.name}

@@ -32,6 +32,7 @@ import { getProtocol, isAdvancedProtocol, PROTOCOLS } from '../protocols/catalog
 import {
   clampRounds,
   getMaxRounds,
+  getPhaseSecondsForRound,
   plannedSessionSeconds,
   type CustomPhaseDurations,
 } from '../protocols/cadence'
@@ -110,7 +111,9 @@ export function SessionPage() {
         case 'start':
           playCue('start', audio)
           vibrate('success', haptics)
-          setAnnouncement(`${protocol.name} started. Round 1 of ${rounds}. ${PHASE_LABELS[protocol.phases[0].phase]}.`)
+          setAnnouncement(
+            `${protocol.name} started. Round 1 of ${rounds}. ${PHASE_LABELS[protocol.phases[0].phase]} for ${formatPhaseSeconds(getPhaseSecondsForRound(protocol, protocol.phases[0].phase, 0, customDurations))}.`,
+          )
           break
         case 'restart':
           playCue('start', audio)
@@ -120,8 +123,9 @@ export function SessionPage() {
         case 'phase': {
           playCue(event.phase, audio)
           const cue = getCoachingCue(protocol.id, event.phase)
+          const seconds = getPhaseSecondsForRound(protocol, event.phase, event.roundIndex, customDurations)
           setAnnouncement(
-            `Round ${event.roundIndex + 1} of ${rounds}. ${PHASE_LABELS[event.phase]}. ${cue}`,
+            `Round ${event.roundIndex + 1} of ${rounds}. ${PHASE_LABELS[event.phase]} for ${formatPhaseSeconds(seconds)}. ${cue}`,
           )
           break
         }
@@ -771,6 +775,10 @@ function ActiveSession({
       </motion.div>
     </motion.div>
   )
+}
+
+function formatPhaseSeconds(seconds: number): string {
+  return seconds === 1 ? '1 second' : `${seconds} seconds`
 }
 
 function DetailsChevron() {

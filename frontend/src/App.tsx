@@ -79,6 +79,7 @@ function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [replyStatus, setReplyStatus] = useState("");
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [shadowMode, setShadowMode] = useState(true);
 
@@ -190,6 +191,7 @@ function App() {
       setMessages((prev) => [...prev, userMsg, asstMsg]);
       void (async () => {
         setIsStreaming(true);
+        setReplyStatus("Assistant is writing.");
         try {
           await invokeDeepseek(text, history, (content) => {
             setMessages((prev) => {
@@ -202,7 +204,8 @@ function App() {
           });
         } catch (err) {
           console.error(err);
-          const fallback = errorMessage(err) || "I apologize, but something went wrong. Please try again.";
+          setReplyStatus("The reply didn't come through. Try again.");
+          const fallback = errorMessage(err) || "The reply didn't come through. Try again.";
           const partial = err instanceof TimeoutError ? err.partialContent : undefined;
           setMessages((prev) => {
             const last = prev[prev.length - 1];
@@ -215,6 +218,9 @@ function App() {
           });
         } finally {
           setIsStreaming(false);
+          setReplyStatus((current) =>
+            current === "The reply didn't come through. Try again." ? current : "Reply received.",
+          );
         }
       })();
     },
@@ -240,6 +246,12 @@ function App() {
 
   return (
     <div className={cn("font-mono transition-colors duration-700", themeClass)} style={rootStyle}>
+      <a
+        href="#chat-main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:inline-flex focus:min-h-11 focus:items-center focus:rounded-md focus:bg-[var(--chat-accent)] focus:px-4 focus:text-sm focus:font-medium focus:text-[var(--chat-bg)]"
+      >
+        Skip to conversation
+      </a>
       {/* Viewport-sized wrapper + object-fit media. Putting leaves-overlay
           on the video itself keeps the intrinsic box (width/height:auto),
           so the leaves sit in a corner instead of covering every viewport. */}
@@ -294,10 +306,23 @@ function App() {
         </header>
 
         {/* ── Scrollable area — THE scroll container ── */}
-        <div ref={scrollAreaRef} onScroll={handleScroll} className="px-6" style={scrollAreaStyle}>
-          {hasMessages ? (
-            <>
-              <div className="space-y-5 py-2" aria-busy={isStreaming}>
+        <main
+          id="chat-main"
+          tabIndex={-1}
+          ref={scrollAreaRef}
+          onScroll={handleScroll}
+          className="px-6 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-accent)]"
+          style={scrollAreaStyle}
+        >
+          <div
+            role="log"
+            aria-label="Conversation"
+            aria-live="polite"
+            aria-relevant="additions"
+            aria-busy={isStreaming}
+          >
+            {hasMessages ? (
+              <div className="space-y-5 py-2">
                 {visibleMessages.map((message, index) => {
                   const isUser = message.role === "user";
                   const isLastAssistant = !isUser && index === visibleMessages.length - 1;
@@ -323,23 +348,26 @@ function App() {
                     </div>
                   );
                 })}
+                {/* Scroll anchor */}
+                <div className="h-4" />
               </div>
-              {/* Scroll anchor */}
-              <div className="h-4" />
-            </>
-          ) : (
-            <div
-              className="col-fade-in stagger-2 py-4 sm:py-10"
-              style={{ display: "flex", flexDirection: "column", justifyContent: "center", height: "100%" }}
-            >
-              <h2 className="font-mono font-normal leading-[1.5] chat-text transition-colors duration-700 text-base sm:text-lg">
-                Ask me anything about Anthony&apos;s
-                <br />
-                experience, skills, and background.
-              </h2>
-            </div>
-          )}
-        </div>
+            ) : (
+              <div
+                className="col-fade-in stagger-2 py-4 sm:py-10"
+                style={{ display: "flex", flexDirection: "column", justifyContent: "center", height: "100%" }}
+              >
+                <h2 className="font-mono font-normal leading-[1.5] chat-text transition-colors duration-700 text-base sm:text-lg">
+                  Ask me anything about Anthony&apos;s
+                  <br />
+                  experience, skills, and background.
+                </h2>
+              </div>
+            )}
+          </div>
+          <div className="sr-only" role="status" aria-live="polite">
+            {replyStatus}
+          </div>
+        </main>
 
         {/* Scroll-to-bottom FAB */}
         {showScrollButton && (
@@ -349,7 +377,7 @@ function App() {
                 shouldAutoScroll.current = true;
                 scrollToBottom();
               }}
-              className="absolute bottom-2 right-6 p-2 transition-all duration-300 animate-scale-in chat-scroll-btn"
+              className="absolute bottom-2 right-6 inline-flex min-h-11 min-w-11 items-center justify-center p-2 transition-all duration-300 animate-scale-in chat-scroll-btn"
               aria-label="Scroll to bottom"
             >
               <ChevronDown className="w-4 h-4" />
@@ -366,7 +394,7 @@ function App() {
                   key={q}
                   onClick={() => handleSubmit(undefined, q)}
                   disabled={isLoading}
-                  className="chat-suggestion text-left text-[12px] font-mono leading-[1.6] px-3 py-2.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="chat-suggestion min-h-11 text-left text-[12px] font-mono leading-[1.6] px-3 py-2.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {q}
                 </button>
@@ -392,7 +420,7 @@ function App() {
                     key={q}
                     onClick={() => handleSubmit(undefined, q)}
                     disabled={isLoading}
-                    className="chat-suggestion text-[11px] font-mono transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="chat-suggestion inline-flex min-h-11 items-center text-[11px] font-mono transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{ flexShrink: 0, scrollSnapAlign: "start", padding: "0.375rem 0.75rem" }}
                   >
                     {q}
@@ -404,7 +432,11 @@ function App() {
 
           <form onSubmit={handleSubmit} aria-busy={isStreaming}>
             <div className="chat-input-box flex items-end gap-3 px-3 py-2 transition-all duration-700">
+              <label htmlFor="chat-input" className="sr-only">
+                Ask about Anthony
+              </label>
               <textarea
+                id="chat-input"
                 ref={inputRef}
                 value={input}
                 onChange={handleInputChange}
@@ -430,9 +462,12 @@ function App() {
               Powered by AI · Responses may be inaccurate
             </p>
             <button
+              type="button"
               onClick={() => setShadowMode((p) => !p)}
-              className="chat-mid text-[10px] font-mono tracking-[0.04em] uppercase transition-colors duration-300 opacity-50 hover:opacity-100"
+              className="chat-mid inline-flex min-h-11 min-w-11 items-center justify-center text-[10px] font-mono tracking-[0.04em] uppercase transition-colors duration-300 opacity-50 hover:opacity-100"
               title={shadowMode ? "Press S for dark mode" : "Press S for shadow mode"}
+              aria-label={shadowMode ? "Switch to dark mode" : "Switch to shadow mode"}
+              aria-pressed={shadowMode}
             >
               [{shadowMode ? "S:on" : "S"}]
             </button>
@@ -447,7 +482,12 @@ function App() {
 
 function TypingIndicator() {
   return (
-    <div className="flex items-center gap-1.5 py-1 px-1">
+    <div
+      className="flex items-center gap-1.5 py-1 px-1"
+      role="status"
+      aria-live="polite"
+      aria-label="Assistant is typing"
+    >
       {TYPING_DELAYS.map((delay, i) => (
         <span
           key={i}

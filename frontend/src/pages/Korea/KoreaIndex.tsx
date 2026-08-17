@@ -411,12 +411,12 @@ function KoreaError({ message }: { message: string }) {
       <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-rose-600 dark:text-rose-400">
         Couldn't load the itinerary
       </p>
-      <h2
+      <h1
         className="mt-3 font-serif text-3xl font-medium leading-tight text-stone-900 dark:text-stone-100"
         style={{ fontFamily: "'Cormorant Garamond', serif" }}
       >
-        Something went sideways.
-      </h2>
+        The itinerary did not load.
+      </h1>
       <p className="mt-2 max-w-prose text-sm text-stone-600 dark:text-stone-400">{message}</p>
       <button
         type="button"

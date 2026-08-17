@@ -1445,7 +1445,7 @@ function IngestImpl() {
             )}
           </div>
 
-          <label className="mt-3 inline-flex min-h-[36px] cursor-pointer items-center gap-2 text-[12px] text-stone-600 dark:text-stone-400">
+          <label className="mt-3 inline-flex min-h-11 cursor-pointer items-center gap-2 text-[12px] text-stone-600 dark:text-stone-400">
             <input
               type="checkbox"
               checked={skipVideo}
