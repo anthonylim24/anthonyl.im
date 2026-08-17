@@ -112,7 +112,11 @@ export function TripsLayout() {
         </header>
         {/* Unconstrained so trip-scoped pages can bleed their hero gradient to
             the viewport edge; each routed page owns its own gutters. */}
-        <main id="trips-main" className={chatPad ? "px-0 pb-28" : "px-0 pb-10 sm:pb-14"}>
+        <main
+          id="trips-main"
+          tabIndex={-1}
+          className={`${chatPad ? "px-0 pb-28" : "px-0 pb-10 sm:pb-14"} outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--trips-accent)]`}
+        >
           <Outlet />
         </main>
         <Suspense fallback={null}>

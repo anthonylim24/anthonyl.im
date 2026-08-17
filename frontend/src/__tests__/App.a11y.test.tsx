@@ -20,7 +20,10 @@ describe('chatbot accessibility', () => {
       '#chat-main',
     )
     expect(screen.getByRole('main')).toHaveAttribute('id', 'chat-main')
-    expect(screen.getByRole('log')).toBeInTheDocument()
+    expect(screen.getByRole('main')).toHaveAttribute('tabindex', '-1')
+    const log = screen.getByRole('log', { name: 'Conversation' })
+    expect(log).toHaveAttribute('aria-live', 'polite')
+    expect(log).toHaveAttribute('aria-relevant', 'additions')
     expect(screen.getByLabelText('Ask about Anthony')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Switch to dark mode' })).toHaveAttribute(
       'aria-pressed',

@@ -43,7 +43,7 @@ export function KoreaLayout() {
           </a>
           {state.status === "success" && <DayTreeNav days={state.data.days} />}
 
-          <main id="korea-main" className="pb-20">
+          <main id="korea-main" tabIndex={-1} className="pb-20 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60">
             {/* Local Suspense boundary keeps lazy Korea pages from bubbling up
                 to the outer BreathworkShellFallback. React Router's startTransition
                 means the old page stays visible during transitions; null fallback

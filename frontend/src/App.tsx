@@ -79,6 +79,7 @@ function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [replyStatus, setReplyStatus] = useState("");
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [shadowMode, setShadowMode] = useState(true);
 
@@ -190,6 +191,7 @@ function App() {
       setMessages((prev) => [...prev, userMsg, asstMsg]);
       void (async () => {
         setIsStreaming(true);
+        setReplyStatus("Assistant is writing.");
         try {
           await invokeDeepseek(text, history, (content) => {
             setMessages((prev) => {
@@ -202,6 +204,7 @@ function App() {
           });
         } catch (err) {
           console.error(err);
+          setReplyStatus("The reply didn't come through. Try again.");
           const fallback = errorMessage(err) || "The reply didn't come through. Try again.";
           const partial = err instanceof TimeoutError ? err.partialContent : undefined;
           setMessages((prev) => {
@@ -215,6 +218,9 @@ function App() {
           });
         } finally {
           setIsStreaming(false);
+          setReplyStatus((current) =>
+            current === "The reply didn't come through. Try again." ? current : "Reply received.",
+          );
         }
       })();
     },
@@ -242,7 +248,7 @@ function App() {
     <div className={cn("font-mono transition-colors duration-700", themeClass)} style={rootStyle}>
       <a
         href="#chat-main"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:inline-flex focus:min-h-11 focus:items-center focus:rounded-md focus:bg-[#B8860B] focus:px-4 focus:text-sm focus:font-medium focus:text-[#FFFEFA]"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:inline-flex focus:min-h-11 focus:items-center focus:rounded-md focus:bg-[var(--chat-accent)] focus:px-4 focus:text-sm focus:font-medium focus:text-[var(--chat-bg)]"
       >
         Skip to conversation
       </a>
@@ -302,13 +308,15 @@ function App() {
         {/* ── Scrollable area — THE scroll container ── */}
         <main
           id="chat-main"
+          tabIndex={-1}
           ref={scrollAreaRef}
           onScroll={handleScroll}
-          className="px-6"
+          className="px-6 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-accent)]"
           style={scrollAreaStyle}
         >
           <div
             role="log"
+            aria-label="Conversation"
             aria-live="polite"
             aria-relevant="additions"
             aria-busy={isStreaming}
@@ -355,6 +363,9 @@ function App() {
                 </h2>
               </div>
             )}
+          </div>
+          <div className="sr-only" role="status" aria-live="polite">
+            {replyStatus}
           </div>
         </main>
 

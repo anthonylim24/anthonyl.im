@@ -344,7 +344,13 @@ export const DayCard = memo(function DayCard({
       )}
 
       {editable && (
-        <Suspense fallback={null}>
+        <Suspense
+          fallback={
+            <div role="status" aria-label="Loading Instagram importer" className={`mt-2 text-xs ${mutedInkClass}`}>
+              Loading Instagram importer…
+            </div>
+          }
+        >
           <TripIngest trip={trip} dayId={day.id} locked={locked} onDaysChange={onChange} />
         </Suspense>
       )}
