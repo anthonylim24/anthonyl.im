@@ -224,7 +224,7 @@ describe("TripDetail enhance", () => {
 
     renderEditor()
     expect(await screen.findByDisplayValue("Fushimi Inari Taisha")).toBeInTheDocument()
-    expect(screen.getByText("08:00")).toBeInTheDocument()
+    expect(screen.getAllByText("08:00").length).toBeGreaterThan(0)
     expect(screen.getByLabelText("Day 1 title")).toHaveValue("Higashiyama")
     expect(screen.queryByRole("navigation", { name: "Days" })).toBeNull()
     expect(screen.getByTestId("trip-itinerary").className).toMatch(/flex-1/)

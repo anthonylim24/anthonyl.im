@@ -73,7 +73,7 @@ describe("itemToReservation", () => {
       id: "r2",
       title: "Mystery",
       links: ["https://example.com/book"],
-      reservation: { type: "spaceship", status: "maybe" } as ItineraryItem["reservation"],
+      reservation: { type: "spaceship", status: "maybe" } as unknown as ItineraryItem["reservation"],
     })
     const card = itemToReservation(item, day, 1)
     expect(card?.type).toBe("experience")

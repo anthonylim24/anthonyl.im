@@ -431,7 +431,7 @@ export function TripDayPage() {
           </section>
         )}
 
-        {/* Forward first on phones — the thumb reaches the top row, and the
+        {/* Forward first on phones: the thumb reaches the top row, and the
             next day is what an in-trip reader wants. */}
         <nav
           className="mt-12 grid grid-cols-1 gap-1 border-t border-stone-200/80 pt-6 sm:grid-cols-2 sm:gap-6 dark:border-stone-800/80"
