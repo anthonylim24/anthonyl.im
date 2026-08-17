@@ -270,8 +270,7 @@ Routes are lazy-loaded inside `Guarded` (`RouteErrorBoundary` + `Suspense`). All
 | `/trips/new` | Trip planner — create (blank or AI starter) | Clerk-gated |
 | `/trips/:tripId` | Trip planner — dossier-style overview (Korea seed is `korea-2026`) | Clerk-gated |
 | `/trips/:tripId/day/:dayId` | Trip planner — dossier day page + Map Mode | Clerk-gated |
-| `/trips/:tripId/edit` | Redirect into the living document (`/trips/:tripId`) | Clerk-gated |
-| `/trips/:tripId/places` | Places list for a trip | Clerk-gated |
+| `/trips/:tripId/edit` | Trip planner — itinerary editor (appearance, AI enhance, IG ingest) | Clerk-gated |
 
 Not separate routes: `TripChat` FAB (overview + day), `TripIngest` (embedded in the editor). `KoreaChat` remains the `/api/korea/chat` client (trips concierge fallback). Do not add destination-specific routes.
 
