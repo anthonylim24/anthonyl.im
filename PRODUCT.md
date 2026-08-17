@@ -1,6 +1,10 @@
 # anthonyl.im — Impeccable Design Context
 
-This repo hosts three distinct experiences under one shell: a personal AI chatbot, the **BreathFlow** wellness app, and the **Korea Trip** itinerary app. Each has its own visual identity; all share the underlying craft principles below.
+This repo hosts four experiences under one Vite SPA: a personal AI chatbot (`/`), **BreathFlow** (`/breathwork`), the **Korea** itinerary (`/korea`), and a generic **trip planner** (`/trips`). Each has its own visual identity; all share the craft principles below.
+
+Frontend network I/O uses **Effect v3** — do not add raw `fetch` for `/api`. Engineering: [`CLAUDE.md`](CLAUDE.md). Skills: [`.agents/skills/README.md`](.agents/skills/README.md).
+
+**Register (Impeccable):** chatbot = personal brand surface; BreathFlow / Korea / Trips = product UIs. Infer the register from the route before applying craft rules.
 
 ## Shared Design Principles (apply to every route)
 
@@ -22,10 +26,11 @@ This repo hosts three distinct experiences under one shell: a personal AI chatbo
 ## Shared Tech Stack
 
 - React 19 + TypeScript + Vite 8
-- Tailwind CSS 4.2 + shadcn/ui (Radix primitives)
-- Zustand (state), Motion (animation), Lucide (icons)
-- Bun + Hono (server), Clerk (auth), Supabase (sync), PostHog (analytics)
-- Three.js (Korea Map Mode only)
+- Tailwind CSS 4.3 + shadcn/ui (Radix primitives)
+- Zustand (BreathFlow persisted state), Motion 13, Lucide (intentional — keep)
+- Effect v3 for frontend I/O
+- Bun + Hono (server), Clerk (`@clerk/clerk-react`), Supabase, PostHog
+- Three.js for Map Mode (Korea **and** Trips)
 
 ## Shared Tokens
 
@@ -72,6 +77,8 @@ Visitors who land on `anthonyl.im` directly. Recruiters, prospective collaborato
 ---
 
 ## Design Context: `/breathwork/*` — BreathFlow
+
+Code: `frontend/src/breathflow/`. Session orb is `OrbVisualization` / `useGlassOrb`. Surrounding chrome stays matte — no glassmorphism stacking. Inter + Cormorant + Lucide are intentional.
 
 ### Users
 Wellness enthusiasts and people seeking anxiety / stress relief. They open BreathFlow when they need to decompress, build a daily breathing habit, or access structured breathwork techniques backed by science. The context is often evening wind-down, pre-performance calm, or mid-day stress breaks — moments that demand a UI that feels immediately calming upon launch.
@@ -168,6 +175,29 @@ Anthony (primary) and his partner, while planning + executing a 12-day Seoul + B
 - **`<DayCard>`** + **`<DayTreeNav>`** (Korea) — city-tinted gradients, spring entry, today-detection ring.
 - **`<MapModeScene>`** (Korea) — Three.js orbital scene with the conventions above. CSS YOU pin anchors center.
 - **`<KstClock>`** (Korea) — live Asia/Seoul time pill in the tree nav.
+
+---
+
+## Design Context: `/trips/*` — Generic Trip Planner
+
+### Users
+The same travelers as Korea, plus future trips. Phone for in-trip lookups; desktop for planning, AI enhance, and concierge chat.
+
+### Brand Personality
+**Same cinematic dossier language as Korea**, parameterized by a per-trip accent (`data-trip-accent` → `--trips-accent`). Not a SaaS admin table.
+
+### Aesthetic Direction
+- Reuse Korea's parchment, bloom, Map Mode glass orbs, and editorial type.
+- Accent is trip-owned — do not invent a second chrome color.
+- Overview (`/trips/:tripId`) is a read-only dossier. Editor is `/trips/:tripId/edit`. Concierge FAB on overview + day, not create/edit.
+- Instagram ingest is embedded in the editor, not a standalone route.
+
+### Trips-specific Principles
+
+1. **Do not add `/japan`-style destination routes.** Extend the trips system.
+2. AI-added places must carry structured locations — never prose only.
+3. Map Mode uses the Korea `PlacesResponse` / `RankedPlace` shape and **must unmount** when closed.
+4. Inter + Cormorant + Lucide stay. Glass orbs are required in Map Mode only.
 
 ## Service Worker / Caching Contract
 

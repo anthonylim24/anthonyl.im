@@ -1,6 +1,6 @@
 # anthonyl.im
 
-This repo hosts three distinct experiences under one shell: a personal AI chatbot, the **BreathFlow** wellness app, and the **Korea Trip** itinerary app. Each has its own visual identity; all share the underlying craft principles below.
+This repo hosts four experiences under one Vite SPA: a personal AI chatbot (`/`), **BreathFlow** (`/breathwork`), the **Korea** itinerary (`/korea`), and a generic **trip planner** (`/trips`). Design principles live in [`AGENTS.md`](AGENTS.md) and [`PRODUCT.md`](PRODUCT.md). Skill catalog: [`.agents/skills/README.md`](.agents/skills/README.md).
 
 ---
 
@@ -8,70 +8,60 @@ This repo hosts three distinct experiences under one shell: a personal AI chatbo
 
 ```
 anthonyl.im/
-├── frontend/          # React 19 + TypeScript SPA (Vite 8)
+├── frontend/                    # React 19 + TypeScript SPA (Vite 8)
 │   ├── src/
-│   │   ├── App.tsx              # AI chatbot interface (SSE streaming)
-│   │   ├── AppRoutes.tsx        # React Router v7 route tree
-│   │   ├── main.tsx             # Entry point — Clerk provider + SW registration
-│   │   ├── components/
-│   │   │   ├── breathing/       # Session visualizations (orb, timer, phases)
-│   │   │   ├── gamification/    # XP / badges / streaks UI
-│   │   │   ├── layout/          # BreathworkLayout, Header, Navigation, CloudSync
-│   │   │   ├── tracking/        # SessionHistory, ProgressChart, PersonalBests
-│   │   │   └── ui/              # Radix primitives + custom shadcn/ui
-│   │   ├── effect/              # Effect-TS HTTP/SSE/runtime — all frontend I/O
-│   │   ├── hooks/               # useBreathingCycle, useWebGLOrb, useReducedMotion, …
-│   │   ├── lib/                 # breathingProtocols, gamification, apiService, …
+│   │   ├── App.tsx              # Homepage chatbot (SSE via lib/apiService.ts)
+│   │   ├── AppRoutes.tsx        # React Router v7 tree — Guarded + lazy
+│   │   ├── main.tsx             # Clerk provider + SW registration
+│   │   ├── breathflow/          # Entire BreathFlow app
+│   │   │   ├── pages/           # HomePage, SessionPage, ProgressPage, SettingsPage, BreathflowLayout
+│   │   │   ├── engine/          # useSessionEngine (ephemeral session — not Zustand)
+│   │   │   ├── protocols/       # Technique catalog + cadence
+│   │   │   ├── gamify/          # XP, badges, levels
+│   │   │   ├── components/      # OrbVisualization, useGlassOrb, LiveAnnouncer, …
+│   │   │   ├── motion/ platform/ safety/ session/ recommend/
 │   │   ├── pages/
-│   │   │   ├── Home.tsx         # BreathFlow home + protocol picker
-│   │   │   ├── Session.tsx      # Active session controller
-│   │   │   ├── Progress.tsx     # Charts + session history
-│   │   │   ├── Settings.tsx     # Theme, sound, haptics, data export
-│   │   │   └── Korea/           # Korea itinerary system (see below)
-│   │   ├── stores/              # Zustand: sessionStore, settingsStore, gamificationStore, historyStore
-│   │   └── index.css            # Global styles + design tokens (Tailwind v4)
+│   │   │   ├── Korea/           # Legacy Korea dossier + shared Map Mode
+│   │   │   └── Trips/           # Generic trip planner + concierge
+│   │   ├── effect/              # Effect-TS HTTP/SSE/runtime
+│   │   ├── components/          # Shared: ui/*, CloudSync, RouteErrorBoundary
+│   │   ├── hooks/               # useReducedMotion, useLatestCallback, useCloudSync
+│   │   ├── lib/                 # apiBase, apiService, safeAuth, clerk, concierge*, externalMaps
+│   │   ├── stores/              # Zustand: settingsStore, gamificationStore, historyStore
+│   │   └── index.css            # Tokens (chatbot / breathwork / korea / trips)
 │   ├── public/
-│   │   ├── sw.js                # Service worker (cache-first + stale-while-revalidate)
-│   │   ├── site.webmanifest     # Default PWA manifest
-│   │   └── korea.webmanifest    # Korea PWA manifest
-│   ├── index.html               # SPA shell — dynamic OG tags / favicon / manifest swap per route
-│   ├── vite.config.ts           # Chunk splitting: three, tiles3d, react-vendor, motion, supabase, …
-│   └── tailwind.config.js       # Custom bw-* tokens + shadcn/ui HSL variables
+│   │   ├── sw.js                # CACHE_VERSION = korea-offline-v*
+│   │   ├── robots.txt           # Allow / ; Disallow /preview/
+│   │   ├── site.webmanifest     # BreathFlow (start_url /breathwork)
+│   │   └── korea.webmanifest    # Installable PWA (start_url /korea)
+│   ├── vite.config.ts           # advancedChunks: three, tiles3d, effect, markdown, …
+│   └── index.html               # Per-route OG / favicon / manifest swap
 ├── server/
-│   ├── app.ts                   # Hono server: static serving, SPA fallback, OG-tag injection
+│   ├── app.ts                   # Hono: static, SPA fallback, OG tags, preview mount
 │   └── src/
-│       ├── config.ts            # Env-var schema (throws on missing required keys)
+│       ├── config.ts            # Env schema
 │       ├── routes/
-│       │   ├── invoke.ts        # POST /api/invoke — LLM SSE streaming (Deepseek via Kluster)
-│       │   ├── korea.ts         # GET /api/korea/* — itinerary endpoints
-│       │   ├── koreaPlaces.ts   # GET /api/korea/places/*
-│       │   ├── entity.ts        # GET /api/entity/:id
-│       │   └── instagramPlaces.ts  # Instagram extraction worker queue API
-│       ├── igPlaces/            # Instagram → place extraction pipeline
-│       │   ├── worker.ts        # Job orchestration
-│       │   ├── fetchPost.ts     # Bright Data API
-│       │   ├── extractFrames.ts # ffmpeg frame extraction
-│       │   ├── transcribe.ts    # Groq Whisper (Gemini fallback)
-│       │   ├── extractPlaces.ts # Gemini Vision place detection
-│       │   ├── geocode.ts       # Google Maps geocoding
-│       │   └── savePlaces.ts    # Supabase write
-│       ├── data/
-│       │   ├── koreaPlaces.ts   # Hard-coded itinerary place data
-│       │   └── koreaSnapshot.ts # Static data snapshot
-│       └── middleware/
-│           ├── clerkAuth.ts     # Clerk JWT verification
-│           └── error.ts         # Error handler
-├── supabase/
-│   └── schema.sql               # Database schema
-├── .github/workflows/deploy.yml # Deploy on merge (atomic swap + smoke)
-├── .github/workflows/pr.yml     # PR gate → pr-gate aggregate check
-├── .github/workflows/preview.yml # Remote PR frontend + API previews (not a merge gate)
-├── .github/actions/setup-ci/    # Shared Bun + node_modules cache action
-├── docs/ci-cd.md                # CI/CD agent memory (read before changing CI)
-├── docs/pr-previews.md          # Remote PR preview URLs + agent screenshot flow
-├── .agents/memory/ci-cd.md      # Short pointer to docs/ci-cd.md
-├── index.ts                     # Root Bun entry point (wraps server/app.ts)
-└── package.json                 # Root workspace (Hono, Clerk, Groq, OpenAI, Zod)
+│       │   ├── invoke.ts        # POST /api/invoke — chatbot SSE
+│       │   ├── korea.ts         # GET /api/korea/* snapshot
+│       │   ├── koreaChat.ts     # POST /api/korea/chat — concierge SSE
+│       │   ├── koreaPlaces.ts   # day places / dongs / entities
+│       │   ├── entity.ts        # POST /api/entity/about
+│       │   ├── trips.ts         # /api/trips/* (Clerk required)
+│       │   ├── instagramPlaces.ts
+│       │   └── agentSession.ts  # POST /api/agent/session
+│       ├── trips/               # Domain, store, AI, chat, korea seed, place catalog
+│       ├── igPlaces/            # Bright Data + Gemini Instagram pipeline
+│       ├── gemini*.ts           # Shared Gemini stream/tools/grounding
+│       ├── preview*.ts          # PR preview router + sidecar
+│       └── middleware/          # clerkAuth, rateLimit, error
+├── scripts/                     # wait-for-preview.ts, clerk-agent-login.ts
+├── docs/ci-cd.md
+├── docs/pr-previews.md
+├── .agents/skills/README.md     # Skill catalog for this repo
+├── .codex/                      # Codex cloud setup/check/dev
+├── .claude/cloud/               # Claude wrappers around .codex
+├── index.ts
+└── package.json
 ```
 
 ### Multi-Trip Travel Planner (`/trips`, `server/src/trips/`)
@@ -87,9 +77,11 @@ env is missing).
 | Domain model + Zod schemas | `server/src/trips/types.ts` | Shared shape mirrored in `frontend/src/pages/Trips/types.ts` |
 | Store | `server/src/trips/store.ts` | `getTripStore()`: Supabase or memory |
 | Korea migration | `server/src/trips/koreaTrip.ts` | Pure `buildKoreaTrip()` from `koreaSnapshot`/`koreaPlaces`; seeded on first `/api/trips` request as trip `korea-2026` (shared with all signed-in users, not deletable) |
-| AI generation/enhancement | `server/src/trips/ai.ts` | Groq JSON-mode (same pattern as `entity.ts`); Google geocoding for AI places missing coords; Open-Meteo weather + deterministic travel-leg pre-pass feed the enhancement prompt; suggestions are reviewable before apply |
-| Router | `server/src/routes/trips.ts` | `createTripsRouter(deps)` — store/auth/LLM injected for tests. CRUD, `/generate`, `/enhance`, `/enhancements/:runId/apply`, `/days/:dayId/places` |
-| Frontend | `frontend/src/pages/Trips/` | `TripsIndex`, `TripCreate`, `TripDetail` (editor + enhancement review), pure `tripEdits.ts` helpers |
+| AI generation/enhancement | `server/src/trips/ai.ts` | Gemini primary, Groq fallback; Google geocoding for AI places missing coords; Open-Meteo weather + travel-leg pre-pass; suggestions reviewable before apply (enhance can auto-apply places) |
+| Concierge | `server/src/trips/chat.ts` | `POST /api/trips/:id/chat` SSE (Gemini Search + Maps grounding). Korea seed can fall back to `/api/korea/chat` |
+| Place catalog | `server/src/trips/placeCatalog.ts` | `GET /api/trips/places-catalog` |
+| Router | `server/src/routes/trips.ts` | `createTripsRouter(deps)` — Clerk required. CRUD, `/generate`, `/enhance`, `/enhancements/:runId/apply`, `/chat`, `/days/:dayId/places` |
+| Frontend | `frontend/src/pages/Trips/` | `TripsIndex`, `TripCreate`, **`TripOverview`** (`/:tripId` dossier), **`TripDetail`** (`/:tripId/edit` editor), `TripDayPage` + Map Mode, `TripChat` FAB (overview + day), `TripIngest` (editor-embedded), `ExtractedPlacesLibrary`, `tripEdits.ts` |
 
 **Map Mode contract:** `GET /api/trips/:id/days/:dayId/places` emits the same
 `PlacesResponse`/`RankedPlace` shape as the legacy Korea endpoint, so
@@ -108,11 +100,12 @@ destination-specific routes or logic.
 
 | File | Purpose |
 |------|---------|
-| `KoreaLayout.tsx` | Shell with auth gate, theme toggle, KST clock |
+| `KoreaLayout.tsx` | Shell with auth gate, theme toggle, KST clock; mounts `KoreaChat` |
 | `KoreaIndex.tsx` | Trip hero, day list, Map Mode entry |
 | `KoreaDay.tsx` | Day detail — reservations, places, timeline |
+| `KoreaChat.tsx` | Concierge SSE (`POST /api/korea/chat`) |
 | `MapModeScene.tsx` | Three.js 3D orbital scene |
-| `MapModeOverlay.tsx` | Overlay UI: YOU pin, filter bar, compass |
+| `MapModeOverlay.tsx` | Shared overlay (Korea + Trips via `placesUrl`) |
 | `PlaceDetailSheet.tsx` | Slide-up detail panel for a place |
 | `Places.tsx` | Full places list with skeleton loaders |
 | `Ingest.tsx` | Instagram URL ingestion UI |
@@ -165,10 +158,12 @@ Read the matching skill before writing code. Effect I/O rules win when they conf
 
 | Skill | When |
 |-------|------|
-| [`.claude/skills/effect-ts/SKILL.md`](.claude/skills/effect-ts/SKILL.md) (mirrored at `.agents/skills/effect-ts/SKILL.md`) | Any frontend `/api`, SSE, or third-party HTTP. Required. |
-| `vercel-react-best-practices` | React 19 render and bundle performance |
+| [`.agents/skills/effect-ts/SKILL.md`](.agents/skills/effect-ts/SKILL.md) | Any frontend `/api`, SSE, or third-party HTTP. Required. |
+| `vercel-react-best-practices` | React 19 render/bundle. Vite `React.lazy` + Hono, not Next.js. |
+| `impeccable` | Design / critique. Reads `PRODUCT.md`. |
+| `clerk` + `clerk-react-patterns` | Clerk auth (`@clerk/clerk-react` ^5). See `.agents/memory/clerk.md`. |
 
-Short pointer: [`.agents/memory/effect-ts.md`](.agents/memory/effect-ts.md).
+Catalog (what to ignore): [`.agents/skills/README.md`](.agents/skills/README.md). Short pointers: [`.agents/memory/effect-ts.md`](.agents/memory/effect-ts.md), [`.agents/memory/clerk.md`](.agents/memory/clerk.md).
 
 ---
 
@@ -251,7 +246,7 @@ Two regressions surfaced in May 2026 that the verify gate now catches:
 
 ## Routing
 
-Routes are lazy-loaded. All three apps share the same SPA entry point (`index.html`), with the server injecting per-route OG tags / favicon / manifest at request time.
+Routes are lazy-loaded inside `Guarded` (`RouteErrorBoundary` + `Suspense`). All four apps share `index.html`; the server injects per-route OG tags / favicon / manifest. Basename comes from `lib/routerBasename.ts` (PR preview support).
 
 | Path | App | Auth |
 |------|-----|------|
@@ -261,6 +256,7 @@ Routes are lazy-loaded. All three apps share the same SPA entry point (`index.ht
 | `/breathwork/session` | BreathFlow session | Public |
 | `/breathwork/progress` | BreathFlow progress | Public |
 | `/breathwork/settings` | BreathFlow settings | Public |
+| `/breathwork/*` | BreathFlow `NotFoundPage` | Public |
 | `/korea` | Korea index | Clerk-gated |
 | `/korea/day/:slug` | Day detail | Clerk-gated |
 | `/korea/places` | Places list | Clerk-gated |
@@ -269,7 +265,9 @@ Routes are lazy-loaded. All three apps share the same SPA entry point (`index.ht
 | `/trips/new` | Trip planner — create (blank or AI starter) | Clerk-gated |
 | `/trips/:tripId` | Trip planner — dossier-style overview (Korea-look, accent-themed) | Clerk-gated |
 | `/trips/:tripId/day/:dayId` | Trip planner — dossier day page + Map Mode | Clerk-gated |
-| `/trips/:tripId/edit` | Trip planner — itinerary editor (appearance config, AI enhance) | Clerk-gated |
+| `/trips/:tripId/edit` | Trip planner — itinerary editor (appearance, AI enhance, IG ingest) | Clerk-gated |
+
+Not separate routes: `TripChat` FAB (overview + day), `TripIngest` (embedded in editor `DayCard`), `KoreaChat` (every Korea page).
 
 ---
 
@@ -282,29 +280,43 @@ All stores use **Zustand v5**. Persisted stores write to `localStorage` under th
 | `settingsStore` | `breathwork-settings` | theme, sound, haptics |
 | `gamificationStore` | `breathwork-gamification` | XP, badges, streaks |
 | `historyStore` | `breathwork-session-history` | session log |
-| `sessionStore` | — (ephemeral) | active breath phase/round |
 
-Cloud sync (Supabase) is managed by `useCloudSync` + `CloudSync` component — authenticated users sync settings and history.
+Active breath session is **not** Zustand — `frontend/src/breathflow/engine/useSessionEngine.ts` (React state).
+
+Cloud sync (Supabase) is managed by `useCloudSync` + `CloudSync` — authenticated users sync settings and history. Keep those on Promise/Supabase, not Effect.
 
 ---
 
 ## Environment Variables
 
-Backend requires (server throws on startup if missing):
-- `KLUSTER_API_KEY` + `KLUSTER_API_BASE_URL` — LLM provider (Deepseek)
-- `CLERK_SECRET_KEY` — Clerk JWT verification
-- `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` — database
-- `GOOGLE_MAPS_API_KEY` — geocoding
-- `BRIGHT_DATA_*` — Instagram post fetching
-- `GROQ_API_KEY` — Whisper transcription
-- `GEMINI_API_KEY` — Vision extraction
+Always required at server boot (`config.ts` throws):
+- `KLUSTER_API_KEY` + `KLUSTER_API_BASE_URL` — homepage chatbot LLM (Deepseek via Kluster)
 
-Frontend (set in `frontend/.env` from CI secret `FRONTEND_ENV`):
+Required when the IG worker is enabled (warns if missing):
+- `BRIGHT_DATA_API_KEY` — Instagram post metadata
+- `GOOGLE_MAPS_API_KEY` — geocoding
+- `GROQ_API_KEY` — Whisper + extractor fallback
+- `CLERK_SECRET_KEY` — JWT verification
+- `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`
+
+Optional / feature-gated:
+- `GEMINI_API_KEY` — primary IG video/place extraction + trip/Korea concierge grounding
+- `CEREBRAS_API_KEY` — Groq 429 fallback
+- `GOOGLE_VISION_API_KEY` — defaults to Maps key
+- `KAKAO_REST_API_KEY` — Korea geocode assist
+- `NOTION_TOKEN` — optional live Korea snapshot fetch
+- `AGENT_LOGIN_SECRET`, `CLERK_AGENT_USER_ID` / `CLERK_AGENT_USER_EMAIL`, `AGENT_GITHUB_REPO` — preview screenshot login
+- `IG_WORKER_*`, `IG_DEV_BEARER` / `VITE_DEV_BEARER` — local Clerk bypass only; **never** in production or PR previews
+
+Frontend (`frontend/.env` from CI secret `FRONTEND_ENV`):
 - `VITE_CLERK_PUBLISHABLE_KEY`
 - `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`
 - `VITE_POSTHOG_KEY`
+- `VITE_GOOGLE_PLACES_API_KEY`, `VITE_GOOGLE_MAP_TILES_API_KEY` — Map Mode photos / 3D tiles
+- `VITE_ENABLE_SERVICE_WORKER` — preview builds disable registration
+- `VITE_API_BASE` / `VITE_BASE` — preview builds only
 
-See `frontend/.env.example` and `server/src/config.ts` for the full list.
+See `frontend/.env.example` and `server/src/config.ts`.
 
 ---
 
@@ -337,13 +349,15 @@ Full CI/CD agent memory: [`docs/ci-cd.md`](docs/ci-cd.md).
 | `three` | three.js + loaders + OrbitControls | ~600 KB; only loaded in Map Mode |
 | `tiles3d` | 3d-tiles-renderer | Only loaded in Detailed-3D debug mode |
 | `react-vendor` | react + react-dom + scheduler | Stable cache |
-| `motion` | motion/framer-motion | Used by both Places and MapMode — split prevents Places from pulling in three.js |
+| `motion` | motion/framer-motion | Used by Places and MapMode — split prevents Places from pulling in three.js |
+| `effect` | effect + `@effect/*` | Frontend I/O runtime |
 | `supabase` | @supabase/* | Auth + sync |
 | `router` | react-router | Routing |
 | `radix` | @radix-ui/* | UI primitives |
 | `state` | zustand | State |
 | `icons` | lucide-react | Icons |
-| `korea-map` | Korea MapMode source | 3D scene code |
+| `markdown` | react-markdown + remark | Chatbot + trip concierge |
+| `korea-map` | Korea MapMode source | 3D scene (also used by Trips via `MapModeOverlay`) |
 
 Chunk size warning ceiling is 720 KB (intentional — the `three` chunk is large but lazily loaded and cached by SW).
 
@@ -368,21 +382,22 @@ Chunk size warning ceiling is 720 KB (intentional — the `three` chunk is large
 
 ## Shared Tech Stack
 
-- React 19 + TypeScript 6 + Vite 8
-- Tailwind CSS 4.2 + shadcn/ui (Radix primitives)
-- Zustand v5 (state), Motion v12 (animation), Lucide v1 (icons)
+- React 19 + Vite 8 + React Router v7 (`react-router-dom` SPA, not SSR)
+- TypeScript: frontend lint `~6.0`; frontend/root **build** `~7.0` via `typescript7`
+- Tailwind CSS 4.3 + shadcn/ui (Radix primitives)
+- Zustand v5 (BreathFlow persisted stores), Motion 13, Lucide
 - Effect v3 (`effect`, `@effect/language-service`) for frontend I/O — see [Frontend Effect-TS](#frontend-effect-ts)
-- Bun + Hono (server), Clerk (auth), Supabase (sync), PostHog (analytics)
-- Three.js (Korea Map Mode only)
+- Bun + Hono (server), Clerk (`@clerk/clerk-react` ^5), Supabase, PostHog
+- Three.js for Map Mode (Korea **and** Trips)
 
 ## Frontend Effect-TS
 
-All new frontend network I/O is Effect. Skill: [`.claude/skills/effect-ts/SKILL.md`](.claude/skills/effect-ts/SKILL.md) (mirrored at `.agents/skills/effect-ts/SKILL.md`). Stay on **stable Effect v3**, not v4 beta.
+All new frontend network I/O is Effect. Skill: [`.agents/skills/effect-ts/SKILL.md`](.agents/skills/effect-ts/SKILL.md). Stay on **stable Effect v3**, not v4 beta.
 
 | Piece | Location |
 |-------|----------|
-| Tagged errors | `frontend/src/effect/errors.ts` |
-| HTTP (`fetchApi`, `fetchExternal`, `requestJson`, `readAuthToken`) | `frontend/src/effect/http.ts` |
+| Tagged errors (`errorMessage`) | `frontend/src/effect/errors.ts` |
+| HTTP (`fetchApi`, `fetchExternal`, `requestJson`, `readAuthToken`, `bearerHeaders`, `sleep`) | `frontend/src/effect/http.ts` |
 | SSE | `frontend/src/effect/sse.ts` |
 | `runPromise` unwrap | `frontend/src/effect/runtime.ts` |
 | Chat error remap | `frontend/src/effect/chatErrors.ts` |
@@ -454,6 +469,8 @@ Visitors who land on `anthonyl.im` directly. Recruiters, prospective collaborato
 
 ## Design Context: `/breathwork/*` — BreathFlow
 
+Code: `frontend/src/breathflow/`. Session state is `useSessionEngine`. Orb: `OrbVisualization` / `useGlassOrb`. Chrome stays matte.
+
 ### Users
 Wellness enthusiasts and people seeking anxiety / stress relief. They open BreathFlow when they need to decompress, build a daily breathing habit, or access structured breathwork techniques backed by science. The context is often evening wind-down, pre-performance calm, or mid-day stress breaks — moments that demand a UI that feels immediately calming upon launch.
 
@@ -493,6 +510,8 @@ Wellness enthusiasts and people seeking anxiety / stress relief. They open Breat
 ---
 
 ## Design Context: `/korea/*` — Korea Trip Itinerary
+
+Legacy Clerk-gated dossier. Snapshot also seeds trip `korea-2026`. Do not add new destination-specific routes.
 
 ### Users
 Anthony (primary) and his partner, while planning + executing a 12-day Seoul + Busan trip in late May / early June 2026. Used on phones for in-trip lookups (reservations, nearby places, directions) and on desktop for planning. Authenticated behind Clerk so it's a private dossier.
@@ -539,12 +558,20 @@ Anthony (primary) and his partner, while planning + executing a 12-day Seoul + B
 - Camera radius adapts per viewport (62 → 30 from 320 px → 1440 px)
 - Reset-view crosshair button restores yaw / pitch / radius
 - WebGL fallback: styled list view with the same filter chip bar + photo thumbnails
+- Shared by Trips via `placesUrl` — **unmount** when closed (no React `Activity`)
+- Concierge chips may open Google/Apple Maps (`lib/externalMaps.ts`); in-app Map Mode stays for day/editor views
+
+---
+
+## Design Context: `/trips/*` — Generic Trip Planner
+
+Korea-look dossier, parameterized by `data-trip-accent` (`frontend/src/pages/Trips/theme.ts` + `.trips` tokens in `index.css`). Overview is `/trips/:tripId` (`TripOverview`); editor is `/trips/:tripId/edit`. Concierge FAB on overview + day only. Do not add destination-specific routes. Full design notes: [`AGENTS.md`](AGENTS.md) / [`PRODUCT.md`](PRODUCT.md).
 
 ---
 
 ## Service Worker / Caching Contract
 
-The app is a PWA. Every deploy must keep these invariants:
+The installable PWA is Korea-scoped (`korea.webmanifest`, `CACHE_VERSION = korea-offline-v*`). `robots.txt` exists. Every deploy must keep these invariants:
 
 - **`/sw.js`** served with `Cache-Control: no-cache, no-store, must-revalidate` + `Service-Worker-Allowed: /`
 - **SPA HTML** served with `no-cache, no-store, must-revalidate`
@@ -554,29 +581,29 @@ The app is a PWA. Every deploy must keep these invariants:
 
 ---
 
-## Design Audit Status (Originally March 2025)
+## Design Audit Status
+
+The March 2025 BreathFlow audit is **historical**. BreathFlow was rebuilt in `frontend/src/breathflow/`. Do not "fix" closed items or search deleted files (`FluidOrb.tsx`, `BreathingSession.tsx`, `pages/Home.tsx`, `components/breathing/`, `sessionStore`).
 
 ### Resolved
 
-- ✅ `user-scalable=no` removed — viewport meta now uses `width=device-width, initial-scale=1.0, viewport-fit=cover`
-- ✅ Light theme built — `color-scheme: light dark` in `index.css`; both light and dark token sets exist
-- ✅ `prefers-reduced-motion` hook added (`useReducedMotion.ts`); CSS media queries present in `index.css`
-- ✅ ARIA partially added to `BreathingSession.tsx` (`role="region"`, keyboard focus management)
+- ✅ `user-scalable=no` removed — `width=device-width, initial-scale=1.0, viewport-fit=cover`
+- ✅ Light + dark tokens — `color-scheme: light dark` in `index.css`
+- ✅ `prefers-reduced-motion` — shared `hooks/useReducedMotion.ts`, BreathFlow `platform/useReducedMotion.ts`, CSS queries
+- ✅ ARIA on the session path — `LiveAnnouncer`, session regions, cadence editor
+- ✅ `robots.txt` + `sitemap.xml` — `Disallow: /preview/`
+- ✅ Orb reduced-motion — `OrbVisualization` / `useGlassOrb` honor the flag
 
-### Still Open
+### Still worth watching
 
-- ❌ `robots.txt` missing — `public/robots.txt` does not exist; requests fall through to SPA
-- ❌ `ShaderOrb.tsx` / `LiquidGlassOrb.tsx` do not consume `useReducedMotion` — large continuous WebGL animation still runs for vestibular-sensitive users
-- ❌ Some inline hex colors remain in `Settings.tsx`, `BadgeGrid.tsx` — not fully tokenized
-- ❌ Touch targets on nav icons may still be below 44 px — verify after any nav changes
+- Leftover inline hex on some settings / badge surfaces
+- 44 px touch targets on compact toggles — verify after nav changes
 
-### Positive Findings (Preserve These)
+### Preserve
 
-- **Solid engineering:** Zustand stores, well-structured hooks, proper code-splitting with `lazy()`, clean TypeScript
-- **Token system infrastructure exists:** shadcn/ui HSL CSS variables + Tailwind custom tokens
-- **Safe area handling is thorough:** `env(safe-area-inset-*)`, visual viewport API for keyboard avoidance
-- **Performance-conscious:** `content-visibility: auto` on session items, GPU-accelerated transforms, RAF-based pointer tracking
-- **Good animation foundation:** Custom easing curves, spring physics, staggered reveals — technically solid
+- Zustand persisted stores + `lazy()` route splits + Effect I/O
+- Token system + safe-area handling + GPU-friendly motion
+- Map Mode unmount (never React `Activity`)
 
 ---
 
