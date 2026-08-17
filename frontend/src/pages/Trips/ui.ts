@@ -30,6 +30,9 @@ export function revealDelay(step: number): number {
  *  toast): they settle rather than slide to a stop. */
 export const ENTER_SPRING = { type: "spring", stiffness: 420, damping: 34, mass: 0.7 } as const
 
+/** Airbnb-style hover lift. Featured trip only; everything else stays 150–250ms. */
+export const LIFT_SPRING = { type: "spring", stiffness: 380, damping: 32, mass: 0.55 } as const
+
 /** Exits stay a short fade — anything longer keeps a focusable control alive
  *  in the DOM after focus has already moved on. */
 export const EXIT_FADE = { duration: 0.12, ease: EASE } as const
@@ -74,6 +77,14 @@ export function pageClass(width: keyof typeof PAGE_MAX = "wide"): string {
   return `mx-auto ${PAGE_MAX[width]} px-4 pt-6 sm:px-6 sm:pt-10`
 }
 
+/** Horizontal gutter without the page's top padding. Full-bleed heroes
+ *  sit between a `pageClass` toolbar and a guttered list. */
+export const pageGutterClass = "mx-auto max-w-6xl px-4 sm:px-6"
+
+/** Slim Linear chrome: hairline rule, parchment blur. Height lives on the inner row. */
+export const chromeHeaderClass =
+  "sticky top-0 z-30 border-b border-stone-200/45 bg-[color-mix(in_srgb,var(--trips-canvas)_90%,transparent)] backdrop-blur-md dark:border-stone-800/45"
+
 // ── Labels ───────────────────────────────────────────────────────────────
 
 export const labelClass = `block text-[11px] font-medium uppercase tracking-[0.16em] ${mutedInkClass}`
@@ -101,6 +112,9 @@ export const timeCellClass = `font-mono-trips text-[11px] tabular-nums ${mutedIn
 const ELLIPSIS = "text-ellipsis"
 
 export const inputClass = `${ELLIPSIS} w-full min-h-11 rounded-xl border border-stone-300/90 bg-[var(--trips-surface)] px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 transition focus:border-[color:var(--trips-accent)] focus:outline-none ${FOCUS} dark:border-stone-700 dark:bg-stone-900/80 dark:text-stone-100 dark:placeholder:text-stone-400`
+
+/** Notion-style document title: borderless display input, 44px target. */
+export const displayInputClass = `w-full min-h-11 bg-transparent font-display text-[clamp(1.75rem,4vw,2.75rem)] font-medium leading-[1.05] tracking-tight text-stone-900 placeholder:text-stone-400 focus:outline-none ${FOCUS} dark:text-stone-100 dark:placeholder:text-stone-500`
 
 /** Bordered control for dense editor grids — smaller than `inputClass`.
  *  Width is left to the call site so it can sit in a flex row. Keeps a full
@@ -154,6 +168,20 @@ export const alertErrorClass =
 
 export const alertNoticeClass =
   "rounded-xl border border-amber-200/80 bg-amber-50/90 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100"
+
+/** Linear segmented control track (AI vs blank, and similar pairs). */
+export const segmentTrackClass =
+  "inline-flex w-full rounded-xl border border-stone-200/80 bg-stone-100/80 p-1 dark:border-stone-800 dark:bg-stone-900/60 sm:w-auto"
+
+/** One option inside `segmentTrackClass`. Selected is a surface pill, not an accent fill.
+ *  Focus lives on the nested radio (`sr-only`), so the ring is `has-[:focus-visible]`. */
+export function segmentOptionClass(selected: boolean): string {
+  return `inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[color:var(--trips-focus)] sm:flex-none ${
+    selected
+      ? "bg-[var(--trips-surface)] text-stone-900 shadow-sm dark:bg-stone-800 dark:text-stone-100"
+      : "text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100"
+  }`
+}
 
 // ── Buttons ──────────────────────────────────────────────────────────────
 
