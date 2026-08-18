@@ -6,13 +6,19 @@ import {
   createGeminiLlm,
   createTripsLlm,
   enhanceTrip,
+  estimatePromptTokens,
   extractModelJson,
   generateItinerary,
+  groqFitsTpm,
+  groqSafeMaxTokens,
+  GROQ_DEFAULT_MAX_TOKENS,
+  GROQ_TPM_LIMIT,
   normalizeAiItem,
   normalizeTime,
   resolveEnhancementOutcome,
   salvageItinerary,
   salvageSuggestions,
+  travelerFacingLlmError,
   withLlmFallback,
 } from "./ai"
 import type { EnhancementRun, Trip } from "./types"
@@ -279,6 +285,22 @@ describe("enhanceTrip", () => {
     expect(run.status).toBe("error")
     expect(run.error).toBeTruthy()
     expect(run.outcomeReason).toMatch(/failed before/i)
+  })
+
+  test("never stores Groq TPM dumps on the run the traveler sees", async () => {
+    const groqDump =
+      '413 {"error":{"message":"Request too large for model `openai/gpt-oss-120b` in organization `org_01jjk64dq4ens807q9ak9yqwen` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Requested 9383, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing","type":"tokens","code":"rate_limit_exceeded"}}'
+    const run = await enhanceTrip({
+      trip: makeTrip(),
+      scope: "day",
+      dayId: "day-1",
+      llm: async () => {
+        throw new Error(groqDump)
+      },
+    })
+    expect(run.status).toBe("error")
+    expect(run.error).not.toMatch(/gpt-oss|console\.groq|9383|org_/)
+    expect(run.error).toMatch(/try again/i)
   })
 })
 
@@ -606,15 +628,68 @@ describe("withLlmFallback", () => {
   test("falls through to secondary when primary throws", async () => {
     const llm = withLlmFallback(
       async () => {
-        throw new Error("boom")
+        throw new Error("gemini 429: exhausted")
       },
       async () => "fallback",
     )
     expect(await llm({ system: "s", user: "u" })).toBe("fallback")
   })
 
+  test("skips Groq and rethrows the Gemini error when the prompt cannot fit Groq TPM", async () => {
+    let fallbackCalls = 0
+    const llm = withLlmFallback(
+      async () => {
+        throw new Error("gemini 503: overloaded")
+      },
+      async () => {
+        fallbackCalls += 1
+        return "fallback"
+      },
+    )
+    const huge = "x".repeat((GROQ_TPM_LIMIT + 1) * 4)
+    await expect(llm({ system: "s", user: huge })).rejects.toThrow(/gemini 503/)
+    expect(fallbackCalls).toBe(0)
+  })
+
+  test("rethrows the Gemini error when Groq also fails", async () => {
+    const llm = withLlmFallback(
+      async () => {
+        throw new Error("gemini 429: exhausted")
+      },
+      async () => {
+        throw new Error("413 groq tpm")
+      },
+    )
+    await expect(llm({ system: "s", user: "u" })).rejects.toThrow(/gemini 429/)
+  })
+
   test("createTripsLlm returns null when neither key is set", () => {
     expect(createTripsLlm({})).toBeNull()
+  })
+})
+
+describe("Groq TPM budget", () => {
+  test("caps reserved completion tokens so prompt + max_tokens stay under 8k", () => {
+    expect(groqSafeMaxTokens({ system: "s", user: "u", maxTokens: 8192 })).toBeLessThan(GROQ_TPM_LIMIT)
+    expect(groqSafeMaxTokens({ system: "s", user: "u" })).toBe(GROQ_DEFAULT_MAX_TOKENS)
+    expect(groqFitsTpm({ system: "s", user: "u" })).toBe(true)
+  })
+
+  test("rejects a prompt that cannot leave 256 completion tokens", () => {
+    const huge = "x".repeat((GROQ_TPM_LIMIT + 1) * 4)
+    expect(estimatePromptTokens("s", huge)).toBeGreaterThan(GROQ_TPM_LIMIT)
+    expect(groqFitsTpm({ system: "s", user: huge })).toBe(false)
+    expect(groqSafeMaxTokens({ system: "s", user: huge })).toBe(0)
+  })
+
+  test("travelerFacingLlmError hides Groq billing copy", () => {
+    expect(
+      travelerFacingLlmError(
+        new Error("413 Request too large for model `openai/gpt-oss-120b` Limit 8000 https://console.groq.com"),
+      ),
+    ).toMatch(/try again/i)
+    expect(travelerFacingLlmError(new Error("no JSON object found in model output"))).toMatch(/could not use/i)
+    expect(travelerFacingLlmError(new Error("day not found"))).toBe("day not found")
   })
 })
 

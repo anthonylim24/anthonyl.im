@@ -35,7 +35,40 @@ export type WeatherFetcher = (args: {
 
 const GROQ_MODEL = "openai/gpt-oss-120b"
 
+/** Groq on-demand TPM for gpt-oss-120b. The API reserves prompt + max_tokens. */
+export const GROQ_TPM_LIMIT = 8000
+const GROQ_TPM_RESERVE = 200
+/** Default completion budget. 8192 alone exceeds Groq's 8k on-demand TPM. */
+export const GROQ_DEFAULT_MAX_TOKENS = 2048
+
+const TRAVELER_REVIEW_ERROR = "The review did not finish. Try again in a moment."
+const TRAVELER_PARSE_ERROR = "The review came back in a form we could not use. Try again."
+
 const TRANSIENT_GEMINI = new Set([500, 502, 503, 504])
+
+/** Cheap char/4 estimate — enough to know whether Groq's 8k TPM can accept the call. */
+export function estimatePromptTokens(system: string, user: string): number {
+  return Math.ceil((system.length + user.length) / 4)
+}
+
+export function groqSafeMaxTokens(args: { system: string; user: string; maxTokens?: number }): number {
+  const prompt = estimatePromptTokens(args.system, args.user)
+  const budget = GROQ_TPM_LIMIT - GROQ_TPM_RESERVE - prompt
+  const wanted = args.maxTokens ?? GROQ_DEFAULT_MAX_TOKENS
+  return Math.max(0, Math.min(wanted, budget))
+}
+
+export function groqFitsTpm(args: { system: string; user: string; maxTokens?: number }): boolean {
+  return groqSafeMaxTokens(args) >= 256
+}
+
+/** Strip provider TPM / billing dumps so travelers never see Groq or Gemini internals. */
+export function travelerFacingLlmError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err)
+  if (raw === "day not found") return raw
+  if (/no JSON object found|failed validation/i.test(raw)) return TRAVELER_PARSE_ERROR
+  return TRAVELER_REVIEW_ERROR
+}
 
 /** One retry on Google's intermittent 5xx. 429 is left to the Groq fallback. */
 async function fetchGeminiWithRetry(
@@ -53,6 +86,10 @@ async function fetchGeminiWithRetry(
 export function createGroqLlm(apiKey: string): LlmCall {
   const groq = new Groq({ apiKey })
   return async ({ system, user, maxTokens }) => {
+    const max_tokens = groqSafeMaxTokens({ system, user, maxTokens })
+    if (max_tokens < 256) {
+      throw new Error("groq prompt exceeds on-demand token budget")
+    }
     // Same JSON-mode + reasoning_effort pattern as routes/entity.ts: gpt-oss
     // is a reasoning model whose thinking tokens count against max_tokens.
     const createParams: Record<string, unknown> = {
@@ -63,7 +100,7 @@ export function createGroqLlm(apiKey: string): LlmCall {
       ],
       response_format: { type: "json_object" },
       temperature: 0.5,
-      max_tokens: maxTokens ?? 8192,
+      max_tokens,
       reasoning_effort: "low",
     }
     const completion = (await groq.chat.completions.create(
@@ -148,15 +185,29 @@ export function createGeminiLlm(
   }
 }
 
-/** Try `primary`, fall through to `fallback` on any throw. */
+/**
+ * Try Gemini first. Groq is a last resort, and only when the prompt fits
+ * Groq's 8k on-demand TPM. If Groq also fails, rethrow the Gemini error so
+ * travelers are not shown a Groq 413 that replaced a useful primary failure.
+ */
 export function withLlmFallback(primary: LlmCall, fallback: LlmCall): LlmCall {
   return async (opts) => {
     try {
       return await primary(opts)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
+      if (!groqFitsTpm(opts)) {
+        console.warn(`[trips/ai] primary LLM failed; skipping Groq (prompt exceeds Groq TPM) (${msg})`)
+        throw err
+      }
       console.warn(`[trips/ai] primary LLM failed; falling back (${msg})`)
-      return fallback(opts)
+      try {
+        return await fallback(opts)
+      } catch (fallbackErr) {
+        const fallbackMsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)
+        console.warn(`[trips/ai] fallback LLM failed; surfacing primary error (${fallbackMsg})`)
+        throw err
+      }
     }
   }
 }
@@ -802,7 +853,7 @@ export async function enhanceTrip(args: {
     run.outcomeReason = resolved.outcomeReason
   } catch (err) {
     run.status = "error"
-    run.error = err instanceof Error ? err.message : String(err)
+    run.error = travelerFacingLlmError(err)
     run.outcome = "no_adds_possible"
     run.outcomeReason = "The AI review failed before it could add places."
   }
