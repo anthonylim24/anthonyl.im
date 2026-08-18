@@ -10,8 +10,8 @@ import {
   hintClass,
   inputClass,
   labelClass,
-  mutedInkClass,
   primaryBtnClass,
+  railBandClass,
   scrimClass,
   softPanelClass,
   spinnerClass,
@@ -181,7 +181,10 @@ export function EnhanceButton({
         }}
         className={`mt-1.5 ${inputClass}`}
       />
-      <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+      <p className={`mt-3 ${hintClass}`}>
+        {sheet ? "Swipe down or press Escape to close." : "⌘↵ runs the review."}
+      </p>
+      <div className={`mt-3 -mx-5 -mb-5 flex flex-wrap items-center justify-end gap-2 border-t border-[color:var(--trips-border)] px-5 py-3 ${railBandClass} rounded-t-none`}>
         <button type="button" onClick={() => close(true)} className={ghostBtnClass}>
           Cancel
         </button>
@@ -190,9 +193,6 @@ export function EnhanceButton({
           Run enhance
         </button>
       </div>
-      <p className={`mt-2 text-right ${mutedInkClass} text-xs`}>
-        {sheet ? "Swipe down or press Escape to close." : "⌘↵ runs the review."}
-      </p>
     </motion.div>
   )
 

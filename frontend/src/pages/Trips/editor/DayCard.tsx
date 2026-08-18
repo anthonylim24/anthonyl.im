@@ -192,7 +192,7 @@ export const DayCard = memo(function DayCard({
             Details
           </button>
           {detailsOpen && (
-            <fieldset disabled={locked} className="mt-3 m-0 min-w-0 space-y-3 border-t border-stone-200/70 pt-3 dark:border-stone-800">
+            <fieldset disabled={locked} className="mt-3 m-0 min-w-0 space-y-3 border-t border-[color:var(--trips-border)] pt-3">
               <label className="block">
                 <span className={labelClass}>Neighborhoods (comma-separated)</span>
                 <input

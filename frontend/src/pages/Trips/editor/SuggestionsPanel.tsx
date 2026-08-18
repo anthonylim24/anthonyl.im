@@ -12,6 +12,7 @@ import {
   mutedInkClass,
   primaryBtnClass,
   quietBtnClass,
+  scheduleRowClass,
   softPanelClass,
   wrapAnywhereClass,
 } from "../ui"
@@ -119,7 +120,7 @@ export function SuggestionsPanel({
       ) : run.suggestions.length === 0 ? null : (
         <>
           {actionableIds.length > 1 && (
-            <div className="mt-4 flex items-center justify-between gap-3 border-b border-stone-200/80 pb-2 dark:border-stone-800">
+            <div className="mt-4 flex items-center justify-between gap-3 border-b border-[color:var(--trips-border)] pb-2">
               <span className={fieldLabelClass} role="status">
                 {selected.size} of {actionableIds.length} selected
               </span>
@@ -190,7 +191,7 @@ function SuggestionItem({
   onToggle: (id: string, on: boolean) => void
 }) {
   return (
-    <li className="rounded-xl border border-stone-200/80 bg-[var(--trips-surface)] p-3 dark:border-stone-800">
+    <li className={`${scheduleRowClass} p-3`}>
       <label className="flex min-h-11 items-start gap-3">
         {selectable ? (
           <input

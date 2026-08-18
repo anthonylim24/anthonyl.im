@@ -135,9 +135,7 @@ function TripsShell({
         </a>
         <header className={chromeHeaderClass}>
           <div
-            className={`flex items-center justify-between gap-3 px-4 pt-[env(safe-area-inset-top,0px)] sm:px-6 ${
-              compact ? "h-11" : "h-14 sm:h-12"
-            }`}
+            className="flex h-[length:var(--trips-chrome-h)] items-center justify-between gap-3 px-4 pt-[env(safe-area-inset-top,0px)] sm:px-6"
           >
             <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 sm:gap-3">
               {!atIndex && (
@@ -166,13 +164,15 @@ function TripsShell({
                   </li>
                 ) : null}
               </ol>
-              <Link
-                to="/trips/new"
-                className={`hidden min-h-11 items-center gap-1.5 rounded-[length:var(--trips-radius)] px-2 text-[0.8125rem] font-medium sm:inline-flex ${mutedInkClass} hover:text-[color:var(--trips-ink)] ${focusRingClass}`}
-              >
-                <Plus className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
-                {compact ? <span className="sr-only">New trip</span> : "New trip"}
-              </Link>
+              {!compact && (
+                <Link
+                  to="/trips/new"
+                  className={`hidden min-h-11 items-center gap-1.5 rounded-[length:var(--trips-radius)] px-2 text-[0.8125rem] font-medium sm:inline-flex ${mutedInkClass} hover:text-[color:var(--trips-ink)] ${focusRingClass}`}
+                >
+                  <Plus className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
+                  New trip
+                </Link>
+              )}
             </nav>
             <div className="flex items-center gap-1.5 sm:gap-2">
               <span className="trip-tap-44 inline-flex">

@@ -14,7 +14,7 @@ colors:
   trips-accent: "oklch(36% 0.07 148)"
   trips-accent-hover: "oklch(28% 0.064 148)"
   trips-focus: "oklch(36% 0.07 148 / 0.45)"
-  trips-scrim: "oklch(22% 0.028 140 / 0.52)"
+  trips-scrim: "oklch(16% 0.028 140 / 0.78)"
   trips-canvas-dark: "oklch(16.4% 0.024 148)"
   trips-surface-dark: "oklch(20.2% 0.022 148)"
   trips-rail-dark: "oklch(18.4% 0.024 148)"
@@ -241,7 +241,7 @@ Timetable parts, not SaaS primitives. Compose from `frontend/src/pages/Trips/ui.
 - **Style:** recessed rail well, hairline `{colors.trips-border}`, inset shadow, 44px target. Display title on the band is borderless Archivo Narrow.
 
 ### Enhance dialog
-Chevron disclosure opens a modal (centered on desktop, sheet on phones). Always an opaque `{colors.trips-surface}` panel on `{colors.trips-scrim}` + light blur. Title **Focus this review**. Actions: Cancel and **Run enhance**. The split button’s primary side still runs a full pass immediately.
+Chevron disclosure opens a modal (centered on desktop, sheet on phones). Always an opaque `{colors.trips-surface}` panel on a heavy `{colors.trips-scrim}` wash plus blur. Title **Focus this review**. Actions sit on a recessed rail: Cancel and filled **Run enhance**. The split button’s primary side still runs a full pass immediately.
 - **Focus:** accent border + `{colors.trips-focus}` ring.
 - **Error / Disabled:** destructive red fill for errors; 50% opacity when disabled. Viewers get static text, not disabled inputs.
 
@@ -249,10 +249,10 @@ Chevron disclosure opens a modal (centered on desktop, sheet on phones). Always 
 Slim top chrome, breadcrumb “Trips / {slug}”. Index heading “Trips”. Snap rail is the day nav. No Linear workspace rail. Concierge FAB only on `/trips/:id` and `/trips/:id/day/:dayId`.
 
 ### Cover band
-Full-bleed `{colors.trips-band}`. Status line, condensed title, destinations · dates, next time in Display, then Map Mode. Occupies 30–40% of the first viewport.
+Full-bleed `{colors.trips-band}`. Status line, condensed title, destinations · dates, next time in Display, then Map Mode. Occupies 30–40% of the first viewport. On scroll the chrome drops to `--trips-chrome-h: 2.5rem` and the cover sticks as a thin band: notes, tags, and Map Mode hide; title and next clock shrink.
 
 ### Next time
-The next booking’s clock is Hero time. Title sits beside it one step smaller. On the day page the first reservation is this same hero: huge condensed time, not a table cell. Compact cover shrinks the clock to 1.5rem.
+The next booking’s clock is Hero time. Title sits beside it one step smaller. On the day page the first reservation is this same hero: huge condensed time, not a table cell. Compact cover shrinks the clock to 1.375rem.
 
 ### Snap rail
 Horizontal station ticks on a 1px center hairline (`.snap-rail`). Weekday + day number in Archivo Narrow. Active tick uses trip accent.

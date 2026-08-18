@@ -28,6 +28,7 @@ import {
   REVEAL_DURATION,
   alertErrorClass,
   chipBtnClass,
+  skeletonClass,
   dataTableClass,
   dataTdClass,
   dataThClass,
@@ -63,11 +64,11 @@ export function TripOverview() {
   if (editor.state.status === "loading") {
     return (
       <div className={gutterClass} role="status" aria-label="Loading trip">
-        <div className="h-4 w-48 animate-pulse rounded bg-stone-200/60 dark:bg-stone-900" />
-        <div className="mt-8 h-16 w-3/4 max-w-xl animate-pulse rounded-2xl bg-stone-200/60 dark:bg-stone-900" />
+        <div className={`h-4 w-48 ${skeletonClass}`} />
+        <div className={`mt-8 h-16 w-3/4 max-w-xl ${skeletonClass}`} />
         <div className="mt-10 space-y-3">
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="h-16 animate-pulse rounded-xl bg-stone-200/60 dark:bg-stone-900" />
+            <div key={i} className={`h-16 ${skeletonClass}`} />
           ))}
         </div>
       </div>
@@ -204,7 +205,7 @@ export function TripOverview() {
             )}
 
             {mapHeroDay && (
-              <motion.div {...fadeUp(3)} className="mt-6">
+              <motion.div {...fadeUp(3)} className="cover-cta mt-6">
                 <button type="button" onClick={() => editor.openMap(mapHeroDay.id)} className={bandBtnClass}>
                   <MapIcon className="h-4 w-4" strokeWidth={1.5} aria-hidden />
                   Map Mode
@@ -319,7 +320,7 @@ export function TripOverview() {
             }
           />
           {dayCount === 0 ? (
-            <div className={`mt-4 border border-dashed border-stone-300 px-5 py-8 text-sm dark:border-stone-700 ${mutedInkClass}`}>
+            <div className={`mt-4 rounded-[length:var(--trips-radius)] border border-dashed border-[color:var(--trips-border)] bg-[color:var(--trips-rail)] px-5 py-8 text-base ${mutedInkClass}`}>
               This trip has no days yet.
             </div>
           ) : (
@@ -403,7 +404,7 @@ export function TripOverview() {
           <Suspense
             fallback={
               <div
-                className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/80 text-sm text-stone-300"
+                className="fixed inset-0 z-50 flex items-center justify-center bg-[color:var(--trips-scrim)] text-sm text-[color:var(--trips-band-ink)]"
                 role="status"
               >
                 Loading map…

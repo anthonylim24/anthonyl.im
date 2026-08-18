@@ -64,17 +64,17 @@ export const typeHeroTimeClass =
 
 /** Cover trip name. Steps below the hero clock. */
 export const typeDisplayClass =
-  "cover-title font-display font-semibold leading-none tracking-tight text-[1.75rem] sm:text-[2.25rem]"
+  "cover-title font-display font-semibold leading-none tracking-tight text-[1.875rem] sm:text-[2.25rem]"
 
-/** Index, day, empty-state titles. */
+/** Index, day, empty-state titles. One step below the cover display. */
 export const typePageTitleClass =
-  "font-display font-semibold tracking-tight text-[1.75rem] text-[color:var(--trips-ink)] sm:text-[2rem]"
+  "font-display font-semibold tracking-tight text-[1.5rem] text-[color:var(--trips-ink)] sm:text-[1.75rem]"
 
 /** Living-document section titles. */
 export const typeSectionClass =
-  "font-display font-semibold tracking-tight text-xl text-[color:var(--trips-ink)]"
+  "font-display font-semibold tracking-tight text-[1.25rem] text-[color:var(--trips-ink)]"
 
-export const typeBodyClass = "text-[0.9375rem] leading-relaxed"
+export const typeBodyClass = "text-base leading-relaxed"
 
 export const typeMetaClass = "text-[0.8125rem] font-medium"
 
@@ -199,9 +199,25 @@ export const softPanelClass = `${RADIUS} border border-[color:var(--trips-border
 /** Floating panel for date pickers / comboboxes. Always opaque. */
 export const popoverClass = `${softPanelClass} shadow-[0_10px_28px_color-mix(in_oklch,var(--trips-ink)_16%,transparent)]`
 
-/** Scrim behind a modal: ink wash plus a light blur so copy stays readable. */
+/** Scrim behind a modal: opaque ink wash plus blur so copy stays readable. */
 export const scrimClass =
-  "fixed inset-0 z-[65] bg-[color:var(--trips-scrim)] backdrop-blur-sm motion-reduce:backdrop-blur-none"
+  "fixed inset-0 z-[65] bg-[color:var(--trips-scrim)] backdrop-blur-[8px] motion-reduce:backdrop-blur-none"
+
+/** Same wash, stacked under chat / map so those layers keep their own z-index. */
+export const overlayScrimClass =
+  "fixed inset-0 bg-[color:var(--trips-scrim)] backdrop-blur-[8px] motion-reduce:backdrop-blur-none"
+
+/** Loading bones on the print stock — never raw stone. */
+export const skeletonClass = `animate-pulse ${RADIUS} bg-[color:var(--trips-rail)]`
+
+/** Hairline schedule / suggestion / concierge card. */
+export const scheduleRowClass = `${RADIUS} border border-[color:var(--trips-border)] bg-[color:var(--trips-surface)]`
+
+/** Recessed band for section rows and grounded action bars. */
+export const railBandClass = `${RADIUS} bg-[color:var(--trips-rail)]`
+
+/** Docked toast / save chip — opaque surface, shared radius. */
+export const toastClass = `${RADIUS} border border-[color:var(--trips-border)] bg-[color:var(--trips-surface)] text-[0.8125rem] font-medium text-[color:var(--trips-ink-secondary)] shadow-[0_10px_28px_color-mix(in_oklch,var(--trips-ink)_16%,transparent)]`
 
 /** Highlighted row inside a `popoverClass` listbox. */
 export const menuItemActiveClass =

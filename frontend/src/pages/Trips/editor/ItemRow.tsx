@@ -11,6 +11,8 @@ import {
   compactInputClass,
   compactSelectClass,
   dangerChipBtnClass,
+  railBandClass,
+  scheduleRowClass,
   fieldLabelClass,
   iconBtnClass,
   mutedInkClass,
@@ -151,8 +153,8 @@ export const ItemRow = memo(function ItemRow({
       transition={{ duration: 0.22, ease: EASE }}
       className={`relative ${
         isSection
-          ? "rounded-lg bg-stone-100/80 px-3 py-1.5 dark:bg-stone-800/50"
-          : "rounded-xl border border-stone-200/80 bg-[var(--trips-surface)] px-3 py-2 transition-shadow hover:border-stone-300 dark:border-stone-800 dark:hover:border-stone-700"
+          ? `${railBandClass} px-3 py-1.5`
+          : `${scheduleRowClass} px-3 py-2`
       } ${highlightClass}`}
     >
       {isSection ? (
@@ -168,11 +170,11 @@ export const ItemRow = memo(function ItemRow({
               onChange={(e) => patch({ title: e.target.value })}
               // Below 768px a global rule pins inputs to 16px (iOS zoom guard),
               // so the band tightens its tracking instead of its size.
-              className={`min-h-11 min-w-0 flex-1 text-ellipsis rounded-md border border-transparent bg-transparent px-1 py-1 font-mono-trips text-[11px] uppercase tracking-[0.06em] text-stone-700 transition placeholder:text-stone-400 hover:border-stone-300 focus:border-[color:var(--trips-accent)] focus:outline-none sm:min-h-0 sm:tracking-[0.16em] dark:text-stone-300 dark:hover:border-stone-700`}
+              className={`min-h-11 min-w-0 flex-1 text-ellipsis rounded-[length:var(--trips-radius)] border border-transparent bg-transparent px-1 py-1 font-mono-trips text-[11px] uppercase tracking-[0.06em] text-[color:var(--trips-ink-secondary)] transition placeholder:text-[color:var(--trips-ink-tertiary)] hover:border-[color:var(--trips-border)] focus:border-[color:var(--trips-accent)] focus:outline-none sm:min-h-0 sm:tracking-[0.16em]`}
             />
           ) : (
             <span
-              className={`min-w-0 flex-1 px-1 py-1 font-mono-trips text-[11px] uppercase tracking-[0.06em] text-stone-700 sm:tracking-[0.16em] dark:text-stone-300 ${wrapAnywhereClass}`}
+              className={`min-w-0 flex-1 px-1 py-1 font-mono-trips text-[11px] uppercase tracking-[0.06em] text-[color:var(--trips-ink-secondary)] sm:tracking-[0.16em] ${wrapAnywhereClass}`}
             >
               {item.title}
             </span>
@@ -201,7 +203,7 @@ export const ItemRow = memo(function ItemRow({
               className={`h-[15px] w-[15px] ${
                 mapped
                   ? "fill-[color:var(--ta-soft)] text-[color:var(--ta)]"
-                  : "text-stone-400 dark:text-stone-500"
+                  : "text-[color:var(--trips-ink-tertiary)]"
               }`}
               strokeWidth={mapped ? 2 : 1.5}
               aria-hidden
@@ -268,7 +270,7 @@ export const ItemRow = memo(function ItemRow({
       )}
 
       {expanded && (
-        <div id={panelId} className="mt-3 space-y-3 border-t border-stone-100 pt-3 dark:border-stone-800">
+        <div id={panelId} className="mt-3 space-y-3 border-t border-[color:var(--trips-border)] pt-3">
           {editable && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
@@ -379,7 +381,7 @@ export const ItemRow = memo(function ItemRow({
           )}
 
           {editable && (
-            <div className="flex flex-wrap items-end gap-x-4 gap-y-3 border-t border-stone-100 pt-3 dark:border-stone-800">
+            <div className="flex flex-wrap items-end gap-x-4 gap-y-3 border-t border-[color:var(--trips-border)] pt-3">
               <div>
                 <span className={fieldLabelClass}>Arrange</span>
                 <div className="mt-0.5 flex items-center">

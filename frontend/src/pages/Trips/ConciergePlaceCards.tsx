@@ -126,7 +126,7 @@ function ConciergePlaceCard({
   const canOpenMapMode = Boolean(onMap && (place.itemId || (place.lat != null && place.lng != null)))
 
   return (
-    <li className="overflow-hidden rounded-2xl border border-stone-200/90 bg-[var(--trips-surface)] dark:border-stone-700/80">
+    <li className="overflow-hidden rounded-[length:var(--trips-radius)] border border-[color:var(--trips-border)] bg-[color:var(--trips-surface)]">
       <ConciergePhotoThumb
         name={place.name}
         city={city}

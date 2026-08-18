@@ -4,7 +4,7 @@ import { Places } from "../Korea/Places"
 import { formatTripDate, resolveAccent } from "./theme"
 import { useLoadedTrip } from "./useLoadedTrip"
 import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
-import { alertErrorClass, documentClass, inlineLinkClass, wrapAnywhereClass } from "./ui"
+import { alertErrorClass, documentClass, inlineLinkClass, skeletonClass, wrapAnywhereClass } from "./ui"
 
 export function TripPlaces() {
   const { tripId } = useParams<{ tripId: string }>()
@@ -14,8 +14,8 @@ export function TripPlaces() {
   if (state.status === "loading") {
     return (
       <div className={documentClass} role="status" aria-label="Loading places">
-        <div className="h-10 w-1/2 animate-pulse rounded-xl bg-stone-200/60 dark:bg-stone-900" />
-        <div className="mt-8 h-40 animate-pulse rounded-2xl bg-stone-200/60 dark:bg-stone-900" />
+        <div className={`h-10 w-1/2 ${skeletonClass}`} />
+        <div className={`mt-8 h-40 ${skeletonClass}`} />
       </div>
     )
   }

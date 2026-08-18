@@ -26,7 +26,7 @@ import { emitTripChanged, useTripChanged } from "./tripsEvents"
 import { streamTripChat, type TripChatMessage } from "./tripChatApi"
 import { resolveAccent } from "./theme"
 import type { Trip, TripAccess } from "./types"
-import { ENTER_SPRING, EASE, focusRingClass, mutedInkClass } from "./ui"
+import { ENTER_SPRING, EASE, focusRingClass, mutedInkClass, overlayScrimClass, typeMetaClass, typeSectionClass } from "./ui"
 
 interface ChatMessage {
   id: string
@@ -577,8 +577,8 @@ export function TripChat() {
               onClick={handleClose}
               className={
                 expanded
-                  ? "fixed inset-0 z-[55] bg-stone-950/40"
-                  : "fixed inset-0 z-[55] bg-stone-950/40 md:pointer-events-none md:bg-transparent"
+                  ? `${overlayScrimClass} z-[55]`
+                  : `${overlayScrimClass} z-[55] md:pointer-events-none md:bg-transparent md:backdrop-blur-none`
               }
               aria-hidden
             />
@@ -593,15 +593,15 @@ export function TripChat() {
               className={panelClass}
               style={panelStyle}
             >
-              <header className="flex shrink-0 items-center gap-3 border-b border-stone-200/80 px-4 py-3 dark:border-stone-800/80">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[color:var(--ta-soft)] text-[color:var(--ta)]">
+              <header className="flex shrink-0 items-center gap-3 border-b border-[color:var(--trips-border)] px-4 py-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-[length:var(--trips-radius)] bg-[color:var(--ta-soft)] text-[color:var(--ta)]">
                   <Sparkles className="h-4 w-4" strokeWidth={2} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <h2 id={titleId} className="truncate text-[15px] font-semibold text-stone-900 dark:text-stone-100">
+                  <h2 id={titleId} className={`truncate ${typeSectionClass}`}>
                     Trip Concierge
                   </h2>
-                  <p className={`truncate text-xs ${mutedInkClass}`}>{subtitle}</p>
+                  <p className={`truncate ${typeMetaClass} ${mutedInkClass}`}>{subtitle}</p>
                 </div>
                 <div className="flex shrink-0 items-center">
                   <button
@@ -632,7 +632,7 @@ export function TripChat() {
               >
                 {messages.length === 0 ? (
                   <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
-                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[color:var(--ta-soft)] text-[color:var(--ta)]">
+                    <span className="flex h-12 w-12 items-center justify-center rounded-[length:var(--trips-radius)] bg-[color:var(--ta-soft)] text-[color:var(--ta)]">
                       <MessageCircleHeart className="h-6 w-6" />
                     </span>
                     <p className={`max-w-[18rem] text-sm ${mutedInkClass}`}>
@@ -890,11 +890,11 @@ function TypingDots({ reduce }: { reduce: boolean }) {
     <div className="flex items-center gap-1 py-1" aria-label="Concierge is typing">
       {[0, 1, 2].map((i) =>
         reduce ? (
-          <span key={i} className="h-1.5 w-1.5 rounded-full bg-stone-400 opacity-70 dark:bg-stone-500" />
+          <span key={i} className="h-1.5 w-1.5 rounded-full bg-[color:var(--trips-ink-tertiary)] opacity-70" />
         ) : (
           <motion.span
             key={i}
-            className="h-1.5 w-1.5 rounded-full bg-stone-400 dark:bg-stone-500"
+            className="h-1.5 w-1.5 rounded-full bg-[color:var(--trips-ink-tertiary)]"
             animate={{ opacity: [0.3, 1, 0.3], y: [0, -2, 0] }}
             transition={{ duration: 1, repeat: Infinity, delay: i * 0.15, ease: "easeInOut" }}
           />

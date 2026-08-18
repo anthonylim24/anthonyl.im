@@ -65,7 +65,7 @@ export function ConciergePhotoThumb({
       type="button"
       onClick={() => onOpen(showImage ? url : null)}
       aria-label={`View photos of ${name}`}
-      className={`relative block aspect-[16/9] w-full overflow-hidden bg-stone-200/80 text-left dark:bg-stone-800 ${focusRingClass}`}
+      className={`relative block aspect-[16/9] w-full overflow-hidden bg-[color:var(--trips-rail)] text-left ${focusRingClass}`}
     >
       {showImage ? (
         <img

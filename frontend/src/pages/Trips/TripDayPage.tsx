@@ -30,8 +30,10 @@ import {
   inkBtnClass,
   inlineLinkClass,
   mutedInkClass,
+  overlayHoverClass,
   revealDelay,
   secondaryBtnClass,
+  skeletonClass,
   timeCellClass,
   typeHeroTimeClass,
   typeMetaClass,
@@ -149,11 +151,11 @@ export function TripDayPage() {
   if (state.status === "loading") {
     return (
       <div className={PAGE} role="status" aria-label="Loading day">
-        <div className="h-4 w-72 animate-pulse rounded bg-stone-200/60 dark:bg-stone-900" />
-        <div className="mt-6 h-16 w-2/3 animate-pulse rounded-2xl bg-stone-200/60 dark:bg-stone-900" />
+        <div className={`h-4 w-72 ${skeletonClass}`} />
+        <div className={`mt-6 h-16 w-2/3 ${skeletonClass}`} />
         <div className="mt-10 space-y-3">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-20 animate-pulse rounded-2xl bg-stone-200/60 dark:bg-stone-900" />
+            <div key={i} className={`h-20 ${skeletonClass}`} />
           ))}
         </div>
       </div>
@@ -292,7 +294,7 @@ export function TripDayPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: REVEAL_DURATION, ease: EASE, delay: revealDelay(i) }}
-                className={`flex items-start gap-3 rounded-xl border p-4 text-sm text-stone-800 dark:text-stone-200 ${calloutTone(c.tone)}`}
+                className={`flex items-start gap-3 rounded-[length:var(--trips-radius)] border p-4 text-base text-[color:var(--trips-ink)] ${calloutTone(c.tone)}`}
               >
                 <span aria-hidden className="text-lg leading-none">
                   {c.icon}
@@ -364,7 +366,7 @@ export function TripDayPage() {
                         <li key={li} className="flex gap-3">
                           <span
                             aria-hidden
-                            className="mt-2.5 h-1 w-1 shrink-0 rounded-full bg-stone-400 dark:bg-stone-600"
+                            className="mt-2.5 h-1 w-1 shrink-0 rounded-full bg-[color:var(--trips-ink-tertiary)]"
                           />
                           <span className={`min-w-0 flex-1 ${wrapAnywhereClass}`}>
                             <LinkifiedText>{line.replace(/^-\s*/, "")}</LinkifiedText>
@@ -398,27 +400,27 @@ export function TripDayPage() {
           Arrow keys move to the previous or next day.
         </p>
         <nav
-          className="mt-3 grid grid-cols-1 gap-1 border-t border-stone-200/80 pt-6 sm:grid-cols-2 sm:gap-6 dark:border-stone-800/80"
+          className="mt-3 grid grid-cols-1 gap-1 border-t border-[color:var(--trips-border)] pt-6 sm:grid-cols-2 sm:gap-6"
           aria-label="Adjacent days"
         >
           {next && (
             <Link
               rel="next"
               to={`${tripPath}/day/${next.id}`}
-              className={`group order-1 -mx-2 flex min-h-14 items-center justify-between gap-4 rounded-xl px-2 py-3 transition-colors hover:bg-stone-100/50 sm:order-2 sm:justify-end sm:text-right dark:hover:bg-stone-900/40 ${focusRingClass}`}
+              className={`group order-1 -mx-2 flex min-h-14 items-center justify-between gap-4 rounded-[length:var(--trips-radius)] px-2 py-3 transition-colors ${overlayHoverClass} sm:order-2 sm:justify-end sm:text-right ${focusRingClass}`}
             >
               <span className="min-w-0">
                 <span className={`block text-[13px] ${mutedInkClass}`}>
                   Next · Day {dayIndex + 2}
                 </span>
                 <span
-                  className={`line-clamp-2 text-base font-semibold text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
+                  className={`line-clamp-2 text-base font-semibold text-[color:var(--trips-ink)] ${wrapAnywhereClass}`}
                 >
                   {next.title ?? `Day ${dayIndex + 2}`}
                 </span>
               </span>
               <ArrowUpRight
-                className={`h-4 w-4 shrink-0 rotate-45 text-stone-500 dark:text-stone-400 ${hoverArrowClass}`}
+                className={`h-4 w-4 shrink-0 rotate-45 text-[color:var(--trips-ink-tertiary)] ${hoverArrowClass}`}
                 aria-hidden
               />
             </Link>
@@ -427,10 +429,10 @@ export function TripDayPage() {
             <Link
               rel="prev"
               to={`${tripPath}/day/${prev.id}`}
-              className={`group order-2 -mx-2 flex min-h-14 items-center gap-4 rounded-xl px-2 py-3 transition-colors hover:bg-stone-100/50 sm:order-1 dark:hover:bg-stone-900/40 ${focusRingClass}`}
+              className={`group order-2 -mx-2 flex min-h-14 items-center gap-4 rounded-[length:var(--trips-radius)] px-2 py-3 transition-colors ${overlayHoverClass} sm:order-1 ${focusRingClass}`}
             >
               <ArrowUpRight
-                className={`h-4 w-4 shrink-0 -rotate-[135deg] text-stone-500 dark:text-stone-400 ${hoverArrowBackClass}`}
+                className={`h-4 w-4 shrink-0 -rotate-[135deg] text-[color:var(--trips-ink-tertiary)] ${hoverArrowBackClass}`}
                 aria-hidden
               />
               <span className="min-w-0">
@@ -438,7 +440,7 @@ export function TripDayPage() {
                   Previous · Day {dayIndex}
                 </span>
                 <span
-                  className={`line-clamp-2 text-base font-semibold text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
+                  className={`line-clamp-2 text-base font-semibold text-[color:var(--trips-ink)] ${wrapAnywhereClass}`}
                 >
                   {prev.title ?? `Day ${dayIndex}`}
                 </span>
@@ -453,7 +455,7 @@ export function TripDayPage() {
           <Suspense
             fallback={
               <div
-                className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/80 text-sm text-stone-300"
+                className="fixed inset-0 z-50 flex items-center justify-center bg-[color:var(--trips-scrim)] text-sm text-[color:var(--trips-band-ink)]"
                 role="status"
               >
                 Loading map…
@@ -568,7 +570,7 @@ function NarrativeItem({
   return (
     <li
       id={`item-${item.id}`}
-      className={`grid grid-cols-[3.25rem_minmax(0,1fr)] gap-x-3 rounded-lg sm:grid-cols-[4rem_minmax(0,1fr)] ${highlight}`}
+      className={`grid grid-cols-[3.25rem_minmax(0,1fr)] gap-x-3 rounded-[length:var(--trips-radius)] sm:grid-cols-[4rem_minmax(0,1fr)] ${highlight}`}
     >
       <div className={`pt-0.5 text-right ${timeCellClass}`}>
         {item.time ? <Time value={item.time} /> : <span aria-hidden>·</span>}

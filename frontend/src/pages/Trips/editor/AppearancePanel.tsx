@@ -1,7 +1,17 @@
 import { useState } from "react"
 import { ChevronDown } from "lucide-react"
 import { ACCENT_SWATCH, TRIP_ACCENTS, resolveAccent } from "../theme"
-import { focusRingInsetClass, hintClass, inputClass, labelClass, mutedInkClass, softPanelClass } from "../ui"
+import {
+  fieldShellClass,
+  focusRingClass,
+  focusRingInsetClass,
+  hintClass,
+  inputClass,
+  labelClass,
+  mutedInkClass,
+  overlayHoverClass,
+  softPanelClass,
+} from "../ui"
 import type { Trip } from "../types"
 
 /** Configures the dossier-style public pages: accent family, editorial copy,
@@ -45,7 +55,7 @@ export function AppearancePanel({
         />
       </button>
       {open && (
-        <div className="space-y-4 border-t border-stone-100 px-5 py-4 dark:border-stone-800">
+        <div className="space-y-4 border-t border-[color:var(--trips-border)] px-5 py-4">
         <fieldset disabled={locked} className="m-0 min-w-0 space-y-4 border-0 p-0">
           <div>
             <span className={labelClass}>Accent</span>
@@ -61,23 +71,21 @@ export function AppearancePanel({
                     onClick={() => patch({ accent: name })}
                     // Neutral focus ring on purpose: an accent ring over a grid
                     // of accent swatches vanishes on the matching swatch.
-                    className={`flex min-h-11 min-w-11 flex-col items-center gap-1.5 rounded-xl px-2 py-1.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-900 dark:focus-visible:ring-stone-100 ${
-                      selected ? "bg-stone-900/5 dark:bg-stone-100/10" : "hover:bg-stone-900/5 dark:hover:bg-stone-100/10"
+                    className={`flex min-h-11 min-w-11 flex-col items-center gap-1.5 rounded-[length:var(--trips-radius)] px-2 py-1.5 transition ${overlayHoverClass} ${focusRingClass} ${
+                      selected ? "bg-[color:var(--trips-rail)]" : ""
                     }`}
                   >
                     <span
                       className={`h-8 w-8 rounded-full ${ACCENT_SWATCH[name]} ${
                         selected
-                          ? "ring-2 ring-stone-900 ring-offset-2 ring-offset-[var(--trips-surface)] dark:ring-stone-100"
+                          ? "ring-2 ring-[color:var(--trips-ink)] ring-offset-2 ring-offset-[var(--trips-surface)]"
                           : "opacity-60"
                       }`}
                       aria-hidden
                     />
                     <span
                       className={`text-[11px] capitalize ${
-                        selected
-                          ? "font-medium text-stone-900 dark:text-stone-100"
-                          : "text-stone-600 dark:text-stone-400"
+                        selected ? "font-medium text-[color:var(--trips-ink)]" : mutedInkClass
                       }`}
                     >
                       {name}
@@ -119,8 +127,8 @@ export function AppearancePanel({
           </label>
           <label className="block">
             <span className={labelClass}>Permalink</span>
-            <span className="mt-1.5 flex items-center gap-0 overflow-hidden rounded-xl border border-stone-300/90 bg-[var(--trips-surface)] focus-within:border-[color:var(--trips-accent)] focus-within:ring-2 focus-within:ring-[color:var(--trips-focus)] dark:border-stone-700 dark:bg-stone-900">
-              <span className={`shrink-0 select-none border-r border-stone-300/90 bg-stone-100 px-2.5 py-2.5 text-sm dark:border-stone-700 dark:bg-stone-800 ${mutedInkClass}`}>
+            <span className={`mt-1.5 ${fieldShellClass} gap-0 overflow-hidden px-0`}>
+              <span className={`shrink-0 select-none border-r border-[color:var(--trips-border)] bg-[color:var(--trips-rail)] px-2.5 py-2.5 text-sm ${mutedInkClass}`}>
                 /trips/
               </span>
               <input
@@ -136,7 +144,7 @@ export function AppearancePanel({
                       .slice(0, 80),
                   )
                 }
-                className="min-h-11 w-full bg-transparent px-2.5 py-2 text-sm text-stone-900 focus:outline-none dark:text-stone-100"
+                className="min-h-11 w-full bg-transparent px-2.5 py-2 text-sm text-[color:var(--trips-ink)] focus:outline-none"
               />
             </span>
             <span className={`block ${hintClass}`}>Lowercase letters, numbers, hyphens. Must be unique.</span>
