@@ -22,6 +22,7 @@ import { upcomingReservations } from "./reservationView"
 import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import { useTripEditor } from "./useTripEditor"
 import type { Trip } from "./types"
+import { useCompactChrome } from "./useCompactChrome"
 import {
   EASE,
   REVEAL_DURATION,
@@ -40,6 +41,9 @@ import {
   mutedInkClass,
   overlayHoverClass,
   revealDelay,
+  stampChipClass,
+  typeDisplayClass,
+  typeMetaClass,
   wrapAnywhereClass,
 } from "./ui"
 
@@ -52,6 +56,7 @@ const gutterClass = documentClass
 export function TripOverview() {
   const editor = useTripEditor()
   const reduce = useReducedMotion()
+  const compact = useCompactChrome()
   const [searchParams] = useSearchParams()
   const openIngest = searchParams.get("ingest") === "1"
 
@@ -122,10 +127,10 @@ export function TripOverview() {
   return (
     <EntityIndexProvider>
       <div data-trip-accent={resolveAccent(trip.appearance?.accent)}>
-        <header className={coverBandClass}>
+        <header className={coverBandClass} data-compact={compact ? "true" : undefined}>
           <div className="mx-auto max-w-5xl">
             <motion.div {...fadeUp(0)} className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[color:var(--trips-band-ink)]/80">
-              <span className="inline-flex items-center gap-2 text-[13px] font-medium text-[color:var(--trips-band-ink)]">
+              <span className={`inline-flex items-center gap-2 ${typeMetaClass} text-[color:var(--trips-band-ink)]`}>
                 {statusLine}
               </span>
               <TripClock timezone={trip.timezone} tone="band" />
@@ -146,26 +151,26 @@ export function TripOverview() {
                   <input
                     id="trip-editor-name"
                     disabled={editorLocked}
-                    className={`font-display trip-display-input min-h-11 w-full bg-transparent text-4xl font-semibold leading-none tracking-tight text-[color:var(--trips-band-ink)] placeholder:text-[color:var(--trips-band-ink)]/40 focus:outline-none sm:text-6xl ${focusRingClass} ${wrapAnywhereClass}`}
+                    className={`trip-display-input ${typeDisplayClass} min-h-11 w-full bg-transparent text-[color:var(--trips-band-ink)] placeholder:text-[color:var(--trips-band-ink)]/40 focus:outline-none ${focusRingClass} ${wrapAnywhereClass}`}
                     value={trip.name}
                     onChange={(e) => editor.scheduleSave({ ...trip, name: e.target.value })}
                   />
                 </>
               ) : (
                 <h1>
-                  <span className={`font-display block text-4xl font-semibold leading-none tracking-tight sm:text-6xl ${wrapAnywhereClass}`}>
+                  <span className={`${typeDisplayClass} block ${wrapAnywhereClass}`}>
                     {trip.name}
                   </span>
                 </h1>
               )}
-              <p className={`mt-3 max-w-[58ch] text-sm text-[color:var(--trips-band-ink)]/75 ${wrapAnywhereClass}`}>
+              <p className={`cover-extra mt-3 max-w-[58ch] text-[0.9375rem] text-[color:var(--trips-band-ink)]/75 ${wrapAnywhereClass}`}>
                 {trip.destinations.join(" · ")}
                 {" · "}
                 {formatTripDate(trip.startDate, trip.timezone)} to {formatTripDate(trip.endDate, trip.timezone)}
                 {trip.collaborators.length > 0 ? ` · ${collaboratorSummary(trip.collaborators)}` : ""}
               </p>
               {(trip.appearance?.subtitle || trip.appearance?.headline || trip.description) && (
-                <p className={`mt-3 max-w-[58ch] text-sm leading-relaxed text-[color:var(--trips-band-ink)]/75 ${wrapAnywhereClass}`}>
+                <p className={`cover-extra mt-3 max-w-[58ch] text-[0.9375rem] leading-relaxed text-[color:var(--trips-band-ink)]/75 ${wrapAnywhereClass}`}>
                   <LinkifiedText>
                     {trip.appearance?.headline ?? trip.appearance?.subtitle ?? trip.description ?? ""}
                   </LinkifiedText>
@@ -186,11 +191,11 @@ export function TripOverview() {
             )}
 
             {tags.length > 0 && (
-              <ul className="mt-5 flex flex-wrap gap-1.5" aria-label="Tags">
+              <ul className="cover-extra mt-5 flex flex-wrap gap-1.5" aria-label="Tags">
                 {tags.map((tag) => (
                   <li
                     key={tag}
-                    className={`rounded-sm border border-[color:var(--trips-band-ink)]/25 px-2 py-0.5 text-xs text-[color:var(--trips-band-ink)]/80 ${wrapAnywhereClass}`}
+                    className={`${stampChipClass} border-[color:var(--trips-band-ink)]/25 bg-transparent text-[color:var(--trips-band-ink)]/80 ${wrapAnywhereClass}`}
                   >
                     {tag}
                   </li>
@@ -242,13 +247,13 @@ export function TripOverview() {
         </div>
 
         {todayDay && (
-          <aside className={`mt-6 rounded-lg ${a.softBg}`}>
+          <aside className={`mt-6 rounded-[length:var(--trips-radius)] ${a.softBg}`}>
             <Link
               to={`/trips/${trip.slug ?? trip.id}/day/${todayDay.id}`}
               className={`group flex items-center gap-4 px-3 py-3 transition-colors ${overlayHoverClass} ${focusRingInsetClass}`}
             >
               <div className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1">
-                <p className={`flex items-center gap-2 text-[13px] font-medium ${a.text}`}>
+                <p className={`flex items-center gap-2 ${typeMetaClass} ${a.text}`}>
                   <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.dot}`} aria-hidden />
                   Today · {formatTripDate(todayDay.date, trip.timezone)}
                 </p>

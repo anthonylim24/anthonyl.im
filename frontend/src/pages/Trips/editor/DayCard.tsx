@@ -91,12 +91,12 @@ export const DayCard = memo(function DayCard({
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <span
             aria-hidden
-            className="font-display shrink-0 text-4xl font-semibold tabular-nums leading-none tracking-tight text-[color:var(--trips-ink)]"
+            className="font-display shrink-0 text-[1.75rem] font-semibold tabular-nums leading-none tracking-tight text-[color:var(--trips-ink)] sm:text-[2rem]"
           >
             {index + 1}
           </span>
           <div className="min-w-0 flex-1">
-            <p className={`text-[12px] font-medium ${mutedInkClass}`}>
+            <p className={`text-xs font-medium ${mutedInkClass}`}>
               {formatTripDate(day.date, timezone)}
               {day.city ? ` · ${day.city}` : ""}
             </p>

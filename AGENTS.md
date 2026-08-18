@@ -209,7 +209,8 @@ The same travelers as Korea, plus future trips. Phone for in-trip lookups; deskt
 ### Aesthetic Direction
 - Green-gray print stock + deep JR-green cover band. Dark is lamp-lit tinted stock, not a zinc IDE.
 - Archivo Narrow (`font-display`, 600, `-0.02em`) for times and titles; Inter for UI body. **No Cormorant on `/trips`.** Banned display faces: Fraunces, Playfair, Cormorant, Lora, Crimson, Newsreader, Syne, Space Grotesk, Space Mono, IBM Plex, Inter-as-display, DM Sans, DM Serif, Outfit, Plus Jakarta, Instrument Sans.
-- First viewport: committed cover band (30–40%) + condensed title + next time; snap rail (station ticks); schedule rows.
+- First viewport: committed cover band (30–40%) + condensed title + next time; snap rail (station ticks); schedule rows. Chrome and cover shrink on scroll.
+- Fields sit in `--trips-rail` wells; dialogs use opaque `--trips-surface` on `--trips-scrim`. One `--trips-radius` (0.25rem) for inputs, chips, and panels.
 - Index: end-label timetable rows (Now / Upcoming / Past). Heading is “Trips” or “No trips yet”. **Never “Inbox”.** No left workspace rail. No Notion property-table hero. No Airbnb listing cards.
 - Day page: first reservation is the hero (huge condensed time). Status is a geometric mark + label, not hue-only.
 - `data-trip-accent` retints canvas + cover band (rose / amber / emerald / sky / violet). No Korea bloom, grain, or Cormorant.

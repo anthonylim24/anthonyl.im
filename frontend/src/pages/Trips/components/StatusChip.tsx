@@ -1,9 +1,9 @@
 import { itemStatusMeta, suggestionBadgeClass } from "../theme"
+import { typeStampClass } from "../ui"
 import type { ItemStatus, SuggestionKind, TripStatus } from "../types"
 
 /** Mark + label chip. One treatment for every status surface in Trips. */
-const chipBase =
-  "inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.12em]"
+const chipBase = `inline-flex shrink-0 items-center gap-1.5 rounded-[length:var(--trips-radius)] border px-2 py-0.5 ${typeStampClass}`
 
 type StatusMarkKind = "filled" | "open" | "rotated" | "muted"
 
@@ -17,7 +17,7 @@ const itemMark: Record<Exclude<ItemStatus, "none">, StatusMarkKind> = {
 const tripStatusMeta: Record<TripStatus, { label: string; chip: string; mark: StatusMarkKind }> = {
   draft: {
     label: "Draft",
-    chip: "bg-stone-100 text-stone-700 border-stone-300 dark:bg-stone-900/60 dark:text-stone-300 dark:border-stone-700",
+    chip: "border-[color:var(--trips-border)] bg-[color:var(--trips-rail)] text-[color:var(--trips-ink-secondary)]",
     mark: "open",
   },
   active: {
@@ -27,12 +27,12 @@ const tripStatusMeta: Record<TripStatus, { label: string; chip: string; mark: St
   },
   archived: {
     label: "Archived",
-    chip: "bg-stone-100 text-stone-600 border-stone-300 dark:bg-stone-900/60 dark:text-stone-400 dark:border-stone-800",
+    chip: "border-[color:var(--trips-border)] bg-[color:var(--trips-rail)] text-[color:var(--trips-ink-tertiary)]",
     mark: "muted",
   },
   completed: {
     label: "Completed",
-    chip: "bg-stone-100 text-stone-600 border-stone-300 dark:bg-stone-900/60 dark:text-stone-400 dark:border-stone-800",
+    chip: "border-[color:var(--trips-border)] bg-[color:var(--trips-rail)] text-[color:var(--trips-ink-tertiary)]",
     mark: "muted",
   },
 }
@@ -96,7 +96,7 @@ export function SuggestionChip({ kind, className = "" }: { kind: SuggestionKind;
 export function AiChip({ className = "" }: { className?: string }) {
   return (
     <span
-      className={`${chipBase} border-stone-300 bg-stone-100 text-stone-700 dark:border-stone-700 dark:bg-stone-900/70 dark:text-stone-300 ${className}`}
+      className={`${chipBase} border-[color:var(--trips-border)] bg-[color:var(--trips-rail)] text-[color:var(--trips-ink-secondary)] ${className}`}
       title="Added by AI enhancement"
     >
       <span className="inline-block h-2 w-2 shrink-0 bg-[color:var(--ta)]" aria-hidden />

@@ -14,6 +14,7 @@ colors:
   trips-accent: "oklch(36% 0.07 148)"
   trips-accent-hover: "oklch(28% 0.064 148)"
   trips-focus: "oklch(36% 0.07 148 / 0.45)"
+  trips-scrim: "oklch(22% 0.028 140 / 0.52)"
   trips-canvas-dark: "oklch(16.4% 0.024 148)"
   trips-surface-dark: "oklch(20.2% 0.022 148)"
   trips-rail-dark: "oklch(18.4% 0.024 148)"
@@ -182,11 +183,13 @@ Print-stock green-gray with one deep JR-green cover. Accent is the same green by
 **Character:** Condensed station-board times against a quiet Inter UI. Weight 600 and tracking `-0.02em` make the clock the loudest type on the page. Inter never plays display.
 
 ### Hierarchy
-- **Display** (600, clamp 2.25–3.75rem, line-height 1, `-0.02em`): cover title; next departure time (`text-5xl` / `sm:text-6xl` tabular). This is the hero.
-- **Headline** (600, 1.25rem, `-0.02em`): day titles, section names on the living document.
-- **Title** (600, 1.125rem): row titles, chrome “Trips” mark.
-- **Body** (400, 0.875rem, 1.5): UI copy, notes, destinations. Max ~58–60ch on the cover legend.
-- **Label** (500, 13px, sentence case): meta, snap-rail weekdays, status text. No tracked kickers. No uppercase section eyebrows.
+- **Hero time** (`typeHeroTimeClass`, 2.5–3.25rem tabular): next departure and the day’s first booking. The one large type moment.
+- **Display** (`typeDisplayClass`, 1.75–2.25rem): cover trip name. Always a step below the hero clock.
+- **Page title** (`typePageTitleClass`, 1.75–2rem): index “Trips”, day title, empty state.
+- **Section** (`typeSectionClass`, 1.25rem): living-document headings and dialog titles.
+- **Body** (`typeBodyClass`, 0.9375rem / 1.5): UI copy, notes, destinations. Max ~58–60ch on the cover legend.
+- **Meta** (`typeMetaClass`, 0.8125rem): status line, snap-rail weekdays, crumbs.
+- **Label** (`typeLabelClass`, 0.75rem): field labels and hints. Status chips use `typeStampClass` (uppercase) only.
 
 ### Named Rules
 **The Condensed Time Rule.** Times and trip titles are Archivo Narrow 600 / `-0.02em`. Inter is UI body only. Inter-as-display is a defect.
@@ -195,7 +198,7 @@ Print-stock green-gray with one deep JR-green cover. Accent is the same green by
 
 ## Layout
 
-A single printed sheet, not a workspace. Slim sticky chrome (`h-14` / `sm:h-12`) with a “Trips” wordmark and **no left rail**. The living document is `max-w-5xl` with `16px` gutters (`24px` from `sm`). Cover band is full-bleed, then the sheet. First viewport: band (30–40%) with condensed title + next time; station-tick snap rail; schedule rows. Index is end-label timetable rows in Now / Upcoming / Past. Heading is “Trips” or “No trips yet”, never “Inbox”. Day pages stay; `/trips/:id/edit` redirects to the living document. Concierge FAB on trip + day only. Interactive targets are 44px (`{spacing.target}`). User-authored strings use `break-words` + `overflow-wrap: anywhere`.
+A single printed sheet, not a workspace. Slim sticky chrome (`--trips-chrome-h`, 3.5rem / 3rem from `sm`) with a “Trips” wordmark and **no left rail**. On scroll past 24px the chrome compactifies to 2.75rem and the cover band sticks under it, shrinking title/time and hiding `.cover-extra` so the itinerary owns the viewport. The living document is `max-w-5xl` with `16px` gutters (`24px` from `sm`). Cover band is full-bleed, then the sheet. First viewport: band (30–40%) with condensed title + next time; station-tick snap rail; schedule rows. Index is end-label timetable rows in Now / Upcoming / Past. Heading is “Trips” or “No trips yet”, never “Inbox”. Day pages stay; `/trips/:id/edit` redirects to the living document. Concierge FAB on trip + day only. Interactive targets are 44px (`{spacing.target}`). User-authored strings use `break-words` + `overflow-wrap: anywhere`.
 
 ### Named Rules
 **The Cover Band Rule.** The first viewport starts with a committed band, not a property table, not a listing hero, not Korea orb cards.
@@ -211,14 +214,14 @@ Flat print. Depth is tonal (stock vs sheet vs band) and hairline rules, not drop
 
 ## Shapes
 
-Tight print geometry. `.trips` sets `--radius: 0.25rem` (`{rounded.trips}`), tighter than Korea’s 1rem+ orbs. Cover band is square (radius 0). Station ticks are 1×10px lines; the active day is a small rotated rectangle, not a pill. Status is a 6px geometric mark (dot or square) beside a label; hue alone is not status. Buttons may use `{rounded.lg}` (0.75rem) for a 44px target; do not drift toward stadium pills or identical card grids.
+Tight print geometry. `.trips` sets `--trips-radius` / `--radius: 0.25rem` (`{rounded.trips}`). Inputs, chips, badges, buttons, dialogs, and chat chrome all use that token. Cover band is square (radius 0). Station ticks are 1×10px lines; the active day is a small rotated rectangle, not a pill. Status is a 6px geometric mark (dot or square) beside a label; hue alone is not status. Do not drift toward stadium pills, mixed `rounded-xl` / `rounded-2xl`, or identical card grids.
 
 ## Components
 
 Timetable parts, not SaaS primitives. Compose from `frontend/src/pages/Trips/ui.ts`.
 
 ### Buttons
-- **Shape:** 44px min height; `{rounded.lg}` on actions, `{rounded.trips}` on quiet chips.
+- **Shape:** 44px min height; `{rounded.trips}` on every control.
 - **Primary:** `{colors.trips-accent}` fill, `{colors.trips-band-ink}` label. Hover `{colors.trips-accent-hover}`.
 - **Band:** inverted on the cover: `{colors.trips-band-ink}` fill, `{colors.trips-band}` label (Map Mode on the cover).
 - **Hover / Focus:** hairline or fill shift; focus ring `{colors.trips-focus}`, 2px, offset on filled buttons.
@@ -229,13 +232,16 @@ Timetable parts, not SaaS primitives. Compose from `frontend/src/pages/Trips/ui.
 
 ### Cards / Containers
 - **Corner Style:** `{rounded.trips}` if a surface is required; prefer hairline rows.
-- **Background:** `{colors.trips-canvas}` page, `{colors.trips-surface}` fields.
+- **Background:** `{colors.trips-canvas}` page, `{colors.trips-rail}` inset wells, `{colors.trips-surface}` opaque panels and dialogs. Never a translucent stone fill.
 - **Shadow Strategy:** none on the document.
 - **Border:** `{colors.trips-border}` hairlines.
 - **Internal Padding:** cover `{spacing.cover}`; document bottom `{spacing.document}`.
 
 ### Inputs / Fields
-- **Style:** sheet fill, hairline border, 44px target. Display title on the band is borderless Archivo Narrow.
+- **Style:** recessed rail well, hairline `{colors.trips-border}`, inset shadow, 44px target. Display title on the band is borderless Archivo Narrow.
+
+### Enhance dialog
+Chevron disclosure opens a modal (centered on desktop, sheet on phones). Always an opaque `{colors.trips-surface}` panel on `{colors.trips-scrim}` + light blur. Title **Focus this review**. Actions: Cancel and **Run enhance**. The split button’s primary side still runs a full pass immediately.
 - **Focus:** accent border + `{colors.trips-focus}` ring.
 - **Error / Disabled:** destructive red fill for errors; 50% opacity when disabled. Viewers get static text, not disabled inputs.
 
@@ -246,7 +252,7 @@ Slim top chrome, breadcrumb “Trips / {slug}”. Index heading “Trips”. Sna
 Full-bleed `{colors.trips-band}`. Status line, condensed title, destinations · dates, next time in Display, then Map Mode. Occupies 30–40% of the first viewport.
 
 ### Next time
-The next booking’s clock is Display tabular (`text-5xl` / `sm:text-6xl`). Title sits beside it. On the day page the first reservation is this same hero: huge condensed time, not a table cell.
+The next booking’s clock is Hero time. Title sits beside it one step smaller. On the day page the first reservation is this same hero: huge condensed time, not a table cell. Compact cover shrinks the clock to 1.5rem.
 
 ### Snap rail
 Horizontal station ticks on a 1px center hairline (`.snap-rail`). Weekday + day number in Archivo Narrow. Active tick uses trip accent.
@@ -260,7 +266,8 @@ End-label timetable row: name, destinations, range, count; time or countdown at 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** start the living document with a committed cover band (30–40% of the first viewport) and a huge next time in Archivo Narrow.
+- **Do** start the living document with a committed cover band (30–40% of the first viewport) and a huge next time in Archivo Narrow. Compact the chrome and cover on scroll.
+- **Do** put fields in recessed `--trips-rail` wells and dialogs on opaque `--trips-surface` with a scrim.
 - **Do** use station ticks on a hairline snap rail for multi-day trips.
 - **Do** set times and titles in Archivo Narrow 600 / `-0.02em`; body in Inter.
 - **Do** keep the document `max-w-5xl`, radius `0.25rem`, and 44px targets.

@@ -26,14 +26,15 @@ import {
   primaryBtnClass,
   revealDelay,
   secondaryBtnClass,
+  typePageTitleClass,
+  typeSectionClass,
   wrapAnywhereClass,
 } from "./ui"
 
 const skeletonBarClass = "animate-pulse rounded-sm bg-[color:var(--trips-ink)]/10"
 const hairlineListClass =
   "divide-y divide-[color:var(--trips-border)] border-y border-[color:var(--trips-border)]"
-const sectionTitleClass =
-  "font-display text-2xl font-semibold tracking-tight text-stone-900 dark:text-stone-100"
+const sectionTitleClass = typeSectionClass
 
 type LoadState =
   | { status: "loading" }
@@ -166,7 +167,7 @@ function DeleteConfirmBanner({
 }) {
   return (
     <div
-      className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-red-50/80 px-4 py-3 sm:flex-nowrap dark:bg-red-950/20"
+      className="flex flex-wrap items-center justify-between gap-3 rounded-[length:var(--trips-radius)] bg-red-50 px-4 py-3 sm:flex-nowrap dark:bg-red-950/30"
       role="alertdialog"
       aria-labelledby={`del-${trip.id}`}
       onKeyDown={trapDialogKeys(onClose)}
@@ -425,10 +426,10 @@ export function TripsIndex() {
     <div className={documentClass}>
       <div className="flex flex-wrap items-end justify-between gap-4 pt-8">
         <div className="min-w-0">
-          <h1 className="font-display text-4xl font-semibold tracking-tight text-stone-900 sm:text-5xl dark:text-stone-100">
+          <h1 className={typePageTitleClass}>
             {empty ? "No trips yet" : "Trips"}
           </h1>
-          {!empty && <p className={`mt-2 text-sm ${mutedInkClass}`}>Open a trip to edit it in place.</p>}
+          {!empty && <p className={`mt-2 text-[0.9375rem] ${mutedInkClass}`}>Open a trip to edit it in place.</p>}
         </div>
         <button ref={newTripRef} type="button" onClick={() => navigate("/trips/new")} className={primaryBtnClass}>
           <Plus className="h-4 w-4" aria-hidden />
@@ -476,10 +477,10 @@ export function TripsIndex() {
           animate={{ opacity: 1, y: 0 }}
           transition={reduce ? { duration: 0 } : ENTER_SPRING}
         >
-          <h2 className="font-display text-4xl font-semibold tracking-tight text-stone-900 sm:text-5xl dark:text-stone-100">
+          <h2 className={typePageTitleClass}>
             Where to next?
           </h2>
-          <p className={`mt-3 max-w-[46ch] text-sm leading-relaxed ${mutedInkClass}`}>
+          <p className={`mt-3 max-w-[46ch] text-[0.9375rem] leading-relaxed ${mutedInkClass}`}>
             Start blank and build day by day, or ask AI for a structured draft you can reshape.
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-3">

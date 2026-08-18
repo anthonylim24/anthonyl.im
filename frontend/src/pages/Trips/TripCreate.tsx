@@ -8,6 +8,7 @@ import { createTrip, generateItinerary } from "./tripsApi"
 import { DateRangeField } from "./components/DateRangeField"
 import { TimezoneField } from "./components/TimezoneField"
 import { DEFAULT_ITINERARY_PROMPT, type GeneratePreferences } from "./types"
+import { useCompactChrome } from "./useCompactChrome"
 import {
   EASE,
   REVEAL_DURATION,
@@ -26,6 +27,8 @@ import {
   segmentOptionClass,
   segmentTrackClass,
   spinnerClass,
+  stampChipClass,
+  typeDisplayClass,
   wrapAnywhereClass,
 } from "./ui"
 
@@ -114,6 +117,7 @@ export function TripCreate() {
   const readToken = useLatestCallback(getToken)
   const navigate = useNavigate()
   const reduce = useReducedMotion()
+  const compact = useCompactChrome()
   const [params] = useSearchParams()
   const initialMode = params.get("mode") === "blank" ? "blank" : "ai"
 
@@ -250,16 +254,19 @@ export function TripCreate() {
 
   return (
     <form onSubmit={onSubmit} className="pb-16" noValidate>
-      <header className={`${coverBandClass} flex min-h-[38svh] flex-col justify-end`}>
+      <header
+        className={`${coverBandClass} flex flex-col justify-end ${compact ? "" : "min-h-[38svh]"}`}
+        data-compact={compact ? "true" : undefined}
+      >
         <div className="mx-auto w-full max-w-2xl">
-          <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">New trip</h1>
+          <h1 className={`${typeDisplayClass} cover-extra`}>New trip</h1>
           <div className="mt-6" ref={(el) => void (groupRefs.current.name = el)}>
             <label htmlFor="trip-name" className="sr-only">
               Trip name
             </label>
             <input
               id="trip-name"
-              className={`trip-display-input ${displayInputClass} text-[color:var(--trips-band-ink)] placeholder:text-[color:var(--trips-band-ink)]/40 dark:text-[color:var(--trips-band-ink)] dark:placeholder:text-[color:var(--trips-band-ink)]/40 ${wrapAnywhereClass}`}
+              className={`${displayInputClass} text-[color:var(--trips-band-ink)] placeholder:text-[color:var(--trips-band-ink)]/40 ${wrapAnywhereClass}`}
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Tokyo Long Weekend"
@@ -300,7 +307,7 @@ export function TripCreate() {
                 {destinationList.map((d) => (
                   <li
                     key={d}
-                    className={`border border-[color:var(--trips-border)] px-2 py-1 text-xs text-stone-800 dark:text-stone-200 ${wrapAnywhereClass}`}
+                    className={`${stampChipClass} text-[color:var(--trips-ink)] ${wrapAnywhereClass}`}
                   >
                     {d}
                   </li>

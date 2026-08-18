@@ -69,7 +69,7 @@ export function formatRangeLabel(startDate: string, endDate: string): string {
     })
   const sameYear = startDate.slice(0, 4) === endDate.slice(0, 4)
   const nights = Math.round((toUtc(endDate).getTime() - toUtc(startDate).getTime()) / DAY_MS)
-  return `${fmt(startDate, !sameYear)} – ${fmt(endDate, true)} · ${nights + 1} day${nights ? "s" : ""}`
+  return `${fmt(startDate, !sameYear)} to ${fmt(endDate, true)} · ${nights + 1} day${nights ? "s" : ""}`
 }
 
 function Month({

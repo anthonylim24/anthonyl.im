@@ -29,9 +29,9 @@ export function AppearancePanel({
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className={`flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl px-5 py-3.5 text-left ${focusRingInsetClass}`}
+        className={`flex min-h-12 w-full items-center justify-between gap-3 rounded-[length:var(--trips-radius)] px-5 py-3.5 text-left ${focusRingInsetClass}`}
       >
-        <span className="flex items-center gap-2.5 text-sm font-semibold text-stone-900 dark:text-stone-100">
+        <span className="flex items-center gap-2.5 text-[0.9375rem] font-semibold text-[color:var(--trips-ink)]">
           <span className={`h-3.5 w-3.5 rounded-full ${ACCENT_SWATCH[selectedAccent]}`} aria-hidden />
           Appearance
           <span className={`hidden font-normal sm:inline ${mutedInkClass}`}>

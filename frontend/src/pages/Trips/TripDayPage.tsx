@@ -33,6 +33,9 @@ import {
   revealDelay,
   secondaryBtnClass,
   timeCellClass,
+  typeHeroTimeClass,
+  typeMetaClass,
+  typePageTitleClass,
   wrapAnywhereClass,
 } from "./ui"
 
@@ -214,7 +217,7 @@ export function TripDayPage() {
         <header className="mt-5">
           <motion.p
             {...fadeUp(0)}
-            className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-medium ${mutedInkClass}`}
+            className={`flex flex-wrap items-center gap-x-3 gap-y-1 ${typeMetaClass} ${mutedInkClass}`}
           >
             <Link
               to={tripPath}
@@ -239,7 +242,7 @@ export function TripDayPage() {
           <motion.div {...fadeUp(1)} className="mt-4">
             {day.emoji && <span aria-hidden className="mb-2 block text-xl leading-none">{day.emoji}</span>}
             <h1
-              className={`font-display min-w-0 text-4xl font-semibold leading-none tracking-tight text-stone-900 sm:text-5xl dark:text-stone-100 ${wrapAnywhereClass}`}
+              className={`${typePageTitleClass} min-w-0 leading-none ${wrapAnywhereClass}`}
             >
               {day.title ?? `Day ${dayIndex + 1}`}
             </h1>
@@ -504,10 +507,10 @@ function ReservationTableRow({
       {featured ? (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
-            <p className="font-display text-5xl font-semibold tabular-nums leading-none tracking-tight text-stone-950 dark:text-stone-50 sm:text-6xl">
-              {reservation.time ? <Time value={reservation.time} /> : "–"}
+            <p className={`${typeHeroTimeClass} text-[color:var(--trips-ink)]`}>
+              {reservation.time ? <Time value={reservation.time} /> : "TBD"}
             </p>
-            <p className={`mt-3 font-display text-2xl font-semibold tracking-tight text-stone-950 dark:text-stone-50 ${wrapAnywhereClass}`}>
+            <p className={`mt-3 font-display text-xl font-semibold tracking-tight text-[color:var(--trips-ink)] sm:text-2xl ${wrapAnywhereClass}`}>
               <SmartEntity name={reservation.title} type={placeCategoryToEntityType(item.location?.category ?? "place")} />
             </p>
           </div>
@@ -515,8 +518,8 @@ function ReservationTableRow({
         </div>
       ) : (
         <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <p className="font-display text-2xl font-semibold tabular-nums text-stone-950 dark:text-stone-50">
-            {reservation.time ? <Time value={reservation.time} /> : "–"}
+          <p className="font-display text-xl font-semibold tabular-nums text-[color:var(--trips-ink)] sm:text-2xl">
+            {reservation.time ? <Time value={reservation.time} /> : "TBD"}
           </p>
           <StatusChip status={item.status} />
         </div>

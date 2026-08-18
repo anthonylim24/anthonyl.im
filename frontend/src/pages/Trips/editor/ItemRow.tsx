@@ -210,7 +210,7 @@ export const ItemRow = memo(function ItemRow({
           {showTime && (
             <span
               className={`hidden truncate text-right sm:block ${timeCellClass}`}
-              title={item.endTime ? `${item.time} – ${item.endTime}` : undefined}
+              title={item.endTime ? `${item.time} to ${item.endTime}` : undefined}
             >
               {item.time ?? ""}
             </span>

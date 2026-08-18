@@ -922,6 +922,9 @@ html:has(.chatbot-dark) {
   --trips-accent: oklch(36% 0.07 148);
   --trips-accent-hover: oklch(28% 0.064 148);
   --trips-focus: oklch(36% 0.07 148 / 0.45);
+  --trips-scrim: oklch(22% 0.028 140 / 0.52);
+  --trips-radius: 0.25rem;
+  --trips-chrome-h: 3.5rem;
   --ta: oklch(36% 0.07 148);
   --ta-strong: oklch(28% 0.064 148);
   --ta-soft: oklch(36% 0.07 148 / 0.12);
@@ -934,6 +937,16 @@ html:has(.chatbot-dark) {
   color: var(--trips-ink);
   background-image: none;
   caret-color: var(--trips-accent);
+}
+
+@media (min-width: 640px) {
+  .trips {
+    --trips-chrome-h: 3rem;
+  }
+}
+
+.trips[data-chrome-compact="true"] {
+  --trips-chrome-h: 2.75rem;
 }
 
 .trips ::selection {
@@ -956,6 +969,7 @@ html.dark .trips,
   --trips-accent: oklch(78% 0.06 148);
   --trips-accent-hover: oklch(86% 0.05 148);
   --trips-focus: oklch(78% 0.06 148 / 0.5);
+  --trips-scrim: oklch(8% 0.02 148 / 0.64);
   --ta: oklch(78% 0.06 148);
   --ta-strong: oklch(86% 0.05 148);
   --ta-soft: oklch(78% 0.06 148 / 0.12);
@@ -982,6 +996,36 @@ html.dark .trips,
   background-color: var(--trips-band);
   color: var(--trips-band-ink);
 }
+
+.trips .cover-band[data-compact="true"] {
+  position: sticky;
+  top: calc(var(--trips-chrome-h) + env(safe-area-inset-top, 0px));
+  z-index: 25;
+  min-height: 0;
+  padding-block: 0.7rem;
+}
+
+.trips .cover-band[data-compact="true"] .cover-extra {
+  display: none;
+}
+
+.trips .cover-band[data-compact="true"] .cover-hero {
+  margin-top: 0.35rem;
+}
+
+.trips .cover-band[data-compact="true"] .type-hero-time {
+  font-size: 1.5rem;
+}
+
+.trips .cover-band[data-compact="true"] .cover-hero-title {
+  font-size: 1.125rem;
+}
+
+.trips .cover-band[data-compact="true"] .cover-title,
+.trips .cover-band[data-compact="true"] input.trip-display-input {
+  font-size: 1.25rem !important;
+}
+
 
 .trips .snap-rail {
   background-image: linear-gradient(
@@ -1042,6 +1086,7 @@ html.dark .trips,
 .trips [data-trip-accent="rose"] {
   --trips-canvas: oklch(95% 0.022 16.4);
   --trips-surface: oklch(97.6% 0.012 16.4);
+  --trips-rail: oklch(92.2% 0.028 16.4);
   --trips-band: oklch(36% 0.14 16.4);
   --trips-band-ink: oklch(97% 0.02 16.4);
   --ta: oklch(48% 0.17 16.4);
@@ -1054,6 +1099,7 @@ html.dark .trips,
 .trips [data-trip-accent="amber"] {
   --trips-canvas: oklch(95% 0.022 70.1);
   --trips-surface: oklch(97.6% 0.012 70.1);
+  --trips-rail: oklch(92.2% 0.028 70.1);
   --trips-band: oklch(38% 0.1 70.1);
   --trips-band-ink: oklch(97% 0.02 70.1);
   --ta: oklch(46% 0.1 70.1);
@@ -1067,6 +1113,7 @@ html.dark .trips,
 .trips [data-trip-accent="emerald"] {
   --trips-canvas: oklch(95% 0.022 162.5);
   --trips-surface: oklch(97.6% 0.012 162.5);
+  --trips-rail: oklch(92.2% 0.028 162.5);
   --trips-band: oklch(34% 0.08 162.5);
   --trips-band-ink: oklch(97% 0.018 162.5);
   --ta: oklch(42% 0.09 162.5);
@@ -1079,6 +1126,7 @@ html.dark .trips,
 .trips [data-trip-accent="sky"] {
   --trips-canvas: oklch(95% 0.02 237.3);
   --trips-surface: oklch(97.6% 0.01 237.3);
+  --trips-rail: oklch(92.4% 0.024 237.3);
   --trips-band: oklch(36% 0.08 237.3);
   --trips-band-ink: oklch(97% 0.016 237.3);
   --ta: oklch(44% 0.09 237.3);
@@ -1091,6 +1139,7 @@ html.dark .trips,
 .trips [data-trip-accent="violet"] {
   --trips-canvas: oklch(95% 0.022 292.7);
   --trips-surface: oklch(97.6% 0.012 292.7);
+  --trips-rail: oklch(92.2% 0.028 292.7);
   --trips-band: oklch(36% 0.12 292.7);
   --trips-band-ink: oklch(97% 0.02 292.7);
   --ta: oklch(46% 0.14 292.7);
@@ -1108,6 +1157,7 @@ html.dark .trips [data-trip-accent] {
 html.dark .trips [data-trip-accent="rose"] {
   --trips-canvas: oklch(16.5% 0.03 16.4);
   --trips-surface: oklch(20.5% 0.028 16.4);
+  --trips-rail: oklch(18.2% 0.03 16.4);
   --trips-band: oklch(28% 0.1 16.4);
   --trips-band-ink: oklch(94% 0.03 16.4);
   --ta: oklch(72% 0.14 16.4);
@@ -1120,6 +1170,7 @@ html.dark .trips [data-trip-accent="rose"] {
 html.dark .trips [data-trip-accent="amber"] {
   --trips-canvas: oklch(16.5% 0.028 70.1);
   --trips-surface: oklch(20.5% 0.026 70.1);
+  --trips-rail: oklch(18.2% 0.028 70.1);
   --trips-band: oklch(28% 0.08 70.1);
   --trips-band-ink: oklch(94% 0.028 70.1);
   --ta: oklch(74% 0.11 70.1);
@@ -1133,6 +1184,7 @@ html.dark .trips [data-trip-accent="amber"] {
 html.dark .trips [data-trip-accent="emerald"] {
   --trips-canvas: oklch(16.5% 0.028 162.5);
   --trips-surface: oklch(20.5% 0.026 162.5);
+  --trips-rail: oklch(18.2% 0.028 162.5);
   --trips-band: oklch(26% 0.07 162.5);
   --trips-band-ink: oklch(94% 0.024 162.5);
   --ta: oklch(72% 0.1 162.5);
@@ -1145,6 +1197,7 @@ html.dark .trips [data-trip-accent="emerald"] {
 html.dark .trips [data-trip-accent="sky"] {
   --trips-canvas: oklch(16.5% 0.026 237.3);
   --trips-surface: oklch(20.5% 0.024 237.3);
+  --trips-rail: oklch(18.2% 0.026 237.3);
   --trips-band: oklch(26% 0.06 237.3);
   --trips-band-ink: oklch(94% 0.02 237.3);
   --ta: oklch(72% 0.1 237.3);
@@ -1157,6 +1210,7 @@ html.dark .trips [data-trip-accent="sky"] {
 html.dark .trips [data-trip-accent="violet"] {
   --trips-canvas: oklch(16.5% 0.03 292.7);
   --trips-surface: oklch(20.5% 0.028 292.7);
+  --trips-rail: oklch(18.2% 0.03 292.7);
   --trips-band: oklch(28% 0.09 292.7);
   --trips-band-ink: oklch(94% 0.03 292.7);
   --ta: oklch(74% 0.12 292.7);
@@ -1175,21 +1229,21 @@ html.dark .trips [data-trip-accent="violet"] {
   background-image: radial-gradient(ellipse at bottom left, var(--ta-bloom-b), transparent 55%);
 }
 
-/* Split action (button + disclosure): two `rounded-xl` buttons share one
+/* Split action (button + disclosure): two buttons share one
    outline. Unlayered, so it wins over the utilities' border-radius. */
 .trip-split > button {
   border-radius: 0;
 }
 
 .trip-split > button:first-of-type {
-  border-start-start-radius: 0.75rem;
-  border-end-start-radius: 0.75rem;
+  border-start-start-radius: var(--trips-radius);
+  border-end-start-radius: var(--trips-radius);
   padding-inline-end: 0.625rem;
 }
 
 .trip-split > button:last-of-type {
-  border-start-end-radius: 0.75rem;
-  border-end-end-radius: 0.75rem;
+  border-start-end-radius: var(--trips-radius);
+  border-end-end-radius: var(--trips-radius);
   padding-inline: 0.5rem;
   /* A chevron alone is narrower than the 44px touch floor; tightens with the
      compact buttons from `sm`. */

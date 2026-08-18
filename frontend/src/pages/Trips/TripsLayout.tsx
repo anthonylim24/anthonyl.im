@@ -5,12 +5,14 @@ import { SignedIn, SignedOut, SignInButton, UserButton, useAuth } from "@clerk/c
 import { CLERK_ENABLED } from "@/lib/clerk"
 import { ThemeToggle } from "../Korea/ThemeToggle"
 import { applyTheme, getInitialTheme } from "../Korea/koreaUtils"
+import { CompactChromeProvider, useCompactChrome } from "./useCompactChrome"
 import {
   chromeHeaderClass,
   focusRingClass,
   iconBtnClass,
   mutedInkClass,
   primaryBtnClass,
+  typePageTitleClass,
   wrapAnywhereClass,
 } from "./ui"
 
@@ -30,11 +32,11 @@ function ClerkTripsGate({ children }: { children: ReactNode }) {
   if (!isLoaded) {
     return (
       <div
-        className="flex min-h-[70dvh] items-center justify-center px-5 py-16 text-stone-500 dark:text-stone-400"
+        className={`flex min-h-[70dvh] items-center justify-center px-5 py-16 ${mutedInkClass}`}
         role="status"
         aria-label="Checking sign-in"
       >
-        <span className="text-sm">Loading…</span>
+        <span className="text-[0.9375rem]">Loading…</span>
       </div>
     )
   }
@@ -44,10 +46,10 @@ function ClerkTripsGate({ children }: { children: ReactNode }) {
       <SignedOut>
         <div className="flex min-h-[70dvh] items-center px-6 py-16 sm:px-10">
           <div className="w-full max-w-sm">
-            <h1 className="font-display text-3xl font-semibold tracking-tight text-stone-900 dark:text-stone-100">
+            <h1 className={typePageTitleClass}>
               Sign in to Trips
             </h1>
-            <p className={`mt-3 text-sm leading-relaxed ${mutedInkClass}`}>
+            <p className={`mt-3 text-[0.9375rem] leading-relaxed ${mutedInkClass}`}>
               Days, reservations, and Map Mode stay private.
             </p>
             <SignInButton mode="modal">
@@ -94,7 +96,28 @@ export function TripsLayout() {
   }, [])
 
   return (
-    <div className="trips min-h-dvh text-stone-900 dark:text-stone-100">
+    <CompactChromeProvider>
+    <TripsShell atIndex={atIndex} chatPad={chatPad} crumb={crumb} />
+    </CompactChromeProvider>
+  )
+}
+
+function TripsShell({
+  atIndex,
+  chatPad,
+  crumb,
+}: {
+  atIndex: boolean
+  chatPad: boolean
+  crumb: string | null
+}) {
+  const compact = useCompactChrome()
+
+  return (
+    <div
+      className="trips min-h-dvh text-[color:var(--trips-ink)]"
+      data-chrome-compact={compact ? "true" : undefined}
+    >
       {/*
         THESIS: The trip is a pocket timetable. Days are stations; bookings are the trains. Refuses Linear/Notion zinc and Korea parchment.
         OWN-WORLD: Tinted print stock, committed cover band, Archivo Narrow times, hairline rules, snap rail. No workspace rail, no property-table hero.
@@ -106,12 +129,16 @@ export function TripsLayout() {
       <TripsAuthGate>
         <a
           href="#trips-main"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:inline-flex focus:min-h-11 focus:items-center focus:rounded-lg focus:bg-[color:var(--trips-accent)] focus:px-4 focus:text-sm focus:font-medium focus:text-white dark:focus:text-stone-950"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:inline-flex focus:min-h-11 focus:items-center focus:rounded-[length:var(--trips-radius)] focus:bg-[color:var(--trips-accent)] focus:px-4 focus:text-sm focus:font-medium focus:text-white dark:focus:text-[color:var(--trips-canvas)]"
         >
           Skip to content
         </a>
         <header className={chromeHeaderClass}>
-          <div className="flex h-14 items-center justify-between gap-3 px-4 pt-[env(safe-area-inset-top,0px)] sm:h-12 sm:px-6">
+          <div
+            className={`flex items-center justify-between gap-3 px-4 pt-[env(safe-area-inset-top,0px)] sm:px-6 ${
+              compact ? "h-11" : "h-14 sm:h-12"
+            }`}
+          >
             <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 sm:gap-3">
               {!atIndex && (
                 <Link to="/trips" className={`${iconBtnClass} sm:hidden`} aria-label="Back to all trips">
@@ -122,7 +149,7 @@ export function TripsLayout() {
                 <li className="shrink-0">
                   <Link
                     to="/trips"
-                    className={`-mx-1.5 inline-flex min-h-11 items-center rounded-lg px-1.5 font-display text-lg font-semibold tracking-tight text-stone-900 transition hover:text-[color:var(--trips-accent)] dark:text-stone-100 ${focusRingClass}`}
+                    className={`-mx-1.5 inline-flex min-h-11 items-center rounded-[length:var(--trips-radius)] px-1.5 font-display font-semibold tracking-tight text-[color:var(--trips-ink)] transition hover:text-[color:var(--trips-accent)] ${compact ? "text-base" : "text-lg"} ${focusRingClass}`}
                   >
                     Trips
                   </Link>
@@ -132,19 +159,19 @@ export function TripsLayout() {
                     aria-current="page"
                     className={`flex min-w-0 items-center gap-2 ${mutedInkClass}`}
                   >
-                    <span aria-hidden className="text-stone-400 dark:text-stone-600">
+                    <span aria-hidden className="text-[color:var(--trips-ink-tertiary)]">
                       /
                     </span>
-                    <span className={`truncate text-sm font-medium ${wrapAnywhereClass}`}>{crumb}</span>
+                    <span className={`truncate text-[0.8125rem] font-medium ${wrapAnywhereClass}`}>{crumb}</span>
                   </li>
                 ) : null}
               </ol>
               <Link
                 to="/trips/new"
-                className={`hidden min-h-11 items-center gap-1.5 rounded-lg px-2 text-sm font-medium sm:inline-flex ${mutedInkClass} hover:text-stone-900 dark:hover:text-stone-100 ${focusRingClass}`}
+                className={`hidden min-h-11 items-center gap-1.5 rounded-[length:var(--trips-radius)] px-2 text-[0.8125rem] font-medium sm:inline-flex ${mutedInkClass} hover:text-[color:var(--trips-ink)] ${focusRingClass}`}
               >
                 <Plus className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
-                New trip
+                {compact ? <span className="sr-only">New trip</span> : "New trip"}
               </Link>
             </nav>
             <div className="flex items-center gap-1.5 sm:gap-2">
