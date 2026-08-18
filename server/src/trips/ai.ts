@@ -1,6 +1,15 @@
 import Groq from "groq-sdk"
 import { textFromGeminiParts, type GeminiPart } from "../geminiStream"
-import { GEMINI_TOOLS_MAPS, GEMINI_TOOLS_SEARCH_AND_MAPS } from "../geminiTools"
+import {
+  fetchGeminiWithTransientRetry,
+  GEMINI_TOOLS_MAPS,
+  GEMINI_TOOLS_SEARCH,
+  GEMINI_TOOLS_SEARCH_AND_MAPS,
+  mapsRetrievalConfig,
+  toolsIncludeMaps,
+  type GeminiToolList,
+} from "../geminiTools"
+import { tripLatLngHint } from "./latLngHint"
 import { GEMINI_BASE, GEMINI_MODEL, geminiThinking } from "../igPlaces/gemini"
 import { haversineMeters } from "../data/koreaPlaces"
 import {
@@ -23,7 +32,12 @@ import { z } from "zod"
 
 // ── LLM + geocode dependency seams (injected in tests) ───────────────────
 
-export type LlmCall = (args: { system: string; user: string; maxTokens?: number }) => Promise<string>
+export type LlmCall = (args: {
+  system: string
+  user: string
+  maxTokens?: number
+  latLng?: { latitude: number; longitude: number }
+}) => Promise<string>
 
 export type Geocoder = (query: string) => Promise<{ lat: number; lng: number; address?: string; placeId?: string } | null>
 
@@ -44,7 +58,20 @@ export const GROQ_DEFAULT_MAX_TOKENS = 2048
 const TRAVELER_REVIEW_ERROR = "The review did not finish. Try again in a moment."
 const TRAVELER_PARSE_ERROR = "The review came back in a form we could not use. Try again."
 
-const TRANSIENT_GEMINI = new Set([500, 502, 503, 504])
+const GEMINI_MODES = ["search+maps", "maps", "search", "json"] as const
+type GeminiMode = (typeof GEMINI_MODES)[number]
+
+function toolsForGeminiMode(mode: GeminiMode): GeminiToolList | undefined {
+  if (mode === "search+maps") return GEMINI_TOOLS_SEARCH_AND_MAPS
+  if (mode === "maps") return GEMINI_TOOLS_MAPS
+  if (mode === "search") return GEMINI_TOOLS_SEARCH
+  return undefined
+}
+
+function isGeminiQuotaError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err)
+  return /\bgemini 429\b/.test(msg)
+}
 
 /** Cheap char/4 estimate — enough to know whether Groq's 8k TPM can accept the call. */
 export function estimatePromptTokens(system: string, user: string): number {
@@ -68,19 +95,6 @@ export function travelerFacingLlmError(err: unknown): string {
   if (raw === "day not found") return raw
   if (/no JSON object found|failed validation/i.test(raw)) return TRAVELER_PARSE_ERROR
   return TRAVELER_REVIEW_ERROR
-}
-
-/** One retry on Google's intermittent 5xx. 429 is left to the Groq fallback. */
-async function fetchGeminiWithRetry(
-  fetchImpl: typeof fetch,
-  url: string,
-  init: RequestInit,
-): Promise<Response> {
-  const first = await fetchImpl(url, init)
-  if (!TRANSIENT_GEMINI.has(first.status)) return first
-  await first.text().catch(() => {})
-  await new Promise((r) => setTimeout(r, 800))
-  return fetchImpl(url, init)
 }
 
 export function createGroqLlm(apiKey: string): LlmCall {
@@ -112,10 +126,13 @@ export function createGroqLlm(apiKey: string): LlmCall {
 }
 
 /**
- * Preferred trips LLM: Gemini 3.7 Flash with Search + Maps grounding.
- * Maps verifies venues and returns real coordinates; Search covers hours,
- * events, and seasonal notes. Grounding cannot use application/json mime
- * type, so the last retry is JSON-only.
+ * Preferred trips LLM: Gemini 3.7 Flash with the same tool ladder as chat
+ * (Search+Maps → Maps → Search → JSON). Maps calls send retrieval latLng
+ * when the itinerary has coordinates — without that, 3.7 often 400s and
+ * the old path treated that as a total Gemini failure.
+ *
+ * 429 is retried once on the same request, then thrown (stepping down tools
+ * does not fix quota). Empty / 400 responses step down the ladder.
  */
 export function createGeminiLlm(
   apiKey: string,
@@ -123,8 +140,9 @@ export function createGeminiLlm(
   opts?: { model?: string },
 ): LlmCall {
   const model = opts?.model ?? GEMINI_MODEL
-  return async ({ system, user, maxTokens }) => {
-    const run = async (mode: "search+maps" | "maps" | "json"): Promise<string> => {
+  return async ({ system, user, maxTokens, latLng }) => {
+    const toolConfig = mapsRetrievalConfig(latLng)
+    const run = async (mode: GeminiMode): Promise<string> => {
       const generationConfig: Record<string, unknown> = {
         temperature: 0.55,
         maxOutputTokens: maxTokens ?? 16_384,
@@ -133,19 +151,32 @@ export function createGeminiLlm(
       // Maps/Search grounding cannot be combined with application/json mime
       // type (Gemini returns 400 INVALID_ARGUMENT). JSON mode is the last retry.
       if (mode === "json") generationConfig.responseMimeType = "application/json"
-      const tools =
-        mode === "search+maps" ? GEMINI_TOOLS_SEARCH_AND_MAPS : mode === "maps" ? GEMINI_TOOLS_MAPS : undefined
+      const tools = toolsForGeminiMode(mode)
+      const requestOnce = () =>
+        fetchGeminiWithTransientRetry(
+          `${GEMINI_BASE}/models/${model}:generateContent`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+            body: JSON.stringify({
+              contents: [{ role: "user", parts: [{ text: `${system}\n\n${user}` }] }],
+              ...(tools ? { tools } : {}),
+              ...(toolConfig && toolsIncludeMaps(tools) ? { toolConfig } : {}),
+              generationConfig,
+            }),
+            signal: AbortSignal.timeout(90_000),
+          },
+          fetchImpl,
+        )
 
-      const res = await fetchGeminiWithRetry(fetchImpl, `${GEMINI_BASE}/models/${model}:generateContent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: `${system}\n\n${user}` }] }],
-          ...(tools ? { tools } : {}),
-          generationConfig,
-        }),
-        signal: AbortSignal.timeout(90_000),
-      })
+      let res = await requestOnce()
+      if (res.status === 429) {
+        await res.text().catch(() => {})
+        const raw = Number(res.headers.get("retry-after"))
+        const waitMs = Number.isFinite(raw) && raw > 0 ? Math.min(raw * 1000, 4_000) : 200
+        await new Promise((r) => setTimeout(r, waitMs))
+        res = await requestOnce()
+      }
       if (!res.ok) {
         const body = await res.text().catch(() => "")
         throw new Error(`gemini ${res.status}: ${body.slice(0, 300)}`)
@@ -169,19 +200,20 @@ export function createGeminiLlm(
       return text
     }
 
-    try {
-      return await run("search+maps")
-    } catch (err) {
-      const first = err instanceof Error ? err.message : String(err)
-      console.warn(`[trips/ai] Search+Maps Gemini failed (${first}); retrying Maps-only`)
+    let lastErr: Error | null = null
+    for (const mode of GEMINI_MODES) {
       try {
-        return await run("maps")
-      } catch (mapsErr) {
-        const msg = mapsErr instanceof Error ? mapsErr.message : String(mapsErr)
-        console.warn(`[trips/ai] Maps-grounded Gemini failed (${msg}); retrying JSON-only`)
-        return await run("json")
+        return await run(mode)
+      } catch (err) {
+        lastErr = err instanceof Error ? err : new Error(String(err))
+        if (isGeminiQuotaError(lastErr)) {
+          console.warn(`[trips/ai] Gemini ${mode} hit 429; not stepping down tools`)
+          throw lastErr
+        }
+        console.warn(`[trips/ai] Gemini ${mode} failed (${lastErr.message}); trying next`)
       }
     }
+    throw lastErr ?? new Error("gemini failed")
   }
 }
 
@@ -212,17 +244,18 @@ export function withLlmFallback(primary: LlmCall, fallback: LlmCall): LlmCall {
   }
 }
 
-/** Gemini (Search+Maps → Maps → JSON retry) with Groq as final fallback. */
+/** Gemini 3.7 when configured. Groq only if Gemini is missing — it is not a reliability fallback. */
+export function pickTripsLlm(gemini: LlmCall | null, groq: LlmCall | null): LlmCall | null {
+  return gemini ?? groq ?? null
+}
+
 export function createTripsLlm(args: {
   geminiApiKey?: string | null
   groqApiKey?: string | null
 }): LlmCall | null {
   const gemini = args.geminiApiKey ? createGeminiLlm(args.geminiApiKey) : null
   const groq = args.groqApiKey ? createGroqLlm(args.groqApiKey) : null
-  if (!gemini && !groq) return null
-  if (!gemini) return groq
-  if (!groq) return gemini
-  return withLlmFallback(gemini, groq)
+  return pickTripsLlm(gemini, groq)
 }
 
 export function createGoogleGeocoder(apiKey: string): Geocoder {
@@ -535,7 +568,11 @@ export async function generateItinerary(args: {
     .filter(Boolean)
     .join("\n")
 
-  const raw = await llm({ system: GENERATION_SYSTEM, user })
+  const raw = await llm({
+    system: GENERATION_SYSTEM,
+    user,
+    latLng: tripLatLngHint(trip) ?? undefined,
+  })
   const parsed = salvageItinerary(raw)
   const appearance = parsed.appearance
 
@@ -785,7 +822,11 @@ export async function enhanceTrip(args: {
     .join("\n")
 
   try {
-    const raw = await llm({ system: ENHANCEMENT_SYSTEM, user })
+    const raw = await llm({
+      system: ENHANCEMENT_SYSTEM,
+      user,
+      latLng: tripLatLngHint(trip, scope === "day" ? dayId : undefined) ?? undefined,
+    })
     const parsed = salvageSuggestions(raw)
     run.summary = parsed.summary
     const validDayIds = new Set(days.map((d) => d.id))

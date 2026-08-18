@@ -5,6 +5,7 @@ import {
   computeTravelLegs,
   createGeminiLlm,
   createTripsLlm,
+  pickTripsLlm,
   enhanceTrip,
   estimatePromptTokens,
   extractModelJson,
@@ -148,10 +149,11 @@ describe("computeTravelLegs", () => {
 
 describe("enhanceTrip", () => {
   test("returns validated suggestions and filters bogus item references", async () => {
-    const llm = async ({ user }: { user: string }) => {
+    const llm = async ({ user, latLng }: { user: string; latLng?: { latitude: number; longitude: number } }) => {
       expect(user).toContain("Senso-ji")
       expect(user).toContain("km") // travel legs included
       expect(user).toContain("rain chance") // weather included
+      expect(latLng).toEqual({ latitude: 35.68715, longitude: 139.7486 })
       return JSON.stringify({
         summary: "Solid plan with one ordering issue.",
         suggestions: [
@@ -556,6 +558,7 @@ describe("createGeminiLlm", () => {
     expect(out).toBe('{"summary":"ok","days":[]}')
     expect(captured!.url).toContain("gemini-3.7-flash:generateContent")
     expect(captured!.body.tools).toEqual([{ googleSearch: {} }, { googleMaps: {} }])
+    expect(captured!.body.toolConfig).toBeUndefined()
     const gen = captured!.body.generationConfig as { thinkingConfig: { thinkingLevel: string } }
     expect(gen.thinkingConfig).toEqual({ thinkingLevel: "low" })
     const contents = captured!.body.contents as Array<{ parts: Array<{ text: string }> }>
@@ -579,12 +582,10 @@ describe("createGeminiLlm", () => {
     expect(calls).toBe(2)
   })
 
-  test("retries Maps then JSON when Search+Maps fails", async () => {
-    const calls: Array<Record<string, unknown>> = []
+  test("sends Maps retrieval latLng with Search+Maps", async () => {
+    let captured: Record<string, unknown> | null = null
     const fetchImpl = (async (_url: RequestInfo | URL, init?: RequestInit) => {
-      const body = JSON.parse(String(init?.body)) as Record<string, unknown>
-      calls.push(body)
-      if (calls.length < 3) return new Response("grounding unavailable", { status: 400 })
+      captured = JSON.parse(String(init?.body)) as Record<string, unknown>
       return new Response(
         JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"ok":true}' }] } }] }),
         { status: 200 },
@@ -592,27 +593,61 @@ describe("createGeminiLlm", () => {
     }) as typeof fetch
 
     const llm = createGeminiLlm("test-key", fetchImpl)
-    const out = await llm({ system: "s", user: "u" })
+    await llm({ system: "s", user: "u", latLng: { latitude: 37.5665, longitude: 126.978 } })
+    expect(captured!.tools).toEqual([{ googleSearch: {} }, { googleMaps: {} }])
+    expect(captured!.toolConfig).toEqual({
+      retrievalConfig: { latLng: { latitude: 37.5665, longitude: 126.978 } },
+    })
+  })
+
+  test("retries Maps, Search, then JSON when Search+Maps fails", async () => {
+    const calls: Array<Record<string, unknown>> = []
+    const fetchImpl = (async (_url: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>
+      calls.push(body)
+      if (calls.length < 4) return new Response("grounding unavailable", { status: 400 })
+      return new Response(
+        JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"ok":true}' }] } }] }),
+        { status: 200 },
+      )
+    }) as typeof fetch
+
+    const llm = createGeminiLlm("test-key", fetchImpl)
+    const out = await llm({ system: "s", user: "u", latLng: { latitude: 35.6, longitude: 139.7 } })
     expect(out).toBe('{"ok":true}')
-    expect(calls).toHaveLength(3)
+    expect(calls).toHaveLength(4)
     expect(calls[0]!.tools).toEqual([{ googleSearch: {} }, { googleMaps: {} }])
+    expect(calls[0]!.toolConfig).toEqual({
+      retrievalConfig: { latLng: { latitude: 35.6, longitude: 139.7 } },
+    })
     expect(calls[1]!.tools).toEqual([{ googleMaps: {} }])
-    expect(calls[2]!.tools).toBeUndefined()
-    const gen = calls[2]!.generationConfig as { responseMimeType?: string }
+    expect(calls[2]!.tools).toEqual([{ googleSearch: {} }])
+    expect(calls[2]!.toolConfig).toBeUndefined()
+    expect(calls[3]!.tools).toBeUndefined()
+    const gen = calls[3]!.generationConfig as { responseMimeType?: string }
     expect(gen.responseMimeType).toBe("application/json")
   })
 
-  test("throws with status + body on API errors after JSON retry also fails", async () => {
-    const fetchImpl = (async () => new Response("quota exceeded", { status: 429 })) as typeof fetch
+  test("retries a 429 once and does not burn the tool ladder", async () => {
+    let calls = 0
+    const fetchImpl = (async () => {
+      calls++
+      return new Response("quota exceeded", { status: 429 })
+    }) as typeof fetch
     const llm = createGeminiLlm("test-key", fetchImpl)
     await expect(llm({ system: "s", user: "u" })).rejects.toThrow(/429.*quota/)
+    expect(calls).toBe(2)
   })
 
-  test("throws on an empty candidate response", async () => {
-    const fetchImpl = (async () => new Response(JSON.stringify({ candidates: [] }), { status: 200 })) as typeof fetch
+  test("throws on an empty candidate response after the tool ladder", async () => {
+    let calls = 0
+    const fetchImpl = (async () => {
+      calls++
+      return new Response(JSON.stringify({ candidates: [] }), { status: 200 })
+    }) as typeof fetch
     const llm = createGeminiLlm("test-key", fetchImpl)
-    // First Maps attempt fails empty → JSON retry also empty → throws
     await expect(llm({ system: "s", user: "u" })).rejects.toThrow(/empty/)
+    expect(calls).toBe(4)
   })
 })
 
@@ -665,6 +700,14 @@ describe("withLlmFallback", () => {
 
   test("createTripsLlm returns null when neither key is set", () => {
     expect(createTripsLlm({})).toBeNull()
+  })
+
+  test("pickTripsLlm uses Gemini alone when both clients exist", async () => {
+    const llm = pickTripsLlm(
+      async () => "gemini",
+      async () => "groq",
+    )
+    expect(await llm!({ system: "s", user: "u" })).toBe("gemini")
   })
 })
 

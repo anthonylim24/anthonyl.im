@@ -377,7 +377,7 @@ export function createTripsRouter(deps: TripsRouterDeps) {
 
   // ── AI: enhancement (reviewable suggestions) ───────────────────────────
   //
-  // The LLM call (Gemini Maps + JSON retry + Groq) regularly exceeds reverse-
+  // The LLM call (Gemini Maps + tool ladder) regularly exceeds reverse-
   // proxy idle timeouts, which used to surface as a naked 502. Start the run
   // immediately and finish it in the background; the editor polls GET
   // /enhancements/:runId until status leaves "running".
