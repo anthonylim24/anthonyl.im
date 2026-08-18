@@ -83,47 +83,52 @@ export const DayCard = memo(function DayCard({
       id={day.id}
       aria-label={`Day ${index + 1}`}
       aria-busy={enhancing}
-      className={`scroll-mt-32 rounded-lg border border-[color:var(--trips-border)] px-3 py-4 transition-colors duration-300 lg:scroll-mt-24 ${
-        enhancing ? ACCENT.softBg : "bg-[color:var(--trips-surface)]"
+      className={`scroll-mt-32 border-t border-[color:var(--trips-border)] px-0 py-6 transition-colors duration-300 lg:scroll-mt-24 ${
+        enhancing ? ACCENT.softBg : ""
       }`}
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 flex-1">
-          <p className={`flex items-center gap-2 text-[12px] font-medium ${mutedInkClass}`}>
-            <span className={`inline-flex h-6 min-w-6 items-center justify-center rounded-md px-1.5 text-[11px] font-semibold tabular-nums ${ACCENT.softBg} ${ACCENT.text}`}>
-              {index + 1}
-            </span>
-            {formatTripDate(day.date, timezone)}
-            {day.city ? ` · ${day.city}` : ""}
-          </p>
-          <div className="mt-1 flex items-center gap-1.5">
-            {editable ? (
-              <>
-                <input
-                  value={day.emoji ?? ""}
-                  placeholder="✦"
-                  maxLength={4}
-                  aria-label={`Day ${index + 1} emoji`}
-                  disabled={locked}
-                  onChange={(e) => patchDay({ emoji: e.target.value || undefined })}
-                  className={`w-11 shrink-0 text-center text-xl ${subtleInputClass}`}
-                />
-                <input
-                  value={day.title ?? ""}
-                  placeholder="Day theme…"
-                  title={day.title || undefined}
-                  aria-label={`Day ${index + 1} title`}
-                  disabled={locked}
-                  onChange={(e) => patchDay({ title: e.target.value })}
-                  className={`w-full truncate text-lg font-semibold tracking-tight ${subtleInputClass}`}
-                />
-              </>
-            ) : (
-              <h2 className={`text-lg font-semibold tracking-tight text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}>
-                {day.emoji ? `${day.emoji} ` : ""}
-                {day.title ?? ""}
-              </h2>
-            )}
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <span
+            aria-hidden
+            className="font-display shrink-0 text-4xl font-semibold tabular-nums leading-none tracking-tight text-[color:var(--trips-ink)]"
+          >
+            {index + 1}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className={`text-[12px] font-medium ${mutedInkClass}`}>
+              {formatTripDate(day.date, timezone)}
+              {day.city ? ` · ${day.city}` : ""}
+            </p>
+            <div className="mt-1 flex items-center gap-1.5">
+              {editable ? (
+                <>
+                  <input
+                    value={day.emoji ?? ""}
+                    placeholder="✦"
+                    maxLength={4}
+                    aria-label={`Day ${index + 1} emoji`}
+                    disabled={locked}
+                    onChange={(e) => patchDay({ emoji: e.target.value || undefined })}
+                    className={`w-11 shrink-0 text-center text-xl ${subtleInputClass}`}
+                  />
+                  <input
+                    value={day.title ?? ""}
+                    placeholder="Day theme…"
+                    title={day.title || undefined}
+                    aria-label={`Day ${index + 1} title`}
+                    disabled={locked}
+                    onChange={(e) => patchDay({ title: e.target.value })}
+                    className={`w-full truncate font-display text-lg font-semibold tracking-tight ${subtleInputClass}`}
+                  />
+                </>
+              ) : (
+                <h2 className={`font-display text-lg font-semibold tracking-tight text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}>
+                  {day.emoji ? `${day.emoji} ` : ""}
+                  {day.title ?? ""}
+                </h2>
+              )}
+            </div>
           </div>
         </div>
         {/* Own row below `sm` so the title input keeps the full width. */}

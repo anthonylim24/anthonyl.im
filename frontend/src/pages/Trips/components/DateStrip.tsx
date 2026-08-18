@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom"
-import { ACCENT, formatTripDate } from "../theme"
+import { ACCENT, formatTripDate, todayIsoIn } from "../theme"
 import { focusRingClass, mutedInkClass } from "../ui"
 import type { TripDay } from "../types"
 
@@ -12,7 +12,7 @@ function dayNum(date: string, timezone: string): string {
 }
 
 /**
- * Airbnb-style date cells. Overview uses hash links; the day page uses routes.
+ * Station-tick snap rail. Overview uses hash links; the day page uses routes.
  * Hidden when there is only one day so a lone trip does not grow a nav track.
  */
 export function DateStrip({
@@ -29,22 +29,31 @@ export function DateStrip({
   toFor?: (day: TripDay) => string
 }) {
   if (days.length < 2) return null
+  const today = todayIsoIn(timezone)
 
   return (
-    <nav aria-label="Days" className="overflow-x-auto touch-pan-x">
-      <ol className="flex gap-1.5 pb-0.5">
+    <nav aria-label="Days" className="overflow-x-auto touch-pan-x py-3">
+      <ol className="snap-rail flex items-end gap-0">
         {days.map((day, idx) => {
           const active = day.id === activeId
+          const isToday = day.date === today
           const label = `Day ${idx + 1}, ${formatTripDate(day.date, timezone)}${day.title ? `, ${day.title}` : ""}`
-          const className = `flex h-14 min-w-12 flex-col items-center justify-center rounded-lg px-2.5 ${focusRingClass} ${
-            active
-              ? `${ACCENT.softBg} ${ACCENT.text}`
-              : `${mutedInkClass} hover:bg-stone-200/70 hover:text-stone-900 dark:hover:bg-stone-800/70 dark:hover:text-stone-100`
+          const className = `relative flex min-h-14 min-w-12 flex-col items-center justify-end gap-1 px-2.5 pb-1 ${focusRingClass} ${
+            active ? ACCENT.text : isToday ? `text-stone-900 dark:text-stone-100` : mutedInkClass
           }`
           const body = (
             <>
-              <span className="text-[10px] font-medium uppercase tracking-wide">{weekday(day.date, timezone)}</span>
-              <span className="text-sm font-semibold tabular-nums leading-none">{dayNum(day.date, timezone)}</span>
+              <span
+                aria-hidden
+                className={`h-2.5 w-px ${active || isToday ? "bg-[color:var(--ta)]" : "bg-[color:var(--trips-ink)]"}`}
+              />
+              <span className="font-display text-[10px] font-medium uppercase leading-none tracking-wide">
+                {weekday(day.date, timezone)}
+              </span>
+              <span className="font-display text-base font-semibold tabular-nums leading-none">{dayNum(day.date, timezone)}</span>
+              {active ? (
+                <span className="absolute -bottom-0.5 left-1/2 h-1.5 w-3 -translate-x-1/2 rotate-[-18deg] bg-[color:var(--ta)]" aria-hidden />
+              ) : null}
             </>
           )
           return (

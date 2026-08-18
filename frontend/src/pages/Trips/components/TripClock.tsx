@@ -23,9 +23,10 @@ function formatIn(timezone: string): { time: string; date: string; zone: string 
   return { time, date, zone }
 }
 
-export function TripClock({ timezone }: { timezone: string }) {
+export function TripClock({ timezone, tone = "sheet" }: { timezone: string; tone?: "sheet" | "band" }) {
   const reduce = useReducedMotion()
   const [{ time, date, zone }, setNow] = useState(() => formatIn(timezone))
+  const onBand = tone === "band"
 
   useEffect(() => {
     setNow(formatIn(timezone))
@@ -40,10 +41,16 @@ export function TripClock({ timezone }: { timezone: string }) {
       transition={{ duration: 0.2 }}
       aria-label={`${date}, ${time} ${zone}`}
       title={`${date}, ${time} ${zone}`}
-      className={`inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium ${mutedInkClass}`}
+      className={`inline-flex shrink-0 items-center gap-1.5 text-[11px] font-medium ${
+        onBand ? "text-[color:var(--trips-band-ink)]/75" : mutedInkClass
+      }`}
     >
-      <span className="font-mono-trips tabular-nums text-stone-800 dark:text-stone-200">{time}</span>
-      <span className="font-mono-trips uppercase tracking-[0.12em]">{zone}</span>
+      <span className={`font-display tabular-nums ${onBand ? "text-[color:var(--trips-band-ink)]" : "text-stone-800 dark:text-stone-200"}`}>
+        {time}
+      </span>
+      <span className="font-display uppercase tracking-[0.12em]">
+        {(timezone.split("/").pop() ?? zone).replace(/_/g, " ")}
+      </span>
     </motion.div>
   )
 }

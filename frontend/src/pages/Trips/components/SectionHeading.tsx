@@ -1,6 +1,6 @@
 import { mutedInkClass, wrapAnywhereClass } from "../ui"
 
-/** Product section title. Not a numbered dossier rule. */
+/** Timetable section title. Not a numbered dossier rule. */
 export function SectionHeading({
   title,
   subtitle,
@@ -10,7 +10,7 @@ export function SectionHeading({
 }) {
   return (
     <header className="pb-3">
-      <h2 className="text-[15px] font-semibold tracking-tight text-stone-900 dark:text-stone-100">{title}</h2>
+      <h2 className="font-display text-xl font-semibold tracking-tight text-stone-900 dark:text-stone-100">{title}</h2>
       {subtitle && (
         <p className={`mt-1 max-w-[56ch] text-sm leading-relaxed ${mutedInkClass} ${wrapAnywhereClass}`}>{subtitle}</p>
       )}

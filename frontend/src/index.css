@@ -903,66 +903,95 @@ html:has(.chatbot-dark) {
 }
 
 /* ═══════════════════════════════════════════════════════
-   TRIPS — cool workspace (Linear / Notion / Airbnb, not Korea dossier)
+   TRIPS — pocket timetable / JR print stock
    Scene: kitchen-table daylight planning; hotel-night phone lookups.
-   Product register: one sans, restrained accent, no parchment bloom.
+   Product register: condensed times, tinted stock, no parchment bloom.
    ═══════════════════════════════════════════════════════ */
 
 .trips {
-  --trips-canvas: oklch(96.4% 0.008 255);
-  --trips-surface: oklch(99.4% 0.002 255);
-  --trips-rail: oklch(94.6% 0.01 255);
-  --trips-ink: oklch(22% 0.014 260);
-  --trips-ink-secondary: oklch(46% 0.016 260);
-  --trips-ink-tertiary: oklch(62% 0.012 260);
-  --trips-border: oklch(22% 0.014 260 / 0.08);
-  --trips-accent: oklch(36% 0.038 250);
-  --trips-accent-hover: oklch(28% 0.036 250);
-  --trips-focus: oklch(36% 0.038 250 / 0.45);
-  --ta: oklch(36% 0.038 250);
-  --ta-strong: oklch(28% 0.036 250);
-  --ta-soft: oklch(36% 0.038 250 / 0.1);
-  --ta-ring: oklch(36% 0.038 250 / 0.45);
+  /* Pocket-timetable stock. Green-gray print paper, not zinc and not parchment. */
+  --trips-canvas: oklch(94.8% 0.018 128);
+  --trips-surface: oklch(97.4% 0.01 128);
+  --trips-rail: oklch(92.2% 0.022 128);
+  --trips-ink: oklch(22% 0.028 140);
+  --trips-ink-secondary: oklch(38% 0.024 140);
+  --trips-ink-tertiary: oklch(48% 0.02 140);
+  --trips-border: oklch(22% 0.028 140 / 0.14);
+  --trips-band: oklch(31% 0.058 148);
+  --trips-band-ink: oklch(96.2% 0.018 128);
+  --trips-accent: oklch(36% 0.07 148);
+  --trips-accent-hover: oklch(28% 0.064 148);
+  --trips-focus: oklch(36% 0.07 148 / 0.45);
+  --ta: oklch(36% 0.07 148);
+  --ta-strong: oklch(28% 0.064 148);
+  --ta-soft: oklch(36% 0.07 148 / 0.12);
+  --ta-ring: oklch(36% 0.07 148 / 0.45);
   --ta-bloom-a: transparent;
   --ta-bloom-b: transparent;
-  --radius: 0.5rem;
+  --radius: 0.25rem;
   color-scheme: light dark;
   background-color: var(--trips-canvas);
   color: var(--trips-ink);
   background-image: none;
+  caret-color: var(--trips-accent);
+}
+
+.trips ::selection {
+  background: color-mix(in oklch, var(--trips-band) 72%, transparent);
+  color: var(--trips-band-ink);
 }
 
 html.dark .trips,
 .trips.dark,
 :root.dark .trips {
-  --trips-canvas: oklch(16% 0.012 260);
-  --trips-surface: oklch(20.5% 0.012 260);
-  --trips-rail: oklch(18% 0.012 260);
-  --trips-ink: oklch(94% 0.008 250);
-  --trips-ink-secondary: oklch(78% 0.012 250);
-  --trips-ink-tertiary: oklch(64% 0.01 250);
-  --trips-border: oklch(94% 0.008 250 / 0.08);
-  --trips-accent: oklch(82% 0.028 250);
-  --trips-accent-hover: oklch(90% 0.02 250);
-  --trips-focus: oklch(82% 0.028 250 / 0.5);
-  --ta: oklch(82% 0.028 250);
-  --ta-strong: oklch(90% 0.02 250);
-  --ta-soft: oklch(82% 0.028 250 / 0.12);
-  --ta-ring: oklch(82% 0.028 250 / 0.5);
+  --trips-canvas: oklch(16.4% 0.024 148);
+  --trips-surface: oklch(20.2% 0.022 148);
+  --trips-rail: oklch(18.4% 0.024 148);
+  --trips-ink: oklch(93.4% 0.02 128);
+  --trips-ink-secondary: oklch(78% 0.022 128);
+  --trips-ink-tertiary: oklch(66% 0.018 128);
+  --trips-border: oklch(93.4% 0.02 128 / 0.14);
+  --trips-band: oklch(26% 0.05 148);
+  --trips-band-ink: oklch(94.8% 0.02 128);
+  --trips-accent: oklch(78% 0.06 148);
+  --trips-accent-hover: oklch(86% 0.05 148);
+  --trips-focus: oklch(78% 0.06 148 / 0.5);
+  --ta: oklch(78% 0.06 148);
+  --ta-strong: oklch(86% 0.05 148);
+  --ta-soft: oklch(78% 0.06 148 / 0.12);
+  --ta-ring: oklch(78% 0.06 148 / 0.5);
   --ta-bloom-a: transparent;
   --ta-bloom-b: transparent;
   background-image: none;
 }
 
 .trips .font-display {
-  font-family: Inter, system-ui, sans-serif;
+  font-family: "Archivo Narrow", "Arial Narrow", sans-serif;
   font-weight: 600;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
+  font-stretch: condensed;
 }
 
 .trips .font-mono-trips {
-  font-family: Inter, system-ui, sans-serif;
+  font-family: "Archivo Narrow", "Arial Narrow", sans-serif;
   font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.trips .cover-band {
+  background-color: var(--trips-band);
+  color: var(--trips-band-ink);
+}
+
+.trips .snap-rail {
+  background-image: linear-gradient(
+    to right,
+    var(--trips-ink) 0,
+    var(--trips-ink) 100%
+  );
+  background-repeat: no-repeat;
+  background-size: 100% 1px;
+  background-position: center;
 }
 
 /* Below 768px every input is pinned to 16px so iOS doesn't zoom on focus.
@@ -1011,43 +1040,63 @@ html.dark .trips,
 }
 
 .trips [data-trip-accent="rose"] {
-  --ta: oklch(51% 0.198 16.4);
-  --ta-strong: oklch(44% 0.198 16.4);
-  --ta-soft: oklch(51% 0.198 16.4 / 0.12);
-  --ta-ring: oklch(51% 0.198 16.4 / 0.45);
+  --trips-canvas: oklch(95% 0.022 16.4);
+  --trips-surface: oklch(97.6% 0.012 16.4);
+  --trips-band: oklch(36% 0.14 16.4);
+  --trips-band-ink: oklch(97% 0.02 16.4);
+  --ta: oklch(48% 0.17 16.4);
+  --ta-strong: oklch(40% 0.17 16.4);
+  --ta-soft: oklch(48% 0.17 16.4 / 0.12);
+  --ta-ring: oklch(48% 0.17 16.4 / 0.45);
   --ta-bloom-a: oklch(65% 0.21 16.4 / 0.1);
 }
 
 .trips [data-trip-accent="amber"] {
-  --ta: oklch(50% 0.108 70.1);
-  --ta-strong: oklch(43% 0.108 70.1);
-  --ta-soft: oklch(50% 0.108 70.1 / 0.12);
-  --ta-ring: oklch(50% 0.108 70.1 / 0.45);
+  --trips-canvas: oklch(95% 0.022 70.1);
+  --trips-surface: oklch(97.6% 0.012 70.1);
+  --trips-band: oklch(38% 0.1 70.1);
+  --trips-band-ink: oklch(97% 0.02 70.1);
+  --ta: oklch(46% 0.1 70.1);
+  --ta-strong: oklch(38% 0.1 70.1);
+  --ta-soft: oklch(46% 0.1 70.1 / 0.12);
+  --ta-ring: oklch(46% 0.1 70.1 / 0.45);
   --ta-bloom-a: oklch(77% 0.16 70.1 / 0.12);
   --ta-bloom-b: oklch(62% 0.012 60 / 0.08);
 }
 
 .trips [data-trip-accent="emerald"] {
-  --ta: oklch(48% 0.104 162.5);
-  --ta-strong: oklch(41% 0.104 162.5);
-  --ta-soft: oklch(48% 0.104 162.5 / 0.12);
-  --ta-ring: oklch(48% 0.104 162.5 / 0.45);
+  --trips-canvas: oklch(95% 0.022 162.5);
+  --trips-surface: oklch(97.6% 0.012 162.5);
+  --trips-band: oklch(34% 0.08 162.5);
+  --trips-band-ink: oklch(97% 0.018 162.5);
+  --ta: oklch(42% 0.09 162.5);
+  --ta-strong: oklch(34% 0.09 162.5);
+  --ta-soft: oklch(42% 0.09 162.5 / 0.12);
+  --ta-ring: oklch(42% 0.09 162.5 / 0.45);
   --ta-bloom-a: oklch(70% 0.15 162.5 / 0.1);
 }
 
 .trips [data-trip-accent="sky"] {
-  --ta: oklch(49% 0.106 237.3);
-  --ta-strong: oklch(42% 0.106 237.3);
-  --ta-soft: oklch(49% 0.106 237.3 / 0.12);
-  --ta-ring: oklch(49% 0.106 237.3 / 0.45);
+  --trips-canvas: oklch(95% 0.02 237.3);
+  --trips-surface: oklch(97.6% 0.01 237.3);
+  --trips-band: oklch(36% 0.08 237.3);
+  --trips-band-ink: oklch(97% 0.016 237.3);
+  --ta: oklch(44% 0.09 237.3);
+  --ta-strong: oklch(36% 0.09 237.3);
+  --ta-soft: oklch(44% 0.09 237.3 / 0.12);
+  --ta-ring: oklch(44% 0.09 237.3 / 0.45);
   --ta-bloom-a: oklch(69% 0.15 237.3 / 0.1);
 }
 
 .trips [data-trip-accent="violet"] {
-  --ta: oklch(52% 0.201 292.7);
-  --ta-strong: oklch(45% 0.201 292.7);
-  --ta-soft: oklch(52% 0.201 292.7 / 0.12);
-  --ta-ring: oklch(52% 0.201 292.7 / 0.45);
+  --trips-canvas: oklch(95% 0.022 292.7);
+  --trips-surface: oklch(97.6% 0.012 292.7);
+  --trips-band: oklch(36% 0.12 292.7);
+  --trips-band-ink: oklch(97% 0.02 292.7);
+  --ta: oklch(46% 0.14 292.7);
+  --ta-strong: oklch(38% 0.14 292.7);
+  --ta-soft: oklch(46% 0.14 292.7 / 0.12);
+  --ta-ring: oklch(46% 0.14 292.7 / 0.45);
   --ta-bloom-a: oklch(61% 0.22 292.7 / 0.1);
   --ta-bloom-b: oklch(66% 0.18 16.4 / 0.06);
 }
@@ -1057,43 +1106,63 @@ html.dark .trips [data-trip-accent] {
 }
 
 html.dark .trips [data-trip-accent="rose"] {
-  --ta: oklch(68% 0.172 16.4);
-  --ta-strong: oklch(76% 0.163 16.4);
-  --ta-soft: oklch(68% 0.172 16.4 / 0.1);
-  --ta-ring: oklch(68% 0.172 16.4 / 0.5);
+  --trips-canvas: oklch(16.5% 0.03 16.4);
+  --trips-surface: oklch(20.5% 0.028 16.4);
+  --trips-band: oklch(28% 0.1 16.4);
+  --trips-band-ink: oklch(94% 0.03 16.4);
+  --ta: oklch(72% 0.14 16.4);
+  --ta-strong: oklch(80% 0.12 16.4);
+  --ta-soft: oklch(72% 0.14 16.4 / 0.1);
+  --ta-ring: oklch(72% 0.14 16.4 / 0.5);
   --ta-bloom-a: oklch(72% 0.17 16.4 / 0.16);
 }
 
 html.dark .trips [data-trip-accent="amber"] {
-  --ta: oklch(67% 0.132 70.1);
-  --ta-strong: oklch(75% 0.125 70.1);
-  --ta-soft: oklch(67% 0.132 70.1 / 0.1);
-  --ta-ring: oklch(67% 0.132 70.1 / 0.5);
+  --trips-canvas: oklch(16.5% 0.028 70.1);
+  --trips-surface: oklch(20.5% 0.026 70.1);
+  --trips-band: oklch(28% 0.08 70.1);
+  --trips-band-ink: oklch(94% 0.028 70.1);
+  --ta: oklch(74% 0.11 70.1);
+  --ta-strong: oklch(82% 0.1 70.1);
+  --ta-soft: oklch(74% 0.11 70.1 / 0.1);
+  --ta-ring: oklch(74% 0.11 70.1 / 0.5);
   --ta-bloom-a: oklch(80% 0.14 70.1 / 0.16);
   --ta-bloom-b: oklch(70% 0.012 60 / 0.08);
 }
 
 html.dark .trips [data-trip-accent="emerald"] {
-  --ta: oklch(65% 0.119 162.5);
-  --ta-strong: oklch(73% 0.113 162.5);
-  --ta-soft: oklch(65% 0.119 162.5 / 0.1);
-  --ta-ring: oklch(65% 0.119 162.5 / 0.5);
+  --trips-canvas: oklch(16.5% 0.028 162.5);
+  --trips-surface: oklch(20.5% 0.026 162.5);
+  --trips-band: oklch(26% 0.07 162.5);
+  --trips-band-ink: oklch(94% 0.024 162.5);
+  --ta: oklch(72% 0.1 162.5);
+  --ta-strong: oklch(80% 0.09 162.5);
+  --ta-soft: oklch(72% 0.1 162.5 / 0.1);
+  --ta-ring: oklch(72% 0.1 162.5 / 0.5);
   --ta-bloom-a: oklch(75% 0.13 162.5 / 0.14);
 }
 
 html.dark .trips [data-trip-accent="sky"] {
-  --ta: oklch(65% 0.118 237.3);
-  --ta-strong: oklch(73% 0.112 237.3);
-  --ta-soft: oklch(65% 0.118 237.3 / 0.1);
-  --ta-ring: oklch(65% 0.118 237.3 / 0.5);
+  --trips-canvas: oklch(16.5% 0.026 237.3);
+  --trips-surface: oklch(20.5% 0.024 237.3);
+  --trips-band: oklch(26% 0.06 237.3);
+  --trips-band-ink: oklch(94% 0.02 237.3);
+  --ta: oklch(72% 0.1 237.3);
+  --ta-strong: oklch(80% 0.09 237.3);
+  --ta-soft: oklch(72% 0.1 237.3 / 0.1);
+  --ta-ring: oklch(72% 0.1 237.3 / 0.5);
   --ta-bloom-a: oklch(74% 0.13 237.3 / 0.14);
 }
 
 html.dark .trips [data-trip-accent="violet"] {
-  --ta: oklch(68% 0.175 292.7);
-  --ta-strong: oklch(76% 0.166 292.7);
-  --ta-soft: oklch(68% 0.175 292.7 / 0.1);
-  --ta-ring: oklch(68% 0.175 292.7 / 0.5);
+  --trips-canvas: oklch(16.5% 0.03 292.7);
+  --trips-surface: oklch(20.5% 0.028 292.7);
+  --trips-band: oklch(28% 0.09 292.7);
+  --trips-band-ink: oklch(94% 0.03 292.7);
+  --ta: oklch(74% 0.12 292.7);
+  --ta-strong: oklch(82% 0.1 292.7);
+  --ta-soft: oklch(74% 0.12 292.7 / 0.1);
+  --ta-ring: oklch(74% 0.12 292.7 / 0.5);
   --ta-bloom-a: oklch(70% 0.19 292.7 / 0.16);
 }
 

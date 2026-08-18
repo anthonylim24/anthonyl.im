@@ -5,9 +5,9 @@ import { Globe2, Images, Map as MapIcon, Settings2 } from "lucide-react"
 import { EntityIndexProvider } from "../Korea/entityIndex"
 import { LinkifiedText } from "../Korea/LinkifiedText"
 import { ACCENT, collaboratorSummary, daysUntilIn, formatTripDate, resolveAccent, todayIsoIn, visibleTags } from "./theme"
-import { PropertyRow, PropertyTable } from "./components/PropertyTable"
+import { NextDeparture } from "./components/NextDeparture"
+import { DateStrip } from "./components/DateStrip"
 import { SectionHeading } from "./components/SectionHeading"
-import { ItemIcon } from "./components/ItemIcon"
 import { StatusChip } from "./components/StatusChip"
 import { AppearancePanel } from "./editor/AppearancePanel"
 import { DayCard } from "./editor/DayCard"
@@ -31,6 +31,8 @@ import {
   dataTableClass,
   dataTdClass,
   dataThClass,
+  bandBtnClass,
+  coverBandClass,
   documentClass,
   focusRingClass,
   focusRingInsetClass,
@@ -120,15 +122,14 @@ export function TripOverview() {
 
   return (
     <EntityIndexProvider>
-      <div className={documentClass} data-trip-accent={resolveAccent(trip.appearance?.accent)}>
-        <header>
-          <div>
-            <motion.div {...fadeUp(0)} className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              <span className={`inline-flex items-center gap-2 text-[13px] font-medium ${a.text}`}>
-                <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.dot}`} aria-hidden />
+      <div data-trip-accent={resolveAccent(trip.appearance?.accent)}>
+        <header className={coverBandClass}>
+          <div className="mx-auto max-w-5xl">
+            <motion.div {...fadeUp(0)} className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[color:var(--trips-band-ink)]/80">
+              <span className="inline-flex items-center gap-2 text-[13px] font-medium text-[color:var(--trips-band-ink)]">
                 {statusLine}
               </span>
-              <TripClock timezone={trip.timezone} />
+              <TripClock timezone={trip.timezone} tone="band" />
               <TripStatusSelect
                 status={trip.status}
                 editable={editable}
@@ -137,7 +138,7 @@ export function TripOverview() {
               />
             </motion.div>
 
-            <motion.div {...fadeUp(1)} className="mt-3">
+            <motion.div {...fadeUp(1)} className="mt-5">
               {editable ? (
                 <>
                   <label className="sr-only" htmlFor="trip-editor-name">
@@ -146,22 +147,26 @@ export function TripOverview() {
                   <input
                     id="trip-editor-name"
                     disabled={editorLocked}
-                    className={`trip-display-input min-h-11 w-full bg-transparent text-3xl font-semibold leading-tight tracking-tight text-stone-900 focus:outline-none sm:text-4xl dark:text-stone-100 ${focusRingClass} ${wrapAnywhereClass}`}
+                    className={`font-display trip-display-input min-h-11 w-full bg-transparent text-4xl font-semibold leading-none tracking-tight text-[color:var(--trips-band-ink)] placeholder:text-[color:var(--trips-band-ink)]/40 focus:outline-none sm:text-6xl ${focusRingClass} ${wrapAnywhereClass}`}
                     value={trip.name}
                     onChange={(e) => editor.scheduleSave({ ...trip, name: e.target.value })}
                   />
                 </>
               ) : (
-                <h1 className="text-stone-900 dark:text-stone-100">
-                  <span className={`block text-3xl font-semibold leading-tight tracking-tight sm:text-4xl ${wrapAnywhereClass}`}>
+                <h1>
+                  <span className={`font-display block text-4xl font-semibold leading-none tracking-tight sm:text-6xl ${wrapAnywhereClass}`}>
                     {trip.name}
                   </span>
                 </h1>
               )}
+              <p className={`mt-3 max-w-[58ch] text-sm text-[color:var(--trips-band-ink)]/75 ${wrapAnywhereClass}`}>
+                {trip.destinations.join(" · ")}
+                {" · "}
+                {formatTripDate(trip.startDate, trip.timezone)} to {formatTripDate(trip.endDate, trip.timezone)}
+                {trip.collaborators.length > 0 ? ` · ${collaboratorSummary(trip.collaborators)}` : ""}
+              </p>
               {(trip.appearance?.subtitle || trip.appearance?.headline || trip.description) && (
-                <p
-                  className={`mt-3 max-w-[58ch] text-sm leading-relaxed text-stone-700 dark:text-stone-300 ${wrapAnywhereClass}`}
-                >
+                <p className={`mt-3 max-w-[58ch] text-sm leading-relaxed text-[color:var(--trips-band-ink)]/75 ${wrapAnywhereClass}`}>
                   <LinkifiedText>
                     {trip.appearance?.headline ?? trip.appearance?.subtitle ?? trip.description ?? ""}
                   </LinkifiedText>
@@ -169,27 +174,24 @@ export function TripOverview() {
               )}
             </motion.div>
 
-            <motion.div {...fadeUp(2)} className="mt-6">
-              <PropertyTable>
-                <PropertyRow label="Destinations" value={trip.destinations.join(" · ")} />
-                <PropertyRow
-                  label="Dates"
-                  value={`${formatTripDate(trip.startDate, trip.timezone)} – ${formatTripDate(trip.endDate, trip.timezone)}`}
+            {next && (
+              <motion.div {...fadeUp(2)}>
+                <NextDeparture
+                  item={next.item}
+                  day={next.day}
+                  timezone={trip.timezone}
+                  to={`/trips/${trip.slug ?? trip.id}/day/${next.day.id}#item-${next.item.id}`}
+                  tone="band"
                 />
-                <PropertyRow label="Time zone" value={trip.timezone} />
-                <PropertyRow label="Length" value={`${dayCount} day${dayCount === 1 ? "" : "s"}`} />
-                {trip.collaborators.length > 0 && (
-                  <PropertyRow label="Sharing" value={collaboratorSummary(trip.collaborators)} />
-                )}
-              </PropertyTable>
-            </motion.div>
+              </motion.div>
+            )}
 
             {tags.length > 0 && (
-              <ul className="mt-4 flex flex-wrap gap-1.5" aria-label="Tags">
+              <ul className="mt-5 flex flex-wrap gap-1.5" aria-label="Tags">
                 {tags.map((tag) => (
                   <li
                     key={tag}
-                    className={`rounded-md border border-stone-200/80 px-2 py-0.5 text-xs dark:border-stone-700 ${mutedInkClass} ${wrapAnywhereClass}`}
+                    className={`rounded-sm border border-[color:var(--trips-band-ink)]/25 px-2 py-0.5 text-xs text-[color:var(--trips-band-ink)]/80 ${wrapAnywhereClass}`}
                   >
                     {tag}
                   </li>
@@ -197,43 +199,56 @@ export function TripOverview() {
               </ul>
             )}
 
-            <motion.div {...fadeUp(3)} className="mt-5 flex flex-wrap items-center gap-2">
-              {mapHeroDay && (
-                <button type="button" onClick={() => editor.openMap(mapHeroDay.id)} className={inkBtnClass}>
+            {mapHeroDay && (
+              <motion.div {...fadeUp(3)} className="mt-6">
+                <button type="button" onClick={() => editor.openMap(mapHeroDay.id)} className={bandBtnClass}>
                   <MapIcon className="h-4 w-4" strokeWidth={1.5} aria-hidden />
                   Map Mode
                 </button>
-              )}
-              <Link to={`/trips/${trip.slug ?? trip.id}/places`} className={chipBtnClass}>
-                <Images className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
-                Places
-              </Link>
-              {editable && trip.status === "draft" && (
-                <button type="button" disabled={editorLocked} onClick={editor.publish} className={inkBtnClass}>
-                  <Globe2 className="h-4 w-4" strokeWidth={1.5} aria-hidden />
-                  Publish
-                </button>
-              )}
-              {editable && (
-                <EnhanceButton
-                  label="Enhance trip"
-                  busyLabel="Reviewing trip…"
-                  busy={editor.enhancingTarget === "trip"}
-                  disabled={editorLocked}
-                  variant="outline"
-                  promptPlaceholder="Optional focus, e.g. “tighten the pacing and add more local food”"
-                  onRun={(prompt) => void editor.runEnhance("trip", undefined, prompt)}
-                />
-              )}
-              {editable && (
-                <a href="#trip-settings" className={chipBtnClass}>
-                  <Settings2 className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
-                  Settings
-                </a>
-              )}
-            </motion.div>
+              </motion.div>
+            )}
           </div>
         </header>
+
+        <div className={documentClass}>
+        {trip.days.length > 1 && (
+          <DateStrip
+            days={trip.days}
+            timezone={trip.timezone}
+            activeId={todayDay?.id}
+            hrefFor={(day) => `#${day.id}`}
+          />
+        )}
+
+        <div className="mt-5 flex flex-wrap items-center gap-2">
+          <Link to={`/trips/${trip.slug ?? trip.id}/places`} className={chipBtnClass}>
+            <Images className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
+            Places
+          </Link>
+          {editable && trip.status === "draft" && (
+            <button type="button" disabled={editorLocked} onClick={editor.publish} className={inkBtnClass}>
+              <Globe2 className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+              Publish
+            </button>
+          )}
+          {editable && (
+            <EnhanceButton
+              label="Enhance trip"
+              busyLabel="Reviewing trip…"
+              busy={editor.enhancingTarget === "trip"}
+              disabled={editorLocked}
+              variant="outline"
+              promptPlaceholder="Optional focus, e.g. “tighten the pacing and add more local food”"
+              onRun={(prompt) => void editor.runEnhance("trip", undefined, prompt)}
+            />
+          )}
+          {editable && (
+            <a href="#trip-settings" className={chipBtnClass}>
+              <Settings2 className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
+              Settings
+            </a>
+          )}
+        </div>
 
         {todayDay && (
           <aside className={`mt-6 rounded-lg ${a.softBg}`}>
@@ -254,32 +269,6 @@ export function TripOverview() {
               </div>
             </Link>
           </aside>
-        )}
-
-        {next && (
-          <div className="mt-2">
-            <Link
-              to={`/trips/${trip.slug ?? trip.id}/day/${next.day.id}#item-${next.item.id}`}
-              className={`group flex items-start gap-3 rounded-lg px-1 py-3 transition-colors ${overlayHoverClass} ${focusRingClass}`}
-            >
-              <ItemIcon
-                kind={next.item.kind}
-                category={next.item.location?.category}
-                reservationType={next.item.reservation?.type}
-                className="mt-0.5 h-4 w-4 shrink-0 text-stone-500"
-              />
-              <div className="min-w-0">
-                <p className={`text-[13px] font-medium ${a.text}`}>Up next</p>
-                <p className={`mt-1 font-medium text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}>
-                  {next.item.title}
-                </p>
-                <p className={`mt-0.5 text-sm ${mutedInkClass}`}>
-                  {formatTripDate(next.day.date, trip.timezone)}
-                  {next.item.time ? ` · ${next.item.time}` : ""}
-                </p>
-              </div>
-            </Link>
-          </div>
         )}
 
         {editable && trip.days.every((d) => d.items.length === 0) && (
@@ -413,6 +402,7 @@ export function TripOverview() {
           <UndoToast undo={editor.deleted} onUndo={editor.undoDelete} />
           <FloatingSaveIndicator saveState={editor.saveState} />
         </EditorDock>
+        </div>
 
         {mapDay && (
           <Suspense
@@ -484,8 +474,8 @@ function ReservationLedger({
                 <td className={`${dataTdClass} whitespace-nowrap tabular-nums ${mutedInkClass}`}>
                   {formatTripDate(day.date, trip.timezone, { weekday: undefined })}
                 </td>
-                <td className={`${dataTdClass} whitespace-nowrap tabular-nums ${mutedInkClass}`}>
-                  {item.time ?? "—"}
+                <td className={`${dataTdClass} whitespace-nowrap font-display tabular-nums ${mutedInkClass}`}>
+                  {item.time ?? "–"}
                 </td>
                 <td className={dataTdClass}>
                   <Link

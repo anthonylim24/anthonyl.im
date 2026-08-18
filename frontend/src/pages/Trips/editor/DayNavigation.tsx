@@ -34,7 +34,7 @@ function useActiveDay(key: string): string | null {
 }
 
 /**
- * Sticky Airbnb date strip. One scroll-spy so the active day is never ambiguous.
+ * Sticky station-tick snap rail. One scroll-spy so the active day is never ambiguous.
  * Hidden for a single-day trip (no nav track).
  */
 export function DayNavigation({ days, timezone }: { days: TripDay[]; timezone: string }) {
@@ -58,7 +58,7 @@ export function DayNavigation({ days, timezone }: { days: TripDay[]; timezone: s
   return (
     <div
       ref={railRef}
-      className="sticky top-14 z-20 -mx-4 mb-5 border-b border-[color:var(--trips-border)] bg-[color:var(--trips-surface)] px-4 py-2 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-0"
+      className="sticky top-14 z-20 -mx-4 mb-5 border-b border-[color:var(--trips-border)] bg-[color:var(--trips-canvas)] px-4 py-2 sm:-mx-6 sm:px-6"
     >
       <DateStrip days={days} timezone={timezone} activeId={active} hrefFor={(day) => `#${day.id}`} />
     </div>

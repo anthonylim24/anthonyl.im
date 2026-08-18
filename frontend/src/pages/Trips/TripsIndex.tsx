@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
-import { ArrowRight, CalendarDays, MapPin, Plus, RotateCcw, Trash2, Users } from "lucide-react"
+import { ArrowRight, Plus, RotateCcw, Trash2 } from "lucide-react"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useAuthReady, useGetToken } from "@/lib/safeAuth"
 import { deleteTrip, listTrips } from "./tripsApi"
 import type { TripSummary } from "./types"
-import { ACCENT, collaboratorSummary, daysUntilIn, resolveAccent, todayIsoIn } from "./theme"
-import { TripStatusChip } from "./components/StatusChip"
+import { daysUntilIn, resolveAccent, todayIsoIn } from "./theme"
 import {
   EASE,
   ENTER_SPRING,
@@ -16,8 +15,6 @@ import {
   dangerBtnClass,
   dangerIconBtnClass,
   dayCountInclusive,
-  eyebrowClass,
-  focusRingClass,
   focusRingInsetClass,
   formatRangeFull,
   ghostBtnClass,
@@ -32,14 +29,11 @@ import {
   wrapAnywhereClass,
 } from "./ui"
 
-const metaIconClass = `h-3.5 w-3.5 shrink-0 ${mutedInkClass}`
-
-const skeletonBarClass = "animate-pulse rounded bg-stone-200/70 dark:bg-stone-800"
-
-const tileClass =
-  "relative rounded-lg border border-[color:var(--trips-border)] bg-[color:var(--trips-surface)]"
-
-const arrowAccentHoverClass = `${ACCENT.textHover} dark:group-hover:text-[color:var(--ta-strong)]`
+const skeletonBarClass = "animate-pulse rounded-sm bg-[color:var(--trips-ink)]/10"
+const hairlineListClass =
+  "divide-y divide-[color:var(--trips-border)] border-y border-[color:var(--trips-border)]"
+const sectionTitleClass =
+  "font-display text-2xl font-semibold tracking-tight text-stone-900 dark:text-stone-100"
 
 type LoadState =
   | { status: "loading" }
@@ -223,7 +217,7 @@ function TripActions({
   )
 }
 
-function NowTile({
+function TimetableRow({
   row,
   restoreTriggerFocus,
   onConfirm,
@@ -234,89 +228,38 @@ function NowTile({
 }) {
   const { trip, mark, dayCount, range } = row
   return (
-    <article
-      className={`group ${tileClass} p-5 sm:p-6`}
+    <div
+      className="group relative flex items-start gap-4 py-4"
       data-trip-accent={resolveAccent(trip.accent)}
     >
-      <div className="flex items-start justify-between gap-3">
-        <p className={`text-[13px] font-medium ${ACCENT.text}`}>
-          <span className="sr-only">{mark.label}</span>
-          Now · {mark.value}
-        </p>
-        <TripActions trip={trip} restoreTriggerFocus={restoreTriggerFocus} onConfirm={onConfirm} />
-      </div>
-      <h2 className={`mt-3 text-2xl font-semibold tracking-tight text-stone-900 sm:text-[1.75rem] dark:text-stone-100 ${wrapAnywhereClass}`}>
-        {trip.name}
-      </h2>
-      <p className={`mt-2 text-sm ${mutedInkClass} ${wrapAnywhereClass}`}>{trip.destinations.join(", ")}</p>
-      <p className={`mt-1 text-sm ${mutedInkClass}`}>
-        {range} · {plural(dayCount, "day", "days")} · {plural(trip.itemCount, "stop", "stops")}
-      </p>
       <Link
         to={`/trips/${trip.slug ?? trip.id}`}
-        className={`mt-5 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold ${ACCENT.text} ${focusRingClass}`}
-        aria-label={`Open ${trip.name}`}
-      >
-        Open trip
-        <ArrowRight className={`h-4 w-4 ${hoverArrowClass}`} strokeWidth={1.5} aria-hidden />
-      </Link>
-    </article>
-  )
-}
-
-function TripRowItem({
-  row,
-  restoreTriggerFocus,
-  onConfirm,
-}: {
-  row: TripRow
-  restoreTriggerFocus: (el: HTMLButtonElement | null) => void
-  onConfirm: () => void
-}) {
-  const { trip, mark, dayCount, range } = row
-  return (
-    <div className="group relative flex items-center gap-4 py-4">
-      <Link
-        to={`/trips/${trip.slug ?? trip.id}`}
-        className={`absolute inset-0 ${focusRingInsetClass}`}
+        className={`absolute inset-0 z-[1] ${focusRingInsetClass}`}
         aria-label={`Open ${trip.name}`}
       />
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-          <h3
-            className={`min-w-0 text-base font-semibold leading-snug text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
-          >
-            {trip.name}
-          </h3>
-          <TripStatusChip status={trip.status} />
-          <span className={`text-[13px] ${mutedInkClass}`}>{mark.value}</span>
-        </div>
-        <div className={`mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[13px] ${mutedInkClass}`}>
-          <span className="inline-flex min-w-0 items-center gap-1.5">
-            <MapPin className={metaIconClass} strokeWidth={1.5} aria-hidden />
-            <span className={wrapAnywhereClass}>{trip.destinations.join(", ")}</span>
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <CalendarDays className={metaIconClass} strokeWidth={1.5} aria-hidden />
-            {range}
-          </span>
-          <span className="tabular-nums">
-            {plural(dayCount, "day", "days")} · {plural(trip.itemCount, "stop", "stops")}
-          </span>
-          {trip.collaborators.length > 0 && (
-            <span className="inline-flex items-center gap-1.5">
-              <Users className={metaIconClass} strokeWidth={1.5} aria-hidden />
-              {collaboratorSummary(trip.collaborators)}
-            </span>
-          )}
-        </div>
+        <h3
+          className={`font-display min-w-0 text-xl font-semibold leading-tight tracking-tight text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
+        >
+          {trip.name}
+        </h3>
+        <p className={`mt-1 text-sm ${mutedInkClass}`}>
+          <span className={wrapAnywhereClass}>{trip.destinations.join(", ")}</span>
+          <span aria-hidden> · </span>
+          {range}
+        </p>
       </div>
-      <div className="relative z-10 flex shrink-0 items-center gap-1">
+      <div className="shrink-0 text-right">
+        <p className="font-display text-lg font-semibold tabular-nums leading-tight tracking-tight text-stone-900 dark:text-stone-100">
+          <span className="sr-only">{mark.label}</span>
+          <span aria-hidden>{mark.value}</span>
+        </p>
+        <p className={`mt-1 text-[13px] tabular-nums ${mutedInkClass}`}>
+          {plural(dayCount, "day", "days")} · {plural(trip.itemCount, "stop", "stops")}
+        </p>
+      </div>
+      <div className="relative z-10 flex shrink-0 items-start">
         <TripActions trip={trip} restoreTriggerFocus={restoreTriggerFocus} onConfirm={onConfirm} />
-        <ArrowRight
-          className={`h-4 w-4 text-stone-500 dark:text-stone-400 ${arrowAccentHoverClass} ${hoverArrowClass}`}
-          aria-hidden
-        />
       </div>
     </div>
   )
@@ -444,16 +387,48 @@ export function TripsIndex() {
     return null
   }
 
+  const renderBucket = (id: string, title: string, rows: TripRow[]) => {
+    if (rows.length === 0) return null
+    return (
+      <section aria-labelledby={id}>
+        <h2 id={id} className={sectionTitleClass}>
+          {title}
+        </h2>
+        <ul className={`mt-3 ${hairlineListClass}`}>
+          {rows.map((row, i) => (
+            <motion.li
+              key={row.trip.id}
+              initial={reduce ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: REVEAL_DURATION, delay: revealDelay(i), ease: EASE }}
+            >
+              {renderState(row) ?? (
+                <TimetableRow
+                  row={row}
+                  restoreTriggerFocus={restoreTriggerFocus}
+                  onConfirm={() => {
+                    setDeleteError(null)
+                    setConfirmId(row.trip.id)
+                  }}
+                />
+              )}
+            </motion.li>
+          ))}
+        </ul>
+      </section>
+    )
+  }
+
   const empty = state.status === "success" && state.trips.length === 0
 
   return (
     <div className={documentClass}>
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-4 pt-8">
         <div className="min-w-0">
-          <h1 className="text-xl font-semibold tracking-tight text-stone-900 dark:text-stone-100">
-            {empty ? "No trips yet" : "Inbox"}
+          <h1 className="font-display text-4xl font-semibold tracking-tight text-stone-900 sm:text-5xl dark:text-stone-100">
+            {empty ? "No trips yet" : "Trips"}
           </h1>
-          {!empty && <p className={`mt-1 text-sm ${mutedInkClass}`}>Open a trip to edit it in place.</p>}
+          {!empty && <p className={`mt-2 text-sm ${mutedInkClass}`}>Open a trip to edit it in place.</p>}
         </div>
         <button ref={newTripRef} type="button" onClick={() => navigate("/trips/new")} className={primaryBtnClass}>
           <Plus className="h-4 w-4" aria-hidden />
@@ -466,9 +441,15 @@ export function TripsIndex() {
       </p>
 
       {state.status === "loading" && (
-        <div className="mt-10 grid gap-3 sm:grid-cols-2" role="status" aria-label="Loading trips">
+        <div className={`mt-10 ${hairlineListClass}`} role="status" aria-label="Loading trips">
           {[0, 1, 2].map((i) => (
-            <div key={i} className={`${tileClass} h-36 ${skeletonBarClass}`} />
+            <div key={i} className="flex items-center justify-between gap-4 py-4">
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className={`h-5 w-40 max-w-full ${skeletonBarClass}`} />
+                <div className={`h-3 w-56 max-w-full ${skeletonBarClass}`} />
+              </div>
+              <div className={`h-5 w-24 ${skeletonBarClass}`} />
+            </div>
           ))}
         </div>
       )}
@@ -490,13 +471,15 @@ export function TripsIndex() {
 
       {empty && (
         <motion.div
-          className={`mt-10 ${tileClass} px-6 py-10 sm:px-8`}
+          className="mt-16"
           initial={reduce ? false : { opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={reduce ? { duration: 0 } : ENTER_SPRING}
         >
-          <h2 className="text-xl font-semibold tracking-tight text-stone-900 dark:text-stone-100">Where to next?</h2>
-          <p className={`mt-2 max-w-[46ch] text-sm leading-relaxed ${mutedInkClass}`}>
+          <h2 className="font-display text-4xl font-semibold tracking-tight text-stone-900 sm:text-5xl dark:text-stone-100">
+            Where to next?
+          </h2>
+          <p className={`mt-3 max-w-[46ch] text-sm leading-relaxed ${mutedInkClass}`}>
             Start blank and build day by day, or ask AI for a structured draft you can reshape.
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -511,102 +494,16 @@ export function TripsIndex() {
       )}
 
       {grouped && state.status === "success" && state.trips.length > 0 && (
-        <div className="space-y-10">
-          {grouped.current.length > 0 && (
-            <section aria-labelledby="bucket-current">
-              <h2 id="bucket-current" className={eyebrowClass}>
-                Now
-              </h2>
-              <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                {grouped.current.map((row, i) => (
-                  <motion.div
-                    key={row.trip.id}
-                    initial={reduce ? false : { opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: REVEAL_DURATION, delay: revealDelay(i), ease: EASE }}
-                  >
-                    {renderState(row) ?? (
-                      <NowTile
-                        row={row}
-                        restoreTriggerFocus={restoreTriggerFocus}
-                        onConfirm={() => {
-                          setDeleteError(null)
-                          setConfirmId(row.trip.id)
-                        }}
-                      />
-                    )}
-                  </motion.div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {grouped.upcoming.length > 0 && (
-            <section aria-labelledby="bucket-upcoming">
-              <h2 id="bucket-upcoming" className={eyebrowClass}>
-                Upcoming
-              </h2>
-              <ul className={`mt-3 divide-y divide-[color:var(--trips-border)] ${tileClass} px-4`}>
-                {grouped.upcoming.map((row, i) => (
-                  <motion.li
-                    key={row.trip.id}
-                    initial={reduce ? false : { opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: REVEAL_DURATION, delay: revealDelay(i), ease: EASE }}
-                  >
-                    {renderState(row) ?? (
-                      <TripRowItem
-                        row={row}
-                        restoreTriggerFocus={restoreTriggerFocus}
-                        onConfirm={() => {
-                          setDeleteError(null)
-                          setConfirmId(row.trip.id)
-                        }}
-                      />
-                    )}
-                  </motion.li>
-                ))}
-              </ul>
-            </section>
-          )}
-
-          {grouped.past.length > 0 && (
-            <section aria-labelledby="bucket-past">
-              <h2 id="bucket-past" className={eyebrowClass}>
-                Past
-              </h2>
-              <ul className="mt-3 divide-y divide-[color:var(--trips-border)]">
-                {grouped.past.map((row, i) => (
-                  <motion.li
-                    key={row.trip.id}
-                    initial={reduce ? false : { opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: REVEAL_DURATION, delay: revealDelay(i), ease: EASE }}
-                  >
-                    {renderState(row) ?? (
-                      <TripRowItem
-                        row={row}
-                        restoreTriggerFocus={restoreTriggerFocus}
-                        onConfirm={() => {
-                          setDeleteError(null)
-                          setConfirmId(row.trip.id)
-                        }}
-                      />
-                    )}
-                  </motion.li>
-                ))}
-              </ul>
-            </section>
-          )}
+        <div className="space-y-12">
+          {renderBucket("bucket-current", "Now", grouped.current)}
+          {renderBucket("bucket-upcoming", "Upcoming", grouped.upcoming)}
+          {renderBucket("bucket-past", "Past", grouped.past)}
 
           {onlyPast && (
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              <p className={eyebrowClass}>Next</p>
-              <Link to="/trips/new" className={`group ${ghostBtnClass}`}>
-                Plan a new trip
-                <ArrowRight className={`h-4 w-4 ${hoverArrowClass}`} strokeWidth={1.5} aria-hidden />
-              </Link>
-            </div>
+            <Link to="/trips/new" className={`group ${ghostBtnClass}`}>
+              Plan a new trip
+              <ArrowRight className={`h-4 w-4 ${hoverArrowClass}`} strokeWidth={1.5} aria-hidden />
+            </Link>
           )}
         </div>
       )}

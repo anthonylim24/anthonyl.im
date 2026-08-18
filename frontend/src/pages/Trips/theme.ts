@@ -21,15 +21,16 @@ import {
 } from "lucide-react"
 import type { ItemStatus, SuggestionKind, TripAccent, TripCollaborator } from "./types"
 
-// Trip accent tokens. The workspace chrome is cool slate; a trip-scoped
-// `data-trip-accent` subtree swaps `--ta` / `--trips-accent` in index.css.
-// Bloom layers are unused (kept as no-ops so old class names stay safe).
+// Trip accent tokens. Workspace chrome is green-gray print stock; a trip-scoped
+// `data-trip-accent` subtree retints canvas + cover band (and `--ta` /
+// `--trips-accent`) in index.css. Bloom layers stay no-ops so old class names
+// remain safe.
 
 export interface AccentTheme {
-  /** Unused: bloom wallpaper was removed from the workspace. */
+  /** No-op bloom class names — kept so old call sites stay safe. */
   bloomA: string
   bloomB: string
-  /** Accent text: countdowns, eyebrow numerals, status lines. */
+  /** Accent text: countdowns, display numerals, status lines. */
   text: string
   /** Hover/pressed accent text. */
   textStrong: string
@@ -41,7 +42,7 @@ export interface AccentTheme {
   softBg: string
   /** Accent border for tinted panels and active states. */
   border: string
-  /** Hairline rules next to eyebrows. */
+  /** Hairline rules next to display numerals. */
   hairline: string
   /** Static accent ring (flash highlight, active rail segment). */
   ring: string

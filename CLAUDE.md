@@ -571,7 +571,7 @@ Anthony (primary) and his partner, while planning + executing a 12-day Seoul + B
 
 ## Design Context: `/trips/*` — Generic Trip Planner
 
-Cool Inter workspace (not Korea parchment), parameterized by `data-trip-accent`. `/trips/:tripId` is the living document (`TripOverview`); `/edit` redirects there. Concierge FAB on the trip and day pages only. Do not add destination-specific routes. Do not restyle Trips back into the Korea dossier. Full design notes: [`AGENTS.md`](AGENTS.md) / [`PRODUCT.md`](PRODUCT.md).
+JR pocket timetable (not Korea parchment, not Linear/Notion zinc), parameterized by `data-trip-accent` (retints canvas + cover band). `/trips/:tripId` is the living document (`TripOverview`); `/edit` redirects there. Concierge FAB on the trip and day pages only. Do not add destination-specific routes. Do not restyle Trips back into the Korea dossier or a zinc CRUD workspace. Full design notes: [`DESIGN.md`](DESIGN.md) / [`AGENTS.md`](AGENTS.md) / [`PRODUCT.md`](PRODUCT.md).
 
 ---
 

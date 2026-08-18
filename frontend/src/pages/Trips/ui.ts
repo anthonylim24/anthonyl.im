@@ -1,17 +1,12 @@
 /** Shared Trips UI vocabulary — every interactive element on every Trips page
  *  composes from this file. Pages define no local class strings.
  *
- *  Accent behaviour is automatic: interactive colour reads `--trips-accent` /
- *  `--trips-focus`, which are amber in app chrome and swapped to the trip's
- *  accent inside any `data-trip-accent` subtree (see index.css).
- *
- *  Radius vocabulary: `rounded-xl` for buttons/inputs/panels, `rounded-lg` for
- *  compact controls, `rounded-full` only for dots, accent swatches, and the
- *  floating save pill.
+ *  World: pocket timetable. Condensed times, tinted print stock, cover band.
+ *  Not Linear, not Notion, not Korea parchment.
  */
 
-export const SERIF = { fontFamily: "Inter, system-ui, sans-serif" } as const
-export const MONO = { fontFamily: "Inter, system-ui, sans-serif" } as const
+export const SERIF = { fontFamily: '"Archivo Narrow", "Arial Narrow", sans-serif' } as const
+export const MONO = { fontFamily: '"Archivo Narrow", "Arial Narrow", sans-serif' } as const
 export const EASE = [0.16, 1, 0.3, 1] as const
 const EASE_CSS = "ease-[cubic-bezier(0.16,1,0.3,1)]"
 
@@ -79,19 +74,18 @@ export function pageClass(width: keyof typeof PAGE_MAX = "wide"): string {
 /** Horizontal gutter without the page's top padding. */
 export const pageGutterClass = "mx-auto max-w-5xl px-4 sm:px-6"
 
-/** Slim workspace chrome over the document column. */
+/** Slim timetable chrome. */
 export const chromeHeaderClass =
-  "sticky top-0 z-30 border-b border-[color:var(--trips-border)] bg-[color:var(--trips-surface)]"
+  "sticky top-0 z-30 border-b border-[color:var(--trips-border)] bg-[color:var(--trips-canvas)]"
 
-/** Linear-style left rail. Hidden below `lg`. */
-export const workspaceRailClass =
-  "hidden lg:flex lg:w-56 lg:shrink-0 lg:flex-col lg:border-r lg:border-[color:var(--trips-border)] lg:bg-[color:var(--trips-rail)]"
+/** Cover band: committed line color, condensed title + next time. */
+export const coverBandClass =
+  "cover-band px-4 py-8 sm:px-6 sm:py-10 lg:px-8 lg:py-12"
 
-/** Notion-like document sheet on the rail canvas. */
-export const documentClass =
-  "mx-auto max-w-5xl px-4 pb-10 pt-6 sm:px-6 sm:pt-8 lg:my-5 lg:rounded-lg lg:border lg:border-[color:var(--trips-border)] lg:bg-[color:var(--trips-surface)] lg:px-8 lg:py-8"
+/** Living document: print sheet, no card-in-a-rail. */
+export const documentClass = "mx-auto max-w-5xl px-4 pb-16 pt-0 sm:px-6"
 
-/** Notion property grid. */
+/** Legend rows under the cover (destination, dates). */
 export const propertyTableClass =
   "divide-y divide-[color:var(--trips-border)] border-y border-[color:var(--trips-border)]"
 
@@ -131,8 +125,8 @@ const ELLIPSIS = "text-ellipsis"
 
 export const inputClass = `${ELLIPSIS} w-full min-h-11 rounded-xl border border-stone-300/90 bg-[var(--trips-surface)] px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 transition focus:border-[color:var(--trips-accent)] focus:outline-none ${FOCUS} dark:border-stone-700 dark:bg-stone-900/80 dark:text-stone-100 dark:placeholder:text-stone-400`
 
-/** Notion-style document title: borderless Inter heading, 44px target. */
-export const displayInputClass = `w-full min-h-11 bg-transparent text-3xl font-semibold leading-tight tracking-tight text-stone-900 placeholder:text-stone-400 focus:outline-none ${FOCUS} sm:text-4xl dark:text-stone-100 dark:placeholder:text-stone-500`
+/** Timetable title: condensed, 44px target. */
+export const displayInputClass = `font-display w-full min-h-11 bg-transparent text-4xl font-semibold leading-none tracking-tight text-stone-900 placeholder:text-stone-400 focus:outline-none ${FOCUS} sm:text-5xl dark:text-stone-100 dark:placeholder:text-stone-500`
 
 /** Bordered control for dense editor grids — smaller than `inputClass`.
  *  Width is left to the call site so it can sit in a flex row. Keeps a full
@@ -204,6 +198,10 @@ export function segmentOptionClass(selected: boolean): string {
 // ── Buttons ──────────────────────────────────────────────────────────────
 
 /** Primary action. Accent-filled: amber in chrome, trip accent in a trip. */
+export const bandBtnClass = `${BTN} min-h-11 bg-[color:var(--trips-band-ink)] px-5 py-2.5 text-sm font-semibold text-[color:var(--trips-band)] hover:bg-[color:var(--trips-band-ink)]/90 ${FOCUS} disabled:cursor-not-allowed disabled:opacity-50`
+
+export const bandChipClass = `inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-[color:var(--trips-band-ink)]/35 bg-transparent px-3 text-xs font-medium text-[color:var(--trips-band-ink)] transition hover:bg-[color:var(--trips-band-ink)]/10 ${FOCUS} disabled:cursor-not-allowed disabled:opacity-40`
+
 export const primaryBtnClass = `${BTN} min-h-11 bg-[color:var(--trips-accent)] px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[color:var(--trips-accent-hover)] ${FOCUS} focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--trips-canvas)] disabled:cursor-not-allowed disabled:opacity-50 dark:text-stone-950`
 
 export const secondaryBtnClass = `${BTN} min-h-11 border border-stone-300/90 bg-transparent px-4 py-2.5 text-sm font-medium text-stone-700 hover:border-stone-400 hover:bg-stone-100/70 ${FOCUS} disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-700 dark:text-stone-300 dark:hover:border-stone-600 dark:hover:bg-stone-800/50`
@@ -253,7 +251,7 @@ export const dangerIconBtnClass = `inline-flex h-11 w-11 shrink-0 items-center j
 
 // ── Formatting helpers ───────────────────────────────────────────────────
 
-/** `Mar 3 – Mar 11, 2026`, dropping the year only where it is redundant.
+/** `Mar 3 to Mar 11, 2026`, dropping the year only where it is redundant.
  *  `year: false` omits it entirely, for rows that state the year elsewhere. */
 export function formatRangeFull(start: string, end: string, opts?: { year?: boolean }): string {
   const sameYear = start.slice(0, 4) === end.slice(0, 4)
@@ -265,9 +263,9 @@ export function formatRangeFull(start: string, end: string, opts?: { year?: bool
       ...(year ? { year: "numeric" } : {}),
       timeZone: "UTC",
     })
-  if (!withYear) return `${fmt(start, false)} – ${fmt(end, false)}`
-  if (!sameYear) return `${fmt(start, true)} – ${fmt(end, true)}`
-  return `${fmt(start, false)} – ${fmt(end, true)}`
+  if (!withYear) return `${fmt(start, false)} to ${fmt(end, false)}`
+  if (!sameYear) return `${fmt(start, true)} to ${fmt(end, true)}`
+  return `${fmt(start, false)} to ${fmt(end, true)}`
 }
 
 export function dayCountInclusive(start: string, end: string): number {

@@ -13,7 +13,6 @@ import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import { ACCENT, calloutTone, formatTripDate, resolveAccent, todayIsoIn } from "./theme"
 import { useAnchorHighlight, useAnchorTarget } from "./anchors"
 import { DateStrip } from "./components/DateStrip"
-import { PropertyRow, PropertyTable } from "./components/PropertyTable"
 import { SectionHeading } from "./components/SectionHeading"
 import { ItemIcon } from "./components/ItemIcon"
 import { StatusChip } from "./components/StatusChip"
@@ -24,9 +23,6 @@ import {
   REVEAL_DURATION,
   alertErrorClass,
   chipBtnClass,
-  dataTableClass,
-  dataTdClass,
-  dataThClass,
   documentClass,
   focusRingClass,
   hoverArrowBackClass,
@@ -240,14 +236,20 @@ export function TripDayPage() {
             )}
           </motion.p>
 
-          <motion.div {...fadeUp(1)} className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-            {day.emoji && <span aria-hidden className="text-xl leading-none">{day.emoji}</span>}
+          <motion.div {...fadeUp(1)} className="mt-4">
+            {day.emoji && <span aria-hidden className="mb-2 block text-xl leading-none">{day.emoji}</span>}
             <h1
-              className={`min-w-0 flex-1 text-2xl font-semibold leading-tight tracking-tight text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
+              className={`font-display min-w-0 text-4xl font-semibold leading-none tracking-tight text-stone-900 sm:text-5xl dark:text-stone-100 ${wrapAnywhereClass}`}
             >
               {day.title ?? `Day ${dayIndex + 1}`}
             </h1>
           </motion.div>
+
+          <p className={`mt-3 font-display text-lg tabular-nums ${mutedInkClass}`}>
+            {formatTripDate(day.date, trip.timezone, { weekday: "long", month: "long" })}
+            {day.city ? ` · ${day.city}` : ""}
+            {day.weather ? ` · ${day.weather.highC}° / ${day.weather.lowC}°` : ""}
+          </p>
 
           {day.notes && (
             <motion.div
@@ -258,49 +260,7 @@ export function TripDayPage() {
             </motion.div>
           )}
 
-          <motion.div {...fadeUp(3)} className="mt-5">
-            <PropertyTable>
-              <PropertyRow
-                label="Date"
-                value={formatTripDate(day.date, trip.timezone, { weekday: "long", month: "long" })}
-              />
-              {day.city && (
-                <PropertyRow
-                  label="City"
-                  value={<SmartEntity name={day.city} type="city" className={wrapAnywhereClass} />}
-                />
-              )}
-              {day.weather && (
-                <PropertyRow
-                  label="Weather"
-                  value={`${day.weather.highC}°C / ${day.weather.lowC}°C · ${day.weather.condition}`}
-                />
-              )}
-              {day.neighborhoods && day.neighborhoods.length > 0 && (
-                <PropertyRow
-                  label="Areas"
-                  value={day.neighborhoods.map((n, i) => (
-                    <span key={n}>
-                      {i > 0 && (
-                        <span aria-hidden className="mx-1.5 text-stone-400 dark:text-stone-600">
-                          ·
-                        </span>
-                      )}
-                      <SmartEntity name={n} type="neighborhood" city={day.city} className={wrapAnywhereClass} />
-                    </span>
-                  ))}
-                />
-              )}
-              {reservations.length > 0 && (
-                <PropertyRow
-                  label="Booked"
-                  value={`${reservations.length} reservation${reservations.length === 1 ? "" : "s"}`}
-                />
-              )}
-            </PropertyTable>
-          </motion.div>
-
-          <motion.div {...fadeUp(4)} className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <motion.div {...fadeUp(4)} className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             {hasMappable ? (
               <button type="button" onClick={() => openMap()} className={inkBtnClass}>
                 <Globe2 className="h-4 w-4" strokeWidth={1.5} aria-hidden />
@@ -344,35 +304,19 @@ export function TripDayPage() {
 
         {reservations.length > 0 && (
           <section className="mt-10">
-            <SectionHeading title="Reservations" />
-            <table className={`mt-2 ${dataTableClass}`}>
-              <caption className="sr-only">Reservations</caption>
-              <thead>
-                <tr>
-                  <th scope="col" className={dataThClass}>
-                    Time
-                  </th>
-                  <th scope="col" className={dataThClass}>
-                    Booking
-                  </th>
-                  <th scope="col" className={dataThClass}>
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {reservations.map((item) => (
-                  <ReservationTableRow
-                    key={item.id}
-                    item={item}
-                    day={day}
-                    dayNumber={dayIndex + 1}
-                    flash={anchorTarget === `item-${item.id}`}
-                    walk={walkAfter(day.items, item)}
-                  />
-                ))}
-              </tbody>
-            </table>
+            <ol className="divide-y divide-[color:var(--trips-border)] border-y border-[color:var(--trips-border)]">
+              {reservations.map((item, i) => (
+                <ReservationTableRow
+                  key={item.id}
+                  item={item}
+                  day={day}
+                  dayNumber={dayIndex + 1}
+                  flash={anchorTarget === `item-${item.id}`}
+                  walk={item.reservation?.type === "flight" ? null : walkAfter(day.items, item)}
+                  featured={i === 0}
+                />
+              ))}
+            </ol>
           </section>
         )}
 
@@ -400,7 +344,7 @@ export function TripDayPage() {
                         <Time value={block.section.time} />
                         {block.section.endTime ? (
                           <>
-                            {" – "}
+                            {" to "}
                             <Time value={block.section.endTime} />
                           </>
                         ) : null}
@@ -542,47 +486,63 @@ function ReservationTableRow({
   day,
   dayNumber,
   flash,
+  featured,
   walk,
 }: {
   item: ItineraryItem
   day: TripDay
   dayNumber: number
   flash: boolean
+  featured: boolean
   walk: { distance: string; walk: string } | null
 }) {
   const highlight = useAnchorHighlight(flash)
   const reservation = itemToReservation(item, day, dayNumber)
   if (!reservation) return null
   return (
-    <tr id={`item-${item.id}`} className={highlight}>
-      <td className={`${dataTdClass} whitespace-nowrap tabular-nums ${mutedInkClass}`}>
-        {reservation.time ? <Time value={reservation.time} /> : "—"}
-      </td>
-      <td className={dataTdClass}>
-        <p className={`font-medium text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}>
+    <li id={`item-${item.id}`} className={`py-5 ${highlight}`}>
+      {featured ? (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <p className="font-display text-5xl font-semibold tabular-nums leading-none tracking-tight text-stone-950 dark:text-stone-50 sm:text-6xl">
+              {reservation.time ? <Time value={reservation.time} /> : "–"}
+            </p>
+            <p className={`mt-3 font-display text-2xl font-semibold tracking-tight text-stone-950 dark:text-stone-50 ${wrapAnywhereClass}`}>
+              <SmartEntity name={reservation.title} type={placeCategoryToEntityType(item.location?.category ?? "place")} />
+            </p>
+          </div>
+          <StatusChip status={item.status} />
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <p className="font-display text-2xl font-semibold tabular-nums text-stone-950 dark:text-stone-50">
+            {reservation.time ? <Time value={reservation.time} /> : "–"}
+          </p>
+          <StatusChip status={item.status} />
+        </div>
+      )}
+      {!featured && (
+        <p className={`mt-1 font-medium text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}>
           <SmartEntity name={reservation.title} type={placeCategoryToEntityType(item.location?.category ?? "place")} />
         </p>
-        {reservation.subtitle && (
-          <p className={`mt-0.5 text-[13px] ${mutedInkClass} ${wrapAnywhereClass}`}>{reservation.subtitle}</p>
-        )}
-        {reservation.address && (
-          <p className={`mt-1 text-sm ${wrapAnywhereClass}`}>
-            <a href={mapsUrl(reservation.address)} className={inlineLinkClass}>
-              {reservation.address}
-            </a>
-          </p>
-        )}
-        {reservation.notes && (
-          <p className={`mt-1 text-sm leading-relaxed ${mutedInkClass} ${wrapAnywhereClass}`}>
-            <LinkifiedText>{reservation.notes}</LinkifiedText>
-          </p>
-        )}
-        {walk && <WalkLeg walk={walk} />}
-      </td>
-      <td className={dataTdClass}>
-        <StatusChip status={item.status} />
-      </td>
-    </tr>
+      )}
+      {reservation.subtitle && (
+        <p className={`mt-1 text-[13px] ${mutedInkClass} ${wrapAnywhereClass}`}>{reservation.subtitle}</p>
+      )}
+      {reservation.address && (
+        <p className={`mt-1 text-sm ${wrapAnywhereClass}`}>
+          <a href={mapsUrl(reservation.address)} className={inlineLinkClass}>
+            {reservation.address}
+          </a>
+        </p>
+      )}
+      {reservation.notes && (
+        <p className={`mt-1 text-sm leading-relaxed ${mutedInkClass} ${wrapAnywhereClass}`}>
+          <LinkifiedText>{reservation.notes}</LinkifiedText>
+        </p>
+      )}
+      {walk && <WalkLeg walk={walk} />}
+    </li>
   )
 }
 
