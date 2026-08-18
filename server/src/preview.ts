@@ -630,5 +630,10 @@ export async function waitForPreview(opts: {
     await sleep(intervalMs);
   }
 
-  throw new Error(`preview not ready for PR ${opts.pr} (${lastError})`);
+  throw new Error(
+    `preview not ready for PR ${opts.pr} (${lastError}). ` +
+      `Poll ${url}. A 404 HTML page titled "Preview not published" means ` +
+      `production Hono cannot see $PREVIEW_ROOT/${opts.pr}/index.html ` +
+      `(closed PRs are deleted; open PRs must match PREVIEW_ROOT on the droplet).`,
+  );
 }

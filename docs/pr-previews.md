@@ -125,10 +125,14 @@ PR opened/sync
          (lock released before the sidecar starts; bun must not inherit flock)
 ```
 
-Production Hono (`server/src/preview.ts`) serves `~/previews/<n>/` at
+Production Hono (`server/src/preview.ts`) serves `$PREVIEW_ROOT/<n>/` at
 `/preview/pr/<n>/` **before** the SPA fallback, so a missing preview is a
-404, not production `index.html`. `/preview/pr/<n>/api/*` is reverse-proxied
-to the sidecar when `api.json` is present (`X-Preview-API: 1`).
+404, not production `index.html`. `publish-preview.sh` reads `PREVIEW_ROOT`
+from the droplet `~/.env` so the extract path matches the running process.
+The preview workflow fails if loopback or `GET /preview/pr/<n>/preview.json`
+does not match the PR (it must not mark a 404 as published).
+`/preview/pr/<n>/api/*` is reverse-proxied to the sidecar when `api.json`
+is present (`X-Preview-API: 1`). Closed PRs delete the tree.
 
 New npm dependencies in a PR are **not** installed on the droplet for the
 sidecar — it uses production `~/anthonyl.im/node_modules`. A PR that adds
