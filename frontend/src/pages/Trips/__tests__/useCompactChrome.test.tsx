@@ -46,7 +46,7 @@ describe("useCompactChrome", () => {
     )
 
     await act(async () => {
-      Object.defineProperty(window, "scrollY", { configurable: true, value: 90 })
+      Object.defineProperty(window, "scrollY", { configurable: true, value: 96 })
       window.dispatchEvent(new Event("scroll"))
       await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)))
     })
