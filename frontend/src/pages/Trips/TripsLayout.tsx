@@ -95,6 +95,13 @@ export function TripsLayout() {
     applyTheme(getInitialTheme())
   }, [])
 
+  useEffect(() => {
+    document.documentElement.dataset.tripsScroll = ""
+    return () => {
+      delete document.documentElement.dataset.tripsScroll
+    }
+  }, [])
+
   return (
     <CompactChromeProvider>
     <TripsShell atIndex={atIndex} chatPad={chatPad} crumb={crumb} />

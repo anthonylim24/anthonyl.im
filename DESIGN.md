@@ -198,7 +198,7 @@ Print-stock green-gray with one deep JR-green cover. Accent is the same green by
 
 ## Layout
 
-A single printed sheet, not a workspace. Slim sticky chrome (`--trips-chrome-h`, 3.5rem / 3rem from `sm`) with a “Trips” wordmark and **no left rail**. On scroll past 24px the chrome compactifies to 2.75rem and the cover band sticks under it, shrinking title/time and hiding `.cover-extra` so the itinerary owns the viewport. The living document is `max-w-5xl` with `16px` gutters (`24px` from `sm`). Cover band is full-bleed, then the sheet. First viewport: band (30–40%) with condensed title + next time; station-tick snap rail; schedule rows. Index is end-label timetable rows in Now / Upcoming / Past. Heading is “Trips” or “No trips yet”, never “Inbox”. Day pages stay; `/trips/:id/edit` redirects to the living document. Concierge FAB on trip + day only. Interactive targets are 44px (`{spacing.target}`). User-authored strings use `break-words` + `overflow-wrap: anywhere`.
+A single printed sheet, not a workspace. Slim sticky chrome (`--trips-chrome-h`, 3.5rem / 3rem from `sm`) with a “Trips” wordmark and **no left rail**. Scroll writes `--trips-cover-t` (0–1 over 96px) so the cover title scales and extras fade via transform/opacity only. Past 24px the chrome snaps to 2.5rem and the cover sticks under it (`--trips-cover-h`), hiding `.cover-extra` so the itinerary owns the viewport. Do not animate padding or height. The living document is `max-w-5xl` with `16px` gutters (`24px` from `sm`). Cover band is full-bleed, then the sheet. First viewport: band (30–40%) with condensed title + next time; station-tick snap rail; schedule rows. Index is end-label timetable rows in Now / Upcoming / Past. Heading is “Trips” or “No trips yet”, never “Inbox”. Day pages stay; `/trips/:id/edit` redirects to the living document. Concierge FAB on trip + day only. Interactive targets are 44px (`{spacing.target}`). User-authored strings use `break-words` + `overflow-wrap: anywhere`.
 
 ### Named Rules
 **The Cover Band Rule.** The first viewport starts with a committed band, not a property table, not a listing hero, not Korea orb cards.
@@ -207,7 +207,7 @@ A single printed sheet, not a workspace. Slim sticky chrome (`--trips-chrome-h`,
 
 ## Elevation & Depth
 
-Flat print. Depth is tonal (stock vs sheet vs band) and hairline rules, not drop shadows. Popovers may use a single structural shadow; page chrome does not float. Motion is short spring reveals (`cubic-bezier(0.16, 1, 0.3, 1)`, ~220ms) and honors `prefers-reduced-motion`. Map Mode is a real 3D scene, not a card elevation, and it **unmounts** when closed.
+Flat print. Depth is tonal (stock vs sheet vs band) and hairline rules, not drop shadows. Popovers may use a single structural shadow; page chrome does not float. The one vivid instrument is a living station board: `FlipTime` split-flap glyphs, a magnetic snap-rail tick (`layoutId`), cover progress tied to scroll, and an enhance dialog that morphs from its chevron via the View Transitions API. Springs use `cubic-bezier(0.16, 1, 0.3, 1)`. Honor `prefers-reduced-motion` (instant flap swap, no morph). Map Mode is a real 3D scene, not a card elevation, and it **unmounts** when closed.
 
 ### Named Rules
 **The Hairline Rule.** Rows, legends, and rails divide with 1px ink at `{colors.trips-border}`. No stacked glass, no grain, no drifting bloom.
@@ -241,7 +241,7 @@ Timetable parts, not SaaS primitives. Compose from `frontend/src/pages/Trips/ui.
 - **Style:** recessed rail well, hairline `{colors.trips-border}`, inset shadow, 44px target. Display title on the band is borderless Archivo Narrow.
 
 ### Enhance dialog
-Chevron disclosure opens a modal (centered on desktop, sheet on phones). Always an opaque `{colors.trips-surface}` panel on a heavy `{colors.trips-scrim}` wash plus blur. Title **Focus this review**. Actions sit on a recessed rail: Cancel and filled **Run enhance**. The split button’s primary side still runs a full pass immediately.
+Chevron disclosure opens a modal (centered on desktop, sheet on phones). The chevron morphs into the panel (`view-transition-name: trips-enhance`) when the API exists; otherwise the current fade/slide remains. Always an opaque `{colors.trips-surface}` panel on a heavy `{colors.trips-scrim}` wash plus blur. Title **Focus this review**. Actions sit on a recessed rail: Cancel and filled **Run enhance**. The split button’s primary side still runs a full pass immediately. Portals remount `.trips` on `document.body` so tokens apply.
 - **Focus:** accent border + `{colors.trips-focus}` ring.
 - **Error / Disabled:** destructive red fill for errors; 50% opacity when disabled. Viewers get static text, not disabled inputs.
 
@@ -252,10 +252,10 @@ Slim top chrome, breadcrumb “Trips / {slug}”. Index heading “Trips”. Sna
 Full-bleed `{colors.trips-band}`. Status line, condensed title, destinations · dates, next time in Display, then Map Mode. Occupies 30–40% of the first viewport. On scroll the chrome drops to `--trips-chrome-h: 2.5rem` and the cover sticks as a thin band: notes, tags, and Map Mode hide; title and next clock shrink.
 
 ### Next time
-The next booking’s clock is Hero time. Title sits beside it one step smaller. On the day page the first reservation is this same hero: huge condensed time, not a table cell. Compact cover shrinks the clock to 1.375rem.
+The next booking’s clock is Hero time, rendered as `FlipTime` (split-flap on change / first show; instant when reduced). Title sits beside it one step smaller. On the day page the first reservation is this same hero: huge condensed time, not a table cell. Compact cover shrinks the clock to 1.375rem. The chrome clock (`TripClock`) flaps when the destination minute changes.
 
 ### Snap rail
-Horizontal station ticks on a 1px center hairline (`.snap-rail`). Weekday + day number in Archivo Narrow. Active tick uses trip accent.
+Horizontal station ticks on a 1px center hairline (`.snap-rail`) that draws on first paint. Weekday + day number in Archivo Narrow. The active tick is one `layoutId` rectangle that springs between days. Sticky offset is `chrome + cover + safe-area`, not a hardcoded `top-14`.
 
 ### Status mark
 `StatusChip` / `TripStatusChip`: 6px mark + label. Do not replace with hue-only pills or emoji traffic lights.
@@ -266,7 +266,8 @@ End-label timetable row: name, destinations, range, count; time or countdown at 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** start the living document with a committed cover band (30–40% of the first viewport) and a huge next time in Archivo Narrow. Compact the chrome and cover on scroll.
+- **Do** start the living document with a committed cover band (30–40% of the first viewport) and a huge next time in Archivo Narrow. Compact the chrome and cover on scroll (`--trips-cover-t` for scale/fade; binary snap for hide).
+- **Do** flap times with `FlipTime`, spring the snap-rail tick, and morph enhance from its chevron. Skip those when `prefers-reduced-motion`.
 - **Do** put fields in recessed `--trips-rail` wells and dialogs on opaque `--trips-surface` with a scrim.
 - **Do** use station ticks on a hairline snap rail for multi-day trips.
 - **Do** set times and titles in Archivo Narrow 600 / `-0.02em`; body in Inter.

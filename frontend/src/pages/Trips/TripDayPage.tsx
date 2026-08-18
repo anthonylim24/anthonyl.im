@@ -13,6 +13,7 @@ import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import { ACCENT, calloutTone, formatTripDate, resolveAccent, todayIsoIn } from "./theme"
 import { useAnchorHighlight, useAnchorTarget } from "./anchors"
 import { DateStrip } from "./components/DateStrip"
+import { FlipTime } from "./components/FlipTime"
 import { SectionHeading } from "./components/SectionHeading"
 import { ItemIcon } from "./components/ItemIcon"
 import { StatusChip } from "./components/StatusChip"
@@ -510,7 +511,7 @@ function ReservationTableRow({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
             <p className={`${typeHeroTimeClass} text-[color:var(--trips-ink)]`}>
-              {reservation.time ? <Time value={reservation.time} /> : "TBD"}
+              {reservation.time ? <FlipTime value={reservation.time} playOnMount /> : "TBD"}
             </p>
             <p className={`mt-3 font-display text-xl font-semibold tracking-tight text-[color:var(--trips-ink)] sm:text-2xl ${wrapAnywhereClass}`}>
               <SmartEntity name={reservation.title} type={placeCategoryToEntityType(item.location?.category ?? "place")} />

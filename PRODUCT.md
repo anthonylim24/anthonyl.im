@@ -195,6 +195,7 @@ The same travelers as Korea, plus future trips. Phone for in-trip lookups; deskt
 - **Material:** green-gray print stock + a deep JR-green cover band. Dark is lamp-lit tinted stock, not a zinc IDE.
 - **Type:** Archivo Narrow (`font-display`, 600, `-0.02em`) for times and titles; Inter for UI body. **No Cormorant on `/trips`.** Banned display faces: Fraunces, Playfair, Cormorant, Lora, Crimson, Newsreader, Syne, Space Grotesk, Space Mono, IBM Plex, Inter-as-display, DM Sans, DM Serif, Outfit, Plus Jakarta, Instrument Sans.
 - **First viewport:** committed cover band (30–40% of the first viewport) + condensed title + next time; snap rail (station ticks); schedule rows. Chrome and cover compactify on scroll so the itinerary keeps the viewport.
+- **Living board:** split-flap `FlipTime` on the next departure, day hero, chrome clock, and index countdown. Cover progress is `--trips-cover-t` (transform/opacity only). Enhance morphs from its chevron via View Transitions. The snap-rail tick is a magnetic `layoutId` spring. Reduced motion keeps the same information without flaps or morphs.
 - **Fields / dialogs:** inset rail wells, one `--trips-radius` (0.25rem), opaque surface panels. Enhance opens a heavy-scrim dialog with a recessed action bar and filled **Run enhance**.
 - **Index:** end-label timetable rows grouped Now / Upcoming / Past. Heading is “Trips” or “No trips yet”. **Never “Inbox”.**
 - **Day page:** the first reservation is the hero (huge condensed time). Status is a geometric mark + label, not hue-only.

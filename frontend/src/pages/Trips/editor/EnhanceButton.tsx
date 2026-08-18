@@ -12,6 +12,7 @@ import {
   labelClass,
   primaryBtnClass,
   railBandClass,
+  runTripsViewTransition,
   scrimClass,
   softPanelClass,
   spinnerClass,
@@ -58,8 +59,11 @@ export function EnhanceButton({
   const disclosureRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
 
+  const canVt =
+    typeof document !== "undefined" && "startViewTransition" in document && !reduce
+
   const close = (restoreFocus: boolean) => {
-    setOpen(false)
+    runTripsViewTransition(() => setOpen(false))
     if (restoreFocus) disclosureRef.current?.focus()
   }
 
@@ -136,7 +140,7 @@ export function EnhanceButton({
   }, [open])
 
   const run = (withPrompt: boolean) => {
-    setOpen(false)
+    runTripsViewTransition(() => setOpen(false))
     onRun(withPrompt && prompt.trim() ? prompt.trim() : undefined)
   }
 
@@ -151,16 +155,19 @@ export function EnhanceButton({
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
-      initial={reduce ? { opacity: 0 } : sheet ? { opacity: 0, y: 24 } : { opacity: 0, y: 8 }}
-      animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0 }}
-      exit={reduce ? { opacity: 0 } : sheet ? { opacity: 0, y: 16 } : { opacity: 0, y: 6 }}
+      initial={canVt || reduce ? { opacity: 0 } : sheet ? { opacity: 0, y: 24 } : { opacity: 0, y: 8 }}
+      animate={canVt || reduce ? { opacity: 1 } : { opacity: 1, y: 0 }}
+      exit={canVt || reduce ? { opacity: 0 } : sheet ? { opacity: 0, y: 16 } : { opacity: 0, y: 6 }}
       transition={{ duration: reduce ? 0.12 : 0.18, ease: EASE }}
       className={
         sheet
           ? `fixed inset-x-0 z-[70] mx-auto w-full max-w-lg rounded-t-[length:var(--trips-radius)] border border-[color:var(--trips-border)] bg-[color:var(--trips-surface)] p-5 ${softPanelClass}`
           : `relative z-[70] w-full max-w-md p-5 ${softPanelClass}`
       }
-      style={sheet ? { bottom: kbInset > 0 ? kbInset : 0 } : undefined}
+      style={{
+        ...(sheet ? { bottom: kbInset > 0 ? kbInset : 0 } : undefined),
+        viewTransitionName: "trips-enhance",
+      }}
     >
       <h2 id={titleId} className={typeSectionClass}>
         Focus this review
@@ -210,12 +217,13 @@ export function EnhanceButton({
       <button
         ref={disclosureRef}
         type="button"
-        onClick={() => (open ? close(false) : setOpen(true))}
+        onClick={() => (open ? close(false) : runTripsViewTransition(() => setOpen(true)))}
         disabled={disabled}
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={`${label} with a custom focus`}
         className={base}
+        style={{ viewTransitionName: open ? "none" : "trips-enhance" }}
       >
         <ChevronDown className={`${iconSize} transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
       </button>

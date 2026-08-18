@@ -6,6 +6,7 @@ import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useAuthReady, useGetToken } from "@/lib/safeAuth"
 import { deleteTrip, listTrips } from "./tripsApi"
 import type { TripSummary } from "./types"
+import { FlipTime } from "./components/FlipTime"
 import { daysUntilIn, resolveAccent, todayIsoIn } from "./theme"
 import {
   EASE,
@@ -251,9 +252,9 @@ function TimetableRow({
         </p>
       </div>
       <div className="shrink-0 text-right">
-        <p className="font-display text-lg font-semibold tabular-nums leading-tight tracking-tight text-stone-900 dark:text-stone-100">
+        <p className="font-display text-lg font-semibold tabular-nums leading-tight tracking-tight text-[color:var(--trips-ink)]">
           <span className="sr-only">{mark.label}</span>
-          <span aria-hidden>{mark.value}</span>
+          <FlipTime value={mark.value} playOnMount className="justify-end" />
         </p>
         <p className={`mt-1 text-[13px] tabular-nums ${mutedInkClass}`}>
           {plural(dayCount, "day", "days")} · {plural(trip.itemCount, "stop", "stops")}

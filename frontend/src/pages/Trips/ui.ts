@@ -323,3 +323,25 @@ export function dayCountInclusive(start: string, end: string): number {
   const b = new Date(`${end}T00:00:00Z`).getTime()
   return Math.round((b - a) / 86_400_000) + 1
 }
+
+type ViewTransitionDocument = Document & {
+  startViewTransition?: (update: () => void) => { finished: Promise<void> }
+}
+
+/** Same-document View Transition, or a synchronous update when unsupported. */
+export function runTripsViewTransition(update: () => void): void {
+  const reduced =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  const doc = document as ViewTransitionDocument
+  if (reduced || typeof doc.startViewTransition !== "function") {
+    update()
+    return
+  }
+  void doc.startViewTransition(update).finished.catch(() => undefined)
+}
+
+/** Sticky snap rail sits under chrome, then the compact cover when it sticks. */
+export const snapRailStickyClass =
+  "snap-rail-sticky sticky z-20 -mx-4 mb-5 border-b border-[color:var(--trips-border)] bg-[color:var(--trips-canvas)] px-4 py-2 sm:-mx-6 sm:px-6"

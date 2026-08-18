@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { motion, useReducedMotion } from "motion/react"
 import { mutedInkClass } from "../ui"
+import { FlipTime } from "./FlipTime"
 
 function formatIn(timezone: string): { time: string; date: string; zone: string } {
   const now = new Date()
@@ -29,8 +30,14 @@ export function TripClock({ timezone, tone = "sheet" }: { timezone: string; tone
   const onBand = tone === "band"
 
   useEffect(() => {
-    setNow(formatIn(timezone))
-    const id = setInterval(() => setNow(formatIn(timezone)), 30_000)
+    const tick = () => {
+      const next = formatIn(timezone)
+      setNow((prev) =>
+        prev.time === next.time && prev.date === next.date && prev.zone === next.zone ? prev : next,
+      )
+    }
+    tick()
+    const id = setInterval(tick, 1_000)
     return () => clearInterval(id)
   }, [timezone])
 
@@ -45,9 +52,10 @@ export function TripClock({ timezone, tone = "sheet" }: { timezone: string; tone
         onBand ? "text-[color:var(--trips-band-ink)]/75" : mutedInkClass
       }`}
     >
-      <span className={`font-display tabular-nums ${onBand ? "text-[color:var(--trips-band-ink)]" : "text-stone-800 dark:text-stone-200"}`}>
-        {time}
-      </span>
+      <FlipTime
+        value={time}
+        className={`font-display tabular-nums ${onBand ? "text-[color:var(--trips-band-ink)]" : "text-[color:var(--trips-ink)]"}`}
+      />
       <span className="font-display uppercase tracking-[0.12em]">
         {(timezone.split("/").pop() ?? zone).replace(/_/g, " ")}
       </span>

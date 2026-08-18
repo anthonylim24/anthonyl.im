@@ -3,8 +3,15 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 const CompactChromeContext = createContext(false)
 
 const THRESHOLD = 24
+const COVER_RANGE = 96
 
-/** Shared scroll-compact flag for chrome + cover band. */
+function applyCoverProgress(y: number) {
+  const progress = Math.min(1, Math.max(0, y / COVER_RANGE))
+  document.querySelector<HTMLElement>(".trips")?.style.setProperty("--trips-cover-t", progress.toFixed(4))
+}
+
+/** Shared scroll-compact flag for chrome + cover band.
+ *  `--trips-cover-t` (0–1 over 96px) drives transform/opacity only. */
 export function CompactChromeProvider({ children }: { children: ReactNode }) {
   const [compact, setCompact] = useState(false)
 
@@ -12,7 +19,10 @@ export function CompactChromeProvider({ children }: { children: ReactNode }) {
     let frame = 0
     const read = () => {
       frame = 0
-      setCompact(window.scrollY > THRESHOLD)
+      const y = window.scrollY
+      applyCoverProgress(y)
+      const next = y > THRESHOLD
+      setCompact((prev) => (prev === next ? prev : next))
     }
     const onScroll = () => {
       if (frame) return
@@ -34,3 +44,4 @@ export function useCompactChrome(): boolean {
 }
 
 export const COMPACT_SCROLL_THRESHOLD = THRESHOLD
+export const COVER_PROGRESS_RANGE = COVER_RANGE

@@ -925,6 +925,10 @@ html:has(.chatbot-dark) {
   --trips-scrim: oklch(16% 0.028 140 / 0.78);
   --trips-radius: 0.25rem;
   --trips-chrome-h: 3.5rem;
+  --trips-cover-h: 0px;
+  --trips-cover-t: 0;
+  --trips-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --trips-ease-out: cubic-bezier(0.33, 0, 0, 1);
   --ta: oklch(36% 0.07 148);
   --ta-strong: oklch(28% 0.064 148);
   --ta-soft: oklch(36% 0.07 148 / 0.12);
@@ -947,6 +951,7 @@ html:has(.chatbot-dark) {
 
 .trips[data-chrome-compact="true"] {
   --trips-chrome-h: 2.5rem;
+  --trips-cover-h: 2.5rem;
 }
 
 .trips ::selection {
@@ -997,6 +1002,20 @@ html.dark .trips,
   color: var(--trips-band-ink);
 }
 
+.trips .cover-title {
+  transform: scale(calc(1 - var(--trips-cover-t) * 0.12));
+  transform-origin: left center;
+}
+
+.trips .cover-extra,
+.trips .cover-cta {
+  opacity: calc(1 - var(--trips-cover-t));
+}
+
+.trips[data-chrome-compact="true"] .cover-title {
+  transform: none;
+}
+
 .trips .cover-band[data-compact="true"] {
   position: sticky;
   top: calc(var(--trips-chrome-h) + env(safe-area-inset-top, 0px));
@@ -1035,8 +1054,100 @@ html.dark .trips,
     var(--trips-ink) 100%
   );
   background-repeat: no-repeat;
-  background-size: 100% 1px;
+  background-size: 0 1px;
   background-position: center;
+  animation: trips-rail-draw 700ms var(--trips-ease-out) forwards;
+}
+
+.trips .snap-rail-sticky {
+  top: calc(var(--trips-chrome-h) + var(--trips-cover-h) + env(safe-area-inset-top, 0px));
+}
+
+.trips .trips-flip-cell {
+  display: inline-block;
+  overflow: hidden;
+  text-align: center;
+  vertical-align: -0.06em;
+  perspective: 160px;
+}
+
+.trips .trips-flip-digit {
+  width: 1ch;
+}
+
+.trips .trips-flip-letter {
+  min-width: 0.55em;
+  padding-inline: 0.02em;
+}
+
+.trips .trips-flip-sep {
+  width: 0.36em;
+}
+
+.trips .trips-flip-glyph {
+  display: block;
+  transform-origin: 50% 40%;
+  backface-visibility: hidden;
+  animation: trips-flip-in 380ms var(--trips-spring) both;
+}
+
+@keyframes trips-flip-in {
+  from {
+    transform: rotateX(-86deg);
+    opacity: 0.28;
+  }
+  to {
+    transform: rotateX(0deg);
+    opacity: 1;
+  }
+}
+
+@keyframes trips-rail-draw {
+  to {
+    background-size: 100% 1px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trips .cover-title {
+    transform: none;
+  }
+
+  .trips .cover-extra,
+  .trips .cover-cta {
+    opacity: 1;
+  }
+
+  .trips .snap-rail {
+    animation: none;
+    background-size: 100% 1px;
+  }
+
+  .trips .trips-flip-glyph {
+    animation: none;
+  }
+}
+
+::view-transition-group(trips-enhance) {
+  animation-duration: 420ms;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+::view-transition-old(trips-enhance),
+::view-transition-new(trips-enhance) {
+  animation-duration: 380ms;
+  height: 100%;
+  overflow: clip;
+  mix-blend-mode: normal;
+}
+
+html[data-trips-scroll] {
+  scrollbar-color: oklch(22% 0.028 140 / 0.38) transparent;
+  scrollbar-width: thin;
+}
+
+html.dark[data-trips-scroll] {
+  scrollbar-color: oklch(93.4% 0.02 128 / 0.38) transparent;
 }
 
 /* Below 768px every input is pinned to 16px so iOS doesn't zoom on focus.

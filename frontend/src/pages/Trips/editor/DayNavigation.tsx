@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { useReducedMotion } from "motion/react"
 import { DateStrip } from "../components/DateStrip"
 import type { TripDay } from "../types"
+import { snapRailStickyClass } from "../ui"
 import { dayIdsFrom, daysKey } from "./hooks"
 
 /** Which day section owns the viewport right now. */
@@ -58,7 +59,7 @@ export function DayNavigation({ days, timezone }: { days: TripDay[]; timezone: s
   return (
     <div
       ref={railRef}
-      className="sticky top-14 z-20 -mx-4 mb-5 border-b border-[color:var(--trips-border)] bg-[color:var(--trips-canvas)] px-4 py-2 sm:-mx-6 sm:px-6"
+      className={snapRailStickyClass}
     >
       <DateStrip days={days} timezone={timezone} activeId={active} hrefFor={(day) => `#${day.id}`} />
     </div>

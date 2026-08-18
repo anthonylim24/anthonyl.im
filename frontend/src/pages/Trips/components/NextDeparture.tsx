@@ -2,6 +2,7 @@ import { Link } from "react-router-dom"
 import { formatTripDate } from "../theme"
 import { focusRingClass, mutedInkClass, typeHeroTimeClass, wrapAnywhereClass } from "../ui"
 import type { ItineraryItem, TripDay } from "../types"
+import { FlipTime } from "./FlipTime"
 
 function cityFromZone(timezone: string): string {
   const last = timezone.split("/").pop() ?? timezone
@@ -30,7 +31,7 @@ export function NextDeparture({
     >
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         {time ? (
-          <span className={typeHeroTimeClass}>{time}</span>
+          <FlipTime value={time} playOnMount className={typeHeroTimeClass} />
         ) : (
           <span className={`font-display text-xl font-semibold ${wrapAnywhereClass}`}>
             {formatTripDate(day.date, timezone)}

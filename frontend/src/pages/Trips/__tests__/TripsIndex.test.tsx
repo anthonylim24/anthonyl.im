@@ -44,6 +44,7 @@ vi.mock("motion/react", async () => {
       },
     ),
     useReducedMotion: () => true,
+    LayoutGroup: ({ children }: { children?: React.ReactNode }) => children,
   }
 })
 
