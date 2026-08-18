@@ -175,7 +175,7 @@ export const selectClass = `${FIELD} min-h-11 px-3 py-2 text-[0.9375rem] text-[c
 
 export const compactSelectClass = `${FIELD} min-h-11 sm:min-h-9 px-2 py-1 text-xs text-[color:var(--trips-ink)] transition focus:border-[color:var(--trips-accent)] focus:outline-none ${FOCUS}`
 
-export const checkboxClass = `h-4 w-4 ${RADIUS} border-[color:var(--trips-border)] accent-[var(--trips-accent)] ${FOCUS}`
+export const checkboxClass = `h-11 w-11 shrink-0 ${RADIUS} border-[color:var(--trips-border)] accent-[var(--trips-accent)] ${FOCUS}`
 
 /** Bordered shell wrapping a bare input plus an icon (combobox fields). */
 export const fieldShellClass = `flex items-center gap-3 ${FIELD} px-3 transition focus-within:border-[color:var(--trips-accent)] focus-within:ring-2 focus-within:ring-[color:var(--trips-focus)]`
@@ -215,7 +215,7 @@ export const overlayScrimClass =
   "fixed inset-0 bg-[color:var(--trips-scrim)] backdrop-blur-[8px] motion-reduce:backdrop-blur-none"
 
 /** Loading bones on the print stock — never raw stone. */
-export const skeletonClass = `animate-pulse ${RADIUS} bg-[color:var(--trips-rail)]`
+export const skeletonClass = `animate-pulse motion-reduce:animate-none ${RADIUS} bg-[color:var(--trips-rail)]`
 
 /** Hairline schedule / suggestion / concierge card. */
 export const scheduleRowClass = `${RADIUS} border border-[color:var(--trips-border)] bg-[color:var(--trips-surface)]`

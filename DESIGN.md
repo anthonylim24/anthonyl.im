@@ -275,7 +275,7 @@ End-label timetable row: name, destinations, range, count; time or countdown at 
 - **Do** put fields in recessed `--trips-rail` wells with `--trips-field-radius`, and dialogs on opaque `--trips-surface` with a scrim.
 - **Do** use station ticks on a hairline snap rail for multi-day trips.
 - **Do** set times and titles in Archivo Narrow 600 / `-0.02em`; body in Inter.
-- **Do** keep the document `max-w-5xl`, radius `0.25rem`, and 44px targets.
+- **Do** keep the document `max-w-5xl`, field radius `1rem`, print-mark radius `0.25rem`, and 44px targets.
 - **Do** retint canvas + cover band with `data-trip-accent` (rose / amber / emerald / sky / violet).
 - **Do** show status as a geometric mark + label.
 - **Do** unmount Map Mode when closed (never React `Activity`).

@@ -70,6 +70,11 @@ function currentWindow(): { startDate: string; endDate: string } {
   return { startDate: addUtcDays(today, -2), endDate: addUtcDays(today, 5) }
 }
 
+function upcomingWindow(): { startDate: string; endDate: string } {
+  const today = todayIsoIn(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC")
+  return { startDate: addUtcDays(today, 20), endDate: addUtcDays(today, 25) }
+}
+
 function makeSummary(overrides: Partial<TripSummary> = {}): TripSummary {
   return {
     id: "trip-1",
@@ -153,7 +158,7 @@ describe("TripsIndex", () => {
   it("puts an in-progress trip in Now, not a magazine hero", async () => {
     mockListTrips.mockResolvedValue([
       makeSummary({ id: "now", slug: "seoul-now", name: "Seoul Now", ...currentWindow() }),
-      makeSummary({ id: "trip-2", slug: "osaka", name: "Osaka Bites" }),
+      makeSummary({ id: "trip-2", slug: "osaka", name: "Osaka Bites", ...upcomingWindow() }),
     ])
 
     renderIndex()

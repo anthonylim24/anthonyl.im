@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from "react"
-import { useReducedMotion } from "motion/react"
+import { useEffect, useState } from "react"
 import { DateStrip } from "../components/DateStrip"
 import type { TripDay } from "../types"
 import { snapRailStickyClass } from "../ui"
@@ -40,27 +39,11 @@ function useActiveDay(key: string): string | null {
  */
 export function DayNavigation({ days, timezone }: { days: TripDay[]; timezone: string }) {
   const active = useActiveDay(daysKey(days))
-  const reduce = useReducedMotion()
-  const railRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const rail = railRef.current
-    if (!rail || !active) return
-    const chip = rail.querySelector<HTMLElement>(`a[aria-current]`)
-    if (!chip) return
-    rail.scrollTo({
-      left: chip.offsetLeft - rail.clientWidth / 2 + chip.clientWidth / 2,
-      behavior: reduce ? "auto" : "smooth",
-    })
-  }, [active, reduce])
 
   if (days.length < 2) return null
 
   return (
-    <div
-      ref={railRef}
-      className={snapRailStickyClass}
-    >
+    <div className={snapRailStickyClass}>
       <DateStrip days={days} timezone={timezone} activeId={active} hrefFor={(day) => `#${day.id}`} />
     </div>
   )

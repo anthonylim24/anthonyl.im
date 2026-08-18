@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react"
 import { LayoutGroup, motion, useReducedMotion } from "motion/react"
 import { Link } from "react-router-dom"
 import { ACCENT, formatTripDate, todayIsoIn } from "../theme"
@@ -30,11 +31,24 @@ export function DateStrip({
   toFor?: (day: TripDay) => string
 }) {
   const reduce = useReducedMotion()
+  const navRef = useRef<HTMLElement>(null)
+
+  useEffect(() => {
+    const nav = navRef.current
+    if (!nav || !activeId) return
+    const chip = nav.querySelector<HTMLElement>("[aria-current]")
+    if (!chip) return
+    nav.scrollTo({
+      left: chip.offsetLeft - nav.clientWidth / 2 + chip.clientWidth / 2,
+      behavior: reduce ? "auto" : "smooth",
+    })
+  }, [activeId, reduce, days])
+
   if (days.length < 2) return null
   const today = todayIsoIn(timezone)
 
   return (
-    <nav aria-label="Days" className="overflow-x-auto touch-pan-x py-3">
+    <nav ref={navRef} aria-label="Days" className="overflow-x-auto touch-pan-x py-3">
       <LayoutGroup id="trips-station-rail">
         <ol className="snap-rail flex items-end gap-0">
           {days.map((day, idx) => {

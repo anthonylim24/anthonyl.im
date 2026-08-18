@@ -218,9 +218,9 @@ export function createGeminiLlm(
 }
 
 /**
- * Try Gemini first. Groq is a last resort, and only when the prompt fits
- * Groq's 8k on-demand TPM. If Groq also fails, rethrow the Gemini error so
- * travelers are not shown a Groq 413 that replaced a useful primary failure.
+ * Optional wrapper kept for tests. `createTripsLlm` does not use this:
+ * Gemini 3.7 is used alone when configured. Groq is only selected when
+ * Gemini is missing.
  */
 export function withLlmFallback(primary: LlmCall, fallback: LlmCall): LlmCall {
   return async (opts) => {

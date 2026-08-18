@@ -1126,21 +1126,18 @@ html.dark .trips,
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .trips .cover-title {
-    transform: none;
-  }
-
-  .trips .cover-extra,
-  .trips .cover-cta {
-    opacity: 1;
-  }
-
   .trips .snap-rail {
     animation: none;
     background-size: 100% 1px;
   }
 
   .trips .trips-flip-glyph {
+    animation: none;
+  }
+
+  ::view-transition-group(trips-enhance),
+  ::view-transition-old(trips-enhance),
+  ::view-transition-new(trips-enhance) {
     animation: none;
   }
 }
@@ -1279,11 +1276,15 @@ html.dark[data-trips-scroll] {
   --ta-bloom-b: oklch(66% 0.18 16.4 / 0.06);
 }
 
-html.dark .trips [data-trip-accent] {
+html.dark .trips [data-trip-accent],
+.trips.dark [data-trip-accent],
+:root.dark .trips [data-trip-accent] {
   --ta-bloom-b: oklch(80% 0.13 70 / 0.1);
 }
 
-html.dark .trips [data-trip-accent="rose"] {
+html.dark .trips [data-trip-accent="rose"],
+.trips.dark [data-trip-accent="rose"],
+:root.dark .trips [data-trip-accent="rose"] {
   --trips-canvas: oklch(16.5% 0.03 16.4);
   --trips-surface: oklch(20.5% 0.028 16.4);
   --trips-rail: oklch(18.2% 0.03 16.4);
@@ -1296,7 +1297,9 @@ html.dark .trips [data-trip-accent="rose"] {
   --ta-bloom-a: oklch(72% 0.17 16.4 / 0.16);
 }
 
-html.dark .trips [data-trip-accent="amber"] {
+html.dark .trips [data-trip-accent="amber"],
+.trips.dark [data-trip-accent="amber"],
+:root.dark .trips [data-trip-accent="amber"] {
   --trips-canvas: oklch(16.5% 0.028 70.1);
   --trips-surface: oklch(20.5% 0.026 70.1);
   --trips-rail: oklch(18.2% 0.028 70.1);
@@ -1310,7 +1313,9 @@ html.dark .trips [data-trip-accent="amber"] {
   --ta-bloom-b: oklch(70% 0.012 60 / 0.08);
 }
 
-html.dark .trips [data-trip-accent="emerald"] {
+html.dark .trips [data-trip-accent="emerald"],
+.trips.dark [data-trip-accent="emerald"],
+:root.dark .trips [data-trip-accent="emerald"] {
   --trips-canvas: oklch(16.5% 0.028 162.5);
   --trips-surface: oklch(20.5% 0.026 162.5);
   --trips-rail: oklch(18.2% 0.028 162.5);
@@ -1323,7 +1328,9 @@ html.dark .trips [data-trip-accent="emerald"] {
   --ta-bloom-a: oklch(75% 0.13 162.5 / 0.14);
 }
 
-html.dark .trips [data-trip-accent="sky"] {
+html.dark .trips [data-trip-accent="sky"],
+.trips.dark [data-trip-accent="sky"],
+:root.dark .trips [data-trip-accent="sky"] {
   --trips-canvas: oklch(16.5% 0.026 237.3);
   --trips-surface: oklch(20.5% 0.024 237.3);
   --trips-rail: oklch(18.2% 0.026 237.3);
@@ -1336,7 +1343,9 @@ html.dark .trips [data-trip-accent="sky"] {
   --ta-bloom-a: oklch(74% 0.13 237.3 / 0.14);
 }
 
-html.dark .trips [data-trip-accent="violet"] {
+html.dark .trips [data-trip-accent="violet"],
+.trips.dark [data-trip-accent="violet"],
+:root.dark .trips [data-trip-accent="violet"] {
   --trips-canvas: oklch(16.5% 0.03 292.7);
   --trips-surface: oklch(20.5% 0.028 292.7);
   --trips-rail: oklch(18.2% 0.03 292.7);
@@ -1384,7 +1393,7 @@ html.dark .trips [data-trip-accent="violet"] {
 
 @media (min-width: 640px) {
   .trip-split > button:last-of-type {
-    min-width: 2.25rem;
+    min-width: 2.75rem;
   }
 }
 

@@ -32,7 +32,7 @@ import {
   wrapAnywhereClass,
 } from "./ui"
 
-const skeletonBarClass = "animate-pulse rounded-sm bg-[color:var(--trips-ink)]/10"
+const skeletonBarClass = "animate-pulse motion-reduce:animate-none rounded-sm bg-[color:var(--trips-ink)]/10"
 const hairlineListClass =
   "divide-y divide-[color:var(--trips-border)] border-y border-[color:var(--trips-border)]"
 const sectionTitleClass = typeSectionClass

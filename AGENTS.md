@@ -210,13 +210,13 @@ The same travelers as Korea, plus future trips. Phone for in-trip lookups; deskt
 - Green-gray print stock + deep JR-green cover band. Dark is lamp-lit tinted stock, not a zinc IDE.
 - Archivo Narrow (`font-display`, 600, `-0.02em`) for times and titles; Inter for UI body. **No Cormorant on `/trips`.** Banned display faces: Fraunces, Playfair, Cormorant, Lora, Crimson, Newsreader, Syne, Space Grotesk, Space Mono, IBM Plex, Inter-as-display, DM Sans, DM Serif, Outfit, Plus Jakarta, Instrument Sans.
 - First viewport: committed cover band (30–40%) + condensed title + next time; snap rail (station ticks); schedule rows. Chrome and cover shrink on scroll.
-- Fields sit in `--trips-rail` wells; dialogs use opaque `--trips-surface` on `--trips-scrim`. One `--trips-radius` (0.25rem) for inputs, chips, and panels.
+- Fields sit in `--trips-rail` wells. Use `--trips-field-radius` (1rem) for inputs and `--trips-radius` (0.25rem) for chips, marks, and compact controls. Dialogs use opaque `--trips-surface` on `--trips-scrim`.
 - Index: end-label timetable rows (Now / Upcoming / Past). Heading is “Trips” or “No trips yet”. **Never “Inbox”.** No left workspace rail. No Notion property-table hero. No Airbnb listing cards.
 - Day page: first reservation is the hero (huge condensed time). Status is a geometric mark + label, not hue-only.
 - `data-trip-accent` retints canvas + cover band (rose / amber / emerald / sky / violet). No Korea bloom, grain, or Cormorant.
 - `/trips/:tripId` is the living document. Day pages stay. `/trips/:tripId/edit` redirects there. Concierge FAB (`TripChat`) on trip + day only. Instagram ingest (`TripIngest`) is embedded on the living document, not a standalone route.
 - Map Mode stays photorealistic. **Must unmount** when closed; never React `Activity`.
-- Radius `0.25rem`. Document `max-w-5xl`. Touch targets 44px.
+- Fields use `--trips-field-radius` (1rem); compact controls and print marks use `--trips-radius` (0.25rem). Document `max-w-5xl`. Touch targets 44px.
 
 ### Trips-specific Principles
 

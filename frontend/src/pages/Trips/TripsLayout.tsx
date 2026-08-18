@@ -183,7 +183,7 @@ function TripsShell({
             </nav>
             <div className="flex items-center gap-1.5 sm:gap-2">
               <span className="trip-tap-44 inline-flex">
-                <ThemeToggle />
+                <ThemeToggle className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[color:var(--trips-border)] bg-[color:var(--trips-surface)] text-[color:var(--trips-ink-secondary)] transition hover:border-[color:var(--trips-accent)] hover:text-[color:var(--trips-accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--trips-focus)]" />
               </span>
               {CLERK_ENABLED && !DEV_BEARER ? <UserButton afterSignOutUrl="/" /> : null}
             </div>
