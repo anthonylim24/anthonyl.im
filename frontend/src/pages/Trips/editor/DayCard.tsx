@@ -4,7 +4,6 @@ import { ChevronDown, Map as MapIcon, Plus, Trash2 } from "lucide-react"
 import { ACCENT, formatTripDate } from "../theme"
 import { addItem, makeItem } from "../tripEdits"
 import {
-  SERIF,
   chipBtnClass,
   compactInputClass,
   compactSelectClass,
@@ -92,7 +91,7 @@ export const DayCard = memo(function DayCard({
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
-          <p className={`font-mono-trips text-[11px] uppercase tracking-[0.18em] ${ACCENT.text}`}>
+          <p className={`text-[13px] font-medium ${ACCENT.text}`}>
             Day {index + 1} · {formatTripDate(day.date, timezone)}
             {day.city ? ` · ${day.city}` : ""}
           </p>
@@ -115,12 +114,11 @@ export const DayCard = memo(function DayCard({
                   aria-label={`Day ${index + 1} title`}
                   disabled={locked}
                   onChange={(e) => patchDay({ title: e.target.value })}
-                  className={`w-full truncate font-display text-xl font-medium tracking-tight ${subtleInputClass}`}
-                  style={SERIF}
+                  className={`w-full truncate text-lg font-semibold tracking-tight ${subtleInputClass}`}
                 />
               </>
             ) : (
-              <h2 className={`font-display text-xl font-medium tracking-tight text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`} style={SERIF}>
+              <h2 className={`text-lg font-semibold tracking-tight text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}>
                 {day.emoji ? `${day.emoji} ` : ""}
                 {day.title ?? ""}
               </h2>

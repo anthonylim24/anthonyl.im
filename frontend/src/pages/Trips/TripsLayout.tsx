@@ -6,7 +6,6 @@ import { CLERK_ENABLED } from "@/lib/clerk"
 import { ThemeToggle } from "../Korea/ThemeToggle"
 import { applyTheme, getInitialTheme } from "../Korea/koreaUtils"
 import {
-  SERIF,
   accentIconClass,
   chromeHeaderClass,
   focusRingClass,
@@ -52,7 +51,7 @@ function ClerkTripsGate({ children }: { children: ReactNode }) {
             >
               <Compass className="h-7 w-7" strokeWidth={1.5} />
             </div>
-            <h1 className="mt-6 font-display text-4xl tracking-tight text-stone-900 dark:text-stone-100" style={SERIF}>
+            <h1 className="mt-6 text-3xl font-semibold tracking-tight text-stone-900 dark:text-stone-100">
               Trips
             </h1>
             <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-stone-600 dark:text-stone-400">
@@ -122,8 +121,7 @@ export function TripsLayout() {
                 <li className="shrink-0">
                   <Link
                     to="/trips"
-                    className={`-mx-1.5 inline-flex min-h-11 items-center rounded-lg px-1.5 font-display text-[1.15rem] leading-none tracking-tight text-stone-900 transition hover:text-[color:var(--trips-accent)] dark:text-stone-100 ${focusRingClass}`}
-                    style={SERIF}
+                    className={`-mx-1.5 inline-flex min-h-11 items-center rounded-lg px-1.5 text-[15px] font-semibold tracking-tight text-stone-900 transition hover:text-[color:var(--trips-accent)] dark:text-stone-100 ${focusRingClass}`}
                   >
                     Trips
                   </Link>
@@ -150,8 +148,7 @@ export function TripsLayout() {
             </div>
           </div>
         </header>
-        {/* Unconstrained so trip-scoped pages can bleed their hero gradient to
-            the viewport edge; each routed page owns its own gutters. */}
+        {/* Each routed page owns its own gutters. No full-bleed bloom heroes. */}
         <main
           id="trips-main"
           tabIndex={-1}

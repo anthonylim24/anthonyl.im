@@ -139,7 +139,7 @@ describe('Places page', () => {
     await renderPlaces()
     const heading = screen.getByRole('heading', { level: 1 })
     expect(heading).toBeTruthy()
-    expect(heading.textContent).toMatch(/extracted places/i)
+    expect(heading.textContent).toMatch(/^places$/i)
   })
 
   it('renders the empty state when API returns no places', async () => {

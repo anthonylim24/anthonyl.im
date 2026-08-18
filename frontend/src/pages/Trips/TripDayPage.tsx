@@ -20,7 +20,6 @@ import type { ItineraryItem, TripDay } from "./types"
 import {
   EASE,
   REVEAL_DURATION,
-  SERIF,
   alertErrorClass,
   chipBtnClass,
   focusRingClass,
@@ -178,7 +177,7 @@ export function TripDayPage() {
   if (!trip || !day) {
     return (
       <div className={PAGE} role="alert">
-        <h1 className="font-display text-3xl tracking-tight text-stone-900 dark:text-stone-100" style={SERIF}>
+        <h1 className="text-2xl font-semibold tracking-tight text-stone-900 dark:text-stone-100">
           Day not found
         </h1>
         <p className={`mt-3 text-sm leading-relaxed ${mutedInkClass}`}>
@@ -207,10 +206,10 @@ export function TripDayPage() {
   return (
     <EntityIndexProvider>
       <article className={PAGE} data-trip-accent={resolveAccent(trip.appearance?.accent)}>
-        <header className="border-b border-stone-200/80 pb-8 dark:border-stone-800/80">
+        <header className="border-b border-[color:var(--trips-border)] pb-6">
           <motion.p
             {...fadeUp(0)}
-            className={`flex flex-wrap items-center gap-x-3 gap-y-1 font-mono-trips text-[11px] uppercase tracking-[0.18em] ${mutedInkClass}`}
+            className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-medium ${mutedInkClass}`}
           >
             <Link
               to={tripPath}
@@ -218,9 +217,11 @@ export function TripDayPage() {
             >
               {trip.name}
             </Link>
-            <span aria-hidden className="h-px w-6 bg-stone-300 dark:bg-stone-700" />
+            <span aria-hidden className="text-stone-300 dark:text-stone-600">
+              /
+            </span>
             <span className="tabular-nums">
-              Day {String(dayIndex + 1).padStart(2, "0")} of {String(trip.days.length).padStart(2, "0")}
+              Day {dayIndex + 1} of {trip.days.length}
             </span>
             <span aria-hidden>·</span>
             <span>{formatTripDate(day.date, trip.timezone, { weekday: "long", month: "long" })}</span>
@@ -228,23 +229,15 @@ export function TripDayPage() {
               <span className={`flex items-center gap-1.5 ${a.text}`}>
                 <span aria-hidden>·</span>
                 <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.dot}`} aria-hidden />
-                live
+                Today
               </span>
             )}
           </motion.p>
 
-          <motion.div {...fadeUp(1)} className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
-            <span
-              className={`font-display text-[clamp(3rem,8vw,4.75rem)] font-light leading-[0.85] tabular-nums ${a.text}`}
-              style={SERIF}
-              aria-hidden
-            >
-              {dayIndex + 1}
-            </span>
-            {day.emoji && <span aria-hidden className="text-4xl leading-none sm:text-5xl">{day.emoji}</span>}
+          <motion.div {...fadeUp(1)} className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+            {day.emoji && <span aria-hidden className="text-2xl leading-none">{day.emoji}</span>}
             <h1
-              className={`min-w-0 flex-1 font-display text-[clamp(1.85rem,5vw,3rem)] font-medium leading-[1.05] tracking-[-0.02em] text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
-              style={SERIF}
+              className={`min-w-0 flex-1 text-3xl font-semibold leading-tight tracking-tight text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
             >
               {day.title ?? `Day ${dayIndex + 1}`}
             </h1>
@@ -368,8 +361,7 @@ export function TripDayPage() {
                 {block.section && (
                   <div className="flex items-baseline justify-between gap-x-4 sm:gap-x-6">
                     <h3
-                      className={`min-w-0 font-display text-xl font-medium tracking-[-0.01em] text-stone-900 sm:text-2xl dark:text-stone-100 ${wrapAnywhereClass}`}
-                      style={SERIF}
+                      className={`min-w-0 text-lg font-semibold tracking-tight text-stone-900 sm:text-xl dark:text-stone-100 ${wrapAnywhereClass}`}
                     >
                       {block.section.title}
                     </h3>
@@ -439,12 +431,11 @@ export function TripDayPage() {
               className={`group order-1 -mx-2 flex min-h-14 items-center justify-between gap-4 rounded-xl px-2 py-3 transition-colors hover:bg-stone-100/50 sm:order-2 sm:justify-end sm:text-right dark:hover:bg-stone-900/40 ${focusRingClass}`}
             >
               <span className="min-w-0">
-                <span className={`block font-mono-trips text-[10px] uppercase tracking-[0.18em] ${mutedInkClass}`}>
+                <span className={`block text-[13px] ${mutedInkClass}`}>
                   Next · Day {dayIndex + 2}
                 </span>
                 <span
-                  className={`line-clamp-2 font-display text-base font-medium text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
-                  style={SERIF}
+                  className={`line-clamp-2 text-base font-semibold text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
                 >
                   {next.title ?? `Day ${dayIndex + 2}`}
                 </span>
@@ -466,12 +457,11 @@ export function TripDayPage() {
                 aria-hidden
               />
               <span className="min-w-0">
-                <span className={`block font-mono-trips text-[10px] uppercase tracking-[0.18em] ${mutedInkClass}`}>
+                <span className={`block text-[13px] ${mutedInkClass}`}>
                   Previous · Day {dayIndex}
                 </span>
                 <span
-                  className={`line-clamp-2 font-display text-base font-medium text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
-                  style={SERIF}
+                  className={`line-clamp-2 text-base font-semibold text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
                 >
                   {prev.title ?? `Day ${dayIndex}`}
                 </span>
@@ -520,7 +510,7 @@ function Meta({ label, children }: { label: string; children: ReactNode }) {
 
 function WalkLeg({ walk }: { walk: { distance: string; walk: string } }) {
   return (
-    <p className={`mt-2 font-mono-trips text-[11px] uppercase tracking-[0.12em] ${mutedInkClass}`}>
+    <p className={`mt-2 text-[13px] ${mutedInkClass}`}>
       {walk.walk}
       <span aria-hidden> · </span>
       {walk.distance}
@@ -572,8 +562,7 @@ function ReservationTimelineItem({
             />
             <div className="min-w-0 flex-1">
               <h3
-                className={`font-display text-xl font-medium leading-snug text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
-                style={SERIF}
+                className={`text-lg font-semibold leading-snug text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
               >
                 <SmartEntity name={reservation.title} type={placeCategoryToEntityType(item.location?.category ?? "place")} />
               </h3>
@@ -581,7 +570,7 @@ function ReservationTimelineItem({
                 <p className={`mt-1 text-sm ${mutedInkClass} ${wrapAnywhereClass}`}>{reservation.subtitle}</p>
               )}
               {reservation.time && (
-                <p className={`mt-1 font-mono-trips text-[12px] tabular-nums ${mutedInkClass}`}>
+                <p className={`mt-1 text-[13px] tabular-nums ${mutedInkClass}`}>
                   <Time value={reservation.time} />
                 </p>
               )}

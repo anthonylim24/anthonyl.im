@@ -903,77 +903,78 @@ html:has(.chatbot-dark) {
 }
 
 /* ═══════════════════════════════════════════════════════
-   TRIPS — warm parchment shell (aligned with shared tokens)
+   TRIPS — cool workspace (Linear / Notion / Airbnb, not Korea dossier)
+   Scene: kitchen-table daylight planning; hotel-night phone lookups.
+   Product register: one sans, restrained accent, no parchment bloom.
    ═══════════════════════════════════════════════════════ */
 
 .trips {
-  --trips-canvas: #f5f2ed;
-  --trips-surface: #fffefa;
-  --trips-ink: #1c1917;
-  --trips-ink-secondary: #78716c;
-  --trips-ink-tertiary: #a8a29e;
-  --trips-border: rgba(28, 25, 23, 0.08);
-  --trips-accent: #92400e;
-  --trips-accent-hover: #78350f;
-  --trips-focus: rgba(180, 83, 9, 0.45);
-  /* Accent fallbacks: app chrome is amber, so the accent classes still
-     resolve outside a `data-trip-accent` subtree. */
-  --ta: #92400e;
-  --ta-strong: #78350f;
-  --ta-soft: rgba(180, 83, 9, 0.1);
-  --ta-ring: rgba(180, 83, 9, 0.45);
-  --ta-bloom-a: rgba(217, 119, 6, 0.1);
-  --ta-bloom-b: rgba(120, 113, 108, 0.08);
-  /* `rounded-lg`/`rounded-md` resolve through this shadcn token, which the
-     chatbot theme zeroes at `:root`. Without it every compact control in the
-     Trips vocabulary renders square. */
+  --trips-canvas: oklch(97.5% 0.006 250);
+  --trips-surface: oklch(99.2% 0.003 250);
+  --trips-rail: oklch(95.8% 0.008 250);
+  --trips-ink: oklch(22% 0.014 260);
+  --trips-ink-secondary: oklch(46% 0.016 260);
+  --trips-ink-tertiary: oklch(62% 0.012 260);
+  --trips-border: oklch(22% 0.014 260 / 0.08);
+  --trips-accent: oklch(36% 0.038 250);
+  --trips-accent-hover: oklch(28% 0.036 250);
+  --trips-focus: oklch(36% 0.038 250 / 0.45);
+  --ta: oklch(36% 0.038 250);
+  --ta-strong: oklch(28% 0.036 250);
+  --ta-soft: oklch(36% 0.038 250 / 0.1);
+  --ta-ring: oklch(36% 0.038 250 / 0.45);
+  --ta-bloom-a: transparent;
+  --ta-bloom-b: transparent;
   --radius: 0.5rem;
   color-scheme: light dark;
   background-color: var(--trips-canvas);
   color: var(--trips-ink);
-  /* Soft grain: atmosphere without competing with content */
-  background-image:
-    radial-gradient(ellipse 80% 50% at 10% -10%, rgba(180, 83, 9, 0.05), transparent 55%),
-    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(120, 113, 108, 0.06), transparent 50%);
+  background-image: none;
 }
 
 html.dark .trips,
 .trips.dark,
 :root.dark .trips {
-  --trips-canvas: #171613;
-  --trips-surface: hsl(40 6% 11%);
-  --trips-ink: #e7e3de;
-  --trips-ink-secondary: #a8a29e;
-  --trips-ink-tertiary: #78716c;
-  --trips-border: rgba(255, 252, 245, 0.06);
-  --trips-accent: #d97706;
-  --trips-accent-hover: #f59e0b;
-  --trips-focus: rgba(245, 158, 11, 0.5);
-  --ta: #d97706;
-  --ta-strong: #f59e0b;
-  --ta-soft: rgba(217, 119, 6, 0.1);
-  --ta-ring: rgba(245, 158, 11, 0.5);
-  --ta-bloom-a: rgba(245, 158, 11, 0.14);
-  --ta-bloom-b: rgba(168, 162, 158, 0.1);
-  background-image:
-    radial-gradient(ellipse 70% 45% at 0% 0%, rgba(217, 119, 6, 0.08), transparent 55%),
-    radial-gradient(ellipse 50% 35% at 100% 10%, rgba(120, 113, 108, 0.1), transparent 50%);
+  --trips-canvas: oklch(16% 0.012 260);
+  --trips-surface: oklch(20.5% 0.012 260);
+  --trips-rail: oklch(18% 0.012 260);
+  --trips-ink: oklch(94% 0.008 250);
+  --trips-ink-secondary: oklch(78% 0.012 250);
+  --trips-ink-tertiary: oklch(64% 0.01 250);
+  --trips-border: oklch(94% 0.008 250 / 0.08);
+  --trips-accent: oklch(82% 0.028 250);
+  --trips-accent-hover: oklch(90% 0.02 250);
+  --trips-focus: oklch(82% 0.028 250 / 0.5);
+  --ta: oklch(82% 0.028 250);
+  --ta-strong: oklch(90% 0.02 250);
+  --ta-soft: oklch(82% 0.028 250 / 0.12);
+  --ta-ring: oklch(82% 0.028 250 / 0.5);
+  --ta-bloom-a: transparent;
+  --ta-bloom-b: transparent;
+  background-image: none;
 }
 
 .trips .font-display {
-  font-family: "Cormorant Garamond", Georgia, serif;
+  font-family: Inter, system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.03em;
 }
 
 .trips .font-mono-trips {
-  font-family: "Fragment Mono", ui-monospace, monospace;
+  font-family: Inter, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Below 768px every input is pinned to 16px so iOS doesn't zoom on focus.
-   That floor is right for form fields and wrong for the editor's trip name,
-   which is display type and never drops below 28px. Opting one input out
-   keeps the guard intact everywhere else. */
+   The trip title is a product heading (32/36px), not a magazine cover. */
 .trips input.trip-display-input {
-  font-size: clamp(2.5rem, 7vw, 4.25rem) !important;
+  font-size: 2rem !important;
+}
+
+@media (min-width: 640px) {
+  .trips input.trip-display-input {
+    font-size: 2.25rem !important;
+  }
 }
 
 /* Grows a small control's hit area to 44px without resizing it — for shared

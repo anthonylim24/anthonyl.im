@@ -25,7 +25,6 @@ import type { ItineraryItem, Trip, TripDay } from "./types"
 import {
   EASE,
   REVEAL_DURATION,
-  SERIF,
   alertErrorClass,
   chipBtnClass,
   focusRingClass,
@@ -118,18 +117,11 @@ export function TripOverview() {
   return (
     <EntityIndexProvider>
       <div data-trip-accent={resolveAccent(trip.appearance?.accent)}>
-        <header className="relative overflow-hidden">
-          <div aria-hidden className="pointer-events-none absolute inset-0">
-            <div className={`absolute inset-0 ${a.bloomA} trip-bloom-drift`} />
-            <div className={`absolute inset-0 ${a.bloomB}`} />
-          </div>
-          <div className="relative mx-auto max-w-6xl px-4 pb-6 pt-6 sm:px-6 sm:pb-10 sm:pt-10">
-            <motion.p
-              {...fadeUp(0)}
-              className={`font-mono-trips text-[11px] uppercase tracking-[0.24em] ${mutedInkClass}`}
-            >
-              {trip.appearance?.eyebrow ?? "Itinerary"} · {dayCount} day{dayCount === 1 ? "" : "s"} ·{" "}
-              {formatTripDate(trip.startDate, trip.timezone, { weekday: undefined })} →{" "}
+        <header>
+          <div className="mx-auto max-w-6xl px-4 pb-6 pt-6 sm:px-6 sm:pb-8 sm:pt-8">
+            <motion.p {...fadeUp(0)} className={`text-[13px] font-medium ${mutedInkClass}`}>
+              {dayCount} day{dayCount === 1 ? "" : "s"} ·{" "}
+              {formatTripDate(trip.startDate, trip.timezone, { weekday: undefined })} to{" "}
               {formatTripDate(trip.endDate, trip.timezone, { weekday: undefined })}
             </motion.p>
 
@@ -156,17 +148,14 @@ export function TripOverview() {
                   <input
                     id="trip-editor-name"
                     disabled={editorLocked}
-                    className={`trip-display-input min-h-11 w-full bg-transparent font-display font-medium leading-[0.98] tracking-[-0.02em] text-stone-900 focus:outline-none dark:text-stone-100 ${focusRingClass} ${wrapAnywhereClass}`}
+                    className={`trip-display-input min-h-11 w-full bg-transparent text-3xl font-semibold leading-tight tracking-tight text-stone-900 focus:outline-none sm:text-4xl dark:text-stone-100 ${focusRingClass} ${wrapAnywhereClass}`}
                     value={trip.name}
                     onChange={(e) => editor.scheduleSave({ ...trip, name: e.target.value })}
-                    style={SERIF}
                   />
                 </>
               ) : (
-                <h1 className="text-stone-900 dark:text-stone-100" style={SERIF}>
-                  <span
-                    className={`block font-display text-[clamp(2.5rem,7vw,4.25rem)] font-medium leading-[0.98] tracking-[-0.02em] ${wrapAnywhereClass}`}
-                  >
+                <h1 className="text-stone-900 dark:text-stone-100">
+                  <span className={`block text-3xl font-semibold leading-tight tracking-tight sm:text-4xl ${wrapAnywhereClass}`}>
                     {trip.name}
                   </span>
                 </h1>
@@ -255,13 +244,12 @@ export function TripOverview() {
               className={`group mx-auto flex max-w-6xl items-center gap-4 px-4 py-4 transition-colors sm:px-6 ${overlayHoverClass} ${focusRingInsetClass}`}
             >
               <div className="flex min-w-0 flex-wrap items-baseline gap-x-5 gap-y-1">
-                <p className={`flex items-center gap-2 font-mono-trips text-[11px] uppercase tracking-[0.2em] ${a.text}`}>
+                <p className={`flex items-center gap-2 text-[13px] font-medium ${a.text}`}>
                   <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.dot}`} aria-hidden />
                   Today · {formatTripDate(todayDay.date, trip.timezone)}
                 </p>
                 <p
-                  className={`font-display text-lg font-medium text-stone-900 sm:text-xl dark:text-stone-100 ${wrapAnywhereClass}`}
-                  style={SERIF}
+                  className={`text-lg font-semibold tracking-tight text-stone-900 sm:text-xl dark:text-stone-100 ${wrapAnywhereClass}`}
                 >
                   {todayDay.emoji && <span aria-hidden className="mr-2">{todayDay.emoji}</span>}
                   Day {trip.days.indexOf(todayDay) + 1}
@@ -285,7 +273,7 @@ export function TripOverview() {
                 className="mt-0.5 h-4 w-4 shrink-0 text-stone-500"
               />
               <div className="min-w-0">
-                <p className={`font-mono-trips text-[10px] uppercase tracking-[0.16em] ${a.text}`}>Up next</p>
+                <p className={`text-[13px] font-medium ${a.text}`}>Up next</p>
                 <p className={`mt-1 font-medium text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}>
                   {next.item.title}
                 </p>
@@ -344,7 +332,7 @@ export function TripOverview() {
             animate
             num="01"
             eyebrow={`${dayCount} day${dayCount === 1 ? "" : "s"}`}
-            title="Daily itinerary"
+            title="Itinerary"
             subtitle={
               dayCount === 0
                 ? "No days yet. Add dates in settings, then build the days."
@@ -400,8 +388,8 @@ export function TripOverview() {
               animate
               num="02"
               eyebrow="Bases"
-              title="Stays and neighborhoods"
-              subtitle="Where the trip sleeps and walks."
+              title="Stays"
+              subtitle="Hotels and neighborhoods on this trip."
             />
             {hotels.length > 0 && (
               <ul className="mt-4 divide-y divide-stone-200/80 dark:divide-stone-800/80">
@@ -425,7 +413,7 @@ export function TripOverview() {
 
         {editable && (
           <section id="trip-settings" aria-label="Trip settings" className="mx-auto mt-16 max-w-6xl px-4 pb-8 sm:px-6">
-            <p className={`font-mono-trips text-[11px] uppercase tracking-[0.2em] ${mutedInkClass}`}>Trip settings</p>
+            <p className={`text-[13px] font-medium ${mutedInkClass}`}>Trip settings</p>
             <AppearancePanel
               trip={trip}
               locked={editorLocked}
@@ -468,7 +456,7 @@ export function TripOverview() {
 function MetaRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <dt className={`font-mono-trips text-[10px] uppercase tracking-[0.18em] ${mutedInkClass}`}>{label}</dt>
+      <dt className={`text-[13px] font-medium ${mutedInkClass}`}>{label}</dt>
       <dd className={`mt-1 text-sm leading-snug text-stone-800 dark:text-stone-200 ${wrapAnywhereClass}`}>{value}</dd>
     </div>
   )
@@ -501,7 +489,7 @@ function ReservationLedger({
         num="03"
         eyebrow="Booked moments"
         title="Reservations"
-        subtitle="Confirmed, pending, and tentative bookings across the trip."
+        subtitle="Bookings across the trip."
       />
       <ol className="mt-2 divide-y divide-stone-200/80 dark:divide-stone-800/80">
         {rows.map(({ day, item }, i) => (
@@ -549,15 +537,14 @@ function ReservationRow({
       >
         <div className="w-[5.5rem] shrink-0 sm:w-[7rem]">
           <p
-            className={`font-display text-3xl font-light leading-none ${elapsed ? mutedInkClass : "text-stone-900 dark:text-stone-100"}`}
-            style={SERIF}
+            className={`text-2xl font-semibold tabular-nums leading-none ${elapsed ? mutedInkClass : "text-stone-900 dark:text-stone-100"}`}
           >
             {dayNum}
           </p>
-          <p className={`mt-1 font-mono-trips text-[10px] lowercase tracking-[0.14em] ${mutedInkClass}`}>
+          <p className={`mt-1 text-[13px] ${mutedInkClass}`}>
             {formatTripDate(day.date, trip.timezone, { day: undefined })}
           </p>
-          {item.time && <p className={`mt-0.5 font-mono-trips text-[11px] tabular-nums ${mutedInkClass}`}>{item.time}</p>}
+          {item.time && <p className={`mt-0.5 text-[13px] tabular-nums ${mutedInkClass}`}>{item.time}</p>}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2.5">
@@ -568,8 +555,7 @@ function ReservationRow({
               className="h-4 w-4 shrink-0 translate-y-0.5 text-stone-500 dark:text-stone-400"
             />
             <h3
-              className={`font-display text-xl font-medium leading-snug text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
-              style={SERIF}
+              className={`text-base font-semibold leading-snug text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
             >
               {item.title}
             </h3>

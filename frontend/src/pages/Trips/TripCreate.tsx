@@ -11,7 +11,6 @@ import { DEFAULT_ITINERARY_PROMPT, type GeneratePreferences } from "./types"
 import {
   EASE,
   REVEAL_DURATION,
-  SERIF,
   accentIconClass,
   alertErrorClass,
   displayInputClass,
@@ -239,9 +238,7 @@ export function TripCreate() {
 
   return (
     <form onSubmit={onSubmit} className={PAGE} noValidate>
-      <p className="font-mono-trips text-[11px] uppercase tracking-[0.22em] text-stone-600 dark:text-stone-400">
-        New itinerary
-      </p>
+      <p className="text-[13px] font-medium text-stone-600 dark:text-stone-400">New trip</p>
       <h1 className="sr-only">Plan a trip</h1>
 
       <div className="mt-5 space-y-5">
@@ -252,7 +249,6 @@ export function TripCreate() {
           <input
             id="trip-name"
             className={`mt-1 ${displayInputClass} ${wrapAnywhereClass}`}
-            style={SERIF}
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Tokyo Long Weekend"

@@ -10,8 +10,8 @@
  *  floating save pill.
  */
 
-export const SERIF = { fontFamily: "'Cormorant Garamond', Georgia, serif" } as const
-export const MONO = { fontFamily: "'Fragment Mono', ui-monospace, monospace" } as const
+export const SERIF = { fontFamily: "Inter, system-ui, sans-serif" } as const
+export const MONO = { fontFamily: "Inter, system-ui, sans-serif" } as const
 export const EASE = [0.16, 1, 0.3, 1] as const
 const EASE_CSS = "ease-[cubic-bezier(0.16,1,0.3,1)]"
 
@@ -30,7 +30,7 @@ export function revealDelay(step: number): number {
  *  toast): they settle rather than slide to a stop. */
 export const ENTER_SPRING = { type: "spring", stiffness: 420, damping: 34, mass: 0.7 } as const
 
-/** Airbnb-style hover lift. Featured trip only; everything else stays 150–250ms. */
+/** Hover lift for surfaces that should feel physical. Keep 150–250ms elsewhere. */
 export const LIFT_SPRING = { type: "spring", stiffness: 380, damping: 32, mass: 0.55 } as const
 
 /** Exits stay a short fade — anything longer keeps a focusable control alive
@@ -81,23 +81,22 @@ export function pageClass(width: keyof typeof PAGE_MAX = "wide"): string {
  *  sit between a `pageClass` toolbar and a guttered list. */
 export const pageGutterClass = "mx-auto max-w-6xl px-4 sm:px-6"
 
-/** Slim Linear chrome: hairline rule, parchment blur. Height lives on the inner row. */
+/** Slim workspace chrome: opaque bar, no glass. Height lives on the inner row. */
 export const chromeHeaderClass =
-  "sticky top-0 z-30 border-b border-stone-200/45 bg-[color-mix(in_srgb,var(--trips-canvas)_90%,transparent)] backdrop-blur-md dark:border-stone-800/45"
+  "sticky top-0 z-30 border-b border-[color:var(--trips-border)] bg-[color:var(--trips-surface)]"
 
 // ── Labels ───────────────────────────────────────────────────────────────
 
-export const labelClass = `block text-[11px] font-medium uppercase tracking-[0.16em] ${mutedInkClass}`
+export const labelClass = `block text-[13px] font-medium ${mutedInkClass}`
 
-/** Mono eyebrow above a section or field group. */
-export const eyebrowClass = `font-mono-trips text-[11px] uppercase tracking-[0.2em] ${mutedInkClass}`
+/** Small section label. Product UI: sentence case, no tracked mono. */
+export const eyebrowClass = `text-[13px] font-medium ${mutedInkClass}`
 
-/** Mono field label for the editor's dense forms — the quieter sibling of
- *  `labelClass`, which is sized for full-width form pages. */
-export const fieldLabelClass = `block font-mono-trips text-[11px] uppercase tracking-[0.14em] ${mutedInkClass}`
+/** Field label for the editor's dense forms. */
+export const fieldLabelClass = `block text-[13px] font-medium ${mutedInkClass}`
 
-/** Term label in a dossier definition list (Destinations, Time zone, …). */
-export const metaLabelClass = `font-mono-trips text-[10px] uppercase tracking-[0.18em] ${mutedInkClass}`
+/** Term label in a properties row (Destinations, Time zone). */
+export const metaLabelClass = `text-[13px] font-medium ${mutedInkClass}`
 
 /** Explanatory line under a field. */
 export const hintClass = `mt-1.5 text-xs leading-relaxed ${mutedInkClass}`
@@ -113,8 +112,8 @@ const ELLIPSIS = "text-ellipsis"
 
 export const inputClass = `${ELLIPSIS} w-full min-h-11 rounded-xl border border-stone-300/90 bg-[var(--trips-surface)] px-3.5 py-2.5 text-sm text-stone-900 placeholder:text-stone-400 transition focus:border-[color:var(--trips-accent)] focus:outline-none ${FOCUS} dark:border-stone-700 dark:bg-stone-900/80 dark:text-stone-100 dark:placeholder:text-stone-400`
 
-/** Notion-style document title: borderless display input, 44px target. */
-export const displayInputClass = `w-full min-h-11 bg-transparent font-display text-[clamp(1.75rem,4vw,2.75rem)] font-medium leading-[1.05] tracking-tight text-stone-900 placeholder:text-stone-400 focus:outline-none ${FOCUS} dark:text-stone-100 dark:placeholder:text-stone-500`
+/** Notion-style document title: borderless Inter heading, 44px target. */
+export const displayInputClass = `w-full min-h-11 bg-transparent text-3xl font-semibold leading-tight tracking-tight text-stone-900 placeholder:text-stone-400 focus:outline-none ${FOCUS} sm:text-4xl dark:text-stone-100 dark:placeholder:text-stone-500`
 
 /** Bordered control for dense editor grids — smaller than `inputClass`.
  *  Width is left to the call site so it can sit in a flex row. Keeps a full

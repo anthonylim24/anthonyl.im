@@ -185,20 +185,23 @@ Korea is the seeded trip at `/trips/korea-2026` (`/korea` redirects). Every new 
 The same travelers as Korea, plus future trips. Phone for in-trip lookups; desktop for planning, AI enhance, and concierge chat.
 
 ### Brand Personality
-**Same cinematic dossier language as Korea**, parameterized by a per-trip accent (`data-trip-accent` → `--trips-accent`). Not a SaaS admin table.
+**Quiet workspace.** Linear / Notion / Airbnb for planning, not a hand-bound Korea dossier. Cool paper, Inter only, trip accent as a mark (never bloom wallpaper).
 
 ### Aesthetic Direction
-- Reuse Korea's parchment, bloom, photorealistic Map Mode, and editorial type.
-- Accent is trip-owned — do not invent a second chrome color.
-- `/trips/:tripId` is the living document (dossier + inline edit). `/trips/:tripId/edit` redirects there. Concierge FAB on the trip and day pages, not index, create, or places.
-- Instagram ingest is embedded on the living document, not a standalone route.
+- Cool zinc canvas (`oklch` blue-gray), opaque chrome, no parchment grain or rose/amber bloom.
+- One family: Inter. No Cormorant or Fragment Mono on `/trips`.
+- Index is Now tiles + Upcoming list. Living document is a Notion page (title, properties, outline). Day page is a listing, not a magazine cover.
+- Accent is trip-owned inside `data-trip-accent`. App chrome stays slate.
+- `/trips/:tripId` is the living document. `/trips/:tripId/edit` redirects there. Concierge FAB on the trip and day pages, not index, create, or places.
+- Photorealistic Map Mode stays. Glass/refraction is for the YOU pin only.
+- Instagram ingest is embedded on the living document.
 
 ### Trips-specific Principles
 
 1. **Do not add `/japan`-style destination routes.** Extend the trips system.
 2. AI-added places must carry structured locations — never prose only.
 3. Map Mode uses the Korea `PlacesResponse` / `RankedPlace` shape and **must unmount** when closed.
-4. Inter + Cormorant + Lucide stay. Glass/refraction is for the YOU pin only.
+4. Inter + Lucide. Do not restyle Trips back into the Korea dossier.
 
 ## Service Worker / Caching Contract
 

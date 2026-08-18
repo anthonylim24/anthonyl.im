@@ -149,7 +149,7 @@ describe("TripsIndex", () => {
     expect(await screen.findByRole("heading", { name: "Tokyo Long Weekend" })).toBeInTheDocument()
   })
 
-  it("features an in-progress trip as a hero, not an In progress row", async () => {
+  it("puts an in-progress trip in Now, not a magazine hero", async () => {
     mockListTrips.mockResolvedValue([
       makeSummary({ id: "now", slug: "seoul-now", name: "Seoul Now", ...currentWindow() }),
       makeSummary({ id: "trip-2", slug: "osaka", name: "Osaka Bites" }),
@@ -158,13 +158,14 @@ describe("TripsIndex", () => {
     renderIndex()
 
     expect(await screen.findByRole("heading", { name: "Seoul Now" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Now" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Open Seoul Now" })).toHaveAttribute("href", "/trips/seoul-now")
     expect(screen.queryByRole("heading", { name: /In progress/ })).not.toBeInTheDocument()
     expect(screen.getByRole("heading", { name: /Upcoming/ })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Osaka Bites" })).toBeInTheDocument()
   })
 
-  it("deletes a featured in-progress trip", async () => {
+  it("deletes an in-progress trip from Now", async () => {
     mockListTrips.mockResolvedValue([makeSummary({ name: "Seoul Now", slug: "seoul-now", ...currentWindow() })])
     mockDeleteTrip.mockResolvedValue(undefined)
 

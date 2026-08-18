@@ -21,18 +21,12 @@ import {
 } from "lucide-react"
 import type { ItemStatus, SuggestionKind, TripAccent, TripCollaborator } from "./types"
 
-// Generic dossier theme system — the Korea itinerary's visual language,
-// parameterized by trip accent and timezone.
-//
-// The accent itself lives in CSS: `data-trip-accent="<accent>"` on a
-// trip-scoped subtree (see the `.trips` block in index.css) sets `--ta`,
-// `--ta-strong`, `--ta-soft`, `--ta-ring`, `--ta-bloom-a`, `--ta-bloom-b`
-// plus the shared `--trips-accent` / `--trips-focus` chrome vars. Everything
-// below is one set of class strings over those variables, so a page never
-// branches on which accent a trip uses.
+// Trip accent tokens. The workspace chrome is cool slate; a trip-scoped
+// `data-trip-accent` subtree swaps `--ta` / `--trips-accent` in index.css.
+// Bloom layers are unused (kept as no-ops so old class names stay safe).
 
 export interface AccentTheme {
-  /** Hero radial bloom layers (accent top-right, warm echo bottom-left). */
+  /** Unused: bloom wallpaper was removed from the workspace. */
   bloomA: string
   bloomB: string
   /** Accent text: countdowns, eyebrow numerals, status lines. */

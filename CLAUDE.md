@@ -571,7 +571,7 @@ Anthony (primary) and his partner, while planning + executing a 12-day Seoul + B
 
 ## Design Context: `/trips/*` — Generic Trip Planner
 
-Korea-look dossier, parameterized by `data-trip-accent` (`frontend/src/pages/Trips/theme.ts` + `.trips` tokens in `index.css`). `/trips/:tripId` is the living document (`TripOverview`); `/edit` redirects there. Concierge FAB on the trip and day pages only. Do not add destination-specific routes. Full design notes: [`AGENTS.md`](AGENTS.md) / [`PRODUCT.md`](PRODUCT.md).
+Cool Inter workspace (not Korea parchment), parameterized by `data-trip-accent`. `/trips/:tripId` is the living document (`TripOverview`); `/edit` redirects there. Concierge FAB on the trip and day pages only. Do not add destination-specific routes. Do not restyle Trips back into the Korea dossier. Full design notes: [`AGENTS.md`](AGENTS.md) / [`PRODUCT.md`](PRODUCT.md).
 
 ---
 

@@ -202,13 +202,14 @@ Clerk-gated dossier planner. Korea is the seeded trip at `/trips/korea-2026` (`/
 The same travelers as Korea, plus future trips. Phone for in-trip lookups; desktop for planning, AI enhance, and concierge chat.
 
 ### Brand Personality
-**Same cinematic dossier language as Korea**, parameterized by a per-trip accent (`data-trip-accent` → `--trips-accent` in `index.css`). Not a SaaS admin table.
+**Quiet workspace.** Linear / Notion / Airbnb for planning. Not Korea's parchment dossier.
 
 ### Aesthetic Direction
-- Reuse Korea's parchment, bloom, photorealistic Map Mode, and editorial type.
-- Accent is trip-owned (rose, amber, etc.) — do not invent a second chrome color.
-- `/trips/:tripId` is the living document (dossier + inline edit). `/trips/:tripId/edit` redirects there. Concierge FAB (`TripChat`) lives on the trip and day pages, not index, create, or places.
+- Cool zinc canvas, Inter only, opaque chrome. No bloom, grain, or Cormorant.
+- Accent is trip-owned inside `data-trip-accent`. Chrome stays slate.
+- `/trips/:tripId` is the living document. `/trips/:tripId/edit` redirects there. Concierge FAB (`TripChat`) lives on the trip and day pages, not index, create, or places.
 - Instagram ingest is embedded in the editor (`TripIngest`), not a standalone route.
+- Map Mode stays photorealistic. Do not restyle Trips back into the Korea dossier.
 
 ### Trips-specific Principles
 
