@@ -90,6 +90,14 @@ function resolveProjectContext() {
   };
 }
 const DEFAULT_POLL_TIMEOUT = 600_000;   // 10 min — agent re-polls on timeout anyway
+const DEFAULT_LEASE_MS = 30_000;
+const MAX_TIMER_MS = 2_147_483_647;
+
+function clampPositiveMs(value, fallback, min = 1, max = MAX_TIMER_MS) {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.min(max, Math.max(min, Math.trunc(n)));
+}
 const SSE_HEARTBEAT_INTERVAL = 30_000;  // keepalive ping every 30s
 
 // The browser events allowed to mint a NEW session journal. `generate` starts
@@ -1136,8 +1144,14 @@ function handlePollGet(req, res, url) {
     return;
   }
   state.lastPollAt = Date.now();
-  const timeout = parseInt(url.searchParams.get('timeout') || DEFAULT_POLL_TIMEOUT, 10);
-  const leaseMs = parseInt(url.searchParams.get('leaseMs') || '30000', 10);
+  const timeout = clampPositiveMs(
+    url.searchParams.get('timeout') ?? DEFAULT_POLL_TIMEOUT,
+    DEFAULT_POLL_TIMEOUT,
+  );
+  const leaseMs = clampPositiveMs(
+    url.searchParams.get('leaseMs') ?? DEFAULT_LEASE_MS,
+    DEFAULT_LEASE_MS,
+  );
   const types = parsePollTypes(url.searchParams.get('types'));
   const available = findAvailablePendingEvent(Date.now(), types);
   if (available) {
@@ -1222,7 +1236,9 @@ function inferSourceEventType(msg = {}, pendingEvents = state.pendingEvents) {
   if (msg.type === 'discarded' || msg.type === 'discard') return 'discard';
   if (msg.type === 'complete') {
     if (pendingTypes.has('carbonize_cleanup')) return 'carbonize_cleanup';
-    return pendingTypes.has('accept') ? 'accept' : (pendingTypes.has('generate') ? 'generate' : undefined);
+    if (pendingTypes.has('accept')) return 'accept';
+    if (pendingTypes.has('generate')) return 'generate';
+    return entriesForId.find(isLeased)?.event?.type || 'accept';
   }
   if (msg.type === 'steer_done') return 'steer';
   // `agent_done` can be the automatic acknowledgement for a carbonize Accept.

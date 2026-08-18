@@ -249,17 +249,24 @@ function relativeImportSpecifier(fromFile, toFile) {
   return rel.startsWith('.') ? rel : `./${rel}`;
 }
 
-function insertAfterLastImport(content, importStatement) {
-  const importRe = /^import\b[^\n]*\n/gm;
+// Complete ESM import, including multi-line `import { … } from '…'`.
+// A line-only match stops at `import {` and inserts inside the statement.
+const COMPLETE_IMPORT_RE =
+  /^import\b[\s\S]*?(?:from\s*)?['"][^'"]+['"]\s*;?[ \t]*(?:\n|$)/gm;
+
+export function insertAfterLastImport(content, importStatement) {
+  const source = String(content ?? '');
+  COMPLETE_IMPORT_RE.lastIndex = 0;
   let lastEnd = -1;
   let m;
-  while ((m = importRe.exec(content)) !== null) {
+  while ((m = COMPLETE_IMPORT_RE.exec(source)) !== null) {
     lastEnd = m.index + m[0].length;
   }
   if (lastEnd === -1) {
-    return `${importStatement}\n${content}`;
+    return `${importStatement}\n${source}`;
   }
-  return content.slice(0, lastEnd) + importStatement + '\n' + content.slice(lastEnd);
+  const sep = lastEnd > 0 && source[lastEnd - 1] !== '\n' ? '\n' : '';
+  return source.slice(0, lastEnd) + sep + importStatement + '\n' + source.slice(lastEnd);
 }
 
 function pruneEmptyDir(dir, stopDir) {

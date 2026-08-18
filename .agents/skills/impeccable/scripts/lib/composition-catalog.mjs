@@ -33,6 +33,9 @@ export function compositionContentHash(composition) {
     JSON.stringify(composition?.grammar ?? []),
     composition?.spark ?? '',
     composition?.webLeverage ?? '',
+    composition?.surface ?? '',
+    composition?.grain ?? '',
+    JSON.stringify(composition?.platforms ?? []),
   ].join('\n');
   return crypto.createHash('sha256').update(payload).digest('hex').slice(0, 12);
 }

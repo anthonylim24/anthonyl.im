@@ -1,6 +1,6 @@
 Report and repair drift between this project's Impeccable artifacts and what the installed version reads: PRODUCT.md, DESIGN.md and its `.impeccable/design.json` sidecar, `.impeccable/config.json`, persisted surface briefs, and the design hook.
 
-This is maintenance, not design. Do not redesign anything, do not open files outside the ones the report names, and do not run any other command as a side effect.
+This is maintenance, not design. Do not redesign anything, do not modify files outside the ones the report names, and do not run any other command as a side effect. Read-only inspection of tokens, components, and other visual sources is allowed when a truth-drift finding needs it (Step 4).
 
 ## What this owns, and what it does not
 

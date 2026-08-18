@@ -50,7 +50,7 @@ The user already clicked Apply. Do not ask what to do. Do not discard edits. Do 
 
 ## Entry Atomicity
 
-Mark an entry applied only when every op in that entry is applied.
+Mark an entry applied only when every op in that entry is applied AND post-edit validation of the files that entry touched succeeds (Checks below).
 
 If one op in an entry fails:
 
@@ -58,6 +58,11 @@ If one op in an entry fails:
 - Mark the entry failed with a concrete reason.
 - Include candidate file/line evidence when available.
 - Continue with other entries.
+
+If the ops landed but post-edit validation of that entry's touched files fails:
+
+- When the event has no repair metadata: undo that entry's source edits, add it to `failed` with a concrete reason, and continue with other entries.
+- When the event includes repair metadata: do not undo; repair the current source and return canonical JSON again.
 
 Never leave source changes behind for entries that are failed, omitted, or absent from `appliedEntryIds`. If validation fails and the event includes repair metadata, repair the current source and return canonical JSON again; do not roll back files yourself.
 
@@ -89,4 +94,4 @@ No entries applied:
 {"status":"error","appliedEntryIds":[],"failed":[{"entryId":"entry-id","reason":"could not resolve source"}],"files":[],"notes":[],"message":"could not resolve source"}
 ```
 
-`appliedEntryIds` must contain only entries whose every op landed. `files` must list every source file you changed. `failed` and `notes` must always be arrays. `failed` must list entries you did not fully apply.
+`appliedEntryIds` must contain only entries whose every op landed and whose touched-file validation succeeded. `files` must list every source file you changed. `failed` and `notes` must always be arrays. `failed` must list entries you did not fully apply.

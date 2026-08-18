@@ -167,6 +167,8 @@ export function conceptContentHash(concept) {
     JSON.stringify(concept?.system ?? []),
     concept?.spark ?? '',
     concept?.webLeverage ?? '',
+    concept?.strength ?? '',
+    JSON.stringify(concept?.avoid ?? []),
   ].join('\n');
   return crypto.createHash('sha256').update(payload).digest('hex').slice(0, 12);
 }

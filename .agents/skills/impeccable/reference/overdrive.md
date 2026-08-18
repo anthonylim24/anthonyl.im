@@ -105,6 +105,7 @@ else if (canvas.getContext('webgl2')) { /* WebGL2 fallback */ }
 - Lazy-initialize heavy resources (WebGL contexts, WASM modules) only when near viewport.
 - Pause off-screen rendering. Kill what you can't see.
 - Test on real mid-range devices, not just your development machine.
+- Honor `prefers-reduced-motion`: transforms, pulses, and orbital rotations need an intentional alternative that preserves state change and hierarchy.
 
 ### Polish is the difference
 
@@ -116,6 +117,7 @@ The gap between "cool" and "extraordinary" is in the last 20% of refinement: the
 - Add sound without explicit user opt-in
 - Use technical ambition to mask weak design fundamentals; fix those first with other commands
 - Layer multiple competing extraordinary moments. Focus creates impact, excess creates noise
+- Ship motion without a `prefers-reduced-motion` alternative for transforms, pulses, or orbital rotations
 
 ## Verify the Result
 
@@ -123,5 +125,6 @@ The gap between "cool" and "extraordinary" is in the last 20% of refinement: the
 - **The removal test**: Take it away. Does the experience feel diminished, or does nobody notice?
 - **The device test**: Run it on a phone, a tablet, a Chromebook. Still smooth?
 - **The context test**: Does this make sense for THIS brand and audience?
+- **The reduced-motion test**: With `prefers-reduced-motion: reduce`, transforms, pulses, and orbital rotations have an alternative that still communicates state change.
 
 "Technically extraordinary" isn't about using the newest API. It's about making an interface do something users didn't think a website could do.

@@ -82,6 +82,7 @@ function validateManualEditEvent(msg, label) {
   if (!Array.isArray(msg.ops) || msg.ops.length === 0) return label + ': ops must be non-empty array';
   if (msg.ops.length > 100) return label + ': too many ops (max 100)';
   for (const op of msg.ops) {
+    if (!op || typeof op !== 'object') return label + ': op must be an object';
     if (typeof op.ref !== 'string') return label + ': op.ref required';
     if (typeof op.tag !== 'string') return label + ': op.tag required';
     if (typeof op.originalText !== 'string') return label + ': op.originalText required';

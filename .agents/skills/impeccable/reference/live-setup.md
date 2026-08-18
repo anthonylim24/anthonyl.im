@@ -14,7 +14,7 @@ Create the file at the `path` the boot reported (default `.impeccable/live/confi
 }
 ```
 
-`files` is the inject target: **the HTML files the browser actually loads**, not necessarily source (tracked vs generated does not matter here; wrap has its own generated-file guard). Entries are literal paths or globs. `exclude` (optional) skips files a `files` glob would otherwise include (email templates, demo fixtures). `cspChecked` records that the CSP step below has run; absent on first setup.
+`files` entries are detection and CSP hints: literal paths or globs the boot uses to find the project and check CSP. They may be source or framework files (`app/layout.tsx`, `src/routes/__root.tsx`, `src/app.html`) when the table below recommends those. Injection still targets the generated HTML the browser actually loads, or the framework adapter's managed insertion site; tracked vs generated does not matter for detection (wrap has its own generated-file guard). `exclude` (optional) skips files a `files` glob would otherwise include (email templates, demo fixtures). `cspChecked` records that the CSP step below has run; absent on first setup.
 
 **Hard-excluded paths (cannot be overridden):** `**/node_modules/**` and `**/.git/**`; injecting there would instrument third-party code.
 
@@ -34,7 +34,7 @@ Create the file at the `path` the boot reported (default `.impeccable/live/confi
 
 Pick an anchor that exists in every file (`</body>` almost always works); `insertAfter` matches after a line instead. For multi-page sites prefer a glob so new pages are picked up automatically. For sites whose pages are rebuilt by a generator, the inject survives only until the next regeneration: re-run `live.mjs` after each build (accept is unaffected; it writes true source via the fallback flow).
 
-**Framework adapters (auto-detected at inject time).** Every inject records what it wrote in `.impeccable/live/inject-journal.json`; the next inject or remove heals artifacts a crash or wrong-directory stop left behind. SvelteKit, Nuxt, and TanStack Start server-render their document shell, so a raw `<script>` in the entry template will not execute reliably; `live-inject.mjs` detects them and routes to a dedicated adapter (SvelteKit: dev-only root component from `+layout.svelte`; Nuxt: dev-only `.client.ts` plugin; TanStack Start: a generated dev-only `ImpeccableLiveRoot` component in `__root`). The `files` value stays a valid detection/CSP hint but is not the literal insertion site. A plain TanStack Router SPA takes the baseline Vite path.
+**Framework adapters (auto-detected at inject time).** Every inject records what it wrote in `.impeccable/live/inject-journal.json`; the next inject or remove heals artifacts a crash or wrong-directory stop left behind. SvelteKit, Nuxt, and TanStack Start server-render their document shell, so a raw `<script>` in the entry template will not execute reliably; `live-inject.mjs` detects them and routes to a dedicated adapter (SvelteKit: dev-only root component from `+layout.svelte`; Nuxt: dev-only `.client.ts` plugin; TanStack Start: a generated dev-only `ImpeccableLiveRoot` component in `__root`). The `files` value stays a source/framework detection and CSP hint; it is not the literal insertion site. The adapter injects into generated HTML the browser loads (or a managed component that loads with that HTML). A plain TanStack Router SPA takes the baseline Vite path.
 
 ## Config drift
 

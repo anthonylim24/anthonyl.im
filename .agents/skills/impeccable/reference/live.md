@@ -11,7 +11,7 @@ Codex: run live helper commands, the app dev server, and any dependency-installi
 Execute in order. No step skipped, no step reordered. Every tool output in live mode may carry an `_instructions` field: it is the authoritative next step for that exact situation, with real ids and paths substituted; when it conflicts with your recollection of this document, `_instructions` wins.
 
 1. `live.mjs`: boot. If the request names or implies a file, route, or app inside a monorepo, infer the concrete path and run `node .agents/skills/impeccable/scripts/live.mjs --target <path>` instead; then run the rest of this live session from the returned `projectRoot`. The boot resolves the app root from dev-server config files and persists it in `.impeccable/live/roots.json`; every helper re-anchors to that manifest at startup (a wrong cwd cannot fork session state), PRODUCT.md / DESIGN.md are discovered upward to the git root, and relative helper args like `--file` resolve against the app root.
-2. Open the app URL that serves `pageFile` (infer from `package.json`, docs, terminal output, or an open tab). Never use `serverPort`; it's the helper, not the app. **Cursor:** `browser_navigate` to that URL before polling; do not skip. **Other harnesses:** use the available browser tool; if the URL is uncertain, ask the user once.
+2. Open the app URL that serves the selected page file from `pageFiles` (infer the origin from `package.json` scripts, docs, terminal output, or an open tab). Never use `serverPort` as the app URL; it is the helper (`/live.js`, SSE, `/poll`), not the app. The selected page file is the `pageFiles` entry that matches the current route or `--target` (a single-entry project has one). Map that file to the path the app serves: a Vite/SPA `index.html` is `/`; `public/foo/index.html` or `foo.html` is `/foo/`; a framework route file (`app/page.tsx`, `src/routes/index.tsx`) maps to its route path. **Cursor:** `browser_navigate` to that URL before polling; do not skip. **Other harnesses:** use the available browser tool; if the URL is uncertain, ask the user once.
 3. Poll loop with the default long timeout (600000 ms). Run `live-poll.mjs` again immediately after every event or `--reply`; Codex runs this one-shot poll in the foreground. Never pass a short `--timeout=`. The global bar's **Impeccable mark** dims with a pulsing amber dot when nothing is polling `/poll`; restart `live-poll.mjs` to reconnect.
 4. On `generate`: reuse `event.scaffold` when present; read the screenshot if present; load the action's reference; deliver variants; `--reply done`; poll again. Generate in this thread: you already hold the project's tokens and layout. The overlay preview IS the verification channel; do not screenshot, re-render, or QA variants between generate and accept. Apply craft-floor's contrast, spacing, and type floors by construction as you write; full verification runs once at accept on the chosen variant.
 5. On `steer`: read the message and `pageUrl`; do the work; `--reply steer_done`; poll again. No pickup ack.
@@ -172,6 +172,8 @@ Sources in priority order: DESIGN.md's visual system fields; CSS custom properti
 - `delight`: different flavor of personality (micro-interaction / typographic surprise / illustrated accent / sonic-or-haptic / easter egg).
 - `overdrive`: different convention broken (scale / structure / motion / input model / state transitions); skip its "propose and ask" step, live is non-interactive.
 
+Generated frontend TS, TSX, and CSS variants that use transforms, pulses, or orbital rotations must include a `prefers-reduced-motion` alternative that preserves state change and hierarchy.
+
 ### 5. Apply the freeform prompt (if present)
 
 `event.freeformPrompt` is the user's ceiling on direction: all variants honor it while exploring different interpretations within the Phase B mode. Default mode: the prompt narrows the axes, not the identity ("more confident" → one variant amplifies hierarchy, one commits the accent color, one tightens density). Departure mode: the prompt narrows the lanes, not the families ("newspaper front page" → broadsheet vs tabloid vs trade journal, then run the family pass). When the prompt conflicts with a binding brand commitment or DESIGN.md invariant, preserve the invariant unless the user explicitly revokes it.
@@ -294,7 +296,7 @@ Event: `{id, message, pageUrl}`: page-level direction from the global bar's Stee
 
 ## Handle `prefetch`
 
-Event: `{pageUrl}`: fired once per route on first selection; the user is likely about to Go on a page you have not read. Resolve the route to its file (root `/` is usually the boot's `pageFile`; multi-page sites often map `/foo` to `public/foo/index.html`; SPAs map everything to one entry), read it, poll again. No `--reply`. If you cannot resolve it confidently, skip and poll.
+Event: `{pageUrl}`: fired once per route on first selection; the user is likely about to Go on a page you have not read. Resolve the route to its file (root `/` is usually the selected page file from `pageFiles`; multi-page sites often map `/foo` to `public/foo/index.html`; SPAs map everything to one entry), read it, poll again. No `--reply`. If you cannot resolve it confidently, skip and poll.
 
 ## Handle `manual_edit_apply`
 

@@ -173,6 +173,69 @@ export function derivePropName(expr) {
   return RESERVED_PROP_NAMES.has(candidate) ? `${candidate}Value` : candidate;
 }
 
+function snippetBindingName(node) {
+  if (node?.expression?.name) return node.expression.name;
+  if (typeof node?.name === 'string') return node.name;
+  if (node?.name?.name) return node.name.name;
+  return null;
+}
+
+// Bindings that land in the generated component (`{#each … as label}`,
+// `{#snippet label()}`, `{@const label = …}`) must be reserved before any
+// prop is minted. `footer.label` would otherwise become `label` and collide.
+export function reserveBoundNames(fragment, out) {
+  if (!fragment || !out) return out;
+  const nodes = Array.isArray(fragment) ? fragment : fragment.nodes;
+  if (!Array.isArray(nodes)) return out;
+  for (const node of nodes) reserveBoundNamesFromNode(node, out);
+  return out;
+}
+
+function reserveBoundNamesFromNode(node, out) {
+  if (!node) return;
+  switch (node.type) {
+    case 'ConstTag': {
+      if (node.declaration) {
+        for (const decl of node.declaration.declarations || []) {
+          collectPatternNames(decl.id, out);
+        }
+      }
+      return;
+    }
+    case 'EachBlock': {
+      if (node.context) collectPatternNames(node.context, out);
+      if (node.index) out.add(node.index);
+      reserveBoundNames(node.body, out);
+      reserveBoundNames(node.fallback, out);
+      return;
+    }
+    case 'SnippetBlock': {
+      const name = snippetBindingName(node);
+      if (name) out.add(name);
+      for (const param of node.parameters || []) collectPatternNames(param, out);
+      reserveBoundNames(node.body, out);
+      return;
+    }
+    case 'IfBlock':
+      reserveBoundNames(node.consequent, out);
+      reserveBoundNames(node.alternate, out);
+      return;
+    case 'KeyBlock':
+      reserveBoundNames(node.fragment, out);
+      return;
+    case 'RegularElement':
+    case 'SlotElement':
+    case 'SvelteElement':
+    case 'TitleElement':
+    case 'Component':
+      reserveBoundNames(node.fragment, out);
+      return;
+    default:
+      if (node.fragment) reserveBoundNames(node.fragment, out);
+      if (node.body?.nodes) reserveBoundNames(node.body, out);
+  }
+}
+
 function exprText(source, node) {
   return source.slice(node.start, node.end);
 }
@@ -761,6 +824,7 @@ export function analyzeSvelteMarkup(markup, parse) {
     return { ok: false, reason: 'selected block contains a script tag' };
   }
   const analysis = new Analysis(source);
+  reserveBoundNames(ast.fragment, analysis.usedNames);
   analyzeFragment(ast.fragment, analysis, []);
   if (analysis.unsupported) {
     return { ok: false, reason: analysis.unsupported };
