@@ -81,7 +81,7 @@ env is missing).
 | Concierge | `server/src/trips/chat.ts` | `POST /api/trips/:id/chat` SSE (Gemini Search + Maps grounding). Korea seed can fall back to `/api/korea/chat` |
 | Place catalog | `server/src/trips/placeCatalog.ts` | `GET /api/trips/places-catalog` |
 | Router | `server/src/routes/trips.ts` | `createTripsRouter(deps)` — Clerk required. CRUD, `/generate`, `/enhance`, `/enhancements/:runId/apply`, `/chat`, `/days/:dayId/places` |
-| Frontend | `frontend/src/pages/Trips/` | `TripsIndex`, `TripCreate`, **`TripOverview`** (`/:tripId` dossier), **`TripDetail`** (`/:tripId/edit` editor), `TripDayPage` + Map Mode, `TripChat` FAB (overview + day), `TripIngest` (editor-embedded), `ExtractedPlacesLibrary`, `tripEdits.ts` |
+| Frontend | `frontend/src/pages/Trips/` | `TripsIndex`, `TripCreate`, **`TripOverview`** (`/:tripId` living document), **`TripDetail`** (`/:tripId/edit` redirect to the living document), `TripDayPage` + Map Mode, `TripChat` FAB (overview + day), `TripIngest` (embedded on the living document), `ExtractedPlacesLibrary`, `tripEdits.ts` |
 
 **Map Mode contract:** `GET /api/trips/:id/days/:dayId/places` emits the same
 `PlacesResponse`/`RankedPlace` shape as the legacy Korea endpoint, so
