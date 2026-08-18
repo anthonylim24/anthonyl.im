@@ -81,7 +81,7 @@ env is missing).
 | Concierge | `server/src/trips/chat.ts` | `POST /api/trips/:id/chat` SSE (Gemini Search + Maps grounding). Korea seed can fall back to `/api/korea/chat` |
 | Place catalog | `server/src/trips/placeCatalog.ts` | `GET /api/trips/places-catalog` |
 | Router | `server/src/routes/trips.ts` | `createTripsRouter(deps)` — Clerk required. CRUD, `/generate`, `/enhance`, `/enhancements/:runId/apply`, `/chat`, `/days/:dayId/places` |
-| Frontend | `frontend/src/pages/Trips/` | `TripsIndex`, `TripCreate`, **`TripOverview`** (`/:tripId` dossier), **`TripDetail`** (`/:tripId/edit` editor), `TripDayPage` + Map Mode, `TripChat` FAB (overview + day), `TripIngest` (editor-embedded), `ExtractedPlacesLibrary`, `tripEdits.ts` |
+| Frontend | `frontend/src/pages/Trips/` | `TripsIndex`, `TripCreate`, **`TripOverview`** (`/:tripId` living document), **`TripDetail`** (`/:tripId/edit` redirect to the living document), `TripDayPage` + Map Mode, `TripChat` FAB (overview + day), `TripIngest` (embedded on the living document), `ExtractedPlacesLibrary`, `tripEdits.ts` |
 
 **Map Mode contract:** `GET /api/trips/:id/days/:dayId/places` emits the same
 `PlacesResponse`/`RankedPlace` shape as the legacy Korea endpoint, so
@@ -571,7 +571,7 @@ Anthony (primary) and his partner, while planning + executing a 12-day Seoul + B
 
 ## Design Context: `/trips/*` — Generic Trip Planner
 
-Korea-look dossier, parameterized by `data-trip-accent` (`frontend/src/pages/Trips/theme.ts` + `.trips` tokens in `index.css`). `/trips/:tripId` is the living document (`TripOverview`); `/edit` redirects there. Concierge FAB on the trip and day pages only. Do not add destination-specific routes. Full design notes: [`AGENTS.md`](AGENTS.md) / [`PRODUCT.md`](PRODUCT.md).
+JR pocket timetable (not Korea parchment, not Linear/Notion zinc), parameterized by `data-trip-accent` (retints canvas + cover band). `/trips/:tripId` is the living document (`TripOverview`); `/edit` redirects there. Concierge FAB on the trip and day pages only. Do not add destination-specific routes. Do not restyle Trips back into the Korea dossier or a zinc CRUD workspace. Full design notes: [`DESIGN.md`](DESIGN.md) / [`AGENTS.md`](AGENTS.md) / [`PRODUCT.md`](PRODUCT.md).
 
 ---
 

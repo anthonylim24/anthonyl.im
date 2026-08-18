@@ -26,7 +26,7 @@ import { emitTripChanged, useTripChanged } from "./tripsEvents"
 import { streamTripChat, type TripChatMessage } from "./tripChatApi"
 import { resolveAccent } from "./theme"
 import type { Trip, TripAccess } from "./types"
-import { ENTER_SPRING, EASE, focusRingClass, mutedInkClass } from "./ui"
+import { ENTER_SPRING, EASE, focusRingClass, mutedInkClass, overlayScrimClass, typeMetaClass, typeSectionClass } from "./ui"
 
 interface ChatMessage {
   id: string
@@ -55,7 +55,7 @@ function newId() {
 }
 
 const PANEL_SHELL =
-  "trip-chat-panel fixed inset-x-0 bottom-0 z-[60] mx-auto flex w-full flex-col overflow-hidden rounded-t-3xl border border-stone-200 bg-[var(--trips-surface)] shadow-2xl dark:border-stone-800 md:inset-x-auto md:rounded-3xl"
+  "trip-chat-panel fixed inset-x-0 bottom-0 z-[60] mx-auto flex w-full flex-col overflow-hidden rounded-t-[length:var(--trips-radius)] border border-[color:var(--trips-border)] bg-[color:var(--trips-surface)] md:inset-x-auto md:rounded-[length:var(--trips-radius)]"
 
 const PANEL_COMPACT =
   `${PANEL_SHELL} h-[min(86dvh,40rem)] md:bottom-6 md:right-6 md:h-[min(600px,calc(100dvh-3rem))] md:w-[min(400px,calc(100vw-2rem))]`
@@ -76,7 +76,7 @@ function useMinWidth(px: number): boolean {
 }
 
 const HEADER_ICON_BTN =
-  `flex h-11 w-11 items-center justify-center rounded-full text-stone-500 transition hover:bg-stone-100 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100 ${focusRingClass}`
+  `flex h-11 w-11 items-center justify-center rounded-[length:var(--trips-radius)] text-[color:var(--trips-ink-secondary)] transition hover:bg-[color:var(--trips-rail)] hover:text-[color:var(--trips-ink)] ${focusRingClass}`
 
 /** Concierge lives on the trip dossier and day pages, not the index, create, or editor. */
 export function useTripChatRoute(): { tripId?: string; dayId?: string } {
@@ -577,8 +577,8 @@ export function TripChat() {
               onClick={handleClose}
               className={
                 expanded
-                  ? "fixed inset-0 z-[55] bg-stone-950/40"
-                  : "fixed inset-0 z-[55] bg-stone-950/40 md:pointer-events-none md:bg-transparent"
+                  ? `${overlayScrimClass} z-[55]`
+                  : `${overlayScrimClass} z-[55] md:pointer-events-none md:bg-transparent md:backdrop-blur-none`
               }
               aria-hidden
             />
@@ -593,15 +593,15 @@ export function TripChat() {
               className={panelClass}
               style={panelStyle}
             >
-              <header className="flex shrink-0 items-center gap-3 border-b border-stone-200/80 px-4 py-3 dark:border-stone-800/80">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[color:var(--ta-soft)] text-[color:var(--ta)]">
+              <header className="flex shrink-0 items-center gap-3 border-b border-[color:var(--trips-border)] px-4 py-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-[length:var(--trips-radius)] bg-[color:var(--ta-soft)] text-[color:var(--ta)]">
                   <Sparkles className="h-4 w-4" strokeWidth={2} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <h2 id={titleId} className="truncate text-[15px] font-semibold text-stone-900 dark:text-stone-100">
+                  <h2 id={titleId} className={`truncate ${typeSectionClass}`}>
                     Trip Concierge
                   </h2>
-                  <p className={`truncate text-xs ${mutedInkClass}`}>{subtitle}</p>
+                  <p className={`truncate ${typeMetaClass} ${mutedInkClass}`}>{subtitle}</p>
                 </div>
                 <div className="flex shrink-0 items-center">
                   <button
@@ -632,7 +632,7 @@ export function TripChat() {
               >
                 {messages.length === 0 ? (
                   <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
-                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[color:var(--ta-soft)] text-[color:var(--ta)]">
+                    <span className="flex h-12 w-12 items-center justify-center rounded-[length:var(--trips-radius)] bg-[color:var(--ta-soft)] text-[color:var(--ta)]">
                       <MessageCircleHeart className="h-6 w-6" />
                     </span>
                     <p className={`max-w-[18rem] text-sm ${mutedInkClass}`}>
@@ -650,7 +650,7 @@ export function TripChat() {
                         data-transcript-anchor={m.id === lastUserId ? "latest-user" : undefined}
                         className="flex justify-end"
                       >
-                        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-[color:var(--trips-accent)] px-3.5 py-2 text-[15px] leading-relaxed text-white shadow-sm dark:text-stone-950">
+                        <div className="max-w-[85%] rounded-[length:var(--trips-radius)] bg-[color:var(--trips-accent)] px-3.5 py-2 text-[15px] leading-relaxed text-white dark:text-[color:var(--trips-canvas)]">
                           {m.content}
                         </div>
                       </div>
@@ -698,7 +698,7 @@ export function TripChat() {
                       key={s}
                       type="button"
                       onClick={() => void send(s)}
-                      className={`min-h-11 rounded-full border border-stone-200 bg-[var(--trips-surface)] px-3 py-1.5 text-left text-xs font-medium text-stone-600 transition hover:border-[color:var(--ta-ring)] hover:bg-[color:var(--ta-soft)] hover:text-[color:var(--ta-strong)] dark:border-stone-700 dark:text-stone-300 ${focusRingClass}`}
+                      className={`min-h-11 rounded-[length:var(--trips-radius)] border border-[color:var(--trips-border)] bg-[color:var(--trips-rail)] px-3 py-1.5 text-left text-xs font-medium text-[color:var(--trips-ink-secondary)] transition hover:border-[color:var(--ta-ring)] hover:bg-[color:var(--ta-soft)] hover:text-[color:var(--ta-strong)] ${focusRingClass}`}
                     >
                       {s}
                     </button>
@@ -711,10 +711,10 @@ export function TripChat() {
                   e.preventDefault()
                   void send(input)
                 }}
-                className="border-t border-stone-200/80 px-3 pt-3 dark:border-stone-800/80"
+                className="border-t border-[color:var(--trips-border)] px-3 pt-3"
                 style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)" }}
               >
-                <div className="flex items-end gap-2 rounded-2xl border border-stone-200 bg-stone-50/90 px-3 py-2 focus-within:border-[color:var(--trips-accent)] focus-within:ring-2 focus-within:ring-[color:var(--trips-focus)] dark:border-stone-700 dark:bg-stone-900">
+                <div className="flex items-end gap-2 rounded-[length:var(--trips-field-radius)] border border-[color:var(--trips-border)] bg-[color:var(--trips-rail)] px-3 py-2 shadow-[inset_0_1px_2px_color-mix(in_oklch,var(--trips-ink)_12%,transparent)] focus-within:border-[color:var(--trips-accent)] focus-within:ring-2 focus-within:ring-[color:var(--trips-focus)]">
                   <textarea
                     ref={inputRef}
                     value={input}
@@ -730,7 +730,7 @@ export function TripChat() {
                     }}
                     rows={1}
                     placeholder="Ask about this trip…"
-                    className={`min-h-7 flex-1 resize-none bg-transparent py-0.5 text-[16px] leading-6 text-stone-900 outline-none placeholder:text-stone-400 sm:text-[15px] dark:text-stone-100 dark:placeholder:text-stone-400 ${expanded ? "max-h-48" : "max-h-28"}`}
+                    className={`min-h-7 flex-1 resize-none bg-transparent py-0.5 text-[16px] leading-6 text-[color:var(--trips-ink)] outline-none placeholder:text-[color:var(--trips-ink-tertiary)] sm:text-[15px] ${expanded ? "max-h-48" : "max-h-28"}`}
                   />
                   <button
                     type="submit"
@@ -811,7 +811,7 @@ function AssistantBubble({
 
   return (
     <div className="flex justify-start">
-      <div className="max-w-[88%] rounded-2xl rounded-bl-md bg-stone-100 px-3.5 py-2.5 text-stone-800 dark:bg-stone-800/80 dark:text-stone-100">
+      <div className="max-w-[88%] rounded-[length:var(--trips-radius)] bg-[color:var(--trips-rail)] px-3.5 py-2.5 text-[color:var(--trips-ink)]">
         {m.content ? (
           <div>
             <ConciergeText
@@ -890,11 +890,11 @@ function TypingDots({ reduce }: { reduce: boolean }) {
     <div className="flex items-center gap-1 py-1" aria-label="Concierge is typing">
       {[0, 1, 2].map((i) =>
         reduce ? (
-          <span key={i} className="h-1.5 w-1.5 rounded-full bg-stone-400 opacity-70 dark:bg-stone-500" />
+          <span key={i} className="h-1.5 w-1.5 rounded-full bg-[color:var(--trips-ink-tertiary)] opacity-70" />
         ) : (
           <motion.span
             key={i}
-            className="h-1.5 w-1.5 rounded-full bg-stone-400 dark:bg-stone-500"
+            className="h-1.5 w-1.5 rounded-full bg-[color:var(--trips-ink-tertiary)]"
             animate={{ opacity: [0.3, 1, 0.3], y: [0, -2, 0] }}
             transition={{ duration: 1, repeat: Infinity, delay: i * 0.15, ease: "easeInOut" }}
           />

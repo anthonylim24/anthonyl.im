@@ -31,9 +31,9 @@ export function ConciergeMoveCards({
         return (
           <li
             key={move.key}
-            className="rounded-2xl border border-stone-200/90 bg-stone-50/90 px-3 py-2.5 dark:border-stone-700/80 dark:bg-stone-900/70"
+            className="rounded-[length:var(--trips-radius)] border border-[color:var(--trips-border)] bg-[color:var(--trips-rail)] px-3 py-2.5"
           >
-            <p id={labelId} className={`text-sm leading-snug text-stone-800 dark:text-stone-100 ${wrapAnywhereClass}`}>
+            <p id={labelId} className={`text-sm leading-snug text-[color:var(--trips-ink)] ${wrapAnywhereClass}`}>
               {move.label}
             </p>
             {canEdit && !applied ? (

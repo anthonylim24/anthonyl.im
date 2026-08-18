@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom"
-import { mutedInkClass, secondaryBtnClass, SERIF } from "./ui"
+import { mutedInkClass, secondaryBtnClass } from "./ui"
 
 /** `/:tripId` matches first, so unknown ids never hit the splat 404. */
 export function isMissingTripError(message: string): boolean {
@@ -10,13 +10,8 @@ export function isMissingTripError(message: string): boolean {
 export function TripsNotFound() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-      <p className="font-mono-trips text-[11px] uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
-        404
-      </p>
-      <h1
-        className="mt-3 font-display text-3xl tracking-tight text-stone-900 dark:text-stone-100"
-        style={SERIF}
-      >
+      <p className={`text-[13px] font-medium ${mutedInkClass}`}>404</p>
+      <h1 className="mt-3 text-2xl font-semibold tracking-tight text-stone-900 dark:text-stone-100">
         This page is not on the itinerary.
       </h1>
       <p className={`mt-3 max-w-prose text-sm leading-relaxed ${mutedInkClass}`}>

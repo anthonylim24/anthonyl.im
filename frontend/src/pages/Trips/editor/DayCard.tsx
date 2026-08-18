@@ -4,7 +4,6 @@ import { ChevronDown, Map as MapIcon, Plus, Trash2 } from "lucide-react"
 import { ACCENT, formatTripDate } from "../theme"
 import { addItem, makeItem } from "../tripEdits"
 import {
-  SERIF,
   chipBtnClass,
   compactInputClass,
   compactSelectClass,
@@ -84,47 +83,52 @@ export const DayCard = memo(function DayCard({
       id={day.id}
       aria-label={`Day ${index + 1}`}
       aria-busy={enhancing}
-      className={`scroll-mt-32 pt-8 transition-colors duration-300 first:pt-0 lg:scroll-mt-24 ${
-        enhancing
-          ? `-mx-3 rounded-xl border px-3 ${ACCENT.softBg} ${ACCENT.border}`
-          : "border-t border-stone-200/70 first:border-t-0 dark:border-stone-800/70"
+      className={`scroll-mt-32 border-t border-[color:var(--trips-border)] px-0 py-6 transition-colors duration-300 lg:scroll-mt-24 ${
+        enhancing ? ACCENT.softBg : ""
       }`}
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 flex-1">
-          <p className={`font-mono-trips text-[11px] uppercase tracking-[0.18em] ${ACCENT.text}`}>
-            Day {index + 1} · {formatTripDate(day.date, timezone)}
-            {day.city ? ` · ${day.city}` : ""}
-          </p>
-          <div className="mt-1 flex items-center gap-1.5">
-            {editable ? (
-              <>
-                <input
-                  value={day.emoji ?? ""}
-                  placeholder="✦"
-                  maxLength={4}
-                  aria-label={`Day ${index + 1} emoji`}
-                  disabled={locked}
-                  onChange={(e) => patchDay({ emoji: e.target.value || undefined })}
-                  className={`w-11 shrink-0 text-center text-xl ${subtleInputClass}`}
-                />
-                <input
-                  value={day.title ?? ""}
-                  placeholder="Day theme…"
-                  title={day.title || undefined}
-                  aria-label={`Day ${index + 1} title`}
-                  disabled={locked}
-                  onChange={(e) => patchDay({ title: e.target.value })}
-                  className={`w-full truncate font-display text-xl font-medium tracking-tight ${subtleInputClass}`}
-                  style={SERIF}
-                />
-              </>
-            ) : (
-              <h2 className={`font-display text-xl font-medium tracking-tight text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`} style={SERIF}>
-                {day.emoji ? `${day.emoji} ` : ""}
-                {day.title ?? ""}
-              </h2>
-            )}
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <span
+            aria-hidden
+            className="font-display shrink-0 text-[1.75rem] font-semibold tabular-nums leading-none tracking-tight text-[color:var(--trips-ink)] sm:text-[2rem]"
+          >
+            {index + 1}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className={`text-xs font-medium ${mutedInkClass}`}>
+              {formatTripDate(day.date, timezone)}
+              {day.city ? ` · ${day.city}` : ""}
+            </p>
+            <div className="mt-1 flex items-center gap-1.5">
+              {editable ? (
+                <>
+                  <input
+                    value={day.emoji ?? ""}
+                    placeholder="✦"
+                    maxLength={4}
+                    aria-label={`Day ${index + 1} emoji`}
+                    disabled={locked}
+                    onChange={(e) => patchDay({ emoji: e.target.value || undefined })}
+                    className={`w-11 shrink-0 text-center text-xl ${subtleInputClass}`}
+                  />
+                  <input
+                    value={day.title ?? ""}
+                    placeholder="Day theme…"
+                    title={day.title || undefined}
+                    aria-label={`Day ${index + 1} title`}
+                    disabled={locked}
+                    onChange={(e) => patchDay({ title: e.target.value })}
+                    className={`w-full truncate font-display text-lg font-semibold tracking-tight ${subtleInputClass}`}
+                  />
+                </>
+              ) : (
+                <h2 className={`font-display text-lg font-semibold tracking-tight text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}>
+                  {day.emoji ? `${day.emoji} ` : ""}
+                  {day.title ?? ""}
+                </h2>
+              )}
+            </div>
           </div>
         </div>
         {/* Own row below `sm` so the title input keeps the full width. */}
@@ -188,7 +192,7 @@ export const DayCard = memo(function DayCard({
             Details
           </button>
           {detailsOpen && (
-            <fieldset disabled={locked} className="mt-3 m-0 min-w-0 space-y-3 border-t border-stone-200/70 pt-3 dark:border-stone-800">
+            <fieldset disabled={locked} className="mt-3 m-0 min-w-0 space-y-3 border-t border-[color:var(--trips-border)] pt-3">
               <label className="block">
                 <span className={labelClass}>Neighborhoods (comma-separated)</span>
                 <input
@@ -298,7 +302,7 @@ export const DayCard = memo(function DayCard({
       ) : (
         // Timeline rail: a vertical line down the day, the itinerary
         // affordance that makes order legible at a glance.
-        <ul className="relative mt-5 space-y-2 pl-4 before:absolute before:bottom-3 before:left-[3px] before:top-3 before:w-px before:bg-stone-200 dark:before:bg-stone-800">
+        <ul className="mt-4 space-y-1">
           <AnimatePresence initial={false}>
             {day.items.map((item, itemIdx) => (
               <ItemRow

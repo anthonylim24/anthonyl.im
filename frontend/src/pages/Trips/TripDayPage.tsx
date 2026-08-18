@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type ReactNode } from "react"
+import { lazy, Suspense, useEffect, useState } from "react"
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
 import { ArrowUpRight, Globe2, Pencil } from "lucide-react"
@@ -12,7 +12,9 @@ import { useLoadedTrip } from "./useLoadedTrip"
 import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import { ACCENT, calloutTone, formatTripDate, resolveAccent, todayIsoIn } from "./theme"
 import { useAnchorHighlight, useAnchorTarget } from "./anchors"
-import { DossierSectionHeader } from "./components/DossierSectionHeader"
+import { DateStrip } from "./components/DateStrip"
+import { FlipTime } from "./components/FlipTime"
+import { SectionHeading } from "./components/SectionHeading"
 import { ItemIcon } from "./components/ItemIcon"
 import { StatusChip } from "./components/StatusChip"
 import { itemToReservation, nextMappedItem, walkLegBetween } from "./reservationView"
@@ -20,20 +22,23 @@ import type { ItineraryItem, TripDay } from "./types"
 import {
   EASE,
   REVEAL_DURATION,
-  SERIF,
   alertErrorClass,
   chipBtnClass,
+  documentClass,
   focusRingClass,
   hoverArrowBackClass,
   hoverArrowClass,
   inkBtnClass,
   inlineLinkClass,
-  metaLabelClass,
   mutedInkClass,
-  pageClass,
+  overlayHoverClass,
   revealDelay,
   secondaryBtnClass,
+  skeletonClass,
   timeCellClass,
+  typeHeroTimeClass,
+  typeMetaClass,
+  typePageTitleClass,
   wrapAnywhereClass,
 } from "./ui"
 
@@ -41,8 +46,7 @@ const MapModeOverlay = lazy(() =>
   import("../Korea/MapModeOverlay").then((m) => ({ default: m.MapModeOverlay })),
 )
 
-/** `<main>` is unconstrained so trip heroes can be full-bleed. */
-const PAGE = pageClass("reading")
+const PAGE = documentClass
 
 function narrativeBlocks(items: ItineraryItem[]): Array<{ section: ItineraryItem | null; items: ItineraryItem[] }> {
   const blocks: Array<{ section: ItineraryItem | null; items: ItineraryItem[] }> = []
@@ -148,11 +152,11 @@ export function TripDayPage() {
   if (state.status === "loading") {
     return (
       <div className={PAGE} role="status" aria-label="Loading day">
-        <div className="h-4 w-72 animate-pulse rounded bg-stone-200/60 dark:bg-stone-900" />
-        <div className="mt-6 h-16 w-2/3 animate-pulse rounded-2xl bg-stone-200/60 dark:bg-stone-900" />
+        <div className={`h-4 w-72 ${skeletonClass}`} />
+        <div className={`mt-6 h-16 w-2/3 ${skeletonClass}`} />
         <div className="mt-10 space-y-3">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="h-20 animate-pulse rounded-2xl bg-stone-200/60 dark:bg-stone-900" />
+            <div key={i} className={`h-20 ${skeletonClass}`} />
           ))}
         </div>
       </div>
@@ -178,7 +182,7 @@ export function TripDayPage() {
   if (!trip || !day) {
     return (
       <div className={PAGE} role="alert">
-        <h1 className="font-display text-3xl tracking-tight text-stone-900 dark:text-stone-100" style={SERIF}>
+        <h1 className="text-2xl font-semibold tracking-tight text-stone-900 dark:text-stone-100">
           Day not found
         </h1>
         <p className={`mt-3 text-sm leading-relaxed ${mutedInkClass}`}>
@@ -207,10 +211,16 @@ export function TripDayPage() {
   return (
     <EntityIndexProvider>
       <article className={PAGE} data-trip-accent={resolveAccent(trip.appearance?.accent)}>
-        <header className="border-b border-stone-200/80 pb-8 dark:border-stone-800/80">
+        <DateStrip
+          days={trip.days}
+          timezone={trip.timezone}
+          activeId={day.id}
+          toFor={(d) => `${tripPath}/day/${d.id}`}
+        />
+        <header className="mt-5">
           <motion.p
             {...fadeUp(0)}
-            className={`flex flex-wrap items-center gap-x-3 gap-y-1 font-mono-trips text-[11px] uppercase tracking-[0.18em] ${mutedInkClass}`}
+            className={`flex flex-wrap items-center gap-x-3 gap-y-1 ${typeMetaClass} ${mutedInkClass}`}
           >
             <Link
               to={tripPath}
@@ -218,81 +228,45 @@ export function TripDayPage() {
             >
               {trip.name}
             </Link>
-            <span aria-hidden className="h-px w-6 bg-stone-300 dark:bg-stone-700" />
-            <span className="tabular-nums">
-              Day {String(dayIndex + 1).padStart(2, "0")} of {String(trip.days.length).padStart(2, "0")}
+            <span aria-hidden className="text-stone-300 dark:text-stone-600">
+              /
             </span>
-            <span aria-hidden>·</span>
-            <span>{formatTripDate(day.date, trip.timezone, { weekday: "long", month: "long" })}</span>
+            <span className="tabular-nums">
+              Day {dayIndex + 1} of {trip.days.length}
+            </span>
             {isToday && (
               <span className={`flex items-center gap-1.5 ${a.text}`}>
-                <span aria-hidden>·</span>
                 <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.dot}`} aria-hidden />
-                live
+                Today
               </span>
             )}
           </motion.p>
 
-          <motion.div {...fadeUp(1)} className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
-            <span
-              className={`font-display text-[clamp(3rem,8vw,4.75rem)] font-light leading-[0.85] tabular-nums ${a.text}`}
-              style={SERIF}
-              aria-hidden
-            >
-              {dayIndex + 1}
-            </span>
-            {day.emoji && <span aria-hidden className="text-4xl leading-none sm:text-5xl">{day.emoji}</span>}
+          <motion.div {...fadeUp(1)} className="mt-4">
+            {day.emoji && <span aria-hidden className="mb-2 block text-xl leading-none">{day.emoji}</span>}
             <h1
-              className={`min-w-0 flex-1 font-display text-[clamp(1.85rem,5vw,3rem)] font-medium leading-[1.05] tracking-[-0.02em] text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
-              style={SERIF}
+              className={`${typePageTitleClass} min-w-0 leading-none ${wrapAnywhereClass}`}
             >
               {day.title ?? `Day ${dayIndex + 1}`}
             </h1>
           </motion.div>
 
+          <p className={`mt-3 font-display text-lg tabular-nums ${mutedInkClass}`}>
+            {formatTripDate(day.date, trip.timezone, { weekday: "long", month: "long" })}
+            {day.city ? ` · ${day.city}` : ""}
+            {day.weather ? ` · ${day.weather.highC}° / ${day.weather.lowC}°` : ""}
+          </p>
+
           {day.notes && (
             <motion.div
               {...fadeUp(2)}
-              className={`mt-5 max-w-[60ch] whitespace-pre-line text-base leading-relaxed text-stone-700 dark:text-stone-300 ${wrapAnywhereClass}`}
+              className={`mt-3 max-w-[60ch] whitespace-pre-line text-sm leading-relaxed text-stone-700 dark:text-stone-300 ${wrapAnywhereClass}`}
             >
               <LinkifiedText>{day.notes}</LinkifiedText>
             </motion.div>
           )}
 
-          <motion.dl
-            {...fadeUp(3)}
-            className="mt-7 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-stone-200/80 pt-5 sm:grid-cols-3 sm:gap-x-10 dark:border-stone-800/80"
-          >
-            {day.city && (
-              <Meta label="City">
-                <SmartEntity name={day.city} type="city" className={wrapAnywhereClass} />
-              </Meta>
-            )}
-            {day.weather && (
-              <Meta label="Weather">
-                {`${day.weather.highC}°C / ${day.weather.lowC}°C · ${day.weather.condition}`}
-              </Meta>
-            )}
-            {day.neighborhoods && day.neighborhoods.length > 0 && (
-              <Meta label="Neighborhoods">
-                {day.neighborhoods.map((n, i) => (
-                  <span key={n}>
-                    {i > 0 && (
-                      <span aria-hidden className="mx-1.5 text-stone-400 dark:text-stone-600">
-                        ·
-                      </span>
-                    )}
-                    <SmartEntity name={n} type="neighborhood" city={day.city} className={wrapAnywhereClass} />
-                  </span>
-                ))}
-              </Meta>
-            )}
-            {reservations.length > 0 && (
-              <Meta label="Booked">{`${reservations.length} reservation${reservations.length === 1 ? "" : "s"}`}</Meta>
-            )}
-          </motion.dl>
-
-          <motion.div {...fadeUp(4)} className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <motion.div {...fadeUp(4)} className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             {hasMappable ? (
               <button type="button" onClick={() => openMap()} className={inkBtnClass}>
                 <Globe2 className="h-4 w-4" strokeWidth={1.5} aria-hidden />
@@ -321,7 +295,7 @@ export function TripDayPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: REVEAL_DURATION, ease: EASE, delay: revealDelay(i) }}
-                className={`flex items-start gap-3 rounded-xl border p-4 text-sm text-stone-800 dark:text-stone-200 ${calloutTone(c.tone)}`}
+                className={`flex items-start gap-3 rounded-[length:var(--trips-radius)] border p-4 text-base text-[color:var(--trips-ink)] ${calloutTone(c.tone)}`}
               >
                 <span aria-hidden className="text-lg leading-none">
                   {c.icon}
@@ -335,19 +309,17 @@ export function TripDayPage() {
         )}
 
         {reservations.length > 0 && (
-          <section className="mt-12">
-            <DossierSectionHeader num="01" eyebrow="Booked moments" title="Reservations" />
-            <ol className="relative mt-6 space-y-5 pl-6 before:absolute before:bottom-2 before:left-[7px] before:top-2 before:w-px before:bg-stone-200/90 sm:pl-8 sm:before:left-[11px] dark:before:bg-stone-800/90">
+          <section className="mt-10">
+            <ol className="divide-y divide-[color:var(--trips-border)] border-y border-[color:var(--trips-border)]">
               {reservations.map((item, i) => (
-                <ReservationTimelineItem
+                <ReservationTableRow
                   key={item.id}
                   item={item}
                   day={day}
                   dayNumber={dayIndex + 1}
-                  index={i}
-                  accentDot={a.dot}
                   flash={anchorTarget === `item-${item.id}`}
-                  walk={walkAfter(day.items, item)}
+                  walk={item.reservation?.type === "flight" ? null : walkAfter(day.items, item)}
+                  featured={i === 0}
                 />
               ))}
             </ol>
@@ -355,7 +327,8 @@ export function TripDayPage() {
         )}
 
         {blocks.length > 0 && (
-          <section className="mt-12 divide-y divide-stone-200/80 dark:divide-stone-800/80">
+          <section className="mt-10">
+            <SectionHeading title="Stops" />
             {blocks.map((block, bi) => (
               <motion.div
                 key={block.section?.id ?? `block-${bi}`}
@@ -368,8 +341,7 @@ export function TripDayPage() {
                 {block.section && (
                   <div className="flex items-baseline justify-between gap-x-4 sm:gap-x-6">
                     <h3
-                      className={`min-w-0 font-display text-xl font-medium tracking-[-0.01em] text-stone-900 sm:text-2xl dark:text-stone-100 ${wrapAnywhereClass}`}
-                      style={SERIF}
+                      className={`min-w-0 text-lg font-semibold tracking-tight text-stone-900 sm:text-xl dark:text-stone-100 ${wrapAnywhereClass}`}
                     >
                       {block.section.title}
                     </h3>
@@ -378,7 +350,7 @@ export function TripDayPage() {
                         <Time value={block.section.time} />
                         {block.section.endTime ? (
                           <>
-                            {" – "}
+                            {" to "}
                             <Time value={block.section.endTime} />
                           </>
                         ) : null}
@@ -395,7 +367,7 @@ export function TripDayPage() {
                         <li key={li} className="flex gap-3">
                           <span
                             aria-hidden
-                            className="mt-2.5 h-1 w-1 shrink-0 rounded-full bg-stone-400 dark:bg-stone-600"
+                            className="mt-2.5 h-1 w-1 shrink-0 rounded-full bg-[color:var(--trips-ink-tertiary)]"
                           />
                           <span className={`min-w-0 flex-1 ${wrapAnywhereClass}`}>
                             <LinkifiedText>{line.replace(/^-\s*/, "")}</LinkifiedText>
@@ -429,28 +401,27 @@ export function TripDayPage() {
           Arrow keys move to the previous or next day.
         </p>
         <nav
-          className="mt-3 grid grid-cols-1 gap-1 border-t border-stone-200/80 pt-6 sm:grid-cols-2 sm:gap-6 dark:border-stone-800/80"
+          className="mt-3 grid grid-cols-1 gap-1 border-t border-[color:var(--trips-border)] pt-6 sm:grid-cols-2 sm:gap-6"
           aria-label="Adjacent days"
         >
           {next && (
             <Link
               rel="next"
               to={`${tripPath}/day/${next.id}`}
-              className={`group order-1 -mx-2 flex min-h-14 items-center justify-between gap-4 rounded-xl px-2 py-3 transition-colors hover:bg-stone-100/50 sm:order-2 sm:justify-end sm:text-right dark:hover:bg-stone-900/40 ${focusRingClass}`}
+              className={`group order-1 -mx-2 flex min-h-14 items-center justify-between gap-4 rounded-[length:var(--trips-radius)] px-2 py-3 transition-colors ${overlayHoverClass} sm:order-2 sm:justify-end sm:text-right ${focusRingClass}`}
             >
               <span className="min-w-0">
-                <span className={`block font-mono-trips text-[10px] uppercase tracking-[0.18em] ${mutedInkClass}`}>
+                <span className={`block text-[13px] ${mutedInkClass}`}>
                   Next · Day {dayIndex + 2}
                 </span>
                 <span
-                  className={`line-clamp-2 font-display text-base font-medium text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
-                  style={SERIF}
+                  className={`line-clamp-2 text-base font-semibold text-[color:var(--trips-ink)] ${wrapAnywhereClass}`}
                 >
                   {next.title ?? `Day ${dayIndex + 2}`}
                 </span>
               </span>
               <ArrowUpRight
-                className={`h-4 w-4 shrink-0 rotate-45 text-stone-500 dark:text-stone-400 ${hoverArrowClass}`}
+                className={`h-4 w-4 shrink-0 rotate-45 text-[color:var(--trips-ink-tertiary)] ${hoverArrowClass}`}
                 aria-hidden
               />
             </Link>
@@ -459,19 +430,18 @@ export function TripDayPage() {
             <Link
               rel="prev"
               to={`${tripPath}/day/${prev.id}`}
-              className={`group order-2 -mx-2 flex min-h-14 items-center gap-4 rounded-xl px-2 py-3 transition-colors hover:bg-stone-100/50 sm:order-1 dark:hover:bg-stone-900/40 ${focusRingClass}`}
+              className={`group order-2 -mx-2 flex min-h-14 items-center gap-4 rounded-[length:var(--trips-radius)] px-2 py-3 transition-colors ${overlayHoverClass} sm:order-1 ${focusRingClass}`}
             >
               <ArrowUpRight
-                className={`h-4 w-4 shrink-0 -rotate-[135deg] text-stone-500 dark:text-stone-400 ${hoverArrowBackClass}`}
+                className={`h-4 w-4 shrink-0 -rotate-[135deg] text-[color:var(--trips-ink-tertiary)] ${hoverArrowBackClass}`}
                 aria-hidden
               />
               <span className="min-w-0">
-                <span className={`block font-mono-trips text-[10px] uppercase tracking-[0.18em] ${mutedInkClass}`}>
+                <span className={`block text-[13px] ${mutedInkClass}`}>
                   Previous · Day {dayIndex}
                 </span>
                 <span
-                  className={`line-clamp-2 font-display text-base font-medium text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
-                  style={SERIF}
+                  className={`line-clamp-2 text-base font-semibold text-[color:var(--trips-ink)] ${wrapAnywhereClass}`}
                 >
                   {prev.title ?? `Day ${dayIndex}`}
                 </span>
@@ -486,7 +456,7 @@ export function TripDayPage() {
           <Suspense
             fallback={
               <div
-                className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/80 text-sm text-stone-300"
+                className="fixed inset-0 z-50 flex items-center justify-center bg-[color:var(--trips-scrim)] text-sm text-[color:var(--trips-band-ink)]"
                 role="status"
               >
                 Loading map…
@@ -507,20 +477,9 @@ export function TripDayPage() {
   )
 }
 
-function Meta({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="min-w-0">
-      <dt className={metaLabelClass}>{label}</dt>
-      <dd className={`mt-1 text-sm leading-snug text-stone-800 dark:text-stone-200 ${wrapAnywhereClass}`}>
-        {children}
-      </dd>
-    </div>
-  )
-}
-
 function WalkLeg({ walk }: { walk: { distance: string; walk: string } }) {
   return (
-    <p className={`mt-2 font-mono-trips text-[11px] uppercase tracking-[0.12em] ${mutedInkClass}`}>
+    <p className={`mt-2 text-[13px] ${mutedInkClass}`}>
       {walk.walk}
       <span aria-hidden> · </span>
       {walk.distance}
@@ -528,82 +487,68 @@ function WalkLeg({ walk }: { walk: { distance: string; walk: string } }) {
   )
 }
 
-function ReservationTimelineItem({
+function ReservationTableRow({
   item,
   day,
   dayNumber,
-  index,
-  accentDot,
   flash,
+  featured,
   walk,
 }: {
   item: ItineraryItem
   day: TripDay
   dayNumber: number
-  index: number
-  accentDot: string
   flash: boolean
+  featured: boolean
   walk: { distance: string; walk: string } | null
 }) {
-  const reduce = useReducedMotion()
   const highlight = useAnchorHighlight(flash)
   const reservation = itemToReservation(item, day, dayNumber)
   if (!reservation) return null
   return (
-    <motion.li
-      initial={reduce ? false : { opacity: 0, y: 10 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ duration: REVEAL_DURATION, ease: EASE, delay: revealDelay(index) }}
-      className="relative"
-    >
-      <span
-        className={`absolute -left-[23px] top-8 h-2.5 w-2.5 rounded-full ring-2 ring-[var(--trips-canvas)] sm:-left-[29px] ${accentDot}`}
-        aria-hidden
-      />
-      <div id={`item-${item.id}`} className={highlight}>
-        <article className="min-w-0">
-          <div className="flex items-start gap-3">
-            <ItemIcon
-              kind={item.kind}
-              category={item.location?.category}
-              reservationType={item.reservation?.type}
-              className="mt-1 h-4 w-4 shrink-0 text-stone-500"
-            />
-            <div className="min-w-0 flex-1">
-              <h3
-                className={`font-display text-xl font-medium leading-snug text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
-                style={SERIF}
-              >
-                <SmartEntity name={reservation.title} type={placeCategoryToEntityType(item.location?.category ?? "place")} />
-              </h3>
-              {reservation.subtitle && (
-                <p className={`mt-1 text-sm ${mutedInkClass} ${wrapAnywhereClass}`}>{reservation.subtitle}</p>
-              )}
-              {reservation.time && (
-                <p className={`mt-1 font-mono-trips text-[12px] tabular-nums ${mutedInkClass}`}>
-                  <Time value={reservation.time} />
-                </p>
-              )}
-              {reservation.address && (
-                <p className={`mt-2 text-sm ${wrapAnywhereClass}`}>
-                  <a href={mapsUrl(reservation.address)} className={inlineLinkClass}>
-                    {reservation.address}
-                  </a>
-                </p>
-              )}
-              {reservation.notes && (
-                <p className={`mt-2 text-sm leading-relaxed ${mutedInkClass} ${wrapAnywhereClass}`}>
-                  <LinkifiedText>{reservation.notes}</LinkifiedText>
-                </p>
-              )}
-            </div>
-            <StatusChip status={item.status} />
+    <li id={`item-${item.id}`} className={`py-5 ${highlight}`}>
+      {featured ? (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <p className={`${typeHeroTimeClass} text-[color:var(--trips-ink)]`}>
+              {reservation.time ? <FlipTime value={reservation.time} playOnMount /> : "TBD"}
+            </p>
+            <p className={`mt-3 font-display text-xl font-semibold tracking-tight text-[color:var(--trips-ink)] sm:text-2xl ${wrapAnywhereClass}`}>
+              <SmartEntity name={reservation.title} type={placeCategoryToEntityType(item.location?.category ?? "place")} />
+            </p>
           </div>
-        </article>
-        {walk && <WalkLeg walk={walk} />}
-      </div>
-    </motion.li>
+          <StatusChip status={item.status} />
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <p className="font-display text-xl font-semibold tabular-nums text-[color:var(--trips-ink)] sm:text-2xl">
+            {reservation.time ? <Time value={reservation.time} /> : "TBD"}
+          </p>
+          <StatusChip status={item.status} />
+        </div>
+      )}
+      {!featured && (
+        <p className={`mt-1 font-medium text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}>
+          <SmartEntity name={reservation.title} type={placeCategoryToEntityType(item.location?.category ?? "place")} />
+        </p>
+      )}
+      {reservation.subtitle && (
+        <p className={`mt-1 text-[13px] ${mutedInkClass} ${wrapAnywhereClass}`}>{reservation.subtitle}</p>
+      )}
+      {reservation.address && (
+        <p className={`mt-1 text-sm ${wrapAnywhereClass}`}>
+          <a href={mapsUrl(reservation.address)} className={inlineLinkClass}>
+            {reservation.address}
+          </a>
+        </p>
+      )}
+      {reservation.notes && (
+        <p className={`mt-1 text-sm leading-relaxed ${mutedInkClass} ${wrapAnywhereClass}`}>
+          <LinkifiedText>{reservation.notes}</LinkifiedText>
+        </p>
+      )}
+      {walk && <WalkLeg walk={walk} />}
+    </li>
   )
 }
 
@@ -626,7 +571,7 @@ function NarrativeItem({
   return (
     <li
       id={`item-${item.id}`}
-      className={`grid grid-cols-[3.25rem_minmax(0,1fr)] gap-x-3 rounded-lg sm:grid-cols-[4rem_minmax(0,1fr)] ${highlight}`}
+      className={`grid grid-cols-[3.25rem_minmax(0,1fr)] gap-x-3 rounded-[length:var(--trips-radius)] sm:grid-cols-[4rem_minmax(0,1fr)] ${highlight}`}
     >
       <div className={`pt-0.5 text-right ${timeCellClass}`}>
         {item.time ? <Time value={item.time} /> : <span aria-hidden>·</span>}

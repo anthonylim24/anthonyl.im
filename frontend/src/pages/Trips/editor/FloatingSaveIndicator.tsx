@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { CheckCircle2, Loader2, Undo2, X } from "lucide-react"
 import { ACCENT } from "../theme"
-import { ENTER_SPRING, EXIT_FADE, focusRingClass, spinnerClass, wrapAnywhereClass } from "../ui"
+import { ENTER_SPRING, EXIT_FADE, focusRingClass, iconBtnClass, spinnerClass, toastClass, wrapAnywhereClass } from "../ui"
 
 export type SaveState = "saved" | "saving" | "dirty" | "error"
 
@@ -26,8 +26,7 @@ export function EditorDock({ children }: { children: ReactNode }) {
   )
 }
 
-const pillClass =
-  "flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-medium shadow-lg backdrop-blur"
+const pillClass = `flex items-center gap-2 px-3.5 py-2 ${toastClass}`
 
 /** Appears while edits are unsaved or in flight, lingers on "Saved" for a
  *  moment, then fades away. */
@@ -57,8 +56,8 @@ export function FloatingSaveIndicator({ saveState }: { saveState: SaveState }) {
             {...dockMotion(!!reduce)}
             className={`${pillClass} ${
               saveState === "error"
-                ? "border-red-200 bg-red-50/95 text-red-800 dark:border-red-900/50 dark:bg-red-950/90 dark:text-red-300"
-                : "border-stone-200 bg-white/95 text-stone-600 dark:border-stone-700 dark:bg-stone-900/95 dark:text-stone-300"
+                ? "border-red-300 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950 dark:text-red-200"
+                : ""
             }`}
           >
             {saveState === "error" ? (
@@ -105,14 +104,14 @@ export function EditorNotice({ notice, onDismiss }: { notice: string | null; onD
           <motion.div
             key={notice}
             {...dockMotion(!!reduce)}
-            className={`${pillClass} pointer-events-auto max-w-[min(24rem,calc(100vw-2.5rem))] items-start border-stone-300 bg-white/95 py-2.5 text-stone-700 dark:border-stone-700 dark:bg-stone-900/95 dark:text-stone-200`}
+            className={`${pillClass} pointer-events-auto max-w-[min(24rem,calc(100vw-2.5rem))] items-start py-2.5 text-[color:var(--trips-ink)]`}
           >
             <span className={`min-w-0 text-left leading-snug ${wrapAnywhereClass}`}>{notice}</span>
             <button
               type="button"
               onClick={onDismiss}
               aria-label="Dismiss notice"
-              className={`-mr-1 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-stone-500 transition hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-100 ${focusRingClass}`}
+              className={`-mr-1 ${iconBtnClass}`}
             >
               <X className="h-4 w-4" strokeWidth={1.5} aria-hidden />
             </button>
@@ -135,7 +134,7 @@ export function UndoToast({ undo, onUndo }: { undo: PendingUndo | null; onUndo: 
           <motion.div
             key={undo.key}
             {...dockMotion(!!reduce)}
-            className={`${pillClass} pointer-events-auto border-stone-300 bg-white/95 text-stone-700 dark:border-stone-700 dark:bg-stone-900/95 dark:text-stone-200`}
+            className={`${pillClass} pointer-events-auto text-[color:var(--trips-ink)]`}
           >
             <span className="max-w-[14rem] truncate">
               Deleted {undo.title ? `“${undo.title}”` : "this item"}
@@ -144,7 +143,7 @@ export function UndoToast({ undo, onUndo }: { undo: PendingUndo | null; onUndo: 
               type="button"
               autoFocus
               onClick={onUndo}
-              className={`-my-2 inline-flex min-h-11 items-center gap-1.5 rounded-full px-2 font-semibold text-[color:var(--ta)] transition hover:text-[color:var(--ta-strong)] ${focusRingClass}`}
+              className={`-my-2 inline-flex min-h-11 items-center gap-1.5 rounded-[length:var(--trips-radius)] px-2 font-semibold text-[color:var(--ta)] transition hover:text-[color:var(--ta-strong)] ${focusRingClass}`}
             >
               <Undo2 className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
               Undo

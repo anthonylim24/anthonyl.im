@@ -5,14 +5,21 @@ import {
   computeTravelLegs,
   createGeminiLlm,
   createTripsLlm,
+  pickTripsLlm,
   enhanceTrip,
+  estimatePromptTokens,
   extractModelJson,
   generateItinerary,
+  groqFitsTpm,
+  groqSafeMaxTokens,
+  GROQ_DEFAULT_MAX_TOKENS,
+  GROQ_TPM_LIMIT,
   normalizeAiItem,
   normalizeTime,
   resolveEnhancementOutcome,
   salvageItinerary,
   salvageSuggestions,
+  travelerFacingLlmError,
   withLlmFallback,
 } from "./ai"
 import type { EnhancementRun, Trip } from "./types"
@@ -142,10 +149,11 @@ describe("computeTravelLegs", () => {
 
 describe("enhanceTrip", () => {
   test("returns validated suggestions and filters bogus item references", async () => {
-    const llm = async ({ user }: { user: string }) => {
+    const llm = async ({ user, latLng }: { user: string; latLng?: { latitude: number; longitude: number } }) => {
       expect(user).toContain("Senso-ji")
       expect(user).toContain("km") // travel legs included
       expect(user).toContain("rain chance") // weather included
+      expect(latLng).toEqual({ latitude: 35.68715, longitude: 139.7486 })
       return JSON.stringify({
         summary: "Solid plan with one ordering issue.",
         suggestions: [
@@ -175,7 +183,12 @@ describe("enhanceTrip", () => {
             proposedItem: {
               kind: "place",
               title: "Ramen at Ichiran",
-              location: { name: "Ichiran Shibuya", address: "Jinnan 1-22-7" },
+              location: {
+                name: "Ichiran Shibuya",
+                address: "Jinnan 1-22-7",
+                lat: 35.66,
+                lng: 139.7,
+              },
             },
           },
         ],
@@ -279,6 +292,22 @@ describe("enhanceTrip", () => {
     expect(run.status).toBe("error")
     expect(run.error).toBeTruthy()
     expect(run.outcomeReason).toMatch(/failed before/i)
+  })
+
+  test("never stores Groq TPM dumps on the run the traveler sees", async () => {
+    const groqDump =
+      '413 {"error":{"message":"Request too large for model `openai/gpt-oss-120b` in organization `org_01jjk64dq4ens807q9ak9yqwen` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Requested 9383, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing","type":"tokens","code":"rate_limit_exceeded"}}'
+    const run = await enhanceTrip({
+      trip: makeTrip(),
+      scope: "day",
+      dayId: "day-1",
+      llm: async () => {
+        throw new Error(groqDump)
+      },
+    })
+    expect(run.status).toBe("error")
+    expect(run.error).not.toMatch(/gpt-oss|console\.groq|9383|org_/)
+    expect(run.error).toMatch(/try again/i)
   })
 })
 
@@ -480,6 +509,40 @@ describe("autoApplyAddSuggestions", () => {
     expect(result.trip.days[1]!.items).toEqual([])
     expect(result.run.outcome).toBe("no_adds_possible")
   })
+
+  test("does not auto-apply a place add that lacks coordinates", () => {
+    const trip = makeTrip()
+    const run: EnhancementRun = {
+      id: "run-1",
+      tripId: trip.id,
+      scope: "trip",
+      status: "complete",
+      appliedSuggestionIds: [],
+      createdAt: "2026-06-01T00:00:00.000Z",
+      suggestions: [
+        {
+          id: "sug-add",
+          kind: "add",
+          dayId: "day-2",
+          title: "Add something",
+          detail: "Named but unmapped.",
+          confidence: "low",
+          proposedItem: {
+            id: "it-new",
+            kind: "place",
+            title: "Mystery spot",
+            status: "needs_review",
+            location: { name: "Mystery spot", source: "ai" },
+            createdBy: "ai",
+          },
+        },
+      ],
+    }
+    const result = autoApplyAddSuggestions(trip, run)
+    expect(result.applied).toEqual([])
+    expect(result.trip.days[1]!.items).toEqual([])
+    expect(result.run.outcome).toBe("no_adds_possible")
+  })
 })
 
 describe("resolveEnhancementOutcome", () => {
@@ -534,6 +597,7 @@ describe("createGeminiLlm", () => {
     expect(out).toBe('{"summary":"ok","days":[]}')
     expect(captured!.url).toContain("gemini-3.7-flash:generateContent")
     expect(captured!.body.tools).toEqual([{ googleSearch: {} }, { googleMaps: {} }])
+    expect(captured!.body.toolConfig).toBeUndefined()
     const gen = captured!.body.generationConfig as { thinkingConfig: { thinkingLevel: string } }
     expect(gen.thinkingConfig).toEqual({ thinkingLevel: "low" })
     const contents = captured!.body.contents as Array<{ parts: Array<{ text: string }> }>
@@ -557,12 +621,10 @@ describe("createGeminiLlm", () => {
     expect(calls).toBe(2)
   })
 
-  test("retries Maps then JSON when Search+Maps fails", async () => {
-    const calls: Array<Record<string, unknown>> = []
+  test("sends Maps retrieval latLng with Search+Maps", async () => {
+    let captured: Record<string, unknown> | null = null
     const fetchImpl = (async (_url: RequestInfo | URL, init?: RequestInit) => {
-      const body = JSON.parse(String(init?.body)) as Record<string, unknown>
-      calls.push(body)
-      if (calls.length < 3) return new Response("grounding unavailable", { status: 400 })
+      captured = JSON.parse(String(init?.body)) as Record<string, unknown>
       return new Response(
         JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"ok":true}' }] } }] }),
         { status: 200 },
@@ -570,27 +632,61 @@ describe("createGeminiLlm", () => {
     }) as typeof fetch
 
     const llm = createGeminiLlm("test-key", fetchImpl)
-    const out = await llm({ system: "s", user: "u" })
+    await llm({ system: "s", user: "u", latLng: { latitude: 37.5665, longitude: 126.978 } })
+    expect(captured!.tools).toEqual([{ googleSearch: {} }, { googleMaps: {} }])
+    expect(captured!.toolConfig).toEqual({
+      retrievalConfig: { latLng: { latitude: 37.5665, longitude: 126.978 } },
+    })
+  })
+
+  test("retries Maps, Search, then JSON when Search+Maps fails", async () => {
+    const calls: Array<Record<string, unknown>> = []
+    const fetchImpl = (async (_url: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>
+      calls.push(body)
+      if (calls.length < 4) return new Response("grounding unavailable", { status: 400 })
+      return new Response(
+        JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"ok":true}' }] } }] }),
+        { status: 200 },
+      )
+    }) as typeof fetch
+
+    const llm = createGeminiLlm("test-key", fetchImpl)
+    const out = await llm({ system: "s", user: "u", latLng: { latitude: 35.6, longitude: 139.7 } })
     expect(out).toBe('{"ok":true}')
-    expect(calls).toHaveLength(3)
+    expect(calls).toHaveLength(4)
     expect(calls[0]!.tools).toEqual([{ googleSearch: {} }, { googleMaps: {} }])
+    expect(calls[0]!.toolConfig).toEqual({
+      retrievalConfig: { latLng: { latitude: 35.6, longitude: 139.7 } },
+    })
     expect(calls[1]!.tools).toEqual([{ googleMaps: {} }])
-    expect(calls[2]!.tools).toBeUndefined()
-    const gen = calls[2]!.generationConfig as { responseMimeType?: string }
+    expect(calls[2]!.tools).toEqual([{ googleSearch: {} }])
+    expect(calls[2]!.toolConfig).toBeUndefined()
+    expect(calls[3]!.tools).toBeUndefined()
+    const gen = calls[3]!.generationConfig as { responseMimeType?: string }
     expect(gen.responseMimeType).toBe("application/json")
   })
 
-  test("throws with status + body on API errors after JSON retry also fails", async () => {
-    const fetchImpl = (async () => new Response("quota exceeded", { status: 429 })) as typeof fetch
+  test("retries a 429 once and does not burn the tool ladder", async () => {
+    let calls = 0
+    const fetchImpl = (async () => {
+      calls++
+      return new Response("quota exceeded", { status: 429 })
+    }) as typeof fetch
     const llm = createGeminiLlm("test-key", fetchImpl)
     await expect(llm({ system: "s", user: "u" })).rejects.toThrow(/429.*quota/)
+    expect(calls).toBe(2)
   })
 
-  test("throws on an empty candidate response", async () => {
-    const fetchImpl = (async () => new Response(JSON.stringify({ candidates: [] }), { status: 200 })) as typeof fetch
+  test("throws on an empty candidate response after the tool ladder", async () => {
+    let calls = 0
+    const fetchImpl = (async () => {
+      calls++
+      return new Response(JSON.stringify({ candidates: [] }), { status: 200 })
+    }) as typeof fetch
     const llm = createGeminiLlm("test-key", fetchImpl)
-    // First Maps attempt fails empty → JSON retry also empty → throws
     await expect(llm({ system: "s", user: "u" })).rejects.toThrow(/empty/)
+    expect(calls).toBe(4)
   })
 })
 
@@ -606,15 +702,76 @@ describe("withLlmFallback", () => {
   test("falls through to secondary when primary throws", async () => {
     const llm = withLlmFallback(
       async () => {
-        throw new Error("boom")
+        throw new Error("gemini 429: exhausted")
       },
       async () => "fallback",
     )
     expect(await llm({ system: "s", user: "u" })).toBe("fallback")
   })
 
+  test("skips Groq and rethrows the Gemini error when the prompt cannot fit Groq TPM", async () => {
+    let fallbackCalls = 0
+    const llm = withLlmFallback(
+      async () => {
+        throw new Error("gemini 503: overloaded")
+      },
+      async () => {
+        fallbackCalls += 1
+        return "fallback"
+      },
+    )
+    const huge = "x".repeat((GROQ_TPM_LIMIT + 1) * 4)
+    await expect(llm({ system: "s", user: huge })).rejects.toThrow(/gemini 503/)
+    expect(fallbackCalls).toBe(0)
+  })
+
+  test("rethrows the Gemini error when Groq also fails", async () => {
+    const llm = withLlmFallback(
+      async () => {
+        throw new Error("gemini 429: exhausted")
+      },
+      async () => {
+        throw new Error("413 groq tpm")
+      },
+    )
+    await expect(llm({ system: "s", user: "u" })).rejects.toThrow(/gemini 429/)
+  })
+
   test("createTripsLlm returns null when neither key is set", () => {
     expect(createTripsLlm({})).toBeNull()
+  })
+
+  test("pickTripsLlm uses Gemini alone when both clients exist", async () => {
+    const llm = pickTripsLlm(
+      async () => "gemini",
+      async () => "groq",
+    )
+    expect(await llm!({ system: "s", user: "u" })).toBe("gemini")
+  })
+})
+
+describe("Groq TPM budget", () => {
+  test("caps reserved completion tokens so prompt + max_tokens stay under 8k", () => {
+    expect(groqSafeMaxTokens({ system: "s", user: "u", maxTokens: 8192 })).toBeLessThan(GROQ_TPM_LIMIT)
+    expect(groqSafeMaxTokens({ system: "s", user: "u" })).toBe(GROQ_DEFAULT_MAX_TOKENS)
+    expect(groqFitsTpm({ system: "s", user: "u" })).toBe(true)
+  })
+
+  test("rejects a prompt that cannot leave 256 completion tokens", () => {
+    const huge = "x".repeat((GROQ_TPM_LIMIT + 1) * 4)
+    expect(estimatePromptTokens("s", huge)).toBeGreaterThan(GROQ_TPM_LIMIT)
+    expect(groqFitsTpm({ system: "s", user: huge })).toBe(false)
+    expect(groqSafeMaxTokens({ system: "s", user: huge })).toBe(0)
+  })
+
+  test("travelerFacingLlmError hides Groq billing copy", () => {
+    expect(
+      travelerFacingLlmError(
+        new Error("413 Request too large for model `openai/gpt-oss-120b` Limit 8000 https://console.groq.com"),
+      ),
+    ).toMatch(/try again/i)
+    expect(travelerFacingLlmError(new Error("no JSON object found in model output"))).toMatch(/could not use/i)
+    expect(travelerFacingLlmError(new Error("day not found"))).toBe("day not found")
   })
 })
 

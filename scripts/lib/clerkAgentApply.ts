@@ -218,7 +218,7 @@ async function applyViaCdp(opts: {
     await page.goto(consumeUrl, { waitUntil: "domcontentloaded", timeout: opts.timeoutMs });
     await page.waitForFunction(
       () =>
-        /daily itinerary|the twelve days|your trips|sign in to continue|ticket is invalid|bot traffic detected/i.test(
+        /daily itinerary|the twelve days|your trips|open a trip to edit|where to next|no trips yet|enhance trip|edit this day|sign in to continue|ticket is invalid|bot traffic detected/i.test(
           document.body?.innerText ?? "",
         ),
       undefined,
@@ -237,7 +237,7 @@ async function applyViaCdp(opts: {
     await page.goto(koreaUrl, { waitUntil: "domcontentloaded", timeout: opts.timeoutMs });
     await page.waitForFunction(
       () =>
-        /daily itinerary|the twelve days|sign in to continue|ticket is invalid/i.test(
+        /daily itinerary|the twelve days|enhance trip|edit this day|itinerary|sign in to continue|ticket is invalid/i.test(
           document.body?.innerText ?? "",
         ),
       undefined,
@@ -247,7 +247,10 @@ async function applyViaCdp(opts: {
     if (!korea) throw new Error("Korea trip preview is still a sign-in wall.");
     await page.goto(tripsUrl, { waitUntil: "domcontentloaded", timeout: opts.timeoutMs });
     await page.waitForFunction(
-      () => /your trips|sign in to continue|ticket is invalid/i.test(document.body?.innerText ?? ""),
+      () =>
+        /your trips|open a trip to edit|where to next|no trips yet|sign in to continue|ticket is invalid/i.test(
+          document.body?.innerText ?? "",
+        ),
       undefined,
       { timeout: opts.timeoutMs },
     );

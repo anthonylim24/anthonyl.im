@@ -69,7 +69,7 @@ export function formatRangeLabel(startDate: string, endDate: string): string {
     })
   const sameYear = startDate.slice(0, 4) === endDate.slice(0, 4)
   const nights = Math.round((toUtc(endDate).getTime() - toUtc(startDate).getTime()) / DAY_MS)
-  return `${fmt(startDate, !sameYear)} – ${fmt(endDate, true)} · ${nights + 1} day${nights ? "s" : ""}`
+  return `${fmt(startDate, !sameYear)} to ${fmt(endDate, true)} · ${nights + 1} day${nights ? "s" : ""}`
 }
 
 function Month({
@@ -137,8 +137,8 @@ function Month({
               aria-label={dayLabel(iso, { isStart, isEnd, inRange: !!inRange(iso) })}
               aria-current={iso === today ? "date" : undefined}
               className={[
-                "relative flex h-11 w-full items-center justify-center rounded-lg text-[13px] tabular-nums outline-none transition-colors duration-150 sm:h-10",
-                isEdge || inBand ? "" : "text-stone-700 hover:bg-stone-200/70 dark:text-stone-300 dark:hover:bg-stone-800",
+                "relative flex h-11 w-full items-center justify-center rounded-[length:var(--trips-radius)] text-[13px] tabular-nums outline-none transition-colors duration-150 sm:h-10",
+                isEdge || inBand ? "" : "text-[color:var(--trips-ink)] hover:bg-[color:var(--trips-rail)]",
                 iso === today && !isEdge ? `font-semibold ${accentIconClass}` : "",
                 `${focusRingClass} focus-visible:ring-inset`,
               ].join(" ")}
@@ -148,23 +148,23 @@ function Month({
                   aria-hidden
                   className={[
                     "absolute inset-y-0 bg-[color:var(--ta-soft)]",
-                    isStart ? "left-1/2" : banded(cells[i - 1]) && i % 7 !== 0 ? "left-0" : "left-0 rounded-l-lg",
-                    isEnd ? "right-1/2" : banded(cells[i + 1]) && i % 7 !== 6 ? "right-0" : "right-0 rounded-r-lg",
+                    isStart ? "left-1/2" : banded(cells[i - 1]) && i % 7 !== 0 ? "left-0" : "left-0 rounded-l-[length:var(--trips-radius)]",
+                    isEnd ? "right-1/2" : banded(cells[i + 1]) && i % 7 !== 6 ? "right-0" : "right-0 rounded-r-[length:var(--trips-radius)]",
                   ].join(" ")}
                 />
               )}
               {isEdge && (
                 <span
                   aria-hidden
-                  className="absolute inset-0 rounded-lg bg-[color:var(--trips-accent)]"
+                  className="absolute inset-0 rounded-[length:var(--trips-radius)] bg-[color:var(--trips-accent)]"
                 />
               )}
               <span
                 className={
                   isEdge
-                    ? "relative font-semibold text-white dark:text-stone-950"
+                    ? "relative font-semibold text-white dark:text-[color:var(--trips-canvas)]"
                     : inBand
-                      ? "relative text-stone-900 dark:text-stone-100"
+                      ? "relative text-[color:var(--trips-ink)]"
                       : "relative"
                 }
               >
@@ -274,7 +274,7 @@ export function DateRangeField({ startDate, endDate, onChange, invalid, describe
         aria-invalid={invalid ? true : undefined}
         aria-describedby={describedBy}
         onClick={() => setOpen((o) => !o)}
-        className={`flex items-center gap-3 text-left hover:border-stone-400 dark:hover:border-stone-600 ${inputClass} ${
+        className={`flex items-center gap-3 text-left hover:border-[color:var(--trips-ink-tertiary)] ${inputClass} ${
           invalid ? "border-red-400 dark:border-red-800" : ""
         }`}
       >

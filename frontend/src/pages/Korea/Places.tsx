@@ -451,8 +451,7 @@ function PlaceCard({
       <div className="flex flex-col gap-y-2 sm:flex-row sm:items-start sm:justify-between sm:gap-x-4">
         <div className="min-w-0 sm:flex-1">
           <h2
-            className="inline-flex flex-wrap items-baseline gap-x-1.5 text-[1.125rem] font-medium leading-snug text-stone-900 break-words dark:text-stone-100"
-            style={{ fontFamily: "'Cormorant Garamond', serif" }}
+            className="inline-flex flex-wrap items-baseline gap-x-1.5 text-[1.125rem] font-semibold leading-snug text-stone-900 break-words dark:text-stone-100"
           >
             <span>{place.name}</span>
             {place.post && (
@@ -651,10 +650,7 @@ export function Places({
   if (!clerkEnabled) {
     return (
       <div className="korea mx-auto max-w-2xl px-5 py-16">
-        <h1
-          className="font-serif text-3xl text-stone-900 dark:text-stone-100"
-          style={{ fontFamily: "'Cormorant Garamond', serif" }}
-        >
+        <h1 className="text-2xl font-semibold tracking-tight text-stone-900 dark:text-stone-100">
           Places
         </h1>
         <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-5 text-[13px] leading-relaxed text-stone-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-stone-200">
@@ -811,7 +807,7 @@ function PlacesImpl({ days, ingestTo }: { days: PlaceDayOption[]; ingestTo: stri
       >
         <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
           <div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-stone-600 dark:text-stone-400">
+            <p className="text-[13px] font-medium text-stone-600 dark:text-stone-400">
               <Link
                 to={ingestTo}
                 className="-mx-0.5 inline-flex items-center gap-1 rounded px-0.5 text-stone-400 transition hover:text-[color:var(--ta,#be123c)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--trips-focus,rgba(244,63,94,0.5))] dark:text-stone-500"
@@ -825,11 +821,8 @@ function PlacesImpl({ days, ingestTo }: { days: PlaceDayOption[]; ingestTo: stri
               <span aria-hidden className="mx-2 inline-block h-px w-6 align-middle bg-stone-300 dark:bg-stone-700" />
               Place browser
             </p>
-            <h1
-              className="mt-2 font-serif text-[clamp(1.75rem,4.5vw,2.75rem)] font-medium leading-[1.08] tracking-[-0.02em] text-stone-900 dark:text-stone-100"
-              style={{ fontFamily: "'Cormorant Garamond', serif" }}
-            >
-              Extracted Places
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-stone-900 dark:text-stone-100">
+              Places
             </h1>
             <p className="mt-1.5 text-[13px] text-stone-500 dark:text-stone-400" aria-live="polite">
               {loading ? (

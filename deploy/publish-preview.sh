@@ -15,12 +15,25 @@
 # 1 GB droplet does not run a stack of sidecars.
 set -euo pipefail
 
-PREVIEW_ROOT="${PREVIEW_ROOT:-$HOME/previews}"
 MAX_AGE_DAYS="${PREVIEW_MAX_AGE_DAYS:-14}"
 MAX_COUNT="${PREVIEW_MAX_COUNT:-20}"
 PREVIEW_API_MAX="${PREVIEW_API_MAX:-1}"
 PROD_ROOT="${PROD_ROOT:-$HOME/anthonyl.im}"
 PROD_ENV="${PROD_ENV:-$HOME/.env}"
+
+# Hono reads PREVIEW_ROOT from the same ~/.env PM2 loads. The SSH session
+# does not source that file, so a publish that used $HOME/previews while the
+# server looked at /root/previews produced a 200 listing and a 404 PR URL.
+if [ -z "${PREVIEW_ROOT:-}" ] && [ -f "$PROD_ENV" ]; then
+  PREVIEW_ROOT="$(
+    set -a
+    # shellcheck disable=SC1090
+    . "$PROD_ENV"
+    set +a
+    printf '%s' "${PREVIEW_ROOT:-}"
+  )"
+fi
+PREVIEW_ROOT="${PREVIEW_ROOT:-$HOME/previews}"
 STAGING="$PREVIEW_ROOT/.staging"
 LOCK_DIR="$PREVIEW_ROOT/.locks"
 
@@ -217,7 +230,7 @@ case "$cmd" in
     fi
     mv "$stage" "$live"
     rm -rf "$old"
-    log "published $live ($(wc -c < "$live/index.html") bytes index.html)"
+    log "published $live ($(wc -c < "$live/index.html") bytes index.html) PREVIEW_ROOT=$PREVIEW_ROOT"
     # Sidecar boot (health polls, other-API teardown) must not hold the lock.
     release_lock
     if [ -n "$api_tarball" ]; then

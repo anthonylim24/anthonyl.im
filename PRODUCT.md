@@ -179,26 +179,49 @@ Anthony (primary) and his partner, while planning + executing a 12-day Seoul + B
 
 ## Design Context: `/trips/*` — Generic Trip Planner
 
-Korea is the seeded trip at `/trips/korea-2026` (`/korea` redirects). Every new destination is a trip document, not a new route tree.
+Korea is the seeded trip at `/trips/korea-2026` (`/korea` redirects). Every new destination is a trip document, not a new route tree. Chatbot, BreathFlow, and the Korea seed keep their own visual worlds; do not restyle them as this timetable.
+
+Canonical visual spec: [`DESIGN.md`](DESIGN.md). Token source of truth: `frontend/src/index.css` `.trips` (oklch). Shared-site Cormorant / parchment does **not** apply here.
 
 ### Users
 The same travelers as Korea, plus future trips. Phone for in-trip lookups; desktop for planning, AI enhance, and concierge chat.
 
 ### Brand Personality
-**Same cinematic dossier language as Korea**, parameterized by a per-trip accent (`data-trip-accent` → `--trips-accent`). Not a SaaS admin table.
+**JR pocket timetable** (Impeccable 4.1.1 new-work, seed `871b774e`, assigned index 3). The trip is a pocket timetable. Days are stations; bookings are trains. Kitchen-table afternoon planning; hotel-lamp evening lookup. Not a hand-bound Korea dossier. Not Linear, Notion, or Airbnb.
+
+**Emotional goal:** Open and know what happens next. At night, tonight’s reservation is first.
 
 ### Aesthetic Direction
-- Reuse Korea's parchment, bloom, photorealistic Map Mode, and editorial type.
-- Accent is trip-owned — do not invent a second chrome color.
-- `/trips/:tripId` is the living document (dossier + inline edit). `/trips/:tripId/edit` redirects there. Concierge FAB on the trip and day pages, not index, create, or places.
-- Instagram ingest is embedded on the living document, not a standalone route.
+- **Material:** green-gray print stock + a deep JR-green cover band. Dark is lamp-lit tinted stock, not a zinc IDE.
+- **Type:** Archivo Narrow (`font-display`, 600, `-0.02em`) for times and titles; Inter for UI body. **No Cormorant on `/trips`.** Banned display faces: Fraunces, Playfair, Cormorant, Lora, Crimson, Newsreader, Syne, Space Grotesk, Space Mono, IBM Plex, Inter-as-display, DM Sans, DM Serif, Outfit, Plus Jakarta, Instrument Sans.
+- **First viewport:** committed cover band (30–40% of the first viewport) + condensed title + next time; snap rail (station ticks); schedule rows. Chrome height stays put. Cover extras fade and a slim `.cover-dock` eases in under chrome so the itinerary keeps the viewport.
+- **Living board:** split-flap `FlipTime` on the next departure, day hero, chrome clock, and index countdown. Cover progress is `--trips-cover-t` (transform/opacity only). Enhance morphs from its chevron via View Transitions. The snap-rail tick is a magnetic `layoutId` spring. Reduced motion keeps the same information without flaps, morphs, cover-progress motion, dock easing, or the snap-rail spring.
+- **Fields / dialogs:** inset rail wells, `--trips-field-radius` (1rem) on inputs, `--trips-radius` (0.25rem) on chips and marks, opaque surface panels. Enhance opens a heavy-scrim dialog with a recessed action bar and filled **Run enhance**.
+- **Index:** end-label timetable rows grouped Now / Upcoming / Past. Heading is “Trips” or “No trips yet”. **Never “Inbox”.**
+- **Day page:** the first reservation is the hero (huge condensed time). Status is a geometric mark + label, not hue-only.
+- **Accent:** `data-trip-accent` retints canvas + cover band (rose / amber / emerald / sky / violet). No Korea bloom, grain, or parchment.
+- **Chrome:** slim sticky header. No left workspace rail. No Notion property-table hero. No Airbnb listing cards. Document column is `max-w-5xl`. Print marks stay `0.25rem`; fields use `1rem`. Touch targets 44px.
+- **IA (locked):** `/trips/:tripId` is the living document. Day pages stay. `/trips/:tripId/edit` redirects there. Concierge FAB (`TripChat`) on trip + day only (not index, create, or places). Instagram ingest is embedded on the living document.
+- **Map Mode:** photorealistic 3D tiles stay. Glass/refraction is for the YOU pin only. **Must unmount** when closed; never hide with React `Activity`.
+
+### Per-route Tokens (oklch is canonical)
+
+| Token | Light | Dark | Usage |
+|-------|-------|------|-------|
+| Canvas | `oklch(94.8% 0.018 128)` | `oklch(16.4% 0.024 148)` | Print-stock page |
+| Surface | `oklch(97.4% 0.01 128)` | `oklch(20.2% 0.022 148)` | Panels, fields |
+| Ink | `oklch(22% 0.028 140)` | `oklch(93.4% 0.02 128)` | Body |
+| Band | `oklch(31% 0.058 148)` | `oklch(26% 0.05 148)` | Cover band |
+| Band ink | `oklch(96.2% 0.018 128)` | `oklch(94.8% 0.02 128)` | Type on the band |
+| Accent | `oklch(36% 0.07 148)` | `oklch(78% 0.06 148)` | Default JR-green; retinted per trip |
 
 ### Trips-specific Principles
 
-1. **Do not add `/japan`-style destination routes.** Extend the trips system.
-2. AI-added places must carry structured locations — never prose only.
+1. **Do not add `/japan`-style destination routes.** Extend `server/src/trips/` + `frontend/src/pages/Trips/`.
+2. AI-added places must carry structured `TripLocation` (lat/lng/category/source), never prose only.
 3. Map Mode uses the Korea `PlacesResponse` / `RankedPlace` shape and **must unmount** when closed.
-4. Inter + Cormorant + Lucide stay. Glass/refraction is for the YOU pin only.
+4. Frontend I/O is Effect v3 (`tripsApi.ts`, `tripChatApi.ts`).
+5. Do not restyle `/trips` into Korea parchment/bloom/Cormorant, and do not restyle it into Linear/Notion zinc. Do not restyle chatbot or BreathFlow as a timetable.
 
 ## Service Worker / Caching Contract
 
