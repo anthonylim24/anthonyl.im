@@ -48,7 +48,7 @@ const FOCUS =
 const FOCUS_INSET = `${FOCUS} focus-visible:ring-inset`
 const RADIUS = "rounded-[length:var(--trips-radius)]"
 const FIELD_RADIUS = "rounded-[length:var(--trips-field-radius)]"
-const BTN = `inline-flex items-center justify-center gap-2 ${RADIUS} transition`
+const BTN = `inline-flex min-w-11 items-center justify-center gap-2 ${RADIUS} transition`
 
 /** Recessed well: darker than the canvas so a field sits in the stock. */
 const FIELD = `${FIELD_RADIUS} border border-[color:var(--trips-border)] bg-[color:var(--trips-rail)] shadow-[inset_0_1px_2px_color-mix(in_oklch,var(--trips-ink)_12%,transparent)]`
@@ -255,7 +255,7 @@ export const stampChipClass = `${RADIUS} border border-[color:var(--trips-border
 /** Primary action. Accent-filled: amber in chrome, trip accent in a trip. */
 export const bandBtnClass = `${BTN} min-h-11 bg-[color:var(--trips-band-ink)] px-5 py-2.5 text-sm font-semibold text-[color:var(--trips-band)] hover:bg-[color:var(--trips-band-ink)]/90 ${FOCUS} disabled:cursor-not-allowed disabled:opacity-50`
 
-export const bandChipClass = `inline-flex min-h-11 items-center justify-center gap-1.5 ${RADIUS} border border-[color:var(--trips-band-ink)]/35 bg-transparent px-3 text-xs font-medium text-[color:var(--trips-band-ink)] transition hover:bg-[color:var(--trips-band-ink)]/10 ${FOCUS} disabled:cursor-not-allowed disabled:opacity-40`
+export const bandChipClass = `inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 ${RADIUS} border border-[color:var(--trips-band-ink)]/35 bg-transparent px-3 text-xs font-medium text-[color:var(--trips-band-ink)] transition hover:bg-[color:var(--trips-band-ink)]/10 ${FOCUS} disabled:cursor-not-allowed disabled:opacity-40`
 
 export const primaryBtnClass = `${BTN} min-h-11 bg-[color:var(--trips-accent)] px-5 py-2.5 text-[0.9375rem] font-semibold text-white hover:bg-[color:var(--trips-accent-hover)] ${FOCUS} focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--trips-canvas)] disabled:cursor-not-allowed disabled:opacity-50 dark:text-[color:var(--trips-canvas)]`
 
@@ -281,16 +281,16 @@ export const dangerBtnClass = `${BTN} min-h-11 bg-red-700 px-4 py-2 text-sm font
 
 /** Small bordered action (Maps / Call / Booking / Map Mode chip).
  *  Full 44px target on touch layouts, tightens to 36px from `sm`. */
-export const chipBtnClass = `inline-flex min-h-11 items-center justify-center gap-1.5 ${RADIUS} border border-[color:var(--trips-border)] bg-transparent px-3 text-xs font-medium text-[color:var(--trips-ink-secondary)] transition hover:bg-[color:var(--trips-rail)] hover:text-[color:var(--trips-ink)] ${FOCUS} disabled:cursor-not-allowed disabled:opacity-40`
+export const chipBtnClass = `inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 ${RADIUS} border border-[color:var(--trips-border)] bg-transparent px-3 text-xs font-medium text-[color:var(--trips-ink-secondary)] transition hover:bg-[color:var(--trips-rail)] hover:text-[color:var(--trips-ink)] ${FOCUS} disabled:cursor-not-allowed disabled:opacity-40`
 
 /** Accent-tinted small action (Enhance day, active filters). */
-export const accentChipBtnClass = `inline-flex min-h-11 items-center justify-center gap-1.5 ${RADIUS} border border-[color:var(--ta-ring)] bg-[color:var(--ta-soft)] px-3 text-xs font-medium text-[color:var(--ta)] transition hover:text-[color:var(--ta-strong)] ${FOCUS} disabled:cursor-not-allowed disabled:opacity-50`
+export const accentChipBtnClass = `inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 ${RADIUS} border border-[color:var(--ta-ring)] bg-[color:var(--ta-soft)] px-3 text-xs font-medium text-[color:var(--ta)] transition hover:text-[color:var(--ta-strong)] ${FOCUS} disabled:cursor-not-allowed disabled:opacity-50`
 
 /** Quiet add-affordance ("Place / Note / Section", "Add callout"). */
-export const quietBtnClass = `inline-flex min-h-11 items-center justify-center gap-1.5 ${RADIUS} px-3 text-xs font-medium text-[color:var(--trips-ink-secondary)] transition hover:bg-[color:var(--trips-rail)] hover:text-[color:var(--trips-ink)] ${FOCUS} disabled:cursor-not-allowed disabled:opacity-50`
+export const quietBtnClass = `inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 ${RADIUS} px-3 text-xs font-medium text-[color:var(--trips-ink-secondary)] transition hover:bg-[color:var(--trips-rail)] hover:text-[color:var(--trips-ink)] ${FOCUS} disabled:cursor-not-allowed disabled:opacity-50`
 
 /** Destructive action with a text label, sized like `chipBtnClass`. */
-export const dangerChipBtnClass = `inline-flex min-h-11 items-center justify-center gap-1.5 ${RADIUS} border border-red-300/80 bg-transparent px-3 text-xs font-medium text-red-700 transition hover:bg-red-50 hover:text-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:cursor-not-allowed disabled:opacity-40 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-950/40 dark:hover:text-red-200`
+export const dangerChipBtnClass = `inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 ${RADIUS} border border-red-300/80 bg-transparent px-3 text-xs font-medium text-red-700 transition hover:bg-red-50 hover:text-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 disabled:cursor-not-allowed disabled:opacity-40 dark:border-red-900/60 dark:text-red-300 dark:hover:bg-red-950/40 dark:hover:text-red-200`
 
 /** Secondary link or button inside a sentence. The vertical padding buys a
  *  44px-tall target without changing the line box it sits in. */

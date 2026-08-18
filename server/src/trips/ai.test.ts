@@ -183,7 +183,12 @@ describe("enhanceTrip", () => {
             proposedItem: {
               kind: "place",
               title: "Ramen at Ichiran",
-              location: { name: "Ichiran Shibuya", address: "Jinnan 1-22-7" },
+              location: {
+                name: "Ichiran Shibuya",
+                address: "Jinnan 1-22-7",
+                lat: 35.66,
+                lng: 139.7,
+              },
             },
           },
         ],
@@ -494,6 +499,40 @@ describe("autoApplyAddSuggestions", () => {
             kind: "place",
             title: "Mystery spot",
             status: "needs_review",
+            createdBy: "ai",
+          },
+        },
+      ],
+    }
+    const result = autoApplyAddSuggestions(trip, run)
+    expect(result.applied).toEqual([])
+    expect(result.trip.days[1]!.items).toEqual([])
+    expect(result.run.outcome).toBe("no_adds_possible")
+  })
+
+  test("does not auto-apply a place add that lacks coordinates", () => {
+    const trip = makeTrip()
+    const run: EnhancementRun = {
+      id: "run-1",
+      tripId: trip.id,
+      scope: "trip",
+      status: "complete",
+      appliedSuggestionIds: [],
+      createdAt: "2026-06-01T00:00:00.000Z",
+      suggestions: [
+        {
+          id: "sug-add",
+          kind: "add",
+          dayId: "day-2",
+          title: "Add something",
+          detail: "Named but unmapped.",
+          confidence: "low",
+          proposedItem: {
+            id: "it-new",
+            kind: "place",
+            title: "Mystery spot",
+            status: "needs_review",
+            location: { name: "Mystery spot", source: "ai" },
             createdBy: "ai",
           },
         },

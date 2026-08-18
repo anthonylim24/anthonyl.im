@@ -901,11 +901,16 @@ export async function enhanceTrip(args: {
   return run
 }
 
-/** Adds safe to land on the itinerary: real day + a place with a name. */
+/** Adds safe to land on the itinerary: real day + a mapped place (or a titled note). */
 export function isAddableSuggestion(s: EnhancementSuggestion): boolean {
   if (s.kind !== "add" || !s.dayId || !s.proposedItem) return false
   if (s.proposedItem.kind === "place") {
-    return Boolean(s.proposedItem.location?.name?.trim())
+    const loc = s.proposedItem.location
+    return Boolean(
+      loc?.name?.trim() &&
+      Number.isFinite(loc.lat) &&
+      Number.isFinite(loc.lng),
+    )
   }
   return Boolean(s.proposedItem.title.trim())
 }
