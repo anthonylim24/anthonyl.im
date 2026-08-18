@@ -199,6 +199,9 @@ export const softPanelClass = `${RADIUS} border border-[color:var(--trips-border
 /** Floating panel for date pickers / comboboxes. Always opaque. */
 export const popoverClass = `${softPanelClass} shadow-[0_10px_28px_color-mix(in_oklch,var(--trips-ink)_16%,transparent)]`
 
+/** Remount the timetable token world on `document.body` portals. */
+export const tripsPortalClass = "trips"
+
 /** Scrim behind a modal: opaque ink wash plus blur so copy stays readable. */
 export const scrimClass =
   "fixed inset-0 z-[65] bg-[color:var(--trips-scrim)] backdrop-blur-[8px] motion-reduce:backdrop-blur-none"

@@ -15,6 +15,7 @@ import {
   scrimClass,
   softPanelClass,
   spinnerClass,
+  tripsPortalClass,
   typeSectionClass,
 } from "../ui"
 
@@ -225,23 +226,31 @@ export function EnhanceButton({
             {open && (
               <div
                 key="enhance-layer"
-                className={
-                  sheet
-                    ? "contents"
-                    : "fixed inset-0 z-[70] flex items-center justify-center p-4"
+                className={tripsPortalClass}
+                data-trip-accent={
+                  document.querySelector("[data-trip-accent]")?.getAttribute("data-trip-accent") ??
+                  undefined
                 }
               >
-                <motion.div
-                  key="enhance-backdrop"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.16 }}
-                  onClick={() => close(true)}
-                  className={scrimClass}
-                  aria-hidden
-                />
-                {panel}
+                <div
+                  className={
+                    sheet
+                      ? "contents"
+                      : "fixed inset-0 z-[70] flex items-center justify-center p-4"
+                  }
+                >
+                  <motion.div
+                    key="enhance-backdrop"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.16 }}
+                    onClick={() => close(true)}
+                    className={scrimClass}
+                    aria-hidden
+                  />
+                  {panel}
+                </div>
               </div>
             )}
           </AnimatePresence>,
