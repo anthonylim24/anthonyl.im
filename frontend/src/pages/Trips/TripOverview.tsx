@@ -6,7 +6,6 @@ import { EntityIndexProvider } from "../Korea/entityIndex"
 import { LinkifiedText } from "../Korea/LinkifiedText"
 import { ACCENT, collaboratorSummary, daysUntilIn, formatTripDate, resolveAccent, todayIsoIn, visibleTags } from "./theme"
 import { NextDeparture } from "./components/NextDeparture"
-import { DateStrip } from "./components/DateStrip"
 import { SectionHeading } from "./components/SectionHeading"
 import { StatusChip } from "./components/StatusChip"
 import { AppearancePanel } from "./editor/AppearancePanel"
@@ -211,15 +210,7 @@ export function TripOverview() {
         </header>
 
         <div className={documentClass}>
-        {trip.days.length > 1 && (
-          <DateStrip
-            days={trip.days}
-            timezone={trip.timezone}
-            activeId={todayDay?.id}
-            hrefFor={(day) => `#${day.id}`}
-          />
-        )}
-
+        <DayNavigation days={trip.days} timezone={trip.timezone} />
         <div className="mt-5 flex flex-wrap items-center gap-2">
           <Link to={`/trips/${trip.slug ?? trip.id}/places`} className={chipBtnClass}>
             <Images className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
@@ -328,7 +319,6 @@ export function TripOverview() {
             </div>
           ) : (
             <div>
-              <DayNavigation days={trip.days} timezone={trip.timezone} />
               <div data-testid="trip-itinerary" className="min-w-0 flex-1 space-y-3">
                 {trip.days.map((day, idx) => (
                   <DayCard
