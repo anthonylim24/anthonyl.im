@@ -48,13 +48,13 @@ function parseFrontmatter(md) {
 // dependency we don't want to vendor.
 function parseYamlSubset(yaml) {
   const lines = yaml.split(/\r?\n/);
-  const root = {};
+  const root = Object.create(null);
   const stack = [{ indent: -1, obj: root }];
 
   for (const raw of lines) {
-    // Skip blanks and line-only comments. Don't strip inline comments:
-    // unquoted hex values start with `#` and can't be safely distinguished
-    // from a comment after whitespace.
+    // Skip blanks and line-only comments. Inline comments are stripped by
+    // stripInlineYamlComment, which requires whitespace before `#`, so an
+    // unquoted leading hex value such as `primary: #00478d` is preserved.
     if (!raw.trim() || /^\s*#/.test(raw)) continue;
 
     const indent = raw.match(/^\s*/)[0].length;
@@ -72,7 +72,7 @@ function parseYamlSubset(yaml) {
     const parent = stack[stack.length - 1].obj;
 
     if (rest === '') {
-      const obj = {};
+      const obj = Object.create(null);
       parent[key] = obj;
       stack.push({ indent, obj });
     } else {
@@ -196,9 +196,6 @@ function parseScalar(raw) {
 
 const HEX_RE = /#[0-9a-fA-F]{3,8}\b/g;
 const OKLCH_RE = /oklch\([^)]+\)/gi;
-const RGBA_RE = /rgba?\([^)]+\)/gi;
-const BOX_SHADOW_RE = /(?:box-shadow:\s*)?((?:-?\d[\w\d\s\-.,/()#%]*)+)/;
-const NAMED_RULE_RE = /\*\*(The [^*]+?Rule)\.\*\*\s*(.+)/;
 
 // ---------- Section splitting ----------
 
@@ -550,36 +547,6 @@ function detectFormat(v) {
   return 'unknown';
 }
 
-function scanInlineColors(lines) {
-  const out = [];
-  for (const line of lines) {
-    if (!/^\s*[-*]\s/.test(line)) continue;
-    const trimmed = line.replace(/^\s*[-*]\s+/, '');
-    const color = parseColorBullet(trimmed);
-    if (color) out.push(color);
-  }
-  return out;
-}
-
-function parseStitchInlineGroups(lines) {
-  // Stitch writes: `*   **Primary (`#00478d` to `#005eb8`):** Use for "..."`
-  // Each bullet IS its own role. Group them under the spoken role name.
-  const out = [];
-  for (const line of lines) {
-    if (!/^\s*[-*]\s/.test(line)) continue;
-    const trimmed = line.replace(/^\s*[-*]\s+/, '').trim();
-    const m = trimmed.match(
-      /^\*\*([A-Z][a-zA-Z]+)\s*\(([^)]+)\):\*\*\s*(.*)$/
-    );
-    if (m) {
-      const role = m[1];
-      const color = buildColor(role, m[2], m[3]);
-      out.push({ role, colors: [color] });
-    }
-  }
-  return out;
-}
-
 function extractTypography(section) {
   if (!section) return null;
   const text = section.lines.join('\n');
@@ -772,7 +739,7 @@ function extractComponents(section) {
     const paragraphs = collectParagraphs(sub.lines);
 
     const variants = [];
-    const properties = {};
+    const properties = Object.create(null);
 
     for (const b of bullets) {
       // - **Key:** value

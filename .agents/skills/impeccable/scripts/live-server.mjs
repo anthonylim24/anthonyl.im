@@ -1398,7 +1398,18 @@ function handlePollPost(req, res) {
         }));
         return;
       }
-      try { bumpSvelteComponentPreviewRevision(msg.id, process.cwd()); } catch { /* best-effort */ }
+      try {
+        bumpSvelteComponentPreviewRevision(msg.id, process.cwd());
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          error: 'variant_publish_revision_failed',
+          id: msg.id,
+          message: err?.message || String(err),
+          _instructions: 'The publish was NOT delivered. Retry the same --reply done.',
+        }));
+        return;
+      }
     }
     if (state.sessionStore && msg.id && !skipJournalReply) {
       try {
@@ -1676,7 +1687,7 @@ httpServer.listen(state.port, '127.0.0.1', () => {
   const url = `http://localhost:${state.port}`;
   console.log(`\nImpeccable live server running on ${url}`);
   console.log(`Token: ${state.token}\n`);
-  console.log(`Script: ${url}/live.js`);
+  console.log(`Script: ${url}/live.js?token=${state.token}`);
   console.log('Inject: managed by live-inject.mjs; Astro source tags use is:inline automatically.');
   console.log(`Stop:   node ${path.basename(fileURLToPath(import.meta.url))} stop`);
 });

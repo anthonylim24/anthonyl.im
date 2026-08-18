@@ -106,14 +106,14 @@ const HOOK_MANIFEST_TARGETS = [
             hooks: [
               {
                 type: 'command',
-                command: 'node ".agents/skills/impeccable/scripts/hook.mjs"',
+                command: '[ ! -f ".agents/skills/impeccable/scripts/hook.mjs" ] || node ".agents/skills/impeccable/scripts/hook.mjs"',
                 timeout: TIMEOUT_SECONDS,
                 statusMessage: STATUS_MESSAGE,
               },
             ],
           },
         ],
-        Stop: [stopManifestEntry('node ".agents/skills/impeccable/scripts/hook.mjs"')],
+        Stop: [stopManifestEntry('[ ! -f ".agents/skills/impeccable/scripts/hook.mjs" ] || node ".agents/skills/impeccable/scripts/hook.mjs"')],
       },
     }),
   },
@@ -386,13 +386,13 @@ function setEnabled(cwd, value) {
     parts.push('No installed provider skill folders found to repair.');
   }
   if (repaired.backups.length > 0) {
-    parts.push(`Backed up malformed manifest(s): ${repaired.backups.map((filePath) => path.relative(cwd, filePath) || filePath).join(', ')}.`);
+    parts.push(`Backed up malformed manifest(s) and replaced previous contents: ${repaired.backups.map((filePath) => path.relative(cwd, filePath) || filePath).join(', ')}.`);
   }
   return parts.join(' ');
 }
 
 function repairHookManifests(cwd) {
-  const result = { written: [], already: [], backups: [] };
+  const result = { written: [], already: [], backups: [], replacedMalformed: [] };
   for (const target of HOOK_MANIFEST_TARGETS) {
     if (!fs.existsSync(path.join(cwd, target.skillRel))) continue;
     const dest = path.join(cwd, target.destRel);
@@ -410,9 +410,10 @@ function repairHookManifests(cwd) {
       try {
         next = mergeHookManifests(JSON.parse(fs.readFileSync(dest, 'utf-8')), fresh);
       } catch {
-        const backup = `${dest}.bak`;
+        const backup = `${dest}.${Date.now()}.bak`;
         fs.copyFileSync(dest, backup);
         result.backups.push(backup);
+        result.replacedMalformed.push(target.provider);
       }
     }
 

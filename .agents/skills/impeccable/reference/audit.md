@@ -95,7 +95,7 @@ Tag every issue with **P0-P3 severity**:
 For each issue, document:
 - **[P?] Issue name**
 - **Location**: Component, file, line
-- **Category**: Accessibility / Performance / Theming / Responsive / Implementation Integrity
+- **Category**: Accessibility / Performance / Theming / Responsive Design / Implementation Integrity
 - **Impact**: How it affects users
 - **WCAG/Standard**: Which standard it violates (if applicable)
 - **Recommendation**: How to fix it

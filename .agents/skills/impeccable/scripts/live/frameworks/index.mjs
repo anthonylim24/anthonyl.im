@@ -78,10 +78,22 @@ export const TAG_PATCH_KIND = 'live-tag';
  * Undo functions keyed by the `patch` value an artifact carries. Built from
  * the entries so a new adapter registers its own undo alongside its apply.
  */
-export const PATCH_UNDOERS = Object.freeze(Object.assign(
-  { [TAG_PATCH_KIND]: unpatchTagFile },
-  ...FRAMEWORKS.map((framework) => framework.inject.unpatch || {}),
-));
+function buildPatchUndoers() {
+  const undoers = { [TAG_PATCH_KIND]: unpatchTagFile };
+  for (const framework of FRAMEWORKS) {
+    for (const [kind, undo] of Object.entries(framework.inject?.unpatch || {})) {
+      if (kind in undoers) {
+        throw new Error(
+          `Duplicate patch undoer '${kind}' registered by framework '${framework.name}'`,
+        );
+      }
+      undoers[kind] = undo;
+    }
+  }
+  return Object.freeze(undoers);
+}
+
+export const PATCH_UNDOERS = buildPatchUndoers();
 
 /**
  * First entry whose detect() matches. Returns { framework, project } where
@@ -90,7 +102,12 @@ export const PATCH_UNDOERS = Object.freeze(Object.assign(
  */
 export function resolveFramework(cwd = process.cwd(), config = null) {
   for (const framework of FRAMEWORKS) {
-    const project = framework.detect(cwd, config);
+    let project;
+    try {
+      project = framework.detect(cwd, config);
+    } catch {
+      continue;
+    }
     if (project) return { framework, project };
   }
   // Unreachable while static-html stays terminal, but a caller that reorders

@@ -120,6 +120,10 @@ export function validateCompositionEntry(composition, { existingForms = new Map(
 export function readCompositionCatalog(catalogPath, reviewsPath) {
   const catalog = JSON.parse(readFileSync(catalogPath, 'utf8'));
   const reviewData = JSON.parse(readFileSync(reviewsPath, 'utf8'));
+  const validation = validateCompositionCatalog(catalog, reviewData);
+  if (validation.errors.length > 0) {
+    throw new Error(`invalid composition catalog: ${validation.errors.join('; ')}`);
+  }
   const reviews = reviewData.reviews || {};
   const familiesById = new Map((catalog.families || []).map(family => [family.id, family]));
   const compositions = (catalog.compositions || []).map(composition => ({

@@ -701,15 +701,21 @@ function filterManualApplyChunkCandidates(batch, refsByEntry) {
   });
 }
 
+function readFileOrAbsent(absolute) {
+  try {
+    return { exists: true, content: fs.readFileSync(absolute, 'utf-8') };
+  } catch (err) {
+    if (err?.code === 'ENOENT') return { exists: false, content: '' };
+    throw err;
+  }
+}
+
 export function snapshotApplyEventFiles(batch, cwd = process.cwd()) {
   const snapshot = new Map();
   for (const relativeFile of collectManualApplyFiles(batch, [], cwd)) {
     const absolute = path.resolve(cwd, relativeFile);
     try {
-      snapshot.set(relativeFile, {
-        exists: fs.existsSync(absolute),
-        content: fs.existsSync(absolute) ? fs.readFileSync(absolute, 'utf-8') : '',
-      });
+      snapshot.set(relativeFile, readFileOrAbsent(absolute));
     } catch {
       // If a file cannot be read before dispatch, do not attempt late rollback.
     }
@@ -742,12 +748,7 @@ export function writeManualApplyTransaction({ cwd = process.cwd(), pageUrl = nul
     entryIds: (batch?.entries || []).map((entry) => entry.id).filter(Boolean),
     files: files.map((relativeFile) => {
       const absolute = path.resolve(cwd, relativeFile);
-      const exists = fs.existsSync(absolute);
-      return {
-        file: relativeFile,
-        exists,
-        content: exists ? fs.readFileSync(absolute, 'utf-8') : '',
-      };
+      return { file: relativeFile, ...readFileOrAbsent(absolute) };
     }),
   };
   fs.mkdirSync(path.dirname(file), { recursive: true });

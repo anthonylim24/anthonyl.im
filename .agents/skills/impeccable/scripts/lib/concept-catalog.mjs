@@ -381,7 +381,7 @@ export function validateConceptCatalog(catalog, reviewData, {
       families: familyIds.size,
       concepts: concepts.length,
       approved: approved.length,
-      pending: concepts.length - Object.keys(reviewData?.reviews || {}).length,
+      pending: concepts.filter((concept) => !reviewData?.reviews?.[concept.id]).length,
       rejected: Object.values(reviewData?.reviews || {}).filter(review => review?.status === 'rejected').length,
     },
   };

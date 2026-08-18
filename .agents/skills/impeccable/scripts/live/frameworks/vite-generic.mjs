@@ -34,7 +34,7 @@ export const viteGeneric = {
   inject: { kind: 'tag' },
 
   source: {
-    extensions: ['.tsx', '.jsx'],
+    extensions: ['.tsx', '.jsx', '.ts', '.js'],
     preview: 'source',
     styleMode: 'scoped',
     commentSyntax: 'jsx',

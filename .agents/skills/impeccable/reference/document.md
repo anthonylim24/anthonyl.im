@@ -150,16 +150,16 @@ colors:
 [Describe the palette character in one sentence.]
 
 ### Primary
-- **[Descriptive Name]** (#HEX / oklch(...)): [Where and why this color is used. Be specific about context, not just role.]
+- **[Descriptive Name]**: [Where and why this color is used. Be specific about context, not just role. Token values live in frontmatter.]
 
 ### Secondary (optional; omit if the project has only one accent)
-- **[Descriptive Name]** (#HEX): [Role.]
+- **[Descriptive Name]**: [Role.]
 
 ### Tertiary (optional)
-- **[Descriptive Name]** (#HEX): [Role.]
+- **[Descriptive Name]**: [Role.]
 
 ### Neutral
-- **[Descriptive Name]** (#HEX): [Text / background / border / divider role.]
+- **[Descriptive Name]**: [Text / background / border / divider role.]
 - [...]
 
 ### Named Rules (optional, powerful)
@@ -396,7 +396,7 @@ Your own write is the freshest source; no reload needed.
 - **Match the spec.** Use its eight canonical sections in order and omit any that are irrelevant. Put motion guidance with the world or component it affects rather than creating a token group the schema does not support.
 - **Descriptive > technical**: "Gently curved edges (8px radius)" > "rounded-lg". Include the technical value in parens, lead with the description.
 - **Functional > decorative**: for each token, explain WHERE and WHY it's used, not just WHAT it is.
-- **Exact values in parens**: hex codes, px/rem values, font weights; always the number in parens alongside the description.
+- **Exact values in parens**: px/rem values and font weights may sit in parens beside the description. Color token values stay in frontmatter only.
 - **Use Named Rules**: `**The [Name] Rule.** [short doctrine]`. These are memorable, citable, and much stickier for AI consumers than bullet lists. Stitch's own outputs use them heavily ("The No-Line Rule", "The Ghost Border Fallback"). Aim for 1-3 per section.
 - **Be decisive where evidence is decisive.** Use hard language for actual invariants and softer language for provisional guidance.
 - **Use concrete audit tests only when they are grounded in the observed system or a confirmed user decision.** A one-sentence test beats a paragraph of principle.

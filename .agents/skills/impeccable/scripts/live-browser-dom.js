@@ -71,7 +71,10 @@
 
     function cssId(id) {
       if (css?.escape) return css.escape(id);
-      return String(id).replace(/([ !"#$%&'()*+,./:;<=>?@[\\\]^`{|}~])/g, '\\$1');
+      const value = String(id);
+      const escaped = value.replace(/([ !"#$%&'()*+,./:;<=>?@[\\\]^`{|}~])/g, '\\$1');
+      // A CSS identifier cannot start with an unescaped digit (id8 is hex).
+      return /^[0-9]/.test(escaped) ? `\\3${escaped[0]} ${escaped.slice(1)}` : escaped;
     }
 
     function liveUiRoot() {
@@ -99,8 +102,10 @@
         if (found) return found;
       }
       if (uiRoot?.querySelector) {
-        const found = uiRoot.querySelector('#' + cssId(id));
-        if (found) return found;
+        try {
+          const found = uiRoot.querySelector('#' + cssId(id));
+          if (found) return found;
+        } catch { /* invalid selector: fall through to getElementById */ }
       }
       return doc.getElementById(id);
     }
@@ -113,6 +118,7 @@
 
     function defangOutsideHandlers(rootEl, { setPointerEvents = true } = {}) {
       if (!rootEl) return;
+      if (rootEl.__impeccableDefanged) return rootEl.__impeccableDefanged;
       if (setPointerEvents) {
         rootEl.style.setProperty('pointer-events', 'auto', 'important');
       }
@@ -120,6 +126,14 @@
       rootEl.addEventListener('pointerdown', stop);
       rootEl.addEventListener('mousedown', stop);
       rootEl.addEventListener('focusin', stop);
+      const dispose = () => {
+        rootEl.removeEventListener('pointerdown', stop);
+        rootEl.removeEventListener('mousedown', stop);
+        rootEl.removeEventListener('focusin', stop);
+        delete rootEl.__impeccableDefanged;
+      };
+      rootEl.__impeccableDefanged = dispose;
+      return dispose;
     }
 
     return {

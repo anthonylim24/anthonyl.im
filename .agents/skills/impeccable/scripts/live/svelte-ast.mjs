@@ -162,7 +162,7 @@ const RESERVED_PROP_NAMES = new Set([
   'instanceof', 'interface', 'let', 'new', 'null', 'package', 'private',
   'protected', 'public', 'return', 'static', 'super', 'switch', 'this',
   'throw', 'true', 'try', 'typeof', 'undefined', 'var', 'void', 'while',
-  'with', 'yield',
+  'with', 'yield', 'arguments', 'eval',
 ]);
 
 export function derivePropName(expr) {

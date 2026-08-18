@@ -266,6 +266,11 @@ t('items', { count }) // Handles complex plural rules
 - Don't rely only on color
 - Provide alternative visual cues
 
+**Reduced motion**:
+- Honor `prefers-reduced-motion` on every authored motion path
+- Transforms, pulses, animations, transitions, and orbital rotations need an alternative that still communicates state change
+- Disable or minimize those effects when the user requests reduced motion
+
 ### Performance Resilience
 
 **Slow connections**:

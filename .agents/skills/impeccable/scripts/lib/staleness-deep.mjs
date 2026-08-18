@@ -142,6 +142,7 @@ export function checkDesignCoverage({ design, designPath, parseDesignMd }) {
   } catch {
     return [];
   }
+  if (!model || typeof model !== 'object') return [];
   const isSeed = SEED_DESIGN_MARKERS.some((marker) => design.includes(marker));
   const requiredSections = isSeed
     ? ['colors', 'typography']
@@ -308,6 +309,7 @@ export function checkHookInstallation({ projectRoot, repoRoot, providerId }) {
 
   const roots = [...new Set([projectRoot, repoRoot].filter(Boolean).map((root) => path.resolve(root)))];
   let installedAt = null;
+  const seenMissingScripts = new Set();
 
   for (const root of roots) {
     for (const rel of manifests) {
@@ -318,14 +320,19 @@ export function checkHookInstallation({ projectRoot, repoRoot, providerId }) {
       if (!commands.length) continue;
       installedAt = toRelative(manifestPath, projectRoot || root);
 
-      const broken = commands.filter((command) => {
+      const broken = [];
+      for (const command of commands) {
         const token = hookScriptTokenFrom(command);
-        if (!token) return false;
+        if (!token) continue;
         const abs = resolveHookScriptPath(token, root);
         // Unresolvable placeholder or command substitution: never assert missing.
-        if (!abs) return false;
-        return !fs.existsSync(abs);
-      });
+        if (!abs) continue;
+        if (fs.existsSync(abs)) continue;
+        const key = path.resolve(abs);
+        if (seenMissingScripts.has(key)) continue;
+        seenMissingScripts.add(key);
+        broken.push(command);
+      }
       if (broken.length) {
         findings.push(finding({
           id: 'hook-script-missing',
@@ -371,16 +378,16 @@ export function checkLegacyLiveState({ projectRoot }) {
   if (!projectRoot) return [];
   const present = LEGACY_LIVE_PATHS.filter((rel) => fs.existsSync(path.join(projectRoot, rel)));
   if (!present.length) return [];
-  return [finding({
+  return present.map((rel) => finding({
     id: 'legacy-live-state',
     artifact: 'live state',
-    filePath: present.join(', '),
+    filePath: rel,
     severity: 'auto',
-    summary: `Live-mode state sits in retired location(s): ${present.map((rel) => `\`${rel}\``).join(', ')}. `
+    summary: `Live-mode state sits in a retired location: \`${rel}\`. `
       + 'Current live mode writes under `.impeccable/live/`.',
-    fix: 'These are read only through backward-compatible fallbacks and are safe to delete once no live session '
+    fix: 'This is read only through backward-compatible fallbacks and is safe to delete once no live session '
       + 'is running. No user decision is needed.',
-  })];
+  }));
 }
 
 // ─── monorepo sweep ────────────────────────────────────────────────────────

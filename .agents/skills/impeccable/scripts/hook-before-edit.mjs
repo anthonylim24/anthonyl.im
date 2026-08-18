@@ -355,6 +355,7 @@ async function detectProposedHtml(detector, content, filePath, scanOptions) {
 // default 8000-char budget let past 4000.
 const CURSOR_DENY_LIMIT = 4000;
 const BLOCK_PREFIX = 'Impeccable design hook blocked this write before it landed. ';
+const LOOP_DOWNGRADE_RESERVE = 240;
 
 function cursorBlockMessage(findings, filePath, config, cwd, footerMode, reserveChars) {
   const limits = config?.limits || DEFAULT_CONFIG.limits;
@@ -496,8 +497,10 @@ async function main() {
   // Repeated denials for the same session repeat the findings, not the
   // policy: the full footer emits once per session, the short form after.
   const footerMode = footerModeForSession(cache, sessionId);
+  const priorDenials = cache.sessions?.[sessionId]?.files?.[filePath]?.cursorDenials?.[findingSignature(filtered)] || 0;
+  const downgradeReserve = priorDenials >= EDIT_COUNT_THRESHOLD ? LOOP_DOWNGRADE_RESERVE : 0;
   const message = appendDesignSystemNoteOnce(
-    cursorBlockMessage(filtered, filePath, config, cwd, footerMode, designNoteReserve(scanOptions, cache, sessionId)),
+    cursorBlockMessage(filtered, filePath, config, cwd, footerMode, designNoteReserve(scanOptions, cache, sessionId) + downgradeReserve),
     scanOptions, cache, sessionId, config,
   );
   commitFooterShown(cache, sessionId, message);

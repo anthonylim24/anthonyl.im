@@ -39,7 +39,11 @@ export function isGeneratedFile(filePath, options = {}) {
   return false;
 }
 
+const gitIgnoreCache = new Map();
+
 function isGitIgnored(absPath, cwd) {
+  const key = `${cwd}\0${absPath}`;
+  if (gitIgnoreCache.has(key)) return gitIgnoreCache.get(key);
   try {
     // argv form, never a shell: this runs on every file the live-mode source
     // walk reaches, so a hostile filename embedding $(...) or backticks must
@@ -47,11 +51,14 @@ function isGitIgnored(absPath, cwd) {
     execFileSync('git', ['check-ignore', '--quiet', absPath], {
       cwd,
       stdio: 'ignore',
+      timeout: 5000,
     });
+    gitIgnoreCache.set(key, true);
     return true; // exit 0 = ignored
   } catch (err) {
     // Exit code 1 = not ignored. Exit code 128 = not a git repo or other error.
     // In both cases, treat as "not known to be ignored."
+    gitIgnoreCache.set(key, false);
     return false;
   }
 }
@@ -62,7 +69,7 @@ function hasGeneratedHeader(absPath) {
     fd = fs.openSync(absPath, 'r');
     const buf = Buffer.alloc(HEADER_SCAN_BYTES);
     const bytesRead = fs.readSync(fd, buf, 0, HEADER_SCAN_BYTES, 0);
-    const head = buf.slice(0, bytesRead).toString('utf-8');
+    const head = buf.subarray(0, bytesRead).toString('utf-8');
     return HEADER_MARKERS.some((re) => re.test(head));
   } catch {
     return false;

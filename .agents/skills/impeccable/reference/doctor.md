@@ -12,7 +12,7 @@ Three kinds of drift travel under "out of date". Keep them apart:
 
 ## Step 1: Run the pass
 
-```
+```bash
 node .agents/skills/impeccable/scripts/doctor.mjs --json
 ```
 

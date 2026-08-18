@@ -458,9 +458,8 @@ const REGEX_MATCHERS = [
     fmt: (m) => m[0].slice(0, 100) },
 ];
 
-const REGEX_ANALYZERS = [
-  // Flat type hierarchy
-  (content, filePath) => {
+const REGEX_ANALYZER_ENTRIES = [
+  { id: 'flat-type-hierarchy', run: (content, filePath) => {
     const sizes = new Set();
     const REM = 16;
     let m;
@@ -484,9 +483,8 @@ const REGEX_ANALYZERS = [
     let line = 1;
     for (let i = 0; i < lines.length; i++) { if (/font-size/i.test(lines[i]) || /\btext-(?:xs|sm|base|lg|xl|\d)/i.test(lines[i])) { line = i + 1; break; } }
     return [finding('flat-type-hierarchy', filePath, `Sizes: ${sorted.map(s => s + 'px').join(', ')} (ratio ${ratio.toFixed(1)}:1)`, line)];
-  },
-  // Monotonous spacing (regex)
-  (content, filePath) => {
+  } },
+  { id: 'monotonous-spacing', run: (content, filePath) => {
     const vals = [];
     let m;
     const pxRe = /(?:padding|margin)(?:-(?:top|right|bottom|left))?\s*:\s*(\d+)px/gi;
@@ -507,7 +505,7 @@ const REGEX_ANALYZERS = [
     if (pct <= 0.6 || unique.length > 3) return [];
     const dominant = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
     return [finding('monotonous-spacing', filePath, `~${dominant}px used ${maxCount}/${rounded.length} times (${Math.round(pct * 100)}%)`)];
-  },
+  } },
   // Em-dash overuse (ADVISORY): the AI cadence tell is em-dash *saturation*,
   // not the occasional dash. Humans use em-dashes legitimately, so this rule is
   // advisory (surfaced separately, never a failure, hook-skipped by default) and
@@ -525,7 +523,7 @@ const REGEX_ANALYZERS = [
   // decimal, upper/lower hex) to the literal glyph first. En-dash entities are
   // deliberately left alone: the rule counts em-dashes, and the literal `–`
   // was never counted either.
-  (content, filePath) => {
+  { id: 'em-dash-overuse', run: (content, filePath) => {
     const text = stripHtmlToText(content)
       .replace(/&mdash;|&#0*8212;|&#x0*2014;/gi, '—');
     let count = 0;
@@ -537,9 +535,9 @@ const REGEX_ANALYZERS = [
     // at or above the threshold.
     if (text.length > count * EM_DASH_CHARS_PER_DASH) return [];
     return [finding('em-dash-overuse', filePath, `${count} em-dashes in body text`)];
-  },
+  } },
   // Marketing buzzwords: SaaS phrase list
-  (content, filePath) => {
+  { id: 'marketing-buzzword', run: (content, filePath) => {
     const text = stripHtmlToText(content);
     const lower = text.toLowerCase();
     const BUZZWORDS = [
@@ -570,9 +568,9 @@ const REGEX_ANALYZERS = [
     }
     if (count === 0) return [];
     return [finding('marketing-buzzword', filePath, `${count} buzzword phrase${count === 1 ? '' : 's'}: "${firstSample}"`)];
-  },
+  } },
   // Aphoristic cadence: manufactured-contrast + short-rebuttal
-  (content, filePath) => {
+  { id: 'aphoristic-cadence', run: (content, filePath) => {
     const text = stripHtmlToText(content);
     const NOT_A_RE = /\bNot an? [a-z][^.!?]{1,40}[.!]\s+[A-Z][^.!?]{1,60}[.!]/g;
     const SHORT_REBUTTAL_RE = /\b[A-Z][^.!?]{4,80}[.!]\s+(No|Just)\s+[a-z][^.!?]{2,60}[.!]/g;
@@ -591,28 +589,31 @@ const REGEX_ANALYZERS = [
     }
     if (count < 3) return [];
     return [finding('aphoristic-cadence', filePath, `${count} aphoristic constructions: "${firstSample}"`)];
-  },
+  } },
   // Dark glow / chromatic halo shadows (page-level). Shared scanner handles
   // any color format, single-level var() resolution, zero-offset halos on
   // any background, and text-shadow glows.
-  (content, filePath) => {
+  { id: 'dark-glow', run: (content, filePath) => {
     const hits = scanCssTextForGlow(content);
     if (hits.length === 0) return [];
     const lines = content.substring(0, hits[0].index).split('\n');
     return [finding('dark-glow', filePath, hits[0].snippet, lines.length)];
-  },
+  } },
   // Radial-gradient background halo on a dark page (the gradient sibling
   // of the dark-glow shadow tell).
-  (content, filePath) => {
+  { id: 'radial-halo', run: (content, filePath) => {
     const hits = scanCssTextForRadialHalo(content);
     if (hits.length === 0) return [];
     const lines = content.substring(0, hits[0].index).split('\n');
     return [finding('radial-halo', filePath, hits[0].snippet, lines.length)];
-  },
+  } },
   // Auto-scrolling marquees (<marquee> or infinite horizontal loop
   // animations).
-  (content, filePath) => scanCssTextForMarquee(content).map(hit => finding('marquee', filePath, hit.snippet)),
+  { id: 'marquee', run: (content, filePath) => scanCssTextForMarquee(content).map(hit => finding('marquee', filePath, hit.snippet)) },
 ];
+
+const REGEX_ANALYZERS = REGEX_ANALYZER_ENTRIES.map((entry) => entry.run);
+const REGEX_ANALYZER_BY_ID = new Map(REGEX_ANALYZER_ENTRIES.map((entry) => [entry.id, entry]));
 
 // ---------------------------------------------------------------------------
 // Structural CSS checks used by source files whose styles are not parsed by
@@ -943,25 +944,6 @@ function stripCssInJsComments(content, ext) {
 function runRegexMatchers(lines, filePath, lineOffset = 0, blockContext = null, options = {}) {
   const { profile, phase = 'regex-matchers' } = options || {};
   const findings = [];
-  if (!profile) {
-    for (const matcher of REGEX_MATCHERS) {
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        matcher.regex.lastIndex = 0;
-        let m;
-        while ((m = matcher.regex.exec(line)) !== null) {
-          // For extracted blocks, use nearby lines as context for multi-line CSS patterns
-          const context = blockContext
-            ? lines.slice(Math.max(0, i - 3), Math.min(lines.length, i + 4)).join(' ')
-            : line;
-          if (matcher.test(m, context)) {
-            findings.push(finding(matcher.id, filePath, matcher.fmt(m, context), i + 1 + lineOffset));
-          }
-        }
-      }
-    }
-    return findings;
-  }
 
   for (const matcher of REGEX_MATCHERS) {
     const matcherFindings = profileFindings(profile, {
@@ -1006,18 +988,16 @@ const TEXT_CONTENT_ANALYZER_IDS = [
 function runTextContentAnalyzers(content, filePath, options = {}) {
   const profile = options?.profile;
   if (!shouldRunPageAnalyzers(content, filePath)) return [];
-  // The 3 text-content analyzers are at indices 2-4 in REGEX_ANALYZERS
-  // (single-font's removal on 2026-07-29 shifted every index down one).
   const findings = [];
-  for (let i = 0; i < TEXT_CONTENT_ANALYZER_IDS.length; i++) {
-    const analyzer = REGEX_ANALYZERS[2 + i];
-    const ruleId = TEXT_CONTENT_ANALYZER_IDS[i];
+  for (const ruleId of TEXT_CONTENT_ANALYZER_IDS) {
+    const analyzer = REGEX_ANALYZER_BY_ID.get(ruleId);
+    if (!analyzer) continue;
     findings.push(...profileFindings(profile, {
       engine: 'regex',
       phase: 'text-content',
       ruleId,
       target: filePath,
-    }, () => analyzer(content, filePath)));
+    }, () => analyzer.run(content, filePath)));
   }
   return findings;
 }
@@ -1079,16 +1059,14 @@ function detectText(content, filePath, options = {}) {
     : extractStyleBlocks(content, ext);
   for (const block of styleBlocks) {
     const blockLines = block.content.split('\n');
-    findings.push(...runRegexMatchers(blockLines, filePath, block.startLine - 1, true, {
+    findings.push(...runRegexMatchers(blockLines, filePath, block.startLine - 2, true, {
       profile,
       phase: 'style-block',
     }));
     // block.startLine is the first line *after* the <style> tag, but block.content
     // begins at the character right after that tag — so its own line 1 sits on the
     // tag's line, whether or not a newline follows immediately. lineAtOffset is
-    // 1-based, so the offset is startLine - 2; startLine - 1 double-counted and
-    // reported every selector one line low. runRegexMatchers keeps startLine - 1
-    // because it indexes its split lines from zero.
+    // 1-based, so the offset is startLine - 2 for both matchers and stripe scanners.
     findings.push(...scanInsetStripeCss(block.content, filePath, block.startLine - 2));
     findings.push(...pseudoStripeFindings(block.content, block.startLine - 2));
   }
@@ -1135,22 +1113,13 @@ function detectText(content, filePath, options = {}) {
 
   // Page-level analyzers only run on full pages
   if (shouldRunPageAnalyzers(content, filePath)) {
-    const analyzerIds = [
-      'flat-type-hierarchy',
-      'monotonous-spacing',
-      'em-dash-overuse',
-      'marketing-buzzword',
-      'aphoristic-cadence',
-      'dark-glow',
-    ];
-    for (let i = 0; i < REGEX_ANALYZERS.length; i++) {
-      const analyzer = REGEX_ANALYZERS[i];
+    for (const analyzer of REGEX_ANALYZER_ENTRIES) {
       deduped.push(...profileFindings(profile, {
         engine: 'regex',
         phase: 'page-analyzer',
-        ruleId: analyzerIds[i] || `analyzer-${i + 1}`,
+        ruleId: analyzer.id,
         target: filePath,
-      }, () => analyzer(content, filePath)));
+      }, () => analyzer.run(content, filePath)));
     }
   }
 

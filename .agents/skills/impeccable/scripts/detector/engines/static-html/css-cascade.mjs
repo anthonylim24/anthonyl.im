@@ -51,24 +51,9 @@ const NAMED_COLORS = {
 
 function normalizeColorForCheck(value) {
   if (!value) return value;
-  const v = value.trim();
-  const hex6 = v.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
-  if (hex6) {
-    const [r, g, b] = [parseInt(hex6[1], 16), parseInt(hex6[2], 16), parseInt(hex6[3], 16)];
-    return `rgb(${r}, ${g}, ${b})`;
-  }
-  const hex3 = v.match(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/i);
-  if (hex3) {
-    const [r, g, b] = [
-      parseInt(hex3[1] + hex3[1], 16),
-      parseInt(hex3[2] + hex3[2], 16),
-      parseInt(hex3[3] + hex3[3], 16),
-    ];
-    return `rgb(${r}, ${g}, ${b})`;
-  }
-  const named = NAMED_COLORS[v.toLowerCase()];
-  if (named) return `rgb(${named[0]}, ${named[1]}, ${named[2]})`;
-  return v;
+  const parsed = parseAnyColor(value.trim());
+  if (parsed) return staticColorToCss(parsed);
+  return value.trim();
 }
 
 function buildBorderOverrideMap(document, window) {
@@ -185,6 +170,16 @@ function buildBorderOverrideMap(document, window) {
 // styles. We walk the source character-by-character, balancing braces
 // so we correctly handle nested style rules inside the layer block.
 function unwrapCssAtLayer(source) {
+  let current = source;
+  for (let pass = 0; pass < 8; pass++) {
+    const next = unwrapCssAtLayerOnce(current);
+    if (next === current) break;
+    current = next;
+  }
+  return current;
+}
+
+function unwrapCssAtLayerOnce(source) {
   if (!source || !source.includes('@layer')) return source;
   // Find `@layer <name>? {` openers. The match starts at the @, and
   // we then balance braces from the opening { onward.
@@ -585,6 +580,13 @@ function expandStaticDeclaration(prop, value) {
   if (p === 'border') {
     const parsed = parseStaticBorder(v);
     const out = [];
+    const trimmed = String(v || '').trim();
+    if (/^(?:none|hidden)$/i.test(trimmed) || /^0(?:px|rem|em|%)?$/.test(trimmed)) {
+      for (const side of ['Top', 'Right', 'Bottom', 'Left']) {
+        out.push([`border${side}Width`, '0px']);
+      }
+      return out;
+    }
     for (const side of ['Top', 'Right', 'Bottom', 'Left']) {
       if (parsed.width) out.push([`border${side}Width`, parsed.width]);
       if (parsed.color) out.push([`border${side}Color`, parsed.color]);
@@ -1126,8 +1128,14 @@ function buildStaticStyleMap(root, staticDoc, cssText, modules, profile, filePat
       if (STATIC_INHERITED_PROPS.has(prop) && parentStyle?.[prop] != null) values[prop] = parentStyle[prop];
       else values[prop] = STATIC_DEFAULT_STYLE[prop];
     }
+    // fontSize must resolve first: letterSpacing and lineHeight em values are
+    // relative to the element's own font size.
+    const fontSizeDecl = specifiedMap.get('fontSize');
+    if (fontSizeDecl) {
+      values.fontSize = normalizeStaticCssValue('fontSize', fontSizeDecl.value, customProps, parentStyle, values);
+    }
     for (const [prop, decl] of specifiedMap) {
-      if (prop.startsWith('--')) continue;
+      if (prop.startsWith('--') || prop === 'fontSize') continue;
       values[prop] = normalizeStaticCssValue(prop, decl.value, customProps, parentStyle, values);
     }
     const style = makeStaticStyle(values);

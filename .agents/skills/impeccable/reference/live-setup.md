@@ -29,7 +29,7 @@ Create the file at the `path` the boot reported (default `.impeccable/live/confi
 | Svelte / SvelteKit | `["src/app.html"]` | `</body>` | `html` |
 | TanStack Router (SPA, Vite) | `["index.html"]` | `</body>` | `html` |
 | TanStack Start (SSR) | `["src/routes/__root.tsx"]` | `<Scripts` | `jsx` |
-| Astro | `[" <root layout .astro>"]` | `</body>` | `html` |
+| Astro | `["src/layouts/Layout.astro"]` (replace with the project's root layout) | `</body>` | `html` |
 | Multi-page (separate HTML per route) | `["public/**/*.html"]` glob over the served dir | `</body>` | `html` |
 
 Pick an anchor that exists in every file (`</body>` almost always works); `insertAfter` matches after a line instead. For multi-page sites prefer a glob so new pages are picked up automatically. For sites whose pages are rebuilt by a generator, the inject survives only until the next regeneration: re-run `live.mjs` after each build (accept is unaffected; it writes true source via the fallback flow).
@@ -53,11 +53,11 @@ Output `{ shape, signals }`; the shape names the *patch mechanism*, so one templ
 - **`null`**: no CSP; write the config with `cspChecked: true` and stop here.
 - **`append-arrays`**: CSP as structured directive arrays; auto-patchable (monorepo helpers with `additionalScriptSrc`/`additionalConnectSrc`, SvelteKit `kit.csp.directives`, Nuxt `nuxt-security`).
 - **`append-string`**: CSP as a literal value string; auto-patchable (inline `next.config.*` `headers()`, Nuxt `routeRules`).
-- **`middleware`** / **`meta-tag`**: detected but not auto-patched. Show the user the detected files, ask them to add `http://localhost:8400` to `script-src` and `connect-src` manually, then mark `cspChecked: true` and proceed.
+- **`middleware`** / **`meta-tag`**: detected but not auto-patched. Show the user the detected files, ask them to add `http://localhost:<serverPort>` (the resolved live helper port from boot, default 8400) to `script-src` and `connect-src` manually, then mark `cspChecked: true` and proceed.
 
 ### Consent prompt (use this phrasing)
 
-> **CSP patch needed.** I detected a Content Security Policy in your project that blocks `http://localhost:8400`: the live picker won't load without an allowance. Here's the change I'd make:
+> **CSP patch needed.** I detected a Content Security Policy in your project that blocks `http://localhost:<serverPort>` (the resolved live helper port): the live picker won't load without an allowance. Here's the change I'd make:
 >
 > ```diff
 > [file: <patchTarget>]
@@ -75,7 +75,7 @@ Declare near the top of the file that holds the CSP arrays, then append `...__im
 ```ts
 // Dev-only allowance so impeccable live mode can load. Guarded by NODE_ENV.
 const __impeccableLiveDev =
-  process.env.NODE_ENV === "development" ? ["http://localhost:8400"] : [];
+  process.env.NODE_ENV === "development" ? ["http://localhost:<serverPort>"] : [];
 ```
 
 Per-framework: Next.js + monorepo helper: edit the *app's* `next.config.*` (not the shared helper), appending to `additionalScriptSrc` / `additionalConnectSrc`. SvelteKit: `svelte.config.js`, `kit.csp.directives['script-src']` and `['connect-src']`. Nuxt + nuxt-security: `nuxt.config.*`, `security.headers.contentSecurityPolicy['script-src']` and `['connect-src']`. Reference outputs: `tests/framework-fixtures/nextjs-turborepo/expected-after-patch.ts`, `tests/framework-fixtures/sveltekit-csp/expected-after-patch.js`. Idempotency: if `__impeccableLiveDev` already exists in the file, the patch is applied; just mark `cspChecked: true`.
@@ -87,7 +87,7 @@ Two-point patch: declare a dev-only string, interpolate it into the CSP value at
 ```ts
 // Dev-only allowance so impeccable live mode can load.
 const __impeccableLiveDev =
-  process.env.NODE_ENV === "development" ? " http://localhost:8400" : "";
+  process.env.NODE_ENV === "development" ? " http://localhost:<serverPort>" : "";
 ```
 
 - `script-src 'self' 'unsafe-inline'` becomes `` `script-src 'self' 'unsafe-inline'${__impeccableLiveDev}` ``
@@ -97,6 +97,6 @@ Per-framework: Next.js inline `headers()` in `next.config.*`; Nuxt `routeRules['
 
 ## Troubleshooting
 
-If the user said "no" to the CSP patch and later reports live not working: their dev CSP blocks `http://localhost:8400`. Delete `cspChecked` from `.impeccable/live/config.json` and re-run `live.mjs`; setup asks again.
+If the user said "no" to the CSP patch and later reports live not working: their dev CSP blocks `http://localhost:<serverPort>`. Delete `cspChecked` from `.impeccable/live/config.json` and re-run `live.mjs`; setup asks again.
 
 After setup, re-run `live.mjs`.

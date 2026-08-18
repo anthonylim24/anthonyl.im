@@ -24,6 +24,31 @@ const FORBIDDEN_MANUAL_EDIT_TEXT_CHARS = ['<', '{', '}', '`'];
 // reach the journal.
 export const MOUNT_URL_MAX_LENGTH = 2000;
 export const MOUNT_ERROR_MAX_LENGTH = 1000;
+const MAX_ANNOTATION_ITEMS = 200;
+const ANNOTATION_ITEM_MAX_LENGTH = 2000;
+const ELEMENT_HTML_MAX_LENGTH = 20000;
+
+const VALIDATED_CLIENT_EVENT_TYPES = Object.freeze([
+  'generate',
+  'accept',
+  'discard',
+  'checkpoint',
+  'agent_phase',
+  'variant_mounted',
+  'variant_mount_failed',
+  'exit',
+  'prefetch',
+  'manual_edits',
+  'steer',
+  'carbonize_cleanup',
+]);
+
+if (
+  VALIDATED_CLIENT_EVENT_TYPES.length !== CLIENT_EVENT_TYPES.length
+  || VALIDATED_CLIENT_EVENT_TYPES.some((type, index) => type !== CLIENT_EVENT_TYPES[index])
+) {
+  throw new Error('validateEvent cases drifted from CLIENT_EVENT_TYPES');
+}
 
 function isValidId(v) { return typeof v === 'string' && ID_PATTERN.test(v); }
 function isValidVariantId(v) { return typeof v === 'string' && VARIANT_ID_PATTERN.test(v); }
@@ -34,15 +59,28 @@ function validateManualEditText(newText) {
   return hits.length > 0 ? hits : null;
 }
 
+function annotationItemLength(item) {
+  if (typeof item === 'string') return item.length;
+  try {
+    return JSON.stringify(item)?.length || 0;
+  } catch {
+    return ANNOTATION_ITEM_MAX_LENGTH + 1;
+  }
+}
+
 function validateAnnotationFields(msg) {
   if (msg.screenshotPath !== undefined && typeof msg.screenshotPath !== 'string') {
     return 'generate: screenshotPath must be string';
   }
-  if (msg.comments !== undefined && !Array.isArray(msg.comments)) {
-    return 'generate: comments must be array';
-  }
-  if (msg.strokes !== undefined && !Array.isArray(msg.strokes)) {
-    return 'generate: strokes must be array';
+  for (const field of ['comments', 'strokes']) {
+    if (msg[field] === undefined) continue;
+    if (!Array.isArray(msg[field])) return `generate: ${field} must be array`;
+    if (msg[field].length > MAX_ANNOTATION_ITEMS) {
+      return `generate: too many ${field} (max ${MAX_ANNOTATION_ITEMS})`;
+    }
+    if (msg[field].some((item) => annotationItemLength(item) > ANNOTATION_ITEM_MAX_LENGTH)) {
+      return `generate: ${field} item too long`;
+    }
   }
   return null;
 }
@@ -72,6 +110,8 @@ function validateInsertGenerate(msg) {
 function validateReplaceGenerate(msg) {
   if (!msg.action || !VISUAL_ACTIONS.includes(msg.action)) return 'generate: invalid action';
   if (!msg.element || !msg.element.outerHTML) return 'generate: missing element context';
+  if (typeof msg.element.outerHTML !== 'string') return 'generate: element.outerHTML must be string';
+  if (msg.element.outerHTML.length > ELEMENT_HTML_MAX_LENGTH) return 'generate: element.outerHTML too long';
   return validateAnnotationFields(msg);
 }
 
@@ -192,7 +232,7 @@ export function validateEvent(msg) {
       if (!isValidId(msg.id)) return 'carbonize_cleanup: missing or malformed id';
       if (!isValidId(msg.sessionId)) return 'carbonize_cleanup: missing or malformed sessionId';
       if (!msg.file || typeof msg.file !== 'string') return 'carbonize_cleanup: missing file';
-      if (!isValidVariantId(String(msg.variantId))) return 'carbonize_cleanup: missing or malformed variantId';
+      if (!isValidVariantId(msg.variantId)) return 'carbonize_cleanup: missing or malformed variantId';
       return null;
     default:
       return 'Unknown event type: ' + msg.type;

@@ -58,7 +58,7 @@ const MAX_DEPTH = 5;
  * @returns {string|null} absolute path of the first match
  */
 export function findSourceFile({ query, cwd, extensions, skipDirs = NEVER_SOURCE_DIRS, fileFilter }) {
-  const skip = new Set(skipDirs);
+  const skip = new Set([...NEVER_SOURCE_DIRS, ...skipDirs]);
   const seen = new Set();
   for (const dir of SOURCE_SEARCH_DIRS) {
     const absDir = path.join(cwd, dir);
