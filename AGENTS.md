@@ -206,6 +206,7 @@ The same travelers as Korea, plus future trips. Phone for in-trip lookups; deskt
 
 ### Aesthetic Direction
 - Cool zinc canvas, Inter only, opaque chrome. No bloom, grain, or Cormorant.
+- Desktop left rail + Notion document sheet. Airbnb date strip. Reservation table. Not Korea cards.
 - Accent is trip-owned inside `data-trip-accent`. Chrome stays slate.
 - `/trips/:tripId` is the living document. `/trips/:tripId/edit` redirects there. Concierge FAB (`TripChat`) lives on the trip and day pages, not index, create, or places.
 - Instagram ingest is embedded in the editor (`TripIngest`), not a standalone route.

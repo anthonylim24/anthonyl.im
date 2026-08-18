@@ -83,16 +83,17 @@ export const DayCard = memo(function DayCard({
       id={day.id}
       aria-label={`Day ${index + 1}`}
       aria-busy={enhancing}
-      className={`scroll-mt-32 pt-8 transition-colors duration-300 first:pt-0 lg:scroll-mt-24 ${
-        enhancing
-          ? `-mx-3 rounded-xl border px-3 ${ACCENT.softBg} ${ACCENT.border}`
-          : "border-t border-stone-200/70 first:border-t-0 dark:border-stone-800/70"
+      className={`scroll-mt-32 rounded-lg border border-[color:var(--trips-border)] px-3 py-4 transition-colors duration-300 lg:scroll-mt-24 ${
+        enhancing ? ACCENT.softBg : "bg-[color:var(--trips-surface)]"
       }`}
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
-          <p className={`text-[13px] font-medium ${ACCENT.text}`}>
-            Day {index + 1} · {formatTripDate(day.date, timezone)}
+          <p className={`flex items-center gap-2 text-[12px] font-medium ${mutedInkClass}`}>
+            <span className={`inline-flex h-6 min-w-6 items-center justify-center rounded-md px-1.5 text-[11px] font-semibold tabular-nums ${ACCENT.softBg} ${ACCENT.text}`}>
+              {index + 1}
+            </span>
+            {formatTripDate(day.date, timezone)}
             {day.city ? ` · ${day.city}` : ""}
           </p>
           <div className="mt-1 flex items-center gap-1.5">
@@ -296,7 +297,7 @@ export const DayCard = memo(function DayCard({
       ) : (
         // Timeline rail: a vertical line down the day, the itinerary
         // affordance that makes order legible at a glance.
-        <ul className="relative mt-5 space-y-2 pl-4 before:absolute before:bottom-3 before:left-[3px] before:top-3 before:w-px before:bg-stone-200 dark:before:bg-stone-800">
+        <ul className="mt-4 space-y-1">
           <AnimatePresence initial={false}>
             {day.items.map((item, itemIdx) => (
               <ItemRow

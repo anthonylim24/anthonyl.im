@@ -190,7 +190,8 @@ The same travelers as Korea, plus future trips. Phone for in-trip lookups; deskt
 ### Aesthetic Direction
 - Cool zinc canvas (`oklch` blue-gray), opaque chrome, no parchment grain or rose/amber bloom.
 - One family: Inter. No Cormorant or Fragment Mono on `/trips`.
-- Index is Now tiles + Upcoming list. Living document is a Notion page (title, properties, outline). Day page is a listing, not a magazine cover.
+- Desktop has a Linear left rail. The document is a Notion sheet: title, property table, Airbnb date strip, Linear day rows, reservation table. Not a magazine column of orb cards.
+- Index is an Inbox (Now / Upcoming / Past). Day page is a listing with a date strip, not a cover.
 - Accent is trip-owned inside `data-trip-accent`. App chrome stays slate.
 - `/trips/:tripId` is the living document. `/trips/:tripId/edit` redirects there. Concierge FAB on the trip and day pages, not index, create, or places.
 - Photorealistic Map Mode stays. Glass/refraction is for the YOU pin only.

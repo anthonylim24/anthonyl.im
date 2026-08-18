@@ -108,7 +108,13 @@ export function clerkSignInWallPresent(text: string): boolean {
 export function clerkSignedInCopyPresent(text: string): boolean {
   if (clerkSignInWallPresent(text)) return false;
   const korea = /daily itinerary/i.test(text) || /the twelve days/i.test(text);
-  const trips = /your trips/i.test(text);
+  const trips =
+    /your trips/i.test(text) ||
+    /open a trip to edit/i.test(text) ||
+    /where to next/i.test(text) ||
+    /no trips yet/i.test(text) ||
+    /enhance trip/i.test(text) ||
+    /edit this day/i.test(text);
   return korea || trips;
 }
 

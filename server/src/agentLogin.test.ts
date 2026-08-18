@@ -145,6 +145,8 @@ describe("sign-in wall vs signed-in copy", () => {
   test("detects signed-in Korea and Trips pages", () => {
     expect(clerkSignedInCopyPresent("The twelve days\nDaily itinerary")).toBe(true);
     expect(clerkSignedInCopyPresent("Itinerary workspace\nYour trips\nNew trip")).toBe(true);
+    expect(clerkSignedInCopyPresent("Inbox\nOpen a trip to edit it in place.\nNew trip")).toBe(true);
+    expect(clerkSignedInCopyPresent("Enhance trip\nItinerary")).toBe(true);
   });
 
   test("detects ticket / bot failures", () => {

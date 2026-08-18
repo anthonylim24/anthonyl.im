@@ -5,7 +5,8 @@ import { Globe2, Images, Map as MapIcon, Settings2 } from "lucide-react"
 import { EntityIndexProvider } from "../Korea/entityIndex"
 import { LinkifiedText } from "../Korea/LinkifiedText"
 import { ACCENT, collaboratorSummary, daysUntilIn, formatTripDate, resolveAccent, todayIsoIn, visibleTags } from "./theme"
-import { DossierSectionHeader } from "./components/DossierSectionHeader"
+import { PropertyRow, PropertyTable } from "./components/PropertyTable"
+import { SectionHeading } from "./components/SectionHeading"
 import { ItemIcon } from "./components/ItemIcon"
 import { StatusChip } from "./components/StatusChip"
 import { AppearancePanel } from "./editor/AppearancePanel"
@@ -21,19 +22,22 @@ import { TripClock } from "./components/TripClock"
 import { upcomingReservations } from "./reservationView"
 import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import { useTripEditor } from "./useTripEditor"
-import type { ItineraryItem, Trip, TripDay } from "./types"
+import type { Trip } from "./types"
 import {
   EASE,
   REVEAL_DURATION,
   alertErrorClass,
   chipBtnClass,
+  dataTableClass,
+  dataTdClass,
+  dataThClass,
+  documentClass,
   focusRingClass,
   focusRingInsetClass,
   inkBtnClass,
   inlineLinkClass,
   mutedInkClass,
   overlayHoverClass,
-  pageClass,
   revealDelay,
   wrapAnywhereClass,
 } from "./ui"
@@ -42,7 +46,7 @@ const MapModeOverlay = lazy(() =>
   import("../Korea/MapModeOverlay").then((m) => ({ default: m.MapModeOverlay })),
 )
 
-const gutterClass = pageClass()
+const gutterClass = documentClass
 
 export function TripOverview() {
   const editor = useTripEditor()
@@ -116,17 +120,11 @@ export function TripOverview() {
 
   return (
     <EntityIndexProvider>
-      <div data-trip-accent={resolveAccent(trip.appearance?.accent)}>
+      <div className={documentClass} data-trip-accent={resolveAccent(trip.appearance?.accent)}>
         <header>
-          <div className="mx-auto max-w-6xl px-4 pb-6 pt-6 sm:px-6 sm:pb-8 sm:pt-8">
-            <motion.p {...fadeUp(0)} className={`text-[13px] font-medium ${mutedInkClass}`}>
-              {dayCount} day{dayCount === 1 ? "" : "s"} ·{" "}
-              {formatTripDate(trip.startDate, trip.timezone, { weekday: undefined })} to{" "}
-              {formatTripDate(trip.endDate, trip.timezone, { weekday: undefined })}
-            </motion.p>
-
-            <motion.div {...fadeUp(1)} className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
-              <span className={`inline-flex items-center gap-2 text-sm font-medium ${a.text}`}>
+          <div>
+            <motion.div {...fadeUp(0)} className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <span className={`inline-flex items-center gap-2 text-[13px] font-medium ${a.text}`}>
                 <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.dot}`} aria-hidden />
                 {statusLine}
               </span>
@@ -139,7 +137,7 @@ export function TripOverview() {
               />
             </motion.div>
 
-            <motion.div {...fadeUp(2)} className="mt-4">
+            <motion.div {...fadeUp(1)} className="mt-3">
               {editable ? (
                 <>
                   <label className="sr-only" htmlFor="trip-editor-name">
@@ -162,7 +160,7 @@ export function TripOverview() {
               )}
               {(trip.appearance?.subtitle || trip.appearance?.headline || trip.description) && (
                 <p
-                  className={`mt-4 max-w-[58ch] text-base leading-relaxed text-stone-700 sm:text-[1.05rem] dark:text-stone-300 ${wrapAnywhereClass}`}
+                  className={`mt-3 max-w-[58ch] text-sm leading-relaxed text-stone-700 dark:text-stone-300 ${wrapAnywhereClass}`}
                 >
                   <LinkifiedText>
                     {trip.appearance?.headline ?? trip.appearance?.subtitle ?? trip.description ?? ""}
@@ -171,23 +169,23 @@ export function TripOverview() {
               )}
             </motion.div>
 
-            <motion.dl
-              {...fadeUp(3)}
-              className="mt-8 grid grid-cols-1 gap-x-10 gap-y-5 border-t border-stone-200/80 pt-5 sm:grid-cols-2 lg:grid-cols-3 dark:border-stone-800/80"
-            >
-              <MetaRow label="Destinations" value={trip.destinations.join(" · ")} />
-              <MetaRow
-                label="Dates"
-                value={`${formatTripDate(trip.startDate, trip.timezone)} – ${formatTripDate(trip.endDate, trip.timezone)}`}
-              />
-              <MetaRow label="Time zone" value={trip.timezone} />
-              {trip.collaborators.length > 0 && (
-                <MetaRow label="Sharing" value={collaboratorSummary(trip.collaborators)} />
-              )}
-            </motion.dl>
+            <motion.div {...fadeUp(2)} className="mt-6">
+              <PropertyTable>
+                <PropertyRow label="Destinations" value={trip.destinations.join(" · ")} />
+                <PropertyRow
+                  label="Dates"
+                  value={`${formatTripDate(trip.startDate, trip.timezone)} – ${formatTripDate(trip.endDate, trip.timezone)}`}
+                />
+                <PropertyRow label="Time zone" value={trip.timezone} />
+                <PropertyRow label="Length" value={`${dayCount} day${dayCount === 1 ? "" : "s"}`} />
+                {trip.collaborators.length > 0 && (
+                  <PropertyRow label="Sharing" value={collaboratorSummary(trip.collaborators)} />
+                )}
+              </PropertyTable>
+            </motion.div>
 
             {tags.length > 0 && (
-              <ul className="mt-5 flex flex-wrap gap-1.5" aria-label="Tags">
+              <ul className="mt-4 flex flex-wrap gap-1.5" aria-label="Tags">
                 {tags.map((tag) => (
                   <li
                     key={tag}
@@ -199,7 +197,7 @@ export function TripOverview() {
               </ul>
             )}
 
-            <motion.div {...fadeUp(4)} className="mt-7 flex flex-wrap items-center gap-2">
+            <motion.div {...fadeUp(3)} className="mt-5 flex flex-wrap items-center gap-2">
               {mapHeroDay && (
                 <button type="button" onClick={() => editor.openMap(mapHeroDay.id)} className={inkBtnClass}>
                   <MapIcon className="h-4 w-4" strokeWidth={1.5} aria-hidden />
@@ -238,20 +236,18 @@ export function TripOverview() {
         </header>
 
         {todayDay && (
-          <aside className={`border-y ${a.border} ${a.softBg}`}>
+          <aside className={`mt-6 rounded-lg ${a.softBg}`}>
             <Link
               to={`/trips/${trip.slug ?? trip.id}/day/${todayDay.id}`}
-              className={`group mx-auto flex max-w-6xl items-center gap-4 px-4 py-4 transition-colors sm:px-6 ${overlayHoverClass} ${focusRingInsetClass}`}
+              className={`group flex items-center gap-4 px-3 py-3 transition-colors ${overlayHoverClass} ${focusRingInsetClass}`}
             >
-              <div className="flex min-w-0 flex-wrap items-baseline gap-x-5 gap-y-1">
+              <div className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1">
                 <p className={`flex items-center gap-2 text-[13px] font-medium ${a.text}`}>
                   <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.dot}`} aria-hidden />
                   Today · {formatTripDate(todayDay.date, trip.timezone)}
                 </p>
-                <p
-                  className={`text-lg font-semibold tracking-tight text-stone-900 sm:text-xl dark:text-stone-100 ${wrapAnywhereClass}`}
-                >
-                  {todayDay.emoji && <span aria-hidden className="mr-2">{todayDay.emoji}</span>}
+                <p className={`text-sm font-semibold text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}>
+                  {todayDay.emoji && <span aria-hidden className="mr-1.5">{todayDay.emoji}</span>}
                   Day {trip.days.indexOf(todayDay) + 1}
                   {todayDay.title ? `, ${todayDay.title}` : ""}
                 </p>
@@ -261,10 +257,10 @@ export function TripOverview() {
         )}
 
         {next && (
-          <div className="mx-auto max-w-6xl px-4 pt-6 sm:px-6">
+          <div className="mt-2">
             <Link
               to={`/trips/${trip.slug ?? trip.id}/day/${next.day.id}#item-${next.item.id}`}
-              className={`group flex items-start gap-4 border-b border-stone-200/80 px-1 py-4 transition-colors ${overlayHoverClass} ${focusRingClass} dark:border-stone-800`}
+              className={`group flex items-start gap-3 rounded-lg px-1 py-3 transition-colors ${overlayHoverClass} ${focusRingClass}`}
             >
               <ItemIcon
                 kind={next.item.kind}
@@ -287,7 +283,7 @@ export function TripOverview() {
         )}
 
         {editable && trip.days.every((d) => d.items.length === 0) && (
-          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="mt-6">
             <GeneratePanel
               getToken={editor.readToken}
               tripId={trip.id}
@@ -305,7 +301,7 @@ export function TripOverview() {
         )}
 
         {editor.activeRun && editor.activeRun.scope === "trip" && (
-          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="mt-6">
             <SuggestionsPanel
               run={editor.activeRun}
               dayOptions={editor.dayOptions}
@@ -316,7 +312,7 @@ export function TripOverview() {
         )}
 
         {editable && (
-          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="mt-6">
             <ExtractedPlacesLibrary
               trip={trip}
               locked={editorLocked}
@@ -326,12 +322,8 @@ export function TripOverview() {
           </div>
         )}
 
-        <section className="mx-auto mt-8 max-w-6xl px-4 sm:mt-12 sm:px-6">
-          <DossierSectionHeader
-            scale="page"
-            animate
-            num="01"
-            eyebrow={`${dayCount} day${dayCount === 1 ? "" : "s"}`}
+        <section className="mt-10">
+          <SectionHeading
             title="Itinerary"
             subtitle={
               dayCount === 0
@@ -342,13 +334,13 @@ export function TripOverview() {
             }
           />
           {dayCount === 0 ? (
-            <div className={`mt-8 border border-dashed border-stone-300 px-5 py-10 text-sm dark:border-stone-700 ${mutedInkClass}`}>
+            <div className={`mt-4 border border-dashed border-stone-300 px-5 py-8 text-sm dark:border-stone-700 ${mutedInkClass}`}>
               This trip has no days yet.
             </div>
           ) : (
-            <div className="mt-6 lg:mt-8 lg:flex lg:items-start lg:gap-8">
+            <div>
               <DayNavigation days={trip.days} timezone={trip.timezone} />
-              <div data-testid="trip-itinerary" className="min-w-0 flex-1 space-y-10">
+              <div data-testid="trip-itinerary" className="min-w-0 flex-1 space-y-3">
                 {trip.days.map((day, idx) => (
                   <DayCard
                     key={day.id}
@@ -382,15 +374,8 @@ export function TripOverview() {
         </section>
 
         {(hotels.length > 0 || neighborhoods.length > 0) && (
-          <section className="mx-auto mt-16 max-w-6xl px-4 sm:px-6">
-            <DossierSectionHeader
-              scale="page"
-              animate
-              num="02"
-              eyebrow="Bases"
-              title="Stays"
-              subtitle="Hotels and neighborhoods on this trip."
-            />
+          <section className="mt-12">
+            <SectionHeading title="Stays" subtitle="Hotels and neighborhoods on this trip." />
             {hotels.length > 0 && (
               <ul className="mt-4 divide-y divide-stone-200/80 dark:divide-stone-800/80">
                 {hotels.map((item) => (
@@ -409,10 +394,10 @@ export function TripOverview() {
           </section>
         )}
 
-        <ReservationLedger trip={trip} today={today} past={past} reduce={!!reduce} />
+        <ReservationLedger trip={trip} today={today} past={past} />
 
         {editable && (
-          <section id="trip-settings" aria-label="Trip settings" className="mx-auto mt-16 max-w-6xl px-4 pb-8 sm:px-6">
+          <section id="trip-settings" aria-label="Trip settings" className="mt-12 pb-2">
             <p className={`text-[13px] font-medium ${mutedInkClass}`}>Trip settings</p>
             <AppearancePanel
               trip={trip}
@@ -453,25 +438,14 @@ export function TripOverview() {
   )
 }
 
-function MetaRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0">
-      <dt className={`text-[13px] font-medium ${mutedInkClass}`}>{label}</dt>
-      <dd className={`mt-1 text-sm leading-snug text-stone-800 dark:text-stone-200 ${wrapAnywhereClass}`}>{value}</dd>
-    </div>
-  )
-}
-
 function ReservationLedger({
   trip,
   today,
   past,
-  reduce,
 }: {
   trip: Trip
   today: string
   past: boolean
-  reduce: boolean
 }) {
   const rows = useMemo(
     () =>
@@ -482,92 +456,56 @@ function ReservationLedger({
   )
   if (rows.length === 0) return null
   return (
-    <section id="reservations" className="mx-auto mt-16 max-w-6xl px-4 pb-16 sm:px-6">
-      <DossierSectionHeader
-        scale="page"
-        animate
-        num="03"
-        eyebrow="Booked moments"
-        title="Reservations"
-        subtitle="Bookings across the trip."
-      />
-      <ol className="mt-2 divide-y divide-stone-200/80 dark:divide-stone-800/80">
-        {rows.map(({ day, item }, i) => (
-          <ReservationRow
-            key={item.id}
-            trip={trip}
-            day={day}
-            item={item}
-            index={i}
-            reduce={reduce}
-            elapsed={day.date < today && !past}
-          />
-        ))}
-      </ol>
+    <section id="reservations" className="mt-12 pb-4">
+      <SectionHeading title="Reservations" subtitle="Bookings across the trip." />
+      <table className={dataTableClass}>
+        <caption className="sr-only">Reservations</caption>
+        <thead>
+          <tr>
+            <th scope="col" className={dataThClass}>
+              Date
+            </th>
+            <th scope="col" className={dataThClass}>
+              Time
+            </th>
+            <th scope="col" className={dataThClass}>
+              Booking
+            </th>
+            <th scope="col" className={dataThClass}>
+              Status
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(({ day, item }) => {
+            const elapsed = day.date < today && !past
+            return (
+              <tr key={item.id} className={elapsed ? "opacity-60" : undefined}>
+                <td className={`${dataTdClass} whitespace-nowrap tabular-nums ${mutedInkClass}`}>
+                  {formatTripDate(day.date, trip.timezone, { weekday: undefined })}
+                </td>
+                <td className={`${dataTdClass} whitespace-nowrap tabular-nums ${mutedInkClass}`}>
+                  {item.time ?? "—"}
+                </td>
+                <td className={dataTdClass}>
+                  <Link
+                    to={`/trips/${trip.slug ?? trip.id}/day/${day.id}#item-${item.id}`}
+                    className={`font-medium text-stone-900 dark:text-stone-100 ${focusRingClass} ${wrapAnywhereClass}`}
+                  >
+                    {item.title}
+                  </Link>
+                  {item.notes && (
+                    <p className={`mt-0.5 text-[13px] ${mutedInkClass} ${wrapAnywhereClass}`}>{item.notes}</p>
+                  )}
+                </td>
+                <td className={dataTdClass}>
+                  <StatusChip status={item.status} />
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     </section>
-  )
-}
-
-function ReservationRow({
-  trip,
-  day,
-  item,
-  index,
-  reduce,
-  elapsed,
-}: {
-  trip: Trip
-  day: TripDay
-  item: ItineraryItem
-  index: number
-  reduce: boolean
-  elapsed: boolean
-}) {
-  const dayNum = new Date(`${day.date}T12:00:00Z`).getUTCDate()
-  return (
-    <motion.li
-      initial={reduce ? false : { opacity: 0, y: 6 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ duration: REVEAL_DURATION, ease: EASE, delay: revealDelay(index) }}
-    >
-      <Link
-        to={`/trips/${trip.slug ?? trip.id}/day/${day.id}#item-${item.id}`}
-        className={`group flex items-start gap-5 py-5 transition-colors hover:bg-stone-100/30 sm:gap-8 dark:hover:bg-stone-900/25 ${focusRingClass}`}
-      >
-        <div className="w-[5.5rem] shrink-0 sm:w-[7rem]">
-          <p
-            className={`text-2xl font-semibold tabular-nums leading-none ${elapsed ? mutedInkClass : "text-stone-900 dark:text-stone-100"}`}
-          >
-            {dayNum}
-          </p>
-          <p className={`mt-1 text-[13px] ${mutedInkClass}`}>
-            {formatTripDate(day.date, trip.timezone, { day: undefined })}
-          </p>
-          {item.time && <p className={`mt-0.5 text-[13px] tabular-nums ${mutedInkClass}`}>{item.time}</p>}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-2.5">
-            <ItemIcon
-              kind={item.kind}
-              category={item.location?.category}
-              reservationType={item.reservation?.type}
-              className="h-4 w-4 shrink-0 translate-y-0.5 text-stone-500 dark:text-stone-400"
-            />
-            <h3
-              className={`text-base font-semibold leading-snug text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
-            >
-              {item.title}
-            </h3>
-          </div>
-          {item.notes && (
-            <p className={`mt-1 text-[13px] leading-relaxed ${mutedInkClass} ${wrapAnywhereClass}`}>{item.notes}</p>
-          )}
-        </div>
-        <div className="flex shrink-0 items-center gap-3 pt-1.5">
-          <StatusChip status={item.status} />
-        </div>
-      </Link>
-    </motion.li>
   )
 }

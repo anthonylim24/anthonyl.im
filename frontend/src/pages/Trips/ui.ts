@@ -71,19 +71,38 @@ export const wrapAnywhereClass = "break-words [overflow-wrap:anywhere]"
 
 const PAGE_MAX = { form: "max-w-2xl", reading: "max-w-3xl", wide: "max-w-6xl" } as const
 
-/** Page gutters. `<main>` is unconstrained so trip heroes can bleed to the
- *  viewport edge, so every routed page opens with one of these. */
+/** Page gutters. `<main>` is unconstrained; every routed page opens with one of these. */
 export function pageClass(width: keyof typeof PAGE_MAX = "wide"): string {
-  return `mx-auto ${PAGE_MAX[width]} px-4 pt-6 sm:px-6 sm:pt-10`
+  return `mx-auto ${PAGE_MAX[width]} px-4 pt-6 sm:px-6 sm:pt-8`
 }
 
-/** Horizontal gutter without the page's top padding. Full-bleed heroes
- *  sit between a `pageClass` toolbar and a guttered list. */
-export const pageGutterClass = "mx-auto max-w-6xl px-4 sm:px-6"
+/** Horizontal gutter without the page's top padding. */
+export const pageGutterClass = "mx-auto max-w-5xl px-4 sm:px-6"
 
-/** Slim workspace chrome: opaque bar, no glass. Height lives on the inner row. */
+/** Slim workspace chrome over the document column. */
 export const chromeHeaderClass =
   "sticky top-0 z-30 border-b border-[color:var(--trips-border)] bg-[color:var(--trips-surface)]"
+
+/** Linear-style left rail. Hidden below `lg`. */
+export const workspaceRailClass =
+  "hidden lg:flex lg:w-56 lg:shrink-0 lg:flex-col lg:border-r lg:border-[color:var(--trips-border)] lg:bg-[color:var(--trips-rail)]"
+
+/** Notion-like document sheet on the rail canvas. */
+export const documentClass =
+  "mx-auto max-w-5xl px-4 pb-10 pt-6 sm:px-6 sm:pt-8 lg:my-5 lg:rounded-lg lg:border lg:border-[color:var(--trips-border)] lg:bg-[color:var(--trips-surface)] lg:px-8 lg:py-8"
+
+/** Notion property grid. */
+export const propertyTableClass =
+  "divide-y divide-[color:var(--trips-border)] border-y border-[color:var(--trips-border)]"
+
+export const propertyRowClass = "grid grid-cols-[7.5rem_minmax(0,1fr)] items-baseline gap-4 py-2.5 sm:grid-cols-[9rem_minmax(0,1fr)]"
+
+/** Dense schedule / reservation table. */
+export const dataTableClass = "w-full border-collapse text-left text-sm"
+
+export const dataThClass = `pb-2 pr-3 text-[12px] font-medium ${mutedInkClass}`
+
+export const dataTdClass = "border-t border-[color:var(--trips-border)] py-3 pr-3 align-top"
 
 // ── Labels ───────────────────────────────────────────────────────────────
 

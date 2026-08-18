@@ -1,17 +1,17 @@
 import { lazy, Suspense, useEffect, type ReactNode } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
-import { ArrowLeft, Compass, Lock } from "lucide-react"
+import { ArrowLeft, Lock, Plus } from "lucide-react"
 import { SignedIn, SignedOut, SignInButton, UserButton, useAuth } from "@clerk/clerk-react"
 import { CLERK_ENABLED } from "@/lib/clerk"
 import { ThemeToggle } from "../Korea/ThemeToggle"
 import { applyTheme, getInitialTheme } from "../Korea/koreaUtils"
 import {
-  accentIconClass,
   chromeHeaderClass,
   focusRingClass,
   iconBtnClass,
   mutedInkClass,
   primaryBtnClass,
+  workspaceRailClass,
   wrapAnywhereClass,
 } from "./ui"
 
@@ -43,22 +43,17 @@ function ClerkTripsGate({ children }: { children: ReactNode }) {
     <>
       <SignedIn>{children}</SignedIn>
       <SignedOut>
-        <div className="flex min-h-[70dvh] items-center justify-center px-5 py-16">
-          <div className="w-full max-w-md text-center">
-            <div
-              className={`mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-stone-200/80 bg-[var(--trips-surface)] shadow-sm dark:border-stone-800 ${accentIconClass}`}
-              aria-hidden
-            >
-              <Compass className="h-7 w-7" strokeWidth={1.5} />
-            </div>
-            <h1 className="mt-6 text-3xl font-semibold tracking-tight text-stone-900 dark:text-stone-100">
-              Trips
+        <div className="flex min-h-[70dvh] items-center px-6 py-16 sm:px-10">
+          <div className="w-full max-w-sm">
+            <p className={`text-[13px] font-medium ${mutedInkClass}`}>Workspace</p>
+            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-stone-900 dark:text-stone-100">
+              Sign in to Trips
             </h1>
-            <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-stone-600 dark:text-stone-400">
-              A private itinerary workspace. Sign in to plan days, reservations, and Map Mode.
+            <p className={`mt-3 text-sm leading-relaxed ${mutedInkClass}`}>
+              Plan days, reservations, and Map Mode in a private workspace.
             </p>
             <SignInButton mode="modal">
-              <button type="button" className={`mt-8 w-full ${primaryBtnClass}`}>
+              <button type="button" className={`mt-8 ${primaryBtnClass}`}>
                 <Lock className="h-4 w-4" strokeWidth={1.5} aria-hidden />
                 Sign in to continue
               </button>
@@ -101,7 +96,7 @@ export function TripsLayout() {
   }, [])
 
   return (
-    <div className="trips min-h-dvh text-stone-900 dark:text-stone-100">
+    <div className="trips min-h-dvh text-stone-900 lg:flex dark:text-stone-100">
       <TripsAuthGate>
         <a
           href="#trips-main"
@@ -109,53 +104,79 @@ export function TripsLayout() {
         >
           Skip to content
         </a>
-        <header className={chromeHeaderClass}>
-          <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 pt-[env(safe-area-inset-top,0px)] sm:h-12 sm:px-6">
-            <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 sm:gap-2">
-              {!atIndex && (
-                <Link to="/trips" className={iconBtnClass} aria-label="Back to all trips">
-                  <ArrowLeft className="h-4 w-4" strokeWidth={1.5} aria-hidden />
-                </Link>
-              )}
-              <ol className="flex min-w-0 items-center gap-1.5 sm:gap-2">
-                <li className="shrink-0">
-                  <Link
-                    to="/trips"
-                    className={`-mx-1.5 inline-flex min-h-11 items-center rounded-lg px-1.5 text-[15px] font-semibold tracking-tight text-stone-900 transition hover:text-[color:var(--trips-accent)] dark:text-stone-100 ${focusRingClass}`}
-                  >
-                    Trips
-                  </Link>
-                </li>
-                {crumb ? (
-                  <li
-                    aria-current="page"
-                    className={`flex min-w-0 items-center gap-1.5 sm:gap-2 ${mutedInkClass}`}
-                  >
-                    <span aria-hidden className="text-stone-300 dark:text-stone-600">
-                      /
-                    </span>
-                    <span className={`truncate text-sm font-medium ${wrapAnywhereClass}`}>{crumb}</span>
-                  </li>
-                ) : null}
-              </ol>
-            </nav>
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              {/* ThemeToggle is already 44×44; keep the trip-tap wrapper for header rhythm. */}
-              <span className="trip-tap-44 inline-flex">
-                <ThemeToggle />
-              </span>
-              {CLERK_ENABLED && !DEV_BEARER ? <UserButton afterSignOutUrl="/" /> : null}
-            </div>
+        <aside className={workspaceRailClass}>
+          <div className="flex h-12 items-center px-4">
+            <Link
+              to="/trips"
+              className={`text-[15px] font-semibold tracking-tight text-stone-900 dark:text-stone-100 ${focusRingClass}`}
+            >
+              Trips
+            </Link>
           </div>
-        </header>
-        {/* Each routed page owns its own gutters. No full-bleed bloom heroes. */}
-        <main
-          id="trips-main"
-          tabIndex={-1}
-          className={`${chatPad ? "px-0 pb-28" : "px-0 pb-10 sm:pb-14"} outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--trips-accent)]`}
-        >
-          <Outlet />
-        </main>
+          <nav aria-label="Workspace" className="flex flex-1 flex-col gap-1 px-3 pt-2">
+            <Link
+              to="/trips"
+              className={`inline-flex min-h-11 items-center rounded-lg px-2 text-sm font-medium ${
+                atIndex ? "bg-[color:var(--trips-surface)] text-stone-900 dark:text-stone-100" : mutedInkClass
+              } ${focusRingClass}`}
+            >
+              All trips
+            </Link>
+            <Link to="/trips/new" className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm font-medium ${mutedInkClass} hover:text-stone-900 dark:hover:text-stone-100 ${focusRingClass}`}>
+              <Plus className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
+              New trip
+            </Link>
+          </nav>
+        </aside>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className={chromeHeaderClass}>
+            <div className="flex h-14 items-center justify-between gap-3 px-4 pt-[env(safe-area-inset-top,0px)] sm:h-12 sm:px-6">
+              <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+                {!atIndex && (
+                  <Link to="/trips" className={`${iconBtnClass} lg:hidden`} aria-label="Back to all trips">
+                    <ArrowLeft className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+                  </Link>
+                )}
+                <ol className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+                  <li className="shrink-0 lg:hidden">
+                    <Link
+                      to="/trips"
+                      className={`-mx-1.5 inline-flex min-h-11 items-center rounded-lg px-1.5 text-[15px] font-semibold tracking-tight text-stone-900 transition hover:text-[color:var(--trips-accent)] dark:text-stone-100 ${focusRingClass}`}
+                    >
+                      Trips
+                    </Link>
+                  </li>
+                  {crumb ? (
+                    <li
+                      aria-current="page"
+                      className={`flex min-w-0 items-center gap-1.5 sm:gap-2 ${mutedInkClass}`}
+                    >
+                      <span aria-hidden className="text-stone-300 lg:hidden dark:text-stone-600">
+                        /
+                      </span>
+                      <span className={`truncate text-sm font-medium ${wrapAnywhereClass}`}>{crumb}</span>
+                    </li>
+                  ) : (
+                    <li className={`hidden text-sm font-medium lg:block ${mutedInkClass}`}>All trips</li>
+                  )}
+                </ol>
+              </nav>
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <span className="trip-tap-44 inline-flex">
+                  <ThemeToggle />
+                </span>
+                {CLERK_ENABLED && !DEV_BEARER ? <UserButton afterSignOutUrl="/" /> : null}
+              </div>
+            </div>
+          </header>
+          <main
+            id="trips-main"
+            tabIndex={-1}
+            className={`${chatPad ? "px-0 pb-28" : "px-0 pb-8"} outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--trips-accent)]`}
+          >
+            <Outlet />
+          </main>
+        </div>
         <Suspense fallback={null}>
           <TripChat />
         </Suspense>

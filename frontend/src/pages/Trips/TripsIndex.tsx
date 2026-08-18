@@ -24,8 +24,8 @@ import {
   ghostOnTintBtnClass,
   hoverArrowClass,
   inlineLinkClass,
+  documentClass,
   mutedInkClass,
-  pageClass,
   primaryBtnClass,
   revealDelay,
   secondaryBtnClass,
@@ -37,7 +37,7 @@ const metaIconClass = `h-3.5 w-3.5 shrink-0 ${mutedInkClass}`
 const skeletonBarClass = "animate-pulse rounded bg-stone-200/70 dark:bg-stone-800"
 
 const tileClass =
-  "relative rounded-2xl border border-[color:var(--trips-border)] bg-[color:var(--trips-surface)]"
+  "relative rounded-lg border border-[color:var(--trips-border)] bg-[color:var(--trips-surface)]"
 
 const arrowAccentHoverClass = `${ACCENT.textHover} dark:group-hover:text-[color:var(--ta-strong)]`
 
@@ -447,11 +447,11 @@ export function TripsIndex() {
   const empty = state.status === "success" && state.trips.length === 0
 
   return (
-    <div className={pageClass()}>
+    <div className={documentClass}>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight text-stone-900 dark:text-stone-100">
-            {empty ? "No trips yet" : "Trips"}
+          <h1 className="text-xl font-semibold tracking-tight text-stone-900 dark:text-stone-100">
+            {empty ? "No trips yet" : "Inbox"}
           </h1>
           {!empty && <p className={`mt-1 text-sm ${mutedInkClass}`}>Open a trip to edit it in place.</p>}
         </div>

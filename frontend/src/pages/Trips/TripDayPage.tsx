@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type ReactNode } from "react"
+import { lazy, Suspense, useEffect, useState } from "react"
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
 import { ArrowUpRight, Globe2, Pencil } from "lucide-react"
@@ -12,7 +12,9 @@ import { useLoadedTrip } from "./useLoadedTrip"
 import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import { ACCENT, calloutTone, formatTripDate, resolveAccent, todayIsoIn } from "./theme"
 import { useAnchorHighlight, useAnchorTarget } from "./anchors"
-import { DossierSectionHeader } from "./components/DossierSectionHeader"
+import { DateStrip } from "./components/DateStrip"
+import { PropertyRow, PropertyTable } from "./components/PropertyTable"
+import { SectionHeading } from "./components/SectionHeading"
 import { ItemIcon } from "./components/ItemIcon"
 import { StatusChip } from "./components/StatusChip"
 import { itemToReservation, nextMappedItem, walkLegBetween } from "./reservationView"
@@ -22,14 +24,16 @@ import {
   REVEAL_DURATION,
   alertErrorClass,
   chipBtnClass,
+  dataTableClass,
+  dataTdClass,
+  dataThClass,
+  documentClass,
   focusRingClass,
   hoverArrowBackClass,
   hoverArrowClass,
   inkBtnClass,
   inlineLinkClass,
-  metaLabelClass,
   mutedInkClass,
-  pageClass,
   revealDelay,
   secondaryBtnClass,
   timeCellClass,
@@ -40,8 +44,7 @@ const MapModeOverlay = lazy(() =>
   import("../Korea/MapModeOverlay").then((m) => ({ default: m.MapModeOverlay })),
 )
 
-/** `<main>` is unconstrained so trip heroes can be full-bleed. */
-const PAGE = pageClass("reading")
+const PAGE = documentClass
 
 function narrativeBlocks(items: ItineraryItem[]): Array<{ section: ItineraryItem | null; items: ItineraryItem[] }> {
   const blocks: Array<{ section: ItineraryItem | null; items: ItineraryItem[] }> = []
@@ -206,7 +209,13 @@ export function TripDayPage() {
   return (
     <EntityIndexProvider>
       <article className={PAGE} data-trip-accent={resolveAccent(trip.appearance?.accent)}>
-        <header className="border-b border-[color:var(--trips-border)] pb-6">
+        <DateStrip
+          days={trip.days}
+          timezone={trip.timezone}
+          activeId={day.id}
+          toFor={(d) => `${tripPath}/day/${d.id}`}
+        />
+        <header className="mt-5">
           <motion.p
             {...fadeUp(0)}
             className={`flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] font-medium ${mutedInkClass}`}
@@ -223,21 +232,18 @@ export function TripDayPage() {
             <span className="tabular-nums">
               Day {dayIndex + 1} of {trip.days.length}
             </span>
-            <span aria-hidden>·</span>
-            <span>{formatTripDate(day.date, trip.timezone, { weekday: "long", month: "long" })}</span>
             {isToday && (
               <span className={`flex items-center gap-1.5 ${a.text}`}>
-                <span aria-hidden>·</span>
                 <span className={`inline-block h-1.5 w-1.5 rounded-full ${a.dot}`} aria-hidden />
                 Today
               </span>
             )}
           </motion.p>
 
-          <motion.div {...fadeUp(1)} className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
-            {day.emoji && <span aria-hidden className="text-2xl leading-none">{day.emoji}</span>}
+          <motion.div {...fadeUp(1)} className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+            {day.emoji && <span aria-hidden className="text-xl leading-none">{day.emoji}</span>}
             <h1
-              className={`min-w-0 flex-1 text-3xl font-semibold leading-tight tracking-tight text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
+              className={`min-w-0 flex-1 text-2xl font-semibold leading-tight tracking-tight text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
             >
               {day.title ?? `Day ${dayIndex + 1}`}
             </h1>
@@ -246,46 +252,55 @@ export function TripDayPage() {
           {day.notes && (
             <motion.div
               {...fadeUp(2)}
-              className={`mt-5 max-w-[60ch] whitespace-pre-line text-base leading-relaxed text-stone-700 dark:text-stone-300 ${wrapAnywhereClass}`}
+              className={`mt-3 max-w-[60ch] whitespace-pre-line text-sm leading-relaxed text-stone-700 dark:text-stone-300 ${wrapAnywhereClass}`}
             >
               <LinkifiedText>{day.notes}</LinkifiedText>
             </motion.div>
           )}
 
-          <motion.dl
-            {...fadeUp(3)}
-            className="mt-7 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-stone-200/80 pt-5 sm:grid-cols-3 sm:gap-x-10 dark:border-stone-800/80"
-          >
-            {day.city && (
-              <Meta label="City">
-                <SmartEntity name={day.city} type="city" className={wrapAnywhereClass} />
-              </Meta>
-            )}
-            {day.weather && (
-              <Meta label="Weather">
-                {`${day.weather.highC}°C / ${day.weather.lowC}°C · ${day.weather.condition}`}
-              </Meta>
-            )}
-            {day.neighborhoods && day.neighborhoods.length > 0 && (
-              <Meta label="Neighborhoods">
-                {day.neighborhoods.map((n, i) => (
-                  <span key={n}>
-                    {i > 0 && (
-                      <span aria-hidden className="mx-1.5 text-stone-400 dark:text-stone-600">
-                        ·
-                      </span>
-                    )}
-                    <SmartEntity name={n} type="neighborhood" city={day.city} className={wrapAnywhereClass} />
-                  </span>
-                ))}
-              </Meta>
-            )}
-            {reservations.length > 0 && (
-              <Meta label="Booked">{`${reservations.length} reservation${reservations.length === 1 ? "" : "s"}`}</Meta>
-            )}
-          </motion.dl>
+          <motion.div {...fadeUp(3)} className="mt-5">
+            <PropertyTable>
+              <PropertyRow
+                label="Date"
+                value={formatTripDate(day.date, trip.timezone, { weekday: "long", month: "long" })}
+              />
+              {day.city && (
+                <PropertyRow
+                  label="City"
+                  value={<SmartEntity name={day.city} type="city" className={wrapAnywhereClass} />}
+                />
+              )}
+              {day.weather && (
+                <PropertyRow
+                  label="Weather"
+                  value={`${day.weather.highC}°C / ${day.weather.lowC}°C · ${day.weather.condition}`}
+                />
+              )}
+              {day.neighborhoods && day.neighborhoods.length > 0 && (
+                <PropertyRow
+                  label="Areas"
+                  value={day.neighborhoods.map((n, i) => (
+                    <span key={n}>
+                      {i > 0 && (
+                        <span aria-hidden className="mx-1.5 text-stone-400 dark:text-stone-600">
+                          ·
+                        </span>
+                      )}
+                      <SmartEntity name={n} type="neighborhood" city={day.city} className={wrapAnywhereClass} />
+                    </span>
+                  ))}
+                />
+              )}
+              {reservations.length > 0 && (
+                <PropertyRow
+                  label="Booked"
+                  value={`${reservations.length} reservation${reservations.length === 1 ? "" : "s"}`}
+                />
+              )}
+            </PropertyTable>
+          </motion.div>
 
-          <motion.div {...fadeUp(4)} className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <motion.div {...fadeUp(4)} className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             {hasMappable ? (
               <button type="button" onClick={() => openMap()} className={inkBtnClass}>
                 <Globe2 className="h-4 w-4" strokeWidth={1.5} aria-hidden />
@@ -328,27 +343,42 @@ export function TripDayPage() {
         )}
 
         {reservations.length > 0 && (
-          <section className="mt-12">
-            <DossierSectionHeader num="01" eyebrow="Booked moments" title="Reservations" />
-            <ol className="relative mt-6 space-y-5 pl-6 before:absolute before:bottom-2 before:left-[7px] before:top-2 before:w-px before:bg-stone-200/90 sm:pl-8 sm:before:left-[11px] dark:before:bg-stone-800/90">
-              {reservations.map((item, i) => (
-                <ReservationTimelineItem
-                  key={item.id}
-                  item={item}
-                  day={day}
-                  dayNumber={dayIndex + 1}
-                  index={i}
-                  accentDot={a.dot}
-                  flash={anchorTarget === `item-${item.id}`}
-                  walk={walkAfter(day.items, item)}
-                />
-              ))}
-            </ol>
+          <section className="mt-10">
+            <SectionHeading title="Reservations" />
+            <table className={`mt-2 ${dataTableClass}`}>
+              <caption className="sr-only">Reservations</caption>
+              <thead>
+                <tr>
+                  <th scope="col" className={dataThClass}>
+                    Time
+                  </th>
+                  <th scope="col" className={dataThClass}>
+                    Booking
+                  </th>
+                  <th scope="col" className={dataThClass}>
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {reservations.map((item) => (
+                  <ReservationTableRow
+                    key={item.id}
+                    item={item}
+                    day={day}
+                    dayNumber={dayIndex + 1}
+                    flash={anchorTarget === `item-${item.id}`}
+                    walk={walkAfter(day.items, item)}
+                  />
+                ))}
+              </tbody>
+            </table>
           </section>
         )}
 
         {blocks.length > 0 && (
-          <section className="mt-12 divide-y divide-stone-200/80 dark:divide-stone-800/80">
+          <section className="mt-10">
+            <SectionHeading title="Stops" />
             {blocks.map((block, bi) => (
               <motion.div
                 key={block.section?.id ?? `block-${bi}`}
@@ -497,17 +527,6 @@ export function TripDayPage() {
   )
 }
 
-function Meta({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="min-w-0">
-      <dt className={metaLabelClass}>{label}</dt>
-      <dd className={`mt-1 text-sm leading-snug text-stone-800 dark:text-stone-200 ${wrapAnywhereClass}`}>
-        {children}
-      </dd>
-    </div>
-  )
-}
-
 function WalkLeg({ walk }: { walk: { distance: string; walk: string } }) {
   return (
     <p className={`mt-2 text-[13px] ${mutedInkClass}`}>
@@ -518,81 +537,52 @@ function WalkLeg({ walk }: { walk: { distance: string; walk: string } }) {
   )
 }
 
-function ReservationTimelineItem({
+function ReservationTableRow({
   item,
   day,
   dayNumber,
-  index,
-  accentDot,
   flash,
   walk,
 }: {
   item: ItineraryItem
   day: TripDay
   dayNumber: number
-  index: number
-  accentDot: string
   flash: boolean
   walk: { distance: string; walk: string } | null
 }) {
-  const reduce = useReducedMotion()
   const highlight = useAnchorHighlight(flash)
   const reservation = itemToReservation(item, day, dayNumber)
   if (!reservation) return null
   return (
-    <motion.li
-      initial={reduce ? false : { opacity: 0, y: 10 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ duration: REVEAL_DURATION, ease: EASE, delay: revealDelay(index) }}
-      className="relative"
-    >
-      <span
-        className={`absolute -left-[23px] top-8 h-2.5 w-2.5 rounded-full ring-2 ring-[var(--trips-canvas)] sm:-left-[29px] ${accentDot}`}
-        aria-hidden
-      />
-      <div id={`item-${item.id}`} className={highlight}>
-        <article className="min-w-0">
-          <div className="flex items-start gap-3">
-            <ItemIcon
-              kind={item.kind}
-              category={item.location?.category}
-              reservationType={item.reservation?.type}
-              className="mt-1 h-4 w-4 shrink-0 text-stone-500"
-            />
-            <div className="min-w-0 flex-1">
-              <h3
-                className={`text-lg font-semibold leading-snug text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}
-              >
-                <SmartEntity name={reservation.title} type={placeCategoryToEntityType(item.location?.category ?? "place")} />
-              </h3>
-              {reservation.subtitle && (
-                <p className={`mt-1 text-sm ${mutedInkClass} ${wrapAnywhereClass}`}>{reservation.subtitle}</p>
-              )}
-              {reservation.time && (
-                <p className={`mt-1 text-[13px] tabular-nums ${mutedInkClass}`}>
-                  <Time value={reservation.time} />
-                </p>
-              )}
-              {reservation.address && (
-                <p className={`mt-2 text-sm ${wrapAnywhereClass}`}>
-                  <a href={mapsUrl(reservation.address)} className={inlineLinkClass}>
-                    {reservation.address}
-                  </a>
-                </p>
-              )}
-              {reservation.notes && (
-                <p className={`mt-2 text-sm leading-relaxed ${mutedInkClass} ${wrapAnywhereClass}`}>
-                  <LinkifiedText>{reservation.notes}</LinkifiedText>
-                </p>
-              )}
-            </div>
-            <StatusChip status={item.status} />
-          </div>
-        </article>
+    <tr id={`item-${item.id}`} className={highlight}>
+      <td className={`${dataTdClass} whitespace-nowrap tabular-nums ${mutedInkClass}`}>
+        {reservation.time ? <Time value={reservation.time} /> : "—"}
+      </td>
+      <td className={dataTdClass}>
+        <p className={`font-medium text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}>
+          <SmartEntity name={reservation.title} type={placeCategoryToEntityType(item.location?.category ?? "place")} />
+        </p>
+        {reservation.subtitle && (
+          <p className={`mt-0.5 text-[13px] ${mutedInkClass} ${wrapAnywhereClass}`}>{reservation.subtitle}</p>
+        )}
+        {reservation.address && (
+          <p className={`mt-1 text-sm ${wrapAnywhereClass}`}>
+            <a href={mapsUrl(reservation.address)} className={inlineLinkClass}>
+              {reservation.address}
+            </a>
+          </p>
+        )}
+        {reservation.notes && (
+          <p className={`mt-1 text-sm leading-relaxed ${mutedInkClass} ${wrapAnywhereClass}`}>
+            <LinkifiedText>{reservation.notes}</LinkifiedText>
+          </p>
+        )}
         {walk && <WalkLeg walk={walk} />}
-      </div>
-    </motion.li>
+      </td>
+      <td className={dataTdClass}>
+        <StatusChip status={item.status} />
+      </td>
+    </tr>
   )
 }
 

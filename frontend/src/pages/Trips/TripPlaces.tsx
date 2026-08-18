@@ -4,7 +4,7 @@ import { Places } from "../Korea/Places"
 import { formatTripDate, resolveAccent } from "./theme"
 import { useLoadedTrip } from "./useLoadedTrip"
 import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
-import { alertErrorClass, inlineLinkClass, pageClass, wrapAnywhereClass } from "./ui"
+import { alertErrorClass, documentClass, inlineLinkClass, wrapAnywhereClass } from "./ui"
 
 export function TripPlaces() {
   const { tripId } = useParams<{ tripId: string }>()
@@ -13,7 +13,7 @@ export function TripPlaces() {
 
   if (state.status === "loading") {
     return (
-      <div className={pageClass()} role="status" aria-label="Loading places">
+      <div className={documentClass} role="status" aria-label="Loading places">
         <div className="h-10 w-1/2 animate-pulse rounded-xl bg-stone-200/60 dark:bg-stone-900" />
         <div className="mt-8 h-40 animate-pulse rounded-2xl bg-stone-200/60 dark:bg-stone-900" />
       </div>
@@ -23,7 +23,7 @@ export function TripPlaces() {
   if (state.status === "error") {
     if (isMissingTripError(state.message)) return <TripsNotFound />
     return (
-      <div className={pageClass()}>
+      <div className={documentClass}>
         <div className={alertErrorClass} role="alert">
           <p className={`min-w-0 ${wrapAnywhereClass}`}>
             Couldn’t load places. Check your connection, then try again. ({state.message})

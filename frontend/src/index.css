@@ -909,9 +909,9 @@ html:has(.chatbot-dark) {
    ═══════════════════════════════════════════════════════ */
 
 .trips {
-  --trips-canvas: oklch(97.5% 0.006 250);
-  --trips-surface: oklch(99.2% 0.003 250);
-  --trips-rail: oklch(95.8% 0.008 250);
+  --trips-canvas: oklch(96.4% 0.008 255);
+  --trips-surface: oklch(99.4% 0.002 255);
+  --trips-rail: oklch(94.6% 0.01 255);
   --trips-ink: oklch(22% 0.014 260);
   --trips-ink-secondary: oklch(46% 0.016 260);
   --trips-ink-tertiary: oklch(62% 0.012 260);
