@@ -5,6 +5,7 @@ import { Globe2, Images, Map as MapIcon, Settings2 } from "lucide-react"
 import { EntityIndexProvider } from "../Korea/entityIndex"
 import { LinkifiedText } from "../Korea/LinkifiedText"
 import { ACCENT, collaboratorSummary, daysUntilIn, formatTripDate, resolveAccent, todayIsoIn, visibleTags } from "./theme"
+import { CoverDock } from "./components/CoverDock"
 import { NextDeparture } from "./components/NextDeparture"
 import { SectionHeading } from "./components/SectionHeading"
 import { StatusChip } from "./components/StatusChip"
@@ -22,7 +23,6 @@ import { upcomingReservations } from "./reservationView"
 import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import { useTripEditor } from "./useTripEditor"
 import type { Trip } from "./types"
-import { useCompactChrome } from "./useCompactChrome"
 import {
   EASE,
   REVEAL_DURATION,
@@ -57,7 +57,6 @@ const gutterClass = documentClass
 export function TripOverview() {
   const editor = useTripEditor()
   const reduce = useReducedMotion()
-  const compact = useCompactChrome()
   const [searchParams] = useSearchParams()
   const openIngest = searchParams.get("ingest") === "1"
 
@@ -128,7 +127,8 @@ export function TripOverview() {
   return (
     <EntityIndexProvider>
       <div data-trip-accent={resolveAccent(trip.appearance?.accent)}>
-        <header className={coverBandClass} data-compact={compact ? "true" : undefined}>
+        <CoverDock title={trip.name} />
+        <header className={coverBandClass}>
           <div className="mx-auto max-w-5xl">
             <motion.div {...fadeUp(0)} className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[color:var(--trips-band-ink)]/80">
               <span className={`inline-flex items-center gap-2 ${typeMetaClass} text-[color:var(--trips-band-ink)]`}>

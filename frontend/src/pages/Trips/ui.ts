@@ -47,10 +47,11 @@ const FOCUS =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--trips-focus)]"
 const FOCUS_INSET = `${FOCUS} focus-visible:ring-inset`
 const RADIUS = "rounded-[length:var(--trips-radius)]"
+const FIELD_RADIUS = "rounded-[length:var(--trips-field-radius)]"
 const BTN = `inline-flex items-center justify-center gap-2 ${RADIUS} transition`
 
 /** Recessed well: darker than the canvas so a field sits in the stock. */
-const FIELD = `${RADIUS} border border-[color:var(--trips-border)] bg-[color:var(--trips-rail)] shadow-[inset_0_1px_2px_color-mix(in_oklch,var(--trips-ink)_12%,transparent)]`
+const FIELD = `${FIELD_RADIUS} border border-[color:var(--trips-border)] bg-[color:var(--trips-rail)] shadow-[inset_0_1px_2px_color-mix(in_oklch,var(--trips-ink)_12%,transparent)]`
 
 /** Visible focus ring for elements that aren't buttons/inputs (links, rows). */
 export const focusRingClass = FOCUS
@@ -111,6 +112,9 @@ export const chromeHeaderClass =
 export const coverBandClass =
   "cover-band px-4 py-8 sm:px-6 sm:py-10 lg:px-8 lg:py-12"
 
+/** Sticky condensed title. Opacity and transform only; negative margin keeps it out of flow. */
+export const coverDockClass = "cover-dock px-4 sm:px-6 lg:px-8"
+
 /** Living document: print sheet, no card-in-a-rail. */
 export const documentClass = "mx-auto max-w-5xl px-4 pb-16 pt-0 sm:px-6"
 
@@ -165,7 +169,7 @@ export const compactInputClass = `${ELLIPSIS} ${FIELD} min-h-11 sm:min-h-9 px-2.
 
 /** Borderless inline edit — the field only reveals itself on hover/focus.
  *  Width is left to the call site so it can sit in a flex row. */
-export const subtleInputClass = `${ELLIPSIS} ${RADIUS} min-h-11 sm:min-h-9 border border-transparent bg-transparent px-2 py-1 text-[0.9375rem] text-[color:var(--trips-ink)] transition placeholder:text-[color:var(--trips-ink-tertiary)] hover:border-[color:var(--trips-border)] focus:border-[color:var(--trips-accent)] focus:bg-[color:var(--trips-rail)] focus:outline-none ${FOCUS}`
+export const subtleInputClass = `${ELLIPSIS} ${FIELD_RADIUS} min-h-11 sm:min-h-9 border border-transparent bg-transparent px-2 py-1 text-[0.9375rem] text-[color:var(--trips-ink)] transition placeholder:text-[color:var(--trips-ink-tertiary)] hover:border-[color:var(--trips-border)] focus:border-[color:var(--trips-accent)] focus:bg-[color:var(--trips-rail)] focus:outline-none ${FOCUS}`
 
 export const selectClass = `${FIELD} min-h-11 px-3 py-2 text-[0.9375rem] text-[color:var(--trips-ink)] transition focus:border-[color:var(--trips-accent)] focus:outline-none ${FOCUS}`
 

@@ -5,10 +5,10 @@ import { ChevronDown, Loader2, type LucideIcon, PenLine, Sparkles } from "lucide
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useGetToken } from "@/lib/safeAuth"
 import { createTrip, generateItinerary } from "./tripsApi"
+import { CoverDock } from "./components/CoverDock"
 import { DateRangeField } from "./components/DateRangeField"
 import { TimezoneField } from "./components/TimezoneField"
 import { DEFAULT_ITINERARY_PROMPT, type GeneratePreferences } from "./types"
-import { useCompactChrome } from "./useCompactChrome"
 import {
   EASE,
   REVEAL_DURATION,
@@ -117,7 +117,6 @@ export function TripCreate() {
   const readToken = useLatestCallback(getToken)
   const navigate = useNavigate()
   const reduce = useReducedMotion()
-  const compact = useCompactChrome()
   const [params] = useSearchParams()
   const initialMode = params.get("mode") === "blank" ? "blank" : "ai"
 
@@ -254,10 +253,8 @@ export function TripCreate() {
 
   return (
     <form onSubmit={onSubmit} className="pb-16" noValidate>
-      <header
-        className={`${coverBandClass} flex flex-col justify-end ${compact ? "" : "min-h-[38svh]"}`}
-        data-compact={compact ? "true" : undefined}
-      >
+      <CoverDock title={name.trim() || "New trip"} measure="form" />
+      <header className={`${coverBandClass} flex min-h-[38svh] flex-col justify-end`}>
         <div className="mx-auto w-full max-w-2xl">
           <h1 className={`${typeDisplayClass} cover-extra`}>New trip</h1>
           <div className="mt-6" ref={(el) => void (groupRefs.current.name = el)}>

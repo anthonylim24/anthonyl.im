@@ -194,13 +194,13 @@ The same travelers as Korea, plus future trips. Phone for in-trip lookups; deskt
 ### Aesthetic Direction
 - **Material:** green-gray print stock + a deep JR-green cover band. Dark is lamp-lit tinted stock, not a zinc IDE.
 - **Type:** Archivo Narrow (`font-display`, 600, `-0.02em`) for times and titles; Inter for UI body. **No Cormorant on `/trips`.** Banned display faces: Fraunces, Playfair, Cormorant, Lora, Crimson, Newsreader, Syne, Space Grotesk, Space Mono, IBM Plex, Inter-as-display, DM Sans, DM Serif, Outfit, Plus Jakarta, Instrument Sans.
-- **First viewport:** committed cover band (30–40% of the first viewport) + condensed title + next time; snap rail (station ticks); schedule rows. Chrome and cover compactify on scroll so the itinerary keeps the viewport.
+- **First viewport:** committed cover band (30–40% of the first viewport) + condensed title + next time; snap rail (station ticks); schedule rows. Chrome height stays put. Cover extras fade and a slim `.cover-dock` eases in under chrome so the itinerary keeps the viewport.
 - **Living board:** split-flap `FlipTime` on the next departure, day hero, chrome clock, and index countdown. Cover progress is `--trips-cover-t` (transform/opacity only). Enhance morphs from its chevron via View Transitions. The snap-rail tick is a magnetic `layoutId` spring. Reduced motion keeps the same information without flaps or morphs.
-- **Fields / dialogs:** inset rail wells, one `--trips-radius` (0.25rem), opaque surface panels. Enhance opens a heavy-scrim dialog with a recessed action bar and filled **Run enhance**.
+- **Fields / dialogs:** inset rail wells, `--trips-field-radius` (0.75rem) on inputs, `--trips-radius` (0.25rem) on chips and marks, opaque surface panels. Enhance opens a heavy-scrim dialog with a recessed action bar and filled **Run enhance**.
 - **Index:** end-label timetable rows grouped Now / Upcoming / Past. Heading is “Trips” or “No trips yet”. **Never “Inbox”.**
 - **Day page:** the first reservation is the hero (huge condensed time). Status is a geometric mark + label, not hue-only.
 - **Accent:** `data-trip-accent` retints canvas + cover band (rose / amber / emerald / sky / violet). No Korea bloom, grain, or parchment.
-- **Chrome:** slim sticky header. No left workspace rail. No Notion property-table hero. No Airbnb listing cards. Document column is `max-w-5xl`. Radius `0.25rem` (tighter than Korea orbs). Touch targets 44px.
+- **Chrome:** slim sticky header. No left workspace rail. No Notion property-table hero. No Airbnb listing cards. Document column is `max-w-5xl`. Print marks stay `0.25rem`; fields use `0.75rem`. Touch targets 44px.
 - **IA (locked):** `/trips/:tripId` is the living document. Day pages stay. `/trips/:tripId/edit` redirects there. Concierge FAB (`TripChat`) on trip + day only (not index, create, or places). Instagram ingest is embedded on the living document.
 - **Map Mode:** photorealistic 3D tiles stay. Glass/refraction is for the YOU pin only. **Must unmount** when closed; never hide with React `Activity`.
 

@@ -714,7 +714,7 @@ export function TripChat() {
                 className="border-t border-[color:var(--trips-border)] px-3 pt-3"
                 style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)" }}
               >
-                <div className="flex items-end gap-2 rounded-[length:var(--trips-radius)] border border-[color:var(--trips-border)] bg-[color:var(--trips-rail)] px-3 py-2 shadow-[inset_0_1px_2px_color-mix(in_oklch,var(--trips-ink)_12%,transparent)] focus-within:border-[color:var(--trips-accent)] focus-within:ring-2 focus-within:ring-[color:var(--trips-focus)]">
+                <div className="flex items-end gap-2 rounded-[length:var(--trips-field-radius)] border border-[color:var(--trips-border)] bg-[color:var(--trips-rail)] px-3 py-2 shadow-[inset_0_1px_2px_color-mix(in_oklch,var(--trips-ink)_12%,transparent)] focus-within:border-[color:var(--trips-accent)] focus-within:ring-2 focus-within:ring-[color:var(--trips-focus)]">
                   <textarea
                     ref={inputRef}
                     value={input}

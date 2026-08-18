@@ -154,7 +154,7 @@ function TripsShell({
                 <li className="shrink-0">
                   <Link
                     to="/trips"
-                    className={`-mx-1.5 inline-flex min-h-11 items-center rounded-[length:var(--trips-radius)] px-1.5 font-display font-semibold tracking-tight text-[color:var(--trips-ink)] transition hover:text-[color:var(--trips-accent)] ${compact ? "text-base" : "text-lg"} ${focusRingClass}`}
+                    className={`chrome-wordmark -mx-1.5 inline-flex min-h-11 items-center rounded-[length:var(--trips-radius)] px-1.5 text-lg font-display font-semibold tracking-tight text-[color:var(--trips-ink)] transition hover:text-[color:var(--trips-accent)] ${focusRingClass}`}
                   >
                     Trips
                   </Link>
@@ -171,15 +171,15 @@ function TripsShell({
                   </li>
                 ) : null}
               </ol>
-              {!compact && (
-                <Link
-                  to="/trips/new"
-                  className={`hidden min-h-11 items-center gap-1.5 rounded-[length:var(--trips-radius)] px-2 text-[0.8125rem] font-medium sm:inline-flex ${mutedInkClass} hover:text-[color:var(--trips-ink)] ${focusRingClass}`}
-                >
-                  <Plus className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
-                  New trip
-                </Link>
-              )}
+              <Link
+                to="/trips/new"
+                tabIndex={compact ? -1 : undefined}
+                aria-hidden={compact || undefined}
+                className={`chrome-new-trip hidden min-h-11 items-center gap-1.5 rounded-[length:var(--trips-radius)] px-2 text-[0.8125rem] font-medium sm:inline-flex ${mutedInkClass} hover:text-[color:var(--trips-ink)] ${focusRingClass}`}
+              >
+                <Plus className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
+                New trip
+              </Link>
             </nav>
             <div className="flex items-center gap-1.5 sm:gap-2">
               <span className="trip-tap-44 inline-flex">
