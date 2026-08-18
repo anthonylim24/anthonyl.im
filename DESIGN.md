@@ -75,7 +75,7 @@ typography:
     letterSpacing: "normal"
 rounded:
   trips: "0.25rem"
-  field: "0.75rem"
+  field: "1rem"
   sm: "0.25rem"
   md: "0.5rem"
   lg: "0.75rem"
@@ -215,7 +215,7 @@ Flat print. Depth is tonal (stock vs sheet vs band) and hairline rules, not drop
 
 ## Shapes
 
-Tight print geometry. `.trips` sets `--trips-radius` / `--radius: 0.25rem` (`{rounded.trips}`) for chips, ticks, buttons, and panels. Form fields use `--trips-field-radius` (`{rounded.field}`, 0.75rem) so recessed wells read softer than print marks. Cover band is square (radius 0). Station ticks are 1×10px lines; the active day is a small rotated rectangle, not a pill. Status is a 6px geometric mark (dot or square) beside a label; hue alone is not status. Do not drift toward stadium pills or identical card grids.
+Tight print geometry. `.trips` sets `--trips-radius` / `--radius: 0.25rem` (`{rounded.trips}`) for chips, ticks, buttons, and panels. Form fields use `--trips-field-radius` (`{rounded.field}`, 1rem) so recessed wells read softer than print marks. Cover band is square (radius 0). Station ticks are 1×10px lines; the active day is a small rotated rectangle, not a pill. Status is a 6px geometric mark (dot or square) beside a label; hue alone is not status. Do not drift toward stadium pills or identical card grids.
 
 ## Components
 
