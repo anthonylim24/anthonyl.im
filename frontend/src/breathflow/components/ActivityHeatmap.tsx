@@ -1,4 +1,6 @@
 import { useMemo } from 'react'
+import { sx } from '@/styles/merge'
+import { bf } from '../styles/breathflow.stylex'
 import { addLocalDays, formatLocalDateKey, getLocalDateKey, getLocalDayStart } from '@/lib/localDates'
 import type { CompletedSession } from '@/stores/historyStore'
 
@@ -10,11 +12,11 @@ interface ActivityHeatmapProps {
 
 const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'] as const
 
-function intensityClass(count: number): string {
-  if (count === 0) return 'bg-bw-hover'
-  if (count === 1) return 'bg-bw-accent/35'
-  if (count === 2) return 'bg-bw-accent/60'
-  return 'bg-bw-accent'
+function intensityStyle(count: number) {
+  if (count === 0) return bf.heat0
+  if (count === 1) return bf.heat1
+  if (count === 2) return bf.heat2
+  return bf.heat3
 }
 
 /** Sessions per local day, Monday-start weeks, weekday labels across the top. */
@@ -57,25 +59,29 @@ export function ActivityHeatmap({ sessions, weeks = 12 }: ActivityHeatmapProps) 
   }, [sessions, weeks])
 
   return (
-    <div aria-label="Practice activity by day" role="img" className="overflow-x-auto pb-1">
-      <div className="mb-1.5 grid grid-cols-[2.5rem_repeat(7,minmax(0,1fr))] gap-1 text-[10px] text-bw-tertiary">
+    <div aria-label="Practice activity by day" role="img" {...sx(bf.overflowXAuto, bf.pb1Only)}>
+      <div {...sx(bf.heatmapGrid, bf.mb1, bf.text10px, bf.textTertiary)}>
         <span />
         {WEEKDAYS.map((day, index) => (
-          <span key={`${day}-${index}`} className="text-center">{day}</span>
+          <span key={`${day}-${index}`} {...sx(bf.textCenter)}>{day}</span>
         ))}
       </div>
-      <div className="space-y-1">
+      <div {...sx(bf.spaceY1)}>
         {rows.map((week, weekIndex) => (
           <div
             key={monthLabels[weekIndex] + week[0]?.key}
-            className="grid grid-cols-[2.5rem_repeat(7,minmax(0,1fr))] items-center gap-1"
+            {...sx(bf.heatmapGrid, bf.itemsCenter)}
           >
-            <span className="text-[10px] text-bw-tertiary">{monthLabels[weekIndex]}</span>
+            <span {...sx(bf.text10px, bf.textTertiary)}>{monthLabels[weekIndex]}</span>
             {week.map((cell) => (
               <div
                 key={cell.key}
                 title={`${cell.key}: ${cell.count} session${cell.count === 1 ? '' : 's'}`}
-                className={`mx-auto h-3 w-3 ${cell.inFuture ? 'bg-transparent' : intensityClass(cell.count)}`}
+                {...sx(
+                  bf.mxAuto3,
+                  bf.h3w3,
+                  cell.inFuture ? bf.bgTransparent : intensityStyle(cell.count),
+                )}
               />
             ))}
           </div>

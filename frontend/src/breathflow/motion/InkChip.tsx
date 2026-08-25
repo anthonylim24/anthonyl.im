@@ -1,4 +1,6 @@
 import { motion } from 'motion/react'
+import { sx } from '@/styles/merge'
+import { bf } from '../styles/breathflow.stylex'
 import { useReducedMotion } from '../platform/useReducedMotion'
 import { SelectionInk } from './SelectionInk'
 import { pressSpring } from './tokens'
@@ -8,13 +10,14 @@ export function InkChip({
   onClick,
   label,
   layoutId,
-  className = '',
+  compact = false,
 }: {
   active: boolean
   onClick: () => void
   label: string
   layoutId: string
-  className?: string
+  /** Smaller label (history filter chips). */
+  compact?: boolean
 }) {
   const reducedMotion = useReducedMotion()
 
@@ -25,12 +28,11 @@ export function InkChip({
       onClick={onClick}
       whileTap={reducedMotion ? undefined : { scale: 0.98 }}
       transition={pressSpring}
-      className={[
-        'relative min-h-11 min-w-11 px-1 text-sm break-words wrap-anywhere',
-        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent',
-        active ? 'font-medium text-bw' : 'text-bw-secondary hover:text-bw',
-        className,
-      ].join(' ')}
+      {...sx(
+        bf.inkChip,
+        active ? bf.inkChipActive : bf.inkChipInactive,
+        compact && bf.inkChipXs,
+      )}
     >
       {label}
       {active ? <SelectionInk layoutId={layoutId} reducedMotion={reducedMotion} /> : null}

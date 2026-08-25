@@ -1,26 +1,28 @@
 import { SignedIn, SignedOut, SignInButton, SignOutButton, useUser } from '@clerk/clerk-react'
-import { btnSecondary } from '../components/buttonStyles'
+import { sx } from '@/styles/merge'
+import { bf } from '../styles/breathflow.stylex'
+import { btn } from '../components/buttonStyles.stylex'
 
 function AccountRow() {
   const { user } = useUser()
   if (!user) return null
 
   return (
-    <div className="flex items-center gap-3">
+    <div {...sx(bf.flexItemsCenterGap3)}>
       <img
         src={user.imageUrl}
         alt=""
         loading="lazy"
-        className="h-10 w-10 rounded-full ring-1 ring-bw-border"
+        {...sx(bf.h10, bf.w10, bf.roundedFull, bf.ring1BwBorder)}
       />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-bw">{user.fullName}</p>
-        <p className="truncate text-xs text-bw-secondary">
+      <div {...sx(bf.minW0, bf.flex1)}>
+        <p {...sx(bf.truncate, bf.textSm, bf.fontMedium, bf.textBw)}>{user.fullName}</p>
+        <p {...sx(bf.truncate, bf.textXs, bf.textSecondary)}>
           {user.primaryEmailAddress?.emailAddress} · synced
         </p>
       </div>
       <SignOutButton>
-        <button type="button" className={btnSecondary}>Sign out</button>
+        <button type="button" {...sx(btn.base, btn.secondary)}>Sign out</button>
       </SignOutButton>
     </div>
   )
@@ -31,11 +33,11 @@ export function SettingsAccount() {
   return (
     <>
       <SignedOut>
-        <p className="text-xs leading-relaxed text-bw-secondary">
+        <p {...sx(bf.textXs, bf.leadingRelaxed, bf.textSecondary)}>
           Sign in with Google to sync across devices.
         </p>
         <SignInButton mode="modal">
-          <button type="button" className={`${btnSecondary} mt-3`}>Sign in</button>
+          <button type="button" {...sx(btn.base, btn.secondary, btn.mt3)}>Sign in</button>
         </SignInButton>
       </SignedOut>
       <SignedIn>

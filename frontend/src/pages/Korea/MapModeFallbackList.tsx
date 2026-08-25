@@ -1,3 +1,7 @@
+import type { StyleXStyles } from '@stylexjs/stylex'
+import { sx } from '@/styles/merge'
+import { mapModeFallbackList } from './MapModeFallbackList.stylex'
+import { mapRingStyles } from './korea.stylex'
 import { useEffect, useState } from "react"
 import { motion, useReducedMotion } from "motion/react"
 import { Footprints } from "lucide-react"
@@ -21,11 +25,11 @@ const groupLabel: Record<GroupKey, string> = {
   supplemental: "Nearby",
 }
 
-const groupRingColor: Record<GroupKey, string> = {
-  instagram: "ring-rose-400 dark:ring-rose-500",
-  scheduled: "ring-rose-400 dark:ring-rose-500",
-  core: "ring-amber-400 dark:ring-amber-500",
-  supplemental: "ring-stone-300 dark:ring-stone-700",
+const groupRingStyle: Record<GroupKey, StyleXStyles> = {
+  instagram: mapRingStyles.rose,
+  scheduled: mapRingStyles.rose,
+  core: mapRingStyles.amber,
+  supplemental: mapRingStyles.stone,
 }
 
 // Renders the same data as the 3D bubble graph but as a list. Used as both:
@@ -50,20 +54,20 @@ export function MapModeFallbackList({ places, onSelect }: MapModeFallbackListPro
   const isEmpty = places.length === 0
 
   return (
-    <div className="mx-auto max-w-2xl px-4 pb-12 pt-4 sm:px-6">
+    <div {...sx(mapModeFallbackList.s4e866be9)}>
       {isEmpty ? (
-        <div className="mt-16 rounded-2xl border border-dashed border-stone-300 bg-white/60 p-8 text-center text-sm text-stone-600 shadow-sm dark:border-stone-700 dark:bg-stone-900/40 dark:text-stone-400">
+        <div {...sx(mapModeFallbackList.sdc684ab6)}>
           No places match these filters yet.
         </div>
       ) : (
         groupOrder.map((key) =>
           groups[key].length > 0 ? (
-            <section key={key} className="mb-5">
-              <h3 className="mb-2 inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-stone-500 dark:text-stone-400">
-                {key === "instagram" && <IgIcon className="h-3 w-3 text-rose-500" aria-hidden />}
+            <section key={key} {...sx(mapModeFallbackList.s3301fd)}>
+              <h3 {...sx(mapModeFallbackList.s9753f809)}>
+                {key === "instagram" && <IgIcon style={mapModeFallbackList.s4dc0fe02} aria-hidden />}
                 {groupLabel[key]} · {groups[key].length}
               </h3>
-              <ul className="space-y-2">
+              <ul {...sx(mapModeFallbackList.sc7133e97)}>
                 {groups[key].map((p, i) => (
                   <motion.li
                     key={p.id}
@@ -71,7 +75,7 @@ export function MapModeFallbackList({ places, onSelect }: MapModeFallbackListPro
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: reduce ? 0 : Math.min(i * 0.03, 0.3) }}
                   >
-                    <PlaceListRow place={p} onSelect={onSelect} ringClass={groupRingColor[key]} />
+                    <PlaceListRow place={p} onSelect={onSelect} ringStyle={groupRingStyle[key]} />
                   </motion.li>
                 ))}
               </ul>
@@ -86,10 +90,10 @@ export function MapModeFallbackList({ places, onSelect }: MapModeFallbackListPro
 interface PlaceListRowProps {
   place: RankedPlace
   onSelect: (place: RankedPlace) => void
-  ringClass: string
+  ringStyle: StyleXStyles
 }
 
-function PlaceListRow({ place, onSelect, ringClass }: PlaceListRowProps) {
+function PlaceListRow({ place, onSelect, ringStyle }: PlaceListRowProps) {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const walking = formatWalkingTime(place.distanceMeters)
 
@@ -114,12 +118,12 @@ function PlaceListRow({ place, onSelect, ringClass }: PlaceListRowProps) {
       type="button"
       onClick={() => onSelect(place)}
       aria-label={`Open ${place.name} details`}
-      className="group flex w-full items-start gap-3 rounded-2xl border border-stone-200 bg-white/80 p-3.5 text-left shadow-sm transition hover:-translate-y-px hover:border-rose-300 hover:bg-rose-50 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:border-stone-800 dark:bg-stone-900/60 dark:hover:border-rose-700 dark:hover:bg-rose-950/30"
+      {...sx(mapModeFallbackList.s8151f851, 'group')}
     >
       {/* Thumbnail with photo + category-tinted gradient fallback */}
       <span
         aria-hidden
-        className={"relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl text-2xl ring-2 " + ringClass}
+        {...sx(mapModeFallbackList.thumb, ringStyle)}
         style={{
           background: photoUrl
             ? `linear-gradient(135deg, ${place.color}33, ${place.color}11)`
@@ -131,17 +135,17 @@ function PlaceListRow({ place, onSelect, ringClass }: PlaceListRowProps) {
             src={photoUrl}
             alt=""
             loading="lazy"
-            className="absolute inset-0 h-full w-full object-cover"
+            {...sx(mapModeFallbackList.s2b57d061)}
           />
         ) : null}
-        <span className={"relative drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)] " + (photoUrl ? "absolute right-0.5 bottom-0.5 text-base" : "")}>
+        <span {...sx(mapModeFallbackList.emoji, photoUrl ? mapModeFallbackList.emojiOverlay : undefined)}>
           {place.icon}
         </span>
       </span>
 
-      <div className="min-w-0 flex-1">
-        <span className="flex flex-wrap items-baseline gap-x-1.5">
-          <p className="break-words text-sm font-semibold leading-snug text-stone-900 dark:text-stone-100">
+      <div {...sx(mapModeFallbackList.se30fd43e)}>
+        <span {...sx(mapModeFallbackList.s3c773e07)}>
+          <p {...sx(mapModeFallbackList.s70d2fcb0)}>
             {place.name}
           </p>
           {place.instagramUrl && (
@@ -151,28 +155,28 @@ function PlaceListRow({ place, onSelect, ringClass }: PlaceListRowProps) {
               rel="noopener noreferrer"
               aria-label={`View ${place.name} on Instagram (opens in new tab)`}
               onClick={(e) => e.stopPropagation()}
-              className="inline-flex items-center text-stone-400 transition hover:text-rose-600 dark:text-stone-500 dark:hover:text-rose-400"
+              {...sx(mapModeFallbackList.s6556428b)}
             >
-              <IgIcon className="h-3 w-3" aria-hidden />
+              <IgIcon style={mapModeFallbackList.scd31254b} aria-hidden />
             </a>
           )}
         </span>
-        <p className="mt-0.5 text-xs capitalize text-stone-500 dark:text-stone-400">{place.category}</p>
-        <p className="mt-1 line-clamp-2 text-xs text-stone-600 dark:text-stone-400">{place.reason}</p>
+        <p {...sx(mapModeFallbackList.s6119d1dd)}>{place.category}</p>
+        <p {...sx(mapModeFallbackList.s5c530547)}>{place.reason}</p>
       </div>
 
-      <div className="flex shrink-0 flex-col items-end gap-0.5">
+      <div {...sx(mapModeFallbackList.s66e542c7)}>
         {place.distanceLabel && (
           <span
-            className="rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums leading-none"
+            {...sx(mapModeFallbackList.s2cd71914)}
             style={{ background: place.color + "26", color: place.color }}
           >
             {place.distanceLabel}
           </span>
         )}
         {walking && (
-          <span className="inline-flex items-center gap-1 text-[10px] text-stone-500 dark:text-stone-400">
-            <Footprints className="h-3 w-3" aria-hidden />
+          <span {...sx(mapModeFallbackList.s2761a5d3)}>
+            <Footprints {...sx(mapModeFallbackList.scd31254b)} aria-hidden />
             {walking}
           </span>
         )}

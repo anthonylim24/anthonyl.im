@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react'
 import { LayoutGroup } from 'motion/react'
 import { Link } from 'react-router-dom'
+import { sx } from '@/styles/merge'
 import { InkChip } from '../motion/InkChip'
 import type { TechniqueId } from '@/lib/constants'
 import { formatMoodShift } from '@/lib/mood'
 import type { CompletedSession } from '@/stores/historyStore'
 import { getProtocol, PROTOCOLS } from '../protocols/catalog'
 import { buildRepeatParams, buildSessionPath } from '../session/urlParams'
+import { bf } from '../styles/breathflow.stylex'
 import { formatDuration, formatLocalDate, formatLocalTime } from './format'
 
 interface HistoryListProps {
@@ -38,13 +40,13 @@ export function HistoryList({ sessions }: HistoryListProps) {
     <div>
       {techniquesInHistory.length > 1 && (
         <LayoutGroup id="history-filter">
-          <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label="Filter by technique">
+          <div {...sx(bf.mb3, bf.flexWrapGap15)} role="group" aria-label="Filter by technique">
             <InkChip
               active={filter === 'all'}
               onClick={() => setFilter('all')}
               label="All"
               layoutId="history-filter-ink"
-              className="text-xs"
+              compact
             />
             {techniquesInHistory.map((protocol) => (
               <InkChip
@@ -53,40 +55,40 @@ export function HistoryList({ sessions }: HistoryListProps) {
                 onClick={() => setFilter(protocol.id)}
                 label={protocol.name}
                 layoutId="history-filter-ink"
-                className="text-xs"
+                compact
               />
             ))}
           </div>
         </LayoutGroup>
       )}
 
-      <ul className="divide-y divide-bw-border-subtle">
+      <ul>
         {visible.map((session) => {
           const protocol = getProtocol(session.techniqueId)
           const moodShift = formatMoodShift(session.moodBefore, session.moodAfter)
           return (
-            <li key={session.id} className="cv-row flex items-center gap-3 py-2.5">
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-bw">
+            <li key={session.id} {...sx('cv-row', bf.historyRow)}>
+              <div {...sx(bf.minW0, bf.flex1)}>
+                <p {...sx(bf.truncate, bf.textSm, bf.fontMedium, bf.textBw)}>
                   {protocol.name}
                   {session.customPhaseDurations && (
-                    <span className="ml-2 text-xs font-normal text-bw-tertiary">custom cadence</span>
+                    <span {...sx(bf.ml2, bf.textXs, bf.fontNormal, bf.textTertiary)}>custom cadence</span>
                   )}
                 </p>
-                <p className="mt-0.5 truncate text-xs tabular-nums text-bw-secondary">
+                <p {...sx(bf.mt05, bf.truncate, bf.textXs, bf.tabularNums, bf.textSecondary)}>
                   {formatLocalDate(session.date)}, {formatLocalTime(session.date)}
                   {' · '}
                   {formatDuration(session.durationSeconds)}, {session.rounds} rounds
                   {session.maxHoldTime > 0 && ` · hold ${session.maxHoldTime}s`}
                 </p>
                 {moodShift && (
-                  <p className="mt-0.5 text-xs text-bw-tertiary">{moodShift}</p>
+                  <p {...sx(bf.mt05, bf.textXs, bf.textTertiary)}>{moodShift}</p>
                 )}
               </div>
               <Link
                 to={buildSessionPath(buildRepeatParams(session))}
                 aria-label={`Repeat ${protocol.name} session`}
-                className="inline-flex min-h-11 items-center px-2 text-xs text-bw-secondary transition-colors duration-150 hover:text-bw-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent"
+                {...sx(bf.repeatLink)}
               >
                 Repeat
               </Link>
@@ -98,7 +100,7 @@ export function HistoryList({ sessions }: HistoryListProps) {
       {filtered.length > visibleCount && (
         <button
           type="button"
-          className="mt-2 min-h-11 w-full rounded-lg text-sm text-bw-secondary transition-colors duration-150 hover:bg-bw-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent"
+          {...sx(bf.showMoreBtn)}
           onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
         >
           Show more
@@ -107,4 +109,3 @@ export function HistoryList({ sessions }: HistoryListProps) {
     </div>
   )
 }
-

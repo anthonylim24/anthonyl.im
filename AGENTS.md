@@ -33,7 +33,7 @@ This repo hosts four experiences under one Vite SPA: a personal AI chatbot, **Br
 
 - React 19 + Vite 8 + React Router v7 (`react-router-dom`, Vite SPA — not the React Router SSR framework)
 - TypeScript: frontend lint `~6.0`, frontend/root **build** `~7.0` via the `typescript7` alias
-- Tailwind CSS 4.3 + shadcn/ui (Radix primitives)
+- StyleX 0.19 (`@stylexjs/stylex`) + semantic classes in `index.css` + shadcn/ui (Radix primitives)
 - Zustand v5 (BreathFlow persisted stores), Motion 13, Lucide icons
 - Effect v3 for frontend I/O — see [Frontend Effect-TS](#frontend-effect-ts)
 - Bun + Hono (server), Clerk (`@clerk/clerk-react` ^5, Core 2), Supabase, PostHog
@@ -57,6 +57,24 @@ Write new frontend network I/O in Effect. Full methodology: [`.agents/skills/eff
 **Do not:** replace `apiFetch` with `@effect/platform` FetchHttpClient; `Schema.decode` `Trip` / `ExtractedPlace` documents; add `Effect.Service` / AppLayer / effect-atom without real injectable deps; hide Map Mode WebGL with React `Activity`; migrate BreathFlow Zustand or `useCloudSync` onto Effect.
 
 Per-route clients: `frontend/src/pages/Trips/tripsApi.ts`, `tripChatApi.ts`, `frontend/src/pages/Korea/*Api.ts`, `frontend/src/lib/apiService.ts` (homepage chatbot).
+
+## Frontend StyleX
+
+All UI styling is StyleX + semantic CSS classes — Tailwind is removed. Skill: [`.agents/skills/stylex/SKILL.md`](.agents/skills/stylex/SKILL.md) (symlinked at `.claude/skills/stylex/SKILL.md`).
+
+| Piece | Location |
+|-------|----------|
+| Merge helper | `frontend/src/styles/merge.ts` — `sx(...)` |
+| Shared layout | `frontend/src/styles/common.stylex.ts` — `layout.srOnly`, etc. |
+| Route modules | `*.stylex.ts` (Trips `ui.ts` + `trips.stylex.ts`, BreathFlow, Korea, chatbot) |
+| Tokens + semantic classes | `frontend/src/index.css` (`@layer reset` Preflight, `.cover-band`, animations, Map Mode `.map-*`) |
+| Vite plugin | `frontend/vite.config.ts` — `useCSSLayers` |
+
+**Do:** `{...sx(styles.foo, 'cover-band')}` when the old Tailwind string included a semantic class; `borderWidth` + `borderStyle` with `borderColor`; `layout.srOnly` for hidden labels; child-combinator spacing as `index.css` utilities; `:is(.group:hover) &` + `'group'` instead of `group-hover:*`.
+
+**Do not:** reintroduce Tailwind; import plain token maps into `stylex.create()`; set only `borderColor` after Preflight; rely on StyleX `@layer` rules when unlayered CSS sets the same property (e.g. leaves overlay opacity).
+
+**Trips parity (required):** local dev with matching `VITE_DEV_BEARER` + `IG_DEV_BEARER`; `cd frontend && bun run e2e -- e2e/smoke.spec.ts -g "trips skips"`. PR previews: `bun scripts/clerk-agent-login.ts` — never bake dev bearer into previews.
 
 ## Shared Tokens
 
@@ -262,6 +280,7 @@ Read the matching skill before writing code. Catalog: [`.agents/skills/README.md
 | Skill | When |
 |-------|------|
 | [`effect-ts`](.agents/skills/effect-ts/SKILL.md) | Any frontend `/api`, SSE, or third-party HTTP. Required. |
+| [`stylex`](.agents/skills/stylex/SKILL.md) | UI styling, layout, tokens, visual parity, `*.stylex.ts`, `index.css` semantic classes. Required for frontend UI. |
 | `vercel-react-best-practices` | React 19 render and bundle performance. Translate Next.js examples to Vite/`React.lazy` + Hono. |
 | `impeccable` | Design, critique, polish. Reads `PRODUCT.md`. |
 | `clerk` + `clerk-react-patterns` | Clerk auth. Core 2 `@clerk/clerk-react`. See [`.agents/memory/clerk.md`](.agents/memory/clerk.md). |
@@ -269,7 +288,7 @@ Read the matching skill before writing code. Catalog: [`.agents/skills/README.md
 
 **Do not apply** Clerk Next.js / React Router SSR / Expo / Vue / mobile / billing / orgs / webhook skills — wrong stack. `design-taste-frontend` is landing-page only (not BreathFlow/Korea/Trips). Prefer impeccable over `redesign-existing-projects`.
 
-Short pointers: [`.agents/memory/effect-ts.md`](.agents/memory/effect-ts.md), [`.agents/memory/ci-cd.md`](.agents/memory/ci-cd.md), [`.agents/memory/clerk.md`](.agents/memory/clerk.md).
+Short pointers: [`.agents/memory/effect-ts.md`](.agents/memory/effect-ts.md), [`.agents/memory/stylex.md`](.agents/memory/stylex.md), [`.agents/memory/ci-cd.md`](.agents/memory/ci-cd.md), [`.agents/memory/clerk.md`](.agents/memory/clerk.md).
 
 ---
 
@@ -295,9 +314,8 @@ When creating a pull request that includes frontend changes (any modifications t
 **Process:**
 1. Prefer the remote PR preview (`https://anthonyl.im/preview/pr/<n>/`). Wait with `bun scripts/wait-for-preview.ts --pr <n> --sha <head-sha>` (see [`docs/pr-previews.md`](docs/pr-previews.md)). No local Vite server required.
 2. For Clerk-gated preview routes (`/trips`, `/trips/korea-2026`), run `bun scripts/clerk-agent-login.ts --pr <n> --path /trips/korea-2026` once. The helper applies a screenshot-user session in the agent Chrome (Korea + Trips share cookies). **Do not paste the ticket URL** — that is how sign-in walls happen. The helper re-execs from `origin/main` before sending secrets. Cursor cloud `gh` tokens have no push — `CLERK_SECRET_KEY` is enough (screenshot-user default). Dedicated screenshot identity, not a personal production login — do not sign in to production `/trips` or `/trips/korea-2026`. Public routes only need `?hidePreviewChrome=1`.
-3. **Upload screenshots to GitHub** using `gh api` so they get permanent URLs visible in the PR. Local file paths and repo blob URLs do not render in PR descriptions. Use: `gh api --method POST repos/{owner}/{repo}/issues/{pr_number}/comments --field body="![screenshot](url)"` or upload via the GitHub upload endpoint.
-4. Add the uploaded screenshot URLs to the PR description body
+3. **Local fallback for Trips:** when preview/Chrome MCP is unavailable, run backend + `cd frontend && bun run dev` with matching `VITE_DEV_BEARER` / `IG_DEV_BEARER` (see `deploy/README.md`). Confirm bypass with `bun run e2e -- e2e/smoke.spec.ts -g "trips skips"`. Note local screenshots in the PR.
+4. **Upload screenshots to GitHub** using `gh api` so they get permanent URLs visible in the PR. Local file paths and repo blob URLs do not render in PR descriptions. Use: `gh api --method POST repos/{owner}/{repo}/issues/{pr_number}/comments --field body="![screenshot](url)"` or upload via the GitHub upload endpoint.
+5. Add the uploaded screenshot URLs to the PR description body
 
-If the preview is not live yet (serving code not on production, droplet down) **or** Chrome MCP is unavailable, fall back to `bun run dev` in `frontend/` and note that in the PR. Do not block PR creation on screenshot availability.
-
-This PR is docs/skills only — screenshots are not applicable.
+If the preview is not live yet (serving code not on production, droplet down) **or** Chrome MCP is unavailable, fall back to a local `cd frontend && bun run dev` with `VITE_DEV_BEARER` and note that in the PR. Do not block PR creation on screenshot availability.

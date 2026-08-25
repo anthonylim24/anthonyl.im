@@ -10,15 +10,16 @@
 // per-element overhead minimal — important when day cards or timeline
 // items number in the dozens.
 
-import { useRef } from "react"
+import { useRef } from 'react'
+import * as stylex from '@stylexjs/stylex'
 
 let sharedObserver: IntersectionObserver | null = null
 
 function getObserver(): IntersectionObserver {
   if (sharedObserver) return sharedObserver
-  if (typeof window === "undefined" || typeof IntersectionObserver === "undefined") {
+  if (typeof window === 'undefined' || typeof IntersectionObserver === 'undefined') {
     return {
-      observe: (el: Element) => (el as HTMLElement).setAttribute("data-revealed", "true"),
+      observe: (el: Element) => (el as HTMLElement).setAttribute('data-revealed', 'true'),
       unobserve: () => {},
       disconnect: () => {},
     } as unknown as IntersectionObserver
@@ -28,13 +29,13 @@ function getObserver(): IntersectionObserver {
       for (const entry of entries) {
         if (entry.isIntersecting) {
           const el = entry.target as HTMLElement
-          el.setAttribute("data-revealed", "true")
+          el.setAttribute('data-revealed', 'true')
           sharedObserver?.unobserve(el)
         }
       }
     },
     {
-      rootMargin: "0px 0px -25% 0px",
+      rootMargin: '0px 0px -25% 0px',
       threshold: 0.01,
     },
   )
@@ -53,8 +54,8 @@ export function useScrollReveal<T extends HTMLElement = HTMLElement>(): (node: T
     }
     refStore.current = node
     if (!node) return
-    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
-      node.setAttribute("data-revealed", "true")
+    if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      node.setAttribute('data-revealed', 'true')
       return
     }
     getObserver().observe(node)
@@ -66,8 +67,15 @@ export function disposeScrollReveal() {
   sharedObserver = null
 }
 
-export const REVEAL_CLASSES =
-  "opacity-0 translate-y-4 scale-[0.985] " +
-  "transition-[opacity,transform] duration-[700ms] ease-[cubic-bezier(0.16,1,0.3,1)] " +
-  "data-[revealed=true]:opacity-100 data-[revealed=true]:translate-y-0 data-[revealed=true]:scale-100 " +
-  "motion-reduce:transition-none motion-reduce:opacity-100 motion-reduce:translate-y-0 motion-reduce:scale-100"
+/** Semantic class for scroll-reveal (transitions live in index.css). */
+export const REVEAL_CLASSES = 'korea-scroll-reveal'
+
+export const revealStyles = stylex.create({
+  base: {
+    opacity: 0,
+    transform: 'translateY(1rem) scale(0.985)',
+    transitionProperty: 'opacity, transform',
+    transitionDuration: '700ms',
+    transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)',
+  },
+})

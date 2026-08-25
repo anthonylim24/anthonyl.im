@@ -15,6 +15,8 @@ import {
   wrapAnywhereClass,
 } from "../ui"
 import { DEFAULT_ITINERARY_PROMPT, type GeneratePreferences, type Trip } from "../types"
+import { sx } from '@/lib/utils'
+import { styles } from '../trips.stylex'
 
 /** AI generation for an empty itinerary — also the retry path when
  *  generation failed during the create flow. */
@@ -61,13 +63,13 @@ export function GeneratePanel({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.28, ease: EASE }}
       aria-label="Generate itinerary with AI"
-      className={`mt-6 p-5 motion-reduce:transition-none ${softPanelClass}`}
+      {...sx(styles.mt6, styles.p5, styles.motionPanel, softPanelClass)}
     >
-      <h2 className="flex items-center gap-2 text-base font-semibold text-stone-900 dark:text-stone-100">
-        <Sparkles className={`h-4 w-4 ${ACCENT.text}`} strokeWidth={1.5} aria-hidden />
+      <h2 {...sx(styles.flexCenterGap2, styles.panelTitleRow)}>
+        <Sparkles {...sx(styles.iconSm, ACCENT.text)} strokeWidth={1.5} aria-hidden />
         Draft this itinerary with AI
       </h2>
-      <p className={`mt-1 text-sm ${mutedInkClass}`}>
+      <p {...sx(styles.mt1, styles.textSm, mutedInkClass)}>
         The itinerary is empty. Generate a structured starting point, then reshape it. Every place
         the AI adds lands on the map.
       </p>
@@ -77,24 +79,24 @@ export function GeneratePanel({
         aria-label="AI prompt"
         disabled={locked}
         onChange={(e) => setPrompt(e.target.value)}
-        className={`mt-3 ${inputClass}`}
+        {...sx(styles.mt3, inputClass)}
       />
       {error && (
-        <p className={`mt-3 ${alertErrorClass} ${wrapAnywhereClass}`} role="alert">
+        <p {...sx(styles.mt3, alertErrorClass, wrapAnywhereClass)} role="alert">
           The draft didn’t finish. Your days are unchanged, so you can retry below. ({error})
         </p>
       )}
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        <button type="button" onClick={generate} disabled={busy || locked} aria-busy={busy} className={primaryBtnClass}>
+      <div {...sx(styles.panelActionsRow)}>
+        <button type="button" onClick={generate} disabled={busy || locked} aria-busy={busy} {...sx(primaryBtnClass)}>
           {busy ? (
-            <Loader2 className={`h-4 w-4 ${spinnerClass}`} aria-hidden />
+            <Loader2 {...sx(styles.iconSm, spinnerClass)} aria-hidden />
           ) : (
-            <Sparkles className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+            <Sparkles {...sx(styles.iconSm)} strokeWidth={1.5} aria-hidden />
           )}
           {busy ? "Generating… (~30s)" : error ? "Retry generation" : "Generate itinerary"}
         </button>
         {preferences && Object.values(preferences).some(Boolean) && (
-          <span className={`text-xs ${mutedInkClass}`}>
+          <span {...sx(styles.textXs, mutedInkClass)}>
             Your traveler preferences from the create form are included.
           </span>
         )}

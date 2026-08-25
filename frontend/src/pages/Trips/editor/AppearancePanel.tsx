@@ -13,6 +13,8 @@ import {
   softPanelClass,
 } from "../ui"
 import type { Trip } from "../types"
+import { sx } from '@/lib/utils'
+import { styles } from '../trips.stylex'
 
 /** Configures the dossier-style public pages: accent family, editorial copy,
  *  permalink. A once-per-trip task, so it lives in the settings cluster at the
@@ -34,32 +36,32 @@ export function AppearancePanel({
   const patch = (p: Partial<NonNullable<Trip["appearance"]>>) => onChange({ ...appearance, ...p })
 
   return (
-    <section className={`mt-3 ${softPanelClass}`}>
+    <section {...sx(styles.mt3, softPanelClass)}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className={`flex min-h-12 w-full items-center justify-between gap-3 rounded-[length:var(--trips-radius)] px-5 py-3.5 text-left ${focusRingInsetClass}`}
+        {...sx(styles.appearanceToggle, focusRingInsetClass)}
       >
-        <span className="flex items-center gap-2.5 text-[0.9375rem] font-semibold text-[color:var(--trips-ink)]">
-          <span className={`h-3.5 w-3.5 rounded-full ${ACCENT_SWATCH[selectedAccent]}`} aria-hidden />
+        <span {...sx(styles.appearanceTitle)}>
+          <span {...sx(styles.accentSwatchDot, ACCENT_SWATCH[selectedAccent])} aria-hidden />
           Appearance
-          <span className={`hidden font-normal sm:inline ${mutedInkClass}`}>
+          <span {...sx(styles.hiddenSmInline, styles.fontNormal, mutedInkClass)}>
             accent, dossier copy, permalink
           </span>
         </span>
         <ChevronDown
-          className={`h-4 w-4 shrink-0 transition-transform ${mutedInkClass} ${open ? "rotate-180" : ""}`}
+          {...sx(styles.iconSm, styles.shrink0, styles.transitionTransform, mutedInkClass, open ? styles.rotate180 : undefined)}
           strokeWidth={1.5}
           aria-hidden
         />
       </button>
       {open && (
-        <div className="space-y-4 border-t border-[color:var(--trips-border)] px-5 py-4">
-        <fieldset disabled={locked} className="m-0 min-w-0 space-y-4 border-0 p-0">
+        <div {...sx(styles.appearanceBody)}>
+        <fieldset disabled={locked} {...sx(styles.appearanceFieldset)}>
           <div>
-            <span className={labelClass}>Accent</span>
-            <div className="mt-2 flex flex-wrap gap-1" role="radiogroup" aria-label="Accent color">
+            <span {...sx(labelClass)}>Accent</span>
+            <div {...sx(styles.accentSwatchRow)} role="radiogroup" aria-label="Accent color">
               {TRIP_ACCENTS.map((name) => {
                 const selected = selectedAccent === name
                 return (
@@ -69,24 +71,23 @@ export function AppearancePanel({
                     role="radio"
                     aria-checked={selected}
                     onClick={() => patch({ accent: name })}
-                    // Neutral focus ring on purpose: an accent ring over a grid
-                    // of accent swatches vanishes on the matching swatch.
-                    className={`flex min-h-11 min-w-11 flex-col items-center gap-1.5 rounded-[length:var(--trips-radius)] px-2 py-1.5 transition ${overlayHoverClass} ${focusRingClass} ${
-                      selected ? "bg-[color:var(--trips-rail)]" : ""
-                    }`}
+                    {...sx(
+                      styles.accentSwatchBtn,
+                      overlayHoverClass,
+                      focusRingClass,
+                      selected ? styles.accentSwatchBtnSelected : undefined,
+                    )}
                   >
                     <span
-                      className={`h-8 w-8 rounded-full ${ACCENT_SWATCH[name]} ${
-                        selected
-                          ? "ring-2 ring-[color:var(--trips-ink)] ring-offset-2 ring-offset-[var(--trips-surface)]"
-                          : "opacity-60"
-                      }`}
+                      {...sx(
+                        styles.accentSwatchCircle,
+                        ACCENT_SWATCH[name],
+                        selected ? styles.accentSwatchCircleSelected : styles.accentSwatchCircleIdle,
+                      )}
                       aria-hidden
                     />
                     <span
-                      className={`text-[11px] capitalize ${
-                        selected ? "font-medium text-[color:var(--trips-ink)]" : mutedInkClass
-                      }`}
+                      {...sx(styles.accentSwatchName, selected ? styles.accentSwatchNameSelected : mutedInkClass)}
                     >
                       {name}
                     </span>
@@ -95,40 +96,40 @@ export function AppearancePanel({
               })}
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label className="block">
-              <span className={labelClass}>Eyebrow</span>
+          <div {...sx(styles.gridCols2SmGap4)}>
+            <label {...sx(styles.block)}>
+              <span {...sx(labelClass)}>Eyebrow</span>
               <input
-                className={`mt-1.5 ${inputClass}`}
+                {...sx(styles.mt1_5, inputClass)}
                 value={appearance.eyebrow ?? ""}
                 placeholder="The dossier"
                 onChange={(e) => patch({ eyebrow: e.target.value || undefined })}
               />
             </label>
-            <label className="block">
-              <span className={labelClass}>Subtitle</span>
+            <label {...sx(styles.block)}>
+              <span {...sx(labelClass)}>Subtitle</span>
               <input
-                className={`mt-1.5 ${inputClass}`}
+                {...sx(styles.mt1_5, inputClass)}
                 value={appearance.subtitle ?? ""}
                 placeholder="a Seoul & Busan dossier"
                 onChange={(e) => patch({ subtitle: e.target.value || undefined })}
               />
             </label>
           </div>
-          <label className="block">
-            <span className={labelClass}>Headline</span>
+          <label {...sx(styles.block)}>
+            <span {...sx(labelClass)}>Headline</span>
             <textarea
               rows={2}
-              className={`mt-1.5 ${inputClass}`}
+              {...sx(styles.mt1_5, inputClass)}
               value={appearance.headline ?? ""}
               placeholder="Editorial paragraph under the trip title."
               onChange={(e) => patch({ headline: e.target.value || undefined })}
             />
           </label>
-          <label className="block">
-            <span className={labelClass}>Permalink</span>
-            <span className={`mt-1.5 ${fieldShellClass} gap-0 overflow-hidden px-0`}>
-              <span className={`shrink-0 select-none border-r border-[color:var(--trips-border)] bg-[color:var(--trips-rail)] px-2.5 py-2.5 text-sm ${mutedInkClass}`}>
+          <label {...sx(styles.block)}>
+            <span {...sx(labelClass)}>Permalink</span>
+            <span {...sx(styles.mt1_5, fieldShellClass, styles.fieldShellNoPad)}>
+              <span {...sx(styles.fieldShellPrefix, mutedInkClass)}>
                 /trips/
               </span>
               <input
@@ -144,10 +145,10 @@ export function AppearancePanel({
                       .slice(0, 80),
                   )
                 }
-                className="min-h-11 w-full bg-transparent px-2.5 py-2 text-sm text-[color:var(--trips-ink)] focus:outline-none"
+                {...sx(styles.slugInput)}
               />
             </span>
-            <span className={`block ${hintClass}`}>Lowercase letters, numbers, hyphens. Must be unique.</span>
+            <span {...sx(styles.block, hintClass)}>Lowercase letters, numbers, hyphens. Must be unique.</span>
           </label>
         </fieldset>
         </div>

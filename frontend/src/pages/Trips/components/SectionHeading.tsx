@@ -1,4 +1,6 @@
-import { mutedInkClass, typeSectionClass, wrapAnywhereClass } from "../ui"
+import { sx } from '@/lib/utils'
+import { mutedInkClass, typeSectionClass } from '../ui'
+import { styles } from '../trips.stylex'
 
 /** Timetable section title. Not a numbered dossier rule. */
 export function SectionHeading({
@@ -9,11 +11,9 @@ export function SectionHeading({
   subtitle?: string
 }) {
   return (
-    <header className="pb-3">
-      <h2 className={typeSectionClass}>{title}</h2>
-      {subtitle && (
-        <p className={`mt-1 max-w-[56ch] text-[0.9375rem] leading-relaxed ${mutedInkClass} ${wrapAnywhereClass}`}>{subtitle}</p>
-      )}
+    <header {...sx(styles.sectionHeading)}>
+      <h2 {...sx(typeSectionClass)}>{title}</h2>
+      {subtitle ? <p {...sx(styles.sectionSubtitle, mutedInkClass)}>{subtitle}</p> : null}
     </header>
   )
 }

@@ -1,3 +1,5 @@
+import { sx } from '@/styles/merge'
+import { todayBanner } from './TodayBanner.stylex'
 import { Link } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
 import type { Day } from "./types"
@@ -20,19 +22,19 @@ export function TodayBanner({ today }: TodayBannerProps) {
       initial={reduce ? false : { opacity: 0, y: -6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-      className="mx-auto mt-8 max-w-6xl px-4 sm:px-6"
+      {...sx(todayBanner.sc373acf4)}
     >
       <Link
         to={`/korea/day/${today.slug}`}
         aria-label={`Today: Day ${today.n}, ${today.title}`}
-        className="group block border-y border-stone-200/80 py-4 transition-colors duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 dark:border-stone-800/80"
+        {...sx(todayBanner.s11873b0c, 'group')}
       >
-        <div className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
-          <p className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.24em] text-rose-700 dark:text-rose-300">
-            <span aria-hidden className="inline-block h-1.5 w-1.5 rounded-full bg-rose-500 dark:bg-rose-400" />
+        <div {...sx(todayBanner.s9f5bd48a)}>
+          <p {...sx(todayBanner.sda4d7977)}>
+            <span aria-hidden {...sx(todayBanner.s421599fa)} />
             Today
-            <span aria-hidden className="text-stone-300 dark:text-stone-700">·</span>
-            <span className="text-stone-500 dark:text-stone-500">
+            <span aria-hidden {...sx(todayBanner.s146516be)}>·</span>
+            <span {...sx(todayBanner.sa8c841be)}>
               {formatDate(today.date, { weekday: "long", month: "short", day: "numeric" })}
             </span>
           </p>
@@ -41,17 +43,17 @@ export function TodayBanner({ today }: TodayBannerProps) {
               the most active state in the app. Reads like a yellow
               highlighter mark on a printed itinerary. */}
           <p
-            className="relative break-words font-serif text-lg font-medium leading-snug text-stone-900 transition-colors group-hover:text-rose-800 sm:text-xl dark:text-stone-100 dark:group-hover:text-rose-200"
+            {...sx(todayBanner.sc6d4a1bc)}
             style={{ fontFamily: "'Cormorant Garamond', serif" }}
           >
-            <span aria-hidden className="mr-2 text-base opacity-90">
+            <span aria-hidden {...sx(todayBanner.sf13f147e)}>
               {today.emoji}
             </span>
-            <span className="relative inline-block">
+            <span {...sx(todayBanner.s7d17252d)}>
               Day {today.n}, {today.title}
               <svg
                 aria-hidden
-                className="pointer-events-none absolute left-0 right-0 -bottom-1 h-1.5 w-full text-amber-500/85 dark:text-amber-400/80"
+                {...sx(todayBanner.s6a950eb0)}
                 viewBox="0 0 200 8"
                 preserveAspectRatio="none"
               >
@@ -68,7 +70,7 @@ export function TodayBanner({ today }: TodayBannerProps) {
               </svg>
             </span>
           </p>
-          <span aria-hidden className="ml-auto hidden font-mono text-[11px] uppercase tracking-[0.22em] text-stone-500 transition-colors group-hover:text-rose-700 sm:inline dark:text-stone-500 dark:group-hover:text-rose-300">
+          <span aria-hidden {...sx(todayBanner.saeafdce5)}>
             Open →
           </span>
         </div>

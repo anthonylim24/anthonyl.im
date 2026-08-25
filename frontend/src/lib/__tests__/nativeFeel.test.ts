@@ -8,7 +8,6 @@ const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8')
 
 describe('native mobile feel', () => {
   it('gates hover styles to fine pointers so tap does not stick :hover', () => {
-    expect(indexCss).toContain('@custom-variant hover')
     expect(indexCss).toContain('@media (hover: hover) and (pointer: fine)')
   })
 
@@ -24,8 +23,8 @@ describe('native mobile feel', () => {
   })
 
   it('blocks pull-to-refresh hijacking the document', () => {
-    expect(indexCss).toMatch(/html \{[\s\S]*?overscroll-behavior:\s*none/)
-    expect(indexCss).toMatch(/body \{[\s\S]*?overscroll-behavior:\s*none/)
+    expect(indexCss).toMatch(/html\s*\{[\s\S]*?overscroll-behavior:\s*none/)
+    expect(indexCss).toMatch(/body\s*\{[\s\S]*?overscroll-behavior:\s*none/)
   })
 
   it('keeps horizontal carousels on the x axis', () => {

@@ -4,7 +4,7 @@
 Vercel Engineering  
 January 2026
 
-> **Repo override (anthonyl.im):** Vite 8 SPA + Hono, not Next.js. Use `React.lazy`, never `next/dynamic`. No SWR — Effect v3 + latest-request-wins for `/api`. Never hide Map Mode / WebGL with React `Activity`. Read [`effect-ts`](../effect-ts/SKILL.md) before writing `/api` clients, SSE, or third-party HTTP. This document still applies for React 19 render and bundle performance; the repo override and Effect I/O rules win on conflict.
+> **Repo override (anthonyl.im):** Vite 8 SPA + Hono, not Next.js. Use `React.lazy`, never `next/dynamic`. No SWR — Effect v3 + latest-request-wins for `/api`. UI styling is StyleX — read [`stylex`](../stylex/SKILL.md), not Tailwind. Never hide Map Mode / WebGL with React `Activity`. Read [`effect-ts`](../effect-ts/SKILL.md) before writing `/api` clients, SSE, or third-party HTTP. This document still applies for React 19 render and bundle performance; the repo override and Effect I/O rules win on conflict.
 
 > **Note:**  
 > This document is mainly for agents and LLMs to follow when maintaining,  

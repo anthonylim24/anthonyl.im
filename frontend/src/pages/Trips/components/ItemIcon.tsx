@@ -1,5 +1,9 @@
 import { createElement } from "react"
+import { sx } from '@/lib/utils'
+import { styles } from '../trips.stylex'
 import { itemIcon } from "../theme"
+
+const defaultIconClass = sx(styles.iconSm).className
 
 /**
  * Resolves an itinerary item to its Lucide glyph. A component rather than a
@@ -10,7 +14,7 @@ export function ItemIcon({
   kind,
   category,
   reservationType,
-  className = "h-4 w-4",
+  className = defaultIconClass,
   strokeWidth = 1.5,
 }: {
   kind: string

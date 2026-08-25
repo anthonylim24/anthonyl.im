@@ -11,11 +11,8 @@ import {
   compactInputClass,
   compactSelectClass,
   dangerChipBtnClass,
-  railBandClass,
-  scheduleRowClass,
   fieldLabelClass,
   iconBtnClass,
-  mutedInkClass,
   staticFieldClass,
   staticValueClass,
   subtleInputClass,
@@ -25,6 +22,8 @@ import {
 import type { ItemStatus, ItineraryItem, TripDay } from "../types"
 import { IconButton } from "./IconButton"
 import { STATUS_OPTIONS, type DayOption } from "./editorUi"
+import { sx } from '@/lib/utils'
+import { styles } from '../trips.stylex'
 
 interface ItemRowProps {
   item: ItineraryItem
@@ -63,20 +62,20 @@ function ReadonlyOrInput({
   if (!editable) {
     return (
       <div>
-        <span className={fieldLabelClass}>{label}</span>
-        <p className={staticFieldClass}>{value || "Not set"}</p>
+        <span {...sx(fieldLabelClass)}>{label}</span>
+        <p {...sx(staticFieldClass)}>{value || "Not set"}</p>
       </div>
     )
   }
   return (
-    <label className="block">
-      <span className={fieldLabelClass}>{label}</span>
+    <label {...sx(styles.block)}>
+      <span {...sx(fieldLabelClass)}>{label}</span>
       <input
         value={value}
         placeholder={placeholder}
         disabled={locked}
         onChange={(e) => onChange(e.target.value)}
-        className={`mt-1 w-full ${compactInputClass}`}
+        {...sx(styles.wFullMt1, compactInputClass)}
       />
     </label>
   )
@@ -133,10 +132,10 @@ export const ItemRow = memo(function ItemRow({
       aria-expanded={expanded}
       aria-controls={panelId}
       aria-label={expanded ? `Collapse ${item.title || "item"}` : `Expand ${item.title || "item"}`}
-      className={iconBtnClass}
+      {...sx(iconBtnClass)}
     >
       <ChevronDown
-        className={`h-4 w-4 transition-transform ${expanded ? "rotate-180" : ""}`}
+        {...sx(styles.chevronDisclosure, expanded ? styles.rotate180 : undefined)}
         strokeWidth={1.5}
         aria-hidden
       />
@@ -151,15 +150,11 @@ export const ItemRow = memo(function ItemRow({
       animate={{ opacity: 1, y: 0 }}
       exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.98 }}
       transition={{ duration: 0.22, ease: EASE }}
-      className={`relative ${
-        isSection
-          ? `${railBandClass} px-3 py-1.5`
-          : `${scheduleRowClass} px-3 py-2`
-      } ${highlightClass}`}
+      {...sx(isSection ? styles.itemRowSection : styles.itemRowSchedule, highlightClass)}
     >
       {isSection ? (
         // A divider, not a card: full-width tinted band, uppercase mono.
-        <div className="flex items-center gap-2" onClick={toggleFromRow}>
+        <div {...sx(styles.itemRowSectionHeader)} onClick={toggleFromRow}>
           {editable ? (
             <input
               value={item.title}
@@ -168,50 +163,38 @@ export const ItemRow = memo(function ItemRow({
               aria-label="Section heading"
               disabled={locked}
               onChange={(e) => patch({ title: e.target.value })}
-              // Below 768px a global rule pins inputs to 16px (iOS zoom guard),
-              // so the band tightens its tracking instead of its size.
-              className={`min-h-11 min-w-0 flex-1 text-ellipsis rounded-[length:var(--trips-field-radius)] border border-transparent bg-transparent px-1 py-1 font-mono-trips text-[11px] uppercase tracking-[0.06em] text-[color:var(--trips-ink-secondary)] transition placeholder:text-[color:var(--trips-ink-tertiary)] hover:border-[color:var(--trips-border)] focus:border-[color:var(--trips-accent)] focus:outline-none sm:min-h-0 sm:tracking-[0.16em]`}
+              {...sx(styles.sectionHeadingInput)}
             />
           ) : (
-            <span
-              className={`min-w-0 flex-1 px-1 py-1 font-mono-trips text-[11px] uppercase tracking-[0.06em] text-[color:var(--trips-ink-secondary)] sm:tracking-[0.16em] ${wrapAnywhereClass}`}
-            >
+            <span {...sx(styles.sectionHeadingStatic, wrapAnywhereClass)}>
               {item.title}
             </span>
           )}
-          {item.time && <span className={`shrink-0 ${timeCellClass}`}>{item.time}</span>}
+          {item.time && <span {...sx(styles.shrink0, timeCellClass)}>{item.time}</span>}
           {disclosure}
         </div>
       ) : (
         <div
           onClick={toggleFromRow}
-          className={`grid items-center gap-x-2 gap-y-1 ${
-            // The time gutter costs too much width at 390px, so below `sm` the
-            // time moves to the second line and the columns close up.
-            showTime
-              ? "grid-cols-[1.25rem_1rem_minmax(0,1fr)_auto] sm:grid-cols-[1.25rem_3.5rem_1rem_minmax(0,1fr)_auto]"
-              : "grid-cols-[1.25rem_1rem_minmax(0,1fr)_auto]"
-          }`}
+          {...sx(
+            showTime ? styles.gridItemShowTime : styles.gridItemNoTime,
+          )}
         >
           <span
             role="img"
             aria-label={mapped ? "On the map" : "No coordinates yet"}
             title={mapped ? "On the map" : "No coordinates yet"}
-            className="flex h-5 w-5 items-center justify-center"
+            {...sx(styles.itemRowMapIconWrap)}
           >
             <MapPin
-              className={`h-[15px] w-[15px] ${
-                mapped
-                  ? "fill-[color:var(--ta-soft)] text-[color:var(--ta)]"
-                  : "text-[color:var(--trips-ink-tertiary)]"
-              }`}
+              {...sx(mapped ? styles.iconPin15Mapped : styles.iconPin15Unmapped)}
               strokeWidth={mapped ? 2 : 1.5}
               aria-hidden
             />
           </span>
           {showTime && (
             <span
-              className={`hidden truncate text-right sm:block ${timeCellClass}`}
+              {...sx(styles.hiddenTruncateSmBlock, timeCellClass)}
               title={item.endTime ? `${item.time} to ${item.endTime}` : undefined}
             >
               {item.time ?? ""}
@@ -221,7 +204,7 @@ export const ItemRow = memo(function ItemRow({
             kind={item.kind}
             category={item.location?.category}
             reservationType={item.reservation?.type}
-            className={`h-4 w-4 shrink-0 ${isPlace ? ACCENT.text : "text-stone-500 dark:text-stone-400"}`}
+            className={sx(styles.iconSm, styles.shrink0, isPlace ? ACCENT.text : styles.iconStone).className}
           />
           {editable ? (
             <input
@@ -231,60 +214,72 @@ export const ItemRow = memo(function ItemRow({
               aria-label="Item title"
               disabled={locked}
               onChange={(e) => patch({ title: e.target.value })}
-              className={`w-full min-w-0 ${subtleInputClass} ${
-                item.status === "completed" ? `line-through ${mutedInkClass}` : ""
-              }`}
+              {...sx(
+                styles.wFull,
+                styles.minW0,
+                subtleInputClass,
+                item.status === "completed" ? styles.lineThroughMuted : undefined,
+              )}
             />
           ) : (
             <span
-              className={`w-full min-w-0 ${staticValueClass} ${wrapAnywhereClass} ${
-                item.status === "completed" ? `line-through ${mutedInkClass}` : ""
-              }`}
+              {...sx(
+                styles.wFull,
+                styles.minW0,
+                staticValueClass,
+                wrapAnywhereClass,
+                item.status === "completed" ? styles.lineThroughMuted : undefined,
+              )}
             >
               {item.title}
             </span>
           )}
-          <span className="flex items-center gap-1.5 justify-self-end">
-            <span className="hidden items-center gap-1.5 sm:inline-flex">{chips}</span>
+          <span {...sx(styles.itemRowChipsRow)}>
+            <span {...sx(styles.itemRowChipsDesktop)}>{chips}</span>
             {disclosure}
           </span>
           {/* Second line: only rendered when it carries something. Chips live
               here below `sm`, where the first line has no room for them. */}
           {(metaLocation || needsPin || hasChips || (showTime && item.time)) && (
             <div
-              className={`flex flex-wrap items-center gap-x-2 gap-y-1 px-2 text-xs text-stone-600 dark:text-stone-400 ${
-                showTime ? "col-span-2 col-start-3 sm:col-start-4" : "col-span-2 col-start-3"
-              } ${metaLocation || needsPin ? "" : "sm:hidden"}`}
+              {...sx(
+                styles.textXs,
+                showTime
+                  ? styles.itemMetaColShowTime
+                  : metaLocation || needsPin
+                    ? styles.itemMetaColBase
+                    : styles.itemMetaColHideSm,
+              )}
             >
               {showTime && item.time && (
-                <span className={`sm:hidden ${timeCellClass}`}>
+                <span {...sx(styles.timeCellSmOnly, timeCellClass)}>
                   {item.endTime ? `${item.time}–${item.endTime}` : item.time}
                 </span>
               )}
-              {metaLocation && <span className={`min-w-0 ${wrapAnywhereClass}`}>{metaLocation}</span>}
-              {needsPin && <span className="text-amber-700 dark:text-amber-400">no pin yet</span>}
-              {hasChips && <span className="flex items-center gap-1.5 sm:hidden">{chips}</span>}
+              {metaLocation && <span {...sx(styles.minW0, wrapAnywhereClass)}>{metaLocation}</span>}
+              {needsPin && <span {...sx(styles.itemRowPinWarning)}>no pin yet</span>}
+              {hasChips && <span {...sx(styles.itemRowChipsMobile)}>{chips}</span>}
             </div>
           )}
         </div>
       )}
 
       {expanded && (
-        <div id={panelId} className="mt-3 space-y-3 border-t border-[color:var(--trips-border)] pt-3">
+        <div id={panelId} {...sx(styles.itemRowExpandedPanel)}>
           {editable && (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div {...sx(styles.gridCols2SmGap4)}>
               <div>
-                <span className={fieldLabelClass}>Times</span>
-                <div className="mt-1 flex items-center gap-1.5">
+                <span {...sx(fieldLabelClass)}>Times</span>
+                <div {...sx(styles.itemRowTimesRow)}>
                   <input
                     type="time"
                     value={item.time ?? ""}
                     aria-label="Start time"
                     disabled={locked}
                     onChange={(e) => patch({ time: e.target.value || undefined })}
-                    className={`w-full tabular-nums ${compactInputClass}`}
+                    {...sx(styles.wFullTabularNums, compactInputClass)}
                   />
-                  <span className="shrink-0 text-stone-400 dark:text-stone-500" aria-hidden>
+                  <span {...sx(styles.itemRowTimeSep)} aria-hidden>
                     –
                   </span>
                   <input
@@ -293,18 +288,18 @@ export const ItemRow = memo(function ItemRow({
                     aria-label="End time"
                     disabled={locked}
                     onChange={(e) => patch({ endTime: e.target.value || undefined })}
-                    className={`w-full tabular-nums ${compactInputClass}`}
+                    {...sx(styles.wFullTabularNums, compactInputClass)}
                   />
                 </div>
               </div>
               <div>
-                <span className={fieldLabelClass}>Status</span>
+                <span {...sx(fieldLabelClass)}>Status</span>
                 <select
                   value={item.status}
                   aria-label="Item status"
                   disabled={locked}
                   onChange={(e) => patch({ status: e.target.value as ItemStatus })}
-                  className={`mt-1 w-full ${compactSelectClass}`}
+                  {...sx(styles.wFullMt1, compactSelectClass)}
                 >
                   {STATUS_OPTIONS.map((s) => (
                     <option key={s.value} value={s.value}>
@@ -317,28 +312,28 @@ export const ItemRow = memo(function ItemRow({
           )}
 
           {editable ? (
-            <label className="block">
-              <span className={fieldLabelClass}>Notes</span>
+            <label {...sx(styles.block)}>
+              <span {...sx(fieldLabelClass)}>Notes</span>
               <textarea
                 value={item.notes ?? ""}
                 placeholder="Notes, links, reminders…"
                 rows={3}
                 disabled={locked}
                 onChange={(e) => patch({ notes: e.target.value || undefined })}
-                className={`mt-1 w-full resize-none ${compactInputClass}`}
+                {...sx(styles.wFullMt1ResizeNone, compactInputClass)}
               />
             </label>
           ) : (
             item.notes && (
               <div>
-                <span className={fieldLabelClass}>Notes</span>
-                <p className={`${staticFieldClass} whitespace-pre-line`}>{item.notes}</p>
+                <span {...sx(fieldLabelClass)}>Notes</span>
+                <p {...sx(staticFieldClass, styles.whitespacePreLine)}>{item.notes}</p>
               </div>
             )
           )}
 
           {isPlace && (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div {...sx(styles.gridCols2SmGap4)}>
               <ReadonlyOrInput
                 editable={editable}
                 locked={locked}
@@ -366,14 +361,14 @@ export const ItemRow = memo(function ItemRow({
               />
               {item.location?.lat != null && item.location?.lng != null ? (
                 <p
-                  className={`col-span-full inline-flex items-center gap-1.5 text-xs text-stone-600 dark:text-stone-400 ${wrapAnywhereClass}`}
+                  {...sx(styles.coordsRow, styles.gridSpanFull, wrapAnywhereClass)}
                 >
-                  <MapPin className="h-3.5 w-3.5 shrink-0" strokeWidth={1.5} aria-hidden />
+                  <MapPin {...sx(styles.iconXs, styles.shrink0)} strokeWidth={1.5} aria-hidden />
                   {item.location.lat.toFixed(4)}, {item.location.lng.toFixed(4)}
                   {item.location.confidence ? ` · ${item.location.confidence} confidence` : ""} · appears in Map Mode
                 </p>
               ) : (
-                <p className="col-span-full text-xs text-amber-700 dark:text-amber-400">
+                <p {...sx(styles.itemRowCoordsHint)}>
                   No coordinates yet. Run “Enhance day” or add them so this place appears in Map Mode.
                 </p>
               )}
@@ -381,30 +376,30 @@ export const ItemRow = memo(function ItemRow({
           )}
 
           {editable && (
-            <div className="flex flex-wrap items-end gap-x-4 gap-y-3 border-t border-[color:var(--trips-border)] pt-3">
+            <div {...sx(styles.itemRowActionsBar)}>
               <div>
-                <span className={fieldLabelClass}>Arrange</span>
-                <div className="mt-0.5 flex items-center">
+                <span {...sx(fieldLabelClass)}>Arrange</span>
+                <div {...sx(styles.flex, styles.itemsCenter)}>
                   <IconButton
                     label="Move up"
                     disabled={isFirst || locked}
                     onClick={() => onChange((days) => moveItem(days, dayId, item.id, -1))}
                   >
-                    <ArrowUp className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+                    <ArrowUp {...sx(styles.iconSm)} strokeWidth={1.5} aria-hidden />
                   </IconButton>
                   <IconButton
                     label="Move down"
                     disabled={isLast || locked}
                     onClick={() => onChange((days) => moveItem(days, dayId, item.id, 1))}
                   >
-                    <ArrowDown className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+                    <ArrowDown {...sx(styles.iconSm)} strokeWidth={1.5} aria-hidden />
                   </IconButton>
                   <IconButton
                     label="Duplicate"
                     disabled={locked}
                     onClick={() => onChange((days) => duplicateItem(days, dayId, item.id))}
                   >
-                    <Copy className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+                    <Copy {...sx(styles.iconSm)} strokeWidth={1.5} aria-hidden />
                   </IconButton>
                   {item.kind === "note" && (
                     <IconButton
@@ -412,20 +407,20 @@ export const ItemRow = memo(function ItemRow({
                       disabled={locked}
                       onClick={() => onChange((days) => convertNoteToPlace(days, dayId, item.id))}
                     >
-                      <MapPin className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+                      <MapPin {...sx(styles.iconSm)} strokeWidth={1.5} aria-hidden />
                     </IconButton>
                   )}
                 </div>
               </div>
-              <label className="block">
-                <span className={fieldLabelClass}>Move to day</span>
-                <span className="mt-1 flex items-center gap-1.5">
-                  <ArrowRightLeft className="h-4 w-4 shrink-0 text-stone-500 dark:text-stone-400" strokeWidth={1.5} aria-hidden />
+              <label {...sx(styles.block)}>
+                <span {...sx(fieldLabelClass)}>Move to day</span>
+                <span {...sx(styles.itemRowMoveRow)}>
+                  <ArrowRightLeft {...sx(styles.iconSm, styles.shrink0, styles.iconStone)} strokeWidth={1.5} aria-hidden />
                   <select
                     value={dayId}
                     disabled={locked}
                     onChange={(e) => onChange((days) => moveItemToDay(days, dayId, item.id, e.target.value))}
-                    className={compactSelectClass}
+                    {...sx(compactSelectClass)}
                   >
                     {dayOptions.map((d) => (
                       <option key={d.id} value={d.id}>
@@ -439,9 +434,9 @@ export const ItemRow = memo(function ItemRow({
                 type="button"
                 disabled={locked}
                 onClick={() => onDelete(dayId, item, index)}
-                className={`ml-auto ${dangerChipBtnClass}`}
+                {...sx(styles.mlAuto, dangerChipBtnClass)}
               >
-                <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
+                <Trash2 {...sx(styles.iconXs)} strokeWidth={1.5} aria-hidden />
                 Delete
               </button>
             </div>

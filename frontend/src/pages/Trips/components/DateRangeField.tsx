@@ -1,7 +1,21 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react"
-import { accentIconClass, focusRingClass, iconBtnClass, inputClass, mutedInkClass, popoverClass } from "../ui"
+import {
+  accentIconClass,
+  focusRingInsetClass,
+  iconBtnClass,
+  inputClass,
+  mutedInkClass,
+  popoverClass,
+} from "../ui"
+import { sx } from '@/lib/utils'
+import {
+  dateBandState,
+  dateDayBtnState,
+  dateDayNumState,
+  styles,
+} from '../trips.stylex'
 
 // Custom dual-month range calendar — no external date library. Dates are ISO
 // yyyy-mm-dd strings end to end (matching the trip model), so there's no
@@ -93,30 +107,25 @@ function Month({
 }) {
   const cells = useMemo(() => monthMatrix(year, month), [year, month])
   const today = todayIso()
-  // While picking the end date, preview the span to the hovered day.
   const previewEnd = selecting && hovered && hovered >= start ? hovered : end
   const inRange = (iso: string) => start && previewEnd && iso > start && iso < previewEnd
-  // The tint runs edge to edge behind the day cells, so a multi-day range
-  // reads as one band rather than a row of separate swatches.
   const last = previewEnd || start
   const banded = (iso: string | null | undefined) =>
     !!iso && !!start && last > start && iso >= start && iso <= last
 
   return (
-    // Day cells fill their column so the range band is continuous. The month
-    // is wider below `sm`, where only one shows, to hold a 44px touch target.
-    <div className="w-[19.25rem] sm:w-[16.5rem]">
-      <div className="px-1 text-center text-sm font-semibold text-stone-800 dark:text-stone-200">
+    <div {...sx(styles.dateMonthWrap)}>
+      <div {...sx(styles.dateMonthTitle)}>
         {monthLabel(year, month)}
       </div>
-      <div className={`mt-2 grid grid-cols-7 text-center ${mutedInkClass}`} aria-hidden>
+      <div {...sx(styles.dateWeekdayRow, mutedInkClass)} aria-hidden>
         {WEEKDAYS.map((w, i) => (
-          <span key={i} className="py-1 text-[11px] font-medium">
+          <span key={i} {...sx(styles.py1, styles.text11, styles.fontMedium)}>
             {w}
           </span>
         ))}
       </div>
-      <div className="grid grid-cols-7" onMouseLeave={() => onHover(null)}>
+      <div {...sx(styles.dateDayGrid)} onMouseLeave={() => onHover(null)}>
         {cells.map((iso, i) => {
           if (!iso) return <span key={i} aria-hidden />
           const isStart = iso === start
@@ -132,46 +141,35 @@ function Month({
               onClick={() => onPick(iso)}
               onMouseEnter={() => onHover(iso)}
               onFocus={() => onHover(iso)}
-              // Selection is spoken in the name rather than through
-              // `aria-pressed`: these days are dates in a range, not toggles.
               aria-label={dayLabel(iso, { isStart, isEnd, inRange: !!inRange(iso) })}
               aria-current={iso === today ? "date" : undefined}
-              className={[
-                "relative flex h-11 w-full items-center justify-center rounded-[length:var(--trips-radius)] text-[13px] tabular-nums outline-none transition-colors duration-150 sm:h-10",
-                isEdge || inBand ? "" : "text-[color:var(--trips-ink)] hover:bg-[color:var(--trips-rail)]",
-                iso === today && !isEdge ? `font-semibold ${accentIconClass}` : "",
-                `${focusRingClass} focus-visible:ring-inset`,
-              ].join(" ")}
+              {...sx(
+                ...dateDayBtnState(isEdge, inBand, iso === today),
+                focusRingInsetClass,
+              )}
             >
               {inBand && (
                 <span
                   aria-hidden
-                  className={[
-                    "absolute inset-y-0 bg-[color:var(--ta-soft)]",
-                    isStart ? "left-1/2" : banded(cells[i - 1]) && i % 7 !== 0 ? "left-0" : "left-0 rounded-l-[length:var(--trips-radius)]",
-                    isEnd ? "right-1/2" : banded(cells[i + 1]) && i % 7 !== 6 ? "right-0" : "right-0 rounded-r-[length:var(--trips-radius)]",
-                  ].join(" ")}
+                  {...sx(
+                    ...dateBandState(
+                      isStart,
+                      isEnd,
+                      banded(cells[i - 1]),
+                      i,
+                      banded(cells[i + 1]),
+                    ),
+                  )}
                 />
               )}
               {isEdge && (
-                <span
-                  aria-hidden
-                  className="absolute inset-0 rounded-[length:var(--trips-radius)] bg-[color:var(--trips-accent)]"
-                />
+                <span aria-hidden {...sx(styles.dateDayEdge)} />
               )}
-              <span
-                className={
-                  isEdge
-                    ? "relative font-semibold text-white dark:text-[color:var(--trips-canvas)]"
-                    : inBand
-                      ? "relative text-[color:var(--trips-ink)]"
-                      : "relative"
-                }
-              >
+              <span {...sx(dateDayNumState(isEdge, inBand))}>
                 {Number(iso.slice(8, 10))}
               </span>
               {iso === today && !isEdge && (
-                <span className="absolute bottom-1 h-1 w-1 rounded-full bg-[color:var(--trips-accent)]" aria-hidden />
+                <span {...sx(styles.dateTodayDot)} aria-hidden />
               )}
             </button>
           )
@@ -188,7 +186,6 @@ export function DateRangeField({ startDate, endDate, onChange, invalid, describe
   const gridRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
-  // selecting=true → start picked, waiting for the end date.
   const [selecting, setSelecting] = useState(false)
   const [hovered, setHovered] = useState<string | null>(null)
   const anchor = startDate || todayIso()
@@ -199,7 +196,6 @@ export function DateRangeField({ startDate, endDate, onChange, invalid, describe
 
   useEffect(() => {
     if (!open) return
-    // Focus first selectable day (or the current start) so arrow keys work.
     const focusTarget =
       gridRef.current?.querySelector<HTMLButtonElement>(
         startDate ? `button[data-iso="${startDate}"]` : "button[data-iso]",
@@ -211,13 +207,10 @@ export function DateRangeField({ startDate, endDate, onChange, invalid, describe
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        // Focus was inside the grid that is about to unmount, so it goes back
-        // to the control that opened it.
         setOpen(false)
         triggerRef.current?.focus()
         return
       }
-      // Roving arrow-key navigation across day buttons.
       if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
         const buttons = [...(gridRef.current?.querySelectorAll<HTMLButtonElement>("button[data-iso]") ?? [])]
         const active = document.activeElement as HTMLButtonElement | null
@@ -251,7 +244,7 @@ export function DateRangeField({ startDate, endDate, onChange, invalid, describe
       setSelecting(true)
     } else {
       if (iso < startDate) {
-        onChange(iso, iso) // restart from the earlier day
+        onChange(iso, iso)
       } else {
         onChange(startDate, iso)
         setSelecting(false)
@@ -264,7 +257,7 @@ export function DateRangeField({ startDate, endDate, onChange, invalid, describe
   const next = new Date(Date.UTC(view.year, view.month + 1, 1))
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} {...sx(styles.relative)}>
       <button
         ref={triggerRef}
         type="button"
@@ -274,12 +267,10 @@ export function DateRangeField({ startDate, endDate, onChange, invalid, describe
         aria-invalid={invalid ? true : undefined}
         aria-describedby={describedBy}
         onClick={() => setOpen((o) => !o)}
-        className={`flex items-center gap-3 text-left hover:border-[color:var(--trips-ink-tertiary)] ${inputClass} ${
-          invalid ? "border-red-400 dark:border-red-800" : ""
-        }`}
+        {...sx(styles.dateTriggerRow, inputClass, invalid ? styles.borderRedInvalid : null)}
       >
-        <CalendarDays className={`h-4 w-4 shrink-0 ${accentIconClass}`} strokeWidth={1.5} aria-hidden />
-        <span id={labelId} className={startDate ? "" : mutedInkClass}>
+        <CalendarDays {...sx(styles.iconSm, styles.shrink0, accentIconClass)} strokeWidth={1.5} aria-hidden />
+        <span id={labelId} {...sx(startDate ? null : mutedInkClass)}>
           {startDate && endDate ? formatRangeLabel(startDate, endDate) : "Select trip dates"}
         </span>
       </button>
@@ -293,30 +284,30 @@ export function DateRangeField({ startDate, endDate, onChange, invalid, describe
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={reduce ? { opacity: 0 } : { opacity: 0, y: -4, scale: 0.99 }}
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-            className={`absolute left-0 top-[calc(100%+0.5rem)] z-40 p-4 ${popoverClass}`}
+            {...sx(styles.datePopoverAnchored, popoverClass)}
           >
-            <div className="flex items-center justify-between">
+            <div {...sx(styles.dateNavRow)}>
               <button
                 type="button"
                 onClick={() => shiftMonth(-1)}
                 aria-label="Previous month"
-                className={iconBtnClass}
+                {...sx(iconBtnClass)}
               >
-                <ChevronLeft className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+                <ChevronLeft {...sx(styles.iconSm)} strokeWidth={1.5} aria-hidden />
               </button>
-              <p className={`text-xs ${mutedInkClass}`} aria-live="polite">
+              <p {...sx(styles.textXs, mutedInkClass)} aria-live="polite">
                 {selecting ? "Now pick the last day" : "Pick the first day"}
               </p>
               <button
                 type="button"
                 onClick={() => shiftMonth(1)}
                 aria-label="Next month"
-                className={iconBtnClass}
+                {...sx(iconBtnClass)}
               >
-                <ChevronRight className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+                <ChevronRight {...sx(styles.iconSm)} strokeWidth={1.5} aria-hidden />
               </button>
             </div>
-            <div ref={gridRef} className="mt-2 flex gap-6">
+            <div ref={gridRef} {...sx(styles.dateGridRow)}>
               <Month
                 year={view.year}
                 month={view.month}
@@ -327,7 +318,7 @@ export function DateRangeField({ startDate, endDate, onChange, invalid, describe
                 onPick={pick}
                 onHover={setHovered}
               />
-              <div className="hidden sm:block">
+              <div {...sx(styles.dateSecondMonth)}>
                 <Month
                   year={next.getUTCFullYear()}
                   month={next.getUTCMonth()}

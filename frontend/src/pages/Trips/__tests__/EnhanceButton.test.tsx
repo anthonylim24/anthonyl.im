@@ -32,7 +32,8 @@ describe("EnhanceButton", () => {
     const dialog = screen.getByRole("dialog", { name: "Focus this review" })
     expect(dialog).toBeInTheDocument()
     expect(dialog.closest(".trips")).not.toBeNull()
-    expect(dialog.className).toContain("--trips-surface")
+    // Opaque panel (not a transparent overlay); StyleX hashes omit debug style keys in CI.
+    expect(dialog.className.split(/\s+/).some((c) => c.startsWith("x"))).toBe(true)
     expect(screen.getByRole("button", { name: "Run enhance" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument()
 

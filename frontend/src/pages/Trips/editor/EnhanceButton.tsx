@@ -1,3 +1,5 @@
+import { sx } from '@/lib/utils'
+import { styles } from '../trips.stylex'
 import { useEffect, useId, useState, useRef } from "react"
 import { createPortal } from "react-dom"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
@@ -146,7 +148,7 @@ export function EnhanceButton({
 
   const solid = variant === "solid"
   const base = solid ? primaryBtnClass : busy ? accentChipBtnClass : chipBtnClass
-  const iconSize = solid ? "h-4 w-4" : "h-3.5 w-3.5"
+  const iconStyle = solid ? styles.iconSm : styles.icon35
   const sheet = mode === "sheet"
 
   const panel = (
@@ -159,23 +161,19 @@ export function EnhanceButton({
       animate={canVt || reduce ? { opacity: 1 } : { opacity: 1, y: 0 }}
       exit={canVt || reduce ? { opacity: 0 } : sheet ? { opacity: 0, y: 16 } : { opacity: 0, y: 6 }}
       transition={{ duration: reduce ? 0.12 : 0.18, ease: EASE }}
-      className={
-        sheet
-          ? `fixed inset-x-0 z-[70] mx-auto w-full max-w-lg rounded-t-[length:var(--trips-radius)] border border-[color:var(--trips-border)] bg-[color:var(--trips-surface)] p-5 ${softPanelClass}`
-          : `relative z-[70] w-full max-w-md p-5 ${softPanelClass}`
-      }
+      {...sx(sheet ? styles.enhancePanelSheet : styles.enhancePanelDialog, softPanelClass)}
       style={{
         ...(sheet ? { bottom: kbInset > 0 ? kbInset : 0 } : undefined),
         viewTransitionName: "trips-enhance",
       }}
     >
-      <h2 id={titleId} className={typeSectionClass}>
+      <h2 id={titleId} {...sx(typeSectionClass)}>
         Focus this review
       </h2>
-      <p className={hintClass}>
+      <p {...sx(hintClass)}>
         Adds places when a day has room, then explains why. Leave the focus blank for a full pass.
       </p>
-      <label className={`mt-4 ${labelClass}`} htmlFor={promptId}>
+      <label {...sx(styles.mt4, labelClass)} htmlFor={promptId}>
         Optional focus
       </label>
       <textarea
@@ -187,17 +185,17 @@ export function EnhanceButton({
         onKeyDown={(e) => {
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) run(true)
         }}
-        className={`mt-1.5 ${inputClass}`}
+        {...sx(styles.mt1_5, inputClass)}
       />
-      <p className={`mt-3 ${hintClass}`}>
+      <p {...sx(styles.mt3, hintClass)}>
         {sheet ? "Swipe down or press Escape to close." : "⌘↵ runs the review."}
       </p>
-      <div className={`mt-3 -mx-5 -mb-5 flex flex-wrap items-center justify-end gap-2 border-t border-[color:var(--trips-border)] px-5 py-3 ${railBandClass} rounded-t-none`}>
-        <button type="button" onClick={() => close(true)} className={ghostBtnClass}>
+      <div {...sx(styles.enhanceFooter, railBandClass)}>
+        <button type="button" onClick={() => close(true)} {...sx(ghostBtnClass)}>
           Cancel
         </button>
-        <button type="button" onClick={() => run(true)} className={primaryBtnClass}>
-          <Sparkles className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
+        <button type="button" onClick={() => run(true)} {...sx(primaryBtnClass)}>
+          <Sparkles {...sx(styles.icon35)} strokeWidth={1.5} aria-hidden />
           Run enhance
         </button>
       </div>
@@ -205,12 +203,12 @@ export function EnhanceButton({
   )
 
   return (
-    <div ref={rootRef} className="trip-split relative inline-flex">
-      <button type="button" onClick={() => run(false)} disabled={disabled} className={base}>
+    <div ref={rootRef} {...sx('trip-split', styles.enhanceSplit)}>
+      <button type="button" onClick={() => run(false)} disabled={disabled} {...sx(base)}>
         {busy ? (
-          <Loader2 className={`${iconSize} ${spinnerClass}`} aria-hidden />
+          <Loader2 {...sx(iconStyle, spinnerClass)} aria-hidden />
         ) : (
-          <Sparkles className={iconSize} strokeWidth={1.5} aria-hidden />
+          <Sparkles {...sx(iconStyle)} strokeWidth={1.5} aria-hidden />
         )}
         {busy ? busyLabel : label}
       </button>
@@ -222,10 +220,13 @@ export function EnhanceButton({
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={`${label} with a custom focus`}
-        className={base}
+        {...sx(base)}
         style={{ viewTransitionName: open ? "none" : "trips-enhance" }}
       >
-        <ChevronDown className={`${iconSize} transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
+        <ChevronDown
+          {...sx(styles.transitionTransform, iconStyle, open ? styles.rotate180 : null)}
+          aria-hidden
+        />
       </button>
 
       {typeof document !== "undefined" &&
@@ -234,19 +235,13 @@ export function EnhanceButton({
             {open && (
               <div
                 key="enhance-layer"
-                className={tripsPortalClass}
+                {...sx(tripsPortalClass)}
                 data-trip-accent={
                   document.querySelector("[data-trip-accent]")?.getAttribute("data-trip-accent") ??
                   undefined
                 }
               >
-                <div
-                  className={
-                    sheet
-                      ? "contents"
-                      : "fixed inset-0 z-[70] flex items-center justify-center p-4"
-                  }
-                >
+                <div {...sx(sheet ? styles.enhanceContents : styles.enhanceLayerCenter)}>
                   <motion.div
                     key="enhance-backdrop"
                     initial={{ opacity: 0 }}
@@ -254,7 +249,7 @@ export function EnhanceButton({
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.16 }}
                     onClick={() => close(true)}
-                    className={scrimClass}
+                    {...sx(scrimClass)}
                     aria-hidden
                   />
                   {panel}

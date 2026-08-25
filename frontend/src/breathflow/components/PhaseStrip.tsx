@@ -1,4 +1,6 @@
 import { PHASE_LABELS } from '@/lib/constants'
+import { sx } from '@/styles/merge'
+import { bf } from '../styles/breathflow.stylex'
 import { getPhaseSecondsForRound, getRoundSeconds, type CustomPhaseDurations } from '../protocols/cadence'
 import type { BreathingProtocol } from '../protocols/types'
 
@@ -7,7 +9,7 @@ interface PhaseStripProps {
   customDurations?: CustomPhaseDurations
   /** Animate a cursor sweeping one breath cycle. Off under reduced motion. */
   animated?: boolean
-  className?: string
+  style?: Parameters<typeof sx>[0]
 }
 
 /**
@@ -15,42 +17,42 @@ interface PhaseStripProps {
  * seconds, sitting on a proportional hairline. A cursor sweeps the rule
  * when animation is allowed.
  */
-export function PhaseStrip({ protocol, customDurations, animated = false, className }: PhaseStripProps) {
+export function PhaseStrip({ protocol, customDurations, animated = false, style }: PhaseStripProps) {
   const cycleSeconds = getRoundSeconds(protocol, 0, customDurations)
   if (cycleSeconds <= 0) return null
 
   return (
-    <div className={className}>
-      <p className="bf-display text-[12px] leading-relaxed text-bw-secondary">
+    <div {...sx(style)}>
+      <p {...sx('bf-display', bf.text12px, bf.leadingRelaxed, bf.textSecondary)}>
         {protocol.phases.map(({ phase }, index) => {
           const seconds = getPhaseSecondsForRound(protocol, phase, 0, customDurations)
           const label = PHASE_LABELS[phase].toLowerCase()
           return (
             <span key={`${phase}-${index}`}>
-              {index > 0 && <span className="text-bw-tertiary"> · </span>}
+              {index > 0 && <span {...sx(bf.textTertiary)}> · </span>}
               {seconds}s {label}
             </span>
           )
         })}
       </p>
-      <div className="relative mt-2 flex h-px w-full overflow-hidden bg-bw-border">
+      <div {...sx(bf.phaseBar)}>
         {protocol.phases.map(({ phase }, index) => {
           const seconds = getPhaseSecondsForRound(protocol, phase, 0, customDurations)
           return (
             <span
               key={`${phase}-seg-${index}`}
-              className="block h-full"
+              {...sx(bf.phaseSeg)}
               style={{ width: `${(seconds / cycleSeconds) * 100}%` }}
             />
           )
         })}
         {animated && (
-          <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div aria-hidden="true" {...sx(bf.pointerEventsNone, bf.absolute, bf.inset0, bf.overflowHidden)}>
             <div
-              className="bf-sweep absolute inset-y-0 left-0 w-full"
+              {...sx('bf-sweep', bf.absolute, bf.insetY1, bf.left0, bf.wFull)}
               style={{ animationDuration: `${cycleSeconds}s` }}
             >
-              <div className="absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-transparent via-bw-accent to-transparent opacity-70" />
+              <div {...sx(bf.sweepGradient)} />
             </div>
           </div>
         )}

@@ -1,3 +1,5 @@
+import { sx } from '@/lib/utils'
+import { styles } from './trips.stylex'
 import { useCallback, useEffect, useId, useMemo, useState, useTransition } from "react"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { ChevronDown, Loader2, Plus } from "lucide-react"
@@ -211,39 +213,35 @@ export function TripIngest({
 
   if (unavailable && visibleJobs.length === 0) {
     return (
-      <p className={`mt-2 text-xs leading-relaxed ${mutedInkClass}`}>
-        Instagram extraction isn’t configured on this server.
-      </p>
+      <p {...sx(styles.mt2, styles.textXs, mutedInkClass)}>Instagram extraction isn’t configured on this server.</p>
     )
   }
 
   return (
     <div
       id={ingestAnchor ? "trip-ingest" : undefined}
-      className="mt-2"
+      {...sx(styles.ingestRoot)}
       aria-busy={submitting || isRefreshing}
     >
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className={quietBtnClass}
+        {...sx(quietBtnClass)}
       >
-        <IgIcon className="h-3.5 w-3.5" aria-hidden />
+        <IgIcon style={styles.iconXs} aria-hidden />
         Instagram
         <ChevronDown
-          className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`}
+          {...sx(styles.iconXs, styles.transitionTransform, open && styles.rotate180)}
           strokeWidth={1.5}
           aria-hidden
         />
       </button>
 
       {open && (
-        <div className="mt-2">
-          <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <label htmlFor={urlId} className="sr-only">
-              Instagram URL
-            </label>
+        <div {...sx(styles.mt2)}>
+          <form onSubmit={(e) => void handleSubmit(e)} {...sx(styles.ingestForm)}>
+            <label htmlFor={urlId} {...sx(styles.srOnly)}>Instagram URL</label>
             <input
               id={urlId}
               type="url"
@@ -254,75 +252,75 @@ export function TripIngest({
               disabled={locked}
               onChange={(e) => setUrl(e.target.value)}
               aria-invalid={url.length > 0 && !isInstagramUrl(url) ? true : undefined}
-              className={`min-w-0 flex-1 text-[16px] sm:text-sm ${compactInputClass}`}
+              {...sx(styles.compactInputMobile, compactInputClass)}
             />
             <button
               type="submit"
               disabled={!canSubmit || locked}
               aria-label={submitting ? "Submitting" : "Extract places"}
-              className={`${chipBtnClass} w-full sm:w-auto`}
+              {...sx(chipBtnClass, styles.chipBtnFullSmAuto)}
             >
               {submitting ? (
-                <Loader2 className={`h-3.5 w-3.5 ${spinnerClass}`} aria-hidden />
+                <Loader2 {...sx(styles.iconXs, spinnerClass)} aria-hidden />
               ) : (
-                <IgIcon className="h-3.5 w-3.5" aria-hidden />
+                <IgIcon style={styles.iconXs} aria-hidden />
               )}
               {submitting ? "Submitting" : "Extract"}
             </button>
           </form>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-            <label htmlFor={skipId} className="inline-flex min-h-11 items-center gap-2 text-xs text-stone-600 dark:text-stone-400">
+          <div {...sx(styles.ingestOptions)}>
+            <label htmlFor={skipId} {...sx(styles.ingestSkipLabel)}>
               <input
                 id={skipId}
                 type="checkbox"
                 checked={skipVideo}
                 disabled={locked}
                 onChange={(e) => setSkipVideo(e.target.checked)}
-                className={checkboxClass}
+                {...sx(checkboxClass)}
               />
               Caption only
             </label>
             {url && !isInstagramUrl(url) && (
-              <p className={`text-xs ${mutedInkClass}`}>Use an instagram.com URL.</p>
+              <p {...sx(styles.textXs, mutedInkClass)}>Use an instagram.com URL.</p>
             )}
           </div>
 
           {submitError && (
-            <div className={`mt-2 ${alertErrorClass}`} role="alert">
+            <div {...sx(styles.mt2, alertErrorClass)} role="alert">
               {submitError}
             </div>
           )}
           {addError && (
-            <div className={`mt-2 ${alertErrorClass}`} role="alert">
+            <div {...sx(styles.mt2, alertErrorClass)} role="alert">
               {addError}
             </div>
           )}
 
           {visibleJobs.length > 0 && (
-            <ul className="mt-2 divide-y divide-stone-200/70 dark:divide-stone-800/70" aria-live="polite">
+            <ul {...sx(styles.mt2, styles.divideStone, 'trips-divide-stone')} aria-live="polite">
               {visibleJobs.map((job) => (
-                <li key={job.id} className="py-2">
-                  <div className="flex items-center gap-2">
+                <li key={job.id} {...sx(styles.py2)}>
+                  <div {...sx(styles.flexCenterGap2)}>
                     {(job.status === "pending" || job.status === "running") && (
-                      <Loader2 className={`h-3.5 w-3.5 shrink-0 ${spinnerClass}`} aria-hidden />
+                      <Loader2 {...sx(styles.iconXs, styles.shrink0, spinnerClass)} aria-hidden />
                     )}
-                    <p className={`min-w-0 flex-1 truncate text-xs font-medium text-stone-800 dark:text-stone-200 ${wrapAnywhereClass}`}>
+                    <p {...sx(styles.minW0, styles.flex1, styles.truncate, styles.textXs, styles.fontMedium, styles.inkSecondaryStone, wrapAnywhereClass)}>
                       {shortIgPath(job.url)}
-                      <span className={`ml-1.5 font-normal ${mutedInkClass}`}>{jobStatusLabel(job)}</span>
+                      <span {...sx(styles.ml1_5, styles.fontNormal, mutedInkClass)}>{jobStatusLabel(job)}</span>
                     </p>
                     {(job.status === "failed" || job.status === "dead") && (
-                      <button type="button" disabled={locked} onClick={() => void handleRetry(job)} className={quietBtnClass}>
+                      <button type="button" disabled={locked} onClick={() => void handleRetry(job)} {...sx(quietBtnClass)}>
                         Retry
                       </button>
                     )}
                   </div>
 
                   {job.status === "done" && job.places.length === 0 && (
-                    <p className={`mt-1 text-xs ${mutedInkClass}`}>No places found.</p>
+                    <p {...sx(styles.mt1, styles.textXs, mutedInkClass)}>No places found.</p>
                   )}
 
                   {job.places.length > 0 && (
-                    <ul className="mt-1">
+                    <ul {...sx(styles.ingestJobList)}>
                       {job.places.map((place) => {
                         const key = placeKey(job.id, place.id)
                         const already = resolvedDay ? dayHasPlaceNamed(resolvedDay, place.name) : false
@@ -330,13 +328,13 @@ export function TripIngest({
                         const busy = addingKey === key
                         const meta = [place.category, place.address].filter(Boolean).join(" · ")
                         return (
-                          <li key={place.id} className="flex items-center gap-2 py-1">
-                            <div className="min-w-0 flex-1">
-                              <p className={`truncate text-sm text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}>
+                          <li key={place.id} {...sx(styles.ingestPlaceRow)}>
+                            <div {...sx(styles.minW0, styles.flex1)}>
+                              <p {...sx(styles.truncate, styles.textSm, styles.inkPrimary, wrapAnywhereClass)}>
                                 {placeLabel(place)}
                               </p>
                               {meta ? (
-                                <p className={`truncate text-[11px] ${mutedInkClass}`}>{meta}</p>
+                                <p {...sx(styles.truncate, styles.settingsLabel, mutedInkClass)}>{meta}</p>
                               ) : null}
                             </div>
                             <button
@@ -344,12 +342,12 @@ export function TripIngest({
                               disabled={added || busy || !resolvedDay || locked}
                               onClick={() => void handleAdd(job, place)}
                               aria-label={added ? `${place.name} is on this day` : `Add ${place.name} to this day`}
-                              className={added ? quietBtnClass : chipBtnClass}
+                              {...sx(added ? quietBtnClass : chipBtnClass)}
                             >
                               {busy ? (
-                                <Loader2 className={`h-3.5 w-3.5 ${spinnerClass}`} aria-hidden />
+                                <Loader2 {...sx(styles.iconXs, spinnerClass)} aria-hidden />
                               ) : added ? null : (
-                                <Plus className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
+                                <Plus {...sx(styles.iconXs)} strokeWidth={1.5} aria-hidden />
                               )}
                               {added ? "Added" : "Add"}
                             </button>

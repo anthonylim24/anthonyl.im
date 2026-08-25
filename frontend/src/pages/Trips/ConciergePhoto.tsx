@@ -3,6 +3,8 @@ import { createPortal } from "react-dom"
 import { X } from "lucide-react"
 import { lookupGooglePlacePhoto, lookupPhoto } from "../Korea/placePhoto"
 import { focusRingClass } from "./ui"
+import { sx } from '@/lib/utils'
+import { styles } from './trips.stylex'
 
 export async function lookupConciergePhoto(args: {
   name: string
@@ -65,7 +67,7 @@ export function ConciergePhotoThumb({
       type="button"
       onClick={() => onOpen(showImage ? url : null)}
       aria-label={`View photos of ${name}`}
-      className={`relative block aspect-[16/9] w-full overflow-hidden bg-[color:var(--trips-rail)] text-left ${focusRingClass}`}
+      {...sx(styles.photoThumbBtn, focusRingClass)}
     >
       {showImage ? (
         <img
@@ -73,14 +75,11 @@ export function ConciergePhotoThumb({
           alt=""
           loading="lazy"
           decoding="async"
-          className="h-full w-full object-cover"
+          {...sx(styles.photoCover)}
           onError={() => setFailed(true)}
         />
       ) : (
-        <span
-          className="flex h-full w-full items-center justify-center font-display text-3xl text-stone-400 dark:text-stone-500"
-          aria-hidden
-        >
+        <span {...sx(styles.photoFallback)} aria-hidden>
           {name.trim().slice(0, 1) || "·"}
         </span>
       )}
@@ -174,10 +173,10 @@ export function ConciergePhotoViewer({
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
-      className="fixed inset-0 z-[80] flex flex-col bg-stone-950/92"
+      {...sx(styles.photoViewerRoot)}
     >
-      <header className="flex shrink-0 items-center gap-3 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-        <h2 id={titleId} className="min-w-0 flex-1 truncate text-sm font-medium text-stone-100">
+      <header {...sx(styles.photoViewerHeader)}>
+        <h2 id={titleId} {...sx(styles.photoViewerTitle)}>
           {name}
         </h2>
         <button
@@ -185,18 +184,18 @@ export function ConciergePhotoViewer({
           type="button"
           onClick={onClose}
           aria-label="Close photos"
-          className={`flex h-11 w-11 items-center justify-center rounded-full text-stone-300 hover:bg-white/10 hover:text-white ${focusRingClass}`}
+          {...sx(styles.photoCloseBtn, focusRingClass)}
         >
-          <X className="h-5 w-5" />
+          <X {...sx(styles.icon5)} />
         </button>
       </header>
-      <div className="flex min-h-0 flex-1 items-center justify-center px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div {...sx(styles.photoViewerBody)}>
         {status === "loading" ? (
-          <p className="text-sm text-stone-400">Looking up a photo…</p>
+          <p {...sx(styles.photoViewerMuted)}>Looking up a photo…</p>
         ) : url ? (
-          <img src={url} alt={name} decoding="async" className="max-h-full max-w-full object-contain" />
+          <img src={url} alt={name} decoding="async" {...sx(styles.photoViewerImg)} />
         ) : (
-          <p className="max-w-xs text-center text-sm text-stone-400">
+          <p {...sx(styles.photoViewerMutedCenter)}>
             No photo found for {name}. Try Maps for a street view.
           </p>
         )}

@@ -2,13 +2,14 @@
 
 This repo is a **Vite 8 SPA + Hono/Bun** app (React 19, `react-router-dom`), not Next.js. Canonical skill copies live in `.agents/skills/`. `.claude/skills/` is mostly symlinks to those.
 
-Read the matching skill before writing code. Effect I/O rules win when they conflict with generic React fetch/SWR examples.
+Read the matching skill before writing code. Effect I/O rules win when they conflict with generic React fetch/SWR examples. StyleX rules win when a skill still mentions Tailwind utilities for this repo.
 
 ## Use these
 
 | Skill | When | Canonical path |
 |-------|------|----------------|
 | **effect-ts** | Any frontend `/api`, SSE, or third-party HTTP | [`.agents/skills/effect-ts/SKILL.md`](./effect-ts/SKILL.md) (symlinked from `.claude/skills/`) |
+| **stylex** | UI styling, layout, tokens, visual parity, `*.stylex.ts`, `index.css` semantic classes | [`.agents/skills/stylex/SKILL.md`](./stylex/SKILL.md) (symlinked from `.claude/skills/`) |
 | **vercel-react-best-practices** | React 19 render/bundle only. Translate Next.js examples to Vite `React.lazy` + Hono. Effect wins on I/O. Never hide Map Mode / WebGL with React `Activity`. | [`.agents/skills/vercel-react-best-practices/SKILL.md`](./vercel-react-best-practices/SKILL.md) |
 | **impeccable** | Design / critique / polish. Reads root `PRODUCT.md` and `DESIGN.md` (v4.1.1). | [`.agents/skills/impeccable/SKILL.md`](./impeccable/SKILL.md) |
 | **clerk** + **clerk-react-patterns** | Clerk auth changes. This repo uses `@clerk/clerk-react` ^5 (Core 2) in a Vite SPA. Gates: `KoreaAuthGate`, `TripsAuthGate`. Tokens: `frontend/src/lib/safeAuth.ts` (`useGetToken`, `useAuthReady`). Server JWT: `server/src/middleware/clerkAuth.ts`. Preview login: `scripts/clerk-agent-login.ts` (applies in Chrome; do not paste tickets). | [`.agents/skills/clerk/SKILL.md`](./clerk/SKILL.md), [`.agents/skills/clerk-react-patterns/SKILL.md`](./clerk-react-patterns/SKILL.md) |
@@ -30,7 +31,7 @@ These vendor skills are present for completeness. Do **not** apply them here:
 
 ## Design skills with caveats
 
-- **design-taste-frontend** — marketing/landing **only**. Do not use for `/breathwork`, `/korea`, `/trips`. Shared-site Inter + Cormorant and `lucide-react` are intentional; BreathFlow uses Geist + Fragment Mono.
-- **redesign-existing-projects** — prefer **impeccable** + root `PRODUCT.md`. Do not replace Inter/Lucide.
+- **design-taste-frontend** — marketing/landing **only**. Do not use for `/breathwork`, `/korea`, `/trips`. This repo uses **StyleX**, not Tailwind — follow [`stylex`](./stylex/SKILL.md) for UI styling here.
+- **redesign-existing-projects** — prefer **impeccable** + root `PRODUCT.md`. Do not replace Inter/Lucide. This repo uses StyleX — do not assume Tailwind.
 
-Short pointers: [`.agents/memory/effect-ts.md`](../memory/effect-ts.md), [`.agents/memory/clerk.md`](../memory/clerk.md).
+Short pointers: [`.agents/memory/effect-ts.md`](../memory/effect-ts.md), [`.agents/memory/stylex.md`](../memory/stylex.md), [`.agents/memory/clerk.md`](../memory/clerk.md).

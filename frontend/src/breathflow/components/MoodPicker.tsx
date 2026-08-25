@@ -1,6 +1,8 @@
 import { LayoutGroup } from 'motion/react'
 import { MOOD_OPTIONS, type MoodValue } from '@/lib/mood'
+import { sx } from '@/styles/merge'
 import { InkChip } from '../motion/InkChip'
+import { bf } from '../styles/breathflow.stylex'
 
 interface MoodPickerProps {
   label: string
@@ -13,9 +15,9 @@ interface MoodPickerProps {
 export function MoodPicker({ label, value, onChange }: MoodPickerProps) {
   return (
     <fieldset>
-      <legend className="mb-2 text-sm text-bw-secondary">{label}</legend>
+      <legend {...sx(bf.legendMb2)}>{label}</legend>
       <LayoutGroup id="mood-picker">
-        <div role="group" aria-label={label} className="flex flex-wrap gap-1.5">
+        <div role="group" aria-label={label} {...sx(bf.flexWrapGap15)}>
           {MOOD_OPTIONS.map((option) => {
             const selected = value === option.value
             return (

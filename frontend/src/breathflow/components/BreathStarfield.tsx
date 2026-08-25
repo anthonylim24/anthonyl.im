@@ -1,5 +1,7 @@
 import { memo, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { sx } from '@/styles/merge'
+import { bf } from '../styles/breathflow.stylex'
 import { useReducedMotion } from '../platform/useReducedMotion'
 
 const STAR_COUNT = 42
@@ -135,7 +137,7 @@ export const BreathStarfield = memo(function BreathStarfield({ inline = false }:
       ref={canvasRef}
       aria-hidden="true"
       data-testid={inline ? 'breath-starfield-inline' : 'breath-starfield'}
-      className={inline ? 'pointer-events-none absolute inset-0 h-full w-full' : 'bf-starfield'}
+      {...sx(inline ? bf.starfieldInline : 'bf-starfield')}
     />
   )
 

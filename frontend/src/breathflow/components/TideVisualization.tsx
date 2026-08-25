@@ -1,4 +1,6 @@
 import { motion } from 'motion/react'
+import { sx } from '@/styles/merge'
+import { bf } from '../styles/breathflow.stylex'
 import type { EngineStatus } from '../engine/sessionEngine'
 import { buildTideCrest, buildTidePath } from '../motion/geometry'
 import { breathEase, chromeTransition, EASE_SETTLE } from '../motion/tokens'
@@ -55,9 +57,9 @@ export function TideVisualization({
   const crest = buildTideCrest(fill)
 
   return (
-    <div aria-hidden="true" className="relative h-56 w-56 sm:h-64 sm:w-64">
-      <div className="absolute inset-6 overflow-hidden border-x border-bw-border">
-        <svg viewBox="0 0 240 240" preserveAspectRatio="none" className="h-full w-full">
+    <div aria-hidden="true" {...sx(bf.orbSizeRelative)}>
+      <div {...sx(bf.absolute, bf.inset6, bf.overflowHidden, bf.borderX)}>
+        <svg viewBox="0 0 240 240" preserveAspectRatio="none" {...sx(bf.hFull, bf.wFull)}>
           <motion.path
             d={tide}
             fill={core}

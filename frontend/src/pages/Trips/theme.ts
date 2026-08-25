@@ -19,6 +19,8 @@ import {
   UtensilsCrossed,
   type LucideIcon,
 } from "lucide-react"
+import { styles } from "./trips.stylex"
+import type { sx } from "@/lib/utils"
 import type { ItemStatus, SuggestionKind, TripAccent, TripCollaborator } from "./types"
 
 // Trip accent tokens. Workspace chrome is green-gray print stock; a trip-scoped
@@ -30,40 +32,29 @@ export interface AccentTheme {
   /** No-op bloom class names — kept so old call sites stay safe. */
   bloomA: string
   bloomB: string
-  /** Accent text: countdowns, display numerals, status lines. */
-  text: string
-  /** Hover/pressed accent text. */
-  textStrong: string
-  /** Accent text that darkens with the enclosing `group`. */
-  textHover: string
-  /** Small dots, pips, filled timeline markers. */
-  dot: string
-  /** Tint background for "now" / "just changed" surfaces. */
-  softBg: string
-  /** Accent border for tinted panels and active states. */
-  border: string
-  /** Hairline rules next to display numerals. */
-  hairline: string
-  /** Static accent ring (flash highlight, active rail segment). */
-  ring: string
-  /** Focus ring on trip-scoped surfaces. */
-  focusRing: string
+  text: typeof styles.accentText
+  textStrong: typeof styles.accentTextStrong
+  textHover: typeof styles.accentTextHover
+  dot: typeof styles.accentDot
+  softBg: typeof styles.accentSoftBg
+  border: typeof styles.accentBorder
+  hairline: typeof styles.accentHairline
+  ring: typeof styles.accentRing
+  focusRing: typeof styles.focusRing
 }
 
 export const ACCENT: AccentTheme = {
   bloomA: "trip-bloom-a",
   bloomB: "trip-bloom-b",
-  text: "text-[color:var(--ta)]",
-  textStrong: "text-[color:var(--ta-strong)]",
-  // Both variants are spelled out: a call site's own `dark:text-*` would
-  // otherwise win over a bare `group-hover:` at equal specificity.
-  textHover: "group-hover:text-[color:var(--ta-strong)] dark:group-hover:text-[color:var(--ta-strong)]",
-  dot: "bg-[color:var(--ta)]",
-  softBg: "bg-[color:var(--ta-soft)]",
-  border: "border-[color:var(--ta-ring)]",
-  hairline: "bg-[color:var(--ta-ring)]",
-  ring: "ring-[color:var(--ta-ring)]",
-  focusRing: "focus-visible:ring-[color:var(--ta-ring)]",
+  text: styles.accentText,
+  textStrong: styles.accentTextStrong,
+  textHover: styles.accentTextHover,
+  dot: styles.accentDot,
+  softBg: styles.accentSoftBg,
+  border: styles.accentBorder,
+  hairline: styles.accentHairline,
+  ring: styles.accentRing,
+  focusRing: styles.focusRing,
 }
 
 export const DEFAULT_ACCENT: TripAccent = "amber"
@@ -73,13 +64,13 @@ export const TRIP_ACCENTS: readonly TripAccent[] = ["rose", "amber", "emerald", 
 
 /** Literal swatch colors — the one place per-accent hues are still named,
  *  because the appearance picker has to show all five at once. */
-export const ACCENT_SWATCH: Record<TripAccent, string> = {
-  rose: "bg-rose-500",
-  amber: "bg-amber-500",
-  emerald: "bg-emerald-500",
-  sky: "bg-sky-500",
-  violet: "bg-violet-500",
-}
+export const ACCENT_SWATCH = {
+  rose: styles.swatchRose,
+  amber: styles.swatchAmber,
+  emerald: styles.swatchEmerald,
+  sky: styles.swatchSky,
+  violet: styles.swatchViolet,
+} satisfies Record<TripAccent, typeof styles.swatchRose | typeof styles.swatchAmber | typeof styles.swatchEmerald | typeof styles.swatchSky | typeof styles.swatchViolet>
 
 /** Safe accent lookup — never returns undefined for bad runtime data. */
 export function resolveAccent(accent?: string | null): TripAccent {
@@ -110,39 +101,42 @@ export function collaboratorSummary(collaborators: readonly TripCollaborator[]):
 
 // ── Item display metadata ────────────────────────────────────────────────
 
-export const itemStatusMeta: Record<ItemStatus, { label: string; chip: string; dot: string } | null> = {
+export const itemStatusMeta: Record<
+  ItemStatus,
+  { label: string; chip: Parameters<typeof sx>[0]; dot: Parameters<typeof sx>[0] } | null
+> = {
   none: null,
   booked: {
     label: "Booked",
-    chip: "bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-100 dark:border-emerald-900/60",
-    dot: "bg-emerald-600 dark:bg-emerald-400",
+    chip: styles.chipBooked,
+    dot: styles.statusDotBooked,
   },
   optional: {
     label: "Optional",
-    chip: "bg-stone-100 text-stone-700 border-stone-300 dark:bg-stone-900/60 dark:text-stone-300 dark:border-stone-700",
-    dot: "bg-stone-400 dark:bg-stone-500",
+    chip: styles.chipOptional,
+    dot: styles.statusDotOptional,
   },
   needs_review: {
     label: "Needs review",
-    chip: "bg-amber-50 text-amber-950 border-amber-300 dark:bg-amber-950/40 dark:text-amber-100 dark:border-amber-900/60",
-    dot: "bg-amber-600 dark:bg-amber-400",
+    chip: styles.chipNeedsReview,
+    dot: styles.statusDotNeedsReview,
   },
   completed: {
     label: "Done",
-    chip: "bg-stone-100 text-stone-600 border-stone-300 dark:bg-stone-900/60 dark:text-stone-400 dark:border-stone-800",
-    dot: "bg-stone-400 dark:bg-stone-600",
+    chip: styles.chipCompleted,
+    dot: styles.statusDotCompleted,
   },
 }
 
 /** Suggestion kinds collapse to three tints: added, removed, everything else. */
-export function suggestionBadgeClass(kind: SuggestionKind): string {
+export function suggestionBadgeStyle(kind: SuggestionKind): Parameters<typeof sx>[0] {
   switch (kind) {
     case "add":
-      return "bg-emerald-50 text-emerald-900 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-100 dark:border-emerald-900/60"
+      return styles.chipSuggestionAdd
     case "remove":
-      return "bg-red-50 text-red-900 border-red-300 dark:bg-red-950/40 dark:text-red-100 dark:border-red-900/60"
+      return styles.chipSuggestionRemove
     default:
-      return "bg-stone-100 text-stone-700 border-stone-300 dark:bg-stone-900/70 dark:text-stone-300 dark:border-stone-700"
+      return styles.chipSuggestionNeutral
   }
 }
 
@@ -186,16 +180,16 @@ export function itemIcon(kind: string, category?: string, reservationType?: stri
   return kind === "note" ? StickyNote : MapPin
 }
 
-export function calloutTone(tone: "info" | "warn" | "success" | "alert"): string {
+export function calloutToneStyle(tone: "info" | "warn" | "success" | "alert"): Parameters<typeof sx>[0] {
   switch (tone) {
     case "info":
-      return "border-stone-200 bg-stone-50/80 dark:bg-stone-900/40 dark:border-stone-800"
+      return styles.calloutInfo
     case "warn":
-      return "border-amber-200 bg-amber-50/80 dark:bg-amber-950/25 dark:border-amber-900/50"
+      return styles.calloutWarn
     case "success":
-      return "border-emerald-200 bg-emerald-50/80 dark:bg-emerald-950/25 dark:border-emerald-900/50"
+      return styles.calloutSuccess
     case "alert":
-      return "border-rose-300 bg-rose-50/80 dark:bg-rose-950/40 dark:border-rose-900/60"
+      return styles.calloutAlert
   }
 }
 

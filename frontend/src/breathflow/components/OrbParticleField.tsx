@@ -1,4 +1,6 @@
 import { useEffect, useRef, type RefObject } from 'react'
+import { sx } from '@/styles/merge'
+import { bf } from '../styles/breathflow.stylex'
 import { useReducedMotion } from '../platform/useReducedMotion'
 
 interface Mote {
@@ -117,7 +119,7 @@ export function OrbParticleField({ colors, amplitudeRef }: OrbParticleFieldProps
       ref={canvasRef}
       aria-hidden="true"
       data-testid="orb-particle-field"
-      className="pointer-events-none absolute inset-0 h-full w-full"
+      {...sx(bf.particleCanvas)}
     />
   )
 }

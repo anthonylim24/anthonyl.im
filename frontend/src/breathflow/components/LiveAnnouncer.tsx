@@ -1,3 +1,6 @@
+import { sx } from '@/styles/merge'
+import { layout } from '@/styles/common.stylex'
+
 interface LiveAnnouncerProps {
   message: string
 }
@@ -8,7 +11,7 @@ interface LiveAnnouncerProps {
  */
 export function LiveAnnouncer({ message }: LiveAnnouncerProps) {
   return (
-    <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+    <div role="status" aria-live="polite" aria-atomic="true" {...sx(layout.srOnly)}>
       {message}
     </div>
   )

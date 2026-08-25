@@ -1,4 +1,6 @@
 import { getLevelProgress } from '../gamify/levels'
+import { sx } from '@/styles/merge'
+import { bf } from '../styles/breathflow.stylex'
 
 interface LevelRingProps {
   xp: number
@@ -9,13 +11,15 @@ export function LevelRing({ xp }: LevelRingProps) {
   const progress = getLevelProgress(xp)
 
   return (
-    <div className="flex items-end gap-5">
-      <p className="bf-display text-6xl leading-none tracking-tight text-bw">
+    <div {...sx(bf.flexItemsEndGap5)}>
+      <p {...sx('bf-display', bf.text6xl, bf.leadingNone, bf.trackingTight, bf.textBw)}>
         {progress.level}
       </p>
-      <div className="min-w-0 pb-1">
-        <p className="break-words text-lg font-medium tracking-tight text-bw [overflow-wrap:anywhere]">{progress.title}</p>
-        <p className="mt-0.5 text-sm tabular-nums text-bw-secondary">
+      <div {...sx(bf.minW0, bf.pb1Only)}>
+        <p {...sx(bf.breakWords, bf.textLg, bf.fontMedium, bf.trackingTight, bf.textBw)}>
+          {progress.title}
+        </p>
+        <p {...sx(bf.mt05, bf.textSm, bf.tabularNums, bf.textSecondary)}>
           {progress.xpForNextLevel > 0
             ? `${progress.xpIntoLevel} / ${progress.xpForNextLevel} XP into the next level`
             : 'Top level reached'}
