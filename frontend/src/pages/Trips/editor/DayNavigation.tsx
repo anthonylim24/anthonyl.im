@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react"
-import { DateStrip } from "../components/DateStrip"
-import type { TripDay } from "../types"
-import { snapRailStickyClass } from "../ui"
-import { dayIdsFrom, daysKey } from "./hooks"
+import { useEffect, useState } from 'react'
+import { sx } from '@/lib/utils'
+import { styles } from '../trips.stylex'
+import { DateStrip } from '../components/DateStrip'
+import type { TripDay } from '../types'
+import { snapRailStickyClass } from '../ui'
+import { dayIdsFrom, daysKey } from './hooks'
 
-/** Which day section owns the viewport right now. */
 function useActiveDay(key: string): string | null {
   const [active, setActive] = useState<string | null>(() => dayIdsFrom(key)[0] ?? null)
 
@@ -21,7 +22,7 @@ function useActiveDay(key: string): string | null {
         const first = dayIds.find((id) => visible.has(id))
         if (first) setActive(first)
       },
-      { rootMargin: "-120px 0px -55% 0px", threshold: 0 },
+      { rootMargin: '-120px 0px -55% 0px', threshold: 0 },
     )
     for (const id of dayIds) {
       const el = document.getElementById(id)
@@ -33,17 +34,13 @@ function useActiveDay(key: string): string | null {
   return active
 }
 
-/**
- * Sticky station-tick snap rail. One scroll-spy so the active day is never ambiguous.
- * Hidden for a single-day trip (no nav track).
- */
 export function DayNavigation({ days, timezone }: { days: TripDay[]; timezone: string }) {
   const active = useActiveDay(daysKey(days))
 
   if (days.length < 2) return null
 
   return (
-    <div className={snapRailStickyClass}>
+    <div {...sx('snap-rail-sticky', snapRailStickyClass)}>
       <DateStrip days={days} timezone={timezone} activeId={active} hrefFor={(day) => `#${day.id}`} />
     </div>
   )

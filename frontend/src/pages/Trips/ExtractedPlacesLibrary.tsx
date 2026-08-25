@@ -1,3 +1,5 @@
+import { sx } from '@/lib/utils'
+import { styles } from './trips.stylex'
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { ChevronDown, ChevronLeft, ChevronRight, Plus } from "lucide-react"
@@ -108,14 +110,14 @@ export function ExtractedPlacesLibrary({
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className={`${quietBtnClass} w-full justify-between sm:w-auto`}
+        {...sx(quietBtnClass, 'w-full justify-between sm:w-auto')}
       >
         <span>
           Extracted places
-          {total > 0 ? <span className={`ml-1.5 font-normal ${mutedInkClass}`}>{total}</span> : null}
+          {total > 0 ? <span {...sx('ml-1.5 font-normal', mutedInkClass)}>{total}</span> : null}
         </span>
         <ChevronDown
-          className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`}
+          {...sx('h-3.5 w-3.5 transition-transform', open ? "rotate-180" : "")}
           strokeWidth={1.5}
           aria-hidden
         />
@@ -124,17 +126,17 @@ export function ExtractedPlacesLibrary({
       {open && (
         <div className="mt-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className={`text-xs leading-relaxed ${mutedInkClass}`}>
+            <p {...sx('text-xs leading-relaxed', mutedInkClass)}>
               Instagram places, grouped by trip, city, then neighborhood.
             </p>
             {trip.days.length > 0 && (
               <label className="flex min-h-11 items-center gap-2 sm:min-h-9">
-                <span className={`shrink-0 text-[11px] uppercase tracking-[0.14em] ${mutedInkClass}`}>Add to</span>
+                <span {...sx('shrink-0 text-[11px] uppercase tracking-[0.14em]', mutedInkClass)}>Add to</span>
                 <select
                   value={targetDayId}
                   disabled={locked}
                   onChange={(e) => setTargetDayId(e.target.value)}
-                  className={`min-w-0 flex-1 sm:w-44 ${compactSelectClass}`}
+                  {...sx('min-w-0 flex-1 sm:w-44', compactSelectClass)}
                 >
                   {trip.days.map((day, i) => (
                     <option key={day.id} value={day.id}>
@@ -148,32 +150,32 @@ export function ExtractedPlacesLibrary({
           </div>
 
           {loading && total === 0 ? (
-            <p className={`mt-2 text-xs ${mutedInkClass}`} role="status">
+            <p {...sx('mt-2 text-xs', mutedInkClass)} role="status">
               Loading places…
             </p>
           ) : total === 0 ? (
-            <p className={`mt-2 text-xs ${mutedInkClass}`}>
+            <p {...sx('mt-2 text-xs', mutedInkClass)}>
               None yet. Extract a post on a day below, then add it.
             </p>
           ) : (
             <div className="mt-3 space-y-4">
               {groups.map((group) => (
                 <article key={group.tripId}>
-                  <h3 className={`text-sm font-semibold text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}>
+                  <h3 {...sx('text-sm font-semibold text-stone-900 dark:text-stone-100', wrapAnywhereClass)}>
                     {group.tripName}
                     {group.tripId === trip.id ? (
-                      <span className={`ml-1.5 text-[11px] font-medium ${mutedInkClass}`}>This trip</span>
+                      <span {...sx('ml-1.5 text-[11px] font-medium', mutedInkClass)}>This trip</span>
                     ) : null}
                   </h3>
                   <div className="mt-1.5 space-y-3">
                     {group.cities.map((city) => (
                       <div key={`${group.tripId}-${city.city}`}>
-                        <p className={`font-mono-trips text-[10px] uppercase tracking-[0.16em] ${mutedInkClass}`}>
+                        <p {...sx('font-mono-trips text-[10px] uppercase tracking-[0.16em]', mutedInkClass)}>
                           {city.city}
                         </p>
                         {city.neighborhoods.map((hood) => (
                           <div key={`${group.tripId}-${city.city}-${hood.neighborhood}`} className="mt-1">
-                            <p className={`text-[11px] font-medium text-stone-600 dark:text-stone-400 ${wrapAnywhereClass}`}>
+                            <p {...sx('text-[11px] font-medium text-stone-600 dark:text-stone-400', wrapAnywhereClass)}>
                               {hood.neighborhood}
                             </p>
                             <ul className="mt-0.5 divide-y divide-stone-200/70 dark:divide-stone-800/70">
@@ -201,7 +203,7 @@ export function ExtractedPlacesLibrary({
 
           {total > PAGE_SIZE && (
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-              <p className={`text-[11px] ${mutedInkClass}`}>
+              <p {...sx('text-[11px]', mutedInkClass)}>
                 {pageStart}–{pageEnd} of {total}
               </p>
               <div className="flex gap-1">
@@ -209,7 +211,7 @@ export function ExtractedPlacesLibrary({
                   type="button"
                   disabled={offset === 0}
                   onClick={() => setOffset((o) => Math.max(0, o - PAGE_SIZE))}
-                  className={quietBtnClass}
+                  {...sx(quietBtnClass)}
                 >
                   <ChevronLeft className="h-4 w-4" strokeWidth={1.5} aria-hidden />
                   Prev
@@ -218,7 +220,7 @@ export function ExtractedPlacesLibrary({
                   type="button"
                   disabled={offset + PAGE_SIZE >= total}
                   onClick={() => setOffset((o) => o + PAGE_SIZE)}
-                  className={quietBtnClass}
+                  {...sx(quietBtnClass)}
                 >
                   Next
                   <ChevronRight className="h-4 w-4" strokeWidth={1.5} aria-hidden />
@@ -261,24 +263,24 @@ function CatalogRow({
             href={place.sourceUrl}
             target="_blank"
             rel="noreferrer"
-            className={`block truncate text-sm text-stone-900 hover:underline dark:text-stone-100 ${wrapAnywhereClass}`}
+            {...sx('block truncate text-sm text-stone-900 hover:underline dark:text-stone-100', wrapAnywhereClass)}
           >
             {place.name}
           </a>
         ) : (
-          <p className={`truncate text-sm text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}>{place.name}</p>
+          <p {...sx('truncate text-sm text-stone-900 dark:text-stone-100', wrapAnywhereClass)}>{place.name}</p>
         )}
-        {meta ? <p className={`truncate text-[11px] ${mutedInkClass}`}>{meta}</p> : null}
+        {meta ? <p {...sx('truncate text-[11px]', mutedInkClass)}>{meta}</p> : null}
       </div>
       {onThisDay ? (
-        <span className={`shrink-0 text-[11px] ${mutedInkClass}`}>Added</span>
+        <span {...sx('shrink-0 text-[11px]', mutedInkClass)}>Added</span>
       ) : (
         <button
           type="button"
           disabled={adding || !targetDay || locked}
           onClick={onAdd}
           aria-label={onThisTrip ? `Copy ${place.name} to this day` : `Add ${place.name} to this day`}
-          className={chipBtnClass}
+          {...sx(chipBtnClass)}
         >
           <Plus className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
           {onThisTrip ? "Copy" : "Add"}

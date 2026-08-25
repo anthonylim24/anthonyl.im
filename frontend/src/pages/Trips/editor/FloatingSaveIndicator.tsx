@@ -3,6 +3,8 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { CheckCircle2, Loader2, Undo2, X } from "lucide-react"
 import { ACCENT } from "../theme"
 import { ENTER_SPRING, EXIT_FADE, focusRingClass, iconBtnClass, spinnerClass, toastClass, wrapAnywhereClass } from "../ui"
+import { sx } from '@/lib/utils'
+import { styles } from '../trips.stylex'
 
 export type SaveState = "saved" | "saving" | "dirty" | "error"
 
@@ -54,11 +56,9 @@ export function FloatingSaveIndicator({ saveState }: { saveState: SaveState }) {
         {visible && (
           <motion.div
             {...dockMotion(!!reduce)}
-            className={`${pillClass} ${
-              saveState === "error"
+            {...sx(pillClass, saveState === "error"
                 ? "border-red-300 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950 dark:text-red-200"
-                : ""
-            }`}
+                : "")}
           >
             {saveState === "error" ? (
               <>
@@ -72,7 +72,7 @@ export function FloatingSaveIndicator({ saveState }: { saveState: SaveState }) {
               </>
             ) : (
               <>
-                <Loader2 className={`h-3.5 w-3.5 ${spinnerClass} ${ACCENT.text}`} aria-hidden />
+                <Loader2 {...sx(styles.iconXs, spinnerClass, ACCENT.text)} aria-hidden />
                 {saveState === "saving" ? "Saving…" : "Unsaved changes…"}
               </>
             )}
@@ -104,14 +104,14 @@ export function EditorNotice({ notice, onDismiss }: { notice: string | null; onD
           <motion.div
             key={notice}
             {...dockMotion(!!reduce)}
-            className={`${pillClass} pointer-events-auto max-w-[min(24rem,calc(100vw-2.5rem))] items-start py-2.5 text-[color:var(--trips-ink)]`}
+            {...sx(pillClass, 'pointer-events-auto max-w-[min(24rem,calc(100vw-2.5rem))] items-start py-2.5 text-[color:var(--trips-ink)]')}
           >
-            <span className={`min-w-0 text-left leading-snug ${wrapAnywhereClass}`}>{notice}</span>
+            <span {...sx('min-w-0 text-left leading-snug', wrapAnywhereClass)}>{notice}</span>
             <button
               type="button"
               onClick={onDismiss}
               aria-label="Dismiss notice"
-              className={`-mr-1 ${iconBtnClass}`}
+              {...sx('-mr-1', iconBtnClass)}
             >
               <X className="h-4 w-4" strokeWidth={1.5} aria-hidden />
             </button>
@@ -134,7 +134,7 @@ export function UndoToast({ undo, onUndo }: { undo: PendingUndo | null; onUndo: 
           <motion.div
             key={undo.key}
             {...dockMotion(!!reduce)}
-            className={`${pillClass} pointer-events-auto text-[color:var(--trips-ink)]`}
+            {...sx(pillClass, 'pointer-events-auto text-[color:var(--trips-ink)]')}
           >
             <span className="max-w-[14rem] truncate">
               Deleted {undo.title ? `“${undo.title}”` : "this item"}
@@ -143,7 +143,7 @@ export function UndoToast({ undo, onUndo }: { undo: PendingUndo | null; onUndo: 
               type="button"
               autoFocus
               onClick={onUndo}
-              className={`-my-2 inline-flex min-h-11 items-center gap-1.5 rounded-[length:var(--trips-radius)] px-2 font-semibold text-[color:var(--ta)] transition hover:text-[color:var(--ta-strong)] ${focusRingClass}`}
+              {...sx('-my-2 inline-flex min-h-11 items-center gap-1.5 rounded-[length:var(--trips-radius)] px-2 font-semibold text-[color:var(--ta)] transition hover:text-[color:var(--ta-strong)]', focusRingClass)}
             >
               <Undo2 className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
               Undo

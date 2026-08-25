@@ -1,31 +1,4 @@
 import * as stylex from '@stylexjs/stylex'
-<<<<<<< HEAD
-
-/** StyleX style objects, semantic class strings, or conditional args. */
-type SxInput = object | string | false | null | undefined
-
-/** Merge StyleX styles with optional semantic CSS class strings. */
-export function sx(...inputs: SxInput[]) {
-  const styles: object[] = []
-  const classNames: string[] = []
-
-  for (const input of inputs) {
-    if (!input) continue
-    if (typeof input === 'string') {
-      classNames.push(input)
-    } else {
-      styles.push(input)
-    }
-  }
-
-  const stylexProps = styles.length > 0 ? stylex.props(...(styles as Parameters<typeof stylex.props>)) : {}
-  const mergedClassName = [stylexProps.className, ...classNames].filter(Boolean).join(' ')
-
-  return {
-    ...stylexProps,
-    ...(mergedClassName ? { className: mergedClassName } : {}),
-  }
-=======
 import { clsx, type ClassValue } from 'clsx'
 
 type StyleXArg = Parameters<typeof stylex.props>[0]
@@ -61,7 +34,6 @@ export function sx(...args: SxInput[]) {
   const props = stylex.props(...styles)
   const className = clsx(props.className, ...classes)
   return className ? { ...props, className } : props
->>>>>>> origin/cursor/tailwind-to-stylex-chatbot-2aeb
 }
 
 export { stylex }

@@ -1,0 +1,218 @@
+import * as stylex from '@stylexjs/stylex'
+const DARK = ':is(.dark) &'
+
+/** Auto-migrated from Tailwind — SmartEntity */
+export const smartEntity = stylex.create({
+  s3f58665f: {
+    minWidth: 0,
+  },
+  trigger: {
+    display: 'inline-flex',
+    alignItems: 'baseline',
+    gap: '0.125rem',
+    overflowWrap: 'anywhere',
+    wordBreak: 'break-word',
+    textAlign: 'left',
+    textDecorationLine: 'underline',
+    textDecorationColor: 'rgba(244, 63, 94, 0.4)',
+    textDecorationThickness: '1px',
+    textUnderlineOffset: '2px',
+    transitionProperty: 'color, text-decoration-color',
+    transitionDuration: '150ms',
+    ':hover': {
+      textDecorationColor: '#f43f5e',
+      color: '#be123c',
+      [DARK]: { color: '#fda4af' },
+    },
+    ':focus-visible': {
+      outlineWidth: '2px',
+      outlineStyle: 'solid',
+      outlineOffset: '2px',
+      outlineColor: 'rgba(244, 63, 94, 0.5)',
+    },
+  },
+  s9c7aa6f8: {
+    "marginLeft": "0.125rem",
+    "color": "#a8a29e",
+    "transitionProperty": "color, background-color, border-color",
+    "transitionDuration": "150ms",
+    [DARK]: {
+      "color": "#57534e",
+    },
+  },
+  sffda4ad5: {
+    "borderRadius": "1rem",
+    "borderWidth": "1px",
+    "borderStyle": "solid",
+    "borderColor": "#e7e5e4",
+    "backgroundColor": "#fafaf9",
+    "padding": "1rem",
+    "boxShadow": "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+    "outlineWidth": "1px",
+    "outlineStyle": "solid",
+    "outlineColor": "#e7e5e4",
+    [DARK]: {
+      "borderColor": "#292524",
+      "backgroundColor": "#0c0a09",
+      "outlineColor": "#292524",
+    },
+  },
+  s9bfe6255: {
+    "display": "flex",
+    "alignItems": "baseline",
+    "justifyContent": "space-between",
+    "gap": "0.75rem",
+    "borderBottomWidth": "1px",
+    "borderBottomStyle": "solid",
+    "borderColor": "rgba(231, 229, 228, 0.8)",
+    "paddingBottom": "0.625rem",
+    [DARK]: {
+      "borderColor": "rgba(41, 37, 36, 0.8)",
+    },
+  },
+  sa8fa1afe: {
+    "fontFamily": "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    "color": "#78716c",
+    "textTransform": "uppercase",
+    [DARK]: {
+      "color": "#78716c",
+    },
+  },
+  s34f26488: {
+    "marginLeft": "0.375rem",
+    "marginRight": "0.375rem",
+    "color": "#d6d3d1",
+    [DARK]: {
+      "color": "#44403c",
+    },
+  },
+  sbd43ef06: {
+    "marginTop": "0.125rem",
+    "overflowWrap": "anywhere",
+    "wordBreak": "break-word",
+    "fontFamily": "\"Cormorant Garamond\", Georgia, serif",
+    "fontSize": "1.125rem",
+    "fontWeight": 500,
+    "lineHeight": 1.25,
+    "color": "#1c1917",
+    [DARK]: {
+      "color": "#f5f5f4",
+    },
+  },
+  s52cf604e: {
+    "paddingBottom": "0.25rem",
+    "paddingTop": "0.75rem",
+  },
+  sc7fe8e52: {
+    "display": "inline-flex",
+    "alignItems": "center",
+    "gap": "0.5rem",
+    "color": "#78716c",
+    "fontStyle": "italic",
+    "lineHeight": 1.375,
+    [DARK]: {
+      "color": "#78716c",
+    },
+  },
+  s30736863: {
+    "height": "0.75rem",
+    "width": "0.75rem",
+  },
+  sce355e7e: {
+    "color": "#44403c",
+    "lineHeight": 1.625,
+    [DARK]: {
+      "color": "#d6d3d1",
+    },
+  },
+  s8784fe5e: {
+    "color": "#78716c",
+    "fontStyle": "italic",
+    "lineHeight": 1.625,
+    [DARK]: {
+      "color": "#78716c",
+    },
+  },
+  sf3a68b7c: {
+    "marginTop": "0.5rem",
+    "display": "flex",
+    "flexDirection": "column",
+    "borderTopWidth": "1px",
+    "borderTopStyle": "solid",
+    "borderColor": "rgba(231, 229, 228, 0.8)",
+    "paddingTop": "0.5rem",
+    [DARK]: {
+      "borderColor": "rgba(41, 37, 36, 0.8)",
+    },
+  },
+  sb40fab85: {
+    "display": "flex",
+    "alignItems": "center",
+    "justifyContent": "space-between",
+    "gap": "0.75rem",
+    "borderRadius": "0.5rem",
+    "paddingLeft": "0.5rem",
+    "paddingRight": "0.5rem",
+    "paddingTop": "0.375rem",
+    "paddingBottom": "0.375rem",
+    "color": "#44403c",
+    "transitionProperty": "color, background-color, border-color",
+    "transitionDuration": "150ms",
+    [DARK]: {
+      "color": "#d6d3d1",
+    },
+    ":hover": {
+      "backgroundColor": "#1c1917",
+      "color": "#fda4af",
+    },
+    ":focus-visible": {
+      "backgroundColor": "#f5f5f4",
+      "outlineStyle": "none",
+      "boxShadow": "0 0 0 2px currentColor",
+      "outlineColor": "rgba(244, 63, 94, 0.4)",
+    },
+  },
+  s68bbb8b0: {
+    "display": "inline-flex",
+    "alignItems": "center",
+    "gap": "0.5rem",
+  },
+  s55c044b: {
+    "fontFamily": "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    "color": "#a8a29e",
+    "textTransform": "uppercase",
+    [DARK]: {
+      "color": "#57534e",
+    },
+  },
+  se51249b: {
+    "height": "0.75rem",
+    "width": "0.75rem",
+    "flexShrink": 0,
+    "opacity": 0.6,
+  },
+  caret: {
+    position: 'absolute',
+    height: '0.75rem',
+    width: '0.75rem',
+    transform: 'rotate(45deg)',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    backgroundColor: '#fafaf9',
+    [DARK]: { backgroundColor: '#0c0a09' },
+  },
+  caretBelow: {
+    top: '-0.375rem',
+    borderLeftWidth: '1px',
+    borderTopWidth: '1px',
+    borderColor: '#e7e5e4',
+    [DARK]: { borderColor: '#292524' },
+  },
+  caretAbove: {
+    bottom: '-0.375rem',
+    borderRightWidth: '1px',
+    borderBottomWidth: '1px',
+    borderColor: '#e7e5e4',
+    [DARK]: { borderColor: '#292524' },
+  },
+})

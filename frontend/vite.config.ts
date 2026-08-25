@@ -7,9 +7,9 @@ export default defineConfig({
   plugins: [
     stylex.vite({
       importSources: [
-        '@stylexjs/stylex',
-        'stylex',
-        { from: '@/styles/merge', as: 'stylex' },
+        "@stylexjs/stylex",
+        "stylex",
+        { from: "@/styles/merge", as: "stylex" },
       ],
       useCSSLayers: {
         before: ["reset", "base"],

@@ -1,3 +1,5 @@
+import { sx } from '@/styles/merge'
+import { detailed3DScene } from './Detailed3DScene.stylex'
 // Map Mode — Google Earth-style photorealistic mesh of Seoul (and the
 // rest of the trip) streamed via NASA AMMOS 3DTilesRendererJS + Google's
 // Photorealistic 3D Tiles. The orbital-bubble view this replaced lived
@@ -1408,23 +1410,23 @@ export function Detailed3DScene({
 
   if (keyMissing) {
     return (
-      <div className="relative flex h-full w-full items-center justify-center bg-[#F5F2ED] dark:bg-[#171613]">
-        <div className="mx-4 max-w-sm rounded-2xl border border-[rgba(28,25,23,0.08)] bg-[rgba(255,254,250,0.94)] p-5 text-center shadow-[0_16px_40px_rgba(28,25,23,0.12)] backdrop-blur-xl dark:border-[rgba(255,252,245,0.06)] dark:bg-[rgba(28,25,23,0.9)]">
-          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-stone-500">
+      <div {...sx(detailed3DScene.s879abec9)}>
+        <div {...sx(detailed3DScene.sd5b357f4)}>
+          <p {...sx(detailed3DScene.sef267cd2)}>
             Map Mode
           </p>
-          <h3 className="mt-2 text-base font-semibold tracking-tight text-stone-900 dark:text-stone-100">
+          <h3 {...sx(detailed3DScene.s72123264)}>
             3D map unavailable
           </h3>
-          <p className="mt-2 text-xs leading-relaxed text-stone-600 dark:text-stone-400">
+          <p {...sx(detailed3DScene.scb22b6af)}>
             Photorealistic tiles couldn’t load. Switch to list view to browse today’s places.
           </p>
           {import.meta.env.DEV && (
-            <details className="mt-3 text-left text-[10px] text-stone-500">
-              <summary className="cursor-pointer select-none">Details</summary>
-              <p className="mt-1 leading-relaxed">
-                Set <code className="rounded bg-stone-100 px-1 dark:bg-stone-800">VITE_GOOGLE_MAP_TILES_API_KEY</code>{" "}
-                (or enable Map Tiles on <code className="rounded bg-stone-100 px-1 dark:bg-stone-800">VITE_GOOGLE_PLACES_API_KEY</code>).
+            <details {...sx(detailed3DScene.scd065d7e)}>
+              <summary {...sx(detailed3DScene.s98578b0f)}>Details</summary>
+              <p {...sx(detailed3DScene.s9c151ed3)}>
+                Set <code {...sx(detailed3DScene.sa982f964)}>VITE_GOOGLE_MAP_TILES_API_KEY</code>{" "}
+                (or enable Map Tiles on <code {...sx(detailed3DScene.sa982f964)}>VITE_GOOGLE_PLACES_API_KEY</code>).
               </p>
             </details>
           )}
@@ -1432,7 +1434,7 @@ export function Detailed3DScene({
             <button
               type="button"
               onClick={onWebglError}
-              className="mt-4 inline-flex h-10 items-center justify-center rounded-full bg-rose-600 px-4 text-xs font-semibold text-white transition hover:bg-rose-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60"
+              {...sx(detailed3DScene.s3482676e)}
             >
               Open list
             </button>
@@ -1443,13 +1445,13 @@ export function Detailed3DScene({
   }
 
   return (
-    <div className="relative h-full w-full overflow-hidden">
-      <div ref={mountRef} className="absolute inset-0" />
-      <div ref={overlayRef} className="pointer-events-none absolute inset-0 z-10" aria-hidden />
+    <div {...sx(detailed3DScene.s6fc32c52)}>
+      <div ref={mountRef} {...sx(detailed3DScene.sac40d5d7)} />
+      <div ref={overlayRef} {...sx(detailed3DScene.s2ee8a7b7)} aria-hidden />
       {/* Google Map Tiles attribution — required when tiles are shown. */}
       <div
         ref={attributionRef}
-        className="pointer-events-none absolute bottom-3 right-3 z-20 max-w-[55vw] truncate rounded-full border border-[rgba(28,25,23,0.08)] bg-[rgba(255,254,250,0.78)] px-2.5 py-1 text-[9px] font-medium tracking-wide text-stone-500 shadow-sm backdrop-blur-md dark:border-[rgba(255,252,245,0.06)] dark:bg-[rgba(28,25,23,0.72)] dark:text-stone-400"
+        {...sx(detailed3DScene.sd25cb60e)}
         aria-label="Map data attribution"
       >
         Data: Google

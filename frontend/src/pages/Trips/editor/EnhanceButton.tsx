@@ -1,3 +1,5 @@
+import { sx } from '@/lib/utils'
+import { styles } from '../trips.stylex'
 import { useEffect, useId, useState, useRef } from "react"
 import { createPortal } from "react-dom"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
@@ -169,13 +171,13 @@ export function EnhanceButton({
         viewTransitionName: "trips-enhance",
       }}
     >
-      <h2 id={titleId} className={typeSectionClass}>
+      <h2 id={titleId} {...sx(typeSectionClass)}>
         Focus this review
       </h2>
-      <p className={hintClass}>
+      <p {...sx(hintClass)}>
         Adds places when a day has room, then explains why. Leave the focus blank for a full pass.
       </p>
-      <label className={`mt-4 ${labelClass}`} htmlFor={promptId}>
+      <label {...sx('mt-4', labelClass)} htmlFor={promptId}>
         Optional focus
       </label>
       <textarea
@@ -187,16 +189,16 @@ export function EnhanceButton({
         onKeyDown={(e) => {
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) run(true)
         }}
-        className={`mt-1.5 ${inputClass}`}
+        {...sx('mt-1.5', inputClass)}
       />
-      <p className={`mt-3 ${hintClass}`}>
+      <p {...sx('mt-3', hintClass)}>
         {sheet ? "Swipe down or press Escape to close." : "⌘↵ runs the review."}
       </p>
-      <div className={`mt-3 -mx-5 -mb-5 flex flex-wrap items-center justify-end gap-2 border-t border-[color:var(--trips-border)] px-5 py-3 ${railBandClass} rounded-t-none`}>
-        <button type="button" onClick={() => close(true)} className={ghostBtnClass}>
+      <div {...sx('mt-3 -mx-5 -mb-5 flex flex-wrap items-center justify-end gap-2 border-t border-[color:var(--trips-border)] px-5 py-3', railBandClass, 'rounded-t-none')}>
+        <button type="button" onClick={() => close(true)} {...sx(ghostBtnClass)}>
           Cancel
         </button>
-        <button type="button" onClick={() => run(true)} className={primaryBtnClass}>
+        <button type="button" onClick={() => run(true)} {...sx(primaryBtnClass)}>
           <Sparkles className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
           Run enhance
         </button>
@@ -206,11 +208,11 @@ export function EnhanceButton({
 
   return (
     <div ref={rootRef} className="trip-split relative inline-flex">
-      <button type="button" onClick={() => run(false)} disabled={disabled} className={base}>
+      <button type="button" onClick={() => run(false)} disabled={disabled} {...sx(base)}>
         {busy ? (
-          <Loader2 className={`${iconSize} ${spinnerClass}`} aria-hidden />
+          <Loader2 {...sx(iconSize, spinnerClass)} aria-hidden />
         ) : (
-          <Sparkles className={iconSize} strokeWidth={1.5} aria-hidden />
+          <Sparkles {...sx(iconSize)} strokeWidth={1.5} aria-hidden />
         )}
         {busy ? busyLabel : label}
       </button>
@@ -222,10 +224,10 @@ export function EnhanceButton({
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={`${label} with a custom focus`}
-        className={base}
+        {...sx(base)}
         style={{ viewTransitionName: open ? "none" : "trips-enhance" }}
       >
-        <ChevronDown className={`${iconSize} transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
+        <ChevronDown {...sx(styles.transitionTransform, iconSize, open ? "rotate-180" : "")} aria-hidden />
       </button>
 
       {typeof document !== "undefined" &&
@@ -234,7 +236,7 @@ export function EnhanceButton({
             {open && (
               <div
                 key="enhance-layer"
-                className={tripsPortalClass}
+                {...sx(tripsPortalClass)}
                 data-trip-accent={
                   document.querySelector("[data-trip-accent]")?.getAttribute("data-trip-accent") ??
                   undefined
@@ -254,7 +256,7 @@ export function EnhanceButton({
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.16 }}
                     onClick={() => close(true)}
-                    className={scrimClass}
+                    {...sx(scrimClass)}
                     aria-hidden
                   />
                   {panel}

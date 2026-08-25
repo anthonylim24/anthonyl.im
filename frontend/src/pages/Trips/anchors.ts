@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react"
 import { useLocation } from "react-router-dom"
 import { useReducedMotion } from "motion/react"
-import { ACCENT } from "./theme"
+import { styles } from "./trips.stylex"
 
 /** `#item-…` fragment to element id. Malformed escapes fall back to the raw
  *  fragment rather than throwing. */
@@ -49,10 +49,14 @@ export function useAnchorTarget(ready: boolean): string | null {
   return target
 }
 
+type AnchorHighlight = false | readonly [string, typeof styles.anchorRing] | readonly [string, string, typeof styles.anchorRing]
+
 /** Arrival marker: a one-shot accent fade plus a persistent ring, or the ring
  *  alone when motion is reduced. */
-export function useAnchorHighlight(active: boolean): string {
+export function useAnchorHighlight(active: boolean): AnchorHighlight {
   const reduce = useReducedMotion()
-  if (!active) return ""
-  return reduce ? `ring-2 ${ACCENT.ring}` : `trip-flash ring-2 ${ACCENT.ring}`
+  if (!active) return false
+  return reduce
+    ? ["anchor-ring", styles.anchorRing]
+    : ["trip-flash", "anchor-ring", styles.anchorRing]
 }

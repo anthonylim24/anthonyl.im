@@ -1,3 +1,5 @@
+import { sx } from '@/styles/merge'
+import { koreaAuthGate } from './KoreaAuthGate.stylex'
 import type { ReactNode } from "react"
 import { motion, useReducedMotion } from "motion/react"
 import { Lock } from "lucide-react"
@@ -31,11 +33,11 @@ function ClerkKoreaGate({ children }: { children: ReactNode }) {
   if (!isLoaded) {
     return (
       <div
-        className="korea flex min-h-svh items-center justify-center bg-stone-50 text-stone-500 dark:bg-stone-950 dark:text-stone-400"
+        {...sx(koreaAuthGate.scd317dd6)}
         role="status"
         aria-label="Checking sign-in"
       >
-        <span className="text-sm">Loading…</span>
+        <span {...sx(koreaAuthGate.sab7cc6fa)}>Loading…</span>
       </div>
     )
   }
@@ -52,58 +54,58 @@ function ClerkKoreaGate({ children }: { children: ReactNode }) {
 function SignInCard() {
   const reduce = useReducedMotion()
   return (
-    <div className="korea relative min-h-svh overflow-hidden bg-gradient-to-b from-stone-50 via-rose-50/40 to-amber-50/30 text-stone-900 dark:from-stone-950 dark:via-rose-950/20 dark:to-stone-950 dark:text-stone-100">
+    <div {...sx(koreaAuthGate.sb45c37d4)}>
       <motion.div
         aria-hidden
-        className="pointer-events-none absolute -left-32 -top-32 h-96 w-96 rounded-full bg-rose-300/30 blur-3xl dark:bg-rose-900/20"
+        {...sx(koreaAuthGate.sa8b6f45d)}
         animate={reduce ? undefined : { x: [0, 30, 0], y: [0, 20, 0] }}
         transition={reduce ? { duration: 0 } : { duration: 18, repeat: Infinity, ease: "easeInOut" }}
       />
       <motion.div
         aria-hidden
-        className="pointer-events-none absolute -right-32 -bottom-32 h-96 w-96 rounded-full bg-amber-300/25 blur-3xl dark:bg-amber-900/15"
+        {...sx(koreaAuthGate.sb45cd97a)}
         animate={reduce ? undefined : { x: [0, -25, 0], y: [0, -15, 0] }}
         transition={reduce ? { duration: 0 } : { duration: 22, repeat: Infinity, ease: "easeInOut" }}
       />
 
-      <div className="relative mx-auto flex min-h-svh max-w-md flex-col items-center justify-center px-5 py-10">
+      <div {...sx(koreaAuthGate.sea3bae6c)}>
         <motion.div
           initial={reduce ? false : { opacity: 0, y: 12, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 280, damping: 24 }}
-          className="w-full rounded-3xl border border-stone-200/70 bg-white/80 p-7 shadow-xl backdrop-blur-xl sm:p-8 dark:border-stone-800/70 dark:bg-stone-900/70"
+          {...sx(koreaAuthGate.s895ab3be)}
         >
           <motion.div
             initial={reduce ? false : { scale: 0.6, rotate: -10 }}
             animate={{ scale: 1, rotate: 0 }}
             transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 280, damping: 14, delay: 0.1 }}
-            className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-100 text-3xl shadow-inner dark:bg-rose-950/60"
+            {...sx(koreaAuthGate.s56ac565b)}
             aria-hidden
           >
             🇰🇷
           </motion.div>
           <h1
-            className="mt-5 text-center font-serif text-2xl text-stone-900 sm:text-3xl dark:text-stone-100"
+            {...sx(koreaAuthGate.s45b8effa)}
             style={{ fontFamily: "'Cormorant Garamond', serif" }}
           >
             South Korea
-            <span className="block text-stone-500 dark:text-stone-400">Seoul · Busan</span>
+            <span {...sx(koreaAuthGate.sce3fe70)}>Seoul · Busan</span>
           </h1>
-          <p className="mt-3 text-center text-sm text-stone-600 dark:text-stone-400">
+          <p {...sx(koreaAuthGate.sb359ba22)}>
             Sign in to view the full itinerary, reservations, and live travel status.
           </p>
 
           <SignInButton mode="modal">
             <button
               type="button"
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-rose-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700 dark:bg-rose-500 dark:hover:bg-rose-400"
+              {...sx(koreaAuthGate.s69ac076f)}
             >
-              <Lock className="h-4 w-4" aria-hidden />
+              <Lock {...sx(koreaAuthGate.scd3f3ccd)} aria-hidden />
               Sign in to continue
             </button>
           </SignInButton>
 
-          <p className="mt-5 text-center text-[11px] text-stone-500 dark:text-stone-500">
+          <p {...sx(koreaAuthGate.s4ae2b500)}>
             Returning? Use the same account you used elsewhere on anthonyl.im.
           </p>
         </motion.div>

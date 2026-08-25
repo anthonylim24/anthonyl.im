@@ -6,6 +6,10 @@ import { createOptionalClerkTree } from './lib/clerkProvider'
 import { registerServiceWorker } from './lib/serviceWorker'
 import './index.css'
 
+if (import.meta.env.DEV) {
+  void import('virtual:stylex:runtime')
+}
+
 registerServiceWorker()
 
 const root = createRoot(document.getElementById('root')!)

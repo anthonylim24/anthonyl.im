@@ -4,6 +4,8 @@ import { Link } from "react-router-dom"
 import { ACCENT, formatTripDate, todayIsoIn } from "../theme"
 import { ENTER_SPRING, focusRingClass, mutedInkClass } from "../ui"
 import type { TripDay } from "../types"
+import { sx } from '@/lib/utils'
+import { styles } from '../trips.stylex'
 
 function weekday(date: string, timezone: string): string {
   return formatTripDate(date, timezone, { weekday: "short", month: undefined, day: undefined })
@@ -62,7 +64,7 @@ export function DateStrip({
               <>
                 <span
                   aria-hidden
-                  className={`h-2.5 w-px ${active || isToday ? "bg-[color:var(--ta)]" : "bg-[color:var(--trips-ink)]"}`}
+                  {...sx('h-2.5 w-px', active || isToday ? "bg-[color:var(--ta)]" : "bg-[color:var(--trips-ink)]")}
                 />
                 <span className="font-display text-[10px] font-medium uppercase leading-none tracking-wide">
                   {weekday(day.date, timezone)}
@@ -83,7 +85,7 @@ export function DateStrip({
             return (
               <li key={day.id} className="shrink-0">
                 {toFor ? (
-                  <Link to={toFor(day)} aria-current={active ? "page" : undefined} aria-label={label} className={className}>
+                  <Link to={toFor(day)} aria-current={active ? "page" : undefined} aria-label={label} {...sx(className)}>
                     {body}
                   </Link>
                 ) : (
@@ -91,7 +93,7 @@ export function DateStrip({
                     href={hrefFor ? hrefFor(day) : `#${day.id}`}
                     aria-current={active ? "true" : undefined}
                     aria-label={label}
-                    className={className}
+                    {...sx(className)}
                   >
                     {body}
                   </a>

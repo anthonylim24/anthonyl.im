@@ -1,3 +1,5 @@
+import { sx } from '@/lib/utils'
+import { styles } from './trips.stylex'
 import { useState } from "react"
 import { Globe2, ImageIcon, MapPin, Plus, Trash2 } from "lucide-react"
 import {
@@ -143,18 +145,18 @@ function ConciergePlaceCard({
                 href={maps.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`inline-flex min-h-11 items-center text-sm font-medium text-stone-900 underline decoration-stone-300 underline-offset-2 hover:decoration-current dark:text-stone-100 ${focusRingClass} ${wrapAnywhereClass}`}
+                {...sx(styles.textSm, styles.fontMedium, focusRingClass, wrapAnywhereClass)}
               >
                 {place.name}
               </a>
             ) : (
-              <p className={`text-sm font-medium text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}>{place.name}</p>
+              <p {...sx('text-sm font-medium text-stone-900 dark:text-stone-100', wrapAnywhereClass)}>{place.name}</p>
             )}
-            {meta ? <p className={`mt-0.5 text-[11px] ${mutedInkClass} ${wrapAnywhereClass}`}>{meta}</p> : null}
+            {meta ? <p {...sx(mutedInkClass, wrapAnywhereClass)}>{meta}</p> : null}
             {place.notes ? (
-              <p className={`mt-1 text-[12px] text-stone-700 dark:text-stone-300 ${wrapAnywhereClass}`}>{place.notes}</p>
+              <p {...sx('mt-1 text-[12px] text-stone-700 dark:text-stone-300', wrapAnywhereClass)}>{place.notes}</p>
             ) : null}
-            {removed ? <p className={`mt-1 text-[12px] ${mutedInkClass}`}>Removed from the itinerary.</p> : null}
+            {removed ? <p {...sx('mt-1 text-[12px]', mutedInkClass)}>Removed from the itinerary.</p> : null}
           </div>
         </div>
 
@@ -163,7 +165,7 @@ function ConciergePlaceCard({
             type="button"
             onClick={() => onPhotos(place)}
             aria-label={`Photos of ${place.name}`}
-            className={quietBtnClass}
+            {...sx(quietBtnClass)}
           >
             <ImageIcon className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
             Photos
@@ -173,7 +175,7 @@ function ConciergePlaceCard({
               href={maps.href}
               target="_blank"
               rel="noopener noreferrer"
-              className={`${quietBtnClass} sm:min-h-11`}
+              {...sx(quietBtnClass, 'sm:min-h-11')}
               aria-label={maps.label}
             >
               <Globe2 className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
@@ -184,7 +186,7 @@ function ConciergePlaceCard({
             <button
               type="button"
               onClick={() => onMap?.(place)}
-              className={quietBtnClass}
+              {...sx(quietBtnClass)}
               aria-label={`Open ${place.name} in Map Mode`}
             >
               <Globe2 className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
@@ -196,7 +198,7 @@ function ConciergePlaceCard({
             <>
               {days.length > 1 ? (
                 <>
-                  <label className="sr-only" htmlFor={`add-place-day-${conciergePlaceKey(place)}`}>
+                  <label {...sx(styles.srOnly)} htmlFor={`add-place-day-${conciergePlaceKey(place)}`}>
                     Day for {place.name}
                   </label>
                   <select
@@ -204,7 +206,7 @@ function ConciergePlaceCard({
                     value={dayId}
                     onChange={(e) => setDayId(e.target.value)}
                     disabled={added || adding}
-                    className={`${compactSelectClass} min-w-0 flex-1`}
+                    {...sx(compactSelectClass, 'min-w-0 flex-1')}
                   >
                     {days.map((day, i) => (
                       <option key={day.id} value={day.id}>
@@ -226,7 +228,7 @@ function ConciergePlaceCard({
                       ? `Adding ${place.name}`
                       : `Add ${place.name} to the itinerary`
                 }
-                className={accentChipBtnClass}
+                {...sx(accentChipBtnClass)}
               >
                 <Plus className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
                 {added ? "Added" : adding ? "Adding…" : "Add"}
@@ -236,7 +238,7 @@ function ConciergePlaceCard({
 
           {variant === "itinerary" && canEdit && !removed && onMove && days.length > 1 ? (
             <>
-              <label className="sr-only" htmlFor={`move-place-day-${place.itemId ?? conciergePlaceKey(place)}`}>
+              <label {...sx(styles.srOnly)} htmlFor={`move-place-day-${place.itemId ?? conciergePlaceKey(place)}`}>
                 Move {place.name} to day
               </label>
               <select
@@ -249,7 +251,7 @@ function ConciergePlaceCard({
                   setDayId(next)
                   if (next && next !== place.dayId) onMove(place, next)
                 }}
-                className={`${compactSelectClass} min-w-[7rem]`}
+                {...sx(compactSelectClass, 'min-w-[7rem]')}
               >
                 {days.map((day, i) => (
                   <option key={day.id} value={day.id}>
@@ -267,12 +269,12 @@ function ConciergePlaceCard({
                   type="button"
                   onClick={() => onRemove(place)}
                   aria-label={`Confirm remove ${place.name}`}
-                  className={dangerChipBtnClass}
+                  {...sx(dangerChipBtnClass)}
                 >
                   <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
                   Remove it
                 </button>
-                <button type="button" onClick={() => setConfirmRemove(false)} className={ghostBtnClass}>
+                <button type="button" onClick={() => setConfirmRemove(false)} {...sx(ghostBtnClass)}>
                   Keep
                 </button>
               </>
@@ -281,7 +283,7 @@ function ConciergePlaceCard({
                 type="button"
                 onClick={() => setConfirmRemove(true)}
                 aria-label={`Remove ${place.name} from the itinerary`}
-                className={quietBtnClass}
+                {...sx(quietBtnClass)}
               >
                 <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
                 Remove

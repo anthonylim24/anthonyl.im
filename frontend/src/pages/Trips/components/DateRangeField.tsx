@@ -2,6 +2,8 @@ import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react"
 import { accentIconClass, focusRingClass, iconBtnClass, inputClass, mutedInkClass, popoverClass } from "../ui"
+import { sx } from '@/lib/utils'
+import { styles } from '../trips.stylex'
 
 // Custom dual-month range calendar — no external date library. Dates are ISO
 // yyyy-mm-dd strings end to end (matching the trip model), so there's no
@@ -109,7 +111,7 @@ function Month({
       <div className="px-1 text-center text-sm font-semibold text-stone-800 dark:text-stone-200">
         {monthLabel(year, month)}
       </div>
-      <div className={`mt-2 grid grid-cols-7 text-center ${mutedInkClass}`} aria-hidden>
+      <div {...sx('mt-2 grid grid-cols-7 text-center', mutedInkClass)} aria-hidden>
         {WEEKDAYS.map((w, i) => (
           <span key={i} className="py-1 text-[11px] font-medium">
             {w}
@@ -264,7 +266,7 @@ export function DateRangeField({ startDate, endDate, onChange, invalid, describe
   const next = new Date(Date.UTC(view.year, view.month + 1, 1))
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} {...sx(styles.relative)}>
       <button
         ref={triggerRef}
         type="button"
@@ -274,12 +276,10 @@ export function DateRangeField({ startDate, endDate, onChange, invalid, describe
         aria-invalid={invalid ? true : undefined}
         aria-describedby={describedBy}
         onClick={() => setOpen((o) => !o)}
-        className={`flex items-center gap-3 text-left hover:border-[color:var(--trips-ink-tertiary)] ${inputClass} ${
-          invalid ? "border-red-400 dark:border-red-800" : ""
-        }`}
+        {...sx('flex items-center gap-3 text-left hover:border-[color:var(--trips-ink-tertiary)] ${inputClass}', invalid ? "border-red-400 dark:border-red-800" : "")}
       >
-        <CalendarDays className={`h-4 w-4 shrink-0 ${accentIconClass}`} strokeWidth={1.5} aria-hidden />
-        <span id={labelId} className={startDate ? "" : mutedInkClass}>
+        <CalendarDays {...sx('h-4 w-4 shrink-0', accentIconClass)} strokeWidth={1.5} aria-hidden />
+        <span id={labelId} {...sx(startDate ? "" : mutedInkClass)}>
           {startDate && endDate ? formatRangeLabel(startDate, endDate) : "Select trip dates"}
         </span>
       </button>
@@ -293,25 +293,25 @@ export function DateRangeField({ startDate, endDate, onChange, invalid, describe
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={reduce ? { opacity: 0 } : { opacity: 0, y: -4, scale: 0.99 }}
             transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-            className={`absolute left-0 top-[calc(100%+0.5rem)] z-40 p-4 ${popoverClass}`}
+            {...sx('absolute left-0 top-[calc(100%+0.5rem)] z-40 p-4', popoverClass)}
           >
             <div className="flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => shiftMonth(-1)}
                 aria-label="Previous month"
-                className={iconBtnClass}
+                {...sx(iconBtnClass)}
               >
                 <ChevronLeft className="h-4 w-4" strokeWidth={1.5} aria-hidden />
               </button>
-              <p className={`text-xs ${mutedInkClass}`} aria-live="polite">
+              <p {...sx('text-xs', mutedInkClass)} aria-live="polite">
                 {selecting ? "Now pick the last day" : "Pick the first day"}
               </p>
               <button
                 type="button"
                 onClick={() => shiftMonth(1)}
                 aria-label="Next month"
-                className={iconBtnClass}
+                {...sx(iconBtnClass)}
               >
                 <ChevronRight className="h-4 w-4" strokeWidth={1.5} aria-hidden />
               </button>

@@ -3,6 +3,8 @@ import { createPortal } from "react-dom"
 import { X } from "lucide-react"
 import { lookupGooglePlacePhoto, lookupPhoto } from "../Korea/placePhoto"
 import { focusRingClass } from "./ui"
+import { sx } from '@/lib/utils'
+import { styles } from './trips.stylex'
 
 export async function lookupConciergePhoto(args: {
   name: string
@@ -65,7 +67,7 @@ export function ConciergePhotoThumb({
       type="button"
       onClick={() => onOpen(showImage ? url : null)}
       aria-label={`View photos of ${name}`}
-      className={`relative block aspect-[16/9] w-full overflow-hidden bg-[color:var(--trips-rail)] text-left ${focusRingClass}`}
+      {...sx('relative block aspect-[16/9] w-full overflow-hidden bg-[color:var(--trips-rail)] text-left', focusRingClass)}
     >
       {showImage ? (
         <img
@@ -185,7 +187,7 @@ export function ConciergePhotoViewer({
           type="button"
           onClick={onClose}
           aria-label="Close photos"
-          className={`flex h-11 w-11 items-center justify-center rounded-full text-stone-300 hover:bg-white/10 hover:text-white ${focusRingClass}`}
+          {...sx('flex h-11 w-11 items-center justify-center rounded-full text-stone-300 hover:bg-white/10 hover:text-white', focusRingClass)}
         >
           <X className="h-5 w-5" />
         </button>

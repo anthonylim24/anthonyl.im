@@ -1,3 +1,5 @@
+import { sx } from '@/styles/merge'
+import { mapModeFilterBar } from './MapModeFilterBar.stylex'
 import { motion } from "motion/react"
 import type { LucideIcon } from "lucide-react"
 import {
@@ -62,9 +64,6 @@ const PRIORITY_META: {
 
 const BUSYNESS_ORDER: BusynessLevel[] = ["quiet", "moderate", "busy", "very_busy"]
 
-const chipFocus =
-  "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60"
-
 export function MapModeFilterBar({
   places,
   enabledCategories,
@@ -97,7 +96,7 @@ export function MapModeFilterBar({
 
   return (
     <div
-      className="pointer-events-none absolute inset-x-0 z-20 flex justify-center px-3"
+      {...sx(mapModeFilterBar.se7e9cd2a)}
       style={{ top: "calc(env(safe-area-inset-top, 0px) + 72px)" }}
     >
       <motion.nav
@@ -105,7 +104,7 @@ export function MapModeFilterBar({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1], delay: 0.06 }}
         aria-label="Filter places"
-        className="pointer-events-auto flex max-w-full items-center gap-1.5 overflow-x-auto touch-pan-x rounded-full border border-[rgba(28,25,23,0.08)] bg-[rgba(255,254,250,0.88)] px-2 py-1.5 shadow-[0_8px_28px_rgba(28,25,23,0.08)] backdrop-blur-xl sm:max-w-3xl dark:border-[rgba(255,252,245,0.06)] dark:bg-[rgba(28,25,23,0.78)] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        {...sx(mapModeFilterBar.s3c9fde5a)}
         style={{
           WebkitMaskImage:
             "linear-gradient(to right, transparent 0, black 16px, black calc(100% - 16px), transparent 100%)",
@@ -118,14 +117,10 @@ export function MapModeFilterBar({
           onClick={onReset}
           aria-pressed={atDefault}
           aria-label={`Show default places (${places.length} total)`}
-          className={
-            "shrink-0 rounded-full px-3 py-1.5 text-[11px] font-semibold transition " +
-            chipFocus +
-            " " +
-            (atDefault
-              ? "bg-rose-600 text-white shadow-sm"
-              : "bg-stone-100/90 text-stone-700 hover:bg-stone-200/90 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700")
-          }
+          {...sx(
+            mapModeFilterBar.resetChip,
+            atDefault ? mapModeFilterBar.resetActive : mapModeFilterBar.resetInactive,
+          )}
         >
           All · {places.length}
         </button>
@@ -142,24 +137,20 @@ export function MapModeFilterBar({
               onClick={() => onSoloPriority(meta.id)}
               aria-pressed={enabled}
               title={`${meta.label} · ${count}`}
-              className={
-                "flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-medium transition " +
-                chipFocus +
-                " " +
-                (enabled
-                  ? "text-white shadow-sm"
-                  : "bg-stone-100/90 text-stone-500 hover:bg-stone-200/90 dark:bg-stone-800 dark:text-stone-400 dark:hover:bg-stone-700")
-              }
+              {...sx(
+                mapModeFilterBar.filterChip,
+                enabled ? mapModeFilterBar.filterChipOn : mapModeFilterBar.filterChipOff,
+              )}
               style={enabled ? { backgroundColor: meta.tint } : undefined}
             >
-              <Icon className="h-3 w-3 shrink-0 opacity-90" aria-hidden />
+              <Icon {...sx(mapModeFilterBar.se5124f8)} aria-hidden />
               <span>{meta.label}</span>
-              <span className="tabular-nums opacity-70">{count}</span>
+              <span {...sx(mapModeFilterBar.se2d7d07e)}>{count}</span>
             </button>
           )
         })}
 
-        <span aria-hidden className="mx-0.5 h-5 w-px shrink-0 bg-stone-300/80 dark:bg-stone-700" />
+        <span aria-hidden {...sx(mapModeFilterBar.sfc1c62a2)} />
 
         {cats.map(([cat, count]) => {
           const enabled = enabledCategories.has(cat)
@@ -171,25 +162,21 @@ export function MapModeFilterBar({
               onClick={() => onSoloSelect(cat)}
               aria-pressed={enabled}
               title={`${cat} · ${count}`}
-              className={
-                "flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-medium transition " +
-                chipFocus +
-                " " +
-                (enabled
-                  ? "bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900"
-                  : "bg-stone-100/90 text-stone-500 hover:bg-stone-200/90 dark:bg-stone-800 dark:text-stone-400 dark:hover:bg-stone-700")
-              }
+              {...sx(
+                mapModeFilterBar.filterChip,
+                enabled ? mapModeFilterBar.categoryChipOn : mapModeFilterBar.filterChipOff,
+              )}
             >
-              <Icon className="h-3 w-3 shrink-0 opacity-90" aria-hidden />
-              <span className="capitalize">{cat}</span>
-              <span className="tabular-nums opacity-70">{count}</span>
+              <Icon {...sx(mapModeFilterBar.se5124f8)} aria-hidden />
+              <span {...sx(mapModeFilterBar.s96c27eec)}>{cat}</span>
+              <span {...sx(mapModeFilterBar.se2d7d07e)}>{count}</span>
             </button>
           )
         })}
 
         {availableBusyness.length > 0 && (
           <>
-            <span aria-hidden className="mx-0.5 h-5 w-px shrink-0 bg-stone-300/80 dark:bg-stone-700" />
+            <span aria-hidden {...sx(mapModeFilterBar.sfc1c62a2)} />
             {availableBusyness.map((lvl) => {
               const count = busynessCounts.get(lvl) ?? 0
               const enabled = enabledBusyness.has(lvl)
@@ -200,21 +187,17 @@ export function MapModeFilterBar({
                   onClick={() => onSoloBusyness(lvl)}
                   aria-pressed={enabled}
                   title={`Busyness: ${lvl} · ${count}`}
-                  className={
-                    "flex shrink-0 items-center rounded-full px-2 py-1.5 text-[11px] font-medium transition " +
-                    chipFocus +
-                    " " +
-                    (enabled
-                      ? "bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900"
-                      : "bg-stone-100/90 text-stone-500 hover:bg-stone-200/90 dark:bg-stone-800 dark:text-stone-400 dark:hover:bg-stone-700")
-                  }
+                  {...sx(
+                    mapModeFilterBar.filterChip,
+                    enabled ? mapModeFilterBar.categoryChipOn : mapModeFilterBar.filterChipOff,
+                  )}
                 >
                   <BusynessBadge
                     busyness={lvl}
                     size="sm"
-                    className={enabled ? "!bg-transparent !text-inherit" : ""}
+                    style={enabled ? mapModeFilterBar.busynessTransparent : undefined}
                   />
-                  <span className="ml-1 tabular-nums opacity-70">{count}</span>
+                  <span {...sx(mapModeFilterBar.sbaaf3ae1)}>{count}</span>
                 </button>
               )
             })}

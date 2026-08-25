@@ -1,3 +1,6 @@
+import type { StyleXStyles } from '@stylexjs/stylex'
+import { sx } from '@/styles/merge'
+import { dayTreeNav } from './DayTreeNav.stylex'
 import { useEffect, useRef } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
@@ -9,12 +12,12 @@ import { KstClock } from "./KstClock"
 
 interface DayTreeNavProps {
   days: Pick<Day, "n" | "slug" | "date" | "dayOfWeek" | "emoji" | "title" | "city">[]
-  className?: string
+  style?: StyleXStyles
 }
 
 const SPRING = { type: "spring" as const, stiffness: 380, damping: 30, mass: 0.7 }
 
-export function DayTreeNav({ days, className }: DayTreeNavProps) {
+export function DayTreeNav({ days, style }: DayTreeNavProps) {
   const location = useLocation()
   const scrollRef = useRef<HTMLDivElement>(null)
   const reduceMotion = useReducedMotion()
@@ -40,13 +43,10 @@ export function DayTreeNav({ days, className }: DayTreeNavProps) {
   return (
     <nav
       aria-label="Trip day navigation"
-      className={
-        "sticky top-0 z-30 border-b border-stone-200/60 bg-stone-50/85 backdrop-blur-xl dark:border-stone-800/60 dark:bg-stone-950/80 " +
-        (className ?? "")
-      }
+      {...sx(dayTreeNav.navShell, style)}
     >
       <div
-        className="mx-auto flex max-w-6xl items-center gap-2 px-3 sm:gap-3 sm:px-6"
+        {...sx(dayTreeNav.sce7b6109)}
         style={{
           // Reserve room for the iOS dynamic island / status bar when
           // launched standalone from Home Screen. env(safe-area-inset-top)
@@ -59,14 +59,14 @@ export function DayTreeNav({ days, className }: DayTreeNavProps) {
           to="/korea"
           data-active={isIndex}
           aria-current={isIndex ? "page" : undefined}
-          className="group flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border border-stone-300/70 bg-stone-50 px-3 py-1.5 text-xs font-medium text-stone-700 transition-colors duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:border-stone-300 hover:bg-stone-100 hover:text-stone-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 data-[active=true]:border-rose-400 data-[active=true]:bg-rose-100 data-[active=true]:text-rose-900 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-stone-700 dark:hover:bg-stone-800 dark:hover:text-stone-100 dark:data-[active=true]:border-rose-700 dark:data-[active=true]:bg-rose-950/60 dark:data-[active=true]:text-rose-100"
+          {...sx(dayTreeNav.s54011e7e, 'group')}
         >
-          <span aria-hidden className="text-base leading-none">🇰🇷</span>
+          <span aria-hidden {...sx(dayTreeNav.s63da71ee)}>🇰🇷</span>
           <span>Overview</span>
         </Link>
         <div
           ref={scrollRef}
-          className="-my-1.5 flex min-w-0 flex-1 gap-1.5 overflow-x-auto touch-pan-x px-1.5 py-1.5 sm:gap-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+          {...sx(dayTreeNav.s21d75092)}
         >
           {days.map((day, i) => {
             const active = activeSlug === day.slug
@@ -77,32 +77,32 @@ export function DayTreeNav({ days, className }: DayTreeNavProps) {
                 initial={reduceMotion ? false : { opacity: 0, y: -6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ ...SPRING, delay: reduceMotion ? 0 : 0.02 * i }}
-                className="shrink-0"
+                {...sx(dayTreeNav.sf032ed6c)}
               >
                 <Link
                   to={`/korea/day/${day.slug}`}
                   data-active={active}
                   data-today={isToday}
                   aria-current={active ? "page" : undefined}
-                  className={
-                    "group relative flex min-h-11 items-center gap-1.5 rounded-full border border-transparent px-3 py-1.5 text-xs font-medium text-stone-600 transition-colors duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:border-stone-300 hover:bg-stone-50 hover:text-stone-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 data-[active=true]:border-rose-400 data-[active=true]:bg-rose-100 data-[active=true]:text-rose-900 data-[active=true]:shadow-sm dark:text-stone-400 dark:hover:border-stone-700 dark:hover:bg-stone-900 dark:hover:text-stone-100 dark:data-[active=true]:border-rose-700 dark:data-[active=true]:bg-rose-950/60 dark:data-[active=true]:text-rose-100 " +
-                    (isToday && !active
-                      ? "ring-2 ring-emerald-400/70 dark:ring-emerald-500/60"
-                      : "")
-                  }
+                  {...sx(
+                    dayTreeNav.dayLink,
+                    'group',
+                    active ? dayTreeNav.dayLinkActive : undefined,
+                    isToday && !active ? dayTreeNav.dayLinkTodayRing : undefined,
+                  )}
                 >
-                  <span className="text-base leading-none" aria-hidden>
+                  <span {...sx(dayTreeNav.s63da71ee)} aria-hidden>
                     {day.emoji}
                   </span>
-                  <span className="whitespace-nowrap">
-                    <span className="font-mono text-[10px] opacity-60">D{day.n}</span>
-                    <span className="mx-1">·</span>
+                  <span {...sx(dayTreeNav.sf8e652db)}>
+                    <span {...sx(dayTreeNav.s8541e060)}>D{day.n}</span>
+                    <span {...sx(dayTreeNav.s33548f)}>·</span>
                     {formatDate(day.date, { weekday: "short", month: undefined, day: undefined })}
                   </span>
                   {isToday && (
                     <span
                       aria-hidden
-                      className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-stone-50 dark:bg-rose-400 dark:ring-stone-950"
+                      {...sx(dayTreeNav.sb750299f)}
                     />
                   )}
                 </Link>

@@ -1,5 +1,7 @@
 import { createElement } from "react"
 import { itemIcon } from "../theme"
+import { sx } from '@/lib/utils'
+import { styles } from '../trips.stylex'
 
 /**
  * Resolves an itinerary item to its Lucide glyph. A component rather than a

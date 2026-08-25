@@ -1,3 +1,6 @@
+import { sx } from '@/styles/merge'
+import { upNextCard } from './UpNextCard.stylex'
+import { markerStyles } from './korea.stylex'
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
@@ -51,37 +54,34 @@ export function UpNextCard({ snapshot }: UpNextCardProps) {
       initial={reduce ? false : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1], delay: 0.25 }}
-      className="mx-auto mt-10 max-w-6xl px-4 sm:px-6"
+      {...sx(upNextCard.sce8d595f)}
     >
       <Wrapper
         {...wrapperProps}
-        className={
-          "group block border-y border-stone-200/80 py-5 transition-colors duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] dark:border-stone-800/80 " +
-          (dayLink ? "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500" : "")
-        }
+        {...sx(upNextCard.wrapper, dayLink ? upNextCard.wrapperLink : undefined)}
       >
-        <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+        <div {...sx(upNextCard.sc4049d37)}>
           {/* Eyebrow with rose dot + countdown */}
-          <p className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.24em] text-rose-700 dark:text-rose-300">
-            <span aria-hidden className="inline-block h-1.5 w-1.5 rounded-full bg-rose-500 dark:bg-rose-400" />
+          <p {...sx(upNextCard.sda4d7977)}>
+            <span aria-hidden {...sx(upNextCard.s421599fa)} />
             Up next
-            <span aria-hidden className="text-stone-300 dark:text-stone-700">·</span>
-            <span className="tabular-nums">{formatCountdown(cd)}</span>
+            <span aria-hidden {...sx(upNextCard.s146516be)}>·</span>
+            <span {...sx(upNextCard.sd1fc735d)}>{formatCountdown(cd)}</span>
           </p>
 
           {/* Status label as a typographic mark, not a colored pill */}
-          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
-            <span aria-hidden className={"mr-1.5 inline-block h-1.5 w-1.5 rounded-full " + s.dot} />
+          <p {...sx(upNextCard.sa8fa1afe)}>
+            <span aria-hidden {...sx(markerStyles.dot, markerStyles.dotMargin, s.dot)} />
             {s.label}
           </p>
         </div>
 
-        <div className="mt-3 flex items-baseline gap-3">
-          <span aria-hidden className="text-lg leading-none" title={t.label}>
+        <div {...sx(upNextCard.sbf4a3002)}>
+          <span aria-hidden {...sx(upNextCard.s8b2f6784)} title={t.label}>
             {t.icon}
           </span>
           <p
-            className="min-w-0 flex-1 break-words font-serif text-2xl font-medium leading-snug tracking-[-0.01em] text-stone-900 transition-colors group-hover:text-rose-800 sm:text-[1.6rem] dark:text-stone-100 dark:group-hover:text-rose-200"
+            {...sx(upNextCard.s4cddd6f0)}
             style={{ fontFamily: "'Cormorant Garamond', serif" }}
           >
             {next.title}
@@ -89,13 +89,13 @@ export function UpNextCard({ snapshot }: UpNextCardProps) {
           {dayLink && (
             <ArrowUpRight
               aria-hidden
-              className="h-4 w-4 shrink-0 self-center text-stone-400 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-rose-600 dark:group-hover:text-rose-400"
+              {...sx(upNextCard.se0ae9f9e)}
             />
           )}
         </div>
 
         {detailLine && (
-          <p className="mt-2 break-words text-[13px] leading-relaxed text-stone-600 dark:text-stone-400">
+          <p {...sx(upNextCard.sb5d06877)}>
             {detailLine}
           </p>
         )}

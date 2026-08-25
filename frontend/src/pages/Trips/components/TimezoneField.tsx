@@ -1,3 +1,5 @@
+import { sx } from '@/lib/utils'
+import { styles } from '../trips.stylex'
 import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { Check, Globe2 } from "lucide-react"
@@ -152,9 +154,9 @@ export function TimezoneField({ value, onChange, invalid, describedBy }: Timezon
   }
 
   return (
-    <div ref={rootRef} className="relative">
-      <div className={`${fieldShellClass} ${invalid ? "border-red-400 dark:border-red-800" : ""}`}>
-        <Globe2 className={`h-4 w-4 shrink-0 ${accentIconClass}`} strokeWidth={1.5} aria-hidden />
+    <div ref={rootRef} {...sx(styles.relative)}>
+      <div {...sx(fieldShellClass, invalid ? "border-red-400 dark:border-red-800" : "")}>
+        <Globe2 {...sx('h-4 w-4 shrink-0', accentIconClass)} strokeWidth={1.5} aria-hidden />
         <input
           role="combobox"
           aria-expanded={open}
@@ -177,7 +179,7 @@ export function TimezoneField({ value, onChange, invalid, describedBy }: Timezon
             setActiveIndex(0)
           }}
           onKeyDown={onKeyDown}
-          className={bareInputClass}
+          {...sx(bareInputClass)}
         />
       </div>
 
@@ -192,17 +194,17 @@ export function TimezoneField({ value, onChange, invalid, describedBy }: Timezon
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-            className={`absolute left-0 right-0 top-[calc(100%+0.5rem)] z-40 max-h-72 overflow-auto py-1.5 ${popoverClass}`}
+            {...sx('absolute left-0 right-0 top-[calc(100%+0.5rem)] z-40 max-h-72 overflow-auto py-1.5', popoverClass)}
           >
             {options.length === 0 && (
-              <li className={`px-4 py-3 text-sm ${mutedInkClass}`}>No matching time zone.</li>
+              <li {...sx('px-4 py-3 text-sm', mutedInkClass)}>No matching time zone.</li>
             )}
             {options.map((opt, i) => {
               const showGroup = i === 0 || options[i - 1]!.group !== opt.group
               return (
                 <li key={opt.tz} role="presentation">
                   {showGroup && (
-                    <div className={`px-4 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide ${mutedInkClass}`} aria-hidden>
+                    <div {...sx('px-4 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide', mutedInkClass)} aria-hidden>
                       {GROUP_LABEL[opt.group]}
                     </div>
                   )}
@@ -214,17 +216,15 @@ export function TimezoneField({ value, onChange, invalid, describedBy }: Timezon
                     aria-selected={opt.tz === value}
                     onMouseEnter={() => setActiveIndex(i)}
                     onClick={() => select(opt.tz)}
-                    className={`flex min-h-11 w-full items-center justify-between gap-3 px-4 py-2 text-left text-sm transition-colors ${
-                      i === activeIndex ? menuItemActiveClass : "text-stone-700 dark:text-stone-300"
-                    }`}
+                    {...sx('flex min-h-11 w-full items-center justify-between gap-3 px-4 py-2 text-left text-sm transition-colors', i === activeIndex ? menuItemActiveClass : "text-stone-700 dark:text-stone-300")}
                   >
                     <span className="min-w-0 truncate">
                       <span className="font-medium">{opt.city}</span>
-                      <span className={`ml-2 text-xs ${mutedInkClass}`}>{opt.tz}</span>
+                      <span {...sx('ml-2 text-xs', mutedInkClass)}>{opt.tz}</span>
                     </span>
-                    <span className={`flex shrink-0 items-center gap-2 text-xs tabular-nums ${mutedInkClass}`}>
+                    <span {...sx('flex shrink-0 items-center gap-2 text-xs tabular-nums', mutedInkClass)}>
                       {opt.offset}
-                      {opt.tz === value && <Check className={`h-4 w-4 ${accentIconClass}`} strokeWidth={1.5} aria-hidden />}
+                      {opt.tz === value && <Check {...sx('h-4 w-4', accentIconClass)} strokeWidth={1.5} aria-hidden />}
                     </span>
                   </button>
                 </li>
