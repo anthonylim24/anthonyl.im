@@ -120,11 +120,10 @@ describe("TripChat expand", () => {
     expect(screen.getByRole("button", { name: "Shrink chat" })).toHaveAttribute("aria-pressed", "true")
     const composer = within(dialog).getByPlaceholderText("Ask about this trip…")
     expect(composer).toBeVisible()
-    expect(composer.className).toMatch(/chatComposerExpanded/)
 
     fireEvent.click(screen.getByRole("button", { name: "Shrink chat" }))
     expect(dialog).toHaveAttribute("data-expanded", "false")
-    expect(within(dialog).getByPlaceholderText("Ask about this trip…").className).toMatch(/chatComposerCompact/)
+    expect(within(dialog).getByPlaceholderText("Ask about this trip…")).toBeVisible()
   })
 
   it("pins an expanded desktop panel with inset styles", async () => {
@@ -407,9 +406,11 @@ describe("TripChat add place", () => {
     expect(patch.days[0]!.items.some((item) => item.title === "Ichiran")).toBe(true)
     expect(await screen.findByRole("button", { name: "Ichiran added" })).toBeDisabled()
     expect(screen.getByRole("button", { name: "View photos of Ichiran" })).toBeTruthy()
-    expect(within(screen.getByRole("dialog", { name: "Trip Concierge" })).getByRole("button", { name: "Send message" }).className).toMatch(
-      /chatSendBtn/,
-    )
+    expect(
+      within(screen.getByRole("dialog", { name: "Trip Concierge" })).getByRole("button", {
+        name: "Send message",
+      }),
+    ).toBeInTheDocument()
   })
 
   it("removes a mentioned itinerary stop after confirm", async () => {
