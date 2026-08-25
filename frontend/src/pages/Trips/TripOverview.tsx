@@ -130,7 +130,7 @@ export function TripOverview() {
     <EntityIndexProvider>
       <div data-trip-accent={resolveAccent(trip.appearance?.accent)}>
         <CoverDock title={trip.name} />
-        <header {...sx(coverBandClass)}>
+        <header {...sx('cover-band', coverBandClass)}>
           <div {...sx(styles.coverBandInner)}>
             <motion.div
               {...fadeUp(0)}

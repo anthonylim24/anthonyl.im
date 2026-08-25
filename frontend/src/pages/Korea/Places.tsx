@@ -1,4 +1,5 @@
 import { sx } from '@/styles/merge'
+import { layout } from '@/styles/common.stylex'
 import { places as placesPage } from './Places.stylex'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useTransition } from 'react'
 import { useLatestCallback } from '@/hooks/useLatestCallback'
@@ -339,7 +340,7 @@ function DayAssignButton({ place, getToken, onUpdated, days }: DayAssignButtonPr
                 Assign to days
               </p>
               <fieldset>
-                <legend {...sx(placesPage.s88a3565a)}>Select days for {place.name}</legend>
+                <legend {...sx(layout.srOnly)}>Select days for {place.name}</legend>
                 <div {...sx(placesPage.sb8f84d6a)}>
                   {days.map((day) => {
                     const checked = pendingDays.has(day.n)
@@ -848,7 +849,7 @@ function PlacesImpl({ days, ingestTo }: { days: PlaceDayOption[]; ingestTo: stri
 
           {/* Search */}
           <div {...sx(placesPage.s8c466dcd)}>
-            <label htmlFor="places-search" {...sx(placesPage.s88a3565a)}>Search places</label>
+            <label htmlFor="places-search" {...sx(layout.srOnly)}>Search places</label>
             <input
               id="places-search"
               type="search"

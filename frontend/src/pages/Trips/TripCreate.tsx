@@ -246,7 +246,7 @@ export function TripCreate() {
   return (
     <form onSubmit={onSubmit} {...sx(styles.createForm)} noValidate>
       <CoverDock title={name.trim() || "New trip"} measure="form" />
-      <header {...sx(coverBandClass, styles.coverBandHero)}>
+      <header {...sx('cover-band', coverBandClass, styles.coverBandHero)}>
         <div {...sx(styles.createHeaderInner)}>
           <h1 {...sx(typeDisplayClass, 'cover-extra')}>New trip</h1>
           <div {...sx(styles.createNameGroup)} ref={(el) => void (groupRefs.current.name = el)}>
