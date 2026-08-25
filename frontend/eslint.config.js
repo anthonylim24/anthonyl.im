@@ -2,6 +2,7 @@ import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
+import stylex from '@stylexjs/eslint-plugin'
 import tseslint from 'typescript-eslint'
 
 // typescript-eslint has no TypeScript 7 compiler API yet (needs 7.1).
@@ -18,9 +19,11 @@ export default tseslint.config(
     plugins: {
       'react-hooks': reactHooks,
       'react-refresh': reactRefresh,
+      '@stylexjs': stylex,
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      ...stylex.configs.recommended.rules,
       'react-refresh/only-export-components': [
         'warn',
         { allowConstantExport: true },

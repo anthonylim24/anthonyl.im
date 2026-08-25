@@ -1,10 +1,9 @@
-import { bw, easings } from '../../styles/tokens.stylex'
 import { stylex } from '@/styles/merge'
 
 const focusVisible = {
   outlineWidth: '2px',
   outlineStyle: 'solid',
-  outlineColor: bw.accent,
+  outlineColor: 'var(--bw-accent)',
   outlineOffset: '2px',
 } as const
 
@@ -41,50 +40,50 @@ export const btn = stylex.create({
     userSelect: 'none',
     transitionProperty: 'background-color, border-color, transform, opacity',
     transitionDuration: '200ms',
-    transitionTimingFunction: easings.outExpo,
+    transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)',
     ':focus-visible': focusVisible,
     ':disabled': disabled,
     ...motionSafeActive,
   },
   primary: {
-    backgroundColor: bw.accent,
-    color: bw.accentForeground,
+    backgroundColor: 'var(--bw-accent)',
+    color: 'var(--bw-accent-foreground)',
     '@media (hover: hover) and (pointer: fine)': {
       ':hover': {
-        backgroundColor: bw.accentLight,
+        backgroundColor: 'var(--bw-accent-light)',
       },
     },
   },
   secondary: {
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: bw.border,
-    backgroundColor: bw.surface,
-    color: bw.text,
+    borderColor: 'var(--bw-border)',
+    backgroundColor: 'var(--bw-surface)',
+    color: 'var(--bw-text)',
     '@media (hover: hover) and (pointer: fine)': {
       ':hover': {
-        backgroundColor: bw.hover,
+        backgroundColor: 'var(--bw-hover)',
       },
     },
   },
   ghost: {
-    color: bw.textSecondary,
+    color: 'var(--bw-text-secondary)',
     '@media (hover: hover) and (pointer: fine)': {
       ':hover': {
-        backgroundColor: bw.hover,
-        color: bw.text,
+        backgroundColor: 'var(--bw-hover)',
+        color: 'var(--bw-text)',
       },
     },
   },
   destructive: {
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: bw.destructiveBorder,
-    backgroundColor: bw.destructiveSubtle,
-    color: bw.destructive,
+    borderColor: 'var(--bw-destructive-border)',
+    backgroundColor: 'var(--bw-destructive-subtle)',
+    color: 'var(--bw-destructive)',
     '@media (hover: hover) and (pointer: fine)': {
       ':hover': {
-        backgroundColor: bw.destructiveHover,
+        backgroundColor: 'var(--bw-destructive-hover)',
       },
     },
   },
@@ -95,10 +94,10 @@ export const btn = stylex.create({
     borderRadius: '0.375rem',
     minHeight: '44px',
     minWidth: '44px',
-    color: bw.textSecondary,
+    color: 'var(--bw-text-secondary)',
     transitionProperty: 'background-color, transform',
     transitionDuration: '200ms',
-    transitionTimingFunction: easings.outExpo,
+    transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)',
     ':focus-visible': focusVisible,
     ':disabled': disabled,
     ':active': {
@@ -112,8 +111,8 @@ export const btn = stylex.create({
     },
     '@media (hover: hover) and (pointer: fine)': {
       ':hover': {
-        backgroundColor: bw.hover,
-        color: bw.text,
+        backgroundColor: 'var(--bw-hover)',
+        color: 'var(--bw-text)',
       },
     },
   },

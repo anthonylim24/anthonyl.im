@@ -1,7 +1,4 @@
 import * as stylex from '@stylexjs/stylex'
-import { layout } from './common.stylex'
-import { shadcn } from './tokens.stylex'
-
 /** shadcn dialog primitives. */
 export const dialog = stylex.create({
   overlay: {
@@ -22,8 +19,8 @@ export const dialog = stylex.create({
     gap: '1rem',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: shadcn.border,
-    backgroundColor: shadcn.background,
+    borderColor: 'hsl(var(--border))',
+    backgroundColor: 'hsl(var(--background))',
     padding: '1.5rem',
     transitionDuration: '200ms',
     boxShadow: '0 8px 24px -12px rgba(28,25,23,0.18)',
@@ -44,7 +41,7 @@ export const dialog = stylex.create({
     },
     ':focus-visible': {
       outline: 'none',
-      boxShadow: `0 0 0 2px ${shadcn.ring}, 0 0 0 4px ${shadcn.background}`,
+      boxShadow: `0 0 0 2px ${'hsl(var(--ring))'}, 0 0 0 4px ${'hsl(var(--background))'}`,
     },
     ':disabled': {
       pointerEvents: 'none',
@@ -55,8 +52,8 @@ export const dialog = stylex.create({
       },
     },
     ':is([data-state="open"])': {
-      backgroundColor: shadcn.accent,
-      color: shadcn.mutedForeground,
+      backgroundColor: 'hsl(var(--accent))',
+      color: 'hsl(var(--muted-foreground))',
     },
   },
   closeIcon: {
@@ -82,15 +79,15 @@ export const dialog = stylex.create({
     },
   },
   title: {
-    fontSize: layout.textLg.fontSize,
+    fontSize: '1.125rem',
     fontWeight: 600,
     lineHeight: 1,
     letterSpacing: '-0.025em',
   },
   description: {
-    fontSize: layout.textSm.fontSize,
-    lineHeight: layout.textSm.lineHeight,
-    color: shadcn.mutedForeground,
+    fontSize: '0.875rem',
+    lineHeight: '1.25rem',
+    color: 'hsl(var(--muted-foreground))',
   },
 })
 
@@ -102,7 +99,7 @@ export const input = stylex.create({
     borderRadius: '0.375rem',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: shadcn.input,
+    borderColor: 'hsl(var(--input))',
     backgroundColor: 'transparent',
     paddingLeft: '0.75rem',
     paddingRight: '0.75rem',
@@ -110,30 +107,30 @@ export const input = stylex.create({
     paddingBottom: '0.25rem',
     fontSize: '1rem',
     lineHeight: '1.5rem',
-    boxShadow: layout.shadowSm.boxShadow,
+    boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
     transitionProperty: 'color, background-color, border-color, text-decoration-color, fill, stroke',
     transitionDuration: '150ms',
     ':focus-visible': {
       outline: 'none',
-      boxShadow: `0 0 0 1px ${shadcn.ring}`,
+      boxShadow: `0 0 0 1px ${'hsl(var(--ring))'}`,
     },
     ':disabled': {
       cursor: 'not-allowed',
       opacity: 0.5,
     },
     '::placeholder': {
-      color: shadcn.mutedForeground,
+      color: 'hsl(var(--muted-foreground))',
     },
     '::file-selector-button': {
       borderWidth: 0,
       backgroundColor: 'transparent',
-      fontSize: layout.textSm.fontSize,
+      fontSize: '0.875rem',
       fontWeight: 500,
-      color: shadcn.foreground,
+      color: 'hsl(var(--foreground))',
     },
     '@media (min-width: 768px)': {
-      fontSize: layout.textSm.fontSize,
-      lineHeight: layout.textSm.lineHeight,
+      fontSize: '0.875rem',
+      lineHeight: '1.25rem',
     },
   },
 })
@@ -145,13 +142,13 @@ export const progress = stylex.create({
     width: '100%',
     overflow: 'hidden',
     borderRadius: '9999px',
-    backgroundColor: `color-mix(in srgb, ${shadcn.primary} 20%, transparent)`,
+    backgroundColor: `color-mix(in srgb, ${'hsl(var(--primary))'} 20%, transparent)`,
   },
   indicator: {
     height: '100%',
     width: '100%',
     flex: '1 1 0%',
-    backgroundColor: shadcn.primary,
+    backgroundColor: 'hsl(var(--primary))',
     transitionProperty: 'all',
     transitionDuration: '150ms',
   },
@@ -164,9 +161,9 @@ export const tabs = stylex.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: '0.5rem',
-    backgroundColor: shadcn.muted,
+    backgroundColor: 'hsl(var(--muted))',
     padding: '0.25rem',
-    color: shadcn.mutedForeground,
+    color: 'hsl(var(--muted-foreground))',
   },
   trigger: {
     display: 'inline-flex',
@@ -178,38 +175,38 @@ export const tabs = stylex.create({
     paddingRight: '0.75rem',
     paddingTop: '0.25rem',
     paddingBottom: '0.25rem',
-    fontSize: layout.textSm.fontSize,
-    lineHeight: layout.textSm.lineHeight,
+    fontSize: '0.875rem',
+    lineHeight: '1.25rem',
     fontWeight: 500,
     transitionProperty: 'all',
     transitionDuration: '150ms',
     ':focus-visible': {
       outline: 'none',
-      boxShadow: `0 0 0 2px ${shadcn.ring}, 0 0 0 4px ${shadcn.background}`,
+      boxShadow: `0 0 0 2px ${'hsl(var(--ring))'}, 0 0 0 4px ${'hsl(var(--background))'}`,
     },
     ':disabled': {
       pointerEvents: 'none',
       opacity: 0.5,
     },
     ':is([data-state="active"])': {
-      backgroundColor: shadcn.background,
-      color: shadcn.foreground,
-      boxShadow: layout.shadowSm.boxShadow,
+      backgroundColor: 'hsl(var(--background))',
+      color: 'hsl(var(--foreground))',
+      boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
     },
   },
   content: {
     marginTop: '0.5rem',
     ':focus-visible': {
       outline: 'none',
-      boxShadow: `0 0 0 2px ${shadcn.ring}, 0 0 0 4px ${shadcn.background}`,
+      boxShadow: `0 0 0 2px ${'hsl(var(--ring))'}, 0 0 0 4px ${'hsl(var(--background))'}`,
     },
   },
 })
 
 export const statNumeral = stylex.create({
   numeralSm: {
-    fontSize: layout.textSm.fontSize,
-    lineHeight: layout.textSm.lineHeight,
+    fontSize: '0.875rem',
+    lineHeight: '1.25rem',
     paddingBottom: '0.125rem',
   },
   numeralMd: {
@@ -254,8 +251,8 @@ export const statNumeral = stylex.create({
     fontSize: '10px',
   },
   unitLg: {
-    fontSize: layout.textXs.fontSize,
-    lineHeight: layout.textXs.lineHeight,
+    fontSize: '0.75rem',
+    lineHeight: '1rem',
   },
   unitBase: {
     fontWeight: 500,

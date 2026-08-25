@@ -1,6 +1,4 @@
 import * as stylex from '@stylexjs/stylex'
-import { chat } from './tokens.stylex'
-
 /** Markdown body inside assistant chat bubbles. */
 export const messageContent = stylex.create({
   root: {},
@@ -13,10 +11,10 @@ export const messageContent = stylex.create({
     lineHeight: 1.7,
     transitionProperty: 'color, background-color, border-color, text-decoration-color, fill, stroke',
     transitionDuration: '700ms',
-    color: chat.mid,
+    color: 'var(--chat-mid)',
     borderBottomWidth: '1px',
     borderBottomStyle: 'solid',
-    borderBottomColor: chat.line,
+    borderBottomColor: 'var(--chat-line)',
   },
   body: {
     maxWidth: 'none',
@@ -28,7 +26,7 @@ export const messageContent = stylex.create({
     lineHeight: 1.7,
     transitionProperty: 'color, background-color, border-color, text-decoration-color, fill, stroke',
     transitionDuration: '700ms',
-    color: chat.text,
+    color: 'var(--chat-text)',
     ':last-child': {
       marginBottom: 0,
     },
@@ -38,18 +36,18 @@ export const messageContent = stylex.create({
     textUnderlineOffset: '2px',
     transitionProperty: 'color, background-color, border-color, text-decoration-color, fill, stroke',
     transitionDuration: '300ms',
-    color: chat.bright,
-    textDecorationColor: chat.line,
+    color: 'var(--chat-bright)',
+    textDecorationColor: 'var(--chat-line)',
   },
   strong: {
     fontWeight: 500,
     transitionProperty: 'color, background-color, border-color, text-decoration-color, fill, stroke',
     transitionDuration: '700ms',
-    color: chat.bright,
+    color: 'var(--chat-bright)',
   },
   em: {
     fontStyle: 'italic',
-    color: chat.text,
+    color: 'var(--chat-text)',
   },
   inlineCode: {
     paddingLeft: '0.25rem',
@@ -79,7 +77,7 @@ export const messageContent = stylex.create({
     color: 'var(--chat-code-text)',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: chat.line,
+    borderColor: 'var(--chat-line)',
   },
   ul: {
     marginTop: '0.75rem',
@@ -88,7 +86,7 @@ export const messageContent = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     gap: '0.25rem',
-    color: chat.text,
+    color: 'var(--chat-text)',
   },
   ol: {
     marginTop: '0.75rem',
@@ -98,7 +96,7 @@ export const messageContent = stylex.create({
     display: 'flex',
     flexDirection: 'column',
     gap: '0.25rem',
-    color: chat.mid,
+    color: 'var(--chat-mid)',
   },
   li: {
     fontSize: '14px',
@@ -107,10 +105,10 @@ export const messageContent = stylex.create({
     transitionProperty: 'color, background-color, border-color, text-decoration-color, fill, stroke',
     transitionDuration: '700ms',
     paddingLeft: '0.75rem',
-    color: chat.text,
+    color: 'var(--chat-text)',
   },
   dashPrefix: {
-    color: chat.mid,
+    color: 'var(--chat-mid)',
     marginRight: '8px',
   },
   blockquote: {
@@ -125,8 +123,8 @@ export const messageContent = stylex.create({
     transitionDuration: '700ms',
     borderLeftWidth: '2px',
     borderLeftStyle: 'solid',
-    borderLeftColor: chat.line,
-    color: chat.mid,
+    borderLeftColor: 'var(--chat-line)',
+    color: 'var(--chat-mid)',
   },
   h1: {
     fontSize: '16px',
@@ -138,7 +136,7 @@ export const messageContent = stylex.create({
     letterSpacing: '0.05em',
     transitionProperty: 'color, background-color, border-color, text-decoration-color, fill, stroke',
     transitionDuration: '700ms',
-    color: chat.bright,
+    color: 'var(--chat-bright)',
     ':first-child': {
       marginTop: 0,
     },
@@ -153,7 +151,7 @@ export const messageContent = stylex.create({
     letterSpacing: '0.05em',
     transitionProperty: 'color, background-color, border-color, text-decoration-color, fill, stroke',
     transitionDuration: '700ms',
-    color: chat.bright,
+    color: 'var(--chat-bright)',
     ':first-child': {
       marginTop: 0,
     },
@@ -166,7 +164,7 @@ export const messageContent = stylex.create({
     marginTop: '1rem',
     transitionProperty: 'color, background-color, border-color, text-decoration-color, fill, stroke',
     transitionDuration: '700ms',
-    color: chat.bright,
+    color: 'var(--chat-bright)',
     ':first-child': {
       marginTop: 0,
     },
@@ -179,7 +177,7 @@ export const messageContent = stylex.create({
     marginTop: '0.75rem',
     transitionProperty: 'color, background-color, border-color, text-decoration-color, fill, stroke',
     transitionDuration: '700ms',
-    color: chat.bright,
+    color: 'var(--chat-bright)',
     ':first-child': {
       marginTop: 0,
     },
@@ -192,7 +190,7 @@ export const messageContent = stylex.create({
     transitionDuration: '700ms',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: chat.line,
+    borderColor: 'var(--chat-line)',
   },
   table: {
     minWidth: '100%',
@@ -205,7 +203,7 @@ export const messageContent = stylex.create({
     backgroundColor: 'var(--chat-code-bg)',
     borderBottomWidth: '1px',
     borderBottomStyle: 'solid',
-    borderBottomColor: chat.line,
+    borderBottomColor: 'var(--chat-line)',
   },
   th: {
     paddingLeft: '0.75rem',
@@ -219,7 +217,7 @@ export const messageContent = stylex.create({
     letterSpacing: '0.05em',
     transitionProperty: 'color, background-color, border-color, text-decoration-color, fill, stroke',
     transitionDuration: '700ms',
-    color: chat.bright,
+    color: 'var(--chat-bright)',
   },
   td: {
     paddingLeft: '0.75rem',
@@ -228,10 +226,10 @@ export const messageContent = stylex.create({
     paddingBottom: '0.5rem',
     transitionProperty: 'color, background-color, border-color, text-decoration-color, fill, stroke',
     transitionDuration: '700ms',
-    color: chat.text,
+    color: 'var(--chat-text)',
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: chat.line,
+    borderTopColor: 'var(--chat-line)',
   },
   hr: {
     marginTop: '1.5rem',
@@ -240,7 +238,7 @@ export const messageContent = stylex.create({
     height: '1px',
     transitionProperty: 'color, background-color, border-color, text-decoration-color, fill, stroke',
     transitionDuration: '700ms',
-    backgroundColor: chat.line,
+    backgroundColor: 'var(--chat-line)',
   },
   img: {
     marginTop: '0.75rem',
@@ -250,7 +248,7 @@ export const messageContent = stylex.create({
     transitionDuration: '700ms',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: chat.line,
+    borderColor: 'var(--chat-line)',
   },
   cursor: {
     display: 'inline-block',
@@ -260,6 +258,6 @@ export const messageContent = stylex.create({
     verticalAlign: 'middle',
     transitionProperty: 'color, background-color, border-color, text-decoration-color, fill, stroke',
     transitionDuration: '700ms',
-    backgroundColor: chat.mid,
+    backgroundColor: 'var(--chat-mid)',
   },
 })

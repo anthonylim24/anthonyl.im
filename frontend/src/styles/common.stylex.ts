@@ -1,6 +1,4 @@
 import * as stylex from '@stylexjs/stylex'
-import { bw, shadcn, trips } from './tokens.stylex'
-
 /** Cross-route layout and interaction primitives. */
 export const layout = stylex.create({
   srOnly: {
@@ -10,7 +8,7 @@ export const layout = stylex.create({
     padding: 0,
     margin: '-1px',
     overflow: 'hidden',
-    clip: 'rect(0, 0, 0, 0)',
+    clipPath: 'inset(50%)',
     whiteSpace: 'nowrap',
     borderWidth: 0,
   },
@@ -74,13 +72,13 @@ export const layout = stylex.create({
   focusRingTrips: {
     outlineWidth: '2px',
     outlineStyle: 'solid',
-    outlineColor: trips.accent,
+    outlineColor: 'var(--trips-accent)',
     outlineOffset: '2px',
   },
   focusRingBw: {
     outlineWidth: '2px',
     outlineStyle: 'solid',
-    outlineColor: bw.accent,
+    outlineColor: 'var(--bw-accent)',
     outlineOffset: '2px',
   },
   disabled: {
@@ -111,13 +109,13 @@ export const layout = stylex.create({
   fontNormal: { fontWeight: 400 },
   leadingNone: { lineHeight: 1 },
   trackingTight: { letterSpacing: '-0.025em' },
-  textMuted: { color: shadcn.mutedForeground },
-  textForeground: { color: shadcn.foreground },
-  bgBackground: { backgroundColor: shadcn.background },
-  bgCard: { backgroundColor: shadcn.card },
-  borderBorder: { borderColor: shadcn.border },
+  textMuted: { color: 'hsl(var(--muted-foreground))' },
+  textForeground: { color: 'hsl(var(--foreground))' },
+  bgBackground: { backgroundColor: 'hsl(var(--background))' },
+  bgCard: { backgroundColor: 'hsl(var(--card))' },
+  borderBorder: { borderColor: 'hsl(var(--border))' },
   ringOffsetBackground: {
-    '--ring-offset-color': shadcn.background,
+    '--ring-offset-color': 'hsl(var(--background))',
   },
 })
 

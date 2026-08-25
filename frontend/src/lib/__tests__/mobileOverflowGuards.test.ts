@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import indexCss from '../../index.css?raw'
 import appSource from '../../App.tsx?raw'
+import chatbotStyles from '../../styles/chatbot.stylex.ts?raw'
 
 describe('mobile overflow guardrails', () => {
   it('keeps the document free of nested scrollports and fixed containing blocks on #root', () => {
@@ -15,8 +16,8 @@ describe('mobile overflow guardrails', () => {
     expect(indexCss).not.toMatch(/\.leaves-overlay \{[\s\S]*?width:\s*100vw/)
     expect(indexCss).not.toMatch(/\.leaves-overlay \{[\s\S]*?height:\s*100vh/)
     expect(indexCss).toMatch(/\.leaves-overlay-media \{[\s\S]*?object-fit:\s*cover/)
-    expect(appSource).toContain('className="leaves-overlay"')
-    expect(appSource).toContain('className="leaves-overlay-media"')
+    expect(appSource).toContain("'leaves-overlay'")
+    expect(appSource).toContain("'leaves-overlay-media'")
     expect(appSource).not.toMatch(/<video[^>]*className="leaves-overlay"/)
   })
 
@@ -25,9 +26,11 @@ describe('mobile overflow guardrails', () => {
     expect(indexCss).toMatch(/#root \{[\s\S]*?height:\s*auto/)
   })
 
-  it('keeps the chatbot viewport pin on App rootStyle, not on #root', () => {
-    expect(appSource).toMatch(/const rootStyle = \{[\s\S]*?height:\s*"100dvh"[\s\S]*?overflow:\s*"hidden"/)
-    expect(appSource).toMatch(/minHeight:\s*"100svh"/)
+  it('keeps the chatbot viewport pin on App shell styles, not on #root', () => {
+    expect(chatbotStyles).toMatch(/height:\s*['"]100dvh['"]/)
+    expect(chatbotStyles).toMatch(/minHeight:\s*['"]100svh['"]/)
+    expect(chatbotStyles).toMatch(/overflow:\s*['"]hidden['"]/)
+    expect(appSource).toContain('chatbot.root')
     const rootBlock = indexCss.match(/#root \{[^}]+\}/)?.[0] ?? ''
     expect(rootBlock).toContain('height: auto')
     expect(rootBlock).not.toContain('overflow')

@@ -1,7 +1,4 @@
 import * as stylex from '@stylexjs/stylex'
-import { layout } from '@/styles/common.stylex'
-import { easings, trips } from '@/styles/tokens.stylex'
-
 /** Archivo Narrow display face — matches `.trips .font-display` in index.css. */
 export const fontDisplay = {
   fontFamily: '"Archivo Narrow", "Arial Narrow", sans-serif',
@@ -34,11 +31,11 @@ const focusRingInset = {
 } as const
 
 const fieldBase = {
-  borderRadius: trips.fieldRadius,
+  borderRadius: 'var(--trips-field-radius)',
   borderWidth: '1px',
   borderStyle: 'solid',
-  borderColor: trips.border,
-  backgroundColor: trips.rail,
+  borderColor: 'var(--trips-border)',
+  backgroundColor: 'var(--trips-rail)',
   boxShadow: 'inset 0 1px 2px color-mix(in oklch, var(--trips-ink) 12%, transparent)',
 } as const
 
@@ -48,7 +45,7 @@ const btnBase = {
   alignItems: 'center',
   justifyContent: 'center',
   gap: '0.5rem',
-  borderRadius: trips.radius,
+  borderRadius: 'var(--trips-radius)',
   transitionProperty: 'color, background-color, border-color, opacity, transform',
   transitionDuration: '150ms',
   transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)',
@@ -104,8 +101,8 @@ export const styles = stylex.create({
     marginBottom: '1.25rem',
     borderBottomWidth: '1px',
     borderBottomStyle: 'solid',
-    borderBottomColor: trips.border,
-    backgroundColor: trips.canvas,
+    borderBottomColor: 'var(--trips-border)',
+    backgroundColor: 'var(--trips-canvas)',
     paddingLeft: '1rem',
     paddingRight: '1rem',
     paddingTop: '0.5rem',
@@ -133,17 +130,17 @@ export const styles = stylex.create({
   hoverArrow: {
     transitionProperty: 'transform',
     transitionDuration: '200ms',
-    transitionTimingFunction: easings.outExpo,
+    transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)',
     '@media (prefers-reduced-motion: reduce)': {
       transitionProperty: 'none',
       '@media (hover: hover)': {
-        ':is(.group:hover &)': {
+        ':is(.group:hover) &': {
           transform: 'none',
         },
       },
     },
     '@media (hover: hover)': {
-      ':is(.group:hover &)': {
+      ':is(.group:hover) &': {
         transform: 'translateX(0.125rem)',
       },
     },
@@ -151,17 +148,17 @@ export const styles = stylex.create({
   hoverArrowBack: {
     transitionProperty: 'transform',
     transitionDuration: '200ms',
-    transitionTimingFunction: easings.outExpo,
+    transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)',
     '@media (prefers-reduced-motion: reduce)': {
       transitionProperty: 'none',
       '@media (hover: hover)': {
-        ':is(.group:hover &)': {
+        ':is(.group:hover) &': {
           transform: 'none',
         },
       },
     },
     '@media (hover: hover)': {
-      ':is(.group:hover &)': {
+      ':is(.group:hover) &': {
         transform: 'translateX(-0.125rem)',
       },
     },
@@ -188,7 +185,7 @@ export const styles = stylex.create({
   typePageTitle: {
     ...fontDisplay,
     fontSize: '1.5rem',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
     '@media (min-width: 640px)': {
       fontSize: '1.75rem',
     },
@@ -196,7 +193,7 @@ export const styles = stylex.create({
   typeSection: {
     ...fontDisplay,
     fontSize: '1.25rem',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
   },
   typeBody: {
     fontSize: '1rem',
@@ -219,7 +216,7 @@ export const styles = stylex.create({
 
   // ── Ink ────────────────────────────────────────────────────────────────
   mutedInk: {
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
   },
   wrapAnywhere: {
     overflowWrap: 'anywhere',
@@ -283,8 +280,8 @@ export const styles = stylex.create({
     zIndex: 30,
     borderBottomWidth: '1px',
     borderBottomStyle: 'solid',
-    borderBottomColor: trips.border,
-    backgroundColor: trips.canvas,
+    borderBottomColor: 'var(--trips-border)',
+    backgroundColor: 'var(--trips-canvas)',
   },
   document: {
     marginLeft: 'auto',
@@ -302,15 +299,10 @@ export const styles = stylex.create({
   propertyTable: {
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: trips.border,
+    borderTopColor: 'var(--trips-border)',
     borderBottomWidth: '1px',
     borderBottomStyle: 'solid',
-    borderBottomColor: trips.border,
-    ':not(#\\#) > * + *': {
-      borderTopWidth: '1px',
-      borderTopStyle: 'solid',
-      borderTopColor: trips.border,
-    },
+    borderBottomColor: 'var(--trips-border)',
   },
   propertyRow: {
     display: 'grid',
@@ -326,7 +318,7 @@ export const styles = stylex.create({
   propertyRowDivider: {
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: trips.border,
+    borderTopColor: 'var(--trips-border)',
   },
   dataTable: {
     width: '100%',
@@ -340,12 +332,12 @@ export const styles = stylex.create({
     paddingRight: '0.75rem',
     fontSize: '12px',
     fontWeight: 500,
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
   },
   dataTd: {
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: trips.border,
+    borderTopColor: 'var(--trips-border)',
     paddingTop: '0.75rem',
     paddingBottom: '0.75rem',
     paddingRight: '0.75rem',
@@ -357,30 +349,30 @@ export const styles = stylex.create({
     display: 'block',
     fontSize: '0.75rem',
     fontWeight: 500,
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
   },
   eyebrow: {
     fontSize: '0.8125rem',
     fontWeight: 500,
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
   },
   fieldLabel: {
     display: 'block',
     fontSize: '0.75rem',
     fontWeight: 500,
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
   },
   metaLabel: {
     fontSize: '0.8125rem',
     fontWeight: 500,
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
   },
   hint: {
     marginTop: '0.375rem',
     fontSize: '0.75rem',
     fontWeight: 500,
     lineHeight: 1.625,
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
   },
   timeCell: {
     fontFamily: '"Archivo Narrow", "Arial Narrow", sans-serif',
@@ -388,7 +380,7 @@ export const styles = stylex.create({
     fontSize: '0.75rem',
     fontWeight: 500,
     letterSpacing: '0.01em',
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
   },
 
   // ── Inputs ─────────────────────────────────────────────────────────────
@@ -401,17 +393,17 @@ export const styles = stylex.create({
     paddingTop: '0.625rem',
     paddingBottom: '0.625rem',
     fontSize: '0.9375rem',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
     textOverflow: 'ellipsis',
     transitionProperty: 'border-color, box-shadow',
     transitionDuration: '150ms',
     ':focus': {
-      borderColor: trips.accent,
+      borderColor: 'var(--trips-accent)',
       outline: 'none',
     },
     ...focusRing,
     '::placeholder': {
-      color: trips.inkTertiary,
+      color: 'var(--trips-ink-tertiary)',
     },
   },
   displayInput: {
@@ -419,9 +411,9 @@ export const styles = stylex.create({
     width: '100%',
     minHeight: '2.75rem',
     backgroundColor: 'transparent',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
     '::placeholder': {
-      color: trips.inkTertiary,
+      color: 'var(--trips-ink-tertiary)',
     },
     ':focus': {
       outline: 'none',
@@ -436,22 +428,22 @@ export const styles = stylex.create({
     paddingTop: '0.375rem',
     paddingBottom: '0.375rem',
     fontSize: '0.9375rem',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
     textOverflow: 'ellipsis',
     '@media (min-width: 640px)': {
       minHeight: '2.25rem',
     },
     ':focus': {
-      borderColor: trips.accent,
+      borderColor: 'var(--trips-accent)',
       outline: 'none',
     },
     ...focusRing,
     '::placeholder': {
-      color: trips.inkTertiary,
+      color: 'var(--trips-ink-tertiary)',
     },
   },
   subtleInput: {
-    borderRadius: trips.fieldRadius,
+    borderRadius: 'var(--trips-field-radius)',
     minHeight: '2.75rem',
     borderWidth: '1px',
     borderStyle: 'solid',
@@ -462,7 +454,7 @@ export const styles = stylex.create({
     paddingTop: '0.25rem',
     paddingBottom: '0.25rem',
     fontSize: '0.9375rem',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
     textOverflow: 'ellipsis',
     transitionProperty: 'border-color, background-color',
     transitionDuration: '150ms',
@@ -471,17 +463,17 @@ export const styles = stylex.create({
     },
     '@media (hover: hover)': {
       ':hover': {
-        borderColor: trips.border,
+        borderColor: 'var(--trips-border)',
       },
     },
     ':focus': {
-      borderColor: trips.accent,
-      backgroundColor: trips.rail,
+      borderColor: 'var(--trips-accent)',
+      backgroundColor: 'var(--trips-rail)',
       outline: 'none',
     },
     ...focusRing,
     '::placeholder': {
-      color: trips.inkTertiary,
+      color: 'var(--trips-ink-tertiary)',
     },
   },
   select: {
@@ -492,9 +484,9 @@ export const styles = stylex.create({
     paddingTop: '0.5rem',
     paddingBottom: '0.5rem',
     fontSize: '0.9375rem',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
     ':focus': {
-      borderColor: trips.accent,
+      borderColor: 'var(--trips-accent)',
       outline: 'none',
     },
     ...focusRing,
@@ -508,12 +500,12 @@ export const styles = stylex.create({
     paddingBottom: '0.25rem',
     fontSize: '0.75rem',
     lineHeight: '1rem',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
     '@media (min-width: 640px)': {
       minHeight: '2.25rem',
     },
     ':focus': {
-      borderColor: trips.accent,
+      borderColor: 'var(--trips-accent)',
       outline: 'none',
     },
     ...focusRing,
@@ -522,9 +514,9 @@ export const styles = stylex.create({
     height: '2.75rem',
     width: '2.75rem',
     flexShrink: 0,
-    borderRadius: trips.radius,
-    borderColor: trips.border,
-    accentColor: trips.accent,
+    borderRadius: 'var(--trips-radius)',
+    borderColor: 'var(--trips-border)',
+    accentColor: 'var(--trips-accent)',
     ...focusRing,
   },
   fieldShell: {
@@ -537,7 +529,7 @@ export const styles = stylex.create({
     transitionProperty: 'border-color, box-shadow',
     transitionDuration: '150ms',
     ':focus-within': {
-      borderColor: trips.accent,
+      borderColor: 'var(--trips-accent)',
       boxShadow: `0 0 0 2px ${tripsFocus}`,
     },
   },
@@ -546,15 +538,15 @@ export const styles = stylex.create({
     minHeight: '2.75rem',
     backgroundColor: 'transparent',
     fontSize: '0.9375rem',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
     textOverflow: 'ellipsis',
     outline: 'none',
     '::placeholder': {
-      color: trips.inkTertiary,
+      color: 'var(--trips-ink-tertiary)',
     },
   },
   accentIcon: {
-    color: trips.accent,
+    color: 'var(--trips-accent)',
   },
   staticValue: {
     minHeight: '2.25rem',
@@ -563,7 +555,7 @@ export const styles = stylex.create({
     paddingTop: '0.25rem',
     paddingBottom: '0.25rem',
     fontSize: '0.9375rem',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
   },
   staticField: {
     marginTop: '0.25rem',
@@ -571,32 +563,32 @@ export const styles = stylex.create({
     paddingLeft: '0.125rem',
     paddingRight: '0.125rem',
     fontSize: '0.9375rem',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
   },
 
   // ── Surfaces ───────────────────────────────────────────────────────────
   softPanel: {
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: trips.border,
-    backgroundColor: trips.surface,
+    borderColor: 'var(--trips-border)',
+    backgroundColor: 'var(--trips-surface)',
   },
   popover: {
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: trips.border,
-    backgroundColor: trips.surface,
+    borderColor: 'var(--trips-border)',
+    backgroundColor: 'var(--trips-surface)',
     boxShadow: '0 10px 28px color-mix(in oklch, var(--trips-ink) 16%, transparent)',
   },
   scrim: {
     position: 'fixed',
     inset: 0,
     zIndex: 65,
-    backgroundColor: trips.scrim,
+    backgroundColor: 'var(--trips-scrim)',
     backdropFilter: 'blur(8px)',
     '@media (prefers-reduced-motion: reduce)': {
       backdropFilter: 'none',
@@ -605,15 +597,15 @@ export const styles = stylex.create({
   overlayScrim: {
     position: 'fixed',
     inset: 0,
-    backgroundColor: trips.scrim,
+    backgroundColor: 'var(--trips-scrim)',
     backdropFilter: 'blur(8px)',
     '@media (prefers-reduced-motion: reduce)': {
       backdropFilter: 'none',
     },
   },
   skeleton: {
-    borderRadius: trips.radius,
-    backgroundColor: trips.rail,
+    borderRadius: 'var(--trips-radius)',
+    backgroundColor: 'var(--trips-rail)',
     animationName: stylex.keyframes({
       '0%, 100%': { opacity: 1 },
       '50%': { opacity: 0.5 },
@@ -626,33 +618,33 @@ export const styles = stylex.create({
     },
   },
   scheduleRow: {
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: trips.border,
-    backgroundColor: trips.surface,
+    borderColor: 'var(--trips-border)',
+    backgroundColor: 'var(--trips-surface)',
   },
   railBand: {
-    borderRadius: trips.radius,
-    backgroundColor: trips.rail,
+    borderRadius: 'var(--trips-radius)',
+    backgroundColor: 'var(--trips-rail)',
   },
   toast: {
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: trips.border,
-    backgroundColor: trips.surface,
+    borderColor: 'var(--trips-border)',
+    backgroundColor: 'var(--trips-surface)',
     fontSize: '0.8125rem',
     fontWeight: 500,
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
     boxShadow: '0 10px 28px color-mix(in oklch, var(--trips-ink) 16%, transparent)',
   },
   menuItemActive: {
-    backgroundColor: trips.rail,
-    color: trips.ink,
+    backgroundColor: 'var(--trips-rail)',
+    color: 'var(--trips-ink)',
   },
   alertError: {
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     borderWidth: '1px',
     borderStyle: 'solid',
     borderColor: '#fca5a5',
@@ -660,14 +652,14 @@ export const styles = stylex.create({
     padding: '1rem',
     fontSize: '0.9375rem',
     color: '#7f1d1d',
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       borderColor: 'rgba(127, 29, 29, 0.5)',
       backgroundColor: 'rgba(69, 10, 10, 0.4)',
       color: '#fee2e2',
     },
   },
   alertNotice: {
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     borderWidth: '1px',
     borderStyle: 'solid',
     borderColor: 'rgba(252, 211, 77, 0.8)',
@@ -675,7 +667,7 @@ export const styles = stylex.create({
     padding: '1rem',
     fontSize: '0.9375rem',
     color: '#451a03',
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       borderColor: 'rgba(120, 53, 15, 0.5)',
       backgroundColor: 'rgba(69, 26, 3, 0.4)',
       color: '#fef3c7',
@@ -684,11 +676,11 @@ export const styles = stylex.create({
   segmentTrack: {
     display: 'inline-flex',
     width: '100%',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: trips.border,
-    backgroundColor: trips.rail,
+    borderColor: 'var(--trips-border)',
+    backgroundColor: 'var(--trips-rail)',
     padding: '0.25rem',
     '@media (min-width: 640px)': {
       width: 'auto',
@@ -701,7 +693,7 @@ export const styles = stylex.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: '0.5rem',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     paddingLeft: '1rem',
     paddingRight: '1rem',
     paddingTop: '0.5rem',
@@ -718,23 +710,23 @@ export const styles = stylex.create({
     },
   },
   segmentOptionSelected: {
-    backgroundColor: trips.surface,
-    color: trips.ink,
+    backgroundColor: 'var(--trips-surface)',
+    color: 'var(--trips-ink)',
   },
   segmentOptionIdle: {
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
     '@media (hover: hover)': {
       ':hover': {
-        color: trips.ink,
+        color: 'var(--trips-ink)',
       },
     },
   },
   stampChip: {
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: trips.border,
-    backgroundColor: trips.rail,
+    borderColor: 'var(--trips-border)',
+    backgroundColor: 'var(--trips-rail)',
     paddingLeft: '0.5rem',
     paddingRight: '0.5rem',
     paddingTop: '0.125rem',
@@ -771,7 +763,7 @@ export const styles = stylex.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: '0.375rem',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     borderWidth: '1px',
     borderStyle: 'solid',
     borderColor: 'color-mix(in oklch, var(--trips-band-ink) 35%, transparent)',
@@ -798,7 +790,7 @@ export const styles = stylex.create({
   primaryBtn: {
     ...btnBase,
     minHeight: '2.75rem',
-    backgroundColor: trips.accent,
+    backgroundColor: 'var(--trips-accent)',
     paddingLeft: '1.25rem',
     paddingRight: '1.25rem',
     paddingTop: '0.625rem',
@@ -814,10 +806,10 @@ export const styles = stylex.create({
     ...focusRing,
     ':focus-visible': {
       outline: 'none',
-      boxShadow: `0 0 0 2px ${tripsFocus}, 0 0 0 4px ${trips.canvas}`,
+      boxShadow: `0 0 0 2px ${tripsFocus}, 0 0 0 4px ${'var(--trips-canvas)'}`,
     },
-    ':is(html.dark &)': {
-      color: trips.canvas,
+    ':is(.dark) &': {
+      color: 'var(--trips-canvas)',
     },
     ...disabledState,
   },
@@ -826,7 +818,7 @@ export const styles = stylex.create({
     minHeight: '2.75rem',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: trips.border,
+    borderColor: 'var(--trips-border)',
     backgroundColor: 'transparent',
     paddingLeft: '1rem',
     paddingRight: '1rem',
@@ -834,11 +826,11 @@ export const styles = stylex.create({
     paddingBottom: '0.625rem',
     fontSize: '0.9375rem',
     fontWeight: 500,
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
     '@media (hover: hover)': {
       ':hover': {
-        backgroundColor: trips.rail,
-        color: trips.ink,
+        backgroundColor: 'var(--trips-rail)',
+        color: 'var(--trips-ink)',
       },
     },
     ...focusRing,
@@ -853,11 +845,11 @@ export const styles = stylex.create({
     paddingBottom: '0.5rem',
     fontSize: '0.9375rem',
     fontWeight: 500,
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
     '@media (hover: hover)': {
       ':hover': {
-        backgroundColor: trips.rail,
-        color: trips.ink,
+        backgroundColor: 'var(--trips-rail)',
+        color: 'var(--trips-ink)',
       },
     },
     ...focusRing,
@@ -887,7 +879,7 @@ export const styles = stylex.create({
         color: '#0c0a09',
       },
     },
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       color: '#d6d3d1',
       '@media (hover: hover)': {
         ':hover': {
@@ -901,14 +893,14 @@ export const styles = stylex.create({
   inkBtn: {
     ...btnBase,
     minHeight: '2.75rem',
-    backgroundColor: trips.ink,
+    backgroundColor: 'var(--trips-ink)',
     paddingLeft: '1.25rem',
     paddingRight: '1.25rem',
     paddingTop: '0.625rem',
     paddingBottom: '0.625rem',
     fontSize: '0.9375rem',
     fontWeight: 600,
-    color: trips.canvas,
+    color: 'var(--trips-canvas)',
     '@media (hover: hover)': {
       ':hover': {
         opacity: 0.9,
@@ -941,7 +933,7 @@ export const styles = stylex.create({
         backgroundColor: '#d1fae5',
       },
     },
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       borderColor: 'rgba(16, 185, 129, 0.4)',
       backgroundColor: 'rgba(2, 44, 34, 0.4)',
       color: '#a7f3d0',
@@ -984,23 +976,23 @@ export const styles = stylex.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: '0.375rem',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: trips.border,
+    borderColor: 'var(--trips-border)',
     backgroundColor: 'transparent',
     paddingLeft: '0.75rem',
     paddingRight: '0.75rem',
     fontSize: '0.75rem',
     lineHeight: '1rem',
     fontWeight: 500,
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
     transitionProperty: 'color, background-color',
     transitionDuration: '150ms',
     '@media (hover: hover)': {
       ':hover': {
-        backgroundColor: trips.rail,
-        color: trips.ink,
+        backgroundColor: 'var(--trips-rail)',
+        color: 'var(--trips-ink)',
       },
     },
     ...focusRing,
@@ -1016,7 +1008,7 @@ export const styles = stylex.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: '0.375rem',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     borderWidth: '1px',
     borderStyle: 'solid',
     borderColor: taRing,
@@ -1044,19 +1036,19 @@ export const styles = stylex.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: '0.375rem',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     paddingLeft: '0.75rem',
     paddingRight: '0.75rem',
     fontSize: '0.75rem',
     lineHeight: '1rem',
     fontWeight: 500,
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
     transitionProperty: 'color, background-color',
     transitionDuration: '150ms',
     '@media (hover: hover)': {
       ':hover': {
-        backgroundColor: trips.rail,
-        color: trips.ink,
+        backgroundColor: 'var(--trips-rail)',
+        color: 'var(--trips-ink)',
       },
     },
     ...focusRing,
@@ -1069,7 +1061,7 @@ export const styles = stylex.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: '0.375rem',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     borderWidth: '1px',
     borderStyle: 'solid',
     borderColor: 'rgba(252, 165, 165, 0.8)',
@@ -1088,7 +1080,7 @@ export const styles = stylex.create({
         color: '#991b1b',
       },
     },
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       borderColor: 'rgba(127, 29, 29, 0.6)',
       color: '#fca5a5',
       '@media (hover: hover)': {
@@ -1109,7 +1101,7 @@ export const styles = stylex.create({
   },
   inlineLink: {
     display: 'inline-block',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     paddingTop: '0.375rem',
     paddingBottom: '0.375rem',
     marginTop: '-0.375rem',
@@ -1125,14 +1117,14 @@ export const styles = stylex.create({
     flexShrink: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: trips.radius,
-    color: trips.inkSecondary,
+    borderRadius: 'var(--trips-radius)',
+    color: 'var(--trips-ink-secondary)',
     transitionProperty: 'color, background-color',
     transitionDuration: '150ms',
     '@media (hover: hover)': {
       ':hover': {
-        backgroundColor: trips.rail,
-        color: trips.ink,
+        backgroundColor: 'var(--trips-rail)',
+        color: 'var(--trips-ink)',
       },
     },
     ...focusRing,
@@ -1148,17 +1140,17 @@ export const styles = stylex.create({
     flexShrink: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: trips.radius,
-    color: trips.inkSecondary,
+    borderRadius: 'var(--trips-radius)',
+    color: 'var(--trips-ink-secondary)',
     transitionProperty: 'color, background-color',
     transitionDuration: '150ms',
     '@media (hover: hover)': {
       ':hover': {
-        backgroundColor: trips.rail,
+        backgroundColor: 'var(--trips-rail)',
         color: '#b91c1c',
       },
     },
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       '@media (hover: hover)': {
         ':hover': {
           color: '#fca5a5',
@@ -1180,7 +1172,7 @@ export const styles = stylex.create({
   accentTextStrong: { color: taStrong },
   accentTextHover: {
     '@media (hover: hover)': {
-      ':is(.group:hover &)': {
+      ':is(.group:hover) &': {
         color: taStrong,
       },
     },
@@ -1202,7 +1194,7 @@ export const styles = stylex.create({
     flexShrink: 0,
     alignItems: 'center',
     gap: '0.375rem',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     borderWidth: '1px',
     borderStyle: 'solid',
     paddingLeft: '0.5rem',
@@ -1215,20 +1207,20 @@ export const styles = stylex.create({
     letterSpacing: '0.12em',
   },
   chipDraft: {
-    borderColor: trips.border,
-    backgroundColor: trips.rail,
-    color: trips.inkSecondary,
+    borderColor: 'var(--trips-border)',
+    backgroundColor: 'var(--trips-rail)',
+    color: 'var(--trips-ink-secondary)',
   },
   chipArchived: {
-    borderColor: trips.border,
-    backgroundColor: trips.rail,
-    color: trips.inkTertiary,
+    borderColor: 'var(--trips-border)',
+    backgroundColor: 'var(--trips-rail)',
+    color: 'var(--trips-ink-tertiary)',
   },
   chipActive: {
     borderColor: '#6ee7b7',
     backgroundColor: '#ecfdf5',
     color: '#064e3b',
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       borderColor: 'rgba(6, 78, 59, 0.6)',
       backgroundColor: 'rgba(2, 44, 34, 0.4)',
       color: '#d1fae5',
@@ -1238,7 +1230,7 @@ export const styles = stylex.create({
     borderColor: '#6ee7b7',
     backgroundColor: '#ecfdf5',
     color: '#064e3b',
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       borderColor: 'rgba(6, 78, 59, 0.6)',
       backgroundColor: 'rgba(2, 44, 34, 0.4)',
       color: '#d1fae5',
@@ -1248,7 +1240,7 @@ export const styles = stylex.create({
     borderColor: '#d6d3d1',
     backgroundColor: '#f5f5f4',
     color: '#44403c',
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       borderColor: '#44403c',
       backgroundColor: 'rgba(28, 25, 23, 0.6)',
       color: '#d6d3d1',
@@ -1258,7 +1250,7 @@ export const styles = stylex.create({
     borderColor: '#fcd34d',
     backgroundColor: '#fffbeb',
     color: '#451a03',
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       borderColor: 'rgba(120, 53, 15, 0.6)',
       backgroundColor: 'rgba(69, 26, 3, 0.4)',
       color: '#fef3c7',
@@ -1268,7 +1260,7 @@ export const styles = stylex.create({
     borderColor: '#d6d3d1',
     backgroundColor: '#f5f5f4',
     color: '#57534e',
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       borderColor: '#292524',
       backgroundColor: 'rgba(28, 25, 23, 0.6)',
       color: '#a8a29e',
@@ -1276,25 +1268,25 @@ export const styles = stylex.create({
   },
   statusDotBooked: {
     backgroundColor: '#059669',
-    ':is(html.dark &)': { backgroundColor: '#34d399' },
+    ':is(.dark) &': { backgroundColor: '#34d399' },
   },
   statusDotOptional: {
     backgroundColor: '#a8a29e',
-    ':is(html.dark &)': { backgroundColor: '#78716c' },
+    ':is(.dark) &': { backgroundColor: '#78716c' },
   },
   statusDotNeedsReview: {
     backgroundColor: '#d97706',
-    ':is(html.dark &)': { backgroundColor: '#fbbf24' },
+    ':is(.dark) &': { backgroundColor: '#fbbf24' },
   },
   statusDotCompleted: {
     backgroundColor: '#a8a29e',
-    ':is(html.dark &)': { backgroundColor: '#57534e' },
+    ':is(.dark) &': { backgroundColor: '#57534e' },
   },
   chipSuggestionAdd: {
     borderColor: '#6ee7b7',
     backgroundColor: '#ecfdf5',
     color: '#064e3b',
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       borderColor: 'rgba(6, 78, 59, 0.6)',
       backgroundColor: 'rgba(2, 44, 34, 0.4)',
       color: '#d1fae5',
@@ -1304,7 +1296,7 @@ export const styles = stylex.create({
     borderColor: '#fca5a5',
     backgroundColor: '#fef2f2',
     color: '#7f1d1d',
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       borderColor: 'rgba(127, 29, 29, 0.6)',
       backgroundColor: 'rgba(69, 10, 10, 0.4)',
       color: '#fee2e2',
@@ -1314,16 +1306,16 @@ export const styles = stylex.create({
     borderColor: '#d6d3d1',
     backgroundColor: '#f5f5f4',
     color: '#44403c',
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       borderColor: '#44403c',
       backgroundColor: 'rgba(28, 25, 23, 0.7)',
       color: '#d6d3d1',
     },
   },
   chipAi: {
-    borderColor: trips.border,
-    backgroundColor: trips.rail,
-    color: trips.inkSecondary,
+    borderColor: 'var(--trips-border)',
+    backgroundColor: 'var(--trips-rail)',
+    color: 'var(--trips-ink-secondary)',
   },
 
   // ── Status marks ───────────────────────────────────────────────────────
@@ -1386,7 +1378,7 @@ export const styles = stylex.create({
   calloutInfo: {
     borderColor: '#e7e5e4',
     backgroundColor: 'rgba(245, 245, 244, 0.8)',
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       borderColor: '#292524',
       backgroundColor: 'rgba(28, 25, 23, 0.4)',
     },
@@ -1394,7 +1386,7 @@ export const styles = stylex.create({
   calloutWarn: {
     borderColor: '#fde68a',
     backgroundColor: 'rgba(255, 251, 235, 0.8)',
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       borderColor: 'rgba(120, 53, 15, 0.5)',
       backgroundColor: 'rgba(69, 26, 3, 0.25)',
     },
@@ -1402,7 +1394,7 @@ export const styles = stylex.create({
   calloutSuccess: {
     borderColor: '#a7f3d0',
     backgroundColor: 'rgba(236, 253, 245, 0.8)',
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       borderColor: 'rgba(6, 78, 59, 0.5)',
       backgroundColor: 'rgba(2, 44, 34, 0.25)',
     },
@@ -1410,7 +1402,7 @@ export const styles = stylex.create({
   calloutAlert: {
     borderColor: '#fda4af',
     backgroundColor: 'rgba(255, 241, 242, 0.8)',
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       borderColor: 'rgba(136, 19, 55, 0.6)',
       backgroundColor: 'rgba(76, 5, 25, 0.4)',
     },
@@ -1419,7 +1411,7 @@ export const styles = stylex.create({
   // ── Layout shell (TripsLayout) ─────────────────────────────────────────
   tripsRoot: {
     minHeight: '100dvh',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
   },
   authLoading: {
     display: 'flex',
@@ -1430,7 +1422,7 @@ export const styles = stylex.create({
     paddingRight: '1.25rem',
     paddingTop: '4rem',
     paddingBottom: '4rem',
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
   },
   authSignInShell: {
     display: 'flex',
@@ -1453,7 +1445,7 @@ export const styles = stylex.create({
     marginTop: '0.75rem',
     fontSize: '0.9375rem',
     lineHeight: 1.625,
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
   },
   authSignInBtn: {
     marginTop: '2rem',
@@ -1465,7 +1457,7 @@ export const styles = stylex.create({
     padding: 0,
     margin: '-1px',
     overflow: 'hidden',
-    clip: 'rect(0, 0, 0, 0)',
+    clipPath: 'inset(50%)',
     whiteSpace: 'nowrap',
     borderWidth: 0,
     ':focus': {
@@ -1479,11 +1471,11 @@ export const styles = stylex.create({
       width: 'auto',
       height: 'auto',
       margin: 0,
-      clip: 'auto',
+      clipPath: 'none',
       overflow: 'visible',
       whiteSpace: 'normal',
-      borderRadius: trips.radius,
-      backgroundColor: trips.accent,
+      borderRadius: 'var(--trips-radius)',
+      backgroundColor: 'var(--trips-accent)',
       paddingLeft: '1rem',
       paddingRight: '1rem',
       fontSize: '0.875rem',
@@ -1491,8 +1483,8 @@ export const styles = stylex.create({
       fontWeight: 500,
       color: '#ffffff',
     },
-    ':is(html.dark &:focus)': {
-      color: trips.canvas,
+    ':is(.dark) &:focus': {
+      color: 'var(--trips-canvas)',
     },
   },
   chromeInner: {
@@ -1532,10 +1524,10 @@ export const styles = stylex.create({
     minWidth: 0,
     alignItems: 'center',
     gap: '0.5rem',
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
   },
   breadcrumbSep: {
-    color: trips.inkTertiary,
+    color: 'var(--trips-ink-tertiary)',
   },
   breadcrumbTitle: {
     overflow: 'hidden',
@@ -1552,18 +1544,18 @@ export const styles = stylex.create({
     display: 'inline-flex',
     minHeight: '2.75rem',
     alignItems: 'center',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     paddingLeft: '0.375rem',
     paddingRight: '0.375rem',
     ...fontDisplay,
     fontSize: '1.125rem',
     lineHeight: '1.75rem',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
     transitionProperty: 'color',
     transitionDuration: '150ms',
     '@media (hover: hover)': {
       ':hover': {
-        color: trips.accent,
+        color: 'var(--trips-accent)',
       },
     },
     ...focusRing,
@@ -1573,18 +1565,18 @@ export const styles = stylex.create({
     minHeight: '2.75rem',
     alignItems: 'center',
     gap: '0.375rem',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     paddingLeft: '0.5rem',
     paddingRight: '0.5rem',
     fontSize: '0.8125rem',
     fontWeight: 500,
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
     '@media (min-width: 640px)': {
       display: 'inline-flex',
     },
     '@media (hover: hover)': {
       ':hover': {
-        color: trips.ink,
+        color: 'var(--trips-ink)',
       },
     },
     ...focusRing,
@@ -1610,15 +1602,15 @@ export const styles = stylex.create({
     borderRadius: '9999px',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: trips.border,
-    backgroundColor: trips.surface,
-    color: trips.inkSecondary,
+    borderColor: 'var(--trips-border)',
+    backgroundColor: 'var(--trips-surface)',
+    color: 'var(--trips-ink-secondary)',
     transitionProperty: 'border-color, color',
     transitionDuration: '150ms',
     '@media (hover: hover)': {
       ':hover': {
-        borderColor: trips.accent,
-        color: trips.accent,
+        borderColor: 'var(--trips-accent)',
+        color: 'var(--trips-accent)',
       },
     },
     ':focus-visible': {
@@ -1636,7 +1628,7 @@ export const styles = stylex.create({
     ':focus-visible': {
       outlineWidth: '2px',
       outlineStyle: 'solid',
-      outlineColor: trips.accent,
+      outlineColor: 'var(--trips-accent)',
       outlineOffset: '2px',
     },
   },
@@ -1648,7 +1640,7 @@ export const styles = stylex.create({
     ':focus-visible': {
       outlineWidth: '2px',
       outlineStyle: 'solid',
-      outlineColor: trips.accent,
+      outlineColor: 'var(--trips-accent)',
       outlineOffset: '2px',
     },
   },
@@ -1671,10 +1663,10 @@ export const styles = stylex.create({
   hairlineList: {
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: trips.border,
+    borderTopColor: 'var(--trips-border)',
     borderBottomWidth: '1px',
     borderBottomStyle: 'solid',
-    borderBottomColor: trips.border,
+    borderBottomColor: 'var(--trips-border)',
   },
   skeletonBar: {
     borderRadius: '0.125rem',
@@ -1696,7 +1688,7 @@ export const styles = stylex.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: '0.75rem',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     backgroundColor: '#fef2f2',
     paddingLeft: '1rem',
     paddingRight: '1rem',
@@ -1705,7 +1697,7 @@ export const styles = stylex.create({
     '@media (min-width: 640px)': {
       flexWrap: 'nowrap',
     },
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       backgroundColor: 'rgba(69, 10, 10, 0.3)',
     },
   },
@@ -1716,7 +1708,7 @@ export const styles = stylex.create({
     color: '#7f1d1d',
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       color: '#fecaca',
     },
   },
@@ -1748,7 +1740,7 @@ export const styles = stylex.create({
     color: '#1c1917',
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       color: '#f5f5f4',
     },
   },
@@ -1756,26 +1748,26 @@ export const styles = stylex.create({
     marginTop: '0.25rem',
     fontSize: '0.875rem',
     lineHeight: '1.25rem',
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
   },
   timetableMark: {
     ...fontDisplay,
     fontSize: '1.125rem',
     lineHeight: 1.25,
     fontVariantNumeric: 'tabular-nums',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
   },
   timetableStats: {
     marginTop: '0.25rem',
     fontSize: '13px',
     fontVariantNumeric: 'tabular-nums',
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
   },
   dangerIconHidden: {
     position: 'relative',
     zIndex: 10,
     '@media (hover: hover)': {
-      ':is(.group:hover &)': {
+      ':is(.group:hover) &': {
         opacity: 1,
       },
     },
@@ -1800,16 +1792,16 @@ export const styles = stylex.create({
     width: '100%',
     flexDirection: 'column',
     overflow: 'hidden',
-    borderTopLeftRadius: trips.radius,
-    borderTopRightRadius: trips.radius,
+    borderTopLeftRadius: 'var(--trips-radius)',
+    borderTopRightRadius: 'var(--trips-radius)',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: trips.border,
-    backgroundColor: trips.surface,
+    borderColor: 'var(--trips-border)',
+    backgroundColor: 'var(--trips-surface)',
     '@media (min-width: 768px)': {
       left: 'auto',
       right: '1.5rem',
-      borderRadius: trips.radius,
+      borderRadius: 'var(--trips-radius)',
     },
   },
   chatPanelCompact: {
@@ -1826,14 +1818,14 @@ export const styles = stylex.create({
     width: '2.75rem',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: trips.radius,
-    color: trips.inkSecondary,
+    borderRadius: 'var(--trips-radius)',
+    color: 'var(--trips-ink-secondary)',
     transitionProperty: 'color, background-color',
     transitionDuration: '150ms',
     '@media (hover: hover)': {
       ':hover': {
-        backgroundColor: trips.rail,
-        color: trips.ink,
+        backgroundColor: 'var(--trips-rail)',
+        color: 'var(--trips-ink)',
       },
     },
     ...focusRing,
@@ -1850,14 +1842,14 @@ export const styles = stylex.create({
     paddingBottom: '0.125rem',
     fontSize: '16px',
     lineHeight: '1.5rem',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
     outline: 'none',
     maxHeight: '12rem',
     '@media (min-width: 640px)': {
       fontSize: '15px',
     },
     '::placeholder': {
-      color: trips.inkTertiary,
+      color: 'var(--trips-ink-tertiary)',
     },
   },
   chatComposerCompact: {
@@ -1869,14 +1861,14 @@ export const styles = stylex.create({
     paddingBottom: '0.125rem',
     fontSize: '16px',
     lineHeight: '1.5rem',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
     outline: 'none',
     maxHeight: '7rem',
     '@media (min-width: 640px)': {
       fontSize: '15px',
     },
     '::placeholder': {
-      color: trips.inkTertiary,
+      color: 'var(--trips-ink-tertiary)',
     },
   },
   chatSendBtn: {
@@ -1889,7 +1881,7 @@ export const styles = stylex.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: '9999px',
-    backgroundColor: trips.accent,
+    backgroundColor: 'var(--trips-accent)',
     color: '#ffffff',
     transitionProperty: 'background-color, opacity',
     transitionDuration: '150ms',
@@ -1902,7 +1894,7 @@ export const styles = stylex.create({
       cursor: 'not-allowed',
       opacity: 0.4,
     },
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       color: '#0c0a09',
     },
     '@media (hover: hover)': {
@@ -1922,7 +1914,7 @@ export const styles = stylex.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: '9999px',
-    backgroundColor: trips.accent,
+    backgroundColor: 'var(--trips-accent)',
     color: '#ffffff',
     boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)',
     outline: 'none',
@@ -1931,7 +1923,7 @@ export const styles = stylex.create({
         backgroundColor: tripsAccentHover,
       },
     },
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       color: '#0c0a09',
     },
     ...focusRing,
@@ -1954,7 +1946,7 @@ export const styles = stylex.create({
     gap: '0.75rem',
     borderBottomWidth: '1px',
     borderBottomStyle: 'solid',
-    borderBottomColor: trips.border,
+    borderBottomColor: 'var(--trips-border)',
     paddingLeft: '1rem',
     paddingRight: '1rem',
     paddingTop: '0.75rem',
@@ -1966,7 +1958,7 @@ export const styles = stylex.create({
     width: '2.25rem',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     backgroundColor: taSoft,
     color: ta,
   },
@@ -1985,7 +1977,7 @@ export const styles = stylex.create({
     whiteSpace: 'nowrap',
     fontSize: '0.8125rem',
     fontWeight: 500,
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
   },
   chatHeaderActions: {
     display: 'flex',
@@ -2020,7 +2012,7 @@ export const styles = stylex.create({
     width: '3rem',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     backgroundColor: taSoft,
     color: ta,
   },
@@ -2028,7 +2020,7 @@ export const styles = stylex.create({
     maxWidth: '18rem',
     fontSize: '0.875rem',
     lineHeight: '1.25rem',
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
   },
   chatUserRow: {
     display: 'flex',
@@ -2036,8 +2028,8 @@ export const styles = stylex.create({
   },
   chatUserBubble: {
     maxWidth: '85%',
-    borderRadius: trips.radius,
-    backgroundColor: trips.accent,
+    borderRadius: 'var(--trips-radius)',
+    backgroundColor: 'var(--trips-accent)',
     paddingLeft: '0.875rem',
     paddingRight: '0.875rem',
     paddingTop: '0.5rem',
@@ -2045,8 +2037,8 @@ export const styles = stylex.create({
     fontSize: '15px',
     lineHeight: 1.625,
     color: '#ffffff',
-    ':is(html.dark &)': {
-      color: trips.canvas,
+    ':is(.dark) &': {
+      color: 'var(--trips-canvas)',
     },
   },
   chatSpacer: {
@@ -2066,11 +2058,11 @@ export const styles = stylex.create({
   },
   chatSuggestionBtn: {
     minHeight: '2.75rem',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: trips.border,
-    backgroundColor: trips.rail,
+    borderColor: 'var(--trips-border)',
+    backgroundColor: 'var(--trips-rail)',
     paddingLeft: '0.75rem',
     paddingRight: '0.75rem',
     paddingTop: '0.375rem',
@@ -2079,7 +2071,7 @@ export const styles = stylex.create({
     fontSize: '0.75rem',
     lineHeight: '1rem',
     fontWeight: 500,
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
     transitionProperty: 'border-color, background-color, color',
     transitionDuration: '150ms',
     '@media (hover: hover)': {
@@ -2094,7 +2086,7 @@ export const styles = stylex.create({
   chatForm: {
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: trips.border,
+    borderTopColor: 'var(--trips-border)',
     paddingLeft: '0.75rem',
     paddingRight: '0.75rem',
     paddingTop: '0.75rem',
@@ -2103,18 +2095,18 @@ export const styles = stylex.create({
     display: 'flex',
     alignItems: 'flex-end',
     gap: '0.5rem',
-    borderRadius: trips.fieldRadius,
+    borderRadius: 'var(--trips-field-radius)',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: trips.border,
-    backgroundColor: trips.rail,
+    borderColor: 'var(--trips-border)',
+    backgroundColor: 'var(--trips-rail)',
     paddingLeft: '0.75rem',
     paddingRight: '0.75rem',
     paddingTop: '0.5rem',
     paddingBottom: '0.5rem',
     boxShadow: 'inset 0 1px 2px color-mix(in oklch, var(--trips-ink) 12%, transparent)',
     ':focus-within': {
-      borderColor: trips.accent,
+      borderColor: 'var(--trips-accent)',
       boxShadow: `0 0 0 2px ${tripsFocus}`,
     },
   },
@@ -2124,13 +2116,13 @@ export const styles = stylex.create({
   },
   chatAssistantBubble: {
     maxWidth: '88%',
-    borderRadius: trips.radius,
-    backgroundColor: trips.rail,
+    borderRadius: 'var(--trips-radius)',
+    backgroundColor: 'var(--trips-rail)',
     paddingLeft: '0.875rem',
     paddingRight: '0.875rem',
     paddingTop: '0.625rem',
     paddingBottom: '0.625rem',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
   },
   chatTypingRow: {
     display: 'flex',
@@ -2143,14 +2135,14 @@ export const styles = stylex.create({
     height: '0.375rem',
     width: '0.375rem',
     borderRadius: '9999px',
-    backgroundColor: trips.inkTertiary,
+    backgroundColor: 'var(--trips-ink-tertiary)',
     opacity: 0.7,
   },
   chatTypingDotMotion: {
     height: '0.375rem',
     width: '0.375rem',
     borderRadius: '9999px',
-    backgroundColor: trips.inkTertiary,
+    backgroundColor: 'var(--trips-ink-tertiary)',
   },
   iconLg: {
     height: '1.5rem',
@@ -2182,23 +2174,23 @@ export const styles = stylex.create({
   },
 
   // ── Layout primitives (common.stylex re-exports) ───────────────────────
-  srOnly: layout.srOnly,
-  relative: layout.relative,
-  absolute: layout.absolute,
-  fixed: layout.fixed,
-  inset0: layout.inset0,
-  flex: layout.flex,
-  flexCol: layout.flexCol,
-  flexRow: layout.flexRow,
+  srOnly: { position: 'absolute', width: '1px', height: '1px', padding: 0, margin: '-1px', overflow: 'hidden', clipPath: 'inset(50%)', whiteSpace: 'nowrap', borderWidth: 0 },
+  relative: { position: 'relative' },
+  absolute: { position: 'absolute' },
+  fixed: { position: 'fixed' },
+  inset0: { inset: 0 },
+  flex: { display: 'flex' },
+  flexCol: { display: 'flex', flexDirection: 'column' },
+  flexRow: { display: 'flex', flexDirection: 'row' },
   flexWrap: { display: 'flex', flexWrap: 'wrap' },
-  itemsCenter: layout.itemsCenter,
-  itemsStart: layout.itemsStart,
+  itemsCenter: { alignItems: 'center' },
+  itemsStart: { alignItems: 'flex-start' },
   itemsBaseline: { alignItems: 'baseline' },
   itemsEnd: { alignItems: 'flex-end' },
-  justifyBetween: layout.justifyBetween,
-  justifyEnd: layout.justifyEnd,
-  mxAuto: layout.mxAuto,
-  wFull: layout.wFull,
+  justifyBetween: { justifyContent: 'space-between' },
+  justifyEnd: { justifyContent: 'flex-end' },
+  mxAuto: { marginLeft: 'auto', marginRight: 'auto' },
+  wFull: { width: '100%' },
   block: { display: 'block' },
   inlineFlex: { display: 'inline-flex' },
   inlineBlock: { display: 'inline-block' },
@@ -2210,18 +2202,18 @@ export const styles = stylex.create({
   capitalize: { textTransform: 'capitalize' },
   whitespacePreLine: { whiteSpace: 'pre-line' },
   whitespaceNowrap: { whiteSpace: 'nowrap' },
-  tabularNums: layout.tabularNums,
-  fontMedium: layout.fontMedium,
-  fontSemibold: layout.fontSemibold,
-  fontNormal: layout.fontNormal,
+  tabularNums: { fontVariantNumeric: 'tabular-nums', fontFeatureSettings: '"tnum"' },
+  fontMedium: { fontWeight: 500 },
+  fontSemibold: { fontWeight: 600 },
+  fontNormal: { fontWeight: 400 },
   fontMonoTrips: {
     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
   },
-  textXs: layout.textXs,
-  textSm: layout.textSm,
-  textLg: layout.textLg,
+  textXs: { fontSize: '0.75rem', lineHeight: '1rem' },
+  textSm: { fontSize: '0.875rem', lineHeight: '1.25rem' },
+  textLg: { fontSize: '1.125rem', lineHeight: '1.75rem' },
   text2xl: { fontSize: '1.5rem', lineHeight: '2rem' },
-  trackingTight: layout.trackingTight,
+  trackingTight: { letterSpacing: '-0.025em' },
   uppercaseTrackingWide: {
     textTransform: 'uppercase',
     letterSpacing: '0.14em',
@@ -2247,15 +2239,15 @@ export const styles = stylex.create({
   },
   inkPrimary: {
     color: '#1c1917',
-    ':is(html.dark &)': { color: '#f5f5f4' },
+    ':is(.dark) &': { color: '#f5f5f4' },
   },
   inkSecondaryStone: {
     color: '#44403c',
-    ':is(html.dark &)': { color: '#d6d3d1' },
+    ':is(.dark) &': { color: '#d6d3d1' },
   },
   inkMutedStone: {
     color: '#78716c',
-    ':is(html.dark &)': { color: '#a8a29e' },
+    ':is(.dark) &': { color: '#a8a29e' },
   },
   inkBand75: {
     color: 'color-mix(in oklch, var(--trips-band-ink) 75%, transparent)',
@@ -2264,52 +2256,32 @@ export const styles = stylex.create({
     color: 'color-mix(in oklch, var(--trips-band-ink) 80%, transparent)',
   },
   inkBandInk: { color: tripsBandInk },
-  bgCanvas: { backgroundColor: trips.canvas },
-  bgSurface: { backgroundColor: trips.surface },
-  bgRail: { backgroundColor: trips.rail },
-  bgScrim: { backgroundColor: trips.scrim },
-  borderTrips: { borderColor: trips.border },
+  bgCanvas: { backgroundColor: 'var(--trips-canvas)' },
+  bgSurface: { backgroundColor: 'var(--trips-surface)' },
+  bgRail: { backgroundColor: 'var(--trips-rail)' },
+  bgScrim: { backgroundColor: 'var(--trips-scrim)' },
+  borderTrips: { borderColor: 'var(--trips-border)' },
   borderDashedTrips: {
     borderWidth: '1px',
     borderStyle: 'dashed',
-    borderColor: trips.border,
+    borderColor: 'var(--trips-border)',
   },
-  roundedTrips: { borderRadius: trips.radius },
-  roundedField: { borderRadius: trips.fieldRadius },
-  divideHairline: {
-    '> * + *': {
-      borderTopWidth: '1px',
-      borderTopStyle: 'solid',
-      borderTopColor: trips.border,
-    },
-  },
-  divideStone: {
-    '> * + *': {
-      borderTopWidth: '1px',
-      borderTopStyle: 'solid',
-      borderTopColor: 'rgba(28, 25, 23, 0.12)',
-      ':is(html.dark &)': {
-        borderTopColor: 'rgba(41, 37, 36, 0.8)',
-      },
-    },
-  },
+  roundedTrips: { borderRadius: 'var(--trips-radius)' },
+  roundedField: { borderRadius: 'var(--trips-field-radius)' },
+  divideHairline: {},
+  divideStone: {},
   hairlineListDivided: {
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: trips.border,
+    borderTopColor: 'var(--trips-border)',
     borderBottomWidth: '1px',
     borderBottomStyle: 'solid',
-    borderBottomColor: trips.border,
-    '> * + *': {
-      borderTopWidth: '1px',
-      borderTopStyle: 'solid',
-      borderTopColor: trips.border,
-    },
+    borderBottomColor: 'var(--trips-border)',
   },
   sheetRule: {
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: trips.border,
+    borderTopColor: 'var(--trips-border)',
     paddingTop: '1.25rem',
   },
   mt1: { marginTop: '0.25rem' },
@@ -2397,7 +2369,7 @@ export const styles = stylex.create({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: trips.scrim,
+    backgroundColor: 'var(--trips-scrim)',
     fontSize: '0.875rem',
     lineHeight: '1.25rem',
     color: tripsBandInk,
@@ -2431,7 +2403,7 @@ export const styles = stylex.create({
     display: 'grid',
     gridTemplateColumns: '3.25rem minmax(0, 1fr)',
     gap: '0.75rem',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     '@media (min-width: 640px)': {
       gridTemplateColumns: '4rem minmax(0, 1fr)',
     },
@@ -2528,8 +2500,8 @@ export const styles = stylex.create({
     marginTop: '2rem',
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: trips.border,
-    backgroundColor: trips.canvas,
+    borderTopColor: 'var(--trips-border)',
+    backgroundColor: 'var(--trips-canvas)',
     paddingLeft: '1rem',
     paddingRight: '1rem',
     paddingTop: '1rem',
@@ -2561,7 +2533,7 @@ export const styles = stylex.create({
     gap: '0.25rem',
     marginTop: '-0.75rem',
     marginBottom: '-0.75rem',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     paddingTop: '0.75rem',
     paddingBottom: '0.75rem',
     paddingRight: '0.25rem',
@@ -2586,7 +2558,7 @@ export const styles = stylex.create({
     width: '0.75rem',
     flexShrink: 0,
     color: '#78716c',
-    ':is(html.dark &)': { color: '#a8a29e' },
+    ':is(.dark) &': { color: '#a8a29e' },
   },
   iconPin: {
     marginTop: '0.125rem',
@@ -2597,11 +2569,11 @@ export const styles = stylex.create({
   },
   placeCard: {
     overflow: 'hidden',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: trips.border,
-    backgroundColor: trips.surface,
+    borderColor: 'var(--trips-border)',
+    backgroundColor: 'var(--trips-surface)',
   },
   placeCardBody: {
     paddingLeft: '0.75rem',
@@ -2629,7 +2601,7 @@ export const styles = stylex.create({
     textUnderlineOffset: '2px',
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
-    ':is(html.dark &)': { color: '#f5f5f4' },
+    ':is(.dark) &': { color: '#f5f5f4' },
     '@media (hover: hover)': {
       ':hover': { textDecorationColor: 'currentColor' },
     },
@@ -2673,7 +2645,7 @@ export const styles = stylex.create({
   },
   todayAside: {
     marginTop: '1.5rem',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
   },
   todayAsideLink: {
     display: 'flex',
@@ -2699,15 +2671,15 @@ export const styles = stylex.create({
     color: '#1c1917',
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
-    ':is(html.dark &)': { color: '#f5f5f4' },
+    ':is(.dark) &': { color: '#f5f5f4' },
   },
   emptyItinerary: {
     marginTop: '1rem',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     borderWidth: '1px',
     borderStyle: 'dashed',
-    borderColor: trips.border,
-    backgroundColor: trips.rail,
+    borderColor: 'var(--trips-border)',
+    backgroundColor: 'var(--trips-rail)',
     paddingLeft: '1.25rem',
     paddingRight: '1.25rem',
     paddingTop: '2rem',
@@ -2723,7 +2695,7 @@ export const styles = stylex.create({
     color: '#292524',
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
-    ':is(html.dark &)': { color: '#e7e5e4' },
+    ':is(.dark) &': { color: '#e7e5e4' },
   },
   settingsSection: {
     marginTop: '3rem',
@@ -2741,7 +2713,7 @@ export const styles = stylex.create({
     fontWeight: 600,
     letterSpacing: '-0.025em',
     color: '#1c1917',
-    ':is(html.dark &)': { color: '#f5f5f4' },
+    ':is(.dark) &': { color: '#f5f5f4' },
   },
   dayNavLink: {
     display: 'inline-block',
@@ -2754,7 +2726,7 @@ export const styles = stylex.create({
     transitionDuration: '150ms',
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
-    ':is(html.dark &)': { color: '#d6d3d1' },
+    ':is(.dark) &': { color: '#d6d3d1' },
     '@media (hover: hover)': {
       ':hover': { textDecorationLine: 'underline' },
     },
@@ -2762,7 +2734,7 @@ export const styles = stylex.create({
   },
   dayNavSep: {
     color: '#d6d3d1',
-    ':is(html.dark &)': { color: '#57534e' },
+    ':is(.dark) &': { color: '#57534e' },
   },
   dayHeroTime: {
     ...fontDisplay,
@@ -2787,19 +2759,19 @@ export const styles = stylex.create({
     color: '#44403c',
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
-    ':is(html.dark &)': { color: '#d6d3d1' },
+    ':is(.dark) &': { color: '#d6d3d1' },
   },
   calloutRow: {
     display: 'flex',
     alignItems: 'flex-start',
     gap: '0.75rem',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     borderWidth: '1px',
     borderStyle: 'solid',
     padding: '1rem',
     fontSize: '1rem',
     lineHeight: '1.5rem',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
   },
   dayItemHeroTitle: {
     marginTop: '0.75rem',
@@ -2808,7 +2780,7 @@ export const styles = stylex.create({
     lineHeight: 1.25,
     fontWeight: 600,
     letterSpacing: '-0.025em',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
     '@media (min-width: 640px)': {
@@ -2831,7 +2803,7 @@ export const styles = stylex.create({
     minHeight: '3.5rem',
     alignItems: 'center',
     gap: '1rem',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     paddingLeft: '0.5rem',
     paddingRight: '0.5rem',
     paddingTop: '0.75rem',
@@ -2862,7 +2834,7 @@ export const styles = stylex.create({
     fontSize: '1rem',
     lineHeight: '1.5rem',
     fontWeight: 600,
-    color: trips.ink,
+    color: 'var(--trips-ink)',
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
   },
@@ -2870,7 +2842,7 @@ export const styles = stylex.create({
     height: '1rem',
     width: '1rem',
     flexShrink: 0,
-    color: trips.inkTertiary,
+    color: 'var(--trips-ink-tertiary)',
   },
   itemTimeCol: {
     paddingTop: '0.125rem',
@@ -2881,7 +2853,7 @@ export const styles = stylex.create({
     color: '#1c1917',
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
-    ':is(html.dark &)': { color: '#f5f5f4' },
+    ':is(.dark) &': { color: '#f5f5f4' },
   },
   itemNotesSm: {
     marginTop: '0.25rem',
@@ -2890,12 +2862,12 @@ export const styles = stylex.create({
     color: '#44403c',
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
-    ':is(html.dark &)': { color: '#d6d3d1' },
+    ':is(.dark) &': { color: '#d6d3d1' },
   },
   itemMapLink: {
     marginTop: '0.25rem',
     display: 'block',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     paddingTop: '0.375rem',
     paddingBottom: '0.375rem',
     marginBottom: '-0.375rem',
@@ -2906,7 +2878,7 @@ export const styles = stylex.create({
     textUnderlineOffset: '2px',
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       textDecorationColor: '#57534e',
     },
     '@media (hover: hover)': {
@@ -2930,7 +2902,7 @@ export const styles = stylex.create({
     gap: '0.5rem',
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: trips.border,
+    borderTopColor: 'var(--trips-border)',
     paddingLeft: '1.25rem',
     paddingRight: '1.25rem',
     paddingTop: '0.75rem',
@@ -2964,7 +2936,7 @@ export const styles = stylex.create({
     fontSize: '0.75rem',
     lineHeight: '1rem',
     color: '#57534e',
-    ':is(html.dark &)': { color: '#a8a29e' },
+    ':is(.dark) &': { color: '#a8a29e' },
   },
   compactInputMobile: {
     minWidth: 0,
@@ -3019,7 +2991,7 @@ export const styles = stylex.create({
     flex: '1 1 0%',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
-    borderRadius: trips.fieldRadius,
+    borderRadius: 'var(--trips-field-radius)',
     borderWidth: '1px',
     borderStyle: 'solid',
     borderColor: 'transparent',
@@ -3032,15 +3004,15 @@ export const styles = stylex.create({
     fontSize: '11px',
     textTransform: 'uppercase',
     letterSpacing: '0.06em',
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
     transitionProperty: 'border-color',
     transitionDuration: '150ms',
-    '::placeholder': { color: trips.inkTertiary },
+    '::placeholder': { color: 'var(--trips-ink-tertiary)' },
     '@media (hover: hover)': {
-      ':hover': { borderColor: trips.border },
+      ':hover': { borderColor: 'var(--trips-border)' },
     },
     ':focus': {
-      borderColor: trips.accent,
+      borderColor: 'var(--trips-accent)',
       outline: 'none',
     },
     '@media (min-width: 640px)': {
@@ -3053,7 +3025,7 @@ export const styles = stylex.create({
     fontSize: '0.875rem',
     lineHeight: '1.25rem',
     color: '#78350f',
-    ':is(html.dark &)': { color: '#fde68a' },
+    ':is(.dark) &': { color: '#fde68a' },
   },
   createNameInput: {
     color: tripsBandInk,
@@ -3064,7 +3036,7 @@ export const styles = stylex.create({
     wordBreak: 'break-word',
   },
   createTagChip: {
-    color: trips.ink,
+    color: 'var(--trips-ink)',
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
   },
@@ -3083,7 +3055,7 @@ export const styles = stylex.create({
     '@media (min-width: 640px)': {
       width: 'auto',
     },
-    ':is(html.dark &)': { color: '#a8a29e' },
+    ':is(.dark) &': { color: '#a8a29e' },
   },
   textRightSm: {
     '@media (min-width: 640px)': {
@@ -3108,7 +3080,7 @@ export const styles = stylex.create({
   dayCardBorder: {
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: trips.border,
+    borderTopColor: 'var(--trips-border)',
     paddingLeft: 0,
     paddingRight: 0,
     paddingTop: '1.5rem',
@@ -3138,7 +3110,7 @@ export const styles = stylex.create({
     lineHeight: '1.5rem',
     fontWeight: 600,
     color: '#1c1917',
-    ':is(html.dark &)': { color: '#f5f5f4' },
+    ':is(.dark) &': { color: '#f5f5f4' },
   },
   panelActionsRow: {
     marginTop: '0.75rem',
@@ -3167,8 +3139,8 @@ export const styles = stylex.create({
     borderRadius: '9999px',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: trips.border,
-    backgroundColor: trips.surface,
+    borderColor: 'var(--trips-border)',
+    backgroundColor: 'var(--trips-surface)',
     paddingLeft: '1rem',
     paddingRight: '1rem',
     paddingTop: '0.5rem',
@@ -3176,7 +3148,7 @@ export const styles = stylex.create({
     fontSize: '0.875rem',
     lineHeight: '1.25rem',
     fontWeight: 500,
-    color: trips.ink,
+    color: 'var(--trips-ink)',
     boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)',
   },
   timezoneRoot: { position: 'relative' },
@@ -3190,7 +3162,7 @@ export const styles = stylex.create({
     justifyContent: 'center',
     minWidth: '2.75rem',
     minHeight: '2.75rem',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     paddingLeft: '0.5rem',
     paddingRight: '0.5rem',
     paddingTop: '0.375rem',
@@ -3234,7 +3206,7 @@ export const styles = stylex.create({
     color: '#57534e',
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
-    ':is(html.dark &)': { color: '#a8a29e' },
+    ':is(.dark) &': { color: '#a8a29e' },
   },
   extractedPager: {
     marginTop: '0.75rem',
@@ -3262,7 +3234,7 @@ export const styles = stylex.create({
     color: '#1c1917',
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
-    ':is(html.dark &)': { color: '#f5f5f4' },
+    ':is(.dark) &': { color: '#f5f5f4' },
     '@media (hover: hover)': {
       ':hover': { textDecorationLine: 'underline' },
     },
@@ -3289,7 +3261,7 @@ export const styles = stylex.create({
     color: '#1c1917',
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
-    ':is(html.dark &)': { color: '#f5f5f4' },
+    ':is(.dark) &': { color: '#f5f5f4' },
     ...focusRing,
   },
   coverBandInner: {
@@ -3341,8 +3313,8 @@ export const styles = stylex.create({
   emojiGap: { marginRight: '0.375rem' },
 
   // ── Misc layout primitives ─────────────────────────────────────────────
-  flex1: layout.flex1,
-  minW0: layout.minW0,
+  flex1: { flex: '1 1 0%' },
+  minW0: { minWidth: 0 },
   itineraryStack: {
     display: 'flex',
     flexDirection: 'column',
@@ -3376,7 +3348,7 @@ export const styles = stylex.create({
   notFoundCode: {
     fontSize: '13px',
     fontWeight: 500,
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
   },
   notFoundTitle: {
     marginTop: '0.75rem',
@@ -3385,7 +3357,7 @@ export const styles = stylex.create({
     fontWeight: 600,
     letterSpacing: '-0.025em',
     color: '#1c1917',
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       color: '#f5f5f4',
     },
   },
@@ -3394,7 +3366,7 @@ export const styles = stylex.create({
     maxWidth: '65ch',
     fontSize: '0.875rem',
     lineHeight: '1.625',
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
   },
   notFoundLink: {
     marginTop: '1.5rem',
@@ -3408,14 +3380,14 @@ export const styles = stylex.create({
     maxWidth: '56ch',
     fontSize: '0.9375rem',
     lineHeight: 1.625,
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
   },
   propertyLabel: {
     fontSize: '13px',
     fontWeight: 500,
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
   },
   propertyValue: {
     fontSize: '0.875rem',
@@ -3423,7 +3395,7 @@ export const styles = stylex.create({
     color: '#292524',
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       color: '#e7e5e4',
     },
   },
@@ -3455,7 +3427,7 @@ export const styles = stylex.create({
     gap: '0.375rem',
     fontSize: '11px',
     fontWeight: 500,
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
   },
   tripClockBand: {
     color: 'color-mix(in oklch, var(--trips-band-ink) 75%, transparent)',
@@ -3468,7 +3440,7 @@ export const styles = stylex.create({
   tripClockFlipSheet: {
     ...fontDisplay,
     fontVariantNumeric: 'tabular-nums',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
   },
   tripClockZone: {
     ...fontDisplay,
@@ -3513,7 +3485,7 @@ export const styles = stylex.create({
   nextDepartureMeta: {
     marginTop: '0.5rem',
     fontSize: '0.8125rem',
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
   },
   nextDepartureMetaBand: {
     marginTop: '0.5rem',
@@ -3546,7 +3518,7 @@ export const styles = stylex.create({
     borderColor: '#fca5a5',
     backgroundColor: '#fef2f2',
     color: '#991b1b',
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       borderColor: 'rgba(127, 29, 29, 0.6)',
       backgroundColor: 'rgba(69, 10, 10, 0.4)',
       color: '#fecaca',
@@ -3555,7 +3527,7 @@ export const styles = stylex.create({
   iconRed: { color: '#dc2626' },
   iconEmerald: {
     color: '#059669',
-    ':is(html.dark &)': { color: '#34d399' },
+    ':is(.dark) &': { color: '#34d399' },
   },
   undoTextTruncate: {
     maxWidth: '14rem',
@@ -3570,7 +3542,7 @@ export const styles = stylex.create({
     minHeight: '2.75rem',
     alignItems: 'center',
     gap: '0.375rem',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     paddingLeft: '0.5rem',
     paddingRight: '0.5rem',
     fontWeight: 600,
@@ -3590,7 +3562,7 @@ export const styles = stylex.create({
     gap: '0.625rem',
     fontSize: '0.9375rem',
     fontWeight: 600,
-    color: trips.ink,
+    color: 'var(--trips-ink)',
   },
   appearanceToggle: {
     display: 'flex',
@@ -3599,7 +3571,7 @@ export const styles = stylex.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: '0.75rem',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     paddingLeft: '1.25rem',
     paddingRight: '1.25rem',
     paddingTop: '0.875rem',
@@ -3612,7 +3584,7 @@ export const styles = stylex.create({
     gap: '1rem',
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: trips.border,
+    borderTopColor: 'var(--trips-border)',
     paddingLeft: '1.25rem',
     paddingRight: '1.25rem',
     paddingTop: '1rem',
@@ -3640,7 +3612,7 @@ export const styles = stylex.create({
     flexDirection: 'column',
     alignItems: 'center',
     gap: '0.375rem',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     paddingLeft: '0.5rem',
     paddingRight: '0.5rem',
     paddingTop: '0.375rem',
@@ -3648,18 +3620,18 @@ export const styles = stylex.create({
     transitionProperty: 'background-color',
     transitionDuration: '150ms',
   },
-  accentSwatchBtnSelected: { backgroundColor: trips.rail },
+  accentSwatchBtnSelected: { backgroundColor: 'var(--trips-rail)' },
   accentSwatchCircle: {
     height: '2rem',
     width: '2rem',
     borderRadius: '9999px',
   },
   accentSwatchCircleSelected: {
-    boxShadow: `0 0 0 2px ${trips.ink}, 0 0 0 4px ${trips.surface}`,
+    boxShadow: `0 0 0 2px ${'var(--trips-ink)'}, 0 0 0 4px ${'var(--trips-surface)'}`,
   },
   accentSwatchCircleIdle: { opacity: 0.6 },
   accentSwatchName: { fontSize: '11px', textTransform: 'capitalize' },
-  accentSwatchNameSelected: { fontWeight: 500, color: trips.ink },
+  accentSwatchNameSelected: { fontWeight: 500, color: 'var(--trips-ink)' },
   slugInput: {
     minHeight: '2.75rem',
     width: '100%',
@@ -3670,7 +3642,7 @@ export const styles = stylex.create({
     paddingBottom: '0.5rem',
     fontSize: '0.875rem',
     lineHeight: '1.25rem',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
     ':focus': { outline: 'none' },
   },
 
@@ -3700,7 +3672,7 @@ export const styles = stylex.create({
     fontVariantNumeric: 'tabular-nums',
     lineHeight: 1,
     letterSpacing: '-0.025em',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
     '@media (min-width: 640px)': {
       fontSize: '2rem',
     },
@@ -3718,7 +3690,7 @@ export const styles = stylex.create({
     fontWeight: 600,
     letterSpacing: '-0.025em',
     color: '#1c1917',
-    ':is(html.dark &)': { color: '#f5f5f4' },
+    ':is(.dark) &': { color: '#f5f5f4' },
   },
   dayCardTitleInput: {
     ...fontDisplay,
@@ -3746,7 +3718,7 @@ export const styles = stylex.create({
     gap: '0.75rem',
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: trips.border,
+    borderTopColor: 'var(--trips-border)',
     paddingTop: '0.75rem',
     borderWidth: 0,
     paddingLeft: 0,
@@ -3813,7 +3785,7 @@ export const styles = stylex.create({
     gap: '0.75rem',
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: trips.border,
+    borderTopColor: 'var(--trips-border)',
     paddingTop: '0.75rem',
   },
   itemRowTimesRow: {
@@ -3825,18 +3797,18 @@ export const styles = stylex.create({
   itemRowTimeSep: {
     flexShrink: 0,
     color: '#a8a29e',
-    ':is(html.dark &)': { color: '#78716c' },
+    ':is(.dark) &': { color: '#78716c' },
   },
   itemRowPinWarning: {
     color: '#b45309',
-    ':is(html.dark &)': { color: '#fbbf24' },
+    ':is(.dark) &': { color: '#fbbf24' },
   },
   itemRowCoordsHint: {
     gridColumn: '1 / -1',
     fontSize: '0.75rem',
     lineHeight: '1rem',
     color: '#b45309',
-    ':is(html.dark &)': { color: '#fbbf24' },
+    ':is(.dark) &': { color: '#fbbf24' },
   },
   itemRowActionsBar: {
     display: 'flex',
@@ -3846,7 +3818,7 @@ export const styles = stylex.create({
     rowGap: '0.75rem',
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: trips.border,
+    borderTopColor: 'var(--trips-border)',
     paddingTop: '0.75rem',
   },
   itemRowMoveRow: {
@@ -3857,7 +3829,7 @@ export const styles = stylex.create({
   },
   lineThroughMuted: {
     textDecorationLine: 'line-through',
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
   },
   gridItemShowTime: {
     display: 'grid',
@@ -3878,13 +3850,13 @@ export const styles = stylex.create({
   },
   iconStone: {
     color: '#78716c',
-    ':is(html.dark &)': { color: '#a8a29e' },
+    ':is(.dark) &': { color: '#a8a29e' },
   },
   iconXsStone: {
     height: '0.875rem',
     width: '0.875rem',
     color: '#78716c',
-    ':is(html.dark &)': { color: '#a8a29e' },
+    ':is(.dark) &': { color: '#a8a29e' },
   },
 
   // ── Suggestions panel ──────────────────────────────────────────────────
@@ -3902,7 +3874,7 @@ export const styles = stylex.create({
     lineHeight: '1.5rem',
     fontWeight: 600,
     color: '#1c1917',
-    ':is(html.dark &)': { color: '#f5f5f4' },
+    ':is(.dark) &': { color: '#f5f5f4' },
   },
   suggestionsSelectRow: {
     marginTop: '1rem',
@@ -3912,7 +3884,7 @@ export const styles = stylex.create({
     gap: '0.75rem',
     borderBottomWidth: '1px',
     borderBottomStyle: 'solid',
-    borderBottomColor: trips.border,
+    borderBottomColor: 'var(--trips-border)',
     paddingBottom: '0.5rem',
   },
   suggestionsList: {
@@ -3954,18 +3926,18 @@ export const styles = stylex.create({
     lineHeight: '1.25rem',
     fontWeight: 500,
     color: '#1c1917',
-    ':is(html.dark &)': { color: '#f5f5f4' },
+    ':is(.dark) &': { color: '#f5f5f4' },
   },
   suggestionAddedTag: {
     fontSize: '11px',
     fontWeight: 500,
     color: '#065f46',
-    ':is(html.dark &)': { color: '#6ee7b7' },
+    ':is(.dark) &': { color: '#6ee7b7' },
   },
   suggestionLowConfTag: {
     fontSize: '11px',
     color: '#b45309',
-    ':is(html.dark &)': { color: '#fbbf24' },
+    ':is(.dark) &': { color: '#fbbf24' },
   },
 
   // ── Enhance button ─────────────────────────────────────────────────────
@@ -3978,12 +3950,12 @@ export const styles = stylex.create({
     marginRight: 'auto',
     width: '100%',
     maxWidth: '32rem',
-    borderTopLeftRadius: trips.radius,
-    borderTopRightRadius: trips.radius,
+    borderTopLeftRadius: 'var(--trips-radius)',
+    borderTopRightRadius: 'var(--trips-radius)',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: trips.border,
-    backgroundColor: trips.surface,
+    borderColor: 'var(--trips-border)',
+    backgroundColor: 'var(--trips-surface)',
     padding: '1.25rem',
   },
   enhancePanelDialog: {
@@ -4017,7 +3989,7 @@ export const styles = stylex.create({
     lineHeight: '1.25rem',
     fontWeight: 600,
     color: '#292524',
-    ':is(html.dark &)': { color: '#e7e5e4' },
+    ':is(.dark) &': { color: '#e7e5e4' },
   },
   dateWeekdayCell: {
     paddingTop: '0.25rem',
@@ -4036,7 +4008,7 @@ export const styles = stylex.create({
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     fontSize: '13px',
     fontVariantNumeric: 'tabular-nums',
     outline: 'none',
@@ -4048,9 +4020,9 @@ export const styles = stylex.create({
     ...focusRingInset,
   },
   dateDayBtnIdle: {
-    color: trips.ink,
+    color: 'var(--trips-ink)',
     '@media (hover: hover)': {
-      ':hover': { backgroundColor: trips.rail },
+      ':hover': { backgroundColor: 'var(--trips-rail)' },
     },
   },
   dateDayBtnToday: { fontWeight: 600, color: ta },
@@ -4063,28 +4035,28 @@ export const styles = stylex.create({
   dateDayBandMid: { left: 0 },
   dateDayBandEnd: { right: '50%' },
   dateDayBandRoundL: {
-    borderTopLeftRadius: trips.radius,
-    borderBottomLeftRadius: trips.radius,
+    borderTopLeftRadius: 'var(--trips-radius)',
+    borderBottomLeftRadius: 'var(--trips-radius)',
   },
   dateDayBandRoundR: {
-    borderTopRightRadius: trips.radius,
-    borderBottomRightRadius: trips.radius,
+    borderTopRightRadius: 'var(--trips-radius)',
+    borderBottomRightRadius: 'var(--trips-radius)',
   },
   dateDayEdge: {
     position: 'absolute',
     inset: 0,
-    borderRadius: trips.radius,
-    backgroundColor: trips.accent,
+    borderRadius: 'var(--trips-radius)',
+    backgroundColor: 'var(--trips-accent)',
   },
   dateDayNumEdge: {
     position: 'relative',
     fontWeight: 600,
     color: '#ffffff',
-    ':is(html.dark &)': { color: trips.canvas },
+    ':is(.dark) &': { color: 'var(--trips-canvas)' },
   },
   dateDayNumInBand: {
     position: 'relative',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
   },
   dateDayNumDefault: { position: 'relative' },
   dateTodayDot: {
@@ -4093,7 +4065,7 @@ export const styles = stylex.create({
     height: '0.25rem',
     width: '0.25rem',
     borderRadius: '9999px',
-    backgroundColor: trips.accent,
+    backgroundColor: 'var(--trips-accent)',
   },
   dateNavRow: {
     display: 'flex',
@@ -4136,8 +4108,8 @@ export const styles = stylex.create({
     width: '1px',
   },
   dateStripTickActive: { backgroundColor: ta },
-  dateStripTickToday: { backgroundColor: trips.ink },
-  dateStripTickIdle: { backgroundColor: trips.ink },
+  dateStripTickToday: { backgroundColor: 'var(--trips-ink)' },
+  dateStripTickIdle: { backgroundColor: 'var(--trips-ink)' },
   dateStripWeekday: {
     ...fontDisplay,
     fontSize: '10px',
@@ -4179,7 +4151,7 @@ export const styles = stylex.create({
     fontSize: '1.875rem',
     lineHeight: '2.25rem',
     color: '#a8a29e',
-    ':is(html.dark &)': { color: '#78716c' },
+    ':is(.dark) &': { color: '#78716c' },
   },
   photoViewerRoot: {
     position: 'fixed',
@@ -4266,13 +4238,13 @@ export const styles = stylex.create({
     lineHeight: '1.25rem',
     fontWeight: 500,
     color: '#1c1917',
-    ':is(html.dark &)': { color: '#f5f5f4' },
+    ':is(.dark) &': { color: '#f5f5f4' },
   },
   conciergeNotes: {
     marginTop: '0.25rem',
     fontSize: '12px',
     color: '#44403c',
-    ':is(html.dark &)': { color: '#d6d3d1' },
+    ':is(.dark) &': { color: '#d6d3d1' },
   },
   conciergeCardHeader: {
     display: 'flex',
@@ -4321,7 +4293,7 @@ export const styles = stylex.create({
     fontSize: '0.875rem',
     lineHeight: '1.25rem',
     color: '#78350f',
-    ':is(html.dark &)': { color: '#fde68a' },
+    ':is(.dark) &': { color: '#fde68a' },
   },
   createStatusEmpty: { marginTop: 0 },
   createGeneratingNote: {
@@ -4330,7 +4302,7 @@ export const styles = stylex.create({
     lineHeight: '1rem',
     color: '#57534e',
     '@media (min-width: 640px)': { width: 'auto' },
-    ':is(html.dark &)': { color: '#a8a29e' },
+    ':is(.dark) &': { color: '#a8a29e' },
   },
   createBandNameInput: {
     color: tripsBandInk,
@@ -4384,14 +4356,14 @@ export const styles = stylex.create({
     lineHeight: 1.25,
     fontWeight: 600,
     fontVariantNumeric: 'tabular-nums',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
   },
   deleteBannerText: {
     minWidth: 0,
     fontSize: '0.875rem',
     lineHeight: '1.25rem',
     color: '#7f1d1d',
-    ':is(html.dark &)': { color: '#fecaca' },
+    ':is(.dark) &': { color: '#fecaca' },
   },
   deleteBannerActions: {
     display: 'flex',
@@ -4404,14 +4376,14 @@ export const styles = stylex.create({
     fontSize: '0.875rem',
     lineHeight: '1.25rem',
     color: '#7f1d1d',
-    ':is(html.dark &)': { color: '#fecaca' },
+    ':is(.dark) &': { color: '#fecaca' },
   },
 
   // ── Trip day page ──────────────────────────────────────────────────────
   dayHeader: { marginTop: '1.25rem' },
   dayBreadcrumbSep: {
     color: '#d6d3d1',
-    ':is(html.dark &)': { color: '#57534e' },
+    ':is(.dark) &': { color: '#57534e' },
   },
   dayEmoji: {
     marginBottom: '0.5rem',
@@ -4433,7 +4405,7 @@ export const styles = stylex.create({
     fontSize: '0.875rem',
     lineHeight: 1.625,
     color: '#44403c',
-    ':is(html.dark &)': { color: '#d6d3d1' },
+    ':is(.dark) &': { color: '#d6d3d1' },
   },
   dayActionsRow: {
     marginTop: '1.5rem',
@@ -4460,15 +4432,10 @@ export const styles = stylex.create({
   reservationList: {
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: trips.border,
+    borderTopColor: 'var(--trips-border)',
     borderBottomWidth: '1px',
     borderBottomStyle: 'solid',
-    borderBottomColor: trips.border,
-    '> * + *': {
-      borderTopWidth: '1px',
-      borderTopStyle: 'solid',
-      borderTopColor: trips.border,
-    },
+    borderBottomColor: 'var(--trips-border)',
   },
   stopsBlock: {
     paddingTop: '2rem',
@@ -4500,7 +4467,7 @@ export const styles = stylex.create({
       fontSize: '1.25rem',
       lineHeight: '1.75rem',
     },
-    ':is(html.dark &)': { color: '#f5f5f4' },
+    ':is(.dark) &': { color: '#f5f5f4' },
   },
   stopsNotesList: {
     marginTop: '1rem',
@@ -4510,7 +4477,7 @@ export const styles = stylex.create({
     fontSize: '15px',
     lineHeight: 1.625,
     color: '#44403c',
-    ':is(html.dark &)': { color: '#d6d3d1' },
+    ':is(.dark) &': { color: '#d6d3d1' },
   },
   stopsBulletItem: { display: 'flex', gap: '0.75rem' },
   stopsBulletDot: {
@@ -4519,7 +4486,7 @@ export const styles = stylex.create({
     width: '0.25rem',
     flexShrink: 0,
     borderRadius: '9999px',
-    backgroundColor: trips.inkTertiary,
+    backgroundColor: 'var(--trips-ink-tertiary)',
   },
   stopsItemList: {
     marginTop: '1.25rem',
@@ -4534,7 +4501,7 @@ export const styles = stylex.create({
     gap: '0.25rem',
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: trips.border,
+    borderTopColor: 'var(--trips-border)',
     paddingTop: '1.5rem',
     '@media (min-width: 640px)': {
       gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
@@ -4547,7 +4514,7 @@ export const styles = stylex.create({
     fontWeight: 600,
     letterSpacing: '-0.025em',
     color: '#1c1917',
-    ':is(html.dark &)': { color: '#f5f5f4' },
+    ':is(.dark) &': { color: '#f5f5f4' },
   },
   mapLoadingOverlay: {
     position: 'fixed',
@@ -4556,7 +4523,7 @@ export const styles = stylex.create({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: trips.scrim,
+    backgroundColor: 'var(--trips-scrim)',
     fontSize: '0.875rem',
     lineHeight: '1.25rem',
     color: tripsBandInk,
@@ -4584,7 +4551,7 @@ export const styles = stylex.create({
     lineHeight: 1.25,
     fontWeight: 600,
     fontVariantNumeric: 'tabular-nums',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
     '@media (min-width: 640px)': {
       fontSize: '1.5rem',
       lineHeight: '2rem',
@@ -4597,7 +4564,7 @@ export const styles = stylex.create({
     lineHeight: 1.25,
     fontWeight: 600,
     letterSpacing: '-0.025em',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
     '@media (min-width: 640px)': {
       fontSize: '1.5rem',
       lineHeight: '2rem',
@@ -4606,7 +4573,7 @@ export const styles = stylex.create({
   reservationTitleSm: {
     fontWeight: 500,
     color: '#1c1917',
-    ':is(html.dark &)': { color: '#f5f5f4' },
+    ':is(.dark) &': { color: '#f5f5f4' },
   },
   narrativeEndTime: {
     marginTop: '0.125rem',
@@ -4618,7 +4585,7 @@ export const styles = stylex.create({
     width: '1rem',
     flexShrink: 0,
     color: '#78716c',
-    ':is(html.dark &)': { color: '#a8a29e' },
+    ':is(.dark) &': { color: '#a8a29e' },
   },
   narrativeTitleRow: {
     display: 'flex',
@@ -4630,14 +4597,14 @@ export const styles = stylex.create({
   narrativeTitle: {
     fontWeight: 500,
     color: '#1c1917',
-    ':is(html.dark &)': { color: '#f5f5f4' },
+    ':is(.dark) &': { color: '#f5f5f4' },
   },
   narrativeNotes: {
     marginTop: '0.25rem',
     fontSize: '0.875rem',
     lineHeight: 1.625,
     color: '#44403c',
-    ':is(html.dark &)': { color: '#d6d3d1' },
+    ':is(.dark) &': { color: '#d6d3d1' },
   },
   loadingStack: {
     marginTop: '2.5rem',
@@ -4655,7 +4622,7 @@ export const styles = stylex.create({
   text15Ink: {
     fontSize: '15px',
     lineHeight: 1.625,
-    color: trips.ink,
+    color: 'var(--trips-ink)',
   },
   coordsRow: {
     display: 'inline-flex',
@@ -4664,7 +4631,7 @@ export const styles = stylex.create({
     fontSize: '0.75rem',
     lineHeight: '1rem',
     color: '#57534e',
-    ':is(html.dark &)': { color: '#a8a29e' },
+    ':is(.dark) &': { color: '#a8a29e' },
   },
   gridSpanFull: { gridColumn: '1 / -1' },
   suggestionListGap: {
@@ -4689,8 +4656,8 @@ export const styles = stylex.create({
     userSelect: 'none',
     borderRightWidth: '1px',
     borderRightStyle: 'solid',
-    borderRightColor: trips.border,
-    backgroundColor: trips.rail,
+    borderRightColor: 'var(--trips-border)',
+    backgroundColor: 'var(--trips-rail)',
     paddingLeft: '0.625rem',
     paddingRight: '0.625rem',
     paddingTop: '0.625rem',
@@ -4715,15 +4682,15 @@ export const styles = stylex.create({
     alignItems: 'flex-start',
     paddingTop: '0.625rem',
     paddingBottom: '0.625rem',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
   },
   noticePillInk: {
     pointerEvents: 'auto',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
   },
   borderRed: {
     borderColor: '#f87171',
-    ':is(html.dark &)': { borderColor: '#991b1b' },
+    ':is(.dark) &': { borderColor: '#991b1b' },
   },
   timezonePopover: {
     position: 'absolute',
@@ -4766,7 +4733,7 @@ export const styles = stylex.create({
   },
   timezoneOptionIdle: {
     color: '#44403c',
-    ':is(html.dark &)': { color: '#d6d3d1' },
+    ':is(.dark) &': { color: '#d6d3d1' },
   },
   timezoneOffset: {
     display: 'flex',
@@ -4792,7 +4759,7 @@ export const styles = stylex.create({
   },
   checkEmerald: {
     color: '#047857',
-    ':is(html.dark &)': { color: '#34d399' },
+    ':is(.dark) &': { color: '#34d399' },
   },
   text11: { fontSize: '11px' },
   text12: { fontSize: '12px' },
@@ -4806,16 +4773,16 @@ export const styles = stylex.create({
     aspectRatio: '16 / 9',
     width: '100%',
     overflow: 'hidden',
-    backgroundColor: trips.rail,
+    backgroundColor: 'var(--trips-rail)',
     textAlign: 'left',
   },
   conciergeCardLi: {
     overflow: 'hidden',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: trips.border,
-    backgroundColor: trips.surface,
+    borderColor: 'var(--trips-border)',
+    backgroundColor: 'var(--trips-surface)',
   },
   conciergeCardBody: {
     paddingLeft: '0.75rem',
@@ -4834,13 +4801,13 @@ export const styles = stylex.create({
     marginTop: '0.25rem',
     fontSize: '12px',
     color: '#44403c',
-    ':is(html.dark &)': { color: '#d6d3d1' },
+    ':is(.dark) &': { color: '#d6d3d1' },
   },
   optionalLabel: {
     fontWeight: 400,
     textTransform: 'none',
     letterSpacing: 'normal',
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
   },
   fieldError: {
     marginTop: '0.375rem',
@@ -4848,7 +4815,7 @@ export const styles = stylex.create({
     lineHeight: '1rem',
     fontWeight: 500,
     color: '#b91c1c',
-    ':is(html.dark &)': { color: '#fca5a5' },
+    ':is(.dark) &': { color: '#fca5a5' },
   },
   bandFieldError: {
     marginTop: '0.375rem',
@@ -4864,8 +4831,8 @@ export const styles = stylex.create({
     marginTop: '2rem',
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: trips.border,
-    backgroundColor: trips.canvas,
+    borderTopColor: 'var(--trips-border)',
+    backgroundColor: 'var(--trips-canvas)',
     paddingLeft: '1rem',
     paddingRight: '1rem',
     paddingTop: '1rem',
@@ -4903,12 +4870,6 @@ export const styles = stylex.create({
   extractedHoodMt: { marginTop: '0.25rem' },
   extractedListDivide: {
     marginTop: '0.125rem',
-    '> * + *': {
-      borderTopWidth: '1px',
-      borderTopStyle: 'solid',
-      borderTopColor: 'rgba(28, 25, 23, 0.12)',
-      ':is(html.dark &)': { borderTopColor: 'rgba(41, 37, 36, 0.8)' },
-    },
   },
   extractedPanel: { marginTop: '0.75rem' },
   narrativeEndTimeBlock: { marginTop: '0.125rem', display: 'block' },
@@ -4920,7 +4881,7 @@ export const styles = stylex.create({
   minW28: { minWidth: '7rem' },
   borderRedInvalid: {
     borderColor: '#f87171',
-    ':is(html.dark &)': { borderColor: '#991b1b' },
+    ':is(.dark) &': { borderColor: '#991b1b' },
   },
   dateTriggerRow: {
     display: 'flex',
@@ -4928,7 +4889,7 @@ export const styles = stylex.create({
     gap: '0.75rem',
     textAlign: 'left',
     '@media (hover: hover)': {
-      ':hover': { borderColor: trips.inkTertiary },
+      ':hover': { borderColor: 'var(--trips-ink-tertiary)' },
     },
   },
   quietBtnMapSm: {
@@ -4967,7 +4928,7 @@ export const styles = stylex.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: '0.75rem',
-    borderRadius: trips.radius,
+    borderRadius: 'var(--trips-radius)',
     backgroundColor: '#fef2f2',
     paddingLeft: '1rem',
     paddingRight: '1rem',
@@ -4976,7 +4937,7 @@ export const styles = stylex.create({
     '@media (min-width: 640px)': {
       flexWrap: 'nowrap',
     },
-    ':is(html.dark &)': {
+    ':is(.dark) &': {
       backgroundColor: 'rgba(69, 10, 10, 0.3)',
     },
   },
@@ -4996,7 +4957,7 @@ export const styles = stylex.create({
     '@media (min-width: 640px)': {
       opacity: 0,
       '@media (hover: hover)': {
-        ':is(.group:hover &)': { opacity: 1 },
+        ':is(.group:hover) &': { opacity: 1 },
       },
       ':focus-visible': { opacity: 1 },
     },
@@ -5077,7 +5038,7 @@ export const styles = stylex.create({
   iconPin15Unmapped: {
     height: '15px',
     width: '15px',
-    color: trips.inkTertiary,
+    color: 'var(--trips-ink-tertiary)',
   },
   sectionHeadingStatic: {
     minWidth: 0,
@@ -5090,7 +5051,7 @@ export const styles = stylex.create({
     fontSize: '11px',
     textTransform: 'uppercase',
     letterSpacing: '0.06em',
-    color: trips.inkSecondary,
+    color: 'var(--trips-ink-secondary)',
     '@media (min-width: 640px)': { letterSpacing: '0.16em' },
   },
   itemMetaColShowTime: {
@@ -5137,7 +5098,7 @@ export const styles = stylex.create({
     fontSize: '1rem',
     lineHeight: '1.5rem',
     fontWeight: 600,
-    color: trips.ink,
+    color: 'var(--trips-ink)',
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
   },
@@ -5168,7 +5129,7 @@ export const styles = stylex.create({
     lineHeight: 1.25,
     fontWeight: 600,
     letterSpacing: '-0.025em',
-    color: trips.ink,
+    color: 'var(--trips-ink)',
     '@media (min-width: 640px)': {
       fontSize: '1.5rem',
       lineHeight: '2rem',

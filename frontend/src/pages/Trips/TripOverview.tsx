@@ -375,7 +375,7 @@ export function TripOverview() {
           <section {...sx(styles.sectionMt12)}>
             <SectionHeading title="Stays" subtitle="Hotels and neighborhoods on this trip." />
             {hotels.length > 0 && (
-              <ul {...sx(styles.mt4, styles.divideStone)}>
+              <ul {...sx(styles.mt4, styles.divideStone, 'trips-divide-stone')}>
                 {hotels.map((item) => (
                   <li key={item.id} {...sx(styles.py3, styles.textSm, styles.inkSecondaryStone, wrapAnywhereClass)}>
                     {item.title}

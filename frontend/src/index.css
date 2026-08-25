@@ -1025,6 +1025,44 @@ body {
   border-color: rgba(255, 252, 245, 0.06);
 }
 
+/* Trips list stacks — hairline between siblings (StyleX cannot express > * + *). */
+.trips-property-table > * + * {
+  border-top-width: 1px;
+  border-top-style: solid;
+  border-top-color: var(--trips-border);
+}
+.trips-divide-hairline > * + * {
+  border-top-width: 1px;
+  border-top-style: solid;
+  border-top-color: var(--trips-border);
+}
+.trips-divide-stone > * + * {
+  border-top-width: 1px;
+  border-top-style: solid;
+  border-top-color: rgba(28, 25, 23, 0.12);
+}
+.dark .trips-divide-stone > * + * {
+  border-top-color: rgba(41, 37, 36, 0.8);
+}
+.trips-hairline-list-divided > * + * {
+  border-top-width: 1px;
+  border-top-style: solid;
+  border-top-color: var(--trips-border);
+}
+.trips-reservation-list > * + * {
+  border-top-width: 1px;
+  border-top-style: solid;
+  border-top-color: var(--trips-border);
+}
+.trips-extracted-list-divide > * + * {
+  border-top-width: 1px;
+  border-top-style: solid;
+  border-top-color: rgba(28, 25, 23, 0.12);
+}
+.dark .trips-extracted-list-divide > * + * {
+  border-top-color: rgba(41, 37, 36, 0.8);
+}
+
 /* ═══════════════════════════════════════════════════════
    TRIPS — pocket timetable / JR print stock
    Scene: kitchen-table daylight planning; hotel-night phone lookups.

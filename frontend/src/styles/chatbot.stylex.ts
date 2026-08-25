@@ -1,6 +1,4 @@
 import * as stylex from '@stylexjs/stylex'
-import { chat, easings } from './tokens.stylex'
-
 const grainBg = `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E")`
 
 /** Chatbot homepage layout + chrome (App.tsx). */
@@ -15,7 +13,7 @@ export const chatbot = stylex.create({
     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
     transitionProperty: 'color, background-color, border-color, text-decoration-color, fill, stroke',
     transitionDuration: '700ms',
-    transitionTimingFunction: easings.outExpo,
+    transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)',
   },
   column: {
     display: 'flex',
@@ -44,7 +42,7 @@ export const chatbot = stylex.create({
       outlineWidth: '2px',
       outlineStyle: 'solid',
       outlineOffset: '2px',
-      outlineColor: chat.accent,
+      outlineColor: 'var(--chat-accent)',
     },
   },
   headerFooter: {
@@ -74,7 +72,7 @@ export const chatbot = stylex.create({
     padding: 0,
     margin: '-1px',
     overflow: 'hidden',
-    clip: 'rect(0, 0, 0, 0)',
+    clipPath: 'inset(50%)',
     whiteSpace: 'nowrap',
     borderWidth: 0,
     ':focus': {
@@ -84,7 +82,7 @@ export const chatbot = stylex.create({
       padding: '0 1rem',
       margin: 0,
       overflow: 'visible',
-      clip: 'auto',
+      clipPath: 'none',
       whiteSpace: 'normal',
       left: '1rem',
       top: '1rem',
@@ -93,15 +91,15 @@ export const chatbot = stylex.create({
       minHeight: '44px',
       alignItems: 'center',
       borderRadius: '0.375rem',
-      backgroundColor: chat.accent,
+      backgroundColor: 'var(--chat-accent)',
       fontSize: '0.875rem',
       fontWeight: 500,
-      color: chat.bg,
+      color: 'var(--chat-bg)',
       ':focus-visible': {
         outlineWidth: '2px',
         outlineStyle: 'solid',
         outlineOffset: '2px',
-        outlineColor: chat.accent,
+        outlineColor: 'var(--chat-accent)',
       },
     },
   },
@@ -109,7 +107,7 @@ export const chatbot = stylex.create({
     textAlign: 'left',
     transitionProperty: 'all',
     transitionDuration: '700ms',
-    transitionTimingFunction: easings.outExpo,
+    transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)',
     paddingLeft: '1.5rem',
     paddingRight: '1.5rem',
   },
@@ -481,8 +479,8 @@ export const siteNotFound = stylex.create({
     flexDirection: 'column',
     alignItems: 'flex-start',
     justifyContent: 'center',
-    backgroundColor: chat.bg,
-    color: chat.text,
+    backgroundColor: 'var(--chat-bg)',
+    color: 'var(--chat-text)',
     paddingLeft: '1.5rem',
     paddingRight: '1.5rem',
     paddingTop: '4rem',
@@ -493,7 +491,7 @@ export const siteNotFound = stylex.create({
     fontSize: '11px',
     textTransform: 'uppercase',
     letterSpacing: '0.18em',
-    color: chat.mid,
+    color: 'var(--chat-mid)',
   },
   title: {
     marginTop: '0.75rem',
@@ -510,7 +508,7 @@ export const siteNotFound = stylex.create({
     maxWidth: '24rem',
     fontSize: '0.875rem',
     lineHeight: 1.625,
-    color: chat.mid,
+    color: 'var(--chat-mid)',
   },
   actions: {
     marginTop: '1.5rem',
@@ -523,17 +521,17 @@ export const siteNotFound = stylex.create({
     minHeight: '44px',
     alignItems: 'center',
     borderRadius: '0.375rem',
-    backgroundColor: chat.accent,
+    backgroundColor: 'var(--chat-accent)',
     paddingLeft: '1rem',
     paddingRight: '1rem',
     fontSize: '0.875rem',
     fontWeight: 500,
-    color: chat.bg,
+    color: 'var(--chat-bg)',
     ':focus-visible': {
       outlineWidth: '2px',
       outlineStyle: 'solid',
       outlineOffset: '2px',
-      outlineColor: chat.accent,
+      outlineColor: 'var(--chat-accent)',
     },
   },
   secondaryLink: {
@@ -543,16 +541,16 @@ export const siteNotFound = stylex.create({
     borderRadius: '0.375rem',
     borderWidth: '1px',
     borderStyle: 'solid',
-    borderColor: chat.line,
+    borderColor: 'var(--chat-line)',
     paddingLeft: '1rem',
     paddingRight: '1rem',
     fontSize: '0.875rem',
-    color: chat.text,
+    color: 'var(--chat-text)',
     ':focus-visible': {
       outlineWidth: '2px',
       outlineStyle: 'solid',
       outlineOffset: '2px',
-      outlineColor: chat.accent,
+      outlineColor: 'var(--chat-accent)',
     },
   },
 })

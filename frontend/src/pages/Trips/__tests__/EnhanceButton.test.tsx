@@ -32,7 +32,7 @@ describe("EnhanceButton", () => {
     const dialog = screen.getByRole("dialog", { name: "Focus this review" })
     expect(dialog).toBeInTheDocument()
     expect(dialog.closest(".trips")).not.toBeNull()
-    expect(dialog.className).toContain("--trips-surface")
+    expect(dialog.className).toMatch(/enhancePanelDialog|softPanel/)
     expect(screen.getByRole("button", { name: "Run enhance" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument()
 

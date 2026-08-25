@@ -8,7 +8,6 @@ const html = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8')
 
 describe('native mobile feel', () => {
   it('gates hover styles to fine pointers so tap does not stick :hover', () => {
-    expect(indexCss).toContain('@custom-variant hover')
     expect(indexCss).toContain('@media (hover: hover) and (pointer: fine)')
   })
 

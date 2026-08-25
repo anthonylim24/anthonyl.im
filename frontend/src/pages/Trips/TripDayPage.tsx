@@ -312,7 +312,7 @@ export function TripDayPage() {
 
         {reservations.length > 0 && (
           <section {...sx(styles.daySectionMt10)}>
-            <ol {...sx(styles.reservationList)}>
+            <ol {...sx(styles.reservationList, 'trips-reservation-list')}>
               {reservations.map((item, i) => (
                 <ReservationTableRow
                   key={item.id}

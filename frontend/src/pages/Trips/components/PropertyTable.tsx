@@ -4,7 +4,7 @@ import { styles } from '../trips.stylex'
 import type { ReactNode } from 'react'
 
 export function PropertyTable({ children }: { children: ReactNode }) {
-  return <dl {...sx(propertyTableClass)}>{children}</dl>
+  return <dl {...sx(propertyTableClass, 'trips-property-table')}>{children}</dl>
 }
 
 export function PropertyRow({ label, value }: { label: string; value: ReactNode }) {

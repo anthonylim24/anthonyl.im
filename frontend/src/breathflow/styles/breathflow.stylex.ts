@@ -1,5 +1,3 @@
-import { layout, media } from '../../styles/common.stylex'
-import { bw, easings } from '../../styles/tokens.stylex'
 import { stylex } from '@/styles/merge'
 
 /** Shared BreathFlow layout, type, and interaction primitives. */
@@ -8,7 +6,7 @@ export const bf = stylex.create({
   focusVisible: {
     outlineWidth: '2px',
     outlineStyle: 'solid',
-    outlineColor: bw.accent,
+    outlineColor: 'var(--bw-accent)',
     outlineOffset: '2px',
   },
   linkRow: {
@@ -23,12 +21,12 @@ export const bf = stylex.create({
     ':focus-visible': {
       outlineWidth: '2px',
       outlineStyle: 'solid',
-      outlineColor: bw.accent,
+      outlineColor: 'var(--bw-accent)',
       outlineOffset: '2px',
     },
     '@media (hover: hover) and (pointer: fine)': {
       ':hover': {
-        color: bw.accent,
+        color: 'var(--bw-accent)',
       },
     },
   },
@@ -38,41 +36,41 @@ export const bf = stylex.create({
     ':focus-visible': {
       outlineWidth: '2px',
       outlineStyle: 'solid',
-      outlineColor: bw.accent,
+      outlineColor: 'var(--bw-accent)',
       outlineOffset: '2px',
     },
     '@media (hover: hover) and (pointer: fine)': {
       ':hover': {
-        color: bw.accent,
+        color: 'var(--bw-accent)',
       },
     },
   },
   citationLink: {
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
-    color: bw.textSecondary,
+    color: 'var(--bw-text-secondary)',
     textDecorationLine: 'underline',
-    textDecorationColor: bw.border,
+    textDecorationColor: 'var(--bw-border)',
     textUnderlineOffset: '2px',
     ':focus-visible': {
       outlineWidth: '2px',
       outlineStyle: 'solid',
-      outlineColor: bw.accent,
+      outlineColor: 'var(--bw-accent)',
       outlineOffset: '2px',
     },
     '@media (hover: hover) and (pointer: fine)': {
       ':hover': {
-        color: bw.accent,
+        color: 'var(--bw-accent)',
       },
     },
   },
 
   // ── Typography ─────────────────────────────────────────────────
-  textBw: { color: bw.text },
-  textSecondary: { color: bw.textSecondary },
-  textTertiary: { color: bw.textTertiary },
-  textAccent: { color: bw.accent },
-  textDestructive: { color: bw.destructive },
+  textBw: { color: 'var(--bw-text)' },
+  textSecondary: { color: 'var(--bw-text-secondary)' },
+  textTertiary: { color: 'var(--bw-text-tertiary)' },
+  textAccent: { color: 'var(--bw-accent)' },
+  textDestructive: { color: 'var(--bw-destructive)' },
   textXs: { fontSize: '0.75rem', lineHeight: '1rem' },
   textSm: { fontSize: '0.875rem', lineHeight: '1.25rem' },
   textLg: { fontSize: '1.125rem', lineHeight: '1.75rem' },
@@ -108,34 +106,34 @@ export const bf = stylex.create({
   },
 
   // ── Surfaces & borders ─────────────────────────────────────────
-  bgCanvas: { backgroundColor: bw.canvas },
-  bgSurface: { backgroundColor: bw.surface },
-  bgAccentSubtle: { backgroundColor: bw.accentSubtle },
-  bgDestructiveSubtle: { backgroundColor: bw.destructiveSubtle },
-  bgHover: { backgroundColor: bw.hover },
+  bgCanvas: { backgroundColor: 'var(--bw-canvas)' },
+  bgSurface: { backgroundColor: 'var(--bw-surface)' },
+  bgAccentSubtle: { backgroundColor: 'var(--bw-accent-subtle)' },
+  bgDestructiveSubtle: { backgroundColor: 'var(--bw-destructive-subtle)' },
+  bgHover: { backgroundColor: 'var(--bw-hover)' },
   bgTransparent: { backgroundColor: 'transparent' },
   borderTop: {
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: bw.border,
+    borderTopColor: 'var(--bw-border)',
   },
   borderBottom: {
     borderBottomWidth: '1px',
     borderBottomStyle: 'solid',
-    borderBottomColor: bw.border,
+    borderBottomColor: 'var(--bw-border)',
   },
   borderX: {
     borderLeftWidth: '1px',
     borderRightWidth: '1px',
     borderLeftStyle: 'solid',
     borderRightStyle: 'solid',
-    borderLeftColor: bw.border,
-    borderRightColor: bw.border,
+    borderLeftColor: 'var(--bw-border)',
+    borderRightColor: 'var(--bw-border)',
   },
   divideY: {
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: bw.borderSubtle,
+    borderTopColor: 'var(--bw-border-subtle)',
     ':not(:first-child)': {
       borderTopWidth: '1px',
     },
@@ -143,7 +141,7 @@ export const bf = stylex.create({
   divideYChild: {
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: bw.borderSubtle,
+    borderTopColor: 'var(--bw-border-subtle)',
     ':first-child': {
       borderTopWidth: 0,
     },
@@ -318,13 +316,13 @@ export const bf = stylex.create({
     bottom: 0,
   },
   ring1BwBorder: {
-    boxShadow: `0 0 0 1px ${bw.border}`,
+    boxShadow: `0 0 0 1px ${'var(--bw-border)'}`,
   },
   dropShadow: {
     filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.25))',
   },
   textWhite: { color: '#ffffff' },
-  accentBw: { accentColor: bw.accent },
+  accentBw: { accentColor: 'var(--bw-accent)' },
   disabledOpacity40: {
     opacity: 0.4,
   },
@@ -460,7 +458,7 @@ export const bf = stylex.create({
     padding: 0,
     margin: '-1px',
     overflow: 'hidden',
-    clip: 'rect(0, 0, 0, 0)',
+    clipPath: 'inset(50%)',
     whiteSpace: 'nowrap',
     borderWidth: 0,
     ':focus': {
@@ -470,17 +468,17 @@ export const bf = stylex.create({
       padding: '0.5rem 0.75rem',
       margin: 0,
       overflow: 'visible',
-      clip: 'auto',
+      clipPath: 'none',
       whiteSpace: 'normal',
       left: '1.25rem',
       top: '0.75rem',
       zIndex: 50,
-      backgroundColor: bw.canvas,
+      backgroundColor: 'var(--bw-canvas)',
       fontSize: '0.875rem',
-      color: bw.text,
+      color: 'var(--bw-text)',
       outlineWidth: '2px',
       outlineStyle: 'solid',
-      outlineColor: bw.accent,
+      outlineColor: 'var(--bw-accent)',
       outlineOffset: '2px',
     },
   },
@@ -505,10 +503,10 @@ export const bf = stylex.create({
   },
 
   // ── Heatmap intensity ────────────────────────────────────────────
-  heat0: { backgroundColor: bw.hover },
+  heat0: { backgroundColor: 'var(--bw-hover)' },
   heat1: { backgroundColor: 'color-mix(in srgb, var(--bw-accent) 35%, transparent)' },
   heat2: { backgroundColor: 'color-mix(in srgb, var(--bw-accent) 60%, transparent)' },
-  heat3: { backgroundColor: bw.accent },
+  heat3: { backgroundColor: 'var(--bw-accent)' },
 
   // ── Motion-reduce helpers ─────────────────────────────────────────
   motionSafeTransition: {
@@ -521,7 +519,7 @@ export const bf = stylex.create({
   groupOpenRotate180: {
     transitionProperty: 'transform',
     transitionDuration: '200ms',
-    transitionTimingFunction: easings.outExpo,
+    transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)',
     '@media (prefers-reduced-motion: reduce)': {
       transitionProperty: 'none',
     },
@@ -546,18 +544,18 @@ export const bf = stylex.create({
     ':is(.peer:focus-visible ~ &)': {
       outlineWidth: '2px',
       outlineStyle: 'solid',
-      outlineColor: bw.accent,
+      outlineColor: 'var(--bw-accent)',
       outlineOffset: '2px',
     },
   },
   checkboxBoxChecked: {
-    borderColor: bw.accent,
-    backgroundColor: bw.accent,
-    color: bw.accentForeground,
+    borderColor: 'var(--bw-accent)',
+    backgroundColor: 'var(--bw-accent)',
+    color: 'var(--bw-accent-foreground)',
   },
   checkboxBoxUnchecked: {
-    borderColor: bw.border,
-    backgroundColor: bw.surface,
+    borderColor: 'var(--bw-border)',
+    backgroundColor: 'var(--bw-surface)',
   },
   toggleTrack: {
     position: 'relative',
@@ -567,19 +565,19 @@ export const bf = stylex.create({
     borderRadius: '9999px',
     transitionProperty: 'background-color',
     transitionDuration: '200ms',
-    transitionTimingFunction: easings.outExpo,
+    transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)',
     '@media (prefers-reduced-motion: reduce)': {
       transitionProperty: 'none',
     },
     ':is(.peer:focus-visible ~ &)': {
       outlineWidth: '2px',
       outlineStyle: 'solid',
-      outlineColor: bw.accent,
+      outlineColor: 'var(--bw-accent)',
       outlineOffset: '2px',
     },
   },
-  toggleTrackOn: { backgroundColor: bw.accent },
-  toggleTrackOff: { backgroundColor: bw.textFaint },
+  toggleTrackOn: { backgroundColor: 'var(--bw-accent)' },
+  toggleTrackOff: { backgroundColor: 'var(--bw-text-faint)' },
   toggleThumb: {
     position: 'absolute',
     top: '0.25rem',
@@ -587,7 +585,7 @@ export const bf = stylex.create({
     height: '1.25rem',
     width: '1.25rem',
     borderRadius: '9999px',
-    backgroundColor: bw.surface,
+    backgroundColor: 'var(--bw-surface)',
     boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
   },
   orbColorBtn: {
@@ -611,19 +609,19 @@ export const bf = stylex.create({
     ':focus-visible': {
       outlineWidth: '2px',
       outlineStyle: 'solid',
-      outlineColor: bw.accent,
+      outlineColor: 'var(--bw-accent)',
       outlineOffset: '2px',
     },
   },
   orbColorBtnSelected: {
-    boxShadow: `0 0 0 2px ${bw.accent}, 0 0 0 4px ${bw.canvas}`,
+    boxShadow: `0 0 0 2px ${'var(--bw-accent)'}, 0 0 0 4px ${'var(--bw-canvas)'}`,
   },
   sweepGradient: {
     position: 'absolute',
     insetBlock: 0,
     left: 0,
     width: '2.5rem',
-    backgroundImage: `linear-gradient(to right, transparent, ${bw.accent}, transparent)`,
+    backgroundImage: `linear-gradient(to right, transparent, ${'var(--bw-accent)'}, transparent)`,
     opacity: 0.7,
   },
   detailsSummary: {
@@ -634,7 +632,7 @@ export const bf = stylex.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     fontSize: '0.875rem',
-    color: bw.text,
+    color: 'var(--bw-text)',
     '::-webkit-details-marker': {
       display: 'none',
     },
@@ -648,7 +646,7 @@ export const bf = stylex.create({
     justifyContent: 'space-between',
     paddingBlock: '0.5rem',
     fontSize: '0.75rem',
-    color: bw.textTertiary,
+    color: 'var(--bw-text-tertiary)',
     '::-webkit-details-marker': {
       display: 'none',
     },
@@ -676,8 +674,8 @@ export const bf = stylex.create({
     zIndex: 40,
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: bw.border,
-    backgroundColor: bw.canvas,
+    borderTopColor: 'var(--bw-border)',
+    backgroundColor: 'var(--bw-canvas)',
     paddingBottom: 'env(safe-area-inset-bottom)',
   },
   navLinkDesktop: {
@@ -691,21 +689,21 @@ export const bf = stylex.create({
     ':focus-visible': {
       outlineWidth: '2px',
       outlineStyle: 'solid',
-      outlineColor: bw.accent,
+      outlineColor: 'var(--bw-accent)',
       outlineOffset: '2px',
     },
     '@media (hover: hover) and (pointer: fine)': {
       ':hover': {
-        color: bw.text,
+        color: 'var(--bw-text)',
       },
     },
   },
   navLinkDesktopActive: {
     fontWeight: 500,
-    color: bw.accent,
+    color: 'var(--bw-accent)',
   },
   navLinkDesktopInactive: {
-    color: bw.textSecondary,
+    color: 'var(--bw-text-secondary)',
   },
   navLinkMobile: {
     position: 'relative',
@@ -723,16 +721,16 @@ export const bf = stylex.create({
     ':focus-visible': {
       outlineWidth: '2px',
       outlineStyle: 'solid',
-      outlineColor: bw.accent,
+      outlineColor: 'var(--bw-accent)',
       outlineOffset: '2px',
     },
   },
   navLinkMobileActive: {
     fontWeight: 500,
-    color: bw.accent,
+    color: 'var(--bw-accent)',
   },
   navLinkMobileInactive: {
-    color: bw.textSecondary,
+    color: 'var(--bw-text-secondary)',
   },
   navInkMobile: {
     position: 'absolute',
@@ -741,7 +739,7 @@ export const bf = stylex.create({
     top: '0.25rem',
     bottom: '0.25rem',
     borderRadius: '0.375rem',
-    backgroundColor: bw.accentSubtle,
+    backgroundColor: 'var(--bw-accent-subtle)',
   },
   techniqueBtn: {
     position: 'relative',
@@ -755,26 +753,26 @@ export const bf = stylex.create({
     ':focus-visible': {
       outlineWidth: '2px',
       outlineStyle: 'solid',
-      outlineColor: bw.accent,
+      outlineColor: 'var(--bw-accent)',
       outlineOffset: '2px',
     },
   },
   techniqueBtnActive: {
     fontWeight: 500,
-    color: bw.text,
+    color: 'var(--bw-text)',
   },
   techniqueBtnInactive: {
-    color: bw.textSecondary,
+    color: 'var(--bw-text-secondary)',
     '@media (hover: hover) and (pointer: fine)': {
       ':hover': {
-        color: bw.text,
+        color: 'var(--bw-text)',
       },
     },
   },
   techniqueInk: {
     position: 'absolute',
     inset: 0,
-    backgroundColor: bw.accentSubtle,
+    backgroundColor: 'var(--bw-accent-subtle)',
   },
   techniqueGrid: {
     display: 'grid',
@@ -794,13 +792,13 @@ export const bf = stylex.create({
     marginTop: '0.5rem',
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: bw.borderSubtle,
+    borderTopColor: 'var(--bw-border-subtle)',
     paddingTop: '0.5rem',
   },
   detailsGroupFlush: {
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: bw.borderSubtle,
+    borderTopColor: 'var(--bw-border-subtle)',
     paddingTop: '0.5rem',
   },
   mb25: { marginBottom: '0.625rem' },
@@ -814,7 +812,7 @@ export const bf = stylex.create({
     zIndex: 50,
     display: 'flex',
     flexDirection: 'column',
-    backgroundColor: bw.canvas,
+    backgroundColor: 'var(--bw-canvas)',
   },
   visualTapBtn: {
     borderRadius: '9999px',
@@ -822,7 +820,7 @@ export const bf = stylex.create({
     ':focus-visible': {
       outlineWidth: '2px',
       outlineStyle: 'solid',
-      outlineColor: bw.accent,
+      outlineColor: 'var(--bw-accent)',
       outlineOffset: '8px',
     },
   },
@@ -832,18 +830,18 @@ export const bf = stylex.create({
     width: '100%',
     borderRadius: '0.5rem',
     fontSize: '0.875rem',
-    color: bw.textSecondary,
+    color: 'var(--bw-text-secondary)',
     transitionProperty: 'color, background-color',
     transitionDuration: '150ms',
     ':focus-visible': {
       outlineWidth: '2px',
       outlineStyle: 'solid',
-      outlineColor: bw.accent,
+      outlineColor: 'var(--bw-accent)',
       outlineOffset: '2px',
     },
     '@media (hover: hover) and (pointer: fine)': {
       ':hover': {
-        backgroundColor: bw.hover,
+        backgroundColor: 'var(--bw-hover)',
       },
     },
   },
@@ -862,7 +860,7 @@ export const bf = stylex.create({
     transitionDuration: '150ms',
     '@media (hover: hover) and (pointer: fine)': {
       ':hover': {
-        backgroundColor: bw.hover,
+        backgroundColor: 'var(--bw-hover)',
       },
     },
   },
@@ -878,19 +876,19 @@ export const bf = stylex.create({
     ':focus-visible': {
       outlineWidth: '2px',
       outlineStyle: 'solid',
-      outlineColor: bw.accent,
+      outlineColor: 'var(--bw-accent)',
       outlineOffset: '2px',
     },
   },
   inkChipActive: {
     fontWeight: 500,
-    color: bw.text,
+    color: 'var(--bw-text)',
   },
   inkChipInactive: {
-    color: bw.textSecondary,
+    color: 'var(--bw-text-secondary)',
     '@media (hover: hover) and (pointer: fine)': {
       ':hover': {
-        color: bw.text,
+        color: 'var(--bw-text)',
       },
     },
   },
@@ -903,17 +901,17 @@ export const bf = stylex.create({
     right: 0,
     bottom: '-0.25rem',
     height: '1px',
-    backgroundColor: bw.accent,
+    backgroundColor: 'var(--bw-accent)',
   },
   noticeAccent: {
-    backgroundColor: bw.accentSubtle,
+    backgroundColor: 'var(--bw-accent-subtle)',
     paddingLeft: '1rem',
     paddingRight: '1rem',
     paddingTop: '0.75rem',
     paddingBottom: '0.75rem',
   },
   noticeDanger: {
-    backgroundColor: bw.destructiveSubtle,
+    backgroundColor: 'var(--bw-destructive-subtle)',
     paddingLeft: '1rem',
     paddingRight: '1rem',
     paddingTop: '0.75rem',
@@ -922,21 +920,21 @@ export const bf = stylex.create({
   sectionFirst: {
     borderTopWidth: 0,
     borderTopStyle: 'solid',
-    borderTopColor: bw.border,
+    borderTopColor: 'var(--bw-border)',
     paddingTop: '1.25rem',
     paddingBottom: '1.25rem',
   },
   section: {
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: bw.border,
+    borderTopColor: 'var(--bw-border)',
     paddingTop: '1.25rem',
     paddingBottom: '1.25rem',
   },
   sectionTight: {
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: bw.border,
+    borderTopColor: 'var(--bw-border)',
     paddingTop: '1.25rem',
   },
   headerBar: {
@@ -969,11 +967,11 @@ export const bf = stylex.create({
     borderRadius: '0.375rem',
     fontSize: '15px',
     letterSpacing: '-0.025em',
-    color: bw.text,
+    color: 'var(--bw-text)',
     ':focus-visible': {
       outlineWidth: '2px',
       outlineStyle: 'solid',
-      outlineColor: bw.accent,
+      outlineColor: 'var(--bw-accent)',
       outlineOffset: '4px',
     },
   },
@@ -1016,11 +1014,11 @@ export const bf = stylex.create({
     marginTop: '0.5rem',
     height: '44px',
     width: '100%',
-    accentColor: bw.accent,
+    accentColor: 'var(--bw-accent)',
     ':focus-visible': {
       outlineWidth: '2px',
       outlineStyle: 'solid',
-      outlineColor: bw.accent,
+      outlineColor: 'var(--bw-accent)',
       outlineOffset: '2px',
     },
     ':disabled': {
@@ -1034,18 +1032,18 @@ export const bf = stylex.create({
     paddingLeft: '0.5rem',
     paddingRight: '0.5rem',
     fontSize: '0.75rem',
-    color: bw.textSecondary,
+    color: 'var(--bw-text-secondary)',
     transitionProperty: 'color',
     transitionDuration: '150ms',
     ':focus-visible': {
       outlineWidth: '2px',
       outlineStyle: 'solid',
-      outlineColor: bw.accent,
+      outlineColor: 'var(--bw-accent)',
       outlineOffset: '2px',
     },
     '@media (hover: hover) and (pointer: fine)': {
       ':hover': {
-        color: bw.accent,
+        color: 'var(--bw-accent)',
       },
     },
   },
@@ -1055,7 +1053,7 @@ export const bf = stylex.create({
     width: '0.25rem',
     flexShrink: 0,
     borderRadius: '9999px',
-    backgroundColor: bw.textTertiary,
+    backgroundColor: 'var(--bw-text-tertiary)',
   },
   phaseSeg: {
     display: 'block',
@@ -1068,7 +1066,7 @@ export const bf = stylex.create({
     height: '1px',
     width: '100%',
     overflow: 'hidden',
-    backgroundColor: bw.border,
+    backgroundColor: 'var(--bw-border)',
   },
   starfieldInline: {
     pointerEvents: 'none',
@@ -1117,14 +1115,14 @@ export const bf = stylex.create({
     fontSize: '1.25rem',
     fontWeight: 500,
     letterSpacing: '-0.025em',
-    color: bw.text,
+    color: 'var(--bw-text)',
   },
   phaseCue: {
     marginTop: '0.5rem',
     maxWidth: '20rem',
     fontSize: '0.875rem',
     lineHeight: 1.625,
-    color: bw.textSecondary,
+    color: 'var(--bw-text-secondary)',
   },
   recoveryCue: {
     marginTop: '0.375rem',
@@ -1135,7 +1133,7 @@ export const bf = stylex.create({
     paddingRight: '1rem',
     fontSize: '0.75rem',
     lineHeight: 1.375,
-    color: bw.textTertiary,
+    color: 'var(--bw-text-tertiary)',
   },
   cadenceRow: {
     display: 'flex',
@@ -1145,7 +1143,7 @@ export const bf = stylex.create({
     paddingBottom: '0.375rem',
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: bw.borderSubtle,
+    borderTopColor: 'var(--bw-border-subtle)',
     ':first-child': {
       borderTopWidth: 0,
     },
@@ -1153,7 +1151,7 @@ export const bf = stylex.create({
   cadenceDivide: {
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: bw.borderSubtle,
+    borderTopColor: 'var(--bw-border-subtle)',
   },
   historyRow: {
     display: 'flex',
@@ -1163,7 +1161,7 @@ export const bf = stylex.create({
     paddingBottom: '0.625rem',
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: bw.borderSubtle,
+    borderTopColor: 'var(--bw-border-subtle)',
     ':first-child': {
       borderTopWidth: 0,
     },
@@ -1176,7 +1174,7 @@ export const bf = stylex.create({
     paddingBottom: '0.5rem',
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: bw.borderSubtle,
+    borderTopColor: 'var(--bw-border-subtle)',
     ':first-child': {
       borderTopWidth: 0,
     },
@@ -1279,7 +1277,7 @@ export const bf = stylex.create({
     alignItems: 'baseline',
     justifyContent: 'space-between',
     fontSize: '0.875rem',
-    color: bw.text,
+    color: 'var(--bw-text)',
   },
   figcaptionRow: {
     marginTop: '0.25rem',
@@ -1287,14 +1285,14 @@ export const bf = stylex.create({
     justifyContent: 'space-between',
     fontSize: '10px',
     fontVariantNumeric: 'tabular-nums',
-    color: bw.textTertiary,
+    color: 'var(--bw-text-tertiary)',
   },
   contraindicationRow: {
     display: 'flex',
     gap: '0.5rem',
     fontSize: '0.75rem',
     lineHeight: 1.625,
-    color: bw.textSecondary,
+    color: 'var(--bw-text-secondary)',
   },
   statGrid: {
     marginTop: '1.5rem',
@@ -1304,7 +1302,7 @@ export const bf = stylex.create({
     rowGap: '1rem',
   },
   badgeItem: {
-    backgroundColor: bw.accentSubtle,
+    backgroundColor: 'var(--bw-accent-subtle)',
     paddingLeft: '0.75rem',
     paddingRight: '0.75rem',
     paddingTop: '0.5rem',
@@ -1314,7 +1312,7 @@ export const bf = stylex.create({
     marginTop: '1.5rem',
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: bw.border,
+    borderTopColor: 'var(--bw-border)',
     paddingTop: '1rem',
   },
   techniqueListLink: {
@@ -1326,12 +1324,12 @@ export const bf = stylex.create({
     ':focus-visible': {
       outlineWidth: '2px',
       outlineStyle: 'solid',
-      outlineColor: bw.accent,
+      outlineColor: 'var(--bw-accent)',
       outlineOffset: '2px',
     },
     '@media (hover: hover) and (pointer: fine)': {
       ':hover': {
-        color: bw.accent,
+        color: 'var(--bw-accent)',
       },
     },
   },
@@ -1341,14 +1339,14 @@ export const bf = stylex.create({
     maxWidth: '28rem',
     fontSize: '0.75rem',
     lineHeight: 1.625,
-    color: bw.textSecondary,
+    color: 'var(--bw-text-secondary)',
   },
   techniqueEvidence: {
     marginTop: '0.25rem',
     display: 'block',
     fontSize: '11px',
     textTransform: 'capitalize',
-    color: bw.textTertiary,
+    color: 'var(--bw-text-tertiary)',
   },
   techniqueTitleRow: {
     display: 'flex',
@@ -1379,7 +1377,7 @@ export const bf = stylex.create({
   legendMb2: {
     marginBottom: '0.5rem',
     fontSize: '0.875rem',
-    color: bw.textSecondary,
+    color: 'var(--bw-text-secondary)',
   },
   scienceBody: {
     paddingBottom: '0.5rem',
@@ -1388,7 +1386,7 @@ export const bf = stylex.create({
   detailsBorderTop: {
     borderTopWidth: '1px',
     borderTopStyle: 'solid',
-    borderTopColor: bw.borderSubtle,
+    borderTopColor: 'var(--bw-border-subtle)',
     paddingTop: '0.5rem',
   },
   startBlock: {
@@ -1398,7 +1396,7 @@ export const bf = stylex.create({
     marginBottom: '0.625rem',
     textAlign: 'center',
     fontSize: '0.875rem',
-    color: bw.textSecondary,
+    color: 'var(--bw-text-secondary)',
   },
   disclosureList: {
     marginTop: '0.25rem',
@@ -1407,5 +1405,3 @@ export const bf = stylex.create({
     gap: '0.375rem',
   },
 })
-
-export { layout, media }

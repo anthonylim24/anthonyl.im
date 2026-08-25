@@ -1,14 +1,12 @@
-import * as stylex from '@stylexjs/stylex'
-
 /** Shared easing curves — mirror index.css :root tokens. */
-export const easings = stylex.defineVars({
+export const easings = {
   decel: 'cubic-bezier(0.33, 0, 0, 1)',
   springSmooth: 'cubic-bezier(0.33, 0, 0, 1)',
   outExpo: 'cubic-bezier(0.16, 1, 0.3, 1)',
-})
+} as const
 
 /** shadcn HSL tokens exposed as CSS variables (set in index.css). */
-export const shadcn = stylex.defineVars({
+export const shadcn = {
   background: 'hsl(var(--background))',
   foreground: 'hsl(var(--foreground))',
   card: 'hsl(var(--card))',
@@ -29,10 +27,10 @@ export const shadcn = stylex.defineVars({
   input: 'hsl(var(--input))',
   ring: 'hsl(var(--ring))',
   radius: 'var(--radius)',
-})
+} as const
 
 /** BreathFlow semantic tokens (scoped under .breathwork in index.css). */
-export const bw = stylex.defineVars({
+export const bw = {
   canvas: 'var(--bw-canvas)',
   surface: 'var(--bw-surface)',
   text: 'var(--bw-text)',
@@ -52,10 +50,10 @@ export const bw = stylex.defineVars({
   borderSubtle: 'var(--bw-border-subtle)',
   hover: 'var(--bw-hover)',
   active: 'var(--bw-active)',
-})
+} as const
 
 /** Trips timetable tokens (scoped under .trips in index.css). */
-export const trips = stylex.defineVars({
+export const trips = {
   canvas: 'var(--trips-canvas)',
   surface: 'var(--trips-surface)',
   ink: 'var(--trips-ink)',
@@ -68,10 +66,10 @@ export const trips = stylex.defineVars({
   scrim: 'var(--trips-scrim)',
   fieldRadius: 'var(--trips-field-radius)',
   radius: 'var(--trips-radius)',
-})
+} as const
 
 /** Chatbot tokens (scoped under .chatbot-shadow / .chatbot-dark). */
-export const chat = stylex.defineVars({
+export const chat = {
   bg: 'var(--chat-bg)',
   text: 'var(--chat-text)',
   bright: 'var(--chat-bright)',
@@ -80,4 +78,4 @@ export const chat = stylex.defineVars({
   line: 'var(--chat-line)',
   footer: 'var(--chat-footer)',
   placeholder: 'var(--chat-placeholder)',
-})
+} as const

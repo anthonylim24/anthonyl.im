@@ -297,7 +297,7 @@ export function TripIngest({
           )}
 
           {visibleJobs.length > 0 && (
-            <ul {...sx(styles.mt2, styles.divideStone)} aria-live="polite">
+            <ul {...sx(styles.mt2, styles.divideStone, 'trips-divide-stone')} aria-live="polite">
               {visibleJobs.map((job) => (
                 <li key={job.id} {...sx(styles.py2)}>
                   <div {...sx(styles.flexCenterGap2)}>

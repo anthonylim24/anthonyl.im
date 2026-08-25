@@ -178,7 +178,7 @@ export function ExtractedPlacesLibrary({
                             <p {...sx(styles.text11, styles.fontMedium, styles.inkMutedStone, wrapAnywhereClass)}>
                               {hood.neighborhood}
                             </p>
-                            <ul {...sx(styles.extractedListDivide)}>
+                            <ul {...sx(styles.extractedListDivide, 'trips-extracted-list-divide')}>
                               {hood.places.map((place) => (
                                 <CatalogRow
                                   key={`${place.tripId}-${place.itemId}`}

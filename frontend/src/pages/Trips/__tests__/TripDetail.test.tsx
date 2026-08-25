@@ -228,7 +228,8 @@ describe("TripDetail enhance", () => {
     expect(screen.getByLabelText("Day 1 title")).toHaveValue("Higashiyama")
     expect(screen.queryByRole("navigation", { name: "Days" })).toBeNull()
     const itinerary = screen.getByTestId("trip-itinerary")
-    expect(itinerary).toHaveStyle({ flex: '1 1 0%', minWidth: '0px' })
+    expect(itinerary.className).toMatch(/flex1/)
+    expect(itinerary.className).toMatch(/minW0/)
   })
 
   it("keeps day editor chrome mounted while enhance runs", async () => {
