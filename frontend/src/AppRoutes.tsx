@@ -3,6 +3,8 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import App from './App'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 import { routerBasename } from './lib/routerBasename'
+import { sx } from './lib/utils'
+import { routeFallback } from './styles/chatbot.stylex'
 
 // Lazy load the BreathFlow shell and pages for better initial bundle size.
 const BreathworkLayout = lazy(() =>
@@ -76,11 +78,11 @@ const TripsNotFound = lazy(() =>
 function ChatbotFallback() {
   return (
     <div
-      className="flex min-h-dvh items-center justify-center bg-stone-50 text-stone-500 dark:bg-stone-950 dark:text-stone-400"
+      {...sx(routeFallback.shell)}
       role="status"
       aria-label="Loading chatbot"
     >
-      <span className="text-sm">Loading…</span>
+      <span {...sx(routeFallback.label)}>Loading…</span>
     </div>
   )
 }
@@ -88,11 +90,11 @@ function ChatbotFallback() {
 function BreathworkShellFallback() {
   return (
     <div
-      className="breathwork flex min-h-dvh items-center justify-center bg-bw-canvas text-stone-500 dark:text-stone-400"
+      {...sx(routeFallback.shell, routeFallback.breathworkShell, 'breathwork')}
       role="status"
       aria-label="Loading BreathFlow"
     >
-      <span className="text-sm">Loading BreathFlow…</span>
+      <span {...sx(routeFallback.label)}>Loading BreathFlow…</span>
     </div>
   )
 }
@@ -100,11 +102,11 @@ function BreathworkShellFallback() {
 function TripsShellFallback() {
   return (
     <div
-      className="trips flex min-h-dvh items-center justify-center bg-stone-50 text-stone-500 dark:bg-stone-950 dark:text-stone-400"
+      {...sx(routeFallback.shell, 'trips')}
       role="status"
       aria-label="Loading trip planner"
     >
-      <span className="text-sm">Loading trips…</span>
+      <span {...sx(routeFallback.label)}>Loading trips…</span>
     </div>
   )
 }
