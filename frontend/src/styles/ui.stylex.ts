@@ -242,6 +242,8 @@ export const statNumeral = stylex.create({
     color: 'var(--bw-success)',
   },
   borderAccent: {
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
     borderBottomColor: 'var(--bw-accent)',
   },
   unitSm: {

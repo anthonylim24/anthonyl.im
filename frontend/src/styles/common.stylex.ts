@@ -113,7 +113,9 @@ export const layout = stylex.create({
   textForeground: { color: 'hsl(var(--foreground))' },
   bgBackground: { backgroundColor: 'hsl(var(--background))' },
   bgCard: { backgroundColor: 'hsl(var(--card))' },
-  borderBorder: { borderColor: 'hsl(var(--border))' },
+  borderBorder: {
+    borderWidth: '1px',
+    borderStyle: 'solid', borderColor: 'hsl(var(--border))' },
   ringOffsetBackground: {
     '--ring-offset-color': 'hsl(var(--background))',
   },

@@ -193,7 +193,7 @@ export function SmartEntity({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? popoverId : undefined}
-        {...sx(smartEntity.trigger, 'group/entity', style)}
+        {...sx(smartEntity.trigger, 'group', style)}
       >
         <span {...sx(smartEntity.s3f58665f)}>{children ?? label ?? name}</span>
         {!compact && (

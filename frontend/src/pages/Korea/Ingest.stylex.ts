@@ -1026,7 +1026,12 @@ export const ingest = stylex.create({
     [DARK]: { borderColor: 'rgba(68, 64, 60, 0.8)', backgroundColor: '#1c1917' },
   },
   stepPopoverOpen: { opacity: 1, pointerEvents: 'auto' },
-  stepPopoverClosed: { opacity: 0, pointerEvents: 'none' },
+  stepPopoverClosed: {
+    opacity: 0,
+    pointerEvents: 'none',
+    ':is(.group:hover) &': { opacity: 1, pointerEvents: 'auto' },
+    ':is(.group:focus-within) &': { opacity: 1, pointerEvents: 'auto' },
+  },
   pipelineRim: { position: 'absolute', inset: 0, borderRadius: '9999px', backgroundColor: 'rgba(244, 63, 94, 0.3)' },
   pipelineBreath: { position: 'absolute', inset: '3px', borderRadius: '9999px' },
   stateLabelCurrent: { fontSize: '10px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#be123c', [DARK]: { color: '#fda4af' } },
@@ -1041,7 +1046,17 @@ export const ingest = stylex.create({
   confHigh: { borderRadius: '0.25rem', paddingLeft: '0.25rem', paddingRight: '0.25rem', paddingTop: '0.125rem', paddingBottom: '0.125rem', fontSize: '10px', fontWeight: 500, backgroundColor: '#ecfdf5', color: '#047857', [DARK]: { backgroundColor: 'rgba(2, 44, 34, 0.3)', color: '#34d399' } },
   confMedium: { borderRadius: '0.25rem', paddingLeft: '0.25rem', paddingRight: '0.25rem', paddingTop: '0.125rem', paddingBottom: '0.125rem', fontSize: '10px', fontWeight: 500, backgroundColor: '#fffbeb', color: '#b45309', [DARK]: { backgroundColor: 'rgba(69, 26, 3, 0.3)', color: '#fbbf24' } },
   confLow: { borderRadius: '0.25rem', paddingLeft: '0.25rem', paddingRight: '0.25rem', paddingTop: '0.125rem', paddingBottom: '0.125rem', fontSize: '10px', fontWeight: 500, backgroundColor: '#f5f5f4', color: '#78716c', [DARK]: { backgroundColor: '#292524', color: '#a8a29e' } },
-  chevron: { height: '0.875rem', width: '0.875rem', flexShrink: 0, color: '#a8a29e', transitionProperty: 'transform', transitionDuration: '200ms' },
+  chevron: {
+    height: '0.875rem',
+    width: '0.875rem',
+    flexShrink: 0,
+    color: '#a8a29e',
+    transitionProperty: 'transform',
+    transitionDuration: '200ms',
+    '@media (prefers-reduced-motion: reduce)': {
+      transitionProperty: 'none',
+    },
+  },
   chevronOpen: { transform: 'rotate(90deg)' },
   placeRow: { position: 'relative', display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '13px', color: '#44403c', [DARK]: { color: '#d6d3d1' } },
   placeRowEmerge: { borderRadius: '0.5rem', paddingLeft: '0.5rem', paddingRight: '0.5rem', paddingTop: '0.375rem', paddingBottom: '0.375rem', borderWidth: '1px', borderStyle: 'solid', borderColor: 'rgba(253, 164, 175, 0.7)', [DARK]: { borderColor: 'rgba(244, 63, 94, 0.4)' } },
@@ -1079,6 +1094,8 @@ export const ingest = stylex.create({
     },
   },
   urlInputValid: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: '#d6d3d1',
     ':focus-visible': { borderColor: '#fb7185', boxShadow: '0 0 0 2px rgba(251, 113, 133, 0.2)' },
     [DARK]: {
@@ -1087,6 +1104,8 @@ export const ingest = stylex.create({
     },
   },
   urlInputInvalid: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: '#fb7185',
     ':focus-visible': { borderColor: '#f43f5e', boxShadow: '0 0 0 2px rgba(251, 113, 133, 0.3)' },
     [DARK]: {

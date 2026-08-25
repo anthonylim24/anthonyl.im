@@ -32,12 +32,18 @@ export const smartEntity = stylex.create({
     },
   },
   s9c7aa6f8: {
-    "marginLeft": "0.125rem",
-    "color": "#a8a29e",
-    "transitionProperty": "color, background-color, border-color",
-    "transitionDuration": "150ms",
+    marginLeft: '0.125rem',
+    display: 'inline-block',
+    transform: 'translateY(1px)',
+    fontSize: '0.65em',
+    color: '#a8a29e',
+    transitionProperty: 'color, background-color, border-color',
+    transitionDuration: '150ms',
+    ':is(.group:hover) &': {
+      color: '#f43f5e',
+    },
     [DARK]: {
-      "color": "#57534e",
+      color: '#57534e',
     },
   },
   sffda4ad5: {

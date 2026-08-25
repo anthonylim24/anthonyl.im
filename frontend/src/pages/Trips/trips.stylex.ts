@@ -511,6 +511,8 @@ export const styles = stylex.create({
     ...focusRing,
   },
   checkbox: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     height: '2.75rem',
     width: '2.75rem',
     flexShrink: 0,
@@ -1179,7 +1181,11 @@ export const styles = stylex.create({
   },
   accentDot: { backgroundColor: ta },
   accentSoftBg: { backgroundColor: taSoft },
-  accentBorder: { borderColor: taRing },
+  accentBorder: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: taRing,
+  },
   accentHairline: { backgroundColor: taRing },
   accentRing: {
     boxShadow: `0 0 0 2px ${taRing}`,
@@ -1207,16 +1213,22 @@ export const styles = stylex.create({
     letterSpacing: '0.12em',
   },
   chipDraft: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: 'var(--trips-border)',
     backgroundColor: 'var(--trips-rail)',
     color: 'var(--trips-ink-secondary)',
   },
   chipArchived: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: 'var(--trips-border)',
     backgroundColor: 'var(--trips-rail)',
     color: 'var(--trips-ink-tertiary)',
   },
   chipActive: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: '#6ee7b7',
     backgroundColor: '#ecfdf5',
     color: '#064e3b',
@@ -1227,6 +1239,8 @@ export const styles = stylex.create({
     },
   },
   chipBooked: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: '#6ee7b7',
     backgroundColor: '#ecfdf5',
     color: '#064e3b',
@@ -1237,6 +1251,8 @@ export const styles = stylex.create({
     },
   },
   chipOptional: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: '#d6d3d1',
     backgroundColor: '#f5f5f4',
     color: '#44403c',
@@ -1247,6 +1263,8 @@ export const styles = stylex.create({
     },
   },
   chipNeedsReview: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: '#fcd34d',
     backgroundColor: '#fffbeb',
     color: '#451a03',
@@ -1257,6 +1275,8 @@ export const styles = stylex.create({
     },
   },
   chipCompleted: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: '#d6d3d1',
     backgroundColor: '#f5f5f4',
     color: '#57534e',
@@ -1283,6 +1303,8 @@ export const styles = stylex.create({
     ':is(.dark) &': { backgroundColor: '#57534e' },
   },
   chipSuggestionAdd: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: '#6ee7b7',
     backgroundColor: '#ecfdf5',
     color: '#064e3b',
@@ -1293,6 +1315,8 @@ export const styles = stylex.create({
     },
   },
   chipSuggestionRemove: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: '#fca5a5',
     backgroundColor: '#fef2f2',
     color: '#7f1d1d',
@@ -1303,6 +1327,8 @@ export const styles = stylex.create({
     },
   },
   chipSuggestionNeutral: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: '#d6d3d1',
     backgroundColor: '#f5f5f4',
     color: '#44403c',
@@ -1313,6 +1339,8 @@ export const styles = stylex.create({
     },
   },
   chipAi: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: 'var(--trips-border)',
     backgroundColor: 'var(--trips-rail)',
     color: 'var(--trips-ink-secondary)',
@@ -1376,6 +1404,8 @@ export const styles = stylex.create({
 
   // ── Callout tones ──────────────────────────────────────────────────────
   calloutInfo: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: '#e7e5e4',
     backgroundColor: 'rgba(245, 245, 244, 0.8)',
     ':is(.dark) &': {
@@ -1384,6 +1414,8 @@ export const styles = stylex.create({
     },
   },
   calloutWarn: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: '#fde68a',
     backgroundColor: 'rgba(255, 251, 235, 0.8)',
     ':is(.dark) &': {
@@ -1392,6 +1424,8 @@ export const styles = stylex.create({
     },
   },
   calloutSuccess: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: '#a7f3d0',
     backgroundColor: 'rgba(236, 253, 245, 0.8)',
     ':is(.dark) &': {
@@ -1400,6 +1434,8 @@ export const styles = stylex.create({
     },
   },
   calloutAlert: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: '#fda4af',
     backgroundColor: 'rgba(255, 241, 242, 0.8)',
     ':is(.dark) &': {
@@ -2260,7 +2296,9 @@ export const styles = stylex.create({
   bgSurface: { backgroundColor: 'var(--trips-surface)' },
   bgRail: { backgroundColor: 'var(--trips-rail)' },
   bgScrim: { backgroundColor: 'var(--trips-scrim)' },
-  borderTrips: { borderColor: 'var(--trips-border)' },
+  borderTrips: {
+    borderWidth: '1px',
+    borderStyle: 'solid', borderColor: 'var(--trips-border)' },
   borderDashedTrips: {
     borderWidth: '1px',
     borderStyle: 'dashed',
@@ -2637,6 +2675,8 @@ export const styles = stylex.create({
     marginTop: '1.5rem',
   },
   coverStampOnBand: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: 'color-mix(in oklch, var(--trips-band-ink) 25%, transparent)',
     backgroundColor: 'transparent',
     color: 'color-mix(in oklch, var(--trips-band-ink) 80%, transparent)',
@@ -3515,6 +3555,8 @@ export const styles = stylex.create({
     paddingBottom: '0.5rem',
   },
   savePillError: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: '#fca5a5',
     backgroundColor: '#fef2f2',
     color: '#991b1b',
@@ -4689,6 +4731,8 @@ export const styles = stylex.create({
     color: 'var(--trips-ink)',
   },
   borderRed: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: '#f87171',
     ':is(.dark) &': { borderColor: '#991b1b' },
   },
@@ -4880,6 +4924,8 @@ export const styles = stylex.create({
   },
   minW28: { minWidth: '7rem' },
   borderRedInvalid: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: '#f87171',
     ':is(.dark) &': { borderColor: '#991b1b' },
   },

@@ -689,7 +689,7 @@ function TimelineItem({
       {isActive && (
         <span
           aria-hidden
-          {...sx(koreaDay.s92b3001d, 'animate-[timeline-breath_3s_ease-in-out_infinite]')}
+          {...sx(koreaDay.s92b3001d, 'animate-timeline-breath')}
         />
       )}
       {time && (
@@ -701,7 +701,7 @@ function TimelineItem({
         {isActive && (
           <span
             aria-hidden
-            {...sx(koreaDay.s70432184, 'animate-[timeline-rim_3s_ease-in-out_infinite]')}
+            {...sx(koreaDay.s70432184, 'animate-timeline-rim')}
           />
         )}
         {children}

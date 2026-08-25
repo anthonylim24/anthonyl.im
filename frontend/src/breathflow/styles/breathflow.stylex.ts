@@ -549,11 +549,15 @@ export const bf = stylex.create({
     },
   },
   checkboxBoxChecked: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: 'var(--bw-accent)',
     backgroundColor: 'var(--bw-accent)',
     color: 'var(--bw-accent-foreground)',
   },
   checkboxBoxUnchecked: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: 'var(--bw-border)',
     backgroundColor: 'var(--bw-surface)',
   },

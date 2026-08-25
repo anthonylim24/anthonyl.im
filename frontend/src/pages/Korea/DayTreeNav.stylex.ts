@@ -148,6 +148,8 @@ export const dayTreeNav = stylex.create({
     [DARK]: { color: '#a8a29e' },
   },
   dayLinkActive: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: '#fb7185',
     backgroundColor: '#ffe4e6',
     color: '#881337',

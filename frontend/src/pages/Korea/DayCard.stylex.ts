@@ -182,10 +182,14 @@ export const dayCard = stylex.create({
     },
   },
   cardLinkToday: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: 'rgba(251, 113, 133, 0.7)',
     [DARK]: { borderColor: 'rgba(244, 63, 94, 0.6)' },
   },
   cardLinkDefault: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: 'rgba(231, 229, 228, 0.8)',
     ':hover': {
       borderColor: palette.stone300,

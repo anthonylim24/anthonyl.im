@@ -260,7 +260,6 @@ function App() {
                 chatbot.headerRule,
                 hasMessages ? chatbot.headerRuleCompact : chatbot.headerRuleExpanded,
                 'chat-border',
-                'border-t',
               )}
             />
           </div>

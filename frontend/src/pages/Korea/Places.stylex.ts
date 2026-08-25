@@ -879,6 +879,8 @@ export const places = stylex.create({
     },
   },
   dayBtnAssigned: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: '#fda4af',
     backgroundColor: '#fff1f2',
     color: '#be123c',
@@ -891,6 +893,8 @@ export const places = stylex.create({
     },
   },
   dayBtnDefault: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: '#e7e5e4',
     backgroundColor: '#fafaf9',
     color: '#57534e',
@@ -924,6 +928,8 @@ export const places = stylex.create({
     },
   },
   filterChipActive: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: 'var(--ta-ring, #fda4af)',
     backgroundColor: 'var(--ta-soft, #fff1f2)',
     color: 'var(--ta, #be123c)',
@@ -931,6 +937,8 @@ export const places = stylex.create({
     [DARK]: { color: 'var(--ta-strong, #fb7185)' },
   },
   filterChipInactive: {
+    borderWidth: '1px',
+    borderStyle: 'solid',
     borderColor: '#e7e5e4',
     backgroundColor: '#ffffff',
     color: '#57534e',

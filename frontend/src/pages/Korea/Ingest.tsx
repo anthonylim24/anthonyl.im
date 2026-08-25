@@ -409,7 +409,6 @@ function StepTimeline({ job, reduce, etaNow }: { job: Job; reduce: boolean | nul
                 {...sx(
                   ingest.stepPopover,
                   isExpanded ? ingest.stepPopoverOpen : ingest.stepPopoverClosed,
-                  'group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100',
                 )}
               >
                 <StepPopoverContent step={step as UiStep} state={state} info={info} job={job} etaNow={etaNow} />
@@ -725,7 +724,7 @@ function PlacesList({
       >
         <ChevronRight
           aria-hidden
-          {...sx(ingest.chevron, expanded ? ingest.chevronOpen : undefined, 'motion-reduce:transition-none')}
+          {...sx(ingest.chevron, expanded ? ingest.chevronOpen : undefined)}
         />
         {places.length} {places.length === 1 ? 'place' : 'places'} extracted
       </button>
@@ -1003,7 +1002,7 @@ function JobCard({
           {...sx(ingest.s17bea155)}
         >
           <div
-            {...sx(ingest.sweepBar, reduce ? undefined : 'animate-[ig-sweep_1.6s_linear_infinite]')}
+            {...sx(ingest.sweepBar, reduce ? undefined : 'animate-ig-sweep')}
           />
         </div>
       )}

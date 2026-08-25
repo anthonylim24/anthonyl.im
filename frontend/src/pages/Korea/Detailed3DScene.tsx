@@ -489,27 +489,24 @@ export function Detailed3DScene({
       label.style.transform = "translate3d(-9999px,-9999px,0)"
       label.style.visibility = "hidden"
       label.style.cursor = "pointer"
-      label.className =
-        "pointer-events-auto absolute left-0 top-0 select-none text-center"
+      label.className = "map-css2d-root"
       const distLabel = p.distanceLabel ?? ""
       const safeName = escapeHtml(p.name)
       const shortName = safeName.length > 22 ? `${safeName.slice(0, 21)}…` : safeName
       const igBadge = p.subcategory === "instagram"
-        ? `<span class="inline-flex h-3 w-3 shrink-0 items-center justify-center text-rose-600 dark:text-rose-400" aria-label="From Instagram"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-3 w-3"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.5" fill="currentColor" stroke="none"/></svg></span>`
+        ? `<span class="map-ig-badge" aria-label="From Instagram"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.5" fill="currentColor" stroke="none"/></svg></span>`
         : ""
       label.innerHTML = `
-        <div class="inline-flex max-w-[12rem] flex-col items-center gap-1">
-          <span class="h-2.5 w-2.5 rounded-full shadow-[0_0_0_2px_rgba(255,254,250,0.85)]" style="background:${escapeHtml(p.color)}"></span>
-          <div class="inline-flex max-w-full flex-col items-center gap-0.5 rounded-2xl border border-[rgba(28,25,23,0.08)] bg-[rgba(255,254,250,0.92)] px-2.5 py-1 shadow-[0_8px_20px_rgba(28,25,23,0.14)] backdrop-blur-md dark:border-[rgba(255,252,245,0.08)] dark:bg-[rgba(28,25,23,0.88)]">
-            <div class="flex max-w-full items-center justify-center gap-1 leading-tight">
+        <div class="map-label-stack">
+          <span class="map-label-dot" style="background:${escapeHtml(p.color)}"></span>
+          <div class="map-label-card">
+            <div class="map-label-row">
               ${igBadge}
-              <span class="truncate text-[10px] font-semibold tracking-tight text-stone-900 dark:text-stone-100">
-                ${shortName}
-              </span>
+              <span class="map-label-name">${shortName}</span>
             </div>
             ${
               distLabel
-                ? `<div class="rounded-full px-1.5 py-px text-[10px] font-bold tabular-nums leading-none" style="background:${escapeHtml(p.color)}26;color:${escapeHtml(p.color)};">${escapeHtml(distLabel)}</div>`
+                ? `<div class="map-label-dist" style="background:${escapeHtml(p.color)}26;color:${escapeHtml(p.color)};">${escapeHtml(distLabel)}</div>`
                 : ""
             }
           </div>
@@ -556,13 +553,12 @@ export function Detailed3DScene({
 
     // YOU label — projected from world origin each frame.
     const youLabel = document.createElement("div")
-    youLabel.className =
-      "pointer-events-none absolute select-none text-center"
+    youLabel.className = "map-css2d-you"
     youLabel.style.transform = "translate3d(-9999px,-9999px,0)"
     youLabel.style.visibility = "hidden"
     youLabel.innerHTML = `
-      <div class="flex flex-col items-center gap-1">
-        <div class="inline-block rounded-full border border-white/35 bg-rose-600/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white shadow-[0_8px_24px_rgba(244,63,94,0.4)] backdrop-blur-sm">You</div>
+      <div class="map-you-stack">
+        <div class="map-you-pill">You</div>
       </div>
     `
     overlay.appendChild(youLabel)
@@ -623,7 +619,7 @@ export function Detailed3DScene({
     // Selection HTML pill (distance + address + Maps link) rendered
     // in the overlay so the Maps anchor receives pointer events.
     const selectionPill = document.createElement("div")
-    selectionPill.className = "pointer-events-none absolute left-0 top-0 select-none"
+    selectionPill.className = "map-css2d-you"
     selectionPill.style.transform = "translate3d(-9999px,-9999px,0)"
     selectionPill.style.visibility = "hidden"
     overlay.appendChild(selectionPill)
@@ -1158,10 +1154,10 @@ export function Detailed3DScene({
               m.place.name + ", " + m.place.city,
             )}`
             selectionPill.innerHTML = `
-              <div class="flex flex-col items-center gap-1">
+              <div class="map-sel-stack">
                 ${
                   distLabel
-                    ? `<div class="inline-flex items-center gap-1.5 rounded-full bg-rose-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white shadow-lg ring-1 ring-rose-300/60">
+                    ? `<div class="map-sel-dist">
                         <span aria-hidden>↔</span>
                         <span class="tabular-nums">${escapeHtml(distLabel)}</span>
                       </div>`
@@ -1169,14 +1165,14 @@ export function Detailed3DScene({
                 }
                 ${
                   addr
-                    ? `<div class="max-w-[14rem] truncate rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-medium text-stone-700 shadow-md ring-1 ring-stone-200 dark:bg-stone-900/95 dark:text-stone-300 dark:ring-stone-700" title="${escapeHtml(addr)}">${escapeHtml(addr)}</div>`
+                    ? `<div class="map-sel-addr" title="${escapeHtml(addr)}">${escapeHtml(addr)}</div>`
                     : ""
                 }
                 <a
                   href="${mapsUrl}"
                   target="_blank"
                   rel="noreferrer"
-                  class="pointer-events-auto inline-flex items-center gap-1 rounded-full border border-stone-300 bg-stone-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-stone-700 shadow-md transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
+                  class="map-sel-maps"
                 >
                   Maps <span aria-hidden>↗</span>
                 </a>
