@@ -1,4 +1,6 @@
 import { BADGES } from '../gamify/badges'
+import { sx } from '@/styles/merge'
+import { bf } from '../styles/breathflow.stylex'
 
 interface BadgeGridProps {
   earnedBadgeIds: readonly string[]
@@ -13,13 +15,13 @@ export function BadgeGrid({ earnedBadgeIds }: BadgeGridProps) {
   const visible = BADGES.filter((badge) => !badge.secret || earned.has(badge.id))
 
   return (
-    <dl className="space-y-3">
+    <dl {...sx(bf.spaceY3)}>
       {visible.map((badge) => {
         const isEarned = earned.has(badge.id)
         return (
-          <div key={badge.id} className={isEarned ? '' : 'opacity-50'}>
-            <dt className="break-words text-sm font-medium text-bw [overflow-wrap:anywhere]">{badge.name}</dt>
-            <dd className="mt-0.5 break-words text-xs leading-snug text-bw-secondary [overflow-wrap:anywhere]">
+          <div key={badge.id} {...sx(!isEarned && bf.opacity50)}>
+            <dt {...sx(bf.breakWords, bf.textSm, bf.fontMedium, bf.textBw)}>{badge.name}</dt>
+            <dd {...sx(bf.mt05, bf.breakWords, bf.textXs, bf.leadingSnug, bf.textSecondary)}>
               {isEarned ? badge.description : `Locked: ${badge.description.toLowerCase()}`}
             </dd>
           </div>

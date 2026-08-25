@@ -1,4 +1,6 @@
 import { motion } from 'motion/react'
+import { sx } from '@/styles/merge'
+import { bf } from '../styles/breathflow.stylex'
 import { inkSpring } from './tokens'
 
 export function SelectionInk({
@@ -12,7 +14,7 @@ export function SelectionInk({
     return (
       <span
         aria-hidden="true"
-        className="absolute inset-x-0 -bottom-1 h-px bg-bw-accent"
+        {...sx(bf.selectionInk)}
       />
     )
   }
@@ -21,7 +23,7 @@ export function SelectionInk({
     <motion.span
       aria-hidden="true"
       layoutId={layoutId}
-      className="absolute inset-x-0 -bottom-1 h-px bg-bw-accent"
+      {...sx(bf.selectionInk)}
       transition={inkSpring}
     />
   )

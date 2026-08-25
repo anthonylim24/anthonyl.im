@@ -1,11 +1,14 @@
 import type { ReactNode } from 'react'
+import { sx } from '@/styles/merge'
+import { bf } from '../styles/breathflow.stylex'
 
 export function Notice({
   role = 'status',
   tone = 'accent',
   title,
   children,
-  className = '',
+  className,
+  style,
   live = true,
 }: {
   role?: 'status' | 'alert'
@@ -13,20 +16,19 @@ export function Notice({
   title: string
   children?: ReactNode
   className?: string
+  style?: Parameters<typeof sx>[0]
   /** Recovery countdowns pass false so each second is not re-announced. */
   live?: boolean
 }) {
-  const toneClass = tone === 'danger' ? 'bg-bw-destructive-subtle' : 'bg-bw-accent-subtle'
-
   return (
     <div
       role={role}
       aria-live={live ? undefined : 'off'}
-      className={`${toneClass} px-4 py-3 ${className}`.trim()}
+      {...sx(tone === 'danger' ? bf.noticeDanger : bf.noticeAccent, style ?? className)}
     >
-      <p className="break-words wrap-anywhere text-sm font-medium text-bw">{title}</p>
+      <p {...sx(bf.breakWords, bf.textSm, bf.fontMedium, bf.textBw)}>{title}</p>
       {children ? (
-        <div className="mt-1 break-words wrap-anywhere text-sm leading-relaxed text-bw-secondary">
+        <div {...sx(bf.mt1, bf.breakWords, bf.textSm, bf.leadingRelaxed, bf.textSecondary)}>
           {children}
         </div>
       ) : null}

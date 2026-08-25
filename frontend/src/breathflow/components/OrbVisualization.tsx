@@ -1,5 +1,7 @@
 import { useMemo, useRef } from 'react'
 import { motion } from 'motion/react'
+import { sx } from '@/styles/merge'
+import { bf } from '../styles/breathflow.stylex'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { breathEase, chromeTransition, EASE_SETTLE, scaleToAmplitude } from '../motion/tokens'
 import { useLockedPhaseDuration } from '../motion/useLockedPhaseDuration'
@@ -44,24 +46,24 @@ function RingsInstrument({
   reducedMotion: boolean
 }) {
   return (
-    <div className="relative h-full w-full">
-      <svg aria-hidden="true" viewBox="0 0 240 240" className="absolute inset-0 h-full w-full" data-testid="orb-rings">
+    <div {...sx(bf.ringsRoot)}>
+      <svg aria-hidden="true" viewBox="0 0 240 240" {...sx(bf.ringsSvg)} data-testid="orb-rings">
         <circle cx="120" cy="120" r="110" fill="none" stroke="var(--bw-border)" strokeWidth="1" />
       </svg>
       {reducedMotion ? (
-        <svg aria-hidden="true" viewBox="0 0 240 240" className="absolute inset-0 h-full w-full">
+        <svg aria-hidden="true" viewBox="0 0 240 240" {...sx(bf.ringsSvg)}>
           <circle cx="120" cy="120" r="78" fill="none" stroke={core} strokeWidth="1.25" opacity="0.55" />
           <circle cx="120" cy="120" r="48" fill="none" stroke={core} strokeWidth="1.25" />
           <circle cx="120" cy="120" r="14" fill={core} />
         </svg>
       ) : (
         <motion.div
-          className="absolute inset-0"
+          {...sx(bf.ringsMotion)}
           initial={false}
           animate={{ scale }}
           transition={{ duration, ease }}
         >
-          <svg aria-hidden="true" viewBox="0 0 240 240" className="h-full w-full">
+          <svg aria-hidden="true" viewBox="0 0 240 240" {...sx(bf.fullInset)}>
             <circle cx="120" cy="120" r="78" fill="none" stroke={core} strokeWidth="1.25" opacity="0.55" />
             <circle cx="120" cy="120" r="48" fill="none" stroke={core} strokeWidth="1.25" />
             <circle cx="120" cy="120" r="14" fill={core} />
@@ -121,12 +123,12 @@ export function OrbVisualization({
 
   const glass = !reducedMotion && !glFailed
   const instrument = glass ? (
-    <div className="relative h-full w-full">
+    <div {...sx(bf.ringsRoot)}>
       <canvas
         ref={canvasRef}
         aria-hidden="true"
         data-testid="glass-orb-canvas"
-        className="absolute inset-0 h-full w-full"
+        {...sx(bf.ringsSvg)}
       />
       <OrbParticleField colors={colors} amplitudeRef={amplitudeRef} />
     </div>
@@ -142,7 +144,7 @@ export function OrbVisualization({
 
   if (reducedMotion) {
     return (
-      <div aria-hidden="true" className="h-56 w-56 sm:h-64 sm:w-64" style={{ transform: 'scale(0.85)' }}>
+      <div aria-hidden="true" {...sx(bf.orbSize)} style={{ transform: 'scale(0.85)' }}>
         {instrument}
       </div>
     )
@@ -150,7 +152,7 @@ export function OrbVisualization({
 
   if (!glass) {
     return (
-      <div aria-hidden="true" className="relative h-56 w-56 sm:h-64 sm:w-64">
+      <div aria-hidden="true" {...sx(bf.orbSizeRelative)}>
         {instrument}
       </div>
     )
@@ -159,7 +161,7 @@ export function OrbVisualization({
   return (
     <motion.div
       aria-hidden="true"
-      className="bf-glass-orb relative h-56 w-56 sm:h-64 sm:w-64"
+      {...sx('bf-glass-orb', bf.orbSizeRelative)}
       initial={false}
       animate={{ scale }}
       transition={{ duration, ease }}

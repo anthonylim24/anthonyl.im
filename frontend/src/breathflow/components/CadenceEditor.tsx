@@ -1,5 +1,7 @@
 import { Minus, Plus } from 'lucide-react'
 import { PHASE_LABELS } from '@/lib/constants'
+import { sx } from '@/styles/merge'
+import { layout } from '@/styles/common.stylex'
 import {
   clampPhaseSeconds,
   getPhaseBaseSeconds,
@@ -9,7 +11,8 @@ import {
 } from '../protocols/cadence'
 import { getHoldLadder, hasProgressiveHolds } from '../protocols/progressiveHold'
 import type { BreathingProtocol } from '../protocols/types'
-import { btnIcon, btnGhost } from './buttonStyles'
+import { bf } from '../styles/breathflow.stylex'
+import { btn } from './buttonStyles.stylex'
 
 interface CadenceEditorProps {
   protocol: BreathingProtocol
@@ -40,17 +43,17 @@ export function CadenceEditor({ protocol, rounds, customDurations, onChange }: C
 
   return (
     <div>
-      <div className="divide-y divide-bw-border-subtle">
+      <div>
         {protocol.phases.map(({ phase }, index) => {
           const seconds = getPhaseBaseSeconds(protocol, phase, customDurations)
           const { min, max } = PHASE_SECOND_LIMITS[phase]
           return (
-            <div key={`${phase}-${index}`} className="flex items-center justify-between py-1.5">
-              <span className="text-sm text-bw">{PHASE_LABELS[phase]}</span>
-              <div className="flex items-center gap-1">
+            <div key={`${phase}-${index}`} {...sx(bf.cadenceRow)}>
+              <span {...sx(bf.textSm, bf.textBw)}>{PHASE_LABELS[phase]}</span>
+              <div {...sx(bf.flexItemsCenterGap1)}>
                 <button
                   type="button"
-                  className={btnIcon}
+                  {...sx(btn.icon)}
                   aria-label={`Decrease ${PHASE_LABELS[phase]} by one second`}
                   disabled={seconds <= min}
                   onClick={() => setPhaseSeconds(phase, seconds - 1)}
@@ -61,14 +64,14 @@ export function CadenceEditor({ protocol, rounds, customDurations, onChange }: C
                   role="status"
                   aria-live="polite"
                   aria-atomic="true"
-                  className="w-9 text-center text-sm font-medium tabular-nums text-bw"
+                  {...sx(bf.w9, bf.textCenter, bf.textSm, bf.fontMedium, bf.tabularNums, bf.textBw)}
                 >
-                  <span className="sr-only">{PHASE_LABELS[phase]} </span>
+                  <span {...sx(layout.srOnly)}>{PHASE_LABELS[phase]} </span>
                   {seconds}s
                 </span>
                 <button
                   type="button"
-                  className={btnIcon}
+                  {...sx(btn.icon)}
                   aria-label={`Increase ${PHASE_LABELS[phase]} by one second`}
                   disabled={seconds >= max}
                   onClick={() => setPhaseSeconds(phase, seconds + 1)}
@@ -82,23 +85,27 @@ export function CadenceEditor({ protocol, rounds, customDurations, onChange }: C
       </div>
 
       {ladder.length > 0 && (
-        <div className="mt-3 rounded-2xl bg-bw-accent-subtle p-3">
-          <p className="text-xs font-medium text-bw">
+        <div {...sx(bf.mt3, bf.rounded2xl, bf.bgAccentSubtle, bf.p3)}>
+          <p {...sx(bf.textXs, bf.fontMedium, bf.textBw)}>
             Hold ladder: +{protocol.holdIncrementSeconds}s each round
           </p>
           <p
             aria-live="polite"
             aria-atomic="true"
-            className="mt-1 break-words text-xs tabular-nums text-bw-secondary"
+            {...sx(bf.mt1, bf.breakWords, bf.textXs, bf.tabularNums, bf.textSecondary)}
           >
-            <span className="sr-only">Hold ladder: </span>
+            <span {...sx(layout.srOnly)}>Hold ladder: </span>
             {ladder.map((seconds) => `${seconds}s`).join(', ')}
           </p>
         </div>
       )}
 
       {isCustom && (
-        <button type="button" className={`${btnGhost} mt-2 px-3`} onClick={() => onChange(undefined)}>
+        <button
+          type="button"
+          {...sx(btn.base, btn.ghost, btn.mt2, btn.px3)}
+          onClick={() => onChange(undefined)}
+        >
           Reset to default cadence
         </button>
       )}

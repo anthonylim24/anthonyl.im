@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { sx } from '@/styles/merge'
 import type { MoodValue } from '@/lib/mood'
 import { formatDuration } from './format'
 import { getBadge } from '../gamify/badges'
@@ -6,8 +7,9 @@ import type { SessionInsight } from '../gamify/insights'
 import { isAdvancedProtocol } from '../protocols/catalog'
 import type { BreathingProtocol } from '../protocols/types'
 import type { CompletionResult } from '../session/completeSession'
+import { bf } from '../styles/breathflow.stylex'
 import { MoodPicker } from './MoodPicker'
-import { btnPrimary, btnSecondary } from './buttonStyles'
+import { btn } from './buttonStyles.stylex'
 
 interface SessionSummaryProps {
   protocol: BreathingProtocol
@@ -20,9 +22,9 @@ interface SessionSummaryProps {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0">
-      <dt className="text-xs text-bw-tertiary">{label}</dt>
-      <dd className="mt-0.5 text-lg font-semibold tabular-nums tracking-tight text-bw">{value}</dd>
+    <div {...sx(bf.minW0)}>
+      <dt {...sx(bf.textXs, bf.textTertiary)}>{label}</dt>
+      <dd {...sx(bf.mt05, bf.textLg, bf.fontSemibold, bf.tabularNums, bf.trackingTight, bf.textBw)}>{value}</dd>
     </div>
   )
 }
@@ -49,11 +51,11 @@ export function SessionSummary({
     .filter((badge): badge is NonNullable<typeof badge> => Boolean(badge))
 
   return (
-    <div className="mx-auto w-full max-w-md">
-      <p className="text-sm text-bw-secondary">Session complete</p>
-      <h2 className="bf-display mt-1 text-2xl tracking-tight text-bw">{protocol.name}</h2>
+    <div {...sx(bf.mxAuto, bf.wFull, bf.maxWMd)}>
+      <p {...sx(bf.textSm, bf.textSecondary)}>Session complete</p>
+      <h2 {...sx('bf-display', bf.mt1, bf.text2xl, bf.trackingTight, bf.textBw)}>{protocol.name}</h2>
 
-      <dl className="mt-6 flex flex-wrap gap-x-8 gap-y-4">
+      <dl {...sx(bf.statGrid)}>
         <Stat label="Duration" value={formatDuration(session.durationSeconds)} />
         <Stat label="Rounds" value={String(session.rounds)} />
         <Stat label="XP earned" value={`+${result.xpEarned}`} />
@@ -63,46 +65,46 @@ export function SessionSummary({
       </dl>
 
       {result.isPersonalBest && (
-        <p className="mt-4 text-sm font-medium text-bw-accent">
+        <p {...sx(bf.mt4, bf.textSm, bf.fontMedium, bf.textAccent)}>
           New personal best hold
         </p>
       )}
 
       {newBadges.length > 0 && (
-        <ul className="mt-4 space-y-2" aria-label="New badges">
+        <ul {...sx(bf.mt4, bf.spaceY2)} aria-label="New badges">
           {newBadges.map((badge) => (
-            <li key={badge.id} className="bg-bw-accent-subtle px-3 py-2">
-              <p className="text-sm font-medium text-bw">{badge.name}</p>
-              <p className="truncate text-xs text-bw-secondary">{badge.description}</p>
+            <li key={badge.id} {...sx(bf.badgeItem)}>
+              <p {...sx(bf.textSm, bf.fontMedium, bf.textBw)}>{badge.name}</p>
+              <p {...sx(bf.truncate, bf.textXs, bf.textSecondary)}>{badge.description}</p>
             </li>
           ))}
         </ul>
       )}
 
-      <div className="mt-6 border-t border-bw-border pt-4">
-        <p className="text-xs font-medium text-bw-secondary">
+      <div {...sx(bf.insightBlock)}>
+        <p {...sx(bf.textXs, bf.fontMedium, bf.textSecondary)}>
           {insight.label} session. {insight.doseLabel} dose.
         </p>
-        <p className="mt-1.5 text-sm leading-relaxed text-bw">{insight.effect}</p>
-        <p className="mt-2 text-sm leading-relaxed text-bw-secondary">{insight.nextStep}</p>
+        <p {...sx(bf.mt15, bf.textSm, bf.leadingRelaxed, bf.textBw)}>{insight.effect}</p>
+        <p {...sx(bf.mt2, bf.textSm, bf.leadingRelaxed, bf.textSecondary)}>{insight.nextStep}</p>
       </div>
 
-      <div className="mt-6">
+      <div {...sx(bf.mt6)}>
         <MoodPicker label="How do you feel now?" value={moodAfter} onChange={onMoodAfter} />
       </div>
 
-      <div className="mt-7 flex flex-col gap-2.5 sm:flex-row">
-        <Link to="/breathwork/progress" className={`${btnPrimary} flex-1`}>
+      <div {...sx(bf.mt7, bf.actionRow)}>
+        <Link to="/breathwork/progress" {...sx(btn.base, btn.primary, btn.flex1)}>
           Continue
         </Link>
         {!advanced && (
-          <button type="button" className={`${btnSecondary} flex-1`} onClick={onRepeat}>
+          <button type="button" {...sx(btn.base, btn.secondary, btn.flex1)} onClick={onRepeat}>
             Repeat
           </button>
         )}
       </div>
       {advanced && (
-        <p className="mt-3 text-center text-xs leading-relaxed text-bw-secondary">
+        <p {...sx(bf.mt3, bf.textCenter, bf.textXs, bf.leadingRelaxed, bf.textSecondary)}>
           Take at least 90 seconds of easy breathing before another intense session.
         </p>
       )}

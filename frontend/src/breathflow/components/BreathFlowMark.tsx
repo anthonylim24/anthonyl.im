@@ -1,12 +1,19 @@
 import { withViteBase } from '@/lib/routerBasename'
-import { cn } from '@/lib/utils'
+import { sx, stylex } from '@/styles/merge'
+
+const styles = stylex.create({
+  root: {
+    flexShrink: 0,
+    objectFit: 'contain',
+  },
+})
 
 interface BreathFlowMarkProps {
   size?: number
-  className?: string
+  style?: Parameters<typeof sx>[0]
 }
 
-export function BreathFlowMark({ size = 28, className }: BreathFlowMarkProps) {
+export function BreathFlowMark({ size = 28, style }: BreathFlowMarkProps) {
   return (
     <img
       src={withViteBase('/breathflow-mark.png')}
@@ -15,7 +22,7 @@ export function BreathFlowMark({ size = 28, className }: BreathFlowMarkProps) {
       height={size}
       decoding="async"
       draggable={false}
-      className={cn('shrink-0 object-contain', className)}
+      {...sx(styles.root, style)}
     />
   )
 }

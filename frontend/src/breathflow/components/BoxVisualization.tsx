@@ -1,4 +1,6 @@
 import { motion } from 'motion/react'
+import { sx } from '@/styles/merge'
+import { bf } from '../styles/breathflow.stylex'
 import type { EngineStatus } from '../engine/sessionEngine'
 import { boxPoint } from '../motion/geometry'
 import { chromeTransition, EASE_SETTLE } from '../motion/tokens'
@@ -55,7 +57,7 @@ export function BoxVisualization({
     <svg
       aria-hidden="true"
       viewBox={`0 0 ${SIZE} ${SIZE}`}
-      className="h-56 w-56 sm:h-64 sm:w-64"
+      {...sx(bf.h56, bf.w56, bf.smH64, bf.smW64)}
     >
       <path
         d={d}

@@ -1,4 +1,6 @@
 import { useMemo } from 'react'
+import { sx } from '@/styles/merge'
+import { bf } from '../styles/breathflow.stylex'
 import type { CompletedSession } from '@/stores/historyStore'
 import { formatLocalDate } from './format'
 
@@ -43,7 +45,7 @@ export function HoldChart({ sessions, limit = 20 }: HoldChartProps) {
     <figure>
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-        className="h-28 w-full"
+        {...sx(bf.h28, bf.wFull)}
         role="img"
         aria-label={`Longest hold trend from ${first.hold} to ${last.hold} seconds across ${points.length} sessions`}
       >
@@ -53,7 +55,7 @@ export function HoldChart({ sessions, limit = 20 }: HoldChartProps) {
           <circle key={i} cx={x(i)} cy={y(p.hold)} r={2.5} fill="var(--bw-accent)" />
         ))}
       </svg>
-      <figcaption className="mt-1 flex justify-between text-[10px] tabular-nums text-bw-tertiary">
+      <figcaption {...sx(bf.figcaptionRow)}>
         <span>{formatLocalDate(first.date)}</span>
         <span>Best {maxHold}s</span>
         <span>{formatLocalDate(last.date)}</span>

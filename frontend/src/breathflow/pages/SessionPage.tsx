@@ -52,7 +52,9 @@ import { TideVisualization } from '../components/TideVisualization'
 import { PhaseStrip } from '../components/PhaseStrip'
 import { SafetyChecklist } from '../components/SafetyChecklist'
 import { SessionSummary } from '../components/SessionSummary'
-import { btnIcon, btnPrimary } from '../components/buttonStyles'
+import { btn } from '../components/buttonStyles.stylex'
+import { sx } from '@/styles/merge'
+import { bf } from '../styles/breathflow.stylex'
 import { formatClock, formatDuration } from '../components/format'
 import { Notice } from '../motion/Notice'
 import { chromeTransition, inkSpring, pressSpring } from '../motion/tokens'
@@ -266,7 +268,7 @@ export function SessionPage() {
     <>
       <LiveAnnouncer message={announcement} />
       {summary ? (
-        <div className="py-6">
+        <div {...sx(bf.sessionSummaryWrap)}>
           <SessionSummary
             protocol={summary.protocol}
             result={summary.result}
@@ -364,12 +366,12 @@ function SessionSetup({
   const advanced = isAdvancedProtocol(protocol)
 
   return (
-    <div className="pb-8">
-      <h1 className="bf-display text-3xl tracking-tight text-bw">Breathe</h1>
+    <div {...sx(bf.pb8)}>
+      <h1 {...sx('bf-display', bf.text3xl, bf.trackingTight, bf.textBw)}>Breathe</h1>
 
       {/* Technique switch */}
       <LayoutGroup id="session-technique">
-        <div className="mt-5 grid grid-cols-2 gap-x-3 gap-y-1 sm:grid-cols-3" role="group" aria-label="Technique">
+        <div {...sx(bf.mt5, bf.techniqueGrid)} role="group" aria-label="Technique">
           {PROTOCOLS.map((entry) => {
             const selected = entry.id === protocol.id
             return (
@@ -380,26 +382,25 @@ function SessionSetup({
                 onClick={() => onUpdate({ techniqueId: entry.id })}
                 whileTap={reducedMotion ? undefined : { scale: 0.99 }}
                 transition={pressSpring}
-                className={[
-                  'relative min-h-11 px-3 py-2 text-left text-sm',
-                  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent',
-                  selected ? 'font-medium text-bw' : 'text-bw-secondary hover:text-bw',
-                ].join(' ')}
+                {...sx(
+                  bf.techniqueBtn,
+                  selected ? bf.techniqueBtnActive : bf.techniqueBtnInactive,
+                )}
               >
                 {selected ? (
                   reducedMotion ? (
-                    <span aria-hidden="true" className="absolute inset-0 bg-bw-accent-subtle" />
+                    <span aria-hidden="true" {...sx(bf.techniqueInk)} />
                   ) : (
                     <motion.span
                       aria-hidden="true"
                       layoutId="session-technique-ink"
-                      className="absolute inset-0 bg-bw-accent-subtle"
+                      {...sx(bf.techniqueInk)}
                       transition={inkSpring}
                     />
                   )
                 ) : null}
-                <span className="relative block truncate">{entry.name}</span>
-                <span className="relative block text-[11px] capitalize text-bw-tertiary">
+                <span {...sx(bf.relative, bf.block, bf.truncate)}>{entry.name}</span>
+                <span {...sx(bf.relative, bf.block, bf.text11px, bf.capitalize, bf.textTertiary)}>
                   {entry.category}
                   {isAdvancedProtocol(entry) ? ' · safety check' : ''}
                 </span>
@@ -409,39 +410,39 @@ function SessionSetup({
         </div>
       </LayoutGroup>
 
-      <div className="mt-8 border-t border-bw-border pt-5">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <div className="min-w-0">
-            <h2 className="bf-display text-xl tracking-tight text-bw">{protocol.name}</h2>
-            <p className="mt-0.5 text-sm text-bw-secondary">{protocol.description}</p>
+      <div {...sx(bf.mt8, bf.borderTop, bf.pt5)}>
+        <div {...sx(bf.flexBaselineBetween)}>
+          <div {...sx(bf.minW0)}>
+            <h2 {...sx('bf-display', bf.textXl, bf.trackingTight, bf.textBw)}>{protocol.name}</h2>
+            <p {...sx(bf.mt05, bf.textSm, bf.textSecondary)}>{protocol.description}</p>
           </div>
-          <p className="text-sm tabular-nums text-bw-secondary">{formatDuration(planned)}</p>
+          <p {...sx(bf.textSm, bf.tabularNums, bf.textSecondary)}>{formatDuration(planned)}</p>
         </div>
 
         <PhaseStrip
           protocol={protocol}
           customDurations={customDurations}
           animated={!reducedMotion}
-          className="mt-4"
+          style={bf.mt4}
         />
 
         {/* Rounds */}
-        <div className="mt-5 flex items-center justify-between">
-          <span className="text-sm text-bw">Rounds</span>
-          <div className="flex items-center gap-1">
+        <div {...sx(bf.mt5, bf.flexBetween)}>
+          <span {...sx(bf.textSm, bf.textBw)}>Rounds</span>
+          <div {...sx(bf.flexItemsCenterGap1)}>
             <button
               type="button"
-              className={btnIcon}
+              {...sx(btn.icon)}
               aria-label="One round fewer"
               disabled={rounds <= 1}
               onClick={() => onUpdate({ rounds: clampRounds(protocol, rounds - 1) })}
             >
               <Minus size={16} strokeWidth={1.75} aria-hidden="true" />
             </button>
-            <span className="w-10 text-center text-sm font-medium tabular-nums text-bw">{rounds}</span>
+            <span {...sx(bf.w10, bf.textCenter, bf.textSm, bf.fontMedium, bf.tabularNums, bf.textBw)}>{rounds}</span>
             <button
               type="button"
-              className={btnIcon}
+              {...sx(btn.icon)}
               aria-label="One round more"
               disabled={rounds >= maxRounds}
               onClick={() => onUpdate({ rounds: clampRounds(protocol, rounds + 1) })}
@@ -452,11 +453,11 @@ function SessionSetup({
         </div>
 
         {/* Cadence */}
-        <details className="group mt-2 border-t border-bw-border-subtle pt-2">
-          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-sm text-bw [&::-webkit-details-marker]:hidden">
+        <details {...sx('group', bf.detailsGroup)}>
+          <summary {...sx(bf.detailsSummary)}>
             Cadence
-            <span className="flex items-center gap-2">
-              <span className="text-xs text-bw-tertiary group-open:hidden">
+            <span {...sx(bf.flexItemsCenterGap2)}>
+              <span {...sx(bf.textXs, bf.textTertiary, bf.groupOpenHidden)}>
                 {customDurations ? 'Custom' : 'Default'}
               </span>
               <DetailsChevron />
@@ -471,34 +472,34 @@ function SessionSetup({
         </details>
 
         {/* Science */}
-        <details className="group border-t border-bw-border-subtle pt-2">
-          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between text-sm text-bw [&::-webkit-details-marker]:hidden">
+        <details {...sx('group', bf.detailsGroupFlush)}>
+          <summary {...sx(bf.detailsSummary)}>
             <span>Why it works</span>
-            <span className="flex items-center gap-2">
-              <span className="text-xs capitalize text-bw-tertiary group-open:hidden">
+            <span {...sx(bf.flexItemsCenterGap2)}>
+              <span {...sx(bf.textXs, bf.capitalize, bf.textTertiary, bf.groupOpenHidden)}>
                 {protocol.evidenceLevel} evidence
               </span>
               <DetailsChevron />
             </span>
           </summary>
-          <div className="pb-2 pt-1">
-            <p className="text-sm leading-relaxed text-bw-secondary">{protocol.science}</p>
-            <p className="mt-2 text-xs text-bw-tertiary">
+          <div {...sx(bf.scienceBody)}>
+            <p {...sx(bf.textSm, bf.leadingRelaxed, bf.textSecondary)}>{protocol.science}</p>
+            <p {...sx(bf.mt2, bf.textXs, bf.textTertiary)}>
               {protocol.evidenceLabel} · {protocol.breathsPerMinute} breaths/min · best for{' '}
               {protocol.bestFor.join(', ').toLowerCase()}
             </p>
             {protocol.caution && (
-              <p className="mt-2 text-xs leading-relaxed text-bw-secondary">{protocol.caution}</p>
+              <p {...sx(bf.mt2, bf.textXs, bf.leadingRelaxed, bf.textSecondary)}>{protocol.caution}</p>
             )}
-            <ul className="mt-3 space-y-1.5">
+            <ul {...sx(bf.mt3, bf.spaceY15)}>
               {protocol.citations.map((citation) => (
-                <li key={citation.url} className="text-xs leading-relaxed text-bw-tertiary">
+                <li key={citation.url} {...sx(bf.textXs, bf.leadingRelaxed, bf.textTertiary)}>
                   {citation.authors} ({citation.year}).{' '}
                   <a
                     href={citation.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="break-words text-bw-secondary underline decoration-bw-border underline-offset-2 hover:text-bw-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent"
+                    {...sx(bf.citationLink)}
                   >
                     {citation.title}
                   </a>{' '}
@@ -511,37 +512,37 @@ function SessionSetup({
       </div>
 
       {/* Mood before */}
-      <div className="mt-6">
+      <div {...sx(bf.mt6)}>
         <MoodPicker label="How do you feel right now? (optional)" value={moodBefore} onChange={onMoodBefore} />
       </div>
 
       {/* Safety gate */}
       {advanced && !blockedByViewport && (
-        <div className="mt-6">
+        <div {...sx(bf.mt6)}>
           <SafetyChecklist protocol={protocol} checkedItems={checkedSafety} onToggle={onToggleSafety} />
         </div>
       )}
 
       {blockedByViewport && (
-        <Notice role="alert" tone="danger" title="Not available here" className="mt-6">
+        <Notice role="alert" tone="danger" title="Not available here" style={bf.mt6}>
           {CONSTRAINED_VIEWPORT_MESSAGE}
         </Notice>
       )}
 
       {blockedByRecovery && !blockedByViewport && (
-        <Notice title="Recovery in progress" className="mt-6" live={false}>
-          <p className="tabular-nums">
+        <Notice title="Recovery in progress" style={bf.mt6} live={false}>
+          <p {...sx(bf.tabularNums)}>
             Breathe easy for {recoveryRemaining}s before the next intense session.
           </p>
         </Notice>
       )}
 
       {/* Start */}
-      <div className="mt-7">
-        <p className="mb-2.5 text-center text-sm text-bw-secondary">{READY_CUE}</p>
+      <div {...sx(bf.startBlock)}>
+        <p {...sx(bf.startCue)}>{READY_CUE}</p>
         <motion.button
           type="button"
-          className={`${btnPrimary} w-full`}
+          {...sx(btn.base, btn.primary, btn.wFull)}
           disabled={startDisabled}
           onClick={onStart}
           whileTap={reducedMotion || startDisabled ? undefined : { scale: 0.98 }}
@@ -552,14 +553,14 @@ function SessionSetup({
       </div>
 
       {/* Global disclosure */}
-      <details className="group mt-8">
-        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between py-2 text-xs text-bw-tertiary [&::-webkit-details-marker]:hidden">
+      <details {...sx('group', bf.mt8)}>
+        <summary {...sx(bf.detailsSummaryTertiary)}>
           {SAFETY_DISCLOSURE.title}
           <DetailsChevron />
         </summary>
-        <ul className="mt-1 space-y-1.5">
+        <ul {...sx(bf.disclosureList)}>
           {SAFETY_DISCLOSURE.points.map((point) => (
-            <li key={point} className="text-xs leading-relaxed text-bw-tertiary">{point}</li>
+            <li key={point} {...sx(bf.textXs, bf.leadingRelaxed, bf.textTertiary)}>{point}</li>
           ))}
         </ul>
       </details>
@@ -622,7 +623,7 @@ function ActiveSession({
 
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex flex-col bg-bw-canvas"
+      {...sx(bf.sessionFullscreen)}
       initial={reducedMotion ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={chromeTransition}
@@ -631,24 +632,24 @@ function ActiveSession({
     >
       <BreathStarfield inline />
       {/* Round counter */}
-      <div className="pt-[max(1.5rem,env(safe-area-inset-top))] text-center">
-        <p className="bf-display text-sm text-bw-secondary">
+      <div {...sx(bf.safeAreaTop, bf.textCenterBlock)}>
+        <p {...sx('bf-display', bf.textSm, bf.textSecondary)}>
           Round {engine.roundNumber} of {engine.totalRounds}
         </p>
         {advanced && (
-          <p className="mx-auto mt-1.5 max-w-xs px-4 text-xs leading-snug text-bw-tertiary">
+          <p {...sx(bf.recoveryCue)}>
             {ADVANCED_SAFETY_CUE}
           </p>
         )}
       </div>
 
       {/* Visualization + phase state */}
-      <div className="flex flex-1 flex-col items-center justify-center gap-7 px-6">
+      <div {...sx(bf.flexColCenter, bf.gap7, bf.px6)}>
         <button
           type="button"
           aria-label={`${protocol.name} visualization`}
           onClick={onVisualTap}
-          className="cursor-default rounded-full focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-bw-accent"
+          {...sx(bf.visualTapBtn)}
         >
           {altVisual && !reducedMotion ? (
             <TideVisualization
@@ -682,17 +683,17 @@ function ActiveSession({
           )}
         </button>
 
-        <div className="text-center">
+        <div {...sx(bf.textCenterBlock)}>
           <motion.p
             key={paused ? 'paused' : engine.phase}
             initial={reducedMotion ? false : { opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             transition={chromeTransition}
-            className="text-xl font-medium tracking-tight text-bw"
+            {...sx(bf.phaseLabel)}
           >
             {paused ? 'Paused' : PHASE_LABELS[engine.phase]}
           </motion.p>
-          <p className="bf-display mt-2 text-5xl tracking-tight text-bw" aria-hidden="true">
+          <p {...sx('bf-display', bf.mt2, bf.text5xl, bf.trackingTight, bf.textBw)} aria-hidden="true">
             {formatClock(engine.secondsLeftInPhase)}
           </p>
           <motion.p
@@ -700,7 +701,7 @@ function ActiveSession({
             initial={reducedMotion ? false : { opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             transition={chromeTransition}
-            className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-bw-secondary"
+            {...sx(bf.phaseCue)}
           >
             {cue}
           </motion.p>
@@ -719,7 +720,7 @@ function ActiveSession({
         transition={chromeTransition}
         aria-hidden={!controlsVisible}
         inert={!controlsVisible ? true : undefined}
-        className="pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+        {...sx(bf.safeAreaBottom)}
         style={{ pointerEvents: controlsVisible ? 'auto' : 'none' }}
         onFocus={() => setFocusWithin(true)}
         onBlur={(event) => {
@@ -728,10 +729,10 @@ function ActiveSession({
           }
         }}
       >
-        <div className="mx-auto flex max-w-sm items-center justify-center gap-2 px-6">
+        <div {...sx(bf.controlsDock)}>
           <button
             type="button"
-            className={btnIcon}
+            {...sx(btn.icon)}
             aria-label={soundEnabled ? 'Mute sound' : 'Unmute sound'}
             onClick={() => setSoundEnabled(!soundEnabled)}
             tabIndex={controlsVisible ? 0 : -1}
@@ -742,7 +743,7 @@ function ActiveSession({
           </button>
           <motion.button
             type="button"
-            className={`${btnPrimary} flex-1`}
+            {...sx(btn.base, btn.primary, btn.flex1)}
             onClick={running ? engine.pause : engine.resume}
             whileTap={reducedMotion ? undefined : { scale: 0.98 }}
             transition={pressSpring}
@@ -755,7 +756,7 @@ function ActiveSession({
           </motion.button>
           <button
             type="button"
-            className={btnIcon}
+            {...sx(btn.icon)}
             aria-label="Restart session"
             onClick={engine.restart}
             tabIndex={controlsVisible ? 0 : -1}
@@ -764,7 +765,7 @@ function ActiveSession({
           </button>
           <button
             type="button"
-            className={btnIcon}
+            {...sx(btn.icon)}
             aria-label="Stop and discard session"
             onClick={engine.stop}
             tabIndex={controlsVisible ? 0 : -1}
@@ -787,7 +788,7 @@ function DetailsChevron() {
       size={14}
       strokeWidth={1.75}
       aria-hidden="true"
-      className="text-bw-tertiary transition-transform duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] group-open:rotate-180 motion-reduce:transition-none"
+      className={sx(bf.textTertiary, bf.groupOpenRotate180).className}
     />
   )
 }

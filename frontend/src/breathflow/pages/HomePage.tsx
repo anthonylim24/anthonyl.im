@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { LayoutGroup, motion } from 'motion/react'
 import { Link } from 'react-router-dom'
 import { withViteBase } from '@/lib/routerBasename'
+import { sx } from '@/styles/merge'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useHistoryStore } from '@/stores/historyStore'
 import { BreathFlowMark } from '../components/BreathFlowMark'
 import { PhaseStrip } from '../components/PhaseStrip'
-import { btnPrimary } from '../components/buttonStyles'
+import { btn } from '../components/buttonStyles.stylex'
 import { InkChip } from '../motion/InkChip'
 import { Notice } from '../motion/Notice'
 import { chromeTransition } from '../motion/tokens'
@@ -26,6 +27,7 @@ import {
 } from '../recommend/recommendations'
 import { useRecoveryStatus } from '../safety/useRecoveryStatus'
 import { buildRepeatParams, buildSessionPath } from '../session/urlParams'
+import { bf } from '../styles/breathflow.stylex'
 
 function getGreeting(hour: number): string {
   if (hour < 5) return 'Still up'
@@ -79,9 +81,9 @@ export function HomePage() {
   const showRecoveryNotice = goal === 'perform' && recovery.isActive
 
   return (
-    <div className="space-y-12 pb-8">
-      <div className="relative pt-4">
-        <div className="pointer-events-none absolute -right-2 top-0 h-28 w-28 opacity-80 sm:h-36 sm:w-36" aria-hidden="true">
+    <div {...sx(bf.spaceY12, bf.pb8)}>
+      <div {...sx(bf.relative, bf.pt4)}>
+        <div {...sx(bf.heroDecor, bf.smH36, bf.smW36)} aria-hidden="true">
           <img
             src={withViteBase('/breathflow-hero-orb.webp')}
             alt=""
@@ -89,7 +91,7 @@ export function HomePage() {
             height={324}
             decoding="async"
             fetchPriority={theme === 'dark' ? 'auto' : 'high'}
-            className="h-full w-full object-cover object-center dark:hidden"
+            {...sx(bf.hFull, bf.wFull, bf.objectCover, bf.objectCenter, bf.imgLightOnly)}
           />
           <img
             src={withViteBase('/breathflow-orb-dark.webp')}
@@ -98,21 +100,21 @@ export function HomePage() {
             height={768}
             decoding="async"
             fetchPriority={theme === 'dark' ? 'high' : 'auto'}
-            className="hidden h-full w-full object-cover object-center dark:block"
+            {...sx(bf.hFull, bf.wFull, bf.objectCover, bf.objectCenter, bf.imgDarkOnly)}
           />
         </div>
-        <div className="relative flex items-end gap-3 pr-28 sm:pr-36">
-          <h1 className="bf-display text-[clamp(2.25rem,6vw,3.5rem)] leading-[1.05] tracking-tight text-balance text-bw">
+        <div {...sx(bf.relative, bf.flexItemsEnd, bf.gap3, bf.pr28, bf.smPr36)}>
+          <h1 {...sx('bf-display', bf.greetingTitle, bf.trackingTight, bf.textBalance, bf.textBw)}>
             {getGreeting(hour)}.
           </h1>
-          <BreathFlowMark size={36} className="mb-1 hidden h-9 w-9 sm:block" />
+          <BreathFlowMark size={36} {...sx(bf.markHiddenSm)} />
         </div>
         {isFirstRun ? (
-          <p className="mt-4 max-w-sm text-sm leading-relaxed text-bw-secondary">
+          <p {...sx(bf.mt4, bf.maxWSm, bf.textSm, bf.leadingRelaxed, bf.textSecondary)}>
             One guided breathing session is enough to feel the shift. About 5 minutes.
           </p>
         ) : (
-          <p className="mt-4 text-sm text-bw-secondary">
+          <p {...sx(bf.mt4, bf.textSm, bf.textSecondary)}>
             {streak > 0
               ? `${streak}-day streak. ${dailyGoalMet ? 'Practiced today.' : 'A session today keeps it going.'}`
               : 'A five-minute session starts a new streak.'}
@@ -120,9 +122,9 @@ export function HomePage() {
         )}
       </div>
 
-      <div className="space-y-3">
+      <div {...sx(bf.spaceY3)}>
         <LayoutGroup id="home-goal">
-          <div role="group" aria-label="Goal" className="flex flex-wrap gap-x-4 gap-y-1">
+          <div role="group" aria-label="Goal" {...sx(bf.flexWrap, bf.gapX4, bf.gapY1)}>
             {GOALS.map((option) => (
               <InkChip
                 key={option.id}
@@ -135,7 +137,7 @@ export function HomePage() {
           </div>
         </LayoutGroup>
         <LayoutGroup id="home-length">
-          <div role="group" aria-label="Session length" className="flex flex-wrap gap-x-4 gap-y-1">
+          <div role="group" aria-label="Session length" {...sx(bf.flexWrap, bf.gapX4, bf.gapY1)}>
             {LENGTH_WINDOWS.map((option) => (
               <InkChip
                 key={option.id}
@@ -151,7 +153,7 @@ export function HomePage() {
 
       {showRecoveryNotice && (
         <Notice title="Recovery in progress" live={false}>
-          <p className="tabular-nums">
+          <p {...sx(bf.tabularNums)}>
             Breathe easy for {recovery.remainingSeconds}s. Intense protocols are held back until then.
           </p>
         </Notice>
@@ -159,7 +161,7 @@ export function HomePage() {
 
       <RecommendedBlock ranked={recommendation.top} reducedMotion={reducedMotion} />
 
-      <ol className="space-y-2">
+      <ol {...sx(bf.spaceY2)}>
         {recommendation.alternatives.map((alt, index) => (
           <li key={alt.protocol.id}>
             <AlternativeRow ranked={alt} index={index + 2} />
@@ -168,29 +170,29 @@ export function HomePage() {
       </ol>
 
       {recent.length > 0 && (
-        <section className="border-t border-bw-border pt-6">
-          <h2 className="text-sm font-medium text-bw">Pick up where you left off</h2>
-          <ul className="mt-3 space-y-1">
+        <section {...sx(bf.borderTop, bf.pt6)}>
+          <h2 {...sx(bf.textSm, bf.fontMedium, bf.textBw)}>Pick up where you left off</h2>
+          <ul {...sx(bf.mt3, bf.spaceY1)}>
             {recent.map((session) => {
               const protocol = getProtocol(session.techniqueId)
               return (
                 <li key={session.id}>
                   <Link
                     to={buildSessionPath(buildRepeatParams(session))}
-                    className="flex min-h-11 items-center justify-between gap-3 py-2 transition-colors duration-150 hover:text-bw-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent"
+                    {...sx(bf.linkRow)}
                   >
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium text-bw">
+                    <span {...sx(bf.minW0)}>
+                      <span {...sx(bf.block, bf.truncate, bf.textSm, bf.fontMedium, bf.textBw)}>
                         {protocol.name}
                         {session.customPhaseDurations && (
-                          <span className="ml-2 text-xs font-normal text-bw-tertiary">custom cadence</span>
+                          <span {...sx(bf.ml2, bf.textXs, bf.fontNormal, bf.textTertiary)}>custom cadence</span>
                         )}
                       </span>
-                      <span className="block text-xs tabular-nums text-bw-secondary">
+                      <span {...sx(bf.block, bf.textXs, bf.tabularNums, bf.textSecondary)}>
                         {formatLocalDate(session.date)} · {formatDuration(session.durationSeconds)}, {session.rounds} rounds
                       </span>
                     </span>
-                    <span className="shrink-0 text-xs text-bw-tertiary">
+                    <span {...sx(bf.shrink0, bf.textXs, bf.textTertiary)}>
                       {isAdvancedProtocol(protocol) ? 'Safety check, then repeat' : 'Repeat'}
                     </span>
                   </Link>
@@ -201,35 +203,33 @@ export function HomePage() {
         </section>
       )}
 
-      <section className="border-t border-bw-border pt-6">
-        <h2 className="text-sm font-medium text-bw">Every technique</h2>
-        <div className="mt-6 space-y-8">
+      <section {...sx(bf.borderTop, bf.pt6)}>
+        <h2 {...sx(bf.textSm, bf.fontMedium, bf.textBw)}>Every technique</h2>
+        <div {...sx(bf.mt6, bf.spaceY8)}>
           {CATEGORY_ORDER.map(({ id, label, blurb }) => {
             const protocols = PROTOCOLS.filter((protocol) => protocol.category === id)
             if (protocols.length === 0) return null
             return (
               <div key={id}>
-                <p className="text-sm text-bw">
+                <p {...sx(bf.textSm, bf.textBw)}>
                   {label}
-                  <span className="ml-2 text-xs text-bw-tertiary">{blurb}</span>
+                  <span {...sx(bf.ml2, bf.textXs, bf.textTertiary)}>{blurb}</span>
                 </p>
-                <ul className="mt-2">
+                <ul {...sx(bf.mt2)}>
                   {protocols.map((protocol) => (
                     <li key={protocol.id}>
                       <Link
                         to={buildSessionPath({ techniqueId: protocol.id, rounds: protocol.defaultRounds })}
-                        className="block py-2.5 transition-colors duration-150 hover:text-bw-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent"
+                        {...sx(bf.techniqueListLink, bf.textBw)}
                       >
-                        <span className="flex items-baseline justify-between gap-3">
-                          <span className="text-sm font-medium text-bw">{protocol.name}</span>
+                        <span {...sx(bf.techniqueTitleRow)}>
+                          <span {...sx(bf.textSm, bf.fontMedium, bf.textBw)}>{protocol.name}</span>
                           {isAdvancedProtocol(protocol) && (
-                            <span className="shrink-0 text-[11px] text-bw-secondary">Safety check</span>
+                            <span {...sx(bf.shrink0, bf.text11px, bf.textSecondary)}>Safety check</span>
                           )}
                         </span>
-                        <span className="mt-0.5 block max-w-md text-xs leading-relaxed text-bw-secondary">
-                          {protocol.description}
-                        </span>
-                        <span className="mt-1 block text-[11px] capitalize text-bw-tertiary">
+                        <span {...sx(bf.techniqueMeta)}>{protocol.description}</span>
+                        <span {...sx(bf.techniqueEvidence)}>
                           {protocol.evidenceLevel} evidence · {protocol.intensity} ·{' '}
                           {protocol.breathsPerMinute} breaths/min
                         </span>
@@ -258,31 +258,34 @@ function RecommendedBlock({
   const startPath = `${buildSessionPath({ techniqueId: protocol.id, rounds })}${advanced ? '' : '&autostart=1'}`
 
   return (
-    <section aria-label="Recommended session" className="sm:pl-8">
-      <p className="text-xs text-bw-secondary">Recommended now</p>
-      <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2">
+    <section aria-label="Recommended session" {...sx(bf.smPl8)}>
+      <p {...sx(bf.textXs, bf.textSecondary)}>Recommended now</p>
+      <div {...sx(bf.mt2, bf.flexWrapBaseline)}>
         <motion.h2
           key={protocol.id}
           initial={reducedMotion ? false : { opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={chromeTransition}
-          className="bf-display text-2xl tracking-tight text-balance text-bw sm:text-3xl"
+          {...sx('bf-display', bf.text2xl, bf.trackingTight, bf.textBalance, bf.textBw, bf.smText3xl)}
         >
           {protocol.name}
         </motion.h2>
-        <p className="bf-display text-sm text-bw-secondary">
+        <p {...sx('bf-display', bf.textSm, bf.textSecondary)}>
           {formatDuration(plannedSeconds)} · {rounds} rounds
         </p>
       </div>
-      <p className="mt-3 max-w-md text-sm leading-relaxed text-bw-secondary">{protocol.purpose}</p>
-      <p className="mt-1.5 text-xs capitalize text-bw-tertiary">
+      <p {...sx(bf.mt3, bf.maxWMd, bf.textSm, bf.leadingRelaxed, bf.textSecondary)}>{protocol.purpose}</p>
+      <p {...sx(bf.mt15, bf.textXs, bf.capitalize, bf.textTertiary)}>
         {protocol.evidenceLevel} evidence · {protocol.intensity}
         {advanced && ' · safety check required'}
       </p>
 
-      <PhaseStrip protocol={protocol} animated={!reducedMotion} className="mt-5" />
+      <PhaseStrip protocol={protocol} animated={!reducedMotion} style={bf.mt5} />
 
-      <Link to={startPath} className={`${btnPrimary} mt-6 w-full sm:w-auto sm:min-w-44`}>
+      <Link
+        to={startPath}
+        {...sx(btn.base, btn.primary, btn.mt6, btn.wFull, btn.smWAuto, btn.smMinW44)}
+      >
         Begin
       </Link>
     </section>
@@ -294,16 +297,16 @@ function AlternativeRow({ ranked, index }: { ranked: RankedProtocol; index: numb
   return (
     <Link
       to={buildSessionPath({ techniqueId: protocol.id, rounds })}
-      className="flex min-h-11 items-center justify-between gap-3 py-2 transition-colors duration-150 hover:text-bw-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bw-accent"
+      {...sx(bf.linkRow, bf.textBw)}
     >
-      <span className="min-w-0">
-        <span className="bf-display mr-3 text-xs text-bw-tertiary">{String(index).padStart(2, '0')}</span>
-        <span className="text-sm font-medium text-bw">{protocol.name}</span>
-        <span className="ml-2 text-xs tabular-nums text-bw-secondary">
+      <span {...sx(bf.minW0)}>
+        <span {...sx('bf-display', bf.mr3, bf.textXs, bf.textTertiary)}>{String(index).padStart(2, '0')}</span>
+        <span {...sx(bf.textSm, bf.fontMedium, bf.textBw)}>{protocol.name}</span>
+        <span {...sx(bf.ml2, bf.textXs, bf.tabularNums, bf.textSecondary)}>
           {formatDuration(plannedSeconds)} · {rounds} rounds
         </span>
       </span>
-      <span className="shrink-0 text-xs text-bw-tertiary">
+      <span {...sx(bf.shrink0, bf.textXs, bf.textTertiary)}>
         {isAdvancedProtocol(protocol) ? 'Safety check' : 'Open'}
       </span>
     </Link>
