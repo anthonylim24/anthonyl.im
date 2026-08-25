@@ -949,7 +949,7 @@ export const places = stylex.create({
     display: 'inline-flex',
     minHeight: '2.75rem',
     alignItems: 'center',
-    borderRadius: '9999px',
+    borderRadius: 'var(--trips-radius, 0.25rem)',
     borderWidth: '1px',
     borderStyle: 'solid',
     paddingLeft: '0.75rem',
