@@ -1834,14 +1834,10 @@ export const styles = stylex.create({
     borderStyle: 'solid',
     borderColor: 'var(--trips-border)',
     backgroundColor: 'var(--trips-surface)',
-    viewTransitionName: 'trips-concierge',
     '@media (min-width: 768px)': {
       left: 'auto',
       right: '1.5rem',
       borderRadius: 'var(--trips-radius)',
-    },
-    '@media (prefers-reduced-motion: reduce)': {
-      viewTransitionName: 'none',
     },
   },
   chatPanelCompact: {
@@ -1952,7 +1948,6 @@ export const styles = stylex.create({
     backgroundColor: 'var(--trips-accent)',
     color: '#ffffff',
     outline: 'none',
-    viewTransitionName: 'trips-concierge',
     '@media (hover: hover)': {
       ':hover': {
         backgroundColor: tripsAccentHover,
@@ -1961,10 +1956,11 @@ export const styles = stylex.create({
     ':is(.dark) &': {
       color: 'var(--trips-canvas)',
     },
-    '@media (prefers-reduced-motion: reduce)': {
-      viewTransitionName: 'none',
-    },
     ...focusRing,
+  },
+  chatFabHidden: {
+    pointerEvents: 'none',
+    opacity: 0,
   },
   chatOverlayExpanded: {
     zIndex: 55,

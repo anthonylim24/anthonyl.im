@@ -543,24 +543,27 @@ export function TripChat() {
 
   return (
     <div data-trip-accent={accent}>
-      <AnimatePresence>
-        {!open && (
-          <motion.button
-            ref={fabRef}
-            type="button"
-            onClick={handleOpen}
-            aria-label="Open trip concierge chat"
-            initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.86 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.86 }}
-            transition={reduce ? { duration: 0.15 } : { type: "spring", stiffness: 400, damping: 28 }}
-            {...sx(styles.chatFab, focusRingClass)}
-            style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 1.25rem)" }}
-          >
-            <MessageSquare {...sx(styles.iconLg)} strokeWidth={2} />
-          </motion.button>
-        )}
-      </AnimatePresence>
+      <motion.button
+        ref={fabRef}
+        type="button"
+        onClick={handleOpen}
+        aria-label="Open trip concierge chat"
+        aria-hidden={open || undefined}
+        tabIndex={open ? -1 : undefined}
+        initial={false}
+        animate={open ? { opacity: 0, scale: reduce ? 1 : 0.86 } : { opacity: 1, scale: 1 }}
+        transition={reduce ? { duration: 0.15 } : { type: "spring", stiffness: 400, damping: 28 }}
+        {...sx(styles.chatFab, focusRingClass, open ? styles.chatFabHidden : undefined)}
+        style={{
+          bottom: "calc(env(safe-area-inset-bottom, 0px) + 1.25rem)",
+          // Shared morph with the panel. Name clears while open so the new
+          // View Transition snapshot never has two `trips-concierge` nodes
+          // (FAB stays mounted; EnhanceButton uses the same handoff).
+          viewTransitionName: open || reduce ? "none" : "trips-concierge",
+        }}
+      >
+        <MessageSquare {...sx(styles.iconLg)} strokeWidth={2} />
+      </motion.button>
 
       {typeof document !== "undefined" &&
         createPortal(
@@ -586,7 +589,12 @@ export function TripChat() {
               aria-labelledby={titleId}
               data-expanded={expanded ? "true" : "false"}
               {...panelSx}
-              style={panelStyle}
+              style={{
+                ...panelStyle,
+                // Name only while open. On close, open flips first so the
+                // exiting panel does not share the name with the restored FAB.
+                viewTransitionName: open && !reduce ? "trips-concierge" : "none",
+              }}
             >
               <header {...sx(styles.chatHeader)}>
                 <span {...sx(styles.chatHeaderIcon)}>

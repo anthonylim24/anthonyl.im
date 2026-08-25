@@ -1504,18 +1504,24 @@ html.dark .trips,
 
   ::view-transition-group(trips-enhance),
   ::view-transition-old(trips-enhance),
-  ::view-transition-new(trips-enhance) {
+  ::view-transition-new(trips-enhance),
+  ::view-transition-group(trips-concierge),
+  ::view-transition-old(trips-concierge),
+  ::view-transition-new(trips-concierge) {
     animation: none;
   }
 }
 
-::view-transition-group(trips-enhance) {
+::view-transition-group(trips-enhance),
+::view-transition-group(trips-concierge) {
   animation-duration: 420ms;
   animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 ::view-transition-old(trips-enhance),
-::view-transition-new(trips-enhance) {
+::view-transition-new(trips-enhance),
+::view-transition-old(trips-concierge),
+::view-transition-new(trips-concierge) {
   animation-duration: 380ms;
   height: 100%;
   overflow: clip;

@@ -98,6 +98,7 @@ export const places = stylex.create({
   s1c7a5493: {
     "display": "inline-flex",
     "flex": "1 1 0%",
+    "minHeight": "2.75rem",
     "alignItems": "center",
     "justifyContent": "center",
     "gap": "0.375rem",
@@ -130,6 +131,7 @@ export const places = stylex.create({
   },
   sbadbc294: {
     "display": "inline-flex",
+    "minHeight": "2.75rem",
     "alignItems": "center",
     "justifyContent": "center",
     "borderRadius": "0.5rem",

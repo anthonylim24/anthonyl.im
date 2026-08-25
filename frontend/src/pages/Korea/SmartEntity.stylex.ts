@@ -39,6 +39,9 @@ export const smartEntity = stylex.create({
     color: '#a8a29e',
     transitionProperty: 'color, background-color, border-color',
     transitionDuration: '150ms',
+    '@media (prefers-reduced-motion: reduce)': {
+      transform: 'none',
+    },
     ':is(.group:hover) &': {
       color: '#f43f5e',
     },
@@ -225,6 +228,7 @@ export const smartEntity = stylex.create({
     display: 'inline-flex',
     alignItems: 'baseline',
     gap: '0.125rem',
+    minHeight: '2.75rem',
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
     textAlign: 'left',
@@ -267,12 +271,16 @@ export const smartEntity = stylex.create({
     color: 'var(--trips-ink-tertiary, #a8a29e)',
     transitionProperty: 'color',
     transitionDuration: '150ms',
+    '@media (prefers-reduced-motion: reduce)': {
+      transform: 'none',
+    },
     ':is(.group:hover) &': {
       color: 'var(--trips-accent)',
     },
   },
   tripsLink: {
     display: 'flex',
+    minHeight: '2.75rem',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: '0.75rem',
