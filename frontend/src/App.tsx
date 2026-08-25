@@ -1,12 +1,14 @@
 import { Activity, useState, useRef, useEffect, lazy, Suspense, useCallback } from "react";
 import { Send, ChevronDown } from "lucide-react";
-import { cn } from "./lib/utils";
+import { sx } from "./lib/utils";
 import { formatConciergeError } from "./effect/chatErrors";
 import { TimeoutError, errorMessage } from "./effect/errors";
 import { invokeDeepseek } from "./lib/apiService";
 import { useFavicon } from "./hooks/useFavicon";
 import { getPostHogConfig } from "./lib/analytics";
 import { syncThemeColor } from "./lib/themeColor";
+import { chatbot } from "./styles/chatbot.stylex";
+import { layout } from "./styles/common.stylex";
 
 const MessageContent = lazy(() => import("./components/message-content"));
 
@@ -23,55 +25,6 @@ const suggestedQuestions = [
   "Where has he worked?",
   "How can I contact him?",
 ];
-
-const TYPING_DELAYS = ["", "[animation-delay:0.15s]", "[animation-delay:0.3s]"];
-
-/* ── Hoisted static style objects (stable references — rerender-memo) ── */
-
-const grainStyle = {
-  backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E")`,
-  backgroundRepeat: "repeat",
-  backgroundSize: "256px 256px",
-} as const;
-
-// CRITICAL: Inline styles for layout-structural properties.
-// Tailwind v4's @config compat shim may silently drop utility classes.
-// These inline styles are immune to CSS cascade / specificity issues.
-const rootStyle = {
-  display: "flex",
-  flexDirection: "column" as const,
-  width: "100%",
-  height: "100dvh",
-  minHeight: "100svh",
-  overflow: "hidden",
-};
-
-const columnStyle = {
-  display: "flex",
-  flexDirection: "column" as const,
-  flex: "1 1 0%",
-  minHeight: 0,
-  position: "relative" as const,
-  zIndex: 10,
-};
-
-const scrollAreaStyle = {
-  flex: "1 1 0%",
-  minHeight: 0,
-  overflowY: "auto" as const,
-  overflowX: "hidden" as const,
-  overscrollBehavior: "contain" as const,
-  WebkitOverflowScrolling: "touch" as const,
-};
-
-const headerFooterStyle = { flexShrink: 0 };
-
-const overlayStyle = {
-  position: "fixed" as const,
-  inset: 0,
-  pointerEvents: "none" as const,
-  zIndex: 1,
-};
 
 /* ── App ────────────────────────────────────────────── */
 
@@ -245,19 +198,18 @@ function App() {
   /* ── Render ── */
 
   return (
-    <div className={cn("font-mono transition-colors duration-700", themeClass)} style={rootStyle}>
-      <a
-        href="#chat-main"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:inline-flex focus:min-h-11 focus:items-center focus:rounded-md focus:bg-[var(--chat-accent)] focus:px-4 focus:text-sm focus:font-medium focus:text-[var(--chat-bg)]"
-      >
+    <div {...sx(chatbot.root, themeClass)}>
+      <a href="#chat-main" {...sx(chatbot.skipLink)}>
         Skip to conversation
       </a>
       {/* Viewport-sized wrapper + object-fit media. Putting leaves-overlay
           on the video itself keeps the intrinsic box (width/height:auto),
           so the leaves sit in a corner instead of covering every viewport. */}
       <div
-        className="leaves-overlay"
-        style={{ opacity: shadowMode ? 1 : 0 }}
+        {...sx(
+          'leaves-overlay',
+          shadowMode ? chatbot.leavesVisible : chatbot.leavesHidden,
+        )}
         aria-hidden="true"
       >
         <video
@@ -267,41 +219,50 @@ function App() {
           muted
           playsInline
           preload="auto"
-          className="leaves-overlay-media"
+          {...sx('leaves-overlay-media')}
         />
       </div>
-      <div className="opacity-[0.04]" style={{ ...overlayStyle, zIndex: 2 }} aria-hidden="true">
-        <div className="w-full h-full" style={grainStyle} />
+      <div {...sx(chatbot.overlay, chatbot.grainOverlay)} aria-hidden="true">
+        <div {...sx(chatbot.grain)} />
       </div>
 
       {/* Main column — flex child fills root, itself a flex column */}
-      <div className="max-w-2xl mx-auto w-full safe-top" style={columnStyle}>
+      <div {...sx(chatbot.column)}>
         {/* ── Header ── */}
         <header
-          className={cn(
-            "text-left transition-all duration-700 ease-out px-6",
-            hasMessages ? "py-4" : "py-8 sm:py-14",
+          {...sx(
+            chatbot.header,
+            hasMessages ? chatbot.headerCompact : chatbot.headerExpanded,
+            chatbot.headerFooter,
           )}
-          style={headerFooterStyle}
         >
-          <div className="transition-all duration-700 col-fade-in">
+          <div {...sx('col-fade-in')}>
             <h1
-              className={cn(
-                "font-mono font-medium tracking-[0.07em] uppercase chat-text transition-all duration-700",
-                hasMessages ? "text-[10px]" : "text-[10px] sm:text-[11px]",
+              {...sx(
+                chatbot.title,
+                hasMessages ? chatbot.titleCompact : null,
+                'chat-text',
               )}
             >
               Anthony Lim
             </h1>
             <p
-              className={cn(
-                "font-mono chat-mid transition-all duration-700 mt-1",
-                hasMessages ? "text-[10px]" : "text-[10px] sm:text-[11px]",
+              {...sx(
+                chatbot.subtitle,
+                hasMessages ? chatbot.subtitleCompact : null,
+                'chat-mid',
               )}
             >
               Software Engineer
             </p>
-            <div className={cn("transition-all duration-700 border-t chat-border", hasMessages ? "mt-3" : "mt-5")} />
+            <div
+              {...sx(
+                chatbot.headerRule,
+                hasMessages ? chatbot.headerRuleCompact : chatbot.headerRuleExpanded,
+                'chat-border',
+                'border-t',
+              )}
+            />
           </div>
         </header>
 
@@ -311,8 +272,7 @@ function App() {
           tabIndex={-1}
           ref={scrollAreaRef}
           onScroll={handleScroll}
-          className="px-6 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-accent)]"
-          style={scrollAreaStyle}
+          {...sx(chatbot.scrollArea)}
         >
           <div
             role="log"
@@ -322,20 +282,26 @@ function App() {
             aria-busy={isStreaming}
           >
             {hasMessages ? (
-              <div className="space-y-5 py-2">
+              <div {...sx(chatbot.messageList)}>
                 {visibleMessages.map((message, index) => {
                   const isUser = message.role === "user";
                   const isLastAssistant = !isUser && index === visibleMessages.length - 1;
                   if (!message.content && !(isLastAssistant && isLoading)) return null;
 
                   return (
-                    <div key={message.id} className={cn("animate-message-in", isUser && "flex justify-end")}>
+                    <div
+                      key={message.id}
+                      {...sx(
+                        'animate-message-in',
+                        isUser ? chatbot.messageRowEnd : null,
+                      )}
+                    >
                       {isUser ? (
-                        <div className="chat-user-bubble max-w-[85%] sm:max-w-[75%] text-[14px] leading-[1.7] font-mono px-4 py-2.5 rounded-lg transition-colors duration-700">
+                        <div {...sx(chatbot.userBubble, 'chat-user-bubble')}>
                           {message.content}
                         </div>
                       ) : (
-                        <div className="max-w-[92%] sm:max-w-[85%]">
+                        <div {...sx(chatbot.assistantBubble)}>
                           {message.content ? (
                             <Suspense fallback={<MessageSkeleton />}>
                               <MessageContent content={message.content} isStreaming={isLastAssistant && isStreaming} />
@@ -349,14 +315,11 @@ function App() {
                   );
                 })}
                 {/* Scroll anchor */}
-                <div className="h-4" />
+                <div {...sx(chatbot.scrollAnchor)} />
               </div>
             ) : (
-              <div
-                className="col-fade-in stagger-2 py-4 sm:py-10"
-                style={{ display: "flex", flexDirection: "column", justifyContent: "center", height: "100%" }}
-              >
-                <h2 className="font-mono font-normal leading-[1.5] chat-text transition-colors duration-700 text-base sm:text-lg">
+              <div {...sx(chatbot.emptyState, 'col-fade-in', 'stagger-2')}>
+                <h2 {...sx(chatbot.emptyHeading, 'chat-text')}>
                   Ask me anything about Anthony&apos;s
                   <br />
                   experience, skills, and background.
@@ -364,37 +327,37 @@ function App() {
               </div>
             )}
           </div>
-          <div className="sr-only" role="status" aria-live="polite">
+          <div {...sx(layout.srOnly)} role="status" aria-live="polite">
             {replyStatus}
           </div>
         </main>
 
         {/* Scroll-to-bottom FAB */}
         {showScrollButton && (
-          <div style={{ position: "relative", zIndex: 20 }} className="px-6">
+          <div {...sx(chatbot.scrollFabWrap)}>
             <button
               onClick={() => {
                 shouldAutoScroll.current = true;
                 scrollToBottom();
               }}
-              className="absolute bottom-2 right-6 inline-flex min-h-11 min-w-11 items-center justify-center p-2 transition-all duration-300 animate-scale-in chat-scroll-btn"
+              {...sx(chatbot.scrollFab, 'animate-scale-in', 'chat-scroll-btn')}
               aria-label="Scroll to bottom"
             >
-              <ChevronDown className="w-4 h-4" />
+              <ChevronDown {...sx(chatbot.iconSm)} />
             </button>
           </div>
         )}
 
         {/* ── Footer: suggestions + input ── */}
-        <div className="pb-safe px-6 py-4" style={headerFooterStyle}>
+        <div {...sx(chatbot.footer, chatbot.headerFooter)}>
           <Activity mode={hasMessages ? "hidden" : "visible"} name="chat-suggestions-grid">
-            <div className="grid grid-cols-2 gap-2 col-fade-in stagger-3 mb-5">
+            <div {...sx(chatbot.suggestionsGrid, 'col-fade-in', 'stagger-3')}>
               {suggestedQuestions.map((q) => (
                 <button
                   key={q}
                   onClick={() => handleSubmit(undefined, q)}
                   disabled={isLoading}
-                  className="chat-suggestion min-h-11 text-left text-[12px] font-mono leading-[1.6] px-3 py-2.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  {...sx(chatbot.suggestionBtn, 'chat-suggestion')}
                 >
                   {q}
                 </button>
@@ -402,26 +365,14 @@ function App() {
             </div>
           </Activity>
           <Activity mode={hasMessages ? "visible" : "hidden"} name="chat-suggestions-row">
-            <div className="mb-3" style={{ marginLeft: "-1.5rem", marginRight: "-1.5rem" }}>
-              <div
-                className="no-scrollbar"
-                style={{
-                  display: "flex",
-                  gap: "0.5rem",
-                  overflowX: "auto",
-                  paddingLeft: "1.5rem",
-                  paddingRight: "1.5rem",
-                  paddingBottom: "0.25rem",
-                  scrollSnapType: "x proximity",
-                }}
-              >
+            <div {...sx(chatbot.suggestionsRowWrap)}>
+              <div {...sx(chatbot.suggestionsRow, 'no-scrollbar')}>
                 {suggestedQuestions.map((q) => (
                   <button
                     key={q}
                     onClick={() => handleSubmit(undefined, q)}
                     disabled={isLoading}
-                    className="chat-suggestion inline-flex min-h-11 items-center text-[11px] font-mono transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                    style={{ flexShrink: 0, scrollSnapAlign: "start", padding: "0.375rem 0.75rem" }}
+                    {...sx(chatbot.suggestionChip, 'chat-suggestion')}
                   >
                     {q}
                   </button>
@@ -431,8 +382,8 @@ function App() {
           </Activity>
 
           <form onSubmit={handleSubmit} aria-busy={isStreaming}>
-            <div className="chat-input-box flex items-end gap-3 px-3 py-2 transition-all duration-700">
-              <label htmlFor="chat-input" className="sr-only">
+            <div {...sx(chatbot.inputBox, 'chat-input-box')}>
+              <label htmlFor="chat-input" {...sx(layout.srOnly)}>
                 Ask about Anthony
               </label>
               <textarea
@@ -444,27 +395,37 @@ function App() {
                 placeholder="Ask anything..."
                 disabled={isLoading}
                 rows={1}
-                className="chat-input flex-1 bg-transparent border-none resize-none text-[14px] font-mono leading-[1.7] px-1 py-1.5 max-h-[120px] disabled:opacity-50 transition-colors duration-700 focus:outline-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-bw-accent focus-visible:ring-offset-1 focus-visible:ring-offset-bw-canvas rounded-sm"
+                {...sx(
+                  chatbot.textarea,
+                  chatbot.textareaFocus,
+                  isLoading && chatbot.textareaDisabled,
+                  'chat-input',
+                )}
               />
               <button
                 type="submit"
                 disabled={isLoading || !input.trim()}
                 aria-label={isStreaming ? "Sending" : "Send message"}
-                className="chat-send shrink-0 transition-all duration-300 disabled:opacity-20 disabled:cursor-not-allowed"
+                {...sx(chatbot.sendBtn, 'chat-send')}
               >
-                <Send className={`w-4 h-4 ${isStreaming ? "animate-pulse" : ""}`} />
+                <Send
+                  {...sx(
+                    chatbot.iconSm,
+                    isStreaming && chatbot.sendIconPulse,
+                  )}
+                />
               </button>
             </div>
           </form>
 
-          <div className="flex items-center justify-between mt-3">
-            <p className="chat-footer text-[10px] font-mono tracking-[0.04em] transition-colors duration-700">
+          <div {...sx(chatbot.footerRow)}>
+            <p {...sx(chatbot.footerNote, 'chat-footer')}>
               Powered by AI · Responses may be inaccurate
             </p>
             <button
               type="button"
               onClick={() => setShadowMode((p) => !p)}
-              className="chat-mid inline-flex min-h-11 min-w-11 items-center justify-center text-[10px] font-mono tracking-[0.04em] uppercase transition-colors duration-300 opacity-50 hover:opacity-100"
+              {...sx(chatbot.themeToggle, 'chat-mid')}
               title={shadowMode ? "Press S for dark mode" : "Press S for shadow mode"}
               aria-label={shadowMode ? "Switch to dark mode" : "Switch to shadow mode"}
               aria-pressed={shadowMode}
@@ -483,26 +444,39 @@ function App() {
 function TypingIndicator() {
   return (
     <div
-      className="flex items-center gap-1.5 py-1 px-1"
+      {...sx(chatbot.typingRow)}
       role="status"
       aria-live="polite"
       aria-label="Assistant is typing"
     >
-      {TYPING_DELAYS.map((delay, i) => (
-        <span
-          key={i}
-          className={cn("w-1.5 h-1.5 rounded-full chat-typing-dot animate-typing-dot transition-colors duration-700", delay)}
-        />
-      ))}
+      <span
+        {...sx(chatbot.typingDot, 'chat-typing-dot', 'animate-typing-dot')}
+      />
+      <span
+        {...sx(
+          chatbot.typingDot,
+          chatbot.typingDotDelay1,
+          'chat-typing-dot',
+          'animate-typing-dot',
+        )}
+      />
+      <span
+        {...sx(
+          chatbot.typingDot,
+          chatbot.typingDotDelay2,
+          'chat-typing-dot',
+          'animate-typing-dot',
+        )}
+      />
     </div>
   );
 }
 
 function MessageSkeleton() {
   return (
-    <div className="space-y-2 animate-pulse">
-      <div className="h-2.5 rounded w-3/4 chat-skeleton" />
-      <div className="h-2.5 rounded w-1/2 chat-skeleton-light" />
+    <div {...sx(chatbot.skeleton)}>
+      <div {...sx(chatbot.skeletonLineWide, 'chat-skeleton')} />
+      <div {...sx(chatbot.skeletonLineNarrow, 'chat-skeleton-light')} />
     </div>
   );
 }

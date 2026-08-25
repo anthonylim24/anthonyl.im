@@ -1,4 +1,6 @@
 import { Component, createRef, type ErrorInfo, type ReactNode } from 'react'
+import { sx } from '@/lib/utils'
+import { routeError } from '@/styles/chatbot.stylex'
 
 interface Props {
   /** Which app this boundary protects — drives accent color + copy. */
@@ -10,23 +12,26 @@ interface State {
   error: Error | null
 }
 
-const appCopy: Record<Props['app'], { heading: string; accent: string }> = {
+const appCopy: Record<Props['app'], { heading: string }> = {
   chatbot: {
     heading: 'The chat did not load.',
-    accent: 'text-stone-900 dark:text-stone-100',
   },
   breathwork: {
     heading: 'Couldn\'t load BreathFlow.',
-    accent: 'text-amber-800 dark:text-amber-300',
   },
   korea: {
     heading: 'The Korea itinerary moved to /trips/korea-2026.',
-    accent: 'text-rose-800 dark:text-rose-300',
   },
   trips: {
     heading: 'Something went wrong loading the trip planner.',
-    accent: 'text-amber-800 dark:text-amber-300',
   },
+}
+
+const headingStyles: Record<Props['app'], Parameters<typeof sx>[0]> = {
+  chatbot: routeError.headingChatbot,
+  breathwork: routeError.headingBreathwork,
+  korea: routeError.headingKorea,
+  trips: routeError.headingTrips,
 }
 
 // Renders a recovery surface when a descendant throws during render or in a
@@ -73,27 +78,21 @@ export class RouteErrorBoundary extends Component<Props, State> {
   render() {
     if (!this.state.error) return this.props.children
 
-    const { heading, accent } = appCopy[this.props.app]
+    const { heading } = appCopy[this.props.app]
 
     return (
-      <div
-        role="alert"
-        className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-stone-50 px-6 py-10 text-center text-stone-900 dark:bg-stone-950 dark:text-stone-100"
-      >
-        <h1
-          className={`max-w-md font-serif text-2xl sm:text-3xl ${accent}`}
-          style={{ fontFamily: "'Cormorant Garamond', serif" }}
-        >
+      <div role="alert" {...sx(routeError.root)}>
+        <h1 {...sx(routeError.heading, headingStyles[this.props.app])}>
           {heading}
         </h1>
-        <p className="max-w-md text-sm text-stone-600 dark:text-stone-400">
+        <p {...sx(routeError.body)}>
           A reload usually fixes this. If it keeps happening, clear site data and try again.
         </p>
         <button
           ref={this.reloadRef}
           type="button"
           onClick={this.handleReload}
-          className="mt-2 inline-flex items-center justify-center rounded-full bg-stone-900 px-5 py-2.5 text-sm font-semibold text-stone-50 transition hover:bg-stone-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-stone-400 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-300"
+          {...sx(routeError.reloadBtn)}
         >
           Reload
         </button>
