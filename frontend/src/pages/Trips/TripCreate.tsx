@@ -17,51 +17,41 @@ import {
   accentIconClass,
   alertErrorClass,
   coverBandClass,
-  displayInputClass,
   ghostBtnClass,
   hintClass,
   inputClass,
   labelClass,
-  mutedInkClass,
   pageClass,
   primaryBtnClass,
   secondaryBtnClass,
   segmentOptionClass,
   segmentTrackClass,
+  sheetRuleClass,
   spinnerClass,
   stampChipClass,
   typeDisplayClass,
   wrapAnywhereClass,
+  displayInputClass,
 } from "./ui"
 
 const SHEET = pageClass("form")
-
-const optionalLabelClass = `font-normal normal-case tracking-normal ${mutedInkClass}`
-
-const fieldErrorClass = "mt-1.5 text-xs font-medium text-red-700 dark:text-red-300"
-
-const bandFieldErrorClass = "mt-1.5 text-xs font-medium text-red-200"
-
-const sheetRuleClass = "border-t border-[color:var(--trips-border)] pt-5"
 
 type FieldKey = "name" | "destinations" | "dates" | "timezone"
 
 interface FieldProblem {
   field: FieldKey
-  /** Reads as a list item in the summary ("Still need a trip name, dates."). */
   summary: string
-  /** Reads as an instruction under the field itself. */
   message: string
 }
 
 function FieldError({
   problem,
   id,
-  className = fieldErrorClass,
+  className = styles.fieldError,
 }: {
   problem: FieldProblem | null
   id: string
-  className?: string
+  className?: Parameters<typeof sx>[0]
 }) {
   if (!problem) return null
   return (
@@ -254,18 +244,18 @@ export function TripCreate() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="pb-16" noValidate>
+    <form onSubmit={onSubmit} {...sx(styles.createForm)} noValidate>
       <CoverDock title={name.trim() || "New trip"} measure="form" />
-      <header {...sx(coverBandClass, 'flex min-h-[38svh] flex-col justify-end')}>
-        <div className="mx-auto w-full max-w-2xl">
+      <header {...sx(coverBandClass, styles.coverBandHero)}>
+        <div {...sx(styles.createHeaderInner)}>
           <h1 {...sx(typeDisplayClass, 'cover-extra')}>New trip</h1>
-          <div className="mt-6" ref={(el) => void (groupRefs.current.name = el)}>
+          <div {...sx(styles.createNameGroup)} ref={(el) => void (groupRefs.current.name = el)}>
             <label htmlFor="trip-name" {...sx(styles.srOnly)}>
               Trip name
             </label>
             <input
               id="trip-name"
-              {...sx('${displayInputClass} text-[color:var(--trips-band-ink)] placeholder:text-[color:var(--trips-band-ink)]/40', wrapAnywhereClass)}
+              {...sx(displayInputClass, styles.createBandNameInput, wrapAnywhereClass)}
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Tokyo Long Weekend"
@@ -274,20 +264,20 @@ export function TripCreate() {
               aria-invalid={errorFor("name") ? true : undefined}
               aria-describedby={errorFor("name") ? errorId("name") : undefined}
             />
-            <FieldError problem={errorFor("name")} id={errorId("name")} {...sx(bandFieldErrorClass)} />
+            <FieldError problem={errorFor("name")} id={errorId("name")} className={styles.bandFieldError} />
           </div>
         </div>
       </header>
 
       <div {...sx(SHEET)}>
-        <div className="space-y-5">
+        <div {...sx(styles.createFieldsStack)}>
           <div ref={(el) => void (groupRefs.current.destinations = el)}>
             <label htmlFor="trip-dest" {...sx(labelClass)}>
               Destinations
             </label>
             <input
               id="trip-dest"
-              {...sx('mt-2', inputClass)}
+              {...sx(styles.inputMt2, inputClass)}
               value={destinations}
               onChange={(e) => setDestinations(e.target.value)}
               placeholder="Tokyo, Hakone"
@@ -302,11 +292,11 @@ export function TripCreate() {
               Comma-separated. First destination usually sets the planning center of gravity.
             </p>
             {destinationList.length > 0 && (
-              <ul className="mt-2 flex flex-wrap gap-1.5" aria-label="Parsed destinations">
+              <ul {...sx(styles.createTagList)} aria-label="Parsed destinations">
                 {destinationList.map((d) => (
                   <li
                     key={d}
-                    {...sx('${stampChipClass} text-[color:var(--trips-ink)]', wrapAnywhereClass)}
+                    {...sx(stampChipClass, styles.createTagChip, wrapAnywhereClass)}
                   >
                     {d}
                   </li>
@@ -315,12 +305,12 @@ export function TripCreate() {
             )}
           </div>
 
-          <div {...sx('grid grid-cols-1 gap-5 sm:grid-cols-[3fr_2fr]', sheetRuleClass)}>
+          <div {...sx(styles.gridColsDateRange, sheetRuleClass)}>
             <div ref={(el) => void (groupRefs.current.dates = el)}>
               <span {...sx(labelClass)} id="trip-dates-label">
                 Dates
               </span>
-              <div className="mt-2">
+              <div {...sx(styles.createFieldGap)}>
                 <DateRangeField
                   startDate={startDate}
                   endDate={endDate}
@@ -338,7 +328,7 @@ export function TripCreate() {
               <span {...sx(labelClass)} id="trip-tz-label">
                 Time zone
               </span>
-              <div className="mt-2">
+              <div {...sx(styles.createFieldGap)}>
                 <TimezoneField
                   value={timezone}
                   onChange={setTimezone}
@@ -361,20 +351,24 @@ export function TripCreate() {
             >
               {showCoverDetails ? "Hide cover details" : "More cover details"}
               <ChevronDown
-                {...sx('h-4 w-4 transition', showCoverDetails ? "rotate-180" : "", 'motion-reduce:transition-none')}
+                {...sx(
+                  styles.chevronDisclosure,
+                  styles.motionReduceTransitionNone,
+                  showCoverDetails ? styles.rotate180 : undefined,
+                )}
                 strokeWidth={1.5}
                 aria-hidden
               />
             </button>
             <div id="trip-cover-details" hidden={!showCoverDetails}>
-              <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <div {...sx(styles.gridCols2SmGap4, styles.mt5)}>
                 <div>
                   <label htmlFor="trip-tags" {...sx(labelClass)}>
-                    Tags <span {...sx(optionalLabelClass)}>(optional)</span>
+                    Tags <span {...sx(styles.optionalLabel)}>(optional)</span>
                   </label>
                   <input
                     id="trip-tags"
-                    {...sx('mt-2', inputClass)}
+                    {...sx(styles.inputMt2, inputClass)}
                     value={tags}
                     onChange={(e) => setTags(e.target.value)}
                     placeholder="anniversary, food"
@@ -382,12 +376,12 @@ export function TripCreate() {
                 </div>
                 <div>
                   <label htmlFor="trip-desc" {...sx(labelClass)}>
-                    Notes <span {...sx(optionalLabelClass)}>(optional)</span>
+                    Notes <span {...sx(styles.optionalLabel)}>(optional)</span>
                   </label>
                   <textarea
                     id="trip-desc"
                     rows={2}
-                    {...sx('mt-2', inputClass)}
+                    {...sx(styles.inputMt2, inputClass)}
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="Occasion, constraints, or anchors collaborators should know."
@@ -398,13 +392,13 @@ export function TripCreate() {
           </div>
         </div>
 
-        <fieldset {...sx('mt-8', sheetRuleClass)}>
+        <fieldset {...sx(styles.fieldsetMt8, sheetRuleClass)}>
           <legend {...sx(labelClass)}>How should we start it?</legend>
-          <div {...sx('mt-3', segmentTrackClass)}>
+          <div {...sx(styles.segmentTrackMt3, segmentTrackClass)}>
             {MODE_OPTIONS.map((opt) => {
               const selected = mode === opt.id
               return (
-                <label key={opt.id} {...sx('cursor-pointer', segmentOptionClass(selected))}>
+                <label key={opt.id} {...sx(styles.cursorPointer, segmentOptionClass(selected))}>
                   <input
                     type="radio"
                     name="mode"
@@ -414,7 +408,7 @@ export function TripCreate() {
                     {...sx(styles.srOnly)}
                   />
                   <opt.Icon
-                    {...sx('h-4 w-4 shrink-0', selected && opt.recommended ? accentIconClass : "")}
+                    {...sx(styles.iconSm, styles.shrink0, selected && opt.recommended ? accentIconClass : undefined)}
                     strokeWidth={1.5}
                     aria-hidden
                   />
@@ -434,19 +428,19 @@ export function TripCreate() {
 
         {mode === "ai" && (
           <motion.div
-            {...sx('mt-5 space-y-4', sheetRuleClass)}
+            {...sx(styles.aiPanelMt5, sheetRuleClass)}
             initial={reduce ? false : { opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: REVEAL_DURATION, ease: EASE }}
           >
             <div>
               <label htmlFor="trip-prompt" {...sx(labelClass)}>
-                AI brief <span {...sx(optionalLabelClass)}>(optional)</span>
+                AI brief <span {...sx(styles.optionalLabel)}>(optional)</span>
               </label>
               <textarea
                 id="trip-prompt"
                 rows={3}
-                {...sx('mt-2', inputClass)}
+                {...sx(styles.inputMt2, inputClass)}
                 value={prompt}
                 placeholder={DEFAULT_ITINERARY_PROMPT}
                 onChange={(e) => setPrompt(e.target.value)}
@@ -465,13 +459,17 @@ export function TripCreate() {
             >
               {showPrefs ? "Hide traveler preferences" : "Add traveler preferences"}
               <ChevronDown
-                {...sx('h-4 w-4 transition', showPrefs ? "rotate-180" : "", 'motion-reduce:transition-none')}
+                {...sx(
+                  styles.chevronDisclosure,
+                  styles.motionReduceTransitionNone,
+                  showPrefs ? styles.rotate180 : undefined,
+                )}
                 strokeWidth={1.5}
                 aria-hidden
               />
             </button>
             {showPrefs && (
-              <div id="trip-prefs" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div id="trip-prefs" {...sx(styles.createPrefsGrid)}>
                 {PREFERENCE_FIELDS.map((f) => (
                   <div key={f.key}>
                     <label htmlFor={`pref-${f.key}`} {...sx(labelClass)}>
@@ -479,7 +477,7 @@ export function TripCreate() {
                     </label>
                     <input
                       id={`pref-${f.key}`}
-                      {...sx('mt-2', inputClass)}
+                      {...sx(styles.inputMt2, inputClass)}
                       value={prefs[f.key] ?? ""}
                       placeholder={f.placeholder}
                       onChange={(e) => setPrefs((p) => ({ ...p, [f.key]: e.target.value }))}
@@ -492,23 +490,23 @@ export function TripCreate() {
         )}
 
         {error && (
-          <div {...sx('mt-5', alertErrorClass)} role="alert">
+          <div {...sx(styles.alertMt5, alertErrorClass)} role="alert">
             {error}
           </div>
         )}
 
-        <p className="mt-4 text-sm text-amber-900 empty:mt-0 dark:text-amber-200" role="status">
+        <p {...sx(styles.createStatusLine, shown.length === 0 ? styles.createStatusEmpty : undefined)} role="status">
           {shown.length > 0 ? `Still need ${shown.map((p) => p.summary).join(", ")}.` : ""}
         </p>
       </div>
 
-      <div className="sticky bottom-0 z-20 mt-8 border-t border-[color:var(--trips-border)] bg-[color:var(--trips-canvas)] px-4 py-4 sm:px-6">
-        <div className="mx-auto flex max-w-2xl flex-wrap items-center gap-3">
+      <div {...sx(styles.createStickyFooter)}>
+        <div {...sx(styles.mxAuto, styles.createStickyBar)}>
           <button type="submit" disabled={busy !== "idle"} {...sx(primaryBtnClass)}>
             {busy === "idle" ? (
               mode === "ai" ? (
                 <>
-                  <Sparkles className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+                  <Sparkles {...sx(styles.iconSm)} strokeWidth={1.5} aria-hidden />
                   Create & generate
                 </>
               ) : (
@@ -516,7 +514,7 @@ export function TripCreate() {
               )
             ) : (
               <>
-                <Loader2 {...sx('h-4 w-4', spinnerClass)} strokeWidth={1.5} aria-hidden />
+                <Loader2 {...sx(styles.iconSm, spinnerClass)} strokeWidth={1.5} aria-hidden />
                 {busy === "creating" ? "Creating trip…" : "Generating itinerary…"}
               </>
             )}
@@ -526,14 +524,14 @@ export function TripCreate() {
           </button>
           {generating && (
             <p
-              className="w-full text-xs text-stone-600 sm:w-auto dark:text-stone-400"
+              {...sx(styles.createGeneratingNote)}
               role="status"
               aria-live="polite"
             >
               <span {...sx(styles.srOnly)}>
                 Generating your itinerary. This usually takes 20 to 40 seconds. Stay on this page.
               </span>
-              <span aria-hidden className="font-mono-trips tabular-nums">
+              <span aria-hidden {...sx(styles.fontMonoTrips, styles.tabularNums)}>
                 {reduce ? "Usually 20 to 40s. Stay on this page." : `Generating… ${elapsed}s · usually 20 to 40s`}
               </span>
             </p>

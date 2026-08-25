@@ -22,13 +22,11 @@ function dockMotion(reduce: boolean) {
 /** Bottom-right stack: undo toast above the save pill, both non-blocking. */
 export function EditorDock({ children }: { children: ReactNode }) {
   return (
-    <div className="pointer-events-none fixed bottom-5 right-5 z-40 flex flex-col items-end gap-2">
+    <div {...sx(styles.editorDockRoot)}>
       {children}
     </div>
   )
 }
-
-const pillClass = `flex items-center gap-2 px-3.5 py-2 ${toastClass}`
 
 /** Appears while edits are unsaved or in flight, lingers on "Saved" for a
  *  moment, then fades away. */
@@ -56,18 +54,16 @@ export function FloatingSaveIndicator({ saveState }: { saveState: SaveState }) {
         {visible && (
           <motion.div
             {...dockMotion(!!reduce)}
-            {...sx(pillClass, saveState === "error"
-                ? "border-red-300 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950 dark:text-red-200"
-                : "")}
+            {...sx(styles.savePillBase, toastClass, saveState === "error" ? styles.savePillError : undefined)}
           >
             {saveState === "error" ? (
               <>
-                <X className="h-3.5 w-3.5 text-red-600" aria-hidden />
+                <X {...sx(styles.iconXs, styles.iconRed)} aria-hidden />
                 Couldn’t save. Retries on your next edit.
               </>
             ) : saveState === "saved" ? (
               <>
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                <CheckCircle2 {...sx(styles.iconXs, styles.iconEmerald)} aria-hidden />
                 All changes saved
               </>
             ) : (
@@ -104,16 +100,16 @@ export function EditorNotice({ notice, onDismiss }: { notice: string | null; onD
           <motion.div
             key={notice}
             {...dockMotion(!!reduce)}
-            {...sx(pillClass, 'pointer-events-auto max-w-[min(24rem,calc(100vw-2.5rem))] items-start py-2.5 text-[color:var(--trips-ink)]')}
+            {...sx(styles.savePillBase, toastClass, styles.noticePillWide)}
           >
-            <span {...sx('min-w-0 text-left leading-snug', wrapAnywhereClass)}>{notice}</span>
+            <span {...sx(styles.minW0, styles.leadingSnug, wrapAnywhereClass)}>{notice}</span>
             <button
               type="button"
               onClick={onDismiss}
               aria-label="Dismiss notice"
-              {...sx('-mr-1', iconBtnClass)}
+              {...sx(styles.negMx2, iconBtnClass)}
             >
-              <X className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+              <X {...sx(styles.iconSm)} strokeWidth={1.5} aria-hidden />
             </button>
           </motion.div>
         )}
@@ -134,18 +130,18 @@ export function UndoToast({ undo, onUndo }: { undo: PendingUndo | null; onUndo: 
           <motion.div
             key={undo.key}
             {...dockMotion(!!reduce)}
-            {...sx(pillClass, 'pointer-events-auto text-[color:var(--trips-ink)]')}
+            {...sx(styles.savePillBase, toastClass, styles.noticePillInk)}
           >
-            <span className="max-w-[14rem] truncate">
+            <span {...sx(styles.undoTextTruncate)}>
               Deleted {undo.title ? `“${undo.title}”` : "this item"}
             </span>
             <button
               type="button"
               autoFocus
               onClick={onUndo}
-              {...sx('-my-2 inline-flex min-h-11 items-center gap-1.5 rounded-[length:var(--trips-radius)] px-2 font-semibold text-[color:var(--ta)] transition hover:text-[color:var(--ta-strong)]', focusRingClass)}
+              {...sx(styles.undoBtn, focusRingClass)}
             >
-              <Undo2 className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
+              <Undo2 {...sx(styles.iconXs)} strokeWidth={1.5} aria-hidden />
               Undo
             </button>
           </motion.div>

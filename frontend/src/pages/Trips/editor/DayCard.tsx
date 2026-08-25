@@ -85,22 +85,19 @@ export const DayCard = memo(function DayCard({
       id={day.id}
       aria-label={`Day ${index + 1}`}
       aria-busy={enhancing}
-      {...sx('scroll-mt-32 border-t border-[color:var(--trips-border)] px-0 py-6 transition-colors duration-300 lg:scroll-mt-24', enhancing ? ACCENT.softBg : "")}
+      {...sx(styles.scrollMt32, styles.dayCardBorder, enhancing ? ACCENT.softBg : null)}
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex min-w-0 flex-1 items-start gap-3">
-          <span
-            aria-hidden
-            className="font-display shrink-0 text-[1.75rem] font-semibold tabular-nums leading-none tracking-tight text-[color:var(--trips-ink)] sm:text-[2rem]"
-          >
+      <div {...sx(styles.dayCardHeaderRow)}>
+        <div {...sx(styles.dayCardLeft)}>
+          <span aria-hidden {...sx(styles.dayCardNumber)}>
             {index + 1}
           </span>
-          <div className="min-w-0 flex-1">
-            <p {...sx('text-xs font-medium', mutedInkClass)}>
+          <div {...sx(styles.flex1, styles.minW0)}>
+            <p {...sx(styles.textXs, styles.fontMedium, mutedInkClass)}>
               {formatTripDate(day.date, timezone)}
               {day.city ? ` · ${day.city}` : ""}
             </p>
-            <div className="mt-1 flex items-center gap-1.5">
+            <div {...sx(styles.dayCardTitleRow)}>
               {editable ? (
                 <>
                   <input
@@ -110,7 +107,7 @@ export const DayCard = memo(function DayCard({
                     aria-label={`Day ${index + 1} emoji`}
                     disabled={locked}
                     onChange={(e) => patchDay({ emoji: e.target.value || undefined })}
-                    {...sx('w-11 shrink-0 text-center text-xl', subtleInputClass)}
+                    {...sx(styles.dayCardEmojiInput, subtleInputClass)}
                   />
                   <input
                     value={day.title ?? ""}
@@ -119,11 +116,11 @@ export const DayCard = memo(function DayCard({
                     aria-label={`Day ${index + 1} title`}
                     disabled={locked}
                     onChange={(e) => patchDay({ title: e.target.value })}
-                    {...sx('w-full truncate font-display text-lg font-semibold tracking-tight', subtleInputClass)}
+                    {...sx(styles.dayCardTitleInput, subtleInputClass)}
                   />
                 </>
               ) : (
-                <h2 {...sx('font-display text-lg font-semibold tracking-tight text-stone-900 dark:text-stone-100', wrapAnywhereClass)}>
+                <h2 {...sx(styles.dayCardTitleReadonly, wrapAnywhereClass)}>
                   {day.emoji ? `${day.emoji} ` : ""}
                   {day.title ?? ""}
                 </h2>
@@ -131,8 +128,7 @@ export const DayCard = memo(function DayCard({
             </div>
           </div>
         </div>
-        {/* Own row below `sm` so the title input keeps the full width. */}
-        <div className="flex shrink-0 items-center gap-2">
+        <div {...sx(styles.dayCardActions)}>
           {editable && (
             <EnhanceButton
               label="Enhance day"
@@ -151,7 +147,7 @@ export const DayCard = memo(function DayCard({
             title={hasMappable ? "Open Map Mode" : "No located places on this day yet"}
             {...sx(chipBtnClass)}
           >
-            <MapIcon className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
+            <MapIcon {...sx(styles.icon35)} strokeWidth={1.5} aria-hidden />
             Map
           </button>
         </div>
@@ -165,9 +161,7 @@ export const DayCard = memo(function DayCard({
           rows={day.notes ? Math.min(4, day.notes.split("\n").length) : 1}
           disabled={locked}
           onChange={(e) => patchDay({ notes: e.target.value })}
-          // `field-sizing-content` grows the box with wrapped prose; `rows` is
-          // the fallback where it isn't supported.
-          {...sx('mt-2 w-full resize-none field-sizing-content', subtleInputClass)}
+          {...sx(styles.mt2, styles.wFull, styles.fieldSizingContent, subtleInputClass)}
         />
       ) : (
         day.notes && (
@@ -175,9 +169,8 @@ export const DayCard = memo(function DayCard({
         )
       )}
 
-      {/* Day details: display metadata for the dossier pages */}
       {editable && (
-        <div className="mt-2">
+        <div {...sx(styles.dayCardDetailsWrap)}>
           <button
             type="button"
             onClick={() => setDetailsOpen((o) => !o)}
@@ -185,14 +178,14 @@ export const DayCard = memo(function DayCard({
             {...sx(secondaryBtnClass)}
           >
             <ChevronDown
-              {...sx('h-4 w-4 transition-transform', detailsOpen ? "rotate-180" : "")}
+              {...sx(styles.iconMd, styles.transitionTransform, detailsOpen ? styles.rotate180 : null)}
               strokeWidth={1.5}
               aria-hidden
             />
             Details
           </button>
           {detailsOpen && (
-            <fieldset disabled={locked} className="mt-3 m-0 min-w-0 space-y-3 border-t border-[color:var(--trips-border)] pt-3">
+            <fieldset disabled={locked} {...sx(styles.dayCardDetailsFieldset)}>
               <label {...sx(styles.block)}>
                 <span {...sx(labelClass)}>Neighborhoods (comma-separated)</span>
                 <input
@@ -206,14 +199,14 @@ export const DayCard = memo(function DayCard({
                         .filter(Boolean),
                     })
                   }
-                  {...sx('mt-1 w-full', compactInputClass)}
+                  {...sx(styles.mt1, styles.wFull, compactInputClass)}
                 />
               </label>
               <div>
                 <span {...sx(labelClass)}>Callouts</span>
-                <div className="mt-1 space-y-2">
+                <div {...sx(styles.mt1, styles.spaceY2)}>
                   {(day.callouts ?? []).map((c, ci) => (
-                    <div key={ci} className="flex items-start gap-2">
+                    <div key={ci} {...sx(styles.dayCardCalloutRow)}>
                       <input
                         value={c.icon}
                         maxLength={4}
@@ -225,7 +218,7 @@ export const DayCard = memo(function DayCard({
                             ),
                           })
                         }
-                        {...sx('w-11 shrink-0 px-1 text-center', compactInputClass)}
+                        {...sx(styles.calloutIconInput, compactInputClass)}
                       />
                       <select
                         value={c.tone}
@@ -237,7 +230,7 @@ export const DayCard = memo(function DayCard({
                             ),
                           })
                         }
-                        {...sx('shrink-0', compactSelectClass)}
+                        {...sx(styles.shrink0, compactSelectClass)}
                       >
                         {(["info", "warn", "success", "alert"] as const).map((t) => (
                           <option key={t} value={t}>
@@ -256,14 +249,14 @@ export const DayCard = memo(function DayCard({
                             ),
                           })
                         }
-                        {...sx('min-w-0 flex-1', compactInputClass)}
+                        {...sx(styles.minW0, styles.flex1, compactInputClass)}
                       />
                       <IconButton
                         label="Remove callout"
                         destructive
                         onClick={() => patchDay({ callouts: (day.callouts ?? []).filter((_, xi) => xi !== ci) })}
                       >
-                        <Trash2 className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+                        <Trash2 {...sx(styles.iconSm)} strokeWidth={1.5} aria-hidden />
                       </IconButton>
                     </div>
                   ))}
@@ -272,13 +265,13 @@ export const DayCard = memo(function DayCard({
                     onClick={() => patchDay({ callouts: [...(day.callouts ?? []), { icon: "⚠️", tone: "warn", body: "" }] })}
                     {...sx(quietBtnClass)}
                   >
-                    <Plus className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
+                    <Plus {...sx(styles.icon35)} strokeWidth={1.5} aria-hidden />
                     Add callout
                   </button>
                 </div>
               </div>
               {day.weather && (
-                <p {...sx('text-xs', mutedInkClass)}>
+                <p {...sx(styles.textXs, mutedInkClass)}>
                   Weather: {day.weather.highC}°C / {day.weather.lowC}°C · {day.weather.condition}. Auto-synced from
                   the live forecast on each Enhance run.
                 </p>
@@ -288,7 +281,6 @@ export const DayCard = memo(function DayCard({
         </div>
       )}
 
-      {/* Day-scoped enhancement review renders here, inside the day. */}
       <AnimatePresence>
         {run && (
           <SuggestionsPanel run={run} dayOptions={dayOptions} onApply={onApplyRun} onDismiss={onDismissRun} />
@@ -296,13 +288,11 @@ export const DayCard = memo(function DayCard({
       </AnimatePresence>
 
       {day.items.length === 0 ? (
-        <p {...sx('mt-4 py-2 text-sm', mutedInkClass)}>
+        <p {...sx(styles.mt4, styles.py2, styles.textSm, mutedInkClass)}>
           Nothing planned yet{editable ? ". Add a place, note, or section below." : "."}
         </p>
       ) : (
-        // Timeline rail: a vertical line down the day, the itinerary
-        // affordance that makes order legible at a glance.
-        <ul className="mt-4 space-y-1">
+        <ul {...sx(styles.dayCardItemList)}>
           <AnimatePresence initial={false}>
             {day.items.map((item, itemIdx) => (
               <ItemRow
@@ -326,7 +316,7 @@ export const DayCard = memo(function DayCard({
       )}
 
       {editable && (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div {...sx(styles.dayCardAddRow)}>
           {ADD_KINDS.map(({ kind, label }) => (
             <button
               key={kind}
@@ -342,7 +332,7 @@ export const DayCard = memo(function DayCard({
               }
               {...sx(quietBtnClass)}
             >
-              <Plus className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
+              <Plus {...sx(styles.icon35)} strokeWidth={1.5} aria-hidden />
               {label}
             </button>
           ))}
@@ -352,7 +342,7 @@ export const DayCard = memo(function DayCard({
       {editable && (
         <Suspense
           fallback={
-            <div role="status" aria-label="Loading Instagram importer" {...sx('mt-2 text-xs', mutedInkClass)}>
+            <div role="status" aria-label="Loading Instagram importer" {...sx(styles.mt2, styles.textXs, mutedInkClass)}>
               Loading Instagram importer…
             </div>
           }

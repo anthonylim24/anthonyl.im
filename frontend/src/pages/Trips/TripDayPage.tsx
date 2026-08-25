@@ -154,11 +154,11 @@ export function TripDayPage() {
   if (state.status === "loading") {
     return (
       <div {...sx(PAGE)} role="status" aria-label="Loading day">
-        <div {...sx('h-4 w-72', skeletonClass)} />
-        <div {...sx('mt-6 h-16 w-2/3', skeletonClass)} />
-        <div className="mt-10 space-y-3">
+        <div {...sx(styles.h4, styles.w72, skeletonClass)} />
+        <div {...sx(styles.skeletonMt6, styles.h16, styles.w2_3, skeletonClass)} />
+        <div {...sx(styles.loadingStack)}>
           {[0, 1, 2].map((i) => (
-            <div key={i} {...sx('h-20', skeletonClass)} />
+            <div key={i} {...sx(styles.h20, skeletonClass)} />
           ))}
         </div>
       </div>
@@ -170,10 +170,10 @@ export function TripDayPage() {
     return (
       <div {...sx(PAGE)}>
         <div {...sx(alertErrorClass)} role="alert">
-          <p {...sx('min-w-0', wrapAnywhereClass)}>
+          <p {...sx(styles.minW0, wrapAnywhereClass)}>
             Couldn’t open this day. Check your connection, then try again. ({state.message})
           </p>
-          <button type="button" {...sx('mt-1 font-semibold', inlineLinkClass)} onClick={reload}>
+          <button type="button" {...sx(styles.linkSemiboldMt1, inlineLinkClass)} onClick={reload}>
             Retry
           </button>
         </div>
@@ -184,13 +184,13 @@ export function TripDayPage() {
   if (!trip || !day) {
     return (
       <div {...sx(PAGE)} role="alert">
-        <h1 className="text-2xl font-semibold tracking-tight text-stone-900 dark:text-stone-100">
+        <h1 {...sx(styles.dayNotFoundTitle)}>
           Day not found
         </h1>
-        <p {...sx('mt-3 text-sm leading-relaxed', mutedInkClass)}>
+        <p {...sx(styles.mt3, styles.textSm, styles.leadingRelaxed, mutedInkClass)}>
           This day isn’t part of {trip?.name ?? "this trip"} any more. It may have been removed in the editor.
         </p>
-        <Link to={trip ? tripPath : "/trips"} {...sx('mt-4', secondaryBtnClass)}>
+        <Link to={trip ? tripPath : "/trips"} {...sx(styles.linkMt4, secondaryBtnClass)}>
           Back to the trip
         </Link>
       </div>
@@ -219,7 +219,7 @@ export function TripDayPage() {
           activeId={day.id}
           toFor={(d) => `${tripPath}/day/${d.id}`}
         />
-        <header className="mt-5">
+        <header {...sx(styles.dayHeader)}>
           <motion.p
             {...fadeUp(0)}
             {...sx(typeMetaClass, mutedInkClass)}
@@ -230,22 +230,22 @@ export function TripDayPage() {
             >
               {trip.name}
             </Link>
-            <span aria-hidden className="text-stone-300 dark:text-stone-600">
+            <span aria-hidden {...sx(styles.dayBreadcrumbSep)}>
               /
             </span>
-            <span className="tabular-nums">
+            <span {...sx(styles.tabularNums)}>
               Day {dayIndex + 1} of {trip.days.length}
             </span>
             {isToday && (
-              <span {...sx('flex items-center gap-1.5', a.text)}>
-                <span {...sx('inline-block h-1.5 w-1.5 rounded-full', a.dot)} aria-hidden />
+              <span {...sx(styles.flexCenterGap15, a.text)}>
+                <span {...sx(styles.accentDotSm, a.dot)} aria-hidden />
                 Today
               </span>
             )}
           </motion.p>
 
-          <motion.div {...fadeUp(1)} className="mt-4">
-            {day.emoji && <span aria-hidden className="mb-2 block text-xl leading-none">{day.emoji}</span>}
+          <motion.div {...fadeUp(1)} {...sx(styles.mt4)}>
+            {day.emoji && <span aria-hidden {...sx(styles.dayEmoji)}>{day.emoji}</span>}
             <h1
               {...sx(styles.minW0, typePageTitleClass, wrapAnywhereClass)}
             >
@@ -253,7 +253,7 @@ export function TripDayPage() {
             </h1>
           </motion.div>
 
-          <p {...sx('mt-3 font-display text-lg tabular-nums', mutedInkClass)}>
+          <p {...sx(styles.dayDateLine, mutedInkClass)}>
             {formatTripDate(day.date, trip.timezone, { weekday: "long", month: "long" })}
             {day.city ? ` · ${day.city}` : ""}
             {day.weather ? ` · ${day.weather.highC}° / ${day.weather.lowC}°` : ""}
@@ -262,16 +262,16 @@ export function TripDayPage() {
           {day.notes && (
             <motion.div
               {...fadeUp(2)}
-              {...sx('mt-3 max-w-[60ch] whitespace-pre-line text-sm leading-relaxed text-stone-700 dark:text-stone-300', wrapAnywhereClass)}
+              {...sx(styles.dayNotesBody, wrapAnywhereClass)}
             >
               <LinkifiedText>{day.notes}</LinkifiedText>
             </motion.div>
           )}
 
-          <motion.div {...fadeUp(4)} className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <motion.div {...fadeUp(4)} {...sx(styles.dayActionsRow)}>
             {hasMappable ? (
               <button type="button" onClick={() => openMap()} {...sx(inkBtnClass)}>
-                <Globe2 className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+                <Globe2 {...sx(styles.iconSm)} strokeWidth={1.5} aria-hidden />
                 Enter Map Mode
               </button>
             ) : (
@@ -281,7 +281,7 @@ export function TripDayPage() {
             )}
             {editable && (
               <Link to={`${tripPath}#${day.id}`} {...sx(secondaryBtnClass)}>
-                <Pencil className="h-3.5 w-3.5" aria-hidden />
+                <Pencil {...sx(styles.icon35)} aria-hidden />
                 Edit this day
               </Link>
             )}
@@ -289,7 +289,7 @@ export function TripDayPage() {
         </header>
 
         {day.callouts && day.callouts.length > 0 && (
-          <div className="mt-9 space-y-3">
+          <div {...sx(styles.calloutsStack)}>
             {day.callouts.map((c, i) => (
               <motion.div
                 key={i}
@@ -297,12 +297,12 @@ export function TripDayPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: REVEAL_DURATION, ease: EASE, delay: revealDelay(i) }}
-                {...sx('flex items-start gap-3 rounded-[length:var(--trips-radius)] border p-4 text-base text-[color:var(--trips-ink)]', calloutToneStyle(c.tone))}
+                {...sx(styles.calloutRow, calloutToneStyle(c.tone))}
               >
-                <span aria-hidden className="text-lg leading-none">
+                <span aria-hidden {...sx(styles.calloutIcon)}>
                   {c.icon}
                 </span>
-                <p {...sx('min-w-0 flex-1', wrapAnywhereClass)}>
+                <p {...sx(styles.minW0, styles.flex1, wrapAnywhereClass)}>
                   <LinkifiedText>{c.body}</LinkifiedText>
                 </p>
               </motion.div>
@@ -311,8 +311,8 @@ export function TripDayPage() {
         )}
 
         {reservations.length > 0 && (
-          <section className="mt-10">
-            <ol className="divide-y divide-[color:var(--trips-border)] border-y border-[color:var(--trips-border)]">
+          <section {...sx(styles.daySectionMt10)}>
+            <ol {...sx(styles.reservationList)}>
               {reservations.map((item, i) => (
                 <ReservationTableRow
                   key={item.id}
@@ -329,7 +329,7 @@ export function TripDayPage() {
         )}
 
         {blocks.length > 0 && (
-          <section className="mt-10">
+          <section {...sx(styles.daySectionMt10)}>
             <SectionHeading title="Stops" />
             {blocks.map((block, bi) => (
               <motion.div
@@ -338,17 +338,17 @@ export function TripDayPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-15%" }}
                 transition={{ duration: REVEAL_DURATION, ease: EASE }}
-                className="py-8 first:pt-0 sm:py-10"
+                {...sx(styles.stopsBlock)}
               >
                 {block.section && (
-                  <div className="flex items-baseline justify-between gap-x-4 sm:gap-x-6">
+                  <div {...sx(styles.stopsSectionHeader)}>
                     <h3
-                      {...sx('min-w-0 text-lg font-semibold tracking-tight text-stone-900 sm:text-xl dark:text-stone-100', wrapAnywhereClass)}
+                      {...sx(styles.stopsSectionTitle, wrapAnywhereClass)}
                     >
                       {block.section.title}
                     </h3>
                     {block.section.time && (
-                      <span {...sx('shrink-0', timeCellClass, 'uppercase tracking-[0.14em]')}>
+                      <span {...sx(styles.shrink0, timeCellClass, styles.uppercaseTrackingWide)}>
                         <Time value={block.section.time} />
                         {block.section.endTime ? (
                           <>
@@ -361,17 +361,17 @@ export function TripDayPage() {
                   </div>
                 )}
                 {block.section?.notes && (
-                  <ul className="mt-4 space-y-2.5 text-[15px] leading-relaxed text-stone-700 dark:text-stone-300">
+                  <ul {...sx(styles.stopsNotesList)}>
                     {block.section.notes
                       .split("\n")
                       .filter(Boolean)
                       .map((line, li) => (
-                        <li key={li} className="flex gap-3">
+                        <li key={li} {...sx(styles.stopsBulletItem)}>
                           <span
                             aria-hidden
-                            className="mt-2.5 h-1 w-1 shrink-0 rounded-full bg-[color:var(--trips-ink-tertiary)]"
+                            {...sx(styles.stopsBulletDot)}
                           />
-                          <span {...sx('min-w-0 flex-1', wrapAnywhereClass)}>
+                          <span {...sx(styles.minW0, styles.flex1, wrapAnywhereClass)}>
                             <LinkifiedText>{line.replace(/^-\s*/, "")}</LinkifiedText>
                           </span>
                         </li>
@@ -379,7 +379,7 @@ export function TripDayPage() {
                   </ul>
                 )}
                 {block.items.length > 0 && (
-                  <ol className="mt-5 space-y-4">
+                  <ol {...sx(styles.stopsItemList)}>
                     {block.items.map((item) => (
                       <NarrativeItem
                         key={item.id}
@@ -399,31 +399,29 @@ export function TripDayPage() {
 
         {/* Forward first on phones: the thumb reaches the top row, and the
             next day is what an in-trip reader wants. */}
-        <p {...sx('mt-10 text-xs', mutedInkClass)}>
+        <p {...sx(styles.dayHintMt10, mutedInkClass)}>
           Arrow keys move to the previous or next day.
         </p>
         <nav
-          className="mt-3 grid grid-cols-1 gap-1 border-t border-[color:var(--trips-border)] pt-6 sm:grid-cols-2 sm:gap-6"
+          {...sx(styles.dayPager)}
           aria-label="Adjacent days"
         >
           {next && (
             <Link
               rel="next"
               to={`${tripPath}/day/${next.id}`}
-              {...sx('group order-1 -mx-2 flex min-h-14 items-center justify-between gap-4 rounded-[length:var(--trips-radius)] px-2 py-3 transition-colors ${overlayHoverClass} sm:order-2 sm:justify-end sm:text-right', focusRingClass)}
+              {...sx('group', styles.dayPagerLink, styles.dayPagerLinkEnd, overlayHoverClass, focusRingClass)}
             >
-              <span className="min-w-0">
-                <span {...sx('block text-[13px]', mutedInkClass)}>
+              <span {...sx(styles.minW0)}>
+                <span {...sx(styles.dayPagerLabel, mutedInkClass)}>
                   Next · Day {dayIndex + 2}
                 </span>
-                <span
-                  {...sx('line-clamp-2 text-base font-semibold text-[color:var(--trips-ink)]', wrapAnywhereClass)}
-                >
+                <span {...sx(styles.dayPagerHeading, wrapAnywhereClass)}>
                   {next.title ?? `Day ${dayIndex + 2}`}
                 </span>
               </span>
               <ArrowUpRight
-                {...sx('h-4 w-4 shrink-0 rotate-45 text-[color:var(--trips-ink-tertiary)]', hoverArrowClass)}
+                {...sx(styles.dayPagerIcon, styles.rotate45, hoverArrowClass)}
                 aria-hidden
               />
             </Link>
@@ -432,25 +430,23 @@ export function TripDayPage() {
             <Link
               rel="prev"
               to={`${tripPath}/day/${prev.id}`}
-              {...sx('group order-2 -mx-2 flex min-h-14 items-center gap-4 rounded-[length:var(--trips-radius)] px-2 py-3 transition-colors ${overlayHoverClass} sm:order-1', focusRingClass)}
+              {...sx('group', styles.dayPagerLink, styles.dayPagerLinkStart, overlayHoverClass, focusRingClass)}
             >
               <ArrowUpRight
-                {...sx('h-4 w-4 shrink-0 -rotate-[135deg] text-[color:var(--trips-ink-tertiary)]', hoverArrowBackClass)}
+                {...sx(styles.dayPagerIcon, styles.rotateNeg135, hoverArrowBackClass)}
                 aria-hidden
               />
-              <span className="min-w-0">
-                <span {...sx('block text-[13px]', mutedInkClass)}>
+              <span {...sx(styles.minW0)}>
+                <span {...sx(styles.dayPagerLabel, mutedInkClass)}>
                   Previous · Day {dayIndex}
                 </span>
-                <span
-                  {...sx('line-clamp-2 text-base font-semibold text-[color:var(--trips-ink)]', wrapAnywhereClass)}
-                >
+                <span {...sx(styles.dayPagerHeading, wrapAnywhereClass)}>
                   {prev.title ?? `Day ${dayIndex}`}
                 </span>
               </span>
             </Link>
           ) : (
-            <span className="hidden sm:order-1 sm:block" />
+            <span {...sx(styles.hiddenSmOrder1)} />
           )}
         </nav>
 
@@ -458,7 +454,7 @@ export function TripDayPage() {
           <Suspense
             fallback={
               <div
-                className="fixed inset-0 z-50 flex items-center justify-center bg-[color:var(--trips-scrim)] text-sm text-[color:var(--trips-band-ink)]"
+                {...sx(styles.mapLoadingOverlay)}
                 role="status"
               >
                 Loading map…
@@ -481,7 +477,7 @@ export function TripDayPage() {
 
 function WalkLeg({ walk }: { walk: { distance: string; walk: string } }) {
   return (
-    <p {...sx('mt-2 text-[13px]', mutedInkClass)}>
+    <p {...sx(styles.mt2, styles.text13, mutedInkClass)}>
       {walk.walk}
       <span aria-hidden> · </span>
       {walk.distance}
@@ -508,29 +504,29 @@ function ReservationTableRow({
   const reservation = itemToReservation(item, day, dayNumber)
   if (!reservation) return null
   return (
-    <li id={`item-${item.id}`} {...sx('py-5', highlight)}>
+    <li id={`item-${item.id}`} {...sx(styles.py5, highlight)}>
       {featured ? (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div className="min-w-0">
-            <p {...sx(typeHeroTimeClass, 'text-[color:var(--trips-ink)]')}>
+        <div {...sx(styles.reservationHeroRow)}>
+          <div {...sx(styles.minW0)}>
+            <p {...sx(typeHeroTimeClass, styles.inkPrimary)}>
               {reservation.time ? <FlipTime value={reservation.time} playOnMount /> : "TBD"}
             </p>
-            <p {...sx('mt-3 font-display text-xl font-semibold tracking-tight text-[color:var(--trips-ink)] sm:text-2xl', wrapAnywhereClass)}>
+            <p {...sx(styles.narrativeTitleLg, wrapAnywhereClass)}>
               <SmartEntity name={reservation.title} type={placeCategoryToEntityType(item.location?.category ?? "place")} />
             </p>
           </div>
           <StatusChip status={item.status} />
         </div>
       ) : (
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <p className="font-display text-xl font-semibold tabular-nums text-[color:var(--trips-ink)] sm:text-2xl">
+        <div {...sx(styles.flexRowWrapBaselineBetween)}>
+          <p {...sx(styles.reservationTimeLg)}>
             {reservation.time ? <Time value={reservation.time} /> : "TBD"}
           </p>
           <StatusChip status={item.status} />
         </div>
       )}
       {!featured && (
-        <p {...sx('mt-1 font-medium text-stone-900 dark:text-stone-100', wrapAnywhereClass)}>
+        <p {...sx(styles.mt1, styles.fontMedium, styles.inkPrimary, wrapAnywhereClass)}>
           <SmartEntity name={reservation.title} type={placeCategoryToEntityType(item.location?.category ?? "place")} />
         </p>
       )}
@@ -538,7 +534,7 @@ function ReservationTableRow({
         <p {...sx(styles.mt1, styles.settingsLabel, mutedInkClass, wrapAnywhereClass)}>{reservation.subtitle}</p>
       )}
       {reservation.address && (
-        <p {...sx('mt-1 text-sm', wrapAnywhereClass)}>
+        <p {...sx(styles.mt1, styles.textSm, wrapAnywhereClass)}>
           <a href={mapsUrl(reservation.address)} {...sx(inlineLinkClass)}>
             {reservation.address}
           </a>
@@ -573,41 +569,41 @@ function NarrativeItem({
   return (
     <li
       id={`item-${item.id}`}
-      {...sx('grid grid-cols-[3.25rem_minmax(0,1fr)] gap-x-3 rounded-[length:var(--trips-radius)] sm:grid-cols-[4rem_minmax(0,1fr)]', highlight)}
+      {...sx(styles.gridColsItem, highlight)}
     >
-      <div {...sx('pt-0.5 text-right', timeCellClass)}>
+      <div {...sx(styles.itemTimeCol, timeCellClass)}>
         {item.time ? <Time value={item.time} /> : <span aria-hidden>·</span>}
         {item.endTime && (
-          <span className="mt-0.5 block">
+          <span {...sx(styles.narrativeEndTimeBlock)}>
             <Time value={item.endTime} />
           </span>
         )}
       </div>
-      <div className="min-w-0">
-        <div className="flex items-start gap-2.5">
+      <div {...sx(styles.minW0)}>
+        <div {...sx(styles.narrativeItemRow)}>
           <ItemIcon
             kind={item.kind}
             category={item.location?.category}
-            className="mt-1 h-4 w-4 shrink-0 text-stone-500 dark:text-stone-400"
+            className={sx(styles.narrativeItemIcon).className}
           />
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <div {...sx(styles.minW0, styles.flex1)}>
+            <div {...sx(styles.narrativeTitleRow)}>
               {titled ? (
                 <SmartEntity
                   name={item.title}
                   type={entityType}
                   city={city}
-                  {...sx('font-medium text-stone-900 dark:text-stone-100', wrapAnywhereClass)}
+                  {...sx(styles.narrativeTitle, wrapAnywhereClass)}
                 />
               ) : (
-                <span {...sx('font-medium text-stone-900 dark:text-stone-100', wrapAnywhereClass)}>
+                <span {...sx(styles.narrativeTitle, wrapAnywhereClass)}>
                   {item.title}
                 </span>
               )}
               <StatusChip status={item.status} />
             </div>
             {item.notes && (
-              <p {...sx('mt-1 text-sm leading-relaxed text-stone-700 dark:text-stone-300', wrapAnywhereClass)}>
+              <p {...sx(styles.narrativeNotes, wrapAnywhereClass)}>
                 <LinkifiedText>{item.notes}</LinkifiedText>
               </p>
             )}
@@ -623,8 +619,8 @@ function NarrativeItem({
             )}
             {walk && <WalkLeg walk={walk} />}
             {onOpenMap && (
-              <button type="button" onClick={onOpenMap} {...sx('mt-2', chipBtnClass)}>
-                <Globe2 className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
+              <button type="button" onClick={onOpenMap} {...sx(styles.chipBtnMt2, chipBtnClass)}>
+                <Globe2 {...sx(styles.icon35)} strokeWidth={1.5} aria-hidden />
                 Map
               </button>
             )}

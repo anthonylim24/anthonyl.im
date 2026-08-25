@@ -395,9 +395,13 @@ export const mapModeOverlay = stylex.create({
     transitionProperty: 'color, background-color, border-color',
     transitionDuration: '150ms',
     ':hover': { color: '#be123c' },
-    [DARK]: { ':hover': { color: '#fecdd3' } },
     ':focus-visible': { outlineWidth: '2px', outlineStyle: 'solid', outlineOffset: '2px', outlineColor: 'rgba(244, 63, 94, 0.6)' },
-    [DARK]: { borderColor: 'rgba(255, 252, 245, 0.06)', backgroundColor: 'rgba(28, 25, 23, 0.78)', color: '#d6d3d1' },
+    [DARK]: {
+      borderColor: 'rgba(255, 252, 245, 0.06)',
+      backgroundColor: 'rgba(28, 25, 23, 0.78)',
+      color: '#d6d3d1',
+      ':hover': { color: '#fecdd3' },
+    },
   },
   birdsEyeActive: {
     display: 'inline-flex',
@@ -426,8 +430,11 @@ export const mapModeOverlay = stylex.create({
     ':focus-visible': { outlineWidth: '2px', outlineStyle: 'solid', outlineOffset: '2px', outlineColor: 'rgba(244, 63, 94, 0.6)' },
   },
   viewModeActive: { backgroundColor: '#e11d48', color: '#ffffff', boxShadow: '0 1px 2px rgba(28, 25, 23, 0.05)' },
-  viewModeInactive: { color: '#57534e', ':hover': { color: '#1c1917' },
-    [DARK]: { ':hover': { color: '#f5f5f4' } }, [DARK]: { color: '#a8a29e' } },
+  viewModeInactive: {
+    color: '#57534e',
+    ':hover': { color: '#1c1917' },
+    [DARK]: { color: '#a8a29e', ':hover': { color: '#f5f5f4' } },
+  },
   locPill: {
     pointerEvents: 'auto',
     position: 'absolute',
@@ -450,8 +457,11 @@ export const mapModeOverlay = stylex.create({
     transitionDuration: '150ms',
     ':hover': { backgroundColor: 'rgba(255, 254, 250, 0.98)' },
     ':focus-visible': { outlineWidth: '2px', outlineStyle: 'solid', outlineOffset: '2px', outlineColor: 'rgba(244, 63, 94, 0.6)' },
-    [DARK]: { borderColor: 'rgba(255, 252, 245, 0.06)', backgroundColor: 'rgba(28, 25, 23, 0.82)' },
-    [DARK]: { ':hover': { backgroundColor: 'rgba(28, 25, 23, 0.92)' } },
+    [DARK]: {
+      borderColor: 'rgba(255, 252, 245, 0.06)',
+      backgroundColor: 'rgba(28, 25, 23, 0.82)',
+      ':hover': { backgroundColor: 'rgba(28, 25, 23, 0.92)' },
+    },
   },
   locPillRound: { borderRadius: '9999px' },
   locPillCard: { borderRadius: '1rem' },

@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { sx } from '@/lib/utils'
-import { styles } from '../trips.stylex'
 import { dangerIconBtnClass, iconBtnClass } from '../ui'
 
 /** 44x44 icon action with its label carried by `title` + `aria-label`. */

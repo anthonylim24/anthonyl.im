@@ -1072,20 +1072,27 @@ export const ingest = stylex.create({
     ':focus-visible': { outlineWidth: '2px', outlineStyle: 'solid' },
     ':disabled': { opacity: 0.6 },
     '::placeholder': { color: '#a8a29e' },
-    [DARK]: { backgroundColor: '#1c1917', color: '#f5f5f4' },
-    [DARK]: { '::placeholder': { color: '#57534e' } },
+    [DARK]: {
+      backgroundColor: '#1c1917',
+      color: '#f5f5f4',
+      '::placeholder': { color: '#57534e' },
+    },
   },
   urlInputValid: {
     borderColor: '#d6d3d1',
     ':focus-visible': { borderColor: '#fb7185', boxShadow: '0 0 0 2px rgba(251, 113, 133, 0.2)' },
-    [DARK]: { ':focus-visible': { borderColor: '#f43f5e', boxShadow: '0 0 0 2px rgba(244, 63, 94, 0.2)' } },
-    [DARK]: { borderColor: '#44403c' },
+    [DARK]: {
+      borderColor: '#44403c',
+      ':focus-visible': { borderColor: '#f43f5e', boxShadow: '0 0 0 2px rgba(244, 63, 94, 0.2)' },
+    },
   },
   urlInputInvalid: {
     borderColor: '#fb7185',
     ':focus-visible': { borderColor: '#f43f5e', boxShadow: '0 0 0 2px rgba(251, 113, 133, 0.3)' },
-    [DARK]: { ':focus-visible': { borderColor: '#f43f5e', boxShadow: '0 0 0 2px rgba(244, 63, 94, 0.3)' } },
-    [DARK]: { borderColor: 'rgba(244, 63, 94, 0.7)' },
+    [DARK]: {
+      borderColor: 'rgba(244, 63, 94, 0.7)',
+      ':focus-visible': { borderColor: '#f43f5e', boxShadow: '0 0 0 2px rgba(244, 63, 94, 0.3)' },
+    },
   },
 
 })

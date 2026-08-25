@@ -16,8 +16,8 @@ export function TripPlaces() {
   if (state.status === "loading") {
     return (
       <div {...sx(documentClass)} role="status" aria-label="Loading places">
-        <div {...sx('h-10 w-1/2', skeletonClass)} />
-        <div {...sx('mt-8 h-40', skeletonClass)} />
+        <div {...sx(styles.h10, styles.wHalf, skeletonClass)} />
+        <div {...sx(styles.skeletonMt8, styles.h40, skeletonClass)} />
       </div>
     )
   }
@@ -27,10 +27,10 @@ export function TripPlaces() {
     return (
       <div {...sx(documentClass)}>
         <div {...sx(alertErrorClass)} role="alert">
-          <p {...sx('min-w-0', wrapAnywhereClass)}>
+          <p {...sx(styles.minW0, wrapAnywhereClass)}>
             Couldn’t load places. Check your connection, then try again. ({state.message})
           </p>
-          <button type="button" {...sx('mt-1 font-semibold', inlineLinkClass)} onClick={reload}>
+          <button type="button" {...sx(styles.linkSemiboldMt1, inlineLinkClass)} onClick={reload}>
             Retry
           </button>
         </div>

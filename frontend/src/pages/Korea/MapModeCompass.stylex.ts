@@ -46,7 +46,6 @@ export const mapModeCompass = stylex.create({
     transitionProperty: 'color, background-color, border-color',
     transitionDuration: '150ms',
     ':hover': { color: '#be123c' },
-    [DARK]: { ':hover': { color: '#fecdd3' } },
     ':focus-visible': {
       outlineWidth: '2px',
       outlineStyle: 'solid',
@@ -57,6 +56,7 @@ export const mapModeCompass = stylex.create({
       borderColor: 'rgba(255, 252, 245, 0.06)',
       backgroundColor: 'rgba(28, 25, 23, 0.78)',
       color: '#d6d3d1',
+      ':hover': { color: '#fecdd3' },
     },
   },
 

@@ -88,8 +88,11 @@ export const mapModeFilterBar = stylex.create({
     backgroundColor: 'rgba(245, 245, 244, 0.9)',
     color: '#44403c',
     ':hover': { backgroundColor: 'rgba(231, 229, 228, 0.9)' },
-    [DARK]: { backgroundColor: '#292524', color: '#d6d3d1' },
-    [DARK]: { ':hover': { backgroundColor: '#44403c' } },
+    [DARK]: {
+      backgroundColor: '#292524',
+      color: '#d6d3d1',
+      ':hover': { backgroundColor: '#44403c' },
+    },
   },
   filterChip: {
     display: 'flex',
@@ -112,8 +115,11 @@ export const mapModeFilterBar = stylex.create({
     backgroundColor: 'rgba(245, 245, 244, 0.9)',
     color: '#78716c',
     ':hover': { backgroundColor: 'rgba(231, 229, 228, 0.9)' },
-    [DARK]: { backgroundColor: '#292524', color: '#a8a29e' },
-    [DARK]: { ':hover': { backgroundColor: '#44403c' } },
+    [DARK]: {
+      backgroundColor: '#292524',
+      color: '#a8a29e',
+      ':hover': { backgroundColor: '#44403c' },
+    },
   },
   busynessTransparent: { backgroundColor: 'transparent', color: 'inherit' },
   categoryChipOn: {

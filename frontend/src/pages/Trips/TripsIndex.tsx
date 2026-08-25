@@ -18,11 +18,9 @@ import {
   dangerBtnClass,
   dangerIconBtnClass,
   dayCountInclusive,
-  focusRingInsetClass,
   formatRangeFull,
   ghostBtnClass,
   ghostOnTintBtnClass,
-  hairlineListDividedClass,
   hoverArrowClass,
   inlineLinkClass,
   documentClass,
@@ -128,13 +126,13 @@ function DeleteErrorBanner({
   focusOnMount: (el: HTMLButtonElement | null) => void
 }) {
   return (
-    <div {...sx('my-3', alertErrorClass)} role="alert" onKeyDown={trapDialogKeys(onClose)}>
-      <div className="flex flex-wrap items-center justify-between gap-3 sm:flex-nowrap">
-        <p {...sx('min-w-0', wrapAnywhereClass)}>
-          Couldn’t delete <span className="font-semibold">{trip.name}</span>. Nothing was removed, so you can try
+    <div {...sx(styles.my3, alertErrorClass)} role="alert" onKeyDown={trapDialogKeys(onClose)}>
+      <div {...sx(styles.deleteErrorRow)}>
+        <p {...sx(styles.minW0, wrapAnywhereClass)}>
+          Couldn’t delete <span {...sx(styles.fontSemiboldSpan)}>{trip.name}</span>. Nothing was removed, so you can try
           again. ({message})
         </p>
-        <div className="flex shrink-0 items-center gap-2">
+        <div {...sx(styles.deleteActions)}>
           <button
             type="button"
             ref={focusOnMount}
@@ -145,7 +143,7 @@ function DeleteErrorBanner({
             Dismiss
           </button>
           <button type="button" {...sx(dangerBtnClass)} onClick={onRetry} disabled={deleting}>
-            <RotateCcw className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+            <RotateCcw {...sx(styles.iconSm)} strokeWidth={1.5} aria-hidden />
             {deleting ? "Deleting…" : "Retry delete"}
           </button>
         </div>
@@ -169,15 +167,15 @@ function DeleteConfirmBanner({
 }) {
   return (
     <div
-      className="flex flex-wrap items-center justify-between gap-3 rounded-[length:var(--trips-radius)] bg-red-50 px-4 py-3 sm:flex-nowrap dark:bg-red-950/30"
+      {...sx(styles.deleteConfirmDialog)}
       role="alertdialog"
       aria-labelledby={`del-${trip.id}`}
       onKeyDown={trapDialogKeys(onClose)}
     >
-      <p id={`del-${trip.id}`} {...sx('min-w-0 text-sm text-red-900 dark:text-red-200', wrapAnywhereClass)}>
-        Delete <span className="font-semibold">{trip.name}</span>? The whole itinerary goes with it.
+      <p id={`del-${trip.id}`} {...sx(styles.deleteDialogText, wrapAnywhereClass)}>
+        Delete <span {...sx(styles.fontSemiboldSpan)}>{trip.name}</span>? The whole itinerary goes with it.
       </p>
-      <div className="flex shrink-0 items-center gap-2">
+      <div {...sx(styles.deleteActions)}>
         <button
           type="button"
           ref={focusOnMount}
@@ -188,7 +186,7 @@ function DeleteConfirmBanner({
           Cancel
         </button>
         <button type="button" {...sx(dangerBtnClass)} onClick={onDelete} disabled={deleting}>
-          <Trash2 className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+          <Trash2 {...sx(styles.iconSm)} strokeWidth={1.5} aria-hidden />
           {deleting ? "Deleting…" : "Delete"}
         </button>
       </div>
@@ -212,10 +210,10 @@ function TripActions({
       ref={restoreTriggerFocus}
       data-trip-id={trip.id}
       onClick={onConfirm}
-      {...sx(dangerIconBtnClass, 'relative z-10 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100')}
+      {...sx(dangerIconBtnClass, styles.dangerIconHiddenSm)}
       aria-label={`Delete ${trip.name}`}
     >
-      <Trash2 className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+      <Trash2 {...sx(styles.iconSm)} strokeWidth={1.5} aria-hidden />
     </button>
   )
 }
@@ -232,36 +230,34 @@ function TimetableRow({
   const { trip, mark, dayCount, range } = row
   return (
     <div
-      className="group relative flex items-start gap-4 py-4"
+      {...sx("group", styles.timetableRow)}
       data-trip-accent={resolveAccent(trip.accent)}
     >
       <Link
         to={`/trips/${trip.slug ?? trip.id}`}
-        {...sx('absolute inset-0 z-[1]', focusRingInsetClass)}
+        {...sx(styles.timetableOverlayLink)}
         aria-label={`Open ${trip.name}`}
       />
-      <div className="min-w-0 flex-1">
-        <h3
-          {...sx('font-display min-w-0 text-xl font-semibold leading-tight tracking-tight text-stone-900 dark:text-stone-100', wrapAnywhereClass)}
-        >
+      <div {...sx(styles.minW0, styles.flex1)}>
+        <h3 {...sx(styles.timetableTitle, wrapAnywhereClass)}>
           {trip.name}
         </h3>
-        <p {...sx('mt-1 text-sm', mutedInkClass)}>
+        <p {...sx(styles.timetableMeta)}>
           <span {...sx(wrapAnywhereClass)}>{trip.destinations.join(", ")}</span>
           <span aria-hidden> · </span>
           {range}
         </p>
       </div>
-      <div className="shrink-0 text-right">
-        <p className="font-display text-lg font-semibold tabular-nums leading-tight tracking-tight text-[color:var(--trips-ink)]">
+      <div {...sx(styles.shrink0, styles.textRight)}>
+        <p {...sx(styles.timetableMarkValue)}>
           <span {...sx(styles.srOnly)}>{mark.label}</span>
-          <FlipTime value={mark.value} playOnMount className="justify-end" />
+          <FlipTime value={mark.value} playOnMount {...sx(styles.flipJustifyEnd)} />
         </p>
-        <p {...sx('mt-1 text-[13px] tabular-nums', mutedInkClass)}>
+        <p {...sx(styles.timetableStats)}>
           {plural(dayCount, "day", "days")} · {plural(trip.itemCount, "stop", "stops")}
         </p>
       </div>
-      <div className="relative z-10 flex shrink-0 items-start">
+      <div {...sx(styles.actionsColZ10)}>
         <TripActions trip={trip} restoreTriggerFocus={restoreTriggerFocus} onConfirm={onConfirm} />
       </div>
     </div>
@@ -397,7 +393,7 @@ export function TripsIndex() {
         <h2 id={id} {...sx(sectionTitleClass)}>
           {title}
         </h2>
-        <ul {...sx('mt-3', hairlineListClass)}>
+        <ul {...sx(styles.mt3, styles.hairlineList)}>
           {rows.map((row, i) => (
             <motion.li
               key={row.trip.id}
@@ -426,15 +422,15 @@ export function TripsIndex() {
 
   return (
     <div {...sx(documentClass)}>
-      <div className="flex flex-wrap items-end justify-between gap-4 pt-8">
-        <div className="min-w-0">
+      <div {...sx(styles.indexHeaderRow)}>
+        <div {...sx(styles.minW0)}>
           <h1 {...sx(typePageTitleClass)}>
             {empty ? "No trips yet" : "Trips"}
           </h1>
-          {!empty && <p {...sx('mt-2 text-[0.9375rem]', mutedInkClass)}>Open a trip to edit it in place.</p>}
+          {!empty && <p {...sx(styles.indexOpenHint, mutedInkClass)}>Open a trip to edit it in place.</p>}
         </div>
         <button ref={newTripRef} type="button" onClick={() => navigate("/trips/new")} {...sx(primaryBtnClass)}>
-          <Plus className="h-4 w-4" aria-hidden />
+          <Plus {...sx(styles.iconSm)} aria-hidden />
           New trip
         </button>
       </div>
@@ -444,37 +440,37 @@ export function TripsIndex() {
       </p>
 
       {state.status === "loading" && (
-        <div {...sx('mt-10', hairlineListClass)} role="status" aria-label="Loading trips">
+        <div {...sx(styles.mt10, styles.hairlineList)} role="status" aria-label="Loading trips">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="flex items-center justify-between gap-4 py-4">
-              <div className="min-w-0 flex-1 space-y-2">
-                <div {...sx('h-5 w-40 max-w-full', skeletonBarClass)} />
-                <div {...sx('h-3 w-56 max-w-full', skeletonBarClass)} />
+            <div key={i} {...sx(styles.indexSkeletonRow)}>
+              <div {...sx(styles.skeletonInnerStack)}>
+                <div {...sx(styles.skeletonBarH5W40, skeletonBarClass)} />
+                <div {...sx(styles.skeletonBarH3W56, skeletonBarClass)} />
               </div>
-              <div {...sx('h-5 w-24', skeletonBarClass)} />
+              <div {...sx(styles.skeletonBarH5W24, skeletonBarClass)} />
             </div>
           ))}
         </div>
       )}
 
       {state.status === "error" && (
-        <div {...sx('mt-10', alertErrorClass)} role="alert">
-          <p {...sx('min-w-0', wrapAnywhereClass)}>
+        <div {...sx(styles.alertMt10, alertErrorClass)} role="alert">
+          <p {...sx(styles.minW0, wrapAnywhereClass)}>
             Couldn’t load your trips. Check your connection, then try again. ({state.message})
           </p>
-          <button type="button" {...sx('mt-1 font-semibold', inlineLinkClass)} onClick={load}>
+          <button type="button" {...sx(styles.linkSemiboldMt1, inlineLinkClass)} onClick={load}>
             Retry
           </button>
         </div>
       )}
 
-      <p {...sx('mb-3 mt-8 text-sm', mutedInkClass, 'empty:mb-0 empty:mt-0')} aria-live="polite">
+      <p {...sx(styles.indexRefreshLine, mutedInkClass)} aria-live="polite">
         {state.status === "success" && isRefreshing ? "Refreshing…" : ""}
       </p>
 
       {empty && (
         <motion.div
-          className="mt-16"
+          {...sx(styles.indexEmptyWrap)}
           initial={reduce ? false : { opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={reduce ? { duration: 0 } : ENTER_SPRING}
@@ -482,10 +478,10 @@ export function TripsIndex() {
           <h2 {...sx(typePageTitleClass)}>
             Where to next?
           </h2>
-          <p {...sx('mt-3 max-w-[46ch] text-[0.9375rem] leading-relaxed', mutedInkClass)}>
+          <p {...sx(styles.indexEmptyCopy, mutedInkClass)}>
             Start blank and build day by day, or ask AI for a structured draft you can reshape.
           </p>
-          <div className="mt-6 flex flex-wrap items-center gap-3">
+          <div {...sx(styles.mt6, styles.flexWrapCenterGap2)}>
             <Link to="/trips/new?mode=ai" {...sx(primaryBtnClass)}>
               Plan with AI
             </Link>
@@ -497,7 +493,7 @@ export function TripsIndex() {
       )}
 
       {grouped && state.status === "success" && state.trips.length > 0 && (
-        <div className="space-y-12">
+        <div {...sx(styles.indexBuckets)}>
           {renderBucket("bucket-current", "Now", grouped.current)}
           {renderBucket("bucket-upcoming", "Upcoming", grouped.upcoming)}
           {renderBucket("bucket-past", "Past", grouped.past)}
@@ -505,7 +501,7 @@ export function TripsIndex() {
           {onlyPast && (
             <Link to="/trips/new" {...sx('group', ghostBtnClass)}>
               Plan a new trip
-              <ArrowRight {...sx('h-4 w-4', hoverArrowClass)} strokeWidth={1.5} aria-hidden />
+              <ArrowRight {...sx(styles.iconSm, hoverArrowClass)} strokeWidth={1.5} aria-hidden />
             </Link>
           )}
         </div>

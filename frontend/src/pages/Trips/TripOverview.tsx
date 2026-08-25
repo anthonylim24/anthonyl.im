@@ -65,11 +65,11 @@ export function TripOverview() {
   if (editor.state.status === "loading") {
     return (
       <div {...sx(gutterClass)} role="status" aria-label="Loading trip">
-        <div {...sx('h-4 w-48', skeletonClass)} />
-        <div {...sx('mt-8 h-16 w-3/4 max-w-xl', skeletonClass)} />
+        <div {...sx(styles.h4, styles.w48, skeletonClass)} />
+        <div {...sx(styles.skeletonMt8, styles.h16, styles.w2_3, styles.maxWXl, skeletonClass)} />
         <div {...sx(styles.mt10, styles.spaceY3)}>
           {[0, 1, 2, 3].map((i) => (
-            <div key={i} {...sx('h-16', skeletonClass)} />
+            <div key={i} {...sx(styles.h16, skeletonClass)} />
           ))}
         </div>
       </div>
@@ -81,11 +81,11 @@ export function TripOverview() {
     return (
       <div {...sx(gutterClass)}>
         <div {...sx(alertErrorClass)} role="alert">
-          <p {...sx('min-w-0', wrapAnywhereClass)}>
+          <p {...sx(styles.minW0, wrapAnywhereClass)}>
             Couldn’t open this trip. Check your connection, then try again.
             {editor.state.status === "error" ? ` (${editor.state.message})` : ""}
           </p>
-          <Link to="/trips" {...sx('mt-1 font-semibold', inlineLinkClass)}>
+          <Link to="/trips" {...sx(styles.linkSemiboldMt1, inlineLinkClass)}>
             Back to all trips
           </Link>
         </div>
@@ -136,7 +136,7 @@ export function TripOverview() {
               {...fadeUp(0)}
               {...sx(styles.flexWrapCenterGap3, styles.coverBandMetaRow)}
             >
-              <span {...sx('inline-flex items-center gap-2', typeMetaClass, 'text-[color:var(--trips-band-ink)]')}>
+              <span {...sx(styles.bandMetaRow, typeMetaClass)}>
                 {statusLine}
               </span>
               <TripClock timezone={trip.timezone} tone="band" />
@@ -184,7 +184,7 @@ export function TripOverview() {
                 {trip.collaborators.length > 0 ? ` · ${collaboratorSummary(trip.collaborators)}` : ""}
               </p>
               {(trip.appearance?.subtitle || trip.appearance?.headline || trip.description) && (
-                <p {...sx('cover-extra mt-3 max-w-[58ch] text-[0.9375rem] leading-relaxed text-[color:var(--trips-band-ink)]/75', wrapAnywhereClass)}>
+                <p {...sx('cover-extra', styles.coverDescBandRelaxed, wrapAnywhereClass)}>
                   <LinkifiedText>
                     {trip.appearance?.headline ?? trip.appearance?.subtitle ?? trip.description ?? ""}
                   </LinkifiedText>
@@ -333,7 +333,7 @@ export function TripOverview() {
             }
           />
           {dayCount === 0 ? (
-            <div {...sx('mt-4 rounded-[length:var(--trips-radius)] border border-dashed border-[color:var(--trips-border)] bg-[color:var(--trips-rail)] px-5 py-8 text-base', mutedInkClass)}>
+            <div {...sx(styles.mt4, styles.emptyItinerary, mutedInkClass)}>
               This trip has no days yet.
             </div>
           ) : (
@@ -380,7 +380,7 @@ export function TripOverview() {
                   <li key={item.id} {...sx(styles.py3, styles.textSm, styles.inkSecondaryStone, wrapAnywhereClass)}>
                     {item.title}
                     {item.location?.address ? (
-                      <span {...sx('mt-0.5 block text-xs', mutedInkClass)}>{item.location.address}</span>
+                      <span {...sx(styles.addressHintXs, mutedInkClass)}>{item.location.address}</span>
                     ) : null}
                   </li>
                 ))}
@@ -396,7 +396,7 @@ export function TripOverview() {
 
         {editable && (
           <section id="trip-settings" aria-label="Trip settings" {...sx(styles.settingsSection)}>
-            <p {...sx('text-[13px] font-medium', mutedInkClass)}>Trip settings</p>
+            <p {...sx(styles.settingsHeading, mutedInkClass)}>Trip settings</p>
             <AppearancePanel
               trip={trip}
               locked={editorLocked}

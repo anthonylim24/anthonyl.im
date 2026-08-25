@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { sx } from '@/lib/utils'
-import { styles } from '../trips.stylex'
 import { DateStrip } from '../components/DateStrip'
 import type { TripDay } from '../types'
 import { snapRailStickyClass } from '../ui'

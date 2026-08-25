@@ -96,10 +96,10 @@ export function SuggestionsPanel({
       aria-label="AI enhancement suggestions"
       {...sx(styles.mt5, styles.motionReduceTransitionNone, softPanelClass, ACCENT.border)}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="flex items-center gap-2 text-base font-semibold text-stone-900 dark:text-stone-100">
-            <Sparkles {...sx('h-4 w-4 shrink-0', ACCENT.text)} strokeWidth={1.5} aria-hidden />
+      <div {...sx(styles.suggestionsHeaderRow)}>
+        <div {...sx(styles.minW0)}>
+          <h2 {...sx(styles.suggestionsTitle)}>
+            <Sparkles {...sx(styles.iconSm, styles.shrink0, ACCENT.text)} strokeWidth={1.5} aria-hidden />
             Enhancement review {run.scope === "day" ? `· ${dayLabel(run.dayId)}` : "· whole trip"}
           </h2>
           {(run.outcomeReason || run.summary) && (
@@ -109,20 +109,20 @@ export function SuggestionsPanel({
           )}
         </div>
         <button type="button" onClick={onDismiss} aria-label="Dismiss suggestions" {...sx(iconBtnClass)}>
-          <X className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+          <X {...sx(styles.iconSm)} strokeWidth={1.5} aria-hidden />
         </button>
       </div>
 
       {run.status === "error" ? (
-        <p {...sx('mt-4 text-sm', mutedInkClass)}>
+        <p {...sx(styles.mt4, styles.textSm, mutedInkClass)}>
           {run.error ?? "The review failed before it could propose changes."}
         </p>
       ) : run.suggestions.length === 0 && !(run.outcomeReason || run.summary) ? (
-        <p {...sx('mt-4 text-sm', mutedInkClass)}>No places added. This plan already looks solid.</p>
+        <p {...sx(styles.mt4, styles.textSm, mutedInkClass)}>No places added. This plan already looks solid.</p>
       ) : run.suggestions.length === 0 ? null : (
         <>
           {actionableIds.length > 1 && (
-            <div className="mt-4 flex items-center justify-between gap-3 border-b border-[color:var(--trips-border)] pb-2">
+            <div {...sx(styles.suggestionsSelectRow)}>
               <span {...sx(fieldLabelClass)} role="status">
                 {selected.size} of {actionableIds.length} selected
               </span>
@@ -135,13 +135,13 @@ export function SuggestionsPanel({
               </button>
             </div>
           )}
-          <div className="mt-3 space-y-4">
+          <div {...sx(styles.suggestionsList)}>
             {groups.map((group) => (
               <div key={group.key}>
                 {group.label && (
                   <p {...sx(fieldLabelClass)}>{group.label}</p>
                 )}
-                <ul {...sx('space-y-2', group.label ? "mt-2" : "")}>
+                <ul {...sx(styles.spaceY2, group.label ? styles.suggestionListLabeled : null)}>
                   {group.suggestions.map((s) => (
                     <SuggestionItem
                       key={s.id}
@@ -160,14 +160,14 @@ export function SuggestionsPanel({
       )}
 
       {actionableIds.length > 0 && (
-        <div className="mt-4 flex flex-wrap items-center gap-3">
+        <div {...sx(styles.suggestionsActions)}>
           <button
             type="button"
             disabled={selected.size === 0}
             onClick={() => onApply([...selected])}
             {...sx(primaryBtnClass)}
           >
-            <Check className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+            <Check {...sx(styles.iconSm)} strokeWidth={1.5} aria-hidden />
             Apply {selected.size} selected
           </button>
           <button type="button" onClick={onDismiss} {...sx(ghostBtnClass)}>
@@ -193,33 +193,32 @@ function SuggestionItem({
   onToggle: (id: string, on: boolean) => void
 }) {
   return (
-    <li {...sx(scheduleRowClass, 'p-3')}>
-      <label className="flex min-h-11 items-start gap-3">
+    <li {...sx(scheduleRowClass, styles.p4)}>
+      <label {...sx(styles.suggestionLabelRow)}>
         {selectable ? (
           <input
             type="checkbox"
             checked={checked}
             onChange={(e) => onToggle(suggestion.id, e.target.checked)}
-            {...sx('mt-1', checkboxClass)}
+            {...sx(styles.mt1, checkboxClass)}
             aria-label={`Accept: ${suggestion.title}`}
           />
         ) : (
-          <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center" aria-hidden>
-            {applied ? <Check className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400" strokeWidth={2} /> : null}
+          <span {...sx(styles.suggestionCheckPlaceholder)} aria-hidden>
+            {applied ? <Check {...sx(styles.icon35, styles.checkEmerald)} strokeWidth={2} /> : null}
           </span>
         )}
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
+        <div {...sx(styles.minW0)}>
+          <div {...sx(styles.suggestionTitleRow)}>
             <SuggestionChip kind={suggestion.kind} />
-            <span {...sx('text-sm font-medium text-stone-900 dark:text-stone-100', wrapAnywhereClass)}>
+            <span {...sx(styles.suggestionTitleText, wrapAnywhereClass)}>
               {suggestion.title}
             </span>
-            {/* Only low confidence earns a tag — medium and high are noise. */}
             {applied && (
-              <span className="text-[11px] font-medium text-emerald-800 dark:text-emerald-300">added</span>
+              <span {...sx(styles.suggestionAddedTag)}>added</span>
             )}
             {suggestion.confidence === "low" && !applied && (
-              <span className="text-[11px] text-amber-700 dark:text-amber-400">low confidence</span>
+              <span {...sx(styles.suggestionLowConfTag)}>low confidence</span>
             )}
           </div>
           {suggestion.detail && (
