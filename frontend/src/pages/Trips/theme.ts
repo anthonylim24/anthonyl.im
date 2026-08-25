@@ -20,6 +20,7 @@ import {
   type LucideIcon,
 } from "lucide-react"
 import { styles } from "./trips.stylex"
+import type { sx } from "@/lib/utils"
 import type { ItemStatus, SuggestionKind, TripAccent, TripCollaborator } from "./types"
 
 // Trip accent tokens. Workspace chrome is green-gray print stock; a trip-scoped
@@ -102,7 +103,7 @@ export function collaboratorSummary(collaborators: readonly TripCollaborator[]):
 
 export const itemStatusMeta: Record<
   ItemStatus,
-  { label: string; chip: typeof styles.chipBooked; dot: typeof styles.statusDotBooked } | null
+  { label: string; chip: Parameters<typeof sx>[0]; dot: Parameters<typeof sx>[0] } | null
 > = {
   none: null,
   booked: {
@@ -128,7 +129,7 @@ export const itemStatusMeta: Record<
 }
 
 /** Suggestion kinds collapse to three tints: added, removed, everything else. */
-export function suggestionBadgeStyle(kind: SuggestionKind): typeof styles.chipSuggestionAdd {
+export function suggestionBadgeStyle(kind: SuggestionKind): Parameters<typeof sx>[0] {
   switch (kind) {
     case "add":
       return styles.chipSuggestionAdd
@@ -179,7 +180,7 @@ export function itemIcon(kind: string, category?: string, reservationType?: stri
   return kind === "note" ? StickyNote : MapPin
 }
 
-export function calloutToneStyle(tone: "info" | "warn" | "success" | "alert"): typeof styles.calloutInfo {
+export function calloutToneStyle(tone: "info" | "warn" | "success" | "alert"): Parameters<typeof sx>[0] {
   switch (tone) {
     case "info":
       return styles.calloutInfo

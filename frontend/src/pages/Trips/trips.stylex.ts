@@ -2312,6 +2312,7 @@ export const styles = stylex.create({
     paddingTop: '1.25rem',
   },
   mt1: { marginTop: '0.25rem' },
+  mt1_5: { marginTop: '0.375rem' },
   mt2: { marginTop: '0.5rem' },
   mt3: { marginTop: '0.75rem' },
   mt4: { marginTop: '1rem' },
@@ -2695,12 +2696,6 @@ export const styles = stylex.create({
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
     ':is(html.dark &)': { color: '#f5f5f4' },
-  },
-  accentDotSm: {
-    display: 'inline-block',
-    height: '0.375rem',
-    width: '0.375rem',
-    borderRadius: '9999px',
   },
   emptyItinerary: {
     marginTop: '1rem',
