@@ -341,6 +341,16 @@ input[type="reset"] {
   transition: opacity 700ms var(--ease-out-expo);
 }
 
+/* Unlayered — must beat the base .leaves-overlay opacity:0.
+   StyleX @layer rules cannot override unlayered opacity here. */
+.leaves-overlay-visible {
+  opacity: 1;
+}
+
+.leaves-overlay-hidden {
+  opacity: 0;
+}
+
 .leaves-overlay-media {
   position: absolute;
   inset: 0;

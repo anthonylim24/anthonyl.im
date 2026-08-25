@@ -440,12 +440,6 @@ export const chatbot = stylex.create({
     width: '1rem',
     height: '1rem',
   },
-  leavesHidden: {
-    opacity: 0,
-  },
-  leavesVisible: {
-    opacity: 1,
-  },
 })
 
 /** Route shell fallbacks (AppRoutes.tsx). */

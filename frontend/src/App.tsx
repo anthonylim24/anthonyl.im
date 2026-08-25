@@ -208,7 +208,7 @@ function App() {
       <div
         {...sx(
           'leaves-overlay',
-          shadowMode ? chatbot.leavesVisible : chatbot.leavesHidden,
+          shadowMode ? 'leaves-overlay-visible' : 'leaves-overlay-hidden',
         )}
         aria-hidden="true"
       >

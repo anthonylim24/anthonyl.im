@@ -21,5 +21,6 @@ describe('chatbot leaves overlay', () => {
     expect(overlay?.tagName).toBe('DIV')
     expect(media?.tagName).toBe('VIDEO')
     expect(overlay?.contains(media)).toBe(true)
+    expect(overlay?.classList.contains('leaves-overlay-visible')).toBe(true)
   })
 })
