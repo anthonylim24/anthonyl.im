@@ -20,6 +20,8 @@ Reference these guidelines when:
 
 In this repo, client `/api` and third-party fetches use Effect v3. Follow the sibling [`effect-ts` skill](../effect-ts/SKILL.md) for I/O; use this skill for React 19 render/bundle performance. Effect I/O rules win when they conflict with generic fetch/SWR examples below.
 
+Styling is **StyleX**, not Tailwind — see the sibling [`stylex` skill](../stylex/SKILL.md) for UI work.
+
 ## anthonyl.im adaptations
 
 This is a **Vite SPA**, not Next.js. The repo override wins over every `next/dynamic`, SWR, Server Action, and RSC example in the rule files and in `AGENTS.md`.

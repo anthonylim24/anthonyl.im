@@ -24,6 +24,7 @@ anthonyl.im/
 │   │   │   ├── Korea/           # Legacy Korea dossier + shared Map Mode
 │   │   │   └── Trips/           # Generic trip planner + concierge
 │   │   ├── effect/              # Effect-TS HTTP/SSE/runtime
+│   │   ├── styles/              # merge.ts (sx), common.stylex.ts, tokens.ts, route *.stylex.ts
 │   │   ├── components/          # Shared: ui/*, CloudSync, RouteErrorBoundary
 │   │   ├── hooks/               # useReducedMotion, useLatestCallback, useCloudSync
 │   │   ├── lib/                 # apiBase, apiService, safeAuth, clerk, concierge*, externalMaps
@@ -54,7 +55,7 @@ anthonyl.im/
 │       ├── gemini*.ts           # Shared Gemini stream/tools/grounding
 │       ├── preview*.ts          # PR preview router + sidecar
 │       └── middleware/          # clerkAuth, rateLimit, error
-├── scripts/                     # wait-for-preview.ts, clerk-agent-login.ts
+├── scripts/                     # wait-for-preview.ts, clerk-agent-login.ts, trips-parity-capture.mjs
 ├── docs/ci-cd.md
 ├── docs/pr-previews.md
 ├── .agents/skills/README.md     # Skill catalog for this repo
@@ -163,11 +164,12 @@ Read the matching skill before writing code. Effect I/O rules win when they conf
 | Skill | When |
 |-------|------|
 | [`.agents/skills/effect-ts/SKILL.md`](.agents/skills/effect-ts/SKILL.md) | Any frontend `/api`, SSE, or third-party HTTP. Required. |
+| [`.agents/skills/stylex/SKILL.md`](.agents/skills/stylex/SKILL.md) | UI styling, layout, tokens, visual parity. Required for frontend UI. |
 | `vercel-react-best-practices` | React 19 render/bundle. Vite `React.lazy` + Hono, not Next.js. |
 | `impeccable` | Design / critique. Reads `PRODUCT.md`. |
 | `clerk` + `clerk-react-patterns` | Clerk auth (`@clerk/clerk-react` ^5). See `.agents/memory/clerk.md`. |
 
-Catalog (what to ignore): [`.agents/skills/README.md`](.agents/skills/README.md). Short pointers: [`.agents/memory/effect-ts.md`](.agents/memory/effect-ts.md), [`.agents/memory/clerk.md`](.agents/memory/clerk.md).
+Catalog (what to ignore): [`.agents/skills/README.md`](.agents/skills/README.md). Short pointers: [`.agents/memory/effect-ts.md`](.agents/memory/effect-ts.md), [`.agents/memory/stylex.md`](.agents/memory/stylex.md), [`.agents/memory/clerk.md`](.agents/memory/clerk.md).
 
 ---
 
@@ -343,7 +345,7 @@ See `frontend/.env.example` and `server/src/config.ts`.
 
 **Server:** Digital Ocean droplet (1 GB RAM). PM2 manages the Bun process. Frontend is static files served by Hono.
 
-**Never build the frontend on the droplet** — 1 GB RAM is not enough for Vite + Tailwind. CI always builds and SCPs the dist.
+**Never build the frontend on the droplet** — 1 GB RAM is not enough for Vite + StyleX production builds. CI always builds and SCPs the dist.
 
 Full CI/CD agent memory: [`docs/ci-cd.md`](docs/ci-cd.md).
 
@@ -393,7 +395,7 @@ Chunk size warning ceiling is 720 KB (intentional — the `three` chunk is large
 
 - React 19 + Vite 8 + React Router v7 (`react-router-dom` SPA, not SSR)
 - TypeScript: frontend lint `~6.0`; frontend/root **build** `~7.0` via `typescript7`
-- Tailwind CSS 4.3 + shadcn/ui (Radix primitives)
+- StyleX 0.19 + semantic classes in `index.css` + shadcn/ui (Radix primitives)
 - Zustand v5 (BreathFlow persisted stores), Motion 13, Lucide
 - Effect v3 (`effect`, `@effect/language-service`) for frontend I/O — see [Frontend Effect-TS](#frontend-effect-ts)
 - Bun + Hono (server), Clerk (`@clerk/clerk-react` ^5), Supabase, PostHog
@@ -431,6 +433,24 @@ All new frontend network I/O is Effect. Skill: [`.agents/skills/effect-ts/SKILL.
 - Move BreathFlow Zustand stores or `useCloudSync` Supabase calls onto Effect
 
 Stay on Effect v3 (`effect@3`). Do not upgrade to Effect v4 beta.
+
+## Frontend StyleX
+
+All UI styling is StyleX + semantic CSS classes — Tailwind is removed. Skill: [`.agents/skills/stylex/SKILL.md`](.agents/skills/stylex/SKILL.md).
+
+| Piece | Location |
+|-------|----------|
+| `sx(...)` merge | `frontend/src/styles/merge.ts` |
+| Shared layout | `frontend/src/styles/common.stylex.ts` |
+| Route StyleX | `*.stylex.ts`; Trips vocabulary in `pages/Trips/ui.ts` |
+| Tokens + semantic classes | `frontend/src/index.css` (`@layer reset` Preflight, `.cover-band`, animations) |
+| Vite plugin | `frontend/vite.config.ts` — `useCSSLayers` |
+
+**Do:** `{...sx(styles.foo, 'semantic-class')}` when the old Tailwind bundle included semantic classes; set `borderWidth` + `borderStyle` with `borderColor`; use `layout.srOnly` for visually hidden labels; keep sibling/child combinators in `index.css` utilities.
+
+**Do not:** reintroduce Tailwind; import plain tokens into `stylex.create()`; rely on layered StyleX when unlayered CSS sets the same property.
+
+**Trips local testing (required for agents):** matching `VITE_DEV_BEARER` + `IG_DEV_BEARER`; `cd frontend && bun run e2e -- e2e/smoke.spec.ts -g "trips skips"`. PR previews use `bun scripts/clerk-agent-login.ts` — never bake dev bearer.
 
 ## Shared Tokens
 
@@ -622,7 +642,8 @@ When creating a pull request that includes frontend changes (any modifications t
 **Process:**
 1. Prefer the remote PR preview (`https://anthonyl.im/preview/pr/<n>/`). Wait with `bun scripts/wait-for-preview.ts --pr <n> --sha <head-sha>` (see [`docs/pr-previews.md`](docs/pr-previews.md)). No local Vite server required.
 2. For Clerk-gated preview routes (`/trips`, `/trips/korea-2026`), run `bun scripts/clerk-agent-login.ts --pr <n> --path /trips/korea-2026` once. The helper applies a screenshot-user session in the agent Chrome (Korea + Trips share cookies). **Do not paste the ticket URL** — that is how sign-in walls happen. The helper re-execs from `origin/main` before sending secrets. Cursor cloud `gh` tokens have no push — `CLERK_SECRET_KEY` is enough (screenshot-user default). Dedicated screenshot identity, not a personal production login — do not sign in to production `/trips` or `/trips/korea-2026`. Public routes only need `?hidePreviewChrome=1`.
-3. **Upload screenshots to GitHub** using `gh api` so they get permanent URLs visible in the PR. Local file paths and repo blob URLs do not render in PR descriptions. Use: `gh api --method POST repos/{owner}/{repo}/issues/{pr_number}/comments --field body="![screenshot](url)"` or upload via the GitHub upload endpoint.
-4. Add the uploaded screenshot URLs to the PR description body
+3. **Local fallback for Trips:** when preview/Chrome MCP is unavailable, run backend + `cd frontend && bun run dev` with matching `VITE_DEV_BEARER` / `IG_DEV_BEARER` (see `deploy/README.md`). Confirm bypass with `bun run e2e -- e2e/smoke.spec.ts -g "trips skips"`. Note local screenshots in the PR.
+4. **Upload screenshots to GitHub** using `gh api` so they get permanent URLs visible in the PR. Local file paths and repo blob URLs do not render in PR descriptions. Use: `gh api --method POST repos/{owner}/{repo}/issues/{pr_number}/comments --field body="![screenshot](url)"` or upload via the GitHub upload endpoint.
+5. Add the uploaded screenshot URLs to the PR description body
 
-If the preview is not live yet (serving code not on production, droplet down) **or** Chrome MCP is unavailable, fall back to `bun run dev` in `frontend/` and note that in the PR. Do not block PR creation on screenshot availability.
+If the preview is not live yet (serving code not on production, droplet down) **or** Chrome MCP is unavailable, fall back to a local `cd frontend && bun run dev` with `VITE_DEV_BEARER` and note that in the PR. Do not block PR creation on screenshot availability.

@@ -2,7 +2,7 @@
 
 This repo hosts four experiences under one Vite SPA: a personal AI chatbot (`/`), **BreathFlow** (`/breathwork`), the **Korea** itinerary (`/trips/korea-2026`; `/korea` redirects), and a generic **trip planner** (`/trips`). Each has its own visual identity; all share the craft principles below.
 
-Frontend network I/O uses **Effect v3** — do not add raw `fetch` for `/api`. Engineering: [`CLAUDE.md`](CLAUDE.md). Skills: [`.agents/skills/README.md`](.agents/skills/README.md).
+Frontend network I/O uses **Effect v3** — do not add raw `fetch` for `/api`. UI styling uses **StyleX** — do not add Tailwind. Engineering: [`CLAUDE.md`](CLAUDE.md). Skills: [`.agents/skills/README.md`](.agents/skills/README.md).
 
 **Register (Impeccable):** chatbot = personal brand surface; BreathFlow / Korea / Trips = product UIs. Infer the register from the route before applying craft rules.
 
@@ -26,7 +26,7 @@ Frontend network I/O uses **Effect v3** — do not add raw `fetch` for `/api`. E
 ## Shared Tech Stack
 
 - React 19 + TypeScript + Vite 8
-- Tailwind CSS 4.3 + shadcn/ui (Radix primitives)
+- StyleX 0.19 + semantic classes in `index.css` + shadcn/ui (Radix primitives)
 - Zustand (BreathFlow persisted state), Motion 13, Lucide (intentional — keep)
 - Effect v3 for frontend I/O
 - Bun + Hono (server), Clerk (`@clerk/clerk-react`), Supabase, PostHog
