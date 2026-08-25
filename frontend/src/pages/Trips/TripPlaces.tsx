@@ -5,6 +5,8 @@ import { formatTripDate, resolveAccent } from "./theme"
 import { useLoadedTrip } from "./useLoadedTrip"
 import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import { alertErrorClass, documentClass, inlineLinkClass, skeletonClass, wrapAnywhereClass } from "./ui"
+import { sx } from '@/lib/utils'
+import { styles } from './trips.stylex'
 
 export function TripPlaces() {
   const { tripId } = useParams<{ tripId: string }>()
@@ -13,9 +15,9 @@ export function TripPlaces() {
 
   if (state.status === "loading") {
     return (
-      <div className={documentClass} role="status" aria-label="Loading places">
-        <div className={`h-10 w-1/2 ${skeletonClass}`} />
-        <div className={`mt-8 h-40 ${skeletonClass}`} />
+      <div {...sx(documentClass)} role="status" aria-label="Loading places">
+        <div {...sx('h-10 w-1/2', skeletonClass)} />
+        <div {...sx('mt-8 h-40', skeletonClass)} />
       </div>
     )
   }
@@ -23,12 +25,12 @@ export function TripPlaces() {
   if (state.status === "error") {
     if (isMissingTripError(state.message)) return <TripsNotFound />
     return (
-      <div className={documentClass}>
-        <div className={alertErrorClass} role="alert">
-          <p className={`min-w-0 ${wrapAnywhereClass}`}>
+      <div {...sx(documentClass)}>
+        <div {...sx(alertErrorClass)} role="alert">
+          <p {...sx('min-w-0', wrapAnywhereClass)}>
             Couldn’t load places. Check your connection, then try again. ({state.message})
           </p>
-          <button type="button" className={`mt-1 font-semibold ${inlineLinkClass}`} onClick={reload}>
+          <button type="button" {...sx('mt-1 font-semibold', inlineLinkClass)} onClick={reload}>
             Retry
           </button>
         </div>
@@ -50,8 +52,8 @@ export function TripPlaces() {
         days={days}
         ingestTo={`/trips/${trip.slug ?? trip.id}?ingest=1#trip-ingest`}
       />
-      <p className="mx-auto max-w-3xl px-4 pb-10 text-sm sm:px-6">
-        <Link to={`/trips/${trip.slug ?? trip.id}`} className={inlineLinkClass}>
+      <p {...sx(styles.placesFooter)}>
+        <Link to={`/trips/${trip.slug ?? trip.id}`} {...sx(inlineLinkClass)}>
           Back to {trip.name}
         </Link>
       </p>

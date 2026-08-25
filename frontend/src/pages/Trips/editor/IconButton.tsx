@@ -1,5 +1,7 @@
-import type { ReactNode } from "react"
-import { dangerIconBtnClass, iconBtnClass } from "../ui"
+import type { ReactNode } from 'react'
+import { sx } from '@/lib/utils'
+import { styles } from '../trips.stylex'
+import { dangerIconBtnClass, iconBtnClass } from '../ui'
 
 /** 44x44 icon action with its label carried by `title` + `aria-label`. */
 export function IconButton({
@@ -22,7 +24,7 @@ export function IconButton({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className={destructive ? dangerIconBtnClass : iconBtnClass}
+      {...sx(destructive ? dangerIconBtnClass : iconBtnClass)}
     >
       {children}
     </button>

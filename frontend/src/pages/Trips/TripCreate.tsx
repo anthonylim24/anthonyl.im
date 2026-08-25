@@ -1,3 +1,5 @@
+import { sx } from '@/lib/utils'
+import { styles } from './trips.stylex'
 import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
@@ -63,7 +65,7 @@ function FieldError({
 }) {
   if (!problem) return null
   return (
-    <p id={id} className={className}>
+    <p id={id} {...sx(className)}>
       {problem.message}
     </p>
   )
@@ -254,16 +256,16 @@ export function TripCreate() {
   return (
     <form onSubmit={onSubmit} className="pb-16" noValidate>
       <CoverDock title={name.trim() || "New trip"} measure="form" />
-      <header className={`${coverBandClass} flex min-h-[38svh] flex-col justify-end`}>
+      <header {...sx(coverBandClass, 'flex min-h-[38svh] flex-col justify-end')}>
         <div className="mx-auto w-full max-w-2xl">
-          <h1 className={`${typeDisplayClass} cover-extra`}>New trip</h1>
+          <h1 {...sx(typeDisplayClass, 'cover-extra')}>New trip</h1>
           <div className="mt-6" ref={(el) => void (groupRefs.current.name = el)}>
-            <label htmlFor="trip-name" className="sr-only">
+            <label htmlFor="trip-name" {...sx(styles.srOnly)}>
               Trip name
             </label>
             <input
               id="trip-name"
-              className={`${displayInputClass} text-[color:var(--trips-band-ink)] placeholder:text-[color:var(--trips-band-ink)]/40 ${wrapAnywhereClass}`}
+              {...sx('${displayInputClass} text-[color:var(--trips-band-ink)] placeholder:text-[color:var(--trips-band-ink)]/40', wrapAnywhereClass)}
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Tokyo Long Weekend"
@@ -272,20 +274,20 @@ export function TripCreate() {
               aria-invalid={errorFor("name") ? true : undefined}
               aria-describedby={errorFor("name") ? errorId("name") : undefined}
             />
-            <FieldError problem={errorFor("name")} id={errorId("name")} className={bandFieldErrorClass} />
+            <FieldError problem={errorFor("name")} id={errorId("name")} {...sx(bandFieldErrorClass)} />
           </div>
         </div>
       </header>
 
-      <div className={SHEET}>
+      <div {...sx(SHEET)}>
         <div className="space-y-5">
           <div ref={(el) => void (groupRefs.current.destinations = el)}>
-            <label htmlFor="trip-dest" className={labelClass}>
+            <label htmlFor="trip-dest" {...sx(labelClass)}>
               Destinations
             </label>
             <input
               id="trip-dest"
-              className={`mt-2 ${inputClass}`}
+              {...sx('mt-2', inputClass)}
               value={destinations}
               onChange={(e) => setDestinations(e.target.value)}
               placeholder="Tokyo, Hakone"
@@ -296,7 +298,7 @@ export function TripCreate() {
               }
             />
             <FieldError problem={errorFor("destinations")} id={errorId("destinations")} />
-            <p id="trip-dest-hint" className={hintClass}>
+            <p id="trip-dest-hint" {...sx(hintClass)}>
               Comma-separated. First destination usually sets the planning center of gravity.
             </p>
             {destinationList.length > 0 && (
@@ -304,7 +306,7 @@ export function TripCreate() {
                 {destinationList.map((d) => (
                   <li
                     key={d}
-                    className={`${stampChipClass} text-[color:var(--trips-ink)] ${wrapAnywhereClass}`}
+                    {...sx('${stampChipClass} text-[color:var(--trips-ink)]', wrapAnywhereClass)}
                   >
                     {d}
                   </li>
@@ -313,9 +315,9 @@ export function TripCreate() {
             )}
           </div>
 
-          <div className={`grid grid-cols-1 gap-5 sm:grid-cols-[3fr_2fr] ${sheetRuleClass}`}>
+          <div {...sx('grid grid-cols-1 gap-5 sm:grid-cols-[3fr_2fr]', sheetRuleClass)}>
             <div ref={(el) => void (groupRefs.current.dates = el)}>
-              <span className={labelClass} id="trip-dates-label">
+              <span {...sx(labelClass)} id="trip-dates-label">
                 Dates
               </span>
               <div className="mt-2">
@@ -333,7 +335,7 @@ export function TripCreate() {
               <FieldError problem={errorFor("dates")} id={errorId("dates")} />
             </div>
             <div ref={(el) => void (groupRefs.current.timezone = el)}>
-              <span className={labelClass} id="trip-tz-label">
+              <span {...sx(labelClass)} id="trip-tz-label">
                 Time zone
               </span>
               <div className="mt-2">
@@ -345,21 +347,21 @@ export function TripCreate() {
                 />
               </div>
               <FieldError problem={errorFor("timezone")} id={errorId("timezone")} />
-              <p className={hintClass}>Use the destination’s time zone.</p>
+              <p {...sx(hintClass)}>Use the destination’s time zone.</p>
             </div>
           </div>
 
-          <div className={sheetRuleClass}>
+          <div {...sx(sheetRuleClass)}>
             <button
               type="button"
               onClick={() => setShowCoverDetails((s) => !s)}
-              className={secondaryBtnClass}
+              {...sx(secondaryBtnClass)}
               aria-expanded={showCoverDetails}
               aria-controls="trip-cover-details"
             >
               {showCoverDetails ? "Hide cover details" : "More cover details"}
               <ChevronDown
-                className={`h-4 w-4 transition ${showCoverDetails ? "rotate-180" : ""} motion-reduce:transition-none`}
+                {...sx('h-4 w-4 transition', showCoverDetails ? "rotate-180" : "", 'motion-reduce:transition-none')}
                 strokeWidth={1.5}
                 aria-hidden
               />
@@ -367,25 +369,25 @@ export function TripCreate() {
             <div id="trip-cover-details" hidden={!showCoverDetails}>
               <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
                 <div>
-                  <label htmlFor="trip-tags" className={labelClass}>
-                    Tags <span className={optionalLabelClass}>(optional)</span>
+                  <label htmlFor="trip-tags" {...sx(labelClass)}>
+                    Tags <span {...sx(optionalLabelClass)}>(optional)</span>
                   </label>
                   <input
                     id="trip-tags"
-                    className={`mt-2 ${inputClass}`}
+                    {...sx('mt-2', inputClass)}
                     value={tags}
                     onChange={(e) => setTags(e.target.value)}
                     placeholder="anniversary, food"
                   />
                 </div>
                 <div>
-                  <label htmlFor="trip-desc" className={labelClass}>
-                    Notes <span className={optionalLabelClass}>(optional)</span>
+                  <label htmlFor="trip-desc" {...sx(labelClass)}>
+                    Notes <span {...sx(optionalLabelClass)}>(optional)</span>
                   </label>
                   <textarea
                     id="trip-desc"
                     rows={2}
-                    className={`mt-2 ${inputClass}`}
+                    {...sx('mt-2', inputClass)}
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="Occasion, constraints, or anchors collaborators should know."
@@ -396,34 +398,34 @@ export function TripCreate() {
           </div>
         </div>
 
-        <fieldset className={`mt-8 ${sheetRuleClass}`}>
-          <legend className={labelClass}>How should we start it?</legend>
-          <div className={`mt-3 ${segmentTrackClass}`}>
+        <fieldset {...sx('mt-8', sheetRuleClass)}>
+          <legend {...sx(labelClass)}>How should we start it?</legend>
+          <div {...sx('mt-3', segmentTrackClass)}>
             {MODE_OPTIONS.map((opt) => {
               const selected = mode === opt.id
               return (
-                <label key={opt.id} className={`cursor-pointer ${segmentOptionClass(selected)}`}>
+                <label key={opt.id} {...sx('cursor-pointer', segmentOptionClass(selected))}>
                   <input
                     type="radio"
                     name="mode"
                     value={opt.id}
                     checked={selected}
                     onChange={() => setMode(opt.id)}
-                    className="sr-only"
+                    {...sx(styles.srOnly)}
                   />
                   <opt.Icon
-                    className={`h-4 w-4 shrink-0 ${selected && opt.recommended ? accentIconClass : ""}`}
+                    {...sx('h-4 w-4 shrink-0', selected && opt.recommended ? accentIconClass : "")}
                     strokeWidth={1.5}
                     aria-hidden
                   />
                   {opt.title}
-                  {opt.recommended ? <span className="sr-only">, recommended</span> : null}
+                  {opt.recommended ? <span {...sx(styles.srOnly)}>, recommended</span> : null}
                 </label>
               )
             })}
           </div>
           {selectedMode ? (
-            <p className={hintClass}>
+            <p {...sx(hintClass)}>
               {selectedMode.recommended ? "Recommended. " : ""}
               {selectedMode.body}
             </p>
@@ -432,38 +434,38 @@ export function TripCreate() {
 
         {mode === "ai" && (
           <motion.div
-            className={`mt-5 space-y-4 ${sheetRuleClass}`}
+            {...sx('mt-5 space-y-4', sheetRuleClass)}
             initial={reduce ? false : { opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: REVEAL_DURATION, ease: EASE }}
           >
             <div>
-              <label htmlFor="trip-prompt" className={labelClass}>
-                AI brief <span className={optionalLabelClass}>(optional)</span>
+              <label htmlFor="trip-prompt" {...sx(labelClass)}>
+                AI brief <span {...sx(optionalLabelClass)}>(optional)</span>
               </label>
               <textarea
                 id="trip-prompt"
                 rows={3}
-                className={`mt-2 ${inputClass}`}
+                {...sx('mt-2', inputClass)}
                 value={prompt}
                 placeholder={DEFAULT_ITINERARY_PROMPT}
                 onChange={(e) => setPrompt(e.target.value)}
                 aria-describedby="trip-prompt-hint"
               />
-              <p id="trip-prompt-hint" className={hintClass}>
+              <p id="trip-prompt-hint" {...sx(hintClass)}>
                 Leave blank to use the balanced default shown here.
               </p>
             </div>
             <button
               type="button"
               onClick={() => setShowPrefs((s) => !s)}
-              className={secondaryBtnClass}
+              {...sx(secondaryBtnClass)}
               aria-expanded={showPrefs}
               aria-controls="trip-prefs"
             >
               {showPrefs ? "Hide traveler preferences" : "Add traveler preferences"}
               <ChevronDown
-                className={`h-4 w-4 transition ${showPrefs ? "rotate-180" : ""} motion-reduce:transition-none`}
+                {...sx('h-4 w-4 transition', showPrefs ? "rotate-180" : "", 'motion-reduce:transition-none')}
                 strokeWidth={1.5}
                 aria-hidden
               />
@@ -472,12 +474,12 @@ export function TripCreate() {
               <div id="trip-prefs" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {PREFERENCE_FIELDS.map((f) => (
                   <div key={f.key}>
-                    <label htmlFor={`pref-${f.key}`} className={labelClass}>
+                    <label htmlFor={`pref-${f.key}`} {...sx(labelClass)}>
                       {f.label}
                     </label>
                     <input
                       id={`pref-${f.key}`}
-                      className={`mt-2 ${inputClass}`}
+                      {...sx('mt-2', inputClass)}
                       value={prefs[f.key] ?? ""}
                       placeholder={f.placeholder}
                       onChange={(e) => setPrefs((p) => ({ ...p, [f.key]: e.target.value }))}
@@ -490,7 +492,7 @@ export function TripCreate() {
         )}
 
         {error && (
-          <div className={`mt-5 ${alertErrorClass}`} role="alert">
+          <div {...sx('mt-5', alertErrorClass)} role="alert">
             {error}
           </div>
         )}
@@ -502,7 +504,7 @@ export function TripCreate() {
 
       <div className="sticky bottom-0 z-20 mt-8 border-t border-[color:var(--trips-border)] bg-[color:var(--trips-canvas)] px-4 py-4 sm:px-6">
         <div className="mx-auto flex max-w-2xl flex-wrap items-center gap-3">
-          <button type="submit" disabled={busy !== "idle"} className={primaryBtnClass}>
+          <button type="submit" disabled={busy !== "idle"} {...sx(primaryBtnClass)}>
             {busy === "idle" ? (
               mode === "ai" ? (
                 <>
@@ -514,12 +516,12 @@ export function TripCreate() {
               )
             ) : (
               <>
-                <Loader2 className={`h-4 w-4 ${spinnerClass}`} strokeWidth={1.5} aria-hidden />
+                <Loader2 {...sx('h-4 w-4', spinnerClass)} strokeWidth={1.5} aria-hidden />
                 {busy === "creating" ? "Creating trip…" : "Generating itinerary…"}
               </>
             )}
           </button>
-          <button type="button" onClick={() => navigate("/trips")} className={ghostBtnClass} disabled={busy !== "idle"}>
+          <button type="button" onClick={() => navigate("/trips")} {...sx(ghostBtnClass)} disabled={busy !== "idle"}>
             Cancel
           </button>
           {generating && (
@@ -528,7 +530,7 @@ export function TripCreate() {
               role="status"
               aria-live="polite"
             >
-              <span className="sr-only">
+              <span {...sx(styles.srOnly)}>
                 Generating your itinerary. This usually takes 20 to 40 seconds. Stay on this page.
               </span>
               <span aria-hidden className="font-mono-trips tabular-nums">

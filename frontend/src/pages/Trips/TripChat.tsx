@@ -26,7 +26,9 @@ import { emitTripChanged, useTripChanged } from "./tripsEvents"
 import { streamTripChat, type TripChatMessage } from "./tripChatApi"
 import { resolveAccent } from "./theme"
 import type { Trip, TripAccess } from "./types"
-import { ENTER_SPRING, EASE, focusRingClass, mutedInkClass, overlayScrimClass, typeMetaClass, typeSectionClass } from "./ui"
+import { ENTER_SPRING, EASE, focusRingClass, mutedInkClass, overlayScrimClass, typeSectionClass } from "./ui"
+import { styles } from './trips.stylex'
+import { sx } from '@/lib/utils'
 
 interface ChatMessage {
   id: string
@@ -54,15 +56,6 @@ function newId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-const PANEL_SHELL =
-  "trip-chat-panel fixed inset-x-0 bottom-0 z-[60] mx-auto flex w-full flex-col overflow-hidden rounded-t-[length:var(--trips-radius)] border border-[color:var(--trips-border)] bg-[color:var(--trips-surface)] md:inset-x-auto md:rounded-[length:var(--trips-radius)]"
-
-const PANEL_COMPACT =
-  `${PANEL_SHELL} h-[min(86dvh,40rem)] md:bottom-6 md:right-6 md:h-[min(600px,calc(100dvh-3rem))] md:w-[min(400px,calc(100vw-2rem))]`
-
-/** Size comes from CSS breakpoints so a phone is fullscreen even if JS media is stale. */
-const PANEL_EXPANDED = `${PANEL_SHELL} trip-chat-panel-expanded`
-
 function useMinWidth(px: number): boolean {
   const [matches, setMatches] = useState(false)
   useEffect(() => {
@@ -74,9 +67,6 @@ function useMinWidth(px: number): boolean {
   }, [px])
   return matches
 }
-
-const HEADER_ICON_BTN =
-  `flex h-11 w-11 items-center justify-center rounded-[length:var(--trips-radius)] text-[color:var(--trips-ink-secondary)] transition hover:bg-[color:var(--trips-rail)] hover:text-[color:var(--trips-ink)] ${focusRingClass}`
 
 /** Concierge lives on the trip dossier and day pages, not the index, create, or editor. */
 export function useTripChatRoute(): { tripId?: string; dayId?: string } {
@@ -524,7 +514,9 @@ export function TripChat() {
   const lastAssistantId = lastMessageIdByRole(messages, "assistant")
 
   const accent = resolveAccent(trip?.appearance?.accent)
-  const panelClass = expanded ? PANEL_EXPANDED : PANEL_COMPACT
+  const panelSx = expanded
+    ? sx('trip-chat-panel', 'trip-chat-panel-expanded', styles.chatPanelShell)
+    : sx('trip-chat-panel', styles.chatPanelShell, styles.chatPanelCompact)
   const panelStyle: CSSProperties = {
     ...(kbInset > 0 && !expanded ? { bottom: kbInset } : {}),
     ...(expanded
@@ -555,17 +547,17 @@ export function TripChat() {
             animate={{ opacity: 1, scale: 1 }}
             exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.86 }}
             transition={reduce ? { duration: 0.15 } : { type: "spring", stiffness: 400, damping: 28 }}
-            className={`fixed right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[color:var(--trips-accent)] text-white shadow-lg outline-none hover:bg-[color:var(--trips-accent-hover)] ${focusRingClass} dark:text-stone-950`}
+            {...sx(styles.chatFab, focusRingClass)}
             style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 1.25rem)" }}
           >
-            <MessageCircleHeart className="h-6 w-6" strokeWidth={2} />
+            <MessageCircleHeart {...sx(styles.iconLg)} strokeWidth={2} />
           </motion.button>
         )}
       </AnimatePresence>
 
       {typeof document !== "undefined" &&
         createPortal(
-          <div className="trips trip-chat-portal" data-trip-accent={accent}>
+          <div {...sx('trips', 'trip-chat-portal')} data-trip-accent={accent}>
       <AnimatePresence>
         {open && (
           <>
@@ -575,11 +567,7 @@ export function TripChat() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.18, ease: EASE }}
               onClick={handleClose}
-              className={
-                expanded
-                  ? `${overlayScrimClass} z-[55]`
-                  : `${overlayScrimClass} z-[55] md:pointer-events-none md:bg-transparent md:backdrop-blur-none`
-              }
+              {...sx(overlayScrimClass, expanded ? styles.chatOverlayExpanded : styles.chatOverlayCompact)}
               aria-hidden
             />
 
@@ -590,52 +578,52 @@ export function TripChat() {
               aria-modal="true"
               aria-labelledby={titleId}
               data-expanded={expanded ? "true" : "false"}
-              className={panelClass}
+              {...panelSx}
               style={panelStyle}
             >
-              <header className="flex shrink-0 items-center gap-3 border-b border-[color:var(--trips-border)] px-4 py-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-[length:var(--trips-radius)] bg-[color:var(--ta-soft)] text-[color:var(--ta)]">
-                  <Sparkles className="h-4 w-4" strokeWidth={2} />
+              <header {...sx(styles.chatHeader)}>
+                <span {...sx(styles.chatHeaderIcon)}>
+                  <Sparkles {...sx(styles.iconSm)} strokeWidth={2} />
                 </span>
-                <div className="min-w-0 flex-1">
-                  <h2 id={titleId} className={`truncate ${typeSectionClass}`}>
+                <div {...sx(styles.chatHeaderBody)}>
+                  <h2 id={titleId} {...sx(styles.chatTitleTruncate, typeSectionClass)}>
                     Trip Concierge
                   </h2>
-                  <p className={`truncate ${typeMetaClass} ${mutedInkClass}`}>{subtitle}</p>
+                  <p {...sx(styles.chatSubtitleTruncate, mutedInkClass)}>{subtitle}</p>
                 </div>
-                <div className="flex shrink-0 items-center">
+                <div {...sx(styles.chatHeaderActions)}>
                   <button
                     type="button"
                     onClick={toggleExpanded}
                     aria-label={expanded ? "Shrink chat" : "Expand chat"}
                     aria-pressed={expanded}
                     title={expanded ? "Shrink chat" : "Expand chat"}
-                    className={HEADER_ICON_BTN}
+                    {...sx(styles.chatHeaderIconBtn, focusRingClass)}
                   >
-                    {expanded ? <Minimize2 className="h-5 w-5" /> : <Maximize2 className="h-5 w-5" />}
+                    {expanded ? <Minimize2 {...sx(styles.iconMd)} /> : <Maximize2 {...sx(styles.iconMd)} />}
                   </button>
                   <button
                     type="button"
                     onClick={handleClose}
                     aria-label="Close chat"
-                    className={HEADER_ICON_BTN}
+                    {...sx(styles.chatHeaderIconBtn, focusRingClass)}
                   >
-                    <X className="h-5 w-5" />
+                    <X {...sx(styles.iconMd)} />
                   </button>
                 </div>
               </header>
 
               <div
                 ref={scrollRef}
-                className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4"
+                {...sx(styles.chatScroll)}
                 style={{ WebkitOverflowScrolling: "touch" }}
               >
                 {messages.length === 0 ? (
-                  <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
-                    <span className="flex h-12 w-12 items-center justify-center rounded-[length:var(--trips-radius)] bg-[color:var(--ta-soft)] text-[color:var(--ta)]">
-                      <MessageCircleHeart className="h-6 w-6" />
+                  <div {...sx(styles.chatEmpty)}>
+                    <span {...sx(styles.chatEmptyIcon)}>
+                      <MessageCircleHeart {...sx(styles.iconLg)} />
                     </span>
-                    <p className={`max-w-[18rem] text-sm ${mutedInkClass}`}>
+                    <p {...sx(styles.chatEmptyCopy, mutedInkClass)}>
                       {trip
                         ? `Your concierge for ${trip.name}. Ask about the plan, or a place to add.`
                         : "Your concierge for this itinerary. Ask about the plan, reservations, or where to eat."}
@@ -648,9 +636,9 @@ export function TripChat() {
                         key={m.id}
                         ref={m.id === lastUserId ? anchorRef : undefined}
                         data-transcript-anchor={m.id === lastUserId ? "latest-user" : undefined}
-                        className="flex justify-end"
+                        {...sx(styles.chatUserRow)}
                       >
-                        <div className="max-w-[85%] rounded-[length:var(--trips-radius)] bg-[color:var(--trips-accent)] px-3.5 py-2 text-[15px] leading-relaxed text-white dark:text-[color:var(--trips-canvas)]">
+                        <div {...sx(styles.chatUserBubble)}>
                           {m.content}
                         </div>
                       </div>
@@ -686,19 +674,19 @@ export function TripChat() {
                   )
                 )}
                 {messages.length > 0 ? (
-                  <div ref={spacerRef} data-transcript-spacer="" aria-hidden className="pointer-events-none shrink-0" />
+                  <div ref={spacerRef} data-transcript-spacer="" aria-hidden {...sx(styles.chatSpacer)} />
                 ) : null}
               </div>
 
-              <div className="shrink-0">
+              <div {...sx(styles.chatFooter)}>
               {messages.length === 0 && suggestions.length > 0 && (
-                <div className="flex flex-wrap gap-2 px-4 pb-2">
+                <div {...sx(styles.chatSuggestions)}>
                   {suggestions.map((s) => (
                     <button
                       key={s}
                       type="button"
                       onClick={() => void send(s)}
-                      className={`min-h-11 rounded-[length:var(--trips-radius)] border border-[color:var(--trips-border)] bg-[color:var(--trips-rail)] px-3 py-1.5 text-left text-xs font-medium text-[color:var(--trips-ink-secondary)] transition hover:border-[color:var(--ta-ring)] hover:bg-[color:var(--ta-soft)] hover:text-[color:var(--ta-strong)] ${focusRingClass}`}
+                      {...sx(styles.chatSuggestionBtn, focusRingClass)}
                     >
                       {s}
                     </button>
@@ -711,10 +699,10 @@ export function TripChat() {
                   e.preventDefault()
                   void send(input)
                 }}
-                className="border-t border-[color:var(--trips-border)] px-3 pt-3"
+                {...sx(styles.chatForm)}
                 style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)" }}
               >
-                <div className="flex items-end gap-2 rounded-[length:var(--trips-field-radius)] border border-[color:var(--trips-border)] bg-[color:var(--trips-rail)] px-3 py-2 shadow-[inset_0_1px_2px_color-mix(in_oklch,var(--trips-ink)_12%,transparent)] focus-within:border-[color:var(--trips-accent)] focus-within:ring-2 focus-within:ring-[color:var(--trips-focus)]">
+                <div {...sx(styles.chatComposerShell)}>
                   <textarea
                     ref={inputRef}
                     value={input}
@@ -730,15 +718,15 @@ export function TripChat() {
                     }}
                     rows={1}
                     placeholder="Ask about this trip…"
-                    className={`min-h-7 flex-1 resize-none bg-transparent py-0.5 text-[16px] leading-6 text-[color:var(--trips-ink)] outline-none placeholder:text-[color:var(--trips-ink-tertiary)] sm:text-[15px] ${expanded ? "max-h-48" : "max-h-28"}`}
+                    {...sx(expanded ? styles.chatComposerExpanded : styles.chatComposerCompact)}
                   />
                   <button
                     type="submit"
                     disabled={!input.trim() || streaming}
                     aria-label="Send message"
-                    className={`relative mb-px flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[color:var(--trips-accent)] text-white transition before:absolute before:-inset-2 before:content-[''] enabled:hover:bg-[color:var(--trips-accent-hover)] disabled:cursor-not-allowed disabled:opacity-40 dark:text-stone-950 ${focusRingClass}`}
+                    {...sx(styles.chatSendBtn, focusRingClass)}
                   >
-                    <Send className="h-3.5 w-3.5" strokeWidth={2} />
+                    <Send {...sx(styles.iconSend)} strokeWidth={2} />
                   </button>
                 </div>
               </form>
@@ -810,8 +798,8 @@ function AssistantBubble({
   )
 
   return (
-    <div className="flex justify-start">
-      <div className="max-w-[88%] rounded-[length:var(--trips-radius)] bg-[color:var(--trips-rail)] px-3.5 py-2.5 text-[color:var(--trips-ink)]">
+    <div {...sx(styles.chatAssistantRow)}>
+      <div {...sx(styles.chatAssistantBubble)}>
         {m.content ? (
           <div>
             <ConciergeText
@@ -819,11 +807,11 @@ function AssistantBubble({
               bulletClass="bg-[color:var(--ta)]"
               numberClass="text-[color:var(--ta)]"
             />
-            {streaming ? <span className="trip-chat-caret" aria-hidden /> : null}
+            {streaming ? <span {...sx('trip-chat-caret')} aria-hidden /> : null}
           </div>
         ) : streaming ? (
           <div>
-            <p className={`text-sm ${mutedInkClass}`}>Looking this up…</p>
+            <p {...sx(styles.chatEmptyCopy, mutedInkClass)}>Looking this up…</p>
             <TypingDots reduce={reduce} />
           </div>
         ) : m.error || m.places?.length || m.moves?.length || m.sources?.length ? null : (
@@ -874,10 +862,7 @@ function AssistantBubble({
           />
         ) : null}
         {m.sources ? (
-          <ConciergeSources
-            sources={m.sources}
-            linkClass="break-words underline decoration-[color:var(--ta-ring)] underline-offset-2 decoration-1 transition hover:text-[color:var(--ta-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--trips-focus)]"
-          />
+          <ConciergeSources sources={m.sources} linkStyle={styles.conciergeSourceLink} />
         ) : null}
         <ConciergeStreamStatus error={m.error} />
       </div>
@@ -887,14 +872,14 @@ function AssistantBubble({
 
 function TypingDots({ reduce }: { reduce: boolean }) {
   return (
-    <div className="flex items-center gap-1 py-1" aria-label="Concierge is typing">
+    <div {...sx(styles.chatTypingRow)} aria-label="Concierge is typing">
       {[0, 1, 2].map((i) =>
         reduce ? (
-          <span key={i} className="h-1.5 w-1.5 rounded-full bg-[color:var(--trips-ink-tertiary)] opacity-70" />
+          <span key={i} {...sx(styles.chatTypingDot)} />
         ) : (
           <motion.span
             key={i}
-            className="h-1.5 w-1.5 rounded-full bg-[color:var(--trips-ink-tertiary)]"
+            {...sx(styles.chatTypingDotMotion)}
             animate={{ opacity: [0.3, 1, 0.3], y: [0, -2, 0] }}
             transition={{ duration: 1, repeat: Infinity, delay: i * 0.15, ease: "easeInOut" }}
           />

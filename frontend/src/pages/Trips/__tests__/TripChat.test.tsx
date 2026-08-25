@@ -120,11 +120,11 @@ describe("TripChat expand", () => {
     expect(screen.getByRole("button", { name: "Shrink chat" })).toHaveAttribute("aria-pressed", "true")
     const composer = within(dialog).getByPlaceholderText("Ask about this trip…")
     expect(composer).toBeVisible()
-    expect(composer).toHaveClass("max-h-48")
+    expect(composer).toHaveStyle({ maxHeight: '12rem' })
 
     fireEvent.click(screen.getByRole("button", { name: "Shrink chat" }))
     expect(dialog).toHaveAttribute("data-expanded", "false")
-    expect(within(dialog).getByPlaceholderText("Ask about this trip…")).toHaveClass("max-h-28")
+    expect(within(dialog).getByPlaceholderText("Ask about this trip…")).toHaveStyle({ maxHeight: '7rem' })
   })
 
   it("pins an expanded desktop panel with inset styles", async () => {

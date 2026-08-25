@@ -1,6 +1,8 @@
 import { Check, X } from "lucide-react"
 import { accentChipBtnClass, dangerChipBtnClass, ghostBtnClass, mutedInkClass, wrapAnywhereClass } from "./ui"
 import type { ResolvedMove } from "./conciergeMoves"
+import { sx } from '@/lib/utils'
+import { styles } from './trips.stylex'
 
 export function ConciergeMoveCards({
   moves,
@@ -23,7 +25,7 @@ export function ConciergeMoveCards({
   if (visible.length === 0) return null
 
   return (
-    <ul className="mt-3 space-y-2" aria-label="Proposed itinerary changes" aria-live="polite">
+    <ul {...sx(styles.mt3, styles.spaceY2)} aria-label="Proposed itinerary changes" aria-live="polite">
       {visible.map((move) => {
         const applied = appliedKeys.has(move.key)
         const busy = busyKey === move.key
@@ -31,22 +33,22 @@ export function ConciergeMoveCards({
         return (
           <li
             key={move.key}
-            className="rounded-[length:var(--trips-radius)] border border-[color:var(--trips-border)] bg-[color:var(--trips-rail)] px-3 py-2.5"
+            {...sx(styles.placeCard, styles.placeCardBody)}
           >
-            <p id={labelId} className={`text-sm leading-snug text-[color:var(--trips-ink)] ${wrapAnywhereClass}`}>
+            <p id={labelId} {...sx(styles.textSm, styles.leadingSnug, wrapAnywhereClass)}>
               {move.label}
             </p>
             {canEdit && !applied ? (
-              <div className="mt-2 flex flex-wrap gap-2">
+              <div {...sx(styles.mt2, styles.flexWrap, styles.gap2)}>
                 <button
                   type="button"
                   disabled={busy}
                   aria-busy={busy}
                   aria-describedby={labelId}
                   onClick={() => onConfirm(move)}
-                  className={move.move.type === "remove" ? dangerChipBtnClass : accentChipBtnClass}
+                  {...sx(move.move.type === "remove" ? dangerChipBtnClass : accentChipBtnClass)}
                 >
-                  <Check className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
+                  <Check {...sx(styles.iconXs)} strokeWidth={1.5} aria-hidden />
                   {busy ? "Updating…" : move.move.type === "remove" ? "Remove it" : "Apply"}
                 </button>
                 <button
@@ -54,14 +56,14 @@ export function ConciergeMoveCards({
                   disabled={busy}
                   aria-describedby={labelId}
                   onClick={() => onDismiss(move.key)}
-                  className={ghostBtnClass}
+                  {...sx(ghostBtnClass)}
                 >
-                  <X className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden />
+                  <X {...sx(styles.iconXs)} strokeWidth={1.5} aria-hidden />
                   Keep
                 </button>
               </div>
             ) : (
-              <p className={`mt-1.5 text-xs ${mutedInkClass}`}>{applied ? "Done" : "Ask an editor to apply this."}</p>
+              <p {...sx(styles.mt1_5, styles.textXs, mutedInkClass)}>{applied ? "Done" : "Ask an editor to apply this."}</p>
             )}
           </li>
         )

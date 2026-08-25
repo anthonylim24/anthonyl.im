@@ -1,6 +1,8 @@
 import { ChevronDown } from "lucide-react"
+import { sx } from '@/lib/utils'
 import { TripStatusChip } from "../components/StatusChip"
 import type { TripStatus } from "../types"
+import { styles } from "../trips.stylex"
 
 const TRIP_STATUSES: readonly TripStatus[] = ["draft", "active", "archived", "completed"]
 
@@ -23,18 +25,18 @@ export function TripStatusSelect({
   if (!editable) return <TripStatusChip status={status} />
 
   return (
-    <span className="relative -my-3 inline-flex items-center gap-1 rounded-[length:var(--trips-radius)] py-3 pr-1 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[color:var(--trips-focus)]">
+    <span {...sx(styles.statusSelectShell)}>
       <TripStatusChip status={status} />
-      <ChevronDown className="h-3 w-3 shrink-0 text-stone-500 dark:text-stone-400" strokeWidth={1.5} aria-hidden />
+      <ChevronDown {...sx(styles.chevronMuted)} strokeWidth={1.5} aria-hidden />
       <select
         value={status}
         aria-label="Trip status"
         disabled={disabled}
         onChange={(e) => onChange(e.target.value as TripStatus)}
-        className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0 disabled:cursor-not-allowed"
+        {...sx(styles.statusSelectOverlay)}
       >
         {TRIP_STATUSES.map((s) => (
-          <option key={s} value={s} className="capitalize">
+          <option key={s} value={s} {...sx(styles.capitalize)}>
             {s}
           </option>
         ))}

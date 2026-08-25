@@ -18,6 +18,8 @@ import {
 } from "../ui"
 import type { EnhancementRun, EnhancementSuggestion } from "../types"
 import type { DayOption } from "./editorUi"
+import { sx } from '@/lib/utils'
+import { styles } from '../trips.stylex'
 
 const APPLICABLE = new Set(["add", "edit", "remove", "reorder"])
 
@@ -92,42 +94,42 @@ export function SuggestionsPanel({
       exit={{ opacity: 0, y: -6 }}
       transition={{ duration: 0.28, ease: EASE }}
       aria-label="AI enhancement suggestions"
-      className={`mt-5 p-5 motion-reduce:transition-none ${softPanelClass} ${ACCENT.border}`}
+      {...sx(styles.mt5, styles.motionReduceTransitionNone, softPanelClass, ACCENT.border)}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="flex items-center gap-2 text-base font-semibold text-stone-900 dark:text-stone-100">
-            <Sparkles className={`h-4 w-4 shrink-0 ${ACCENT.text}`} strokeWidth={1.5} aria-hidden />
+            <Sparkles {...sx('h-4 w-4 shrink-0', ACCENT.text)} strokeWidth={1.5} aria-hidden />
             Enhancement review {run.scope === "day" ? `· ${dayLabel(run.dayId)}` : "· whole trip"}
           </h2>
           {(run.outcomeReason || run.summary) && (
-            <p className={`mt-1 text-sm ${mutedInkClass} ${wrapAnywhereClass}`}>
+            <p {...sx(styles.mt1, styles.textSm, mutedInkClass, wrapAnywhereClass)}>
               {run.outcomeReason || run.summary}
             </p>
           )}
         </div>
-        <button type="button" onClick={onDismiss} aria-label="Dismiss suggestions" className={iconBtnClass}>
+        <button type="button" onClick={onDismiss} aria-label="Dismiss suggestions" {...sx(iconBtnClass)}>
           <X className="h-4 w-4" strokeWidth={1.5} aria-hidden />
         </button>
       </div>
 
       {run.status === "error" ? (
-        <p className={`mt-4 text-sm ${mutedInkClass}`}>
+        <p {...sx('mt-4 text-sm', mutedInkClass)}>
           {run.error ?? "The review failed before it could propose changes."}
         </p>
       ) : run.suggestions.length === 0 && !(run.outcomeReason || run.summary) ? (
-        <p className={`mt-4 text-sm ${mutedInkClass}`}>No places added. This plan already looks solid.</p>
+        <p {...sx('mt-4 text-sm', mutedInkClass)}>No places added. This plan already looks solid.</p>
       ) : run.suggestions.length === 0 ? null : (
         <>
           {actionableIds.length > 1 && (
             <div className="mt-4 flex items-center justify-between gap-3 border-b border-[color:var(--trips-border)] pb-2">
-              <span className={fieldLabelClass} role="status">
+              <span {...sx(fieldLabelClass)} role="status">
                 {selected.size} of {actionableIds.length} selected
               </span>
               <button
                 type="button"
                 onClick={() => setSelected(allSelected ? new Set() : new Set(actionableIds))}
-                className={quietBtnClass}
+                {...sx(quietBtnClass)}
               >
                 {allSelected ? "Select none" : "Select all"}
               </button>
@@ -137,9 +139,9 @@ export function SuggestionsPanel({
             {groups.map((group) => (
               <div key={group.key}>
                 {group.label && (
-                  <p className={fieldLabelClass}>{group.label}</p>
+                  <p {...sx(fieldLabelClass)}>{group.label}</p>
                 )}
-                <ul className={`space-y-2 ${group.label ? "mt-2" : ""}`}>
+                <ul {...sx('space-y-2', group.label ? "mt-2" : "")}>
                   {group.suggestions.map((s) => (
                     <SuggestionItem
                       key={s.id}
@@ -163,12 +165,12 @@ export function SuggestionsPanel({
             type="button"
             disabled={selected.size === 0}
             onClick={() => onApply([...selected])}
-            className={primaryBtnClass}
+            {...sx(primaryBtnClass)}
           >
             <Check className="h-4 w-4" strokeWidth={1.5} aria-hidden />
             Apply {selected.size} selected
           </button>
-          <button type="button" onClick={onDismiss} className={ghostBtnClass}>
+          <button type="button" onClick={onDismiss} {...sx(ghostBtnClass)}>
             Dismiss all
           </button>
         </div>
@@ -191,14 +193,14 @@ function SuggestionItem({
   onToggle: (id: string, on: boolean) => void
 }) {
   return (
-    <li className={`${scheduleRowClass} p-3`}>
+    <li {...sx(scheduleRowClass, 'p-3')}>
       <label className="flex min-h-11 items-start gap-3">
         {selectable ? (
           <input
             type="checkbox"
             checked={checked}
             onChange={(e) => onToggle(suggestion.id, e.target.checked)}
-            className={`mt-1 ${checkboxClass}`}
+            {...sx('mt-1', checkboxClass)}
             aria-label={`Accept: ${suggestion.title}`}
           />
         ) : (
@@ -209,7 +211,7 @@ function SuggestionItem({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <SuggestionChip kind={suggestion.kind} />
-            <span className={`text-sm font-medium text-stone-900 dark:text-stone-100 ${wrapAnywhereClass}`}>
+            <span {...sx('text-sm font-medium text-stone-900 dark:text-stone-100', wrapAnywhereClass)}>
               {suggestion.title}
             </span>
             {/* Only low confidence earns a tag — medium and high are noise. */}
@@ -221,10 +223,10 @@ function SuggestionItem({
             )}
           </div>
           {suggestion.detail && (
-            <p className={`mt-1 text-sm ${mutedInkClass} ${wrapAnywhereClass}`}>{suggestion.detail}</p>
+            <p {...sx(styles.mt1, styles.textSm, mutedInkClass, wrapAnywhereClass)}>{suggestion.detail}</p>
           )}
           {suggestion.proposedItem && (
-            <p className={`mt-1 text-xs ${mutedInkClass} ${wrapAnywhereClass}`}>
+            <p {...sx(styles.mt1, styles.textXs, mutedInkClass, wrapAnywhereClass)}>
               Adds: {suggestion.proposedItem.title}
               {suggestion.proposedItem.location?.name ? ` @ ${suggestion.proposedItem.location.name}` : ""}
             </p>
