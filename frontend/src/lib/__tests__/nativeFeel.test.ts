@@ -23,8 +23,8 @@ describe('native mobile feel', () => {
   })
 
   it('blocks pull-to-refresh hijacking the document', () => {
-    expect(indexCss).toMatch(/html \{[\s\S]*?overscroll-behavior:\s*none/)
-    expect(indexCss).toMatch(/body \{[\s\S]*?overscroll-behavior:\s*none/)
+    expect(indexCss).toMatch(/html\s*\{[\s\S]*?overscroll-behavior:\s*none/)
+    expect(indexCss).toMatch(/body\s*\{[\s\S]*?overscroll-behavior:\s*none/)
   })
 
   it('keeps horizontal carousels on the x axis', () => {

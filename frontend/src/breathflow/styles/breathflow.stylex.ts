@@ -873,6 +873,10 @@ export const bf = stylex.create({
     fontSize: '0.875rem',
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
+    borderWidth: 0,
+    borderStyle: 'solid',
+    backgroundColor: 'transparent',
+    cursor: 'pointer',
     ':focus-visible': {
       outlineWidth: '2px',
       outlineStyle: 'solid',

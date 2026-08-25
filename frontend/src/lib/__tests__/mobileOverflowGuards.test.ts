@@ -5,9 +5,9 @@ import chatbotStyles from '../../styles/chatbot.stylex.ts?raw'
 
 describe('mobile overflow guardrails', () => {
   it('keeps the document free of nested scrollports and fixed containing blocks on #root', () => {
-    expect(indexCss).toMatch(/#root \{[\s\S]*?min-height:\s*0/)
-    expect(indexCss).not.toMatch(/#root \{[\s\S]*?overflow-x:\s*clip/)
-    expect(indexCss).not.toMatch(/html,\s*\nbody \{[\s\S]*?min-height:\s*100dvh/)
+    expect(indexCss).toMatch(/#root\s*\{[\s\S]*?min-height:\s*0/)
+    expect(indexCss).not.toMatch(/#root\s*\{[\s\S]*?overflow-x:\s*clip/)
+    expect(indexCss).not.toMatch(/html,\s*body\s*\{[\s\S]*?min-height:\s*100dvh/)
   })
 
   it('covers the chatbot leaves video with a viewport wrapper, not intrinsic video size', () => {
@@ -22,8 +22,8 @@ describe('mobile overflow guardrails', () => {
   })
 
   it('lets the document grow instead of pinning html/body/#root to 100%', () => {
-    expect(indexCss).toMatch(/html,\s*\nbody \{[\s\S]*?height:\s*auto/)
-    expect(indexCss).toMatch(/#root \{[\s\S]*?height:\s*auto/)
+    expect(indexCss).toMatch(/html,\s*body\s*\{[\s\S]*?height:\s*auto/)
+    expect(indexCss).toMatch(/#root\s*\{[\s\S]*?height:\s*auto/)
   })
 
   it('keeps the chatbot viewport pin on App shell styles, not on #root', () => {
