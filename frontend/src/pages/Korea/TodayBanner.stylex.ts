@@ -17,6 +17,9 @@ export const todayBanner = stylex.create({
   },
   s11873b0c: {
     "display": "block",
+    "borderTopWidth": "1px",
+    "borderBottomWidth": "1px",
+    "borderStyle": "solid",
     "borderColor": "rgba(231, 229, 228, 0.8)",
     "paddingTop": "1rem",
     "paddingBottom": "1rem",

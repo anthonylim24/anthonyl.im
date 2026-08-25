@@ -195,7 +195,8 @@ export const koreaChat = stylex.create({
     "paddingRight": "0.875rem",
     "paddingTop": "0.5rem",
     "paddingBottom": "0.5rem",
-    "color": "15px",
+    "fontSize": "15px",
+    "color": "#ffffff",
     "lineHeight": 1.625,
     "boxShadow": "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
     [DARK]: {

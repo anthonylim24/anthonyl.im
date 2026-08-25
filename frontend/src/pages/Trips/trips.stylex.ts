@@ -1834,10 +1834,14 @@ export const styles = stylex.create({
     borderStyle: 'solid',
     borderColor: 'var(--trips-border)',
     backgroundColor: 'var(--trips-surface)',
+    viewTransitionName: 'trips-concierge',
     '@media (min-width: 768px)': {
       left: 'auto',
       right: '1.5rem',
       borderRadius: 'var(--trips-radius)',
+    },
+    '@media (prefers-reduced-motion: reduce)': {
+      viewTransitionName: 'none',
     },
   },
   chatPanelCompact: {
@@ -1911,27 +1915,22 @@ export const styles = stylex.create({
     position: 'relative',
     marginBottom: '1px',
     display: 'flex',
-    height: '1.75rem',
-    width: '1.75rem',
+    height: '2.75rem',
+    width: '2.75rem',
     flexShrink: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: '9999px',
+    borderRadius: 'var(--trips-radius)',
     backgroundColor: 'var(--trips-accent)',
     color: '#ffffff',
     transitionProperty: 'background-color, opacity',
     transitionDuration: '150ms',
-    '::before': {
-      content: '""',
-      position: 'absolute',
-      inset: '-0.5rem',
-    },
     ':disabled': {
       cursor: 'not-allowed',
       opacity: 0.4,
     },
     ':is(.dark) &': {
-      color: '#0c0a09',
+      color: 'var(--trips-canvas)',
     },
     '@media (hover: hover)': {
       ':enabled:hover': {
@@ -1949,18 +1948,21 @@ export const styles = stylex.create({
     width: '3.5rem',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: '9999px',
+    borderRadius: 'var(--trips-radius)',
     backgroundColor: 'var(--trips-accent)',
     color: '#ffffff',
-    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)',
     outline: 'none',
+    viewTransitionName: 'trips-concierge',
     '@media (hover: hover)': {
       ':hover': {
         backgroundColor: tripsAccentHover,
       },
     },
     ':is(.dark) &': {
-      color: '#0c0a09',
+      color: 'var(--trips-canvas)',
+    },
+    '@media (prefers-reduced-motion: reduce)': {
+      viewTransitionName: 'none',
     },
     ...focusRing,
   },
@@ -3392,13 +3394,14 @@ export const styles = stylex.create({
   },
   notFoundTitle: {
     marginTop: '0.75rem',
+    fontFamily: '"Archivo Narrow", "Arial Narrow", sans-serif',
     fontSize: '1.5rem',
     lineHeight: '2rem',
     fontWeight: 600,
-    letterSpacing: '-0.025em',
-    color: '#1c1917',
+    letterSpacing: '-0.02em',
+    color: 'var(--trips-ink)',
     ':is(.dark) &': {
-      color: '#f5f5f4',
+      color: 'var(--trips-ink)',
     },
   },
   notFoundCopy: {

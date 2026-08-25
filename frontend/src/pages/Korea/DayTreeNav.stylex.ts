@@ -77,7 +77,7 @@ export const dayTreeNav = stylex.create({
   },
   s8541e060: {
     "fontFamily": "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-    "color": "10px",
+    "fontSize": "10px",
     "opacity": 0.6,
   },
   s33548f: {
