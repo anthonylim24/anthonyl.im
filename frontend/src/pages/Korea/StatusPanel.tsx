@@ -1,3 +1,6 @@
+import { sx } from '@/styles/merge'
+import { statusPanel } from './StatusPanel.stylex'
+import { markerStyles, statusStyles } from './korea.stylex'
 import { motion, useReducedMotion } from "motion/react"
 import type { Snapshot } from "./types"
 
@@ -32,28 +35,28 @@ export function StatusPanel({ status }: StatusPanelProps) {
   if (groups.length === 0) return null
 
   return (
-    <section className="mx-auto mt-16 max-w-6xl px-4 sm:mt-20 sm:px-6">
+    <section {...sx(statusPanel.sf10e06ed)}>
       <motion.header
         initial={reduce ? false : { opacity: 0, y: 8 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: "-80px" }}
         transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-        className="border-b border-stone-200/80 pb-5 dark:border-stone-800/80"
+        {...sx(statusPanel.sfeda29b9)}
       >
-        <p className="flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.28em] text-stone-500 dark:text-stone-500">
-          <span className="tabular-nums text-rose-600 dark:text-rose-400">T−{status.tMinus}</span>
-          <span aria-hidden className="h-px w-10 bg-stone-300 dark:bg-stone-700" />
+        <p {...sx(statusPanel.s6ebd97a0)}>
+          <span {...sx(statusPanel.s1ed0b4fd)}>T−{status.tMinus}</span>
+          <span aria-hidden {...sx(statusPanel.sd1fcfbe6)} />
           <span>Dispatch · as of {status.asOf}</span>
         </p>
         <h2
-          className="mt-3 font-serif text-[clamp(2rem,5.4vw,3.25rem)] font-medium leading-[1.05] tracking-[-0.02em] text-stone-900 dark:text-stone-100"
+          {...sx(statusPanel.s5187ae33)}
           style={{ fontFamily: "'Cormorant Garamond', serif" }}
         >
           Trip status
         </h2>
       </motion.header>
 
-      <div className="mt-8 grid gap-x-10 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
+      <div {...sx(statusPanel.sa9fe7956)}>
         {groups.map((g) => (
           <StatusGroup key={g.id} label={g.label} items={g.items} tone={g.tone} />
         ))}
@@ -66,10 +69,10 @@ type Tone = "stone" | "rose" | "emerald"
 
 function StatusGroup({ label, items, tone }: { label: string; items: string[]; tone: Tone }) {
   const reduce = useReducedMotion()
-  const markerCls = {
-    stone: "bg-stone-400 dark:bg-stone-500",
-    rose: "bg-rose-500 dark:bg-rose-400",
-    emerald: "bg-emerald-600 dark:bg-emerald-500",
+  const markerDot = {
+    stone: statusStyles.dotStone,
+    rose: statusStyles.dotRose,
+    emerald: statusStyles.dotEmerald,
   }[tone]
 
   return (
@@ -78,16 +81,16 @@ function StatusGroup({ label, items, tone }: { label: string; items: string[]; t
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-50px" }}
       transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-      className="min-w-0"
+      {...sx(statusPanel.s3f58665f)}
     >
-      <p className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-stone-600 dark:text-stone-400">
-        <span aria-hidden className={"inline-block h-1.5 w-1.5 rounded-full " + markerCls} />
+      <p {...sx(statusPanel.se186a33a)}>
+        <span aria-hidden {...sx(markerStyles.dot, markerDot)} />
         {label}
-        <span aria-hidden className="ml-auto tabular-nums text-stone-400 dark:text-stone-600">
+        <span aria-hidden {...sx(statusPanel.s1bd416de)}>
           {String(items.length).padStart(2, "0")}
         </span>
       </p>
-      <ul className="mt-3 space-y-2.5 text-[13px] leading-snug text-stone-700 dark:text-stone-300">
+      <ul {...sx(statusPanel.s5cd7e8ad)}>
         {items.map((item, i) => (
           <motion.li
             key={i}
@@ -95,7 +98,7 @@ function StatusGroup({ label, items, tone }: { label: string; items: string[]; t
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.3, delay: reduce ? 0 : Math.min(i, 6) * 0.03 }}
-            className="break-words"
+            {...sx(statusPanel.s13588c5b)}
           >
             {item}
           </motion.li>

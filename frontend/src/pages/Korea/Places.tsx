@@ -1,3 +1,5 @@
+import { sx } from '@/styles/merge'
+import { places as placesPage } from './Places.stylex'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useTransition } from 'react'
 import { useLatestCallback } from '@/hooks/useLatestCallback'
 import { createPortal } from 'react-dom'
@@ -91,31 +93,31 @@ const SIGNAL_SOURCE_LABELS: Record<string, string> = {
 // ── Badge components ──────────────────────────────────────────────────────────
 
 function CategoryBadge({ category }: { category: Category }) {
-  const styles: Record<Category, string> = {
-    restaurant: 'bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400',
-    cafe: 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400',
-    bar: 'bg-purple-50 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400',
-    shopping: 'bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400',
-    activity: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400',
-    hotel: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400',
-    landmark: 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-400',
-    other: 'bg-stone-100 text-stone-500 dark:bg-stone-800 dark:text-stone-500',
-  }
+  const styles = {
+    restaurant: placesPage.catRestaurant,
+    cafe: placesPage.catCafe,
+    bar: placesPage.catBar,
+    shopping: placesPage.catShopping,
+    activity: placesPage.catActivity,
+    hotel: placesPage.catHotel,
+    landmark: placesPage.catLandmark,
+    other: placesPage.catOther,
+  } as const
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${styles[category]}`}>
+    <span {...sx(placesPage.badgeBase, styles[category])}>
       {CATEGORY_LABELS[category]}
     </span>
   )
 }
 
 function BandBadge({ band, votes }: { band: Band; votes?: number }) {
-  const styles: Record<Band, string> = {
-    high: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400',
-    medium: 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400',
-    low: 'bg-stone-100 text-stone-500 dark:bg-stone-800 dark:text-stone-400',
-  }
+  const styles = {
+    high: placesPage.bandHigh,
+    medium: placesPage.bandMedium,
+    low: placesPage.bandLow,
+  } as const
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${styles[band]}`}>
+    <span {...sx(placesPage.badgeBase, placesPage.bandGap, styles[band])}>
       {BAND_LABELS[band]}
       {votes != null && votes > 0 && (
         <span aria-label={`${votes} votes`}>· {votes}v</span>
@@ -295,7 +297,7 @@ function DayAssignButton({ place, getToken, onUpdated, days }: DayAssignButtonPr
     [...pendingDays].some((n) => !initial.has(n))
 
   return (
-    <div className="relative">
+    <div {...sx(placesPage.sdef3facc)}>
       <button
         ref={triggerRef}
         type="button"
@@ -303,13 +305,12 @@ function DayAssignButton({ place, getToken, onUpdated, days }: DayAssignButtonPr
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={hasAssignment ? `Assigned to ${assignedDays.map(n => `Day ${n}`).join(', ')}. Change days` : 'Add to days'}
-        className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-medium transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 focus-visible:ring-offset-1 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-900 ${
-          hasAssignment
-            ? 'border-rose-300 bg-rose-50 text-rose-700 hover:border-rose-400 hover:bg-rose-100 dark:border-rose-700/60 dark:bg-rose-950/40 dark:text-rose-400 dark:hover:bg-rose-950/60'
-            : 'border-stone-200 bg-stone-50 text-stone-600 hover:border-stone-300 hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-800/60 dark:text-stone-300 dark:hover:bg-stone-800'
-        }`}
+        {...sx(
+          placesPage.dayBtnBase,
+          hasAssignment ? placesPage.dayBtnAssigned : placesPage.dayBtnDefault,
+        )}
       >
-        <CalendarDays className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        <CalendarDays {...sx(placesPage.s177a9453)} aria-hidden />
         {hasAssignment ? `Day ${assignedDays.join(', ')}` : 'Add to days'}
       </button>
 
@@ -332,53 +333,53 @@ function DayAssignButton({ place, getToken, onUpdated, days }: DayAssignButtonPr
                 visibility: pos ? 'visible' : 'hidden',
                 transformOrigin: pos?.placement === 'above' ? 'bottom left' : 'top left',
               }}
-              className="z-[100] w-64 max-w-[calc(100vw-1rem)] rounded-2xl border border-stone-200 bg-white p-3 shadow-xl ring-1 ring-stone-200/60 dark:border-stone-800 dark:bg-stone-950 dark:ring-stone-800"
+              {...sx(placesPage.s850a9bdc)}
             >
-              <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
+              <p {...sx(placesPage.s8cf27964)}>
                 Assign to days
               </p>
               <fieldset>
-                <legend className="sr-only">Select days for {place.name}</legend>
-                <div className="max-h-48 space-y-0.5 overflow-y-auto pr-1">
+                <legend {...sx(placesPage.s88a3565a)}>Select days for {place.name}</legend>
+                <div {...sx(placesPage.sb8f84d6a)}>
                   {days.map((day) => {
                     const checked = pendingDays.has(day.n)
                     return (
                       <label
                         key={day.n}
-                        className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 transition hover:bg-stone-50 focus-within:ring-2 focus-within:ring-rose-400/40 dark:hover:bg-stone-900"
+                        {...sx(placesPage.s44c27f6a)}
                       >
                         <input
                           type="checkbox"
                           checked={checked}
                           onChange={() => toggleDay(day.n)}
-                          className="h-4 w-4 shrink-0 accent-rose-600 focus:outline-none"
+                          {...sx(placesPage.s68e9c50b)}
                           aria-label={day.label}
                         />
-                        <span className="text-[12px] text-stone-800 dark:text-stone-200">{day.label}</span>
-                        {checked && <Check className="ml-auto h-3 w-3 shrink-0 text-rose-600 dark:text-rose-400" aria-hidden />}
+                        <span {...sx(placesPage.secf1a105)}>{day.label}</span>
+                        {checked && <Check {...sx(placesPage.s9f2373f6)} aria-hidden />}
                       </label>
                     )
                   })}
                 </div>
               </fieldset>
               {error && (
-                <p role="alert" className="mt-2 rounded-md bg-red-50 px-2 py-1 text-[11px] text-red-700 dark:bg-red-950/30 dark:text-red-400">{error}</p>
+                <p role="alert" {...sx(placesPage.s847a05d)}>{error}</p>
               )}
-              <div className="mt-3 flex gap-2">
+              <div {...sx(placesPage.s9346b487)}>
                 <button
                   type="button"
                   onClick={handleSave}
                   disabled={saving || !dirty}
                   aria-busy={saving}
-                  className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-[12px] font-semibold text-white transition hover:bg-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-rose-500 dark:hover:bg-rose-400"
+                  {...sx(placesPage.s1c7a5493)}
                 >
-                  {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
+                  {saving ? <Loader2 {...sx(placesPage.s97416715, 'animate-spin')} aria-hidden /> : null}
                   {saving ? 'Saving…' : 'Save'}
                 </button>
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
-                  className="inline-flex min-h-11 items-center justify-center rounded-lg border border-stone-200 px-3 py-1.5 text-[12px] font-medium text-stone-600 transition hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:border-stone-700 dark:text-stone-400 dark:hover:bg-stone-900"
+                  {...sx(placesPage.sbadbc294)}
                 >
                   Cancel
                 </button>
@@ -429,16 +430,16 @@ function PlaceCard({
         boxShadow: '0 12px 28px -16px rgba(28, 25, 23, 0.18), 0 4px 10px -6px rgba(28, 25, 23, 0.12)',
         transition: { type: 'spring', stiffness: 320, damping: 26 },
       }}
-      className="cv-card relative rounded-2xl border border-stone-200/80 bg-white p-5 transition-colors dark:border-stone-800/80 dark:bg-stone-900/60"
+      {...sx(placesPage.s29685e07)}
       aria-label={`Place: ${place.name}`}
     >
       {/* Geocode-disagree warning banner */}
       {place.geocode_disagree && (
         <div
           role="alert"
-          className="mb-3 flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-[12px] text-red-700 dark:bg-red-950/30 dark:text-red-400"
+          {...sx(placesPage.s274cec2d)}
         >
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          <AlertTriangle {...sx(placesPage.s177a9453)} aria-hidden />
           Coordinates disagree between Google + Kakao — review
         </div>
       )}
@@ -448,10 +449,10 @@ function PlaceCard({
           long Latin/Hangul name compete for the same row and the title
           column collapses to a single-character ribbon. sm: and up,
           badges sit to the right as before. */}
-      <div className="flex flex-col gap-y-2 sm:flex-row sm:items-start sm:justify-between sm:gap-x-4">
-        <div className="min-w-0 sm:flex-1">
+      <div {...sx(placesPage.see6c9312)}>
+        <div {...sx(placesPage.s6094affc)}>
           <h2
-            className="inline-flex flex-wrap items-baseline gap-x-1.5 text-[1.125rem] font-semibold leading-snug text-stone-900 break-words dark:text-stone-100"
+            {...sx(placesPage.sd2b6fe48)}
           >
             <span>{place.name}</span>
             {place.post && (
@@ -460,31 +461,31 @@ function PlaceCard({
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label={`View ${place.name} on Instagram (opens in new tab)`}
-                className="-mx-1 inline-flex h-6 w-6 items-center justify-center rounded text-stone-400 transition hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:text-stone-500 dark:hover:text-rose-400"
+                {...sx(placesPage.s26d3e39b)}
               >
-                <IgIcon className="h-4 w-4" aria-hidden />
+                <IgIcon style={placesPage.scd3f3ccd} aria-hidden />
               </a>
             )}
           </h2>
           {place.name_romanized && place.name_romanized !== place.name && (
-            <p className="mt-0.5 text-[13px] leading-snug text-stone-500 break-words dark:text-stone-400">
+            <p {...sx(placesPage.s437416ed)}>
               {place.name_romanized}
               {place.city && (
-                <span className="text-stone-400 dark:text-stone-500"> · {place.city}</span>
+                <span {...sx(placesPage.s5e96a87d)}> · {place.city}</span>
               )}
             </p>
           )}
           {!place.name_romanized && place.city && (
-            <p className="mt-0.5 text-[13px] text-stone-400 dark:text-stone-500">{place.city}</p>
+            <p {...sx(placesPage.s35851db4)}>{place.city}</p>
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-1.5 sm:shrink-0">
+        <div {...sx(placesPage.sf9f3add8)}>
           <CategoryBadge category={place.category} />
           <BandBadge band={place.confidence_band} votes={place.vote_count} />
           {place.busyness && <BusynessBadge busyness={place.busyness} />}
           {place.is_subject && (
             <span
-              className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-700 ring-1 ring-inset ring-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:ring-rose-900/40"
+              {...sx(placesPage.s59e27272)}
               title="Primary subject of the post"
             >
               Subject
@@ -492,7 +493,7 @@ function PlaceCard({
           )}
           {place.signal_source && (
             <span
-              className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-medium text-stone-500 dark:bg-stone-800 dark:text-stone-400"
+              {...sx(placesPage.s1a56b4a3)}
               title={`Signal source: ${SIGNAL_SOURCE_LABELS[place.signal_source] ?? place.signal_source}`}
             >
               {SIGNAL_SOURCE_LABELS[place.signal_source] ?? place.signal_source}
@@ -503,26 +504,26 @@ function PlaceCard({
 
       {/* Address / contact / rating */}
       {(place.address || place.phone || place.rating != null) && (
-        <div className="mt-3 space-y-1 text-[13px] text-stone-600 dark:text-stone-400">
+        <div {...sx(placesPage.sf0cf4743)}>
           {place.address && (
-            <p className="flex items-start gap-1.5">
-              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-stone-400" aria-hidden />
-              <span className="min-w-0 break-words [overflow-wrap:anywhere]">{place.address}</span>
+            <p {...sx(placesPage.sf52c228f)}>
+              <MapPin {...sx(placesPage.s40d1baca)} aria-hidden />
+              <span {...sx(placesPage.sf99a5dc8)}>{place.address}</span>
             </p>
           )}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5">
+          <div {...sx(placesPage.s69a3f0df)}>
             {place.phone && (
               <a
                 href={`tel:${place.phone}`}
-                className="-mx-1 inline-flex items-center gap-1 rounded px-1 py-0.5 text-stone-600 transition hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:text-stone-400 dark:hover:text-rose-400"
+                {...sx(placesPage.sd730516b)}
               >
-                <Phone className="h-3 w-3 shrink-0" aria-hidden />
+                <Phone {...sx(placesPage.s218d6ca1)} aria-hidden />
                 {place.phone}
               </a>
             )}
             {place.rating != null && (
-              <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400" aria-label={`Rating ${place.rating.toFixed(1)} out of 5`}>
-                <Star className="h-3 w-3 shrink-0 fill-current" aria-hidden />
+              <span {...sx(placesPage.s8ae36097)} aria-label={`Rating ${place.rating.toFixed(1)} out of 5`}>
+                <Star {...sx(placesPage.s3daf144e)} aria-hidden />
                 {place.rating.toFixed(1)}
               </span>
             )}
@@ -532,21 +533,21 @@ function PlaceCard({
 
       {/* Supporting quote */}
       {place.supporting_quote && (
-        <blockquote className="mt-3 border-t border-stone-200/80 pt-3 text-[13px] italic leading-relaxed text-stone-600 [overflow-wrap:anywhere] dark:border-stone-800 dark:text-stone-400">
+        <blockquote {...sx(placesPage.s402d4c91)}>
           &ldquo;{place.supporting_quote}&rdquo;
         </blockquote>
       )}
 
       {/* Post attribution */}
       {place.post && (
-        <p className="mt-2 text-[11px] text-stone-400 dark:text-stone-500">
+        <p {...sx(placesPage.s224db917)}>
           {place.post.owner_username && (
             <span>
               <a
                 href={`https://instagram.com/${place.post.owner_username}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="-mx-0.5 rounded px-0.5 font-medium text-stone-600 transition hover:text-[color:var(--ta,#be123c)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--trips-focus,rgba(244,63,94,0.5))] dark:text-stone-400"
+                {...sx(placesPage.sfd83f352)}
               >
                 @{place.post.owner_username}
               </a>
@@ -558,17 +559,17 @@ function PlaceCard({
       )}
 
       {/* Action links */}
-      <div className="mt-4 flex flex-wrap items-center gap-2">
+      <div {...sx(placesPage.s6ef7bed4)}>
         <DayAssignButton place={place} getToken={getToken} onUpdated={onUpdated} days={days} />
         {place.post && (
           <a
             href={place.post.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 text-[12px] font-medium text-stone-700 transition active:scale-[0.98] hover:border-stone-300 hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:border-stone-700 dark:bg-stone-800/60 dark:text-stone-300 dark:hover:bg-stone-800"
+            {...sx(placesPage.sf168e15a)}
             aria-label="View source post on Instagram (opens in new tab)"
           >
-            <IgIcon className="h-3.5 w-3.5" aria-hidden />
+            <IgIcon style={placesPage.sd2d12d59} aria-hidden />
             View on Instagram
           </a>
         )}
@@ -577,10 +578,10 @@ function PlaceCard({
             href={gmUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 text-[12px] font-medium text-stone-700 transition active:scale-[0.98] hover:border-stone-300 hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:border-stone-700 dark:bg-stone-800/60 dark:text-stone-300 dark:hover:bg-stone-800"
+            {...sx(placesPage.sf168e15a)}
             aria-label={`View ${place.name} on Google Maps (opens in new tab)`}
           >
-            <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+            <ExternalLink {...sx(placesPage.sd2d12d59)} aria-hidden />
             Google Maps
           </a>
         )}
@@ -589,10 +590,10 @@ function PlaceCard({
             href={kakaoUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 text-[12px] font-medium text-stone-700 transition active:scale-[0.98] hover:border-stone-300 hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:border-stone-700 dark:bg-stone-800/60 dark:text-stone-300 dark:hover:bg-stone-800"
+            {...sx(placesPage.sf168e15a)}
             aria-label={`View ${place.name} on Kakao Maps (opens in new tab)`}
           >
-            <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+            <ExternalLink {...sx(placesPage.sd2d12d59)} aria-hidden />
             Kakao
           </a>
         )}
@@ -625,11 +626,10 @@ function FilterChip({
       whileTap={reduce ? undefined : { scale: 0.94 }}
       transition={reduce ? { duration: 0 } : CHIP_SPRING}
       style={{ transformOrigin: 'center' }}
-      className={`inline-flex min-h-11 items-center rounded-full border px-3 py-1 text-[12px] font-medium transition-colors duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--trips-focus,rgba(244,63,94,0.5))] ${
-        active
-          ? 'border-[color:var(--ta-ring,#fda4af)] bg-[color:var(--ta-soft,#fff1f2)] text-[color:var(--ta,#be123c)] hover:border-[color:var(--ta,#be123c)] dark:text-[color:var(--ta-strong,#fb7185)]'
-          : 'border-stone-200 bg-white text-stone-600 hover:border-stone-300 hover:bg-stone-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-400 dark:hover:bg-stone-800'
-      }`}
+      {...sx(
+        placesPage.filterChipBase,
+        active ? placesPage.filterChipActive : placesPage.filterChipInactive,
+      )}
       aria-pressed={active}
     >
       {label}
@@ -649,22 +649,22 @@ export function Places({
   // Short-circuit if Clerk wasn't baked into this build — no token, no API.
   if (!clerkEnabled) {
     return (
-      <div className="korea mx-auto max-w-2xl px-5 py-16">
-        <h1 className="text-2xl font-semibold tracking-tight text-stone-900 dark:text-stone-100">
+      <div {...sx(placesPage.s102510f7)}>
+        <h1 {...sx(placesPage.s48778e8d)}>
           Places
         </h1>
-        <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-5 text-[13px] leading-relaxed text-stone-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-stone-200">
-          <p className="font-semibold text-red-800 dark:text-red-300">
+        <div {...sx(placesPage.sad760a96)}>
+          <p {...sx(placesPage.sb09a9ba6)}>
             Frontend build is missing Clerk configuration
           </p>
-          <p className="mt-2">
-            This build was produced without <code className="font-mono text-[12px]">VITE_CLERK_PUBLISHABLE_KEY</code>,
+          <p {...sx(placesPage.s33458c)}>
+            This build was produced without <code {...sx(placesPage.sd81d42ba)}>VITE_CLERK_PUBLISHABLE_KEY</code>,
             so the page can&apos;t sign requests against the API.
           </p>
-          <p className="mt-3">
-            Set <code className="font-mono text-[12px]">VITE_CLERK_PUBLISHABLE_KEY=pk_live_…</code> in
+          <p {...sx(placesPage.s33458d)}>
+            Set <code {...sx(placesPage.sd81d42ba)}>VITE_CLERK_PUBLISHABLE_KEY=pk_live_…</code> in
             the build environment and rebuild the frontend
-            (<code className="font-mono text-[12px]">cd frontend &amp;&amp; bun run build</code>).
+            (<code {...sx(placesPage.sd81d42ba)}>cd frontend &amp;&amp; bun run build</code>).
           </p>
         </div>
       </div>
@@ -798,47 +798,47 @@ function PlacesImpl({ days, ingestTo }: { days: PlaceDayOption[]; ingestTo: stri
   const animatedTotal = useTweenNumber(total, 320, { reducedMotion: !!reduce })
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16" aria-busy={loading || isRefreshing}>
+    <div {...sx(placesPage.sc0a5fd9d)} aria-busy={loading || isRefreshing}>
       {/* Page header — see Ingest.tsx note on initial={false}. */}
       <motion.header
         initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
       >
-        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div {...sx(placesPage.s9a3eba29)}>
           <div>
-            <p className="text-[13px] font-medium text-stone-600 dark:text-stone-400">
+            <p {...sx(placesPage.s94efdd3)}>
               <Link
                 to={ingestTo}
-                className="-mx-0.5 inline-flex items-center gap-1 rounded px-0.5 text-stone-400 transition hover:text-[color:var(--ta,#be123c)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--trips-focus,rgba(244,63,94,0.5))] dark:text-stone-500"
+                {...sx(placesPage.s1cf029cf)}
                 aria-label="Add Instagram places to this trip"
               >
-                <ArrowLeft className="h-3 w-3" aria-hidden />
+                <ArrowLeft {...sx(placesPage.scd31254b)} aria-hidden />
                 Ingest
               </Link>
-              <span aria-hidden className="mx-2 inline-block h-px w-6 align-middle bg-stone-300 dark:bg-stone-700" />
-              <span className="text-[color:var(--ta,#be123c)]">IG</span>
-              <span aria-hidden className="mx-2 inline-block h-px w-6 align-middle bg-stone-300 dark:bg-stone-700" />
+              <span aria-hidden {...sx(placesPage.s371c7b55)} />
+              <span {...sx(placesPage.sc7db521f)}>IG</span>
+              <span aria-hidden {...sx(placesPage.s371c7b55)} />
               Place browser
             </p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-stone-900 dark:text-stone-100">
+            <h1 {...sx(placesPage.sb40f06a1)}>
               Places
             </h1>
-            <p className="mt-1.5 text-[13px] text-stone-500 dark:text-stone-400" aria-live="polite">
+            <p {...sx(placesPage.s71605953)} aria-live="polite">
               {loading ? (
-                <span className="inline-flex items-center gap-1.5">
-                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                <span {...sx(placesPage.s28b04eb6)}>
+                  <Loader2 {...sx(placesPage.s30736863, 'animate-spin')} aria-hidden />
                   Loading…
                 </span>
               ) : total === 0 ? (
                 'No places yet'
               ) : (
                 <>
-                  <span className="font-medium text-stone-700 dark:text-stone-300 tabular-nums">{animatedTotal}</span> place{total !== 1 ? 's' : ''}
+                  <span {...sx(placesPage.s3c022c12)}>{animatedTotal}</span> place{total !== 1 ? 's' : ''}
                   {flaggedCount > 0 && (
                     <>
-                      <span aria-hidden className="mx-1.5 text-stone-300 dark:text-stone-700">·</span>
-                      <span className="text-amber-600 dark:text-amber-400">{flaggedCount} flagged for review</span>
+                      <span aria-hidden {...sx(placesPage.s34f26488)}>·</span>
+                      <span {...sx(placesPage.s30093f3a)}>{flaggedCount} flagged for review</span>
                     </>
                   )}
                 </>
@@ -847,15 +847,15 @@ function PlacesImpl({ days, ingestTo }: { days: PlaceDayOption[]; ingestTo: stri
           </div>
 
           {/* Search */}
-          <div className="relative w-full sm:w-64">
-            <label htmlFor="places-search" className="sr-only">Search places</label>
+          <div {...sx(placesPage.s8c466dcd)}>
+            <label htmlFor="places-search" {...sx(placesPage.s88a3565a)}>Search places</label>
             <input
               id="places-search"
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search places…"
-              className="min-h-[44px] w-full rounded-xl border border-stone-300 bg-white px-4 py-2 pr-10 text-[13px] text-stone-900 placeholder-stone-400 outline-none transition focus:border-rose-400 focus:ring-2 focus:ring-rose-400/20 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100 dark:placeholder-stone-600 dark:focus:border-rose-500 dark:focus:ring-rose-500/20"
+              {...sx(placesPage.s73fe5241)}
               aria-label="Search extracted places by name or quote"
             />
             {search && (
@@ -863,9 +863,9 @@ function PlacesImpl({ days, ingestTo }: { days: PlaceDayOption[]; ingestTo: stri
                 type="button"
                 onClick={() => setSearch('')}
                 aria-label="Clear search"
-                className="absolute right-1.5 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-stone-400 transition hover:bg-stone-100 hover:text-stone-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:text-stone-500 dark:hover:bg-stone-800 dark:hover:text-stone-200"
+                {...sx(placesPage.s151ef8ff)}
               >
-                <X className="h-3.5 w-3.5" aria-hidden />
+                <X {...sx(placesPage.sd2d12d59)} aria-hidden />
               </button>
             )}
           </div>
@@ -873,7 +873,7 @@ function PlacesImpl({ days, ingestTo }: { days: PlaceDayOption[]; ingestTo: stri
       </motion.header>
 
       {/* Hairline */}
-      <div className="mt-6 border-b border-stone-200/80 dark:border-stone-800/80" aria-hidden />
+      <div {...sx(placesPage.s50cf1fc5)} aria-hidden />
 
       {/* Filter chips */}
       <motion.section
@@ -881,10 +881,10 @@ function PlacesImpl({ days, ingestTo }: { days: PlaceDayOption[]; ingestTo: stri
         initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1], delay: reduce ? 0 : 0.05 }}
-        className="mt-5 space-y-2.5"
+        {...sx(placesPage.s1d170d8d)}
       >
         {/* Category row */}
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by category">
+        <div {...sx(placesPage.s14482158)} role="group" aria-label="Filter by category">
           <FilterChip
             label="All categories"
             active={activeCategory === null}
@@ -901,7 +901,7 @@ function PlacesImpl({ days, ingestTo }: { days: PlaceDayOption[]; ingestTo: stri
         </div>
 
         {/* Band row */}
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by confidence band">
+        <div {...sx(placesPage.s14482158)} role="group" aria-label="Filter by confidence band">
           <FilterChip
             label="All confidence"
             active={activeBand === null}
@@ -918,7 +918,7 @@ function PlacesImpl({ days, ingestTo }: { days: PlaceDayOption[]; ingestTo: stri
         </div>
 
         {/* Busyness row */}
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by busyness">
+        <div {...sx(placesPage.s14482158)} role="group" aria-label="Filter by busyness">
           <FilterChip
             label="Any busyness"
             active={activeBusyness === null}
@@ -936,19 +936,19 @@ function PlacesImpl({ days, ingestTo }: { days: PlaceDayOption[]; ingestTo: stri
       </motion.section>
 
       {/* Places list */}
-      <section aria-label="Extracted places" aria-live="polite" className="mt-8">
+      <section aria-label="Extracted places" aria-live="polite" {...sx(placesPage.s334592)}>
         {error && (
           <div
             role="alert"
-            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-400"
+            {...sx(placesPage.s531851e2)}
           >
-            <span className="break-words">{error}</span>
+            <span {...sx(placesPage.s13588c5b)}>{error}</span>
             <button
               type="button"
               onClick={() =>
                 void load({ category: activeCategory, band: activeBand, busyness: activeBusyness, q: debouncedSearch, offset: 0, append: false })
               }
-              className="inline-flex min-h-11 items-center rounded-lg border border-red-300/70 bg-white/60 px-3 py-1 text-[12px] font-medium text-red-700 transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400/50 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/60"
+              {...sx(placesPage.se2aea60b)}
             >
               Retry
             </button>
@@ -956,7 +956,7 @@ function PlacesImpl({ days, ingestTo }: { days: PlaceDayOption[]; ingestTo: stri
         )}
 
         {loading && !error && (
-          <div className="space-y-3" aria-busy="true" aria-live="polite">
+          <div {...sx(placesPage.sc7133e98)} aria-busy="true" aria-live="polite">
             {Array.from({ length: 4 }).map((_, i) => (
               <PlaceCardSkeleton key={i} />
             ))}
@@ -964,26 +964,26 @@ function PlacesImpl({ days, ingestTo }: { days: PlaceDayOption[]; ingestTo: stri
         )}
 
         {!loading && !error && places.length === 0 && (
-          <div className="flex min-h-[140px] flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 px-6 py-10 text-center dark:border-stone-800 dark:bg-stone-900/30">
+          <div {...sx(placesPage.s405de234)}>
             {hasActiveFilters ? (
               <>
-                <p className="text-[14px] text-stone-500 dark:text-stone-400">
+                <p {...sx(placesPage.sa05ecb46)}>
                   No places match the current filters.
                 </p>
                 <button
                   type="button"
                   onClick={clearFilters}
-                  className="inline-flex min-h-[44px] items-center rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-[13px] font-medium text-stone-700 transition hover:border-stone-400 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:bg-stone-800"
+                  {...sx(placesPage.sc4e2d838)}
                 >
                   Clear filters
                 </button>
               </>
             ) : (
-              <p className="text-[14px] text-stone-500 dark:text-stone-400">
+              <p {...sx(placesPage.sa05ecb46)}>
                 No extracted places yet. Submit a link in{' '}
                 <Link
                   to={ingestTo}
-                  className="rounded text-rose-600 underline-offset-2 transition hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 dark:text-rose-400"
+                  {...sx(placesPage.sc0508a9f)}
                 >
                   Ingest
                 </Link>{' '}
@@ -1004,7 +1004,7 @@ function PlacesImpl({ days, ingestTo }: { days: PlaceDayOption[]; ingestTo: stri
           //   • cards that enter → fade + scale via the card's `initial`.
           // Keyed by `place.id` so motion matches cards across renders.
           <LayoutGroup>
-            <motion.div layout={reduce ? false : 'position'} className="space-y-4">
+            <motion.div layout={reduce ? false : 'position'} {...sx(placesPage.sc7133e99)}>
               <AnimatePresence initial={false} mode="popLayout">
                 {places.map((place) => (
                   <PlaceCard
@@ -1026,17 +1026,17 @@ function PlacesImpl({ days, ingestTo }: { days: PlaceDayOption[]; ingestTo: stri
 
         {/* Load more */}
         {!loading && hasMore && (
-          <div className="mt-8 flex justify-center">
+          <div {...sx(placesPage.sbeb895ab)}>
             <button
               type="button"
               onClick={handleLoadMore}
               disabled={loadingMore}
               aria-busy={loadingMore}
-              className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-stone-300 bg-white px-6 py-2.5 text-[13px] font-medium text-stone-700 transition active:scale-[0.98] hover:border-stone-400 hover:bg-stone-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:bg-stone-800"
+              {...sx(placesPage.s82ccd023)}
             >
               {loadingMore ? (
                 <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                  <Loader2 {...sx(placesPage.s97416715, 'animate-spin')} aria-hidden />
                   Loading…
                 </>
               ) : (

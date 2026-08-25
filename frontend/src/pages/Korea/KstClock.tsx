@@ -1,3 +1,5 @@
+import { sx } from '@/styles/merge'
+import { kstClock } from './KstClock.stylex'
 import { useEffect, useState } from "react"
 import { motion, useReducedMotion } from "motion/react"
 
@@ -37,11 +39,11 @@ export function KstClock() {
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.4, delay: 0.4 }}
       title={`${date}, ${time} KST in Seoul`}
-      className="hidden shrink-0 items-center gap-1 rounded-full bg-stone-100 px-2.5 py-1 text-[10px] font-medium text-stone-600 dark:bg-stone-800 dark:text-stone-300 sm:inline-flex"
+      {...sx(kstClock.sc3877837)}
     >
       <span aria-hidden>🇰🇷</span>
-      <span className="font-mono tabular-nums">{time}</span>
-      <span className="text-stone-400 dark:text-stone-500">KST</span>
+      <span {...sx(kstClock.saa60077c)}>{time}</span>
+      <span {...sx(kstClock.s5e96a87d)}>KST</span>
     </motion.div>
   )
 }

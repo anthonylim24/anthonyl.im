@@ -1,3 +1,5 @@
+import { sx } from '@/styles/merge'
+import { koreaChat } from './KoreaChat.stylex'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useLocation } from "react-router-dom"
@@ -255,11 +257,11 @@ export function KoreaChat() {
             exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.8 }}
             transition={{ type: "spring", stiffness: 400, damping: 28 }}
             whileTap={reduce ? undefined : { scale: 0.92 }}
-            className="group fixed right-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-rose-500 to-amber-500 text-white shadow-lg shadow-rose-500/30 outline-none ring-rose-300 transition-shadow hover:shadow-xl hover:shadow-rose-500/40 focus-visible:ring-4 dark:from-rose-400 dark:to-amber-400 dark:shadow-rose-400/20"
+            {...sx(koreaChat.s86a88ffb, 'group')}
             style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 1.25rem)" }}
           >
-            <MessageCircleHeart className="h-6 w-6" strokeWidth={2} />
-            <span className="pointer-events-none absolute inset-0 rounded-full ring-1 ring-inset ring-white/25" aria-hidden />
+            <MessageCircleHeart {...sx(koreaChat.scd5b6bd1)} strokeWidth={2} />
+            <span {...sx(koreaChat.sd8031ec6)} aria-hidden />
           </motion.button>
         )}
       </AnimatePresence>
@@ -275,7 +277,7 @@ export function KoreaChat() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.18 }}
               onClick={handleClose}
-              className="fixed inset-0 z-[55] bg-stone-950/40 backdrop-blur-[2px] md:bg-transparent md:backdrop-blur-0 md:pointer-events-none"
+              {...sx(koreaChat.sc4cd551f)}
               aria-hidden
             />
 
@@ -285,19 +287,19 @@ export function KoreaChat() {
               role="dialog"
               aria-modal="true"
               aria-labelledby={titleId}
-              className="fixed inset-x-0 bottom-0 z-[60] mx-auto flex h-[86dvh] w-full flex-col overflow-hidden rounded-t-3xl border border-stone-200 bg-white/95 shadow-2xl backdrop-blur-xl dark:border-stone-800 dark:bg-stone-950/95 md:inset-x-auto md:bottom-6 md:right-6 md:h-[600px] md:max-h-[calc(100dvh-3rem)] md:w-[400px] md:rounded-3xl"
+              {...sx(koreaChat.se72a75ff)}
               style={kbInset > 0 ? { bottom: kbInset } : undefined}
             >
               {/* Header */}
-              <header className="flex items-center gap-3 border-b border-stone-200/80 px-4 py-3 dark:border-stone-800/80">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-rose-500 to-amber-500 text-white dark:from-rose-400 dark:to-amber-400">
-                  <Sparkles className="h-4 w-4" strokeWidth={2} />
+              <header {...sx(koreaChat.se0b9fbba)}>
+                <span {...sx(koreaChat.s2ce874cb)}>
+                  <Sparkles {...sx(koreaChat.scd3f3ccd)} strokeWidth={2} />
                 </span>
-                <div className="min-w-0 flex-1">
-                  <h2 id={titleId} className="truncate text-[15px] font-semibold text-stone-900 dark:text-stone-100">
+                <div {...sx(koreaChat.se30fd43e)}>
+                  <h2 id={titleId} {...sx(koreaChat.s31f8ef11)}>
                     Trip Concierge
                   </h2>
-                  <p className="truncate text-xs text-stone-500 dark:text-stone-400">
+                  <p {...sx(koreaChat.sfa5c979c)}>
                     {slug ? "Knows today's plan · ask anything" : "Korea itinerary · ask anything"}
                   </p>
                 </div>
@@ -305,24 +307,24 @@ export function KoreaChat() {
                   type="button"
                   onClick={handleClose}
                   aria-label="Close chat"
-                  className="flex h-9 w-9 items-center justify-center rounded-full text-stone-500 transition hover:bg-stone-100 hover:text-stone-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-100"
+                  {...sx(koreaChat.sd9934eff)}
                 >
-                  <X className="h-5 w-5" />
+                  <X {...sx(koreaChat.scd4d544f)} />
                 </button>
               </header>
 
               {/* Transcript */}
               <div
                 ref={scrollRef}
-                className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4"
+                {...sx(koreaChat.se370d945)}
                 style={{ WebkitOverflowScrolling: "touch" }}
               >
                 {messages.length === 0 ? (
-                  <div className="flex h-full flex-col items-center justify-center gap-4 text-center">
-                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-50 text-rose-500 dark:bg-rose-950/40 dark:text-rose-400">
-                      <MessageCircleHeart className="h-6 w-6" />
+                  <div {...sx(koreaChat.sba17ceb3)}>
+                    <span {...sx(koreaChat.s8df27599)}>
+                      <MessageCircleHeart {...sx(koreaChat.scd5b6bd1)} />
                     </span>
-                    <p className="max-w-[16rem] text-sm text-stone-500 dark:text-stone-400">
+                    <p {...sx(koreaChat.seb1e643f)}>
                       Your concierge for the Korea trip — restaurants, the day's plan, reservations, and logistics.
                     </p>
                   </div>
@@ -333,15 +335,15 @@ export function KoreaChat() {
                         key={m.id}
                         ref={m.id === lastUserId ? anchorRef : undefined}
                         data-transcript-anchor={m.id === lastUserId ? "latest-user" : undefined}
-                        className="flex justify-end"
+                        {...sx(koreaChat.s9141e77)}
                       >
-                        <div className="max-w-[85%] rounded-2xl rounded-br-md bg-rose-500 px-3.5 py-2 text-[15px] leading-relaxed text-white shadow-sm dark:bg-rose-500">
+                        <div {...sx(koreaChat.s64f97e2c)}>
                           {m.content}
                         </div>
                       </div>
                     ) : (
-                      <div key={m.id} className="flex justify-start">
-                        <div className="max-w-[88%] rounded-2xl rounded-bl-md bg-stone-100 px-3.5 py-2.5 text-stone-800 dark:bg-stone-800/80 dark:text-stone-100">
+                      <div key={m.id} {...sx(koreaChat.s154e62fe)}>
+                        <div {...sx(koreaChat.s1506f4a5)}>
                           {m.content ? (
                             <ConciergeText text={m.content} />
                           ) : m.error ? null : (
@@ -355,19 +357,19 @@ export function KoreaChat() {
                   )
                 )}
                 {messages.length > 0 ? (
-                  <div ref={spacerRef} data-transcript-spacer="" aria-hidden className="pointer-events-none shrink-0" />
+                  <div ref={spacerRef} data-transcript-spacer="" aria-hidden {...sx(koreaChat.sad1ad130)} />
                 ) : null}
               </div>
 
               {/* Suggestions (only before the first message) */}
               {messages.length === 0 && (
-                <div className="flex flex-wrap gap-2 px-4 pb-2">
+                <div {...sx(koreaChat.sd37c241a)}>
                   {suggestions.map((s) => (
                     <button
                       key={s}
                       type="button"
                       onClick={() => void send(s)}
-                      className="rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-600 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-500/50 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
+                      {...sx(koreaChat.s765d3323)}
                     >
                       {s}
                     </button>
@@ -378,10 +380,10 @@ export function KoreaChat() {
               {/* Composer */}
               <form
                 onSubmit={onSubmit}
-                className="border-t border-stone-200/80 px-3 pt-3 dark:border-stone-800/80"
+                {...sx(koreaChat.s5cf1a87)}
                 style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)" }}
               >
-                <div className="flex items-end gap-2 rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 focus-within:border-rose-300 focus-within:ring-2 focus-within:ring-rose-200/60 dark:border-stone-700 dark:bg-stone-900 dark:focus-within:border-rose-500/50 dark:focus-within:ring-rose-500/20">
+                <div {...sx(koreaChat.sfcaf4953)}>
                   <textarea
                     ref={inputRef}
                     value={input}
@@ -392,15 +394,15 @@ export function KoreaChat() {
                     onKeyDown={onKeyDown}
                     rows={1}
                     placeholder="Ask about restaurants, your day, reservations…"
-                    className="max-h-28 flex-1 resize-none bg-transparent text-[15px] text-stone-900 outline-none placeholder:text-stone-400 dark:text-stone-100 dark:placeholder:text-stone-500"
+                    {...sx(koreaChat.s49466cc0)}
                   />
                   <button
                     type="submit"
                     disabled={!input.trim() || streaming}
                     aria-label="Send message"
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose-500 text-white transition enabled:hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:bg-rose-500 dark:enabled:hover:bg-rose-400"
+                    {...sx(koreaChat.sbde55540)}
                   >
-                    <Send className="h-4 w-4" />
+                    <Send {...sx(koreaChat.scd3f3ccd)} />
                   </button>
                 </div>
               </form>
@@ -414,14 +416,14 @@ export function KoreaChat() {
 
 function TypingDots({ reduce }: { reduce: boolean }) {
   return (
-    <div className="flex items-center gap-1 py-1" aria-label="Concierge is typing">
+    <div {...sx(koreaChat.s13e3a78a)} aria-label="Concierge is typing">
       {[0, 1, 2].map((i) =>
         reduce ? (
-          <span key={i} className="h-1.5 w-1.5 rounded-full bg-stone-400 opacity-70 dark:bg-stone-500" />
+          <span key={i} {...sx(koreaChat.s7d91c25a)} />
         ) : (
           <motion.span
             key={i}
-            className="h-1.5 w-1.5 rounded-full bg-stone-400 dark:bg-stone-500"
+            {...sx(koreaChat.s1b5ecd73)}
             animate={{ opacity: [0.3, 1, 0.3], y: [0, -2, 0] }}
             transition={{ duration: 1, repeat: Infinity, delay: i * 0.15, ease: "easeInOut" }}
           />

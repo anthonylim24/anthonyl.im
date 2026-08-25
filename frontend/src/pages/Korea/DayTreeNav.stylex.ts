@@ -1,0 +1,166 @@
+import * as stylex from '@stylexjs/stylex'
+const DARK = ':is(.dark) &'
+
+/** Auto-migrated from Tailwind — DayTreeNav */
+export const dayTreeNav = stylex.create({
+  sce7b6109: {
+    "marginLeft": "auto",
+    "marginRight": "auto",
+    "display": "flex",
+    "maxWidth": "72rem",
+    "alignItems": "center",
+    "gap": "0.5rem",
+    "paddingLeft": "0.75rem",
+    "paddingRight": "0.75rem",
+    "@media (min-width: 640px)": {
+      "paddingLeft": "1.5rem",
+      "paddingRight": "1.5rem",
+    },
+  },
+  s54011e7e: {
+    "display": "flex",
+    "flexShrink": 0,
+    "alignItems": "center",
+    "gap": "0.375rem",
+    "borderRadius": "9999px",
+    "borderWidth": "1px",
+    "borderStyle": "solid",
+    "borderColor": "rgba(214, 211, 209, 0.7)",
+    "backgroundColor": "#fafaf9",
+    "paddingLeft": "0.75rem",
+    "paddingRight": "0.75rem",
+    "paddingTop": "0.375rem",
+    "paddingBottom": "0.375rem",
+    "fontSize": "0.75rem",
+    "fontWeight": 500,
+    "color": "#44403c",
+    "transitionProperty": "color, background-color, border-color",
+    "transitionDuration": "150ms",
+    [DARK]: {
+      "borderColor": "#44403c",
+      "backgroundColor": "#1c1917",
+      "color": "#d6d3d1",
+    },
+    ":hover": {
+      "borderColor": "#44403c",
+      "backgroundColor": "#292524",
+      "color": "#f5f5f4",
+    },
+    ":focus-visible": {
+
+    },
+  },
+  s63da71ee: {
+    "fontSize": "1rem",
+    "lineHeight": 1,
+  },
+  s21d75092: {
+    "display": "flex",
+    "minWidth": 0,
+    "flex": "1 1 0%",
+    "gap": "0.375rem",
+    "overflowX": "auto",
+    "touchAction": "pan-x",
+    "paddingLeft": "0.375rem",
+    "paddingRight": "0.375rem",
+    "paddingTop": "0.375rem",
+    "paddingBottom": "0.375rem",
+    "@media (min-width: 640px)": {
+      "gap": "0.5rem",
+    },
+  },
+  sf032ed6c: {
+    "flexShrink": 0,
+  },
+  sf8e652db: {
+    "whiteSpace": "nowrap",
+  },
+  s8541e060: {
+    "fontFamily": "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    "color": "10px",
+    "opacity": 0.6,
+  },
+  s33548f: {
+    "marginLeft": "0.25rem",
+    "marginRight": "0.25rem",
+  },
+  sb750299f: {
+    "position": "absolute",
+    "borderRadius": "9999px",
+    "backgroundColor": "#f43f5e",
+    "boxShadow": "0 0 0 2px currentColor",
+    "outlineColor": "#fafaf9",
+    [DARK]: {
+      "backgroundColor": "#fb7185",
+      "outlineColor": "#0c0a09",
+    },
+  },
+  navShell: {
+    position: 'sticky',
+    top: 0,
+    zIndex: 30,
+    borderBottomWidth: '1px',
+    borderBottomStyle: 'solid',
+    borderColor: 'rgba(231, 229, 228, 0.6)',
+    backgroundColor: 'rgba(250, 250, 249, 0.85)',
+    backdropFilter: 'blur(24px)',
+    [DARK]: {
+      borderColor: 'rgba(41, 37, 36, 0.6)',
+      backgroundColor: 'rgba(12, 10, 9, 0.8)',
+    },
+  },
+  dayLink: {
+    position: 'relative',
+    display: 'flex',
+    minHeight: '2.75rem',
+    alignItems: 'center',
+    gap: '0.375rem',
+    borderRadius: '9999px',
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: 'transparent',
+    paddingLeft: '0.75rem',
+    paddingRight: '0.75rem',
+    paddingTop: '0.375rem',
+    paddingBottom: '0.375rem',
+    fontSize: '0.75rem',
+    fontWeight: 500,
+    color: '#57534e',
+    transitionProperty: 'color, background-color, border-color',
+    transitionDuration: '200ms',
+    transitionTimingFunction: 'cubic-bezier(0.16, 1, 0.3, 1)',
+    ':hover': {
+      borderColor: '#d6d3d1',
+      backgroundColor: '#fafaf9',
+      color: '#1c1917',
+      [DARK]: {
+        borderColor: '#44403c',
+        backgroundColor: '#1c1917',
+        color: '#f5f5f4',
+      },
+    },
+    ':focus-visible': {
+      outlineWidth: '2px',
+      outlineStyle: 'solid',
+      outlineOffset: '2px',
+      outlineColor: '#f43f5e',
+    },
+    [DARK]: { color: '#a8a29e' },
+  },
+  dayLinkActive: {
+    borderColor: '#fb7185',
+    backgroundColor: '#ffe4e6',
+    color: '#881337',
+    boxShadow: '0 1px 2px rgba(28, 25, 23, 0.05)',
+    [DARK]: {
+      borderColor: '#be123c',
+      backgroundColor: 'rgba(76, 5, 25, 0.6)',
+      color: '#ffe4e6',
+    },
+  },
+  dayLinkTodayRing: {
+    boxShadow: '0 0 0 2px rgba(52, 211, 153, 0.7)',
+    [DARK]: { boxShadow: '0 0 0 2px rgba(16, 185, 129, 0.6)' },
+  },
+
+})

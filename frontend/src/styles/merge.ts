@@ -17,7 +17,10 @@ export function sx(...inputs: SxInput[]) {
     }
   }
 
-  const stylexProps = styles.length > 0 ? stylex.props(...(styles as Parameters<typeof stylex.props>)) : {}
+  const stylexProps =
+    styles.length > 0
+      ? (stylex.props as (...args: object[]) => ReturnType<typeof stylex.props>)(...styles)
+      : ({} as ReturnType<typeof stylex.props>)
   const mergedClassName = [stylexProps.className, ...classNames].filter(Boolean).join(' ')
 
   return {

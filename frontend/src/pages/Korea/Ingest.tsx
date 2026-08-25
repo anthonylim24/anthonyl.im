@@ -1,3 +1,5 @@
+import { sx } from '@/styles/merge'
+import { ingest } from './Ingest.stylex'
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { useLatestCallback } from '@/hooks/useLatestCallback'
 import { Link } from 'react-router-dom'
@@ -257,7 +259,7 @@ function StatsLine({ stats }: { stats: Stats | null }) {
   if (parts.length === 0) return null
 
   return (
-    <span className="font-mono text-[11px] tabular-nums text-stone-400 dark:text-stone-500">
+    <span {...sx(ingest.s60c3905b)}>
       {parts.join(' · ')}
     </span>
   )
@@ -266,20 +268,20 @@ function StatsLine({ stats }: { stats: Stats | null }) {
 function ValidationHint({ value }: { value: string }) {
   if (!value) {
     return (
-      <p className="mt-1.5 text-[12px] text-stone-400 dark:text-stone-500">
+      <p {...sx(ingest.s5e2dcc92)}>
         Paste an Instagram post or reel URL
       </p>
     )
   }
   if (isInstagramUrl(value)) {
     return (
-      <p className="mt-1.5 text-[12px] text-emerald-600 dark:text-emerald-400">
+      <p {...sx(ingest.s45b2f91)}>
         Looks good
       </p>
     )
   }
   return (
-    <p className="mt-1.5 text-[12px] text-rose-600 dark:text-rose-400">
+    <p {...sx(ingest.sd27c2def)}>
       Not an Instagram URL
     </p>
   )
@@ -293,18 +295,18 @@ function StatusPill({ status }: { status: Job['status'] }) {
     failed: 'Failed',
     dead: 'Dead',
   }
-  const styles: Record<Job['status'], string> = {
-    pending: 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-400',
-    running: 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300',
-    done: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
-    failed: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
-    dead: 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300',
-  }
+  const styles = {
+    pending: ingest.statusPending,
+    running: ingest.statusRunning,
+    done: ingest.statusDone,
+    failed: ingest.statusFailed,
+    dead: ingest.statusDead,
+  } as const
 
   return (
     <span
       aria-label={`Status: ${labels[status]}`}
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${styles[status]}`}
+      {...sx(ingest.statusPillBase, styles[status])}
     >
       {labels[status]}
     </span>
@@ -354,7 +356,7 @@ function StepTimeline({ job, reduce, etaNow }: { job: Job; reduce: boolean | nul
       ref={timelineRef}
       aria-live="polite"
       aria-label={currentStep ? `Current step: ${currentStep}` : undefined}
-      className="relative grid items-start gap-0 overflow-visible"
+      {...sx(ingest.s7b6e21f)}
       style={{ gridTemplateColumns: `repeat(${PIPELINE_STEPS.length}, minmax(0, 1fr))` }}
     >
       {PIPELINE_STEPS.map((step, i) => {
@@ -374,29 +376,29 @@ function StepTimeline({ job, reduce, etaNow }: { job: Job; reduce: boolean | nul
         const isExpanded = expandedStep === step
 
         return (
-          <div key={step} className="relative flex min-w-0 flex-col items-center">
+          <div key={step} {...sx(ingest.s3dbb69e2)}>
             {!isLast && (
               <PipelineConnector variant={connectorVariant} reduce={!!reduce} />
             )}
 
-            <div className="group relative z-10">
+            <div {...sx(ingest.s601d5945, 'group')}>
               <button
                 type="button"
                 aria-label={ariaSummary}
                 onClick={() => setExpandedStep(isExpanded ? null : step as UiStep)}
-                className="flex min-h-[44px] min-w-[44px] flex-col items-center justify-center gap-2 px-1 cursor-pointer rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/50"
+                {...sx(ingest.s925ca98e)}
               >
                 <PipelineNode step={step} state={state} reduce={!!reduce} />
                 <span
-                  className={`whitespace-nowrap text-[10px] leading-none tracking-wide ${
+                  {...sx(
                     state === 'past'
-                      ? 'font-medium text-amber-700 dark:text-amber-300'
+                      ? ingest.stepLabelPast
                       : state === 'current'
-                        ? 'font-semibold text-rose-600 dark:text-rose-400'
+                        ? ingest.stepLabelCurrent
                         : state === 'errored'
-                          ? 'font-semibold text-red-600 dark:text-red-400'
-                          : 'text-stone-400 dark:text-stone-600'
-                  }`}
+                          ? ingest.stepLabelErrored
+                          : ingest.stepLabelFuture,
+                  )}
                 >
                   {STEP_LABELS[step]}
                 </span>
@@ -404,11 +406,11 @@ function StepTimeline({ job, reduce, etaNow }: { job: Job; reduce: boolean | nul
 
               <div
                 role="tooltip"
-                className={`absolute left-1/2 top-[calc(100%+10px)] z-30 w-72 -translate-x-1/2 rounded-xl border border-stone-200/80 bg-white p-3 text-left shadow-lg ring-1 ring-stone-900/5 transition-opacity duration-150 dark:border-stone-700/80 dark:bg-stone-900 dark:ring-stone-100/5 ${
-                  isExpanded
-                    ? 'pointer-events-auto opacity-100'
-                    : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100'
-                }`}
+                {...sx(
+                  ingest.stepPopover,
+                  isExpanded ? ingest.stepPopoverOpen : ingest.stepPopoverClosed,
+                  'group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100',
+                )}
               >
                 <StepPopoverContent step={step as UiStep} state={state} info={info} job={job} etaNow={etaNow} />
               </div>
@@ -444,13 +446,13 @@ function PipelineConnector({ variant, reduce }: { variant: ConnectorVariant; red
   return (
     <span
       aria-hidden
-      className="pointer-events-none absolute top-[17px] z-0 h-px"
+      {...sx(ingest.s54507fff)}
       style={{ left: '50%', right: '-50%' }}
     >
       <svg
         viewBox="0 0 100 2"
         preserveAspectRatio="none"
-        className="block h-[2px] w-full"
+        {...sx(ingest.s67a428ff)}
       >
         <defs>
           <linearGradient id="ig-pipeline-flow-grad" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -496,18 +498,18 @@ function PipelineNode({
 
   if (state === 'errored') {
     return (
-      <span className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center">
-        <XCircle className="h-9 w-9 text-red-600 dark:text-red-400" aria-hidden strokeWidth={1.5} />
+      <span {...sx(ingest.sb5442fec)}>
+        <XCircle {...sx(ingest.sff280fff)} aria-hidden strokeWidth={1.5} />
       </span>
     )
   }
 
   if (state === 'current') {
     return (
-      <span className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center">
+      <span {...sx(ingest.sb5442fec)}>
         <span
           aria-hidden
-          className={`absolute inset-0 rounded-full bg-rose-500/30 ${reduce ? '' : 'ig-pipeline-rim'}`}
+          {...sx(ingest.pipelineRim, reduce ? undefined : 'ig-pipeline-rim')}
           style={
             reduce
               ? undefined
@@ -516,7 +518,7 @@ function PipelineNode({
         />
         <span
           aria-hidden
-          className={`absolute inset-[3px] rounded-full ${reduce ? '' : 'ig-pipeline-breath'}`}
+          {...sx(ingest.pipelineBreath, reduce ? undefined : 'ig-pipeline-breath')}
           style={{
             background: 'radial-gradient(circle at 30% 30%, #fb7185 0%, #f43f5e 55%, #c2410c 100%)',
             boxShadow: '0 0 0 1px rgba(244,63,94,0.35), 0 6px 14px -4px rgba(244,63,94,0.45)',
@@ -526,7 +528,7 @@ function PipelineNode({
           }}
         />
         <Glyph
-          className="relative h-4 w-4 text-white drop-shadow-[0_1px_2px_rgba(159,18,57,0.4)]"
+          {...sx(ingest.s3c9c4fb0)}
           aria-hidden
           strokeWidth={2}
         />
@@ -537,7 +539,7 @@ function PipelineNode({
   if (state === 'past') {
     return (
       <span
-        className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+        {...sx(ingest.s316e3563)}
         style={{
           background:
             'radial-gradient(circle at 30% 30%, rgba(252,211,77,0.55) 0%, rgba(217,119,6,0.25) 60%, rgba(120,113,108,0.18) 100%)',
@@ -545,7 +547,7 @@ function PipelineNode({
         }}
       >
         <Check
-          className="h-4 w-4 text-amber-700 dark:text-amber-300"
+          {...sx(ingest.s2f8a34ed)}
           aria-hidden
           strokeWidth={2.4}
         />
@@ -554,8 +556,8 @@ function PipelineNode({
   }
 
   return (
-    <span className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-dashed border-stone-300 bg-white/40 dark:border-stone-700 dark:bg-stone-900/40">
-      <Glyph className="h-4 w-4 text-stone-300 dark:text-stone-600" aria-hidden strokeWidth={1.5} />
+    <span {...sx(ingest.s65702fd3)}>
+      <Glyph {...sx(ingest.sc9b47330)} aria-hidden strokeWidth={1.5} />
     </span>
   )
 }
@@ -580,11 +582,11 @@ function StepPopoverContent({
     state === 'errored' ? 'Failed here' :
     'Up next'
 
-  const stateColor =
-    state === 'current' ? 'text-rose-700 dark:text-rose-300' :
-    state === 'past' ? 'text-emerald-700 dark:text-emerald-400' :
-    state === 'errored' ? 'text-red-700 dark:text-red-400' :
-    'text-stone-500 dark:text-stone-400'
+  const stateStyle =
+    state === 'current' ? ingest.stateLabelCurrent :
+    state === 'past' ? ingest.stateLabelPast :
+    state === 'errored' ? ingest.stateLabelErrored :
+    ingest.stateLabelFuture
 
   // Compute per-log relative offset from the first line of this step — useful
   // for seeing where time is being spent within a stage.
@@ -593,12 +595,12 @@ function StepPopoverContent({
   return (
     <>
       {/* Live status header (per job) */}
-      <div className="flex items-center justify-between gap-2">
-        <span className={`text-[10px] font-medium uppercase tracking-wider ${stateColor}`}>
+      <div {...sx(ingest.sbbe27b4f)}>
+        <span {...sx(stateStyle)}>
           {stateLabel}
         </span>
         {timingLabel && (
-          <span className="font-mono text-[10px] tabular-nums text-stone-500 dark:text-stone-400">
+          <span {...sx(ingest.s7d1c8b7c)}>
             {timingLabel}
           </span>
         )}
@@ -607,25 +609,23 @@ function StepPopoverContent({
       {/* Full per-step log breakdown — auto-scrolls when many lines */}
       {stepLogs.length > 0 && (
         <ol
-          className="mt-2 max-h-40 space-y-0.5 overflow-y-auto rounded-md bg-stone-50 px-2 py-1.5 dark:bg-stone-950/50"
+          {...sx(ingest.s4845fba1)}
           aria-label={`Activity log for ${stateLabel.toLowerCase()} step`}
         >
           {stepLogs.map((l, idx) => {
             const offsetSec = idx === 0
               ? 0
               : Math.max(0, (new Date(l.created_at).getTime() - stepStartMs) / 1000)
-            const color =
-              l.level === 'error'
-                ? 'text-red-700 dark:text-red-400'
-                : l.level === 'warn'
-                  ? 'text-amber-700 dark:text-amber-300'
-                  : 'text-stone-700 dark:text-stone-200'
+            const msgStyle =
+              l.level === 'error' ? ingest.logMsgError :
+              l.level === 'warn' ? ingest.logMsgWarn :
+              ingest.logMsgInfo
             return (
-              <li key={l.id} className="flex gap-2 text-[11px] leading-snug">
-                <span className="shrink-0 font-mono text-[10px] tabular-nums text-stone-400 dark:text-stone-500">
+              <li key={l.id} {...sx(ingest.s66529f26)}>
+                <span {...sx(ingest.s8d0bd648)}>
                   {idx === 0 ? 'start' : `+${formatDuration(offsetSec)}`}
                 </span>
-                <span className={`break-words ${color}`}>{l.message}</span>
+                <span {...sx(msgStyle)}>{l.message}</span>
               </li>
             )
           })}
@@ -633,31 +633,29 @@ function StepPopoverContent({
       )}
 
       {state === 'current' && stepLogs.length === 0 && (
-        <p className="mt-2 text-[12px] italic text-stone-500 dark:text-stone-400">
+        <p {...sx(ingest.s21c6c9b2)}>
           Starting…
         </p>
       )}
 
       {/* Static "what this step does in general" — divider only when log present */}
-      <div
-        className={`${stepLogs.length ? 'mt-2 border-t border-stone-200/60 pt-2 dark:border-stone-700/60' : 'mt-2'}`}
-      >
-        <p className="text-[10px] font-medium uppercase tracking-wider text-stone-400 dark:text-stone-500">
+      <div {...sx(stepLogs.length ? ingest.stepInfoDivider : ingest.stepInfoPlain)}>
+        <p {...sx(ingest.sbe90b7b4)}>
           What this step does
         </p>
-        <p className="mt-1 text-[12px] leading-relaxed text-stone-600 dark:text-stone-300">
+        <p {...sx(ingest.s56c52d31)}>
           {info.summary}
         </p>
       </div>
 
       {/* Tech stack */}
-      <p className="mt-2 text-[10px] font-medium uppercase tracking-wider text-stone-400 dark:text-stone-500">
+      <p {...sx(ingest.sddff2b20)}>
         Stack
       </p>
-      <ul className="mt-1 space-y-0.5 text-[11px] leading-snug text-stone-600 dark:text-stone-300">
+      <ul {...sx(ingest.s41be442a)}>
         {info.stack.map((t) => (
-          <li key={t} className="flex gap-1.5">
-            <span aria-hidden className="mt-1 inline-block h-1 w-1 shrink-0 rounded-full bg-amber-500" />
+          <li key={t} {...sx(ingest.sb2ddf91a)}>
+            <span aria-hidden {...sx(ingest.s8c22b5ab)} />
             <span>{t}</span>
           </li>
         ))}
@@ -668,13 +666,13 @@ function StepPopoverContent({
 
 function ConfidenceBadge({ band, confidence }: { band: 'high' | 'medium' | 'low'; confidence?: number }) {
   const styles = {
-    high: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400',
-    medium: 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400',
-    low: 'bg-stone-100 text-stone-500 dark:bg-stone-800 dark:text-stone-400',
-  }
+    high: ingest.confHigh,
+    medium: ingest.confMedium,
+    low: ingest.confLow,
+  } as const
   const title = confidence != null ? `Confidence: ${(confidence * 100).toFixed(0)}%` : undefined
   return (
-    <span className={`rounded px-1 py-0.5 text-[10px] font-medium ${styles[band]}`} title={title}>
+    <span {...sx(styles[band])} title={title}>
       {band}
     </span>
   )
@@ -682,7 +680,7 @@ function ConfidenceBadge({ band, confidence }: { band: 'high' | 'medium' | 'low'
 
 function CategoryBadge({ category }: { category: string }) {
   return (
-    <span className="rounded bg-stone-100 px-1 py-0.5 text-[10px] font-medium text-stone-500 dark:bg-stone-800 dark:text-stone-400">
+    <span {...sx(ingest.s619ce5a0)}>
       {category}
     </span>
   )
@@ -718,22 +716,22 @@ function PlacesList({
   if (places.length === 0) return null
 
   return (
-    <div className="mt-3 border-t border-stone-100 pt-3 dark:border-stone-800">
+    <div {...sx(ingest.sd28b0f1b)}>
       <button
         type="button"
         onClick={() => setExpanded((e) => !e)}
-        className="flex min-h-[44px] w-full items-center gap-1.5 rounded text-left text-[13px] font-medium text-stone-700 transition-colors hover:text-stone-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/40 dark:text-stone-300 dark:hover:text-stone-100"
+        {...sx(ingest.s957a7ae7)}
         aria-expanded={expanded}
       >
         <ChevronRight
           aria-hidden
-          className={`h-3.5 w-3.5 shrink-0 text-stone-400 transition-transform duration-200 motion-reduce:transition-none ${expanded ? 'rotate-90' : ''}`}
+          {...sx(ingest.chevron, expanded ? ingest.chevronOpen : undefined, 'motion-reduce:transition-none')}
         />
         {places.length} {places.length === 1 ? 'place' : 'places'} extracted
       </button>
 
       {expanded && (
-        <ul className="mt-2 space-y-3">
+        <ul {...sx(ingest.sfdf42904)}>
           {places.map((p, idx) => (
             <motion.li
               key={p.id}
@@ -744,11 +742,11 @@ function PlacesList({
                 ease: [0.16, 1, 0.3, 1],
                 delay: emergent && !reduce ? Math.min(idx, 8) * 0.08 : 0,
               }}
-              className={`relative flex flex-col gap-1 text-[13px] text-stone-700 dark:text-stone-300 ${
-                emergent && idx === 0 && !reduce
-                  ? 'rounded-lg px-2 py-1.5 ring-1 ring-rose-300/70 dark:ring-rose-500/40 ig-place-emerge-ring'
-                  : ''
-              }`}
+              {...sx(
+                ingest.placeRow,
+                emergent && idx === 0 && !reduce ? ingest.placeRowEmerge : undefined,
+                emergent && idx === 0 && !reduce ? 'ig-place-emerge-ring' : undefined,
+              )}
               style={
                 emergent && idx === 0 && !reduce
                   ? { animation: 'ig-place-emerge-ring 2.6s ease-out 1.2s forwards' }
@@ -756,32 +754,32 @@ function PlacesList({
               }
             >
               {/* Name row */}
-              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                <span className="font-medium">{p.name}</span>
+              <div {...sx(ingest.se28e8787)}>
+                <span {...sx(ingest.s129e46b3)}>{p.name}</span>
                 {p.name_romanized && p.name_romanized !== p.name && (
-                  <span className="text-stone-400 dark:text-stone-500">{p.name_romanized}</span>
+                  <span {...sx(ingest.s5e96a87d)}>{p.name_romanized}</span>
                 )}
                 {p.city && (
-                  <span className="text-stone-400 dark:text-stone-500">· {p.city}</span>
+                  <span {...sx(ingest.s5e96a87d)}>· {p.city}</span>
                 )}
               </div>
 
               {/* Badges row */}
-              <div className="flex flex-wrap items-center gap-1">
+              <div {...sx(ingest.s1fa2d8e5)}>
                 <CategoryBadge category={p.category} />
                 <ConfidenceBadge band={p.confidence_band} confidence={p.confidence} />
                 {p.is_subject && (
-                  <span className="rounded bg-rose-50 px-1 py-0.5 text-[10px] font-medium text-rose-600 dark:bg-rose-950/30 dark:text-rose-400">
+                  <span {...sx(ingest.scdb07eaf)}>
                     subject
                   </span>
                 )}
                 {p.vote_count > 0 && (
-                  <span className="rounded bg-stone-100 px-1 py-0.5 text-[10px] font-medium text-stone-500 dark:bg-stone-800 dark:text-stone-400">
+                  <span {...sx(ingest.s619ce5a0)}>
                     voted {p.vote_count}×
                   </span>
                 )}
                 {p.signal_source && (
-                  <span className="rounded bg-stone-100 px-1 py-0.5 text-[10px] font-medium text-stone-500 dark:bg-stone-800 dark:text-stone-400">
+                  <span {...sx(ingest.s619ce5a0)}>
                     {SIGNAL_SOURCE_LABELS[p.signal_source] ?? p.signal_source}
                   </span>
                 )}
@@ -789,13 +787,13 @@ function PlacesList({
 
               {/* Address */}
               {p.address && (
-                <p className="text-[12px] text-stone-500 dark:text-stone-400">{p.address}</p>
+                <p {...sx(ingest.se5cdcc4)}>{p.address}</p>
               )}
 
               {/* Geocode disagree */}
               {p.geocode_disagree && (
                 <span
-                  className="w-fit rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-600 dark:bg-red-950/30 dark:text-red-400"
+                  {...sx(ingest.s9a71eef)}
                   title="The two geocoders returned coordinates more than 200 m apart — manual review needed"
                 >
                   Coordinates disagree
@@ -804,7 +802,7 @@ function PlacesList({
 
               {/* Supporting quote */}
               {p.supporting_quote && (
-                <p className="text-[12px] italic text-stone-500 dark:text-stone-400">
+                <p {...sx(ingest.s8d4ad146)}>
                   "{p.supporting_quote}"
                 </p>
               )}
@@ -824,50 +822,50 @@ function PlacesList({
 function EmptyExtractionPanel({ preview }: { preview: PostPreview }) {
   const hasLocationTag = preview.location_tag && (preview.location_tag as { name?: string }).name
   return (
-    <div className="mt-4 rounded-2xl border border-amber-200/70 bg-amber-50/60 p-4 dark:border-amber-900/40 dark:bg-amber-950/20">
-      <div className="flex items-start gap-2">
-        <Circle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden />
-        <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-semibold text-amber-800 dark:text-amber-300">
+    <div {...sx(ingest.s383450e8)}>
+      <div {...sx(ingest.se99caec9)}>
+        <Circle {...sx(ingest.s3e844809)} aria-hidden />
+        <div {...sx(ingest.se30fd43e)}>
+          <p {...sx(ingest.sdc6c05d2)}>
             No places extracted from this post
           </p>
-          <p className="mt-0.5 text-[12px] leading-relaxed text-stone-600 dark:text-stone-300">
+          <p {...sx(ingest.s1a9a112b)}>
             The LLM didn&apos;t find any specific named venue or landmark in the source
             text — this usually means the post is about an activity, person, or product
             rather than a place.
           </p>
 
           {hasLocationTag && (
-            <p className="mt-2 text-[12px] text-stone-600 dark:text-stone-300">
-              <span className="font-medium text-stone-500 dark:text-stone-400">Location tag from IG:</span>{' '}
+            <p {...sx(ingest.s7fb1db58)}>
+              <span {...sx(ingest.s8e209a8a)}>Location tag from IG:</span>{' '}
               {(preview.location_tag as { name?: string }).name}
             </p>
           )}
 
           {preview.caption && (
-            <details className="mt-2 group">
-              <summary className="cursor-pointer text-[11px] font-medium uppercase tracking-wide text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200">
+            <details {...sx(ingest.s64ff6eb, 'group')}>
+              <summary {...sx(ingest.s1512038a)}>
                 Caption ({preview.caption.length} chars)
               </summary>
-              <p className="mt-1.5 whitespace-pre-wrap break-words rounded-md bg-white/70 px-2.5 py-2 text-[12px] leading-relaxed text-stone-700 dark:bg-stone-900/40 dark:text-stone-200">
+              <p {...sx(ingest.s8131c145)}>
                 {preview.caption}{preview.caption_truncated && '…'}
               </p>
             </details>
           )}
 
           {preview.transcript && (
-            <details className="mt-2 group">
-              <summary className="cursor-pointer text-[11px] font-medium uppercase tracking-wide text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200">
+            <details {...sx(ingest.s64ff6eb, 'group')}>
+              <summary {...sx(ingest.s1512038a)}>
                 Transcript ({preview.transcript_truncated ? '5000+' : preview.transcript.length} chars)
               </summary>
-              <p className="mt-1.5 whitespace-pre-wrap break-words rounded-md bg-white/70 px-2.5 py-2 text-[12px] leading-relaxed text-stone-700 dark:bg-stone-900/40 dark:text-stone-200">
+              <p {...sx(ingest.s8131c145)}>
                 {preview.transcript}{preview.transcript_truncated && '…'}
               </p>
             </details>
           )}
 
           {!preview.caption && !preview.transcript && (
-            <p className="mt-2 text-[12px] italic text-stone-500 dark:text-stone-400">
+            <p {...sx(ingest.s21c6c9b2)}>
               No caption or transcript was available.
             </p>
           )}
@@ -894,33 +892,33 @@ function LogsViewer({ logs, defaultOpen = false }: { logs: LogLine[]; defaultOpe
   return (
     <details
       open={isOpen}
-      className="mt-3 rounded-xl border border-stone-200/60 dark:border-stone-800/60"
+      {...sx(ingest.se4f7be31)}
       onToggle={(e) => setIsOpen(e.currentTarget.open)}
     >
-      <summary className="cursor-pointer select-none px-3 py-2 text-[12px] font-medium text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-200">
+      <summary {...sx(ingest.sb4069d98)}>
         Logs ({logs.length})
       </summary>
       <ol
         ref={listRef}
-        className="max-h-48 overflow-y-auto px-3 py-2 font-mono text-[11px]"
+        {...sx(ingest.sd788321b)}
         aria-live="polite"
         aria-label="Job log lines"
       >
         {logs.map((l) => (
-          <li key={l.id} className="flex gap-2 py-0.5">
-            <span className="shrink-0 text-stone-400">{formatLogTime(l.created_at)}</span>
+          <li key={l.id} {...sx(ingest.s9109cdbf)}>
+            <span {...sx(ingest.sa8e02460)}>{formatLogTime(l.created_at)}</span>
             <span
-              className={`shrink-0 uppercase tracking-wide ${
+              {...sx(
                 l.level === 'error'
-                  ? 'text-red-600 dark:text-red-400'
+                  ? ingest.logStepError
                   : l.level === 'warn'
-                    ? 'text-amber-600 dark:text-amber-400'
-                    : 'text-rose-700 dark:text-rose-400'
-              }`}
+                    ? ingest.logStepWarn
+                    : ingest.logStepInfo,
+              )}
             >
               {l.step}
             </span>
-            <span className="break-all text-stone-700 dark:text-stone-300">{l.message}</span>
+            <span {...sx(ingest.sf5facc2b)}>{l.message}</span>
           </li>
         ))}
       </ol>
@@ -996,29 +994,27 @@ function JobCard({
       initial={false}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-      className="relative rounded-2xl border border-stone-200/80 bg-white p-5 dark:border-stone-800/80 dark:bg-stone-900/60"
+      {...sx(ingest.s28353d49)}
     >
       {/* Running sweep animation */}
       {job.status === 'running' && (
         <div
           aria-hidden
-          className="absolute inset-x-0 top-0 h-[2px] overflow-hidden rounded-t-2xl"
+          {...sx(ingest.s17bea155)}
         >
           <div
-            className={`h-full w-1/3 bg-gradient-to-r from-transparent via-rose-500 to-transparent${
-              reduce ? '' : ' animate-[ig-sweep_1.6s_linear_infinite]'
-            }`}
+            {...sx(ingest.sweepBar, reduce ? undefined : 'animate-[ig-sweep_1.6s_linear_infinite]')}
           />
         </div>
       )}
 
       {/* Header row */}
-      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+      <div {...sx(ingest.s71b5dc26)}>
         <a
           href={job.url}
           target="_blank"
           rel="noopener noreferrer"
-          className="min-w-0 break-all font-mono text-[12px] text-stone-600 underline-offset-2 hover:text-rose-700 hover:underline dark:text-stone-400 dark:hover:text-rose-400"
+          {...sx(ingest.se164d5a4)}
           title={job.url}
         >
           {shortUrl} ↗
@@ -1027,26 +1023,26 @@ function JobCard({
       </div>
 
       {/* Step timeline */}
-      <div className="mt-4">
+      <div {...sx(ingest.s33458e)}>
         <StepTimeline job={job} reduce={reduce} etaNow={etaNow} />
       </div>
 
       {/* Meta row */}
-      <p className="mt-3 font-mono text-[11px] text-stone-400 dark:text-stone-500">
+      <p {...sx(ingest.s91675395)}>
         Created {formatTimestamp(job.created_at)}
-        <span aria-hidden className="mx-1.5">·</span>
+        <span aria-hidden {...sx(ingest.sc0b07296)}>·</span>
         Updated {formatTimestamp(job.updated_at)}
-        <span aria-hidden className="mx-1.5">·</span>
+        <span aria-hidden {...sx(ingest.sc0b07296)}>·</span>
         {job.attempts} {job.attempts === 1 ? 'attempt' : 'attempts'}
         {eta && (
           <span
-            className={`ml-2 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+            {...sx(
               eta.tone === 'done'
-                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400'
+                ? ingest.etaDone
                 : eta.tone === 'slow'
-                  ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300'
-                  : 'bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400'
-            }`}
+                  ? ingest.etaSlow
+                  : ingest.etaDefault,
+            )}
           >
             {eta.label}
           </span>
@@ -1055,26 +1051,26 @@ function JobCard({
 
       {/* Error message with step context */}
       {job.last_error && (
-        <p className="mt-2 break-words rounded-lg bg-red-50 px-3 py-2 text-[12px] text-red-700 dark:bg-red-950/30 dark:text-red-400">
-          <span className="font-semibold capitalize">{job.step === 'queued' ? 'unknown' : job.step}:</span>{' '}
+        <p {...sx(ingest.s72e92e25)}>
+          <span {...sx(ingest.sc5c56bbb)}>{job.step === 'queued' ? 'unknown' : job.step}:</span>{' '}
           {job.last_error}
         </p>
       )}
 
       {/* Retry button for dead/failed jobs */}
       {(job.status === 'dead' || job.status === 'failed') && (
-        <div className="mt-3 flex items-center gap-3">
+        <div {...sx(ingest.sb3307e52)}>
           <button
             type="button"
             onClick={handleRetry}
             disabled={retrying}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-[12px] font-medium text-rose-700 transition hover:bg-rose-100 disabled:opacity-50 dark:border-rose-900/40 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/40"
+            {...sx(ingest.s69cd3a8a)}
             aria-busy={retrying}
           >
             {retrying ? 'Retrying…' : 'Retry'}
           </button>
           {retryError && (
-            <span className="text-[11px] text-red-700 dark:text-red-400">{retryError}</span>
+            <span {...sx(ingest.s70ee951d)}>{retryError}</span>
           )}
         </div>
       )}
@@ -1083,18 +1079,18 @@ function JobCard({
           places copied from another user (cross-user share). Triggers a
           full pipeline re-run that wipes the user's per-job places + logs. */}
       {(job.status === 'done' || job.step === 'done') && (
-        <div className="mt-3 flex items-center gap-3">
+        <div {...sx(ingest.sb3307e52)}>
           <button
             type="button"
             onClick={handleReextract}
             disabled={reextracting}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 text-[12px] font-medium text-stone-700 transition hover:bg-stone-100 disabled:opacity-50 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:bg-stone-800"
+            {...sx(ingest.sab856c4d)}
             aria-busy={reextracting}
           >
             {reextracting ? 'Re-extracting…' : 'Re-extract'}
           </button>
           {reextractError && (
-            <span className="text-[11px] text-red-700 dark:text-red-400">{reextractError}</span>
+            <span {...sx(ingest.s70ee951d)}>{reextractError}</span>
           )}
         </div>
       )}
@@ -1128,27 +1124,27 @@ export function Ingest() {
 
 function ClerkNotConfiguredPage() {
   return (
-    <div className="korea mx-auto max-w-2xl px-5 py-16">
+    <div {...sx(ingest.s102510f7)}>
       <h1
-        className="font-serif text-3xl text-stone-900 dark:text-stone-100"
+        {...sx(ingest.s37f7dc96)}
         style={{ fontFamily: "'Cormorant Garamond', serif" }}
       >
         Ingest
       </h1>
-      <div className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-5 text-stone-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-stone-200">
-        <p className="font-semibold text-red-800 dark:text-red-300">
+      <div {...sx(ingest.sb5cebbd6)}>
+        <p {...sx(ingest.sb09a9ba6)}>
           Frontend build is missing Clerk configuration
         </p>
-        <p className="mt-2 text-[13px] leading-relaxed">
-          This build was produced without <code className="font-mono text-[12px]">VITE_CLERK_PUBLISHABLE_KEY</code>,
+        <p {...sx(ingest.s3f2691cc)}>
+          This build was produced without <code {...sx(ingest.sd81d42ba)}>VITE_CLERK_PUBLISHABLE_KEY</code>,
           so the page can&apos;t sign requests against the API. Every poll would 401.
         </p>
-        <p className="mt-3 text-[13px] leading-relaxed">
-          <span className="font-semibold">Fix:</span> set
-          {' '}<code className="font-mono text-[12px]">VITE_CLERK_PUBLISHABLE_KEY=pk_live_…</code>{' '}
+        <p {...sx(ingest.s6876764d)}>
+          <span {...sx(ingest.s62c182b1)}>Fix:</span> set
+          {' '}<code {...sx(ingest.sd81d42ba)}>VITE_CLERK_PUBLISHABLE_KEY=pk_live_…</code>{' '}
           in the build environment (not just the runtime env — Vite bakes
           variables at build time) and rebuild the frontend
-          (<code className="font-mono text-[12px]">cd frontend &amp;&amp; bun run build</code>).
+          (<code {...sx(ingest.sd81d42ba)}>cd frontend &amp;&amp; bun run build</code>).
           Then restart the server.
         </p>
       </div>
@@ -1316,7 +1312,7 @@ function IngestImpl() {
   const agoLabel = lastRefreshed ? timeAgo(lastRefreshed) : null
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16" aria-busy={submitting || isRefreshing || refreshInFlight > 0}>
+    <div {...sx(ingest.sc0a5fd9d)} aria-busy={submitting || isRefreshing || refreshInFlight > 0}>
       {/* Page header — no entry animation: motion-12 + react-19 can stall
           opacity-0 mounts under tab-restore / fast-paint conditions, and a
           blank header with the rest of the page hidden behind it is worse
@@ -1327,28 +1323,28 @@ function IngestImpl() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
       >
-        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
+        <div {...sx(ingest.s9a3eba28)}>
           <div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-stone-500 dark:text-stone-500">
-              <span className="text-rose-600 dark:text-rose-400">IG</span>
-              <span aria-hidden className="mx-2 h-px w-8 inline-block align-middle bg-stone-300 dark:bg-stone-700" />
+            <p {...sx(ingest.s3ac16245)}>
+              <span {...sx(ingest.s8cb1089a)}>IG</span>
+              <span aria-hidden {...sx(ingest.s887d0ab)} />
               Place extractor
             </p>
             <h1
-              className="mt-2 font-serif text-[clamp(1.75rem,4.5vw,2.75rem)] font-medium leading-[1.08] tracking-[-0.02em] text-stone-900 dark:text-stone-100"
+              {...sx(ingest.sc2eed480)}
               style={{ fontFamily: "'Cormorant Garamond', serif" }}
             >
               Ingest
             </h1>
-            <p className="mt-2 max-w-[52ch] text-sm text-stone-600 dark:text-stone-400">
+            <p {...sx(ingest.sc3862c91)}>
               Submit an Instagram post URL and watch the worker extract places in real time.
             </p>
           </div>
-          <div className="flex items-center gap-4">
+          <div {...sx(ingest.s86ff3e6)}>
             <StatsLine stats={stats} />
             <Link
               to="/korea/places"
-              className="text-[12px] text-stone-400 transition hover:text-rose-700 dark:text-stone-500 dark:hover:text-rose-400"
+              {...sx(ingest.sa06248c6)}
             >
               Browse extracted places →
             </Link>
@@ -1356,7 +1352,7 @@ function IngestImpl() {
         </div>
 
         {agoLabel && (
-          <p className="mt-3 font-mono text-[11px] text-stone-400 dark:text-stone-500">
+          <p {...sx(ingest.s91675395)}>
             Refreshed {agoLabel}
           </p>
         )}
@@ -1365,24 +1361,24 @@ function IngestImpl() {
         {apiNotConfigured && (
           <div
             role="alert"
-            className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-800 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300"
+            {...sx(ingest.sca78bd76)}
           >
-            <p className="font-semibold">Server config issue</p>
-            <p className="mt-0.5 leading-relaxed">{apiNotConfigured}</p>
+            <p {...sx(ingest.s62c182b1)}>Server config issue</p>
+            <p {...sx(ingest.s15d69e19)}>{apiNotConfigured}</p>
           </div>
         )}
 
         {/* Fetch-failure reconnecting banner — transient network glitches only */}
         {!apiNotConfigured && fetchFailures >= 3 && (
-          <p role="status" className="mt-2 inline-flex items-center gap-2 rounded-md bg-amber-50 px-3 py-1.5 text-[12px] text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
-            <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+          <p role="status" {...sx(ingest.sf8d576c5)}>
+            <Loader2 {...sx(ingest.s30736863, 'animate-spin')} aria-hidden />
             Reconnecting… polling has failed {fetchFailures} times
           </p>
         )}
       </motion.header>
 
       {/* Hairline */}
-      <div className="mt-8 border-b border-stone-200/80 dark:border-stone-800/80" aria-hidden />
+      <div {...sx(ingest.sa377ca47)} aria-hidden />
 
       {/* Submission form */}
       <motion.section
@@ -1390,16 +1386,16 @@ function IngestImpl() {
         initial={false}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1], delay: reduce ? 0 : 0.05 }}
-        className="mt-8"
+        {...sx(ingest.s334592)}
       >
         <form onSubmit={handleSubmit} noValidate>
           <label
             htmlFor="ig-url"
-            className="block text-[13px] font-medium text-stone-700 dark:text-stone-300"
+            {...sx(ingest.s720eeac6)}
           >
             Instagram URL
           </label>
-          <div className="mt-2 flex gap-3">
+          <div {...sx(ingest.s8b950f29)}>
             <input
               id="ig-url"
               type="url"
@@ -1411,11 +1407,10 @@ function IngestImpl() {
                 setSubmitError(null)
               }}
               placeholder="https://www.instagram.com/reel/…"
-              className={`min-h-[44px] flex-1 rounded-xl border bg-white px-4 py-2 font-mono text-[13px] text-stone-900 placeholder-stone-400 outline-none transition focus-visible:ring-2 dark:bg-stone-900 dark:text-stone-100 dark:placeholder-stone-600 disabled:opacity-60 ${
-                url && !isInstagramUrl(url)
-                  ? 'border-rose-400 focus-visible:border-rose-500 focus-visible:ring-rose-400/30 dark:border-rose-500/70 dark:focus-visible:ring-rose-500/30'
-                  : 'border-stone-300 focus-visible:border-rose-400 focus-visible:ring-rose-400/20 dark:border-stone-700 dark:focus-visible:border-rose-500 dark:focus-visible:ring-rose-500/20'
-              }`}
+              {...sx(
+                ingest.urlInputBase,
+                url && !isInstagramUrl(url) ? ingest.urlInputInvalid : ingest.urlInputValid,
+              )}
               aria-describedby="ig-url-hint"
               aria-invalid={url ? !isInstagramUrl(url) : undefined}
               disabled={submitting}
@@ -1424,11 +1419,11 @@ function IngestImpl() {
               type="submit"
               disabled={!canSubmit}
               aria-busy={submitting}
-              className="inline-flex min-h-[44px] min-w-[88px] items-center justify-center gap-2 rounded-xl bg-rose-500 px-5 py-2 text-[13px] font-medium text-white outline-none transition hover:bg-rose-600 focus-visible:ring-2 focus-visible:ring-rose-500/40 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100 dark:bg-rose-500 dark:hover:bg-rose-400 motion-reduce:active:scale-100"
+              {...sx(ingest.se37e4925)}
             >
               {submitting ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  <Loader2 {...sx(ingest.sd6e31421, 'animate-spin')} aria-hidden />
                   <span>Submitting</span>
                 </>
               ) : (
@@ -1439,36 +1434,36 @@ function IngestImpl() {
 
           <div id="ig-url-hint">
             {submitError ? (
-              <p className="mt-1.5 text-[12px] text-red-600 dark:text-red-400">{submitError}</p>
+              <p {...sx(ingest.sbaf3bbab)}>{submitError}</p>
             ) : (
               <ValidationHint value={url} />
             )}
           </div>
 
-          <label className="mt-3 inline-flex min-h-11 cursor-pointer items-center gap-2 text-[12px] text-stone-600 dark:text-stone-400">
+          <label {...sx(ingest.s5b3b4528)}>
             <input
               type="checkbox"
               checked={skipVideo}
               onChange={(e) => setSkipVideo(e.target.checked)}
-              className="h-4 w-4 shrink-0 rounded border-stone-300 accent-rose-500 focus-visible:ring-2 focus-visible:ring-rose-400/40 dark:border-stone-700"
+              {...sx(ingest.sc985d42d)}
             />
             <span>
               Skip video download
-              <span className="text-stone-400 dark:text-stone-500"> — faster, caption + comments only</span>
+              <span {...sx(ingest.s5e96a87d)}> — faster, caption + comments only</span>
             </span>
           </label>
 
           {/* Submit result notice */}
           {submitNotice && (
-            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            <div {...sx(ingest.sfcabccd8)}>
               {submitNotice.kind === 'text' && (
-                <p className="text-[12px] text-rose-600 dark:text-rose-400">
+                <p {...sx(ingest.sbe9cad21)}>
                   {submitNotice.message}
                 </p>
               )}
               {submitNotice.kind === 'shared' && (
                 <>
-                  <p className="text-[12px] text-emerald-600 dark:text-emerald-400">
+                  <p {...sx(ingest.se4d80143)}>
                     Found shared data from another user — added {submitNotice.count} {submitNotice.count === 1 ? 'place' : 'places'} to your collection.
                   </p>
                   <button
@@ -1478,7 +1473,7 @@ function IngestImpl() {
                       await reextractJob(readToken, submitNotice.jobId)
                       void doFetchJobs()
                     }}
-                    className="inline-flex min-h-[28px] items-center rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] font-medium text-stone-700 transition hover:bg-stone-100 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:bg-stone-800"
+                    {...sx(ingest.s9f3aba83)}
                   >
                     Re-extract anyway
                   </button>
@@ -1486,7 +1481,7 @@ function IngestImpl() {
               )}
               {submitNotice.kind === 'reused-done' && (
                 <>
-                  <p className="text-[12px] text-rose-600 dark:text-rose-400">
+                  <p {...sx(ingest.sbe9cad21)}>
                     Already extracted — showing existing results below.
                   </p>
                   <button
@@ -1496,7 +1491,7 @@ function IngestImpl() {
                       await reextractJob(readToken, submitNotice.jobId)
                       void doFetchJobs()
                     }}
-                    className="inline-flex min-h-[28px] items-center rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-medium text-rose-700 transition hover:bg-rose-100 dark:border-rose-900/40 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/40"
+                    {...sx(ingest.s803c2c94)}
                   >
                     Re-run extraction
                   </button>
@@ -1535,13 +1530,13 @@ function IngestImpl() {
         // briefly flashes the empty-state banner before real data arrives.
         if (!jobsLoaded && jobs.length === 0) {
           return (
-            <section aria-label="Jobs" className="mt-12">
-              <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
+            <section aria-label="Jobs" {...sx(ingest.s6356c07)}>
+              <p {...sx(ingest.s84bb96bf)}>
                 Recent
-                <span aria-hidden className="mx-2 text-stone-300 dark:text-stone-700">·</span>
+                <span aria-hidden {...sx(ingest.s4c78f04e)}>·</span>
                 loading
               </p>
-              <div className="mt-4 space-y-4" aria-busy="true">
+              <div {...sx(ingest.s27bd8e87)} aria-busy="true">
                 {Array.from({ length: 3 }).map((_, i) => <JobCardSkeleton key={i} />)}
               </div>
             </section>
@@ -1550,23 +1545,23 @@ function IngestImpl() {
 
         if (jobs.length === 0) {
           return (
-            <section aria-label="Jobs" className="mt-12">
-              <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
+            <section aria-label="Jobs" {...sx(ingest.s6356c07)}>
+              <p {...sx(ingest.s84bb96bf)}>
                 Recent
-                <span aria-hidden className="mx-2 text-stone-300 dark:text-stone-700">·</span>
+                <span aria-hidden {...sx(ingest.s4c78f04e)}>·</span>
                 auto-refresh
               </p>
-              <div className="mt-4">
+              <div {...sx(ingest.s33458e)}>
                 <motion.div
                   initial={false}
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.4 }}
-                  className="flex min-h-[160px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-stone-200 bg-stone-50/60 px-6 py-10 text-center dark:border-stone-800 dark:bg-stone-900/30"
+                  {...sx(ingest.s71e7957)}
                 >
-                  <p className="text-[14px] text-stone-500 dark:text-stone-400">
+                  <p {...sx(ingest.sa05ecb46)}>
                     No ingested links yet.
                   </p>
-                  <p className="text-[12px] text-stone-400 dark:text-stone-600">
+                  <p {...sx(ingest.sc42b4b05)}>
                     Paste an Instagram reel or post URL above to begin.
                   </p>
                 </motion.div>
@@ -1578,28 +1573,28 @@ function IngestImpl() {
         return (
           <>
             {recentJobs.length > 0 && (
-              <section aria-label="Recent jobs" className="mt-12">
-                <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
+              <section aria-label="Recent jobs" {...sx(ingest.s6356c07)}>
+                <p {...sx(ingest.s84bb96bf)}>
                   Recent
-                  <span aria-hidden className="mx-2 text-stone-300 dark:text-stone-700">·</span>
+                  <span aria-hidden {...sx(ingest.s4c78f04e)}>·</span>
                   auto-refresh
                 </p>
-                <div className="mt-4 space-y-4">
+                <div {...sx(ingest.s27bd8e87)}>
                   {recentJobs.map(makeJobCard)}
                 </div>
               </section>
             )}
 
             {olderJobs.length > 0 && (
-              <section aria-label="Older jobs" className="mt-10">
-                <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-stone-400 dark:text-stone-600">
+              <section aria-label="Older jobs" {...sx(ingest.s6356c05)}>
+                <p {...sx(ingest.s3a8a013f)}>
                   Older
-                  <span aria-hidden className="mx-2 text-stone-300 dark:text-stone-700">·</span>
-                  <span className="normal-case tracking-normal text-stone-400 dark:text-stone-600">
+                  <span aria-hidden {...sx(ingest.s4c78f04e)}>·</span>
+                  <span {...sx(ingest.s6021228b)}>
                     {olderJobs.length} more
                   </span>
                 </p>
-                <div className="mt-4 space-y-4">
+                <div {...sx(ingest.s27bd8e87)}>
                   {olderJobs.map(makeJobCard)}
                 </div>
               </section>

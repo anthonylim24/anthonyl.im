@@ -1,20 +1,17 @@
-// Skeleton placeholders for the Ingest + Places pages. Plain Tailwind
-// `animate-pulse` blocks — no Motion involvement so they can't get stuck
-// in an opacity-0 state under the React 19 / motion stall bug that bit
-// us earlier (see KoreaLayout.tsx, PR #360).
+import { sx } from '@/styles/merge'
+import type { StyleXStyles } from '@stylexjs/stylex'
+import { skeletons } from './skeletons.stylex'
 
 interface SkeletonProps {
-  className?: string
+  style?: StyleXStyles
 }
 
-/** A pulsing neutral block. Inherits sizing from `className`. */
-export function Skeleton({ className = '' }: SkeletonProps) {
+/** A pulsing neutral block. Pass sizing via `style`. */
+export function Skeleton({ style }: SkeletonProps) {
   return (
     <div
       aria-hidden
-      className={
-        'animate-pulse rounded-md bg-stone-200/70 dark:bg-stone-800/60 ' + className
-      }
+      {...sx(skeletons.pulse, 'animate-pulse', style)}
     />
   )
 }
@@ -25,51 +22,49 @@ export function JobCardSkeleton() {
     <div
       role="status"
       aria-label="Loading job…"
-      className="relative rounded-2xl border border-stone-200/80 bg-white p-5 dark:border-stone-800/80 dark:bg-stone-900/60"
+      {...sx(skeletons.s28353d49)}
     >
-      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-        <Skeleton className="h-4 w-3/5" />
-        <Skeleton className="h-5 w-16 rounded-full" />
+      <div {...sx(skeletons.s71b5dc26)}>
+        <Skeleton style={skeletons.s7a633fb2} />
+        <Skeleton style={skeletons.s41332264} />
       </div>
-      {/* Step timeline placeholder — 5 pills */}
-      <div className="mt-4 flex gap-1.5">
+      <div {...sx(skeletons.sbe497a6c)}>
         {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton key={i} className="h-7 w-16 rounded-full" />
+          <Skeleton key={i} style={skeletons.sdc87e5e6} />
         ))}
       </div>
-      <div className="mt-3 flex gap-3">
-        <Skeleton className="h-3 w-32" />
-        <Skeleton className="h-3 w-24" />
-        <Skeleton className="h-3 w-20" />
+      <div {...sx(skeletons.s9346b488)}>
+        <Skeleton style={skeletons.sd8f38447} />
+        <Skeleton style={skeletons.sd8f3842a} />
+        <Skeleton style={skeletons.sd8f38426} />
       </div>
     </div>
   )
 }
 
-/** Mirrors the shape of a PlaceCard while waiting for the extracted-places
- *  fetch on /korea/places. */
+/** Mirrors the shape of a PlaceCard while waiting for the extracted-places fetch. */
 export function PlaceCardSkeleton() {
   return (
     <article
       role="status"
       aria-label="Loading place…"
-      className="relative rounded-2xl border border-stone-200/80 bg-white p-5 dark:border-stone-800/80 dark:bg-stone-900/60"
+      {...sx(skeletons.s28353d49)}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1 space-y-2">
-          <Skeleton className="h-5 w-2/3" />
-          <Skeleton className="h-3 w-1/3" />
+      <div {...sx(skeletons.s584ecc35)}>
+        <div {...sx(skeletons.s5ffb8135)}>
+          <Skeleton style={skeletons.saf497730} />
+          <Skeleton style={skeletons.s457cfced} />
         </div>
-        <Skeleton className="h-5 w-20 rounded-full" />
+        <Skeleton style={skeletons.s4fdbd2eb} />
       </div>
-      <div className="mt-4 space-y-2">
-        <Skeleton className="h-3 w-full" />
-        <Skeleton className="h-3 w-4/5" />
+      <div {...sx(skeletons.s27bd8e85)}>
+        <Skeleton style={skeletons.s6a3bc677} />
+        <Skeleton style={skeletons.s457d0832} />
       </div>
-      <div className="mt-4 flex gap-2">
-        <Skeleton className="h-7 w-24 rounded-full" />
-        <Skeleton className="h-7 w-20 rounded-full" />
-        <Skeleton className="h-7 w-28 rounded-full" />
+      <div {...sx(skeletons.s9af859e6)}>
+        <Skeleton style={skeletons.s72a7bce9} />
+        <Skeleton style={skeletons.seb30966d} />
+        <Skeleton style={skeletons.sfa1ee365} />
       </div>
     </article>
   )

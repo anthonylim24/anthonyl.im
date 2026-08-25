@@ -1,3 +1,5 @@
+import { sx } from '@/styles/merge'
+import { mapModeOverlay } from './MapModeOverlay.stylex'
 import { lazy, Suspense, useEffect, useMemo, useState, useRef, useTransition } from "react"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { motion, AnimatePresence, useReducedMotion } from "motion/react"
@@ -53,9 +55,6 @@ type LoadState =
   | { status: "error"; message: string }
 
 type DeviceCoords = { lat: number; lng: number } | null
-
-const controlBtn =
-  "inline-flex h-11 w-11 items-center justify-center rounded-full border border-[rgba(28,25,23,0.08)] bg-[rgba(255,254,250,0.88)] text-stone-700 shadow-[0_8px_24px_rgba(28,25,23,0.1)] backdrop-blur-xl transition hover:text-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:border-[rgba(255,252,245,0.06)] dark:bg-[rgba(28,25,23,0.78)] dark:text-stone-300 dark:hover:text-rose-200"
 
 const easeOutExpo = [0.16, 1, 0.3, 1] as const
 
@@ -442,7 +441,7 @@ export function MapModeOverlay({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={enter}
-      className="fixed inset-0 z-50 bg-[#F5F2ED] dark:bg-[#171613]"
+      {...sx(mapModeOverlay.s345db97d)}
       role="dialog"
       aria-modal="true"
       aria-label="Map Mode"
@@ -452,25 +451,25 @@ export function MapModeOverlay({
         initial={reduce ? false : { opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={reduce ? { duration: 0.01 } : { duration: 0.28, ease: easeOutExpo, delay: 0.04 }}
-        className="absolute inset-x-0 top-0 z-30 flex items-center gap-2 px-3 sm:gap-3 sm:px-4"
+        {...sx(mapModeOverlay.se24793b7)}
         style={{
           paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)",
         }}
       >
-        <div className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-[rgba(28,25,23,0.08)] bg-[rgba(255,254,250,0.88)] px-1.5 py-1.5 shadow-[0_8px_28px_rgba(28,25,23,0.08)] backdrop-blur-xl dark:border-[rgba(255,252,245,0.06)] dark:bg-[rgba(28,25,23,0.78)]">
+        <div {...sx(mapModeOverlay.sd4c00337)}>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close Map Mode"
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-stone-700 transition hover:bg-stone-100/80 hover:text-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:text-stone-300 dark:hover:bg-stone-800/80 dark:hover:text-rose-200"
+            {...sx(mapModeOverlay.s4ea8f36a)}
           >
-            <X className="h-4 w-4" />
+            <X {...sx(mapModeOverlay.scd3f3ccd)} />
           </button>
-          <div className="min-w-0 flex-1 py-0.5 pr-1">
-            <p className="truncate font-mono text-[10px] uppercase tracking-[0.16em] text-stone-500 dark:text-stone-400">
+          <div {...sx(mapModeOverlay.s2adb611)}>
+            <p {...sx(mapModeOverlay.saf8611dc)}>
               Map{cityLabel ? ` · ${cityLabel}` : ""}
             </p>
-            <p className="truncate text-sm font-medium tracking-tight text-stone-900 dark:text-stone-100">
+            <p {...sx(mapModeOverlay.sbeb68a49)}>
               {dayTitle}
             </p>
           </div>
@@ -481,12 +480,12 @@ export function MapModeOverlay({
             disabled={locating}
             title="Use my location"
             aria-label="Use my location"
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-stone-700 transition hover:bg-stone-100/80 hover:text-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 disabled:opacity-50 dark:text-stone-300 dark:hover:bg-stone-800/80 dark:hover:text-rose-200"
+            {...sx(mapModeOverlay.s3cfc74a5)}
           >
             {locating ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              <Loader2 {...sx(mapModeOverlay.sd6e31421, 'animate-spin')} aria-hidden />
             ) : (
-              <Navigation className="h-4 w-4" aria-hidden />
+              <Navigation {...sx(mapModeOverlay.scd3f3ccd)} aria-hidden />
             )}
           </button>
 
@@ -494,7 +493,7 @@ export function MapModeOverlay({
             <div
               role="group"
               aria-label="View mode"
-              className="mr-0.5 inline-flex h-10 shrink-0 overflow-hidden rounded-full bg-stone-100/90 p-0.5 text-xs font-medium dark:bg-stone-800/90"
+              {...sx(mapModeOverlay.s46cef117)}
             >
               <button
                 type="button"
@@ -502,15 +501,13 @@ export function MapModeOverlay({
                 aria-pressed={viewMode === "orb"}
                 aria-label="3D map view"
                 title="3D map"
-                className={
-                  "inline-flex items-center gap-1 rounded-full px-2.5 transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 " +
-                  (viewMode === "orb"
-                    ? "bg-rose-600 text-white shadow-sm"
-                    : "text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100")
-                }
+                {...sx(
+                  mapModeOverlay.viewModeBtn,
+                  viewMode === "orb" ? mapModeOverlay.viewModeActive : mapModeOverlay.viewModeInactive,
+                )}
               >
-                <Globe2 className="h-3.5 w-3.5" aria-hidden />
-                <span className="hidden sm:inline">Map</span>
+                <Globe2 {...sx(mapModeOverlay.sd2d12d59)} aria-hidden />
+                <span {...sx(mapModeOverlay.sfbd03cc3)}>Map</span>
               </button>
               <button
                 type="button"
@@ -518,33 +515,31 @@ export function MapModeOverlay({
                 aria-pressed={viewMode === "list"}
                 aria-label="List view"
                 title="List"
-                className={
-                  "inline-flex items-center gap-1 rounded-full px-2.5 transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 " +
-                  (viewMode === "list"
-                    ? "bg-rose-600 text-white shadow-sm"
-                    : "text-stone-600 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100")
-                }
+                {...sx(
+                  mapModeOverlay.viewModeBtn,
+                  viewMode === "list" ? mapModeOverlay.viewModeActive : mapModeOverlay.viewModeInactive,
+                )}
               >
-                <ListIcon className="h-3.5 w-3.5" aria-hidden />
-                <span className="hidden sm:inline">List</span>
+                <ListIcon {...sx(mapModeOverlay.sd2d12d59)} aria-hidden />
+                <span {...sx(mapModeOverlay.sfbd03cc3)}>List</span>
               </button>
             </div>
           )}
         </div>
       </motion.header>
 
-      <div className="absolute inset-0 overflow-hidden">
+      <div {...sx(mapModeOverlay.s561318c)}>
         {(state.status === "loading" ||
           (state.status === "success" && !mapReady) ||
           state.status === "idle") && <LoadingPulse reduce={!!reduce} />}
 
         {state.status === "error" && (
-          <div className="absolute inset-0 flex items-center justify-center px-6">
-            <div className="max-w-sm rounded-2xl border border-[rgba(28,25,23,0.08)] bg-[rgba(255,254,250,0.94)] p-5 text-center shadow-[0_16px_40px_rgba(28,25,23,0.12)] backdrop-blur-xl dark:border-[rgba(255,252,245,0.06)] dark:bg-[rgba(28,25,23,0.9)]">
-              <p className="text-sm font-medium text-stone-900 dark:text-stone-100">
+          <div {...sx(mapModeOverlay.sb443287f)}>
+            <div {...sx(mapModeOverlay.s19572226)}>
+              <p {...sx(mapModeOverlay.sec444a31)}>
                 Couldn’t load places
               </p>
-              <p className="mt-1 text-xs leading-relaxed text-stone-500 dark:text-stone-400">
+              <p {...sx(mapModeOverlay.s7aed520f)}>
                 {state.message}
               </p>
               <button
@@ -555,7 +550,7 @@ export function MapModeOverlay({
                   requestDeviceLocation()
                   setReloadNonce((n) => n + 1)
                 }}
-                className="mt-4 inline-flex h-10 items-center justify-center rounded-full bg-rose-600 px-4 text-xs font-semibold text-white transition hover:bg-rose-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60"
+                {...sx(mapModeOverlay.s3482676e)}
               >
                 Retry
               </button>
@@ -567,11 +562,11 @@ export function MapModeOverlay({
           <>
             {webglFailed && viewMode === "orb" && (
               <div
-                className="absolute inset-x-0 z-20 flex justify-center px-3"
+                {...sx(mapModeOverlay.sad3ffd66)}
                 style={{ top: "calc(env(safe-area-inset-top, 0px) + 72px)" }}
                 role="status"
               >
-                <p className="rounded-full border border-[rgba(28,25,23,0.08)] bg-[rgba(255,254,250,0.92)] px-3 py-1.5 text-[11px] font-medium text-stone-600 shadow-sm backdrop-blur dark:border-[rgba(255,252,245,0.06)] dark:bg-[rgba(28,25,23,0.85)] dark:text-stone-300">
+                <p {...sx(mapModeOverlay.sa542e252)}>
                   Map unavailable — showing list
                 </p>
               </div>
@@ -579,7 +574,7 @@ export function MapModeOverlay({
 
             {showOrbs && (
               <>
-                <div ref={sceneContainerRef} className="absolute inset-0">
+                <div ref={sceneContainerRef} {...sx(mapModeOverlay.sac40d5d7)}>
                   <Suspense fallback={<LoadingPulse reduce={!!reduce} />}>
                     <Detailed3DScene
                       places={filteredPlaces}
@@ -605,22 +600,22 @@ export function MapModeOverlay({
                       ? { duration: 0.01 }
                       : { duration: 0.28, ease: easeOutExpo, delay: 0.1 }
                   }
-                  className="absolute right-3 z-20 flex flex-col gap-2"
+                  {...sx(mapModeOverlay.s12455b86)}
                   style={{ top: "calc(env(safe-area-inset-top, 0px) + 78px)" }}
                 >
                   <MapModeCompass
                     yawRef={yawRef}
                     onOrientNorth={orientNorth}
-                    className={controlBtn}
+                    style={mapModeOverlay.controlBtn}
                   />
                   <button
                     type="button"
                     onClick={resetView}
                     title="Reset camera view"
                     aria-label="Reset camera view"
-                    className={controlBtn}
+                    {...sx(mapModeOverlay.controlBtn)}
                   >
-                    <Crosshair className="h-4 w-4" aria-hidden />
+                    <Crosshair {...sx(mapModeOverlay.scd3f3ccd)} aria-hidden />
                   </button>
                   <button
                     type="button"
@@ -628,13 +623,9 @@ export function MapModeOverlay({
                     aria-pressed={birdsEye}
                     title={birdsEye ? "Exit birds-eye view" : "Birds-eye view"}
                     aria-label={birdsEye ? "Exit birds-eye view" : "Birds-eye view"}
-                    className={
-                      birdsEye
-                        ? "inline-flex h-11 w-11 items-center justify-center rounded-full bg-rose-600 text-white shadow-[0_8px_24px_rgba(244,63,94,0.35)] transition hover:bg-rose-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60"
-                        : controlBtn
-                    }
+                    {...sx(birdsEye ? mapModeOverlay.birdsEyeActive : mapModeOverlay.controlBtn)}
                   >
-                    <Eye className="h-4 w-4" aria-hidden />
+                    <Eye {...sx(mapModeOverlay.scd3f3ccd)} aria-hidden />
                   </button>
                 </motion.div>
               </>
@@ -664,13 +655,13 @@ export function MapModeOverlay({
             </AnimatePresence>
 
             {showOrbs && filteredPlaces.length === 0 && (
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                <div className="rounded-2xl border border-[rgba(28,25,23,0.08)] bg-[rgba(255,254,250,0.92)] px-4 py-3 text-center text-sm text-stone-700 shadow-md backdrop-blur dark:border-[rgba(255,252,245,0.06)] dark:bg-[rgba(28,25,23,0.9)] dark:text-stone-300">
+              <div {...sx(mapModeOverlay.sf5aad4e)}>
+                <div {...sx(mapModeOverlay.sa824fab5)}>
                   No places match these filters.
                   <button
                     type="button"
                     onClick={resetCategories}
-                    className="pointer-events-auto ml-2 text-rose-700 underline decoration-rose-500/40 hover:decoration-rose-500 dark:text-rose-300"
+                    {...sx(mapModeOverlay.sda62083a)}
                   >
                     Reset
                   </button>
@@ -680,7 +671,7 @@ export function MapModeOverlay({
 
             {showList && (
               <div
-                className="absolute inset-0 overflow-y-auto"
+                {...sx(mapModeOverlay.s1f14f665)}
                 style={{
                   paddingTop: "calc(env(safe-area-inset-top, 0px) + 128px)",
                   paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)",
@@ -712,10 +703,10 @@ export function MapModeOverlay({
                 reduce ? { duration: 0.01 } : { duration: 0.28, ease: easeOutExpo, delay: 0.14 }
               }
               onClick={requestDeviceLocation}
-              className={
-                "pointer-events-auto absolute left-1/2 z-10 max-w-[min(20rem,70vw)] -translate-x-1/2 border border-[rgba(28,25,23,0.08)] bg-[rgba(255,254,250,0.9)] px-3 py-2 text-left shadow-[0_8px_24px_rgba(28,25,23,0.1)] backdrop-blur-xl transition hover:bg-[rgba(255,254,250,0.98)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:border-[rgba(255,252,245,0.06)] dark:bg-[rgba(28,25,23,0.82)] dark:hover:bg-[rgba(28,25,23,0.92)] " +
-                (userNeighborhood ? "rounded-2xl" : "rounded-full")
-              }
+              {...sx(
+                mapModeOverlay.locPill,
+                userNeighborhood ? mapModeOverlay.locPillCard : mapModeOverlay.locPillRound,
+              )}
               style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 14px)" }}
               aria-label={
                 locating
@@ -725,29 +716,32 @@ export function MapModeOverlay({
                     : "Anchored to day center. Tap to refresh location."
               }
             >
-              <div className="flex items-center gap-2 text-[11px] font-medium text-stone-700 dark:text-stone-200">
+              <div {...sx(mapModeOverlay.sfec139cc)}>
                 {locating ? (
-                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-stone-500" aria-hidden />
+                  <Loader2 {...sx(mapModeOverlay.s69759352, 'animate-spin')} aria-hidden />
                 ) : (
-                  <span className="relative flex h-2 w-2 shrink-0">
+                  <span {...sx(mapModeOverlay.s9d0eb0d6)}>
                     <span
-                      className={
-                        "absolute inline-flex h-full w-full rounded-full opacity-60 " +
-                        (location?.source === "geolocation"
-                          ? "bg-rose-500 " + (reduce ? "" : "animate-ping")
-                          : "bg-amber-500")
-                      }
+                      {...sx(
+                        mapModeOverlay.locPing,
+                        location?.source === "geolocation"
+                          ? mapModeOverlay.locPingRose
+                          : mapModeOverlay.locPingAmber,
+                        location?.source === "geolocation" && !reduce ? 'animate-ping' : undefined,
+                      )}
                     />
                     <span
-                      className={
-                        "relative inline-flex h-2 w-2 rounded-full " +
-                        (location?.source === "geolocation" ? "bg-rose-600" : "bg-amber-500")
-                      }
+                      {...sx(
+                        mapModeOverlay.locDot,
+                        location?.source === "geolocation"
+                          ? mapModeOverlay.locDotRose
+                          : mapModeOverlay.locDotAmber,
+                      )}
                     />
                   </span>
                 )}
-                <MapPin className="hidden h-3 w-3 shrink-0 sm:inline" aria-hidden />
-                <span className="truncate">
+                <MapPin {...sx(mapModeOverlay.se3364330)} aria-hidden />
+                <span {...sx(mapModeOverlay.s6e724d66)}>
                   {locating
                     ? "Finding you…"
                     : location?.source === "geolocation"
@@ -780,15 +774,15 @@ export function MapModeOverlay({
 
 function LoadingPulse({ reduce }: { reduce: boolean }) {
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-[#F5F2ED]/60 dark:bg-[#171613]/60">
+    <div {...sx(mapModeOverlay.s9433f1dd)}>
       <motion.div
         initial={{ opacity: 0, y: 4 }}
         animate={{ opacity: 1, y: 0 }}
         transition={reduce ? { duration: 0.01 } : { duration: 0.28, ease: easeOutExpo }}
-        className="relative flex items-center gap-2 rounded-full border border-[rgba(28,25,23,0.08)] bg-[rgba(255,254,250,0.92)] px-4 py-2.5 text-xs font-medium text-stone-700 shadow-[0_8px_28px_rgba(28,25,23,0.1)] backdrop-blur-xl dark:border-[rgba(255,252,245,0.06)] dark:bg-[rgba(28,25,23,0.88)] dark:text-stone-300"
+        {...sx(mapModeOverlay.s908b93a5)}
         role="status"
       >
-        <Loader2 className="h-3.5 w-3.5 animate-spin text-rose-600" aria-hidden />
+        <Loader2 {...sx(mapModeOverlay.sd8ed5a0d, 'animate-spin')} aria-hidden />
         Loading places…
       </motion.div>
     </div>

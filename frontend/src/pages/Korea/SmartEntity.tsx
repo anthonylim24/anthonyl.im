@@ -1,3 +1,6 @@
+import { sx } from '@/styles/merge'
+import type { StyleXStyles } from '@stylexjs/stylex'
+import { smartEntity } from './SmartEntity.stylex'
 // <SmartEntity> — inline button that opens a dossier-style popover.
 //
 // Wraps a piece of important information (flight number, hotel name,
@@ -31,8 +34,8 @@ interface SmartEntityProps {
   label?: string
   /** Optional inline children — wraps them instead of rendering `name`. */
   children?: React.ReactNode
-  /** Pass-through className applied to the trigger button. */
-  className?: string
+  /** Pass-through style applied to the trigger button. */
+  style?: StyleXStyles
   /** Compact variant: drops the chevron mark for use inside small chips. */
   compact?: boolean
 }
@@ -58,7 +61,7 @@ export function SmartEntity({
   city,
   label,
   children,
-  className,
+  style,
   compact = false,
 }: SmartEntityProps) {
   const reduce = useReducedMotion()
@@ -190,16 +193,13 @@ export function SmartEntity({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? popoverId : undefined}
-        className={
-          "group/entity inline-flex items-baseline gap-0.5 break-words text-left underline decoration-rose-500/40 decoration-1 underline-offset-2 transition-colors hover:decoration-rose-500 hover:text-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/50 dark:hover:text-rose-300 " +
-          (className ?? "")
-        }
+        {...sx(smartEntity.trigger, 'group/entity', style)}
       >
-        <span className="min-w-0">{children ?? label ?? name}</span>
+        <span {...sx(smartEntity.s3f58665f)}>{children ?? label ?? name}</span>
         {!compact && (
           <span
             aria-hidden
-            className="ml-0.5 inline-block translate-y-[1px] text-[0.65em] text-stone-400 transition-colors group-hover/entity:text-rose-500 dark:text-stone-600"
+            {...sx(smartEntity.s9c7aa6f8)}
           >
             ◇
           </span>
@@ -230,33 +230,31 @@ export function SmartEntity({
                   width: POPOVER_WIDTH,
                   zIndex: 9999,
                 }}
-                className="rounded-2xl border border-stone-200 bg-stone-50 p-4 shadow-2xl shadow-stone-900/15 ring-1 ring-stone-200 dark:border-stone-800 dark:bg-stone-950 dark:shadow-black/40 dark:ring-stone-800"
+                {...sx(smartEntity.sffda4ad5)}
               >
                 {/* Caret pointing back at the trigger */}
                 <span
                   aria-hidden
-                  className={
-                    "absolute h-3 w-3 rotate-45 border bg-stone-50 dark:bg-stone-950 " +
-                    (position.placement === "below"
-                      ? "-top-1.5 border-l border-t border-stone-200 dark:border-stone-800"
-                      : "-bottom-1.5 border-b border-r border-stone-200 dark:border-stone-800")
-                  }
+                  {...sx(
+                    smartEntity.caret,
+                    position.placement === 'below' ? smartEntity.caretBelow : smartEntity.caretAbove,
+                  )}
                   style={{ left: position.caretLeft - 6 }}
                 />
 
-                <header className="flex items-baseline justify-between gap-3 border-b border-stone-200/80 pb-2.5 dark:border-stone-800/80">
-                  <div className="min-w-0">
-                    <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
+                <header {...sx(smartEntity.s9bfe6255)}>
+                  <div {...sx(smartEntity.s3f58665f)}>
+                    <p {...sx(smartEntity.sa8fa1afe)}>
                       {type}
                       {city ? (
                         <>
-                          <span aria-hidden className="mx-1.5 text-stone-300 dark:text-stone-700">·</span>
+                          <span aria-hidden {...sx(smartEntity.s34f26488)}>·</span>
                           {city}
                         </>
                       ) : null}
                     </p>
                     <p
-                      className="mt-0.5 break-words font-serif text-lg font-medium leading-tight text-stone-900 dark:text-stone-100"
+                      {...sx(smartEntity.sbd43ef06)}
                       style={{ fontFamily: "'Cormorant Garamond', serif" }}
                     >
                       {name}
@@ -264,40 +262,40 @@ export function SmartEntity({
                   </div>
                 </header>
 
-                <div className="min-h-[44px] pb-1 pt-3">
+                <div {...sx(smartEntity.s52cf604e)}>
                   {description === "loading" ? (
-                    <p className="inline-flex items-center gap-2 text-[13px] italic leading-snug text-stone-500 dark:text-stone-500">
-                      <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                    <p {...sx(smartEntity.sc7fe8e52)}>
+                      <Loader2 {...sx(smartEntity.s30736863, 'animate-spin')} aria-hidden />
                       Looking it up…
                     </p>
                   ) : description ? (
-                    <p className="text-[13px] leading-relaxed text-stone-700 dark:text-stone-300">{description}</p>
+                    <p {...sx(smartEntity.sce355e7e)}>{description}</p>
                   ) : (
-                    <p className="text-[13px] italic leading-relaxed text-stone-500 dark:text-stone-500">
+                    <p {...sx(smartEntity.s8784fe5e)}>
                       No description yet. Try one of the links below.
                     </p>
                   )}
                 </div>
 
-                <ul className="mt-2 flex flex-col gap-px border-t border-stone-200/80 pt-2 dark:border-stone-800/80">
+                <ul {...sx(smartEntity.sf3a68b7c)}>
                   {links.map((l) => (
                     <li key={l.url}>
                       <a
                         href={l.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-[13px] text-stone-700 transition-colors hover:bg-stone-100 hover:text-rose-700 focus-visible:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500/40 dark:text-stone-300 dark:hover:bg-stone-900 dark:hover:text-rose-300"
+                        {...sx(smartEntity.sb40fab85)}
                       >
-                        <span className="inline-flex items-center gap-2">
+                        <span {...sx(smartEntity.s68bbb8b0)}>
                           <span
                             aria-hidden
-                            className="font-mono text-[9px] uppercase tracking-[0.18em] text-stone-400 dark:text-stone-600"
+                            {...sx(smartEntity.s55c044b)}
                           >
                             {kindGlyph(l.kind)}
                           </span>
                           <span>{l.label}</span>
                         </span>
-                        <ExternalLink className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
+                        <ExternalLink {...sx(smartEntity.se51249b)} aria-hidden />
                       </a>
                     </li>
                   ))}

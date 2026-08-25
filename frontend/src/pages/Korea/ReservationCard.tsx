@@ -1,3 +1,5 @@
+import { sx } from '@/styles/merge'
+import { reservationCard } from './ReservationCard.stylex'
 import { motion, useReducedMotion } from "motion/react"
 import { useFineHover } from "@/hooks/useFineHover"
 import { MapPin, Phone, ExternalLink } from "lucide-react"
@@ -59,32 +61,29 @@ export function ReservationCard({ reservation, index = 0, compact = false }: Res
       viewport={{ once: true, margin: "-50px" }}
       transition={{ type: "spring", stiffness: 380, damping: 28, delay: reduce ? 0 : index * 0.04 }}
       whileHover={reduce || !fineHover ? undefined : { y: -2, transition: { type: "spring", stiffness: 500, damping: 30 } }}
-      className={
-        "group relative overflow-hidden rounded-2xl border border-stone-200 bg-white/80 p-4 shadow-sm backdrop-blur transition dark:border-stone-800 dark:bg-stone-900/60 " +
-        (compact ? "sm:p-3" : "")
-      }
+      {...sx(reservationCard.article, compact ? reservationCard.articleCompact : undefined)}
     >
-      <div className="flex items-start gap-3">
+      <div {...sx(reservationCard.se99caeca)}>
         <div
           aria-hidden
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-stone-100 text-xl shadow-inner dark:bg-stone-800"
+          {...sx(reservationCard.s47bb6bc2)}
         >
           {t.icon}
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <h3 className="min-w-0 break-words text-sm font-semibold text-stone-900 dark:text-stone-100">
+        <div {...sx(reservationCard.se30fd43e)}>
+          <div {...sx(reservationCard.s790ac3cd)}>
+            <h3 {...sx(reservationCard.seadad39)}>
               <SmartEntity name={reservation.title} type={reservationEntityType(reservation.type)} />
             </h3>
             <span
               title={STATUS_TIPS[reservation.status]}
-              className={"shrink-0 cursor-help rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider " + s.chip}
+              {...sx(reservationCard.statusChip, s.chip)}
             >
               {s.label}
             </span>
           </div>
           {(reservation.time || reservation.date) && (
-            <p className="mt-1 font-mono text-xs text-stone-500 dark:text-stone-400">
+            <p {...sx(reservationCard.saa27cff6)}>
               {formatDate(reservation.date)}
               {reservation.time ? (
                 <>
@@ -95,7 +94,7 @@ export function ReservationCard({ reservation, index = 0, compact = false }: Res
             </p>
           )}
           {reservation.subtitle && !compact && (
-            <p className="mt-1.5 text-sm text-stone-700 dark:text-stone-300">
+            <p {...sx(reservationCard.s366347f2)}>
               <LinkifiedText>{reservation.subtitle}</LinkifiedText>
             </p>
           )}
@@ -104,16 +103,16 @@ export function ReservationCard({ reservation, index = 0, compact = false }: Res
               with rose hover. Maps and Call/Book read as the same kind
               of affordance because they are. */}
           {!compact && (mapHref || contactHref) && (
-            <div className="mt-2.5 flex flex-wrap gap-1.5">
+            <div {...sx(reservationCard.s6ce983c5)}>
               {mapHref && (
                 <a
                   href={mapHref}
                   target="_blank"
                   rel="noreferrer"
                   title={`Open in Google Maps: ${reservation.address}`}
-                  className="inline-flex items-center gap-1 rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] font-medium text-stone-800 transition hover:border-stone-300 hover:text-rose-700 dark:border-stone-800 dark:bg-stone-900/60 dark:text-stone-200 dark:hover:border-stone-700 dark:hover:text-rose-300"
+                  {...sx(reservationCard.s28fabddc)}
                 >
-                  <MapPin className="h-3 w-3" aria-hidden /> Maps
+                  <MapPin {...sx(reservationCard.scd31254b)} aria-hidden /> Maps
                 </a>
               )}
               {contactHref && (
@@ -122,19 +121,19 @@ export function ReservationCard({ reservation, index = 0, compact = false }: Res
                   target={contactKind === "phone" || contactKind === "email" ? undefined : "_blank"}
                   rel={contactKind === "phone" || contactKind === "email" ? undefined : "noreferrer"}
                   title={reservation.contact}
-                  className="inline-flex items-center gap-1 rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-[11px] font-medium text-stone-800 transition hover:border-stone-300 hover:text-rose-700 dark:border-stone-800 dark:bg-stone-900/60 dark:text-stone-200 dark:hover:border-stone-700 dark:hover:text-rose-300"
+                  {...sx(reservationCard.s28fabddc)}
                 >
                   {contactKind === "phone" ? (
                     <>
-                      <Phone className="h-3 w-3" aria-hidden /> Call
+                      <Phone {...sx(reservationCard.scd31254b)} aria-hidden /> Call
                     </>
                   ) : contactKind === "email" ? (
                     <>
-                      <ExternalLink className="h-3 w-3" aria-hidden /> Email
+                      <ExternalLink {...sx(reservationCard.scd31254b)} aria-hidden /> Email
                     </>
                   ) : (
                     <>
-                      <ExternalLink className="h-3 w-3" aria-hidden /> Book
+                      <ExternalLink {...sx(reservationCard.scd31254b)} aria-hidden /> Book
                     </>
                   )}
                 </a>
@@ -144,19 +143,19 @@ export function ReservationCard({ reservation, index = 0, compact = false }: Res
 
           {/* Sub-details below the chip row */}
           {reservation.address && !compact && (
-            <p className="mt-1.5 text-xs text-stone-500 dark:text-stone-400">
+            <p {...sx(reservationCard.sbdc28cf0)}>
               <span aria-hidden>📍 </span>
               <LinkifiedText>{reservation.address}</LinkifiedText>
             </p>
           )}
           {reservation.contact && !compact && (
-            <p className="mt-0.5 text-xs text-stone-500 dark:text-stone-400">
+            <p {...sx(reservationCard.s44aff51)}>
               <span aria-hidden>{contactKind === "phone" ? "☎️ " : "🔗 "}</span>
               <LinkifiedText>{reservation.contact}</LinkifiedText>
             </p>
           )}
           {reservation.notes && !compact && (
-            <p className="mt-2 rounded-md bg-stone-50 px-2.5 py-1.5 text-xs italic text-stone-600 dark:bg-stone-800/60 dark:text-stone-400">
+            <p {...sx(reservationCard.sf49ca63e)}>
               <LinkifiedText>{reservation.notes}</LinkifiedText>
             </p>
           )}

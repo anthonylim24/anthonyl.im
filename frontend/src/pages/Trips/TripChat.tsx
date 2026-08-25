@@ -15,6 +15,7 @@ import { useTranscriptAnchor } from "@/hooks/useTranscriptAnchor"
 import { useAuthReady, useGetToken } from "@/lib/safeAuth"
 import { ConciergeSources } from "../Korea/ConciergeSources"
 import { ConciergeStreamStatus, ConciergeText } from "../Korea/ConciergeText"
+import { conciergeText } from "../Korea/ConciergeText.stylex"
 import { ConciergeMoveCards } from "./ConciergeMoveCards"
 import { ConciergePhotoViewer } from "./ConciergePhoto"
 import { ConciergePlaceCards } from "./ConciergePlaceCards"
@@ -804,8 +805,8 @@ function AssistantBubble({
           <div>
             <ConciergeText
               text={m.content}
-              bulletClass="bg-[color:var(--ta)]"
-              numberClass="text-[color:var(--ta)]"
+              bulletStyle={conciergeText.markerDotAccent}
+              numberStyle={conciergeText.markerNumAccent}
             />
             {streaming ? <span {...sx('trip-chat-caret')} aria-hidden /> : null}
           </div>

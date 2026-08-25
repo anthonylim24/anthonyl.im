@@ -1,3 +1,7 @@
+import { sx } from '@/styles/merge'
+import type { StyleXStyles } from '@stylexjs/stylex'
+import { placeDetailSheet } from './PlaceDetailSheet.stylex'
+import { markerStyles } from './korea.stylex'
 import { useEffect, useMemo, useRef, useState } from "react"
 import {
   motion,
@@ -222,7 +226,7 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng, initialMode
       dragMomentum={false}
       onDragEnd={onDragEnd}
       onPointerDown={reduce ? undefined : maybeStartDrag}
-      className="absolute inset-x-0 bottom-0 z-30 mx-auto overflow-hidden rounded-t-3xl border-t border-stone-200 bg-white/95 shadow-2xl backdrop-blur-xl dark:border-stone-800 dark:bg-stone-950/95 md:bottom-6 md:w-[min(520px,calc(100vw-3rem))] md:rounded-3xl md:border md:border-stone-200/80 dark:md:border-stone-800/80"
+      {...sx(placeDetailSheet.sc7e2988d)}
     >
       {/* Drag handle — larger touch target than the visible pill, so a
           tap-down anywhere in the top strip can pull the sheet down. */}
@@ -230,9 +234,9 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng, initialMode
         data-sheet-handle
         role="presentation"
         aria-hidden
-        className="mx-auto flex h-7 w-full cursor-grab items-center justify-center pt-2.5 touch-none active:cursor-grabbing"
+        {...sx(placeDetailSheet.s17b2365b)}
       >
-        <div className="h-1.5 w-12 rounded-full bg-stone-300/80 transition-colors group-active:bg-stone-400 dark:bg-stone-700/80" />
+        <div {...sx(placeDetailSheet.sdfadf75b)} />
       </div>
       <AnimatePresence mode="wait" initial={false}>
         {mode === "compact" ? (
@@ -242,7 +246,7 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng, initialMode
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.14 }}
-            className="px-4 pt-1 sm:px-6"
+            {...sx(placeDetailSheet.s2804882a)}
             style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)" }}
           >
             <CompactBody
@@ -262,13 +266,13 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng, initialMode
             exit={{ opacity: 0 }}
             transition={{ duration: 0.14 }}
             ref={scrollRef}
-            className="max-h-[calc(78vh-1.5rem)] overflow-y-auto px-4 pt-3 sm:px-6"
+            {...sx(placeDetailSheet.s6fd3804)}
             style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 24px)" }}
           >
-            <div className="flex items-start gap-3">
+            <div {...sx(placeDetailSheet.se99caeca)}>
               <div
                 aria-hidden
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-2xl shadow-inner"
+                {...sx(placeDetailSheet.s7998c83b)}
                 style={{
                   background: place.color + "33",
                   // Mirror of the CompactBody morph target so the
@@ -279,9 +283,9 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng, initialMode
               >
                 {place.icon}
               </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-baseline gap-x-2">
-                  <h2 className="break-words text-base font-semibold text-stone-900 dark:text-stone-100 sm:text-lg">
+              <div {...sx(placeDetailSheet.se30fd43e)}>
+                <div {...sx(placeDetailSheet.sf5684841)}>
+                  <h2 {...sx(placeDetailSheet.s42c67f3a)}>
                     {place.name}
                   </h2>
                   {place.instagramUrl && (
@@ -290,59 +294,59 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng, initialMode
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-label={`View ${place.name} on Instagram (opens in new tab)`}
-                      className="inline-flex items-center text-stone-400 transition hover:text-rose-600 dark:text-stone-500 dark:hover:text-rose-400"
+                      {...sx(placeDetailSheet.s6556428b)}
                     >
-                      <IgIcon className="h-3.5 w-3.5" aria-hidden />
+                      <IgIcon style={placeDetailSheet.sd2d12d59} aria-hidden />
                     </a>
                   )}
                   <PriorityPill priority={place.priority} />
                 </div>
-                <p className="mt-0.5 break-words text-xs text-stone-500 dark:text-stone-400">
-                  <span className="capitalize">{place.category}</span> · {place.city}
+                <p {...sx(placeDetailSheet.sf516b1b6)}>
+                  <span {...sx(placeDetailSheet.s96c27eec)}>{place.category}</span> · {place.city}
                   {place.distanceLabel ? ` · ${place.distanceLabel}` : ""}
                   {walking ? ` · ${walking}` : ""}
                 </p>
                 {place.subcategory === "instagram" && (
-                  <p className="mt-0.5 text-[11px] font-medium text-rose-600 dark:text-rose-400">
+                  <p {...sx(placeDetailSheet.sf6d08cdc)}>
                     From Instagram{place.instagramShortcode ? ` · @${place.instagramShortcode}` : ""}
                   </p>
                 )}
               </div>
-              <div className="flex shrink-0 items-center gap-1.5">
+              <div {...sx(placeDetailSheet.s7cc08f70)}>
                 <button
                   type="button"
                   onClick={toggleMode}
                   aria-label="Collapse details"
                   title="Collapse details"
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-stone-100 text-stone-700 transition hover:bg-stone-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+                  {...sx(placeDetailSheet.sbdd8e690)}
                 >
-                  <ChevronDown className="h-4 w-4" />
+                  <ChevronDown {...sx(placeDetailSheet.scd3f3ccd)} />
                 </button>
                 <button
                   type="button"
                   onClick={onClose}
                   aria-label="Close details"
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-stone-100 text-stone-700 transition hover:bg-stone-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+                  {...sx(placeDetailSheet.sbdd8e690)}
                 >
-                  <X className="h-4 w-4" />
+                  <X {...sx(placeDetailSheet.scd3f3ccd)} />
                 </button>
               </div>
             </div>
 
             {/* Photo */}
             <div
-              className="relative mt-4 overflow-hidden rounded-2xl bg-stone-200 dark:bg-stone-800"
+              {...sx(placeDetailSheet.s6f6b1c71)}
               style={{ aspectRatio: "3 / 2" }}
             >
               {photoLoading && (
-                <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-stone-200 via-stone-100 to-stone-200 dark:from-stone-800 dark:via-stone-900 dark:to-stone-800" />
+                <div {...sx(placeDetailSheet.sa6125807, 'animate-pulse')} />
               )}
               {photoUrl && !photoFailed && (
                 <img
                   src={photoUrl}
                   alt={place.name}
                   loading="lazy"
-                  className="absolute inset-0 h-full w-full object-cover"
+                  {...sx(placeDetailSheet.s2b57d061)}
                   onLoad={() => setPhotoLoading(false)}
                   onError={() => {
                     setPhotoFailed(true)
@@ -352,7 +356,7 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng, initialMode
               )}
               {photoFailed && (
                 <div
-                  className="absolute inset-0 flex items-center justify-center text-6xl"
+                  {...sx(placeDetailSheet.s4b5594d8)}
                   style={{
                     background: `linear-gradient(135deg, ${place.color}55 0%, ${place.color}22 100%)`,
                   }}
@@ -363,17 +367,17 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng, initialMode
             </div>
 
             {/* Description */}
-            <p className="mt-4 break-words text-sm text-stone-700 dark:text-stone-300">{place.description}</p>
+            <p {...sx(placeDetailSheet.sc58ce75b)}>{place.description}</p>
 
             {/* Busyness badge */}
             {place.busyness && (
-              <div className="mt-3">
+              <div {...sx(placeDetailSheet.s33458d)}>
                 <BusynessBadge busyness={place.busyness} size="md" />
               </div>
             )}
 
             {/* Meta rows */}
-            <div className="mt-4 space-y-2.5">
+            <div {...sx(placeDetailSheet.s2e94070c)}>
               {placeNeighborhood && <Row icon="🧭" label="Neighborhood" value={placeNeighborhood} />}
               {place.address && <Row icon="📍" label="Address" value={place.address} />}
               {place.openingHours && <Row icon="🕒" label="Hours" value={place.openingHours} />}
@@ -382,12 +386,12 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng, initialMode
                   icon="⚠️"
                   label="Notice"
                   value={place.notice}
-                  className="text-amber-800 dark:text-amber-200"
+                  {...sx(placeDetailSheet.sc46c6a3a)}
                 />
               )}
               {walking && (
                 <Row
-                  icon={<Footprints className="h-3.5 w-3.5" aria-hidden />}
+                  icon={<Footprints {...sx(placeDetailSheet.sd2d12d59)} aria-hidden />}
                   label="Walking"
                   value={`${walking}${place.distanceLabel ? ` · ${place.distanceLabel}` : ""}`}
                 />
@@ -397,23 +401,23 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng, initialMode
             </div>
 
             {/* Actions */}
-            <div className="mt-5 flex flex-wrap gap-2">
+            <div {...sx(placeDetailSheet.sd8d795c3)}>
               <a
                 href={directionsUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:bg-rose-500 dark:hover:bg-rose-400"
+                {...sx(placeDetailSheet.s5a7c52d4)}
               >
-                <Navigation className="h-4 w-4" aria-hidden />
+                <Navigation {...sx(placeDetailSheet.scd3f3ccd)} aria-hidden />
                 Directions
               </a>
               <a
                 href={searchUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 bg-stone-50 px-4 py-2 text-sm font-medium text-stone-700 transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
+                {...sx(placeDetailSheet.scadf1a4f)}
               >
-                <ExternalLink className="h-4 w-4" aria-hidden />
+                <ExternalLink {...sx(placeDetailSheet.scd3f3ccd)} aria-hidden />
                 Open in Maps
               </a>
               {place.instagramUrl && (
@@ -422,18 +426,18 @@ export function PlaceDetailSheet({ place, onClose, userLat, userLng, initialMode
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={`View source post on Instagram (opens in new tab)`}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 bg-stone-50 px-4 py-2 text-sm font-medium text-stone-700 transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
+                  {...sx(placeDetailSheet.scadf1a4f)}
                 >
-                  <IgIcon className="h-4 w-4" aria-hidden />
+                  <IgIcon style={placeDetailSheet.scd3f3ccd} aria-hidden />
                   Instagram
                 </a>
               )}
               <button
                 type="button"
                 onClick={onShare}
-                className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 bg-stone-50 px-4 py-2 text-sm font-medium text-stone-700 transition hover:border-rose-300 hover:text-rose-700 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
+                {...sx(placeDetailSheet.scadf1a4f)}
               >
-                <Share2 className="h-4 w-4" aria-hidden />
+                <Share2 {...sx(placeDetailSheet.scd3f3ccd)} aria-hidden />
                 {shared ? "Shared!" : "Share"}
               </button>
             </div>
@@ -461,10 +465,10 @@ function CompactBody({
 }) {
   return (
     <>
-      <div className="flex items-start gap-3">
+      <div {...sx(placeDetailSheet.se99caeca)}>
         <div
           aria-hidden
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-2xl shadow-inner"
+          {...sx(placeDetailSheet.sf67f94db)}
           style={{
             background: place.color + "33",
             // Morph target for the orb → sheet View Transition. When the
@@ -477,9 +481,9 @@ function CompactBody({
         >
           {place.icon}
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-x-2">
-            <h2 className="break-words text-[15px] font-semibold leading-tight text-stone-900 dark:text-stone-100">
+        <div {...sx(placeDetailSheet.se30fd43e)}>
+          <div {...sx(placeDetailSheet.sf5684841)}>
+            <h2 {...sx(placeDetailSheet.s861754e5)}>
               {place.name}
             </h2>
             {place.instagramUrl && (
@@ -488,25 +492,25 @@ function CompactBody({
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label={`View ${place.name} on Instagram (opens in new tab)`}
-                className="inline-flex items-center text-stone-400 transition hover:text-rose-600 dark:text-stone-500 dark:hover:text-rose-400"
+                {...sx(placeDetailSheet.s6556428b)}
               >
-                <IgIcon className="h-3 w-3" aria-hidden />
+                <IgIcon style={placeDetailSheet.scd31254b} aria-hidden />
               </a>
             )}
             <PriorityPill priority={place.priority} />
           </div>
-          <p className="mt-0.5 break-words text-[11px] text-stone-500 dark:text-stone-400">
-            <span className="capitalize">{place.category}</span> · {place.city}
+          <p {...sx(placeDetailSheet.s52e6bc97)}>
+            <span {...sx(placeDetailSheet.s96c27eec)}>{place.category}</span> · {place.city}
             {place.distanceLabel ? ` · ${place.distanceLabel}` : ""}
             {walking ? ` · ${walking}` : ""}
           </p>
           {neighborhood && (
-            <p className="mt-0.5 truncate text-[11px] text-stone-500 dark:text-stone-500">
+            <p {...sx(placeDetailSheet.se30908ef)}>
               {neighborhood}
             </p>
           )}
           {place.busyness && (
-            <div className="mt-1">
+            <div {...sx(placeDetailSheet.s33458b)}>
               <BusynessBadge busyness={place.busyness} size="sm" />
             </div>
           )}
@@ -515,28 +519,28 @@ function CompactBody({
           type="button"
           onClick={onClose}
           aria-label="Close details"
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-stone-100 text-stone-700 transition hover:bg-stone-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:bg-stone-800 dark:text-stone-300 dark:hover:bg-stone-700"
+          {...sx(placeDetailSheet.se647c7d4)}
         >
-          <X className="h-4 w-4" />
+          <X {...sx(placeDetailSheet.scd3f3ccd)} />
         </button>
       </div>
-      <div className="mt-3 flex items-center gap-2">
+      <div {...sx(placeDetailSheet.sb3307e51)}>
         <a
           href={directionsUrl}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1.5 rounded-full bg-rose-600 px-3.5 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:bg-rose-500 dark:hover:bg-rose-400"
+          {...sx(placeDetailSheet.s2350d53)}
         >
-          <Navigation className="h-3.5 w-3.5" aria-hidden />
+          <Navigation {...sx(placeDetailSheet.sd2d12d59)} aria-hidden />
           Directions
         </a>
         <button
           type="button"
           onClick={onExpand}
           aria-label="View full details"
-          className="ml-auto inline-flex items-center gap-1 rounded-full border border-stone-300 bg-stone-50 px-3 py-1.5 text-xs font-medium text-stone-700 transition hover:border-rose-300 hover:text-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500/60 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300 dark:hover:border-rose-700 dark:hover:text-rose-200"
+          {...sx(placeDetailSheet.s5669c35)}
         >
-          <ChevronUp className="h-3.5 w-3.5" aria-hidden />
+          <ChevronUp {...sx(placeDetailSheet.sd2d12d59)} aria-hidden />
           Details
         </button>
       </div>
@@ -548,21 +552,21 @@ function Row({
   icon,
   label,
   value,
-  className,
+  style,
 }: {
   icon: React.ReactNode
   label: string
   value: string
-  className?: string
+  style?: StyleXStyles
 }) {
   return (
-    <div className={"flex items-start gap-2 text-xs " + (className ?? "text-stone-700 dark:text-stone-300")}>
-      <span aria-hidden className="mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center text-sm">
+    <div {...sx(placeDetailSheet.row, style ?? placeDetailSheet.rowDefault)}>
+      <span aria-hidden {...sx(placeDetailSheet.s585436ab)}>
         {icon}
       </span>
-      <div className="min-w-0">
-        <p className="text-[10px] font-medium uppercase tracking-wider text-stone-500 dark:text-stone-500">{label}</p>
-        <p className="break-words">{value}</p>
+      <div {...sx(placeDetailSheet.s3f58665f)}>
+        <p {...sx(placeDetailSheet.s8c250f5)}>{label}</p>
+        <p {...sx(placeDetailSheet.s13588c5b)}>{value}</p>
       </div>
     </div>
   )
@@ -575,28 +579,24 @@ function PriorityPill({ priority }: { priority: RankedPlace["priority"] }) {
   const map = {
     scheduled: {
       label: "Scheduled",
-      dot: "bg-rose-500 dark:bg-rose-400",
-      text: "text-rose-700 dark:text-rose-300",
+      dot: placeDetailSheet.priorityDotScheduled,
+      text: placeDetailSheet.priorityScheduled,
     },
     core: {
       label: "Core",
-      dot: "bg-stone-700 dark:bg-stone-300",
-      text: "text-stone-700 dark:text-stone-300",
+      dot: placeDetailSheet.priorityDotCore,
+      text: placeDetailSheet.priorityCore,
     },
     supplemental: {
       label: "Extra",
-      dot: "bg-stone-400 dark:bg-stone-600",
-      text: "text-stone-500 dark:text-stone-500",
+      dot: placeDetailSheet.priorityDotSupplemental,
+      text: placeDetailSheet.prioritySupplemental,
     },
   }
   const v = map[priority]
   return (
-    <span
-      className={
-        "inline-flex shrink-0 items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] " + v.text
-      }
-    >
-      <span aria-hidden className={"inline-block h-1.5 w-1.5 rounded-full " + v.dot} />
+    <span {...sx(placeDetailSheet.priorityPill, v.text)}>
+      <span aria-hidden {...sx(markerStyles.dot, v.dot)} />
       {v.label}
     </span>
   )

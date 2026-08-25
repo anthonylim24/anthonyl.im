@@ -1,3 +1,6 @@
+import type { StyleXStyles } from '@stylexjs/stylex'
+import { sx } from '@/styles/merge'
+import { koreaDay } from './KoreaDay.stylex'
 import { lazy, Suspense, useEffect, useMemo, useState, useTransition } from "react"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom"
@@ -118,25 +121,25 @@ export function KoreaDay() {
     <article>
       {/* Header — no city-tinted gradient. Plain warm canvas; the city
           shows up as a typographic tag in the eyebrow row. */}
-      <header className="relative border-b border-stone-200/80 dark:border-stone-800/80">
-        <div className="mx-auto max-w-4xl px-4 pb-10 pt-12 sm:px-6 sm:pb-12 sm:pt-16">
+      <header {...sx(koreaDay.sef9a1001)}>
+        <div {...sx(koreaDay.s19815d3c)}>
           {/* Eyebrow */}
           <motion.p
             initial={reduce ? false : { opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-            className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500"
+            {...sx(koreaDay.s313963c7)}
           >
-            <span className="text-stone-700 dark:text-stone-300">{cityTag}</span>
-            <span aria-hidden className="h-px w-8 bg-stone-300 dark:bg-stone-700" />
+            <span {...sx(koreaDay.s3d2b6cbe)}>{cityTag}</span>
+            <span aria-hidden {...sx(koreaDay.sa292799f)} />
             <span>Day {String(day.n).padStart(2, "0")} of 12</span>
-            <span aria-hidden className="text-stone-300 dark:text-stone-700">·</span>
+            <span aria-hidden {...sx(koreaDay.s146516be)}>·</span>
             <span>{formatDate(day.date, { weekday: "long", month: "long", day: "numeric" })}</span>
             {isToday && (
               <>
-                <span aria-hidden className="text-stone-300 dark:text-stone-700">·</span>
-                <span className="inline-flex items-center gap-1.5 text-rose-700 dark:text-rose-300">
-                  <span aria-hidden className="inline-block h-1.5 w-1.5 rounded-full bg-rose-500 dark:bg-rose-400" />
+                <span aria-hidden {...sx(koreaDay.s146516be)}>·</span>
+                <span {...sx(koreaDay.s9dd51fa2)}>
+                  <span aria-hidden {...sx(koreaDay.s421599fa)} />
                   Today
                 </span>
               </>
@@ -146,18 +149,18 @@ export function KoreaDay() {
           {/* Headline: oversized day numeral that strokes in on mount,
               followed by the emoji + Cormorant title. The numeral is the
               one vivid moment in the header — the day announces itself. */}
-          <div className="mt-6 flex items-start gap-5 sm:gap-7">
+          <div {...sx(koreaDay.s461cc624)}>
             <DayNumeralMark n={day.n} reduce={!!reduce} />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-baseline gap-3">
-                <span aria-hidden className="text-4xl leading-none sm:text-5xl">
+            <div {...sx(koreaDay.se30fd43e)}>
+              <div {...sx(koreaDay.sc2828cd5)}>
+                <span aria-hidden {...sx(koreaDay.s96ca9900)}>
                   {day.emoji}
                 </span>
                 <motion.h1
                   initial={reduce ? false : { opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: 0.2 }}
-                  className="min-w-0 break-words font-serif text-[clamp(2.25rem,6vw,4rem)] font-medium leading-[1.02] tracking-[-0.02em] text-stone-900 dark:text-stone-100"
+                  {...sx(koreaDay.s11e145a5)}
                   style={{ fontFamily: "'Cormorant Garamond', serif" }}
                 >
                   {day.title}
@@ -171,7 +174,7 @@ export function KoreaDay() {
             initial={reduce ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5, delay: 0.18 }}
-            className="mt-6 max-w-[60ch] text-base leading-relaxed text-stone-700 dark:text-stone-300"
+            {...sx(koreaDay.sd9e175d3)}
           >
             <LinkifiedText>{day.theme}</LinkifiedText>
           </motion.p>
@@ -181,7 +184,7 @@ export function KoreaDay() {
             initial={reduce ? false : { opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.24 }}
-            className="mt-8 grid grid-cols-1 gap-x-10 gap-y-5 border-t border-stone-200/80 pt-6 sm:grid-cols-2 lg:grid-cols-3 dark:border-stone-800/80"
+            {...sx(koreaDay.s267fb973)}
           >
             <DayMetaRow label="City">
               <SmartEntity name={day.city} type="city" />
@@ -191,17 +194,17 @@ export function KoreaDay() {
             </DayMetaRow>
             {day.weather && (
               <DayMetaRow label="Weather">
-                <span className="font-mono tabular-nums">
+                <span {...sx(koreaDay.saa60077c)}>
                   {day.weather.highC}° / {day.weather.lowC}°
                 </span>
-                <span className="ml-1.5 text-stone-500 dark:text-stone-500">· {day.weather.condition}</span>
+                <span {...sx(koreaDay.sb3ee4514)}>· {day.weather.condition}</span>
               </DayMetaRow>
             )}
             {day.neighborhoods.length > 0 && (
               <DayMetaRow label="Neighborhoods" wide>
                 {day.neighborhoods.map((n, i) => (
                   <span key={n}>
-                    {i > 0 && <span aria-hidden className="mx-1.5 text-stone-400 dark:text-stone-600">·</span>}
+                    {i > 0 && <span aria-hidden {...sx(koreaDay.s7f23fa08)}>·</span>}
                     <SmartEntity name={n} type="neighborhood" city={day.city} />
                   </span>
                 ))}
@@ -214,12 +217,12 @@ export function KoreaDay() {
             initial={reduce ? false : { opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45, delay: 0.32 }}
-            className="mt-8"
+            {...sx(koreaDay.s334592)}
           >
             <button
               type="button"
               onClick={() => setMapModeOpen(true)}
-              className="group relative inline-flex items-center gap-2 overflow-visible rounded-full bg-stone-900 px-5 py-2.5 text-sm font-medium text-stone-50 transition hover:bg-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-rose-200"
+              {...sx(koreaDay.s45e81fd2, 'group')}
             >
               {/* Ink-stamp halo: a rose ring scales out from the button on
                   hover, like a wax seal being pressed. Hidden on touch
@@ -227,9 +230,9 @@ export function KoreaDay() {
                   via the no-op end state. */}
               <span
                 aria-hidden
-                className="pointer-events-none absolute inset-0 rounded-full border-2 border-rose-500/70 opacity-0 scale-100 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:opacity-100 group-hover:scale-[1.18] motion-reduce:hidden"
+                {...sx(koreaDay.s6011f953)}
               />
-              <Globe2 className="h-4 w-4 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:rotate-[14deg]" aria-hidden />
+              <Globe2 {...sx(koreaDay.sf7988188)} aria-hidden />
               Enter Map Mode
             </button>
           </motion.div>
@@ -252,7 +255,7 @@ export function KoreaDay() {
         )}
       </AnimatePresence>
 
-      <div className="mx-auto max-w-4xl px-4 pt-12 sm:px-6 sm:pt-16">
+      <div {...sx(koreaDay.s968fb47e)}>
         {reservations.length > 0 && (
           <DaySection number="01" eyebrow="Booked moments" title="Reservations" id="reservations">
             <TimelineRail dayProgress={dayProgress}>
@@ -267,7 +270,7 @@ export function KoreaDay() {
 
         {igSaves.length > 0 && (
           <DaySection number={reservations.length > 0 ? "02" : "01"} eyebrow="From your Instagram saves" title="Instagram Saves" id="ig-saves">
-            <div className="mt-6 space-y-3">
+            <div {...sx(koreaDay.s5186f408)}>
               {igSaves.map((save) => (
                 <IgSaveCard
                   key={save.id}
@@ -285,13 +288,13 @@ export function KoreaDay() {
         {day.sections.length > 3 && (
           <nav
             aria-label="Day section jump"
-            className="mt-10 -mx-1 flex gap-1.5 overflow-x-auto touch-pan-x px-1 pb-1 text-xs [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            {...sx(koreaDay.s76d0f672)}
           >
             {day.sections.map((sec) => (
               <a
                 key={sec.heading}
                 href={`#${slugify(sec.heading)}`}
-                className="shrink-0 rounded-full border border-stone-200 bg-stone-50 px-3 py-1 font-medium text-stone-600 transition-colors duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:border-stone-300 hover:text-stone-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 dark:border-stone-800 dark:bg-stone-900/40 dark:text-stone-400 dark:hover:border-stone-700 dark:hover:text-stone-100"
+                {...sx(koreaDay.s34740812)}
               >
                 {sec.heading}
               </a>
@@ -300,7 +303,7 @@ export function KoreaDay() {
         )}
 
         {day.callouts && day.callouts.length > 0 && (
-          <div className="mt-10 space-y-3">
+          <div {...sx(koreaDay.s3c174c3d)}>
             {day.callouts.map((c, i) => (
               <motion.div
                 key={i}
@@ -308,12 +311,12 @@ export function KoreaDay() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.35, delay: reduce ? 0 : i * 0.05 }}
-                className={"flex items-start gap-3 rounded-2xl border p-4 text-sm text-stone-800 dark:text-stone-200 " + calloutTone(c.tone)}
+                {...sx(koreaDay.calloutBase, calloutTone(c.tone))}
               >
-                <span aria-hidden className="text-lg leading-none">
+                <span aria-hidden {...sx(koreaDay.s8b2f6784)}>
                   {c.icon}
                 </span>
-                <p className="min-w-0 flex-1 break-words">
+                <p {...sx(koreaDay.s133a9f79)}>
                   <LinkifiedText>{c.body}</LinkifiedText>
                 </p>
               </motion.div>
@@ -324,34 +327,34 @@ export function KoreaDay() {
         {/* Sections — hairline-separated editorial ledger. No card
             wrapper, no backdrop-blur, no rose hover flood. Each section
             scroll-reveals individually as it crosses the viewport. */}
-        <div className="mt-10 divide-y divide-stone-200/80 dark:divide-stone-800/80">
+        <div {...sx(koreaDay.sc1732136, 'korea-hairline-stack')}>
           {day.sections.map((sec) => (
             <DaySectionItem
               key={sec.heading}
               id={slugify(sec.heading)}
-              className="scroll-mt-20 py-8 sm:py-10"
+              style={koreaDay.scf683a73}
             >
-              <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+              <div {...sx(koreaDay.sc4049d36)}>
                 <h3
-                  className="font-serif text-xl font-medium tracking-[-0.01em] text-stone-900 sm:text-2xl dark:text-stone-100"
+                  {...sx(koreaDay.s7624a73c)}
                   style={{ fontFamily: "'Cormorant Garamond', serif" }}
                 >
                   {sec.heading}
                 </h3>
                 {sec.time && (
-                  <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.18em] text-stone-500 dark:text-stone-500">
+                  <span {...sx(koreaDay.s9ef46f9a)}>
                     {sec.time}
                   </span>
                 )}
               </div>
-              <ul className="mt-4 space-y-2.5 text-[15px] leading-relaxed text-stone-700 dark:text-stone-300">
+              <ul {...sx(koreaDay.s7561d894)}>
                 {sec.bullets.map((b, j) => (
-                  <li key={j} className="flex gap-3 break-words">
+                  <li key={j} {...sx(koreaDay.sc5036cd0)}>
                     <span
                       aria-hidden
-                      className="mt-2.5 inline-block h-1 w-1 shrink-0 rounded-full bg-stone-400 dark:bg-stone-600"
+                      {...sx(koreaDay.sbad4db5e)}
                     />
-                    <span className="min-w-0 flex-1 break-words">
+                    <span {...sx(koreaDay.s133a9f79)}>
                       <LinkifiedText>{b}</LinkifiedText>
                     </span>
                   </li>
@@ -362,21 +365,21 @@ export function KoreaDay() {
         </div>
 
         {/* Prev / Next nav — hairline rows, not cards. */}
-        <nav className="mt-12 grid grid-cols-1 gap-2 border-t border-stone-200/80 pt-6 sm:grid-cols-2 sm:gap-6 dark:border-stone-800/80">
+        <nav {...sx(koreaDay.sdf023620)}>
           {prev ? (
             <Link
               to={`/korea/day/${prev.slug}`}
-              className="group -mx-2 flex items-center justify-between gap-4 rounded-2xl px-2 py-3 transition-colors hover:bg-stone-100/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 dark:hover:bg-stone-900/40"
+              {...sx(koreaDay.sdf9073d0, 'group')}
             >
               <ArrowUpRight
                 aria-hidden
-                className="h-4 w-4 shrink-0 -scale-x-100 text-stone-400 transition group-hover:-translate-x-0.5 group-hover:text-rose-600 dark:group-hover:text-rose-400"
+                {...sx(koreaDay.s771fcc4e)}
               />
-              <div className="min-w-0 flex-1">
-                <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
+              <div {...sx(koreaDay.se30fd43e)}>
+                <p {...sx(koreaDay.sa8fa1afe)}>
                   Previous · Day {prev.n}
                 </p>
-                <p className="mt-1 truncate font-serif text-base font-medium text-stone-900 dark:text-stone-100"
+                <p {...sx(koreaDay.sccefa16)}
                   style={{ fontFamily: "'Cormorant Garamond', serif" }}
                 >
                   {prev.title}
@@ -389,14 +392,14 @@ export function KoreaDay() {
           {next ? (
             <Link
               to={`/korea/day/${next.slug}`}
-              className="group -mx-2 flex items-center justify-between gap-4 rounded-2xl px-2 py-3 text-right transition-colors hover:bg-stone-100/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 sm:justify-end dark:hover:bg-stone-900/40"
+              {...sx(koreaDay.sf471ffe4, 'group')}
             >
-              <div className="min-w-0 flex-1">
-                <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
+              <div {...sx(koreaDay.se30fd43e)}>
+                <p {...sx(koreaDay.sa8fa1afe)}>
                   Next · Day {next.n}
                 </p>
                 <p
-                  className="mt-1 truncate font-serif text-base font-medium text-stone-900 dark:text-stone-100"
+                  {...sx(koreaDay.sccefa16)}
                   style={{ fontFamily: "'Cormorant Garamond', serif" }}
                 >
                   {next.title}
@@ -404,7 +407,7 @@ export function KoreaDay() {
               </div>
               <ArrowUpRight
                 aria-hidden
-                className="h-4 w-4 shrink-0 text-stone-400 transition group-hover:translate-x-0.5 group-hover:text-rose-600 dark:group-hover:text-rose-400"
+                {...sx(koreaDay.s7017711b)}
               />
             </Link>
           ) : (
@@ -435,15 +438,15 @@ function DaySection({
   children: React.ReactNode
 }) {
   return (
-    <section id={id} className="mt-2 scroll-mt-20">
-      <header className="border-b border-stone-200/80 pb-4 dark:border-stone-800/80">
-        <p className="flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.28em] text-stone-500 dark:text-stone-500">
-          <span className="tabular-nums text-rose-600 dark:text-rose-400">{number}</span>
-          <span aria-hidden className="h-px w-8 bg-stone-300 dark:bg-stone-700" />
+    <section id={id} {...sx(koreaDay.sda6e4738)}>
+      <header {...sx(koreaDay.sfd00d69a)}>
+        <p {...sx(koreaDay.s6ebd97a0)}>
+          <span {...sx(koreaDay.s1ed0b4fd)}>{number}</span>
+          <span aria-hidden {...sx(koreaDay.sa292799f)} />
           <span>{eyebrow}</span>
         </p>
         <h2
-          className="mt-2.5 font-serif text-2xl font-medium leading-tight tracking-[-0.01em] text-stone-900 sm:text-3xl dark:text-stone-100"
+          {...sx(koreaDay.s3fbe0b7b)}
           style={{ fontFamily: "'Cormorant Garamond', serif" }}
         >
           {title}
@@ -464,20 +467,20 @@ function DayMetaRow({
   wide?: boolean
 }) {
   return (
-    <div className={"min-w-0 " + (wide ? "sm:col-span-2 lg:col-span-3" : "")}>
-      <dt className="font-mono text-[10px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
+    <div {...sx(koreaDay.metaRow, wide && koreaDay.metaRowWide)}>
+      <dt {...sx(koreaDay.sa8fa1afe)}>
         {label}
       </dt>
-      <dd className="mt-1.5 break-words text-sm leading-snug text-stone-800 dark:text-stone-200">{children}</dd>
+      <dd {...sx(koreaDay.s7c716ed1)}>{children}</dd>
     </div>
   )
 }
 
 function IgSaveCard({ save, onOpenInMap }: { save: IgSave; onOpenInMap: () => void }) {
-  const BAND_STYLES: Record<IgSave["confidence_band"], string> = {
-    high: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400",
-    medium: "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400",
-    low: "bg-stone-100 text-stone-500 dark:bg-stone-800 dark:text-stone-400",
+  const BAND_STYLES: Record<IgSave["confidence_band"], (typeof koreaDay)[keyof typeof koreaDay]> = {
+    high: koreaDay.bandHigh,
+    medium: koreaDay.bandMedium,
+    low: koreaDay.bandLow,
   }
   // Geocoded saves can be focused in Map Mode. Saves without coords
   // don't have a 3D bubble to fly to, so we render them as a static
@@ -485,10 +488,10 @@ function IgSaveCard({ save, onOpenInMap }: { save: IgSave; onOpenInMap: () => vo
   const hasCoords = save.lat != null && save.lng != null
 
   const inner = (
-    <div className="min-w-0 flex-1 text-left">
-      <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1">
+    <div {...sx(koreaDay.s584bf345)}>
+      <div {...sx(koreaDay.s66c6574d)}>
         <h3
-          className="break-words text-[15px] font-medium leading-snug text-stone-900 dark:text-stone-100"
+          {...sx(koreaDay.s1e854b4e)}
           style={{ fontFamily: "'Cormorant Garamond', serif" }}
         >
           {save.name}
@@ -499,42 +502,42 @@ function IgSaveCard({ save, onOpenInMap }: { save: IgSave; onOpenInMap: () => vo
           rel="noopener noreferrer"
           aria-label={`View ${save.name} on Instagram (opens in new tab)`}
           onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center rounded-full p-1 text-stone-400 transition-colors duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:text-rose-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 dark:text-stone-500 dark:hover:text-rose-400"
+          {...sx(koreaDay.se59d4259)}
         >
-          <IgIcon className="h-3.5 w-3.5" aria-hidden />
+          <IgIcon style={koreaDay.sd2d12d59} aria-hidden />
         </a>
         {hasCoords && (
           <span
             aria-hidden
             title="Opens in Map Mode"
-            className="ml-auto inline-flex items-center text-stone-400 transition group-hover:translate-x-0.5 group-hover:text-rose-600 dark:text-stone-500 dark:group-hover:text-rose-400"
+            {...sx(koreaDay.sb6ea70b1)}
           >
-            <Globe2 className="h-3.5 w-3.5" />
+            <Globe2 {...sx(koreaDay.sd2d12d59)} />
           </span>
         )}
       </div>
       {save.name_romanized && save.name_romanized !== save.name && (
-        <p className="mt-0.5 text-[12px] text-stone-500 dark:text-stone-400">{save.name_romanized}</p>
+        <p {...sx(koreaDay.sb6b5bbf3)}>{save.name_romanized}</p>
       )}
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-        <span className="inline-flex items-center rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-stone-600 dark:bg-stone-800 dark:text-stone-400">
+      <div {...sx(koreaDay.s80ebf8de)}>
+        <span {...sx(koreaDay.s943c8b76)}>
           {save.category}
         </span>
-        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${BAND_STYLES[save.confidence_band]}`}>
+        <span {...sx(koreaDay.confidenceBand, BAND_STYLES[save.confidence_band])}>
           {save.confidence_band} confidence
         </span>
         {save.ownerUsername && (
-          <span className="text-[11px] text-stone-400 dark:text-stone-500">@{save.ownerUsername}</span>
+          <span {...sx(koreaDay.sfb2a5003)}>@{save.ownerUsername}</span>
         )}
       </div>
       {save.address && (
-        <p className="mt-2 flex items-start gap-1.5 text-[12px] text-stone-600 dark:text-stone-400">
-          <MapPin className="mt-0.5 h-3 w-3 shrink-0 text-stone-400" aria-hidden />
-          <span className="break-words">{save.address}</span>
+        <p {...sx(koreaDay.sd5267d22)}>
+          <MapPin {...sx(koreaDay.s87eb3d3c)} aria-hidden />
+          <span {...sx(koreaDay.s13588c5b)}>{save.address}</span>
         </p>
       )}
       {save.captionSnippet && (
-        <p className="mt-2 line-clamp-2 text-[12px] italic leading-relaxed text-stone-500 dark:text-stone-400">
+        <p {...sx(koreaDay.sbefbaf79)}>
           "{save.captionSnippet}"
         </p>
       )}
@@ -544,7 +547,7 @@ function IgSaveCard({ save, onOpenInMap }: { save: IgSave; onOpenInMap: () => vo
   if (!hasCoords) {
     return (
       <article
-        className="flex flex-wrap items-start gap-3 rounded-2xl border border-stone-200/80 bg-white/80 p-4 dark:border-stone-800/80 dark:bg-stone-900/60"
+        {...sx(koreaDay.s811e8d01)}
         aria-label={`Instagram save: ${save.name}`}
       >
         {inner}
@@ -566,7 +569,7 @@ function IgSaveCard({ save, onOpenInMap }: { save: IgSave; onOpenInMap: () => vo
         }
       }}
       aria-label={`Open ${save.name} in Map Mode`}
-      className="group flex w-full flex-wrap items-start gap-3 rounded-2xl border border-stone-200/80 bg-white/80 p-4 text-left transition hover:border-rose-300 hover:bg-rose-50/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 dark:border-stone-800/80 dark:bg-stone-900/60 dark:hover:border-rose-800 dark:hover:bg-rose-950/20"
+      {...sx(koreaDay.s34c7637e, 'group')}
     >
       {inner}
     </div>
@@ -575,11 +578,11 @@ function IgSaveCard({ save, onOpenInMap }: { save: IgSave; onOpenInMap: () => vo
 
 function DaySkeleton() {
   return (
-    <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6">
-      <div className="h-10 w-2/3 animate-pulse rounded-lg bg-stone-200 dark:bg-stone-800" />
-      <div className="mt-12 space-y-6">
+    <div {...sx(koreaDay.s21863def)}>
+      <div {...sx(koreaDay.s66206804, 'animate-pulse')} />
+      <div {...sx(koreaDay.s65e0b1c2)}>
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-32 animate-pulse rounded-2xl bg-stone-200/60 dark:bg-stone-800/60" />
+          <div key={i} {...sx(koreaDay.s7125465f, 'animate-pulse')} />
         ))}
       </div>
     </div>
@@ -588,12 +591,12 @@ function DaySkeleton() {
 
 function DayError({ message }: { message: string }) {
   return (
-    <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6">
-      <h1 className="font-serif text-2xl text-stone-900 dark:text-stone-100">Day not found</h1>
-      <p className="mt-2 text-sm text-stone-600 dark:text-stone-400">{message}</p>
+    <div {...sx(koreaDay.s21863def)}>
+      <h1 {...sx(koreaDay.sd6a53ff7)}>Day not found</h1>
+      <p {...sx(koreaDay.sf4376938)}>{message}</p>
       <Link
         to="/korea"
-        className="mt-4 inline-flex min-h-[44px] items-center rounded-full bg-stone-900 px-5 py-2 text-sm font-medium text-white transition-colors duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:bg-stone-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 dark:bg-stone-100 dark:text-stone-900 dark:hover:bg-stone-200"
+        {...sx(koreaDay.s70fee869)}
       >
         Back to overview
       </Link>
@@ -617,11 +620,11 @@ function TimelineRail({
   dayProgress: number | null
 }) {
   return (
-    <div className="relative mt-6">
+    <div {...sx(koreaDay.s7a8b1a64)}>
       {/* Static rail */}
       <div
         aria-hidden
-        className="pointer-events-none absolute bottom-0 left-[7px] top-0 w-px bg-stone-200/90 dark:bg-stone-800/90 sm:left-[11px]"
+        {...sx(koreaDay.s334c2470)}
       />
       {/* Progress line — only when day === today. Soft rose-to-amber. */}
       {dayProgress !== null && (
@@ -630,7 +633,7 @@ function TimelineRail({
           initial={{ scaleY: 0 }}
           animate={{ scaleY: dayProgress }}
           transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1], delay: 0.4 }}
-          className="pointer-events-none absolute left-[7px] top-0 w-px origin-top bg-gradient-to-b from-rose-500 via-rose-400 to-amber-400 motion-reduce:transition-none motion-reduce:duration-0 sm:left-[11px]"
+          {...sx(koreaDay.s25b57421)}
           style={{ height: "100%" }}
         />
       )}
@@ -641,19 +644,19 @@ function TimelineRail({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.4, delay: 1.4 }}
-          className="pointer-events-none absolute left-0 z-10 flex items-center motion-reduce:transition-none sm:left-1"
+          {...sx(koreaDay.s49b257ea)}
           style={{ top: `calc(${(dayProgress * 100).toFixed(2)}% - 6px)` }}
         >
-          <span className="relative inline-block h-3 w-3 rounded-full bg-rose-500 shadow-[0_0_0_3px_rgba(244,63,94,0.18)] dark:bg-rose-400 dark:shadow-[0_0_0_3px_rgba(251,113,133,0.22)]">
-            <span className="absolute inset-0 animate-ping rounded-full bg-rose-500/50 motion-reduce:hidden dark:bg-rose-400/50" />
+          <span {...sx(koreaDay.s2f0c41bb)}>
+            <span {...sx(koreaDay.sc5d6e7b4, 'animate-ping')} />
           </span>
-          <span className="ml-2 hidden font-mono text-[10px] uppercase tracking-[0.18em] text-rose-700 dark:text-rose-300 sm:inline">
+          <span {...sx(koreaDay.s82c8ce12)}>
             now
           </span>
         </motion.div>
       )}
 
-      <ol className="relative space-y-4 pl-7 sm:pl-10">{children}</ol>
+      <ol {...sx(koreaDay.sd790620f)}>{children}</ol>
     </div>
   )
 }
@@ -675,32 +678,30 @@ function TimelineItem({
 }) {
   const reveal = useScrollReveal<HTMLLIElement>()
   return (
-    <li ref={reveal} className={"relative " + REVEAL_CLASSES}>
+    <li ref={reveal} {...sx(koreaDay.timelineReveal, REVEAL_CLASSES)}>
       <span
         aria-hidden
-        className={
-          "absolute left-[3px] top-5 z-[1] inline-block h-2.5 w-2.5 rounded-full ring-2 sm:left-[7px] " +
-          (isActive
-            ? "bg-rose-500 ring-rose-200 dark:bg-rose-400 dark:ring-rose-900"
-            : "bg-stone-300 ring-stone-100 dark:bg-stone-600 dark:ring-stone-900")
-        }
+        {...sx(
+          koreaDay.timelineDot,
+          isActive ? koreaDay.timelineDotActive : koreaDay.timelineDotInactive,
+        )}
       />
       {isActive && (
         <span
           aria-hidden
-          className="pointer-events-none absolute -left-1 top-3 h-7 w-7 animate-[timeline-breath_3s_ease-in-out_infinite] rounded-full bg-amber-400/30 blur-md motion-reduce:hidden sm:left-[1px]"
+          {...sx(koreaDay.s92b3001d, 'animate-[timeline-breath_3s_ease-in-out_infinite]')}
         />
       )}
       {time && (
-        <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.18em] text-stone-500 dark:text-stone-500">
+        <p {...sx(koreaDay.s81fa8d2d)}>
           {time}
         </p>
       )}
-      <div className={isActive ? "relative" : undefined}>
+      <div {...sx(isActive && koreaDay.timelineActiveWrap)}>
         {isActive && (
           <span
             aria-hidden
-            className="pointer-events-none absolute -inset-px rounded-2xl ring-1 ring-amber-400/45 animate-[timeline-rim_3s_ease-in-out_infinite] motion-reduce:animate-none dark:ring-amber-300/45"
+            {...sx(koreaDay.s70432184, 'animate-[timeline-rim_3s_ease-in-out_infinite]')}
           />
         )}
         {children}
@@ -716,16 +717,16 @@ function TimelineItem({
  */
 function DaySectionItem({
   id,
-  className,
+  style,
   children,
 }: {
   id?: string
-  className?: string
+  style?: StyleXStyles
   children: React.ReactNode
 }) {
   const reveal = useScrollReveal<HTMLElement>()
   return (
-    <section ref={reveal} id={id} className={REVEAL_CLASSES + " " + (className ?? "")}>
+    <section ref={reveal} id={id} {...sx(REVEAL_CLASSES, style)}>
       {children}
     </section>
   )
@@ -743,12 +744,12 @@ function DayNumeralMark({ n, reduce }: { n: number; reduce: boolean }) {
   return (
     <div
       aria-hidden
-      className="relative shrink-0 select-none"
+      {...sx(koreaDay.s86a2dd89)}
       style={{ width: `clamp(2.5rem, ${widthCh * 12}vw, ${widthCh * 5}rem)` }}
     >
       <svg
         viewBox="0 0 100 100"
-        className="block h-auto w-full text-rose-600 dark:text-rose-400"
+        {...sx(koreaDay.sd2ef6efc)}
         preserveAspectRatio="xMidYMid meet"
       >
         <text

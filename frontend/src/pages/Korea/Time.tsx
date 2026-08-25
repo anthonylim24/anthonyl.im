@@ -1,11 +1,11 @@
+import { sx } from '@/styles/merge'
+import type { StyleXStyles } from '@stylexjs/stylex'
+import { time } from './Time.stylex'
 import { useState, useRef, useEffect } from "react"
 
 interface TimeProps {
-  // 24-hour time string like "06:33" or "18:00".
   value: string
-  // Optional className applied to the inline wrapper.
-  className?: string
-  // Optional prefix that renders before the time (e.g. "leaves at ").
+  style?: StyleXStyles
   prefix?: string
 }
 
@@ -22,10 +22,7 @@ function to12Hour(value: string): { hour: number; minute: number; suffix: "AM" |
   return { hour, minute, suffix, formatted }
 }
 
-// Renders a 24-hour time value with a hoverable / tappable AM/PM tooltip.
-// On desktop, hover or focus reveals the 12-hour version above the time.
-// On touch, a tap reveals it for ~2 seconds.
-export function Time({ value, className, prefix }: TimeProps) {
+export function Time({ value, style, prefix }: TimeProps) {
   const twelve = to12Hour(value)
   const [open, setOpen] = useState(false)
   const closeTimer = useRef<number | null>(null)
@@ -50,7 +47,7 @@ export function Time({ value, className, prefix }: TimeProps) {
 
   if (!twelve) {
     return (
-      <span className={className}>
+      <span {...sx(style)}>
         {prefix}
         {value}
       </span>
@@ -59,10 +56,7 @@ export function Time({ value, className, prefix }: TimeProps) {
 
   return (
     <span
-      className={
-        "relative inline-block cursor-help underline decoration-stone-400/40 decoration-dotted underline-offset-2 transition hover:decoration-rose-500/70 " +
-        (className ?? "")
-      }
+      {...sx(time.wrapper, style)}
       onMouseEnter={() => show(false)}
       onMouseLeave={hide}
       onFocus={() => show(false)}
@@ -73,13 +67,10 @@ export function Time({ value, className, prefix }: TimeProps) {
       aria-label={`${value} (${twelve.formatted})`}
     >
       {prefix}
-      <span className="tabular-nums">{value}</span>
+      <span {...sx(time.sd1fc735d)}>{value}</span>
       <span
         role="tooltip"
-        className={
-          "pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 -translate-x-1/2 whitespace-nowrap rounded-md bg-stone-900 px-2 py-0.5 text-[10px] font-medium text-white shadow-lg transition-opacity duration-150 dark:bg-stone-100 dark:text-stone-900 " +
-          (open ? "opacity-100" : "opacity-0")
-        }
+        {...sx(time.tooltip, open ? time.tooltipOpen : time.tooltipClosed)}
       >
         {twelve.formatted}
       </span>
@@ -87,8 +78,6 @@ export function Time({ value, className, prefix }: TimeProps) {
   )
 }
 
-// Detect HH:mm substrings within a longer string and wrap each with <Time>.
-// Returns a JSX fragment. Useful for "06:33 → 09:22" style subtitles.
 export function LinkifyTimes({ text }: { text: string }) {
   const rx = /\b(\d{1,2}):(\d{2})\b/g
   const parts: React.ReactNode[] = []

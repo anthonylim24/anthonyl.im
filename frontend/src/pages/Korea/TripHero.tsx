@@ -1,3 +1,5 @@
+import { sx } from '@/styles/merge'
+import { tripHero } from './TripHero.stylex'
 import { useEffect, useRef, useState } from "react"
 import { motion, useReducedMotion, useScroll, useTransform } from "motion/react"
 import type { Snapshot } from "./types"
@@ -66,7 +68,7 @@ export function TripHero({ snapshot }: TripHeroProps) {
         : { opacity: [0.55, 0.85, 0.8], scale: [1, 1.02, 1] }
 
   return (
-    <header ref={heroRef} className="relative overflow-hidden">
+    <header ref={heroRef} {...sx(tripHero.s87ddcc81)}>
       {/* Rose+amber bloom — quiet glow behind the countdown numeral. Drifts
           at ~0.3x scroll speed (background only, never content). Pulses
           once on mount; intensifies subtly when the trip is imminent. */}
@@ -76,45 +78,45 @@ export function TripHero({ snapshot }: TripHeroProps) {
         initial={reduce ? false : { opacity: 0.55, scale: 1 }}
         animate={bloomKeyframes}
         transition={{ duration: 1.6, ease: [0.16, 1, 0.3, 1], times: [0, 0.55, 1] }}
-        className="pointer-events-none absolute -inset-x-20 -inset-y-10 will-change-transform"
+        {...sx(tripHero.s273f80a5)}
       >
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(244,63,94,0.10),_transparent_55%)] dark:bg-[radial-gradient(ellipse_at_top_right,_rgba(251,113,133,0.16),_transparent_55%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_rgba(245,158,11,0.07),_transparent_55%)] dark:bg-[radial-gradient(ellipse_at_bottom_left,_rgba(251,191,36,0.10),_transparent_55%)]" />
+        <div {...sx(tripHero.s93a93261)} />
+        <div {...sx(tripHero.s780d708a)} />
       </motion.div>
 
       <DossierGrain />
       <DossierStamp count={countdown} />
 
-      <div className="relative mx-auto max-w-6xl px-4 pb-12 pt-14 sm:px-6 sm:pt-20 lg:pb-16 lg:pt-24">
+      <div {...sx(tripHero.s21739532)}>
         <motion.p
           initial={reduce ? false : { opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
-          className="font-mono text-[11px] uppercase tracking-[0.32em] text-stone-500 dark:text-stone-400"
+          {...sx(tripHero.sdbd983dd)}
         >
           The dossier
-          <span aria-hidden className="mx-2 text-stone-300 dark:text-stone-700">·</span>
+          <span aria-hidden {...sx(tripHero.s4c78f04e)}>·</span>
           12 days
-          <span aria-hidden className="mx-2 text-stone-300 dark:text-stone-700">·</span>
+          <span aria-hidden {...sx(tripHero.s4c78f04e)}>·</span>
           {formatDate(snapshot.trip.startDate)}
-          <span aria-hidden className="mx-1.5 text-stone-300 dark:text-stone-700">→</span>
+          <span aria-hidden {...sx(tripHero.s34f26488)}>→</span>
           {formatDate(snapshot.trip.endDate)}
         </motion.p>
 
-        <div className="mt-10 grid grid-cols-1 items-end gap-10 sm:mt-14 lg:grid-cols-[1.05fr_1fr] lg:gap-16">
+        <div {...sx(tripHero.sccba503)}>
           <motion.div
             initial={reduce ? false : { opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1], delay: 0.08 }}
           >
             <h1
-              className="font-serif text-stone-900 dark:text-stone-100"
+              {...sx(tripHero.s88fbacff)}
               style={{ fontFamily: "'Cormorant Garamond', serif" }}
             >
-              <span className="block text-[clamp(3.25rem,11vw,7.5rem)] font-medium leading-[0.95] tracking-[-0.02em]">
+              <span {...sx(tripHero.s18657201)}>
                 South Korea
               </span>
-              <span className="mt-2 block text-[clamp(1.5rem,4vw,2.5rem)] italic font-light leading-tight text-stone-500 dark:text-stone-400">
+              <span {...sx(tripHero.s862a277)}>
                 a Seoul &amp; Busan dossier
               </span>
             </h1>
@@ -124,14 +126,14 @@ export function TripHero({ snapshot }: TripHeroProps) {
             initial={reduce ? false : { opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1], delay: 0.16 }}
-            className="flex items-end justify-start gap-5 lg:justify-end"
+            {...sx(tripHero.s82c9f535)}
           >
             {/* Countdown numeral. Each glyph rotates + rises into place
                 with a weighted stagger so the entry reads like flipping
                 through a planner. */}
             <span
               aria-label={numeralAria}
-              className="inline-flex font-serif text-[clamp(5rem,22vw,14rem)] font-light leading-[0.82] tracking-[-0.05em] tabular-nums text-rose-600 [perspective:600px] dark:text-rose-400"
+              {...sx(tripHero.s87540805)}
               style={{ fontFamily: "'Cormorant Garamond', serif", fontFeatureSettings: '"tnum"' }}
             >
               {Array.from(numeral).map((ch, i) => (
@@ -151,9 +153,9 @@ export function TripHero({ snapshot }: TripHeroProps) {
                 </motion.span>
               ))}
             </span>
-            <span className="mb-2 inline-flex flex-col gap-1 pb-2 text-left sm:mb-3 sm:pb-3">
-              <span className="h-px w-10 bg-rose-400/60 dark:bg-rose-400/50" aria-hidden />
-              <span className="font-mono text-[11px] uppercase tracking-[0.22em] text-stone-700 dark:text-stone-300">
+            <span {...sx(tripHero.s4d5117f2)}>
+              <span {...sx(tripHero.sf2eba53)} aria-hidden />
+              <span {...sx(tripHero.s191ec1bf)}>
                 {numeralLabel}
               </span>
             </span>
@@ -164,7 +166,7 @@ export function TripHero({ snapshot }: TripHeroProps) {
           initial={reduce ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.26 }}
-          className="mt-12 max-w-[60ch] text-base leading-relaxed text-stone-700 sm:text-lg dark:text-stone-300"
+          {...sx(tripHero.s65e0f2cf)}
         >
           {snapshot.status.headline}
         </motion.p>
@@ -173,13 +175,13 @@ export function TripHero({ snapshot }: TripHeroProps) {
           initial={reduce ? false : { opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.32 }}
-          className="mt-10 grid grid-cols-1 gap-x-10 gap-y-5 border-t border-stone-200/80 pt-6 sm:grid-cols-2 lg:grid-cols-4 dark:border-stone-800/80"
+          {...sx(tripHero.s39379a3f)}
         >
           <MetaRow label="Flights">
             {flightId ? (
               <>
                 <SmartEntity name={flightId} type="flight" />
-                <span className="text-stone-500 dark:text-stone-500">
+                <span {...sx(tripHero.sa8c841be)}>
                   {snapshot.trip.flights.out.replace(flightId, "").trim()}
                 </span>
               </>
@@ -192,7 +194,7 @@ export function TripHero({ snapshot }: TripHeroProps) {
             {snapshot.trip.hotels.map((h, i) => (
               <span key={h.name}>
                 {i > 0 && (
-                  <span aria-hidden className="mx-1.5 text-stone-400 dark:text-stone-600">→</span>
+                  <span aria-hidden {...sx(tripHero.s7f23fa08)}>→</span>
                 )}
                 <SmartEntity name={h.name} type="hotel" />
               </span>
@@ -217,16 +219,11 @@ function MetaRow({
   mono?: boolean
 }) {
   return (
-    <div className="min-w-0">
-      <dt className="font-mono text-[10px] uppercase tracking-[0.22em] text-stone-500 dark:text-stone-500">
+    <div {...sx(tripHero.s3f58665f)}>
+      <dt {...sx(tripHero.sa8fa1afe)}>
         {label}
       </dt>
-      <dd
-        className={
-          "mt-1.5 break-words text-sm leading-snug text-stone-800 dark:text-stone-200 " +
-          (mono ? "font-mono text-xs tracking-wide" : "")
-        }
-      >
+      <dd {...sx(tripHero.metaValue, mono ? tripHero.metaValueMono : undefined)}>
         {children}
       </dd>
     </div>
@@ -237,7 +234,7 @@ function DossierGrain() {
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute inset-0 mix-blend-multiply opacity-[0.05] dark:mix-blend-screen dark:opacity-[0.07]"
+      {...sx(tripHero.sf531978b)}
       style={{
         backgroundImage:
           "url(\"data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.65 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>\")",
@@ -251,11 +248,11 @@ function DossierStamp({ count: _count }: { count: number }) {
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute right-6 top-8 hidden -rotate-[8deg] sm:right-10 sm:top-12 sm:block lg:right-16 lg:top-16"
+      {...sx(tripHero.s8b43be86)}
     >
       <svg
         viewBox="0 0 200 200"
-        className="h-24 w-24 text-rose-700/70 sm:h-28 sm:w-28 lg:h-32 lg:w-32 dark:text-rose-400/65"
+        {...sx(tripHero.sb6bfc238)}
         fill="none"
       >
         <defs>
