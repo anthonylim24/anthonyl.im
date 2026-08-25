@@ -19,8 +19,9 @@ import { smartEntity } from './SmartEntity.stylex'
 // containers). Before this, the popover was caught by ancestor
 // overflow:hidden and got clipped.
 
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useTransition } from "react"
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react"
 import { createPortal } from "react-dom"
+import { useLocation } from "react-router-dom"
 import { motion, AnimatePresence, useReducedMotion } from "motion/react"
 import { ExternalLink, Loader2 } from "lucide-react"
 import { resolveLinks, type EntityLink, type EntityType } from "./entityLinks"
@@ -66,6 +67,8 @@ export function SmartEntity({
 }: SmartEntityProps) {
   const reduce = useReducedMotion()
   const [, startTransition] = useTransition()
+  const { pathname } = useLocation()
+  const tripsWorld = useMemo(() => pathname.startsWith("/trips"), [pathname])
   const [open, setOpen] = useState(false)
   const [description, setDescription] = useState<string | null | "loading">("loading")
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -193,13 +196,14 @@ export function SmartEntity({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? popoverId : undefined}
-        {...sx(smartEntity.trigger, 'group', style)}
+        spellCheck={false}
+        {...sx(tripsWorld ? smartEntity.tripsTrigger : smartEntity.trigger, 'group', style)}
       >
         <span {...sx(smartEntity.s3f58665f)}>{children ?? label ?? name}</span>
         {!compact && (
           <span
             aria-hidden
-            {...sx(smartEntity.s9c7aa6f8)}
+            {...sx(tripsWorld ? smartEntity.tripsMark : smartEntity.s9c7aa6f8)}
           >
             ◇
           </span>
@@ -230,7 +234,10 @@ export function SmartEntity({
                   width: POPOVER_WIDTH,
                   zIndex: 9999,
                 }}
-                {...sx(smartEntity.sffda4ad5)}
+                {...sx(
+                  tripsWorld ? smartEntity.tripsPopover : smartEntity.sffda4ad5,
+                  tripsWorld ? 'trips' : undefined,
+                )}
               >
                 {/* Caret pointing back at the trigger */}
                 <span
@@ -254,8 +261,8 @@ export function SmartEntity({
                       ) : null}
                     </p>
                     <p
-                      {...sx(smartEntity.sbd43ef06)}
-                      style={{ fontFamily: "'Cormorant Garamond', serif" }}
+                      {...sx(tripsWorld ? smartEntity.tripsTitle : smartEntity.sbd43ef06)}
+                      style={tripsWorld ? undefined : { fontFamily: "'Cormorant Garamond', serif" }}
                     >
                       {name}
                     </p>
@@ -284,7 +291,7 @@ export function SmartEntity({
                         href={l.url}
                         target="_blank"
                         rel="noreferrer"
-                        {...sx(smartEntity.sb40fab85)}
+                        {...sx(tripsWorld ? smartEntity.tripsLink : smartEntity.sb40fab85)}
                       >
                         <span {...sx(smartEntity.s68bbb8b0)}>
                           <span

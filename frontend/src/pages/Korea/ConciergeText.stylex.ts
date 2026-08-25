@@ -44,6 +44,8 @@ export const conciergeText = stylex.create({
     "gap": "0.5rem",
   },
   seec3caed: {
+    "borderLeftWidth": "2px",
+    "borderLeftStyle": "solid",
     "borderColor": "#fda4af",
     "paddingLeft": "0.75rem",
     "fontStyle": "italic",
@@ -123,6 +125,8 @@ export const conciergeText = stylex.create({
   s5c8bd8c9: {
     "marginTop": "0.75rem",
     "marginBottom": "0.75rem",
+    "borderTopWidth": "1px",
+    "borderTopStyle": "solid",
     "borderColor": "#e7e5e4",
     [DARK]: {
       "borderColor": "#44403c",

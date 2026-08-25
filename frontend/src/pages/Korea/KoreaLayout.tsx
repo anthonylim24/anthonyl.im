@@ -1,4 +1,5 @@
 import { sx } from '@/styles/merge'
+import { layout } from '@/styles/common.stylex'
 import { koreaLayout } from './KoreaLayout.stylex'
 import { lazy, Suspense, useEffect } from "react"
 import { Outlet } from "react-router-dom"
@@ -39,7 +40,7 @@ export function KoreaLayout() {
         <div {...sx(koreaLayout.sdda45f04)}>
           <a
             href="#korea-main"
-            {...sx(koreaLayout.s1a9b5df8)}
+            {...sx(layout.srOnly)}
           >
             Skip to content
           </a>

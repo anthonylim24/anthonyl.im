@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSPrope
 import { createPortal } from "react-dom"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useLocation, useNavigate } from "react-router-dom"
-import { Maximize2, MessageCircleHeart, Minimize2, Send, Sparkles, X } from "lucide-react"
+import { Maximize2, MessageSquare, Minimize2, Send, X } from "lucide-react"
 import {
   conciergePlaceKey,
   type ConciergeMove,
@@ -27,7 +27,7 @@ import { emitTripChanged, useTripChanged } from "./tripsEvents"
 import { streamTripChat, type TripChatMessage } from "./tripChatApi"
 import { resolveAccent } from "./theme"
 import type { Trip, TripAccess } from "./types"
-import { ENTER_SPRING, EASE, focusRingClass, mutedInkClass, overlayScrimClass, typeSectionClass } from "./ui"
+import { ENTER_SPRING, EASE, focusRingClass, mutedInkClass, overlayScrimClass, runTripsViewTransition, typeSectionClass } from "./ui"
 import { styles } from './trips.stylex'
 import { sx } from '@/lib/utils'
 
@@ -169,8 +169,14 @@ export function TripChat() {
 
   const handleClose = useCallback(() => {
     abortRef.current?.abort()
-    setOpen(false)
-    setExpanded(false)
+    runTripsViewTransition(() => {
+      setOpen(false)
+      setExpanded(false)
+    })
+  }, [])
+
+  const handleOpen = useCallback(() => {
+    runTripsViewTransition(() => setOpen(true))
   }, [])
 
   const toggleExpanded = useCallback(() => {
@@ -537,24 +543,27 @@ export function TripChat() {
 
   return (
     <div data-trip-accent={accent}>
-      <AnimatePresence>
-        {!open && (
-          <motion.button
-            ref={fabRef}
-            type="button"
-            onClick={() => setOpen(true)}
-            aria-label="Open trip concierge chat"
-            initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.86 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.86 }}
-            transition={reduce ? { duration: 0.15 } : { type: "spring", stiffness: 400, damping: 28 }}
-            {...sx(styles.chatFab, focusRingClass)}
-            style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 1.25rem)" }}
-          >
-            <MessageCircleHeart {...sx(styles.iconLg)} strokeWidth={2} />
-          </motion.button>
-        )}
-      </AnimatePresence>
+      <motion.button
+        ref={fabRef}
+        type="button"
+        onClick={handleOpen}
+        aria-label="Open trip concierge chat"
+        aria-hidden={open || undefined}
+        tabIndex={open ? -1 : undefined}
+        initial={false}
+        animate={open ? { opacity: 0, scale: reduce ? 1 : 0.86 } : { opacity: 1, scale: 1 }}
+        transition={reduce ? { duration: 0.15 } : { type: "spring", stiffness: 400, damping: 28 }}
+        {...sx(styles.chatFab, focusRingClass, open ? styles.chatFabHidden : undefined)}
+        style={{
+          bottom: "calc(env(safe-area-inset-bottom, 0px) + 1.25rem)",
+          // Shared morph with the panel. Name clears while open so the new
+          // View Transition snapshot never has two `trips-concierge` nodes
+          // (FAB stays mounted; EnhanceButton uses the same handoff).
+          viewTransitionName: open || reduce ? "none" : "trips-concierge",
+        }}
+      >
+        <MessageSquare {...sx(styles.iconLg)} strokeWidth={2} />
+      </motion.button>
 
       {typeof document !== "undefined" &&
         createPortal(
@@ -580,11 +589,16 @@ export function TripChat() {
               aria-labelledby={titleId}
               data-expanded={expanded ? "true" : "false"}
               {...panelSx}
-              style={panelStyle}
+              style={{
+                ...panelStyle,
+                // Name only while open. On close, open flips first so the
+                // exiting panel does not share the name with the restored FAB.
+                viewTransitionName: open && !reduce ? "trips-concierge" : "none",
+              }}
             >
               <header {...sx(styles.chatHeader)}>
                 <span {...sx(styles.chatHeaderIcon)}>
-                  <Sparkles {...sx(styles.iconSm)} strokeWidth={2} />
+                  <MessageSquare {...sx(styles.iconSm)} strokeWidth={2} />
                 </span>
                 <div {...sx(styles.chatHeaderBody)}>
                   <h2 id={titleId} {...sx(styles.chatTitleTruncate, typeSectionClass)}>
@@ -622,7 +636,7 @@ export function TripChat() {
                 {messages.length === 0 ? (
                   <div {...sx(styles.chatEmpty)}>
                     <span {...sx(styles.chatEmptyIcon)}>
-                      <MessageCircleHeart {...sx(styles.iconLg)} />
+                      <MessageSquare {...sx(styles.iconLg)} />
                     </span>
                     <p {...sx(styles.chatEmptyCopy, mutedInkClass)}>
                       {trip

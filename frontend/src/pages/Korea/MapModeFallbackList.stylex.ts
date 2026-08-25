@@ -164,7 +164,7 @@ export const mapModeFallbackList = stylex.create({
     "paddingRight": "0.5rem",
     "paddingTop": "0.125rem",
     "paddingBottom": "0.125rem",
-    "color": "11px",
+    "fontSize": "11px",
     "fontWeight": 700,
     "fontVariantNumeric": "tabular-nums",
     "lineHeight": 1,

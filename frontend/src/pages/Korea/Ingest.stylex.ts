@@ -161,7 +161,7 @@ export const ingest = stylex.create({
   s66529f26: {
     "display": "flex",
     "gap": "0.5rem",
-    "color": "11px",
+    "fontSize": "11px",
     "lineHeight": 1.375,
   },
   s8d0bd648: {
@@ -324,8 +324,12 @@ export const ingest = stylex.create({
     "paddingRight": "0.375rem",
     "paddingTop": "0.125rem",
     "paddingBottom": "0.125rem",
-    "color": "10px",
+    "fontSize": "10px",
+    "color": "#dc2626",
     "fontWeight": 500,
+    [DARK]: {
+      "color": "#f87171",
+    },
   },
   s8d4ad146: {
     "color": "#78716c",
@@ -358,7 +362,8 @@ export const ingest = stylex.create({
     "flex": "1 1 0%",
   },
   sdc6c05d2: {
-    "color": "13px",
+    "fontSize": "13px",
+    "color": "#92400e",
     "fontWeight": 600,
     [DARK]: {
       "color": "#fcd34d",
@@ -451,7 +456,11 @@ export const ingest = stylex.create({
     "paddingTop": "0.5rem",
     "paddingBottom": "0.5rem",
     "fontFamily": "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-    "color": "11px",
+    "fontSize": "11px",
+    "color": "#57534e",
+    [DARK]: {
+      "color": "#a8a29e",
+    },
   },
   s9109cdbf: {
     "display": "flex",
@@ -532,7 +541,11 @@ export const ingest = stylex.create({
     "paddingRight": "0.75rem",
     "paddingTop": "0.5rem",
     "paddingBottom": "0.5rem",
-    "color": "12px",
+    "fontSize": "12px",
+    "color": "#b91c1c",
+    [DARK]: {
+      "color": "#f87171",
+    },
   },
   sc5c56bbb: {
     "fontWeight": 600,
@@ -571,7 +584,11 @@ export const ingest = stylex.create({
     },
   },
   s70ee951d: {
-    "color": "11px",
+    "fontSize": "11px",
+    "color": "#b91c1c",
+    [DARK]: {
+      "color": "#f87171",
+    },
   },
   sab856c4d: {
     "display": "inline-flex",
@@ -631,17 +648,25 @@ export const ingest = stylex.create({
   },
   s3f2691cc: {
     "marginTop": "0.5rem",
-    "color": "13px",
+    "fontSize": "13px",
+    "color": "#292524",
     "lineHeight": 1.625,
+    [DARK]: {
+      "color": "#e7e5e4",
+    },
   },
   sd81d42ba: {
     "fontFamily": "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-    "color": "12px",
+    "fontSize": "12px",
   },
   s6876764d: {
     "marginTop": "0.75rem",
-    "color": "13px",
+    "fontSize": "13px",
+    "color": "#292524",
     "lineHeight": 1.625,
+    [DARK]: {
+      "color": "#e7e5e4",
+    },
   },
   s62c182b1: {
     "fontWeight": 600,
@@ -731,7 +756,11 @@ export const ingest = stylex.create({
     "paddingRight": "0.75rem",
     "paddingTop": "0.5rem",
     "paddingBottom": "0.5rem",
-    "color": "12px",
+    "fontSize": "12px",
+    "color": "#991b1b",
+    [DARK]: {
+      "color": "#fca5a5",
+    },
   },
   s15d69e19: {
     "marginTop": "0.125rem",
@@ -793,7 +822,8 @@ export const ingest = stylex.create({
     "paddingRight": "1.25rem",
     "paddingTop": "0.5rem",
     "paddingBottom": "0.5rem",
-    "color": "13px",
+    "fontSize": "13px",
+    "color": "#ffffff",
     "fontWeight": 500,
     "outlineStyle": "none",
     "transitionProperty": "color, background-color, border-color, opacity, transform",
@@ -815,7 +845,11 @@ export const ingest = stylex.create({
   },
   sbaf3bbab: {
     "marginTop": "0.375rem",
-    "color": "12px",
+    "fontSize": "12px",
+    "color": "#dc2626",
+    [DARK]: {
+      "color": "#f87171",
+    },
   },
   s5b3b4528: {
     "marginTop": "0.75rem",

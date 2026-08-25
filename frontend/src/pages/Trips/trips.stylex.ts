@@ -1911,27 +1911,22 @@ export const styles = stylex.create({
     position: 'relative',
     marginBottom: '1px',
     display: 'flex',
-    height: '1.75rem',
-    width: '1.75rem',
+    height: '2.75rem',
+    width: '2.75rem',
     flexShrink: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: '9999px',
+    borderRadius: 'var(--trips-radius)',
     backgroundColor: 'var(--trips-accent)',
     color: '#ffffff',
     transitionProperty: 'background-color, opacity',
     transitionDuration: '150ms',
-    '::before': {
-      content: '""',
-      position: 'absolute',
-      inset: '-0.5rem',
-    },
     ':disabled': {
       cursor: 'not-allowed',
       opacity: 0.4,
     },
     ':is(.dark) &': {
-      color: '#0c0a09',
+      color: 'var(--trips-canvas)',
     },
     '@media (hover: hover)': {
       ':enabled:hover': {
@@ -1949,10 +1944,9 @@ export const styles = stylex.create({
     width: '3.5rem',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: '9999px',
+    borderRadius: 'var(--trips-radius)',
     backgroundColor: 'var(--trips-accent)',
     color: '#ffffff',
-    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)',
     outline: 'none',
     '@media (hover: hover)': {
       ':hover': {
@@ -1960,9 +1954,13 @@ export const styles = stylex.create({
       },
     },
     ':is(.dark) &': {
-      color: '#0c0a09',
+      color: 'var(--trips-canvas)',
     },
     ...focusRing,
+  },
+  chatFabHidden: {
+    pointerEvents: 'none',
+    opacity: 0,
   },
   chatOverlayExpanded: {
     zIndex: 55,
@@ -3392,13 +3390,14 @@ export const styles = stylex.create({
   },
   notFoundTitle: {
     marginTop: '0.75rem',
+    fontFamily: '"Archivo Narrow", "Arial Narrow", sans-serif',
     fontSize: '1.5rem',
     lineHeight: '2rem',
     fontWeight: 600,
-    letterSpacing: '-0.025em',
-    color: '#1c1917',
+    letterSpacing: '-0.02em',
+    color: 'var(--trips-ink)',
     ':is(.dark) &': {
-      color: '#f5f5f4',
+      color: 'var(--trips-ink)',
     },
   },
   notFoundCopy: {

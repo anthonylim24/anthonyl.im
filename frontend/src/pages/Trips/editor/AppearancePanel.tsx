@@ -16,9 +16,9 @@ import type { Trip } from "../types"
 import { sx } from '@/lib/utils'
 import { styles } from '../trips.stylex'
 
-/** Configures the dossier-style public pages: accent family, editorial copy,
- *  permalink. A once-per-trip task, so it lives in the settings cluster at the
- *  bottom of the editor rather than above the days. */
+/** Configures the living document: accent family, cover copy, permalink.
+ *  A once-per-trip task, so it lives in the settings cluster at the bottom
+ *  of the editor rather than above the days. */
 export function AppearancePanel({
   trip,
   locked = false,
@@ -47,7 +47,7 @@ export function AppearancePanel({
           <span {...sx(styles.accentSwatchDot, ACCENT_SWATCH[selectedAccent])} aria-hidden />
           Appearance
           <span {...sx(styles.hiddenSmInline, styles.fontNormal, mutedInkClass)}>
-            accent, dossier copy, permalink
+            accent, cover copy, permalink
           </span>
         </span>
         <ChevronDown
@@ -102,7 +102,7 @@ export function AppearancePanel({
               <input
                 {...sx(styles.mt1_5, inputClass)}
                 value={appearance.eyebrow ?? ""}
-                placeholder="The dossier"
+                placeholder="Next departure"
                 onChange={(e) => patch({ eyebrow: e.target.value || undefined })}
               />
             </label>
@@ -111,7 +111,7 @@ export function AppearancePanel({
               <input
                 {...sx(styles.mt1_5, inputClass)}
                 value={appearance.subtitle ?? ""}
-                placeholder="a Seoul & Busan dossier"
+                placeholder="Seoul · Busan"
                 onChange={(e) => patch({ subtitle: e.target.value || undefined })}
               />
             </label>

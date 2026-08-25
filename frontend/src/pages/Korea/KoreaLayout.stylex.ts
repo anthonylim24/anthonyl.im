@@ -11,9 +11,6 @@ export const koreaLayout = stylex.create({
       "color": "#f5f5f4",
     },
   },
-  s1a9b5df8: {
-
-  },
   s9a72f416: {
     "paddingBottom": "5rem",
     "outlineStyle": "none",
