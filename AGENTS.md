@@ -1,13 +1,13 @@
 # anthonyl.im
 
-This repo hosts four experiences under one Vite SPA: a personal AI chatbot, **BreathFlow**, the **Korea** itinerary, and a generic **trip planner**. Each has its own visual identity; all share the craft principles below.
+This repo hosts five experiences under one Vite SPA: the anthonyl.im lab landing page (`/`), a personal AI chatbot (`/chatbot`), **BreathFlow**, the **Korea** itinerary, and a generic **trip planner**. Each has its own visual identity; all share the craft principles below.
 
 **Where to read what**
 
 | Need | File |
 |------|------|
 | Engineering, routes, env, CI, tree | [`CLAUDE.md`](CLAUDE.md) |
-| Design context for Impeccable / UI work | [`PRODUCT.md`](PRODUCT.md) |
+| Design context for UI work | [`PRODUCT.md`](PRODUCT.md) |
 | Skill catalog (what to use, what to ignore) | [`.agents/skills/README.md`](.agents/skills/README.md) |
 | CI/CD | [`docs/ci-cd.md`](docs/ci-cd.md) |
 | PR previews + Clerk screenshot login | [`docs/pr-previews.md`](docs/pr-previews.md) |
@@ -97,10 +97,19 @@ Each app's *accent* color is its own (see per-app sections below).
 
 ---
 
-## Design Context: `/` and `/chatbot` — Personal AI Chatbot
+## Design Context: `/` — anthonyl.im Lab Landing
+
+Code: `frontend/src/pages/Landing/` (`Landing.tsx`, `parts.tsx`, `content.ts`, `landing.stylex.ts`, `HeroCanvas.tsx`, `scene/`). A fictional AI lab ("design study", disclosed in the footer). All copy and mock data live in `content.ts`. Product cards link to the real apps: Lim → `/chatbot`, Concierge → `/trips`, BreathFlow → `/breathwork`.
+
+- **Palette:** bone `#EDE8DF` canvas, ink `#0E1024`, one ultramarine accent `#2433E0`. Tokens are `--lim-*` vars on `.landing` in `index.css`. Display type is Archivo (wdth axis), with Fragment Mono for data.
+- **Hero:** WebGPU (WebGL2 fallback) soft-body glass droplet (`scene/heroScene.ts`). It's a three-blocks `MeshTransmissionNodeMaterial` with spring physics (drag, poke, stretch). Normals come from a procedurally hand-painted brush field (`scene/painter.ts`), which also serves as the static still and fallback. TSL post: bloom, scroll-driven ink dissolve, three-blocks `filmHD`. The scene runs only while on screen; reduced motion freezes the clock.
+- **License:** `three-blocks` is PolyForm Noncommercial 1.0.0. The footer carries the Required Notice — keep it. Commercial use needs a three-blocks license.
+- **Chunks:** the hero loads `three-core` + `three-webgpu` only; Map Mode loads `three-core` + `three`.
+
+## Design Context: `/chatbot` — Personal AI Chatbot
 
 ### Users
-Visitors who land on `anthonyl.im` directly. Recruiters, prospective collaborators, friends, curious engineers. They're trying to get a feel for who Anthony is — fast. They scan, they pivot, they leave if it doesn't earn attention.
+Visitors who open `/chatbot` (from the landing page or a shared link). Recruiters, prospective collaborators, friends, curious engineers. They're trying to get a feel for who Anthony is — fast. They scan, they pivot, they leave if it doesn't earn attention.
 
 ### Brand Personality
 **Quiet, Confident, Crafted.** A staff-engineer's personal site — minimal but not lazy, technical but not cold. The interface should feel like meeting someone who answers questions thoughtfully rather than performing for an audience.
@@ -282,11 +291,10 @@ Read the matching skill before writing code. Catalog: [`.agents/skills/README.md
 | [`effect-ts`](.agents/skills/effect-ts/SKILL.md) | Any frontend `/api`, SSE, or third-party HTTP. Required. |
 | [`stylex`](.agents/skills/stylex/SKILL.md) | UI styling, layout, tokens, visual parity, `*.stylex.ts`, `index.css` semantic classes. Required for frontend UI. |
 | `vercel-react-best-practices` | React 19 render and bundle performance. Translate Next.js examples to Vite/`React.lazy` + Hono. |
-| `impeccable` | Design, critique, polish. Reads `PRODUCT.md`. |
 | `clerk` + `clerk-react-patterns` | Clerk auth. Core 2 `@clerk/clerk-react`. See [`.agents/memory/clerk.md`](.agents/memory/clerk.md). |
 | `clerk-testing` / `clerk-cli` | Tests or dashboard/CLI only |
 
-**Do not apply** Clerk Next.js / React Router SSR / Expo / Vue / mobile / billing / orgs / webhook skills — wrong stack. `design-taste-frontend` is landing-page only (not BreathFlow/Korea/Trips). Prefer impeccable over `redesign-existing-projects`.
+**Do not apply** Clerk Next.js / React Router SSR / Expo / Vue / mobile / billing / orgs / webhook skills — wrong stack. `design-taste-frontend` is landing-page only (not BreathFlow/Korea/Trips).
 
 Short pointers: [`.agents/memory/effect-ts.md`](.agents/memory/effect-ts.md), [`.agents/memory/stylex.md`](.agents/memory/stylex.md), [`.agents/memory/ci-cd.md`](.agents/memory/ci-cd.md), [`.agents/memory/clerk.md`](.agents/memory/clerk.md).
 

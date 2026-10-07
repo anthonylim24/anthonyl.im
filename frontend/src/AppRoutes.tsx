@@ -1,11 +1,14 @@
 import { lazy, Suspense, type ReactNode } from 'react'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
-import App from './App'
+import { Landing } from './pages/Landing/Landing'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 import { routerBasename } from './lib/routerBasename'
 import { sx } from './lib/utils'
 import { routeFallback } from './styles/chatbot.stylex'
 
+// The chatbot lived at `/` until the lab landing page took the root; it is
+// now `/chatbot` only, so it loads lazily like every other app.
+const App = lazy(() => import('./App'))
 // Lazy load the BreathFlow shell and pages for better initial bundle size.
 const BreathworkLayout = lazy(() =>
   import('./breathflow/pages/BreathflowLayout').then((module) => ({
@@ -141,7 +144,7 @@ export function AppRoutes() {
           path="/"
           element={
             <Guarded app="chatbot" fallback={<ChatbotFallback />}>
-              <App />
+              <Landing />
             </Guarded>
           }
         />

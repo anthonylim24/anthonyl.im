@@ -32,6 +32,13 @@ type AppPreviewMeta = {
 };
 
 const appPreviews = {
+  landing: {
+    title: "anthonyl.im — Applied intelligence lab",
+    description:
+      "Frontier models and the agents that put them to work — they plan before they act, stay inside the bounds you set, and verify every step.",
+    imagePathOrUrl: "/og-landing.jpg",
+    imageAlt: "A soft glass droplet floating over ultramarine brush strokes on bone paper",
+  },
   chatbot: {
     title: "Anthony Lim AI Chatbot",
     description:
@@ -83,6 +90,7 @@ const getPreviewMetaForPath = (pathname: string): AppPreviewMeta => {
   if (pathname.startsWith("/breathwork")) return appPreviews.breathwork;
   if (pathname.startsWith("/korea") || pathname.startsWith("/trips/korea-2026")) return appPreviews.korea;
   if (pathname.startsWith("/trips")) return appPreviews.trips;
+  if (pathname === "/" || pathname === "") return appPreviews.landing;
   return appPreviews.chatbot;
 };
 

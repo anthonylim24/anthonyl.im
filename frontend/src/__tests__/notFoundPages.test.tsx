@@ -13,7 +13,8 @@ describe('not-found pages', () => {
       </MemoryRouter>,
     )
     expect(screen.getByRole('heading', { name: 'This page is not here.' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Ask Anthony' })).toHaveAttribute('href', '/')
+    expect(screen.getByRole('link', { name: 'Ask Anthony' })).toHaveAttribute('href', '/chatbot')
+    expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/')
   })
 
   it('keeps unknown Korea routes inside the dossier', () => {

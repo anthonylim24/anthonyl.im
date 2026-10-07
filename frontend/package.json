@@ -37,6 +37,7 @@
     "rehype-highlight": "^7.0.2",
     "remark-gfm": "^4.0.1",
     "three": "^0.185.1",
+    "three-blocks": "0.14.0",
     "zustand": "^5.0.15"
   },
   "devDependencies": {

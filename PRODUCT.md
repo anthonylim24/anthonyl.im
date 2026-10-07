@@ -1,10 +1,10 @@
-# anthonyl.im — Impeccable Design Context
+# anthonyl.im — Design Context
 
-This repo hosts four experiences under one Vite SPA: a personal AI chatbot (`/`), **BreathFlow** (`/breathwork`), the **Korea** itinerary (`/trips/korea-2026`; `/korea` redirects), and a generic **trip planner** (`/trips`). Each has its own visual identity; all share the craft principles below.
+This repo hosts five experiences under one Vite SPA: the **anthonyl.im lab landing page** (`/`), a personal AI chatbot (`/chatbot`), **BreathFlow** (`/breathwork`), the **Korea** itinerary (`/trips/korea-2026`; `/korea` redirects), and a generic **trip planner** (`/trips`). Each has its own visual identity; all share the craft principles below.
 
 Frontend network I/O uses **Effect v3** — do not add raw `fetch` for `/api`. UI styling uses **StyleX** — do not add Tailwind. Engineering: [`CLAUDE.md`](CLAUDE.md). Skills: [`.agents/skills/README.md`](.agents/skills/README.md).
 
-**Register (Impeccable):** chatbot = personal brand surface; BreathFlow / Korea / Trips = product UIs. Infer the register from the route before applying craft rules.
+**Register:** landing + chatbot = brand surfaces; BreathFlow / Korea / Trips = product UIs. Infer the register from the route before applying craft rules.
 
 ## Shared Design Principles (apply to every route)
 
@@ -53,10 +53,19 @@ Each app's *accent* color is its own (see per-app sections).
 
 ---
 
-## Design Context: `/` and `/chatbot` — Personal AI Chatbot
+## Design Context: `/` — anthonyl.im Lab Landing
+
+Code: `frontend/src/pages/Landing/` (`Landing.tsx`, `parts.tsx`, `content.ts`, `landing.stylex.ts`, `HeroCanvas.tsx`, `scene/`). A fictional AI lab ("design study", disclosed in the footer). All copy and mock data live in `content.ts`. Product cards link to the real apps: Lim → `/chatbot`, Concierge → `/trips`, BreathFlow → `/breathwork`.
+
+- **Palette:** bone `#EDE8DF` canvas, ink `#0E1024`, one ultramarine accent `#2433E0`. Tokens are `--lim-*` vars on `.landing` in `index.css`. Display type is Archivo (wdth axis), with Fragment Mono for data.
+- **Hero:** WebGPU (WebGL2 fallback) soft-body glass droplet (`scene/heroScene.ts`). It's a three-blocks `MeshTransmissionNodeMaterial` with spring physics (drag, poke, stretch). Normals come from a procedurally hand-painted brush field (`scene/painter.ts`), which also serves as the static still and fallback. TSL post: bloom, scroll-driven ink dissolve, three-blocks `filmHD`. The scene runs only while on screen; reduced motion freezes the clock.
+- **License:** `three-blocks` is PolyForm Noncommercial 1.0.0. The footer carries the Required Notice — keep it. Commercial use needs a three-blocks license.
+- **Chunks:** the hero loads `three-core` + `three-webgpu` only; Map Mode loads `three-core` + `three`.
+
+## Design Context: `/chatbot` — Personal AI Chatbot
 
 ### Users
-Visitors who land on `anthonyl.im` directly. Recruiters, prospective collaborators, friends, curious engineers. They're trying to get a feel for who Anthony is — fast. They scan, they pivot, they leave if it doesn't earn attention.
+Visitors who open `/chatbot` (from the landing page or a shared link). Recruiters, prospective collaborators, friends, curious engineers. They're trying to get a feel for who Anthony is — fast. They scan, they pivot, they leave if it doesn't earn attention.
 
 ### Brand Personality
 **Quiet, Confident, Crafted.** A staff-engineer's personal site — minimal but not lazy, technical but not cold. The interface should feel like meeting someone who answers questions thoughtfully rather than performing for an audience.

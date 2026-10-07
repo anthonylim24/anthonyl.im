@@ -121,12 +121,6 @@
       "skillPath": "skills/features/clerk-webhooks/SKILL.md",
       "computedHash": "e3c348bdc6dee1f28bc56577cd4aac605d3dfc3c63fcb10fc51e6c04c1fe3fb0"
     },
-    "impeccable": {
-      "source": "pbakaus/impeccable",
-      "sourceType": "github",
-      "skillPath": "skill/SKILL.md",
-      "computedHash": "9d124382509eb15da0862f145bca0e53be00aaddb05272e4efc9a0832de048a9"
-    },
     "vercel-react-best-practices": {
       "source": "vercel-labs/agent-skills",
       "sourceType": "github",
