@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import { LayoutGroup } from 'motion/react'
 import { Link } from 'react-router-dom'
 import { sx } from '@/styles/merge'
@@ -6,9 +6,11 @@ import { InkChip } from '../motion/InkChip'
 import type { TechniqueId } from '@/lib/constants'
 import { formatMoodShift } from '@/lib/mood'
 import type { CompletedSession } from '@/stores/historyStore'
+import { techniquePigment } from '../pigments'
 import { getProtocol, PROTOCOLS } from '../protocols/catalog'
 import { buildRepeatParams, buildSessionPath } from '../session/urlParams'
 import { bf } from '../styles/breathflow.stylex'
+import { pg } from '../styles/progress.stylex'
 import { formatDuration, formatLocalDate, formatLocalTime } from './format'
 
 interface HistoryListProps {
@@ -68,6 +70,11 @@ export function HistoryList({ sessions }: HistoryListProps) {
           const moodShift = formatMoodShift(session.moodBefore, session.moodAfter)
           return (
             <li key={session.id} {...sx('cv-row', bf.historyRow)}>
+              <span
+                aria-hidden="true"
+                {...sx('bf-dab', pg.dab)}
+                style={{ '--bf-dab': techniquePigment(session.techniqueId).mass } as CSSProperties}
+              />
               <div {...sx(bf.minW0, bf.flex1)}>
                 <p {...sx(bf.truncate, bf.textSm, bf.fontMedium, bf.textBw)}>
                   {protocol.name}
