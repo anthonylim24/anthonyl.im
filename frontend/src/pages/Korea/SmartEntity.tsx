@@ -197,7 +197,7 @@ export function SmartEntity({
         aria-expanded={open}
         aria-controls={open ? popoverId : undefined}
         spellCheck={false}
-        {...sx(tripsWorld ? smartEntity.tripsTrigger : smartEntity.trigger, 'group', style)}
+        {...sx(tripsWorld ? smartEntity.tripsTrigger : smartEntity.trigger, tripsWorld && compact && smartEntity.tripsInline, 'group', style)}
       >
         <span {...sx(smartEntity.s3f58665f)}>{children ?? label ?? name}</span>
         {!compact && (

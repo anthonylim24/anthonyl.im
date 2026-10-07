@@ -1,8 +1,9 @@
 import { sx } from '@/lib/utils'
 import { styles } from './trips.stylex'
+import { pack as pk } from './toy.stylex'
 import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
-import { motion, useReducedMotion } from "motion/react"
+import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { ChevronDown, Loader2, type LucideIcon, PenLine, Sparkles } from "lucide-react"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useGetToken } from "@/lib/safeAuth"
@@ -10,6 +11,8 @@ import { createTrip, generateItinerary } from "./tripsApi"
 import { CoverDock } from "./components/CoverDock"
 import { DateRangeField } from "./components/DateRangeField"
 import { TimezoneField } from "./components/TimezoneField"
+import { TripsGlobe, type GlobePin } from "./scene/TripsGlobe"
+import { TOY, lookupPlace, type LatLng } from "./scene/worldMap"
 import { DEFAULT_ITINERARY_PROMPT, type GeneratePreferences } from "./types"
 import {
   EASE,
@@ -29,7 +32,6 @@ import {
   sheetRuleClass,
   spinnerClass,
   stampChipClass,
-  typeDisplayClass,
   wrapAnywhereClass,
   displayInputClass,
 } from "./ui"
@@ -247,15 +249,17 @@ export function TripCreate() {
     <form onSubmit={onSubmit} {...sx(styles.createForm)} noValidate>
       <CoverDock title={name.trim() || "New trip"} measure="form" />
       <header {...sx('cover-band', coverBandClass, styles.coverBandHero)}>
-        <div {...sx(styles.createHeaderInner)}>
-          <h1 {...sx(typeDisplayClass, 'cover-extra')}>New trip</h1>
+        <div {...sx(pk.headerGrid)}>
+          <div {...sx(pk.headerCopy)}>
+          <p {...sx(pk.stamp, 'cover-extra')}>New trip</p>
+          <h1 {...sx(pk.title, 'cover-extra')}>Pack your bag</h1>
           <div {...sx(styles.createNameGroup)} ref={(el) => void (groupRefs.current.name = el)}>
             <label htmlFor="trip-name" {...sx(styles.srOnly)}>
               Trip name
             </label>
             <input
               id="trip-name"
-              {...sx(displayInputClass, styles.createBandNameInput, wrapAnywhereClass)}
+              {...sx('trip-display-input', displayInputClass, styles.createBandNameInput, wrapAnywhereClass)}
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Tokyo Long Weekend"
@@ -266,6 +270,8 @@ export function TripCreate() {
             />
             <FieldError problem={errorFor("name")} id={errorId("name")} className={styles.bandFieldError} />
           </div>
+          </div>
+          <PackedSuitcase destinations={destinationList} />
         </div>
       </header>
 
@@ -538,6 +544,123 @@ export function TripCreate() {
           )}
         </div>
       </div>
+      <AnimatePresence>
+        {generating && <GeneratingOverlay key="generating" destinations={destinationList} elapsed={elapsed} />}
+      </AnimatePresence>
     </form>
+  )
+}
+
+const STICKER_SPOTS = [
+  { left: "9%", top: "20%", rotate: -10 },
+  { left: "52%", top: "12%", rotate: 8 },
+  { left: "28%", top: "50%", rotate: 4 },
+  { left: "60%", top: "56%", rotate: -7 },
+  { left: "6%", top: "70%", rotate: 9 },
+  { left: "38%", top: "28%", rotate: -4 },
+]
+const STICKER_FILLS = [TOY.butter, TOY.mint, TOY.ocean, TOY.lilac, TOY.rose, TOY.paper]
+
+/** A clay suitcase that collects a sticker for every destination you type. */
+function PackedSuitcase({ destinations }: { destinations: string[] }) {
+  const reduce = useReducedMotion()
+  const shown = destinations.slice(0, STICKER_SPOTS.length)
+  return (
+    <div {...sx(pk.suitcase)} aria-hidden>
+      <span {...sx(pk.handle)} />
+      <div {...sx(pk.body)}>
+        <span {...sx(pk.strap, pk.strapLeft)} />
+        <span {...sx(pk.strap, pk.strapRight)} />
+        {shown.length === 0 && <span {...sx(pk.bodyHint)}>Add a destination for a sticker</span>}
+        <AnimatePresence>
+          {shown.map((d, i) => {
+            const spot = STICKER_SPOTS[i]!
+            return (
+              <motion.span
+                key={`${d}-${i}`}
+                {...sx(pk.sticker, i % 3 === 1 && pk.stickerRound)}
+                style={{ left: spot.left, top: spot.top, backgroundColor: STICKER_FILLS[i % STICKER_FILLS.length] }}
+                initial={reduce ? false : { scale: 0.2, rotate: spot.rotate - 40, opacity: 0 }}
+                animate={{ scale: 1, rotate: spot.rotate, opacity: 1 }}
+                exit={reduce ? { opacity: 0 } : { scale: 0.3, rotate: spot.rotate + 30, opacity: 0 }}
+                transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 520, damping: 15 }}
+              >
+                {d}
+              </motion.span>
+            )
+          })}
+        </AnimatePresence>
+      </div>
+      <span {...sx(pk.wheel, pk.wheelLeft)} />
+      <span {...sx(pk.wheel, pk.wheelRight)} />
+    </div>
+  )
+}
+
+const GEN_LINES = [
+  "Folding the paper plane…",
+  "Checking opening hours…",
+  "Pinning neighborhoods…",
+  "Plotting walking routes…",
+  "Picking dinner spots…",
+  "Packing the days…",
+]
+const GEN_FILLS = [TOY.rose, TOY.butter, TOY.mint, TOY.lilac, TOY.peach]
+const MAX_GEN_PINS = 12
+
+/** While the draft generates: the plane loops the globe and pins drop around the destinations. */
+function GeneratingOverlay({ destinations, elapsed }: { destinations: string[]; elapsed: number }) {
+  const reduce = useReducedMotion()
+  const key = destinations.join("|")
+  const anchors = useMemo(
+    () =>
+      key
+        .split("|")
+        .map((name) => ({ name, at: lookupPlace(name) }))
+        .filter((a): a is { name: string; at: LatLng } => a.at !== null),
+    [key],
+  )
+  const [count, setCount] = useState(1)
+  useEffect(() => {
+    if (reduce) return
+    const id = window.setInterval(() => setCount((n) => Math.min(MAX_GEN_PINS, n + 1)), 2500)
+    return () => window.clearInterval(id)
+  }, [reduce])
+  const pins = useMemo<GlobePin[]>(() => {
+    const base = anchors.length ? anchors : [{ name: "Somewhere new", at: { lat: 30, lng: 135 } }]
+    const n = reduce ? base.length : count
+    return Array.from({ length: n }, (_, i) => {
+      const a = base[i % base.length]!
+      const spread = i < base.length ? 0 : 2 + (i % 3)
+      return {
+        id: `gen-${i}`,
+        lat: a.at.lat + Math.sin(i * 2.3) * spread,
+        lng: a.at.lng + Math.cos(i * 1.7) * spread * 1.4,
+        fill: GEN_FILLS[i % GEN_FILLS.length]!,
+        label: a.name,
+      }
+    })
+  }, [anchors, count, reduce])
+
+  return (
+    <motion.div
+      {...sx(pk.overlay)}
+      aria-hidden
+      initial={reduce ? false : { opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.3, ease: EASE }}
+    >
+      <div {...sx(pk.overlayCard)}>
+        <div {...sx(pk.overlayGlobe)}>
+          <TripsGlobe mode="world" pins={pins} focus={anchors[0]?.at ?? null} description="" />
+        </div>
+        <p {...sx(pk.overlayTitle)}>Packing your itinerary</p>
+        <p {...sx(pk.overlayLine)}>{reduce ? "Usually 20 to 40 seconds." : GEN_LINES[Math.floor(elapsed / 4) % GEN_LINES.length]}</p>
+        <p {...sx(pk.overlayClock)}>
+          {reduce ? "Stay on this page." : `${elapsed}s · usually 20 to 40s · stay on this page`}
+        </p>
+      </div>
+    </motion.div>
   )
 }

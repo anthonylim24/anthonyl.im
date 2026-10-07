@@ -3,48 +3,6 @@ import { stylex } from '@/styles/merge'
 /** Shared BreathFlow layout, type, and interaction primitives. */
 export const bf = stylex.create({
   // ── Focus & links ──────────────────────────────────────────────
-  focusVisible: {
-    outlineWidth: '2px',
-    outlineStyle: 'solid',
-    outlineColor: 'var(--bw-accent)',
-    outlineOffset: '2px',
-  },
-  linkRow: {
-    display: 'flex',
-    minHeight: '44px',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: '0.75rem',
-    paddingBlock: '0.5rem',
-    transitionProperty: 'color',
-    transitionDuration: '150ms',
-    ':focus-visible': {
-      outlineWidth: '2px',
-      outlineStyle: 'solid',
-      outlineColor: 'var(--bw-accent)',
-      outlineOffset: '2px',
-    },
-    '@media (hover: hover) and (pointer: fine)': {
-      ':hover': {
-        color: 'var(--bw-accent)',
-      },
-    },
-  },
-  textLink: {
-    transitionProperty: 'color',
-    transitionDuration: '150ms',
-    ':focus-visible': {
-      outlineWidth: '2px',
-      outlineStyle: 'solid',
-      outlineColor: 'var(--bw-accent)',
-      outlineOffset: '2px',
-    },
-    '@media (hover: hover) and (pointer: fine)': {
-      ':hover': {
-        color: 'var(--bw-accent)',
-      },
-    },
-  },
   citationLink: {
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
@@ -69,27 +27,16 @@ export const bf = stylex.create({
   textBw: { color: 'var(--bw-text)' },
   textSecondary: { color: 'var(--bw-text-secondary)' },
   textTertiary: { color: 'var(--bw-text-tertiary)' },
-  textAccent: { color: 'var(--bw-accent)' },
   textDestructive: { color: 'var(--bw-destructive)' },
   textXs: { fontSize: '0.75rem', lineHeight: '1rem' },
   textSm: { fontSize: '0.875rem', lineHeight: '1.25rem' },
-  textLg: { fontSize: '1.125rem', lineHeight: '1.75rem' },
-  textXl: { fontSize: '1.25rem', lineHeight: '1.75rem' },
-  text2xl: { fontSize: '1.5rem', lineHeight: '2rem' },
-  text3xl: { fontSize: '1.875rem', lineHeight: '2.25rem' },
-  text5xl: { fontSize: '3rem', lineHeight: 1 },
-  text6xl: { fontSize: '3.75rem', lineHeight: 1 },
-  text10px: { fontSize: '10px' },
   text11px: { fontSize: '11px' },
   text12px: { fontSize: '12px' },
   fontMedium: { fontWeight: 500 },
   fontSemibold: { fontWeight: 600 },
   fontNormal: { fontWeight: 400 },
-  leadingNone: { lineHeight: 1 },
   leadingSnug: { lineHeight: 1.375 },
   leadingRelaxed: { lineHeight: 1.625 },
-  trackingTight: { letterSpacing: '-0.025em' },
-  textBalance: { textWrap: 'balance' },
   capitalize: { textTransform: 'capitalize' },
   truncate: {
     overflow: 'hidden',
@@ -107,45 +54,7 @@ export const bf = stylex.create({
 
   // ── Surfaces & borders ─────────────────────────────────────────
   bgCanvas: { backgroundColor: 'var(--bw-canvas)' },
-  bgSurface: { backgroundColor: 'var(--bw-surface)' },
   bgAccentSubtle: { backgroundColor: 'var(--bw-accent-subtle)' },
-  bgDestructiveSubtle: { backgroundColor: 'var(--bw-destructive-subtle)' },
-  bgHover: { backgroundColor: 'var(--bw-hover)' },
-  bgTransparent: { backgroundColor: 'transparent' },
-  borderTop: {
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: 'var(--bw-border)',
-  },
-  borderBottom: {
-    borderBottomWidth: '1px',
-    borderBottomStyle: 'solid',
-    borderBottomColor: 'var(--bw-border)',
-  },
-  borderX: {
-    borderLeftWidth: '1px',
-    borderRightWidth: '1px',
-    borderLeftStyle: 'solid',
-    borderRightStyle: 'solid',
-    borderLeftColor: 'var(--bw-border)',
-    borderRightColor: 'var(--bw-border)',
-  },
-  divideY: {
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: 'var(--bw-border-subtle)',
-    ':not(:first-child)': {
-      borderTopWidth: '1px',
-    },
-  },
-  divideYChild: {
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: 'var(--bw-border-subtle)',
-    ':first-child': {
-      borderTopWidth: 0,
-    },
-  },
 
   // ── Layout helpers ───────────────────────────────────────────────
   spaceY1: {
@@ -158,71 +67,13 @@ export const bf = stylex.create({
     flexDirection: 'column',
     gap: '0.375rem',
   },
-  spaceY2: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.5rem',
-  },
-  spaceY3: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.75rem',
-  },
-  spaceY6: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '1.5rem',
-  },
-  spaceY8: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '2rem',
-  },
-  spaceY12: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '3rem',
-  },
-  itemsCenter: { alignItems: 'center' },
-  flexItemsEnd: { display: 'flex', alignItems: 'flex-end' },
-  flexWrap: { flexWrap: 'wrap' },
-  mt25: { marginTop: '0.625rem' },
-  gap1: { gap: '0.25rem' },
-  gap15: { gap: '0.375rem' },
-  gap2: { gap: '0.5rem' },
-  gap25: { gap: '0.625rem' },
-  gap3: { gap: '0.75rem' },
-  gap4: { gap: '1rem' },
-  gap5: { gap: '1.25rem' },
-  gap8: { gap: '2rem' },
-  gapX3: { columnGap: '0.75rem' },
-  gapX4: { columnGap: '1rem' },
-  gapX8: { columnGap: '2rem' },
-  gapY1: { rowGap: '0.25rem' },
-  gapY4: { rowGap: '1rem' },
   flex1: { flex: '1 1 0%' },
   shrink0: { flexShrink: 0 },
   minW0: { minWidth: 0 },
-  minH11: { minHeight: '44px' },
-  minW11: { minWidth: '44px' },
   w9: { width: '2.25rem' },
   w10: { width: '2.5rem' },
-  w11: { width: '2.75rem' },
   wFull: { width: '100%' },
-  hFull: { height: '100%' },
-  h3: { height: '0.75rem' },
-  h5: { height: '1.25rem' },
-  h7: { height: '1.75rem' },
   h10: { height: '2.5rem' },
-  h11: { height: '2.75rem' },
-  h28: { height: '7rem' },
-  hPx: { height: '1px' },
-  maxWMd: { maxWidth: '28rem' },
-  maxWXs: { maxWidth: '20rem' },
-  maxW3xl: { maxWidth: '48rem' },
-  maxWSm: { maxWidth: '24rem' },
-  maxWLg: { maxWidth: '32rem' },
-  mxAuto: { marginLeft: 'auto', marginRight: 'auto' },
   mt05: { marginTop: '0.125rem' },
   mt1: { marginTop: '0.25rem' },
   mt15: { marginTop: '0.375rem' },
@@ -231,53 +82,16 @@ export const bf = stylex.create({
   mt4: { marginTop: '1rem' },
   mt5: { marginTop: '1.25rem' },
   mt6: { marginTop: '1.5rem' },
-  mt7: { marginTop: '1.75rem' },
   mt8: { marginTop: '2rem' },
-  mb1: { marginBottom: '0.25rem' },
-  mb15: { marginBottom: '0.375rem' },
-  mb2: { marginBottom: '0.5rem' },
   mb3: { marginBottom: '0.75rem' },
   ml2: { marginLeft: '0.5rem' },
-  mr3: { marginRight: '0.75rem' },
-  pb1: { paddingBottom: '0.25rem' },
-  pb8: { paddingBottom: '2rem' },
-  pt4: { paddingTop: '1rem' },
-  pt5: { paddingTop: '1.25rem' },
-  pt6: { paddingTop: '1.5rem' },
-  pt10: { paddingTop: '2.5rem' },
-  pt14: { paddingTop: '3.5rem' },
-  px1: { paddingLeft: '0.25rem', paddingRight: '0.25rem' },
-  px2: { paddingLeft: '0.5rem', paddingRight: '0.5rem' },
-  px3: { paddingLeft: '0.75rem', paddingRight: '0.75rem' },
   px4: { paddingLeft: '1rem', paddingRight: '1rem' },
-  px5: { paddingLeft: '1.25rem', paddingRight: '1.25rem' },
-  py1: { paddingTop: '0.25rem', paddingBottom: '0.25rem' },
-  py2: { paddingTop: '0.5rem', paddingBottom: '0.5rem' },
-  py25: { paddingTop: '0.625rem', paddingBottom: '0.625rem' },
   py3: { paddingTop: '0.75rem', paddingBottom: '0.75rem' },
-  py5: { paddingTop: '1.25rem', paddingBottom: '1.25rem' },
   p3: { padding: '0.75rem' },
-  pb1Only: { paddingBottom: '0.25rem' },
   inset0: { inset: 0 },
-  insetX0: { left: 0, right: 0 },
-  insetX2: { left: '0.5rem', right: '0.5rem' },
-  insetY1: { top: '0.25rem', bottom: '0.25rem' },
-  bottomNeg1: { bottom: '-0.25rem' },
-  top1: { top: '0.25rem' },
-  left0: { left: 0 },
-  z40: { zIndex: 40 },
-  z50: { zIndex: 50 },
   roundedFull: { borderRadius: '9999px' },
-  roundedLg: { borderRadius: '0.5rem' },
-  roundedMd: { borderRadius: '0.375rem' },
   rounded2xl: { borderRadius: '1rem' },
-  opacity45: { opacity: 0.45 },
-  opacity50: { opacity: 0.5 },
-  opacity70: { opacity: 0.7 },
-  opacity80: { opacity: 0.8 },
   pointerEventsNone: { pointerEvents: 'none' },
-  cursorPointer: { cursor: 'pointer' },
-  cursorDefault: { cursor: 'default' },
   antialiased: {
     WebkitFontSmoothing: 'antialiased',
     MozOsxFontSmoothing: 'grayscale',
@@ -286,169 +100,19 @@ export const bf = stylex.create({
     fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
   },
   minH100svh: { minHeight: '100svh' },
-  h16: { height: '4rem' },
-  h56: { height: '14rem' },
-  w56: { width: '14rem' },
-  objectCover: { objectFit: 'cover' },
-  objectCenter: { objectPosition: 'center' },
-  objectContain: { objectFit: 'contain' },
-  listNone: { listStyle: 'none' },
   textCenter: { textAlign: 'center' },
-  itemsBaseline: { alignItems: 'baseline' },
-  itemsEnd: { alignItems: 'flex-end' },
-  justifyAround: { justifyContent: 'space-around' },
   block: { display: 'block' },
   inlineFlex: { display: 'inline-flex' },
-  gridCols2: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-  },
   overflowHidden: { overflow: 'hidden' },
-  overflowXAuto: { overflowX: 'auto' },
-  overflowYAuto: { overflowY: 'auto' },
-  fixed: { position: 'fixed' },
   absolute: { position: 'absolute' },
   relative: { position: 'relative' },
-  insetX0Bottom0: {
-    position: 'fixed',
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
   ring1BwBorder: {
     boxShadow: `0 0 0 1px ${'var(--bw-border)'}`,
   },
-  dropShadow: {
-    filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.25))',
-  },
-  textWhite: { color: '#ffffff' },
-  accentBw: { accentColor: 'var(--bw-accent)' },
-  disabledOpacity40: {
-    opacity: 0.4,
-  },
-  pr28: { paddingRight: '7rem' },
-  top0: { top: 0 },
-  rightNeg2: { right: '-0.5rem' },
-  h28Decor: { height: '7rem' },
-  w28Decor: { width: '7rem' },
-  inset6: { inset: '1.5rem' },
-  w10Sweep: { width: '2.5rem' },
-  mxAuto3: { marginLeft: 'auto', marginRight: 'auto' },
-  h3w3: { height: '0.75rem', width: '0.75rem' },
-  w10h10: { width: '2.5rem', height: '2.5rem' },
 
   // ── Responsive (sm: 640px) ───────────────────────────────────────
-  smHidden: {
-    '@media (min-width: 640px)': {
-      display: 'none',
-    },
-  },
-  smFlex: {
-    '@media (min-width: 640px)': {
-      display: 'flex',
-    },
-  },
-  smFlexRow: {
-    '@media (min-width: 640px)': {
-      flexDirection: 'row',
-    },
-  },
-  smItemsCenter: {
-    '@media (min-width: 640px)': {
-      alignItems: 'center',
-    },
-  },
-  smGridCols3: {
-    '@media (min-width: 640px)': {
-      gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-    },
-  },
-  smH64: {
-    '@media (min-width: 640px)': {
-      height: '16rem',
-    },
-  },
-  smW64: {
-    '@media (min-width: 640px)': {
-      width: '16rem',
-    },
-  },
-  smWAuto: {
-    '@media (min-width: 640px)': {
-      width: 'auto',
-    },
-  },
-  smMinW44: {
-    '@media (min-width: 640px)': {
-      minWidth: '11rem',
-    },
-  },
-  smBlock: {
-    '@media (min-width: 640px)': {
-      display: 'block',
-    },
-  },
-  smH36: {
-    '@media (min-width: 640px)': {
-      height: '9rem',
-    },
-  },
-  smW36: {
-    '@media (min-width: 640px)': {
-      width: '9rem',
-    },
-  },
-  smPr36: {
-    '@media (min-width: 640px)': {
-      paddingRight: '9rem',
-    },
-  },
-  smPx8: {
-    '@media (min-width: 640px)': {
-      paddingLeft: '2rem',
-      paddingRight: '2rem',
-    },
-  },
-  smPb16: {
-    '@media (min-width: 640px)': {
-      paddingBottom: '4rem',
-    },
-  },
-  smPt4: {
-    '@media (min-width: 640px)': {
-      paddingTop: '1rem',
-    },
-  },
-  smText3xl: {
-    '@media (min-width: 640px)': {
-      fontSize: '1.875rem',
-      lineHeight: '2.25rem',
-    },
-  },
-  smPl8: {
-    '@media (min-width: 640px)': {
-      paddingLeft: '2rem',
-    },
-  },
-  smGapX3: {
-    '@media (min-width: 640px)': {
-      columnGap: '0.75rem',
-    },
-  },
 
   // ── Dark mode image swap ─────────────────────────────────────────
-  imgLightOnly: {
-    display: 'block',
-    ':is(.dark &)': {
-      display: 'none',
-    },
-  },
-  imgDarkOnly: {
-    display: 'none',
-    ':is(.dark &)': {
-      display: 'block',
-    },
-  },
 
   // ── Skip link (sr-only until focus) ──────────────────────────────
   skipLink: {
@@ -484,38 +148,10 @@ export const bf = stylex.create({
   },
 
   // ── Orb / viz sizes ──────────────────────────────────────────────
-  orbSize: {
-    height: '14rem',
-    width: '14rem',
-    '@media (min-width: 640px)': {
-      height: '16rem',
-      width: '16rem',
-    },
-  },
-  orbSizeRelative: {
-    position: 'relative',
-    height: '14rem',
-    width: '14rem',
-    '@media (min-width: 640px)': {
-      height: '16rem',
-      width: '16rem',
-    },
-  },
 
   // ── Heatmap intensity ────────────────────────────────────────────
-  heat0: { backgroundColor: 'var(--bw-hover)' },
-  heat1: { backgroundColor: 'color-mix(in srgb, var(--bw-accent) 35%, transparent)' },
-  heat2: { backgroundColor: 'color-mix(in srgb, var(--bw-accent) 60%, transparent)' },
-  heat3: { backgroundColor: 'var(--bw-accent)' },
 
   // ── Motion-reduce helpers ─────────────────────────────────────────
-  motionSafeTransition: {
-    transitionProperty: 'color, background-color, border-color, transform, opacity',
-    transitionDuration: '150ms',
-    '@media (prefers-reduced-motion: reduce)': {
-      transitionProperty: 'none',
-    },
-  },
   groupOpenRotate180: {
     transitionProperty: 'transform',
     transitionDuration: '200ms',
@@ -580,8 +216,6 @@ export const bf = stylex.create({
       outlineOffset: '2px',
     },
   },
-  toggleTrackOn: { backgroundColor: 'var(--bw-accent)' },
-  toggleTrackOff: { backgroundColor: 'var(--bw-text-faint)' },
   toggleThumb: {
     position: 'absolute',
     top: '0.25rem',
@@ -591,42 +225,6 @@ export const bf = stylex.create({
     borderRadius: '9999px',
     backgroundColor: 'var(--bw-surface)',
     boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-  },
-  orbColorBtn: {
-    position: 'relative',
-    display: 'flex',
-    height: '2.75rem',
-    width: '2.75rem',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: '0.5rem',
-    transitionProperty: 'transform',
-    transitionDuration: '150ms',
-    ':active': {
-      transform: 'scale(0.95)',
-    },
-    '@media (prefers-reduced-motion: reduce)': {
-      ':active': {
-        transform: 'none',
-      },
-    },
-    ':focus-visible': {
-      outlineWidth: '2px',
-      outlineStyle: 'solid',
-      outlineColor: 'var(--bw-accent)',
-      outlineOffset: '2px',
-    },
-  },
-  orbColorBtnSelected: {
-    boxShadow: `0 0 0 2px ${'var(--bw-accent)'}, 0 0 0 4px ${'var(--bw-canvas)'}`,
-  },
-  sweepGradient: {
-    position: 'absolute',
-    insetBlock: 0,
-    left: 0,
-    width: '2.5rem',
-    backgroundImage: `linear-gradient(to right, transparent, ${'var(--bw-accent)'}, transparent)`,
-    opacity: 0.7,
   },
   detailsSummary: {
     display: 'flex',
@@ -655,137 +253,11 @@ export const bf = stylex.create({
       display: 'none',
     },
   },
-  heatmapGrid: {
-    display: 'grid',
-    gridTemplateColumns: '2.5rem repeat(7, minmax(0, 1fr))',
-    gap: '0.25rem',
-  },
-  greetingTitle: {
-    fontSize: 'clamp(2.25rem, 6vw, 3.5rem)',
-    lineHeight: 1.05,
-  },
   safeAreaTop: {
     paddingTop: 'max(1.5rem, env(safe-area-inset-top))',
   },
   safeAreaBottom: {
     paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))',
-  },
-  mobileNavBar: {
-    position: 'fixed',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 40,
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: 'var(--bw-border)',
-    backgroundColor: 'var(--bw-canvas)',
-    paddingBottom: 'env(safe-area-inset-bottom)',
-  },
-  navLinkDesktop: {
-    position: 'relative',
-    display: 'inline-flex',
-    minHeight: '44px',
-    alignItems: 'center',
-    paddingLeft: '0.625rem',
-    paddingRight: '0.625rem',
-    fontSize: '0.875rem',
-    ':focus-visible': {
-      outlineWidth: '2px',
-      outlineStyle: 'solid',
-      outlineColor: 'var(--bw-accent)',
-      outlineOffset: '2px',
-    },
-    '@media (hover: hover) and (pointer: fine)': {
-      ':hover': {
-        color: 'var(--bw-text)',
-      },
-    },
-  },
-  navLinkDesktopActive: {
-    fontWeight: 500,
-    color: 'var(--bw-accent)',
-  },
-  navLinkDesktopInactive: {
-    color: 'var(--bw-text-secondary)',
-  },
-  navLinkMobile: {
-    position: 'relative',
-    display: 'flex',
-    minHeight: '3rem',
-    minWidth: '4rem',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingLeft: '0.5rem',
-    paddingRight: '0.5rem',
-    paddingTop: '0.375rem',
-    paddingBottom: '0.375rem',
-    fontSize: '12px',
-    ':focus-visible': {
-      outlineWidth: '2px',
-      outlineStyle: 'solid',
-      outlineColor: 'var(--bw-accent)',
-      outlineOffset: '2px',
-    },
-  },
-  navLinkMobileActive: {
-    fontWeight: 500,
-    color: 'var(--bw-accent)',
-  },
-  navLinkMobileInactive: {
-    color: 'var(--bw-text-secondary)',
-  },
-  navInkMobile: {
-    position: 'absolute',
-    left: '0.5rem',
-    right: '0.5rem',
-    top: '0.25rem',
-    bottom: '0.25rem',
-    borderRadius: '0.375rem',
-    backgroundColor: 'var(--bw-accent-subtle)',
-  },
-  techniqueBtn: {
-    position: 'relative',
-    minHeight: '44px',
-    paddingLeft: '0.75rem',
-    paddingRight: '0.75rem',
-    paddingTop: '0.5rem',
-    paddingBottom: '0.5rem',
-    textAlign: 'left',
-    fontSize: '0.875rem',
-    ':focus-visible': {
-      outlineWidth: '2px',
-      outlineStyle: 'solid',
-      outlineColor: 'var(--bw-accent)',
-      outlineOffset: '2px',
-    },
-  },
-  techniqueBtnActive: {
-    fontWeight: 500,
-    color: 'var(--bw-text)',
-  },
-  techniqueBtnInactive: {
-    color: 'var(--bw-text-secondary)',
-    '@media (hover: hover) and (pointer: fine)': {
-      ':hover': {
-        color: 'var(--bw-text)',
-      },
-    },
-  },
-  techniqueInk: {
-    position: 'absolute',
-    inset: 0,
-    backgroundColor: 'var(--bw-accent-subtle)',
-  },
-  techniqueGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-    columnGap: '0.75rem',
-    rowGap: '0.25rem',
-    '@media (min-width: 640px)': {
-      gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-    },
   },
   groupOpenHidden: {
     ':is(.group[open] &)': {
@@ -804,29 +276,6 @@ export const bf = stylex.create({
     borderTopStyle: 'solid',
     borderTopColor: 'var(--bw-border-subtle)',
     paddingTop: '0.5rem',
-  },
-  mb25: { marginBottom: '0.625rem' },
-  gap7: { gap: '1.75rem' },
-  px6: { paddingLeft: '1.5rem', paddingRight: '1.5rem' },
-  textCenterBlock: { textAlign: 'center' },
-  sessionSummaryWrap: { paddingTop: '1.5rem', paddingBottom: '1.5rem' },
-  sessionFullscreen: {
-    position: 'fixed',
-    inset: 0,
-    zIndex: 50,
-    display: 'flex',
-    flexDirection: 'column',
-    backgroundColor: 'var(--bw-canvas)',
-  },
-  visualTapBtn: {
-    borderRadius: '9999px',
-    cursor: 'default',
-    ':focus-visible': {
-      outlineWidth: '2px',
-      outlineStyle: 'solid',
-      outlineColor: 'var(--bw-accent)',
-      outlineOffset: '8px',
-    },
   },
   showMoreBtn: {
     marginTop: '0.5rem',
@@ -870,17 +319,22 @@ export const bf = stylex.create({
   },
   inkChip: {
     position: 'relative',
+    isolation: 'isolate',
     minHeight: '44px',
     minWidth: '44px',
-    paddingLeft: '0.25rem',
-    paddingRight: '0.25rem',
+    paddingLeft: '0.95rem',
+    paddingRight: '0.95rem',
     fontSize: '0.875rem',
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
-    borderWidth: 0,
+    borderRadius: '999px',
+    borderWidth: '1px',
     borderStyle: 'solid',
+    borderColor: 'var(--bw-border)',
     backgroundColor: 'transparent',
     cursor: 'pointer',
+    transitionProperty: 'color, border-color',
+    transitionDuration: '200ms',
     ':focus-visible': {
       outlineWidth: '2px',
       outlineStyle: 'solid',
@@ -891,25 +345,28 @@ export const bf = stylex.create({
   inkChipActive: {
     fontWeight: 500,
     color: 'var(--bw-text)',
+    borderColor: 'transparent',
   },
   inkChipInactive: {
     color: 'var(--bw-text-secondary)',
     '@media (hover: hover) and (pointer: fine)': {
       ':hover': {
         color: 'var(--bw-text)',
+        borderColor: 'color-mix(in srgb, var(--bw-text) 28%, transparent)',
       },
     },
   },
   inkChipXs: {
     fontSize: '0.75rem',
   },
+  /** A wash of ink laid behind the active label (chips, nav). */
   selectionInk: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: '-0.25rem',
-    height: '1px',
-    backgroundColor: 'var(--bw-accent)',
+    inset: 0,
+    zIndex: -1,
+    borderRadius: '999px',
+    backgroundColor: 'color-mix(in srgb, var(--bf-ink, var(--bw-accent)) 16%, transparent)',
+    boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--bf-ink, var(--bw-accent)) 30%, transparent)',
   },
   noticeAccent: {
     backgroundColor: 'var(--bw-accent-subtle)',
@@ -924,99 +381,6 @@ export const bf = stylex.create({
     paddingRight: '1rem',
     paddingTop: '0.75rem',
     paddingBottom: '0.75rem',
-  },
-  sectionFirst: {
-    borderTopWidth: 0,
-    borderTopStyle: 'solid',
-    borderTopColor: 'var(--bw-border)',
-    paddingTop: '1.25rem',
-    paddingBottom: '1.25rem',
-  },
-  section: {
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: 'var(--bw-border)',
-    paddingTop: '1.25rem',
-    paddingBottom: '1.25rem',
-  },
-  sectionTight: {
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: 'var(--bw-border)',
-    paddingTop: '1.25rem',
-  },
-  headerBar: {
-    marginLeft: 'auto',
-    marginRight: 'auto',
-    display: 'flex',
-    height: '4rem',
-    width: '100%',
-    maxWidth: '48rem',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingLeft: '1.25rem',
-    paddingRight: '1.25rem',
-  },
-  mainContent: {
-    marginLeft: 'auto',
-    marginRight: 'auto',
-    width: '100%',
-    maxWidth: '48rem',
-    paddingLeft: '1.25rem',
-    paddingRight: '1.25rem',
-    paddingBottom: '7rem',
-    paddingTop: '0.5rem',
-  },
-  brandLink: {
-    display: 'inline-flex',
-    minHeight: '44px',
-    alignItems: 'center',
-    gap: '0.5rem',
-    borderRadius: '0.375rem',
-    fontSize: '15px',
-    letterSpacing: '-0.025em',
-    color: 'var(--bw-text)',
-    ':focus-visible': {
-      outlineWidth: '2px',
-      outlineStyle: 'solid',
-      outlineColor: 'var(--bw-accent)',
-      outlineOffset: '4px',
-    },
-  },
-  heroDecor: {
-    pointerEvents: 'none',
-    position: 'absolute',
-    right: '-0.5rem',
-    top: 0,
-    height: '7rem',
-    width: '7rem',
-    opacity: 0.8,
-  },
-  markHiddenSm: {
-    display: 'none',
-    marginBottom: '0.25rem',
-    height: '2.25rem',
-    width: '2.25rem',
-    '@media (min-width: 640px)': {
-      display: 'block',
-    },
-  },
-  markNav: {
-    flexShrink: 0,
-    objectFit: 'contain',
-    height: '22px',
-    width: '22px',
-  },
-  controlsDock: {
-    marginLeft: 'auto',
-    marginRight: 'auto',
-    display: 'flex',
-    maxWidth: '24rem',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '0.5rem',
-    paddingLeft: '1.5rem',
-    paddingRight: '1.5rem',
   },
   rangeInput: {
     marginTop: '0.5rem',
@@ -1063,68 +427,6 @@ export const bf = stylex.create({
     borderRadius: '9999px',
     backgroundColor: 'var(--bw-text-tertiary)',
   },
-  phaseSeg: {
-    display: 'block',
-    height: '100%',
-  },
-  phaseBar: {
-    position: 'relative',
-    marginTop: '0.5rem',
-    display: 'flex',
-    height: '1px',
-    width: '100%',
-    overflow: 'hidden',
-    backgroundColor: 'var(--bw-border)',
-  },
-  starfieldInline: {
-    pointerEvents: 'none',
-    position: 'absolute',
-    inset: 0,
-    height: '100%',
-    width: '100%',
-  },
-  particleCanvas: {
-    pointerEvents: 'none',
-    position: 'absolute',
-    inset: 0,
-    height: '100%',
-    width: '100%',
-  },
-  ringsRoot: {
-    position: 'relative',
-    height: '100%',
-    width: '100%',
-  },
-  ringsSvg: {
-    position: 'absolute',
-    inset: 0,
-    height: '100%',
-    width: '100%',
-  },
-  ringsMotion: {
-    position: 'absolute',
-    inset: 0,
-  },
-  fullInset: {
-    height: '100%',
-    width: '100%',
-  },
-  flexColCenter: {
-    display: 'flex',
-    flex: '1 1 0%',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '1.75rem',
-    paddingLeft: '1.5rem',
-    paddingRight: '1.5rem',
-  },
-  phaseLabel: {
-    fontSize: '1.25rem',
-    fontWeight: 500,
-    letterSpacing: '-0.025em',
-    color: 'var(--bw-text)',
-  },
   phaseCue: {
     marginTop: '0.5rem',
     maxWidth: '20rem',
@@ -1156,11 +458,6 @@ export const bf = stylex.create({
       borderTopWidth: 0,
     },
   },
-  cadenceDivide: {
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: 'var(--bw-border-subtle)',
-  },
   historyRow: {
     display: 'flex',
     alignItems: 'center',
@@ -1174,30 +471,6 @@ export const bf = stylex.create({
       borderTopWidth: 0,
     },
   },
-  pbRow: {
-    display: 'flex',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    paddingTop: '0.5rem',
-    paddingBottom: '0.5rem',
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: 'var(--bw-border-subtle)',
-    ':first-child': {
-      borderTopWidth: 0,
-    },
-  },
-  flexColStart: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    gap: '1rem',
-  },
-  flexColGap25: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.625rem',
-  },
   flexWrapGap2: {
     display: 'flex',
     flexWrap: 'wrap',
@@ -1207,19 +480,6 @@ export const bf = stylex.create({
     display: 'flex',
     flexWrap: 'wrap',
     gap: '0.375rem',
-  },
-  flexWrapGapX4Y1: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    columnGap: '1rem',
-    rowGap: '0.25rem',
-  },
-  flexWrapBaseline: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    gap: '0.5rem',
   },
   flexBetween: {
     display: 'flex',
@@ -1232,11 +492,6 @@ export const bf = stylex.create({
     alignItems: 'baseline',
     justifyContent: 'space-between',
     gap: '0.5rem',
-  },
-  flexItemsEndGap5: {
-    display: 'flex',
-    alignItems: 'flex-end',
-    gap: '1.25rem',
   },
   flexItemsCenterGap3: {
     display: 'flex',
@@ -1260,14 +515,6 @@ export const bf = stylex.create({
     '@media (min-width: 640px)': {
       flexDirection: 'row',
       alignItems: 'center',
-    },
-  },
-  actionRow: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.625rem',
-    '@media (min-width: 640px)': {
-      flexDirection: 'row',
     },
   },
   toggleLabel: {
@@ -1302,86 +549,6 @@ export const bf = stylex.create({
     lineHeight: 1.625,
     color: 'var(--bw-text-secondary)',
   },
-  statGrid: {
-    marginTop: '1.5rem',
-    display: 'flex',
-    flexWrap: 'wrap',
-    columnGap: '2rem',
-    rowGap: '1rem',
-  },
-  badgeItem: {
-    backgroundColor: 'var(--bw-accent-subtle)',
-    paddingLeft: '0.75rem',
-    paddingRight: '0.75rem',
-    paddingTop: '0.5rem',
-    paddingBottom: '0.5rem',
-  },
-  insightBlock: {
-    marginTop: '1.5rem',
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: 'var(--bw-border)',
-    paddingTop: '1rem',
-  },
-  techniqueListLink: {
-    display: 'block',
-    paddingTop: '0.625rem',
-    paddingBottom: '0.625rem',
-    transitionProperty: 'color',
-    transitionDuration: '150ms',
-    ':focus-visible': {
-      outlineWidth: '2px',
-      outlineStyle: 'solid',
-      outlineColor: 'var(--bw-accent)',
-      outlineOffset: '2px',
-    },
-    '@media (hover: hover) and (pointer: fine)': {
-      ':hover': {
-        color: 'var(--bw-accent)',
-      },
-    },
-  },
-  techniqueMeta: {
-    marginTop: '0.25rem',
-    display: 'block',
-    maxWidth: '28rem',
-    fontSize: '0.75rem',
-    lineHeight: 1.625,
-    color: 'var(--bw-text-secondary)',
-  },
-  techniqueEvidence: {
-    marginTop: '0.25rem',
-    display: 'block',
-    fontSize: '11px',
-    textTransform: 'capitalize',
-    color: 'var(--bw-text-tertiary)',
-  },
-  techniqueTitleRow: {
-    display: 'flex',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    gap: '0.75rem',
-  },
-  mobileNavInner: {
-    marginLeft: 'auto',
-    marginRight: 'auto',
-    display: 'flex',
-    maxWidth: '28rem',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingLeft: '0.5rem',
-    paddingRight: '0.5rem',
-    paddingTop: '0.25rem',
-    paddingBottom: '0.25rem',
-  },
-  desktopNav: {
-    display: 'none',
-    alignItems: 'center',
-    gap: '0.25rem',
-    '@media (min-width: 640px)': {
-      display: 'flex',
-    },
-  },
   legendMb2: {
     marginBottom: '0.5rem',
     fontSize: '0.875rem',
@@ -1390,12 +557,6 @@ export const bf = stylex.create({
   scienceBody: {
     paddingBottom: '0.5rem',
     paddingTop: '0.25rem',
-  },
-  detailsBorderTop: {
-    borderTopWidth: '1px',
-    borderTopStyle: 'solid',
-    borderTopColor: 'var(--bw-border-subtle)',
-    paddingTop: '0.5rem',
   },
   startBlock: {
     marginTop: '1.75rem',

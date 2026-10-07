@@ -10,7 +10,8 @@ This repo hosts five experiences under one Vite SPA: the **anthonyl.im lab landi
 anthonyl.im/
 ├── frontend/                    # React 19 + TypeScript SPA (Vite 8)
 │   ├── src/
-│   │   ├── App.tsx              # Chatbot at /chatbot (SSE via lib/apiService.ts)
+│   │   ├── App.tsx              # Chatbot "Lim" at /chatbot (SSE via lib/apiService.ts)
+│   │   ├── chat/                # Lim: useChat, LimStage (lazy 3D), LimArt, scene/limScene.ts
 │   │   ├── AppRoutes.tsx        # React Router v7 tree — Guarded + lazy
 │   │   ├── main.tsx             # Clerk provider + SW registration
 │   │   ├── breathflow/          # Entire BreathFlow app
@@ -18,7 +19,8 @@ anthonyl.im/
 │   │   │   ├── engine/          # useSessionEngine (ephemeral session — not Zustand)
 │   │   │   ├── protocols/       # Technique catalog + cadence
 │   │   │   ├── gamify/          # XP, badges, levels
-│   │   │   ├── components/      # OrbVisualization, useGlassOrb, LiveAnnouncer, …
+│   │   │   ├── components/      # PaintSplash, PhaseStrip, BadgeGrid, LiveAnnouncer, …
+│   │   │   ├── scene/           # Watercolour bloom: bloomScene (WebGPU/TSL), BloomCanvas, BloomAnchor, breathDrive
 │   │   │   ├── motion/ platform/ safety/ session/ recommend/
 │   │   ├── pages/
 │   │   │   ├── Landing/         # `/` lab landing: content, StyleX, WebGPU hero scene
@@ -27,10 +29,11 @@ anthonyl.im/
 │   │   ├── effect/              # Effect-TS HTTP/SSE/runtime
 │   │   ├── styles/              # merge.ts (sx), common.stylex.ts, tokens.ts, route *.stylex.ts
 │   │   ├── components/          # Shared: ui/*, CloudSync, RouteErrorBoundary
+│   │   ├── three/               # Shared WebGPU toolkit: createStage, Jelly soft body, jellyMesh, bindJellyPointer
 │   │   ├── hooks/               # useReducedMotion, useLatestCallback, useCloudSync
 │   │   ├── lib/                 # apiBase, apiService, safeAuth, clerk, concierge*, externalMaps
 │   │   ├── stores/              # Zustand: settingsStore, gamificationStore, historyStore
-│   │   └── index.css            # Tokens (chatbot / breathwork / korea / trips)
+│   │   └── index.css            # Tokens (breathwork / korea / trips; chatbot in chat/chat.css)
 │   ├── public/
 │   │   ├── sw.js                # CACHE_VERSION = korea-offline-v*
 │   │   ├── robots.txt           # Allow / ; Disallow /preview/
@@ -252,7 +255,7 @@ Two regressions surfaced in May 2026 that the verify gate now catches:
 
 ## Routing
 
-Routes are lazy-loaded inside `Guarded` (`RouteErrorBoundary` + `Suspense`). All four apps share `index.html`; the server injects per-route OG tags / favicon / manifest. Basename comes from `lib/routerBasename.ts` (PR preview support).
+Routes are lazy-loaded inside `Guarded` (`RouteErrorBoundary` + `Suspense`). All five apps share `index.html`; the server injects per-route OG tags / favicon / manifest. Basename comes from `lib/routerBasename.ts` (PR preview support).
 
 | Path | App | Auth |
 |------|-----|------|
@@ -357,9 +360,9 @@ Full CI/CD agent memory: [`docs/ci-cd.md`](docs/ci-cd.md).
 
 | Chunk | Contents | Why |
 |-------|----------|-----|
-| `three-core` | `three.core.js` | Shared by Map Mode and the landing hero |
+| `three-core` | `three.core.js` | Shared by Map Mode and every WebGPU scene |
 | `three` | three.js WebGL build + loaders + OrbitControls | Only loaded in Map Mode |
-| `three-webgpu` | `three/webgpu` + `three/tsl` + TSL addons + `three-blocks` | Only loaded by the landing hero |
+| `three-webgpu` | `three/webgpu` + `three/tsl` + TSL addons + `three-blocks` | Lazy WebGPU scenes: landing hero, Lim, BreathFlow bloom, Trips globes |
 | `tiles3d` | 3d-tiles-renderer | Only loaded in Detailed-3D debug mode |
 | `react-vendor` | react + react-dom + scheduler | Stable cache |
 | `motion` | motion/framer-motion | Used by Places and MapMode — split prevents Places from pulling in three.js |
@@ -401,7 +404,7 @@ Chunk size warning ceiling is 720 KB (intentional — the `three` chunk is large
 - Zustand v5 (BreathFlow persisted stores), Motion 13, Lucide
 - Effect v3 (`effect`, `@effect/language-service`) for frontend I/O — see [Frontend Effect-TS](#frontend-effect-ts)
 - Bun + Hono (server), Clerk (`@clerk/clerk-react` ^5), Supabase, PostHog
-- Three.js for Map Mode (Korea **and** Trips)
+- Three.js: WebGL for Map Mode (Korea **and** Trips); `three/webgpu` + TSL for the landing, Lim, BreathFlow and Trips scenes, all on the shared `frontend/src/three/` toolkit
 
 ## Frontend Effect-TS
 
@@ -466,7 +469,7 @@ All UI styling is StyleX + semantic CSS classes — Tailwind is removed. Skill: 
 | Destructive | `#EF4444` | `#EF4444` | Errors, delete |
 | Border | `rgba(28,25,23,0.08)` | `rgba(255,252,245,0.06)` | Subtle edges |
 | Body font | Inter (BreathFlow: Geist) | | Shared-site body; BreathFlow uses Geist |
-| Display font | Cormorant Garamond (BreathFlow: Fragment Mono) | | Shared-site display; BreathFlow uses Fragment Mono |
+| Display font | Cormorant Garamond (BreathFlow: Fraunces) | | Shared-site display; BreathFlow uses Fraunces |
 | Border radius | `0.5rem` (default) / `1rem`+ in Korea orb cards | | Standard rounding |
 | Spring easing | `cubic-bezier(0.16, 1, 0.3, 1)` | | Motion default |
 | Decel easing | `cubic-bezier(0.33, 0, 0, 1)` | | Smooth stops |
@@ -484,68 +487,91 @@ Code: `frontend/src/pages/Landing/` (`Landing.tsx`, `parts.tsx`, `content.ts`, `
 - **License:** `three-blocks` is PolyForm Noncommercial 1.0.0. The footer carries the Required Notice — keep it. Commercial use needs a three-blocks license.
 - **Chunks:** the hero loads `three-core` + `three-webgpu` only; Map Mode loads `three-core` + `three`.
 
-## Design Context: `/chatbot` — Personal AI Chatbot
+## Design Context: `/chatbot` — Lim, the jelly companion
+
+Code: `frontend/src/App.tsx` (page shell), `frontend/src/chat/` (`useChat.ts` state + persistence, `LimStage.tsx` lazy 3D stage, `LimArt.tsx` SVG Lim, `caret.ts`, `chat.css` tokens + code theme, `scene/limScene.ts` WebGPU/TSL scene), `frontend/src/styles/chatbot.stylex.ts`, `messageContent.stylex.ts`, `components/message-content.tsx`.
 
 ### Users
 Visitors who open `/chatbot` (from the landing page or a shared link). Recruiters, prospective collaborators, friends, curious engineers. They're trying to get a feel for who Anthony is — fast. They scan, they pivot, they leave if it doesn't earn attention.
 
 ### Brand Personality
-**Quiet, Confident, Crafted.** A staff-engineer's personal site — minimal but not lazy, technical but not cold. The interface should feel like meeting someone who answers questions thoughtfully rather than performing for an audience.
+**Playful, Warm, Crafted.** Lim is a Pixar-soft coral gumdrop of jelly who answers for Anthony. The craft shows in how Lim moves; the chat itself stays calm and readable.
 
-**Emotional goal:** A reassuring "this person ships" feeling. The chatbot is the demo.
+**Emotional goal:** Delight in the first second (Lim pops in, bounces, looks at you), then a reassuring "this person ships" feeling. The mascot is the demo.
 
 ### Aesthetic Direction
-- **Theme:** Light-first warm parchment with a subtle grain overlay (SVG fractal noise). Dark mode inverts to the same `#171613` canvas.
-- **Surface:** Two-tone — a warm canvas with a single column for chat content. No nested cards.
-- **Accent:** Warm amber `#B8860B`, only on send action + suggested-question pills.
-- **Anti-references:** No purple "AI" gradients. No glowing borders. No "AI typing" indicator with rainbow lights. Stay quiet.
+- **Theme:** "Sorbet studio": cream day canvas `#FFF6EC`, night-indigo `#1E1833` (toggle in header, or `S`). Pastel blobs, doodles and confetti are set dressing only.
+- **Mascot:** the toolkit `Jelly` soft body (shape matching, `upright` righting) with toon/wrap shading, rim fresnel, a smoothed rest-normal blend and an ink hull. Face paint (brows, mouth, blush) lives in the body shader; eyes are attached 3D spheres. A polka-dot floor, a scalloped mint rug, contact shadows and three jelly beans to bump.
+- **Behaviours:** idle breathe + fidgets + blinks; typing leans in and eyes follow the caret; send = hop + squash landing; thinking = wobble + thought bubble; streaming = mouth flaps per chunk; done = happy squish + confetti (first reply); error = droop + "Try again"; poke = giggle + blush; drag/fling bounces off the walls and floor.
+- **Layout:** desktop stage left, chat panel right; mobile stage on top (compact once chatting, so Lim stays visible while typing).
+- **Accent:** Lim coral `#FF7E6B` (send button, Lim's name, list markers). Plum ink `#2B2140` carries the text.
+- **Type:** Fredoka display (headings, chips, captions), Inter body.
+- **Anti-references:** no purple "AI" gradients, no glowing borders, no rainbow typing indicators. Do not reuse the landing's ultramarine, BreathFlow's watercolour or the Trips toy-world.
 
 ### Per-route Tokens
-- Theme class switch: `chatbot-shadow` (light) / `chatbot-dark`
-- Grain texture is a *design feature* — keep it
-- 100dvh container so iOS safe areas blend with `html { background: #F5F2ED }`
+- Theme classes: `chatbot-shadow` (day) / `chatbot-dark` (night), both defined in `frontend/src/chat/chat.css` (`--chat-*` vars), not `index.css`
+- `html:has(.chatbot-*)` paints the canvas so iOS safe areas blend
+- The 3D scene is lazy (`import('./scene/limScene')`); `LimArt` SVG is the first paint and the no-WebGPU/WebGL fallback
+- Reduced motion freezes the jiggle and renders on demand; CSS beats are paused
+- Chat history persists in `localStorage` under `lim-chat-v1`; night mode under `lim-chat-night`
+- I/O stays `invokeDeepseek` (Effect SSE) in `lib/apiService.ts`; the optional `signal` param powers Stop (Esc)
 
 ---
 
-## Design Context: `/breathwork/*` — BreathFlow
+## Design Context: `/breathwork/*` — BreathFlow ("Watercolor breath")
 
-Code: `frontend/src/breathflow/`. Session state is `useSessionEngine`. Orb: `OrbVisualization` / `useGlassOrb`. Chrome stays matte. Implementation fonts: Geist + Fragment Mono.
+Code: `frontend/src/breathflow/`. Session state is `useSessionEngine` (React state, not Zustand). The centrepiece is a WebGPU soft-body watercolour **bloom**: `scene/bloomScene.ts` (three/webgpu + TSL, lazy-imported by `scene/BloomCanvas.tsx` so three stays out of the initial chunk), positioned by `scene/BloomAnchor.tsx` (painted CSS fallback + brush progress stroke) and driven by `scene/breathDrive.ts` (`useBreathReader` interpolates the 1 Hz engine tick into a smooth amplitude). Built on the shared toolkit in `frontend/src/three/` (`createStage`, `Jelly`, `bindJellyPointer`). Pigments live in `pigments.ts`; paper/wash/brush CSS + SVG filters in `styles/watercolor.css` + `components/WatercolorDefs.tsx`. Fonts: Fraunces display (`.bf-display`, SOFT/WONK axes) + Geist body.
 
 ### Users
 Wellness enthusiasts and people seeking anxiety / stress relief. They open BreathFlow when they need to decompress, build a daily breathing habit, or access structured breathwork techniques backed by science. The context is often evening wind-down, pre-performance calm, or mid-day stress breaks — moments that demand a UI that feels immediately calming upon launch.
 
 ### Brand Personality
-**Calm, Scientific, Premium.** Like a high-end wellness lab — trustworthy, refined, evidence-based. The interface should feel like a precision instrument for the body, not a toy. Gamification (XP, levels, achievements) exists to sustain habit, not to entertain — it's motivation architecture, not playfulness.
+**Calm, Scientific, Hand-made.** A precision instrument painted by hand: evidence-based protocols, delivered as a living watercolour. Gamification (XP, levels, wax-seal badges) exists to sustain habit, not to entertain.
 
-**Emotional goals:** Immediate calm (like stepping into a quiet room — tension drops instantly) and quiet confidence (like a deep breath before a big moment — grounded and capable).
+**Emotional goals:** Immediate calm (wet paint spreading slowly on paper) and quiet confidence (the bloom fills exactly as long as the breath).
 
 ### Aesthetic Direction
-- **Visual tone:** Warm parchment + ink. Light-first warm beige canvas (`#F5F2ED`), ink typography (`#1C1917`), amber accent (`#B8860B`).
-- **References:** Calm / Headspace's wellness credibility combined with Arc / Linear's craft. More technical than mainstream wellness, warmer than dev tools.
-- **Anti-references:** No SaaS purple, no cartoon-illustrated wellness, no cluttered dashboards.
+- **World:** a hand-painted watercolour on warm cotton cold-press paper (`#F7F1E6`); dark mode is deep ink-blue paper (`#15161C`). A fixed `.bf-paper` tooth overlay multiplies over everything.
+- **Bloom:** a `Jelly` soft body that inflates on inhale (≈1.36×), jiggles subtly on holds, and eases down on exhale; physics carries the overshoot. TSL material: Beer–Lambert pigment glaze, edge pooling, wet edge, backruns and granulation on the `rest` attribute, hue drift. The paper sheet behind it has wet-in-wet fbm blooms that spread on inhale and recede on exhale, plus drifting flecks. Post: paper tooth, colour bleed, vignette, Three.js Blocks `filmHD` grain (credited on Settings).
+- **Interaction:** poke + drag the bloom on Home and session setup; during a session, a gentle poke only. Space toggles pause/resume.
+- **Chrome:** matte paper, pill buttons tinted by the active pigment (`--bf-ink`), painted swatches/dabs (`.bf-swatch`, `.bf-dab`), brush strokes (`.bf-brush`). Celebration is a paint-splash burst (`PaintSplash`), not confetti. Badges are wax seals.
+- **Anti-references:** ultramarine/SaaS blue-purple, glossy glass chrome, cartoon wellness, cluttered dashboards.
 
 ### Per-route Tokens
 
 | Token | Light | Dark | Usage |
 |-------|-------|------|-------|
-| Accent | `#B8860B` | `#C9A227` | Primary interactive |
-| Success | `#6B8F71` | `#8DAF92` | Personal bests |
+| Canvas (paper) | `#F7F1E6` | `#15161C` | Page + WebGL paper |
+| Surface | `#FBF7EF` | `#1C1D24` | Cards, dock |
+| Text | `#27231F` | `#EDE6DA` | Body |
+| Accent (Payne's grey) | `#3A4A5C` | `#A9BDD2` | Focus rings, default ink |
+| Destructive | `#A8322A` | `#F2877E` | Delete |
 
-#### Technique Colors (muted, calming)
+CSS vars: `--bf-mass` / `--bf-glaze` (current pigment), `--bf-ink` (primary-button tint), `--bf-amp` (breath amplitude, written per frame by `BloomAnchor`).
 
-| Technique | Primary | Secondary |
-|-----------|---------|-----------|
-| Box Breathing | `#8B7355` | `#A89278` |
-| CO2 Tolerance | `#6B8F71` | `#8DAF92` |
-| Power Breathing | `#A0654E` | `#BF826B` |
-| Cyclic Sighing | `#7B8794` | `#99A5B2` |
+#### Technique Pigments (`pigments.ts`)
+
+| Technique | Pigment | Mass | Glaze |
+|-----------|---------|------|-------|
+| Box Breathing | Indigo & Payne's grey | `#2B3A5E` | `#55657A` |
+| CO2 Tolerance | Viridian | `#1F7A68` | `#5E9C7F` |
+| Power Breathing | Quinacridone rose & cadmium orange | `#C23A64` | `#E5793A` |
+| Cyclic Sighing | Cobalt violet | `#7D4FA3` | `#C08BC2` |
+| Resonance | Cerulean | `#2F7FA6` | `#73B2B6` |
+| Diaphragmatic | Sap green & raw sienna | `#5D8436` | `#C18F47` |
+| Extended Exhale | Permanent rose | `#B9506F` | `#D99A9B` |
+| 4-7-8 | Moonglow | `#45407A` | `#8A7FA8` |
+| Pursed-lip Recovery | Burnt sienna | `#A4532F` | `#D19A55` |
+
+Unlocked bloom pigments (Settings, by level) override the technique pigment with the theme's colours.
 
 ### BreathFlow-specific Principles
 
-1. **Serenity first.** Every design decision should reduce visual noise. White space is a feature.
-2. **Scientific credibility.** Typography, data visualization, and content should convey authority — the app teaches real breathwork protocols.
-3. **The orb is sacred.** The breathing orb is the product. Animation of the orb must be flawless and physics-accurate; surrounding UI fades out during session.
+1. **Serenity first.** Every design decision should reduce visual noise. White space (paper) is a feature.
+2. **Scientific credibility.** Protocols, evidence labels, and safety gating stay first-class; the paint never hides the instructions.
+3. **The bloom is sacred.** Its scale must track the engine phase exactly (`breathDrive.ts`); surrounding UI fades during session. Under `prefers-reduced-motion` the jiggle freezes and the scene renders on demand per tick — pacing stays legible through the phase word, count, bloom scale, and the brush stroke.
 4. **Habit > novelty.** Gamification exists to drive return visits. Never let the motivational layer overpower the breathwork itself.
+5. **WebGPU is progressive.** No GPU → the painted CSS bloom (`.bf-painted-bloom`) carries the same breath via `--bf-amp`. The scene must stay a lazy chunk.
 
 ---
 
@@ -602,7 +628,7 @@ Anthony (primary) and his partner, while planning + executing a 12-day Seoul + B
 
 ## Design Context: `/trips/*` — Generic Trip Planner
 
-JR pocket timetable (not Korea parchment, not Linear/Notion zinc), parameterized by `data-trip-accent` (retints canvas + cover band). `/trips/:tripId` is the living document (`TripOverview`); `/edit` redirects there. Concierge FAB on the trip and day pages only. Do not add destination-specific routes. Do not restyle Trips back into the Korea dossier or a zinc CRUD workspace. Full design notes: [`DESIGN.md`](DESIGN.md) / [`AGENTS.md`](AGENTS.md) / [`PRODUCT.md`](PRODUCT.md).
+Toy-world travel diorama: pastel papercraft stickers (ink outline + hard offset shadow) on a sky-washed canvas, Bricolage Grotesque display + Fragment Mono codes, and a squishy clay planet (shared `Jelly` soft body) as the one 3D moment per page — world globe with trip pins on the index, region diorama on the overview cover, pin-collecting planet while generating. Trips are luggage tags; create is "Pack your bag"; the day page is a postcard + boarding passes. `data-trip-accent` sets `--ta-fill` / `--ta`. Scenes live in `pages/Trips/scene/` (lazy, static SVG fallback); styles in `toy.stylex.ts` + `trips.stylex.ts`. `/trips/:tripId` is the living document (`TripOverview`); `/edit` redirects there. Concierge FAB on the trip and day pages only. Do not add destination-specific routes. Keep the sticker system; do not restyle Trips into the Korea dossier or a zinc CRUD workspace. Full design notes: [`DESIGN.md`](DESIGN.md) / [`AGENTS.md`](AGENTS.md) / [`PRODUCT.md`](PRODUCT.md).
 
 ---
 
@@ -629,7 +655,7 @@ The March 2025 BreathFlow audit is **historical**. BreathFlow was rebuilt in `fr
 - ✅ `prefers-reduced-motion` — shared `hooks/useReducedMotion.ts`, BreathFlow `platform/useReducedMotion.ts`, CSS queries
 - ✅ ARIA on the session path — `LiveAnnouncer`, session regions, cadence editor
 - ✅ `robots.txt` + `sitemap.xml` — `Disallow: /preview/`
-- ✅ Orb reduced-motion — `OrbVisualization` / `useGlassOrb` honor the flag
+- ✅ Bloom reduced-motion — `scene/bloomScene.ts` freezes the jiggle and renders on demand
 
 ### Still worth watching
 

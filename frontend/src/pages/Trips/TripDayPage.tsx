@@ -1,9 +1,10 @@
 import { sx } from '@/lib/utils'
 import { styles } from './trips.stylex'
+import { day as dy } from './toy.stylex'
 import { lazy, Suspense, useEffect, useState } from "react"
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
-import { ArrowUpRight, Globe2, Pencil } from "lucide-react"
+import { ArrowUpRight, Globe2, Pencil, Plane, Ticket } from "lucide-react"
 import { useGetToken } from "@/lib/safeAuth"
 import { EntityIndexProvider } from "../Korea/entityIndex"
 import { placeCategoryToEntityType } from "../Korea/entityForReservation"
@@ -219,7 +220,8 @@ export function TripDayPage() {
           activeId={day.id}
           toFor={(d) => `${tripPath}/day/${d.id}`}
         />
-        <header {...sx(styles.dayHeader)}>
+        <header {...sx(styles.dayHeader, dy.postcard)}>
+          <DateStamp date={day.date} timezone={trip.timezone} city={day.city} />
           <motion.p
             {...fadeUp(0)}
             {...sx(typeMetaClass, mutedInkClass)}
@@ -312,7 +314,7 @@ export function TripDayPage() {
 
         {reservations.length > 0 && (
           <section {...sx(styles.daySectionMt10)}>
-            <ol {...sx(styles.reservationList, 'trips-reservation-list')}>
+            <ol {...sx(dy.passes)}>
               {reservations.map((item, i) => (
                 <ReservationTableRow
                   key={item.id}
@@ -380,10 +382,11 @@ export function TripDayPage() {
                 )}
                 {block.items.length > 0 && (
                   <ol {...sx(styles.stopsItemList)}>
-                    {block.items.map((item) => (
+                    {block.items.map((item, ii) => (
                       <NarrativeItem
                         key={item.id}
                         item={item}
+                        last={ii === block.items.length - 1}
                         city={day.city}
                         flash={anchorTarget === `item-${item.id}`}
                         walk={walkAfter(day.items, item)}
@@ -475,6 +478,22 @@ export function TripDayPage() {
   )
 }
 
+/** Postage stamp for the day: month, date, weekday — with a wobbly postmark. */
+function DateStamp({ date, timezone, city }: { date: string; timezone: string; city?: string }) {
+  const part = (o: Intl.DateTimeFormatOptions) => formatTripDate(date, timezone, { weekday: undefined, month: undefined, day: undefined, ...o })
+  return (
+    <div aria-hidden {...sx(dy.stamp)}>
+      <span {...sx(dy.stampMonth)}>{part({ month: "short" })}</span>
+      <span {...sx(dy.stampDay)}>{part({ day: "numeric" })}</span>
+      <span {...sx(dy.stampWeek)}>{city ?? part({ weekday: "short" })}</span>
+      <svg viewBox="0 0 64 40" {...sx(dy.postmark)}>
+        <circle cx="20" cy="20" r="16" fill="none" stroke="currentColor" strokeWidth="2" />
+        <path d="M30 12 q6 -4 12 0 t12 0 t10 0 M30 20 q6 -4 12 0 t12 0 t10 0 M30 28 q6 -4 12 0 t12 0 t10 0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    </div>
+  )
+}
+
 function WalkLeg({ walk }: { walk: { distance: string; walk: string } }) {
   return (
     <p {...sx(styles.mt2, styles.text13, mutedInkClass)}>
@@ -504,12 +523,21 @@ function ReservationTableRow({
   const reservation = itemToReservation(item, day, dayNumber)
   if (!reservation) return null
   return (
-    <li id={`item-${item.id}`} {...sx(styles.py5, highlight)}>
+    <li id={`item-${item.id}`} {...sx(dy.pass, highlight)}>
+      <div {...sx(dy.passStub)}>
+        <span {...sx(dy.passType)}>{reservation.type}</span>
+        {reservation.type === "flight" ? (
+          <Plane {...sx(dy.passIcon)} strokeWidth={2} aria-hidden />
+        ) : (
+          <Ticket {...sx(dy.passIcon)} strokeWidth={2} aria-hidden />
+        )}
+      </div>
+      <div {...sx(dy.passBody)}>
       {featured ? (
         <div {...sx(styles.reservationHeroRow)}>
           <div {...sx(styles.minW0)}>
             <p {...sx(typeHeroTimeClass, styles.inkPrimary)}>
-              {reservation.time ? <FlipTime value={reservation.time} playOnMount /> : "TBD"}
+              {reservation.time ? <FlipTime value={reservation.time} playOnMount /> : <span {...sx(styles.reservationTimeLg)}>Time TBD</span>}
             </p>
             <p {...sx(styles.narrativeTitleLg, wrapAnywhereClass)}>
               <SmartEntity name={reservation.title} type={placeCategoryToEntityType(item.location?.category ?? "place")} />
@@ -546,18 +574,21 @@ function ReservationTableRow({
         </p>
       )}
       {walk && <WalkLeg walk={walk} />}
+      </div>
     </li>
   )
 }
 
 function NarrativeItem({
   item,
+  last,
   city,
   flash,
   walk,
   onOpenMap,
 }: {
   item: ItineraryItem
+  last: boolean
   city?: string
   flash: boolean
   walk: { distance: string; walk: string } | null
@@ -569,7 +600,7 @@ function NarrativeItem({
   return (
     <li
       id={`item-${item.id}`}
-      {...sx(styles.gridColsItem, highlight)}
+      {...sx(dy.stop, highlight)}
     >
       <div {...sx(styles.itemTimeCol, timeCellClass)}>
         {item.time ? <Time value={item.time} /> : <span aria-hidden>·</span>}
@@ -578,6 +609,10 @@ function NarrativeItem({
             <Time value={item.endTime} />
           </span>
         )}
+      </div>
+      <div aria-hidden {...sx(dy.stopRail)}>
+        <span {...sx(dy.stopDot, item.status === "booked" && dy.stopDotBooked)} />
+        {!last && <span className="toy-route" {...sx(dy.stopRoute)} />}
       </div>
       <div {...sx(styles.minW0)}>
         <div {...sx(styles.narrativeItemRow)}>

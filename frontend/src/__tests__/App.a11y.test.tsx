@@ -25,9 +25,9 @@ describe('chatbot accessibility', () => {
     expect(log).toHaveAttribute('aria-live', 'polite')
     expect(log).toHaveAttribute('aria-relevant', 'additions')
     expect(screen.getByLabelText('Ask about Anthony')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Switch to dark mode' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
+    expect(screen.getByRole('button', { name: 'Night mode' })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: 'Send message' })).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByRole('button', { name: 'New chat' })).toBeInTheDocument()
+    expect(screen.getByRole('status')).toBeInTheDocument()
   })
 })

@@ -28,8 +28,13 @@ const invokeDeepseekEffect = Effect.fn("ChatService.invokeDeepseek")(function* (
   prompt: string,
   messages: Message[] = [],
   onUpdate?: (content: string) => void,
+  signal?: AbortSignal,
 ) {
   const controller = new AbortController()
+  // Caller-driven cancel (Stop button) shares the watchdog's abort path.
+  const forwardAbort = () => controller.abort(signal?.reason)
+  if (signal?.aborted) forwardAbort()
+  else signal?.addEventListener("abort", forwardAbort, { once: true })
   let lastActivity = Date.now()
   const watchdog = setInterval(() => {
     if (Date.now() - lastActivity > WATCHDOG_SILENCE_LIMIT_MS) {
@@ -93,7 +98,10 @@ const invokeDeepseekEffect = Effect.fn("ChatService.invokeDeepseek")(function* (
           }))
         : Effect.fail(err instanceof Error ? err : new Error(String(err))),
     ),
-    Effect.ensuring(Effect.sync(() => clearInterval(watchdog))),
+    Effect.ensuring(Effect.sync(() => {
+      clearInterval(watchdog)
+      signal?.removeEventListener("abort", forwardAbort)
+    })),
   )
 
   return yield* program
@@ -103,6 +111,7 @@ export async function invokeDeepseek(
   prompt: string,
   messages: Message[] = [],
   onUpdate?: (content: string) => void,
+  signal?: AbortSignal,
 ): Promise<ApiResponse> {
-  return runPromise(invokeDeepseekEffect(prompt, messages, onUpdate))
+  return runPromise(invokeDeepseekEffect(prompt, messages, onUpdate, signal))
 }

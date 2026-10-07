@@ -224,8 +224,6 @@
   -webkit-tap-highlight-color: transparent;
   font-optical-sizing: auto;
 
-  /* Chatbot tokens — resolved via .chatbot-dark / .chatbot-shadow below */
-
   /* Easing — slow deceleration, no bounce */
   --ease-decel: cubic-bezier(0.33, 0, 0, 1);
   --spring-smooth: cubic-bezier(0.33, 0, 0, 1);
@@ -311,69 +309,6 @@ input[type="reset"] {
   * { scrollbar-width: none; }
 }
 
-/* ═══════════════════════════════════════════════════════
-   SHADOW MODE OVERLAY (dany.works-inspired leaf shadows)
-   ═══════════════════════════════════════════════════════ */
-
-/* Leaves overlay — viewport-sized WRAPPER (a div), never the <video>.
-   inset:0 + width/height:auto stretches a non-replaced box to the
-   visual viewport without 100vw/100vh (those add a full extra scroll
-   page on iOS). A replaced <video> with the same rules keeps its
-   intrinsic size, so object-fit never runs — put the video on
-   .leaves-overlay-media instead.
-   z-index stays BELOW content (z-10) so WebKit ≤ iOS 15 does not
-   swallow touch-scroll momentum. */
-.leaves-overlay {
-  position: fixed;
-  inset: 0;
-  display: block;
-  width: auto;
-  height: auto;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  filter: grayscale(1) contrast(0.62) brightness(1.12);
-  mix-blend-mode: multiply;
-  pointer-events: none;
-  z-index: 1;
-  contain: layout paint;
-  opacity: 0;
-  transition: opacity 700ms var(--ease-out-expo);
-}
-
-/* Unlayered — must beat the base .leaves-overlay opacity:0.
-   StyleX @layer rules cannot override unlayered opacity here. */
-.leaves-overlay-visible {
-  opacity: 1;
-}
-
-.leaves-overlay-hidden {
-  opacity: 0;
-}
-
-.leaves-overlay-media {
-  position: absolute;
-  inset: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
-  max-width: none;
-  max-height: none;
-  object-fit: cover;
-  object-position: center top;
-  pointer-events: none;
-}
-
-/* Match html canvas to the chatbot shell so iOS safe areas / overscroll
-   do not flash the default parchment around a 100dvh root. */
-html:has(.chatbot-shadow) {
-  background-color: #f2efe9;
-}
-
-html:has(.chatbot-dark) {
-  background-color: #080808;
-}
-
 /* Column fade-in — dany.works entry animation */
 @keyframes col-fade-in {
   from { opacity: 0; }
@@ -402,43 +337,6 @@ html:has(.chatbot-dark) {
     opacity: 1;
     transform: none;
   }
-}
-
-/* Chatbot theme tokens — scoped to mode class */
-.chatbot-dark {
-  --chat-bg: #080808;
-  --chat-text: #b4b4b4;
-  --chat-bright: #e0e0e0;
-  --chat-accent: #C9A227;
-  --chat-mid: #404040;
-  --chat-line: #181818;
-  --chat-code-bg: rgba(255, 255, 255, 0.04);
-  --chat-code-text: #999;
-  --chat-user-bg: #181818;
-  --chat-user-text: #e0e0e0;
-  --chat-skeleton: rgba(255, 255, 255, 0.06);
-  --chat-skeleton-light: rgba(255, 255, 255, 0.04);
-  --chat-footer: #282828;
-  --chat-placeholder: #303030;
-  background-color: #080808;
-}
-
-.chatbot-shadow {
-  --chat-bg: #f2efe9;
-  --chat-text: #1a1a1a;
-  --chat-bright: #000;
-  --chat-accent: #B8860B;
-  --chat-mid: #888;
-  --chat-line: #d8d5cf;
-  --chat-code-bg: rgba(0, 0, 0, 0.04);
-  --chat-code-text: #444;
-  --chat-user-bg: #1a1a1a;
-  --chat-user-text: #f2efe9;
-  --chat-skeleton: rgba(0, 0, 0, 0.08);
-  --chat-skeleton-light: rgba(0, 0, 0, 0.05);
-  --chat-footer: #bbb;
-  --chat-placeholder: #ccc;
-  background-color: #f2efe9;
 }
 
 /* Landing (`/`) — anthonyl.im lab. Pigment on bone: ultramarine is the only
@@ -476,81 +374,6 @@ html:has(.landing) { scroll-padding-top: 76px; background-color: #EDE8DF; }
 
 @media (prefers-reduced-motion: no-preference) {
   html:has(.landing) { scroll-behavior: smooth; }
-}
-
-/* Chatbot utility classes — consume CSS vars for zero-cost theme switching */
-.chat-text { color: var(--chat-text); }
-.chat-mid { color: var(--chat-mid); }
-.chat-border { border-color: var(--chat-line); }
-.chat-user-bubble { background: var(--chat-user-bg); color: var(--chat-user-text); }
-.chat-typing-dot { background-color: var(--chat-mid); }
-.chat-skeleton { background: var(--chat-skeleton); }
-.chat-skeleton-light { background: var(--chat-skeleton-light); }
-.chat-footer { color: var(--chat-footer); }
-
-.chat-suggestion {
-  color: var(--chat-mid);
-  border: 1px solid var(--chat-line);
-}
-.chat-suggestion:active {
-  color: var(--chat-text);
-  border-color: var(--chat-mid);
-}
-@media (hover: hover) and (pointer: fine) {
-  .chat-suggestion:hover {
-    color: var(--chat-text);
-    border-color: var(--chat-mid);
-  }
-}
-
-.chat-input-box {
-  border: 1px solid var(--chat-line);
-}
-.chat-input-box:focus-within {
-  border-color: var(--chat-mid);
-}
-
-.chat-input {
-  color: var(--chat-text);
-}
-.chat-input::placeholder {
-  color: var(--chat-placeholder);
-}
-
-.chat-send {
-  color: var(--chat-mid);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 44px;
-  min-height: 44px;
-  border-radius: 0.375rem;
-}
-.chat-send:active:not(:disabled) {
-  color: var(--chat-text);
-}
-.chat-send:focus-visible {
-  outline: 2px solid var(--chat-accent);
-  outline-offset: 2px;
-}
-@media (hover: hover) and (pointer: fine) {
-  .chat-send:hover:not(:disabled) {
-    color: var(--chat-text);
-  }
-}
-
-.chat-scroll-btn {
-  color: var(--chat-mid);
-  border: 1px solid var(--chat-line);
-  background: var(--chat-bg);
-}
-.chat-scroll-btn:active {
-  color: var(--chat-text);
-}
-@media (hover: hover) and (pointer: fine) {
-  .chat-scroll-btn:hover {
-    color: var(--chat-text);
-  }
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -642,14 +465,8 @@ html:has(.landing) { scroll-padding-top: 76px; background-color: #EDE8DF; }
    MESSAGE CONTENT
    ═══════════════════════════════════════════════════════ */
 
+/* Spacing lives in messageContent.stylex.ts (unlayered margins here would beat it). */
 .message-content { word-wrap: break-word; overflow-wrap: break-word; }
-.message-content p { margin: 0; }
-.message-content p + p { margin-top: 0.75rem; }
-.message-content ul, .message-content ol { padding-left: 0; margin: 0; }
-.message-content li { margin: 0; }
-.message-content li + li { margin-top: 0.375rem; }
-.message-content pre { margin: 0; }
-.message-content pre + p, .message-content p + pre { margin-top: 0.75rem; }
 .message-content pre code { background: transparent !important; padding: 0 !important; }
 .message-content .hljs { background: transparent !important; padding: 0 !important; }
 
@@ -663,7 +480,6 @@ html:has(.landing) { scroll-padding-top: 76px; background-color: #EDE8DF; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
 ::selection { background: rgba(180, 180, 180, 0.2); color: #e0e0e0; }
-.chatbot-shadow ::selection { background: rgba(26, 26, 26, 0.15); color: #1a1a1a; }
 .breathwork ::selection { background: rgba(26, 26, 26, 0.12); color: #1a1a1a; }
 .dark .breathwork ::selection { background: rgba(180, 180, 180, 0.2); color: #b4b4b4; }
 :focus-visible { outline: 2px solid rgba(28, 25, 23, 0.3); outline-offset: 2px; }
@@ -696,124 +512,125 @@ html:has(.landing) { scroll-padding-top: 76px; background-color: #EDE8DF; }
   --radius: 0rem;
 }
 
-/* ── BreathFlow "Forest" tokens: deep green + bone. One accent, locked.
-   Radius rule: controls 6px, panels 8px max, instrument rings circular. ── */
+/* ── BreathFlow "Watercolour" tokens: cotton cold-press paper + Payne's grey
+   ink. Pigment colour belongs to the technique (breathflow/pigments.ts); the
+   chrome stays ink-and-paper so the bloom is the one vivid moment. ── */
 .breathwork {
   color-scheme: light;
-  --background: 51 22% 92%;
-  --foreground: 140 14% 10%;
-  --card: 45 33% 95%;
-  --card-foreground: 140 14% 10%;
-  --popover: 45 33% 95%;
-  --popover-foreground: 140 14% 10%;
-  --primary: 157 48% 26%;
-  --primary-foreground: 45 33% 95%;
-  --secondary: 137 9% 37%;
-  --secondary-foreground: 140 14% 10%;
-  --muted: 130 8% 82%;
-  --muted-foreground: 137 9% 37%;
-  --accent: 157 48% 26%;
-  --accent-foreground: 45 33% 95%;
-  --destructive: 4 77% 40%;
+  --background: 39 55% 94%;
+  --foreground: 30 10% 14%;
+  --card: 40 60% 96%;
+  --card-foreground: 30 10% 14%;
+  --popover: 40 60% 96%;
+  --popover-foreground: 30 10% 14%;
+  --primary: 212 23% 29%;
+  --primary-foreground: 40 60% 96%;
+  --secondary: 30 9% 33%;
+  --secondary-foreground: 30 10% 14%;
+  --muted: 36 22% 84%;
+  --muted-foreground: 30 9% 33%;
+  --accent: 212 23% 29%;
+  --accent-foreground: 40 60% 96%;
+  --destructive: 4 64% 40%;
   --destructive-foreground: 0 0% 100%;
-  --border: 130 8% 80%;
-  --input: 130 8% 80%;
-  --ring: 157 48% 26% / 0.32;
-  --radius: 0.375rem;
+  --border: 34 18% 80%;
+  --input: 34 18% 80%;
+  --ring: 212 23% 29% / 0.32;
+  --radius: 999px;
 
-  /* Semantic bw tokens: bone neutrals + green-black ink */
-  --bw-canvas: #EFEDE6;
-  --bw-surface: #F7F5EF;
-  --bw-text: #161D18;
-  --bw-text-secondary: #56655B;
-  --bw-text-tertiary: #6E7D72;
-  --bw-text-faint: #D3D4C9;
-  --bw-border: rgba(22, 29, 24, 0.10);
-  --bw-border-subtle: rgba(22, 29, 24, 0.06);
-  --bw-hover: rgba(34, 98, 74, 0.06);
-  --bw-active: rgba(34, 98, 74, 0.10);
-  --bw-nav-bg: #EFEDE6;
-  --bw-nav-bg-mobile: #F3F1EA;
-  --bw-nav-border: rgba(22, 29, 24, 0.10);
-  --bw-nav-shadow: 0 16px 40px rgba(22, 29, 24, 0.06);
-  --bw-chart-grid: rgba(22, 29, 24, 0.06);
-  --bw-chart-tick: rgba(22, 29, 24, 0.45);
-  --bw-tooltip-bg: rgba(247, 245, 239, 0.98);
-  --bw-tooltip-border: rgba(22, 29, 24, 0.10);
-  --bw-tooltip-label: rgba(22, 29, 24, 0.88);
-  --bw-tooltip-item: rgba(86, 101, 91, 0.9);
+  /* Semantic bw tokens: paper neutrals + sepia/grey ink */
+  --bw-canvas: #F7F1E6;
+  --bw-surface: #FBF7EF;
+  --bw-text: #27231F;
+  --bw-text-secondary: #5E554C;
+  --bw-text-tertiary: #74695D;
+  --bw-text-faint: #DDD3C4;
+  --bw-border: rgba(39, 35, 31, 0.13);
+  --bw-border-subtle: rgba(39, 35, 31, 0.07);
+  --bw-hover: rgba(58, 74, 92, 0.07);
+  --bw-active: rgba(58, 74, 92, 0.12);
+  --bw-nav-bg: #F7F1E6;
+  --bw-nav-bg-mobile: #F4EDE0;
+  --bw-nav-border: rgba(39, 35, 31, 0.12);
+  --bw-nav-shadow: 0 16px 40px rgba(39, 35, 31, 0.06);
+  --bw-chart-grid: rgba(39, 35, 31, 0.07);
+  --bw-chart-tick: rgba(39, 35, 31, 0.5);
+  --bw-tooltip-bg: rgba(251, 247, 239, 0.98);
+  --bw-tooltip-border: rgba(39, 35, 31, 0.12);
+  --bw-tooltip-label: rgba(39, 35, 31, 0.88);
+  --bw-tooltip-item: rgba(94, 85, 76, 0.9);
   --bw-phase-divider: color-mix(in srgb, var(--bw-surface) 42%, transparent);
-  --bw-dialog-scrim: rgba(22, 29, 24, 0.18);
+  --bw-dialog-scrim: rgba(39, 35, 31, 0.18);
 
-  /* Single locked accent: deep green */
-  --bw-accent: #22624A;
-  --bw-accent-light: #3E8266;
-  --bw-accent-subtle: rgba(34, 98, 74, 0.10);
-  --bw-accent-foreground: #F7F5EF;
+  /* Single chrome accent: Payne's grey ink */
+  --bw-accent: #3A4A5C;
+  --bw-accent-light: #4D5F73;
+  --bw-accent-subtle: rgba(58, 74, 92, 0.10);
+  --bw-accent-foreground: #FBF7EF;
   --bw-success: #2F6B4F;
-  --bw-destructive: #B42318;
-  --bw-destructive-border: rgba(180, 35, 24, 0.24);
-  --bw-destructive-subtle: rgba(180, 35, 24, 0.05);
-  --bw-destructive-hover: rgba(180, 35, 24, 0.10);
+  --bw-destructive: #A8322A;
+  --bw-destructive-border: rgba(168, 50, 42, 0.26);
+  --bw-destructive-subtle: rgba(168, 50, 42, 0.05);
+  --bw-destructive-hover: rgba(168, 50, 42, 0.10);
 }
 
-/* ── Dark overrides: forest black ── */
+/* ── Dark overrides: night paper, luminous pigment ── */
 .dark .breathwork {
   color-scheme: dark;
-  --background: 150 16% 8%;
-  --foreground: 120 11% 90%;
-  --card: 150 15% 11%;
-  --card-foreground: 120 11% 90%;
-  --popover: 150 15% 11%;
-  --popover-foreground: 120 11% 90%;
-  --primary: 152 34% 55%;
-  --primary-foreground: 150 16% 8%;
-  --secondary: 137 8% 67%;
-  --secondary-foreground: 120 11% 90%;
-  --muted: 150 8% 20%;
-  --muted-foreground: 137 8% 67%;
-  --accent: 152 34% 55%;
-  --accent-foreground: 150 16% 8%;
-  --destructive: 0 91% 71%;
+  --background: 230 13% 10%;
+  --foreground: 38 30% 89%;
+  --card: 228 11% 13%;
+  --card-foreground: 38 30% 89%;
+  --popover: 228 11% 13%;
+  --popover-foreground: 38 30% 89%;
+  --primary: 212 30% 73%;
+  --primary-foreground: 230 13% 10%;
+  --secondary: 36 12% 66%;
+  --secondary-foreground: 38 30% 89%;
+  --muted: 228 9% 20%;
+  --muted-foreground: 36 12% 66%;
+  --accent: 212 30% 73%;
+  --accent-foreground: 230 13% 10%;
+  --destructive: 0 85% 72%;
   --destructive-foreground: 0 0% 98%;
-  --border: 150 8% 18%;
-  --input: 150 8% 18%;
-  --ring: 152 34% 55% / 0.35;
+  --border: 228 9% 20%;
+  --input: 228 9% 20%;
+  --ring: 212 30% 73% / 0.35;
 
   /* Semantic bw tokens (dark) */
-  --bw-canvas: #101613;
-  --bw-surface: #171F1A;
-  --bw-text: #E4E8E2;
-  --bw-text-secondary: #A3B2A7;
-  --bw-text-tertiary: #7C8B80;
-  --bw-text-faint: rgba(228, 232, 226, 0.16);
-  --bw-border: rgba(228, 232, 226, 0.08);
-  --bw-border-subtle: rgba(228, 232, 226, 0.05);
-  --bw-hover: rgba(99, 180, 142, 0.08);
-  --bw-active: rgba(99, 180, 142, 0.12);
-  --bw-nav-bg: #101613;
-  --bw-nav-bg-mobile: #151C17;
-  --bw-nav-border: rgba(228, 232, 226, 0.08);
-  --bw-nav-shadow: 0 16px 40px rgba(0, 0, 0, 0.24);
-  --bw-chart-grid: rgba(228, 232, 226, 0.06);
-  --bw-chart-tick: rgba(228, 232, 226, 0.45);
-  --bw-tooltip-bg: rgba(20, 27, 22, 0.98);
-  --bw-tooltip-border: rgba(228, 232, 226, 0.08);
-  --bw-tooltip-label: rgba(228, 232, 226, 0.88);
-  --bw-tooltip-item: rgba(163, 178, 167, 0.88);
+  --bw-canvas: #15161C;
+  --bw-surface: #1C1D24;
+  --bw-text: #EDE6DA;
+  --bw-text-secondary: #B5AC9E;
+  --bw-text-tertiary: #938A7D;
+  --bw-text-faint: rgba(237, 230, 218, 0.16);
+  --bw-border: rgba(237, 230, 218, 0.10);
+  --bw-border-subtle: rgba(237, 230, 218, 0.06);
+  --bw-hover: rgba(169, 189, 210, 0.08);
+  --bw-active: rgba(169, 189, 210, 0.13);
+  --bw-nav-bg: #15161C;
+  --bw-nav-bg-mobile: #191A21;
+  --bw-nav-border: rgba(237, 230, 218, 0.09);
+  --bw-nav-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+  --bw-chart-grid: rgba(237, 230, 218, 0.07);
+  --bw-chart-tick: rgba(237, 230, 218, 0.5);
+  --bw-tooltip-bg: rgba(28, 29, 36, 0.98);
+  --bw-tooltip-border: rgba(237, 230, 218, 0.1);
+  --bw-tooltip-label: rgba(237, 230, 218, 0.88);
+  --bw-tooltip-item: rgba(181, 172, 158, 0.88);
   --bw-phase-divider: color-mix(in srgb, var(--bw-text) 24%, transparent);
-  --bw-dialog-scrim: rgba(0, 0, 0, 0.42);
+  --bw-dialog-scrim: rgba(0, 0, 0, 0.45);
 
-  /* Single locked accent: green, lifted for dark contrast */
-  --bw-accent: #63B48E;
-  --bw-accent-light: #8ACCAB;
-  --bw-accent-subtle: rgba(99, 180, 142, 0.14);
-  --bw-accent-foreground: #101613;
+  /* Single chrome accent: Payne's grey, lifted for night paper */
+  --bw-accent: #A9BDD2;
+  --bw-accent-light: #C3D3E3;
+  --bw-accent-subtle: rgba(169, 189, 210, 0.14);
+  --bw-accent-foreground: #15161C;
   --bw-success: #7FBE9C;
-  --bw-destructive: #F87171;
-  --bw-destructive-border: rgba(248, 113, 113, 0.28);
-  --bw-destructive-subtle: rgba(248, 113, 113, 0.08);
-  --bw-destructive-hover: rgba(248, 113, 113, 0.14);
+  --bw-destructive: #F2877E;
+  --bw-destructive-border: rgba(242, 135, 126, 0.3);
+  --bw-destructive-subtle: rgba(242, 135, 126, 0.08);
+  --bw-destructive-hover: rgba(242, 135, 126, 0.14);
 }
 
 * {
@@ -937,106 +754,23 @@ body {
    CARD SYSTEM (simplified)
    ═══════════════════════════════════════════════════════ */
 
-/* ── BreathFlow base — Forest instrument: Geist body, Fragment Mono display ── */
+/* ── BreathFlow base — watercolour: Geist body, Fraunces display.
+   Paper, washes and brush strokes live in breathflow/styles/watercolor.css. ── */
 .breathwork {
-  background-color: var(--bw-canvas, #EFEDE6);
+  background-color: var(--bw-canvas, #F7F1E6);
   font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
   font-size: 15px;
   line-height: 1.6;
 }
 .dark .breathwork {
-  background-color: var(--bw-canvas, #101613);
+  background-color: var(--bw-canvas, #15161C);
 }
 .breathwork .bf-display {
-  font-family: "Fragment Mono", ui-monospace, monospace;
-  font-feature-settings: "tnum";
-  font-variant-numeric: tabular-nums;
-}
-.bf-grain {
-  pointer-events: none;
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-  opacity: 0.045;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 240 240' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='bfn'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.62' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.09  0 0 0 0 0.18  0 0 0 0 0.14  0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23bfn)'/%3E%3C/svg%3E");
-}
-.dark .bf-grain {
-  opacity: 0.06;
-}
-
-.bf-stardust {
-  position: fixed;
-  inset: 0;
-  display: block;
-  width: auto;
-  height: auto;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  pointer-events: none;
-  z-index: 1;
-  opacity: 0.14;
-  mix-blend-mode: multiply;
-  contain: layout paint;
-}
-
-.bf-stardust-media {
-  position: absolute;
-  inset: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
-  max-width: none;
-  max-height: none;
-  object-fit: cover;
-  pointer-events: none;
-}
-
-.dark .bf-stardust {
-  opacity: 0.12;
-  mix-blend-mode: screen;
-}
-
-.bf-starfield {
-  position: fixed;
-  inset: 0;
-  display: block;
-  width: auto;
-  height: auto;
-  pointer-events: none;
-  z-index: 2;
-  contain: layout paint;
-}
-
-.bf-glass-orb::after {
-  content: "";
-  position: absolute;
-  left: 18%;
-  right: 18%;
-  bottom: 4%;
-  height: 18%;
-  border-radius: 50%;
-  background: radial-gradient(ellipse, color-mix(in oklab, var(--bw-accent) 22%, transparent), transparent 72%);
-  pointer-events: none;
-  z-index: -1;
-}
-
-/* ═══════════════════════════════════════════════════════
-   BREATHWORK BACKGROUNDS
-   ═══════════════════════════════════════════════════════ */
-
-/* BreathFlow phase-strip cursor: sweeps one breath cycle. */
-@media (prefers-reduced-motion: no-preference) {
-  .bf-sweep {
-    animation-name: bf-sweep;
-    animation-timing-function: linear;
-    animation-iteration-count: infinite;
-  }
-}
-
-@keyframes bf-sweep {
-  from { transform: translate3d(-100%, 0, 0); }
-  to { transform: translate3d(100%, 0, 0); }
+  font-family: "Fraunces", ui-serif, Georgia, serif;
+  font-optical-sizing: auto;
+  font-variation-settings: "SOFT" 100, "WONK" 0;
+  font-weight: 400;
+  letter-spacing: -0.01em;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -1268,90 +1002,97 @@ body {
   border-color: rgba(255, 252, 245, 0.06);
 }
 
+/* Same unlayered `* { border-color }` problem as the landing: hand Trips back
+   to its StyleX layer. Keep this above the sibling-divider rules below. */
+.trips,
+.trips * { border-color: revert-layer; }
+
+/* The concierge composer shell draws the focus ring (:focus-within); drop the
+   global unlayered :focus-visible outline on its textarea so it isn't doubled. */
+.trips .trips-composer-input:focus-visible { outline: none; }
+
 /* Trips list stacks — hairline between siblings (StyleX cannot express > * + *). */
 .trips-property-table > * + * {
   border-top-width: 1px;
   border-top-style: solid;
   border-top-color: var(--trips-border);
 }
-.trips-divide-hairline > * + * {
-  border-top-width: 1px;
-  border-top-style: solid;
-  border-top-color: var(--trips-border);
-}
 .trips-divide-stone > * + * {
   border-top-width: 1px;
-  border-top-style: solid;
-  border-top-color: rgba(28, 25, 23, 0.12);
-}
-.dark .trips-divide-stone > * + * {
-  border-top-color: rgba(41, 37, 36, 0.8);
-}
-.trips-hairline-list-divided > * + * {
-  border-top-width: 1px;
-  border-top-style: solid;
-  border-top-color: var(--trips-border);
-}
-.trips-reservation-list > * + * {
-  border-top-width: 1px;
-  border-top-style: solid;
+  border-top-style: dashed;
   border-top-color: var(--trips-border);
 }
 .trips-extracted-list-divide > * + * {
   border-top-width: 1px;
-  border-top-style: solid;
-  border-top-color: rgba(28, 25, 23, 0.12);
-}
-.dark .trips-extracted-list-divide > * + * {
-  border-top-color: rgba(41, 37, 36, 0.8);
+  border-top-style: dashed;
+  border-top-color: var(--trips-border);
 }
 
 /* ═══════════════════════════════════════════════════════
-   TRIPS — pocket timetable / JR print stock
-   Scene: kitchen-table daylight planning; hotel-night phone lookups.
-   Product register: condensed times, tinted stock, no parchment bloom.
+   TRIPS — toy-world travel diorama
+   Pastel papercraft and clay: luggage tags, passport stamps, cut-paper
+   stickers with an ink outline and a hard offset shadow, a squishy clay
+   planet in the hero. Sky, mint, peach and butter on deep ink.
    ═══════════════════════════════════════════════════════ */
 
 .trips {
-  /* Pocket-timetable stock. Green-gray print paper, not zinc and not parchment. */
-  --trips-canvas: oklch(94.8% 0.018 128);
-  --trips-surface: oklch(97.4% 0.01 128);
-  --trips-rail: oklch(92.2% 0.022 128);
-  --trips-ink: oklch(22% 0.028 140);
-  --trips-ink-secondary: oklch(38% 0.024 140);
-  --trips-ink-tertiary: oklch(48% 0.02 140);
-  --trips-border: oklch(22% 0.028 140 / 0.14);
-  --trips-band: oklch(31% 0.058 148);
-  --trips-band-ink: oklch(96.2% 0.018 128);
-  --trips-accent: oklch(36% 0.07 148);
-  --trips-accent-hover: oklch(28% 0.064 148);
-  --trips-focus: oklch(36% 0.07 148 / 0.45);
-  --trips-scrim: oklch(16% 0.028 140 / 0.78);
-  --trips-radius: 0.25rem;
-  --trips-field-radius: 1rem;
+  /* Toy palette — decoration fills. Text never sits on these without ink. */
+  --toy-sky: #a9d8f5;
+  --toy-mint: #a6e5c8;
+  --toy-peach: #ffc3a6;
+  --toy-butter: #ffdd7f;
+  --toy-lilac: #cdc1f7;
+  --toy-rose: #ffb3c4;
+  --toy-paper: #fffdf6;
+  --toy-ink: #1f2440;
+
+  --trips-canvas: #edf5fb;
+  --trips-surface: #fffdf6;
+  --trips-rail: #f7efd9;
+  --trips-ink: #1f2440;
+  --trips-ink-secondary: #454b6b;
+  --trips-ink-tertiary: #646a8a;
+  --trips-border: rgb(31 36 64 / 0.16);
+  /* Sticker outline + hard offset shadow. */
+  --trips-line: #1f2440;
+  --trips-shadow: #1f2440;
+  /* Ink that sits on a pastel fill — dark in both themes. */
+  --trips-fill-ink: #1f2440;
+  --trips-band: var(--ta-fill);
+  --trips-band-ink: #1f2440;
+  --trips-accent: #1d5f91;
+  --trips-accent-hover: #164a72;
+  --trips-focus: rgb(29 95 145 / 0.55);
+  --trips-scrim: rgb(20 24 48 / 0.55);
+  --trips-radius: 0.875rem;
+  --trips-field-radius: 0.875rem;
   --trips-chrome-h: 3.5rem;
   --trips-cover-dock-h: 2.75rem;
   --trips-cover-h: 0px;
   --trips-cover-t: 0;
-  --trips-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --trips-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --trips-ease-out: cubic-bezier(0.33, 0, 0, 1);
-  --ta: oklch(36% 0.07 148);
-  --ta-strong: oklch(28% 0.064 148);
-  --ta-soft: oklch(36% 0.07 148 / 0.12);
-  --ta-ring: oklch(36% 0.07 148 / 0.45);
-  --ta-bloom-a: transparent;
-  --ta-bloom-b: transparent;
-  --radius: 0.25rem;
+  /* Accent set. App chrome default: butter fill, sky-blue ink. */
+  --ta: #1d5f91;
+  --ta-strong: #164a72;
+  --ta-fill: var(--toy-butter);
+  --ta-soft: rgb(255 221 127 / 0.42);
+  --ta-ring: rgb(29 95 145 / 0.5);
+  --radius: 0.875rem;
   color-scheme: light dark;
   background-color: var(--trips-canvas);
   color: var(--trips-ink);
-  background-image: none;
+  /* A soft sky wash from the top, a butter glow in the far corner. */
+  background-image:
+    radial-gradient(120% 60% at 50% -10%, rgb(169 216 245 / 0.55), transparent 60%),
+    radial-gradient(60% 40% at 100% 100%, rgb(255 221 127 / 0.18), transparent 70%);
+  background-attachment: fixed;
   caret-color: var(--trips-accent);
 }
 
 @media (min-width: 640px) {
   .trips {
-    --trips-chrome-h: 3rem;
+    --trips-chrome-h: 3.75rem;
   }
 }
 
@@ -1360,46 +1101,48 @@ body {
 }
 
 .trips ::selection {
-  background: color-mix(in oklch, var(--trips-band) 72%, transparent);
-  color: var(--trips-band-ink);
+  background: var(--toy-butter);
+  color: var(--toy-ink);
 }
 
 html.dark .trips,
 .trips.dark,
 :root.dark .trips {
-  --trips-canvas: oklch(16.4% 0.024 148);
-  --trips-surface: oklch(20.2% 0.022 148);
-  --trips-rail: oklch(18.4% 0.024 148);
-  --trips-ink: oklch(93.4% 0.02 128);
-  --trips-ink-secondary: oklch(78% 0.022 128);
-  --trips-ink-tertiary: oklch(66% 0.018 128);
-  --trips-border: oklch(93.4% 0.02 128 / 0.14);
-  --trips-band: oklch(26% 0.05 148);
-  --trips-band-ink: oklch(94.8% 0.02 128);
-  --trips-accent: oklch(78% 0.06 148);
-  --trips-accent-hover: oklch(86% 0.05 148);
-  --trips-focus: oklch(78% 0.06 148 / 0.5);
-  --trips-scrim: oklch(8% 0.02 148 / 0.82);
-  --ta: oklch(78% 0.06 148);
-  --ta-strong: oklch(86% 0.05 148);
-  --ta-soft: oklch(78% 0.06 148 / 0.12);
-  --ta-ring: oklch(78% 0.06 148 / 0.5);
-  --ta-bloom-a: transparent;
-  --ta-bloom-b: transparent;
-  background-image: none;
+  /* Night-time toy box: navy felt, cream ink, the same pastel stickers. */
+  --trips-canvas: #151933;
+  --trips-surface: #1f2448;
+  --trips-rail: #272c56;
+  --trips-ink: #f6f0de;
+  --trips-ink-secondary: #cdc9dc;
+  --trips-ink-tertiary: #a3a1bd;
+  --trips-border: rgb(246 240 222 / 0.14);
+  --trips-line: #070918;
+  --trips-shadow: #070918;
+  --trips-accent: #9fd3f5;
+  --trips-accent-hover: #c4e5fa;
+  --trips-focus: rgb(159 211 245 / 0.6);
+  --trips-scrim: rgb(4 6 18 / 0.7);
+  --ta: #9fd3f5;
+  --ta-strong: #c4e5fa;
+  --ta-soft: rgb(255 221 127 / 0.16);
+  --ta-ring: rgb(159 211 245 / 0.55);
+  background-image:
+    radial-gradient(120% 60% at 50% -10%, rgb(93 108 196 / 0.35), transparent 60%),
+    radial-gradient(60% 40% at 100% 100%, rgb(205 193 247 / 0.1), transparent 70%);
 }
 
 .trips .font-display {
-  font-family: "Archivo Narrow", "Arial Narrow", sans-serif;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  font-stretch: condensed;
+  font-family: "Bricolage Grotesque", "Archivo", system-ui, sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 750;
+  font-stretch: 92%;
+  letter-spacing: -0.025em;
 }
 
 .trips .font-mono-trips {
-  font-family: "Archivo Narrow", "Arial Narrow", sans-serif;
+  font-family: "Fragment Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
 }
 
 .trips .cover-band {
@@ -1432,16 +1175,17 @@ html.dark .trips,
   align-items: center;
   background-color: var(--trips-band);
   color: var(--trips-band-ink);
-  border-bottom: 1px solid color-mix(in oklch, var(--trips-band-ink) 16%, transparent);
+  border-bottom: 2px solid var(--trips-line);
   pointer-events: none;
   opacity: var(--trips-cover-t);
   transform: translate3d(0, calc((1 - var(--trips-cover-t)) * -0.5rem), 0);
 }
 
 .trips .cover-dock-title {
-  font-family: "Archivo Narrow", "Arial Narrow", sans-serif;
+  font-family: "Bricolage Grotesque", "Archivo", system-ui, sans-serif;
   font-size: 1.125rem;
-  font-weight: 600;
+  font-weight: 750;
+  font-stretch: 92%;
   letter-spacing: -0.02em;
   line-height: 1.15;
 }
@@ -1453,6 +1197,17 @@ html.dark .trips,
 
 .trips .chrome-new-trip {
   opacity: calc(1 - var(--trips-cover-t));
+}
+
+/* The wordmark's paper plane takes off a little on hover. */
+.trips .chrome-plane {
+  transition: transform 320ms var(--trips-spring);
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .trips .chrome-wordmark:hover .chrome-plane {
+    transform: translate(3px, -3px) rotate(-8deg);
+  }
 }
 
 .trips[data-chrome-compact="true"] .chrome-new-trip {
@@ -1468,20 +1223,8 @@ html.dark .trips,
 }
 
 
-.trips .snap-rail {
-  background-image: linear-gradient(
-    to right,
-    var(--trips-ink) 0,
-    var(--trips-ink) 100%
-  );
-  background-repeat: no-repeat;
-  background-size: 0 1px;
-  background-position: center;
-  animation: trips-rail-draw 700ms var(--trips-ease-out) forwards;
-}
-
 .trips .snap-rail-sticky {
-  top: calc(var(--trips-chrome-h) + var(--trips-cover-h) + env(safe-area-inset-top, 0px));
+  top: calc(var(--trips-chrome-h) + var(--trips-cover-h) + env(safe-area-inset-top, 0px) + 0.5rem);
 }
 
 .trips .trips-flip-cell {
@@ -1523,18 +1266,8 @@ html.dark .trips,
   }
 }
 
-@keyframes trips-rail-draw {
-  to {
-    background-size: 100% 1px;
-  }
-}
 
 @media (prefers-reduced-motion: reduce) {
-  .trips .snap-rail {
-    animation: none;
-    background-size: 100% 1px;
-  }
-
   .trips .trips-flip-glyph {
     animation: none;
   }
@@ -1566,22 +1299,22 @@ html.dark .trips,
 }
 
 html[data-trips-scroll] {
-  scrollbar-color: oklch(22% 0.028 140 / 0.38) transparent;
+  scrollbar-color: rgb(31 36 64 / 0.38) transparent;
   scrollbar-width: thin;
 }
 
 html.dark[data-trips-scroll] {
-  scrollbar-color: oklch(93.4% 0.02 128 / 0.38) transparent;
+  scrollbar-color: rgb(246 240 222 / 0.38) transparent;
 }
 
 /* Below 768px every input is pinned to 16px so iOS doesn't zoom on focus.
    The trip title is a product heading (32/36px), not a magazine cover. */
-.trips input.trip-display-input {
+.trips .trip-display-input {
   font-size: 2rem !important;
 }
 
 @media (min-width: 640px) {
-  .trips input.trip-display-input {
+  .trips .trip-display-input {
     font-size: 2.25rem !important;
   }
 }
@@ -1602,179 +1335,140 @@ html.dark[data-trips-scroll] {
    Per-trip accent
 
    `data-trip-accent` on any trip-scoped subtree (overview, day page,
-   editor) swaps one variable set, so every accent moment inside follows
-   the trip's chosen colour. App chrome outside such a subtree keeps the
-   amber `--trips-accent` defaults above.
-
-   Hues are the OKLCH equivalents of rose-500 / amber-500 / emerald-500 /
-   sky-500 / violet-500, with lightness solved so `--ta` clears 4.5:1
-   against canvas, surface, AND its own `--ta-soft` tint in both themes;
-   chroma is pulled back at those lightness extremes to stay in gamut.
+   editor, concierge) swaps one variable set. `--ta-fill` is the pastel
+   sticker colour (pins, cover band, primary buttons), always under dark
+   ink. `--ta` is the ink-safe tone for accent text and dots, chosen to
+   clear 4.5:1 on canvas, surface and `--ta-soft` in both themes.
    ─────────────────────────────────────────────────────── */
 
 .trips [data-trip-accent] {
-  --ta-bloom-b: oklch(77% 0.14 70 / 0.07);
   --trips-accent: var(--ta);
   --trips-accent-hover: var(--ta-strong);
   --trips-focus: var(--ta-ring);
+  --trips-band: var(--ta-fill);
 }
 
 .trips [data-trip-accent="rose"] {
-  --trips-canvas: oklch(95% 0.022 16.4);
-  --trips-surface: oklch(97.6% 0.012 16.4);
-  --trips-rail: oklch(92.2% 0.028 16.4);
-  --trips-band: oklch(36% 0.14 16.4);
-  --trips-band-ink: oklch(97% 0.02 16.4);
-  --ta: oklch(48% 0.17 16.4);
-  --ta-strong: oklch(40% 0.17 16.4);
-  --ta-soft: oklch(48% 0.17 16.4 / 0.12);
-  --ta-ring: oklch(48% 0.17 16.4 / 0.45);
-  --ta-bloom-a: oklch(65% 0.21 16.4 / 0.1);
+  --ta: #a92e48;
+  --ta-strong: #87223a;
+  --ta-fill: var(--toy-rose);
+  --ta-soft: rgb(255 179 196 / 0.42);
+  --ta-ring: rgb(169 46 72 / 0.5);
 }
 
 .trips [data-trip-accent="amber"] {
-  --trips-canvas: oklch(95% 0.022 70.1);
-  --trips-surface: oklch(97.6% 0.012 70.1);
-  --trips-rail: oklch(92.2% 0.028 70.1);
-  --trips-band: oklch(38% 0.1 70.1);
-  --trips-band-ink: oklch(97% 0.02 70.1);
-  --ta: oklch(46% 0.1 70.1);
-  --ta-strong: oklch(38% 0.1 70.1);
-  --ta-soft: oklch(46% 0.1 70.1 / 0.12);
-  --ta-ring: oklch(46% 0.1 70.1 / 0.45);
-  --ta-bloom-a: oklch(77% 0.16 70.1 / 0.12);
-  --ta-bloom-b: oklch(62% 0.012 60 / 0.08);
+  --ta: #7f5200;
+  --ta-strong: #643f00;
+  --ta-fill: var(--toy-butter);
+  --ta-soft: rgb(255 221 127 / 0.45);
+  --ta-ring: rgb(127 82 0 / 0.5);
 }
 
 .trips [data-trip-accent="emerald"] {
-  --trips-canvas: oklch(95% 0.022 162.5);
-  --trips-surface: oklch(97.6% 0.012 162.5);
-  --trips-rail: oklch(92.2% 0.028 162.5);
-  --trips-band: oklch(34% 0.08 162.5);
-  --trips-band-ink: oklch(97% 0.018 162.5);
-  --ta: oklch(42% 0.09 162.5);
-  --ta-strong: oklch(34% 0.09 162.5);
-  --ta-soft: oklch(42% 0.09 162.5 / 0.12);
-  --ta-ring: oklch(42% 0.09 162.5 / 0.45);
-  --ta-bloom-a: oklch(70% 0.15 162.5 / 0.1);
+  --ta: #166a46;
+  --ta-strong: #105437;
+  --ta-fill: var(--toy-mint);
+  --ta-soft: rgb(166 229 200 / 0.45);
+  --ta-ring: rgb(22 106 70 / 0.5);
 }
 
 .trips [data-trip-accent="sky"] {
-  --trips-canvas: oklch(95% 0.02 237.3);
-  --trips-surface: oklch(97.6% 0.01 237.3);
-  --trips-rail: oklch(92.4% 0.024 237.3);
-  --trips-band: oklch(36% 0.08 237.3);
-  --trips-band-ink: oklch(97% 0.016 237.3);
-  --ta: oklch(44% 0.09 237.3);
-  --ta-strong: oklch(36% 0.09 237.3);
-  --ta-soft: oklch(44% 0.09 237.3 / 0.12);
-  --ta-ring: oklch(44% 0.09 237.3 / 0.45);
-  --ta-bloom-a: oklch(69% 0.15 237.3 / 0.1);
+  --ta: #1b5a8a;
+  --ta-strong: #13466d;
+  --ta-fill: var(--toy-sky);
+  --ta-soft: rgb(169 216 245 / 0.45);
+  --ta-ring: rgb(27 90 138 / 0.5);
 }
 
 .trips [data-trip-accent="violet"] {
-  --trips-canvas: oklch(95% 0.022 292.7);
-  --trips-surface: oklch(97.6% 0.012 292.7);
-  --trips-rail: oklch(92.2% 0.028 292.7);
-  --trips-band: oklch(36% 0.12 292.7);
-  --trips-band-ink: oklch(97% 0.02 292.7);
-  --ta: oklch(46% 0.14 292.7);
-  --ta-strong: oklch(38% 0.14 292.7);
-  --ta-soft: oklch(46% 0.14 292.7 / 0.12);
-  --ta-ring: oklch(46% 0.14 292.7 / 0.45);
-  --ta-bloom-a: oklch(61% 0.22 292.7 / 0.1);
-  --ta-bloom-b: oklch(66% 0.18 16.4 / 0.06);
-}
-
-html.dark .trips [data-trip-accent],
-.trips.dark [data-trip-accent],
-:root.dark .trips [data-trip-accent] {
-  --ta-bloom-b: oklch(80% 0.13 70 / 0.1);
+  --ta: #5639ab;
+  --ta-strong: #432b8a;
+  --ta-fill: var(--toy-lilac);
+  --ta-soft: rgb(205 193 247 / 0.45);
+  --ta-ring: rgb(86 57 171 / 0.5);
 }
 
 html.dark .trips [data-trip-accent="rose"],
 .trips.dark [data-trip-accent="rose"],
 :root.dark .trips [data-trip-accent="rose"] {
-  --trips-canvas: oklch(16.5% 0.03 16.4);
-  --trips-surface: oklch(20.5% 0.028 16.4);
-  --trips-rail: oklch(18.2% 0.03 16.4);
-  --trips-band: oklch(28% 0.1 16.4);
-  --trips-band-ink: oklch(94% 0.03 16.4);
-  --ta: oklch(72% 0.14 16.4);
-  --ta-strong: oklch(80% 0.12 16.4);
-  --ta-soft: oklch(72% 0.14 16.4 / 0.1);
-  --ta-ring: oklch(72% 0.14 16.4 / 0.5);
-  --ta-bloom-a: oklch(72% 0.17 16.4 / 0.16);
+  --ta: #ffa9bb;
+  --ta-strong: #ffcbd6;
+  --ta-soft: rgb(255 179 196 / 0.14);
+  --ta-ring: rgb(255 169 187 / 0.55);
 }
 
 html.dark .trips [data-trip-accent="amber"],
 .trips.dark [data-trip-accent="amber"],
 :root.dark .trips [data-trip-accent="amber"] {
-  --trips-canvas: oklch(16.5% 0.028 70.1);
-  --trips-surface: oklch(20.5% 0.026 70.1);
-  --trips-rail: oklch(18.2% 0.028 70.1);
-  --trips-band: oklch(28% 0.08 70.1);
-  --trips-band-ink: oklch(94% 0.028 70.1);
-  --ta: oklch(74% 0.11 70.1);
-  --ta-strong: oklch(82% 0.1 70.1);
-  --ta-soft: oklch(74% 0.11 70.1 / 0.1);
-  --ta-ring: oklch(74% 0.11 70.1 / 0.5);
-  --ta-bloom-a: oklch(80% 0.14 70.1 / 0.16);
-  --ta-bloom-b: oklch(70% 0.012 60 / 0.08);
+  --ta: #ffd774;
+  --ta-strong: #ffe7a8;
+  --ta-soft: rgb(255 221 127 / 0.14);
+  --ta-ring: rgb(255 215 116 / 0.55);
 }
 
 html.dark .trips [data-trip-accent="emerald"],
 .trips.dark [data-trip-accent="emerald"],
 :root.dark .trips [data-trip-accent="emerald"] {
-  --trips-canvas: oklch(16.5% 0.028 162.5);
-  --trips-surface: oklch(20.5% 0.026 162.5);
-  --trips-rail: oklch(18.2% 0.028 162.5);
-  --trips-band: oklch(26% 0.07 162.5);
-  --trips-band-ink: oklch(94% 0.024 162.5);
-  --ta: oklch(72% 0.1 162.5);
-  --ta-strong: oklch(80% 0.09 162.5);
-  --ta-soft: oklch(72% 0.1 162.5 / 0.1);
-  --ta-ring: oklch(72% 0.1 162.5 / 0.5);
-  --ta-bloom-a: oklch(75% 0.13 162.5 / 0.14);
+  --ta: #92e4bf;
+  --ta-strong: #bdf0d8;
+  --ta-soft: rgb(166 229 200 / 0.14);
+  --ta-ring: rgb(146 228 191 / 0.55);
 }
 
 html.dark .trips [data-trip-accent="sky"],
 .trips.dark [data-trip-accent="sky"],
 :root.dark .trips [data-trip-accent="sky"] {
-  --trips-canvas: oklch(16.5% 0.026 237.3);
-  --trips-surface: oklch(20.5% 0.024 237.3);
-  --trips-rail: oklch(18.2% 0.026 237.3);
-  --trips-band: oklch(26% 0.06 237.3);
-  --trips-band-ink: oklch(94% 0.02 237.3);
-  --ta: oklch(72% 0.1 237.3);
-  --ta-strong: oklch(80% 0.09 237.3);
-  --ta-soft: oklch(72% 0.1 237.3 / 0.1);
-  --ta-ring: oklch(72% 0.1 237.3 / 0.5);
-  --ta-bloom-a: oklch(74% 0.13 237.3 / 0.14);
+  --ta: #a4d6f6;
+  --ta-strong: #c8e7fa;
+  --ta-soft: rgb(169 216 245 / 0.14);
+  --ta-ring: rgb(164 214 246 / 0.55);
 }
 
 html.dark .trips [data-trip-accent="violet"],
 .trips.dark [data-trip-accent="violet"],
 :root.dark .trips [data-trip-accent="violet"] {
-  --trips-canvas: oklch(16.5% 0.03 292.7);
-  --trips-surface: oklch(20.5% 0.028 292.7);
-  --trips-rail: oklch(18.2% 0.03 292.7);
-  --trips-band: oklch(28% 0.09 292.7);
-  --trips-band-ink: oklch(94% 0.03 292.7);
-  --ta: oklch(74% 0.12 292.7);
-  --ta-strong: oklch(82% 0.1 292.7);
-  --ta-soft: oklch(74% 0.12 292.7 / 0.1);
-  --ta-ring: oklch(74% 0.12 292.7 / 0.5);
-  --ta-bloom-a: oklch(70% 0.19 292.7 / 0.16);
+  --ta: #c9bcff;
+  --ta-strong: #ded6ff;
+  --ta-soft: rgb(205 193 247 / 0.14);
+  --ta-ring: rgb(201 188 255 / 0.55);
 }
 
-/* Signature hero bloom, two drifting radial layers reading the accent vars. */
-.trip-bloom-a {
-  background-image: radial-gradient(ellipse at top right, var(--ta-bloom-a), transparent 55%);
+/* ── Toy-world decoration (StyleX can't express masks with repeats) ── */
+
+
+/* Dashed flight path down a timeline; it marches unless motion is reduced. */
+.trips .toy-route {
+  background-image: linear-gradient(to bottom, var(--trips-ink-tertiary) 55%, transparent 55%);
+  background-size: 2px 10px;
+  background-repeat: repeat-y;
+  background-position: center top;
 }
 
-.trip-bloom-b {
-  background-image: radial-gradient(ellipse at bottom left, var(--ta-bloom-b), transparent 55%);
+@media (prefers-reduced-motion: no-preference) {
+  .trips .toy-route {
+    animation: toy-route-march 1.6s linear infinite;
+  }
+}
+
+@keyframes toy-route-march {
+  to {
+    background-position: center 10px;
+  }
+}
+
+/* Clay wobble for stickers on hover. */
+@keyframes toy-wobble {
+  0% { transform: rotate(0deg) scale(1); }
+  30% { transform: rotate(-4deg) scale(1.06, 0.95); }
+  55% { transform: rotate(3deg) scale(0.97, 1.04); }
+  80% { transform: rotate(-1deg) scale(1.01); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+
+@media (prefers-reduced-motion: no-preference) and (hover: hover) {
+  .trips .toy-wobble:hover {
+    animation: toy-wobble 520ms var(--trips-ease-out);
+  }
 }
 
 /* Split action (button + disclosure): two buttons share one
@@ -1821,30 +1515,8 @@ html.dark .trips [data-trip-accent="violet"],
   animation: trip-flash 2.6s cubic-bezier(0.33, 0, 0, 1);
 }
 
-@keyframes trip-bloom-drift {
-  0% { transform: translate3d(0, 0, 0) scale(1); }
-  50% { transform: translate3d(2%, 1.5%, 0) scale(1.04); }
-  100% { transform: translate3d(0, 0, 0) scale(1); }
-}
-
-.trip-bloom-drift {
-  animation: trip-bloom-drift 18s cubic-bezier(0.33, 0, 0, 1) infinite;
-  will-change: transform;
-}
-
-@keyframes trip-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.45; transform: scale(0.85); }
-}
-
-.trip-pulse {
-  animation: trip-pulse 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .trip-flash,
-  .trip-bloom-drift,
-  .trip-pulse {
+  .trip-flash {
     animation: none;
   }
 }

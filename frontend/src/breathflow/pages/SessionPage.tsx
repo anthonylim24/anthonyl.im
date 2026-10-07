@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { LayoutGroup, motion } from 'motion/react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
@@ -42,22 +42,26 @@ import { CONSTRAINED_VIEWPORT_MESSAGE, SAFETY_DISCLOSURE } from '../safety/discl
 import { useRecoveryStatus } from '../safety/useRecoveryStatus'
 import { completeSession, type CompletionResult } from '../session/completeSession'
 import { buildSessionSearch, parseSessionSearch } from '../session/urlParams'
-import { BoxVisualization } from '../components/BoxVisualization'
-import { BreathStarfield } from '../components/BreathStarfield'
 import { CadenceEditor } from '../components/CadenceEditor'
 import { LiveAnnouncer } from '../components/LiveAnnouncer'
 import { MoodPicker } from '../components/MoodPicker'
-import { OrbVisualization } from '../components/OrbVisualization'
-import { TideVisualization } from '../components/TideVisualization'
+import { PaintSplash } from '../components/PaintSplash'
 import { PhaseStrip } from '../components/PhaseStrip'
 import { SafetyChecklist } from '../components/SafetyChecklist'
 import { SessionSummary } from '../components/SessionSummary'
 import { btn } from '../components/buttonStyles.stylex'
 import { sx } from '@/styles/merge'
 import { bf } from '../styles/breathflow.stylex'
+import { ss } from '../styles/session.stylex'
+import { wc } from '../styles/watercolor.stylex'
 import { formatClock, formatDuration } from '../components/format'
 import { Notice } from '../motion/Notice'
-import { chromeTransition, inkSpring, pressSpring } from '../motion/tokens'
+import { chromeTransition, EASE_SETTLE, inkSpring, pressSpring } from '../motion/tokens'
+import { PRISM_PIGMENT, sessionPigment, techniquePigment, type Pigment } from '../pigments'
+import { getRoundSeconds } from '../protocols/cadence'
+import { BloomAnchor } from '../scene/BloomAnchor'
+import { BloomCanvas, type BloomCanvasHandle } from '../scene/BloomCanvas'
+import { sampleBreath, useBreathReader, type BreathSample } from '../scene/breathDrive'
 
 const CONTROLS_HIDE_MS = 3000
 const EASTER_EGG_TAPS = 5
@@ -94,6 +98,7 @@ export function SessionPage() {
   const xp = useGamificationStore((s) => s.xp)
   const selectedTheme = useGamificationStore((s) => s.selectedTheme)
   const orbTheme = resolveOrbTheme(selectedTheme, levelForXP(xp))
+  const pigment = sessionPigment(protocol.id, orbTheme)
 
   const completedRef = useRef(false)
   const tapTimesRef = useRef<number[]>([])
@@ -268,11 +273,17 @@ export function SessionPage() {
     <>
       <LiveAnnouncer message={announcement} />
       {summary ? (
-        <div {...sx(bf.sessionSummaryWrap)}>
+        <div {...sx(ss.summaryWrap)}>
+          <PaintSplash
+            pigment={pigment}
+            big={summary.result.isPersonalBest || summary.result.newBadgeIds.length > 0}
+            reducedMotion={reducedMotion}
+          />
           <SessionSummary
             protocol={summary.protocol}
             result={summary.result}
             insight={summary.insight}
+            pigment={pigment}
             moodAfter={moodAfter}
             onMoodAfter={handleMoodAfter}
             onRepeat={handleRepeat}
@@ -284,8 +295,7 @@ export function SessionPage() {
           engine={engine}
           advanced={advanced}
           reducedMotion={reducedMotion}
-          altVisual={altVisual}
-          orbColors={orbTheme.colors}
+          pigment={altVisual ? PRISM_PIGMENT : pigment}
           soundEnabled={soundEnabled}
           onVisualTap={handleVisualTap}
         />
@@ -313,6 +323,7 @@ export function SessionPage() {
             onUpdate={updateParams}
             onStart={handleStart}
             reducedMotion={reducedMotion}
+            pigment={pigment}
           />
         </div>
       )}
@@ -343,6 +354,7 @@ interface SessionSetupProps {
   }) => void
   onStart: () => void
   reducedMotion: boolean
+  pigment: Pigment
 }
 
 function SessionSetup({
@@ -360,49 +372,82 @@ function SessionSetup({
   onUpdate,
   onStart,
   reducedMotion,
+  pigment,
 }: SessionSetupProps) {
   const maxRounds = getMaxRounds(protocol)
   const planned = plannedSessionSeconds(protocol, rounds, customDurations)
   const advanced = isAdvancedProtocol(protocol)
+  const stageRef = useRef<HTMLDivElement>(null)
+  const anchorRef = useRef<HTMLDivElement>(null)
+  const [live, setLive] = useState(false)
+  // The preview bloom breathes this technique's actual cadence.
+  const preview = useMemo(() => cadencePreview(protocol, customDurations, reducedMotion), [protocol, customDurations, reducedMotion])
+  const vars = { '--bf-ink': pigment.mass, '--bf-mass': pigment.mass, '--bf-glaze': pigment.glaze } as CSSProperties
 
   return (
-    <div {...sx(bf.pb8)}>
-      <h1 {...sx('bf-display', bf.text3xl, bf.trackingTight, bf.textBw)}>Breathe</h1>
+    <div {...sx(ss.setup)} style={vars}>
+      <div {...sx(ss.setupStage)}>
+        <div ref={stageRef} {...sx(ss.setupStageInner)}>
+          <BloomCanvas
+            anchorRef={anchorRef}
+            pointerHostRef={stageRef}
+            mode="play"
+            pigment={pigment}
+            read={preview}
+            onLive={setLive}
+            style={ss.setupCanvas}
+          />
+          <div {...sx(ss.setupAnchorWrap)}>
+            <BloomAnchor ref={anchorRef} pigment={pigment} read={preview} live={live} reducedMotion={reducedMotion} />
+          </div>
+        </div>
+        <p {...sx(ss.setupCaption)}>
+          <span {...sx('bf-display', wc.italic)}>{pigment.name}</span>
+          <span aria-hidden="true"> · </span>
+          <span>{reducedMotion ? 'one breath, at rest' : 'previewing one breath'}</span>
+        </p>
+      </div>
+
+      <div {...sx(ss.setupPanel)}>
+      <p {...sx(wc.eyebrow)}>Choose a breath</p>
+      <h1 {...sx('bf-display', wc.pageTitle, ss.setupTitle)}>Breathe</h1>
 
       {/* Technique switch */}
       <LayoutGroup id="session-technique">
-        <div {...sx(bf.mt5, bf.techniqueGrid)} role="group" aria-label="Technique">
+        <div {...sx(ss.palette)} role="group" aria-label="Technique">
           {PROTOCOLS.map((entry) => {
             const selected = entry.id === protocol.id
+            const paint = techniquePigment(entry.id)
             return (
               <motion.button
                 key={entry.id}
                 type="button"
                 aria-pressed={selected}
                 onClick={() => onUpdate({ techniqueId: entry.id })}
-                whileTap={reducedMotion ? undefined : { scale: 0.99 }}
+                whileTap={reducedMotion ? undefined : { scale: 0.98 }}
                 transition={pressSpring}
-                {...sx(
-                  bf.techniqueBtn,
-                  selected ? bf.techniqueBtnActive : bf.techniqueBtnInactive,
-                )}
+                {...sx(ss.paletteBtn, selected ? ss.paletteBtnActive : ss.paletteBtnIdle)}
+                style={{ '--bf-mass': paint.mass, '--bf-glaze': paint.glaze } as CSSProperties}
               >
                 {selected ? (
                   reducedMotion ? (
-                    <span aria-hidden="true" {...sx(bf.techniqueInk)} />
+                    <span aria-hidden="true" {...sx(ss.paletteInk)} />
                   ) : (
                     <motion.span
                       aria-hidden="true"
                       layoutId="session-technique-ink"
-                      {...sx(bf.techniqueInk)}
+                      {...sx(ss.paletteInk)}
                       transition={inkSpring}
                     />
                   )
                 ) : null}
-                <span {...sx(bf.relative, bf.block, bf.truncate)}>{entry.name}</span>
-                <span {...sx(bf.relative, bf.block, bf.text11px, bf.capitalize, bf.textTertiary)}>
-                  {entry.category}
-                  {isAdvancedProtocol(entry) ? ' · safety check' : ''}
+                <span aria-hidden="true" {...sx('bf-dab', ss.paletteDab)} />
+                <span {...sx(bf.relative, bf.minW0)}>
+                  <span {...sx(bf.block, bf.breakWords)}>{entry.name}</span>
+                  <span {...sx(bf.block, bf.text11px, bf.capitalize, bf.textTertiary)}>
+                    {entry.category}
+                    {isAdvancedProtocol(entry) ? ' · safety check' : ''}
+                  </span>
                 </span>
               </motion.button>
             )
@@ -410,19 +455,20 @@ function SessionSetup({
         </div>
       </LayoutGroup>
 
-      <div {...sx(bf.mt8, bf.borderTop, bf.pt5)}>
+      <div {...sx(ss.detail)}>
         <div {...sx(bf.flexBaselineBetween)}>
           <div {...sx(bf.minW0)}>
-            <h2 {...sx('bf-display', bf.textXl, bf.trackingTight, bf.textBw)}>{protocol.name}</h2>
-            <p {...sx(bf.mt05, bf.textSm, bf.textSecondary)}>{protocol.description}</p>
+            <h2 {...sx('bf-display', ss.protocolName)}>{protocol.name}</h2>
+            <p {...sx(bf.mt1, bf.textSm, bf.textSecondary)}>{protocol.description}</p>
           </div>
-          <p {...sx(bf.textSm, bf.tabularNums, bf.textSecondary)}>{formatDuration(planned)}</p>
+          <p {...sx('bf-display', ss.planned)}>{formatDuration(planned)}</p>
         </div>
 
         <PhaseStrip
           protocol={protocol}
           customDurations={customDurations}
           animated={!reducedMotion}
+          pigment={pigment}
           style={bf.mt4}
         />
 
@@ -564,8 +610,36 @@ function SessionSetup({
           ))}
         </ul>
       </details>
+      </div>
     </div>
   )
+}
+
+/** A wall-clock reader that runs the protocol's first round on a loop. */
+function cadencePreview(
+  protocol: BreathingProtocol,
+  customDurations: CustomPhaseDurations | undefined,
+  still: boolean,
+): () => BreathSample {
+  const phases = protocol.phases.map(({ phase }) => ({
+    phase,
+    seconds: getPhaseSecondsForRound(protocol, phase, 0, customDurations),
+  }))
+  const cycle = Math.max(1, getRoundSeconds(protocol, 0, customDurations))
+  return () => {
+    // Under reduced motion, rest at the top of the inhale.
+    let t = still ? phases[0].seconds : (performance.now() / 1000) % cycle
+    let index = 0
+    while (index < phases.length - 1 && t >= phases[index].seconds) {
+      t -= phases[index].seconds
+      index++
+    }
+    const phaseSeconds = phases[index].seconds
+    return sampleBreath(
+      { phases, phaseIndex: index, phaseSeconds, secondsLeftInPhase: phaseSeconds, status: 'running' },
+      Math.min(t, phaseSeconds),
+    )
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -577,8 +651,7 @@ interface ActiveSessionProps {
   engine: ReturnType<typeof useSessionEngine>
   advanced: boolean
   reducedMotion: boolean
-  altVisual: boolean
-  orbColors: [string, string]
+  pigment: Pigment
   soundEnabled: boolean
   onVisualTap: () => void
 }
@@ -588,12 +661,14 @@ function ActiveSession({
   engine,
   advanced,
   reducedMotion,
-  altVisual,
-  orbColors,
+  pigment,
   soundEnabled,
   onVisualTap,
 }: ActiveSessionProps) {
   const setSoundEnabled = useSettingsStore((s) => s.setSoundEnabled)
+  const anchorRef = useRef<HTMLDivElement>(null)
+  const bloomRef = useRef<BloomCanvasHandle>(null)
+  const [live, setLive] = useState(false)
 
   const running = engine.status === 'running'
   const paused = engine.status === 'paused'
@@ -617,23 +692,62 @@ function ActiveSession({
     return () => clearTimeout(timeout)
   }, [alwaysVisible, interactionStamp])
 
-  const phaseIndex = engine.phaseIndex
+  // Space pauses and resumes from anywhere except a focused control, which
+  // keeps its own native Space behaviour.
+  const { pause, resume } = engine
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.code !== 'Space' || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return
+      const target = event.target as Element | null
+      // The bloom is a button too, but Space on it should still pause.
+      const control = target?.closest('button, a, input, textarea, select, summary, [contenteditable="true"]')
+      if (control && !control.hasAttribute('data-bloom')) return
+      event.preventDefault()
+      showControls()
+      if (running) pause()
+      else if (paused) resume()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [running, paused, pause, resume, showControls])
+
+  const read = useBreathReader({
+    phases: protocol.phases,
+    phaseIndex: engine.phaseIndex,
+    phaseSeconds: engine.phaseSeconds,
+    secondsLeftInPhase: engine.secondsLeftInPhase,
+    status: engine.status,
+  })
+  const tick = `${engine.phaseIndex}:${engine.secondsLeftInPhase}:${engine.status}`
   const cue = getCoachingCue(protocol.id, engine.phase)
   const isBox = protocol.id === TECHNIQUE_IDS.BOX_BREATHING
+  const seconds = engine.secondsLeftInPhase
+  const vars = { '--bf-ink': pigment.mass, '--bf-mass': pigment.mass, '--bf-glaze': pigment.glaze } as CSSProperties
 
   return (
     <motion.div
-      {...sx(bf.sessionFullscreen)}
+      {...sx(ss.fullscreen)}
+      style={vars}
       initial={reducedMotion ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={chromeTransition}
+      transition={{ duration: 0.7, ease: EASE_SETTLE }}
       onPointerMove={showControls}
       onPointerDown={showControls}
     >
-      <BreathStarfield inline />
+      <BloomCanvas
+        ref={bloomRef}
+        anchorRef={anchorRef}
+        mode="calm"
+        pigment={pigment}
+        read={read}
+        vignette
+        tick={tick}
+        onLive={setLive}
+      />
+
       {/* Round counter */}
-      <div {...sx(bf.safeAreaTop, bf.textCenterBlock)}>
-        <p {...sx('bf-display', bf.textSm, bf.textSecondary)}>
+      <div {...sx(bf.safeAreaTop, ss.top)}>
+        <p {...sx('bf-display', ss.round)}>
           Round {engine.roundNumber} of {engine.totalRounds}
         </p>
         {advanced && (
@@ -643,59 +757,43 @@ function ActiveSession({
         )}
       </div>
 
-      {/* Visualization + phase state */}
-      <div {...sx(bf.flexColCenter, bf.gap7, bf.px6)}>
+      {/* The bloom + phase state */}
+      <div {...sx(ss.centre)}>
         <button
           type="button"
+          data-bloom=""
           aria-label={`${protocol.name} visualization`}
-          onClick={onVisualTap}
-          {...sx(bf.visualTapBtn)}
+          onClick={(event) => {
+            bloomRef.current?.poke(event.clientX, event.clientY)
+            onVisualTap()
+          }}
+          {...sx(ss.bloomBtn)}
         >
-          {altVisual && !reducedMotion ? (
-            <TideVisualization
-              phases={protocol.phases}
-              phaseIndex={phaseIndex}
-              phaseSeconds={engine.phaseSeconds}
-              secondsLeftInPhase={engine.secondsLeftInPhase}
-              status={engine.status}
-              colors={orbColors}
-            />
-          ) : isBox ? (
-            <BoxVisualization
-              phaseIndex={phaseIndex}
-              phaseSeconds={engine.phaseSeconds}
-              secondsLeftInPhase={engine.secondsLeftInPhase}
-              roundIndex={engine.roundNumber - 1}
-              status={engine.status}
-              accentColor={orbColors[0]}
-              reducedMotion={reducedMotion}
-            />
-          ) : (
-            <OrbVisualization
-              phases={protocol.phases}
-              phaseIndex={phaseIndex}
-              phaseSeconds={engine.phaseSeconds}
-              secondsLeftInPhase={engine.secondsLeftInPhase}
-              status={engine.status}
-              colors={orbColors}
-              reducedMotion={reducedMotion}
-            />
-          )}
+          <BloomAnchor
+            ref={anchorRef}
+            pigment={pigment}
+            read={read}
+            stroke={isBox ? 'box' : 'ring'}
+            live={live}
+            reducedMotion={reducedMotion}
+            tick={tick}
+          >
+            <span aria-hidden="true" {...sx('bf-display', ss.count)}>
+              {seconds >= 60 ? formatClock(seconds) : seconds}
+            </span>
+          </BloomAnchor>
         </button>
 
-        <div {...sx(bf.textCenterBlock)}>
+        <div {...sx(ss.phaseBlock)}>
           <motion.p
-            key={paused ? 'paused' : engine.phase}
-            initial={reducedMotion ? false : { opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={chromeTransition}
-            {...sx(bf.phaseLabel)}
+            key={paused ? 'paused' : `${engine.phaseIndex}-${engine.phase}`}
+            initial={reducedMotion ? false : { opacity: 0, y: 8, filter: 'blur(4px)' }}
+            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+            transition={{ duration: 0.6, ease: EASE_SETTLE }}
+            {...sx('bf-display', wc.italic, ss.phaseWord)}
           >
             {paused ? 'Paused' : PHASE_LABELS[engine.phase]}
           </motion.p>
-          <p {...sx('bf-display', bf.mt2, bf.text5xl, bf.trackingTight, bf.textBw)} aria-hidden="true">
-            {formatClock(engine.secondsLeftInPhase)}
-          </p>
           <motion.p
             key={`${paused ? 'paused' : engine.phase}-cue`}
             initial={reducedMotion ? false : { opacity: 0, y: 4 }}
@@ -703,7 +801,7 @@ function ActiveSession({
             transition={chromeTransition}
             {...sx(bf.phaseCue)}
           >
-            {cue}
+            {paused ? 'Press Space or Resume when you are ready.' : cue}
           </motion.p>
         </div>
       </div>
@@ -715,12 +813,12 @@ function ActiveSession({
         initial={false}
         animate={{
           opacity: controlsVisible ? 1 : 0,
-          y: reducedMotion ? 0 : (controlsVisible ? 0 : 8),
+          y: reducedMotion ? 0 : (controlsVisible ? 0 : 10),
         }}
         transition={chromeTransition}
         aria-hidden={!controlsVisible}
         inert={!controlsVisible ? true : undefined}
-        {...sx(bf.safeAreaBottom)}
+        {...sx(bf.safeAreaBottom, ss.dockWrap)}
         style={{ pointerEvents: controlsVisible ? 'auto' : 'none' }}
         onFocus={() => setFocusWithin(true)}
         onBlur={(event) => {
@@ -729,7 +827,7 @@ function ActiveSession({
           }
         }}
       >
-        <div {...sx(bf.controlsDock)}>
+        <div {...sx(ss.dock)}>
           <button
             type="button"
             {...sx(btn.icon)}
@@ -748,6 +846,7 @@ function ActiveSession({
             whileTap={reducedMotion ? undefined : { scale: 0.98 }}
             transition={pressSpring}
             tabIndex={controlsVisible ? 0 : -1}
+            aria-keyshortcuts="Space"
           >
             {running
               ? <Pause size={16} strokeWidth={1.75} aria-hidden="true" />
@@ -773,6 +872,7 @@ function ActiveSession({
             <Square size={18} strokeWidth={1.75} aria-hidden="true" />
           </button>
         </div>
+        <p aria-hidden="true" {...sx(ss.keyHint)}>Space to pause</p>
       </motion.div>
     </motion.div>
   )
