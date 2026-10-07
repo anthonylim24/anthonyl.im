@@ -441,6 +441,43 @@ html:has(.chatbot-dark) {
   background-color: #f2efe9;
 }
 
+/* Landing (`/`) — anthonyl.im lab. Pigment on bone: ultramarine is the only
+   accent; ink carries the dark sections. Vars only — StyleX owns properties. */
+.landing {
+  --lim-bone: #EDE8DF;
+  --lim-bone-deep: #E4DED3;
+  --lim-paper: #F7F4EE;
+  --lim-ink: #0E1024;
+  --lim-ink-raised: #161A36;
+  --lim-ink-line: rgba(237, 232, 223, 0.14);
+  --lim-text: #0E1024;
+  --lim-text-2: #3B3E58;
+  --lim-text-3: #5E6075;
+  --lim-on-ink: #EDE8DF;
+  --lim-on-ink-2: #B3B5CA;
+  --lim-ultra: #2433E0;
+  --lim-ultra-deep: #1A25B0;
+  --lim-ultra-pale: #A3ACFF;
+  --lim-line: rgba(14, 16, 36, 0.13);
+  --lim-ok: #2C9466;
+  --lim-display: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  --lim-mono: 'Fragment Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --lim-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.landing ::selection { background: #2433E0; color: #EDE8DF; }
+
+/* The global unlayered `* { border-color }` (shadcn legacy) would beat every
+   layered StyleX border colour; hand the landing back to its own layer. */
+.landing,
+.landing * { border-color: revert-layer; }
+
+html:has(.landing) { scroll-padding-top: 76px; background-color: #EDE8DF; }
+
+@media (prefers-reduced-motion: no-preference) {
+  html:has(.landing) { scroll-behavior: smooth; }
+}
+
 /* Chatbot utility classes — consume CSS vars for zero-cost theme switching */
 .chat-text { color: var(--chat-text); }
 .chat-mid { color: var(--chat-mid); }

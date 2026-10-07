@@ -48,6 +48,14 @@ export default defineConfig({
         // multiple groups match the same module.
         advancedChunks: {
           groups: [
+            // three.core is shared; the WebGL build (Map Mode) and the
+            // WebGPU/TSL build + three-blocks (landing hero) never load together.
+            { name: 'three-core', test: /[\\/]node_modules[\\/]three[\\/]build[\\/]three\.core/, priority: 102 },
+            {
+              name: 'three-webgpu',
+              test: /[\\/]node_modules[\\/](three[\\/](build[\\/]three\.(webgpu|tsl)|examples[\\/]jsm[\\/]tsl)|three-blocks)[\\/.]/,
+              priority: 101,
+            },
             { name: 'three', test: /[\\/]node_modules[\\/]three[\\/]/, priority: 100 },
             // 3DTilesRendererJS only loads when Map Mode opens — keep
             // it in its own chunk so other Korea routes stay slim.

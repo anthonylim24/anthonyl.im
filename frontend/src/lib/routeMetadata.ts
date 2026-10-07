@@ -4,6 +4,12 @@ export const DEFAULT_ROUTE_METADATA = {
   favicon: '/favicon-chat.svg',
 } as const
 
+export const LANDING_ROUTE_METADATA = {
+  title: 'anthonyl.im — Applied intelligence lab',
+  description: 'Frontier models and agents that plan, act within bounds, and verify their own work.',
+  favicon: '/favicon-lim.svg',
+} as const
+
 export const BREATHFLOW_ROUTE_METADATA = {
   title: 'BreathFlow',
   description: 'Timed breathing protocols with published research.',
@@ -12,6 +18,7 @@ export const BREATHFLOW_ROUTE_METADATA = {
 
 export function getRouteMetadata(pathname: string) {
   const appPath = pathname.replace(/^\/preview\/pr\/\d+(?=\/|$)/, "") || "/"
+  if (appPath === "/") return LANDING_ROUTE_METADATA
   return appPath.startsWith("/breathwork")
     ? BREATHFLOW_ROUTE_METADATA
     : DEFAULT_ROUTE_METADATA

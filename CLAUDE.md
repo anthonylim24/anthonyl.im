@@ -1,6 +1,6 @@
 # anthonyl.im
 
-This repo hosts four experiences under one Vite SPA: a personal AI chatbot (`/`), **BreathFlow** (`/breathwork`), the **Korea** itinerary (`/trips/korea-2026`; `/korea` redirects), and a generic **trip planner** (`/trips`). Design principles live in [`AGENTS.md`](AGENTS.md) and [`PRODUCT.md`](PRODUCT.md). Skill catalog: [`.agents/skills/README.md`](.agents/skills/README.md).
+This repo hosts five experiences under one Vite SPA: the **anthonyl.im lab landing page** (`/`), a personal AI chatbot (`/chatbot`), **BreathFlow** (`/breathwork`), the **Korea** itinerary (`/trips/korea-2026`; `/korea` redirects), and a generic **trip planner** (`/trips`). Design principles live in [`AGENTS.md`](AGENTS.md) and [`PRODUCT.md`](PRODUCT.md). Skill catalog: [`.agents/skills/README.md`](.agents/skills/README.md).
 
 ---
 
@@ -10,7 +10,7 @@ This repo hosts four experiences under one Vite SPA: a personal AI chatbot (`/`)
 anthonyl.im/
 ├── frontend/                    # React 19 + TypeScript SPA (Vite 8)
 │   ├── src/
-│   │   ├── App.tsx              # Homepage chatbot (SSE via lib/apiService.ts)
+│   │   ├── App.tsx              # Chatbot at /chatbot (SSE via lib/apiService.ts)
 │   │   ├── AppRoutes.tsx        # React Router v7 tree — Guarded + lazy
 │   │   ├── main.tsx             # Clerk provider + SW registration
 │   │   ├── breathflow/          # Entire BreathFlow app
@@ -21,6 +21,7 @@ anthonyl.im/
 │   │   │   ├── components/      # OrbVisualization, useGlassOrb, LiveAnnouncer, …
 │   │   │   ├── motion/ platform/ safety/ session/ recommend/
 │   │   ├── pages/
+│   │   │   ├── Landing/         # `/` lab landing: content, StyleX, WebGPU hero scene
 │   │   │   ├── Korea/           # Legacy Korea dossier + shared Map Mode
 │   │   │   └── Trips/           # Generic trip planner + concierge
 │   │   ├── effect/              # Effect-TS HTTP/SSE/runtime
@@ -255,7 +256,7 @@ Routes are lazy-loaded inside `Guarded` (`RouteErrorBoundary` + `Suspense`). All
 
 | Path | App | Auth |
 |------|-----|------|
-| `/` | AI Chatbot | Public |
+| `/` | anthonyl.im lab landing | Public |
 | `/chatbot` | AI Chatbot | Public |
 | `/breathwork` | BreathFlow home | Public |
 | `/breathwork/session` | BreathFlow session | Public |
@@ -356,7 +357,9 @@ Full CI/CD agent memory: [`docs/ci-cd.md`](docs/ci-cd.md).
 
 | Chunk | Contents | Why |
 |-------|----------|-----|
-| `three` | three.js + loaders + OrbitControls | ~600 KB; only loaded in Map Mode |
+| `three-core` | `three.core.js` | Shared by Map Mode and the landing hero |
+| `three` | three.js WebGL build + loaders + OrbitControls | Only loaded in Map Mode |
+| `three-webgpu` | `three/webgpu` + `three/tsl` + TSL addons + `three-blocks` | Only loaded by the landing hero |
 | `tiles3d` | 3d-tiles-renderer | Only loaded in Detailed-3D debug mode |
 | `react-vendor` | react + react-dom + scheduler | Stable cache |
 | `motion` | motion/framer-motion | Used by Places and MapMode — split prevents Places from pulling in three.js |
@@ -472,10 +475,19 @@ Each app's *accent* color is its own (see per-app sections below).
 
 ---
 
-## Design Context: `/` and `/chatbot` — Personal AI Chatbot
+## Design Context: `/` — anthonyl.im Lab Landing
+
+Code: `frontend/src/pages/Landing/` (`Landing.tsx`, `parts.tsx`, `content.ts`, `landing.stylex.ts`, `HeroCanvas.tsx`, `scene/`). A fictional AI lab ("design study", disclosed in the footer). All copy and mock data live in `content.ts`. Product cards link to the real apps: Lim → `/chatbot`, Concierge → `/trips`, BreathFlow → `/breathwork`.
+
+- **Palette:** bone `#EDE8DF` canvas, ink `#0E1024`, one ultramarine accent `#2433E0`. Tokens are `--lim-*` vars on `.landing` in `index.css`. Display type is Archivo (wdth axis), with Fragment Mono for data.
+- **Hero:** WebGPU (WebGL2 fallback) soft-body glass droplet (`scene/heroScene.ts`). It's a three-blocks `MeshTransmissionNodeMaterial` with spring physics (drag, poke, stretch). Normals come from a procedurally hand-painted brush field (`scene/painter.ts`), which also serves as the static still and fallback. TSL post: bloom, scroll-driven ink dissolve, three-blocks `filmHD`. The scene runs only while on screen; reduced motion freezes the clock.
+- **License:** `three-blocks` is PolyForm Noncommercial 1.0.0. The footer carries the Required Notice — keep it. Commercial use needs a three-blocks license.
+- **Chunks:** the hero loads `three-core` + `three-webgpu` only; Map Mode loads `three-core` + `three`.
+
+## Design Context: `/chatbot` — Personal AI Chatbot
 
 ### Users
-Visitors who land on `anthonyl.im` directly. Recruiters, prospective collaborators, friends, curious engineers. They're trying to get a feel for who Anthony is — fast. They scan, they pivot, they leave if it doesn't earn attention.
+Visitors who open `/chatbot` (from the landing page or a shared link). Recruiters, prospective collaborators, friends, curious engineers. They're trying to get a feel for who Anthony is — fast. They scan, they pivot, they leave if it doesn't earn attention.
 
 ### Brand Personality
 **Quiet, Confident, Crafted.** A staff-engineer's personal site — minimal but not lazy, technical but not cold. The interface should feel like meeting someone who answers questions thoughtfully rather than performing for an audience.
