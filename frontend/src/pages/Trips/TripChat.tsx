@@ -183,11 +183,15 @@ export function TripChat() {
     setExpanded((current) => !current)
   }, [])
 
+  // Hand focus back to the FAB only after a close, never on page load.
+  const wasOpen = useRef(false)
   useEffect(() => {
     if (!open) {
-      fabRef.current?.focus()
+      if (wasOpen.current) fabRef.current?.focus()
+      wasOpen.current = false
       return
     }
+    wasOpen.current = true
     const t = setTimeout(() => inputRef.current?.focus(), reduce ? 0 : 220)
     return () => clearTimeout(t)
   }, [open, reduce])
@@ -733,7 +737,7 @@ export function TripChat() {
                     }}
                     rows={1}
                     placeholder="Ask about this trip…"
-                    {...sx(expanded ? styles.chatComposerExpanded : styles.chatComposerCompact)}
+                    {...sx('trips-composer-input', expanded ? styles.chatComposerExpanded : styles.chatComposerCompact)}
                   />
                   <button
                     type="submit"

@@ -1268,90 +1268,97 @@ body {
   border-color: rgba(255, 252, 245, 0.06);
 }
 
+/* Same unlayered `* { border-color }` problem as the landing: hand Trips back
+   to its StyleX layer. Keep this above the sibling-divider rules below. */
+.trips,
+.trips * { border-color: revert-layer; }
+
+/* The concierge composer shell draws the focus ring (:focus-within); drop the
+   global unlayered :focus-visible outline on its textarea so it isn't doubled. */
+.trips .trips-composer-input:focus-visible { outline: none; }
+
 /* Trips list stacks — hairline between siblings (StyleX cannot express > * + *). */
 .trips-property-table > * + * {
   border-top-width: 1px;
   border-top-style: solid;
   border-top-color: var(--trips-border);
 }
-.trips-divide-hairline > * + * {
-  border-top-width: 1px;
-  border-top-style: solid;
-  border-top-color: var(--trips-border);
-}
 .trips-divide-stone > * + * {
   border-top-width: 1px;
-  border-top-style: solid;
-  border-top-color: rgba(28, 25, 23, 0.12);
-}
-.dark .trips-divide-stone > * + * {
-  border-top-color: rgba(41, 37, 36, 0.8);
-}
-.trips-hairline-list-divided > * + * {
-  border-top-width: 1px;
-  border-top-style: solid;
-  border-top-color: var(--trips-border);
-}
-.trips-reservation-list > * + * {
-  border-top-width: 1px;
-  border-top-style: solid;
+  border-top-style: dashed;
   border-top-color: var(--trips-border);
 }
 .trips-extracted-list-divide > * + * {
   border-top-width: 1px;
-  border-top-style: solid;
-  border-top-color: rgba(28, 25, 23, 0.12);
-}
-.dark .trips-extracted-list-divide > * + * {
-  border-top-color: rgba(41, 37, 36, 0.8);
+  border-top-style: dashed;
+  border-top-color: var(--trips-border);
 }
 
 /* ═══════════════════════════════════════════════════════
-   TRIPS — pocket timetable / JR print stock
-   Scene: kitchen-table daylight planning; hotel-night phone lookups.
-   Product register: condensed times, tinted stock, no parchment bloom.
+   TRIPS — toy-world travel diorama
+   Pastel papercraft and clay: luggage tags, passport stamps, cut-paper
+   stickers with an ink outline and a hard offset shadow, a squishy clay
+   planet in the hero. Sky, mint, peach and butter on deep ink.
    ═══════════════════════════════════════════════════════ */
 
 .trips {
-  /* Pocket-timetable stock. Green-gray print paper, not zinc and not parchment. */
-  --trips-canvas: oklch(94.8% 0.018 128);
-  --trips-surface: oklch(97.4% 0.01 128);
-  --trips-rail: oklch(92.2% 0.022 128);
-  --trips-ink: oklch(22% 0.028 140);
-  --trips-ink-secondary: oklch(38% 0.024 140);
-  --trips-ink-tertiary: oklch(48% 0.02 140);
-  --trips-border: oklch(22% 0.028 140 / 0.14);
-  --trips-band: oklch(31% 0.058 148);
-  --trips-band-ink: oklch(96.2% 0.018 128);
-  --trips-accent: oklch(36% 0.07 148);
-  --trips-accent-hover: oklch(28% 0.064 148);
-  --trips-focus: oklch(36% 0.07 148 / 0.45);
-  --trips-scrim: oklch(16% 0.028 140 / 0.78);
-  --trips-radius: 0.25rem;
-  --trips-field-radius: 1rem;
+  /* Toy palette — decoration fills. Text never sits on these without ink. */
+  --toy-sky: #a9d8f5;
+  --toy-mint: #a6e5c8;
+  --toy-peach: #ffc3a6;
+  --toy-butter: #ffdd7f;
+  --toy-lilac: #cdc1f7;
+  --toy-rose: #ffb3c4;
+  --toy-paper: #fffdf6;
+  --toy-ink: #1f2440;
+
+  --trips-canvas: #edf5fb;
+  --trips-surface: #fffdf6;
+  --trips-rail: #f7efd9;
+  --trips-ink: #1f2440;
+  --trips-ink-secondary: #454b6b;
+  --trips-ink-tertiary: #646a8a;
+  --trips-border: rgb(31 36 64 / 0.16);
+  /* Sticker outline + hard offset shadow. */
+  --trips-line: #1f2440;
+  --trips-shadow: #1f2440;
+  /* Ink that sits on a pastel fill — dark in both themes. */
+  --trips-fill-ink: #1f2440;
+  --trips-band: var(--ta-fill);
+  --trips-band-ink: #1f2440;
+  --trips-accent: #1d5f91;
+  --trips-accent-hover: #164a72;
+  --trips-focus: rgb(29 95 145 / 0.55);
+  --trips-scrim: rgb(20 24 48 / 0.55);
+  --trips-radius: 0.875rem;
+  --trips-field-radius: 0.875rem;
   --trips-chrome-h: 3.5rem;
   --trips-cover-dock-h: 2.75rem;
   --trips-cover-h: 0px;
   --trips-cover-t: 0;
-  --trips-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --trips-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --trips-ease-out: cubic-bezier(0.33, 0, 0, 1);
-  --ta: oklch(36% 0.07 148);
-  --ta-strong: oklch(28% 0.064 148);
-  --ta-soft: oklch(36% 0.07 148 / 0.12);
-  --ta-ring: oklch(36% 0.07 148 / 0.45);
-  --ta-bloom-a: transparent;
-  --ta-bloom-b: transparent;
-  --radius: 0.25rem;
+  /* Accent set. App chrome default: butter fill, sky-blue ink. */
+  --ta: #1d5f91;
+  --ta-strong: #164a72;
+  --ta-fill: var(--toy-butter);
+  --ta-soft: rgb(255 221 127 / 0.42);
+  --ta-ring: rgb(29 95 145 / 0.5);
+  --radius: 0.875rem;
   color-scheme: light dark;
   background-color: var(--trips-canvas);
   color: var(--trips-ink);
-  background-image: none;
+  /* A soft sky wash from the top, a butter glow in the far corner. */
+  background-image:
+    radial-gradient(120% 60% at 50% -10%, rgb(169 216 245 / 0.55), transparent 60%),
+    radial-gradient(60% 40% at 100% 100%, rgb(255 221 127 / 0.18), transparent 70%);
+  background-attachment: fixed;
   caret-color: var(--trips-accent);
 }
 
 @media (min-width: 640px) {
   .trips {
-    --trips-chrome-h: 3rem;
+    --trips-chrome-h: 3.75rem;
   }
 }
 
@@ -1360,46 +1367,48 @@ body {
 }
 
 .trips ::selection {
-  background: color-mix(in oklch, var(--trips-band) 72%, transparent);
-  color: var(--trips-band-ink);
+  background: var(--toy-butter);
+  color: var(--toy-ink);
 }
 
 html.dark .trips,
 .trips.dark,
 :root.dark .trips {
-  --trips-canvas: oklch(16.4% 0.024 148);
-  --trips-surface: oklch(20.2% 0.022 148);
-  --trips-rail: oklch(18.4% 0.024 148);
-  --trips-ink: oklch(93.4% 0.02 128);
-  --trips-ink-secondary: oklch(78% 0.022 128);
-  --trips-ink-tertiary: oklch(66% 0.018 128);
-  --trips-border: oklch(93.4% 0.02 128 / 0.14);
-  --trips-band: oklch(26% 0.05 148);
-  --trips-band-ink: oklch(94.8% 0.02 128);
-  --trips-accent: oklch(78% 0.06 148);
-  --trips-accent-hover: oklch(86% 0.05 148);
-  --trips-focus: oklch(78% 0.06 148 / 0.5);
-  --trips-scrim: oklch(8% 0.02 148 / 0.82);
-  --ta: oklch(78% 0.06 148);
-  --ta-strong: oklch(86% 0.05 148);
-  --ta-soft: oklch(78% 0.06 148 / 0.12);
-  --ta-ring: oklch(78% 0.06 148 / 0.5);
-  --ta-bloom-a: transparent;
-  --ta-bloom-b: transparent;
-  background-image: none;
+  /* Night-time toy box: navy felt, cream ink, the same pastel stickers. */
+  --trips-canvas: #151933;
+  --trips-surface: #1f2448;
+  --trips-rail: #272c56;
+  --trips-ink: #f6f0de;
+  --trips-ink-secondary: #cdc9dc;
+  --trips-ink-tertiary: #a3a1bd;
+  --trips-border: rgb(246 240 222 / 0.14);
+  --trips-line: #070918;
+  --trips-shadow: #070918;
+  --trips-accent: #9fd3f5;
+  --trips-accent-hover: #c4e5fa;
+  --trips-focus: rgb(159 211 245 / 0.6);
+  --trips-scrim: rgb(4 6 18 / 0.7);
+  --ta: #9fd3f5;
+  --ta-strong: #c4e5fa;
+  --ta-soft: rgb(255 221 127 / 0.16);
+  --ta-ring: rgb(159 211 245 / 0.55);
+  background-image:
+    radial-gradient(120% 60% at 50% -10%, rgb(93 108 196 / 0.35), transparent 60%),
+    radial-gradient(60% 40% at 100% 100%, rgb(205 193 247 / 0.1), transparent 70%);
 }
 
 .trips .font-display {
-  font-family: "Archivo Narrow", "Arial Narrow", sans-serif;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  font-stretch: condensed;
+  font-family: "Bricolage Grotesque", "Archivo", system-ui, sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 750;
+  font-stretch: 92%;
+  letter-spacing: -0.025em;
 }
 
 .trips .font-mono-trips {
-  font-family: "Archivo Narrow", "Arial Narrow", sans-serif;
+  font-family: "Fragment Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
 }
 
 .trips .cover-band {
@@ -1432,16 +1441,17 @@ html.dark .trips,
   align-items: center;
   background-color: var(--trips-band);
   color: var(--trips-band-ink);
-  border-bottom: 1px solid color-mix(in oklch, var(--trips-band-ink) 16%, transparent);
+  border-bottom: 2px solid var(--trips-line);
   pointer-events: none;
   opacity: var(--trips-cover-t);
   transform: translate3d(0, calc((1 - var(--trips-cover-t)) * -0.5rem), 0);
 }
 
 .trips .cover-dock-title {
-  font-family: "Archivo Narrow", "Arial Narrow", sans-serif;
+  font-family: "Bricolage Grotesque", "Archivo", system-ui, sans-serif;
   font-size: 1.125rem;
-  font-weight: 600;
+  font-weight: 750;
+  font-stretch: 92%;
   letter-spacing: -0.02em;
   line-height: 1.15;
 }
@@ -1453,6 +1463,17 @@ html.dark .trips,
 
 .trips .chrome-new-trip {
   opacity: calc(1 - var(--trips-cover-t));
+}
+
+/* The wordmark's paper plane takes off a little on hover. */
+.trips .chrome-plane {
+  transition: transform 320ms var(--trips-spring);
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .trips .chrome-wordmark:hover .chrome-plane {
+    transform: translate(3px, -3px) rotate(-8deg);
+  }
 }
 
 .trips[data-chrome-compact="true"] .chrome-new-trip {
@@ -1468,20 +1489,8 @@ html.dark .trips,
 }
 
 
-.trips .snap-rail {
-  background-image: linear-gradient(
-    to right,
-    var(--trips-ink) 0,
-    var(--trips-ink) 100%
-  );
-  background-repeat: no-repeat;
-  background-size: 0 1px;
-  background-position: center;
-  animation: trips-rail-draw 700ms var(--trips-ease-out) forwards;
-}
-
 .trips .snap-rail-sticky {
-  top: calc(var(--trips-chrome-h) + var(--trips-cover-h) + env(safe-area-inset-top, 0px));
+  top: calc(var(--trips-chrome-h) + var(--trips-cover-h) + env(safe-area-inset-top, 0px) + 0.5rem);
 }
 
 .trips .trips-flip-cell {
@@ -1523,18 +1532,8 @@ html.dark .trips,
   }
 }
 
-@keyframes trips-rail-draw {
-  to {
-    background-size: 100% 1px;
-  }
-}
 
 @media (prefers-reduced-motion: reduce) {
-  .trips .snap-rail {
-    animation: none;
-    background-size: 100% 1px;
-  }
-
   .trips .trips-flip-glyph {
     animation: none;
   }
@@ -1566,22 +1565,22 @@ html.dark .trips,
 }
 
 html[data-trips-scroll] {
-  scrollbar-color: oklch(22% 0.028 140 / 0.38) transparent;
+  scrollbar-color: rgb(31 36 64 / 0.38) transparent;
   scrollbar-width: thin;
 }
 
 html.dark[data-trips-scroll] {
-  scrollbar-color: oklch(93.4% 0.02 128 / 0.38) transparent;
+  scrollbar-color: rgb(246 240 222 / 0.38) transparent;
 }
 
 /* Below 768px every input is pinned to 16px so iOS doesn't zoom on focus.
    The trip title is a product heading (32/36px), not a magazine cover. */
-.trips input.trip-display-input {
+.trips .trip-display-input {
   font-size: 2rem !important;
 }
 
 @media (min-width: 640px) {
-  .trips input.trip-display-input {
+  .trips .trip-display-input {
     font-size: 2.25rem !important;
   }
 }
@@ -1602,179 +1601,140 @@ html.dark[data-trips-scroll] {
    Per-trip accent
 
    `data-trip-accent` on any trip-scoped subtree (overview, day page,
-   editor) swaps one variable set, so every accent moment inside follows
-   the trip's chosen colour. App chrome outside such a subtree keeps the
-   amber `--trips-accent` defaults above.
-
-   Hues are the OKLCH equivalents of rose-500 / amber-500 / emerald-500 /
-   sky-500 / violet-500, with lightness solved so `--ta` clears 4.5:1
-   against canvas, surface, AND its own `--ta-soft` tint in both themes;
-   chroma is pulled back at those lightness extremes to stay in gamut.
+   editor, concierge) swaps one variable set. `--ta-fill` is the pastel
+   sticker colour (pins, cover band, primary buttons), always under dark
+   ink. `--ta` is the ink-safe tone for accent text and dots, chosen to
+   clear 4.5:1 on canvas, surface and `--ta-soft` in both themes.
    ─────────────────────────────────────────────────────── */
 
 .trips [data-trip-accent] {
-  --ta-bloom-b: oklch(77% 0.14 70 / 0.07);
   --trips-accent: var(--ta);
   --trips-accent-hover: var(--ta-strong);
   --trips-focus: var(--ta-ring);
+  --trips-band: var(--ta-fill);
 }
 
 .trips [data-trip-accent="rose"] {
-  --trips-canvas: oklch(95% 0.022 16.4);
-  --trips-surface: oklch(97.6% 0.012 16.4);
-  --trips-rail: oklch(92.2% 0.028 16.4);
-  --trips-band: oklch(36% 0.14 16.4);
-  --trips-band-ink: oklch(97% 0.02 16.4);
-  --ta: oklch(48% 0.17 16.4);
-  --ta-strong: oklch(40% 0.17 16.4);
-  --ta-soft: oklch(48% 0.17 16.4 / 0.12);
-  --ta-ring: oklch(48% 0.17 16.4 / 0.45);
-  --ta-bloom-a: oklch(65% 0.21 16.4 / 0.1);
+  --ta: #a92e48;
+  --ta-strong: #87223a;
+  --ta-fill: var(--toy-rose);
+  --ta-soft: rgb(255 179 196 / 0.42);
+  --ta-ring: rgb(169 46 72 / 0.5);
 }
 
 .trips [data-trip-accent="amber"] {
-  --trips-canvas: oklch(95% 0.022 70.1);
-  --trips-surface: oklch(97.6% 0.012 70.1);
-  --trips-rail: oklch(92.2% 0.028 70.1);
-  --trips-band: oklch(38% 0.1 70.1);
-  --trips-band-ink: oklch(97% 0.02 70.1);
-  --ta: oklch(46% 0.1 70.1);
-  --ta-strong: oklch(38% 0.1 70.1);
-  --ta-soft: oklch(46% 0.1 70.1 / 0.12);
-  --ta-ring: oklch(46% 0.1 70.1 / 0.45);
-  --ta-bloom-a: oklch(77% 0.16 70.1 / 0.12);
-  --ta-bloom-b: oklch(62% 0.012 60 / 0.08);
+  --ta: #7f5200;
+  --ta-strong: #643f00;
+  --ta-fill: var(--toy-butter);
+  --ta-soft: rgb(255 221 127 / 0.45);
+  --ta-ring: rgb(127 82 0 / 0.5);
 }
 
 .trips [data-trip-accent="emerald"] {
-  --trips-canvas: oklch(95% 0.022 162.5);
-  --trips-surface: oklch(97.6% 0.012 162.5);
-  --trips-rail: oklch(92.2% 0.028 162.5);
-  --trips-band: oklch(34% 0.08 162.5);
-  --trips-band-ink: oklch(97% 0.018 162.5);
-  --ta: oklch(42% 0.09 162.5);
-  --ta-strong: oklch(34% 0.09 162.5);
-  --ta-soft: oklch(42% 0.09 162.5 / 0.12);
-  --ta-ring: oklch(42% 0.09 162.5 / 0.45);
-  --ta-bloom-a: oklch(70% 0.15 162.5 / 0.1);
+  --ta: #166a46;
+  --ta-strong: #105437;
+  --ta-fill: var(--toy-mint);
+  --ta-soft: rgb(166 229 200 / 0.45);
+  --ta-ring: rgb(22 106 70 / 0.5);
 }
 
 .trips [data-trip-accent="sky"] {
-  --trips-canvas: oklch(95% 0.02 237.3);
-  --trips-surface: oklch(97.6% 0.01 237.3);
-  --trips-rail: oklch(92.4% 0.024 237.3);
-  --trips-band: oklch(36% 0.08 237.3);
-  --trips-band-ink: oklch(97% 0.016 237.3);
-  --ta: oklch(44% 0.09 237.3);
-  --ta-strong: oklch(36% 0.09 237.3);
-  --ta-soft: oklch(44% 0.09 237.3 / 0.12);
-  --ta-ring: oklch(44% 0.09 237.3 / 0.45);
-  --ta-bloom-a: oklch(69% 0.15 237.3 / 0.1);
+  --ta: #1b5a8a;
+  --ta-strong: #13466d;
+  --ta-fill: var(--toy-sky);
+  --ta-soft: rgb(169 216 245 / 0.45);
+  --ta-ring: rgb(27 90 138 / 0.5);
 }
 
 .trips [data-trip-accent="violet"] {
-  --trips-canvas: oklch(95% 0.022 292.7);
-  --trips-surface: oklch(97.6% 0.012 292.7);
-  --trips-rail: oklch(92.2% 0.028 292.7);
-  --trips-band: oklch(36% 0.12 292.7);
-  --trips-band-ink: oklch(97% 0.02 292.7);
-  --ta: oklch(46% 0.14 292.7);
-  --ta-strong: oklch(38% 0.14 292.7);
-  --ta-soft: oklch(46% 0.14 292.7 / 0.12);
-  --ta-ring: oklch(46% 0.14 292.7 / 0.45);
-  --ta-bloom-a: oklch(61% 0.22 292.7 / 0.1);
-  --ta-bloom-b: oklch(66% 0.18 16.4 / 0.06);
-}
-
-html.dark .trips [data-trip-accent],
-.trips.dark [data-trip-accent],
-:root.dark .trips [data-trip-accent] {
-  --ta-bloom-b: oklch(80% 0.13 70 / 0.1);
+  --ta: #5639ab;
+  --ta-strong: #432b8a;
+  --ta-fill: var(--toy-lilac);
+  --ta-soft: rgb(205 193 247 / 0.45);
+  --ta-ring: rgb(86 57 171 / 0.5);
 }
 
 html.dark .trips [data-trip-accent="rose"],
 .trips.dark [data-trip-accent="rose"],
 :root.dark .trips [data-trip-accent="rose"] {
-  --trips-canvas: oklch(16.5% 0.03 16.4);
-  --trips-surface: oklch(20.5% 0.028 16.4);
-  --trips-rail: oklch(18.2% 0.03 16.4);
-  --trips-band: oklch(28% 0.1 16.4);
-  --trips-band-ink: oklch(94% 0.03 16.4);
-  --ta: oklch(72% 0.14 16.4);
-  --ta-strong: oklch(80% 0.12 16.4);
-  --ta-soft: oklch(72% 0.14 16.4 / 0.1);
-  --ta-ring: oklch(72% 0.14 16.4 / 0.5);
-  --ta-bloom-a: oklch(72% 0.17 16.4 / 0.16);
+  --ta: #ffa9bb;
+  --ta-strong: #ffcbd6;
+  --ta-soft: rgb(255 179 196 / 0.14);
+  --ta-ring: rgb(255 169 187 / 0.55);
 }
 
 html.dark .trips [data-trip-accent="amber"],
 .trips.dark [data-trip-accent="amber"],
 :root.dark .trips [data-trip-accent="amber"] {
-  --trips-canvas: oklch(16.5% 0.028 70.1);
-  --trips-surface: oklch(20.5% 0.026 70.1);
-  --trips-rail: oklch(18.2% 0.028 70.1);
-  --trips-band: oklch(28% 0.08 70.1);
-  --trips-band-ink: oklch(94% 0.028 70.1);
-  --ta: oklch(74% 0.11 70.1);
-  --ta-strong: oklch(82% 0.1 70.1);
-  --ta-soft: oklch(74% 0.11 70.1 / 0.1);
-  --ta-ring: oklch(74% 0.11 70.1 / 0.5);
-  --ta-bloom-a: oklch(80% 0.14 70.1 / 0.16);
-  --ta-bloom-b: oklch(70% 0.012 60 / 0.08);
+  --ta: #ffd774;
+  --ta-strong: #ffe7a8;
+  --ta-soft: rgb(255 221 127 / 0.14);
+  --ta-ring: rgb(255 215 116 / 0.55);
 }
 
 html.dark .trips [data-trip-accent="emerald"],
 .trips.dark [data-trip-accent="emerald"],
 :root.dark .trips [data-trip-accent="emerald"] {
-  --trips-canvas: oklch(16.5% 0.028 162.5);
-  --trips-surface: oklch(20.5% 0.026 162.5);
-  --trips-rail: oklch(18.2% 0.028 162.5);
-  --trips-band: oklch(26% 0.07 162.5);
-  --trips-band-ink: oklch(94% 0.024 162.5);
-  --ta: oklch(72% 0.1 162.5);
-  --ta-strong: oklch(80% 0.09 162.5);
-  --ta-soft: oklch(72% 0.1 162.5 / 0.1);
-  --ta-ring: oklch(72% 0.1 162.5 / 0.5);
-  --ta-bloom-a: oklch(75% 0.13 162.5 / 0.14);
+  --ta: #92e4bf;
+  --ta-strong: #bdf0d8;
+  --ta-soft: rgb(166 229 200 / 0.14);
+  --ta-ring: rgb(146 228 191 / 0.55);
 }
 
 html.dark .trips [data-trip-accent="sky"],
 .trips.dark [data-trip-accent="sky"],
 :root.dark .trips [data-trip-accent="sky"] {
-  --trips-canvas: oklch(16.5% 0.026 237.3);
-  --trips-surface: oklch(20.5% 0.024 237.3);
-  --trips-rail: oklch(18.2% 0.026 237.3);
-  --trips-band: oklch(26% 0.06 237.3);
-  --trips-band-ink: oklch(94% 0.02 237.3);
-  --ta: oklch(72% 0.1 237.3);
-  --ta-strong: oklch(80% 0.09 237.3);
-  --ta-soft: oklch(72% 0.1 237.3 / 0.1);
-  --ta-ring: oklch(72% 0.1 237.3 / 0.5);
-  --ta-bloom-a: oklch(74% 0.13 237.3 / 0.14);
+  --ta: #a4d6f6;
+  --ta-strong: #c8e7fa;
+  --ta-soft: rgb(169 216 245 / 0.14);
+  --ta-ring: rgb(164 214 246 / 0.55);
 }
 
 html.dark .trips [data-trip-accent="violet"],
 .trips.dark [data-trip-accent="violet"],
 :root.dark .trips [data-trip-accent="violet"] {
-  --trips-canvas: oklch(16.5% 0.03 292.7);
-  --trips-surface: oklch(20.5% 0.028 292.7);
-  --trips-rail: oklch(18.2% 0.03 292.7);
-  --trips-band: oklch(28% 0.09 292.7);
-  --trips-band-ink: oklch(94% 0.03 292.7);
-  --ta: oklch(74% 0.12 292.7);
-  --ta-strong: oklch(82% 0.1 292.7);
-  --ta-soft: oklch(74% 0.12 292.7 / 0.1);
-  --ta-ring: oklch(74% 0.12 292.7 / 0.5);
-  --ta-bloom-a: oklch(70% 0.19 292.7 / 0.16);
+  --ta: #c9bcff;
+  --ta-strong: #ded6ff;
+  --ta-soft: rgb(205 193 247 / 0.14);
+  --ta-ring: rgb(201 188 255 / 0.55);
 }
 
-/* Signature hero bloom, two drifting radial layers reading the accent vars. */
-.trip-bloom-a {
-  background-image: radial-gradient(ellipse at top right, var(--ta-bloom-a), transparent 55%);
+/* ── Toy-world decoration (StyleX can't express masks with repeats) ── */
+
+
+/* Dashed flight path down a timeline; it marches unless motion is reduced. */
+.trips .toy-route {
+  background-image: linear-gradient(to bottom, var(--trips-ink-tertiary) 55%, transparent 55%);
+  background-size: 2px 10px;
+  background-repeat: repeat-y;
+  background-position: center top;
 }
 
-.trip-bloom-b {
-  background-image: radial-gradient(ellipse at bottom left, var(--ta-bloom-b), transparent 55%);
+@media (prefers-reduced-motion: no-preference) {
+  .trips .toy-route {
+    animation: toy-route-march 1.6s linear infinite;
+  }
+}
+
+@keyframes toy-route-march {
+  to {
+    background-position: center 10px;
+  }
+}
+
+/* Clay wobble for stickers on hover. */
+@keyframes toy-wobble {
+  0% { transform: rotate(0deg) scale(1); }
+  30% { transform: rotate(-4deg) scale(1.06, 0.95); }
+  55% { transform: rotate(3deg) scale(0.97, 1.04); }
+  80% { transform: rotate(-1deg) scale(1.01); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+
+@media (prefers-reduced-motion: no-preference) and (hover: hover) {
+  .trips .toy-wobble:hover {
+    animation: toy-wobble 520ms var(--trips-ease-out);
+  }
 }
 
 /* Split action (button + disclosure): two buttons share one
@@ -1821,30 +1781,8 @@ html.dark .trips [data-trip-accent="violet"],
   animation: trip-flash 2.6s cubic-bezier(0.33, 0, 0, 1);
 }
 
-@keyframes trip-bloom-drift {
-  0% { transform: translate3d(0, 0, 0) scale(1); }
-  50% { transform: translate3d(2%, 1.5%, 0) scale(1.04); }
-  100% { transform: translate3d(0, 0, 0) scale(1); }
-}
-
-.trip-bloom-drift {
-  animation: trip-bloom-drift 18s cubic-bezier(0.33, 0, 0, 1) infinite;
-  will-change: transform;
-}
-
-@keyframes trip-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.45; transform: scale(0.85); }
-}
-
-.trip-pulse {
-  animation: trip-pulse 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .trip-flash,
-  .trip-bloom-drift,
-  .trip-pulse {
+  .trip-flash {
     animation: none;
   }
 }

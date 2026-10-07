@@ -188,41 +188,40 @@ Anthony (primary) and his partner, while planning + executing a 12-day Seoul + B
 
 ## Design Context: `/trips/*` — Generic Trip Planner
 
-Korea is the seeded trip at `/trips/korea-2026` (`/korea` redirects). Every new destination is a trip document, not a new route tree. Chatbot, BreathFlow, and the Korea seed keep their own visual worlds; do not restyle them as this timetable.
+Korea is the seeded trip at `/trips/korea-2026` (`/korea` redirects). Every new destination is a trip document, not a new route tree. Chatbot, BreathFlow, and the Korea seed keep their own visual worlds; do not restyle them as Trips.
 
-Canonical visual spec: [`DESIGN.md`](DESIGN.md). Token source of truth: `frontend/src/index.css` `.trips` (oklch). Shared-site Cormorant / parchment does **not** apply here.
+Canonical visual spec: [`DESIGN.md`](DESIGN.md). Token source of truth: `frontend/src/index.css` `.trips`. Shared-site Cormorant / parchment does **not** apply here.
 
 ### Users
 The same travelers as Korea, plus future trips. Phone for in-trip lookups; desktop for planning, AI enhance, and concierge chat.
 
 ### Brand Personality
-**JR pocket timetable** (Impeccable 4.1.1 new-work, seed `871b774e`, assigned index 3). The trip is a pocket timetable. Days are stations; bookings are trains. Kitchen-table afternoon planning; hotel-lamp evening lookup. Not a hand-bound Korea dossier. Not Linear, Notion, or Airbnb.
+**Toy-world travel diorama.** Pastel papercraft and clay: stickers with an ink outline and a hard offset shadow, luggage tags, ticket stubs, postage stamps, boarding passes, and a squishy clay planet (shared `Jelly` soft body) you can poke. Playful, tactile, still a precise planner. Not a hand-bound Korea dossier. Not Linear, Notion, or Airbnb.
 
-**Emotional goal:** Open and know what happens next. At night, tonight’s reservation is first.
+**Emotional goal:** Delight on open, then know what happens next. At night, tonight's reservation is first.
 
 ### Aesthetic Direction
-- **Material:** green-gray print stock + a deep JR-green cover band. Dark is lamp-lit tinted stock, not a zinc IDE.
-- **Type:** Archivo Narrow (`font-display`, 600, `-0.02em`) for times and titles; Inter for UI body. **No Cormorant on `/trips`.** Banned display faces: Fraunces, Playfair, Cormorant, Lora, Crimson, Newsreader, Syne, Space Grotesk, Space Mono, IBM Plex, Inter-as-display, DM Sans, DM Serif, Outfit, Plus Jakarta, Instrument Sans.
-- **First viewport:** committed cover band (30–40% of the first viewport) + condensed title + next time; snap rail (station ticks); schedule rows. Chrome height stays put. Cover extras fade and a slim `.cover-dock` eases in under chrome so the itinerary keeps the viewport.
-- **Living board:** split-flap `FlipTime` on the next departure, day hero, chrome clock, and index countdown. Cover progress is `--trips-cover-t` (transform/opacity only). Enhance morphs from its chevron via View Transitions. The snap-rail tick is a magnetic `layoutId` spring. Reduced motion keeps the same information without flaps, morphs, cover-progress motion, dock easing, or the snap-rail spring.
-- **Fields / dialogs:** inset rail wells, `--trips-field-radius` (1rem) on inputs, `--trips-radius` (0.25rem) on chips and marks, opaque surface panels. Enhance opens a heavy-scrim dialog with a recessed action bar and filled **Run enhance**.
-- **Index:** end-label timetable rows grouped Now / Upcoming / Past. Heading is “Trips” or “No trips yet”. **Never “Inbox”.**
-- **Day page:** the first reservation is the hero (huge condensed time). Status is a geometric mark + label, not hue-only.
-- **Accent:** `data-trip-accent` retints canvas + cover band (rose / amber / emerald / sky / violet). No Korea bloom, grain, or parchment.
-- **Chrome:** slim sticky header. No left workspace rail. No Notion property-table hero. No Airbnb listing cards. Document column is `max-w-5xl`. Print marks stay `0.25rem`; fields use `1rem`. Touch targets 44px.
-- **IA (locked):** `/trips/:tripId` is the living document. Day pages stay. `/trips/:tripId/edit` redirects there. Concierge FAB (`TripChat`) on trip + day only (not index, create, or places). Instagram ingest is embedded on the living document.
-- **Map Mode:** photorealistic 3D tiles stay. Glass/refraction is for the YOU pin only. **Must unmount** when closed; never hide with React `Activity`.
+- **Material:** every surface is a sticker — 2px `--trips-line` outline + hard offset `--trips-shadow`, spring hover tilt. Light is a sky-washed desk (`#edf5fb`); dark is navy felt (`#151933`) with the same pastel stickers and cream ink.
+- **Palette:** sky / mint / peach / butter / lilac / rose fills (`--toy-*`) on deep ink `#1f2440`. Fills are decoration; text on a fill always uses `--trips-fill-ink`.
+- **Type:** Bricolage Grotesque (display, 750–800, condensed stretch); Fragment Mono for times, codes, stamps, kbd hints; Inter body. No Cormorant on `/trips`.
+- **Three.js:** one squishy moment per viewport. Index hero = clay world globe with trip pins (click → trip; focus follows search). Overview cover = region diorama (mint island, trees, clouds, per-day gumdrop pins → day). Create generating overlay = planet collecting pins. All lazy (`scene/TripsGlobe.tsx` → `scene/globeScene.ts`) with a static SVG planet fallback when WebGL is unavailable.
+- **Index:** luggage tags (stub + eyelet + 3-letter code + day count) grouped Now / Upcoming / Past; search with `/` and `n` shortcuts. Heading is "Trips" or "Where to next?". **Never "Inbox".**
+- **Create:** "Pack your bag" — destinations pop onto a suitcase as stickers.
+- **Day page:** postcard header with date stamp + postmark, boarding-pass reservations, stops on a gumdrop rail with dashed route segments.
+- **Accent:** `data-trip-accent` (rose / amber / emerald / sky / violet) sets `--ta-fill` (cover band, tag stub, stamp, active date) and `--ta` (ink accent).
+- **Code:** `pages/Trips/toy.stylex.ts` (`globe` / `index` / `overview` / `pack` / `day`), `trips.stylex.ts` (shared editor/chat/day vocabulary), `ui.ts` helpers, `index.css` `.trips` tokens.
+- **IA (locked):** `/trips/:tripId` is the living document. Day pages stay. `/trips/:tripId/edit` redirects there. Concierge FAB (`TripChat`) on trip + day only. Instagram ingest is embedded on the living document.
+- **Map Mode:** photorealistic 3D tiles stay. Glass/refraction is for the YOU pin only. **Must unmount** when closed; never hide with React `Activity`. Touch targets 44px.
 
-### Per-route Tokens (oklch is canonical)
+### Per-route Tokens (`index.css` `.trips` is canonical)
 
 | Token | Light | Dark | Usage |
 |-------|-------|------|-------|
-| Canvas | `oklch(94.8% 0.018 128)` | `oklch(16.4% 0.024 148)` | Print-stock page |
-| Surface | `oklch(97.4% 0.01 128)` | `oklch(20.2% 0.022 148)` | Panels, fields |
-| Ink | `oklch(22% 0.028 140)` | `oklch(93.4% 0.02 128)` | Body |
-| Band | `oklch(31% 0.058 148)` | `oklch(26% 0.05 148)` | Cover band |
-| Band ink | `oklch(96.2% 0.018 128)` | `oklch(94.8% 0.02 128)` | Type on the band |
-| Accent | `oklch(36% 0.07 148)` | `oklch(78% 0.06 148)` | Default JR-green; retinted per trip |
+| Canvas | `#edf5fb` | `#151933` | Sky-washed page |
+| Surface | `#fffdf6` | `#1f2448` | Stickers, panels, fields |
+| Ink / line | `#1f2440` | `#f6f0de` / `#070918` | Body text / sticker outline + shadow |
+| Fills | sky `#a9d8f5`, mint `#a6e5c8`, peach `#ffc3a6`, butter `#ffdd7f`, lilac `#cdc1f7`, rose `#ffb3c4` | same | Decoration; `--ta-fill` per trip |
+| Accent | `#1d5f91` | `#9fd3f5` | Default ink accent; `--ta` per trip |
 
 ### Trips-specific Principles
 
@@ -230,7 +229,7 @@ The same travelers as Korea, plus future trips. Phone for in-trip lookups; deskt
 2. AI-added places must carry structured `TripLocation` (lat/lng/category/source), never prose only.
 3. Map Mode uses the Korea `PlacesResponse` / `RankedPlace` shape and **must unmount** when closed.
 4. Frontend I/O is Effect v3 (`tripsApi.ts`, `tripChatApi.ts`).
-5. Do not restyle `/trips` into Korea parchment/bloom/Cormorant, and do not restyle it into Linear/Notion zinc. Do not restyle chatbot or BreathFlow as a timetable.
+5. Keep the toy-world sticker system on `/trips`; do not restyle it into Korea parchment/bloom/Cormorant or Linear/Notion zinc, and do not restyle chatbot or BreathFlow as Trips.
 
 ## Service Worker / Caching Contract
 

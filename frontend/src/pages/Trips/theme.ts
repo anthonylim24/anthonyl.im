@@ -23,15 +23,11 @@ import { styles } from "./trips.stylex"
 import type { sx } from "@/lib/utils"
 import type { ItemStatus, SuggestionKind, TripAccent, TripCollaborator } from "./types"
 
-// Trip accent tokens. Workspace chrome is green-gray print stock; a trip-scoped
-// `data-trip-accent` subtree retints canvas + cover band (and `--ta` /
-// `--trips-accent`) in index.css. Bloom layers stay no-ops so old class names
-// remain safe.
+// Trip accent tokens. A trip-scoped `data-trip-accent` subtree swaps the
+// pastel sticker fill (`--ta-fill`, cover band, pins) and the ink-safe accent
+// tone (`--ta` / `--trips-accent`) in index.css.
 
 export interface AccentTheme {
-  /** No-op bloom class names — kept so old call sites stay safe. */
-  bloomA: string
-  bloomB: string
   text: typeof styles.accentText
   textStrong: typeof styles.accentTextStrong
   textHover: typeof styles.accentTextHover
@@ -44,8 +40,6 @@ export interface AccentTheme {
 }
 
 export const ACCENT: AccentTheme = {
-  bloomA: "trip-bloom-a",
-  bloomB: "trip-bloom-b",
   text: styles.accentText,
   textStrong: styles.accentTextStrong,
   textHover: styles.accentTextHover,

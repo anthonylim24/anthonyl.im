@@ -215,13 +215,19 @@ export function EnhanceButton({
       <button
         ref={disclosureRef}
         type="button"
-        onClick={() => (open ? close(false) : runTripsViewTransition(() => setOpen(true)))}
+        onClick={(e) => {
+          if (open) return close(false)
+          // Only the button being opened carries the morph name: a page has one
+          // Enhance per day, and duplicate names abort every view transition.
+          e.currentTarget.style.viewTransitionName = "trips-enhance"
+          runTripsViewTransition(() => setOpen(true))
+        }}
         disabled={disabled}
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={`${label} with a custom focus`}
         {...sx(base)}
-        style={{ viewTransitionName: open ? "none" : "trips-enhance" }}
+        style={{ viewTransitionName: open ? "none" : undefined }}
       >
         <ChevronDown
           {...sx(styles.transitionTransform, iconStyle, open ? styles.rotate180 : null)}
