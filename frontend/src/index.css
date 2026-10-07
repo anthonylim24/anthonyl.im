@@ -696,124 +696,125 @@ html:has(.landing) { scroll-padding-top: 76px; background-color: #EDE8DF; }
   --radius: 0rem;
 }
 
-/* ── BreathFlow "Forest" tokens: deep green + bone. One accent, locked.
-   Radius rule: controls 6px, panels 8px max, instrument rings circular. ── */
+/* ── BreathFlow "Watercolour" tokens: cotton cold-press paper + Payne's grey
+   ink. Pigment colour belongs to the technique (breathflow/pigments.ts); the
+   chrome stays ink-and-paper so the bloom is the one vivid moment. ── */
 .breathwork {
   color-scheme: light;
-  --background: 51 22% 92%;
-  --foreground: 140 14% 10%;
-  --card: 45 33% 95%;
-  --card-foreground: 140 14% 10%;
-  --popover: 45 33% 95%;
-  --popover-foreground: 140 14% 10%;
-  --primary: 157 48% 26%;
-  --primary-foreground: 45 33% 95%;
-  --secondary: 137 9% 37%;
-  --secondary-foreground: 140 14% 10%;
-  --muted: 130 8% 82%;
-  --muted-foreground: 137 9% 37%;
-  --accent: 157 48% 26%;
-  --accent-foreground: 45 33% 95%;
-  --destructive: 4 77% 40%;
+  --background: 39 55% 94%;
+  --foreground: 30 10% 14%;
+  --card: 40 60% 96%;
+  --card-foreground: 30 10% 14%;
+  --popover: 40 60% 96%;
+  --popover-foreground: 30 10% 14%;
+  --primary: 212 23% 29%;
+  --primary-foreground: 40 60% 96%;
+  --secondary: 30 9% 33%;
+  --secondary-foreground: 30 10% 14%;
+  --muted: 36 22% 84%;
+  --muted-foreground: 30 9% 33%;
+  --accent: 212 23% 29%;
+  --accent-foreground: 40 60% 96%;
+  --destructive: 4 64% 40%;
   --destructive-foreground: 0 0% 100%;
-  --border: 130 8% 80%;
-  --input: 130 8% 80%;
-  --ring: 157 48% 26% / 0.32;
-  --radius: 0.375rem;
+  --border: 34 18% 80%;
+  --input: 34 18% 80%;
+  --ring: 212 23% 29% / 0.32;
+  --radius: 999px;
 
-  /* Semantic bw tokens: bone neutrals + green-black ink */
-  --bw-canvas: #EFEDE6;
-  --bw-surface: #F7F5EF;
-  --bw-text: #161D18;
-  --bw-text-secondary: #56655B;
-  --bw-text-tertiary: #6E7D72;
-  --bw-text-faint: #D3D4C9;
-  --bw-border: rgba(22, 29, 24, 0.10);
-  --bw-border-subtle: rgba(22, 29, 24, 0.06);
-  --bw-hover: rgba(34, 98, 74, 0.06);
-  --bw-active: rgba(34, 98, 74, 0.10);
-  --bw-nav-bg: #EFEDE6;
-  --bw-nav-bg-mobile: #F3F1EA;
-  --bw-nav-border: rgba(22, 29, 24, 0.10);
-  --bw-nav-shadow: 0 16px 40px rgba(22, 29, 24, 0.06);
-  --bw-chart-grid: rgba(22, 29, 24, 0.06);
-  --bw-chart-tick: rgba(22, 29, 24, 0.45);
-  --bw-tooltip-bg: rgba(247, 245, 239, 0.98);
-  --bw-tooltip-border: rgba(22, 29, 24, 0.10);
-  --bw-tooltip-label: rgba(22, 29, 24, 0.88);
-  --bw-tooltip-item: rgba(86, 101, 91, 0.9);
+  /* Semantic bw tokens: paper neutrals + sepia/grey ink */
+  --bw-canvas: #F7F1E6;
+  --bw-surface: #FBF7EF;
+  --bw-text: #27231F;
+  --bw-text-secondary: #5E554C;
+  --bw-text-tertiary: #74695D;
+  --bw-text-faint: #DDD3C4;
+  --bw-border: rgba(39, 35, 31, 0.13);
+  --bw-border-subtle: rgba(39, 35, 31, 0.07);
+  --bw-hover: rgba(58, 74, 92, 0.07);
+  --bw-active: rgba(58, 74, 92, 0.12);
+  --bw-nav-bg: #F7F1E6;
+  --bw-nav-bg-mobile: #F4EDE0;
+  --bw-nav-border: rgba(39, 35, 31, 0.12);
+  --bw-nav-shadow: 0 16px 40px rgba(39, 35, 31, 0.06);
+  --bw-chart-grid: rgba(39, 35, 31, 0.07);
+  --bw-chart-tick: rgba(39, 35, 31, 0.5);
+  --bw-tooltip-bg: rgba(251, 247, 239, 0.98);
+  --bw-tooltip-border: rgba(39, 35, 31, 0.12);
+  --bw-tooltip-label: rgba(39, 35, 31, 0.88);
+  --bw-tooltip-item: rgba(94, 85, 76, 0.9);
   --bw-phase-divider: color-mix(in srgb, var(--bw-surface) 42%, transparent);
-  --bw-dialog-scrim: rgba(22, 29, 24, 0.18);
+  --bw-dialog-scrim: rgba(39, 35, 31, 0.18);
 
-  /* Single locked accent: deep green */
-  --bw-accent: #22624A;
-  --bw-accent-light: #3E8266;
-  --bw-accent-subtle: rgba(34, 98, 74, 0.10);
-  --bw-accent-foreground: #F7F5EF;
+  /* Single chrome accent: Payne's grey ink */
+  --bw-accent: #3A4A5C;
+  --bw-accent-light: #4D5F73;
+  --bw-accent-subtle: rgba(58, 74, 92, 0.10);
+  --bw-accent-foreground: #FBF7EF;
   --bw-success: #2F6B4F;
-  --bw-destructive: #B42318;
-  --bw-destructive-border: rgba(180, 35, 24, 0.24);
-  --bw-destructive-subtle: rgba(180, 35, 24, 0.05);
-  --bw-destructive-hover: rgba(180, 35, 24, 0.10);
+  --bw-destructive: #A8322A;
+  --bw-destructive-border: rgba(168, 50, 42, 0.26);
+  --bw-destructive-subtle: rgba(168, 50, 42, 0.05);
+  --bw-destructive-hover: rgba(168, 50, 42, 0.10);
 }
 
-/* ── Dark overrides: forest black ── */
+/* ── Dark overrides: night paper, luminous pigment ── */
 .dark .breathwork {
   color-scheme: dark;
-  --background: 150 16% 8%;
-  --foreground: 120 11% 90%;
-  --card: 150 15% 11%;
-  --card-foreground: 120 11% 90%;
-  --popover: 150 15% 11%;
-  --popover-foreground: 120 11% 90%;
-  --primary: 152 34% 55%;
-  --primary-foreground: 150 16% 8%;
-  --secondary: 137 8% 67%;
-  --secondary-foreground: 120 11% 90%;
-  --muted: 150 8% 20%;
-  --muted-foreground: 137 8% 67%;
-  --accent: 152 34% 55%;
-  --accent-foreground: 150 16% 8%;
-  --destructive: 0 91% 71%;
+  --background: 230 13% 10%;
+  --foreground: 38 30% 89%;
+  --card: 228 11% 13%;
+  --card-foreground: 38 30% 89%;
+  --popover: 228 11% 13%;
+  --popover-foreground: 38 30% 89%;
+  --primary: 212 30% 73%;
+  --primary-foreground: 230 13% 10%;
+  --secondary: 36 12% 66%;
+  --secondary-foreground: 38 30% 89%;
+  --muted: 228 9% 20%;
+  --muted-foreground: 36 12% 66%;
+  --accent: 212 30% 73%;
+  --accent-foreground: 230 13% 10%;
+  --destructive: 0 85% 72%;
   --destructive-foreground: 0 0% 98%;
-  --border: 150 8% 18%;
-  --input: 150 8% 18%;
-  --ring: 152 34% 55% / 0.35;
+  --border: 228 9% 20%;
+  --input: 228 9% 20%;
+  --ring: 212 30% 73% / 0.35;
 
   /* Semantic bw tokens (dark) */
-  --bw-canvas: #101613;
-  --bw-surface: #171F1A;
-  --bw-text: #E4E8E2;
-  --bw-text-secondary: #A3B2A7;
-  --bw-text-tertiary: #7C8B80;
-  --bw-text-faint: rgba(228, 232, 226, 0.16);
-  --bw-border: rgba(228, 232, 226, 0.08);
-  --bw-border-subtle: rgba(228, 232, 226, 0.05);
-  --bw-hover: rgba(99, 180, 142, 0.08);
-  --bw-active: rgba(99, 180, 142, 0.12);
-  --bw-nav-bg: #101613;
-  --bw-nav-bg-mobile: #151C17;
-  --bw-nav-border: rgba(228, 232, 226, 0.08);
-  --bw-nav-shadow: 0 16px 40px rgba(0, 0, 0, 0.24);
-  --bw-chart-grid: rgba(228, 232, 226, 0.06);
-  --bw-chart-tick: rgba(228, 232, 226, 0.45);
-  --bw-tooltip-bg: rgba(20, 27, 22, 0.98);
-  --bw-tooltip-border: rgba(228, 232, 226, 0.08);
-  --bw-tooltip-label: rgba(228, 232, 226, 0.88);
-  --bw-tooltip-item: rgba(163, 178, 167, 0.88);
+  --bw-canvas: #15161C;
+  --bw-surface: #1C1D24;
+  --bw-text: #EDE6DA;
+  --bw-text-secondary: #B5AC9E;
+  --bw-text-tertiary: #938A7D;
+  --bw-text-faint: rgba(237, 230, 218, 0.16);
+  --bw-border: rgba(237, 230, 218, 0.10);
+  --bw-border-subtle: rgba(237, 230, 218, 0.06);
+  --bw-hover: rgba(169, 189, 210, 0.08);
+  --bw-active: rgba(169, 189, 210, 0.13);
+  --bw-nav-bg: #15161C;
+  --bw-nav-bg-mobile: #191A21;
+  --bw-nav-border: rgba(237, 230, 218, 0.09);
+  --bw-nav-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+  --bw-chart-grid: rgba(237, 230, 218, 0.07);
+  --bw-chart-tick: rgba(237, 230, 218, 0.5);
+  --bw-tooltip-bg: rgba(28, 29, 36, 0.98);
+  --bw-tooltip-border: rgba(237, 230, 218, 0.1);
+  --bw-tooltip-label: rgba(237, 230, 218, 0.88);
+  --bw-tooltip-item: rgba(181, 172, 158, 0.88);
   --bw-phase-divider: color-mix(in srgb, var(--bw-text) 24%, transparent);
-  --bw-dialog-scrim: rgba(0, 0, 0, 0.42);
+  --bw-dialog-scrim: rgba(0, 0, 0, 0.45);
 
-  /* Single locked accent: green, lifted for dark contrast */
-  --bw-accent: #63B48E;
-  --bw-accent-light: #8ACCAB;
-  --bw-accent-subtle: rgba(99, 180, 142, 0.14);
-  --bw-accent-foreground: #101613;
+  /* Single chrome accent: Payne's grey, lifted for night paper */
+  --bw-accent: #A9BDD2;
+  --bw-accent-light: #C3D3E3;
+  --bw-accent-subtle: rgba(169, 189, 210, 0.14);
+  --bw-accent-foreground: #15161C;
   --bw-success: #7FBE9C;
-  --bw-destructive: #F87171;
-  --bw-destructive-border: rgba(248, 113, 113, 0.28);
-  --bw-destructive-subtle: rgba(248, 113, 113, 0.08);
-  --bw-destructive-hover: rgba(248, 113, 113, 0.14);
+  --bw-destructive: #F2877E;
+  --bw-destructive-border: rgba(242, 135, 126, 0.3);
+  --bw-destructive-subtle: rgba(242, 135, 126, 0.08);
+  --bw-destructive-hover: rgba(242, 135, 126, 0.14);
 }
 
 * {
@@ -937,106 +938,23 @@ body {
    CARD SYSTEM (simplified)
    ═══════════════════════════════════════════════════════ */
 
-/* ── BreathFlow base — Forest instrument: Geist body, Fragment Mono display ── */
+/* ── BreathFlow base — watercolour: Geist body, Fraunces display.
+   Paper, washes and brush strokes live in breathflow/styles/watercolor.css. ── */
 .breathwork {
-  background-color: var(--bw-canvas, #EFEDE6);
+  background-color: var(--bw-canvas, #F7F1E6);
   font-family: "Geist", ui-sans-serif, system-ui, sans-serif;
   font-size: 15px;
   line-height: 1.6;
 }
 .dark .breathwork {
-  background-color: var(--bw-canvas, #101613);
+  background-color: var(--bw-canvas, #15161C);
 }
 .breathwork .bf-display {
-  font-family: "Fragment Mono", ui-monospace, monospace;
-  font-feature-settings: "tnum";
-  font-variant-numeric: tabular-nums;
-}
-.bf-grain {
-  pointer-events: none;
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-  opacity: 0.045;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 240 240' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='bfn'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.62' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.09  0 0 0 0 0.18  0 0 0 0 0.14  0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23bfn)'/%3E%3C/svg%3E");
-}
-.dark .bf-grain {
-  opacity: 0.06;
-}
-
-.bf-stardust {
-  position: fixed;
-  inset: 0;
-  display: block;
-  width: auto;
-  height: auto;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  pointer-events: none;
-  z-index: 1;
-  opacity: 0.14;
-  mix-blend-mode: multiply;
-  contain: layout paint;
-}
-
-.bf-stardust-media {
-  position: absolute;
-  inset: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
-  max-width: none;
-  max-height: none;
-  object-fit: cover;
-  pointer-events: none;
-}
-
-.dark .bf-stardust {
-  opacity: 0.12;
-  mix-blend-mode: screen;
-}
-
-.bf-starfield {
-  position: fixed;
-  inset: 0;
-  display: block;
-  width: auto;
-  height: auto;
-  pointer-events: none;
-  z-index: 2;
-  contain: layout paint;
-}
-
-.bf-glass-orb::after {
-  content: "";
-  position: absolute;
-  left: 18%;
-  right: 18%;
-  bottom: 4%;
-  height: 18%;
-  border-radius: 50%;
-  background: radial-gradient(ellipse, color-mix(in oklab, var(--bw-accent) 22%, transparent), transparent 72%);
-  pointer-events: none;
-  z-index: -1;
-}
-
-/* ═══════════════════════════════════════════════════════
-   BREATHWORK BACKGROUNDS
-   ═══════════════════════════════════════════════════════ */
-
-/* BreathFlow phase-strip cursor: sweeps one breath cycle. */
-@media (prefers-reduced-motion: no-preference) {
-  .bf-sweep {
-    animation-name: bf-sweep;
-    animation-timing-function: linear;
-    animation-iteration-count: infinite;
-  }
-}
-
-@keyframes bf-sweep {
-  from { transform: translate3d(-100%, 0, 0); }
-  to { transform: translate3d(100%, 0, 0); }
+  font-family: "Fraunces", ui-serif, Georgia, serif;
+  font-optical-sizing: auto;
+  font-variation-settings: "SOFT" 100, "WONK" 0;
+  font-weight: 400;
+  letter-spacing: -0.01em;
 }
 
 /* ═══════════════════════════════════════════════════════

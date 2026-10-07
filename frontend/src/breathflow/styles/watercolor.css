@@ -1,0 +1,105 @@
+/* BreathFlow watercolour: cold-press paper, painted washes, brush strokes.
+   SVG filters referenced here are defined once in WatercolorDefs.tsx. */
+
+/* Cotton cold-press tooth: lit fractal noise, multiplied over everything. */
+.bf-paper {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  opacity: 0.5;
+  mix-blend-mode: multiply;
+  background-size: 320px 320px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Cfilter id='p' x='0' y='0'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.042' numOctaves='5' seed='11' stitchTiles='stitch'/%3E%3CfeDiffuseLighting lighting-color='%23fffaf0' surfaceScale='1.25' diffuseConstant='1.08'%3E%3CfeDistantLight azimuth='225' elevation='58'/%3E%3C/feDiffuseLighting%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)'/%3E%3C/svg%3E");
+}
+.dark .bf-paper {
+  opacity: 0.16;
+  mix-blend-mode: soft-light;
+}
+
+/* Painted bloom: the first paint and the no-GPU fallback. --bf-amp breathes it. */
+.bf-painted-bloom {
+  position: absolute;
+  inset: 20%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 36% 32%, transparent 0 16%, color-mix(in srgb, var(--bf-glaze) 26%, transparent) 30%, transparent 52%),
+    radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--bf-mass) 24%, transparent) 0 46%, color-mix(in srgb, var(--bf-mass) 58%, transparent) 66%, color-mix(in srgb, var(--bf-mass) 80%, transparent) 70%, transparent 71%);
+  filter: url(#bf-wash);
+  transform: scale(calc(1 + var(--bf-amp, 0.5) * 0.36));
+  mix-blend-mode: multiply;
+  transition: opacity 900ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+.dark .bf-painted-bloom {
+  mix-blend-mode: screen;
+}
+
+.bf-wash { filter: url(#bf-wash); }
+.bf-ragged { filter: url(#bf-ragged); }
+.bf-brush {
+  filter: url(#bf-brush);
+  /* Declared here so var(--bf-mass) resolves on the stroke itself. */
+  --bf-stroke-ink: color-mix(in oklab, var(--bf-mass) 82%, transparent);
+}
+.dark .bf-brush { --bf-stroke-ink: color-mix(in oklab, var(--bf-mass) 55%, #EDE6DA); }
+
+/* A painted pigment chip: dense masstone pooling into a dilute tail. */
+.bf-swatch {
+  background:
+    linear-gradient(100deg, color-mix(in srgb, var(--bf-mass) 88%, transparent) 0%, color-mix(in srgb, var(--bf-mass) 62%, transparent) 34%, color-mix(in srgb, var(--bf-glaze) 42%, transparent) 70%, color-mix(in srgb, var(--bf-glaze) 14%, transparent) 100%);
+  filter: url(#bf-wash);
+  mix-blend-mode: multiply;
+}
+.dark .bf-swatch {
+  mix-blend-mode: screen;
+  opacity: 0.86;
+}
+
+/* Hand-dabbed blots (heatmap, mood, small chips): cheap, no filter. */
+.bf-dab {
+  border-radius: 47% 53% 44% 56% / 55% 43% 57% 45%;
+  mix-blend-mode: multiply;
+}
+.bf-dab:nth-child(3n + 1) { border-radius: 58% 42% 51% 49% / 46% 57% 43% 54%; }
+.bf-dab:nth-child(3n + 2) { border-radius: 43% 57% 60% 40% / 52% 41% 59% 48%; }
+.dark .bf-dab { mix-blend-mode: screen; filter: brightness(1.6); }
+.dark .bf-dab.bf-ragged { filter: url(#bf-ragged) brightness(1.6); }
+
+/* PhaseStrip: a wet brush tip sweeping one breath cycle. */
+@media (prefers-reduced-motion: no-preference) {
+  .bf-sweep {
+    animation-name: bf-sweep;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+  }
+}
+@keyframes bf-sweep {
+  from { transform: translate3d(-100%, 0, 0); }
+  to { transform: translate3d(100%, 0, 0); }
+}
+
+/* Level ring: the brush fills from empty to the inline dashoffset. */
+@media (prefers-reduced-motion: no-preference) {
+  .bf-ring-fill { animation: bf-ring-fill 1.6s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both; }
+}
+@keyframes bf-ring-fill {
+  from { stroke-dashoffset: 1; }
+}
+
+/* Celebration splash: paint, not confetti. */
+.bf-splash { mix-blend-mode: multiply; }
+.dark .bf-splash { mix-blend-mode: screen; }
+
+/* Primary buttons: the ink (or technique pigment, via --bf-ink) is deepened
+   toward sepia by day and lifted toward paper-white at night. */
+.breathwork {
+  --bf-btn-base: #1b1714;
+  --bf-btn-amt: 28%;
+  --bf-btn-fg: #FBF7EF;
+}
+.dark .breathwork {
+  --bf-btn-base: #ffffff;
+  --bf-btn-amt: 52%;
+  --bf-btn-fg: #15161C;
+}
