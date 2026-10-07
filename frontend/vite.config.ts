@@ -11,6 +11,10 @@ export default defineConfig({
         "stylex",
         { from: "@/styles/merge", as: "stylex" },
       ],
+      // The plugin's default looks for a literal `index.css`, which never
+      // matches hashed output, then falls back to the first CSS asset — a lazy
+      // route chunk once routes ship their own CSS. Pin it to the entry sheet.
+      cssInjectionTarget: (file: string) => /(^|\/)index-[^/]*\.css$/.test(file),
       useCSSLayers: {
         before: ["reset", "base"],
         after: ["utilities"],
