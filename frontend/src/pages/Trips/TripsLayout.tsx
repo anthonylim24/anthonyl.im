@@ -1,7 +1,7 @@
 import { sx } from '@/lib/utils'
 import { lazy, Suspense, useEffect, type ReactNode } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
-import { ArrowLeft, Lock, Plus } from 'lucide-react'
+import { ArrowLeft, Lock, Plus, Send } from 'lucide-react'
 import { SignedIn, SignedOut, SignInButton, UserButton, useAuth } from '@clerk/clerk-react'
 import { CLERK_ENABLED } from '@/lib/clerk'
 import { ThemeToggle } from '../Korea/ThemeToggle'
@@ -137,6 +137,7 @@ function TripsShell({
               <ol {...sx(styles.breadcrumbList)}>
                 <li {...sx(styles.shrink0)}>
                   <Link to="/trips" {...sx('chrome-wordmark', styles.chromeWordmark, focusRingClass)}>
+                    <Send {...sx('chrome-plane', styles.chromePlane)} strokeWidth={2.25} aria-hidden />
                     Trips
                   </Link>
                 </li>

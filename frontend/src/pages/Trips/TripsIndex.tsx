@@ -1,15 +1,18 @@
 import { sx } from '@/lib/utils'
 import { styles } from './trips.stylex'
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent } from "react"
+import { index as ix } from './toy.stylex'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
-import { ArrowRight, Plus, RotateCcw, Trash2 } from "lucide-react"
+import { ArrowRight, Plus, RotateCcw, Search, Sparkles, Trash2, X } from "lucide-react"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useAuthReady, useGetToken } from "@/lib/safeAuth"
 import { deleteTrip, listTrips } from "./tripsApi"
 import type { TripSummary } from "./types"
 import { FlipTime } from "./components/FlipTime"
+import { TripsGlobe } from "./scene/TripsGlobe"
 import { daysUntilIn, resolveAccent, todayIsoIn } from "./theme"
+import { useTripPins } from "./useTripPins"
 import {
   EASE,
   ENTER_SPRING,
@@ -23,18 +26,15 @@ import {
   ghostOnTintBtnClass,
   hoverArrowClass,
   inlineLinkClass,
-  documentClass,
   mutedInkClass,
   primaryBtnClass,
   revealDelay,
   secondaryBtnClass,
-  skeletonBarClass,
+  skeletonClass,
   typePageTitleClass,
   typeSectionClass,
   wrapAnywhereClass,
 } from "./ui"
-
-const sectionTitleClass = typeSectionClass
 
 type LoadState =
   | { status: "loading" }
@@ -45,7 +45,6 @@ type TripBucket = "current" | "upcoming" | "past"
 
 interface TripMark {
   value: string
-  caption?: string
   label: string
 }
 
@@ -91,6 +90,29 @@ function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`
 }
 
+/** Three-letter luggage code from the first destination ("Tokyo" → "TOK"). */
+function tagCode(trip: TripSummary): string {
+  const first = trip.destinations[0] ?? trip.name
+  const latin = first.normalize("NFKD").replace(/[^A-Za-z]/g, "")
+  return (latin || first).slice(0, 3).toUpperCase()
+}
+
+function matches(trip: TripSummary, q: string): boolean {
+  if (!q) return true
+  const hay = [trip.name, ...trip.destinations, ...trip.tags].join(" ").normalize("NFKC").toLowerCase()
+  return q
+    .normalize("NFKC")
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((word) => hay.includes(word))
+}
+
+function typingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  return Boolean(target.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [role="alertdialog"]'))
+}
+
 function trapDialogKeys(onClose: () => void) {
   return (e: KeyboardEvent<HTMLElement>) => {
     if (e.key === "Escape") onClose()
@@ -126,7 +148,7 @@ function DeleteErrorBanner({
   focusOnMount: (el: HTMLButtonElement | null) => void
 }) {
   return (
-    <div {...sx(styles.my3, alertErrorClass)} role="alert" onKeyDown={trapDialogKeys(onClose)}>
+    <div {...sx(alertErrorClass)} role="alert" onKeyDown={trapDialogKeys(onClose)}>
       <div {...sx(styles.deleteErrorRow)}>
         <p {...sx(styles.minW0, wrapAnywhereClass)}>
           Couldn’t delete <span {...sx(styles.fontSemiboldSpan)}>{trip.name}</span>. Nothing was removed, so you can try
@@ -143,7 +165,7 @@ function DeleteErrorBanner({
             Dismiss
           </button>
           <button type="button" {...sx(dangerBtnClass)} onClick={onRetry} disabled={deleting}>
-            <RotateCcw {...sx(styles.iconSm)} strokeWidth={1.5} aria-hidden />
+            <RotateCcw {...sx(styles.iconSm)} strokeWidth={2} aria-hidden />
             {deleting ? "Deleting…" : "Retry delete"}
           </button>
         </div>
@@ -186,7 +208,7 @@ function DeleteConfirmBanner({
           Cancel
         </button>
         <button type="button" {...sx(dangerBtnClass)} onClick={onDelete} disabled={deleting}>
-          <Trash2 {...sx(styles.iconSm)} strokeWidth={1.5} aria-hidden />
+          <Trash2 {...sx(styles.iconSm)} strokeWidth={2} aria-hidden />
           {deleting ? "Deleting…" : "Delete"}
         </button>
       </div>
@@ -194,31 +216,8 @@ function DeleteConfirmBanner({
   )
 }
 
-function TripActions({
-  trip,
-  restoreTriggerFocus,
-  onConfirm,
-}: {
-  trip: TripSummary
-  restoreTriggerFocus: (el: HTMLButtonElement | null) => void
-  onConfirm: () => void
-}) {
-  if (trip.access !== "owner") return null
-  return (
-    <button
-      type="button"
-      ref={restoreTriggerFocus}
-      data-trip-id={trip.id}
-      onClick={onConfirm}
-      {...sx(dangerIconBtnClass, styles.dangerIconHiddenSm)}
-      aria-label={`Delete ${trip.name}`}
-    >
-      <Trash2 {...sx(styles.iconSm)} strokeWidth={1.5} aria-hidden />
-    </button>
-  )
-}
-
-function TimetableRow({
+/** A luggage tag: pastel stub with an eyelet and code, ticket body with the trip. */
+function LuggageTag({
   row,
   restoreTriggerFocus,
   onConfirm,
@@ -228,38 +227,45 @@ function TimetableRow({
   onConfirm: () => void
 }) {
   const { trip, mark, dayCount, range } = row
+  const shared = trip.access !== "owner" || trip.collaborators.length > 0 || trip.sharedWithAllUsers
   return (
-    <div
-      {...sx("group", styles.timetableRow)}
-      data-trip-accent={resolveAccent(trip.accent)}
-    >
-      <Link
-        to={`/trips/${trip.slug ?? trip.id}`}
-        {...sx(styles.timetableOverlayLink)}
-        aria-label={`Open ${trip.name}`}
-      />
-      <div {...sx(styles.minW0, styles.flex1)}>
-        <h3 {...sx(styles.timetableTitle, wrapAnywhereClass)}>
-          {trip.name}
-        </h3>
-        <p {...sx(styles.timetableMeta)}>
-          <span {...sx(wrapAnywhereClass)}>{trip.destinations.join(", ")}</span>
+    <div {...sx("group", ix.tag)} data-trip-accent={resolveAccent(trip.accent)}>
+      <Link to={`/trips/${trip.slug ?? trip.id}`} {...sx(ix.tagLink)} aria-label={`Open ${trip.name}`} />
+      <div {...sx(ix.tagStub)} aria-hidden>
+        <span {...sx(ix.tagEyelet)} />
+        <span {...sx(ix.tagCode)}>{tagCode(trip)}</span>
+        <span {...sx(ix.tagStubMeta)}>{plural(dayCount, "day", "days")}</span>
+      </div>
+      <div {...sx(ix.tagBody)}>
+        <p {...sx(ix.tagMark)}>
+          <span {...sx(styles.srOnly)}>{mark.label}</span>
+          <FlipTime value={mark.value} playOnMount />
+        </p>
+        <h3 {...sx(ix.tagTitle, wrapAnywhereClass)}>{trip.name}</h3>
+        <p {...sx(ix.tagMeta, wrapAnywhereClass)}>
+          {trip.destinations.join(", ")}
           <span aria-hidden> · </span>
           {range}
         </p>
-      </div>
-      <div {...sx(styles.shrink0, styles.textRight)}>
-        <p {...sx(styles.timetableMarkValue)}>
-          <span {...sx(styles.srOnly)}>{mark.label}</span>
-          <FlipTime value={mark.value} playOnMount {...sx(styles.flipJustifyEnd)} />
-        </p>
-        <p {...sx(styles.timetableStats)}>
-          {plural(dayCount, "day", "days")} · {plural(trip.itemCount, "stop", "stops")}
+        <p {...sx(ix.tagStats)}>
+          {plural(trip.itemCount, "stop", "stops")}
+          {shared ? <span {...sx(ix.tagShared)}>Shared</span> : null}
         </p>
       </div>
-      <div {...sx(styles.actionsColZ10)}>
-        <TripActions trip={trip} restoreTriggerFocus={restoreTriggerFocus} onConfirm={onConfirm} />
-      </div>
+      {trip.access === "owner" && (
+        <div {...sx(ix.tagActions)}>
+          <button
+            type="button"
+            ref={restoreTriggerFocus}
+            data-trip-id={trip.id}
+            onClick={onConfirm}
+            {...sx(dangerIconBtnClass, styles.dangerIconHiddenSm)}
+            aria-label={`Delete ${trip.name}`}
+          >
+            <Trash2 {...sx(styles.iconSm)} strokeWidth={2} aria-hidden />
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -278,7 +284,10 @@ export function TripsIndex() {
   const [deletedName, setDeletedName] = useState<string | null>(null)
   const [pendingFocusId, setPendingFocusId] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
-  const newTripRef = useRef<HTMLButtonElement>(null)
+  const [query, setQuery] = useState("")
+  const deferredQuery = useDeferredValue(query.trim())
+  const newTripRef = useRef<HTMLAnchorElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
   const load = useCallback(() => setReloadKey((k) => k + 1), [])
 
   const focusOnMount = useCallback((el: HTMLButtonElement | null) => el?.focus(), [])
@@ -307,12 +316,37 @@ export function TripsIndex() {
     }
   }, [readToken, authReady, reloadKey, startTransition])
 
+  // "/" finds a trip, "n" packs a new one.
+  useEffect(() => {
+    function onKey(e: globalThis.KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey || typingTarget(e.target)) return
+      if (e.key === "/") {
+        if (!searchRef.current) return
+        e.preventDefault()
+        searchRef.current.focus()
+      } else if (e.key === "n" || e.key === "N") {
+        e.preventDefault()
+        navigate("/trips/new")
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [navigate])
+
+  const allTrips = state.status === "success" ? state.trips : null
+  const visibleTrips = useMemo(() => allTrips?.filter((t) => matches(t, deferredQuery)) ?? null, [allTrips, deferredQuery])
+  const allPins = useTripPins(allTrips, readToken)
+  const pins = useMemo(() => {
+    const ids = new Set(visibleTrips?.map((t) => t.id))
+    return allPins.filter((p) => ids.has(p.id))
+  }, [allPins, visibleTrips])
+
   const grouped = useMemo(() => {
-    if (state.status !== "success") return null
+    if (!visibleTrips) return null
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
     const today = todayIsoIn(timezone)
     const buckets: Record<TripBucket, TripRow[]> = { current: [], upcoming: [], past: [] }
-    for (const trip of state.trips) {
+    for (const trip of visibleTrips) {
       const bucket = bucketFor(trip, today)
       const dayCount = trip.dayCount || dayCountInclusive(trip.startDate, trip.endDate)
       buckets[bucket].push({
@@ -326,7 +360,12 @@ export function TripsIndex() {
       buckets[key].sort((a, b) => a.trip.startDate.localeCompare(b.trip.startDate) * (key === "past" ? -1 : 1))
     }
     return buckets
-  }, [state])
+  }, [visibleTrips])
+
+  const focus = useMemo(() => {
+    const next = grouped?.current[0] ?? grouped?.upcoming[0] ?? grouped?.past[0]
+    return (next && allPins.find((p) => p.id === next.trip.id)) ?? allPins[0] ?? null
+  }, [grouped, allPins])
 
   const onlyPast =
     grouped !== null && grouped.past.length > 0 && grouped.current.length + grouped.upcoming.length === 0
@@ -386,23 +425,26 @@ export function TripsIndex() {
     return null
   }
 
-  const renderBucket = (id: string, title: string, rows: TripRow[]) => {
+  const renderBucket = (id: string, title: string, rows: TripRow[], offset: number) => {
     if (rows.length === 0) return null
     return (
       <section aria-labelledby={id}>
-        <h2 id={id} {...sx(sectionTitleClass)}>
+        <h2 id={id} {...sx(typeSectionClass, ix.bucketTitle)}>
           {title}
+          <span {...sx(ix.bucketCount)} aria-hidden>
+            {rows.length}
+          </span>
         </h2>
-        <ul {...sx(styles.mt3, styles.hairlineList)}>
+        <ul {...sx(ix.tagGrid)}>
           {rows.map((row, i) => (
             <motion.li
               key={row.trip.id}
-              initial={reduce ? false : { opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: REVEAL_DURATION, delay: revealDelay(i), ease: EASE }}
+              initial={reduce ? false : { opacity: 0, y: -14, rotate: i % 2 ? 3 : -3 }}
+              animate={{ opacity: 1, y: 0, rotate: 0 }}
+              transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 18, delay: revealDelay(offset + i) * 2 }}
             >
               {renderState(row) ?? (
-                <TimetableRow
+                <LuggageTag
                   row={row}
                   restoreTriggerFocus={restoreTriggerFocus}
                   onConfirm={() => {
@@ -419,42 +461,123 @@ export function TripsIndex() {
   }
 
   const empty = state.status === "success" && state.trips.length === 0
+  const total = allTrips?.length ?? 0
+  const upcomingCount = grouped ? grouped.current.length + grouped.upcoming.length : 0
+  const noMatch = !empty && visibleTrips !== null && visibleTrips.length === 0
+  const pathFor = (id: string) => {
+    const trip = allTrips?.find((t) => t.id === id)
+    return trip ? `/trips/${trip.slug ?? trip.id}` : null
+  }
 
   return (
-    <div {...sx(documentClass)}>
-      <div {...sx(styles.indexHeaderRow)}>
-        <div {...sx(styles.minW0)}>
-          <h1 {...sx(typePageTitleClass)}>
+    <div {...sx(ix.page)}>
+      <section {...sx(ix.hero)} aria-labelledby="trips-title">
+        <motion.div
+          {...sx(ix.heroCopy)}
+          initial={reduce ? false : { opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: REVEAL_DURATION * 2, ease: EASE }}
+        >
+          <p {...sx(ix.heroStamp)}>
+            {state.status === "success"
+              ? `${plural(total, "trip", "trips")} · ${upcomingCount} ahead`
+              : "Trip planner"}
+          </p>
+          <h1 id="trips-title" {...sx(ix.heroTitle)}>
             {empty ? "No trips yet" : "Trips"}
           </h1>
-          {!empty && <p {...sx(styles.indexOpenHint, mutedInkClass)}>Open a trip to edit it in place.</p>}
+          <p {...sx(ix.heroLede)}>
+            {empty
+              ? "Your planet is empty. Pack a bag and a pin drops where you’re going."
+              : "Every trip you’re planning, pinned to a squishy little planet. Poke it, stretch it, tap a pin to jump in."}
+          </p>
+          <div {...sx(ix.heroActions)}>
+            <Link ref={newTripRef} to="/trips/new" {...sx(primaryBtnClass)}>
+              <Plus {...sx(styles.iconSm)} strokeWidth={2.5} aria-hidden />
+              New trip
+            </Link>
+            {!empty && (
+              <Link to="/trips/new?mode=ai" {...sx(secondaryBtnClass)}>
+                <Sparkles {...sx(styles.iconSm)} strokeWidth={2} aria-hidden />
+                Plan with AI
+              </Link>
+            )}
+          </div>
+          {total > 0 && (
+            <div {...sx(ix.search)}>
+              <Search {...sx(ix.searchIcon)} strokeWidth={2.25} aria-hidden />
+              <label htmlFor="trips-search" {...sx(styles.srOnly)}>
+                Find a trip
+              </label>
+              <input
+                ref={searchRef}
+                id="trips-search"
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape" && query) {
+                    e.preventDefault()
+                    setQuery("")
+                  }
+                }}
+                placeholder="Find a trip, city or tag"
+                autoComplete="off"
+                {...sx(ix.searchInput)}
+              />
+              {query ? (
+                <button type="button" onClick={() => setQuery("")} {...sx(ix.searchClear)} aria-label="Clear search">
+                  <X {...sx(styles.iconSm)} strokeWidth={2.25} aria-hidden />
+                </button>
+              ) : (
+                <kbd {...sx(ix.kbd)} aria-hidden>
+                  /
+                </kbd>
+              )}
+            </div>
+          )}
+          <p {...sx(ix.shortcutHint)}>
+            <kbd {...sx(ix.kbdInline)}>N</kbd> new trip
+            {total > 0 ? (
+              <>
+                <span aria-hidden> · </span>
+                <kbd {...sx(ix.kbdInline)}>/</kbd> search
+              </>
+            ) : null}
+          </p>
+        </motion.div>
+        <div {...sx(ix.heroGlobe)}>
+          <TripsGlobe
+            mode="world"
+            pins={pins}
+            focus={focus}
+            onSelect={(id) => {
+              const to = pathFor(id)
+              if (to) navigate(to)
+            }}
+            description={
+              pins.length
+                ? `A clay globe with pins for ${pins.map((p) => p.label).join(", ")}.`
+                : "A clay globe, waiting for its first pin."
+            }
+          />
         </div>
-        <button ref={newTripRef} type="button" onClick={() => navigate("/trips/new")} {...sx(primaryBtnClass)}>
-          <Plus {...sx(styles.iconSm)} aria-hidden />
-          New trip
-        </button>
-      </div>
+      </section>
 
       <p {...sx(styles.srOnly)} role="status">
         {deletedName ? `Deleted ${deletedName}.` : ""}
       </p>
 
       {state.status === "loading" && (
-        <div {...sx(styles.mt10, styles.hairlineList)} role="status" aria-label="Loading trips">
-          {[0, 1, 2].map((i) => (
-            <div key={i} {...sx(styles.indexSkeletonRow)}>
-              <div {...sx(styles.skeletonInnerStack)}>
-                <div {...sx(styles.skeletonBarH5W40, skeletonBarClass)} />
-                <div {...sx(styles.skeletonBarH3W56, skeletonBarClass)} />
-              </div>
-              <div {...sx(styles.skeletonBarH5W24, skeletonBarClass)} />
-            </div>
+        <div {...sx(ix.tagGrid, ix.listTop)} role="status" aria-label="Loading trips">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} {...sx(ix.tagSkeleton, skeletonClass)} />
           ))}
         </div>
       )}
 
       {state.status === "error" && (
-        <div {...sx(styles.alertMt10, alertErrorClass)} role="alert">
+        <div {...sx(ix.listTop, alertErrorClass)} role="alert">
           <p {...sx(styles.minW0, wrapAnywhereClass)}>
             Couldn’t load your trips. Check your connection, then try again. ({state.message})
           </p>
@@ -465,47 +588,79 @@ export function TripsIndex() {
       )}
 
       <p {...sx(styles.indexRefreshLine, mutedInkClass)} aria-live="polite">
-        {state.status === "success" && isRefreshing ? "Refreshing…" : ""}
+        {state.status === "success" && isRefreshing
+          ? "Refreshing…"
+          : deferredQuery && visibleTrips
+            ? `${plural(visibleTrips.length, "trip matches", "trips match")} “${deferredQuery}”.`
+            : ""}
       </p>
 
       {empty && (
         <motion.div
-          {...sx(styles.indexEmptyWrap)}
-          initial={reduce ? false : { opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
+          {...sx(ix.emptyCard)}
+          initial={reduce ? false : { opacity: 0, y: 10, rotate: -2 }}
+          animate={{ opacity: 1, y: 0, rotate: 0 }}
           transition={reduce ? { duration: 0 } : ENTER_SPRING}
         >
-          <h2 {...sx(typePageTitleClass)}>
-            Where to next?
-          </h2>
-          <p {...sx(styles.indexEmptyCopy, mutedInkClass)}>
-            Start blank and build day by day, or ask AI for a structured draft you can reshape.
-          </p>
-          <div {...sx(styles.mt6, styles.flexWrapCenterGap2)}>
-            <Link to="/trips/new?mode=ai" {...sx(primaryBtnClass)}>
-              Plan with AI
-            </Link>
-            <Link to="/trips/new?mode=blank" {...sx(secondaryBtnClass)}>
-              Start blank
-            </Link>
+          <Suitcase />
+          <div {...sx(styles.minW0)}>
+            <h2 {...sx(typePageTitleClass)}>Where to next?</h2>
+            <p {...sx(ix.emptyCopy)}>
+              Start blank and build day by day, or ask AI for a structured draft you can reshape.
+            </p>
+            <div {...sx(ix.emptyActions)}>
+              <Link to="/trips/new?mode=ai" {...sx(primaryBtnClass)}>
+                <Sparkles {...sx(styles.iconSm)} strokeWidth={2} aria-hidden />
+                Plan with AI
+              </Link>
+              <Link to="/trips/new?mode=blank" {...sx(secondaryBtnClass)}>
+                Start blank
+              </Link>
+            </div>
           </div>
         </motion.div>
       )}
 
-      {grouped && state.status === "success" && state.trips.length > 0 && (
-        <div {...sx(styles.indexBuckets)}>
-          {renderBucket("bucket-current", "Now", grouped.current)}
-          {renderBucket("bucket-upcoming", "Upcoming", grouped.upcoming)}
-          {renderBucket("bucket-past", "Past", grouped.past)}
+      {noMatch && (
+        <div {...sx(ix.noMatch)}>
+          <p {...sx(typeSectionClass)}>No trips match “{deferredQuery}”.</p>
+          <p {...sx(ix.emptyCopy)}>Try a city, a tag, or part of the trip name.</p>
+          <button type="button" onClick={() => setQuery("")} {...sx(ix.noMatchBtn, secondaryBtnClass)}>
+            Clear search
+          </button>
+        </div>
+      )}
 
-          {onlyPast && (
-            <Link to="/trips/new" {...sx('group', ghostBtnClass)}>
+      {grouped && !empty && !noMatch && (
+        <div {...sx(ix.buckets)}>
+          {renderBucket("bucket-current", "Now", grouped.current, 0)}
+          {renderBucket("bucket-upcoming", "Upcoming", grouped.upcoming, grouped.current.length)}
+          {renderBucket("bucket-past", "Past", grouped.past, grouped.current.length + grouped.upcoming.length)}
+
+          {onlyPast && !deferredQuery && (
+            <Link to="/trips/new" {...sx('group', ghostBtnClass, ix.planNew)}>
               Plan a new trip
-              <ArrowRight {...sx(styles.iconSm, hoverArrowClass)} strokeWidth={1.5} aria-hidden />
+              <ArrowRight {...sx(styles.iconSm, hoverArrowClass)} strokeWidth={2} aria-hidden />
             </Link>
           )}
         </div>
       )}
     </div>
+  )
+}
+
+/** Little clay suitcase for the empty state, covered in stickers. */
+function Suitcase() {
+  return (
+    <svg viewBox="0 0 120 104" {...sx(ix.suitcase, "toy-wobble")} aria-hidden>
+      <rect x="44" y="6" width="32" height="16" rx="7" fill="none" stroke="#1f2440" strokeWidth="5" />
+      <rect x="10" y="18" width="100" height="78" rx="16" fill="#ffc3a6" stroke="#1f2440" strokeWidth="4" />
+      <path d="M10 46 H110" stroke="#1f2440" strokeWidth="3" strokeDasharray="6 5" />
+      <circle cx="34" cy="66" r="11" fill="#a9d8f5" stroke="#1f2440" strokeWidth="3" />
+      <rect x="62" y="56" width="30" height="20" rx="5" fill="#ffdd7f" stroke="#1f2440" strokeWidth="3" transform="rotate(-8 77 66)" />
+      <path d="M78 26 l6 10 l-12 0 z" fill="#a6e5c8" stroke="#1f2440" strokeWidth="2.5" strokeLinejoin="round" />
+      <circle cx="28" cy="98" r="5" fill="#1f2440" />
+      <circle cx="92" cy="98" r="5" fill="#1f2440" />
+    </svg>
   )
 }

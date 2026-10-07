@@ -1,7 +1,8 @@
 import { styles } from './trips.stylex'
+import { overview as ov } from './toy.stylex'
 import { sx } from '@/lib/utils'
 import { lazy, Suspense, useMemo } from "react"
-import { Link, useSearchParams } from "react-router-dom"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { motion, useReducedMotion } from "motion/react"
 import { Globe2, Images, Map as MapIcon, Settings2 } from "lucide-react"
 import { EntityIndexProvider } from "../Korea/entityIndex"
@@ -21,6 +22,8 @@ import { GeneratePanel } from "./editor/GeneratePanel"
 import { SuggestionsPanel } from "./editor/SuggestionsPanel"
 import { TripStatusSelect } from "./editor/TripStatusSelect"
 import { TripClock } from "./components/TripClock"
+import { TripsGlobe, type GlobePin } from "./scene/TripsGlobe"
+import { TOY } from "./scene/worldMap"
 import { upcomingReservations } from "./reservationView"
 import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import { useTripEditor } from "./useTripEditor"
@@ -131,7 +134,11 @@ export function TripOverview() {
       <div data-trip-accent={resolveAccent(trip.appearance?.accent)}>
         <CoverDock title={trip.name} />
         <header {...sx('cover-band', coverBandClass, styles.coverBandHero)}>
-          <div {...sx(styles.coverBandInner)}>
+          <div {...sx(ov.coverGrid)}>
+            <div {...sx(ov.coverDiorama)}>
+              <CoverDiorama trip={trip} />
+            </div>
+            <div {...sx(ov.coverCopy)}>
             <motion.div
               {...fadeUp(0)}
               {...sx(styles.flexWrapCenterGap3, styles.coverBandMetaRow)}
@@ -154,20 +161,29 @@ export function TripOverview() {
                   <label {...sx(styles.srOnly)} htmlFor="trip-editor-name">
                     Trip name
                   </label>
-                  <input
+                  <textarea
                     id="trip-editor-name"
+                    rows={1}
                     disabled={editorLocked}
                     {...sx(
                       'trip-display-input',
                       typeDisplayClass,
                       styles.minH11,
                       styles.wFull,
+                      styles.fieldSizingContent,
                       styles.coverBandTitleInput,
                       focusRingClass,
                       wrapAnywhereClass,
                     )}
                     value={trip.name}
-                    onChange={(e) => editor.scheduleSave({ ...trip, name: e.target.value })}
+                    // One line of title that wraps (long and Hangul names stay whole).
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault()
+                        e.currentTarget.blur()
+                      }
+                    }}
+                    onChange={(e) => editor.scheduleSave({ ...trip, name: e.target.value.replace(/\s*\n\s*/g, " ") })}
                   />
                 </>
               ) : (
@@ -225,6 +241,7 @@ export function TripOverview() {
                 </button>
               </motion.div>
             )}
+            </div>
           </div>
         </header>
 
@@ -431,6 +448,44 @@ export function TripOverview() {
         )}
       </div>
     </EntityIndexProvider>
+  )
+}
+
+const DAY_FILLS = [TOY.rose, TOY.butter, TOY.mint, TOY.ocean, TOY.lilac, TOY.peach]
+const MAX_COVER_PINS = 24
+
+/** The trip as a tiny planet: a few located places from each day, tinted by day. */
+function CoverDiorama({ trip }: { trip: Trip }) {
+  const navigate = useNavigate()
+  const { pins, dayOf } = useMemo(() => {
+    const located = trip.days.map((day) => day.items.filter((i) => i.location?.lat != null && i.location?.lng != null))
+    const perDay = Math.max(1, Math.ceil(MAX_COVER_PINS / Math.max(1, located.filter((l) => l.length).length)))
+    const dayOf = new Map<string, string>()
+    const pins: GlobePin[] = []
+    located.forEach((items, d) => {
+      for (const item of items.slice(0, perDay)) {
+        if (pins.length >= MAX_COVER_PINS) return
+        dayOf.set(item.id, trip.days[d]!.id)
+        pins.push({ id: item.id, lat: item.location!.lat!, lng: item.location!.lng!, fill: DAY_FILLS[d % DAY_FILLS.length]!, label: item.title })
+      }
+    })
+    return { pins, dayOf }
+  }, [trip.days])
+  const base = `/trips/${trip.slug ?? trip.id}`
+  return (
+    <TripsGlobe
+      mode="region"
+      pins={pins}
+      onSelect={(id) => {
+        const day = dayOf.get(id)
+        if (day) navigate(`${base}/day/${day}#item-${id}`)
+      }}
+      description={
+        pins.length
+          ? `A clay diorama of ${trip.name} with ${pins.length} places pinned along the route.`
+          : `A clay diorama of ${trip.name}, waiting for its first place.`
+      }
+    />
   )
 }
 

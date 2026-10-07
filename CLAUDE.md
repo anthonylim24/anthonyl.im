@@ -627,7 +627,7 @@ Anthony (primary) and his partner, while planning + executing a 12-day Seoul + B
 
 ## Design Context: `/trips/*` — Generic Trip Planner
 
-JR pocket timetable (not Korea parchment, not Linear/Notion zinc), parameterized by `data-trip-accent` (retints canvas + cover band). `/trips/:tripId` is the living document (`TripOverview`); `/edit` redirects there. Concierge FAB on the trip and day pages only. Do not add destination-specific routes. Do not restyle Trips back into the Korea dossier or a zinc CRUD workspace. Full design notes: [`DESIGN.md`](DESIGN.md) / [`AGENTS.md`](AGENTS.md) / [`PRODUCT.md`](PRODUCT.md).
+Toy-world travel diorama: pastel papercraft stickers (ink outline + hard offset shadow) on a sky-washed canvas, Bricolage Grotesque display + Fragment Mono codes, and a squishy clay planet (shared `Jelly` soft body) as the one 3D moment per page — world globe with trip pins on the index, region diorama on the overview cover, pin-collecting planet while generating. Trips are luggage tags; create is "Pack your bag"; the day page is a postcard + boarding passes. `data-trip-accent` sets `--ta-fill` / `--ta`. Scenes live in `pages/Trips/scene/` (lazy, static SVG fallback); styles in `toy.stylex.ts` + `trips.stylex.ts`. `/trips/:tripId` is the living document (`TripOverview`); `/edit` redirects there. Concierge FAB on the trip and day pages only. Do not add destination-specific routes. Keep the sticker system; do not restyle Trips into the Korea dossier or a zinc CRUD workspace. Full design notes: [`DESIGN.md`](DESIGN.md) / [`AGENTS.md`](AGENTS.md) / [`PRODUCT.md`](PRODUCT.md).
 
 ---
 

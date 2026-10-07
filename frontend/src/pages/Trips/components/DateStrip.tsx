@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react"
 import { LayoutGroup, motion, useReducedMotion } from "motion/react"
 import { Link } from "react-router-dom"
-import { ACCENT, formatTripDate, todayIsoIn } from "../theme"
+import { formatTripDate, todayIsoIn } from "../theme"
 import { ENTER_SPRING, focusRingClass, mutedInkClass } from "../ui"
 import type { TripDay } from "../types"
 import { sx } from '@/lib/utils'
@@ -16,7 +16,8 @@ function dayNum(date: string, timezone: string): string {
 }
 
 /**
- * Station-tick snap rail. Overview uses hash links; the day page uses routes.
+ * A strip of date stamps; the active day wears a tilted sticker that slides
+ * between them. Overview uses hash links; the day page uses routes.
  * Hidden when there is only one day so a lone trip does not grow a nav track.
  */
 export function DateStrip({
@@ -51,8 +52,8 @@ export function DateStrip({
 
   return (
     <nav ref={navRef} aria-label="Days" {...sx(styles.dateStripNav)}>
-      <LayoutGroup id="trips-station-rail">
-        <ol {...sx('snap-rail', styles.flex, styles.itemsEnd, styles.gap0)}>
+      <LayoutGroup id="trips-date-stamps">
+        <ol {...sx(styles.dateStripList)}>
           {days.map((day, idx) => {
             const active = day.id === activeId
             const isToday = day.date === today
@@ -60,31 +61,25 @@ export function DateStrip({
             const chipStyles = [
               styles.dateStripChip,
               focusRingClass,
-              active ? ACCENT.text : isToday ? styles.inkPrimary : mutedInkClass,
+              active ? styles.dateStripChipActive : isToday ? styles.inkPrimary : mutedInkClass,
             ] as const
             const body = (
               <>
-                <span
-                  aria-hidden
-                  {...sx(
-                    styles.dateStripTick,
-                    active || isToday ? styles.dateStripTickActive : styles.dateStripTickIdle,
-                  )}
-                />
+                {active ? (
+                  <motion.span
+                    layoutId="trips-day-sticker"
+                    {...sx(styles.dateStripActiveMark)}
+                    transition={reduce ? { duration: 0 } : ENTER_SPRING}
+                    aria-hidden
+                  />
+                ) : null}
                 <span {...sx(styles.dateStripWeekday)}>
                   {weekday(day.date, timezone)}
                 </span>
                 <span {...sx(styles.dateStripDayNum)}>
                   {dayNum(day.date, timezone)}
                 </span>
-                {active ? (
-                  <motion.span
-                    layoutId="trips-station-tick"
-                    {...sx(styles.dateStripActiveMark)}
-                    transition={reduce ? { duration: 0 } : ENTER_SPRING}
-                    aria-hidden
-                  />
-                ) : null}
+                {isToday ? <span aria-hidden {...sx(styles.dateStripToday)} /> : null}
               </>
             )
             return (

@@ -54,6 +54,7 @@ const mockDeleteTrip = vi.fn()
 vi.mock("../tripsApi", () => ({
   listTrips: (...args: unknown[]) => mockListTrips(...args),
   deleteTrip: (...args: unknown[]) => mockDeleteTrip(...args),
+  getTrip: () => Promise.reject(new Error("no pins in tests")),
 }))
 
 import { todayIsoIn } from "../theme"

@@ -224,6 +224,8 @@ export const smartEntity = stylex.create({
     borderColor: '#e7e5e4',
     [DARK]: { borderColor: '#292524' },
   },
+  // Inline in a sentence (WCAG 2.5.8 inline exception): keep the line box.
+  tripsInline: { minHeight: 0 },
   tripsTrigger: {
     display: 'inline-flex',
     alignItems: 'baseline',

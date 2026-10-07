@@ -1,8 +1,9 @@
 /** Shared Trips UI vocabulary — every interactive element on every Trips page
  *  composes from this file. Pages define no local class strings.
  *
- *  World: pocket timetable. Condensed times, tinted print stock, cover band.
- *  Not Linear, not Notion, not Korea parchment.
+ *  World: toy-world travel diorama. Pastel papercraft and clay — stickers
+ *  with an ink outline and a hard offset shadow, luggage tags, stamps.
+ *  Toy pieces only the redesigned pages use live in toy.stylex.ts.
  */
 
 import {
@@ -13,8 +14,6 @@ import {
 
 export { fontDisplay, styles, pageStyle, segmentOption, suggestionChipStyle, calloutToneStyle, accentSwatchStyle } from './trips.stylex'
 
-export const SERIF = { fontFamily: '"Archivo Narrow", "Arial Narrow", sans-serif' } as const
-export const MONO = { fontFamily: '"Archivo Narrow", "Arial Narrow", sans-serif' } as const
 export const EASE = [0.16, 1, 0.3, 1] as const
 
 // ── Motion ───────────────────────────────────────────────────────────────
