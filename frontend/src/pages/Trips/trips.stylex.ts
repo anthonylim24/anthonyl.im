@@ -1742,7 +1742,7 @@ export const styles = stylex.create({
     borderStyle: 'solid',
     borderColor: line,
     backgroundColor: 'var(--trips-surface)',
-    boxShadow: `0 -6px 0 ${fill}, 0 -6px 0 2px ${line}`,
+    boxShadow: '0 -10px 30px rgba(20, 24, 48, 0.16)',
     '@media (min-width: 768px)': {
       left: 'auto',
       right: '1.5rem',

@@ -29,6 +29,7 @@ anthonyl.im/
 │   │   ├── effect/              # Effect-TS HTTP/SSE/runtime
 │   │   ├── styles/              # merge.ts (sx), common.stylex.ts, tokens.ts, route *.stylex.ts
 │   │   ├── components/          # Shared: ui/*, CloudSync, RouteErrorBoundary
+│   │   ├── three/               # Shared WebGPU toolkit: createStage, Jelly soft body, jellyMesh, bindJellyPointer
 │   │   ├── hooks/               # useReducedMotion, useLatestCallback, useCloudSync
 │   │   ├── lib/                 # apiBase, apiService, safeAuth, clerk, concierge*, externalMaps
 │   │   ├── stores/              # Zustand: settingsStore, gamificationStore, historyStore
@@ -254,7 +255,7 @@ Two regressions surfaced in May 2026 that the verify gate now catches:
 
 ## Routing
 
-Routes are lazy-loaded inside `Guarded` (`RouteErrorBoundary` + `Suspense`). All four apps share `index.html`; the server injects per-route OG tags / favicon / manifest. Basename comes from `lib/routerBasename.ts` (PR preview support).
+Routes are lazy-loaded inside `Guarded` (`RouteErrorBoundary` + `Suspense`). All five apps share `index.html`; the server injects per-route OG tags / favicon / manifest. Basename comes from `lib/routerBasename.ts` (PR preview support).
 
 | Path | App | Auth |
 |------|-----|------|
@@ -359,9 +360,9 @@ Full CI/CD agent memory: [`docs/ci-cd.md`](docs/ci-cd.md).
 
 | Chunk | Contents | Why |
 |-------|----------|-----|
-| `three-core` | `three.core.js` | Shared by Map Mode and the landing hero |
+| `three-core` | `three.core.js` | Shared by Map Mode and every WebGPU scene |
 | `three` | three.js WebGL build + loaders + OrbitControls | Only loaded in Map Mode |
-| `three-webgpu` | `three/webgpu` + `three/tsl` + TSL addons + `three-blocks` | Only loaded by the landing hero |
+| `three-webgpu` | `three/webgpu` + `three/tsl` + TSL addons + `three-blocks` | Lazy WebGPU scenes: landing hero, Lim, BreathFlow bloom, Trips globes |
 | `tiles3d` | 3d-tiles-renderer | Only loaded in Detailed-3D debug mode |
 | `react-vendor` | react + react-dom + scheduler | Stable cache |
 | `motion` | motion/framer-motion | Used by Places and MapMode — split prevents Places from pulling in three.js |
@@ -403,7 +404,7 @@ Chunk size warning ceiling is 720 KB (intentional — the `three` chunk is large
 - Zustand v5 (BreathFlow persisted stores), Motion 13, Lucide
 - Effect v3 (`effect`, `@effect/language-service`) for frontend I/O — see [Frontend Effect-TS](#frontend-effect-ts)
 - Bun + Hono (server), Clerk (`@clerk/clerk-react` ^5), Supabase, PostHog
-- Three.js for Map Mode (Korea **and** Trips)
+- Three.js: WebGL for Map Mode (Korea **and** Trips); `three/webgpu` + TSL for the landing, Lim, BreathFlow and Trips scenes, all on the shared `frontend/src/three/` toolkit
 
 ## Frontend Effect-TS
 

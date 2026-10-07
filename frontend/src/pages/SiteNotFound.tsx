@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom"
 import { sx } from "@/lib/utils"
 import { siteNotFound } from "@/styles/chatbot.stylex"
+import "@/chat/chat.css"
 
-/** Unknown top-level routes. Keep the parchment chatbot register. */
+/** Unknown top-level routes, in Lim's sorbet register (tokens from chat.css). */
 export function SiteNotFound() {
   return (
     <div {...sx(siteNotFound.root, 'chatbot-shadow')}>
