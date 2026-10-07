@@ -256,6 +256,8 @@ const PLACES: Record<string, [number, number]> = {
 
 export function lookupPlace(name: string): LatLng | null {
   const key = name.toLowerCase().replace(/[^a-z ]/g, ' ').replace(/\s+/g, ' ').trim()
-  const hit = PLACES[key] ?? Object.entries(PLACES).find(([k]) => key.includes(k))?.[1]
+  // Whole-word match, so "Romeoville" doesn't land in Rome.
+  const padded = ` ${key} `
+  const hit = PLACES[key] ?? Object.entries(PLACES).find(([k]) => padded.includes(` ${k} `))?.[1]
   return hit ? { lat: hit[0], lng: hit[1] } : null
 }

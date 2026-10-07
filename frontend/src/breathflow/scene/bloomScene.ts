@@ -46,7 +46,7 @@ import { filmHD } from 'three-blocks/core-tsl-effects'
 import { Jelly, icosphere } from '@/three/jelly'
 import { jellyGeometry, syncJellyGeometry } from '@/three/jellyMesh'
 import { bindJellyPointer, type JellyPointer } from '@/three/jellyPointer'
-import { createStage } from '@/three/stage'
+import { createStage, type Stage } from '@/three/stage'
 import type { Pigment } from '../pigments'
 import type { BreathSample } from './breathDrive'
 
@@ -98,8 +98,18 @@ function rgb(hex: string): THREE.Vector3 {
 }
 
 export async function createBloomScene(opts: BloomSceneOptions): Promise<BloomScene> {
-  const { canvas, host, anchor, pointerHost, mode, reducedMotion, read, onFirstFrame } = opts
+  const { canvas, host, reducedMotion } = opts
   const stage = await createStage({ canvas, host, reducedMotion, maxDpr: 1.5 })
+  try {
+    return await buildBloomScene(opts, stage)
+  } catch (error) {
+    stage.dispose()
+    throw error
+  }
+}
+
+async function buildBloomScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomScene> {
+  const { host, anchor, pointerHost, mode, reducedMotion, read, onFirstFrame } = opts
   const { renderer } = stage
   const T = stage.time as F
 

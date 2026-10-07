@@ -491,6 +491,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   let pokedUntil = 0
   let pokes: number[] = []
   let happyUntil = 0
+  let cheerTimer: ReturnType<typeof setTimeout> | undefined
   let talkOpen = 0
   let lastTalk = 0
   let talkCount = 0
@@ -902,13 +903,22 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     cheer(withConfetti) {
       happyUntil = t + 2.2
       stage.requestRender()
-      if (reducedMotion) return
+      if (reducedMotion) {
+        // The scene clock is frozen here, so end the smile on wall-clock time.
+        clearTimeout(cheerTimer)
+        cheerTimer = setTimeout(() => {
+          happyUntil = 0
+          stage.requestRender()
+        }, 2200)
+        return
+      }
       squash.v += 6
       kicks.push({ at: t + 0.1, v: [0, wide ? 5.2 : 4.2, 0] })
       for (const b of beans) b.jelly.kick((Math.random() - 0.5) * 2, 4 + Math.random() * 2, 0)
       if (withConfetti) burst(64, 1)
     },
     dispose() {
+      clearTimeout(cheerTimer)
       pointer.dispose()
       stage.dispose()
       scene.traverse((o) => {

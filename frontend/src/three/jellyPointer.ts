@@ -48,6 +48,9 @@ export function bindJellyPointer(opts: JellyPointerOptions): JellyPointer {
     body: Jelly
     start: THREE.Vector3
     pins: { i: number; offset: Vec3; k: number }[]
+    /** Screen position at grab, and the furthest the pointer has strayed from it. */
+    x0: number
+    y0: number
     moved: number
   } | null = null
 
@@ -84,7 +87,8 @@ export function bindJellyPointer(opts: JellyPointerOptions): JellyPointer {
   const onMove = (e: PointerEvent) => {
     setPointer(e)
     if (drag && e.pointerId === drag.id) {
-      drag.moved += Math.abs(e.movementX) + Math.abs(e.movementY)
+      // movementX/Y read 0 for touch in some browsers, so measure from the grab point.
+      drag.moved = Math.max(drag.moved, Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0))
       if (ray.ray.intersectPlane(plane, onPlane)) {
         for (const pin of drag.pins) {
           drag.body.pin(pin.i, [onPlane.x + pin.offset[0], onPlane.y + pin.offset[1], onPlane.z + pin.offset[2]], pin.k)
@@ -117,7 +121,7 @@ export function bindJellyPointer(opts: JellyPointerOptions): JellyPointer {
         k: 0.28 * (1 - d / r) ** 3 + 0.004,
       }
     })
-    drag = { id: e.pointerId, body, start: point.clone(), pins, moved: 0 }
+    drag = { id: e.pointerId, body, start: point.clone(), pins, x0: e.clientX, y0: e.clientY, moved: 0 }
     host.setPointerCapture(e.pointerId)
     host.style.cursor = 'grabbing'
     opts.onGrab?.(body)

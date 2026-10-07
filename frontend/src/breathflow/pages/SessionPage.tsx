@@ -699,7 +699,9 @@ function ActiveSession({
     const onKey = (event: KeyboardEvent) => {
       if (event.code !== 'Space' || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return
       const target = event.target as Element | null
-      if (target?.closest('button, a, input, textarea, select, summary, [contenteditable="true"]')) return
+      // The bloom is a button too, but Space on it should still pause.
+      const control = target?.closest('button, a, input, textarea, select, summary, [contenteditable="true"]')
+      if (control && !control.hasAttribute('data-bloom')) return
       event.preventDefault()
       showControls()
       if (running) pause()
@@ -759,6 +761,7 @@ function ActiveSession({
       <div {...sx(ss.centre)}>
         <button
           type="button"
+          data-bloom=""
           aria-label={`${protocol.name} visualization`}
           onClick={(event) => {
             bloomRef.current?.poke(event.clientX, event.clientY)
