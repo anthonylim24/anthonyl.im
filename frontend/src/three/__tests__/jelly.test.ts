@@ -54,4 +54,31 @@ describe('Jelly', () => {
     for (let i = 0; i < 400; i++) floating.step(1 / 60)
     expect(floating.radius).toBeCloseTo(1.4 * 0.99, 1)
   })
+
+  it('rights itself toward uprightTarget only when upright > 0', () => {
+    const { positions } = icosphere(1, 2)
+    const tilt = (j: Jelly) => {
+      const c = Math.cos(0.8)
+      const s = Math.sin(0.8)
+      for (let i = 0; i < j.count; i++) {
+        const x = j.x[i * 3]
+        const y = j.x[i * 3 + 1]
+        j.x[i * 3] = c * x - s * y
+        j.x[i * 3 + 1] = s * x + c * y
+      }
+    }
+    // A slightly squashed rest shape, so rotation is observable.
+    const rest = Float32Array.from(positions, (v, i) => (i % 3 === 1 ? v * 0.7 : v))
+    const free = new Jelly(rest)
+    const righting = new Jelly(rest)
+    righting.upright = 0.1
+    tilt(free)
+    tilt(righting)
+    for (let i = 0; i < 600; i++) {
+      free.step(1 / 60)
+      righting.step(1 / 60)
+    }
+    expect(Math.abs(free.rotation[2])).toBeGreaterThan(0.3)
+    expect(Math.abs(righting.rotation[2])).toBeLessThan(0.05)
+  })
 })

@@ -1,79 +1,219 @@
-import { Activity, useState, useRef, useEffect, lazy, Suspense, useCallback } from "react";
-import { Send, ChevronDown } from "lucide-react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowUp,
+  Briefcase,
+  Check,
+  Copy,
+  Heart,
+  Mail,
+  Moon,
+  Plus,
+  Rocket,
+  RotateCcw,
+  Sparkles,
+  Square,
+  Sun,
+  Wrench,
+} from "lucide-react";
 import { sx } from "./lib/utils";
-import { formatConciergeError } from "./effect/chatErrors";
-import { TimeoutError, errorMessage } from "./effect/errors";
-import { invokeDeepseek } from "./lib/apiService";
 import { useFavicon } from "./hooks/useFavicon";
 import { getPostHogConfig } from "./lib/analytics";
 import { syncThemeColor } from "./lib/themeColor";
 import { chatbot } from "./styles/chatbot.stylex";
 import { layout } from "./styles/common.stylex";
+import { useChat, type ChatMessage } from "./chat/useChat";
+import { LimStage, type LimStageHandle } from "./chat/LimStage";
+import { LimArt } from "./chat/LimArt";
+import { caretPoint } from "./chat/caret";
+import type { LimMood } from "./chat/scene/limScene";
+import "./chat/chat.css";
 
 const MessageContent = lazy(() => import("./components/message-content"));
 
-interface ChatMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  timestamp: number;
+const SUGGESTIONS = [
+  { text: "What is Anthony's background?", Icon: Sparkles },
+  { text: "What are his technical skills?", Icon: Wrench },
+  { text: "Where has he worked?", Icon: Briefcase },
+  { text: "How can I contact him?", Icon: Mail },
+  { text: "What is he building right now?", Icon: Rocket },
+  { text: "What's he like to work with?", Icon: Heart },
+];
+const CHIP_TINTS = [chatbot.chip1, chatbot.chip2, chatbot.chip3, chatbot.chip4];
+const NIGHT_KEY = "lim-chat-night";
+const THEME = { light: "#FFF6EC", dark: "#1E1833" };
+
+const readNight = () => {
+  try {
+    return localStorage.getItem(NIGHT_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
+
+const center = (el: Element) => {
+  const r = el.getBoundingClientRect();
+  return [r.left + r.width / 2, r.top + r.height / 2] as const;
+};
+
+/* ── Backdrop ───────────────────────────────────────── */
+
+function Backdrop() {
+  return (
+    <div {...sx(chatbot.backdrop)} aria-hidden="true">
+      <span {...sx(chatbot.blob, chatbot.blob1)} />
+      <span {...sx(chatbot.blob, chatbot.blob2)} />
+      <span {...sx(chatbot.blob, chatbot.blob3)} />
+      <span {...sx(chatbot.blob, chatbot.blob4)} />
+      <svg viewBox="0 0 24 24" {...sx(chatbot.doodle, chatbot.doodleSparkle)}>
+        <path d="M12 1.5c.7 5.6 4.9 9.8 10.5 10.5-5.6.7-9.8 4.9-10.5 10.5C11.3 16.9 7.1 12.7 1.5 12 7.1 11.3 11.3 7.1 12 1.5Z" fill="currentColor" />
+      </svg>
+      <svg viewBox="0 0 24 24" {...sx(chatbot.doodle, chatbot.doodleRing)}>
+        <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="4" />
+      </svg>
+      <svg viewBox="0 0 48 16" {...sx(chatbot.doodle, chatbot.doodleSquiggle)}>
+        <path d="M3 8c5-7 9 7 14 0s9 7 14 0 9 7 14 0" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
+      </svg>
+      <svg viewBox="0 0 40 18" {...sx(chatbot.doodle, chatbot.doodlePill)}>
+        <rect x="2" y="2" width="36" height="14" rx="7" fill="currentColor" />
+      </svg>
+      <svg viewBox="0 0 34 12" {...sx(chatbot.doodle, chatbot.doodleDots)}>
+        <circle cx="5" cy="6" r="4" fill="currentColor" />
+        <circle cx="17" cy="6" r="4" fill="currentColor" />
+        <circle cx="29" cy="6" r="4" fill="currentColor" />
+      </svg>
+    </div>
+  );
 }
 
-const suggestedQuestions = [
-  "What is Anthony's background?",
-  "What are his technical skills?",
-  "Where has he worked?",
-  "How can I contact him?",
-];
+/* ── Messages ───────────────────────────────────────── */
+
+function ThinkingDots() {
+  return (
+    <span {...sx(chatbot.thinking)}>
+      {["#FF7E6B", "#B9A6FF", "#7FD6B5"].map((color, i) => (
+        <span key={color} {...sx(chatbot.thinkingDot)} style={{ backgroundColor: color, animationDelay: `${i * 140}ms` }} />
+      ))}
+      <span {...sx(layout.srOnly)}>Lim is thinking</span>
+    </span>
+  );
+}
+
+function AssistantMessage({
+  message,
+  last,
+  copied,
+  onCopy,
+  onRegenerate,
+}: {
+  message: ChatMessage;
+  last: boolean;
+  copied: boolean;
+  onCopy: () => void;
+  onRegenerate: () => void;
+}) {
+  const { content, status } = message;
+  const settled = status !== "streaming";
+  return (
+    <div {...sx(chatbot.row, chatbot.rowAssistant)}>
+      <LimArt mood={status === "error" ? "sad" : "idle"} {...sx(chatbot.avatar)} />
+      <div {...sx(chatbot.assistantCol)}>
+        <div {...sx(chatbot.card, status === "error" && chatbot.cardError)}>
+          {content ? (
+            <Suspense fallback={<p>{content}</p>}>
+              <MessageContent content={content} isStreaming={status === "streaming"} />
+            </Suspense>
+          ) : status === "streaming" ? (
+            <ThinkingDots />
+          ) : (
+            <p>I stopped before saying anything.</p>
+          )}
+          {status === "error" && last && (
+            <button type="button" onClick={onRegenerate} {...sx(chatbot.retry)}>
+              <RotateCcw size={16} aria-hidden="true" /> Try again
+            </button>
+          )}
+        </div>
+        {settled && status !== "error" && (
+          <div {...sx(chatbot.actions)}>
+            {status === "stopped" && <span {...sx(chatbot.tag)}>Stopped</span>}
+            {content && (
+              <button type="button" onClick={onCopy} {...sx(chatbot.action)} aria-label={copied ? "Copied" : "Copy reply"}>
+                {copied ? <Check size={15} aria-hidden="true" /> : <Copy size={15} aria-hidden="true" />}
+                {copied ? "Copied" : "Copy"}
+              </button>
+            )}
+            {last && (
+              <button type="button" onClick={onRegenerate} {...sx(chatbot.action)}>
+                <RotateCcw size={15} aria-hidden="true" /> Regenerate
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 /* ── App ────────────────────────────────────────────── */
 
 function App() {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState("");
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [replyStatus, setReplyStatus] = useState("");
-  const [showScrollButton, setShowScrollButton] = useState(false);
-  const [shadowMode, setShadowMode] = useState(true);
-
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<LimStageHandle>(null);
+  const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const leavesVideoRef = useRef<HTMLVideoElement>(null);
-  const shouldAutoScroll = useRef(true);
+  const stick = useRef(true);
+  const cheerTimer = useRef(0);
+  const copyTimer = useRef(0);
+
+  const [night, setNight] = useState(readNight);
+  const [input, setInput] = useState("");
+  const [focused, setFocused] = useState(false);
+  const [sad, setSad] = useState(false);
+  const [cheering, setCheering] = useState(false);
+  const [showJump, setShowJump] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [sendBeat, setSendBeat] = useState(0);
+  const [keyboardH, setKeyboardH] = useState<number | null>(null);
+
+  const { messages, status, busy, send, stop, regenerate, newChat } = useChat({
+    onSend: () => {
+      setSad(false);
+      setCheering(false);
+      setNotice("");
+      stageRef.current?.hop();
+    },
+    onChunk: () => stageRef.current?.talk(),
+    onDone: (firstReply) => {
+      stageRef.current?.cheer(firstReply);
+      setCheering(true);
+      window.clearTimeout(cheerTimer.current);
+      cheerTimer.current = window.setTimeout(() => setCheering(false), 2200);
+      setNotice("Reply received.");
+    },
+    onError: () => {
+      setSad(true);
+      setNotice("The reply didn't come through. Try again.");
+    },
+  });
+
+  const typing = focused && input.trim().length > 0;
+  const mood: LimMood =
+    status === "thinking" ? "thinking" : status === "streaming" ? "talking" : sad ? "sad" : cheering ? "happy" : typing ? "typing" : "idle";
+  const announce = status === "thinking" ? "Lim is thinking." : status === "streaming" ? "Lim is writing." : notice;
 
   useFavicon();
 
   useEffect(() => {
-    syncThemeColor(shadowMode ? "light" : "dark");
-  }, [shadowMode]);
-
-  // Shadow mode keyboard shortcut
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-      if (e.key === "s" || e.key === "S") setShadowMode((p) => !p);
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
-
-  // Video play/pause — honor reduced motion so the looping leaves stay still.
-  useEffect(() => {
-    const v = leavesVideoRef.current;
-    if (!v) return;
-    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const sync = () => {
-      if (!shadowMode || media.matches) {
-        v.pause();
-        return;
-      }
-      v.play().catch(() => {});
-    };
-    sync();
-    media.addEventListener("change", sync);
-    return () => media.removeEventListener("change", sync);
-  }, [shadowMode]);
+    syncThemeColor(night ? "dark" : "light", THEME);
+    try {
+      localStorage.setItem(NIGHT_KEY, night ? "1" : "0");
+    } catch {
+      /* private mode */
+    }
+  }, [night]);
 
   // PostHog (deferred — bundle-defer-third-party)
   useEffect(() => {
@@ -90,392 +230,310 @@ function App() {
     }
   }, []);
 
+  useEffect(
+    () => () => {
+      window.clearTimeout(cheerTimer.current);
+      window.clearTimeout(copyTimer.current);
+    },
+    [],
+  );
+
+  // Lim watches the pointer; Esc stops a reply; S flips the lights.
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      if (e.pointerType === "mouse") stageRef.current?.lookAt(e.clientX, e.clientY);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && busy) {
+        stop();
+        setNotice("Stopped.");
+        return;
+      }
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === "s" || e.key === "S") setNight((n) => !n);
+    };
+    window.addEventListener("pointermove", onMove, { passive: true });
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [busy, stop]);
+
+  // On-screen keyboards: size the shell to the visual viewport so the stage
+  // (and Lim) stay above the composer instead of scrolling off.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const sync = () => setKeyboardH(window.innerHeight - vv.height > 80 ? vv.height : null);
+    vv.addEventListener("resize", sync);
+    return () => vv.removeEventListener("resize", sync);
+  }, []);
+
   /* ── Scroll ── */
 
-  const scrollToBottom = useCallback((instant = false) => {
-    const el = scrollAreaRef.current;
-    if (!el) return;
-    requestAnimationFrame(() => {
-      el.scrollTo({ top: el.scrollHeight, behavior: instant ? "instant" : "smooth" });
-    });
-  }, []);
-
-  const handleScroll = useCallback(() => {
-    const el = scrollAreaRef.current;
+  const onScroll = useCallback(() => {
+    const el = logRef.current;
     if (!el) return;
     const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
-    shouldAutoScroll.current = gap < 150;
-    setShowScrollButton(gap > 200);
+    stick.current = gap < 120;
+    setShowJump(gap > 240);
   }, []);
 
-  // Auto-scroll when messages change
-  useEffect(() => {
-    if (shouldAutoScroll.current) scrollToBottom();
-  }, [messages, scrollToBottom]);
+  useLayoutEffect(() => {
+    const el = logRef.current;
+    if (el && stick.current) el.scrollTop = el.scrollHeight;
+  }, [messages]);
 
-  /* ── Input ── */
+  const jumpToLatest = () => {
+    const el = logRef.current;
+    if (!el) return;
+    stick.current = true;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  };
 
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value);
+  /* ── Composer ── */
+
+  const followCaret = () => {
     const el = inputRef.current;
     if (el) {
-      el.style.height = "auto";
-      el.style.height = Math.min(el.scrollHeight, 120) + "px";
+      const p = caretPoint(el);
+      stageRef.current?.lookAt(p.x, p.y);
     }
-  }, []);
+  };
 
-  /* ── Submit ── */
+  const onInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
+    setSad(false);
+    const el = e.target;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+    followCaret();
+  };
 
-  const handleSubmit = useCallback(
-    (e?: React.FormEvent, submittedInput?: string) => {
-      if (e) e.preventDefault();
-      const text = (submittedInput || input).trim();
-      if (!text || isStreaming) return;
+  const submit = (text: string) => {
+    if (!send(text)) return;
+    setInput("");
+    stick.current = true;
+    setSendBeat((n) => n + 1);
+    if (inputRef.current) inputRef.current.style.height = "auto";
+  };
 
-      const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: text, timestamp: Date.now() };
-      const asstMsg: ChatMessage = { id: crypto.randomUUID(), role: "assistant", content: "", timestamp: Date.now() };
-      const history = messages.map((m) => ({ role: m.role, content: m.content }));
+  const onSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (busy) {
+      stop();
+      setNotice("Stopped.");
+    } else submit(input);
+  };
 
-      setInput("");
-      shouldAutoScroll.current = true;
-      if (inputRef.current) inputRef.current.style.height = "auto";
-      scrollToBottom();
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      if (!busy) submit(input);
+    }
+  };
 
-      setMessages((prev) => [...prev, userMsg, asstMsg]);
-      void (async () => {
-        setIsStreaming(true);
-        setReplyStatus("Assistant is writing.");
-        try {
-          await invokeDeepseek(text, history, (content) => {
-            setMessages((prev) => {
-              const last = prev[prev.length - 1];
-              if (last?.role !== "assistant") return prev;
-              return prev.map((message, index) =>
-                index === prev.length - 1 ? { ...message, content } : message,
-              );
-            });
-          });
-        } catch (err) {
-          console.error(err);
-          setReplyStatus("The reply didn't come through. Try again.");
-          const fallback = errorMessage(err) || "The reply didn't come through. Try again.";
-          const partial = err instanceof TimeoutError ? err.partialContent : undefined;
-          setMessages((prev) => {
-            const last = prev[prev.length - 1];
-            if (last?.role !== "assistant") return prev;
-            return prev.map((message, index) =>
-              index === prev.length - 1
-                ? { ...message, content: formatConciergeError(partial ?? last.content, fallback) }
-                : message,
-            );
-          });
-        } finally {
-          setIsStreaming(false);
-          setReplyStatus((current) =>
-            current === "The reply didn't come through. Try again." ? current : "Reply received.",
-          );
-        }
-      })();
-    },
-    [input, isStreaming, messages, scrollToBottom],
-  );
+  const startOver = () => {
+    newChat();
+    setSad(false);
+    setCheering(false);
+    setInput("");
+    setNotice("New chat started.");
+    stageRef.current?.hop();
+    inputRef.current?.focus();
+  };
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        handleSubmit();
-      }
-    },
-    [handleSubmit],
-  );
+  const copy = (m: ChatMessage) => {
+    void navigator.clipboard?.writeText(m.content).then(() => {
+      setCopiedId(m.id);
+      setNotice("Copied to clipboard.");
+      window.clearTimeout(copyTimer.current);
+      copyTimer.current = window.setTimeout(() => setCopiedId(null), 1600);
+    });
+  };
 
-  const visibleMessages = messages;
-  const hasMessages = visibleMessages.length > 0;
-  const isLoading = isStreaming;
-  const themeClass = shadowMode ? "chatbot-shadow" : "chatbot-dark";
+  const empty = messages.length === 0;
+  const canSend = input.trim().length > 0;
 
   /* ── Render ── */
 
   return (
-    <div {...sx(chatbot.root, themeClass)}>
-      <a href="#chat-main" {...sx(chatbot.skipLink)}>
+    <div
+      {...sx(chatbot.root, focused && chatbot.rootCompact, night ? "chatbot-dark" : "chatbot-shadow")}
+      style={keyboardH ? { height: keyboardH, minHeight: 0 } : undefined}
+    >
+      <a href="#chat-main" {...sx(chatbot.skip)}>
         Skip to conversation
       </a>
-      {/* Viewport-sized wrapper + object-fit media. Putting leaves-overlay
-          on the video itself keeps the intrinsic box (width/height:auto),
-          so the leaves sit in a corner instead of covering every viewport. */}
-      <div
-        {...sx(
-          'leaves-overlay',
-          shadowMode ? 'leaves-overlay-visible' : 'leaves-overlay-hidden',
-        )}
-        aria-hidden="true"
-      >
-        <video
-          ref={leavesVideoRef}
-          src="https://leaves.anthonylim-ucsc.workers.dev/"
-          loop
-          muted
-          playsInline
-          preload="auto"
-          {...sx('leaves-overlay-media')}
-        />
-      </div>
-      <div {...sx(chatbot.overlay, chatbot.grainOverlay)} aria-hidden="true">
-        <div {...sx(chatbot.grain)} />
-      </div>
+      <Backdrop />
 
-      {/* Main column — flex child fills root, itself a flex column */}
-      <div {...sx(chatbot.column)}>
-        {/* ── Header ── */}
-        <header
-          {...sx(
-            chatbot.header,
-            hasMessages ? chatbot.headerCompact : chatbot.headerExpanded,
-            chatbot.headerFooter,
-          )}
-        >
-          <div {...sx('col-fade-in')}>
-            <h1
-              {...sx(
-                chatbot.title,
-                hasMessages ? chatbot.titleCompact : null,
-                'chat-text',
-              )}
-            >
-              Anthony Lim
-            </h1>
-            <p
-              {...sx(
-                chatbot.subtitle,
-                hasMessages ? chatbot.subtitleCompact : null,
-                'chat-mid',
-              )}
-            >
-              Software Engineer
-            </p>
-            <div
-              {...sx(
-                chatbot.headerRule,
-                hasMessages ? chatbot.headerRuleCompact : chatbot.headerRuleExpanded,
-                'chat-border',
-              )}
-            />
+      <header {...sx(chatbot.top)}>
+        <Link to="/" {...sx(chatbot.iconButton, chatbot.homeLink)} aria-label="Back to anthonyl.im">
+          <ArrowLeft size={18} aria-hidden="true" />
+        </Link>
+        <div {...sx(chatbot.brand)}>
+          <LimArt mood={mood} {...sx(chatbot.brandMark)} />
+          <div {...sx(chatbot.brandText)}>
+            <h1 {...sx(chatbot.brandName)}>Lim</h1>
+            <span {...sx(chatbot.brandSub)}>Anthony's jelly sidekick</span>
           </div>
-        </header>
-
-        {/* ── Scrollable area — THE scroll container ── */}
-        <main
-          id="chat-main"
-          tabIndex={-1}
-          ref={scrollAreaRef}
-          onScroll={handleScroll}
-          {...sx(chatbot.scrollArea)}
+        </div>
+        <button type="button" onClick={startOver} {...sx(chatbot.iconButton)} aria-label="New chat">
+          <Plus size={18} aria-hidden="true" />
+          <span {...sx(chatbot.iconButtonLabel)} aria-hidden="true">
+            New chat
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setNight((n) => !n)}
+          {...sx(chatbot.iconButton)}
+          aria-label="Night mode"
+          aria-pressed={night}
         >
-          <div
-            role="log"
-            aria-label="Conversation"
-            aria-live="polite"
-            aria-relevant="additions"
-            aria-busy={isStreaming}
-          >
-            {hasMessages ? (
-              <div {...sx(chatbot.messageList)}>
-                {visibleMessages.map((message, index) => {
-                  const isUser = message.role === "user";
-                  const isLastAssistant = !isUser && index === visibleMessages.length - 1;
-                  if (!message.content && !(isLastAssistant && isLoading)) return null;
+          {night ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
+        </button>
+      </header>
 
-                  return (
-                    <div
-                      key={message.id}
-                      {...sx(
-                        'animate-message-in',
-                        isUser ? chatbot.messageRowEnd : null,
-                      )}
+      <div {...sx(chatbot.stageArea)} aria-hidden="true">
+        <LimStage ref={stageRef} mood={mood} night={night} />
+        <p {...sx(chatbot.stageCaption, (focused || !empty) && chatbot.stageCaptionHidden)}>
+          psst — poke me, or fling me around
+        </p>
+      </div>
+
+      <main id="chat-main" tabIndex={-1} {...sx(chatbot.panel)}>
+        <div
+          ref={logRef}
+          onScroll={onScroll}
+          {...sx(chatbot.log)}
+          role="log"
+          aria-label="Conversation"
+          aria-live="polite"
+          aria-relevant="additions"
+          aria-busy={busy}
+        >
+          <div {...sx(chatbot.logInner)}>
+            {empty ? (
+              <div {...sx(chatbot.empty)}>
+                <span {...sx(chatbot.kicker)}>
+                  <span {...sx(chatbot.kickerDot)} aria-hidden="true" /> Squishy and online
+                </span>
+                <h2 {...sx(chatbot.hello)}>
+                  Hi, I'm <span {...sx(chatbot.helloAccent)}>Lim</span>!
+                </h2>
+                <p {...sx(chatbot.intro)}>
+                  Anthony's jelly sidekick. Ask me about his work, his craft, or how to say hello. I'll answer as
+                  best I can, with only a little wobbling.
+                </p>
+                <div {...sx(chatbot.chips)}>
+                  {SUGGESTIONS.map(({ text, Icon }, i) => (
+                    <button
+                      key={text}
+                      type="button"
+                      onClick={() => submit(text)}
+                      onPointerEnter={(e) => stageRef.current?.lookAt(...center(e.currentTarget))}
+                      onFocus={(e) => stageRef.current?.lookAt(...center(e.currentTarget))}
+                      {...sx(chatbot.chip, CHIP_TINTS[i % CHIP_TINTS.length])}
+                      style={{ animationDelay: `${460 + i * 70}ms` }}
                     >
-                      {isUser ? (
-                        <div {...sx(chatbot.userBubble, 'chat-user-bubble')}>
-                          {message.content}
-                        </div>
-                      ) : (
-                        <div {...sx(chatbot.assistantBubble)}>
-                          {message.content ? (
-                            <Suspense fallback={<MessageSkeleton />}>
-                              <MessageContent content={message.content} isStreaming={isLastAssistant && isStreaming} />
-                            </Suspense>
-                          ) : (
-                            <TypingIndicator />
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-                {/* Scroll anchor */}
-                <div {...sx(chatbot.scrollAnchor)} />
+                      <span {...sx(chatbot.chipIcon)} aria-hidden="true">
+                        <Icon size={16} strokeWidth={2.2} />
+                      </span>
+                      {text}
+                    </button>
+                  ))}
+                </div>
               </div>
             ) : (
-              <div {...sx(chatbot.emptyState, 'col-fade-in', 'stagger-2')}>
-                <h2 {...sx(chatbot.emptyHeading, 'chat-text')}>
-                  Ask me anything about Anthony&apos;s
-                  <br />
-                  experience, skills, and background.
-                </h2>
-              </div>
+              messages.map((m, i) =>
+                m.role === "user" ? (
+                  <div key={m.id} {...sx(chatbot.row, chatbot.rowUser)}>
+                    <div {...sx(chatbot.userBubble)}>{m.content}</div>
+                  </div>
+                ) : (
+                  <AssistantMessage
+                    key={m.id}
+                    message={m}
+                    last={i === messages.length - 1}
+                    copied={copiedId === m.id}
+                    onCopy={() => copy(m)}
+                    onRegenerate={regenerate}
+                  />
+                ),
+              )
             )}
           </div>
-          <div {...sx(layout.srOnly)} role="status" aria-live="polite">
-            {replyStatus}
-          </div>
-        </main>
+        </div>
 
-        {/* Scroll-to-bottom FAB */}
-        {showScrollButton && (
-          <div {...sx(chatbot.scrollFabWrap)}>
-            <button
-              onClick={() => {
-                shouldAutoScroll.current = true;
-                scrollToBottom();
-              }}
-              {...sx(chatbot.scrollFab, 'animate-scale-in', 'chat-scroll-btn')}
-              aria-label="Scroll to bottom"
-            >
-              <ChevronDown {...sx(chatbot.iconSm)} />
+        <form onSubmit={onSubmit} {...sx(chatbot.composer)}>
+          {showJump && !empty && (
+            <button type="button" onClick={jumpToLatest} {...sx(chatbot.jump)}>
+              <ArrowDown size={16} aria-hidden="true" /> Jump to latest
             </button>
-          </div>
-        )}
-
-        {/* ── Footer: suggestions + input ── */}
-        <div {...sx(chatbot.footer, chatbot.headerFooter)}>
-          <Activity mode={hasMessages ? "hidden" : "visible"} name="chat-suggestions-grid">
-            <div {...sx(chatbot.suggestionsGrid, 'col-fade-in', 'stagger-3')}>
-              {suggestedQuestions.map((q) => (
-                <button
-                  key={q}
-                  onClick={() => handleSubmit(undefined, q)}
-                  disabled={isLoading}
-                  {...sx(chatbot.suggestionBtn, 'chat-suggestion')}
-                >
-                  {q}
-                </button>
-              ))}
-            </div>
-          </Activity>
-          <Activity mode={hasMessages ? "visible" : "hidden"} name="chat-suggestions-row">
-            <div {...sx(chatbot.suggestionsRowWrap)}>
-              <div {...sx(chatbot.suggestionsRow, 'no-scrollbar')}>
-                {suggestedQuestions.map((q) => (
-                  <button
-                    key={q}
-                    onClick={() => handleSubmit(undefined, q)}
-                    disabled={isLoading}
-                    {...sx(chatbot.suggestionChip, 'chat-suggestion')}
-                  >
-                    {q}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </Activity>
-
-          <form onSubmit={handleSubmit} aria-busy={isStreaming}>
-            <div {...sx(chatbot.inputBox, 'chat-input-box')}>
-              <label htmlFor="chat-input" {...sx(layout.srOnly)}>
-                Ask about Anthony
-              </label>
+          )}
+          <div {...sx(chatbot.composerInner)}>
+            <label htmlFor="chat-input" {...sx(layout.srOnly)}>
+              Ask about Anthony
+            </label>
+            <div {...sx(chatbot.box)}>
               <textarea
-                id="chat-input"
                 ref={inputRef}
-                value={input}
-                onChange={handleInputChange}
-                onKeyDown={handleKeyDown}
-                placeholder="Ask anything..."
-                disabled={isLoading}
+                id="chat-input"
                 rows={1}
-                {...sx(
-                  chatbot.textarea,
-                  chatbot.textareaFocus,
-                  isLoading && chatbot.textareaDisabled,
-                  'chat-input',
-                )}
+                value={input}
+                onChange={onInput}
+                onKeyDown={onKeyDown}
+                onKeyUp={followCaret}
+                onClick={followCaret}
+                onFocus={() => {
+                  setFocused(true);
+                  followCaret();
+                }}
+                onBlur={() => setFocused(false)}
+                placeholder="Ask Lim about Anthony…"
+                enterKeyHint="send"
+                {...sx(chatbot.textarea)}
               />
               <button
                 type="submit"
-                disabled={isLoading || !input.trim()}
-                aria-label={isStreaming ? "Sending" : "Send message"}
-                {...sx(chatbot.sendBtn, 'chat-send')}
+                {...sx(
+                  chatbot.send,
+                  sendBeat > 0 && (sendBeat % 2 ? chatbot.sendSquish : chatbot.sendSquishAgain),
+                  !busy && !canSend && chatbot.sendIdle,
+                )}
+                aria-label={busy ? "Stop generating" : "Send message"}
+                aria-disabled={!busy && !canSend}
               >
-                <Send
-                  {...sx(
-                    chatbot.iconSm,
-                    isStreaming && chatbot.sendIconPulse,
-                  )}
-                />
+                {busy ? (
+                  <Square size={16} fill="currentColor" aria-hidden="true" />
+                ) : (
+                  <ArrowUp size={20} strokeWidth={2.6} aria-hidden="true" />
+                )}
               </button>
             </div>
-          </form>
-
-          <div {...sx(chatbot.footerRow)}>
-            <p {...sx(chatbot.footerNote, 'chat-footer')}>
-              Powered by AI · Responses may be inaccurate
+            <p {...sx(chatbot.hint)}>
+              <span>
+                <kbd {...sx(chatbot.kbd)}>Enter</kbd> to send
+              </span>
+              <span>
+                <kbd {...sx(chatbot.kbd)}>Shift</kbd>+<kbd {...sx(chatbot.kbd)}>Enter</kbd> new line
+              </span>
+              {busy && (
+                <span>
+                  <kbd {...sx(chatbot.kbd)}>Esc</kbd> to stop
+                </span>
+              )}
             </p>
-            <button
-              type="button"
-              onClick={() => setShadowMode((p) => !p)}
-              {...sx(chatbot.themeToggle, 'chat-mid')}
-              title={shadowMode ? "Press S for dark mode" : "Press S for shadow mode"}
-              aria-label={shadowMode ? "Switch to dark mode" : "Switch to shadow mode"}
-              aria-pressed={shadowMode}
-            >
-              [{shadowMode ? "S:on" : "S"}]
-            </button>
           </div>
-        </div>
+        </form>
+      </main>
+
+      <div role="status" aria-live="polite" {...sx(layout.srOnly)}>
+        {announce}
       </div>
-    </div>
-  );
-}
-
-/* ── Extracted static components (rendering-hoist-jsx) ── */
-
-function TypingIndicator() {
-  return (
-    <div
-      {...sx(chatbot.typingRow)}
-      role="status"
-      aria-live="polite"
-      aria-label="Assistant is typing"
-    >
-      <span
-        {...sx(chatbot.typingDot, 'chat-typing-dot', 'animate-typing-dot')}
-      />
-      <span
-        {...sx(
-          chatbot.typingDot,
-          chatbot.typingDotDelay1,
-          'chat-typing-dot',
-          'animate-typing-dot',
-        )}
-      />
-      <span
-        {...sx(
-          chatbot.typingDot,
-          chatbot.typingDotDelay2,
-          'chat-typing-dot',
-          'animate-typing-dot',
-        )}
-      />
-    </div>
-  );
-}
-
-function MessageSkeleton() {
-  return (
-    <div {...sx(chatbot.skeleton)}>
-      <div {...sx(chatbot.skeletonLineWide, 'chat-skeleton')} />
-      <div {...sx(chatbot.skeletonLineNarrow, 'chat-skeleton-light')} />
     </div>
   );
 }

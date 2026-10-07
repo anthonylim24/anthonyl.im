@@ -1,0 +1,140 @@
+/* Chatbot (`/chatbot`) — "Sorbet studio". Lim coral is the one accent; the
+   pastels are set dressing; plum ink carries the text. Vars + things StyleX
+   can't express (code theme, selection, border-color layer handoff). */
+
+.chatbot-shadow {
+  --chat-bg: #FFF6EC;
+  --chat-text: #2B2140;
+  --chat-bright: #1C142E;
+  --chat-mid: #5E5373;
+  --chat-soft: #6E6383;
+  --chat-line: rgba(43, 33, 64, 0.12);
+  --chat-panel: #FFFBF6;
+  --chat-card: #FFFFFF;
+  --chat-card-line: rgba(43, 33, 64, 0.08);
+  --chat-user-bg: #2B2140;
+  --chat-user-text: #FFF6EC;
+  --chat-accent: #FF7E6B;
+  --chat-accent-hi: #FFB59E;
+  --chat-accent-deep: #E0526A;
+  --chat-on-accent: #2B2140;
+  --chat-focus: #C2364F;
+  --chat-code-bg: #2B2140;
+  --chat-code-text: #F3EDFF;
+  --chat-code-chrome: #9A8FB5;
+  --chat-inline-code-bg: #F0EAFF;
+  --chat-inline-code-text: #3D2C66;
+  --chat-chip-1: #EDE6FF;
+  --chat-chip-2: #DDF5EA;
+  --chat-chip-3: #FFF0C2;
+  --chat-chip-4: #FFE3D8;
+  --chat-blob-1: #E6DCFF;
+  --chat-blob-2: #C8F0E0;
+  --chat-blob-3: #FFE7A8;
+  --chat-blob-4: #FFD3C4;
+  --chat-floor: #FCE5D8;
+  --chat-rug: #C8F0E0;
+  --chat-error-bg: #FFE8EC;
+  --chat-error-line: rgba(194, 54, 79, 0.22);
+  --chat-error-text: #8A1F3A;
+  --chat-shadow: 0 1px 2px rgba(43, 33, 64, 0.05), 0 12px 32px -18px rgba(43, 33, 64, 0.28);
+  --lim-ink-line: #4A2F5C;
+  background-color: var(--chat-bg);
+}
+
+.chatbot-dark {
+  --chat-bg: #1E1833;
+  --chat-text: #F3EDFF;
+  --chat-bright: #FFFFFF;
+  --chat-mid: #BDB3D6;
+  --chat-soft: #A79CC4;
+  --chat-line: rgba(243, 237, 255, 0.12);
+  --chat-panel: #241D3D;
+  --chat-card: #2A2246;
+  --chat-card-line: rgba(243, 237, 255, 0.08);
+  --chat-user-bg: #F3EDFF;
+  --chat-user-text: #2B2140;
+  --chat-accent: #FF8B7A;
+  --chat-accent-hi: #FFC2B2;
+  --chat-accent-deep: #FF6F7D;
+  --chat-on-accent: #2B2140;
+  --chat-focus: #FF9C8C;
+  --chat-code-bg: #15102A;
+  --chat-code-text: #F3EDFF;
+  --chat-code-chrome: #A79CC4;
+  --chat-inline-code-bg: rgba(199, 182, 255, 0.16);
+  --chat-inline-code-text: #E2D9FF;
+  --chat-chip-1: #342A5C;
+  --chat-chip-2: #213F44;
+  --chat-chip-3: #3E3528;
+  --chat-chip-4: #43283E;
+  --chat-blob-1: #3A2E6E;
+  --chat-blob-2: #1C4A4A;
+  --chat-blob-3: #4A3A24;
+  --chat-blob-4: #4F2846;
+  --chat-floor: #2A2250;
+  --chat-rug: #3D3474;
+  --chat-error-bg: #3A1E35;
+  --chat-error-line: rgba(255, 143, 168, 0.28);
+  --chat-error-text: #FFB3C1;
+  --chat-shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 16px 36px -18px rgba(0, 0, 0, 0.6);
+  --lim-ink-line: #140E28;
+  background-color: var(--chat-bg);
+}
+
+/* Paint the html canvas to match so iOS overscroll / safe areas blend. */
+html:has(.chatbot-shadow) { background-color: #FFF6EC; }
+html:has(.chatbot-dark) { background-color: #1E1833; }
+
+/* The global unlayered `* { border-color }` (shadcn legacy) would beat every
+   layered StyleX border colour; hand the chatbot back to its own layer. */
+.chatbot-shadow,
+.chatbot-shadow *,
+.chatbot-dark,
+.chatbot-dark * { border-color: revert-layer; }
+
+/* The global unlayered `:focus-visible` ring would beat StyleX; give the
+   chatbot its own ring. The composer box draws its own focus-within glow. */
+.chatbot-shadow :focus-visible,
+.chatbot-dark :focus-visible { outline: 3px solid var(--chat-focus); outline-offset: 2px; }
+.chatbot-shadow textarea:focus-visible,
+.chatbot-dark textarea:focus-visible,
+.chatbot-shadow main:focus-visible,
+.chatbot-dark main:focus-visible { outline: none; }
+
+.chatbot-shadow ::selection { background: #FFD3C4; color: #2B2140; }
+.chatbot-dark ::selection { background: #5A4A99; color: #FFFFFF; }
+
+/* Candy code theme (replaces github-dark) — pastel tokens on plum. */
+.lim-code .hljs { color: var(--chat-code-text); background: transparent; }
+.lim-code .hljs-comment,
+.lim-code .hljs-quote { color: #9A8FB5; font-style: italic; }
+.lim-code .hljs-keyword,
+.lim-code .hljs-selector-tag,
+.lim-code .hljs-tag,
+.lim-code .hljs-doctag { color: #FF9FC5; }
+.lim-code .hljs-string,
+.lim-code .hljs-regexp,
+.lim-code .hljs-addition,
+.lim-code .hljs-template-tag { color: #9EE6C8; }
+.lim-code .hljs-number,
+.lim-code .hljs-literal,
+.lim-code .hljs-symbol,
+.lim-code .hljs-bullet { color: #FFD978; }
+.lim-code .hljs-title,
+.lim-code .hljs-title.function_,
+.lim-code .hljs-section,
+.lim-code .hljs-name { color: #9FD3FF; }
+.lim-code .hljs-attr,
+.lim-code .hljs-attribute,
+.lim-code .hljs-property,
+.lim-code .hljs-selector-class,
+.lim-code .hljs-selector-id,
+.lim-code .hljs-variable.language_ { color: #C7B6FF; }
+.lim-code .hljs-built_in,
+.lim-code .hljs-type,
+.lim-code .hljs-meta,
+.lim-code .hljs-params { color: #FFB59E; }
+.lim-code .hljs-deletion { color: #FF8FA8; }
+.lim-code .hljs-emphasis { font-style: italic; }
+.lim-code .hljs-strong { font-weight: 600; }

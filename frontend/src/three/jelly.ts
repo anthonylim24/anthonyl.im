@@ -46,6 +46,12 @@ export class Jelly {
   anchor: { target: Vec3; k: number; c: number } | null = null
   /** Particles touching the floor in the last step. */
   contacts = 0
+  /**
+   * Pull the goal rotation toward `uprightTarget`, as a fraction per 1/60 s
+   * (0 = free tumbling). Characters with a face use it to right themselves.
+   */
+  upright = 0
+  uprightTarget: [number, number, number, number] = [0, 0, 0, 1]
 
   stiffness: number
   beta: number
@@ -213,6 +219,8 @@ export class Jelly {
     const n = Math.max(1, this.substeps)
     const h = dt / n
     const pull = 1 - Math.pow(1 - Math.min(0.999, this.stiffness), h * 60)
+    const rightBy = this.upright > 0 ? 1 - Math.pow(1 - Math.min(0.999, this.upright), h * 60) : 0
+    const goalRot: [number, number, number, number] = [0, 0, 0, 1]
     const keep = Math.exp(-this.damping * h)
     const slide = Math.pow(this.friction, h * 60)
     const { x, v, p, q, count } = this
@@ -258,7 +266,9 @@ export class Jelly {
         apq[6] += pz * qx; apq[7] += pz * qy; apq[8] += pz * qz
       }
       extractRotation(apq, this.rotation)
-      quatToMat3(this.rotation, r)
+      // The true rotation stays the warm start; only the goal leans upright.
+      if (rightBy > 0) nlerpQuat(this.rotation, this.uprightTarget, rightBy, goalRot)
+      quatToMat3(rightBy > 0 ? goalRot : this.rotation, r)
       mul3(apq, this.aqq, a)
       const det = det3(a)
       const m = this.m
@@ -381,6 +391,18 @@ function quatToMat3(q: [number, number, number, number], out: number[]) {
   out[6] = 2 * (x * z - y * w)
   out[7] = 2 * (y * z + x * w)
   out[8] = 1 - 2 * (x * x + y * y)
+}
+
+function nlerpQuat(
+  a: [number, number, number, number],
+  b: [number, number, number, number],
+  t: number,
+  out: [number, number, number, number],
+) {
+  const sign = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3] < 0 ? -1 : 1
+  for (let k = 0; k < 4; k++) out[k] = a[k] + (sign * b[k] - a[k]) * t
+  const len = Math.hypot(out[0], out[1], out[2], out[3]) || 1
+  for (let k = 0; k < 4; k++) out[k] /= len
 }
 
 /** Müller 2016: iterate q toward the rotational part of A (warm-started). */
