@@ -1,10 +1,10 @@
-# anthonyl.im — Impeccable Design Context
+# anthonyl.im — Design Context
 
 This repo hosts four experiences under one Vite SPA: a personal AI chatbot (`/`), **BreathFlow** (`/breathwork`), the **Korea** itinerary (`/trips/korea-2026`; `/korea` redirects), and a generic **trip planner** (`/trips`). Each has its own visual identity; all share the craft principles below.
 
 Frontend network I/O uses **Effect v3** — do not add raw `fetch` for `/api`. UI styling uses **StyleX** — do not add Tailwind. Engineering: [`CLAUDE.md`](CLAUDE.md). Skills: [`.agents/skills/README.md`](.agents/skills/README.md).
 
-**Register (Impeccable):** chatbot = personal brand surface; BreathFlow / Korea / Trips = product UIs. Infer the register from the route before applying craft rules.
+**Register:** chatbot = personal brand surface; BreathFlow / Korea / Trips = product UIs. Infer the register from the route before applying craft rules.
 
 ## Shared Design Principles (apply to every route)
 

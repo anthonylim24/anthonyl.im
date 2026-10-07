@@ -7,7 +7,7 @@ This repo hosts four experiences under one Vite SPA: a personal AI chatbot, **Br
 | Need | File |
 |------|------|
 | Engineering, routes, env, CI, tree | [`CLAUDE.md`](CLAUDE.md) |
-| Design context for Impeccable / UI work | [`PRODUCT.md`](PRODUCT.md) |
+| Design context for UI work | [`PRODUCT.md`](PRODUCT.md) |
 | Skill catalog (what to use, what to ignore) | [`.agents/skills/README.md`](.agents/skills/README.md) |
 | CI/CD | [`docs/ci-cd.md`](docs/ci-cd.md) |
 | PR previews + Clerk screenshot login | [`docs/pr-previews.md`](docs/pr-previews.md) |
@@ -282,11 +282,10 @@ Read the matching skill before writing code. Catalog: [`.agents/skills/README.md
 | [`effect-ts`](.agents/skills/effect-ts/SKILL.md) | Any frontend `/api`, SSE, or third-party HTTP. Required. |
 | [`stylex`](.agents/skills/stylex/SKILL.md) | UI styling, layout, tokens, visual parity, `*.stylex.ts`, `index.css` semantic classes. Required for frontend UI. |
 | `vercel-react-best-practices` | React 19 render and bundle performance. Translate Next.js examples to Vite/`React.lazy` + Hono. |
-| `impeccable` | Design, critique, polish. Reads `PRODUCT.md`. |
 | `clerk` + `clerk-react-patterns` | Clerk auth. Core 2 `@clerk/clerk-react`. See [`.agents/memory/clerk.md`](.agents/memory/clerk.md). |
 | `clerk-testing` / `clerk-cli` | Tests or dashboard/CLI only |
 
-**Do not apply** Clerk Next.js / React Router SSR / Expo / Vue / mobile / billing / orgs / webhook skills — wrong stack. `design-taste-frontend` is landing-page only (not BreathFlow/Korea/Trips). Prefer impeccable over `redesign-existing-projects`.
+**Do not apply** Clerk Next.js / React Router SSR / Expo / Vue / mobile / billing / orgs / webhook skills — wrong stack. `design-taste-frontend` is landing-page only (not BreathFlow/Korea/Trips).
 
 Short pointers: [`.agents/memory/effect-ts.md`](.agents/memory/effect-ts.md), [`.agents/memory/stylex.md`](.agents/memory/stylex.md), [`.agents/memory/ci-cd.md`](.agents/memory/ci-cd.md), [`.agents/memory/clerk.md`](.agents/memory/clerk.md).
 
