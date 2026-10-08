@@ -1,10 +1,12 @@
 /* BreathFlow watercolour: cold-press paper, painted washes, brush strokes.
    SVG filters referenced here are defined once in WatercolorDefs.tsx. */
 
-/* Cotton cold-press tooth: lit fractal noise, multiplied over everything. */
+/* Cotton cold-press tooth: lit fractal noise, multiplied over everything.
+   Absolute over the whole page, not fixed: a full-screen fixed layer makes
+   iOS Safari paint solid bands behind its status bar and toolbar. */
 .bf-paper {
   pointer-events: none;
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: 1;
   opacity: 0.5;
