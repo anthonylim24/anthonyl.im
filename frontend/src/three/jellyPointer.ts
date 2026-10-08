@@ -11,10 +11,17 @@ export type JellyPointerOptions = {
   camera: THREE.Camera
   bodies: Jelly[]
   reducedMotion: boolean
-  /** Let touch drag the body (pages that don't need vertical scroll there). */
+  /**
+   * Let touch drag the body. A touch that lands on a body doesn't scroll the
+   * page; touches elsewhere still do.
+   */
   touchDrag?: boolean
   /** Grab patch radius as a fraction of body radius. */
   grabRadius?: number
+  /** Hit sphere around each body, as a multiple of its mean radius. */
+  pickScale?: number
+  /** How firmly the grabbed patch follows the pointer (0..1 per substep). */
+  grip?: number
   pokeStrength?: number
   onPoke?: (body: Jelly, point: Vec3) => void
   onGrab?: (body: Jelly) => void
@@ -37,6 +44,8 @@ export function bindJellyPointer(opts: JellyPointerOptions): JellyPointer {
   const { host, camera, bodies, reducedMotion } = opts
   const grabRadius = opts.grabRadius ?? 0.85
   const pokeStrength = opts.pokeStrength ?? 4
+  const pickScale = opts.pickScale ?? 1.08
+  const grip = opts.grip ?? 0.28
   const pointer = { ndc: new THREE.Vector2(), inside: false }
   const ray = new THREE.Raycaster()
   const sphere = new THREE.Sphere()
@@ -66,7 +75,7 @@ export function bindJellyPointer(opts: JellyPointerOptions): JellyPointer {
     let bestD = Infinity
     for (const body of bodies) {
       sphere.center.set(...body.center)
-      sphere.radius = body.radius * 1.08
+      sphere.radius = body.radius * pickScale
       if (!ray.ray.intersectSphere(sphere, hit)) continue
       const d = hit.distanceTo(ray.ray.origin)
       if (d < bestD) {
@@ -118,7 +127,7 @@ export function bindJellyPointer(opts: JellyPointerOptions): JellyPointer {
       return {
         i,
         offset: [body.x[i * 3] - point.x, body.x[i * 3 + 1] - point.y, body.x[i * 3 + 2] - point.z] as Vec3,
-        k: 0.28 * (1 - d / r) ** 3 + 0.004,
+        k: grip * (1 - d / r) ** 3 + 0.004,
       }
     })
     drag = { id: e.pointerId, body, start: point.clone(), pins, x0: e.clientX, y0: e.clientY, moved: 0 }
@@ -140,12 +149,23 @@ export function bindJellyPointer(opts: JellyPointerOptions): JellyPointer {
   const onLeave = () => {
     pointer.inside = false
   }
+  // Pointer events can't stop a touch from panning the page; a non-passive
+  // touchstart can, so a finger on the body drags it instead of scrolling.
+  const onTouchStart = (e: TouchEvent) => {
+    if (reducedMotion || isControl(e.target) || e.touches.length > 1) return
+    const t = e.touches[0]
+    const r = host.getBoundingClientRect()
+    pointer.ndc.set(((t.clientX - r.left) / r.width) * 2 - 1, -((t.clientY - r.top) / r.height) * 2 + 1)
+    ray.setFromCamera(pointer.ndc, camera)
+    if (pick()) e.preventDefault()
+  }
 
   host.addEventListener('pointermove', onMove)
   host.addEventListener('pointerdown', onDown)
   host.addEventListener('pointerup', onUp)
   host.addEventListener('pointercancel', onUp)
   host.addEventListener('pointerleave', onLeave)
+  if (opts.touchDrag) host.addEventListener('touchstart', onTouchStart, { passive: false })
 
   return {
     pointer,
@@ -157,6 +177,7 @@ export function bindJellyPointer(opts: JellyPointerOptions): JellyPointer {
       host.removeEventListener('pointerup', onUp)
       host.removeEventListener('pointercancel', onUp)
       host.removeEventListener('pointerleave', onLeave)
+      host.removeEventListener('touchstart', onTouchStart)
       host.style.cursor = ''
     },
   }

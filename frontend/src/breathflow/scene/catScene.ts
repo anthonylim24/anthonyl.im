@@ -12,6 +12,8 @@
  *    the tail sways slowly.
  *  - hold (empty): eyes closed in a contented squint.
  *  - idle: blinks, ear twitches, a lazy tail swish. Poke for a giggle.
+ *  - drag (mouse or touch): the body goes loose and stretches after the
+ *    finger, then boings home, wobbles and squashes on the paper.
  *
  * Easter egg: five quick taps and the cat pops (in a paint splash) into a
  * pink puffball who puffs up hugely on the inhale, floats on the hold, and
@@ -33,9 +35,11 @@ import {
   max,
   min,
   mix,
+  mrt,
   normalLocal,
   normalView,
   normalize,
+  output,
   pass,
   positionLocal,
   positionViewDirection,
@@ -50,6 +54,8 @@ import {
   vec4,
 } from 'three/tsl'
 import type { Node } from 'three/webgpu'
+import { ao } from 'three/addons/tsl/display/GTAONode.js'
+import { bloom } from 'three/addons/tsl/display/BloomNode.js'
 import { filmHD } from 'three-blocks/core-tsl-effects'
 import { Jelly, icosphere, type Vec3 } from '@/three/jelly'
 import { jellyGeometry, syncJellyGeometry } from '@/three/jellyMesh'
@@ -114,12 +120,12 @@ const PAINT = {
   earInner: '#E69AA6',
   blush: '#E9737F',
   mouth: '#5A2232',
-  puffMass: '#EE7FA8',
-  puffGlaze: '#F7B6CB',
-  puffFeet: '#D3264B',
-  puffEye: '#1D1A3A',
-  puffEyeLow: '#3553D6',
-  puffBlush: '#E8466A',
+  puffMass: '#F28AB0',
+  puffGlaze: '#FDBDD2',
+  puffFeet: '#DA1F4A',
+  puffEye: '#15112C',
+  puffEyeLow: '#2F5BE8',
+  puffBlush: '#F2507C',
   air: '#9CC3E6',
   moon: '#C9D6FF',
   moonGlint: '#F1F4FF',
@@ -128,6 +134,7 @@ const PAINT = {
 type Face = {
   open: number // eye opening (0 shut … 1.2 wide)
   lid: number // shut-eye arc: +1 relaxed ‿, -1 happy ∩
+  squint: number // shut eyes squeezed into > < (puffball)
   pupil: number // pupil width
   mouth: number // open mouth
   blush: number
@@ -135,7 +142,7 @@ type Face = {
   ear: number // perk (+) / droop (−)
   puff: number // cheek puff
 }
-const face = (f: Partial<Face>): Face => ({ open: 1, lid: -1, pupil: 0.35, mouth: 0, blush: 0.2, whisker: 0, ear: 0, puff: 0, ...f })
+const face = (f: Partial<Face>): Face => ({ open: 1, lid: -1, squint: 0, pupil: 0.35, mouth: 0, blush: 0.2, whisker: 0, ear: 0, puff: 0, ...f })
 
 /** Hex → linear RGB as a vec3 uniform value. */
 function rgb(hex: string): THREE.Vector3 {
@@ -169,7 +176,7 @@ const catBody = (x: number, y: number, z: number): Vec3 => {
 }
 // Head: wide, with fuller cheeks low down.
 const catHead = (x: number, y: number, z: number): Vec3 => [x * 0.6 * (1 + 0.12 * Math.max(0, -y)), y * 0.5, z * 0.5]
-const puffBody = (x: number, y: number, z: number): Vec3 => [x * 0.9, y * 0.84, z * 0.86]
+const puffBody = (x: number, y: number, z: number): Vec3 => [x * 0.9, y * 0.86, z * 0.88]
 
 export async function createBloomScene(opts: BloomSceneOptions): Promise<BloomScene> {
   const { canvas, host, reducedMotion } = opts
@@ -186,6 +193,11 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
   const { host, anchor, pointerHost, mode, reducedMotion, read, onFirstFrame } = opts
   const { renderer } = stage
   const T = stage.time as F
+  // High tier (WebGPU): contact occlusion pooled as pigment, a moonlit glow
+  // at night, and pen hatching in the shadows. Dropped if frames struggle.
+  // `?quality=base|high` forces a tier (for comparing).
+  const forced = new URLSearchParams(location.search).get('quality')
+  let hq = forced ? forced === 'high' : (renderer.backend as { isWebGPUBackend?: boolean }).isWebGPUBackend === true
 
   const scene = new THREE.Scene()
   const camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 100)
@@ -216,6 +228,11 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
   const uMouth = uniform(0)
   const uBlush = uniform(0.2)
   const uWhisker = uniform(0)
+  const uSquint = uniform(0)
+  const uHQ = uniform(hq ? 1 : 0)
+  /** The contact shadow: x in screen UV, and how far the body is lifted (cat units). */
+  const uShadowX = uniform(0.5)
+  const uLift = uniform(0)
   const paperDay = uniform(rgb(PAPER_DAY))
   const paperNight = uniform(rgb(PAPER_NIGHT))
   const massNode = uMass
@@ -265,9 +282,12 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
       col = glaze(col, which === 'mass' ? massNode : glazeNode, density)
     }
 
-    // A wash of shadow pooled under the cat.
-    const sh = p.sub(c.add(vec2(0, uUnitUV.mul(1.06)))).div(vec2(uUnitUV.mul(0.85), uUnitUV.mul(0.16)))
-    const shadow = float(1).sub(smoothstep(0.5, 1, length(sh).add(fine.mul(0.12))))
+    // A wash of shadow pooled under the cat. It follows the body when dragged,
+    // spreading out and fading as it's lifted off the paper.
+    const spreadUp = uLift.mul(0.5).add(1)
+    const sc = vec2(uShadowX.mul(uAspect), c.y.add(uUnitUV.mul(1.06)))
+    const sh = p.sub(sc).div(vec2(uUnitUV.mul(0.85), uUnitUV.mul(0.16)).mul(spreadUp))
+    const shadow = float(1).sub(smoothstep(0.5, 1, length(sh).add(fine.mul(0.12)))).div(uLift.mul(2.2).add(1))
     // By day a glaze of pigment; at night the dark paper just gets darker.
     col = mix(glaze(col, massNode, shadow.mul(0.3).mul(settle)), col.mul(float(1).sub(shadow.mul(0.45))), uNight)
 
@@ -300,7 +320,8 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
   scene.add(sheet)
 
   // ── Watercolour shading ──────────────────────────────────────────
-  const under = paper(screenUV, false)
+  const paperUnder = paper(screenUV, false)
+  const under = paperUnder
   const grain = noise(screenUV.mul(vec2(uAspect, 1)).mul(1.1)).b
   const rag = noise(screenUV.mul(vec2(uAspect, 1)).mul(2.6)).r.sub(0.5).mul(0.16)
   /**
@@ -323,6 +344,19 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
     rim: smoothstep(0.5, 0.9, float(1).sub(facing)).mul(saturate(dot(N, RIM_DIR).mul(0.8).add(0.2))),
   }
   const num = (x: F | number): F => (typeof x === 'number' ? float(x) : x)
+  /** Blinn lobe toward the key light; `lo` sets how broad it is. */
+  const sheen = (lo: number) => smoothstep(lo, 0.99, dot(N, normalize(LIGHT.add(V))))
+
+  // Pen hatching (high tier): diagonal strokes in screen space through the
+  // shadow side, crossed in the core shadow, broken up by the paper's tooth.
+  const hp = screenUV.mul(vec2(uAspect, 1)).div(uUnitUV).mul(17)
+  const strokes = (u: F) => float(1).sub(smoothstep(0.05, 0.15, abs(u.add(rag.mul(2.5)).fract().sub(0.5))))
+  const tone = L.shadow.mul(0.45).add(L.core.mul(0.55)).add(grain.sub(0.5).mul(0.5))
+  const hatching = strokes(hp.x.add(hp.y))
+    .mul(smoothstep(0.3, 0.6, tone))
+    .add(strokes(hp.x.sub(hp.y).mul(1.1)).mul(smoothstep(0.62, 0.9, tone)))
+    .min(1)
+    .mul(uHQ)
   /** Unpainted highlight (eye glints): bare paper by day, moonlight at night. */
   const bare = mix(under, color(PAINT.moonGlint), uNight) as unknown as V3
 
@@ -336,9 +370,13 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
    * Night is moonlit gouache: luminous pigment shaded by the same key light,
    * with a cool rim and a faint cool sheen, never a white blotch.
    */
-  const paint = (pigment: V3, load: F | number, pale: F | number = 0): V3 => {
+  /** Bare paper, without the blooms and splatter (under opaque-feeling paint). */
+  const plain = mix(paperDay, paperNight, uNight).mul(grain.sub(0.5).mul(0.035).add(1)) as unknown as V3
+  type PaintOpts = { pale?: F | number; hatch?: number; clean?: boolean }
+  const paint = (pigment: V3, load: F | number, { pale = 0, hatch = 0, clean = false }: PaintOpts = {}): V3 => {
     const b = num(load)
     const pl = num(pale)
+    const under = clean ? plain : paperUnder
     const thick = float(0.48)
       .add(L.shadow.mul(0.42))
       .add(L.core.mul(0.2))
@@ -359,11 +397,12 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
     const lit = lum.mul(value.mul(0.84)).add(grain.sub(0.5).mul(0.05))
     const moon = color(PAINT.moon).mul(L.rim.mul(0.26).add(L.spec.mul(0.14))).mul(coverage)
     const night = mix(under, lit, coverage).add(moon)
-    return mix(day, night, uNight) as unknown as V3
+    const c = mix(day, night, uNight) as unknown as V3
+    return hatch ? (mix(c, ink, hatching.mul(hatch)) as unknown as V3) : c
   }
-  const washMat = (pigment: V3, load: number) => {
+  const washMat = (pigment: V3, load: number, opts?: PaintOpts) => {
     const m = new THREE.MeshBasicNodeMaterial()
-    m.colorNode = paint(pigment, load)
+    m.colorNode = paint(pigment, load, opts)
     return m
   }
   /** Ink line: the back faces, pushed out along the normal. */
@@ -392,7 +431,7 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
   {
     const { rest, p, front } = restUnit([0, 0])
     const chest = float(1).sub(smoothstep(0.12, 0.3, length(vec2(p.x.mul(1.2), p.y.sub(-0.05).mul(0.8))))).mul(front)
-    catBodyMat.colorNode = paint(pigmentMix(rest), 0.62, chest)
+    catBodyMat.colorNode = paint(pigmentMix(rest), 0.62, { pale: chest, hatch: 0.5 })
   }
 
   // Cat head: wash + forehead stripes, pale muzzle, painted face.
@@ -404,7 +443,7 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
       .mul(smoothstep(0.24, 0.36, p.y))
       .mul(float(1).sub(smoothstep(0.1, 0.17, abs(p.x))))
     const pig = pigmentMix(rest)
-    let c = paint(pig, 0.62, muzzle)
+    let c = paint(pig, 0.62, { pale: muzzle, hatch: 0.45 })
     c = glaze(c, massNode, forehead.mul(0.55).mul(front))
 
     // Blush.
@@ -475,47 +514,62 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
   const earMat = washMat(massNode, 0.7)
   const earInnerMat = washMat(color(PAINT.earInner) as unknown as V3, 0.75)
   const pawMat = washMat(glazeNode, 0.4)
-  const tailMat = washMat(mix(glazeNode, massNode, 0.3) as unknown as V3, 0.55)
+  const tailMat = washMat(mix(glazeNode, massNode, 0.3) as unknown as V3, 0.55, { hatch: 0.5 })
 
-  // Puffball: pink wash, painted face, red feet.
+  // Puffball: a glossy bubblegum-pink ball with Kirby's face: tall navy eyes
+  // that turn blue toward the bottom under a big glint, rosy oval cheeks just
+  // outside them, and a tiny mouth tucked close underneath.
   const puffMat = new THREE.MeshBasicNodeMaterial()
   {
     const { rest, p, front } = restUnit([0, 0])
-    const pig = mix(color(PAINT.puffGlaze), color(PAINT.puffMass), smoothstep(0.3, 0.7, noise(rest.xy.mul(0.4)).r)) as unknown as V3
-    let c = paint(pig, 0.7)
-    const cheek = (x: number) => float(1).sub(smoothstep(0.03, 0.09, length(vec2(p.x.sub(x).mul(0.8), p.y.add(0.05).mul(1.6)))))
-    c = glaze(c, color(PAINT.puffBlush) as unknown as V3, cheek(-0.4).add(cheek(0.4)).mul(uBlush.mul(0.6).add(0.4)).mul(front))
-    // Tall eyes: navy fading to blue below, a big glint up top.
-    for (const cx of [-0.16, 0.16]) {
-      const q = p.sub(vec2(cx, 0.12))
-      const ry = max(uOpen.mul(0.16), 0.004)
-      const e = length(vec2(q.x.div(0.068), q.y.div(ry))).sub(1)
+    const mottle = smoothstep(0.15, 0.85, noise(rest.xy.mul(0.35)).r).mul(0.45).add(0.3)
+    const pig = mix(color(PAINT.puffGlaze), color(PAINT.puffMass), mottle) as unknown as V3
+    // A broad soft sheen as well as the crisp glint: it reads as a squishy ball.
+    // Painted over clean paper: the background blooms read as bruises through pink.
+    let c = paint(pig, 0.8, { pale: sheen(0.82).mul(0.55), clean: true })
+    // Cheeks: solid little ovals with a soft edge, rosier when happy.
+    const cheek = (x: number) => float(1).sub(smoothstep(0.75, 1, length(vec2(p.x.sub(x).div(0.085), p.y.add(0.035).div(0.042)))))
+    c = glaze(c, color(PAINT.puffBlush) as unknown as V3, cheek(-0.3).add(cheek(0.3)).mul(uBlush.mul(0.5).add(0.6)).mul(front))
+    for (const cx of [-0.13, 0.13]) {
+      const q = p.sub(vec2(cx, 0.15))
+      const ry = max(uOpen.mul(0.17), 0.004)
+      const e = length(vec2(q.x.div(0.064), q.y.div(ry))).sub(1)
       const openness = smoothstep(0.16, 0.34, uOpen)
       const fill = aaStep(e, 0.06).mul(openness)
-      const lower = smoothstep(0.1, -0.7, q.y.div(ry))
-      const iris = mix(color(PAINT.puffEye), color(PAINT.puffEyeLow), lower.mul(0.85)) as unknown as V3
-      const glint = aaStep(length(vec2(q.x.div(0.034), q.y.sub(ry.mul(0.45)).div(ry.mul(0.36)))).sub(1), 0.1).mul(fill)
+      const lower = smoothstep(-0.05, -0.75, q.y.div(ry))
+      const iris = mix(color(PAINT.puffEye), color(PAINT.puffEyeLow), lower) as unknown as V3
+      const glint = aaStep(length(vec2(q.x.div(0.037), q.y.sub(ry.mul(0.42)).div(ry.mul(0.4)))).sub(1), 0.1).mul(fill)
+      const spark = aaStep(length(vec2(q.x.add(0.012).div(0.016), q.y.add(ry.mul(0.62)).div(ry.mul(0.12)))).sub(1), 0.15).mul(fill).mul(0.7)
+      // Shut: a soft arc (‿ / ∩), or squeezed tight into > < (pointing in).
+      const shut = float(1).sub(openness)
       const arcY = uLid.mul(q.x.mul(q.x).mul(9).sub(0.02))
-      const arc = aaStep(abs(q.y.sub(arcY)).sub(0.014)).mul(float(1).sub(smoothstep(0.055, 0.07, abs(q.x)))).mul(float(1).sub(openness))
+      const arc = aaStep(abs(q.y.sub(arcY)).sub(0.014)).mul(float(1).sub(smoothstep(0.055, 0.07, abs(q.x))))
+      const along = q.x.mul(-Math.sign(cx)) // toward the nose
+      const chev = aaStep(abs(abs(q.y).sub(float(0.055).sub(along).mul(0.62))).sub(0.014))
+        .mul(float(1).sub(smoothstep(0.045, 0.058, abs(along))))
+        .mul(float(1).sub(smoothstep(0.05, 0.065, abs(q.y))))
+      const lash = mix(arc, chev, uSquint).mul(shut)
       c = mix(c, iris, fill.mul(front))
-      c = mix(c, bare, glint.mul(front))
-      c = mix(c, color(PAINT.puffEye) as unknown as V3, arc.mul(front))
+      c = mix(c, bare, glint.add(spark).min(1).mul(front))
+      c = mix(c, color(PAINT.puffEye) as unknown as V3, lash.mul(front))
     }
-    // Mouth: a little smile, or a big round "O" for the inhale.
-    const mq = p.sub(vec2(0, -0.1))
-    const smile = aaStep(abs(mq.y.sub(mq.x.mul(mq.x).mul(9))).sub(0.011))
-      .mul(float(1).sub(smoothstep(0.045, 0.06, abs(mq.x))))
+    // Mouth: a tiny smile, or a big round "O" to suck in a breath.
+    const mq = p.sub(vec2(0, -0.035))
+    const smile = aaStep(abs(mq.y.sub(mq.x.mul(mq.x).mul(11))).sub(0.01))
+      .mul(float(1).sub(smoothstep(0.035, 0.048, abs(mq.x))))
       .mul(float(1).sub(smoothstep(0.1, 0.3, uMouth)))
-    const oy = max(uMouth.mul(0.13), 0.002)
-    const oq = mq.add(vec2(0, oy.mul(0.6)))
-    const o = aaStep(length(vec2(oq.x.div(uMouth.mul(0.05).add(0.05)), oq.y.div(oy))).sub(1), 0.07).mul(smoothstep(0.08, 0.2, uMouth))
-    const tongue = aaStep(length(vec2(oq.x.div(0.05), oq.y.add(oy.mul(0.6)).div(oy.mul(0.45)))).sub(1), 0.1).mul(o)
+    const oy = max(uMouth.mul(0.12), 0.002)
+    const oq = mq.add(vec2(0, oy.mul(0.7)))
+    const o = aaStep(length(vec2(oq.x.div(uMouth.mul(0.045).add(0.04)), oq.y.div(oy))).sub(1), 0.07).mul(smoothstep(0.08, 0.2, uMouth))
+    const tongue = aaStep(length(vec2(oq.x.div(0.045), oq.y.add(oy.mul(0.6)).div(oy.mul(0.45)))).sub(1), 0.1).mul(o)
     c = mix(c, color(PAINT.puffEye) as unknown as V3, smile.mul(front))
     c = mix(c, mix(color(PAINT.mouth), color(PAINT.puffBlush), tongue.mul(0.85)) as unknown as V3, o.mul(front))
     puffMat.colorNode = c
   }
-  const footMat = washMat(color(PAINT.puffFeet) as unknown as V3, 0.9)
-  const armMat = washMat(color(PAINT.puffMass) as unknown as V3, 0.62)
+  const footMat = new THREE.MeshBasicNodeMaterial()
+  footMat.colorNode = paint(color(PAINT.puffFeet) as unknown as V3, 0.9, { pale: sheen(0.86).mul(0.4), clean: true })
+  const armMat = new THREE.MeshBasicNodeMaterial()
+  armMat.colorNode = paint(mix(color(PAINT.puffGlaze), color(PAINT.puffMass), 0.55) as unknown as V3, 0.8, { pale: sheen(0.82).mul(0.55), clean: true })
   const airMat = washMat(color(PAINT.air) as unknown as V3, 0.38)
 
   const sphereGeo = new THREE.SphereGeometry(1, 28, 18)
@@ -527,16 +581,42 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
   const puffGroup = new THREE.Group()
   scene.add(catGroup, puffGroup)
 
-  type Soft = { jelly: Jelly; geo: THREE.BufferGeometry; mesh: THREE.Mesh; hull: THREE.Mesh; rest: Float32Array; rest0: Vec3 }
-  const makeSoft = (group: THREE.Group, positions: Float32Array, index: Uint32Array, mat: THREE.Material, jopts: ConstructorParameters<typeof Jelly>[1]): Soft => {
+  type Soft = {
+    jelly: Jelly
+    geo: THREE.BufferGeometry
+    mesh: THREE.Mesh
+    hull: THREE.Mesh
+    rest: Float32Array
+    rest0: Vec3
+    /** Lowest rest point below the centre. */
+    bottom: number
+    /** Firm settings, and how loose a grab makes the anchor (0..1 of firm). */
+    firm: { k: number; c: number; stiffness: number; beta: number; minK: number; upright: number }
+    /** 1 while held; `grab` firms up quickly after release, `wobble` slowly. */
+    grab: number
+    wobble: number
+  }
+  const makeSoft = (
+    group: THREE.Group,
+    positions: Float32Array,
+    index: Uint32Array,
+    mat: THREE.Material,
+    jopts: NonNullable<ConstructorParameters<typeof Jelly>[1]>,
+    anchor: { k: number; c: number; minK: number },
+    upright: number,
+  ): Soft => {
     const jelly = new Jelly(positions, jopts)
+    jelly.upright = upright
     const geo = jellyGeometry(jelly, index)
     const mesh = new THREE.Mesh(geo, mat)
     const hull = new THREE.Mesh(geo, hullMat())
     mesh.frustumCulled = hull.frustumCulled = false
     group.add(mesh, hull)
     const rest0: Vec3 = [...jelly.center]
-    return { jelly, geo, mesh, hull, rest: Float32Array.from(jelly.x), rest0 }
+    let bottom = 0
+    for (let i = 1; i < jelly.x.length; i += 3) bottom = Math.min(bottom, jelly.x[i] - rest0[1])
+    const firm = { ...anchor, stiffness: jopts.stiffness ?? 0.07, beta: jopts.beta ?? 0.5, upright }
+    return { jelly, geo, mesh, hull, rest: Float32Array.from(jelly.x), rest0, bottom, firm, grab: 0, wobble: 0 }
   }
   const dropSoft = (s: Soft | null) => {
     if (!s) return
@@ -614,6 +694,9 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
   let nextPuff = 0
 
   let U = 1
+  // High-tier post passes (built with the pipeline below; sized with the cat).
+  let aoPass: ReturnType<typeof ao> | null = null
+  let glowPass: ReturnType<typeof bloom> | null = null
   let body: Soft | null = null
   let head: Soft | null = null
   let puff: Soft | null = null
@@ -625,6 +708,10 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
     U = u
     uUnit.value = u
     uHull.value = 0.022 * u
+    if (aoPass) {
+      aoPass.radius.value = 0.32 * u
+      aoPass.thickness.value = 0.6 * u
+    }
     dropSoft(body)
     dropSoft(head)
     dropSoft(puff)
@@ -633,14 +720,12 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
       return s
     }
     const b = scaled(shape(4, catBody))
-    body = makeSoft(catGroup, b.positions, b.index, catBodyMat, { stiffness: mode === 'calm' ? 0.09 : 0.07, beta: 0.35, damping: 1.6, substeps: 2 })
+    body = makeSoft(catGroup, b.positions, b.index, catBodyMat, { stiffness: mode === 'calm' ? 0.09 : 0.07, beta: 0.35, damping: 1.6, substeps: 2 }, { k: 16, c: 5.5, minK: 0.1 }, 0.04)
     const h = scaled(shape(4, catHead))
-    head = makeSoft(catGroup, h.positions, h.index, catHeadMat, { stiffness: 0.12, beta: 0.3, damping: 1.8, substeps: 2 })
-    body.jelly.upright = 0.04
-    head.jelly.upright = 0.08
+    // A grabbed head stretches off the neck a little, then springs back on.
+    head = makeSoft(catGroup, h.positions, h.index, catHeadMat, { stiffness: 0.12, beta: 0.3, damping: 1.8, substeps: 2 }, { k: 90, c: 13, minK: 0.3 }, 0.08)
     const k = scaled(shape(4, puffBody))
-    puff = makeSoft(puffGroup, k.positions, k.index, puffMat, { stiffness: 0.08, beta: 0.4, damping: 1.4, substeps: 2 })
-    puff.jelly.upright = 0.05
+    puff = makeSoft(puffGroup, k.positions, k.index, puffMat, { stiffness: 0.08, beta: 0.4, damping: 1.4, substeps: 2 }, { k: 16, c: 5.5, minK: 0.1 }, 0.05)
     // The neck: the head rides this point on the body's goal shape.
     headMount[0] = 0
     headMount[1] = (HEAD_Y - BODY_Y) * u
@@ -661,7 +746,7 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
         s.jelly.center[1] = t[1]
         s.jelly.center[2] = t[2]
       }
-      s.jelly.anchor = s === head ? { target: t, k: 90, c: 13 } : { target: t, k: 16, c: 5.5 }
+      s.jelly.anchor = { target: t, k: s.firm.k, c: s.firm.c }
     }
   }
 
@@ -719,6 +804,8 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
   let holdStart = 0
   let wasHold = false
   let taps: number[] = []
+  /** The body being dragged. */
+  let held: Jelly | null = null
   let pokedUntil = 0
   let nextBlink = now() + 2
   let blinkUntil = 0
@@ -795,11 +882,22 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
       camera,
       bodies,
       reducedMotion,
-      touchDrag: false,
       pokeStrength: 3,
+      // Easy to catch, and the whole body comes along when it's grabbed.
+      touchDrag: true,
+      pickScale: 1.3,
+      grabRadius: 1.15,
+      grip: 0.42,
       onPoke: (_, point) => {
         dropAt(point[0], point[1])
         tapped()
+      },
+      onGrab: (j) => {
+        held = j
+        stage.requestRender()
+      },
+      onRelease: () => {
+        held = null
       },
     })
   }
@@ -843,29 +941,53 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
     jelly.center[2] = centre[2]
   }
 
-  // ── Post: bleed → paper tooth → vignette → film grain ────────────
+  // ── Post: bleed → (high tier: pooled occlusion + night glow) → paper
+  //    tooth → vignette → film grain ─────────────────────────────────
   const pipeline = new THREE.RenderPipeline(renderer)
   const scenePass = pass(scene, camera)
+  if (hq) scenePass.setMRT(mrt({ output, normal: normalView }))
   const tex = scenePass.getTextureNode('output')
-  {
-    const st = screenUV
-    const sp = vec2(st.x.mul(uAspect), st.y)
-    const flow = noise(sp.mul(4.3).add(vec2(T.mul(0.01), 0)))
-    const wobble = vec2(flow.r, flow.g).sub(0.5).mul(0.0036)
-    const a = tex.sample(st.add(wobble)).rgb
-    const b = tex.sample(st.add(wobble.mul(-1.4)).add(vec2(0.0007, -0.0005))).rgb
-    const bled = mix(a, min(a, b), mix(0.5, 0.0, uNight)).add(mix(vec3(0), max(a, b).sub(a), uNight.mul(0.4)))
-    const tooth = noise(sp.mul(4)).b.mul(2).sub(1)
-    const toothed = bled.mul(tooth.mul(0.05).add(1))
-    const d = length(st.sub(0.5).mul(vec2(1, 0.9)))
-    const vig = mix(1, mix(0.9, 0.78, uNight), smoothstep(0.42, 0.98, d).mul(uVignette))
-    pipeline.outputNode = filmHD(vec4(toothed.mul(vig), 1), {
+  const st = screenUV
+  const sp = vec2(st.x.mul(uAspect), st.y)
+  const flow = noise(sp.mul(4.3).add(vec2(T.mul(0.01), 0)))
+  const wobble = vec2(flow.r, flow.g).sub(0.5).mul(0.0036)
+  const sa = tex.sample(st.add(wobble)).rgb
+  const sb = tex.sample(st.add(wobble.mul(-1.4)).add(vec2(0.0007, -0.0005))).rgb
+  const bled = mix(sa, min(sa, sb), mix(0.5, 0.0, uNight)).add(mix(vec3(0), max(sa, sb).sub(sa), uNight.mul(0.4))) as V3
+  const tooth = noise(sp.mul(4)).b.mul(2).sub(1)
+  const vd = length(st.sub(0.5).mul(vec2(1, 0.9)))
+  const vig = mix(1, mix(0.9, 0.78, uNight), smoothstep(0.42, 0.98, vd).mul(uVignette))
+  const finish = (c: V3) =>
+    filmHD(vec4(c.mul(tooth.mul(0.05).add(1)).mul(vig), 1), {
       intensityNode: uniform(0.09),
       grainScaleNode: uniform(1.5),
       grainSpeedNode: uniform(0),
       scanlineIntensityNode: uniform(0),
     })
-  }
+  const baseOutput = finish(bled)
+  if (hq) {
+    // Where the head meets the body, paws tuck in and the tail wraps round,
+    // pigment pools by day (the paint glazes over itself, so it deepens in its
+    // own colour) and shadow deepens at night.
+    aoPass = ao(scenePass.getTextureNode('depth'), scenePass.getTextureNode('normal'), camera)
+    aoPass.resolutionScale = 0.5
+    aoPass.scale.value = 1.6
+    aoPass.radius.value = 0.32 * U
+    aoPass.thickness.value = 0.6 * U
+    const occ = float(1).sub(aoPass.getTextureNode().r).mul(1.2).min(1)
+    const pooled = mix(bled.mul(pow(max(bled, vec3(0.002)), vec3(occ.mul(0.8)))), bled.mul(float(1).sub(occ.mul(0.55))), uNight)
+    // Moonlight glows softly off the rim and the glints at night.
+    glowPass = bloom(tex, 0, 0.55, 0.78)
+    pipeline.outputNode = finish(pooled.add(glowPass.rgb) as V3)
+  } else pipeline.outputNode = baseOutput
+  stage.onStruggle(() => {
+    if (!hq) return
+    hq = false
+    uHQ.value = 0
+    scenePass.setMRT(null)
+    pipeline.outputNode = baseOutput
+    pipeline.needsUpdate = true
+  })
 
   // ── Frame ────────────────────────────────────────────────────────
   const massTarget = rgb(opts.pigment.mass)
@@ -882,6 +1004,35 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
     return [Math.max(0, x + v * dt), v]
   }
 
+  /**
+   * Grabbed, a body goes loose: its anchor lets it be carried off and it turns
+   * gooier, so it stretches toward the finger. Let go, the anchor firms up
+   * fast (it boings home) but the goo settles slowly (it wobbles on arrival).
+   * Bodies with a floor squash when they land on the paper.
+   */
+  const loosen = (s: Soft, dt: number, floorY: number | null) => {
+    const on = held === s.jelly
+    s.grab = on ? 1 : ease(s.grab, 0, 5, dt)
+    s.wobble = on ? 1 : ease(s.wobble, 0, 1.1, dt)
+    const j = s.jelly
+    const { k, c, stiffness, beta, minK } = s.firm
+    j.anchor!.k = k * (1 - (1 - minK) * s.grab)
+    j.anchor!.c = c * (1 - 0.55 * s.wobble)
+    j.stiffness = stiffness * (1 - 0.5 * s.wobble)
+    // Gooey once let go (linear deformation would also let it spin while held).
+    j.beta = Math.min(0.85, beta + 0.35 * (s.wobble - s.grab))
+    // Held, it stays upright and stretches toward the finger instead of tumbling.
+    j.upright = s.firm.upright + 0.3 * s.grab
+    j.floor = floorY === null ? null : floorY + s.bottom * j.scale * j.squash[1] - 0.03 * U
+  }
+  const shadowAt = new THREE.Vector3()
+  /** Lift the contact shadow and follow the body on screen. */
+  const castShadow = (j: Jelly, restY: number) => {
+    shadowAt.set(j.center[0], home[1] + BODY_Y * U, 0).project(camera)
+    uShadowX.value = shadowAt.x * 0.5 + 0.5
+    uLift.value = Math.max(0, (j.center[1] - restY) / U)
+  }
+
   const frame = (dt: number) => {
     clock += dt
     const t = now()
@@ -892,6 +1043,7 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
     uGlaze.value.lerp(glazeTarget, k)
     uNight.value += (nightTarget - uNight.value) * (reducedMotion ? 1 : 1 - Math.exp(-dt * 4))
     uBreath.value += (a - uBreath.value) * (reducedMotion ? 1 : 1 - Math.exp(-dt * 6))
+    if (glowPass) glowPass.strength.value = 0.5 * uNight.value
     if (!reducedMotion) uDropAge.value = Math.min(1, uDropAge.value + dt / 2.6)
     if (!body || !head || !puff) return
 
@@ -931,8 +1083,11 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
 
     // ── Face targets ──
     let target: Face
+    const holding = held !== null
     if (form === 'cat') {
-      target = poked
+      target = holding
+        ? face({ open: 1.25, pupil: 0.1, mouth: 0.4, blush: 0.7, ear: 0.45, whisker: 0.16 })
+        : poked
         ? face({ open: 0, lid: -1, mouth: 0.45, blush: 0.9, ear: 0.3, whisker: 0.12 })
         : phase === 'in'
           ? face({ open: 0.95 + 0.25 * a, pupil: 0.2, blush: 0.2, ear: 0.35 * a, whisker: 0.1 * a })
@@ -942,10 +1097,12 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
               ? face({ open: 0.38, pupil: 0.6, mouth: 0.95 * sighBell, blush: 0.25, ear: -0.4 * (1 - a), whisker: -0.12 * (1 - a) })
               : face({ open: 0, lid: -1, pupil: 0.6, blush: 0.35, ear: -0.25, whisker: -0.1 })
     } else {
-      target = poked
+      target = holding
+        ? face({ open: 0, squint: 1, mouth: 0.7, blush: 1 })
+        : poked
         ? face({ open: 0, lid: -1, mouth: 0.4, blush: 1 })
         : phase === 'in'
-          ? face({ open: 0, lid: 1, mouth: 0.35 + 0.65 * Math.min(1, sighBell + 0.4), blush: 0.4 })
+          ? face({ open: 0, squint: 1, mouth: 0.35 + 0.65 * Math.min(1, sighBell + 0.4), blush: 0.4 })
           : phase === 'full'
             ? face({ open: 1, mouth: 0, blush: 0.9, puff: 1 })
             : phase === 'out'
@@ -955,6 +1112,7 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
     const r = poked ? 20 : 7
     f.open = ease(f.open, blinking ? 0 : target.open, blinking ? 60 : r, dt)
     f.lid = ease(f.lid, blinking ? 1 : target.lid, 14, dt)
+    f.squint = ease(f.squint, blinking ? 0 : target.squint, 14, dt)
     f.pupil = ease(f.pupil, target.pupil, 3, dt)
     f.mouth = ease(f.mouth, target.mouth, 9, dt)
     f.blush = ease(f.blush, target.blush, 4, dt)
@@ -963,6 +1121,7 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
     f.puff = ease(f.puff, target.puff, 5, dt)
     uOpen.value = f.open
     uLid.value = f.lid
+    uSquint.value = f.squint
     uPupil.value = f.pupil
     uMouth.value = f.mouth
     uBlush.value = f.blush
@@ -991,6 +1150,9 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
       if (reducedMotion) {
         pose(body, bj.anchor!.target)
       }
+      loosen(body, dt, home[1] + BODY_Y * U)
+      loosen(head, dt, null)
+      castShadow(bj, bj.anchor!.target[1])
       bj.attach(headMount, tmp)
       head.jelly.anchor!.target = [tmp[0], tmp[1], tmp[2]]
       if (reducedMotion) pose(head, tmp)
@@ -1025,7 +1187,7 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
 
       // Tail: wraps around the right side and curls up at the tip. It lifts on
       // the inhale, holds still on holds, and sways on the exhale and at rest.
-      const swishTarget = sample.hold ? 0 : phase === 'out' ? 0.35 * Math.sin(clock * 1.6) : 0.22 * Math.sin(clock * 2.1)
+      const swishTarget = held ? 0.3 * Math.sin(clock * 8) : sample.hold ? 0 : phase === 'out' ? 0.35 * Math.sin(clock * 1.6) : 0.22 * Math.sin(clock * 2.1)
       if (reducedMotion || dt === 0) tailSwish.x = sample.hold ? 0 : 0.1
       else {
         tailSwish.v += (40 * (swishTarget - tailSwish.x) - 7 * tailSwish.v) * dt
@@ -1087,28 +1249,33 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
       const bob = reducedMotion ? 0 : Math.sin(clock * 2.4) * 0.05
       const target: Vec3 = [home[0], home[1] + (PUFF_Y + 0.08 * a + floatT * (0.14 + bob)) * U, home[2]]
       pj.anchor!.target = target
+      loosen(puff, dt, home[1] + PUFF_Y * U)
+      castShadow(pj, home[1] + (PUFF_Y + 0.08 * a) * U)
       if (reducedMotion) pose(puff, target)
       else pj.step(dt)
       syncJellyGeometry(puff.geo)
 
+      // Off the paper (floating, held, or flung), the arms flap and feet dangle.
+      const groundY = home[1] + (PUFF_Y + 0.08 * a) * U
+      const dangle = Math.max(floatT, held === pj ? 1 : 0, smooth01((pj.center[1] - groundY) / (0.2 * U)))
       quat2.set(...pj.rotation)
-      const flap = reducedMotion ? 0 : floatT * Math.sin(clock * 15) * 0.55 + (poked ? Math.sin(t * 22) * 0.4 : 0)
+      const flap = reducedMotion ? 0 : dangle * Math.sin(clock * 15) * 0.55 + (poked ? Math.sin(t * 22) * 0.4 : 0)
       for (const arm of arms) {
         pj.attach([arm.s * 0.86 * U, -0.08 * U, 0.08 * U], tmp)
         arm.g.position.set(tmp[0], tmp[1], tmp[2])
-        euler.set(0, 0, arm.s * (0.6 + 0.4 * floatT + flap))
+        euler.set(0, 0, arm.s * (0.6 + 0.4 * dangle + flap))
         arm.g.quaternion.copy(quat2).multiply(quat.setFromEuler(euler))
         arm.g.scale.set(0.21 * U * p, 0.15 * U * p, 0.17 * U * p)
       }
       for (const foot of feet) {
         // Feet stay on the paper until it floats, then dangle.
-        pj.attach([foot.s * 0.36 * U, -0.8 * U, 0.12 * U], tmp)
-        const floorY = home[1] + (PUFF_Y - 0.82) * U
-        const fy = floatT > 0 ? tmp[1] : Math.max(floorY, Math.min(tmp[1], floorY + 0.05 * U))
+        pj.attach([foot.s * 0.37 * U, -0.8 * U, 0.16 * U], tmp)
+        const floorY = home[1] + (PUFF_Y - 0.84) * U
+        const fy = dangle > 0.02 ? tmp[1] : Math.max(floorY, Math.min(tmp[1], floorY + 0.05 * U))
         foot.g.position.set(tmp[0], fy, tmp[2])
-        euler.set(0.15 + floatT * 0.35, foot.s * 0.3, foot.s * floatT * 0.2)
+        euler.set(0.15 + dangle * 0.35, foot.s * 0.32, foot.s * dangle * 0.2)
         foot.g.quaternion.setFromEuler(euler)
-        foot.g.scale.set(0.3 * U * p, 0.17 * U * p, 0.38 * U * p)
+        foot.g.scale.set(0.32 * U * p, 0.17 * U * p, 0.42 * U * p)
       }
 
       // Little clouds of air on the exhale.
@@ -1118,10 +1285,11 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
         if (c) {
           pj.attach([0, -0.18 * U, 0.86 * U], tmp)
           c.p.set(tmp[0], tmp[1], tmp[2] + 0.1 * U)
-          const side = (Math.random() - 0.5) * 0.9
-          c.v.set(side * U, (-0.15 + Math.random() * 0.3) * U, 1.4 * U)
+          // Blown off to one side and up, so the clouds don't cover the face.
+          const side = (Math.random() < 0.5 ? -1 : 1) * (0.7 + Math.random() * 0.5)
+          c.v.set(side * U, (0.05 + Math.random() * 0.3) * U, 0.5 * U)
           c.life = 1
-          c.size = (0.05 + Math.random() * 0.05) * U
+          c.size = (0.035 + Math.random() * 0.04) * U
         }
       }
       for (let i = 0; i < AIR_N; i++) {
@@ -1186,6 +1354,8 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
       airLine.dispose()
       noiseTex.dispose()
       splatterTex.dispose()
+      aoPass?.dispose()
+      glowPass?.dispose()
       pipeline.dispose()
     },
   }
