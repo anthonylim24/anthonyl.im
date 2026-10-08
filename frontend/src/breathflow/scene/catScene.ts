@@ -690,11 +690,22 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
   const ease = (cur: number, target: number, rate: number, dt: number) =>
     reducedMotion || dt === 0 ? target : cur + (target - cur) * (1 - Math.exp(-rate * dt))
 
+  // Reduced motion freezes the scene clock, so paint drops and the giggle
+  // end on wall-clock timers instead.
+  let dropTimer: ReturnType<typeof setTimeout> | undefined
+  let faceTimer: ReturnType<typeof setTimeout> | undefined
   const dropAt = (x: number, y: number, size = 1) => {
     const v = new THREE.Vector3(x, y, 0).project(camera)
     uDrop.value.set(v.x * 0.5 + 0.5, 0.5 - v.y * 0.5)
     uDropAge.value = 0
     uDropSize.value = size
+    if (reducedMotion) {
+      clearTimeout(dropTimer)
+      dropTimer = setTimeout(() => {
+        uDropAge.value = 1
+        stage.requestRender()
+      }, 1200)
+    }
   }
 
   const transform = () => {
@@ -705,11 +716,6 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
     if (reducedMotion) {
       pop.cat = form === 'cat' ? 1 : 0
       pop.puff = form === 'puff' ? 1 : 0
-      // No drying animation under reduced motion: show the splash, then clear it.
-      setTimeout(() => {
-        uDropAge.value = 1
-        stage.requestRender()
-      }, 1200)
     }
     stage.requestRender()
   }
@@ -726,6 +732,10 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
     } else if (!reducedMotion) {
       const main = form === 'cat' ? head : puff
       main?.jelly.kick(0, 1.2 * U, 0)
+    }
+    if (reducedMotion) {
+      clearTimeout(faceTimer)
+      faceTimer = setTimeout(() => stage.requestRender(), 650)
     }
     stage.requestRender()
   }
@@ -1105,6 +1115,8 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
     poke,
     requestRender: () => stage.requestRender(),
     dispose() {
+      clearTimeout(dropTimer)
+      clearTimeout(faceTimer)
       pointer?.dispose()
       anchorObserver.disconnect()
       stage.dispose()
