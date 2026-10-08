@@ -90,8 +90,9 @@ export const wc = stylex.create({
   },
   mobileNav: {
     position: 'fixed',
-    left: '0.75rem',
-    right: '0.75rem',
+    // Narrow enough that iOS Safari keeps the page visible under its toolbar.
+    left: 'var(--edge-float-x)',
+    right: 'var(--edge-float-x)',
     bottom: 'max(0.75rem, env(safe-area-inset-bottom))',
     zIndex: 40,
     display: { default: 'block', '@media (min-width: 640px)': 'none' },

@@ -96,7 +96,7 @@ function Nav() {
 
   return (
     <header {...sx(nav.bar, (scrolled || open) && nav.barSolid)}>
-      <div {...sx(nav.inner)}>
+      <div {...sx(nav.inner, (scrolled || open) && nav.innerSolid)}>
         <a href="#top" {...sx(nav.home)} aria-label="anthonyl.im home">
           <Wordmark />
         </a>

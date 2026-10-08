@@ -203,13 +203,27 @@ export const nav = stylex.create({
     borderBottomWidth: '1px',
     borderBottomStyle: 'solid',
     borderBottomColor: 'transparent',
-    transitionProperty: 'background-color, border-color',
+    // Snaps below 1024px: mid-transition the bar is full width *and* painted,
+    // and iOS Safari keeps the solid band it samples then (see barSolid).
+    transitionProperty: { default: 'background-color, border-color', '@media (max-width: 1023px)': 'none' },
     transitionDuration: '300ms',
   },
+  // Below 1024px the solid bar floats as a pill: a full-width painted bar
+  // makes iOS Safari paint a solid band over its status bar (see --edge-float-x).
   barSolid: {
+    top: { default: 0, '@media (max-width: 1023px)': '8px' },
+    left: { default: 0, '@media (max-width: 1023px)': 'var(--edge-float-x)' },
+    right: { default: 0, '@media (max-width: 1023px)': 'var(--edge-float-x)' },
+    borderTopWidth: { default: 0, '@media (max-width: 1023px)': '1px' },
+    borderLeftWidth: { default: 0, '@media (max-width: 1023px)': '1px' },
+    borderRightWidth: { default: 0, '@media (max-width: 1023px)': '1px' },
+    borderStyle: 'solid',
+    borderColor: 'var(--lim-line)',
+    borderBottomColor: 'var(--lim-line)',
+    borderRadius: { default: 0, '@media (max-width: 1023px)': '22px' },
+    boxShadow: { default: 'none', '@media (max-width: 1023px)': '0 10px 30px rgba(14, 16, 36, 0.14)' },
     backgroundColor: 'rgba(237, 232, 223, 0.94)',
     backdropFilter: 'saturate(1.2) blur(12px)',
-    borderBottomColor: 'var(--lim-line)',
   },
   inner: {
     display: 'flex',
@@ -221,6 +235,11 @@ export const nav = stylex.create({
     marginRight: 'auto',
     paddingLeft: 'clamp(20px, 4.2vw, 56px)',
     paddingRight: 'clamp(20px, 4.2vw, 56px)',
+  },
+  innerSolid: {
+    height: { default: '68px', '@media (max-width: 1023px)': '56px' },
+    paddingLeft: { default: 'clamp(20px, 4.2vw, 56px)', '@media (max-width: 1023px)': '14px' },
+    paddingRight: { default: 'clamp(20px, 4.2vw, 56px)', '@media (max-width: 1023px)': '6px' },
   },
   home: {
     display: 'inline-flex',
