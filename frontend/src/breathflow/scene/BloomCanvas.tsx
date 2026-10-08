@@ -5,7 +5,7 @@ import type { Pigment } from '../pigments'
 import { useReducedMotion } from '../platform/useReducedMotion'
 import { wc } from '../styles/watercolor.stylex'
 import type { BreathSample } from './breathDrive'
-import type { BloomMode, BloomScene } from './bloomScene'
+import type { BloomMode, BloomScene } from './catScene'
 
 export interface BloomCanvasHandle {
   poke(clientX: number, clientY: number): void
@@ -61,7 +61,7 @@ export const BloomCanvas = forwardRef<BloomCanvasHandle, BloomCanvasProps>(funct
     Object.assign(gl.style, { width: '100%', height: '100%', display: 'block' })
     host.appendChild(gl)
 
-    void import('./bloomScene')
+    void import('./catScene')
       .then(({ createBloomScene }) =>
         createBloomScene({
           canvas: gl,

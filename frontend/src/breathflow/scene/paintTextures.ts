@@ -176,14 +176,3 @@ export function splatterTexture(size = 1024, seed = 7): THREE.CanvasTexture {
   tex.generateMipmaps = true
   return tex
 }
-
-/**
- * Lobed outline for the bloom's rest shape: a puddle of paint, not a ball.
- * Returns the radial scale at angle `theta` (mean ≈ 1).
- */
-export function lobes(seed = 3) {
-  const rand = rng(seed)
-  // Odd-heavy harmonics so the outline never settles into a square or an oval.
-  const terms = [2, 3, 5, 7, 11].map((k) => ({ k, amp: (0.13 / Math.pow(k, 0.9)) * (0.7 + rand() * 0.6), phase: rand() * Math.PI * 2 }))
-  return (theta: number) => 1 + terms.reduce((s, t) => s + t.amp * Math.cos(t.k * theta + t.phase), 0)
-}
