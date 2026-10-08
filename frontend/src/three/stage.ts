@@ -3,6 +3,10 @@
  * back to WebGL2 by itself), host-sized canvas, and a frame loop that only
  * runs while the host is on screen and the tab is visible. Under reduced
  * motion the shader clock is frozen and frames render on demand.
+ *
+ * A frame-rate governor keeps the loop at the display's rate: when frames
+ * fall behind (under ~55 fps, or well under a 120 Hz display's rate) the
+ * pixel ratio steps down, so slow GPUs trade a little sharpness for motion.
  */
 import * as THREE from 'three/webgpu'
 import { float, time } from 'three/tsl'
@@ -32,7 +36,8 @@ export type Stage = {
 
 export async function createStage({ canvas, host, reducedMotion, maxDpr = 1.75, alpha = false }: StageOptions): Promise<Stage> {
   const renderer = new THREE.WebGPURenderer({ canvas, antialias: true, alpha })
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, host.clientWidth < 820 ? Math.min(maxDpr, 1.5) : maxDpr))
+  let dpr = Math.min(window.devicePixelRatio, host.clientWidth < 820 ? Math.min(maxDpr, 1.5) : maxDpr)
+  renderer.setPixelRatio(dpr)
   renderer.toneMapping = THREE.NoToneMapping
   await renderer.init()
 
@@ -45,13 +50,41 @@ export async function createStage({ canvas, host, reducedMotion, maxDpr = 1.75, 
     for (const fn of resizers) fn(size.w, size.h)
   }
 
+  // ── Governor ──
+  const intervals: number[] = []
+  let best = Infinity // the display's own frame interval (fastest frames seen)
+  let settle = 30 // frames ignored after a start or a resolution change
+  const govern = (ms: number) => {
+    if (settle > 0) {
+      settle--
+      return
+    }
+    intervals.push(ms)
+    if (intervals.length < 60) return
+    intervals.sort((a, b) => a - b)
+    const median = intervals[30]
+    best = Math.min(best, intervals[6])
+    intervals.length = 0
+    const fast = best < 10 // a 90/120 Hz display
+    const slow = median > 18 || (fast && median > best * 1.35)
+    // Below 60 fps anything goes; to hold 120 Hz keep at least 1.25× density.
+    const floor = median > 18 ? 1 : 1.25
+    if (slow && dpr > floor + 0.01) {
+      dpr = Math.max(floor, dpr * 0.85)
+      renderer.setPixelRatio(dpr)
+      resize()
+      settle = 30
+    }
+  }
+
   let frame: ((dt: number) => void) | null = null
   let last = performance.now()
   const tick = () => {
     const now = performance.now()
-    const dt = Math.min(1 / 30, (now - last) / 1000)
+    const ms = now - last
     last = now
-    frame?.(reducedMotion ? 0 : dt)
+    if (running) govern(ms)
+    frame?.(reducedMotion ? 0 : Math.min(1 / 30, ms / 1000))
   }
 
   let onScreen = true
@@ -61,6 +94,7 @@ export async function createStage({ canvas, host, reducedMotion, maxDpr = 1.75, 
     if (want === running) return
     running = want
     last = performance.now()
+    settle = 30
     renderer.setAnimationLoop(want ? tick : null)
   }
   const io = new IntersectionObserver(([entry]) => {

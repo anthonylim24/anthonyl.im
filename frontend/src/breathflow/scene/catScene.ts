@@ -121,6 +121,8 @@ const PAINT = {
   puffEyeLow: '#3553D6',
   puffBlush: '#E8466A',
   air: '#9CC3E6',
+  moon: '#C9D6FF',
+  moonGlint: '#F1F4FF',
 }
 
 type Face = {
@@ -144,6 +146,8 @@ function rgb(hex: string): THREE.Vector3 {
 const smooth01 = (x: number) => Math.min(1, Math.max(0, x))
 const aaStep = (d: F, aa = 0.007) => float(1).sub(smoothstep(-aa, aa, d))
 const LIGHT = normalize(vec3(-0.45, 0.72, 0.53))
+/** Moonlight from behind, upper right (view space), for the night rim. */
+const RIM_DIR = normalize(vec3(0.7, 0.45, -0.55))
 
 function shape(detail: number, fn: (x: number, y: number, z: number) => Vec3): { positions: Float32Array; index: Uint32Array } {
   const { positions, index } = icosphere(1, detail)
@@ -216,7 +220,9 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
   const paperNight = uniform(rgb(PAPER_NIGHT))
   const massNode = uMass
   const glazeNode = uGlaze
-  const ink = mix(massNode.mul(0.3), mix(glazeNode, vec3(1), 0.62), uNight) as V3
+  // Pen lines stay dark at night too: pale lines glowed like neon on the dark
+  // paper; the moonlit rim separates the silhouette instead.
+  const ink = mix(massNode.mul(0.3), mix(massNode.mul(0.18), vec3(0.03, 0.035, 0.055), 0.6), uNight) as V3
 
   // Day: Beer–Lambert glaze, so washes stay chromatic as they thin (paper ×
   // pigment^thickness). Night: luminous pigment laid over dark paper.
@@ -262,7 +268,8 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
     // A wash of shadow pooled under the cat.
     const sh = p.sub(c.add(vec2(0, uUnitUV.mul(1.06)))).div(vec2(uUnitUV.mul(0.85), uUnitUV.mul(0.16)))
     const shadow = float(1).sub(smoothstep(0.5, 1, length(sh).add(fine.mul(0.12))))
-    col = glaze(col, massNode, shadow.mul(0.3).mul(settle))
+    // By day a glaze of pigment; at night the dark paper just gets darker.
+    col = mix(glaze(col, massNode, shadow.mul(0.3).mul(settle)), col.mul(float(1).sub(shadow.mul(0.45))), uNight)
 
     if (splatter) {
       const flick = uBreath.mul(0.16).add(0.92)
@@ -297,27 +304,66 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
   const grain = noise(screenUV.mul(vec2(uAspect, 1)).mul(1.1)).b
   const rag = noise(screenUV.mul(vec2(uAspect, 1)).mul(2.6)).r.sub(0.5).mul(0.16)
   /**
-   * Density of a two-wash watercolour: a light first wash, a shadow wash with
-   * a ragged hard edge, a darker core, paper left bare in the highlight, and
-   * pigment pooling where the form turns away.
+   * One light for every painted surface: a key light upper left, a soft fill,
+   * light bounced up off the paper into the undersides, a specular sheen
+   * reserved from the paint, and (at night) a cool moonlit rim from behind.
    */
-  const washDensity = (base: F | number): F => {
-    const n = normalize(normalView)
-    const lit = dot(n, LIGHT).mul(0.5).add(0.5).add(rag)
-    const shadow = float(1).sub(smoothstep(0.44, 0.5, lit))
-    const core = float(1).sub(smoothstep(0.2, 0.26, lit))
-    const high = smoothstep(0.86, 0.92, lit)
-    const pool = pow(float(1).sub(saturate(dot(n, positionViewDirection))), 3)
-    const b = typeof base === 'number' ? float(base) : base
-    // Day paints shadows with more pigment; night paints light, so the lit
-    // side carries the load and shadows let the dark paper through.
-    const day = float(0.5).add(shadow.mul(0.42)).add(core.mul(0.22)).add(pool.mul(0.5)).sub(high.mul(0.34))
-    const night = float(1.25).sub(shadow.mul(0.4)).sub(core.mul(0.2)).add(high.mul(0.3)).add(pool.mul(0.35))
-    return b.mul(mix(day, night, uNight)).add(grain.sub(0.5).mul(0.2)).max(0.02)
+  const N = normalize(normalView)
+  const V = positionViewDirection
+  const facing = saturate(dot(N, V))
+  const lit = dot(N, LIGHT).mul(0.5).add(0.5).add(rag)
+  const L = {
+    shadow: float(1).sub(smoothstep(0.42, 0.53, lit)),
+    core: float(1).sub(smoothstep(0.17, 0.27, lit)),
+    // Blinn half-vector: the highlight sits where the key light reflects
+    // toward you, with a soft, slightly ragged edge (a lifted, damp-brush sheen).
+    spec: smoothstep(0.93, 0.985, dot(N, normalize(LIGHT.add(V))).add(rag.mul(0.2))),
+    bounce: saturate(N.y.negate()).mul(float(1).sub(facing).mul(0.6).add(0.4)),
+    pool: pow(float(1).sub(facing), 3),
+    rim: smoothstep(0.5, 0.9, float(1).sub(facing)).mul(saturate(dot(N, RIM_DIR).mul(0.8).add(0.2))),
   }
-  const washMat = (pigment: V3, base: number) => {
+  const num = (x: F | number): F => (typeof x === 'number' ? float(x) : x)
+  /** Unpainted highlight (eye glints): bare paper by day, moonlight at night. */
+  const bare = mix(under, color(PAINT.moonGlint), uNight) as unknown as V3
+
+  /**
+   * A painted surface. `load` is how much pigment the brush carries; `pale`
+   * lightens fur (chest, muzzle) toward paper by day and toward cream at night.
+   *
+   * Day is transparent watercolour: a Beer–Lambert glaze whose thickness
+   * builds in shadow, pools at the turn, and is lifted out in the highlight
+   * and where the paper bounces light up into the undersides.
+   * Night is moonlit gouache: luminous pigment shaded by the same key light,
+   * with a cool rim and a faint cool sheen, never a white blotch.
+   */
+  const paint = (pigment: V3, load: F | number, pale: F | number = 0): V3 => {
+    const b = num(load)
+    const pl = num(pale)
+    const thick = float(0.48)
+      .add(L.shadow.mul(0.42))
+      .add(L.core.mul(0.2))
+      .add(L.pool.mul(0.45))
+      .sub(L.bounce.mul(L.shadow).mul(0.22))
+    const d = b
+      .mul(thick)
+      .mul(float(1).sub(L.spec.mul(0.85)))
+      .mul(float(1).sub(pl.mul(0.7)))
+      .add(grain.sub(0.5).mul(0.18))
+      .max(0.02)
+    const day = under.mul(pow(max(pigment, vec3(0.002)), vec3(d.mul(1.35))))
+
+    // Pale fur is a lighter tint of the same pigment (cream turned it green).
+    const lum = mix(pigment, vec3(1), pl.mul(0.4).add(0.3))
+    const value = float(1).sub(L.shadow.mul(0.48)).sub(L.core.mul(0.2)).add(L.bounce.mul(L.shadow).mul(0.14))
+    const coverage = clamp(b.mul(1.35), 0, 0.92)
+    const lit = lum.mul(value.mul(0.84)).add(grain.sub(0.5).mul(0.05))
+    const moon = color(PAINT.moon).mul(L.rim.mul(0.26).add(L.spec.mul(0.14))).mul(coverage)
+    const night = mix(under, lit, coverage).add(moon)
+    return mix(day, night, uNight) as unknown as V3
+  }
+  const washMat = (pigment: V3, load: number) => {
     const m = new THREE.MeshBasicNodeMaterial()
-    m.colorNode = glaze(under, pigment, washDensity(base))
+    m.colorNode = paint(pigment, load)
     return m
   }
   /** Ink line: the back faces, pushed out along the normal. */
@@ -346,7 +392,7 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
   {
     const { rest, p, front } = restUnit([0, 0])
     const chest = float(1).sub(smoothstep(0.12, 0.3, length(vec2(p.x.mul(1.2), p.y.sub(-0.05).mul(0.8))))).mul(front)
-    catBodyMat.colorNode = glaze(under, pigmentMix(rest), washDensity(float(0.62).mul(float(1).sub(chest.mul(mix(0.7, -0.3, uNight))))))
+    catBodyMat.colorNode = paint(pigmentMix(rest), 0.62, chest)
   }
 
   // Cat head: wash + forehead stripes, pale muzzle, painted face.
@@ -358,7 +404,7 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
       .mul(smoothstep(0.24, 0.36, p.y))
       .mul(float(1).sub(smoothstep(0.1, 0.17, abs(p.x))))
     const pig = pigmentMix(rest)
-    let c = glaze(under, pig, washDensity(float(0.62).mul(float(1).sub(muzzle.mul(mix(0.75, -0.3, uNight)))) as unknown as F))
+    let c = paint(pig, 0.62, muzzle)
     c = glaze(c, massNode, forehead.mul(0.55).mul(front))
 
     // Blush.
@@ -388,7 +434,7 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
       // Pupils stay dark at night, when the ink lines turn pale.
       c = mix(c, massNode.mul(0.22) as unknown as V3, E.pupil.mul(front))
       c = mix(c, ink, E.rim.add(E.arc).min(1).mul(front))
-      c = mix(c, under, E.glint.mul(front))
+      c = mix(c, bare, E.glint.mul(front))
     }
 
     // Nose: a rounded, downward triangle.
@@ -429,14 +475,14 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
   const earMat = washMat(massNode, 0.7)
   const earInnerMat = washMat(color(PAINT.earInner) as unknown as V3, 0.75)
   const pawMat = washMat(glazeNode, 0.4)
-  const tailMat = washMat(mix(glazeNode, massNode, 0.55) as unknown as V3, 0.6)
+  const tailMat = washMat(mix(glazeNode, massNode, 0.3) as unknown as V3, 0.55)
 
   // Puffball: pink wash, painted face, red feet.
   const puffMat = new THREE.MeshBasicNodeMaterial()
   {
     const { rest, p, front } = restUnit([0, 0])
     const pig = mix(color(PAINT.puffGlaze), color(PAINT.puffMass), smoothstep(0.3, 0.7, noise(rest.xy.mul(0.4)).r)) as unknown as V3
-    let c = glaze(under, pig, washDensity(0.7))
+    let c = paint(pig, 0.7)
     const cheek = (x: number) => float(1).sub(smoothstep(0.03, 0.09, length(vec2(p.x.sub(x).mul(0.8), p.y.add(0.05).mul(1.6)))))
     c = glaze(c, color(PAINT.puffBlush) as unknown as V3, cheek(-0.4).add(cheek(0.4)).mul(uBlush.mul(0.6).add(0.4)).mul(front))
     // Tall eyes: navy fading to blue below, a big glint up top.
@@ -452,7 +498,7 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
       const arcY = uLid.mul(q.x.mul(q.x).mul(9).sub(0.02))
       const arc = aaStep(abs(q.y.sub(arcY)).sub(0.014)).mul(float(1).sub(smoothstep(0.055, 0.07, abs(q.x)))).mul(float(1).sub(openness))
       c = mix(c, iris, fill.mul(front))
-      c = mix(c, under, glint.mul(front))
+      c = mix(c, bare, glint.mul(front))
       c = mix(c, color(PAINT.puffEye) as unknown as V3, arc.mul(front))
     }
     // Mouth: a little smile, or a big round "O" for the inhale.
@@ -523,10 +569,10 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
   const feet = [-1, 1].map((s) => ({ g: part(puffGroup, sphereGeo, footMat, 1.12), s }))
   const arms = [-1, 1].map((s) => ({ g: part(puffGroup, sphereGeo, armMat, 1.14), s }))
 
-  // Tail: a tube swept along a curve every frame (rings + a tip vertex).
+  // Tail: a tube swept along a curve every frame (rings + a tip and a base vertex).
   const TAIL_N = 28
   const TAIL_SIDES = 12
-  const tailPos = new Float32Array((TAIL_N * TAIL_SIDES + 1) * 3)
+  const tailPos = new Float32Array((TAIL_N * TAIL_SIDES + 2) * 3)
   const tailGeo = new THREE.BufferGeometry()
   {
     const idx: number[] = []
@@ -534,13 +580,15 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
       for (let j = 0; j < TAIL_SIDES; j++) {
         const a0 = i * TAIL_SIDES + j
         const a1 = i * TAIL_SIDES + ((j + 1) % TAIL_SIDES)
-        idx.push(a0, a0 + TAIL_SIDES, a1, a1, a0 + TAIL_SIDES, a1 + TAIL_SIDES)
+        // Wound so the normals face out (t × b = −n flips the naive order).
+        idx.push(a0, a1, a0 + TAIL_SIDES, a1, a1 + TAIL_SIDES, a0 + TAIL_SIDES)
       }
     }
     const tipV = TAIL_N * TAIL_SIDES
     for (let j = 0; j < TAIL_SIDES; j++) {
       const base = (TAIL_N - 1) * TAIL_SIDES
-      idx.push(base + j, tipV, base + ((j + 1) % TAIL_SIDES))
+      idx.push(base + j, base + ((j + 1) % TAIL_SIDES), tipV)
+      idx.push(j, tipV + 1, (j + 1) % TAIL_SIDES)
     }
     const attr = new THREE.BufferAttribute(tailPos, 3)
     attr.setUsage(THREE.DynamicDrawUsage)
@@ -923,8 +971,8 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
     const shiver = sample.hold && !reducedMotion ? 0.012 * Math.sin(clock * 9.5) + 0.005 * Math.sin(clock * 15.1) : 0
     const sway = reducedMotion ? 0 : 0.01 * Math.sin(clock * 1.3) + 0.006 * Math.sin(clock * 2.3 + 1.1)
 
-    // ── Cat ──
-    {
+    // ── Cat ── (only the form on screen is simulated)
+    if (catGroup.visible) {
       const bj = body.jelly
       const hj = head.jelly
       const p = pop.cat
@@ -1017,12 +1065,17 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
       tailPos[tipO] = end.x + tan.x * rEnd
       tailPos[tipO + 1] = end.y + tan.y * rEnd
       tailPos[tipO + 2] = end.z + tan.z * rEnd
-      tailGeo.attributes.position.needsUpdate = true
-      tailGeo.computeVertexNormals()
+      // Round off the base too (it shows when the tail sways out).
+      tan.subVectors(spine[1], spine[0]).normalize()
+      const r0 = radius(0)
+      tailPos[tipO + 3] = spine[0].x - tan.x * r0
+      tailPos[tipO + 4] = spine[0].y - tan.y * r0
+      tailPos[tipO + 5] = spine[0].z - tan.z * r0
+      syncJellyGeometry(tailGeo) // any indexed mesh with normals works here
     }
 
     // ── Puffball ──
-    {
+    if (puffGroup.visible) {
       const pj = puff.jelly
       const p = pop.puff
       // Huge puff on the inhale; floats while it holds the breath in.
