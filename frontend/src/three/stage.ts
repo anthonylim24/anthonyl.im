@@ -35,12 +35,15 @@ export type Stage = {
   onResize(fn: (w: number, h: number) => void): void
   /** Frames keep falling behind at the lowest pixel ratio (fires once). */
   onStruggle(fn: () => void): void
+  /** Re-home the canvas's sizing/visibility on another element; null pauses the loop. */
+  setHost(host: HTMLElement | null): void
   dispose(): void
 }
 
-export async function createStage({ canvas, host, reducedMotion, maxDpr = 1.75, alpha = false }: StageOptions): Promise<Stage> {
+export async function createStage({ canvas, host: initialHost, reducedMotion, maxDpr = 1.75, alpha = false }: StageOptions): Promise<Stage> {
+  let host: HTMLElement | null = initialHost
   const renderer = new THREE.WebGPURenderer({ canvas, antialias: true, alpha })
-  let dpr = Math.min(window.devicePixelRatio, host.clientWidth < 820 ? Math.min(maxDpr, 1.5) : maxDpr)
+  let dpr = Math.min(window.devicePixelRatio, initialHost.clientWidth < 820 ? Math.min(maxDpr, 1.5) : maxDpr)
   renderer.setPixelRatio(dpr)
   renderer.toneMapping = THREE.NoToneMapping
   await renderer.init()
@@ -49,6 +52,7 @@ export async function createStage({ canvas, host, reducedMotion, maxDpr = 1.75, 
   const resizers: ((w: number, h: number) => void)[] = []
   const strugglers: (() => void)[] = []
   const resize = () => {
+    if (!host) return
     size.w = Math.max(1, host.clientWidth)
     size.h = Math.max(1, host.clientHeight)
     renderer.setSize(size.w, size.h, false)
@@ -109,13 +113,13 @@ export async function createStage({ canvas, host, reducedMotion, maxDpr = 1.75, 
     onScreen = entry.isIntersecting
     sync()
   })
-  io.observe(host)
+  io.observe(initialHost)
   document.addEventListener('visibilitychange', sync)
   const ro = new ResizeObserver(() => {
     resize()
     if (!running) tick()
   })
-  ro.observe(host)
+  ro.observe(initialHost)
   resize()
 
   return {
@@ -136,6 +140,19 @@ export async function createStage({ canvas, host, reducedMotion, maxDpr = 1.75, 
     },
     onStruggle(fn) {
       strugglers.push(fn)
+    },
+    setHost(next) {
+      if (next === host) return
+      io.disconnect()
+      ro.disconnect()
+      host = next
+      onScreen = false
+      if (next) {
+        io.observe(next)
+        ro.observe(next)
+        resize()
+      }
+      sync()
     },
     dispose() {
       frame = null

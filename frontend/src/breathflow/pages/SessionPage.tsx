@@ -363,12 +363,13 @@ function SessionSetup({
   const stageRef = useRef<HTMLDivElement>(null)
   const anchorRef = useRef<HTMLDivElement>(null)
   const [live, setLive] = useState(false)
+  const [ready, setReady] = useState(false)
   // The preview bloom breathes this technique's actual cadence.
   const preview = useMemo(() => cadencePreview(protocol, customDurations, reducedMotion), [protocol, customDurations, reducedMotion])
   const vars = { '--bf-ink': pigment.mass, '--bf-mass': pigment.mass, '--bf-glaze': pigment.glaze } as CSSProperties
 
   return (
-    <div {...sx(ss.setup)} style={vars}>
+    <div aria-busy={!ready} {...sx(ss.setup, wc.reveal, !ready && wc.holding)} style={vars}>
       <div {...sx(ss.setupStage)}>
         <div ref={stageRef} {...sx(ss.setupStageInner)}>
           <BloomCanvas
@@ -378,6 +379,7 @@ function SessionSetup({
             pigment={pigment}
             read={preview}
             onLive={setLive}
+            onReady={() => setReady(true)}
             style={ss.setupCanvas}
           />
           <div {...sx(ss.setupAnchorWrap)}>

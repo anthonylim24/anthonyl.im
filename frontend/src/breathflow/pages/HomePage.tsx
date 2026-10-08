@@ -74,6 +74,7 @@ export function HomePage() {
   const heroRef = useRef<HTMLElement>(null)
   const anchorRef = useRef<HTMLDivElement>(null)
   const [live, setLive] = useState(false)
+  const [ready, setReady] = useState(false)
 
   useEffect(() => {
     checkResets()
@@ -106,7 +107,7 @@ export function HomePage() {
   const pigment = techniquePigment(recommendation.top.protocol.id)
 
   return (
-    <div>
+    <div aria-busy={!ready} {...sx(wc.reveal, !ready && wc.holding)}>
       <section
         ref={heroRef}
         {...sx(home.hero)}
@@ -120,6 +121,7 @@ export function HomePage() {
           pigment={pigment}
           read={reducedMotion ? readStill : readIdle}
           onLive={setLive}
+          onReady={() => setReady(true)}
           style={home.heroCanvas}
         />
         <div {...sx(home.heroGrid)}>

@@ -89,7 +89,14 @@ export type BloomSceneOptions = {
   onFirstFrame: () => void
 }
 
+/** The page-owned part of the scene: where it sits and what drives it. */
+export type BloomTarget = Pick<BloomSceneOptions, 'host' | 'anchor' | 'pointerHost' | 'mode' | 'vignette' | 'read' | 'onFirstFrame'>
+
 export type BloomScene = {
+  /** Move onto another page's host and anchor, keeping the compiled GPU pipeline. */
+  attach(target: BloomTarget): void
+  /** Stop drawing and drop listeners; the scene waits to be attached again. */
+  detach(): void
   setPigment(pigment: Pigment): void
   setNight(night: boolean): void
   /** A gentle press at a client point (session tap). Counts toward the easter egg. */
@@ -190,7 +197,8 @@ export async function createBloomScene(opts: BloomSceneOptions): Promise<BloomSc
 }
 
 async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomScene> {
-  const { host, anchor, pointerHost, mode, reducedMotion, read, onFirstFrame } = opts
+  const { reducedMotion } = opts
+  let { host, anchor, pointerHost, mode, read, onFirstFrame } = opts
   const { renderer } = stage
   const T = stage.time as F
   // High tier (WebGPU): contact occlusion pooled as pigment, a moonlit glow
@@ -878,7 +886,11 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
   }
 
   let pointer: JellyPointer | null = null
-  if (mode === 'play') {
+  const bindPointer = () => {
+    pointer?.dispose()
+    pointer = null
+    held = null
+    if (mode !== 'play') return
     pointer = bindJellyPointer({
       host: pointerHost,
       camera,
@@ -903,6 +915,7 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
       },
     })
   }
+  bindPointer()
 
   const ray = new THREE.Raycaster()
   const ndc = new THREE.Vector2()
@@ -1335,6 +1348,26 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
     setNight(night) {
       nightTarget = night ? 1 : 0
       stage.requestRender()
+    },
+    attach(target) {
+      const remode = target.mode !== mode
+      ;({ host, anchor, pointerHost, mode, read, onFirstFrame } = target)
+      uVignette.value = target.vignette ? 1 : 0
+      anchorObserver.disconnect()
+      anchorObserver.observe(anchor)
+      bindPointer()
+      stage.setHost(host) // resizes, which re-lays out onto the new anchor
+      if (remode) build(U) // calm and play bodies differ in stiffness
+      first = true
+      stage.requestRender()
+    },
+    detach() {
+      pointer?.dispose()
+      pointer = null
+      held = null
+      anchorObserver.disconnect()
+      stage.setHost(null)
+      onFirstFrame = () => {}
     },
     poke,
     requestRender: () => stage.requestRender(),

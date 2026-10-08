@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { LayoutGroup, motion } from 'motion/react'
 import { NavLink, useLocation, useOutlet } from 'react-router-dom'
 import { CLERK_ENABLED } from '@/lib/clerk'
@@ -11,6 +11,7 @@ import { SelectionInk } from '../motion/SelectionInk'
 import { EASE_SETTLE, inkSpring } from '../motion/tokens'
 import { useBreathflowTheme } from '../platform/useBreathflowTheme'
 import { useReducedMotion } from '../platform/useReducedMotion'
+import { releaseBloomScene } from '../scene/BloomCanvas'
 import { bf } from '../styles/breathflow.stylex'
 import { wc } from '../styles/watercolor.stylex'
 import '../styles/watercolor.css'
@@ -30,6 +31,8 @@ export function BreathflowLayout() {
   const location = useLocation()
   const outlet = useOutlet()
   const reducedMotion = useReducedMotion()
+  // The cat scene is shared across BreathFlow's pages; free it on the way out.
+  useEffect(() => releaseBloomScene, [])
   useBreathflowTheme()
   useFavicon()
   useDocumentMetadata({
