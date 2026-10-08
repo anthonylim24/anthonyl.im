@@ -7,6 +7,8 @@
  * A frame-rate governor keeps the loop at the display's rate: when frames
  * fall behind (under ~55 fps, or well under a 120 Hz display's rate) the
  * pixel ratio steps down, so slow GPUs trade a little sharpness for motion.
+ * If it is already as low as it goes, `onStruggle` listeners hear about it so
+ * scenes can drop optional effects.
  */
 import * as THREE from 'three/webgpu'
 import { float, time } from 'three/tsl'
@@ -31,6 +33,8 @@ export type Stage = {
   /** Render one frame now (reduced motion, or after a state change while paused). */
   requestRender(): void
   onResize(fn: (w: number, h: number) => void): void
+  /** Frames keep falling behind at the lowest pixel ratio (fires once). */
+  onStruggle(fn: () => void): void
   dispose(): void
 }
 
@@ -43,6 +47,7 @@ export async function createStage({ canvas, host, reducedMotion, maxDpr = 1.75, 
 
   const size = { w: 1, h: 1 }
   const resizers: ((w: number, h: number) => void)[] = []
+  const strugglers: (() => void)[] = []
   const resize = () => {
     size.w = Math.max(1, host.clientWidth)
     size.h = Math.max(1, host.clientHeight)
@@ -73,6 +78,9 @@ export async function createStage({ canvas, host, reducedMotion, maxDpr = 1.75, 
       dpr = Math.max(floor, dpr * 0.85)
       renderer.setPixelRatio(dpr)
       resize()
+      settle = 30
+    } else if (slow && strugglers.length) {
+      for (const fn of strugglers.splice(0)) fn()
       settle = 30
     }
   }
@@ -125,6 +133,9 @@ export async function createStage({ canvas, host, reducedMotion, maxDpr = 1.75, 
     onResize(fn) {
       resizers.push(fn)
       fn(size.w, size.h)
+    },
+    onStruggle(fn) {
+      strugglers.push(fn)
     },
     dispose() {
       frame = null
