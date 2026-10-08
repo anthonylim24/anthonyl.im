@@ -5,7 +5,7 @@ import type { Pigment } from '../pigments'
 import { useReducedMotion } from '../platform/useReducedMotion'
 import { wc } from '../styles/watercolor.stylex'
 import type { BreathSample } from './breathDrive'
-import type { BloomMode, BloomScene } from './catScene'
+import type { BloomMode, BloomScene, BloomTarget } from './catScene'
 
 export interface BloomCanvasHandle {
   poke(clientX: number, clientY: number): void
@@ -24,18 +24,41 @@ interface BloomCanvasProps {
   tick?: unknown
   /** The live scene painted its first frame (hide the CSS wash) or went away. */
   onLive?: (live: boolean) => void
+  /** Time to show the page: the scene painted, failed, or is taking too long. */
+  onReady?: () => void
   style?: Parameters<typeof sx>[0]
 }
 
+/** Pages hold their reveal this long at most before showing the painted wash. */
+const REVEAL_TIMEOUT_MS = 5000
+
+type Shared = { canvas: HTMLCanvasElement; reducedMotion: boolean; scene: Promise<BloomScene> }
 /**
- * Two layers: a painted CSS wash inside the anchor (shows at once, and stays
- * if WebGPU/WebGL2 is unavailable) and the live scene, lazily imported so
- * three.js stays out of BreathFlow's first chunk. The scene fades in on its
- * first frame. A fresh GL canvas per effect run keeps StrictMode's double
- * mount from sharing a GPU context.
+ * One live scene for all of BreathFlow. Building it (WebGPU device, shader
+ * compile) is the slow part, so pages hand it their host and anchor instead
+ * of rebuilding it on every route change.
+ */
+let shared: Shared | null = null
+let owner: object | null = null
+
+/** Drop the shared scene (leaving BreathFlow, or reduced motion flipped). */
+export function releaseBloomScene() {
+  const s = shared
+  shared = null
+  owner = null
+  if (!s) return
+  s.canvas.remove()
+  void s.scene.then((scene) => scene.dispose(), () => {})
+}
+
+/**
+ * Two layers: a painted CSS wash inside the anchor (stays if WebGPU/WebGL2
+ * is unavailable) and the live scene, lazily imported so three.js stays out
+ * of BreathFlow's first chunk. The scene and its canvas outlive the page:
+ * unmounting detaches it, the next BloomCanvas re-attaches it.
  */
 export const BloomCanvas = forwardRef<BloomCanvasHandle, BloomCanvasProps>(function BloomCanvas(
-  { anchorRef, pointerHostRef, mode, pigment, read, vignette = false, tick, onLive, style },
+  { anchorRef, pointerHostRef, mode, pigment, read, vignette = false, tick, onLive, onReady, style },
   ref,
 ) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -43,9 +66,10 @@ export const BloomCanvas = forwardRef<BloomCanvasHandle, BloomCanvasProps>(funct
   const [live, setLive] = useState(false)
   const reducedMotion = useReducedMotion()
   const night = useSettingsStore((s) => s.theme === 'dark')
-  const initial = useRef({ pigment, night, read, onLive })
-  initial.current.read = read
-  initial.current.onLive = onLive
+  const latest = useRef({ pigment, night, read, onLive, onReady })
+  latest.current.read = read
+  latest.current.onLive = onLive
+  latest.current.onReady = onReady
 
   useImperativeHandle(ref, () => ({
     poke: (x, y) => sceneRef.current?.poke(x, y),
@@ -55,58 +79,85 @@ export const BloomCanvas = forwardRef<BloomCanvasHandle, BloomCanvasProps>(funct
     const host = hostRef.current
     const anchor = anchorRef.current
     if (!host || !anchor) return
-    let disposed = false
-    const gl = document.createElement('canvas')
-    gl.setAttribute('aria-hidden', 'true')
-    Object.assign(gl.style, { width: '100%', height: '100%', display: 'block' })
-    host.appendChild(gl)
+    const me = {}
+    const reveal = () => {
+      if (owner === me) latest.current.onReady?.()
+    }
+    const timer = setTimeout(reveal, REVEAL_TIMEOUT_MS)
+    const target: BloomTarget = {
+      host,
+      anchor,
+      pointerHost: pointerHostRef?.current ?? host,
+      mode,
+      vignette,
+      read: () => latest.current.read(),
+      onFirstFrame: () => {
+        if (owner !== me) return
+        setLive(true)
+        latest.current.onLive?.(true)
+        reveal()
+      },
+    }
 
-    void import('./catScene')
-      .then(({ createBloomScene }) =>
+    if (shared && shared.reducedMotion !== reducedMotion) releaseBloomScene()
+    let s = shared
+    if (!s) {
+      const canvas = document.createElement('canvas')
+      canvas.setAttribute('aria-hidden', 'true')
+      Object.assign(canvas.style, { width: '100%', height: '100%', display: 'block' })
+      const scene = import('./catScene').then(({ createBloomScene }) =>
         createBloomScene({
-          canvas: gl,
-          host,
-          anchor,
-          pointerHost: pointerHostRef?.current ?? host,
-          mode,
+          canvas,
           reducedMotion,
-          night: initial.current.night,
-          pigment: initial.current.pigment,
-          vignette,
-          read: () => initial.current.read(),
-          onFirstFrame: () => {
-            if (disposed) return
-            setLive(true)
-            initial.current.onLive?.(true)
-          },
+          night: latest.current.night,
+          pigment: latest.current.pigment,
+          ...target,
         }),
       )
-      .then((scene) => {
-        if (disposed) scene.dispose()
-        else sceneRef.current = scene
+      s = shared = { canvas, reducedMotion, scene }
+      scene.catch(() => {
+        if (shared?.scene === scene) shared = null
       })
-      .catch((error: unknown) => {
+    }
+    const { scene } = s
+    host.appendChild(s.canvas)
+    owner = me
+    scene.then(
+      (bloom) => {
+        if (owner !== me) return
+        sceneRef.current = bloom
+        bloom.attach(target)
+        bloom.setPigment(latest.current.pigment)
+        bloom.setNight(latest.current.night)
+      },
+      (error: unknown) => {
         console.warn('[breathflow] live bloom unavailable; keeping the painted wash.', error)
-      })
+        reveal()
+      },
+    )
 
     return () => {
-      disposed = true
-      sceneRef.current?.dispose()
+      clearTimeout(timer)
       sceneRef.current = null
-      gl.remove()
       setLive(false)
-      initial.current.onLive?.(false)
+      latest.current.onLive?.(false)
+      if (owner !== me) return
+      owner = null
+      // Detach unless the next page has already claimed it.
+      void scene.then((bloom) => {
+        if (owner === null) bloom.detach()
+      }, () => {})
     }
   }, [anchorRef, pointerHostRef, mode, reducedMotion, vignette])
 
   const { mass, glaze } = pigment
   useEffect(() => {
-    initial.current.pigment = { name: '', mass, glaze }
+    latest.current.pigment = { name: '', mass, glaze }
     sceneRef.current?.setPigment({ name: '', mass, glaze })
   }, [mass, glaze])
 
   useEffect(() => {
-    initial.current.night = night
+    latest.current.night = night
     sceneRef.current?.setNight(night)
   }, [night])
 

@@ -26,6 +26,7 @@ import {
   type RankedProtocol,
 } from '../recommend/recommendations'
 import { useRecoveryStatus } from '../safety/useRecoveryStatus'
+import { PaintingLoader } from '../components/PaintingLoader'
 import { BloomAnchor } from '../scene/BloomAnchor'
 import { BloomCanvas } from '../scene/BloomCanvas'
 import { idleBreath } from '../scene/breathDrive'
@@ -74,6 +75,7 @@ export function HomePage() {
   const heroRef = useRef<HTMLElement>(null)
   const anchorRef = useRef<HTMLDivElement>(null)
   const [live, setLive] = useState(false)
+  const [ready, setReady] = useState(false)
 
   useEffect(() => {
     checkResets()
@@ -106,191 +108,195 @@ export function HomePage() {
   const pigment = techniquePigment(recommendation.top.protocol.id)
 
   return (
-    <div>
-      <section
-        ref={heroRef}
-        {...sx(home.hero)}
-        style={{ '--bf-mass': pigment.mass, '--bf-glaze': pigment.glaze } as CSSProperties}
-        aria-labelledby="bf-greeting"
-      >
-        <BloomCanvas
-          anchorRef={anchorRef}
-          pointerHostRef={heroRef}
-          mode="play"
-          pigment={pigment}
-          read={reducedMotion ? readStill : readIdle}
-          onLive={setLive}
-          style={home.heroCanvas}
-        />
-        <div {...sx(home.heroGrid)}>
-          <div {...sx(home.heroCopy)}>
-            <motion.p {...enter(reducedMotion, 0)} {...sx(wc.eyebrow)}>
-              {now.toLocaleDateString(undefined, { weekday: 'long' })} · BreathFlow
-            </motion.p>
-            <motion.h1 id="bf-greeting" {...enter(reducedMotion, 0.06)} {...sx('bf-display', wc.pageTitle, home.greeting)}>
-              {getGreeting(hour)}<span {...sx(wc.italic, home.greetingDot)}>.</span>
-            </motion.h1>
-            <motion.div {...enter(reducedMotion, 0.12)}>
-              {isFirstRun ? (
-                <p {...sx(wc.lede, home.lede)}>
-                  One guided breathing session is enough to feel the shift. About 5 minutes.
-                </p>
-              ) : (
-                <div {...sx(home.streakRow)}>
+    <>
+      {!ready && <PaintingLoader pigment={pigment} reducedMotion={reducedMotion} />}
+      <div aria-busy={!ready} {...sx(wc.reveal, !ready && wc.holding)}>
+        <section
+          ref={heroRef}
+          {...sx(home.hero)}
+          style={{ '--bf-mass': pigment.mass, '--bf-glaze': pigment.glaze } as CSSProperties}
+          aria-labelledby="bf-greeting"
+        >
+          <BloomCanvas
+            anchorRef={anchorRef}
+            pointerHostRef={heroRef}
+            mode="play"
+            pigment={pigment}
+            read={reducedMotion ? readStill : readIdle}
+            onLive={setLive}
+            onReady={() => setReady(true)}
+            style={home.heroCanvas}
+          />
+          <div {...sx(home.heroGrid)}>
+            <div {...sx(home.heroCopy)}>
+              <motion.p {...enter(reducedMotion, 0)} {...sx(wc.eyebrow)}>
+                {now.toLocaleDateString(undefined, { weekday: 'long' })} · BreathFlow
+              </motion.p>
+              <motion.h1 id="bf-greeting" {...enter(reducedMotion, 0.06)} {...sx('bf-display', wc.pageTitle, home.greeting)}>
+                {getGreeting(hour)}<span {...sx(wc.italic, home.greetingDot)}>.</span>
+              </motion.h1>
+              <motion.div {...enter(reducedMotion, 0.12)}>
+                {isFirstRun ? (
                   <p {...sx(wc.lede, home.lede)}>
-                    {streak > 0
-                      ? `${streak}-day streak. ${dailyGoalMet ? 'Practiced today.' : 'A session today keeps it going.'}`
-                      : 'A five-minute session starts a new streak.'}
+                    One guided breathing session is enough to feel the shift. About 5 minutes.
                   </p>
-                  <WeekDabs sessions={sessions} />
-                </div>
+                ) : (
+                  <div {...sx(home.streakRow)}>
+                    <p {...sx(wc.lede, home.lede)}>
+                      {streak > 0
+                        ? `${streak}-day streak. ${dailyGoalMet ? 'Practiced today.' : 'A session today keeps it going.'}`
+                        : 'A five-minute session starts a new streak.'}
+                    </p>
+                    <WeekDabs sessions={sessions} />
+                  </div>
+                )}
+              </motion.div>
+
+              <motion.div {...enter(reducedMotion, 0.18)} {...sx(home.choosers)}>
+                <LayoutGroup id="home-goal">
+                  <div role="group" aria-label="Goal" {...sx(home.chipRow)}>
+                    {GOALS.map((option) => (
+                      <InkChip
+                        key={option.id}
+                        active={goal === option.id}
+                        onClick={() => setGoal(option.id)}
+                        label={option.label}
+                        layoutId="home-goal-ink"
+                      />
+                    ))}
+                  </div>
+                </LayoutGroup>
+                <LayoutGroup id="home-length">
+                  <div role="group" aria-label="Session length" {...sx(home.chipRow)}>
+                    {LENGTH_WINDOWS.map((option) => (
+                      <InkChip
+                        key={option.id}
+                        active={windowId === option.id}
+                        onClick={() => setWindowId(option.id)}
+                        label={`${option.label} · ${Math.round(option.seconds / 60)} min`}
+                        layoutId="home-length-ink"
+                        compact
+                      />
+                    ))}
+                  </div>
+                </LayoutGroup>
+              </motion.div>
+
+              {showRecoveryNotice && (
+                <Notice title="Recovery in progress" live={false} style={bf.mt5}>
+                  <p {...sx(bf.tabularNums)}>
+                    Breathe easy for {recovery.remainingSeconds}s. Intense protocols are held back until then.
+                  </p>
+                </Notice>
               )}
-            </motion.div>
 
-            <motion.div {...enter(reducedMotion, 0.18)} {...sx(home.choosers)}>
-              <LayoutGroup id="home-goal">
-                <div role="group" aria-label="Goal" {...sx(home.chipRow)}>
-                  {GOALS.map((option) => (
-                    <InkChip
-                      key={option.id}
-                      active={goal === option.id}
-                      onClick={() => setGoal(option.id)}
-                      label={option.label}
-                      layoutId="home-goal-ink"
-                    />
-                  ))}
-                </div>
-              </LayoutGroup>
-              <LayoutGroup id="home-length">
-                <div role="group" aria-label="Session length" {...sx(home.chipRow)}>
-                  {LENGTH_WINDOWS.map((option) => (
-                    <InkChip
-                      key={option.id}
-                      active={windowId === option.id}
-                      onClick={() => setWindowId(option.id)}
-                      label={`${option.label} · ${Math.round(option.seconds / 60)} min`}
-                      layoutId="home-length-ink"
-                      compact
-                    />
-                  ))}
-                </div>
-              </LayoutGroup>
-            </motion.div>
+              <motion.div {...enter(reducedMotion, 0.24)}>
+                <RecommendedBlock ranked={recommendation.top} reducedMotion={reducedMotion} />
+              </motion.div>
+            </div>
 
-            {showRecoveryNotice && (
-              <Notice title="Recovery in progress" live={false} style={bf.mt5}>
-                <p {...sx(bf.tabularNums)}>
-                  Breathe easy for {recovery.remainingSeconds}s. Intense protocols are held back until then.
+            <div {...sx(home.heroBloom)}>
+              <BloomAnchor
+                ref={anchorRef}
+                pigment={pigment}
+                read={reducedMotion ? readStill : readIdle}
+                live={live}
+                reducedMotion={reducedMotion}
+              />
+              {!reducedMotion && (
+                <p aria-hidden="true" {...sx(home.hint)}>
+                  <span {...sx(home.hintFine)}>Poke the cat, or drag it.</span>
+                  <span {...sx(home.hintTouch)}>Tap or drag the cat.</span>
+                  <span {...sx(wc.italic, home.hintPigment)}>{pigment.name}</span>
                 </p>
-              </Notice>
-            )}
-
-            <motion.div {...enter(reducedMotion, 0.24)}>
-              <RecommendedBlock ranked={recommendation.top} reducedMotion={reducedMotion} />
-            </motion.div>
+              )}
+            </div>
           </div>
-
-          <div {...sx(home.heroBloom)}>
-            <BloomAnchor
-              ref={anchorRef}
-              pigment={pigment}
-              read={reducedMotion ? readStill : readIdle}
-              live={live}
-              reducedMotion={reducedMotion}
-            />
-            {!reducedMotion && (
-              <p aria-hidden="true" {...sx(home.hint)}>
-                <span {...sx(home.hintFine)}>Poke the cat, or drag it.</span>
-                <span {...sx(home.hintTouch)}>Tap or drag the cat.</span>
-                <span {...sx(wc.italic, home.hintPigment)}>{pigment.name}</span>
-              </p>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {recommendation.alternatives.length > 0 && (
-        <section {...sx(wc.section)} aria-labelledby="bf-alts">
-          <div {...sx(wc.sectionHead)}>
-            <h2 id="bf-alts" {...sx('bf-display', wc.sectionTitle)}>Also a good fit</h2>
-          </div>
-          <ol {...sx(home.altList)}>
-            {recommendation.alternatives.map((alt) => (
-              <li key={alt.protocol.id}>
-                <AlternativeRow ranked={alt} />
-              </li>
-            ))}
-          </ol>
         </section>
-      )}
 
-      {recent.length > 0 && (
-        <section {...sx(wc.section)} aria-labelledby="bf-recent">
-          <div {...sx(wc.sectionHead)}>
-            <h2 id="bf-recent" {...sx('bf-display', wc.sectionTitle)}>Pick up where you left off</h2>
-          </div>
-          <ul {...sx(home.recentList)}>
-            {recent.map((session) => {
-              const protocol = getProtocol(session.techniqueId)
-              const paint = techniquePigment(protocol.id)
-              return (
-                <li key={session.id}>
-                  <Link
-                    to={buildSessionPath(buildRepeatParams(session))}
-                    {...sx(home.recentRow)}
-                    style={{ '--bf-mass': paint.mass, '--bf-glaze': paint.glaze } as CSSProperties}
-                  >
-                    <span aria-hidden="true" {...sx('bf-dab', home.recentDab)} />
-                    <span {...sx(bf.minW0, bf.flex1)}>
-                      <span {...sx(bf.block, bf.truncate, bf.textSm, bf.fontMedium, bf.textBw)}>
-                        {protocol.name}
-                        {session.customPhaseDurations && (
-                          <span {...sx(bf.ml2, bf.textXs, bf.fontNormal, bf.textTertiary)}>custom cadence</span>
-                        )}
-                      </span>
-                      <span {...sx(bf.block, bf.textXs, bf.tabularNums, bf.textSecondary)}>
-                        {formatLocalDate(session.date)} · {formatDuration(session.durationSeconds)}, {session.rounds} rounds
-                      </span>
-                    </span>
-                    <span {...sx(bf.shrink0, bf.textXs, bf.textTertiary)}>
-                      {isAdvancedProtocol(protocol) ? 'Safety check, then repeat' : 'Repeat'}
-                    </span>
-                  </Link>
+        {recommendation.alternatives.length > 0 && (
+          <section {...sx(wc.section)} aria-labelledby="bf-alts">
+            <div {...sx(wc.sectionHead)}>
+              <h2 id="bf-alts" {...sx('bf-display', wc.sectionTitle)}>Also a good fit</h2>
+            </div>
+            <ol {...sx(home.altList)}>
+              {recommendation.alternatives.map((alt) => (
+                <li key={alt.protocol.id}>
+                  <AlternativeRow ranked={alt} />
                 </li>
+              ))}
+            </ol>
+          </section>
+        )}
+
+        {recent.length > 0 && (
+          <section {...sx(wc.section)} aria-labelledby="bf-recent">
+            <div {...sx(wc.sectionHead)}>
+              <h2 id="bf-recent" {...sx('bf-display', wc.sectionTitle)}>Pick up where you left off</h2>
+            </div>
+            <ul {...sx(home.recentList)}>
+              {recent.map((session) => {
+                const protocol = getProtocol(session.techniqueId)
+                const paint = techniquePigment(protocol.id)
+                return (
+                  <li key={session.id}>
+                    <Link
+                      to={buildSessionPath(buildRepeatParams(session))}
+                      {...sx(home.recentRow)}
+                      style={{ '--bf-mass': paint.mass, '--bf-glaze': paint.glaze } as CSSProperties}
+                    >
+                      <span aria-hidden="true" {...sx('bf-dab', home.recentDab)} />
+                      <span {...sx(bf.minW0, bf.flex1)}>
+                        <span {...sx(bf.block, bf.truncate, bf.textSm, bf.fontMedium, bf.textBw)}>
+                          {protocol.name}
+                          {session.customPhaseDurations && (
+                            <span {...sx(bf.ml2, bf.textXs, bf.fontNormal, bf.textTertiary)}>custom cadence</span>
+                          )}
+                        </span>
+                        <span {...sx(bf.block, bf.textXs, bf.tabularNums, bf.textSecondary)}>
+                          {formatLocalDate(session.date)} · {formatDuration(session.durationSeconds)}, {session.rounds} rounds
+                        </span>
+                      </span>
+                      <span {...sx(bf.shrink0, bf.textXs, bf.textTertiary)}>
+                        {isAdvancedProtocol(protocol) ? 'Safety check, then repeat' : 'Repeat'}
+                      </span>
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        )}
+
+        <section {...sx(wc.section)} aria-labelledby="bf-paintbox">
+          <div {...sx(wc.sectionHead)}>
+            <h2 id="bf-paintbox" {...sx('bf-display', wc.sectionTitle)}>Every technique</h2>
+            <p {...sx(bf.textSm, bf.textSecondary)}>Nine breaths, nine pigments.</p>
+          </div>
+          <div {...sx(home.paintbox)}>
+            {CATEGORY_ORDER.map(({ id, label, blurb }) => {
+              const protocols = PROTOCOLS.filter((protocol) => protocol.category === id)
+              if (protocols.length === 0) return null
+              return (
+                <div key={id} {...sx(home.category)}>
+                  <p {...sx(home.categoryLabel)}>
+                    <span {...sx('bf-display', wc.italic, home.categoryName)}>{label}</span>
+                    <span {...sx(bf.textXs, bf.textTertiary)}>{blurb}</span>
+                  </p>
+                  <ul {...sx(home.swatchGrid)}>
+                    {protocols.map((protocol) => (
+                      <li key={protocol.id}>
+                        <TechniqueSwatch protocolId={protocol.id} reducedMotion={reducedMotion} />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )
             })}
-          </ul>
+          </div>
         </section>
-      )}
-
-      <section {...sx(wc.section)} aria-labelledby="bf-paintbox">
-        <div {...sx(wc.sectionHead)}>
-          <h2 id="bf-paintbox" {...sx('bf-display', wc.sectionTitle)}>Every technique</h2>
-          <p {...sx(bf.textSm, bf.textSecondary)}>Nine breaths, nine pigments.</p>
-        </div>
-        <div {...sx(home.paintbox)}>
-          {CATEGORY_ORDER.map(({ id, label, blurb }) => {
-            const protocols = PROTOCOLS.filter((protocol) => protocol.category === id)
-            if (protocols.length === 0) return null
-            return (
-              <div key={id} {...sx(home.category)}>
-                <p {...sx(home.categoryLabel)}>
-                  <span {...sx('bf-display', wc.italic, home.categoryName)}>{label}</span>
-                  <span {...sx(bf.textXs, bf.textTertiary)}>{blurb}</span>
-                </p>
-                <ul {...sx(home.swatchGrid)}>
-                  {protocols.map((protocol) => (
-                    <li key={protocol.id}>
-                      <TechniqueSwatch protocolId={protocol.id} reducedMotion={reducedMotion} />
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )
-          })}
-        </div>
-      </section>
-    </div>
+      </div>
+    </>
   )
 }
 

@@ -59,6 +59,7 @@ import { Notice } from '../motion/Notice'
 import { chromeTransition, EASE_SETTLE, inkSpring, pressSpring } from '../motion/tokens'
 import { sessionPigment, techniquePigment, type Pigment } from '../pigments'
 import { getRoundSeconds } from '../protocols/cadence'
+import { PaintingLoader } from '../components/PaintingLoader'
 import { BloomAnchor } from '../scene/BloomAnchor'
 import { BloomCanvas, type BloomCanvasHandle } from '../scene/BloomCanvas'
 import { sampleBreath, useBreathReader, type BreathSample } from '../scene/breathDrive'
@@ -363,238 +364,243 @@ function SessionSetup({
   const stageRef = useRef<HTMLDivElement>(null)
   const anchorRef = useRef<HTMLDivElement>(null)
   const [live, setLive] = useState(false)
+  const [ready, setReady] = useState(false)
   // The preview bloom breathes this technique's actual cadence.
   const preview = useMemo(() => cadencePreview(protocol, customDurations, reducedMotion), [protocol, customDurations, reducedMotion])
   const vars = { '--bf-ink': pigment.mass, '--bf-mass': pigment.mass, '--bf-glaze': pigment.glaze } as CSSProperties
 
   return (
-    <div {...sx(ss.setup)} style={vars}>
-      <div {...sx(ss.setupStage)}>
-        <div ref={stageRef} {...sx(ss.setupStageInner)}>
-          <BloomCanvas
-            anchorRef={anchorRef}
-            pointerHostRef={stageRef}
-            mode="play"
-            pigment={pigment}
-            read={preview}
-            onLive={setLive}
-            style={ss.setupCanvas}
-          />
-          <div {...sx(ss.setupAnchorWrap)}>
-            <BloomAnchor ref={anchorRef} pigment={pigment} read={preview} live={live} reducedMotion={reducedMotion} />
+    <>
+      {!ready && <PaintingLoader pigment={pigment} reducedMotion={reducedMotion} />}
+      <div aria-busy={!ready} {...sx(ss.setup, wc.reveal, !ready && wc.holding)} style={vars}>
+        <div {...sx(ss.setupStage)}>
+          <div ref={stageRef} {...sx(ss.setupStageInner)}>
+            <BloomCanvas
+              anchorRef={anchorRef}
+              pointerHostRef={stageRef}
+              mode="play"
+              pigment={pigment}
+              read={preview}
+              onLive={setLive}
+              onReady={() => setReady(true)}
+              style={ss.setupCanvas}
+            />
+            <div {...sx(ss.setupAnchorWrap)}>
+              <BloomAnchor ref={anchorRef} pigment={pigment} read={preview} live={live} reducedMotion={reducedMotion} />
+            </div>
           </div>
-        </div>
-        <p {...sx(ss.setupCaption)}>
-          <span {...sx('bf-display', wc.italic)}>{pigment.name}</span>
-          <span aria-hidden="true"> · </span>
-          <span>{reducedMotion ? 'one breath, at rest' : 'previewing one breath'}</span>
-        </p>
-      </div>
-
-      <div {...sx(ss.setupPanel)}>
-      <p {...sx(wc.eyebrow)}>Choose a breath</p>
-      <h1 {...sx('bf-display', wc.pageTitle, ss.setupTitle)}>Breathe</h1>
-
-      {/* Technique switch */}
-      <LayoutGroup id="session-technique">
-        <div {...sx(ss.palette)} role="group" aria-label="Technique">
-          {PROTOCOLS.map((entry) => {
-            const selected = entry.id === protocol.id
-            const paint = techniquePigment(entry.id)
-            return (
-              <motion.button
-                key={entry.id}
-                type="button"
-                aria-pressed={selected}
-                onClick={() => onUpdate({ techniqueId: entry.id })}
-                whileTap={reducedMotion ? undefined : { scale: 0.98 }}
-                transition={pressSpring}
-                {...sx(ss.paletteBtn, selected ? ss.paletteBtnActive : ss.paletteBtnIdle)}
-                style={{ '--bf-mass': paint.mass, '--bf-glaze': paint.glaze } as CSSProperties}
-              >
-                {selected ? (
-                  reducedMotion ? (
-                    <span aria-hidden="true" {...sx(ss.paletteInk)} />
-                  ) : (
-                    <motion.span
-                      aria-hidden="true"
-                      layoutId="session-technique-ink"
-                      {...sx(ss.paletteInk)}
-                      transition={inkSpring}
-                    />
-                  )
-                ) : null}
-                <span aria-hidden="true" {...sx('bf-dab', ss.paletteDab)} />
-                <span {...sx(bf.relative, bf.minW0)}>
-                  <span {...sx(bf.block, bf.breakWords)}>{entry.name}</span>
-                  <span {...sx(bf.block, bf.text11px, bf.capitalize, bf.textTertiary)}>
-                    {entry.category}
-                    {isAdvancedProtocol(entry) ? ' · safety check' : ''}
-                  </span>
-                </span>
-              </motion.button>
-            )
-          })}
-        </div>
-      </LayoutGroup>
-
-      <div {...sx(ss.detail)}>
-        <div {...sx(bf.flexBaselineBetween)}>
-          <div {...sx(bf.minW0)}>
-            <h2 {...sx('bf-display', ss.protocolName)}>{protocol.name}</h2>
-            <p {...sx(bf.mt1, bf.textSm, bf.textSecondary)}>{protocol.description}</p>
-          </div>
-          <p {...sx('bf-display', ss.planned)}>{formatDuration(planned)}</p>
-        </div>
-
-        <PhaseStrip
-          protocol={protocol}
-          customDurations={customDurations}
-          animated={!reducedMotion}
-          pigment={pigment}
-          style={bf.mt4}
-        />
-
-        {/* Rounds */}
-        <div {...sx(bf.mt5, bf.flexBetween)}>
-          <span {...sx(bf.textSm, bf.textBw)}>Rounds</span>
-          <div {...sx(bf.flexItemsCenterGap1)}>
-            <button
-              type="button"
-              {...sx(btn.icon)}
-              aria-label="One round fewer"
-              disabled={rounds <= 1}
-              onClick={() => onUpdate({ rounds: clampRounds(protocol, rounds - 1) })}
-            >
-              <Minus size={16} strokeWidth={1.75} aria-hidden="true" />
-            </button>
-            <span {...sx(bf.w10, bf.textCenter, bf.textSm, bf.fontMedium, bf.tabularNums, bf.textBw)}>{rounds}</span>
-            <button
-              type="button"
-              {...sx(btn.icon)}
-              aria-label="One round more"
-              disabled={rounds >= maxRounds}
-              onClick={() => onUpdate({ rounds: clampRounds(protocol, rounds + 1) })}
-            >
-              <Plus size={16} strokeWidth={1.75} aria-hidden="true" />
-            </button>
-          </div>
-        </div>
-
-        {/* Cadence */}
-        <details {...sx('group', bf.detailsGroup)}>
-          <summary {...sx(bf.detailsSummary)}>
-            Cadence
-            <span {...sx(bf.flexItemsCenterGap2)}>
-              <span {...sx(bf.textXs, bf.textTertiary, bf.groupOpenHidden)}>
-                {customDurations ? 'Custom' : 'Default'}
-              </span>
-              <DetailsChevron />
-            </span>
-          </summary>
-          <CadenceEditor
-            protocol={protocol}
-            rounds={rounds}
-            customDurations={customDurations}
-            onChange={(custom) => onUpdate({ customDurations: custom })}
-          />
-        </details>
-
-        {/* Science */}
-        <details {...sx('group', bf.detailsGroupFlush)}>
-          <summary {...sx(bf.detailsSummary)}>
-            <span>Why it works</span>
-            <span {...sx(bf.flexItemsCenterGap2)}>
-              <span {...sx(bf.textXs, bf.capitalize, bf.textTertiary, bf.groupOpenHidden)}>
-                {protocol.evidenceLevel} evidence
-              </span>
-              <DetailsChevron />
-            </span>
-          </summary>
-          <div {...sx(bf.scienceBody)}>
-            <p {...sx(bf.textSm, bf.leadingRelaxed, bf.textSecondary)}>{protocol.science}</p>
-            <p {...sx(bf.mt2, bf.textXs, bf.textTertiary)}>
-              {protocol.evidenceLabel} · {protocol.breathsPerMinute} breaths/min · best for{' '}
-              {protocol.bestFor.join(', ').toLowerCase()}
-            </p>
-            {protocol.caution && (
-              <p {...sx(bf.mt2, bf.textXs, bf.leadingRelaxed, bf.textSecondary)}>{protocol.caution}</p>
-            )}
-            <ul {...sx(bf.mt3, bf.spaceY15)}>
-              {protocol.citations.map((citation) => (
-                <li key={citation.url} {...sx(bf.textXs, bf.leadingRelaxed, bf.textTertiary)}>
-                  {citation.authors} ({citation.year}).{' '}
-                  <a
-                    href={citation.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    {...sx(bf.citationLink)}
-                  >
-                    {citation.title}
-                  </a>{' '}
-                  {citation.source}.
-                </li>
-              ))}
-            </ul>
-          </div>
-        </details>
-      </div>
-
-      {/* Mood before */}
-      <div {...sx(bf.mt6)}>
-        <MoodPicker label="How do you feel right now? (optional)" value={moodBefore} onChange={onMoodBefore} />
-      </div>
-
-      {/* Safety gate */}
-      {advanced && !blockedByViewport && (
-        <div {...sx(bf.mt6)}>
-          <SafetyChecklist protocol={protocol} checkedItems={checkedSafety} onToggle={onToggleSafety} />
-        </div>
-      )}
-
-      {blockedByViewport && (
-        <Notice role="alert" tone="danger" title="Not available here" style={bf.mt6}>
-          {CONSTRAINED_VIEWPORT_MESSAGE}
-        </Notice>
-      )}
-
-      {blockedByRecovery && !blockedByViewport && (
-        <Notice title="Recovery in progress" style={bf.mt6} live={false}>
-          <p {...sx(bf.tabularNums)}>
-            Breathe easy for {recoveryRemaining}s before the next intense session.
+          <p {...sx(ss.setupCaption)}>
+            <span {...sx('bf-display', wc.italic)}>{pigment.name}</span>
+            <span aria-hidden="true"> · </span>
+            <span>{reducedMotion ? 'one breath, at rest' : 'previewing one breath'}</span>
           </p>
-        </Notice>
-      )}
+        </div>
 
-      {/* Start */}
-      <div {...sx(bf.startBlock)}>
-        <p {...sx(bf.startCue)}>{READY_CUE}</p>
-        <motion.button
-          type="button"
-          {...sx(btn.base, btn.primary, btn.wFull)}
-          disabled={startDisabled}
-          onClick={onStart}
-          whileTap={reducedMotion || startDisabled ? undefined : { scale: 0.98 }}
-          transition={pressSpring}
-        >
-          Start
-        </motion.button>
-      </div>
+        <div {...sx(ss.setupPanel)}>
+        <p {...sx(wc.eyebrow)}>Choose a breath</p>
+        <h1 {...sx('bf-display', wc.pageTitle, ss.setupTitle)}>Breathe</h1>
 
-      {/* Global disclosure */}
-      <details {...sx('group', bf.mt8)}>
-        <summary {...sx(bf.detailsSummaryTertiary)}>
-          {SAFETY_DISCLOSURE.title}
-          <DetailsChevron />
-        </summary>
-        <ul {...sx(bf.disclosureList)}>
-          {SAFETY_DISCLOSURE.points.map((point) => (
-            <li key={point} {...sx(bf.textXs, bf.leadingRelaxed, bf.textTertiary)}>{point}</li>
-          ))}
-        </ul>
-      </details>
+        {/* Technique switch */}
+        <LayoutGroup id="session-technique">
+          <div {...sx(ss.palette)} role="group" aria-label="Technique">
+            {PROTOCOLS.map((entry) => {
+              const selected = entry.id === protocol.id
+              const paint = techniquePigment(entry.id)
+              return (
+                <motion.button
+                  key={entry.id}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => onUpdate({ techniqueId: entry.id })}
+                  whileTap={reducedMotion ? undefined : { scale: 0.98 }}
+                  transition={pressSpring}
+                  {...sx(ss.paletteBtn, selected ? ss.paletteBtnActive : ss.paletteBtnIdle)}
+                  style={{ '--bf-mass': paint.mass, '--bf-glaze': paint.glaze } as CSSProperties}
+                >
+                  {selected ? (
+                    reducedMotion ? (
+                      <span aria-hidden="true" {...sx(ss.paletteInk)} />
+                    ) : (
+                      <motion.span
+                        aria-hidden="true"
+                        layoutId="session-technique-ink"
+                        {...sx(ss.paletteInk)}
+                        transition={inkSpring}
+                      />
+                    )
+                  ) : null}
+                  <span aria-hidden="true" {...sx('bf-dab', ss.paletteDab)} />
+                  <span {...sx(bf.relative, bf.minW0)}>
+                    <span {...sx(bf.block, bf.breakWords)}>{entry.name}</span>
+                    <span {...sx(bf.block, bf.text11px, bf.capitalize, bf.textTertiary)}>
+                      {entry.category}
+                      {isAdvancedProtocol(entry) ? ' · safety check' : ''}
+                    </span>
+                  </span>
+                </motion.button>
+              )
+            })}
+          </div>
+        </LayoutGroup>
+
+        <div {...sx(ss.detail)}>
+          <div {...sx(bf.flexBaselineBetween)}>
+            <div {...sx(bf.minW0)}>
+              <h2 {...sx('bf-display', ss.protocolName)}>{protocol.name}</h2>
+              <p {...sx(bf.mt1, bf.textSm, bf.textSecondary)}>{protocol.description}</p>
+            </div>
+            <p {...sx('bf-display', ss.planned)}>{formatDuration(planned)}</p>
+          </div>
+
+          <PhaseStrip
+            protocol={protocol}
+            customDurations={customDurations}
+            animated={!reducedMotion}
+            pigment={pigment}
+            style={bf.mt4}
+          />
+
+          {/* Rounds */}
+          <div {...sx(bf.mt5, bf.flexBetween)}>
+            <span {...sx(bf.textSm, bf.textBw)}>Rounds</span>
+            <div {...sx(bf.flexItemsCenterGap1)}>
+              <button
+                type="button"
+                {...sx(btn.icon)}
+                aria-label="One round fewer"
+                disabled={rounds <= 1}
+                onClick={() => onUpdate({ rounds: clampRounds(protocol, rounds - 1) })}
+              >
+                <Minus size={16} strokeWidth={1.75} aria-hidden="true" />
+              </button>
+              <span {...sx(bf.w10, bf.textCenter, bf.textSm, bf.fontMedium, bf.tabularNums, bf.textBw)}>{rounds}</span>
+              <button
+                type="button"
+                {...sx(btn.icon)}
+                aria-label="One round more"
+                disabled={rounds >= maxRounds}
+                onClick={() => onUpdate({ rounds: clampRounds(protocol, rounds + 1) })}
+              >
+                <Plus size={16} strokeWidth={1.75} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+
+          {/* Cadence */}
+          <details {...sx('group', bf.detailsGroup)}>
+            <summary {...sx(bf.detailsSummary)}>
+              Cadence
+              <span {...sx(bf.flexItemsCenterGap2)}>
+                <span {...sx(bf.textXs, bf.textTertiary, bf.groupOpenHidden)}>
+                  {customDurations ? 'Custom' : 'Default'}
+                </span>
+                <DetailsChevron />
+              </span>
+            </summary>
+            <CadenceEditor
+              protocol={protocol}
+              rounds={rounds}
+              customDurations={customDurations}
+              onChange={(custom) => onUpdate({ customDurations: custom })}
+            />
+          </details>
+
+          {/* Science */}
+          <details {...sx('group', bf.detailsGroupFlush)}>
+            <summary {...sx(bf.detailsSummary)}>
+              <span>Why it works</span>
+              <span {...sx(bf.flexItemsCenterGap2)}>
+                <span {...sx(bf.textXs, bf.capitalize, bf.textTertiary, bf.groupOpenHidden)}>
+                  {protocol.evidenceLevel} evidence
+                </span>
+                <DetailsChevron />
+              </span>
+            </summary>
+            <div {...sx(bf.scienceBody)}>
+              <p {...sx(bf.textSm, bf.leadingRelaxed, bf.textSecondary)}>{protocol.science}</p>
+              <p {...sx(bf.mt2, bf.textXs, bf.textTertiary)}>
+                {protocol.evidenceLabel} · {protocol.breathsPerMinute} breaths/min · best for{' '}
+                {protocol.bestFor.join(', ').toLowerCase()}
+              </p>
+              {protocol.caution && (
+                <p {...sx(bf.mt2, bf.textXs, bf.leadingRelaxed, bf.textSecondary)}>{protocol.caution}</p>
+              )}
+              <ul {...sx(bf.mt3, bf.spaceY15)}>
+                {protocol.citations.map((citation) => (
+                  <li key={citation.url} {...sx(bf.textXs, bf.leadingRelaxed, bf.textTertiary)}>
+                    {citation.authors} ({citation.year}).{' '}
+                    <a
+                      href={citation.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      {...sx(bf.citationLink)}
+                    >
+                      {citation.title}
+                    </a>{' '}
+                    {citation.source}.
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </details>
+        </div>
+
+        {/* Mood before */}
+        <div {...sx(bf.mt6)}>
+          <MoodPicker label="How do you feel right now? (optional)" value={moodBefore} onChange={onMoodBefore} />
+        </div>
+
+        {/* Safety gate */}
+        {advanced && !blockedByViewport && (
+          <div {...sx(bf.mt6)}>
+            <SafetyChecklist protocol={protocol} checkedItems={checkedSafety} onToggle={onToggleSafety} />
+          </div>
+        )}
+
+        {blockedByViewport && (
+          <Notice role="alert" tone="danger" title="Not available here" style={bf.mt6}>
+            {CONSTRAINED_VIEWPORT_MESSAGE}
+          </Notice>
+        )}
+
+        {blockedByRecovery && !blockedByViewport && (
+          <Notice title="Recovery in progress" style={bf.mt6} live={false}>
+            <p {...sx(bf.tabularNums)}>
+              Breathe easy for {recoveryRemaining}s before the next intense session.
+            </p>
+          </Notice>
+        )}
+
+        {/* Start */}
+        <div {...sx(bf.startBlock)}>
+          <p {...sx(bf.startCue)}>{READY_CUE}</p>
+          <motion.button
+            type="button"
+            {...sx(btn.base, btn.primary, btn.wFull)}
+            disabled={startDisabled}
+            onClick={onStart}
+            whileTap={reducedMotion || startDisabled ? undefined : { scale: 0.98 }}
+            transition={pressSpring}
+          >
+            Start
+          </motion.button>
+        </div>
+
+        {/* Global disclosure */}
+        <details {...sx('group', bf.mt8)}>
+          <summary {...sx(bf.detailsSummaryTertiary)}>
+            {SAFETY_DISCLOSURE.title}
+            <DetailsChevron />
+          </summary>
+          <ul {...sx(bf.disclosureList)}>
+            {SAFETY_DISCLOSURE.points.map((point) => (
+              <li key={point} {...sx(bf.textXs, bf.leadingRelaxed, bf.textTertiary)}>{point}</li>
+            ))}
+          </ul>
+        </details>
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 

@@ -192,10 +192,17 @@ export const wc = stylex.create({
     pointerEvents: 'none',
     opacity: 0,
     transitionProperty: 'opacity',
-    transitionDuration: '1100ms',
+    transitionDuration: '350ms',
     transitionTimingFunction: SPRING,
   },
   bloomHostLive: { opacity: 1 },
+  /** A page with the cat on it stays hidden until the scene has painted. */
+  reveal: {
+    transitionProperty: 'opacity',
+    transitionDuration: '350ms',
+    transitionTimingFunction: SPRING,
+  },
+  holding: { opacity: 0 },
   anchor: {
     position: 'relative',
     width: '100%',
