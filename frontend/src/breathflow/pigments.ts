@@ -24,9 +24,6 @@ export const TECHNIQUE_PIGMENTS: Record<TechniqueId, Pigment> = {
   [TECHNIQUE_IDS.PURSED_LIP_RECOVERY]: { name: 'Burnt sienna', mass: '#A4532F', glaze: '#D19A55' },
 }
 
-/** Hidden prism wash for the five-tap easter egg. */
-export const PRISM_PIGMENT: Pigment = { name: 'Prism', mass: '#C23A64', glaze: '#2F7FA6' }
-
 export function techniquePigment(id: TechniqueId): Pigment {
   return TECHNIQUE_PIGMENTS[id] ?? TECHNIQUE_PIGMENTS[TECHNIQUE_IDS.CYCLIC_SIGHING]
 }

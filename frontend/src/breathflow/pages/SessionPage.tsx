@@ -57,15 +57,13 @@ import { wc } from '../styles/watercolor.stylex'
 import { formatClock, formatDuration } from '../components/format'
 import { Notice } from '../motion/Notice'
 import { chromeTransition, EASE_SETTLE, inkSpring, pressSpring } from '../motion/tokens'
-import { PRISM_PIGMENT, sessionPigment, techniquePigment, type Pigment } from '../pigments'
+import { sessionPigment, techniquePigment, type Pigment } from '../pigments'
 import { getRoundSeconds } from '../protocols/cadence'
 import { BloomAnchor } from '../scene/BloomAnchor'
 import { BloomCanvas, type BloomCanvasHandle } from '../scene/BloomCanvas'
 import { sampleBreath, useBreathReader, type BreathSample } from '../scene/breathDrive'
 
 const CONTROLS_HIDE_MS = 3000
-const EASTER_EGG_TAPS = 5
-const EASTER_EGG_WINDOW_MS = 2000
 
 interface SummaryState {
   result: CompletionResult
@@ -88,7 +86,6 @@ export function SessionPage() {
   const [checkedSafety, setCheckedSafety] = useState<ReadonlySet<number>>(new Set())
   const [summary, setSummary] = useState<SummaryState | null>(null)
   const [announcement, setAnnouncement] = useState('')
-  const [altVisual, setAltVisual] = useState(false)
 
   const reducedMotion = useReducedMotion()
   const constrained = useConstrainedViewport()
@@ -101,7 +98,6 @@ export function SessionPage() {
   const pigment = sessionPigment(protocol.id, orbTheme)
 
   const completedRef = useRef(false)
-  const tapTimesRef = useRef<number[]>([])
 
   const engineConfig = useMemo(
     () => ({ protocol, rounds, customDurations }),
@@ -257,18 +253,6 @@ export function SessionPage() {
     }
   }
 
-  function handleVisualTap() {
-    if (reducedMotion) return
-    const now = Date.now()
-    tapTimesRef.current = [...tapTimesRef.current, now].filter(
-      (t) => now - t <= EASTER_EGG_WINDOW_MS,
-    )
-    if (tapTimesRef.current.length >= EASTER_EGG_TAPS) {
-      tapTimesRef.current = []
-      setAltVisual((value) => !value)
-    }
-  }
-
   return (
     <>
       <LiveAnnouncer message={announcement} />
@@ -295,9 +279,8 @@ export function SessionPage() {
           engine={engine}
           advanced={advanced}
           reducedMotion={reducedMotion}
-          pigment={altVisual ? PRISM_PIGMENT : pigment}
+          pigment={pigment}
           soundEnabled={soundEnabled}
-          onVisualTap={handleVisualTap}
         />
       ) : (
         <div>
@@ -653,7 +636,6 @@ interface ActiveSessionProps {
   reducedMotion: boolean
   pigment: Pigment
   soundEnabled: boolean
-  onVisualTap: () => void
 }
 
 function ActiveSession({
@@ -663,7 +645,6 @@ function ActiveSession({
   reducedMotion,
   pigment,
   soundEnabled,
-  onVisualTap,
 }: ActiveSessionProps) {
   const setSoundEnabled = useSettingsStore((s) => s.setSoundEnabled)
   const anchorRef = useRef<HTMLDivElement>(null)
@@ -765,7 +746,6 @@ function ActiveSession({
           aria-label={`${protocol.name} visualization`}
           onClick={(event) => {
             bloomRef.current?.poke(event.clientX, event.clientY)
-            onVisualTap()
           }}
           {...sx(ss.bloomBtn)}
         >
@@ -777,11 +757,7 @@ function ActiveSession({
             live={live}
             reducedMotion={reducedMotion}
             tick={tick}
-          >
-            <span aria-hidden="true" {...sx('bf-display', ss.count)}>
-              {seconds >= 60 ? formatClock(seconds) : seconds}
-            </span>
-          </BloomAnchor>
+          />
         </button>
 
         <div {...sx(ss.phaseBlock)}>
@@ -793,6 +769,10 @@ function ActiveSession({
             {...sx('bf-display', wc.italic, ss.phaseWord)}
           >
             {paused ? 'Paused' : PHASE_LABELS[engine.phase]}
+            {/* The cat's face is the centrepiece, so the count sits beside the word. */}
+            <span aria-hidden="true" {...sx(ss.count)}>
+              {seconds >= 60 ? formatClock(seconds) : seconds}
+            </span>
           </motion.p>
           <motion.p
             key={`${paused ? 'paused' : engine.phase}-cue`}
