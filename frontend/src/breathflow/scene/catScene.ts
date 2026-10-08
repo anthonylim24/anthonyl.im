@@ -570,7 +570,9 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
   footMat.colorNode = paint(color(PAINT.puffFeet) as unknown as V3, 0.9, { pale: sheen(0.86).mul(0.4), clean: true })
   const armMat = new THREE.MeshBasicNodeMaterial()
   armMat.colorNode = paint(mix(color(PAINT.puffGlaze), color(PAINT.puffMass), 0.55) as unknown as V3, 0.8, { pale: sheen(0.82).mul(0.55), clean: true })
-  const airMat = washMat(color(PAINT.air) as unknown as V3, 0.38)
+  // Air clouds: a pale blue wash by day, moon-white at night (not grey).
+  const airMat = new THREE.MeshBasicNodeMaterial()
+  airMat.colorNode = mix(paint(color(PAINT.air) as unknown as V3, 0.38), color(PAINT.moonGlint), uNight.mul(0.55))
 
   const sphereGeo = new THREE.SphereGeometry(1, 28, 18)
   const coneGeo = new THREE.ConeGeometry(1, 1, 28, 1)
@@ -1279,7 +1281,8 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
       }
 
       // Little clouds of air on the exhale.
-      if (!reducedMotion && form === 'puff' && phase === 'out' && p > 0.5 && sighBell > 0.15 && t > nextPuff) {
+      // Not while it's being thrown around: the clouds would trail across its face.
+      if (!reducedMotion && form === 'puff' && phase === 'out' && p > 0.5 && dangle < 0.1 && sighBell > 0.15 && t > nextPuff) {
         nextPuff = t + 0.16
         const c = puffs.find((q) => q.life <= 0)
         if (c) {
