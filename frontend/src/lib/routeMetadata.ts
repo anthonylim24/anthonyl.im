@@ -1,20 +1,32 @@
 export const DEFAULT_ROUTE_METADATA = {
-  title: 'Anthony Lim - Software Engineer',
-  description: 'Anthony Lim - Software Engineer. Ask me anything about my experience, skills, and background.',
+  title: "Lim — Ask Anthony Lim's AI",
+  description: 'Meet Lim, a squishy jelly who answers for Anthony Lim. Ask about his work, projects, and engineering background.',
   favicon: '/favicon-chat.svg',
 } as const
 
 export const LANDING_ROUTE_METADATA = {
   title: 'anthonyl.im — Applied intelligence lab',
-  description: 'Frontier models and agents that plan, act within bounds, and verify their own work.',
+  description: 'Frontier models and the agents that put them to work — they plan before they act, stay inside the bounds you set, and verify every step.',
   favicon: '/favicon-lim.svg',
 } as const
 
 export const BREATHFLOW_ROUTE_METADATA = {
-  title: 'BreathFlow',
-  description: 'Timed breathing protocols with published research.',
+  title: 'BreathFlow — Guided breathing with a watercolour cat',
+  description: 'Research-backed breathing, paced by a hand-painted cat that breathes with you.',
   favicon: '/favicon-breath.svg',
 } as const
+
+/** Tab titles for BreathFlow's inner pages (Home keeps the full title). */
+const BREATHFLOW_PAGES: Record<string, string> = {
+  '/breathwork/session': 'Breathe',
+  '/breathwork/progress': 'Progress',
+  '/breathwork/settings': 'Settings',
+}
+
+export function breathflowTitle(pathname: string) {
+  const page = BREATHFLOW_PAGES[pathname.replace(/\/+$/, '')]
+  return page ? `${page} · BreathFlow` : BREATHFLOW_ROUTE_METADATA.title
+}
 
 export function getRouteMetadata(pathname: string) {
   const appPath = pathname.replace(/^\/preview\/pr\/\d+(?=\/|$)/, "") || "/"

@@ -1,3 +1,4 @@
+import { useTabTitle } from "@/hooks/useTabTitle"
 import { styles } from './trips.stylex'
 import { overview as ov } from './toy.stylex'
 import { sx } from '@/lib/utils'
@@ -64,6 +65,7 @@ export function TripOverview() {
   const reduce = useReducedMotion()
   const [searchParams] = useSearchParams()
   const openIngest = searchParams.get("ingest") === "1"
+  useTabTitle(editor.trip ? `${editor.trip.name} · Trips` : null)
 
   if (editor.state.status === "loading") {
     return (

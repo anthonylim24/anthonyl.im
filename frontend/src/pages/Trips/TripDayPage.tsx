@@ -1,3 +1,4 @@
+import { useTabTitle } from "@/hooks/useTabTitle"
 import { sx } from '@/lib/utils'
 import { styles } from './trips.stylex'
 import { day as dy } from './toy.stylex'
@@ -110,6 +111,7 @@ export function TripDayPage() {
   const prev = trip && dayIndex > 0 ? trip.days[dayIndex - 1] : undefined
   const next = trip && dayIndex >= 0 && dayIndex < trip.days.length - 1 ? trip.days[dayIndex + 1] : undefined
   const tripPath = trip ? `/trips/${trip.slug ?? trip.id}` : ""
+  useTabTitle(trip && day ? `Day ${dayIndex + 1}${day.title ? ` · ${day.title}` : ""} · ${trip.name}` : null)
 
   useEffect(() => {
     const mapRequested = searchParams.get("map") === "1"

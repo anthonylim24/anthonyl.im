@@ -1,3 +1,4 @@
+import { useTabTitle } from "@/hooks/useTabTitle"
 import { sx } from '@/lib/utils'
 import { styles } from './trips.stylex'
 import { pack as pk } from './toy.stylex'
@@ -107,6 +108,7 @@ function parseList(raw: string): string[] {
 }
 
 export function TripCreate() {
+  useTabTitle("New trip · Trips")
   const getToken = useGetToken()
   const readToken = useLatestCallback(getToken)
   const navigate = useNavigate()
