@@ -103,3 +103,59 @@
   --bf-btn-amt: 52%;
   --bf-btn-fg: #15161C;
 }
+
+/* PaintingLoader: the cat inked stroke by stroke while the live scene compiles. */
+.bf-loader {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 1rem;
+  animation: bf-loader-in 400ms cubic-bezier(0.16, 1, 0.3, 1) 200ms both;
+}
+.bf-loader-art {
+  position: relative;
+  width: min(52vw, 13rem);
+  aspect-ratio: 1;
+}
+.bf-loader-wash {
+  position: absolute;
+  inset: 8%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 55%, color-mix(in srgb, var(--bf-glaze) 34%, transparent) 0 40%, color-mix(in srgb, var(--bf-mass) 22%, transparent) 62%, transparent 72%);
+  filter: url(#bf-wash);
+  mix-blend-mode: multiply;
+}
+.dark .bf-loader-wash { mix-blend-mode: screen; }
+.bf-loader-cat { position: absolute; inset: 0; overflow: visible; }
+.bf-loader-stroke {
+  fill: none;
+  stroke: var(--bf-stroke-ink);
+  stroke-width: 3.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+}
+.bf-loader-caption {
+  margin: 0;
+  font-style: italic;
+  font-size: 1.125rem;
+  opacity: 0.72;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .bf-loader-wash { animation: bf-loader-bloom 4.8s cubic-bezier(0.33, 0, 0, 1) infinite; }
+  .bf-loader-stroke { animation: bf-loader-ink 4.8s cubic-bezier(0.33, 0, 0, 1) infinite; animation-delay: calc(var(--i) * 0.45s); animation-fill-mode: backwards; }
+}
+@keyframes bf-loader-in { from { opacity: 0; } }
+@keyframes bf-loader-ink {
+  0% { stroke-dashoffset: 1; opacity: 1; }
+  45%, 82% { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+@keyframes bf-loader-bloom {
+  0%, 100% { transform: scale(0.82); opacity: 0.5; }
+  50% { transform: scale(1.08); opacity: 1; }
+}
