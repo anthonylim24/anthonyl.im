@@ -959,16 +959,15 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
   // ── Post: bleed → (high tier: pooled occlusion + night glow) → paper
   //    tooth → vignette → film grain ─────────────────────────────────
   const pipeline = new THREE.RenderPipeline(renderer)
-  const scenePass = pass(scene, camera)
-  if (hq) scenePass.setMRT(mrt({ output, normal: normalView }))
-  const tex = scenePass.getTextureNode('output')
   const st = screenUV
   const sp = vec2(st.x.mul(uAspect), st.y)
   const flow = noise(sp.mul(4.3).add(vec2(T.mul(0.01), 0)))
   const wobble = vec2(flow.r, flow.g).sub(0.5).mul(0.0036)
-  const sa = tex.sample(st.add(wobble)).rgb
-  const sb = tex.sample(st.add(wobble.mul(-1.4)).add(vec2(0.0007, -0.0005))).rgb
-  const bled = mix(sa, min(sa, sb), mix(0.5, 0.0, uNight)).add(mix(vec3(0), max(sa, sb).sub(sa), uNight.mul(0.4))) as V3
+  const bleed = (tex: ReturnType<ReturnType<typeof pass>['getTextureNode']>) => {
+    const sa = tex.sample(st.add(wobble)).rgb
+    const sb = tex.sample(st.add(wobble.mul(-1.4)).add(vec2(0.0007, -0.0005))).rgb
+    return mix(sa, min(sa, sb), mix(0.5, 0.0, uNight)).add(mix(vec3(0), max(sa, sb).sub(sa), uNight.mul(0.4))) as V3
+  }
   const tooth = noise(sp.mul(4)).b.mul(2).sub(1)
   const vd = length(st.sub(0.5).mul(vec2(1, 0.9)))
   const vig = mix(1, mix(0.9, 0.78, uNight), smoothstep(0.42, 0.98, vd).mul(uVignette))
@@ -979,8 +978,20 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
       grainSpeedNode: uniform(0),
       scanlineIntensityNode: uniform(0),
     })
-  const baseOutput = finish(bled)
+  // The base tier gets its own plain pass. Dropping MRT off the high-tier pass
+  // instead leaves its normal attachment unwritten, which Safari's WebGPU
+  // rejects (every pipeline fails, and the canvas goes black).
+  let scenePass: ReturnType<typeof pass> | null = null
+  let basePass: ReturnType<typeof pass> | null = null
+  const baseOutput = () => {
+    basePass = pass(scene, camera)
+    return finish(bleed(basePass.getTextureNode('output')))
+  }
   if (hq) {
+    scenePass = pass(scene, camera)
+    scenePass.setMRT(mrt({ output, normal: normalView }))
+    const tex = scenePass.getTextureNode('output')
+    const bled = bleed(tex)
     // Where the head meets the body, paws tuck in and the tail wraps round,
     // pigment pools by day (the paint glazes over itself, so it deepens in its
     // own colour) and shadow deepens at night.
@@ -994,14 +1005,17 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
     // Moonlight glows softly off the rim and the glints at night.
     glowPass = bloom(tex, 0, 0.55, 0.78)
     pipeline.outputNode = finish(pooled.add(glowPass.rgb) as V3)
-  } else pipeline.outputNode = baseOutput
+  } else pipeline.outputNode = baseOutput()
   stage.onStruggle(() => {
     if (!hq) return
     hq = false
     uHQ.value = 0
-    scenePass.setMRT(null)
-    pipeline.outputNode = baseOutput
+    pipeline.outputNode = baseOutput()
     pipeline.needsUpdate = true
+    scenePass?.dispose()
+    aoPass?.dispose()
+    glowPass?.dispose()
+    scenePass = aoPass = glowPass = null
   })
 
   // ── Frame ────────────────────────────────────────────────────────
@@ -1390,6 +1404,8 @@ async function buildScene(opts: BloomSceneOptions, stage: Stage): Promise<BloomS
       airLine.dispose()
       noiseTex.dispose()
       splatterTex.dispose()
+      scenePass?.dispose()
+      basePass?.dispose()
       aoPass?.dispose()
       glowPass?.dispose()
       pipeline.dispose()
