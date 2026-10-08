@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { logger } from "hono/logger";
 import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
@@ -31,45 +31,47 @@ type AppPreviewMeta = {
   imageAlt: string;
 };
 
+// Preview cards are 1200×630 JPEGs in frontend/public, each the app's own
+// scene with its title. Bump OG_VERSION when a card changes so social caches
+// fetch the new one.
+const OG_VERSION = "2";
+const card = (name: string) => `/og-${name}.jpg?v=${OG_VERSION}`;
+
 const appPreviews = {
   landing: {
     title: "anthonyl.im — Applied intelligence lab",
     description:
       "Frontier models and the agents that put them to work — they plan before they act, stay inside the bounds you set, and verify every step.",
-    imagePathOrUrl: "/og-landing.jpg",
-    imageAlt: "A soft glass droplet floating over ultramarine brush strokes on bone paper",
+    imagePathOrUrl: card("landing"),
+    imageAlt: "“Intelligence you can hold to account.” beside a glass droplet in ultramarine brush strokes",
   },
   chatbot: {
-    title: "Anthony Lim AI Chatbot",
+    title: "Lim — Ask Anthony Lim's AI",
     description:
-      "Chat with Anthony's AI assistant to explore his experience, projects, and technical background.",
-    imagePathOrUrl:
-      "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&h=630&q=80",
-    imageAlt: "Futuristic AI interface with glowing code and circuitry visuals",
+      "Meet Lim, a squishy jelly who answers for Anthony Lim. Ask about his work, projects, and engineering background.",
+    imagePathOrUrl: card("chatbot"),
+    imageAlt: "Lim, a glossy coral jelly with big eyes, sitting on a mint rug beside jelly beans",
   },
   breathwork: {
-    title: "BreathFlow",
+    title: "BreathFlow — Guided breathing with a watercolour cat",
     description:
-      "Timed breathing protocols with published research.",
-    imagePathOrUrl:
-      "https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=1200&h=630&q=80",
-    imageAlt: "Person meditating at sunrise with calm natural tones",
+      "Research-backed breathing — box breathing, cyclic sighing, 4-7-8, resonance and more — paced by a hand-painted cat that breathes with you.",
+    imagePathOrUrl: card("breathwork"),
+    imageAlt: "A violet watercolour cat sitting in splashes of paint beside the BreathFlow wordmark",
   },
   korea: {
-    title: "South Korea Itinerary — Seoul + Busan, May 26 – Jun 6, 2026",
+    title: "Seoul + Busan — Korea 2026 trip dossier",
     description:
-      "A 12-day Seoul + Busan trip — palaces, hanwoo, fine dining, Sky Capsule, a wedding in Yangju, and a drone show over the Han River.",
-    imagePathOrUrl:
-      "https://images.unsplash.com/photo-1538485399081-7c8970ce9eef?auto=format&fit=crop&w=1200&h=630&q=80",
-    imageAlt: "Seoul cityscape at twilight with Lotte World Tower and the Han River",
+      "A 12-day Seoul + Busan trip (May 26 – Jun 6, 2026): reservations, neighbourhoods, the places worth a detour, and a 3D Map Mode.",
+    imagePathOrUrl: card("korea"),
+    imageAlt: "A toy clay planet covered in trees and colourful place pins on a pink cover",
   },
   trips: {
-    title: "Trips — itinerary workspace",
+    title: "Trips — plan a trip, pin by pin",
     description:
-      "A private itinerary workspace for days, reservations, and photorealistic Map Mode.",
-    imagePathOrUrl:
-      "https://images.unsplash.com/photo-1538485399081-7c8970ce9eef?auto=format&fit=crop&w=1200&h=630&q=80",
-    imageAlt: "City itinerary at twilight",
+      "Plan trips with AI, save places from Instagram posts, ask the concierge, and explore every day in 3D Map Mode.",
+    imagePathOrUrl: card("trips"),
+    imageAlt: "A squishy toy globe with a trip pin and a paper plane, under puffy clouds",
   },
 } as const satisfies Record<string, AppPreviewMeta>;
 
@@ -86,8 +88,18 @@ const resolveImageUrl = (imagePathOrUrl: string): string =>
     ? imagePathOrUrl
     : `${siteUrl}${imagePathOrUrl.startsWith("/") ? imagePathOrUrl : `/${imagePathOrUrl}`}`;
 
+/** BreathFlow's pages share a card; each gets its own title. */
+const breathworkPages: Record<string, string> = {
+  "/breathwork/session": "Breathe",
+  "/breathwork/progress": "Progress",
+  "/breathwork/settings": "Settings",
+};
+
 const getPreviewMetaForPath = (pathname: string): AppPreviewMeta => {
-  if (pathname.startsWith("/breathwork")) return appPreviews.breathwork;
+  if (pathname.startsWith("/breathwork")) {
+    const page = breathworkPages[pathname.replace(/\/+$/, "")];
+    return page ? { ...appPreviews.breathwork, title: `${page} · BreathFlow` } : appPreviews.breathwork;
+  }
   if (pathname.startsWith("/korea") || pathname.startsWith("/trips/korea-2026")) return appPreviews.korea;
   if (pathname.startsWith("/trips")) return appPreviews.trips;
   if (pathname === "/" || pathname === "") return appPreviews.landing;
@@ -116,6 +128,9 @@ const injectPreviewMeta = (html: string, pathname: string): string => {
     <meta property="og:description" content="${escapeHtml(preview.description)}" />
     <meta property="og:url" content="${escapeHtml(pageUrl)}" />
     <meta property="og:image" content="${escapeHtml(imageUrl)}" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="${escapeHtml(preview.imageAlt)}" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="${escapeHtml(preview.title)}" />
@@ -340,6 +355,20 @@ app.use(
     },
   }),
 );
+// The SPA shell, with per-route title / description / preview card. The HTML
+// itself must never be long-cached — it references hashed asset filenames that
+// change on every build, so a stale index.html would point at deleted bundles.
+const spaShell = async (c: Context) => {
+  const baseHtml = await Bun.file(join(distPath, "index.html")).text();
+  const withMeta = injectPreviewMeta(baseHtml, c.req.path);
+  c.header("Cache-Control", "no-cache, no-store, must-revalidate");
+  c.header("Pragma", "no-cache");
+  c.header("Expires", "0");
+  return c.html(withMeta);
+};
+// Registered ahead of serveStatic, which would otherwise answer "/" with the
+// raw dist/index.html (no landing metadata, no no-cache headers).
+app.get("/", spaShell);
 app.use("*", serveStatic({ root: distPath }));
 
 // Legacy Korea dossier URLs fold into the seeded trip.
@@ -350,17 +379,8 @@ app.get("/korea/ingest", (c) => c.redirect("/trips/korea-2026?ingest=1", 301));
 app.get("/korea/day/:slug", (c) => c.redirect(`/trips/korea-2026/day/${c.req.param("slug")}`, 301));
 app.get("/korea/*", (c) => c.redirect("/trips/korea-2026", 301));
 
-// Serve index.html for all other routes (SPA fallback). The HTML itself must
-// never be long-cached — it references hashed asset filenames that change on
-// every build, so a stale index.html would point at deleted bundles.
-app.get("*", async (c) => {
-  const baseHtml = await Bun.file(join(distPath, "index.html")).text();
-  const withMeta = injectPreviewMeta(baseHtml, c.req.path);
-  c.header("Cache-Control", "no-cache, no-store, must-revalidate");
-  c.header("Pragma", "no-cache");
-  c.header("Expires", "0");
-  return c.html(withMeta);
-});
+// Serve index.html for all other routes (SPA fallback).
+app.get("*", spaShell);
 
 // Bun auto-serves this default export when the entry is `server/app.ts`.
 // Attach idleTimeout so that path keeps SSE alive the same way `index.ts` does.

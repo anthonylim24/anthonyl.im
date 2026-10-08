@@ -4,7 +4,7 @@ import { NavLink, useLocation, useOutlet } from 'react-router-dom'
 import { CLERK_ENABLED } from '@/lib/clerk'
 import { useDocumentMetadata } from '@/hooks/useDocumentMetadata'
 import { useFavicon } from '@/hooks/useFavicon'
-import { BREATHFLOW_ROUTE_METADATA } from '@/lib/routeMetadata'
+import { BREATHFLOW_ROUTE_METADATA, breathflowTitle } from '@/lib/routeMetadata'
 import { sx } from '@/styles/merge'
 import { WatercolorDefs } from '../components/WatercolorDefs'
 import { SelectionInk } from '../motion/SelectionInk'
@@ -33,7 +33,7 @@ export function BreathflowLayout() {
   useBreathflowTheme()
   useFavicon()
   useDocumentMetadata({
-    title: BREATHFLOW_ROUTE_METADATA.title,
+    title: breathflowTitle(location.pathname),
     description: BREATHFLOW_ROUTE_METADATA.description,
   })
 

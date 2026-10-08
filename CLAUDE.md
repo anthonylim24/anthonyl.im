@@ -255,7 +255,7 @@ Two regressions surfaced in May 2026 that the verify gate now catches:
 
 ## Routing
 
-Routes are lazy-loaded inside `Guarded` (`RouteErrorBoundary` + `Suspense`). All five apps share `index.html`; the server injects per-route OG tags / favicon / manifest. Basename comes from `lib/routerBasename.ts` (PR preview support).
+Routes are lazy-loaded inside `Guarded` (`RouteErrorBoundary` + `Suspense`). All five apps share `index.html`; the server injects per-route OG tags / favicon / manifest. Link previews: `appPreviews` in `server/app.ts` (title, description, 1200×630 card `frontend/public/og-<app>.jpg`; bump `OG_VERSION` when a card changes). Keep `index.html`'s bootstrap scripts and `lib/routeMetadata.ts` in sync with it. `/` must stay routed to the SPA shell ahead of `serveStatic` (`server/src/previewMeta.test.ts`). Basename comes from `lib/routerBasename.ts` (PR preview support).
 
 | Path | App | Auth |
 |------|-----|------|

@@ -1,3 +1,4 @@
+import { useTabTitle } from "@/hooks/useTabTitle"
 import { Link, useParams } from "react-router-dom"
 import { useGetToken } from "@/lib/safeAuth"
 import { Places } from "../Korea/Places"
@@ -12,6 +13,7 @@ export function TripPlaces() {
   const { tripId } = useParams<{ tripId: string }>()
   const getToken = useGetToken()
   const { state, reload } = useLoadedTrip(tripId, getToken)
+  useTabTitle(state.status === "success" ? `Places · ${state.trip.name}` : null)
 
   if (state.status === "loading") {
     return (
