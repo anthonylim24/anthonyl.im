@@ -23,12 +23,12 @@
     "agent:login": "bun scripts/clerk-agent-login.ts"
   },
   "devDependencies": {
-    "@hono/zod-validator": "^0.9.0",
+    "@hono/zod-validator": "^0.9.1",
     "@turf/boolean-valid": "^7.4.0",
     "@turf/kinks": "^7.4.0",
     "@turf/simplify": "^7.4.0",
     "@turf/union": "^7.4.0",
-    "@types/bun": "^1.3.14",
+    "@types/bun": "^1.4.2",
     "hangul-romanization": "^1.0.1",
     "typescript": "~7.0.2"
   },
@@ -36,10 +36,10 @@
     "typescript": "~7.0.2"
   },
   "dependencies": {
-    "@clerk/backend": "^3.16.6",
-    "groq-sdk": "^1.5.0",
-    "hono": "^4.13.2",
-    "openai": "^7.4.0",
-    "zod": "^4.4.3"
+    "@clerk/backend": "^3.23.0",
+    "groq-sdk": "^1.6.0",
+    "hono": "^4.13.13",
+    "openai": "^7.28.0",
+    "zod": "^4.6.5"
   }
 }
