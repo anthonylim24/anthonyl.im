@@ -48,7 +48,7 @@ async function run(label, opts) {
   const phone = Boolean(opts.isMobile)
 
   await p.goto(`${BASE}/trips`)
-  await settle(p, 3500)
+  await settle(p, 6000)
   await shot(p, `${label}-index`)
   if (!phone) {
     await p.locator("#trips-list-title").scrollIntoViewIfNeeded()
@@ -98,8 +98,15 @@ async function run(label, opts) {
   await p.context().close()
 }
 
-await run("desktop-light", { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, colorScheme: "light" })
-await run("desktop-dark", { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, colorScheme: "dark" })
-await run("phone-light", { ...devices["iPhone 14"], colorScheme: "light" })
-await run("phone-dark", { ...devices["iPhone 14"], colorScheme: "dark" })
+const RUNS = {
+  "desktop-light": { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, colorScheme: "light" },
+  "desktop-dark": { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, colorScheme: "dark" },
+  "phone-light": { ...devices["iPhone 14"], colorScheme: "light" },
+  "phone-dark": { ...devices["iPhone 14"], colorScheme: "dark" },
+}
+// CAPTURE_ONLY=desktop-light,phone-light limits the set.
+const only = process.env.CAPTURE_ONLY?.split(",")
+for (const [label, opts] of Object.entries(RUNS)) {
+  if (!only || only.includes(label)) await run(label, opts)
+}
 await browser.close()

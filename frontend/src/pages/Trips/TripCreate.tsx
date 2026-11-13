@@ -175,6 +175,7 @@ export function TripCreate() {
       frameKey={pins.map((p) => p.id).join(",")}
       restCenter={{ lat: 24, lng: 10 }}
       restZoom={1.5}
+      bare={!wide}
       maxZoom={9.5}
       padding={wide ? { top: 120, right: 120, bottom: 120, left: 120 } : { top: 40, right: 60, bottom: 40, left: 60 }}
       label={pins.length > 0 ? `Map showing ${places.map((p) => p.name).join(", ")}` : "World map. It flies to each destination you add."}

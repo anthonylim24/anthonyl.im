@@ -61,6 +61,26 @@ interface PinEntry {
   el: HTMLButtonElement
 }
 
+/**
+ * A leg drawn as a shallow arc rather than a ruler line: it reads as "then
+ * on to", never as a street, and two legs between the same stops bow apart.
+ */
+function arc(from: LngLat, to: LngLat): Array<[number, number]> {
+  const k = Math.cos((((from.lat + to.lat) / 2) * Math.PI) / 180)
+  const dx = (to.lng - from.lng) * k
+  const dy = to.lat - from.lat
+  // Control point: off the midpoint, perpendicular to the leg, 14% of its length.
+  const cx = (from.lng + to.lng) / 2 + (-dy * 0.14) / k
+  const cy = (from.lat + to.lat) / 2 + dx * 0.14
+  const points: Array<[number, number]> = []
+  for (let i = 0; i <= 20; i++) {
+    const t = i / 20
+    const u = 1 - t
+    points.push([u * u * from.lng + 2 * u * t * cx + t * t * to.lng, u * u * from.lat + 2 * u * t * cy + t * t * to.lat])
+  }
+  return points
+}
+
 function pinElement(pin: AtlasPin): HTMLButtonElement {
   const el = document.createElement("button")
   el.type = "button"
@@ -150,7 +170,7 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
         features.push({
           type: "Feature",
           properties: {},
-          geometry: { type: "LineString", coordinates: [[from.lng, from.lat], [to.lng, to.lat]] },
+          geometry: { type: "LineString", coordinates: arc(from, to) },
         })
       }
     }
@@ -175,7 +195,7 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
         type: "line",
         source: ROUTE_SOURCE,
         layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": paper, "line-width": 5, "line-opacity": 0.7 },
+        paint: { "line-color": paper, "line-width": 7, "line-opacity": 0.85 },
       },
       beforeId,
     )
@@ -185,10 +205,27 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
         type: "line",
         source: ROUTE_SOURCE,
         layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": accent(), "line-width": 2, "line-opacity": 0.75 },
+        paint: { "line-color": accent(), "line-width": 3.25 },
       },
       beforeId,
     )
+    // Direction of travel: small chevrons riding each leg.
+    map.addLayer({
+      id: "atlas-route-way",
+      type: "symbol",
+      source: ROUTE_SOURCE,
+      layout: {
+        "symbol-placement": "line",
+        "symbol-spacing": 90,
+        "text-field": "›",
+        "text-font": ["Noto Sans Bold"],
+        "text-size": 17,
+        "text-keep-upright": false,
+        "text-allow-overlap": true,
+        "text-ignore-placement": true,
+      },
+      paint: { "text-color": accent(), "text-halo-color": paper, "text-halo-width": 2.5 },
+    })
     map.addSource(DOTS_SOURCE, { type: "geojson", data: dotsData() })
     map.addLayer(
       {
@@ -214,7 +251,11 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
     if (lastFrame) handle.frame(lastFrame.points, { ...lastFrame.opts, animate: false })
     options.onReady?.()
   })
-  map.on("moveend", () => options.onTilt?.(map.getPitch() > 5))
+  map.on("moveend", () => {
+    // Camera readout for tests and screenshots tooling.
+    container.dataset.camera = `${map.getZoom().toFixed(1)}z ${Math.round(map.getPitch())}p`
+    options.onTilt?.(map.getPitch() > 5)
+  })
 
   // Trip chips sit to the right of their dot, or to the left once the dot is
   // on the right half of the globe, so a label never hangs off the sphere.
@@ -376,11 +417,19 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
       const bounds = new LngLatBounds()
       for (const point of points) bounds.extend([point.lng, point.lat])
       const view = cameraFor(points)
-      const fit = map.cameraForBounds(bounds, { padding, maxZoom: opts.maxZoom ?? 15.6, bearing: view.bearing })
+      const fit = map.cameraForBounds(bounds, { padding, maxZoom: opts.maxZoom ?? 15.8, bearing: view.bearing })
       if (!fit) return
       // cameraForBounds fits a top-down view; a tilted camera sees a little
       // further at the top, so sit slightly tighter.
-      const target = { ...fit, pitch: view.pitch, bearing: view.bearing, padding }
+      // A tilted camera shows more ground above the centre than below it, so
+      // the pins would ride high over an empty foreground: weight the top.
+      const lift = view.pitch > 40 ? Math.round(container.clientHeight * 0.16) : 0
+      const target = {
+        ...fit,
+        pitch: view.pitch,
+        bearing: view.bearing,
+        padding: { ...padding, top: padding.top + lift, bottom: Math.max(24, padding.bottom - lift / 2) },
+      }
       if (animate) map.easeTo({ ...target, duration: 1600, essential: true })
       else map.jumpTo(target)
     },
@@ -430,4 +479,114 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
     },
   }
   return handle
+}
+
+// ── Cover stills ─────────────────────────────────────────────────────────
+
+export interface StillRequest {
+  key: string
+  points: readonly LngLat[]
+  /** Used when the trip has no pinned stops yet. */
+  center?: LngLat
+  /** The trip's accent fill, as a CSS colour. */
+  color: string
+}
+
+const STILL_W = 640
+const STILL_H = 360
+
+/**
+ * Render small map pictures (one per trip card) with a single off-screen map,
+ * one after another, and hand each back as a data URL. Returns a cancel
+ * function; the map is torn down when the queue drains or on cancel.
+ */
+export function renderStills(
+  requests: readonly StillRequest[],
+  dark: boolean,
+  onStill: (key: string, url: string) => void,
+): () => void {
+  if (requests.length === 0) return () => {}
+  const host = document.createElement("div")
+  host.setAttribute("aria-hidden", "true")
+  host.style.cssText = `position:fixed;left:-10000px;top:0;width:${STILL_W}px;height:${STILL_H}px;pointer-events:none;visibility:hidden`
+  document.body.appendChild(host)
+  let cancelled = false
+  const map = new MapLibre({
+    container: host,
+    style: buildMapStyle(dark),
+    interactive: false,
+    attributionControl: false,
+    fadeDuration: 0,
+    pixelRatio: 1,
+    canvasContextAttributes: { antialias: true, preserveDrawingBuffer: true },
+  })
+  const finish = () => {
+    cancelled = true
+    map.remove()
+    host.remove()
+  }
+  const settled = () =>
+    new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, 9000)
+      map.once("idle", () => {
+        clearTimeout(timer)
+        resolve()
+      })
+    })
+
+  map.once("load", () => {
+    void (async () => {
+      map.addSource("still", { type: "geojson", data: { type: "FeatureCollection", features: [] } })
+      map.addLayer({
+        id: "still-halo",
+        type: "circle",
+        source: "still",
+        paint: { "circle-radius": 9, "circle-color": ["get", "color"], "circle-opacity": 0.18 },
+      })
+      map.addLayer({
+        id: "still-dot",
+        type: "circle",
+        source: "still",
+        paint: {
+          "circle-radius": 3.5,
+          "circle-color": ["get", "color"],
+          "circle-stroke-color": dark ? "#0b0d10" : "#ffffff",
+          "circle-stroke-width": 1.5,
+        },
+      })
+      for (const request of requests) {
+        if (cancelled) return
+        const source = map.getSource("still") as GeoJSONSource
+        source.setData({
+          type: "FeatureCollection",
+          features: request.points.map((p) => ({
+            type: "Feature",
+            properties: { color: request.color },
+            geometry: { type: "Point", coordinates: [p.lng, p.lat] },
+          })),
+        })
+        if (request.points.length > 1 && spanMeters(request.points) > 60) {
+          const bounds = new LngLatBounds()
+          for (const p of request.points) bounds.extend([p.lng, p.lat])
+          const fit = map.cameraForBounds(bounds, { padding: { top: 70, right: 70, bottom: 50, left: 70 }, maxZoom: 13.5 })
+          if (fit) map.jumpTo({ ...fit, pitch: 0, bearing: 0 })
+        } else {
+          const at = request.points[0] ?? request.center
+          if (!at) continue
+          map.jumpTo({ center: [at.lng, at.lat], zoom: request.points.length ? 12.5 : 9.5, pitch: 0, bearing: 0 })
+        }
+        await settled()
+        if (cancelled) return
+        try {
+          onStill(request.key, map.getCanvas().toDataURL("image/webp", 0.82))
+        } catch {
+          /* A tainted or lost canvas just leaves the chart cover in place. */
+        }
+      }
+      if (!cancelled) finish()
+    })()
+  })
+  return () => {
+    if (!cancelled) finish()
+  }
 }

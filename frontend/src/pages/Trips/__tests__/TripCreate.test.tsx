@@ -88,8 +88,14 @@ async function pickCity(query: string, optionName: RegExp) {
   fireEvent.click(await screen.findByRole("option", { name: optionName }))
 }
 
+const dates = () => screen.getByRole("button", { name: /^Dates: .* Change dates$/ })
+
 describe("TripCreate", () => {
   beforeEach(() => {
+    // Friday 13 Nov 2026 (Date only; timers stay real). New trips default to
+    // three weeks out: Fri 4 Dec → Tue 8 Dec.
+    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.setSystemTime(new Date("2026-11-13T12:00:00Z"))
     stubMatchMedia(true)
     mockSearchCities.mockImplementation(async (query: string) => (query.toLowerCase().startsWith("por") ? [porto] : [lisbon]))
     mockCreateTrip.mockResolvedValue(makeTrip({ id: "trip-9", slug: "lisbon-9", status: "draft" }))
@@ -106,6 +112,7 @@ describe("TripCreate", () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.clearAllMocks()
   })
 
@@ -131,16 +138,15 @@ describe("TripCreate", () => {
     expect(destinations()).toHaveValue("")
     expect(within(screen.getByRole("region", { name: "Map showing Lisbon" })).getByText("Pin: Lisbon")).toBeInTheDocument()
 
-    const first = screen.getByLabelText("First day") as HTMLInputElement
-    const last = screen.getByLabelText("Last day") as HTMLInputElement
+    expect(dates()).toHaveAccessibleName("Dates: Fri, Dec 4 → Tue, Dec 8, 5 days. Change dates")
     fireEvent.click(screen.getByRole("button", { name: "Create and draft itinerary" }))
 
     await waitFor(() => expect(mockCreateTrip).toHaveBeenCalledTimes(1))
     expect(mockCreateTrip.mock.calls[0]![1]).toEqual({
       name: "Lisbon",
       destinations: ["Lisbon"],
-      startDate: first.value,
-      endDate: last.value,
+      startDate: "2026-12-04",
+      endDate: "2026-12-08",
       timezone: "Europe/Lisbon",
       center: { lat: 38.71667, lng: -9.13333 },
     })
@@ -251,20 +257,52 @@ describe("TripCreate", () => {
     expect(screen.getByRole("button", { name: "Create and draft itinerary" })).toBeEnabled()
   })
 
-  it("rejects a range that ends before it starts", async () => {
+  it("creates the trip with dates picked from the calendar", async () => {
     renderCreate("/trips/new?ai=0")
     await pickCity("Lis", /Lisbon/)
-    const first = screen.getByLabelText("First day") as HTMLInputElement
 
-    fireEvent.change(screen.getByLabelText("Last day"), { target: { value: "2020-01-01" } })
-    expect(screen.getByRole("alert")).toHaveTextContent("The last day is before the first. Pick a later date.")
+    fireEvent.click(dates())
+    const calendar = within(screen.getByRole("dialog", { name: "Choose dates" }))
+    fireEvent.click(calendar.getByRole("button", { name: "Thursday, December 10, 2026" }))
+    fireEvent.click(calendar.getByRole("button", { name: "Monday, December 14, 2026" }))
+
+    expect(screen.queryByRole("dialog", { name: "Choose dates" })).toBeNull()
+    expect(dates()).toHaveAccessibleName("Dates: Thu, Dec 10 → Mon, Dec 14, 5 days. Change dates")
+    fireEvent.click(screen.getByRole("button", { name: "Create trip" }))
+
+    await waitFor(() => expect(mockCreateTrip).toHaveBeenCalledTimes(1))
+    expect(mockCreateTrip.mock.calls[0]![1]).toMatchObject({ startDate: "2026-12-10", endDate: "2026-12-14" })
+  })
+
+  it("sets the trip length from a preset", async () => {
+    renderCreate("/trips/new?ai=0")
+    await pickCity("Lis", /Lisbon/)
+    expect(screen.getByRole("button", { name: "5 days" })).toHaveAttribute("aria-pressed", "true")
+
+    fireEvent.click(screen.getByRole("button", { name: "1 week" }))
+    expect(screen.getByRole("button", { name: "1 week" })).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByRole("button", { name: "5 days" })).toHaveAttribute("aria-pressed", "false")
+    expect(dates()).toHaveAccessibleName("Dates: Fri, Dec 4 → Thu, Dec 10, 7 days. Change dates")
+
+    fireEvent.click(screen.getByRole("button", { name: "Create trip" }))
+    await waitFor(() => expect(mockCreateTrip).toHaveBeenCalledTimes(1))
+    expect(mockCreateTrip.mock.calls[0]![1]).toMatchObject({ startDate: "2026-12-04", endDate: "2026-12-10" })
+  })
+
+  it("refuses a trip longer than 60 days", async () => {
+    renderCreate("/trips/new?ai=0")
+    await pickCity("Lis", /Lisbon/)
+
+    fireEvent.click(dates())
+    const calendar = within(screen.getByRole("dialog", { name: "Choose dates" }))
+    fireEvent.click(calendar.getByRole("button", { name: "Friday, December 4, 2026" }))
+    fireEvent.click(calendar.getByRole("button", { name: "Later months" }))
+    fireEvent.click(calendar.getByRole("button", { name: "Later months" }))
+    fireEvent.click(calendar.getByRole("button", { name: "Sunday, February 28, 2027" }))
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Trips can run up to 60 days. Shorten the range, or split it into two trips.")
+    expect(dates()).toHaveAttribute("aria-invalid", "true")
     fireEvent.click(screen.getByRole("button", { name: "Create trip" }))
     expect(mockCreateTrip).not.toHaveBeenCalled()
-
-    // A length preset repairs the range from the first day.
-    fireEvent.click(screen.getByRole("button", { name: "1 week" }))
-    expect(screen.queryByRole("alert")).toBeNull()
-    expect(screen.getByRole("button", { name: "1 week" })).toHaveAttribute("aria-pressed", "true")
-    expect(first.value).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
 })

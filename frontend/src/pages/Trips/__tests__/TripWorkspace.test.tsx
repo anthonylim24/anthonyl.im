@@ -48,8 +48,9 @@ vi.mock("../geocode", () => ({
 // The real map needs WebGL. The stub lists its pins as buttons that select
 // the pin, and renders the overlay children (map chip, selected-place card).
 vi.mock("../map/AtlasMap", () => ({
-  AtlasMap: ({ pins, label, onSelect, children }: AtlasMapProps) => (
+  AtlasMap: ({ pins, dots, routes, label, onSelect, children }: AtlasMapProps) => (
     <div role="region" aria-label={label}>
+      <p>{`${dots?.length ?? 0} dots, ${routes?.length ?? 0} routes`}</p>
       {pins.map((pin) => (
         <button key={pin.id} type="button" onClick={() => onSelect?.(pin.id)}>
           {`Pin ${pin.label}: ${pin.title}`}
@@ -148,7 +149,8 @@ describe("TripWorkspace", () => {
       expect(rows[0]).toHaveAttribute("href", "/trips/lisbon/day/day-1")
       expect(rows[0]).toHaveTextContent("Arrival")
       expect(rows[0]).toHaveTextContent("Time Out Market · Bring cash · Mystery cafe · +1")
-      expect(rows[0]).toHaveTextContent("Lisbon")
+      // One city for the whole trip, so the rows don't repeat it.
+      expect(rows[0]).not.toHaveTextContent("Lisbon")
       expect(rows[1]).toHaveAttribute("href", "/trips/lisbon/day/day-2")
       expect(rows[1]).toHaveTextContent("Day 2")
       expect(rows[1]).toHaveTextContent("Nothing yet. Open to add stops.")
@@ -167,29 +169,64 @@ describe("TripWorkspace", () => {
       expect(rail.getByRole("link", { name: /^Day 2, .*0 items$/ })).not.toHaveAttribute("aria-current")
     })
 
-    it("maps every located stop, labelled with its day", async () => {
-      renderWorkspace("/trips/lisbon")
+    it("maps one pin per day, with every located stop as a dot and no routes", async () => {
+      const trip = planned()
+      trip.days[1] = {
+        id: "day-2",
+        date: "2026-07-11",
+        title: "Belém",
+        items: [makeItem({ id: "it-tower", title: "Tower", location: { name: "Tower", lat: 38.6916, lng: -9.2159, source: "user" } })],
+      }
+      renderWorkspace("/trips/lisbon", trip)
+
       const map = within(await screen.findByRole("region", { name: "Map of the whole trip with 2 pinned places" }))
       expect(map.getAllByRole("button").map((b) => b.textContent)).toEqual([
-        "Pin 1: Time Out Market · Day 1",
-        "Pin 1: Fado dinner · Day 1",
+        "Pin 1: Day 1, Arrival: 2 pinned stops",
+        "Pin 2: Day 2, Belém: 1 pinned stop",
       ])
+      expect(map.getByText("3 dots, 0 routes")).toBeInTheDocument()
       expect(map.getByText("All days · 2 pins")).toBeInTheDocument()
       expect(screen.queryByRole("complementary", { name: "Selected place" })).toBeNull()
     })
 
-    it("shows the selected-place card when a map pin is clicked", async () => {
+    it("leaves days with nothing pinned off the map", async () => {
       renderWorkspace("/trips/lisbon")
-      fireEvent.click(await screen.findByRole("button", { name: "Pin 1: Fado dinner · Day 1" }))
+      const map = within(await screen.findByRole("region", { name: "Map of the whole trip with 1 pinned place" }))
+      expect(map.getAllByRole("button").map((b) => b.textContent)).toEqual(["Pin 1: Day 1, Arrival: 2 pinned stops"])
+      expect(map.getByText("2 dots, 0 routes")).toBeInTheDocument()
+    })
 
-      const card = within(screen.getByRole("complementary", { name: "Selected place" }))
-      expect(card.getByRole("heading", { name: "Fado dinner" })).toBeInTheDocument()
-      expect(card.getByText("Day 1 · 8:00 PM")).toBeInTheDocument()
-      expect(card.getByRole("link", { name: "Open day 1" })).toHaveAttribute("href", "/trips/lisbon/day/day-1#item-it-fado")
-      expect(card.getByRole("link", { name: "Directions" })).toHaveAttribute("target", "_blank")
+    it("opens the day when its map pin is clicked", async () => {
+      renderWorkspace("/trips/lisbon")
+      fireEvent.click(await screen.findByRole("button", { name: "Pin 1: Day 1, Arrival: 2 pinned stops" }))
 
-      fireEvent.click(card.getByRole("button", { name: "Close place" }))
+      expect(await screen.findByRole("textbox", { name: "Day title" })).toHaveValue("Arrival")
+      expect(screen.getByRole("region", { name: "Map of day 1 with 2 pinned stops" })).toBeInTheDocument()
+      // No place card on the way: the pin is a day, not a stop.
       expect(screen.queryByRole("complementary", { name: "Selected place" })).toBeNull()
+    })
+
+    it("shows Stops instead of Bookings when nothing is booked, and city chips for multi-city trips", async () => {
+      renderWorkspace(
+        "/trips/lisbon",
+        planned({
+          days: [
+            { id: "day-1", date: "2026-07-10", title: "Arrival", city: "Lisbon", items: [market, cash, unpinned] },
+            { id: "day-2", date: "2026-07-11", city: "Porto", items: [] },
+          ],
+        }),
+      )
+
+      await screen.findByRole("region", { name: "Day by day" })
+      // The note is not a stop.
+      expect(stat("Stops")).toHaveTextContent("Stops2")
+      expect(screen.queryByText("Bookings")).toBeNull()
+      expect(stat("Walking")).toHaveTextContent("Walking–")
+      expect(screen.queryByText("On foot")).toBeNull()
+
+      const rows = within(screen.getByRole("region", { name: "Day by day" })).getAllByRole("link")
+      expect(rows[0]).toHaveTextContent("Lisbon")
+      expect(rows[1]).toHaveTextContent("Porto")
     })
 
     it("drafts an empty trip with AI from the overview", async () => {
@@ -225,6 +262,8 @@ describe("TripWorkspace", () => {
       expect(
         await screen.findByText("The draft didn’t finish, so nothing changed. Try again in a moment. (upstream timeout)"),
       ).toBeInTheDocument()
+      // Problems are announced as alerts, not polite status updates.
+      expect(screen.getByRole("alert")).toHaveTextContent("The draft didn’t finish")
       expect(screen.getByRole("button", { name: "Draft itinerary" })).toBeEnabled()
     })
 
@@ -277,14 +316,185 @@ describe("TripWorkspace", () => {
 
       const card = within(screen.getByRole("complementary", { name: "Selected place" }))
       expect(card.getByRole("heading", { name: "Time Out Market" })).toBeInTheDocument()
-      expect(card.getByText("Day 1 · 12:30 PM · Market")).toBeInTheDocument()
+      expect(card.getByText("Stop 1 of 2 · 12:30 PM · Market")).toBeInTheDocument()
       expect(card.getByText("Av. 24 de Julho 49")).toBeInTheDocument()
-      expect(card.getByRole("link", { name: "Directions" })).toBeInTheDocument()
+      expect(card.getByRole("link", { name: "Directions" })).toHaveAttribute("target", "_blank")
       // On the day page there is no "open day" hop.
       expect(card.queryByRole("link", { name: /Open day/ })).toBeNull()
 
       fireEvent.keyDown(document.body, { key: "Escape" })
       expect(screen.queryByRole("complementary", { name: "Selected place" })).toBeNull()
+    })
+
+    it("shows the card when a map pin is clicked, and closes it from the card", async () => {
+      renderWorkspace("/trips/lisbon/day/day-1")
+      fireEvent.click(await screen.findByRole("button", { name: "Pin 2: Fado dinner" }))
+
+      const card = within(screen.getByRole("complementary", { name: "Selected place" }))
+      expect(card.getByRole("heading", { name: "Fado dinner" })).toBeInTheDocument()
+      expect(card.getByText("Stop 2 of 2 · 8:00 PM")).toBeInTheDocument()
+
+      fireEvent.click(card.getByRole("button", { name: "Close place" }))
+      expect(screen.queryByRole("complementary", { name: "Selected place" })).toBeNull()
+    })
+
+    it("steps through the day's pinned stops from the place card", async () => {
+      renderWorkspace("/trips/lisbon/day/day-1")
+      fireEvent.click(await screen.findByRole("button", { name: "Show Time Out Market on the map" }))
+      const card = () => within(screen.getByRole("complementary", { name: "Selected place" }))
+
+      expect(card().getByRole("button", { name: "Previous stop" })).toBeDisabled()
+      expect(card().getByRole("button", { name: "Next stop" })).toBeEnabled()
+
+      // Next skips the unpinned note and café between the two pinned stops.
+      fireEvent.click(card().getByRole("button", { name: "Next stop" }))
+      expect(card().getByRole("heading", { name: "Fado dinner" })).toBeInTheDocument()
+      expect(card().getByText("Stop 2 of 2 · 8:00 PM")).toBeInTheDocument()
+      expect(card().getByRole("button", { name: "Next stop" })).toBeDisabled()
+
+      fireEvent.click(card().getByRole("button", { name: "Previous stop" }))
+      expect(card().getByRole("heading", { name: "Time Out Market" })).toBeInTheDocument()
+      expect(card().getByText("Stop 1 of 2 · 12:30 PM · Market")).toBeInTheDocument()
+    })
+
+    it("has no stepper when the day has a single pinned stop", async () => {
+      renderWorkspace(
+        "/trips/lisbon/day/day-1",
+        planned({ days: [{ id: "day-1", date: "2026-07-10", items: [market, cash] }, { id: "day-2", date: "2026-07-11", items: [] }] }),
+      )
+      fireEvent.click(await screen.findByRole("button", { name: "Show Time Out Market on the map" }))
+
+      const card = within(screen.getByRole("complementary", { name: "Selected place" }))
+      expect(card.getByText("Stop 1 of 1 · 12:30 PM · Market")).toBeInTheDocument()
+      expect(card.queryByRole("button", { name: "Previous stop" })).toBeNull()
+      expect(card.queryByRole("button", { name: "Next stop" })).toBeNull()
+    })
+
+    it("opens the stop's editor from the place card", async () => {
+      renderWorkspace("/trips/lisbon/day/day-1")
+      const row = await screen.findByRole("button", { name: /Time Out Market/, expanded: false })
+      fireEvent.click(screen.getByRole("button", { name: "Show Time Out Market on the map" }))
+      expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull()
+
+      fireEvent.click(within(screen.getByRole("complementary", { name: "Selected place" })).getByRole("button", { name: "Edit stop" }))
+
+      expect(row).toHaveAttribute("aria-expanded", "true")
+      expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Time Out Market")
+    })
+
+    it("reorders a stop with Alt+Arrow and announces the move", async () => {
+      renderWorkspace("/trips/lisbon/day/day-1")
+      const plan = () => within(screen.getByRole("region", { name: "Day 1 plan" }))
+      const order = () =>
+        plan()
+          .getAllByRole("listitem")
+          .map((li) => li.querySelector("[id^='item-']")?.id)
+      const row = (name: RegExp) => plan().getByRole("button", { name, expanded: false })
+
+      await screen.findByRole("textbox", { name: "Day title" })
+      expect(order()).toEqual(["item-it-market", "item-it-cash", "item-it-cafe", "item-it-fado"])
+      expect(row(/Time Out Market/)).toHaveAttribute("aria-keyshortcuts", "Alt+ArrowUp Alt+ArrowDown")
+
+      fireEvent.keyDown(row(/Time Out Market/), { key: "ArrowDown", altKey: true })
+      expect(order()).toEqual(["item-it-cash", "item-it-market", "item-it-cafe", "item-it-fado"])
+      expect(screen.getByText("Time Out Market moved down, now 2 of 4.")).toHaveAttribute("aria-live", "polite")
+
+      fireEvent.keyDown(row(/Fado dinner/), { key: "ArrowUp", altKey: true })
+      expect(order()).toEqual(["item-it-cash", "item-it-market", "item-it-fado", "item-it-cafe"])
+      expect(screen.getByText("Fado dinner moved up, now 3 of 4.")).toBeInTheDocument()
+      // Pin numbers follow the new order.
+      expect(screen.getByRole("button", { name: "Show Time Out Market on the map" })).toHaveTextContent("1")
+      expect(screen.getByRole("button", { name: "Show Fado dinner on the map" })).toHaveTextContent("2")
+
+      // Edges and plain arrows do nothing.
+      fireEvent.keyDown(row(/Bring cash/), { key: "ArrowUp", altKey: true })
+      fireEvent.keyDown(row(/Mystery cafe/), { key: "ArrowDown", altKey: true })
+      fireEvent.keyDown(row(/Bring cash/), { key: "ArrowDown" })
+      expect(order()).toEqual(["item-it-cash", "item-it-market", "item-it-fado", "item-it-cafe"])
+      expect(screen.getByText("Fado dinner moved up, now 3 of 4.")).toBeInTheDocument()
+    })
+
+    it("does not reorder for a viewer", async () => {
+      renderWorkspace("/trips/lisbon/day/day-1", planned(), "view")
+      const row = await screen.findByRole("button", { name: /Time Out Market/, expanded: false })
+      expect(row).not.toHaveAttribute("aria-keyshortcuts")
+
+      fireEvent.keyDown(row, { key: "ArrowDown", altKey: true })
+      const first = within(screen.getByRole("region", { name: "Day 1 plan" })).getAllByRole("listitem")[0]!
+      expect(first).toHaveTextContent("Time Out Market")
+      expect(screen.queryByText(/moved down/)).toBeNull()
+    })
+
+    it("offers “Sort stops by time” only when timed stops are out of order", async () => {
+      renderWorkspace(
+        "/trips/lisbon/day/day-1",
+        planned({
+          days: [
+            { id: "day-1", date: "2026-07-10", title: "Arrival", items: [fado, cash, market, unpinned] },
+            { id: "day-2", date: "2026-07-11", items: [] },
+          ],
+        }),
+      )
+      const order = () =>
+        within(screen.getByRole("region", { name: "Day 1 plan" }))
+          .getAllByRole("listitem")
+          .map((li) => li.querySelector("[id^='item-']")?.id)
+
+      fireEvent.click(await screen.findByRole("button", { name: "More for day 1" }))
+      fireEvent.click(screen.getByRole("menuitem", { name: "Sort stops by time" }))
+
+      // Untimed items travel with the timed stop they followed.
+      expect(order()).toEqual(["item-it-market", "item-it-cafe", "item-it-fado", "item-it-cash"])
+      fireEvent.click(screen.getByRole("button", { name: "More for day 1" }))
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add day notes", "Clear this day"])
+    })
+
+    it("shows a compact trip header that links back to the overview", async () => {
+      renderWorkspace("/trips/lisbon/day/day-1")
+      await screen.findByRole("textbox", { name: "Day title" })
+
+      expect(screen.getByRole("link", { name: "Lisbon Long Weekend" })).toHaveAttribute("href", "/trips/lisbon")
+      expect(screen.queryByRole("textbox", { name: "Trip name" })).toBeNull()
+      expect(screen.queryByRole("button", { name: "Improve with AI" })).toBeNull()
+      expect(screen.getByRole("button", { name: "Share" })).toBeInTheDocument()
+      expect(screen.getByText("Saved")).toBeInTheDocument()
+
+      fireEvent.click(screen.getByRole("button", { name: "More trip options" }))
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
+        "Improve whole trip with AI",
+        "Trip details",
+        "Duplicate trip",
+        "Delete trip…",
+      ])
+    })
+
+    it("switches between the itinerary and the map on a phone", async () => {
+      stubMatchMedia(false)
+      renderWorkspace("/trips/lisbon/day/day-1")
+      await screen.findByRole("textbox", { name: "Day title" })
+
+      const tabs = within(screen.getByRole("tablist", { name: "View" }))
+      expect(tabs.getByRole("tab", { name: "Itinerary" })).toHaveAttribute("aria-selected", "true")
+      expect(tabs.getByRole("tab", { name: "Map" })).toHaveAttribute("aria-selected", "false")
+      expect(screen.queryByRole("region", { name: /^Map of day 1/ })).toBeNull()
+
+      fireEvent.click(tabs.getByRole("tab", { name: "Map" }))
+      expect(tabs.getByRole("tab", { name: "Map" })).toHaveAttribute("aria-selected", "true")
+      expect(screen.getByRole("region", { name: "Map of day 1 with 2 pinned stops" })).toBeInTheDocument()
+
+      fireEvent.click(tabs.getByRole("tab", { name: "Itinerary" }))
+      expect(screen.queryByRole("region", { name: /^Map of day 1/ })).toBeNull()
+
+      // Locating a stop from the list jumps to the map with its card open.
+      fireEvent.click(screen.getByRole("button", { name: "Show Fado dinner on the map" }))
+      expect(tabs.getByRole("tab", { name: "Map" })).toHaveAttribute("aria-selected", "true")
+      const card = within(screen.getByRole("complementary", { name: "Selected place" }))
+      expect(card.getByRole("heading", { name: "Fado dinner" })).toBeInTheDocument()
+
+      // "Edit stop" comes back to the list with that stop's editor open.
+      fireEvent.click(card.getByRole("button", { name: "Edit stop" }))
+      expect(tabs.getByRole("tab", { name: "Itinerary" })).toHaveAttribute("aria-selected", "true")
+      expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue("Fado dinner")
     })
 
     it("opens the stop named in the URL hash", async () => {
@@ -396,7 +606,7 @@ describe("TripWorkspace", () => {
 
     it("renumbers the markers when a pinned stop is removed", async () => {
       renderWorkspace("/trips/lisbon/day/day-1")
-      fireEvent.click(await screen.findByRole("button", { name: /^Time Out Market/ }))
+      fireEvent.click(await screen.findByRole("button", { name: /Time Out Market/, expanded: false }))
       fireEvent.click(screen.getByRole("button", { name: "Delete" }))
 
       expect(screen.queryByRole("button", { name: "Show Time Out Market on the map" })).toBeNull()
@@ -413,7 +623,7 @@ describe("TripWorkspace", () => {
       expect(within(alert).getByRole("link", { name: "Back to the overview" })).toHaveAttribute("href", "/trips/lisbon")
       expect(screen.queryByRole("combobox", { name: "Add a place, note or booking" })).toBeNull()
       // The map falls back to the whole trip.
-      expect(screen.getByRole("region", { name: "Map of the whole trip with 2 pinned places" })).toBeInTheDocument()
+      expect(screen.getByRole("region", { name: "Map of the whole trip with 1 pinned place" })).toBeInTheDocument()
     })
   })
 
@@ -439,7 +649,10 @@ describe("TripWorkspace", () => {
       renderWorkspace("/trips/lisbon/day/day-1", planned(), "view")
 
       expect(await screen.findByRole("heading", { level: 2, name: "Arrival" })).toBeInTheDocument()
-      expect(screen.getByText("View only")).toBeInTheDocument()
+      // The compact day header carries the trip name as a link, not the chip.
+      expect(screen.getByRole("link", { name: "Lisbon Long Weekend" })).toHaveAttribute("href", "/trips/lisbon")
+      expect(screen.queryByText("View only")).toBeNull()
+      expect(screen.queryByText("Saved")).toBeNull()
       expect(screen.queryByRole("textbox", { name: "Day title" })).toBeNull()
       expect(screen.queryByRole("textbox", { name: "City for this day" })).toBeNull()
       expect(screen.queryByRole("combobox", { name: "Add a place, note or booking" })).toBeNull()
@@ -447,11 +660,17 @@ describe("TripWorkspace", () => {
       expect(screen.queryByRole("button", { name: /^More for day/ })).toBeNull()
 
       // Stops still open (read-only) and still locate on the map.
-      fireEvent.click(screen.getByRole("button", { name: /^Fado dinner/ }))
+      fireEvent.click(screen.getByRole("button", { name: /Fado dinner/, expanded: false }))
       expect(screen.getByText("Confirmation FD-2291")).toBeInTheDocument()
       expect(screen.queryByRole("button", { name: "Delete" })).toBeNull()
       expect(screen.queryByRole("textbox", { name: "Name" })).toBeNull()
-      expect(screen.getByRole("button", { name: "Show Fado dinner on the map" })).toBeInTheDocument()
+      fireEvent.click(screen.getByRole("button", { name: "Show Fado dinner on the map" }))
+      const card = within(screen.getByRole("complementary", { name: "Selected place" }))
+      expect(card.getByText("Stop 2 of 2 · 8:00 PM")).toBeInTheDocument()
+      expect(card.queryByRole("button", { name: "Edit stop" })).toBeNull()
+
+      fireEvent.click(screen.getByRole("button", { name: "More trip options" }))
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Duplicate trip"])
       expect(mockUpdateTrip).not.toHaveBeenCalled()
     })
 

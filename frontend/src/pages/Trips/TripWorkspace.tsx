@@ -101,7 +101,7 @@ export function TripWorkspace() {
     setHotId(null)
     if (wide) paneRef.current?.scrollTo({ top: 0 })
     else window.scrollTo({ top: 0 })
-    railRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "center" })
+    railRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dayId, trip?.id])
 
@@ -372,7 +372,7 @@ export function TripWorkspace() {
         ) : (
           <header {...sx(s.head)}>
             <p {...sx(a.eyebrow)}>
-              <span {...sx(a.accentText)}>{timing.phase === "past" ? "Travelled" : timing.label}</span>
+              <span {...sx(s.tripText)}>{timing.phase === "past" ? "Travelled" : timing.label}</span>
               {trip.destinations.join(" · ").toLowerCase() === trip.name.trim().toLowerCase()
                 ? ""
                 : ` · ${trip.destinations.join(" · ")}`}
@@ -571,7 +571,7 @@ export function TripWorkspace() {
           >
             <p {...sx(s.mapChip)}>
               <span {...sx(a.truncate)}>
-                {day ? `Day ${dayIndex + 1}${day.city ? ` · ${day.city}` : ""}` : "All days"} · {plural(pins.length, "pin")}
+                {day ? `Day ${dayIndex + 1}${day.city ? ` · ${day.city}` : ""}` : "All days"} · {plural(day ? pins.length : dots.length, "place")}
               </span>
             </p>
             {active && (
@@ -645,12 +645,12 @@ export function TripWorkspace() {
       )}
 
       <div {...sx(s.bar)}>
-        <div {...sx(share.segment, s.barSegment)} role="tablist" aria-label="View">
-          <button type="button" role="tab" aria-selected={view === "list"} {...sx(share.segmentBtn, s.barBtn, view === "list" && share.segmentOn)} onClick={() => setView("list")}>
+        <div {...sx(share.segment, s.barSegment)} role="radiogroup" aria-label="View">
+          <button type="button" role="radio" aria-checked={view === "list"} {...sx(share.segmentBtn, s.barBtn, view === "list" && share.segmentOn)} onClick={() => setView("list")}>
             <List size={16} strokeWidth={1.75} aria-hidden />
             Itinerary
           </button>
-          <button type="button" role="tab" aria-selected={view === "map"} {...sx(share.segmentBtn, s.barBtn, view === "map" && share.segmentOn)} onClick={() => setView("map")}>
+          <button type="button" role="radio" aria-checked={view === "map"} {...sx(share.segmentBtn, s.barBtn, view === "map" && share.segmentOn)} onClick={() => setView("map")}>
             <MapIcon size={16} strokeWidth={1.75} aria-hidden />
             Map
           </button>

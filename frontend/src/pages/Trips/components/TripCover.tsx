@@ -16,7 +16,13 @@ function hash(text: string): number {
   return (h >>> 0) / 4294967295
 }
 
-export function TripCover({ seed, points }: { seed: string; points: readonly LngLat[] }) {
+export function TripCover({ seed, points, still }: { seed: string; points: readonly LngLat[]; still?: string }) {
+  // A real map picture of the trip replaces the chart as soon as one is drawn.
+  if (still) return <img src={still} alt="" {...sx(c.still)} decoding="async" />
+  return <CoverChart seed={seed} points={points} />
+}
+
+function CoverChart({ seed, points }: { seed: string; points: readonly LngLat[] }) {
   const { plotted, meridians, parallels } = useMemo(() => {
     const plotted = projectToBox(points, W, H, 44)
     const tilt = (hash(seed) - 0.5) * 70

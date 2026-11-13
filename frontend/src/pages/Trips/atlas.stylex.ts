@@ -390,7 +390,7 @@ export const a = stylex.create({
     paddingTop: "0.5rem",
     paddingBottom: "0.25rem",
     fontFamily: "var(--trips-mono)",
-    fontSize: "0.625rem",
+    fontSize: "0.6875rem",
     letterSpacing: "0.12em",
     textTransform: "uppercase",
     color: "var(--trips-ink-tertiary)",

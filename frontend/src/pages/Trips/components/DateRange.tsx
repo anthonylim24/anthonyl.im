@@ -64,6 +64,9 @@ export function DateRange({
     if (!open) return
     setMonth(monthOf(start))
     setAnchor(null)
+    setHover(start)
+    // Land on the first day so the arrow keys work straight away.
+    requestAnimationFrame(() => gridRef.current?.querySelector<HTMLButtonElement>(`[data-day="${start}"]`)?.focus())
     const onPointer = (event: PointerEvent) => {
       if (!wrapRef.current?.contains(event.target as Node)) setOpen(false)
     }
@@ -73,6 +76,8 @@ export function DateRange({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
+  // `hover` doubles as the keyboard cursor; it only previews a range once the
+  // first day has been picked.
   const lo = anchor ? (hover && hover < anchor ? hover : anchor) : start
   const hi = anchor ? (hover && hover > anchor ? hover : anchor) : end
 
@@ -141,11 +146,11 @@ export function DateRange({
               <ChevronRight size={18} strokeWidth={1.75} aria-hidden />
             </button>
           </div>
-          <div ref={gridRef} {...sx(r.months)} onMouseLeave={() => anchor && setHover(anchor)}>
+          <div ref={gridRef} {...sx(r.months)} onMouseLeave={() => setHover(anchor ?? start)}>
             {[month, shiftMonth(month, 1)].map((m, index) => (
               <div key={m} {...sx(index === 1 && r.second)}>
                 <p {...sx(r.monthName)}>{fmt(`${m}-01`, { month: "long", year: "numeric" })}</p>
-                <div {...sx(r.grid)} role="grid" aria-label={fmt(`${m}-01`, { month: "long", year: "numeric" })}>
+                <div {...sx(r.grid)} role="group" aria-label={fmt(`${m}-01`, { month: "long", year: "numeric" })}>
                   {WEEKDAYS.map((d) => (
                     <span key={d} {...sx(r.dow)} aria-hidden>
                       {d}
@@ -157,6 +162,8 @@ export function DateRange({
                         key={iso}
                         type="button"
                         data-day={iso}
+                        // One tab stop for the whole calendar; arrows move within it.
+                        tabIndex={iso === (hover ?? start) ? 0 : -1}
                         aria-label={fmt(iso, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
                         aria-pressed={iso === lo || iso === hi}
                         {...sx(
@@ -167,7 +174,7 @@ export function DateRange({
                           (iso === lo || iso === hi) && r.dayEdge,
                         )}
                         onMouseEnter={() => anchor && setHover(iso)}
-                        onFocus={() => anchor && setHover(iso)}
+                        onFocus={() => setHover(iso)}
                         onClick={() => pick(iso)}
                       >
                         <span {...sx(r.dayNum, (iso === lo || iso === hi) && r.dayNumEdge)}>{Number(iso.slice(8))}</span>

@@ -82,7 +82,8 @@ describe("ShareDialog", () => {
     renderShare(makeTrip(), "owner")
     const copy = await screen.findByRole("button", { name: "Copy invite link" })
     expect(screen.getByRole("radio", { name: "Can view" })).toHaveAttribute("aria-checked", "true")
-    expect(screen.getByText("A private link is created when you copy it")).toBeInTheDocument()
+    // No link exists yet, so there is nothing to show.
+    expect(screen.queryByRole("textbox", { name: "Invite link" })).toBeNull()
 
     fireEvent.click(screen.getByRole("radio", { name: "Can edit" }))
     expect(screen.getByRole("radio", { name: "Can edit" })).toHaveAttribute("aria-checked", "true")
@@ -94,7 +95,9 @@ describe("ShareDialog", () => {
     expect(writeText).toHaveBeenCalledTimes(1)
     expect(writeText).toHaveBeenCalledWith(joinUrl("tok-editor"))
     expect(screen.getByText("Anyone who opens it and signs in joins this trip.")).toBeInTheDocument()
-    expect(screen.getByText(joinUrl("tok-editor").replace(/^https?:\/\//, ""))).toBeInTheDocument()
+    const link = screen.getByRole("textbox", { name: "Invite link" })
+    expect(link).toHaveValue(joinUrl("tok-editor"))
+    expect(link).toHaveAttribute("readonly")
 
     // The link now exists, so copying again does not mint another.
     fireEvent.click(screen.getByRole("button", { name: "Link copied" }))
@@ -106,13 +109,15 @@ describe("ShareDialog", () => {
     const trip = makeTrip({ invites: [{ token: "existing-view", role: "viewer", createdAt: "2026-05-01T00:00:00Z" }] })
     renderShare(trip, "owner")
 
-    fireEvent.click(await screen.findByRole("button", { name: "Copy invite link" }))
+    expect(await screen.findByRole("textbox", { name: "Invite link" })).toHaveValue(joinUrl("existing-view"))
+    fireEvent.click(screen.getByRole("button", { name: "Copy invite link" }))
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(joinUrl("existing-view")))
     expect(mockCreateInvite).not.toHaveBeenCalled()
 
     // The other role has no link yet, so that one is created.
     fireEvent.click(screen.getByRole("radio", { name: "Can edit" }))
     expect(screen.queryByRole("button", { name: "Turn off link" })).toBeNull()
+    expect(screen.queryByRole("textbox", { name: "Invite link" })).toBeNull()
     fireEvent.click(screen.getByRole("button", { name: "Copy invite link" }))
     await waitFor(() => expect(writeText).toHaveBeenLastCalledWith(joinUrl("tok-editor")))
     expect(mockCreateInvite).toHaveBeenCalledWith(getToken, "lisbon", "editor")
@@ -124,8 +129,30 @@ describe("ShareDialog", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Turn off link" }))
     await waitFor(() => expect(mockRevokeInvite).toHaveBeenCalledWith(getToken, "lisbon", "existing-view"))
-    expect(await screen.findByText("A private link is created when you copy it")).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole("textbox", { name: "Invite link" })).toBeNull())
     expect(screen.queryByRole("button", { name: "Turn off link" })).toBeNull()
+    expect(screen.getByRole("button", { name: "Copy invite link" })).toBeEnabled()
+  })
+
+  it("owner: keeps the new invite and says so when the browser blocks copying", async () => {
+    writeText.mockRejectedValue(new Error("NotAllowedError"))
+    renderShare(makeTrip(), "owner")
+
+    fireEvent.click(await screen.findByRole("button", { name: "Copy invite link" }))
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Your browser blocked copying. Select the link above and copy it yourself.")
+    expect(mockCreateInvite).toHaveBeenCalledTimes(1)
+    // The link is still there to select by hand, and is not reported as copied.
+    expect(screen.getByRole("textbox", { name: "Invite link" })).toHaveValue(joinUrl("tok-viewer"))
+    expect(screen.queryByRole("button", { name: "Link copied" })).toBeNull()
+    expect(screen.queryByText("Anyone who opens it and signs in joins this trip.")).toBeNull()
+
+    // Trying again reuses the invite rather than minting a second one.
+    writeText.mockResolvedValue(undefined)
+    fireEvent.click(screen.getByRole("button", { name: "Copy invite link" }))
+    expect(await screen.findByRole("button", { name: "Link copied" })).toBeInTheDocument()
+    expect(mockCreateInvite).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole("alert")).toBeNull()
   })
 
   it("owner: changes a guest's role", async () => {

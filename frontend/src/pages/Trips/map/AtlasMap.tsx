@@ -31,6 +31,8 @@ export interface AtlasMapProps {
   ambient?: boolean
   padding?: FrameOptions["padding"]
   maxZoom?: number
+  /** Hide the zoom / tilt / fit buttons (small decorative previews). */
+  bare?: boolean
   label: string
   children?: ReactNode
 }
@@ -50,7 +52,7 @@ export function useIsDark(): boolean {
   return dark
 }
 
-function canRenderMap(): boolean {
+export function canRenderMap(): boolean {
   if (typeof window === "undefined" || typeof WebGL2RenderingContext === "undefined") return false
   try {
     return Boolean(document.createElement("canvas").getContext("webgl2"))
@@ -74,6 +76,7 @@ export function AtlasMap({
   ambient = false,
   padding,
   maxZoom,
+  bare = false,
   label,
   children,
 }: AtlasMapProps) {
@@ -182,7 +185,7 @@ export function AtlasMap({
       <div ref={hostRef} {...sx(s.canvas, status === "ready" && s.canvasReady)} />
       {status !== "ready" && !(ambient && status === "loading") && <StaticChart pins={pins} loading={status === "loading"} />}
       {status === "ready" && ambient && <span {...sx(s.shade)} aria-hidden />}
-      {status === "ready" && !ambient && (
+      {status === "ready" && !ambient && !bare && (
         <div {...sx(s.controls)}>
           <button type="button" {...sx(s.control)} aria-label="Zoom in" onClick={() => handleRef.current?.zoomBy(1)}>
             <Plus size={16} strokeWidth={1.75} aria-hidden />

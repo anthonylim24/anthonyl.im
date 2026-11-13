@@ -8,6 +8,8 @@ import {
   projectToBox,
   routeMeters,
   spanMeters,
+  DAY_PIN,
+  tripDots,
   tripPins,
 } from "../map/geo"
 import type { ItineraryItem, TripDay } from "../types"
@@ -102,15 +104,28 @@ describe("pins and routes", () => {
     expect(pins.map((p) => Boolean(p.fresh))).toEqual([false, true])
   })
 
-  it("labels trip pins with their day number", () => {
-    const pins = tripPins({ days: [d1, d2] })
-    expect(pins.map((p) => [p.id, p.label, p.variant])).toEqual([
-      ["a", "1", "dot"],
-      ["b", "1", "dot"],
-      ["c", "2", "dot"],
+  it("puts one pin per day at the centre of that day's stops", () => {
+    const titled: TripDay = { ...d1, title: "Alfama" }
+    const pins = tripPins({ days: [titled, d2] })
+    expect(pins.map((p) => [p.id, p.label, p.variant, p.title])).toEqual([
+      ["day:day-1", "1", "stop", "Day 1, Alfama: 2 pinned stops"],
+      ["day:day-2", "2", "stop", "Day 2: 1 pinned stop"],
     ])
-    expect(pins[0]!.title).toBe("Market · Day 1")
-    expect(pins[2]!.title).toBe("Tower · Day 2")
+    expect(pins[0]!.id).toBe(`${DAY_PIN}day-1`)
+    expect(pins[0]!.lat).toBeCloseTo((A.lat + B.lat) / 2, 9)
+    expect(pins[0]!.lng).toBeCloseTo((A.lng + B.lng) / 2, 9)
+    expect(pins[1]).toMatchObject({ lat: 38.69, lng: -9.21 })
+  })
+
+  it("skips days with nothing pinned but keeps their day number", () => {
+    const pins = tripPins({ days: [day("day-1", [item("n", "Note")]), d2] })
+    expect(pins.map((p) => [p.id, p.label])).toEqual([["day:day-2", "2"]])
+    expect(tripPins({ days: [] })).toEqual([])
+  })
+
+  it("lists every located stop on the trip as a dot", () => {
+    expect(tripDots({ days: [d1, d2] })).toEqual([A, B, { lat: 38.69, lng: -9.21 }])
+    expect(tripDots({ days: [day("empty", [])] })).toEqual([])
   })
 
   it("builds the day route from located items only", () => {

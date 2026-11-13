@@ -6,8 +6,8 @@ import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useTabTitle } from "@/hooks/useTabTitle"
 import { useAuthReady, useGetToken, useViewer } from "@/lib/safeAuth"
 import { deleteTrip, duplicateTrip, getTrip, listTrips } from "./tripsApi"
-import { dayCount, formatRange, plural, resolveAccent, tripTiming, visibleTags, type TripPhase } from "./meta"
-import { AtlasMap } from "./map/AtlasMap"
+import { ACCENT_FILL, dayCount, formatRange, plural, resolveAccent, tripTiming, visibleTags, type TripPhase } from "./meta"
+import { AtlasMap, canRenderMap, useIsDark } from "./map/AtlasMap"
 import { formatCoord, type AtlasPin, type LngLat } from "./map/geo"
 import { Menu, Modal, Spinner, type MenuItem } from "./components/kit"
 import { ShareDialog } from "./components/ShareDialog"
@@ -57,6 +57,8 @@ export function TripsIndex() {
   const [toast, setToast] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+  const dark = useIsDark()
+  const [stills, setStills] = useState<Record<string, string>>({})
 
   useEffect(() => {
     if (!authReady) return
@@ -92,6 +94,34 @@ export function TripsIndex() {
   }, [toast])
 
   const trips = state.status === "success" ? state.trips : null
+
+  // Cover pictures: one off-screen map draws each trip in turn. Cards show
+  // their chart until the picture arrives (and for good without WebGL).
+  const stillKey = (trip: TripSummary) => `${trip.id}:${trip.updatedAt}:${dark ? "d" : "l"}`
+  useEffect(() => {
+    if (!trips || !canRenderMap()) return
+    const todo = trips
+      .filter((trip) => (trip.points?.length || trip.center) && !stills[stillKey(trip)])
+      .map((trip) => ({
+        key: stillKey(trip),
+        points: (trip.points ?? []).map(([lng, lat]) => ({ lat, lng })),
+        center: trip.center,
+        color: ACCENT_FILL[resolveAccent(trip.accent)],
+      }))
+    if (todo.length === 0) return
+    let cancel = () => {}
+    let dead = false
+    void import("./map/engine").then(({ renderStills }) => {
+      if (dead) return
+      cancel = renderStills(todo, dark, (key, url) => setStills((current) => ({ ...current, [key]: url })))
+    })
+    return () => {
+      dead = true
+      cancel()
+    }
+    // `stills` is read, not a trigger: finished pictures must not restart the queue.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trips, dark])
   const timed = useMemo(() => (trips ?? []).map((trip) => ({ trip, timing: tripTiming(trip) })), [trips])
 
   const filtered = useMemo(() => {
@@ -101,6 +131,25 @@ export function TripsIndex() {
       [trip.name, ...trip.destinations, ...trip.tags].some((text) => text.toLowerCase().includes(q)),
     )
   }, [timed, deferredQuery])
+
+  // A handful of trips reads best as one row (each card already says when it
+  // is); the Now / Upcoming / Past headings earn their place from four up.
+  const groups = useMemo(() => {
+    const order: Record<TripPhase, number> = { now: 0, upcoming: 1, past: 2 }
+    const byDate = (phase: TripPhase) => (x: (typeof filtered)[number], y: (typeof filtered)[number]) =>
+      phase === "past" ? y.trip.startDate.localeCompare(x.trip.startDate) : x.trip.startDate.localeCompare(y.trip.startDate)
+    if (filtered.length <= 3) {
+      const rows = [...filtered].sort(
+        (x, y) => order[x.timing.phase] - order[y.timing.phase] || byDate(x.timing.phase)(x, y),
+      )
+      return [{ phase: "all", label: null as string | null, rows }]
+    }
+    return BUCKETS.map(({ phase, label }) => ({
+      phase: phase as string,
+      label: label as string | null,
+      rows: filtered.filter((t) => t.timing.phase === phase).sort(byDate(phase)),
+    }))
+  }, [filtered])
 
   const pins = useMemo<AtlasPin[]>(
     () =>
@@ -119,7 +168,8 @@ export function TripsIndex() {
   }, [timed])
 
   const hotTrip = hot ? timed.find((t) => t.trip.id === hot)?.trip : undefined
-  const framePoints = hotTrip?.center ? [hotTrip.center] : pins
+  // At rest the globe faces the next trip, so its pin and label sit mid-sphere.
+  const framePoints = hotTrip?.center ? [hotTrip.center] : nextUp?.trip.center ? [nextUp.trip.center] : pins
   const upcomingCount = timed.filter((t) => t.timing.phase !== "past").length
 
   const remove = async (trip: TripSummary) => {
@@ -307,20 +357,19 @@ export function TripsIndex() {
             </div>
           )}
 
-          {BUCKETS.map(({ phase, label }) => {
-            const rows = filtered
-              .filter((t) => t.timing.phase === phase)
-              .sort((x, y) => (phase === "past" ? y.trip.startDate.localeCompare(x.trip.startDate) : x.trip.startDate.localeCompare(y.trip.startDate)))
+          {groups.map(({ phase, label, rows }) => {
             if (rows.length === 0) return null
             return (
               <div key={phase} {...sx(s.bucket)}>
-                <div {...sx(s.bucketHead)}>
-                  <h3 {...sx(a.eyebrow)}>
-                    {label} · {rows.length}
-                  </h3>
-                  <span {...sx(s.bucketRule)} aria-hidden />
-                </div>
-                <ul {...sx(s.grid)}>
+                {label && (
+                  <div {...sx(s.bucketHead)}>
+                    <h3 {...sx(a.eyebrow)}>
+                      {label} · {rows.length}
+                    </h3>
+                    <span {...sx(s.bucketRule)} aria-hidden />
+                  </div>
+                )}
+                <ul {...sx(s.grid, rows.length <= 2 && s.gridFew)}>
                   {rows.map(({ trip, timing }, index) => {
                     const tags = visibleTags(trip.tags)
                     const points = (trip.points ?? []).map(([lng, lat]) => ({ lat, lng }))
@@ -342,7 +391,11 @@ export function TripsIndex() {
                             onBlur={() => setHot((current) => (current === trip.id ? null : current))}
                           />
                           <div {...sx(s.cardCover)}>
-                            <TripCover seed={trip.id} points={points.length > 0 ? points : trip.center ? [trip.center] : []} />
+                            <TripCover
+                              seed={trip.id}
+                              points={points.length > 0 ? points : trip.center ? [trip.center] : []}
+                              still={stills[stillKey(trip)]}
+                            />
                             <div {...sx(s.cardBadges)}>
                               <span {...sx(s.badge)}>
                                 {timing.phase === "now" && <span {...sx(s.liveDot)} aria-hidden />}

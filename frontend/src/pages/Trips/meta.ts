@@ -33,6 +33,15 @@ export const ACCENT_LABEL: Record<TripAccent, string> = {
   violet: "Iris",
 }
 
+/** Accent fills as literals, for canvases that can't read CSS variables. Mirrors index.css. */
+export const ACCENT_FILL: Record<TripAccent, string> = {
+  rose: "#e5484d",
+  amber: "#f2a71b",
+  emerald: "#0f9b76",
+  sky: "#2f7bf0",
+  violet: "#7c5cff",
+}
+
 /** Safe accent lookup — never returns undefined for bad runtime data. */
 export function resolveAccent(accent?: string | null): TripAccent {
   return TRIP_ACCENTS.includes(accent as TripAccent) ? (accent as TripAccent) : DEFAULT_ACCENT
@@ -148,6 +157,28 @@ export function formatClock(time?: string): string {
   if (!match) return time
   const hour = Number(match[1])
   return `${hour % 12 === 0 ? 12 : hour % 12}:${match[2]} ${hour < 12 ? "AM" : "PM"}`
+}
+
+/**
+ * Read a typed time: "8", "8a", "8:30", "830pm", "2 pm", "14:00", "noon".
+ * Returns "HH:MM", or null when it isn't a time.
+ */
+export function parseClock(text: string): string | null {
+  const raw = text.trim().toLowerCase().replace(/\./g, "")
+  if (raw === "noon") return "12:00"
+  if (raw === "midnight") return "00:00"
+  const match = /^(\d{1,2})(?::?(\d{2}))?\s*(a|am|p|pm)?$/.exec(raw)
+  if (!match) return null
+  let hour = Number(match[1])
+  const minute = Number(match[2] ?? 0)
+  const half = match[3]?.[0]
+  if (minute > 59) return null
+  if (half) {
+    if (hour < 1 || hour > 12) return null
+    if (half === "p" && hour < 12) hour += 12
+    if (half === "a" && hour === 12) hour = 0
+  } else if (hour > 23) return null
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`
 }
 
 // ── Icons + labels ───────────────────────────────────────────────────────

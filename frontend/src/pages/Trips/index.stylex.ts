@@ -12,6 +12,11 @@ const ping = stylex.keyframes({
   "100%": { transform: "scale(1.6)", opacity: 0 },
 })
 
+const fadeIn = stylex.keyframes({
+  from: { opacity: 0 },
+  to: { opacity: 1 },
+})
+
 const riseIn = stylex.keyframes({
   from: { opacity: 0, transform: "translateY(14px)" },
   to: { opacity: 1, transform: "none" },
@@ -253,6 +258,8 @@ export const idx = stylex.create({
     margin: 0,
     padding: 0,
   },
+  // One or two trips: fewer, larger cards instead of a lonely third of a row.
+  gridFew: { [DESK]: { gridTemplateColumns: "repeat(2, minmax(0, 1fr))" } },
   card: {
     position: "relative",
     display: "flex",
@@ -396,6 +403,16 @@ export const idx = stylex.create({
 
 export const cover = stylex.create({
   svg: { display: "block", width: "100%", height: "100%" },
+  still: {
+    display: "block",
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    animationName: fadeIn,
+    animationDuration: "500ms",
+    animationTimingFunction: "ease-out",
+    [REDUCE]: { animationName: "none" },
+  },
   // Paper, not a block of tint: the accent lives in the strokes and stops.
   wash: { fill: "var(--trips-sunken)" },
   graticule: {

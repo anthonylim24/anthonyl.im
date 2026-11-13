@@ -2,7 +2,7 @@ import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { ArrowRight, ChevronRight, Sparkles } from "lucide-react"
 import { sx } from "@/styles/merge"
-import { formatClock, formatTripDate, itemIcon, plural, todayIsoIn } from "../meta"
+import { formatClock, formatTripDate, itemIcon, todayIsoIn } from "../meta"
 import { dayRoute, isLocated, routeMeters } from "../map/geo"
 import { formatDistance, upcomingReservations } from "../reservationView"
 import type { EnhancementRun, Trip } from "../types"
@@ -74,11 +74,12 @@ export function OverviewPanel({
 
       <dl {...sx(s.stats)}>
         {[
-          { label: "Days", value: String(trip.days.length) },
-          { label: "Pinned", value: String(stats.pinned) },
-          stats.bookings > 0
-            ? { label: "Bookings", value: String(stats.bookings) }
-            : { label: "Stops", value: String(stats.stops) },
+          { label: "Stops", value: String(stats.stops), unit: "" },
+          // Only worth a tile when some stops still need a pin.
+          stats.pinned < stats.stops
+            ? { label: "On the map", value: String(stats.pinned), unit: `of ${stats.stops}` }
+            : { label: "Days", value: String(trip.days.length), unit: "" },
+          { label: "Bookings", value: String(stats.bookings), unit: "" },
           { label: "Walking", value: stats.meters > 500 ? formatDistance(stats.meters).replace(" km", "") : "–", unit: stats.meters > 500 ? "km" : "" },
         ].map((stat, i) => (
           <div key={stat.label} {...sx(s.stat, i === 0 && s.statFirst)}>
@@ -154,7 +155,6 @@ export function OverviewPanel({
           <h2 id="days-title" {...sx(a.display, s.sectionTitle)}>
             Day by day
           </h2>
-          <span {...sx(a.mono, a.muted)}>{plural(trip.days.length, "day")}</span>
         </div>
         <ol {...sx(s.dayList)}>
           {trip.days.map((day, index) => {

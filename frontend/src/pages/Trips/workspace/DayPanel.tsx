@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { Reorder, useDragControls } from "motion/react"
-import { ArrowDownUp, ArrowLeft, ArrowRight, CloudSun, Eraser, Footprints, MapPin, MoreHorizontal, NotebookPen, Orbit, Sparkles } from "lucide-react"
+import { ArrowDownUp, ArrowLeft, ArrowRight, CloudSun, Lightbulb, Eraser, Footprints, MapPin, MoreHorizontal, NotebookPen, Orbit, Sparkles } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { formatTripDate, plural, todayIsoIn } from "../meta"
 import { dayRoute, distanceMeters, isLocated, routeMeters, type LngLat } from "../map/geo"
@@ -234,7 +234,7 @@ export function DayPanel({
           <span {...sx(a.grow)} />
           {editable && (
             <button type="button" {...sx(a.btn, a.btnSoft, a.btnSm)} disabled={locked} onClick={onAskAi}>
-              <Sparkles size={14} strokeWidth={1.75} aria-hidden />
+              {day.items.length === 0 ? <Sparkles size={14} strokeWidth={1.75} aria-hidden /> : <Lightbulb size={14} strokeWidth={1.75} aria-hidden />}
               {day.items.length === 0 ? "Plan this day with AI" : "Ideas for this day"}
             </button>
           )}

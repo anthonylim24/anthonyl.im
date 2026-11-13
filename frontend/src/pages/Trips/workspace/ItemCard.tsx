@@ -2,7 +2,7 @@ import { memo, useEffect, useId, useRef, useState, type PointerEvent as ReactPoi
 import { ArrowDown, ArrowUp, ChevronDown, Copy, ExternalLink, GripVertical, MapPin, MapPinOff, Trash2 } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { externalMapsLink } from "@/lib/externalMaps"
-import { formatClock, itemIcon, RESERVATION_TYPES, STATUS_LABEL, titleCase } from "../meta"
+import { formatClock, itemIcon, parseClock, RESERVATION_TYPES, STATUS_LABEL, titleCase } from "../meta"
 import type { LngLat } from "../map/geo"
 import { duplicateItem, moveItem, moveItemToDay, updateItem } from "../tripEdits"
 import type { ItemStatus, ItineraryItem, TripDay } from "../types"
@@ -64,6 +64,7 @@ export const ItemCard = memo(function ItemCard({
   onAnnounce,
 }: ItemCardProps) {
   const [open, setOpen] = useState(false)
+  const [endOpen, setEndOpen] = useState(false)
   const panelId = useId()
   const rowRef = useRef<HTMLDivElement>(null)
   const patch = (p: Partial<Omit<ItineraryItem, "id">>) => onChange((days) => updateItem(days, dayId, item.id, p))
@@ -181,6 +182,12 @@ export const ItemCard = memo(function ItemCard({
             )}
           </span>
           <span {...sx(s.cardText)}>
+            {item.time && (
+              <span {...sx(s.cardTimeTop)}>
+                {formatClock(item.time)}
+                {item.endTime ? ` – ${formatClock(item.endTime)}` : ""}
+              </span>
+            )}
             <span {...sx(s.cardTitle, a.wrap, !item.title && s.cardTitleEmpty)}>
               {item.title || (item.kind === "note" ? "Empty note" : "Untitled stop")}
             </span>
@@ -200,7 +207,7 @@ export const ItemCard = memo(function ItemCard({
           </span>
           {editable && onGrip && (
             <span
-              {...sx(s.grip, "trips-grip")}
+              {...sx(s.grip, s.gripRow, "trips-grip")}
               role="presentation"
               title="Drag to reorder (or Alt + ↑ / ↓)"
               onPointerDown={(event) => {
@@ -230,26 +237,25 @@ export const ItemCard = memo(function ItemCard({
                     onChange={(event) => patch({ title: event.target.value })}
                   />
                 </label>
-                <label>
-                  <span {...sx(s.miniLabel)}>Starts</span>
-                  <input
-                    type="time"
-                    value={item.time ?? ""}
+                <TimeField label="Starts" value={item.time} disabled={locked} onChange={(time) => patch({ time })} />
+                {item.endTime || endOpen ? (
+                  <TimeField
+                    label="Ends"
+                    value={item.endTime}
                     disabled={locked}
-                    {...sx(a.field)}
-                    onChange={(event) => patch({ time: event.target.value || undefined })}
+                    autoFocus={endOpen && !item.endTime}
+                    onChange={(endTime) => {
+                      patch({ endTime })
+                      if (!endTime) setEndOpen(false)
+                    }}
                   />
-                </label>
-                <label>
-                  <span {...sx(s.miniLabel)}>Ends</span>
-                  <input
-                    type="time"
-                    value={item.endTime ?? ""}
-                    disabled={locked}
-                    {...sx(a.field)}
-                    onChange={(event) => patch({ endTime: event.target.value || undefined })}
-                  />
-                </label>
+                ) : (
+                  <div {...sx(s.addEnd)}>
+                    <button type="button" {...sx(a.btn, a.btnGhost, a.btnSm)} disabled={locked} onClick={() => setEndOpen(true)}>
+                      Add end time
+                    </button>
+                  </div>
+                )}
                 {item.kind !== "note" && (
                   <div {...sx(s.span2)}>
                     <span {...sx(s.miniLabel)}>Location</span>
@@ -410,6 +416,72 @@ export const ItemCard = memo(function ItemCard({
   )
 })
 
+/** Type a time the way you'd say it ("8:30a", "2 pm", "14:00"); it tidies itself on blur. */
+function TimeField({
+  label,
+  value,
+  disabled,
+  autoFocus,
+  onChange,
+}: {
+  label: string
+  value: string | undefined
+  disabled?: boolean
+  autoFocus?: boolean
+  onChange: (value: string | undefined) => void
+}) {
+  const [text, setText] = useState(() => formatClock(value))
+  const [bad, setBad] = useState(false)
+  useEffect(() => {
+    setText(formatClock(value))
+    setBad(false)
+  }, [value])
+  const commit = () => {
+    if (!text.trim()) {
+      setBad(false)
+      if (value) onChange(undefined)
+      return
+    }
+    const parsed = parseClock(text)
+    if (!parsed) {
+      setBad(true)
+      return
+    }
+    setBad(false)
+    setText(formatClock(parsed))
+    if (parsed !== value) onChange(parsed)
+  }
+  return (
+    <label>
+      <span {...sx(s.miniLabel)}>{label}</span>
+      <input
+        type="text"
+        inputMode="text"
+        autoComplete="off"
+        value={text}
+        disabled={disabled}
+        autoFocus={autoFocus}
+        placeholder="e.g. 9:30 AM"
+        aria-invalid={bad || undefined}
+        {...sx(a.field)}
+        onChange={(event) => setText(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault()
+            commit()
+          }
+        }}
+      />
+      {bad && (
+        <span {...sx(a.errorText)} role="alert" style={{ display: "block" }}>
+          Try a time like 9:30 AM or 14:00.
+        </span>
+      )}
+    </label>
+  )
+}
+
 function LocationField({
   item,
   near,
@@ -429,7 +501,7 @@ function LocationField({
   if (pinned && !searching) {
     return (
       <div {...sx(s.pinnedBox)}>
-        <MapPin size={16} strokeWidth={1.75} aria-hidden {...sx(a.noShrink, a.accentText)} />
+        <MapPin size={16} strokeWidth={1.75} aria-hidden {...sx(a.noShrink, s.tripText)} />
         <span {...sx(a.grow, a.wrap)}>{item.location?.address || item.location?.name || "Pinned on the map"}</span>
         <button
           type="button"
