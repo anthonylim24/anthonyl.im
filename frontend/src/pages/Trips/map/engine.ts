@@ -260,7 +260,7 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
       type: "symbol",
       source: GUARD_SOURCE,
       filter: ["!=", ["get", "kind"], "trip"],
-      layout: { "text-field": "⬤", "text-font": ["Noto Sans Bold"], "text-size": 40, "text-anchor": "bottom", "text-allow-overlap": true, "text-padding": 4 },
+      layout: { "text-field": "O", "text-font": ["Noto Sans Bold"], "text-size": 44, "text-anchor": "bottom", "text-allow-overlap": true, "text-padding": 4 },
       paint: { "text-opacity": 0 },
     })
     map.addLayer({
@@ -268,7 +268,7 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
       type: "symbol",
       source: GUARD_SOURCE,
       filter: ["==", ["get", "kind"], "trip"],
-      layout: { "text-field": ["concat", "⬤ ", ["get", "title"], " ⬤"], "text-font": ["Noto Sans Bold"], "text-size": 22, "text-allow-overlap": true, "text-padding": 6 },
+      layout: { "text-field": ["concat", "O ", ["get", "title"], " O"], "text-font": ["Noto Sans Bold"], "text-size": 22, "text-allow-overlap": true, "text-padding": 6 },
       paint: { "text-opacity": 0 },
     })
     emphasise()
@@ -623,7 +623,7 @@ export function renderStills(
         type: "line",
         source: "still-route",
         layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": ["get", "color"], "line-width": 2, "line-opacity": 0.45 },
+        paint: { "line-color": ["get", "color"], "line-width": 2, "line-opacity": dark ? 0.8 : 0.45 },
       })
       map.addLayer({
         id: "still-dot",
