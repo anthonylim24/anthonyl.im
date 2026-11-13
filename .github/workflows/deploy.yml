@@ -71,9 +71,32 @@ jobs:
             NEXT="$HOME/anthonyl.im.next"
             REPO="git@github.com:anthonylim24/anthonyl.im.git"
 
+            # Disk preflight. The droplet is small and a full disk used to
+            # surface as a cryptic clone or scp failure. Report free space,
+            # reclaim only what the next steps re-create (the previous staging
+            # tree, Bun's download cache, day-old temp archives owned by this
+            # user), and stop with a usage breakdown if that isn't enough.
+            # Logs and live data are never touched here.
+            free_mb() { df -Pm "$HOME" | awk 'NR==2 { print $4 }'; }
+            NEED_MB=300
+            rm -rf "$NEXT"
+            echo "[deploy] disk: $(free_mb) MB free on $(df -P "$HOME" | awk 'NR==2 { print $6 }')"
+            if [ "$(free_mb)" -lt 800 ]; then
+              echo "[deploy] low disk — clearing re-creatable caches"
+              rm -rf "$HOME/.bun/install/cache" || true
+              find /tmp -maxdepth 1 -user "$(id -un)" -mtime +0 \
+                \( -name '*.tar.gz' -o -name 'tmp.*' \) -exec rm -rf {} + 2>/dev/null || true
+              echo "[deploy] disk after cleanup: $(free_mb) MB free"
+            fi
+            if [ "$(free_mb)" -lt "$NEED_MB" ]; then
+              echo "::error::Droplet has $(free_mb) MB free; staging needs about $NEED_MB MB. Largest directories follow."
+              du -xm --max-depth=2 "$HOME" 2>/dev/null | sort -rn | head -25 || true
+              du -xsm /var/log /tmp 2>/dev/null || true
+              exit 1
+            fi
+
             # Stage into a sibling directory so the live tree keeps serving
             # until the atomic swap step. Shallow clone keeps droplet disk low.
-            rm -rf "$NEXT"
             git clone --depth=1 --branch main "$REPO" "$NEXT"
             cd "$NEXT"
 
