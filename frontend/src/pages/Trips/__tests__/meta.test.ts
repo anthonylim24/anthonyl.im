@@ -6,6 +6,7 @@ import {
   formatClock,
   formatRange,
   itemIcon,
+  parseClock,
   plural,
   resolveAccent,
   titleCase,
@@ -113,6 +114,45 @@ describe("formatClock", () => {
     expect(formatClock("")).toBe("")
     expect(formatClock("late")).toBe("late")
     expect(formatClock("9:30")).toBe("9:30")
+  })
+})
+
+describe("parseClock", () => {
+  it.each([
+    ["8", "08:00"],
+    ["8a", "08:00"],
+    ["8am", "08:00"],
+    ["8:30", "08:30"],
+    ["830pm", "20:30"],
+    ["2 pm", "14:00"],
+    ["14:00", "14:00"],
+    ["1400", "14:00"],
+    ["noon", "12:00"],
+    ["midnight", "00:00"],
+    ["12am", "00:00"],
+    ["12pm", "12:00"],
+    ["12:05 AM", "00:05"],
+    ["11:59 PM", "23:59"],
+    ["0", "00:00"],
+    ["23:59", "23:59"],
+    ["  9:05 P  ", "21:05"],
+    ["9.30 a.m.", "09:30"],
+    ["NOON", "12:00"],
+  ])("reads %j as %s", (text, expected) => {
+    expect(parseClock(text)).toBe(expected)
+  })
+
+  it.each(["", "   ", "soon", "24:00", "25", "8:60", "13pm", "0am", "8:5", "8:300", "-3", "8 o'clock", "12:00:00", "am"])(
+    "rejects %j",
+    (text) => {
+      expect(parseClock(text)).toBeNull()
+    },
+  )
+
+  it("round-trips with formatClock", () => {
+    for (const time of ["00:00", "00:05", "09:30", "12:00", "12:45", "13:00", "23:59"]) {
+      expect(parseClock(formatClock(time))).toBe(time)
+    }
   })
 })
 

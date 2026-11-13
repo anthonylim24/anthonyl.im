@@ -115,6 +115,10 @@ export function DateRange({
     focusDay(next)
   }
 
+  // The calendar's single tab stop: the keyboard cursor if it is showing,
+  // otherwise the first day of the first visible month.
+  const wanted = hover ?? start
+  const cursor = monthOf(wanted) === month || monthOf(wanted) === shiftMonth(month, 1) ? wanted : `${month}-01`
   const count = dayCount(start, end)
   return (
     <div ref={wrapRef} {...sx(r.wrap)}>
@@ -163,7 +167,7 @@ export function DateRange({
                         type="button"
                         data-day={iso}
                         // One tab stop for the whole calendar; arrows move within it.
-                        tabIndex={iso === (hover ?? start) ? 0 : -1}
+                        tabIndex={iso === cursor ? 0 : -1}
                         aria-label={fmt(iso, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
                         aria-pressed={iso === lo || iso === hi}
                         {...sx(

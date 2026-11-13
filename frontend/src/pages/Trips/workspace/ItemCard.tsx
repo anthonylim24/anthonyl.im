@@ -430,6 +430,7 @@ function TimeField({
   autoFocus?: boolean
   onChange: (value: string | undefined) => void
 }) {
+  const id = useId()
   const [text, setText] = useState(() => formatClock(value))
   const [bad, setBad] = useState(false)
   useEffect(() => {
@@ -452,9 +453,12 @@ function TimeField({
     if (parsed !== value) onChange(parsed)
   }
   return (
-    <label>
-      <span {...sx(s.miniLabel)}>{label}</span>
+    <div>
+      <label htmlFor={id} {...sx(s.miniLabel)}>
+        {label}
+      </label>
       <input
+        id={id}
         type="text"
         inputMode="text"
         autoComplete="off"
@@ -463,6 +467,7 @@ function TimeField({
         autoFocus={autoFocus}
         placeholder="e.g. 9:30 AM"
         aria-invalid={bad || undefined}
+        aria-describedby={bad ? `${id}-error` : undefined}
         {...sx(a.field)}
         onChange={(event) => setText(event.target.value)}
         onBlur={commit}
@@ -474,11 +479,11 @@ function TimeField({
         }}
       />
       {bad && (
-        <span {...sx(a.errorText)} role="alert" style={{ display: "block" }}>
+        <span id={`${id}-error`} {...sx(a.errorText)} role="alert" style={{ display: "block" }}>
           Try a time like 9:30 AM or 14:00.
         </span>
       )}
-    </label>
+    </div>
   )
 }
 

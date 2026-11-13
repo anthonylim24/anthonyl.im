@@ -34,6 +34,8 @@ vi.mock("../tripsApi", () => ({
 
 // The real map needs WebGL; the stub lists the pins it was given.
 vi.mock("../map/AtlasMap", () => ({
+  useIsDark: () => false,
+  canRenderMap: () => false,
   AtlasMap: ({ pins, label, onSelect }: AtlasMapProps) => (
     <div role="region" aria-label={label}>
       {pins.map((pin) => (
@@ -149,6 +151,54 @@ describe("TripsIndex", () => {
     // Buckets render in the order now → upcoming → past.
     expect(cardTitles()).toEqual(["Seoul Now", "Lisbon Later", "Kyoto Autumn", "Oslo Winter"])
     expect(screen.getByText("Atlas · 4 trips · 3 ahead")).toBeInTheDocument()
+  })
+
+  it("shows three or fewer trips as one list with no timing headings", async () => {
+    mockListTrips.mockResolvedValue([done, soon, live])
+    renderIndex()
+
+    expect(await screen.findByRole("heading", { level: 4, name: "Seoul Now" })).toBeInTheDocument()
+    expect(screen.queryAllByRole("heading", { level: 3 })).toEqual([])
+    expect(screen.queryByText(/Happening now|Upcoming ·|Past ·/)).toBeNull()
+    // Still ordered now → upcoming → past, and each card keeps its timing badge.
+    expect(cardTitles()).toEqual(["Seoul Now", "Lisbon Later", "Oslo Winter"])
+    const list = screen.getByRole("heading", { level: 4, name: "Seoul Now" }).closest("ul")!
+    expect(within(list).getAllByRole("listitem")).toHaveLength(3)
+    expect(within(list).getByText("Day 3 of 8")).toBeInTheDocument()
+    expect(within(list).getByText("Jan 2026")).toBeInTheDocument()
+  })
+
+  it("drops the headings when a search narrows four trips to three or fewer", async () => {
+    mockListTrips.mockResolvedValue([
+      done,
+      later,
+      soon,
+      live,
+      makeSummary({ id: "busan", name: "Busan Later", destinations: ["Busan"], startDate: "2026-09-01", endDate: "2026-09-03" }),
+    ])
+    renderIndex()
+    expect(await screen.findByRole("heading", { level: 3, name: "Upcoming · 3" })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "later" } })
+    await waitFor(() => expect(cardTitles()).toEqual(["Lisbon Later", "Busan Later"]))
+    expect(screen.queryAllByRole("heading", { level: 3 })).toEqual([])
+  })
+
+  it("offers “Plan another trip” under the list, but not while searching", async () => {
+    renderIndex()
+    expect(await screen.findByRole("link", { name: /Plan another trip/ })).toHaveAttribute("href", "/trips/new")
+    expect(screen.getAllByRole("link", { name: /Plan another trip/ })).toHaveLength(1)
+
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "seoul" } })
+    await waitFor(() => expect(cardTitles()).toEqual(["Seoul Now"]))
+    expect(screen.queryByRole("link", { name: /Plan another trip/ })).toBeNull()
+  })
+
+  it("draws the cover chart when no map still is available", async () => {
+    renderIndex()
+    await screen.findByRole("heading", { level: 4, name: "Seoul Now" })
+    // Stills need WebGL; without it no card shows a picture.
+    expect(document.querySelectorAll("article img")).toHaveLength(0)
   })
 
   it("links each card to its trip, preferring the slug", async () => {

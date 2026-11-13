@@ -80,10 +80,10 @@ Radix primitives in `frontend/src/components/ui/*` compose StyleX + semantic ani
 
 ## Trips-specific
 
-- Compose the primitives in `atlas.stylex.ts` first: `sx(a.btn, a.btnPrimary)`, `sx(a.btn, a.btnGhost, a.btnSm)`, `sx(a.field)`, `sx(a.chip, a.chipAccent)`. Primary buttons are ink; the accent is for pins, route, chips and focus.
-- Tokens: `.trips` block in `index.css` ("TRIPS — the atlas"). Accent via `data-trip-accent` on a trip-scoped subtree sets `--ta`, `--ta-fill`, `--ta-on`, `--ta-soft`, `--ta-ring`.
-- **Focus gotcha:** `.trips :focus-visible { outline: none }` disables the global outline inside Trips. Every new control must draw its own ring with `--ta-ring` (the `a.*` primitives already do; `a.focusable` adds one to a custom element).
-- **Portal gotcha:** portaled content leaves the `.trips` subtree and loses `--trips-*` / `--ta-*`. Use `Modal` from `components/kit.tsx` (Radix dialog, bottom sheet on phones); it re-declares the token scope with `.trips.trips-portal`. Do not portal raw Radix content.
+- Compose the primitives in `atlas.stylex.ts` first: `sx(a.btn, a.btnPrimary)`, `sx(a.btn, a.btnGhost, a.btnSm)`, `sx(a.field)`, `sx(a.chip, a.chipAccent)`. Primary buttons are ink.
+- Tokens: `.trips` block in `index.css` ("TRIPS — the atlas"). Two accents: `--brand`, `--brand-fill`, `--brand-soft`, `--brand-ring` (constant signal orange) for chrome: focus rings, AI actions, switches, links. `--ta`, `--ta-fill`, `--ta-on`, `--ta-soft`, `--ta-ring` (set by `data-trip-accent` on a trip-scoped subtree) for trip identity only: pins, route, date tiles, status eyebrow, pinned-location row, covers.
+- **Focus gotcha:** `.trips :focus-visible { outline: none }` disables the global outline inside Trips. Every new control must draw its own ring with `--brand-ring` (the `a.*` primitives already do; `a.focusable` adds one to a custom element).
+- **Portal gotcha:** portaled content leaves the `.trips` subtree and loses `--trips-*` / `--brand-*` / `--ta-*`. Use `Modal` from `components/kit.tsx` (Radix dialog, bottom sheet on phones); it re-declares the token scope with `.trips.trips-portal`. Do not portal raw Radix content.
 - Editable trip / day titles take `'trips-title-input'` / `'trips-day-title-input'` to opt out of the 16px phone input pin.
 - Map pins are DOM buttons styled by `.atlas-pin*` in `index.css` (created by `map/engine.ts`, outside React), not StyleX.
 
@@ -101,13 +101,13 @@ cd frontend && bun run dev
 
 Verify bypass: `cd frontend && bun run e2e -- e2e/smoke.spec.ts -g "trips skips"`
 
-Optional capture script (StyleX branch vs `main` worktree on :5174): `scripts/trips-parity-capture.mjs`
+Screenshots (desktop + phone, light + dark): `cd frontend && node scripts/capture-trips.mjs <out-dir> [tripSlug]`. `CAPTURE_ONLY=desktop-light,phone-light` limits the set; `PLAYWRIGHT_BASE_URL` overrides `http://localhost:5173`.
 
 **PR previews:** never bake `VITE_DEV_BEARER`. Use `bun scripts/clerk-agent-login.ts --pr <n> --path /trips/korea-2026` — see [`docs/pr-previews.md`](../../../docs/pr-previews.md) and [`.agents/memory/clerk.md`](../../memory/clerk.md).
 
 ## Common parity traps (already hit on this migration)
 
-1. Trips control with no focus ring → the global outline is off inside `.trips`; add a `--ta-ring` ring
+1. Trips control with no focus ring → the global outline is off inside `.trips`; add a `--brand-ring` ring
 2. Missing `sr-only` on Places search label → extra visible label shifts layout
 3. `borderColor` without width/style → chips/checkboxes lose borders after Preflight
 4. Map Mode HTML still using Tailwind class strings → use `.map-*` classes in `index.css`

@@ -35,6 +35,8 @@ vi.mock("../geocode", () => ({
 }))
 
 vi.mock("../map/AtlasMap", () => ({
+  useIsDark: () => false,
+  canRenderMap: () => false,
   AtlasMap: ({ pins, label, children }: AtlasMapProps) => (
     <div role="region" aria-label={label}>
       {pins.map((pin) => (

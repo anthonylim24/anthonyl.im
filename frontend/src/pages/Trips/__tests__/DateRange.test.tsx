@@ -67,18 +67,45 @@ describe("DateRange", () => {
     fireEvent.click(trigger())
 
     expect(trigger()).toHaveAttribute("aria-expanded", "true")
-    expect(panel().getAllByRole("grid").map((g) => g.getAttribute("aria-label"))).toEqual(["December 2026", "January 2027"])
+    expect(panel().getAllByRole("group").map((g) => g.getAttribute("aria-label"))).toEqual(["December 2026", "January 2027"])
     expect(panel().getByRole("status")).toHaveTextContent("Pick the first day")
     expect(pressed()).toEqual(["Friday, December 4, 2026", "Tuesday, December 8, 2026"])
     // 31 days in each of the two months.
-    expect(within(panel().getByRole("grid", { name: "December 2026" })).getAllByRole("button")).toHaveLength(31)
-    expect(within(panel().getByRole("grid", { name: "January 2027" })).getAllByRole("button")).toHaveLength(31)
+    expect(within(panel().getByRole("group", { name: "December 2026" })).getAllByRole("button")).toHaveLength(31)
+    expect(within(panel().getByRole("group", { name: "January 2027" })).getAllByRole("button")).toHaveLength(31)
+  })
+
+  it("focuses the start day on opening, so the arrow keys work straight away", async () => {
+    render(<Host />)
+    fireEvent.click(trigger())
+    await waitFor(() => expect(day("Friday, December 4, 2026")).toHaveFocus())
+
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowRight" })
+    await waitFor(() => expect(day("Saturday, December 5, 2026")).toHaveFocus())
+  })
+
+  it("keeps a single tab stop among the days, which follows the keyboard cursor", async () => {
+    render(<Host />)
+    fireEvent.click(trigger())
+    const stops = () =>
+      panel()
+        .getAllByRole("button")
+        .filter((b) => b.hasAttribute("data-day") && b.getAttribute("tabindex") === "0")
+        .map((b) => b.getAttribute("aria-label"))
+
+    expect(stops()).toEqual(["Friday, December 4, 2026"])
+    expect(day("Saturday, December 5, 2026")).toHaveAttribute("tabindex", "-1")
+
+    await waitFor(() => expect(day("Friday, December 4, 2026")).toHaveFocus())
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" })
+    await waitFor(() => expect(day("Friday, December 11, 2026")).toHaveFocus())
+    expect(stops()).toEqual(["Friday, December 11, 2026"])
   })
 
   it("lays out a leap February with 29 days", () => {
     render(<Host start="2028-02-10" end="2028-02-12" />)
     fireEvent.click(trigger())
-    const february = within(panel().getByRole("grid", { name: "February 2028" }))
+    const february = within(panel().getByRole("group", { name: "February 2028" }))
     expect(february.getAllByRole("button")).toHaveLength(29)
     expect(february.getByRole("button", { name: "Tuesday, February 29, 2028" })).toBeInTheDocument()
   })
@@ -134,10 +161,10 @@ describe("DateRange", () => {
     fireEvent.click(trigger())
 
     fireEvent.click(panel().getByRole("button", { name: "Later months" }))
-    expect(panel().getAllByRole("grid").map((g) => g.getAttribute("aria-label"))).toEqual(["January 2027", "February 2027"])
+    expect(panel().getAllByRole("group").map((g) => g.getAttribute("aria-label"))).toEqual(["January 2027", "February 2027"])
     fireEvent.click(panel().getByRole("button", { name: "Earlier months" }))
     fireEvent.click(panel().getByRole("button", { name: "Earlier months" }))
-    expect(panel().getAllByRole("grid").map((g) => g.getAttribute("aria-label"))).toEqual(["November 2026", "December 2026"])
+    expect(panel().getAllByRole("group").map((g) => g.getAttribute("aria-label"))).toEqual(["November 2026", "December 2026"])
 
     fireEvent.click(day("Monday, November 30, 2026"))
     fireEvent.click(day("Wednesday, December 2, 2026"))
@@ -169,7 +196,7 @@ describe("DateRange", () => {
 
     fireEvent.keyDown(first, { key: "ArrowLeft" })
     await waitFor(() => expect(day("Monday, November 30, 2026")).toHaveFocus())
-    expect(panel().getAllByRole("grid").map((g) => g.getAttribute("aria-label"))).toEqual(["November 2026", "December 2026"])
+    expect(panel().getAllByRole("group").map((g) => g.getAttribute("aria-label"))).toEqual(["November 2026", "December 2026"])
   })
 
   it("picks a range from the keyboard", async () => {
@@ -224,7 +251,7 @@ describe("DateRange", () => {
     fireEvent.click(day("Wednesday, February 3, 2027"))
 
     fireEvent.click(trigger())
-    expect(panel().getAllByRole("grid").map((g) => g.getAttribute("aria-label"))).toEqual(["February 2027", "March 2027"])
+    expect(panel().getAllByRole("group").map((g) => g.getAttribute("aria-label"))).toEqual(["February 2027", "March 2027"])
     expect(pressed()).toEqual(["Monday, February 1, 2027", "Wednesday, February 3, 2027"])
   })
 
