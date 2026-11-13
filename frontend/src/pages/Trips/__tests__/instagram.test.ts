@@ -85,6 +85,12 @@ describe("jobProgress", () => {
     })
   })
 
+  it("stops at once when the server's access to Instagram is rejected", () => {
+    const stuck = jobProgress(job({ status: "pending", step: "fetching", attempts: 2, last_error: "bright-data 401: Token expired" }))
+    expect(stuck).toMatchObject({ phase: "failed", label: "Import is offline" })
+    expect(stuck.problem).toContain("offline right now")
+  })
+
   it("never shows a raw server error", () => {
     expect(describeProblem("TypeError: fetch failed at wire.ts:44")).toBe("This post couldn’t be read.")
   })

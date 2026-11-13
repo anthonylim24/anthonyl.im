@@ -628,10 +628,12 @@ function PostCard({
         <div {...sx(s.message)} role="alert">
           <span>{progress.problem}</span>
           <span {...sx(a.rowWrap)}>
-            <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} onClick={onRetry}>
-              <RotateCw size={14} strokeWidth={1.75} aria-hidden />
-              Try again
-            </button>
+            {(job.status === "dead" || job.status === "failed") && (
+              <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} onClick={onRetry}>
+                <RotateCw size={14} strokeWidth={1.75} aria-hidden />
+                Try again
+              </button>
+            )}
             <a href={job.url} target="_blank" rel="noreferrer" {...sx(s.quiet)}>
               <ExternalLink size={14} strokeWidth={1.75} aria-hidden />
               Open the post

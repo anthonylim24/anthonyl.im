@@ -90,8 +90,12 @@ function stepLabel(job: IgJob): string {
 }
 
 /** A plain-language reason for a job that will not finish. */
+/** The server's own access to Instagram is broken: retrying cannot help. */
+const OFFLINE = /\b(401|403)\b|token expired|auth failed|unauthori[sz]ed/i
+
 export function describeProblem(error: string | null): string {
   const text = error ?? ""
+  if (OFFLINE.test(text)) return "Instagram import is offline right now. It needs attention on the server, so trying again won’t help yet."
   if (/empty array|not found|404|private|login/i.test(text)) {
     return "Instagram wouldn’t open this post. It may be private or deleted."
   }
@@ -109,6 +113,10 @@ export function jobProgress(job: IgJob): JobProgress {
   }
   if (job.status === "dead" || job.status === "failed") {
     return { phase: "failed", fraction: 1, label: "Couldn’t read it", problem: describeProblem(job.last_error) }
+  }
+  // A rejected server key fails every retry: say so now, not after the backoff.
+  if (job.last_error && OFFLINE.test(job.last_error)) {
+    return { phase: "failed", fraction: 1, label: "Import is offline", problem: describeProblem(job.last_error) }
   }
   // Waiting out a backoff after an error: still working, and say so.
   if (job.status === "pending" && job.last_error && job.attempts > 0) {
