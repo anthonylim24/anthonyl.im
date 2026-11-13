@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSPrope
 import { createPortal } from "react-dom"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useLocation, useNavigate } from "react-router-dom"
-import { ArrowUp, Maximize2, Minimize2, Sparkles, X } from "lucide-react"
+import { ArrowUp, Maximize2, MessageCircle, Minimize2, Sparkles, X } from "lucide-react"
 import {
   conciergePlaceKey,
   type ConciergeMove,
@@ -592,7 +592,7 @@ export function TripChat() {
           viewTransitionName: open || reduce ? "none" : "trips-concierge",
         }}
       >
-        <Sparkles {...sx(c.icon22)} strokeWidth={1.75} aria-hidden />
+        <MessageCircle {...sx(c.icon22)} strokeWidth={1.75} aria-hidden />
       </motion.button>
 
       {typeof document !== "undefined" &&

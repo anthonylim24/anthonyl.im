@@ -103,7 +103,7 @@ export function TripsLayout() {
             </Link>
           )}
           <span {...sx("trip-tap-44")}>
-            <ThemeToggle />
+            <ThemeToggle style={s.themeToggle} />
           </span>
           {CLERK_ENABLED && !DEV_BEARER ? <UserButton afterSignOutUrl="/" /> : null}
         </div>

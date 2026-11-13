@@ -79,18 +79,31 @@ export function dayPins(day: TripDay, fresh?: ReadonlySet<string>): AtlasPin[] {
   }))
 }
 
-/** Every located stop on the trip as a dot labelled with its day number. */
+/** Id prefix for the overview's per-day pins. */
+export const DAY_PIN = "day:"
+
+/** One pin per day, at the middle of that day's stops, labelled with the day number. */
 export function tripPins(trip: Pick<Trip, "days">): AtlasPin[] {
-  return trip.days.flatMap((day, dayIndex) =>
-    locatedItems(day).map((item) => ({
-      id: item.id,
-      lat: item.location!.lat!,
-      lng: item.location!.lng!,
-      title: `${item.title || item.location!.name} · Day ${dayIndex + 1}`,
-      label: String(dayIndex + 1),
-      variant: "dot" as const,
-    })),
-  )
+  return trip.days.flatMap((day, dayIndex) => {
+    const mid = centroid(dayRoute(day))
+    if (!mid) return []
+    const count = locatedItems(day).length
+    return [
+      {
+        id: `${DAY_PIN}${day.id}`,
+        lat: mid.lat,
+        lng: mid.lng,
+        title: `Day ${dayIndex + 1}${day.title ? `, ${day.title}` : ""}: ${count} pinned ${count === 1 ? "stop" : "stops"}`,
+        label: String(dayIndex + 1),
+        variant: "stop" as const,
+      },
+    ]
+  })
+}
+
+/** Every located stop on the trip (the overview's small dots). */
+export function tripDots(trip: Pick<Trip, "days">): LngLat[] {
+  return trip.days.flatMap(dayRoute)
 }
 
 export function dayRoute(day: TripDay): LngLat[] {

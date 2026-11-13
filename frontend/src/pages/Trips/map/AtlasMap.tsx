@@ -14,6 +14,8 @@ import { mapStyles as s } from "./map.stylex"
 export interface AtlasMapProps {
   pins: readonly AtlasPin[]
   routes?: readonly LngLat[][]
+  /** Small non-interactive dots under the pins. */
+  dots?: readonly LngLat[]
   /** The camera re-frames whenever this string changes. */
   frameKey: string
   /** Points to frame; defaults to the pins. */
@@ -60,6 +62,7 @@ function canRenderMap(): boolean {
 export function AtlasMap({
   pins,
   routes,
+  dots,
   frameKey,
   framePoints,
   restCenter,
@@ -82,8 +85,8 @@ export function AtlasMap({
   const dark = useIsDark()
   const select = useLatestCallback((id: string) => onSelect?.(id))
   const hover = useLatestCallback((id: string | null) => onHover?.(id))
-  const latest = useRef({ pins, routes, framePoints, restCenter, restZoom, padding, maxZoom, activeId, hotId, dark })
-  latest.current = { pins, routes, framePoints, restCenter, restZoom, padding, maxZoom, activeId, hotId, dark }
+  const latest = useRef({ pins, routes, dots, framePoints, restCenter, restZoom, padding, maxZoom, activeId, hotId, dark })
+  latest.current = { pins, routes, dots, framePoints, restCenter, restZoom, padding, maxZoom, activeId, hotId, dark }
   const framedRef = useRef(false)
 
   const frame = (animate: boolean) => {
@@ -118,6 +121,7 @@ export function AtlasMap({
           onSelect: select,
           onHover: hover,
           onError: () => setStatus("static"),
+          onTilt: setTilted,
           onReady: () => {
             if (cancelled) return
             setStatus("ready")
@@ -126,6 +130,7 @@ export function AtlasMap({
         handleRef.current = handle
         handle.setPins(now.pins)
         handle.setRoute(now.routes ?? [])
+        handle.setDots(now.dots ?? [])
         handle.setActive(now.activeId)
         handle.setHot(now.hotId)
         frame(false)
@@ -155,6 +160,9 @@ export function AtlasMap({
     handleRef.current?.setRoute(routes ?? [])
   }, [routes])
   useEffect(() => {
+    handleRef.current?.setDots(dots ?? [])
+  }, [dots])
+  useEffect(() => {
     handleRef.current?.setActive(activeId)
   }, [activeId])
   useEffect(() => {
@@ -173,6 +181,7 @@ export function AtlasMap({
     <div {...sx(s.root, ambient && s.rootAmbient)} role="region" aria-label={label}>
       <div ref={hostRef} {...sx(s.canvas, status === "ready" && s.canvasReady)} />
       {status !== "ready" && !(ambient && status === "loading") && <StaticChart pins={pins} loading={status === "loading"} />}
+      {status === "ready" && ambient && <span {...sx(s.shade)} aria-hidden />}
       {status === "ready" && !ambient && (
         <div {...sx(s.controls)}>
           <button type="button" {...sx(s.control)} aria-label="Zoom in" onClick={() => handleRef.current?.zoomBy(1)}>

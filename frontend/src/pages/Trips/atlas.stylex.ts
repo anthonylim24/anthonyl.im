@@ -8,7 +8,7 @@ const HOVER = "@media (hover: hover)"
 const REDUCE = "@media (prefers-reduced-motion: reduce)"
 const PHONE = "@media (max-width: 639.98px)"
 
-const ring = "0 0 0 2px var(--trips-canvas), 0 0 0 4px var(--ta-ring)"
+const ring = "0 0 0 2px var(--trips-canvas), 0 0 0 4px var(--brand-ring)"
 
 const shimmer = stylex.keyframes({
   "0%": { backgroundPosition: "200% 0" },
@@ -65,7 +65,7 @@ export const a = stylex.create({
   small: { fontSize: "0.8125rem", lineHeight: 1.5, color: "var(--trips-ink-tertiary)", margin: 0 },
   ink: { color: "var(--trips-ink)" },
   muted: { color: "var(--trips-ink-tertiary)" },
-  accentText: { color: "var(--ta)" },
+  accentText: { color: "var(--brand)" },
   wrap: { overflowWrap: "anywhere", wordBreak: "break-word", minWidth: 0 },
   truncate: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 },
   srOnly: {
@@ -116,7 +116,7 @@ export const a = stylex.create({
     },
   },
   btnAccent: {
-    backgroundColor: "var(--ta-fill)",
+    backgroundColor: "var(--brand-fill)",
     color: "var(--ta-on)",
     [HOVER]: {
       ":hover": { transform: "translateY(-1px)", boxShadow: "var(--trips-shadow-2)" },
@@ -134,9 +134,9 @@ export const a = stylex.create({
     [HOVER]: { ":hover": { backgroundColor: "var(--trips-sunken)", color: "var(--trips-ink)" } },
   },
   btnSoft: {
-    backgroundColor: "var(--ta-soft)",
-    color: "var(--ta)",
-    [HOVER]: { ":hover": { backgroundColor: "color-mix(in srgb, var(--ta-fill) 18%, transparent)" } },
+    backgroundColor: "var(--brand-soft)",
+    color: "var(--brand)",
+    [HOVER]: { ":hover": { backgroundColor: "color-mix(in srgb, var(--brand-fill) 18%, transparent)" } },
   },
   btnDanger: {
     backgroundColor: "var(--trips-danger)",
@@ -169,16 +169,16 @@ export const a = stylex.create({
     "::after": { content: '""', position: "absolute", inset: "-4px" },
   },
   link: {
-    color: "var(--ta)",
+    color: "var(--brand)",
     fontWeight: 600,
     textDecoration: "underline",
-    textDecorationColor: "color-mix(in srgb, var(--ta) 35%, transparent)",
+    textDecorationColor: "color-mix(in srgb, var(--brand) 35%, transparent)",
     textUnderlineOffset: "3px",
     cursor: "pointer",
     borderRadius: "4px",
     outline: "none",
     ":focus-visible": { boxShadow: ring },
-    [HOVER]: { ":hover": { textDecorationColor: "var(--ta)" } },
+    [HOVER]: { ":hover": { textDecorationColor: "var(--brand)" } },
   },
   focusable: {
     outline: "none",
@@ -224,8 +224,8 @@ export const a = stylex.create({
     transitionProperty: "border-color, box-shadow",
     transitionDuration: "140ms",
     "::placeholder": { color: "var(--trips-ink-faint)" },
-    ":focus": { borderColor: "var(--ta-fill)", boxShadow: "0 0 0 3px var(--ta-soft)" },
-    ":focus-within": { borderColor: "var(--ta-fill)", boxShadow: "0 0 0 3px var(--ta-soft)" },
+    ":focus": { borderColor: "var(--brand-fill)", boxShadow: "0 0 0 3px var(--brand-soft)" },
+    ":focus-within": { borderColor: "var(--brand-fill)", boxShadow: "0 0 0 3px var(--brand-soft)" },
     ":disabled": { opacity: 0.55 },
     "@media (min-width: 640px)": { fontSize: "0.9375rem" },
   },
@@ -240,7 +240,7 @@ export const a = stylex.create({
     "::placeholder": { color: "var(--trips-ink-faint)" },
     "@media (min-width: 640px)": { fontSize: "0.9375rem" },
   },
-  textarea: { resize: "vertical", minHeight: "5rem", fontFamily: "inherit" },
+  textarea: { resize: "none", minHeight: "5rem", fontFamily: "inherit", fieldSizing: "content" },
   hint: { fontSize: "0.8125rem", color: "var(--trips-ink-tertiary)", marginTop: "0.375rem" },
   errorText: { fontSize: "0.8125rem", color: "var(--trips-danger)", marginTop: "0.375rem" },
 
@@ -259,7 +259,7 @@ export const a = stylex.create({
     backgroundColor: "var(--trips-sunken)",
     color: "var(--trips-ink-secondary)",
   },
-  chipAccent: { backgroundColor: "var(--ta-soft)", color: "var(--ta)" },
+  chipAccent: { backgroundColor: "var(--brand-soft)", color: "var(--brand)" },
   chipOk: { backgroundColor: "color-mix(in srgb, var(--trips-ok) 12%, transparent)", color: "var(--trips-ok)" },
   chipOutline: {
     backgroundColor: "transparent",
@@ -337,7 +337,7 @@ export const a = stylex.create({
     gap: "0.625rem",
     padding: "0.875rem 1rem",
     borderRadius: "var(--trips-radius)",
-    backgroundColor: "var(--ta-soft)",
+    backgroundColor: "var(--brand-soft)",
     color: "var(--trips-ink)",
     fontSize: "0.875rem",
     lineHeight: 1.5,

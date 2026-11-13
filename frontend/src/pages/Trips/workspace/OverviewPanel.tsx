@@ -22,6 +22,7 @@ export function OverviewPanel({
   run,
   dayOptions,
   onDraft,
+  onHoverDay,
   onApplyRun,
   onDismissRun,
 }: {
@@ -35,6 +36,8 @@ export function OverviewPanel({
   run: EnhancementRun | null
   dayOptions: DayOption[]
   onDraft: (brief: DraftBrief) => void
+  /** Hovering a day row lifts that day's pin on the map. */
+  onHoverDay: (dayId: string | null) => void
   onApplyRun: (ids: string[]) => void
   onDismissRun: () => void
 }) {
@@ -42,18 +45,21 @@ export function OverviewPanel({
   const today = todayIsoIn(trip.timezone)
   const stats = useMemo(() => {
     let pinned = 0
+    let stops = 0
     let bookings = 0
     let meters = 0
     for (const day of trip.days) {
       pinned += day.items.filter(isLocated).length
       bookings += day.items.filter((i) => i.kind === "reservation").length
+      stops += day.items.filter((i) => i.kind !== "section" && i.kind !== "note").length
       const route = dayRoute(day)
       const length = routeMeters(route)
       // City-scale days only: a flight shouldn't count as "walking the route".
       if (length < 60_000) meters += length
     }
-    return { pinned, bookings, meters }
+    return { pinned, stops, bookings, meters }
   }, [trip.days])
+  const multiCity = new Set(trip.days.map((d) => d.city).filter(Boolean)).size > 1
   const empty = trip.days.every((d) => d.items.length === 0)
   const bookings = useMemo(
     () => trip.days.flatMap((day) => day.items.filter((i) => i.kind === "reservation").map((item) => ({ day, item }))),
@@ -70,8 +76,10 @@ export function OverviewPanel({
         {[
           { label: "Days", value: String(trip.days.length) },
           { label: "Pinned", value: String(stats.pinned) },
-          { label: "Bookings", value: String(stats.bookings) },
-          { label: "On foot", value: stats.meters > 500 ? formatDistance(stats.meters).replace(" km", "") : "–", unit: stats.meters > 500 ? "km" : "" },
+          stats.bookings > 0
+            ? { label: "Bookings", value: String(stats.bookings) }
+            : { label: "Stops", value: String(stats.stops) },
+          { label: "Walking", value: stats.meters > 500 ? formatDistance(stats.meters).replace(" km", "") : "–", unit: stats.meters > 500 ? "km" : "" },
         ].map((stat, i) => (
           <div key={stat.label} {...sx(s.stat, i === 0 && s.statFirst)}>
             <dt {...sx(a.eyebrow)}>{stat.label}</dt>
@@ -83,8 +91,12 @@ export function OverviewPanel({
         ))}
       </dl>
 
-      {drafting && <AiBusy label="AI is drafting your itinerary: places, meals and a route for each day. About a minute." />}
-      {enhancing && <AiBusy label="AI is reviewing the whole trip. This can take a minute or two." />}
+      {drafting && (
+        <AiBusy steps={["Reading up on the area…", "Choosing places worth the detour…", "Arranging each day so the route flows…", "Pinning everything to the map…"]} />
+      )}
+      {enhancing && (
+        <AiBusy steps={["Reading the whole itinerary…", "Checking pacing and routes…", "Scouting what’s missing…", "Writing up suggestions…"]} />
+      )}
       {run && !enhancing && (
         <SuggestionsReview run={run} dayOptions={dayOptions} applying={applying} onApply={onApplyRun} onDismiss={onDismissRun} />
       )}
@@ -150,7 +162,14 @@ export function OverviewPanel({
             const preview = stops.slice(0, 3).map((i) => i.title)
             return (
               <li key={day.id}>
-                <Link to={`${basePath}/day/${day.id}`} {...sx(s.dayRow)}>
+                <Link
+                  to={`${basePath}/day/${day.id}`}
+                  {...sx(s.dayRow)}
+                  onMouseEnter={() => onHoverDay(day.id)}
+                  onMouseLeave={() => onHoverDay(null)}
+                  onFocus={() => onHoverDay(day.id)}
+                  onBlur={() => onHoverDay(null)}
+                >
                   <span {...sx(s.dayDate)}>
                     <span {...sx(a.mono)} style={{ fontSize: "0.625rem", letterSpacing: "0.1em", textTransform: "uppercase" }}>
                       {formatTripDate(day.date, trip.timezone, { weekday: "short", month: undefined, day: undefined })}
@@ -173,7 +192,7 @@ export function OverviewPanel({
                     </span>
                   </span>
                   <span {...sx(a.row)}>
-                    {day.city && <span {...sx(a.chip)}>{day.city}</span>}
+                    {day.city && multiCity && <span {...sx(a.chip)}>{day.city}</span>}
                     <ChevronRight size={18} strokeWidth={1.75} aria-hidden {...sx(a.muted)} />
                   </span>
                 </Link>

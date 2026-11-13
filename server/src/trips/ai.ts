@@ -505,13 +505,18 @@ export function salvageSuggestions(raw: string): {
     }),
   )
   let dropped = 0
+  let why: string | undefined
   const suggestions: AiSuggestion[] = []
   for (const rawSug of loose.suggestions) {
     const r = aiSuggestionSchema.safeParse(normalizeSuggestion(rawSug))
     if (r.success) suggestions.push(r.data)
-    else dropped++
+    else {
+      dropped++
+      // Field path + reason only: enough to fix the schema, no itinerary text.
+      why ??= r.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ")
+    }
   }
-  if (dropped > 0) console.warn(`[trips/ai] enhancement: dropped ${dropped} malformed suggestion(s)`)
+  if (dropped > 0) console.warn(`[trips/ai] enhancement: dropped ${dropped} malformed suggestion(s) (${why})`)
   return {
     summary: loose.summary,
     outcome: loose.outcome,
@@ -868,7 +873,13 @@ export async function enhanceTrip(args: {
     run.summary = parsed.summary
     const validDayIds = new Set(days.map((d) => d.id))
     const validItemIds = new Set(days.flatMap((d) => d.items.map((i) => i.id)))
-    run.suggestions = parsed.suggestions
+    // A single-day review can only be about that day: models often omit the
+    // day id (or invent one) when the day is empty, which used to drop every
+    // suggested stop.
+    const scoped = parsed.suggestions.map((s) =>
+      scope === "day" && dayId && (!s.dayId || !validDayIds.has(s.dayId)) ? { ...s, dayId } : s,
+    )
+    run.suggestions = scoped
       .filter((s) => !s.dayId || validDayIds.has(s.dayId))
       .filter((s) => s.kind !== "add" || (s.dayId && validDayIds.has(s.dayId) && s.proposedItem))
       .filter((s) => !(s.kind === "edit" || s.kind === "remove") || (s.itemId && validItemIds.has(s.itemId)))

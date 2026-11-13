@@ -2,6 +2,8 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import {
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   Copy,
   ExternalLink,
   LayoutGrid,
@@ -21,7 +23,7 @@ import { useViewer } from "@/lib/safeAuth"
 import { deleteTrip, duplicateTrip, generateItinerary } from "./tripsApi"
 import { dayCount, formatClock, formatRange, formatTripDate, plural, resolveAccent, titleCase, todayIsoIn, tripTiming } from "./meta"
 import { AtlasMap } from "./map/AtlasMap"
-import { centroid, dayPins, dayRoute, isLocated, tripPins, type LngLat } from "./map/geo"
+import { centroid, DAY_PIN, dayPins, dayRoute, isLocated, locatedItems, tripDots, tripPins, type LngLat } from "./map/geo"
 import { errorText, useTripEditor } from "./useTripEditor"
 import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import { Menu, Modal, Spinner, type MenuItem } from "./components/kit"
@@ -32,13 +34,15 @@ import { DetailsDialog } from "./workspace/DetailsDialog"
 import { OverviewPanel } from "./workspace/OverviewPanel"
 import type { ItineraryItem, Trip, TripDay } from "./types"
 import { a } from "./atlas.stylex"
-import { ws as s } from "./workspace.stylex"
+import { share, ws as s } from "./workspace.stylex"
 
 const MapModeOverlay = lazy(() => import("../Korea/MapModeOverlay").then((m) => ({ default: m.MapModeOverlay })))
 
 const PHOTOREAL_READY = Boolean(
   import.meta.env.VITE_GOOGLE_MAP_TILES_API_KEY || import.meta.env.VITE_GOOGLE_PLACES_API_KEY,
 )
+/** Notices that describe a problem: announced as alerts and never auto-dismissed. */
+const PROBLEM = /couldn|didn|isn’t|not |fail|error/i
 const WIDE_QUERY = "(min-width: 1024px)"
 const MAP_PADDING = { top: 84, right: 72, bottom: 96, left: 72 }
 const MAP_PADDING_NARROW = { top: 76, right: 36, bottom: 120, left: 36 }
@@ -79,6 +83,7 @@ export function TripWorkspace() {
   const [drafting, setDrafting] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
   const [photoreal, setPhotoreal] = useState(false)
+  const [editId, setEditId] = useState<string | null>(null)
   const paneRef = useRef<HTMLDivElement>(null)
   const railRef = useRef<HTMLElement>(null)
 
@@ -129,7 +134,7 @@ export function TripWorkspace() {
   // Good news clears itself; anything that reads like a problem stays put.
   const notice = editor.notice
   useEffect(() => {
-    if (!notice || /couldn|didn|isn’t|not |fail|error/i.test(notice)) return
+    if (!notice || PROBLEM.test(notice)) return
     const timer = setTimeout(() => editor.setNotice(null), 9000)
     return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -144,7 +149,8 @@ export function TripWorkspace() {
   const near = useMemo<LngLat | null>(() => (day ? (centroid(dayRoute(day)) ?? tripCenter) : tripCenter), [day, tripCenter])
 
   const pins = useMemo(() => (!trip ? [] : day ? dayPins(day, fresh) : tripPins(trip)), [trip, day, fresh])
-  const routes = useMemo(() => (!trip ? [] : day ? [dayRoute(day)] : trip.days.map(dayRoute)), [trip, day])
+  const dots = useMemo(() => (trip && !day ? tripDots(trip) : []), [trip, day])
+  const routes = useMemo(() => (!trip ? [] : day ? [dayRoute(day)] : []), [trip, day])
   const focusPin = focusId ? pins.find((p) => p.id === focusId) : undefined
   const frameKey = `${day?.id ?? "all"}|${pins.map((p) => p.id).join(",")}|${focusPin?.id ?? ""}`
 
@@ -156,6 +162,14 @@ export function TripWorkspace() {
     }
     return null
   }, [trip, activeId])
+
+  // Touring: step through the day's pinned stops from the place card.
+  const tour = useMemo(() => {
+    if (!day || !activeId) return null
+    const ids = locatedItems(day).map((i) => i.id)
+    const at = ids.indexOf(activeId)
+    return at < 0 ? null : { ids, at }
+  }, [day, activeId])
 
   const locate = useCallback(
     (id: string) => {
@@ -266,6 +280,16 @@ export function TripWorkspace() {
   const showMap = wide || view === "map"
 
   const menu: MenuItem[] = [
+    ...(editable && dayId
+      ? [
+          {
+            label: "Improve whole trip with AI",
+            icon: <Sparkles size={16} strokeWidth={1.75} aria-hidden />,
+            disabled: locked,
+            onSelect: () => setDialog({ ai: "trip" }),
+          },
+        ]
+      : []),
     ...(editable
       ? [{ label: "Trip details", icon: <Settings2 size={16} strokeWidth={1.75} aria-hidden />, onSelect: () => setDialog("details") }]
       : []),
@@ -304,76 +328,15 @@ export function TripWorkspace() {
   return (
     <div {...sx(s.root)} data-trip-accent={accent}>
       <div {...sx(s.pane)} ref={paneRef}>
-        <header {...sx(s.head)}>
-          <p {...sx(a.eyebrow)}>
-            <span {...sx(a.accentText)}>{timing.phase === "past" ? "Travelled" : timing.label}</span>
-            {" · "}
-            {trip.destinations.join(" · ")}
-            {trip.status === "draft" ? " · Draft" : ""}
-          </p>
-          {editable ? (
-            <>
-              <label {...sx(a.srOnly)} htmlFor="trip-name">
-                Trip name
-              </label>
-              <textarea
-                id="trip-name"
-                rows={1}
-                value={trip.name}
-                disabled={locked}
-                placeholder="Name this trip"
-                {...sx(s.titleInput, s.title, "trips-title-input")}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault()
-                    event.currentTarget.blur()
-                  }
-                }}
-                onChange={(event) => editor.scheduleSave({ ...trip, name: event.target.value.replace(/\s*\n\s*/g, " ") })}
-              />
-            </>
-          ) : (
-            <h1 {...sx(a.display, s.title, a.wrap)}>{trip.name}</h1>
-          )}
-          <div {...sx(s.headMeta)}>
-            {editable ? (
-              <button type="button" {...sx(a.btn, a.btnGhost, a.btnSm)} style={{ marginLeft: "-0.875rem" }} onClick={() => setDialog("details")}>
-                <CalendarDays size={14} strokeWidth={1.75} aria-hidden />
-                {formatRange(trip.startDate, trip.endDate)} · {plural(dayCount(trip.startDate, trip.endDate), "day")}
-              </button>
-            ) : (
-              <span {...sx(a.mono, a.muted)}>
-                {formatRange(trip.startDate, trip.endDate)} · {plural(dayCount(trip.startDate, trip.endDate), "day")}
-              </span>
-            )}
-            {!editable && <span {...sx(a.chip)}>View only</span>}
-          </div>
-          <div {...sx(s.headActions)}>
-            <button type="button" {...sx(a.btn, a.btnPrimary, a.btnSm)} onClick={() => setDialog("share")}>
-              <Share2 size={14} strokeWidth={1.75} aria-hidden />
-              Share
-            </button>
+        {dayId ? (
+          <header {...sx(s.headCompact)}>
+            <Link to={basePath} {...sx(s.compactTitle, a.truncate)} title="Back to the trip overview">
+              {trip.name}
+            </Link>
+            <span {...sx(a.mono, a.muted, a.noShrink, s.compactDates)}>{formatRange(trip.startDate, trip.endDate)}</span>
+            <span {...sx(a.grow)} />
             {editable && (
-              <button type="button" {...sx(a.btn, a.btnSoft, a.btnSm)} disabled={locked} onClick={() => setDialog({ ai: "trip" })}>
-                <Sparkles size={14} strokeWidth={1.75} aria-hidden />
-                {hasItems ? "Improve with AI" : "Draft with AI"}
-              </button>
-            )}
-            {busy === "duplicate" ? (
-              <span {...sx(a.iconBtn, a.iconBtnSm)} role="status" aria-label="Duplicating">
-                <Spinner />
-              </span>
-            ) : (
-              <Menu
-                label="More trip options"
-                align="start"
-                trigger={<MoreHorizontal size={18} strokeWidth={1.75} aria-hidden />}
-                triggerStyle={[a.iconBtn, a.iconBtnSm]}
-                items={menu}
-              />
-            )}
-            {editable && (
-              <span {...sx(s.saveState)} role="status" aria-live="polite">
+              <span {...sx(s.saveState, s.saveCompact)} role="status" aria-live="polite">
                 <span
                   {...sx(s.saveDot, (editor.saveState === "saving" || editor.saveState === "dirty") && s.saveDotBusy, editor.saveState === "error" && s.saveDotError)}
                   aria-hidden
@@ -389,8 +352,113 @@ export function TripWorkspace() {
                 )}
               </span>
             )}
-          </div>
-        </header>
+            <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} onClick={() => setDialog("share")}>
+              <Share2 size={14} strokeWidth={1.75} aria-hidden />
+              Share
+            </button>
+            {busy === "duplicate" ? (
+              <span {...sx(a.iconBtn, a.iconBtnSm)} role="status" aria-label="Duplicating">
+                <Spinner />
+              </span>
+            ) : (
+              <Menu
+                label="More trip options"
+                trigger={<MoreHorizontal size={18} strokeWidth={1.75} aria-hidden />}
+                triggerStyle={[a.iconBtn, a.iconBtnSm]}
+                items={menu}
+              />
+            )}
+          </header>
+        ) : (
+          <header {...sx(s.head)}>
+            <p {...sx(a.eyebrow)}>
+              <span {...sx(a.accentText)}>{timing.phase === "past" ? "Travelled" : timing.label}</span>
+              {trip.destinations.join(" · ").toLowerCase() === trip.name.trim().toLowerCase()
+                ? ""
+                : ` · ${trip.destinations.join(" · ")}`}
+              {trip.status === "draft" ? " · Draft" : ""}
+            </p>
+            {editable ? (
+              <>
+                <label {...sx(a.srOnly)} htmlFor="trip-name">
+                  Trip name
+                </label>
+                <textarea
+                  id="trip-name"
+                  rows={1}
+                  value={trip.name}
+                  disabled={locked}
+                  placeholder="Name this trip"
+                  {...sx(s.titleInput, s.title, "trips-title-input")}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault()
+                      event.currentTarget.blur()
+                    }
+                  }}
+                  onChange={(event) => editor.scheduleSave({ ...trip, name: event.target.value.replace(/\s*\n\s*/g, " ") })}
+                />
+              </>
+            ) : (
+              <h1 {...sx(a.display, s.title, a.wrap)}>{trip.name}</h1>
+            )}
+            <div {...sx(s.headMeta)}>
+              {editable ? (
+                <button type="button" {...sx(a.btn, a.btnGhost, a.btnSm)} style={{ marginLeft: "-0.875rem" }} onClick={() => setDialog("details")}>
+                  <CalendarDays size={14} strokeWidth={1.75} aria-hidden />
+                  {formatRange(trip.startDate, trip.endDate)} · {plural(dayCount(trip.startDate, trip.endDate), "day")}
+                </button>
+              ) : (
+                <span {...sx(a.mono, a.muted)}>
+                  {formatRange(trip.startDate, trip.endDate)} · {plural(dayCount(trip.startDate, trip.endDate), "day")}
+                </span>
+              )}
+              {!editable && <span {...sx(a.chip)}>View only</span>}
+            </div>
+            <div {...sx(s.headActions)}>
+              <button type="button" {...sx(a.btn, a.btnPrimary, a.btnSm)} onClick={() => setDialog("share")}>
+                <Share2 size={14} strokeWidth={1.75} aria-hidden />
+                Share
+              </button>
+              {editable && (
+                <button type="button" {...sx(a.btn, a.btnSoft, a.btnSm)} disabled={locked} onClick={() => setDialog({ ai: "trip" })}>
+                  <Sparkles size={14} strokeWidth={1.75} aria-hidden />
+                  {hasItems ? "Improve with AI" : "Draft with AI"}
+                </button>
+              )}
+              {busy === "duplicate" ? (
+                <span {...sx(a.iconBtn, a.iconBtnSm)} role="status" aria-label="Duplicating">
+                  <Spinner />
+                </span>
+              ) : (
+                <Menu
+                  label="More trip options"
+                  align="start"
+                  trigger={<MoreHorizontal size={18} strokeWidth={1.75} aria-hidden />}
+                  triggerStyle={[a.iconBtn, a.iconBtnSm]}
+                  items={menu}
+                />
+              )}
+              {editable && (
+                <span {...sx(s.saveState)} role="status" aria-live="polite">
+                  <span
+                    {...sx(s.saveDot, (editor.saveState === "saving" || editor.saveState === "dirty") && s.saveDotBusy, editor.saveState === "error" && s.saveDotError)}
+                    aria-hidden
+                  />
+                  {editor.saveState === "error" ? (
+                    <button type="button" {...sx(a.link)} onClick={() => editor.scheduleSave({ ...trip })}>
+                      Not saved · Retry
+                    </button>
+                  ) : editor.saveState === "saved" ? (
+                    "Saved"
+                  ) : (
+                    "Saving"
+                  )}
+                </span>
+              )}
+            </div>
+          </header>
+        )}
 
         <nav {...sx(s.rail)} aria-label="Days" ref={railRef}>
           <Link to={basePath} {...sx(s.railItem, s.railAll, !dayId && s.railItemOn)} aria-current={!dayId ? "page" : undefined}>
@@ -440,6 +508,7 @@ export function TripWorkspace() {
             recentIds={editor.recentIds}
             hotId={hotId}
             activeId={activeId}
+            editId={editId}
             near={near}
             onChange={editor.setDays}
             onDelete={editor.deleteItem}
@@ -464,6 +533,7 @@ export function TripWorkspace() {
             run={editor.activeRun && editor.activeRun.scope === "trip" ? editor.activeRun : null}
             dayOptions={editor.dayOptions}
             onDraft={(brief) => void draft(brief)}
+            onHoverDay={(id) => setHotId(id ? `${DAY_PIN}${id}` : null)}
             onApplyRun={editor.applyActiveRun}
             onDismissRun={editor.dismissRun}
           />
@@ -476,14 +546,19 @@ export function TripWorkspace() {
             pins={pins}
             routes={routes}
             frameKey={frameKey}
-            framePoints={focusPin ? [focusPin] : undefined}
+            framePoints={focusPin ? [focusPin] : day ? undefined : dots}
             restCenter={tripCenter ?? undefined}
             restZoom={tripCenter ? 10.5 : 1.4}
             maxZoom={focusPin ? 16.2 : undefined}
             padding={wide ? MAP_PADDING : MAP_PADDING_NARROW}
             activeId={activeId}
             hotId={hotId}
+            dots={dots}
             onSelect={(id) => {
+              if (id.startsWith(DAY_PIN)) {
+                navigate(`${basePath}/day/${id.slice(DAY_PIN.length)}`)
+                return
+              }
               setActiveId(id)
               setFocusId(null)
             }}
@@ -503,8 +578,8 @@ export function TripWorkspace() {
               <aside {...sx(s.placeCard)} aria-label="Selected place">
                 <div {...sx(a.between)} style={{ alignItems: "flex-start" }}>
                   <div {...sx(a.stack)} style={{ gap: "0.25rem" }}>
-                    <p {...sx(a.eyebrow, a.accentText)}>
-                      Day {active.dayNumber}
+                    <p {...sx(a.eyebrow)}>
+                      {tour ? `Stop ${tour.at + 1} of ${tour.ids.length}` : `Day ${active.dayNumber}`}
                       {active.item.time ? ` · ${formatClock(active.item.time)}` : ""}
                       {active.item.location?.category ? ` · ${titleCase(active.item.location.category)}` : ""}
                     </p>
@@ -540,6 +615,28 @@ export function TripWorkspace() {
                       Open day {active.dayNumber}
                     </Link>
                   )}
+                  {day && editable && (
+                    <button
+                      type="button"
+                      {...sx(a.btn, a.btnSecondary, a.btnSm)}
+                      onClick={() => {
+                        setEditId(active.item.id)
+                        setView("list")
+                      }}
+                    >
+                      Edit stop
+                    </button>
+                  )}
+                  {tour && tour.ids.length > 1 && (
+                    <span {...sx(a.row)} style={{ marginLeft: "auto", gap: 0 }}>
+                      <button type="button" {...sx(a.iconBtn, a.iconBtnSm)} aria-label="Previous stop" disabled={tour.at === 0} onClick={() => locate(tour.ids[tour.at - 1]!)}>
+                        <ChevronLeft size={18} strokeWidth={1.75} aria-hidden />
+                      </button>
+                      <button type="button" {...sx(a.iconBtn, a.iconBtnSm)} aria-label="Next stop" disabled={tour.at === tour.ids.length - 1} onClick={() => locate(tour.ids[tour.at + 1]!)}>
+                        <ChevronRight size={18} strokeWidth={1.75} aria-hidden />
+                      </button>
+                    </span>
+                  )}
                 </div>
               </aside>
             )}
@@ -547,15 +644,23 @@ export function TripWorkspace() {
         </div>
       )}
 
-      <button type="button" {...sx(a.btn, a.btnPrimary, s.viewToggle)} onClick={() => setView((v) => (v === "map" ? "list" : "map"))}>
-        {view === "map" ? <List size={16} strokeWidth={1.75} aria-hidden /> : <MapIcon size={16} strokeWidth={1.75} aria-hidden />}
-        {view === "map" ? "Itinerary" : "Map"}
-      </button>
+      <div {...sx(s.bar)}>
+        <div {...sx(share.segment, s.barSegment)} role="tablist" aria-label="View">
+          <button type="button" role="tab" aria-selected={view === "list"} {...sx(share.segmentBtn, s.barBtn, view === "list" && share.segmentOn)} onClick={() => setView("list")}>
+            <List size={16} strokeWidth={1.75} aria-hidden />
+            Itinerary
+          </button>
+          <button type="button" role="tab" aria-selected={view === "map"} {...sx(share.segmentBtn, s.barBtn, view === "map" && share.segmentOn)} onClick={() => setView("map")}>
+            <MapIcon size={16} strokeWidth={1.75} aria-hidden />
+            Map
+          </button>
+        </div>
+      </div>
 
       {(editor.notice || editor.deleted) && (
         <div {...sx(s.dock)}>
           {editor.notice && (
-            <div {...sx(s.dockItem)} role="status">
+            <div {...sx(s.dockItem)} role={PROBLEM.test(editor.notice) ? "alert" : "status"}>
               <span {...sx(a.grow, a.wrap)}>{editor.notice}</span>
               <button type="button" {...sx(s.dockBtn)} onClick={() => editor.setNotice(null)}>
                 Dismiss
@@ -600,7 +705,7 @@ export function TripWorkspace() {
       <AiSheet
         open={typeof dialog === "object" && dialog !== null}
         scope={typeof dialog === "object" && dialog !== null ? dialog.ai : "trip"}
-        dayLabel={day ? `Day ${dayIndex + 1}` : undefined}
+        dayLabel={day ? day.title || formatTripDate(day.date, trip.timezone, { weekday: "long" }) : undefined}
         hasItems={hasItems}
         onClose={() => setDialog(null)}
         onRun={runAi}

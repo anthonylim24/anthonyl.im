@@ -23,6 +23,8 @@ export interface AtlasMapOptions {
   onSelect?: (id: string) => void
   onHover?: (id: string | null) => void
   onReady?: () => void
+  /** Fires when the camera settles, with whether it is tilted into 3D. */
+  onTilt?: (tilted: boolean) => void
   onError?: () => void
 }
 
@@ -36,6 +38,8 @@ export interface FrameOptions {
 export interface AtlasMapHandle {
   setPins(pins: readonly AtlasPin[]): void
   setRoute(lines: readonly LngLat[][]): void
+  /** Small non-interactive dots (every stop on the overview). */
+  setDots(points: readonly LngLat[]): void
   setActive(id: string | null): void
   setHot(id: string | null): void
   frame(points: readonly LngLat[], opts?: FrameOptions): void
@@ -49,7 +53,7 @@ export interface AtlasMapHandle {
 }
 
 const ROUTE_SOURCE = "atlas-route"
-const EMPTY: FeatureCollection = { type: "FeatureCollection", features: [] }
+const DOTS_SOURCE = "atlas-dots"
 
 interface PinEntry {
   pin: AtlasPin
@@ -73,6 +77,7 @@ function applyPin(el: HTMLButtonElement, pin: AtlasPin) {
   const body = el.firstElementChild ?? el.appendChild(document.createElement("span"))
   body.className = "atlas-pin__body"
   body.textContent = pin.variant === "trip" ? pin.title : (pin.label ?? "")
+  if (el.classList.contains("atlas-pin--flip-keep")) el.classList.add("atlas-pin--flip")
 }
 
 export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions): AtlasMapHandle {
@@ -80,6 +85,8 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
   let dark = options.dark
   let destroyed = false
   let route: readonly LngLat[][] = []
+  let dots: readonly LngLat[] = []
+  let lastFrame: { points: readonly LngLat[]; opts: FrameOptions } | null = null
   let active: string | null = null
   let hot: string | null = null
   let tilted = true
@@ -87,11 +94,13 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
   let spinFrame = 0
   let lastSpin = 0
   let userBusy = false
+  /** The user has moved the camera since the last programmatic frame. */
+  let touched = false
   const pins = new Map<string, PinEntry>()
 
   const map = new MapLibre({
     container,
-    style: buildMapStyle(dark),
+    style: buildMapStyle(dark, { labels: !ambient }),
     center: options.center ? [options.center.lng, options.center.lat] : [12, 24],
     zoom: options.zoom ?? 1.4,
     interactive: true,
@@ -124,19 +133,34 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
   collapseCredit()
   map.once("load", collapseCredit)
 
-  const routeData = (): FeatureCollection =>
-    route.length === 0
-      ? EMPTY
-      : {
-          type: "FeatureCollection",
-          features: route
-            .filter((line) => line.length > 1)
-            .map((line) => ({
-              type: "Feature",
-              properties: {},
-              geometry: { type: "LineString", coordinates: line.map((p) => [p.lng, p.lat]) },
-            })),
-        }
+  // One feature per distinct leg, so an out-and-back walk draws one line.
+  const routeData = (): FeatureCollection => {
+    const seen = new Set<string>()
+    const features: FeatureCollection["features"] = []
+    for (const line of route) {
+      for (let i = 1; i < line.length; i++) {
+        const from = line[i - 1]!
+        const to = line[i]!
+        const a = `${from.lng.toFixed(5)},${from.lat.toFixed(5)}`
+        const b = `${to.lng.toFixed(5)},${to.lat.toFixed(5)}`
+        if (a === b) continue
+        const key = a < b ? `${a}|${b}` : `${b}|${a}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        features.push({
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates: [[from.lng, from.lat], [to.lng, to.lat]] },
+        })
+      }
+    }
+    return { type: "FeatureCollection", features }
+  }
+
+  const dotsData = (): FeatureCollection => ({
+    type: "FeatureCollection",
+    features: dots.map((p) => ({ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [p.lng, p.lat] } })),
+  })
 
   const accent = () => getComputedStyle(container).getPropertyValue("--ta-fill").trim() || "#f0582b"
 
@@ -144,13 +168,14 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
     if (map.getSource(ROUTE_SOURCE)) return
     map.addSource(ROUTE_SOURCE, { type: "geojson", data: routeData() })
     const beforeId = map.getLayer("water-label") ? "water-label" : undefined
+    const paper = getComputedStyle(container).getPropertyValue("--trips-raised").trim() || "#ffffff"
     map.addLayer(
       {
-        id: "atlas-route-glow",
+        id: "atlas-route-case",
         type: "line",
         source: ROUTE_SOURCE,
         layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": accent(), "line-width": 9, "line-opacity": 0.14, "line-blur": 6 },
+        paint: { "line-color": paper, "line-width": 5, "line-opacity": 0.7 },
       },
       beforeId,
     )
@@ -160,7 +185,23 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
         type: "line",
         source: ROUTE_SOURCE,
         layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": accent(), "line-width": 2.25, "line-dasharray": [0.2, 2.2] },
+        paint: { "line-color": accent(), "line-width": 2, "line-opacity": 0.75 },
+      },
+      beforeId,
+    )
+    map.addSource(DOTS_SOURCE, { type: "geojson", data: dotsData() })
+    map.addLayer(
+      {
+        id: "atlas-dots",
+        type: "circle",
+        source: DOTS_SOURCE,
+        paint: {
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 4, 1.5, 10, 3, 14, 4.5],
+          "circle-color": accent(),
+          "circle-opacity": 0.7,
+          "circle-stroke-color": paper,
+          "circle-stroke-width": 1,
+        },
       },
       beforeId,
     )
@@ -169,8 +210,24 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
   map.on("style.load", installRoute)
   map.once("load", () => {
     if (destroyed) return
+    // A frame requested before the style loaded may not have taken: redo it.
+    if (lastFrame) handle.frame(lastFrame.points, { ...lastFrame.opts, animate: false })
     options.onReady?.()
   })
+  map.on("moveend", () => options.onTilt?.(map.getPitch() > 5))
+
+  // Trip chips sit to the right of their dot, or to the left once the dot is
+  // on the right half of the globe, so a label never hangs off the sphere.
+  const placeLabels = () => {
+    const mid = container.clientWidth / 2
+    for (const entry of pins.values()) {
+      if (entry.pin.variant !== "trip") continue
+      const flip = map.project([entry.pin.lng, entry.pin.lat]).x > mid
+      entry.el.classList.toggle("atlas-pin--flip", flip)
+      entry.el.classList.toggle("atlas-pin--flip-keep", flip)
+    }
+  }
+  map.on("move", placeLabels)
   map.on("error", (event) => {
     // Tile hiccups are routine; only a dead GL context ends the map.
     if (map.getCanvas().getContext("webgl2")?.isContextLost()) options.onError?.()
@@ -179,7 +236,11 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
 
   const markBusy = () => {
     userBusy = true
+    touched = true
   }
+  map.on("wheel", () => {
+    touched = true
+  })
   const markIdle = () => {
     userBusy = false
     lastSpin = 0
@@ -217,11 +278,9 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
   }
 
   /** Zoom at which the globe just fits the container. */
-  const globeZoom = (lat = map.getCenter().lat) => {
+  const globeZoom = () => {
     const size = Math.min(container.clientWidth, container.clientHeight) || 480
-    // MapLibre grows the globe by 1/cos(latitude) to match Mercator scale at
-    // the centre, so undo that to keep the sphere the same size on screen.
-    return Math.log2((size * 0.84 * Math.PI * Math.cos((lat * Math.PI) / 180)) / 512)
+    return Math.log2((size * 0.9 * Math.PI) / 512)
   }
 
   const handle: AtlasMapHandle = {
@@ -249,7 +308,7 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
         el.addEventListener("blur", () => options.onHover?.(null))
         const marker = new Marker({
           element: el,
-          anchor: pin.variant === "stop" ? "bottom" : pin.variant === "trip" ? "left" : "center",
+          anchor: pin.variant === "stop" ? "bottom" : "center",
           subpixelPositioning: true,
         })
           .setLngLat([pin.lng, pin.lat])
@@ -263,6 +322,12 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
         entry.marker.remove()
         pins.delete(id)
       }
+      placeLabels()
+    },
+    setDots(points) {
+      dots = points
+      const source = map.getSource(DOTS_SOURCE) as GeoJSONSource | undefined
+      source?.setData(dotsData())
     },
     setRoute(lines) {
       route = lines
@@ -279,13 +344,15 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
     },
     frame(points, opts = {}) {
       if (points.length === 0) return
+      lastFrame = { points, opts }
+      touched = false
       const animate = opts.animate !== false && !reducedMotion
       if (ambient) {
         // Hero globe: keep the whole sphere in view and just turn it to face
         // the points.
         const mid = centroid(points)!
         const lat = Math.max(-38, Math.min(38, mid.lat))
-        const target = { center: [mid.lng, lat] as [number, number], zoom: globeZoom(lat) }
+        const target = { center: [mid.lng, lat] as [number, number], zoom: globeZoom() }
         if (animate) map.easeTo({ ...target, duration: 1400, essential: true })
         else map.jumpTo(target)
         return
@@ -308,13 +375,14 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
       }
       const bounds = new LngLatBounds()
       for (const point of points) bounds.extend([point.lng, point.lat])
-      map.fitBounds(bounds, {
-        padding,
-        maxZoom: opts.maxZoom ?? 15.6,
-        ...cameraFor(points),
-        duration: animate ? 1600 : 0,
-        essential: true,
-      })
+      const view = cameraFor(points)
+      const fit = map.cameraForBounds(bounds, { padding, maxZoom: opts.maxZoom ?? 15.6, bearing: view.bearing })
+      if (!fit) return
+      // cameraForBounds fits a top-down view; a tilted camera sees a little
+      // further at the top, so sit slightly tighter.
+      const target = { ...fit, pitch: view.pitch, bearing: view.bearing, padding }
+      if (animate) map.easeTo({ ...target, duration: 1600, essential: true })
+      else map.jumpTo(target)
     },
     flyTo(point, zoom, opts = {}) {
       const animate = opts.animate !== false && !reducedMotion
@@ -331,7 +399,7 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
     setDark(next) {
       if (next === dark) return
       dark = next
-      map.setStyle(buildMapStyle(dark), { diff: false })
+      map.setStyle(buildMapStyle(dark, { labels: !ambient }), { diff: false })
     },
     zoomBy(delta) {
       map.easeTo({ zoom: map.getZoom() + delta, duration: reducedMotion ? 0 : 260 })
@@ -350,6 +418,7 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
     },
     resize() {
       map.resize()
+      if (!ambient && lastFrame && !touched && !map.isMoving()) handle.frame(lastFrame.points, { ...lastFrame.opts, animate: false })
       if (ambient && !map.isMoving()) map.jumpTo({ zoom: globeZoom() })
     },
     destroy() {

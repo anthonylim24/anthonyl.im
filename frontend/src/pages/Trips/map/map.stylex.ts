@@ -16,6 +16,17 @@ export const mapStyles = stylex.create({
     isolation: "isolate",
   },
   rootAmbient: { backgroundColor: "transparent", overflow: "visible" },
+  // Limb shading over the globe (the map draws a flat disc in light mode):
+  // a soft terminator bottom-right and a contact shadow underneath.
+  shade: {
+    position: "absolute",
+    inset: "5%",
+    borderRadius: "999px",
+    pointerEvents: "none",
+    backgroundImage:
+      "radial-gradient(circle at 34% 28%, rgb(255 255 255 / 0.22), transparent 42%), radial-gradient(circle at 50% 50%, transparent 58%, rgb(20 23 26 / 0.16) 100%)",
+    boxShadow: "0 2.5rem 3.5rem -2rem rgb(20 23 26 / 0.35)",
+  },
   canvas: {
     position: "absolute",
     inset: 0,
@@ -74,7 +85,7 @@ export const mapStyles = stylex.create({
     position: "relative",
     transitionProperty: "background-color, color",
     transitionDuration: "140ms",
-    outline: { default: "none", ":focus-visible": "2px solid var(--ta-ring)" },
+    outline: { default: "none", ":focus-visible": "2px solid var(--brand-ring)" },
     outlineOffset: "1px",
     "::after": { content: '""', position: "absolute", inset: "-4px" },
   },

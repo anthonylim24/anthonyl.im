@@ -69,7 +69,7 @@ const appPreviews = {
   trips: {
     title: "Trips — plan a trip, pin by pin",
     description:
-      "Plan trips with AI, save places from Instagram posts, ask the concierge, and explore every day in 3D Map Mode.",
+      "Plan trips on a live 3D map: let AI draft the days, pin every stop, and share the plan with whoever is coming.",
     imagePathOrUrl: card("trips"),
     imageAlt: "A squishy toy globe with a trip pin and a paper plane, under puffy clouds",
   },
@@ -375,8 +375,8 @@ app.use("*", serveStatic({ root: distPath }));
 // Legacy Korea dossier URLs fold into the seeded trip.
 app.get("/korea", (c) => c.redirect("/trips/korea-2026", 301));
 app.get("/korea/", (c) => c.redirect("/trips/korea-2026", 301));
-app.get("/korea/places", (c) => c.redirect("/trips/korea-2026/places", 301));
-app.get("/korea/ingest", (c) => c.redirect("/trips/korea-2026?ingest=1", 301));
+app.get("/korea/places", (c) => c.redirect("/trips/korea-2026", 301));
+app.get("/korea/ingest", (c) => c.redirect("/trips/korea-2026", 301));
 app.get("/korea/day/:slug", (c) => c.redirect(`/trips/korea-2026/day/${c.req.param("slug")}`, 301));
 app.get("/korea/*", (c) => c.redirect("/trips/korea-2026", 301));
 

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { Reorder, useDragControls } from "motion/react"
-import { ArrowLeft, ArrowRight, CloudSun, Eraser, Footprints, MapPin, MoreHorizontal, NotebookPen, Orbit, Sparkles } from "lucide-react"
+import { ArrowDownUp, ArrowLeft, ArrowRight, CloudSun, Eraser, Footprints, MapPin, MoreHorizontal, NotebookPen, Orbit, Sparkles } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { formatTripDate, plural, todayIsoIn } from "../meta"
 import { dayRoute, distanceMeters, isLocated, routeMeters, type LngLat } from "../map/geo"
@@ -30,6 +30,8 @@ export interface DayPanelProps {
   recentIds: ReadonlySet<string>
   hotId: string | null
   activeId: string | null
+  /** Stop whose editor should open (from the map's "Edit stop"). */
+  editId: string | null
   near: LngLat | null
   onChange: (fn: (days: TripDay[]) => TripDay[]) => void
   onDelete: (dayId: string, item: ItineraryItem, index: number) => void
@@ -42,6 +44,17 @@ export interface DayPanelProps {
   onDismissRun: () => void
   /** Present when photoreal Map Mode is configured for this build. */
   onPhotoreal?: () => void
+}
+
+/** Timed items in clock order; untimed items stay behind the timed item they followed. */
+export function sortByTime(items: readonly ItineraryItem[]): ItineraryItem[] {
+  const keyed = items.map((item, index) => ({ item, index, time: item.kind === "section" ? undefined : item.time }))
+  let carry = ""
+  const withKey = keyed.map((entry) => {
+    if (entry.time) carry = entry.time
+    return { ...entry, key: entry.time ?? carry }
+  })
+  return withKey.sort((x, y) => x.key.localeCompare(y.key) || x.index - y.index).map((entry) => entry.item)
 }
 
 function Sortable(props: ItemCardProps & { leg: string | null }) {
@@ -86,6 +99,7 @@ export function DayPanel({
   recentIds,
   hotId,
   activeId,
+  editId,
   near,
   onChange,
   onDelete,
@@ -99,6 +113,7 @@ export function DayPanel({
   onPhotoreal,
 }: DayPanelProps) {
   const [notesOpen, setNotesOpen] = useState(false)
+  const [spoken, setSpoken] = useState("")
   const isToday = day.date === todayIsoIn(trip.timezone)
   const prev = dayIndex > 0 ? trip.days[dayIndex - 1] : undefined
   const next = dayIndex < trip.days.length - 1 ? trip.days[dayIndex + 1] : undefined
@@ -125,12 +140,27 @@ export function DayPanel({
     return { labels, legs }
   }, [day.items])
 
+  const outOfOrder = useMemo(() => {
+    const times = day.items.filter((i) => i.kind !== "section" && i.time).map((i) => i.time!)
+    return times.some((time, i) => i > 0 && time < times[i - 1]!)
+  }, [day.items])
+
   const patchDay = (patch: Partial<TripDay>) =>
     onChange((days) => days.map((d) => (d.id === day.id ? { ...d, ...patch } : d)))
 
   const menu: MenuItem[] = [
     ...(editable
       ? [{ label: day.notes ? "Edit day notes" : "Add day notes", icon: <NotebookPen size={16} strokeWidth={1.75} aria-hidden />, onSelect: () => setNotesOpen(true) }]
+      : []),
+    ...(editable && outOfOrder
+      ? [
+          {
+            label: "Sort stops by time",
+            icon: <ArrowDownUp size={16} strokeWidth={1.75} aria-hidden />,
+            disabled: locked,
+            onSelect: () => patchDay({ items: sortByTime(day.items) }),
+          },
+        ]
       : []),
     ...(onPhotoreal && route.length > 0
       ? [{ label: "Explore in photoreal 3D", icon: <Orbit size={16} strokeWidth={1.75} aria-hidden />, onSelect: onPhotoreal }]
@@ -197,12 +227,11 @@ export function DayPanel({
               {Math.round(day.weather.highC)}° / {Math.round(day.weather.lowC)}° {day.weather.condition}
             </span>
           )}
-          <span {...sx(a.mono, a.muted)}>
+          <span {...sx(a.small)}>
             {plural(stops, "stop")}
             {meters > 100 ? ` · ${formatDistance(meters)}` : ""}
           </span>
-        </div>
-        <div {...sx(a.rowWrap)} style={{ marginTop: "0.25rem" }}>
+          <span {...sx(a.grow)} />
           {editable && (
             <button type="button" {...sx(a.btn, a.btnSoft, a.btnSm)} disabled={locked} onClick={onAskAi}>
               <Sparkles size={14} strokeWidth={1.75} aria-hidden />
@@ -212,7 +241,6 @@ export function DayPanel({
           {menu.length > 0 && (
             <Menu
               label={`More for day ${dayIndex + 1}`}
-              align="start"
               trigger={<MoreHorizontal size={18} strokeWidth={1.75} aria-hidden />}
               triggerStyle={[a.iconBtn, a.iconBtnSm]}
               items={menu}
@@ -248,11 +276,16 @@ export function DayPanel({
         </div>
       ))}
 
-      {enhancing && <AiBusy label="AI is reading this day and scouting nearby places. This can take a minute." />}
+      {enhancing && (
+        <AiBusy steps={["Reading what’s already planned…", "Scouting places near your route…", "Checking they fit the day…", "Pinning the best ones…"]} />
+      )}
       {run && !enhancing && (
         <SuggestionsReview run={run} dayOptions={dayOptions} applying={applying} onApply={onApplyRun} onDismiss={onDismissRun} />
       )}
 
+      <p {...sx(a.srOnly)} role="status" aria-live="polite">
+        {spoken}
+      </p>
       <section aria-label={`Day ${dayIndex + 1} plan`}>
         {day.items.length === 0 ? (
           <div {...sx(s.emptyDay)}>
@@ -286,6 +319,7 @@ export function DayPanel({
                 locked={locked}
                 hot={hotId === item.id}
                 active={activeId === item.id}
+                expand={editId === item.id}
                 flash={recentIds.has(item.id)}
                 near={near}
                 dayOptions={dayOptions}
@@ -293,6 +327,7 @@ export function DayPanel({
                 onDelete={onDelete}
                 onHover={onHover}
                 onLocate={onLocate}
+                onAnnounce={setSpoken}
               />
             ))}
           </Reorder.Group>

@@ -1,16 +1,17 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
-import { ArrowRight, Check, Sparkles } from "lucide-react"
+import { ArrowRight, Sparkles } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useTabTitle } from "@/hooks/useTabTitle"
 import { useGetToken } from "@/lib/safeAuth"
 import { createTrip, generateItinerary, updateTrip } from "./tripsApi"
-import { addDays, dayCount, formatRange, plural, TRIP_ACCENTS } from "./meta"
+import { addDays, dayCount, plural, TRIP_ACCENTS } from "./meta"
 import { AtlasMap } from "./map/AtlasMap"
 import type { AtlasPin } from "./map/geo"
 import type { CityResult } from "./geocode"
 import { CityField } from "./components/CityField"
+import { DateRange } from "./components/DateRange"
 import { Spinner } from "./components/kit"
 import { BriefFields, briefToRequest, EMPTY_BRIEF, type DraftBrief } from "./workspace/AiPanels"
 import { a } from "./atlas.stylex"
@@ -168,7 +169,24 @@ export function TripCreate() {
     }
   }
 
-  const stepDone = [places.length > 0, !badRange && !tooLong, true]
+  const map = (
+<AtlasMap
+      pins={pins}
+      frameKey={pins.map((p) => p.id).join(",")}
+      restCenter={{ lat: 24, lng: 10 }}
+      restZoom={1.5}
+      maxZoom={9.5}
+      padding={wide ? { top: 120, right: 120, bottom: 120, left: 120 } : { top: 40, right: 60, bottom: 40, left: 60 }}
+      label={pins.length > 0 ? `Map showing ${places.map((p) => p.name).join(", ")}` : "World map. It flies to each destination you add."}
+    >
+      {busy && wide && (
+        <p {...sx(c.mapNote)} role="presentation">
+          <Spinner />
+          <span {...sx(a.truncate)}>{DRAFT_STEPS[stepIndex]}</span>
+        </p>
+      )}
+    </AtlasMap>
+  )
 
   return (
     <div {...sx(ws.root)}>
@@ -180,11 +198,9 @@ export function TripCreate() {
               Where <span {...sx(a.italic)}>to?</span>
             </h1>
           </header>
+          {!wide && <div {...sx(c.strip)}>{map}</div>}
 
-          <section {...sx(c.step)}>
-            <span {...sx(c.stepNum, stepDone[0] && c.stepDone)} aria-hidden>
-              {stepDone[0] ? <Check size={14} strokeWidth={2.25} /> : 1}
-            </span>
+          <section>
             <div {...sx(c.stepBody)}>
               <label htmlFor={`${formId}-where`} {...sx(c.stepLabel)}>
                 Destinations
@@ -209,46 +225,19 @@ export function TripCreate() {
             </div>
           </section>
 
-          <section {...sx(c.step)}>
-            <span {...sx(c.stepNum, stepDone[1] && places.length > 0 && c.stepDone)} aria-hidden>
-              {stepDone[1] && places.length > 0 ? <Check size={14} strokeWidth={2.25} /> : 2}
-            </span>
+          <section>
             <div {...sx(c.stepBody)}>
-              <span {...sx(c.stepLabel)} id={`${formId}-when`}>
-                Dates
-              </span>
-              <div {...sx(c.dates)} role="group" aria-labelledby={`${formId}-when`}>
-                <label>
-                  <span {...sx(a.srOnly)}>First day</span>
-                  <input
-                    type="date"
-                    required
-                    value={startDate}
-                    disabled={busy}
-                    {...sx(a.field)}
-                    onChange={(event) => {
-                      const next = event.target.value
-                      if (!next) return
-                      const length = badRange ? 4 : dayCount(startDate, endDate) - 1
-                      setStartDate(next)
-                      setEndDate(addDays(next, length))
-                    }}
-                  />
-                </label>
-                <label>
-                  <span {...sx(a.srOnly)}>Last day</span>
-                  <input
-                    type="date"
-                    required
-                    min={startDate}
-                    value={endDate}
-                    disabled={busy}
-                    aria-invalid={badRange || tooLong || undefined}
-                    {...sx(a.field)}
-                    onChange={(event) => event.target.value && setEndDate(event.target.value)}
-                  />
-                </label>
-              </div>
+              <span {...sx(c.stepLabel)}>Dates</span>
+              <DateRange
+                start={startDate}
+                end={badRange ? startDate : endDate}
+                disabled={busy}
+                invalid={tooLong}
+                onChange={(from, to) => {
+                  setStartDate(from)
+                  setEndDate(to)
+                }}
+              />
               <div {...sx(a.rowWrap)} role="group" aria-label="Trip length">
                 {LENGTHS.map((length) => (
                   <button
@@ -263,26 +252,15 @@ export function TripCreate() {
                   </button>
                 ))}
               </div>
-              {badRange ? (
-                <p {...sx(a.errorText)} role="alert" style={{ marginTop: 0 }}>
-                  The last day is before the first. Pick a later date.
-                </p>
-              ) : tooLong ? (
+              {tooLong && (
                 <p {...sx(a.errorText)} role="alert" style={{ marginTop: 0 }}>
                   Trips can run up to 60 days. Shorten the range, or split it into two trips.
-                </p>
-              ) : (
-                <p {...sx(a.mono, a.muted)}>
-                  {formatRange(startDate, endDate)} · {plural(days, "day")}
                 </p>
               )}
             </div>
           </section>
 
-          <section {...sx(c.step)}>
-            <span {...sx(c.stepNum, places.length > 0 && c.stepDone)} aria-hidden>
-              {places.length > 0 ? <Check size={14} strokeWidth={2.25} /> : 3}
-            </span>
+          <section>
             <div {...sx(c.stepBody)}>
               <label htmlFor={`${formId}-name`} {...sx(c.stepLabel)}>
                 Name <span {...sx(a.muted)} style={{ fontWeight: 400 }}>· optional</span>
@@ -330,7 +308,7 @@ export function TripCreate() {
             </p>
           )}
 
-          <div {...sx(c.submitRow)}>
+          <div {...sx(c.submitRow, c.submitSticky)}>
             <button type="submit" {...sx(a.btn, a.btnPrimary)} disabled={busy}>
               {busy ? <Spinner /> : useAi ? <Sparkles size={16} strokeWidth={1.75} aria-hidden /> : <ArrowRight size={16} strokeWidth={1.75} aria-hidden />}
               {busy ? (phase === "drafting" ? "Drafting…" : "Creating…") : useAi ? "Create and draft itinerary" : "Create trip"}
@@ -347,26 +325,7 @@ export function TripCreate() {
         </form>
       </div>
 
-      {wide && (
-        <div {...sx(ws.mapPane)}>
-          <AtlasMap
-            pins={pins}
-            frameKey={pins.map((p) => p.id).join(",")}
-            restCenter={{ lat: 24, lng: 10 }}
-            restZoom={1.5}
-            maxZoom={9.5}
-            padding={{ top: 120, right: 120, bottom: 120, left: 120 }}
-            label={pins.length > 0 ? `Map showing ${places.map((p) => p.name).join(", ")}` : "World map. It flies to each destination you add."}
-          >
-            {busy && (
-              <p {...sx(c.mapNote)} role="presentation">
-                <Spinner />
-                <span {...sx(a.truncate)}>{DRAFT_STEPS[stepIndex]}</span>
-              </p>
-            )}
-          </AtlasMap>
-        </div>
-      )}
+      {wide && <div {...sx(ws.mapPane)}>{map}</div>}
     </div>
   )
 }

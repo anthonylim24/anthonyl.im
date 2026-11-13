@@ -46,7 +46,7 @@ const LIGHT: Palette = {
 
 const DARK: Palette = {
   space: "#0b0d10",
-  land: "#1c2127",
+  land: "#20262d",
   water: "#0b1118",
   green: "#17211d",
   sand: "#1a1c1c",
@@ -57,10 +57,10 @@ const DARK: Palette = {
   boundary: "#4a505a",
   building: "#1d2228",
   buildingTop: "#2a3038",
-  label: "#e6e3dc",
-  labelMuted: "#8b9099",
+  label: "#b9b7b1",
+  labelMuted: "#7b8089",
   labelWater: "#4f7183",
-  halo: "rgba(11,13,16,0.85)",
+  halo: "rgba(11,13,16,0.6)",
   horizon: "#1b2a3a",
 }
 
@@ -73,7 +73,8 @@ export function mapPalette(dark: boolean): Palette {
   return dark ? DARK : LIGHT
 }
 
-export function buildMapStyle(dark: boolean): StyleSpecification {
+export function buildMapStyle(dark: boolean, opts: { labels?: boolean } = {}): StyleSpecification {
+  const labels = opts.labels !== false
   const p = mapPalette(dark)
   const road = (
     id: string,
@@ -125,7 +126,7 @@ export function buildMapStyle(dark: boolean): StyleSpecification {
     },
   })
 
-  return {
+  const style: StyleSpecification = {
     version: 8,
     projection: { type: "globe" },
     sky: {
@@ -289,7 +290,8 @@ export function buildMapStyle(dark: boolean): StyleSpecification {
         spacing: 0.1,
       }),
       place("place-town", ["town", "village"], [[7, 10], [13, 14]], { minzoom: 8, color: p.labelMuted }),
-      place("place-city", ["city"], [[3, 10.5], [8, 15], [13, 20]], { minzoom: 3, font: BOLD }),
+      // City names bow out once you are inside the city: the pins say where you are.
+      place("place-city", ["city"], [[3, 10.5], [8, 15], [12, 18]], { minzoom: 3, maxzoom: 12.5, font: BOLD }),
       place("place-state", ["state"], [[4, 9.5], [7, 12]], {
         minzoom: 4,
         maxzoom: 8,
@@ -306,4 +308,6 @@ export function buildMapStyle(dark: boolean): StyleSpecification {
       }),
     ],
   }
+  if (!labels) style.layers = style.layers.filter((layer) => layer.type !== "symbol")
+  return style
 }

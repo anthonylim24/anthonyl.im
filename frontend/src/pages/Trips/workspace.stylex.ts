@@ -21,7 +21,7 @@ export const share = stylex.create({
     outline: "none",
     transitionProperty: "background-color, color, box-shadow",
     transitionDuration: "160ms",
-    ":focus-visible": { boxShadow: "0 0 0 2px var(--ta-ring)" },
+    ":focus-visible": { boxShadow: "0 0 0 2px var(--brand-ring)" },
   },
   segmentOn: {
     backgroundColor: "var(--trips-raised)",
@@ -58,8 +58,8 @@ export const share = stylex.create({
     width: "2rem",
     height: "2rem",
     borderRadius: "999px",
-    backgroundColor: "var(--ta-soft)",
-    color: "var(--ta)",
+    backgroundColor: "var(--brand-soft)",
+    color: "var(--brand)",
     fontSize: "0.8125rem",
     fontWeight: 700,
   },
@@ -81,7 +81,7 @@ export const share = stylex.create({
 const REDUCE = "@media (prefers-reduced-motion: reduce)"
 const NARROW = "@media (max-width: 1023.98px)"
 const WIDE = "@media (min-width: 1024px)"
-const ring = "0 0 0 2px var(--trips-canvas), 0 0 0 4px var(--ta-ring)"
+const ring = "0 0 0 2px var(--trips-canvas), 0 0 0 4px var(--brand-ring)"
 
 const riseIn = stylex.keyframes({
   from: { opacity: 0, transform: "translateY(10px)" },
@@ -89,7 +89,7 @@ const riseIn = stylex.keyframes({
 })
 
 const flash = stylex.keyframes({
-  "0%": { backgroundColor: "var(--ta-soft)", boxShadow: "0 0 0 1px var(--ta-fill)" },
+  "0%": { backgroundColor: "var(--brand-soft)", boxShadow: "0 0 0 1px var(--brand-fill)" },
   "100%": { backgroundColor: "var(--trips-surface)", boxShadow: "var(--trips-shadow-1)" },
 })
 
@@ -134,7 +134,7 @@ export const ws = stylex.create({
     [NARROW]: {
       position: "fixed",
       insetInline: 0,
-      bottom: 0,
+      bottom: "calc(4rem + env(safe-area-inset-bottom))",
       top: "var(--trips-chrome-h)",
       zIndex: 30,
       animationName: slideUp,
@@ -143,15 +143,28 @@ export const ws = stylex.create({
     },
     [REDUCE]: { animationName: "none" },
   },
-  viewToggle: {
+  // Phone/tablet: one docked bar holds the Itinerary | Map switch; the
+  // concierge button (chat.stylex) sits in its right-hand slot.
+  bar: {
     position: "fixed",
-    left: "50%",
-    bottom: "calc(1.125rem + env(safe-area-inset-bottom))",
-    translate: "-50% 0",
-    zIndex: 35,
-    boxShadow: "var(--trips-shadow-3)",
+    insetInline: 0,
+    bottom: 0,
+    zIndex: 34,
+    display: "flex",
+    alignItems: "center",
+    height: "calc(4rem + env(safe-area-inset-bottom))",
+    paddingBottom: "env(safe-area-inset-bottom)",
+    paddingLeft: "0.75rem",
+    paddingRight: "4.5rem",
+    backgroundColor: "color-mix(in srgb, var(--trips-canvas) 90%, transparent)",
+    backdropFilter: "blur(14px)",
+    borderTopWidth: "1px",
+    borderTopStyle: "solid",
+    borderTopColor: "var(--trips-line)",
     [WIDE]: { display: "none" },
   },
+  barSegment: { flexGrow: 1 },
+  barBtn: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "0.5rem", minHeight: "2.75rem" },
 
   // ── Trip head ─────────────────────────────────────────
   head: {
@@ -167,6 +180,29 @@ export const ws = stylex.create({
     animationTimingFunction: "var(--trips-ease-out)",
     [REDUCE]: { animationName: "none" },
   },
+  headCompact: {
+    flexShrink: 0,
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+    minHeight: "3.5rem",
+    paddingInline: { default: "1.25rem", "@media (min-width: 640px)": "1.75rem" },
+    paddingTop: "0.5rem",
+  },
+  compactTitle: {
+    fontFamily: "var(--trips-display)",
+    fontSize: "1.5rem",
+    lineHeight: 1.1,
+    letterSpacing: "-0.01em",
+    color: "var(--trips-ink)",
+    textDecoration: "none",
+    borderRadius: "0.375rem",
+    outline: "none",
+    ":focus-visible": { boxShadow: ring },
+    [HOVER]: { ":hover": { color: "var(--brand)" } },
+  },
+  compactDates: { "@media (max-width: 479.98px)": { display: "none" } },
+  saveCompact: { marginLeft: 0, marginRight: "0.25rem" },
   title: {
     fontSize: "clamp(2.25rem, 5vw, 3.25rem)",
     lineHeight: 1,
@@ -206,7 +242,7 @@ export const ws = stylex.create({
     color: "var(--trips-ink-tertiary)",
   },
   saveDot: { width: "0.375rem", height: "0.375rem", borderRadius: "999px", backgroundColor: "var(--trips-ok)" },
-  saveDotBusy: { backgroundColor: "var(--ta-fill)" },
+  saveDotBusy: { backgroundColor: "var(--brand-fill)" },
   saveDotError: { backgroundColor: "var(--trips-danger)" },
 
   // ── Day rail ──────────────────────────────────────────
@@ -223,6 +259,7 @@ export const ws = stylex.create({
     scrollbarWidth: "none",
     scrollSnapType: "x proximity",
     scrollPaddingInline: "1.75rem",
+    maskImage: "linear-gradient(to right, #000 calc(100% - 2.5rem), transparent)",
     backgroundColor: "color-mix(in srgb, var(--trips-canvas) 88%, transparent)",
     backdropFilter: "blur(12px)",
     borderBottomWidth: "1px",
@@ -256,7 +293,7 @@ export const ws = stylex.create({
     [HOVER]: { ":hover": { backgroundColor: "var(--trips-ink)", color: "var(--trips-canvas)" } },
   },
   railAll: { paddingInline: "0.875rem", flexDirection: "row", gap: "0.4375rem", fontSize: "0.8125rem", fontWeight: 600 },
-  railDow: { fontFamily: "var(--trips-mono)", fontSize: "0.625rem", letterSpacing: "0.1em", textTransform: "uppercase", opacity: 0.75 },
+  railDow: { fontFamily: "var(--trips-mono)", fontSize: "0.6875rem", letterSpacing: "0.08em", textTransform: "uppercase" },
   railNum: { fontSize: "1.0625rem", fontWeight: 600, lineHeight: 1, fontVariantNumeric: "tabular-nums" },
   railToday: {
     position: "absolute",
@@ -267,7 +304,8 @@ export const ws = stylex.create({
     borderRadius: "999px",
     backgroundColor: "var(--ta-fill)",
   },
-  railEmpty: { opacity: 0.55 },
+  // Days with nothing planned: lighter numeral, still clearly a link.
+  railEmpty: { fontWeight: 400, color: "var(--trips-ink-tertiary)" },
 
   // ── Content ───────────────────────────────────────────
   content: {
@@ -372,7 +410,7 @@ export const ws = stylex.create({
   dayHead: { display: "flex", flexDirection: "column", gap: "0.5rem" },
   dayTitle: { fontSize: "clamp(1.875rem, 4vw, 2.5rem)", lineHeight: 1.02 },
   inlineInput: {
-    minWidth: "6rem",
+    minWidth: "2.5rem",
     maxWidth: "100%",
     paddingInline: "0.375rem",
     marginInline: "-0.375rem",
@@ -390,18 +428,22 @@ export const ws = stylex.create({
   notes: {
     width: "100%",
     minHeight: "2.75rem",
-    padding: "0.625rem 0.75rem",
+    paddingBlock: "0.25rem",
+    paddingLeft: "0.875rem",
+    paddingRight: 0,
     borderWidth: 0,
-    borderRadius: "var(--trips-radius-sm)",
-    backgroundColor: "var(--trips-sunken)",
-    color: "var(--trips-ink)",
+    borderLeftWidth: "2px",
+    borderLeftStyle: "solid",
+    borderLeftColor: { default: "var(--trips-line-strong)", ":focus": "var(--brand-fill)" },
+    borderRadius: 0,
+    backgroundColor: "transparent",
+    color: "var(--trips-ink-secondary)",
     fontSize: "0.9375rem",
-    lineHeight: 1.5,
+    lineHeight: 1.55,
     fieldSizing: "content",
     resize: "none",
     outline: "none",
     fontFamily: "inherit",
-    ":focus": { boxShadow: "0 0 0 2px var(--ta-ring)" },
     "::placeholder": { color: "var(--trips-ink-faint)" },
     [NARROW]: { fontSize: "1rem" },
   },
@@ -439,7 +481,7 @@ export const ws = stylex.create({
     textTransform: "uppercase",
     color: "var(--trips-ink-tertiary)",
     borderRadius: "0.25rem",
-    ":focus": { color: "var(--trips-ink)", boxShadow: "0 1px 0 0 var(--ta-fill)" },
+    ":focus": { color: "var(--trips-ink)", boxShadow: "0 1px 0 0 var(--brand-fill)" },
     "::placeholder": { color: "var(--trips-ink-faint)" },
     [NARROW]: { fontSize: "1rem", letterSpacing: "0.04em" },
   },
@@ -501,7 +543,7 @@ export const ws = stylex.create({
     transitionProperty: "box-shadow, background-color",
     transitionDuration: "200ms",
   },
-  cardHot: { boxShadow: "0 0 0 1px var(--ta-fill), var(--trips-shadow-2)" },
+  cardHot: { boxShadow: "0 0 0 1.5px var(--trips-ink), var(--trips-shadow-2)" },
   cardFlash: {
     animationName: flash,
     animationDuration: "2.4s",
@@ -526,21 +568,34 @@ export const ws = stylex.create({
     outline: "none",
     ":focus-visible": { boxShadow: ring },
   },
+  cardTimeCol: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.125rem",
+    flexShrink: 0,
+    width: "4rem",
+    fontFamily: "var(--trips-mono)",
+    fontSize: "0.75rem",
+    lineHeight: 1.3,
+    whiteSpace: "nowrap",
+  },
+  cardTimeEnd: { color: "var(--trips-ink-faint)" },
   cardText: { display: "flex", flexDirection: "column", gap: "0.1875rem", flexGrow: 1, minWidth: 0 },
   cardTitle: { fontSize: "0.9375rem", fontWeight: 600, lineHeight: 1.3, color: "var(--trips-ink)" },
   cardTitleEmpty: { color: "var(--trips-ink-faint)", fontWeight: 500 },
   cardSub: { display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: "0.5rem", rowGap: "0.125rem", fontSize: "0.8125rem", color: "var(--trips-ink-tertiary)" },
-  cardTime: { color: "var(--ta)", fontFamily: "var(--trips-mono)", fontSize: "0.75rem", whiteSpace: "nowrap" },
+  cardTime: { color: "var(--trips-ink)" },
   chevron: { transitionProperty: "transform", transitionDuration: "200ms", color: "var(--trips-ink-tertiary)", flexShrink: 0 },
   chevronOpen: { transform: "rotate(180deg)" },
+  // Hidden until the card is hovered or focused (see .trips-grip in index.css);
+  // always visible on touch, where there is no hover.
   grip: {
     display: "grid",
     placeItems: "center",
     width: "1.75rem",
     height: "2.25rem",
-    marginLeft: "-0.375rem",
     borderRadius: "0.375rem",
-    color: "var(--trips-ink-faint)",
+    color: "var(--trips-ink-tertiary)",
     cursor: "grab",
     touchAction: "none",
     flexShrink: 0,
@@ -548,7 +603,7 @@ export const ws = stylex.create({
     outline: "none",
     ":focus-visible": { boxShadow: ring },
     ":active": { cursor: "grabbing" },
-    [HOVER]: { ":hover": { color: "var(--trips-ink)" } },
+    [HOVER]: { ":hover": { color: "var(--trips-ink)", backgroundColor: "var(--trips-sunken)" } },
   },
   leg: {
     display: "flex",
@@ -590,7 +645,7 @@ export const ws = stylex.create({
     paddingInline: "0.75rem",
     paddingBlock: "0.5rem",
     borderRadius: "var(--trips-field-radius)",
-    backgroundColor: "var(--ta-soft)",
+    backgroundColor: "var(--brand-soft)",
     fontSize: "0.875rem",
     color: "var(--trips-ink)",
   },
@@ -610,7 +665,7 @@ export const ws = stylex.create({
     color: "var(--trips-ink-tertiary)",
     transitionProperty: "box-shadow",
     transitionDuration: "160ms",
-    ":focus-within": { boxShadow: "0 0 0 1.5px var(--ta-fill), 0 0 0 5px var(--ta-soft)" },
+    ":focus-within": { boxShadow: "0 0 0 1.5px var(--brand-fill), 0 0 0 5px var(--brand-soft)" },
   },
   results: {
     position: "absolute",
@@ -668,9 +723,9 @@ export const ws = stylex.create({
     color: "var(--trips-ink)",
     fontSize: "0.875rem",
     fontWeight: 500,
-    backgroundColor: "var(--ta-soft)",
+    backgroundColor: "var(--brand-soft)",
     backgroundImage:
-      "linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--ta-fill) 16%, transparent) 50%, transparent 70%)",
+      "linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--brand-fill) 16%, transparent) 50%, transparent 70%)",
     backgroundSize: "200% 100%",
     animationName: sweep,
     animationDuration: "1.8s",
@@ -693,7 +748,7 @@ export const ws = stylex.create({
     width: "1.25rem",
     height: "1.25rem",
     marginTop: "0.125rem",
-    accentColor: "var(--ta-fill)",
+    accentColor: "var(--brand-fill)",
     cursor: "pointer",
   },
 
@@ -736,7 +791,7 @@ export const ws = stylex.create({
     animationName: slideUp,
     animationDuration: "280ms",
     animationTimingFunction: "var(--trips-ease-out)",
-    [NARROW]: { bottom: "calc(4.75rem + env(safe-area-inset-bottom))" },
+    [NARROW]: { left: "0.5rem", right: "0.5rem", bottom: "0.5rem", width: "auto" },
     [REDUCE]: { animationName: "none" },
   },
   placeTitle: { fontSize: "1.5rem", lineHeight: 1.05 },
@@ -848,7 +903,7 @@ export const ws = stylex.create({
     paddingLeft: "0.75rem",
     paddingRight: "0.25rem",
     borderRadius: "999px",
-    backgroundColor: "var(--ta-soft)",
+    backgroundColor: "var(--brand-soft)",
     color: "var(--trips-ink)",
     fontSize: "0.875rem",
     fontWeight: 500,
@@ -865,7 +920,7 @@ export const ws = stylex.create({
     position: "relative",
     outline: "none",
     "::after": { content: '""', position: "absolute", inset: "-0.5rem" },
-    ":focus-visible": { boxShadow: "0 0 0 2px var(--ta-ring)" },
+    ":focus-visible": { boxShadow: "0 0 0 2px var(--brand-ring)" },
     [HOVER]: { ":hover": { backgroundColor: "var(--trips-sunken)" } },
   },
 })

@@ -1,5 +1,5 @@
 import { memo, useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
-import { ArrowDown, ArrowUp, ChevronDown, Copy, ExternalLink, GripVertical, MapPin, MapPinOff, Sparkles, Trash2 } from "lucide-react"
+import { ArrowDown, ArrowUp, ChevronDown, Copy, ExternalLink, GripVertical, MapPin, MapPinOff, Trash2 } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { externalMapsLink } from "@/lib/externalMaps"
 import { formatClock, itemIcon, RESERVATION_TYPES, STATUS_LABEL, titleCase } from "../meta"
@@ -22,6 +22,8 @@ export interface ItemCardProps {
   locked: boolean
   hot: boolean
   active: boolean
+  /** Open the editor (requested from the map). */
+  expand?: boolean
   flash: boolean
   near: LngLat | null
   dayOptions: DayOption[]
@@ -30,6 +32,8 @@ export interface ItemCardProps {
   onHover: (id: string | null) => void
   onLocate: (id: string) => void
   onGrip?: (event: ReactPointerEvent) => void
+  /** Spoken confirmation after a keyboard reorder. */
+  onAnnounce?: (message: string) => void
 }
 
 const STATUSES: ItemStatus[] = ["none", "booked", "optional", "needs_review", "completed"]
@@ -48,6 +52,7 @@ export const ItemCard = memo(function ItemCard({
   locked,
   hot,
   active,
+  expand,
   flash,
   near,
   dayOptions,
@@ -56,6 +61,7 @@ export const ItemCard = memo(function ItemCard({
   onHover,
   onLocate,
   onGrip,
+  onAnnounce,
 }: ItemCardProps) {
   const [open, setOpen] = useState(false)
   const panelId = useId()
@@ -67,6 +73,12 @@ export const ItemCard = memo(function ItemCard({
     if (active) rowRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" })
   }, [active])
 
+  useEffect(() => {
+    if (!expand) return
+    setOpen(true)
+    rowRef.current?.scrollIntoView({ block: "center", behavior: "smooth" })
+  }, [expand])
+
   // A just-added, untitled item opens ready to type.
   useEffect(() => {
     if (editable && !item.title && item.kind !== "section") setOpen(true)
@@ -76,9 +88,9 @@ export const ItemCard = memo(function ItemCard({
 
   if (item.kind === "section") {
     return (
-      <div {...sx(s.sectionRow)} id={`item-${item.id}`}>
+      <div {...sx(s.sectionRow, "trips-section-row")} id={`item-${item.id}`}>
         {editable && onGrip && (
-          <button type="button" {...sx(s.grip)} aria-label="Drag to reorder" onPointerDown={onGrip} tabIndex={-1}>
+          <button type="button" {...sx(s.grip, "trips-grip")} aria-label="Drag to reorder" onPointerDown={onGrip} tabIndex={-1}>
             <GripVertical size={14} aria-hidden />
           </button>
         )}
@@ -98,7 +110,7 @@ export const ItemCard = memo(function ItemCard({
         {canEdit && (
           <button
             type="button"
-            {...sx(a.iconBtn, a.iconBtnSm)}
+            {...sx(a.iconBtn, a.iconBtnSm, "trips-row-action")}
             aria-label={`Delete heading ${item.title || ""}`}
             onClick={() => onDelete(dayId, item, index)}
           >
@@ -135,58 +147,73 @@ export const ItemCard = memo(function ItemCard({
         )}
       </div>
       <div
-        {...sx(s.card, item.kind === "note" && s.cardNote, (hot || active) && s.cardHot, flash && s.cardFlash)}
+        {...sx(s.card, "trips-card", item.kind === "note" && s.cardNote, (hot || active) && s.cardHot, flash && s.cardFlash)}
         onMouseEnter={() => pinned && onHover(item.id)}
         onMouseLeave={() => pinned && onHover(null)}
       >
-        <div {...sx(a.row)} style={{ gap: 0 }}>
-          <button
-            type="button"
-            {...sx(s.cardRow)}
-            aria-expanded={open}
-            aria-controls={panelId}
-            onClick={() => setOpen((v) => !v)}
-          >
-            {editable && onGrip && (
-              <span
-                {...sx(s.grip)}
-                role="presentation"
-                onPointerDown={(event) => {
-                  event.stopPropagation()
-                  onGrip(event)
-                }}
-                onClick={(event) => event.stopPropagation()}
-              >
-                <GripVertical size={14} aria-hidden />
+        <button
+          type="button"
+          {...sx(s.cardRow)}
+          aria-expanded={open}
+          aria-controls={panelId}
+          aria-keyshortcuts={editable ? "Alt+ArrowUp Alt+ArrowDown" : undefined}
+          onClick={() => setOpen((v) => !v)}
+          onKeyDown={(event) => {
+            if (!editable || locked || !event.altKey) return
+            if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return
+            event.preventDefault()
+            const step = event.key === "ArrowUp" ? -1 : 1
+            if (index + step < 0 || index + step >= count) return
+            onChange((days) => moveItem(days, dayId, item.id, step))
+            onAnnounce?.(`${item.title || "Stop"} moved ${step < 0 ? "up" : "down"}, now ${index + step + 1} of ${count}.`)
+          }}
+        >
+          <span {...sx(s.cardTimeCol)}>
+            {item.time ? (
+              <>
+                <span {...sx(s.cardTime)}>{formatClock(item.time)}</span>
+                {item.endTime && <span {...sx(s.cardTimeEnd)}>{formatClock(item.endTime)}</span>}
+              </>
+            ) : (
+              <span {...sx(s.cardTimeEnd)} aria-hidden>
+                ––
               </span>
             )}
-            <span {...sx(s.cardText)}>
-              <span {...sx(s.cardTitle, a.wrap, !item.title && s.cardTitleEmpty)}>
-                {item.title || (item.kind === "note" ? "Empty note" : "Untitled stop")}
-              </span>
-              {(item.time || category || sub || item.createdBy === "ai" || item.status !== "none") && (
-                <span {...sx(s.cardSub)}>
-                  {item.time && (
-                    <span {...sx(s.cardTime)}>
-                      {formatClock(item.time)}
-                      {item.endTime ? ` – ${formatClock(item.endTime)}` : ""}
-                    </span>
-                  )}
-                  {category && <span>{category}</span>}
-                  {item.status !== "none" && <span {...sx(a.chip, item.status === "booked" ? a.chipOk : a.chipAccent)}>{STATUS_LABEL[item.status]}</span>}
-                  {item.createdBy === "ai" && (
-                    <span {...sx(a.chip)} title="Suggested by AI">
-                      <Sparkles size={11} strokeWidth={2} aria-hidden />
-                      AI
-                    </span>
-                  )}
-                  {sub && <span {...sx(a.truncate)} style={{ flexBasis: "100%" }}>{sub}</span>}
-                </span>
-              )}
+          </span>
+          <span {...sx(s.cardText)}>
+            <span {...sx(s.cardTitle, a.wrap, !item.title && s.cardTitleEmpty)}>
+              {item.title || (item.kind === "note" ? "Empty note" : "Untitled stop")}
             </span>
-            <ChevronDown size={16} strokeWidth={1.75} aria-hidden {...sx(s.chevron, open && s.chevronOpen)} />
-          </button>
-        </div>
+            {(category || sub || item.status !== "none") && (
+              <span {...sx(s.cardSub)}>
+                {category && <span>{category}</span>}
+                {item.status !== "none" && (
+                  <span {...sx(a.chip, item.status === "booked" ? a.chipOk : undefined)}>{STATUS_LABEL[item.status]}</span>
+                )}
+                {sub && (
+                  <span {...sx(a.truncate)} style={{ flexBasis: "100%" }}>
+                    {sub}
+                  </span>
+                )}
+              </span>
+            )}
+          </span>
+          {editable && onGrip && (
+            <span
+              {...sx(s.grip, "trips-grip")}
+              role="presentation"
+              title="Drag to reorder (or Alt + ↑ / ↓)"
+              onPointerDown={(event) => {
+                event.stopPropagation()
+                onGrip(event)
+              }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <GripVertical size={14} aria-hidden />
+            </span>
+          )}
+          <ChevronDown size={16} strokeWidth={1.75} aria-hidden {...sx(s.chevron, open && s.chevronOpen)} />
+        </button>
 
         {open && (
           <div id={panelId} {...sx(s.editor)}>

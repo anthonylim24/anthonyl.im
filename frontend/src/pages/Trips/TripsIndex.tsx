@@ -353,13 +353,16 @@ export function TripsIndex() {
                           </div>
                           <div {...sx(s.cardBody)}>
                             <h4 {...sx(a.display, s.cardTitle, a.wrap)}>{trip.name}</h4>
-                            <p {...sx(a.mono, a.muted)}>
+                            <p {...sx(a.small)}>
                               {formatRange(trip.startDate, trip.endDate)} · {plural(dayCount(trip.startDate, trip.endDate), "day")}
                             </p>
-                            <p {...sx(a.small, a.wrap)}>
-                              {trip.destinations.join(" · ")}
-                              {tags.length > 0 ? ` · ${tags.slice(0, 2).join(", ")}` : ""}
-                            </p>
+                            {(() => {
+                              const places = trip.destinations.join(" · ")
+                              const line = [places.toLowerCase() === trip.name.trim().toLowerCase() ? "" : places, ...tags.slice(0, 2)]
+                                .filter(Boolean)
+                                .join(" · ")
+                              return line ? <p {...sx(a.small, a.wrap)}>{line}</p> : null
+                            })()}
                           </div>
                           <div {...sx(s.cardFoot)}>
                             <span {...sx(a.row, a.small)}>
@@ -390,23 +393,21 @@ export function TripsIndex() {
                       </li>
                     )
                   })}
-                  {phase === BUCKETS.find((b) => filtered.some((t) => t.timing.phase === b.phase))?.phase && !deferredQuery.trim() && (
-                    <li>
-                      <Link to="/trips/new" {...sx(s.newCard)}>
-                        <span {...sx(s.newCardPlus)}>
-                          <Plus size={20} strokeWidth={1.75} aria-hidden />
-                        </span>
-                        <span {...sx(a.body, a.ink)}>Plan another trip</span>
-                        <span {...sx(a.small)}>
-                          or press <kbd {...sx(s.kbd)}>N</kbd>
-                        </span>
-                      </Link>
-                    </li>
-                  )}
                 </ul>
               </div>
             )
           })}
+          {filtered.length > 0 && !deferredQuery.trim() && (
+            <Link to="/trips/new" {...sx(s.newCard)}>
+              <span {...sx(s.newCardPlus)}>
+                <Plus size={18} strokeWidth={1.75} aria-hidden />
+              </span>
+              <span {...sx(a.body, a.ink)} style={{ fontWeight: 500 }}>
+                Plan another trip
+              </span>
+              <kbd {...sx(s.kbd)}>N</kbd>
+            </Link>
+          )}
         </section>
       )}
 

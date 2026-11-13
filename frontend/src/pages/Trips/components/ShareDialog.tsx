@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Check, Copy, Globe2, Link2, LogOut, UserRound, X } from "lucide-react"
+import { Check, Copy, Globe2, LogOut, UserRound, X } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { routerBasename } from "@/lib/routerBasename"
 import { createInvite, getTrip, leaveTrip, revokeInvite, updateTrip, type GetToken } from "../tripsApi"
@@ -98,8 +98,13 @@ export function ShareDialog({
       if (!trip) return
       const active = invite ?? (await createInvite(getToken, trip.id, role))
       if (!invite) setTrip({ ...trip, invites: [...(trip.invites ?? []), active] })
-      await navigator.clipboard.writeText(inviteUrl(active.token))
-      setCopied(true)
+      try {
+        await navigator.clipboard.writeText(inviteUrl(active.token))
+        setCopied(true)
+      } catch {
+        // No clipboard permission: the link is shown above, ready to select.
+        setError("Your browser blocked copying. Select the link above and copy it yourself.")
+      }
     })
 
   const resetLink = () =>
@@ -172,12 +177,15 @@ export function ShareDialog({
                 ))}
               </div>
               <p {...sx(a.small)}>{ROLE_COPY[role].hint}</p>
-              <div {...sx(s.linkBox)}>
-                <Link2 size={16} strokeWidth={1.75} aria-hidden {...sx(a.noShrink, a.muted)} />
-                <span {...sx(a.mono, a.truncate, a.grow, !invite && a.muted)}>
-                  {invite ? inviteUrl(invite.token).replace(/^https?:\/\//, "") : "A private link is created when you copy it"}
-                </span>
-              </div>
+              {invite && (
+                <input
+                  readOnly
+                  aria-label="Invite link"
+                  value={inviteUrl(invite.token)}
+                  {...sx(a.field, a.mono)}
+                  onFocus={(event) => event.currentTarget.select()}
+                />
+              )}
               <div {...sx(a.rowWrap)}>
                 <button type="button" {...sx(a.btn, a.btnPrimary, a.grow)} disabled={busy !== null} onClick={() => void copyLink()}>
                   {busy === "copy" ? <Spinner /> : copied ? <Check size={16} aria-hidden /> : <Copy size={16} strokeWidth={1.75} aria-hidden />}
@@ -270,7 +278,7 @@ export function ShareDialog({
 
           {error && (
             <p {...sx(a.alert)} role="alert">
-              That didn’t go through. ({error})
+              {error.startsWith("Your browser") ? error : `That didn’t go through. (${error})`}
             </p>
           )}
         </>

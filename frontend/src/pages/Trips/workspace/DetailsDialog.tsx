@@ -5,6 +5,7 @@ import type { Trip, TripDay, TripStatus } from "../types"
 import { a } from "../atlas.stylex"
 import { ws as s } from "../workspace.stylex"
 import { CityField } from "../components/CityField"
+import { DateRange } from "../components/DateRange"
 import { Modal } from "../components/kit"
 
 // Everything about the trip that isn't the itinerary: where, when, how it
@@ -145,36 +146,13 @@ export function DetailsDialog({
           {draft.destinations.length === 0 && <p {...sx(a.errorText)}>Add at least one place.</p>}
         </div>
         <div>
-          <div {...sx(s.twoCol)}>
-            <label>
-              <span {...sx(a.label)}>First day</span>
-              <input
-                type="date"
-                required
-                value={draft.startDate}
-                {...sx(a.field)}
-                onChange={(event) => {
-                  const startDate = event.target.value
-                  if (!startDate) return
-                  // Moving the start keeps the trip the same length.
-                  const length = dayCount(draft.startDate, draft.endDate) - 1
-                  setDraft({ ...draft, startDate, endDate: badRange ? startDate : addDays(startDate, length) })
-                }}
-              />
-            </label>
-            <label>
-              <span {...sx(a.label)}>Last day</span>
-              <input
-                type="date"
-                required
-                min={draft.startDate}
-                value={draft.endDate}
-                aria-invalid={badRange || tooLong || undefined}
-                {...sx(a.field)}
-                onChange={(event) => event.target.value && setDraft({ ...draft, endDate: event.target.value })}
-              />
-            </label>
-          </div>
+          <span {...sx(a.label)}>Dates</span>
+          <DateRange
+            start={draft.startDate}
+            end={draft.endDate}
+            invalid={tooLong}
+            onChange={(startDate, endDate) => setDraft({ ...draft, startDate, endDate })}
+          />
           {badRange ? (
             <p {...sx(a.errorText)} role="alert">
               The last day is before the first. Pick a later date.

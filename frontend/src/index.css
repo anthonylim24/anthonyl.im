@@ -1022,9 +1022,13 @@ body {
    shell's :focus-within ring); the global outline would double it. */
 .trips :focus-visible { outline: none; }
 
+@media (forced-colors: active) {
+  .trips :focus-visible { outline: 2px solid CanvasText; outline-offset: 2px; }
+}
+
 /* Shared controls Trips doesn't own still need a visible ring. */
 .trips .trip-tap-44 > button:focus-visible {
-  box-shadow: 0 0 0 2px var(--trips-canvas), 0 0 0 4px var(--ta-ring);
+  box-shadow: 0 0 0 2px var(--trips-canvas), 0 0 0 4px var(--brand-ring);
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -1070,7 +1074,13 @@ body {
   --trips-mono: "Fragment Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --trips-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
   --trips-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  /* App accent (no trip in scope): signal orange. */
+  /* Brand accent: chrome everywhere (focus rings, AI, switches, the mark).
+     It never changes with the trip. */
+  --brand: #b8400f;
+  --brand-fill: #f0582b;
+  --brand-soft: rgb(240 88 43 / 0.1);
+  --brand-ring: rgb(240 88 43 / 0.55);
+  /* Trip accent (pins, route, date tiles, covers). Defaults to the brand. */
   --ta: #b8400f;
   --ta-strong: #96330b;
   --ta-fill: #f0582b;
@@ -1081,7 +1091,7 @@ body {
   color-scheme: light dark;
   background-color: var(--trips-canvas);
   color: var(--trips-ink);
-  caret-color: var(--ta-fill);
+  caret-color: var(--brand-fill);
   font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   font-feature-settings: "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
@@ -1116,6 +1126,8 @@ html.dark .trips,
   --trips-danger: #ff8a80;
   --trips-danger-soft: rgb(255 138 128 / 0.12);
   --trips-ok: #4fd1ae;
+  --brand: #ff9166;
+  --brand-soft: rgb(240 88 43 / 0.16);
   --ta: #ff9166;
   --ta-strong: #ffb394;
   --ta-soft: rgb(240 88 43 / 0.16);
@@ -1140,6 +1152,23 @@ html.dark[data-trips-scroll] {
 
 .trips .trips-day-title-input {
   font-size: clamp(1.875rem, 7vw, 2.5rem) !important;
+}
+
+/* Row affordances appear on hover or keyboard focus; touch always shows them. */
+@media (hover: hover) {
+  .trips .trips-grip,
+  .trips .trips-row-action {
+    opacity: 0;
+    transition: opacity 140ms ease;
+  }
+
+  .trips .trips-card:hover .trips-grip,
+  .trips .trips-card:focus-within .trips-grip,
+  .trips .trips-section-row:hover .trips-grip,
+  .trips .trips-section-row:hover .trips-row-action,
+  .trips .trips-section-row:focus-within .trips-row-action {
+    opacity: 1;
+  }
 }
 
 /* Grows a small control's hit area to 44px without resizing it — for shared
@@ -1319,17 +1348,8 @@ html.dark .trips[data-trip-accent="violet"] {
 }
 
 .atlas-pin--trip {
-  display: flex;
-  align-items: center;
-}
-
-.atlas-pin--trip::after {
-  content: "";
-  order: -1;
-  width: 12px;
-  height: 12px;
-  margin-left: -6px;
-  margin-right: 6px;
+  width: 14px;
+  height: 14px;
   border-radius: 999px;
   background: var(--ta-fill);
   border: 2px solid var(--trips-raised);
@@ -1337,7 +1357,12 @@ html.dark .trips[data-trip-accent="violet"] {
 }
 
 .atlas-pin--trip .atlas-pin__body {
-  padding: 5px 10px;
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  translate: 0 -50%;
+  display: block;
+  padding: 6px 11px;
   border: 0;
   border-radius: 999px;
   background: var(--trips-raised);
@@ -1346,12 +1371,23 @@ html.dark .trips[data-trip-accent="violet"] {
   font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
-  max-width: 180px;
+  max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
-  display: block;
   box-shadow: var(--trips-shadow-2);
   transform-origin: 0 50%;
+}
+
+.atlas-pin--trip.atlas-pin--flip .atlas-pin__body {
+  left: auto;
+  right: calc(100% + 10px);
+  transform-origin: 100% 50%;
+}
+
+.atlas-pin--hot,
+.atlas-pin:hover,
+.atlas-pin:focus-visible {
+  z-index: 2;
 }
 
 .atlas-pin--hot .atlas-pin__body,

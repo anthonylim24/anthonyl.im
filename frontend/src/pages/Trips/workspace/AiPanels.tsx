@@ -242,13 +242,19 @@ export function AiSheet({
         <>
           <div {...sx(a.rowWrap)}>
             {ideas.map((idea) => (
-              <button key={idea.label} type="button" {...sx(a.pill)} onClick={() => submit(idea.prompt)}>
+              <button
+                key={idea.label}
+                type="button"
+                aria-pressed={text === idea.prompt}
+                {...sx(a.pill, text === idea.prompt && a.pillOn)}
+                onClick={() => setText(text === idea.prompt ? "" : idea.prompt)}
+              >
                 {idea.label}
               </button>
             ))}
           </div>
           <label>
-            <span {...sx(a.label)}>Or ask for something specific</span>
+            <span {...sx(a.label)}>What should AI look for?</span>
             <textarea
               rows={3}
               value={text}
@@ -267,11 +273,19 @@ export function AiSheet({
   )
 }
 
-export function AiBusy({ label }: { label: string }) {
+/** Progress for a long AI run: the copy steps forward so it never looks stuck. */
+export function AiBusy({ steps }: { steps: readonly string[] }) {
+  const [at, setAt] = useState(0)
+  useEffect(() => {
+    const timer = setInterval(() => setAt((i) => Math.min(i + 1, steps.length - 1)), 7000)
+    return () => clearInterval(timer)
+  }, [steps.length])
   return (
     <div {...sx(s.aiBusy)} role="status">
       <Spinner />
-      {label}
+      <span>
+        {steps[at]} <span {...sx(a.muted)}>This usually takes about a minute.</span>
+      </span>
     </div>
   )
 }

@@ -9,7 +9,7 @@ const HOVER = "@media (hover: hover)"
 const REDUCE = "@media (prefers-reduced-motion: reduce)"
 const DESKTOP = "@media (min-width: 768px)"
 
-const ring = "0 0 0 2px var(--trips-canvas), 0 0 0 4px var(--ta-ring)"
+const ring = "0 0 0 2px var(--trips-canvas), 0 0 0 4px var(--brand-ring)"
 
 export const c = stylex.create({
   // ── Icons ─────────────────────────────────────────────
@@ -35,6 +35,15 @@ export const c = stylex.create({
     cursor: "pointer",
     outline: "none",
     ":focus-visible": { boxShadow: `var(--trips-shadow-3), ${ring}` },
+    // On phones and tablets the trip page has a docked bottom bar; the button
+    // sits inside it rather than floating over the itinerary.
+    "@media (max-width: 1023.98px)": {
+      right: "0.75rem",
+      bottom: "calc(0.5rem + env(safe-area-inset-bottom, 0px))",
+      width: "3rem",
+      height: "3rem",
+      boxShadow: "none",
+    },
   },
   fabHidden: { pointerEvents: "none", opacity: 0 },
 
@@ -150,8 +159,8 @@ export const c = stylex.create({
     width: "3rem",
     height: "3rem",
     borderRadius: "999px",
-    backgroundColor: "var(--ta-soft)",
-    color: "var(--ta)",
+    backgroundColor: "var(--brand-soft)",
+    color: "var(--brand)",
   },
   emptyCopy: {
     maxWidth: "18rem",
@@ -215,7 +224,7 @@ export const c = stylex.create({
     transitionDuration: "150ms",
     outline: "none",
     ":focus-visible": { boxShadow: ring },
-    [HOVER]: { ":hover": { color: "var(--ta)", textDecorationColor: "var(--ta)" } },
+    [HOVER]: { ":hover": { color: "var(--brand)", textDecorationColor: "var(--brand)" } },
   },
 
   // ── Footer: suggestions + composer ────────────────────
@@ -257,7 +266,7 @@ export const c = stylex.create({
     transitionDuration: "160ms",
     transitionTimingFunction: "var(--trips-ease-out)",
     ":focus-within": {
-      boxShadow: "0 0 0 1.5px var(--ta-fill), 0 0 0 5px var(--ta-soft)",
+      boxShadow: "0 0 0 1.5px var(--brand-fill), 0 0 0 5px var(--brand-soft)",
     },
     [REDUCE]: { transitionDuration: "0ms" },
   },
@@ -329,7 +338,7 @@ export const c = stylex.create({
     width: "1rem",
     height: "1rem",
     flexShrink: 0,
-    color: "var(--ta)",
+    color: "var(--brand)",
   },
   cardTitle: {
     margin: 0,

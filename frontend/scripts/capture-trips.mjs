@@ -78,7 +78,7 @@ async function run(label, opts) {
     await marker.click()
     await settle(p, 5000)
     await shot(p, `${label}-place`)
-    if (phone) await p.getByRole("button", { name: "Itinerary" }).click()
+    if (phone) await p.getByRole("tab", { name: "Itinerary" }).click()
     else await p.getByRole("button", { name: "Close place" }).click()
   }
 
@@ -91,11 +91,9 @@ async function run(label, opts) {
     await p.waitForTimeout(900)
     await shot(p, `${label}-share`)
     await p.keyboard.press("Escape")
-    const row = p.getByRole("button", { expanded: false }).filter({ hasText: /./ }).nth(3)
     await p.locator('[id^="item-"] button[aria-expanded]').first().click()
     await p.waitForTimeout(500)
     await shot(p, `${label}-edit`)
-    void row
   }
   await p.context().close()
 }
