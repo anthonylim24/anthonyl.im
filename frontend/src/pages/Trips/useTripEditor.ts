@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react"
 import { useLocation, useParams } from "react-router-dom"
 import { useReducedMotion } from "motion/react"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
@@ -6,11 +6,17 @@ import { useGetToken } from "@/lib/safeAuth"
 import { applySuggestions, enhanceTrip, getTrip, updateTrip } from "./tripsApi"
 import { insertItemAt, removeItem } from "./tripEdits"
 import { emitTripChanged, preferFresherTrip, useTripChanged } from "./tripsEvents"
-import { useDayOptions } from "./editor/hooks"
-import { UNDO_TOAST_ID, type PendingUndo, type SaveState } from "./editor/FloatingSaveIndicator"
+import { formatTripDate } from "./meta"
 import type { EnhancementRun, GeneratePreferences, ItineraryItem, Trip, TripAccess, TripDay } from "./types"
 
 const UNDO_WINDOW_MS = 6000
+
+export type SaveState = "saved" | "dirty" | "saving" | "error"
+
+export interface DayOption {
+  id: string
+  label: string
+}
 
 export const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err))
 
@@ -19,7 +25,9 @@ type LoadState =
   | { status: "error"; message: string }
   | { status: "success" }
 
-export interface DeletedItem extends PendingUndo {
+export interface DeletedItem {
+  title: string
+  key: number
   dayId: string
   item: ItineraryItem
   index: number
@@ -41,7 +49,6 @@ export function useTripEditor() {
     retryGenerate?: { prompt?: string; preferences?: GeneratePreferences }
   } | null
   const [notice, setNotice] = useState<string | null>(navState?.notice ?? null)
-  const [mapDayId, setMapDayId] = useState<string | null>(null)
   const [enhancingTarget, setEnhancingTarget] = useState<string | null>(null)
   const [activeRun, setActiveRun] = useState<EnhancementRun | null>(null)
   const [deleted, setDeleted] = useState<DeletedItem | null>(null)
@@ -51,7 +58,6 @@ export function useTripEditor() {
   const saveGenRef = useRef(0)
   const persistAbortRef = useRef<AbortController | null>(null)
   const persistPromiseRef = useRef<Promise<void> | null>(null)
-  const scrolledHashRef = useRef<string | null>(null)
   const restoreScrollRef = useRef<number | null>(null)
   const editable = access === "edit" || access === "owner"
   const tripDocId = trip?.id
@@ -137,6 +143,7 @@ export function useTripEditor() {
             tags: next.tags,
             description: next.description ?? null,
             days: next.days,
+            center: next.center,
           },
           { signal: ac.signal },
         )
@@ -151,7 +158,7 @@ export function useTripEditor() {
         setSaveState("error")
         const message = errorText(err)
         if (/permalink|slug|hyphen/i.test(message)) {
-          setNotice(`Couldn’t save the permalink. Edit it under Trip settings, then it will save. (${message})`)
+          setNotice(`Couldn’t save the link name. Change it under Trip details and it will save. (${message})`)
         }
         throw err instanceof Error ? err : new Error(message)
       }
@@ -260,7 +267,18 @@ export function useTripEditor() {
     [markEdited],
   )
 
-  const dayOptions = useDayOptions(trip?.days ?? [], trip?.timezone ?? "UTC")
+  const dayKey = (trip?.days ?? []).map((d) => `${d.id}|${d.date}`).join(",")
+  const timezone = trip?.timezone ?? "UTC"
+  const dayOptions = useMemo<DayOption[]>(
+    () =>
+      dayKey
+        ? dayKey.split(",").map((record, i) => {
+            const [id, date] = record.split("|")
+            return { id: id!, label: `Day ${i + 1} · ${formatTripDate(date!, timezone)}` }
+          })
+        : [],
+    [dayKey, timezone],
+  )
 
   const flashTouched = useCallback((ids: Set<string>) => {
     setRecentIds(ids)
@@ -366,7 +384,6 @@ export function useTripEditor() {
 
   const applyActiveRun = useCallback((ids: string[]) => void applyRun(ids), [applyRun])
   const dismissRun = useCallback(() => setActiveRun(null), [])
-  const openMap = useCallback((dayId: string) => setMapDayId(dayId), [])
   const enhanceDay = useCallback(
     (dayId: string, prompt?: string) => void runEnhance("day", dayId, prompt),
     [runEnhance],
@@ -380,30 +397,17 @@ export function useTripEditor() {
     [setDays],
   )
 
-  const releaseUndoFocus = useCallback((dayId: string) => {
-    const toast = document.getElementById(UNDO_TOAST_ID)
-    if (!toast?.contains(document.activeElement)) return
-    document
-      .getElementById(dayId)
-      ?.querySelector<HTMLElement>("input, textarea, button, a[href]")
-      ?.focus()
-  }, [])
-
   const undoDelete = useCallback(() => {
     if (!deleted) return
     setDays((days) => insertItemAt(days, deleted.dayId, deleted.item, deleted.index))
     setDeleted(null)
-    releaseUndoFocus(deleted.dayId)
-  }, [deleted, setDays, releaseUndoFocus])
+  }, [deleted, setDays])
 
   useEffect(() => {
     if (!deleted) return
-    const timer = setTimeout(() => {
-      setDeleted(null)
-      releaseUndoFocus(deleted.dayId)
-    }, UNDO_WINDOW_MS)
+    const timer = setTimeout(() => setDeleted(null), UNDO_WINDOW_MS)
     return () => clearTimeout(timer)
-  }, [deleted, releaseUndoFocus])
+  }, [deleted])
 
   useEffect(
     () => () => {
@@ -411,24 +415,6 @@ export function useTripEditor() {
     },
     [],
   )
-
-  useEffect(() => {
-    if (state.status !== "success" || !trip) return
-    const hash = routerLocation.hash.replace(/^#/, "")
-    if (!hash) {
-      scrolledHashRef.current = null
-      return
-    }
-    const scrollKey = `${trip.id}:${hash}`
-    if (scrolledHashRef.current === scrollKey) return
-    const id = window.setTimeout(() => {
-      const el = document.getElementById(hash)
-      if (!el) return
-      scrolledHashRef.current = scrollKey
-      el.scrollIntoView(reduce ? { block: "start" } : { behavior: "smooth", block: "start" })
-    }, 80)
-    return () => window.clearTimeout(id)
-  }, [state.status, trip?.id, routerLocation.hash, reduce])
 
   const publish = useCallback(() => {
     const current = tripRef.current
@@ -449,8 +435,6 @@ export function useTripEditor() {
     saveState,
     notice,
     setNotice,
-    mapDayId,
-    setMapDayId,
     enhancingTarget,
     activeRun,
     deleted,
@@ -461,12 +445,13 @@ export function useTripEditor() {
     scheduleSave,
     setDays,
     cancelPendingSave,
+    flushPendingSave,
+    flashTouched,
     setTrip,
     setSaveState,
     runEnhance,
     applyActiveRun,
     dismissRun,
-    openMap,
     enhanceDay,
     deleteItem,
     undoDelete,

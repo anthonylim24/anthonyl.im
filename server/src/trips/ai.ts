@@ -277,6 +277,43 @@ export function createGoogleGeocoder(apiKey: string): Geocoder {
   }
 }
 
+/** Keyless fallback geocoder (Photon / OpenStreetMap). Same contract as the
+ *  Google geocoder: null on a miss. Never throws — a failed lookup just
+ *  leaves the place without coordinates. */
+export function createPhotonGeocoder(fetchImpl: typeof fetch = fetch): Geocoder {
+  return async (query) => {
+    const q = query.trim()
+    if (!q) return null
+    try {
+      const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=1&lang=en`
+      const res = await fetchImpl(url, { signal: AbortSignal.timeout(5_000) })
+      if (!res.ok) return null
+      const body = (await res.json()) as {
+        features?: Array<{
+          geometry?: { coordinates?: unknown }
+          properties?: Record<string, unknown>
+        }>
+      }
+      const first = body.features?.[0]
+      const coords = first?.geometry?.coordinates
+      if (!Array.isArray(coords)) return null
+      const [lng, lat] = coords as unknown[]
+      if (typeof lat !== "number" || typeof lng !== "number") return null
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null
+      const props = first?.properties ?? {}
+      const text = (key: string) => (typeof props[key] === "string" && props[key] ? (props[key] as string) : undefined)
+      const street = [text("housenumber"), text("street")].filter(Boolean).join(" ")
+      const parts = [text("name"), street || undefined, text("city"), text("country")].filter(
+        (part, i, all): part is string => !!part && all.indexOf(part) === i,
+      )
+      return { lat, lng, address: parts.length ? parts.join(", ") : undefined }
+    } catch {
+      return null
+    }
+  }
+}
+
 /** Open-Meteo daily forecast — free, no API key. Returns [] outside the
  *  ~16-day forecast window or on any failure (weather is best-effort). */
 export const fetchOpenMeteoWeather: WeatherFetcher = async ({ lat, lng, dates }) => {

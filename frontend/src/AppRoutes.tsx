@@ -59,14 +59,11 @@ const TripsIndex = lazy(() =>
 const TripCreate = lazy(() =>
   import('./pages/Trips/TripCreate').then((module) => ({ default: module.TripCreate })),
 )
-const TripOverview = lazy(() =>
-  import('./pages/Trips/TripOverview').then((module) => ({ default: module.TripOverview })),
+const TripWorkspace = lazy(() =>
+  import('./pages/Trips/TripWorkspace').then((module) => ({ default: module.TripWorkspace })),
 )
-const TripDayPage = lazy(() =>
-  import('./pages/Trips/TripDayPage').then((module) => ({ default: module.TripDayPage })),
-)
-const TripPlaces = lazy(() =>
-  import('./pages/Trips/TripPlaces').then((module) => ({ default: module.TripPlaces })),
+const TripJoin = lazy(() =>
+  import('./pages/Trips/TripJoin').then((module) => ({ default: module.TripJoin })),
 )
 const SiteNotFound = lazy(() =>
   import('./pages/SiteNotFound').then((module) => ({ default: module.SiteNotFound })),
@@ -223,10 +220,11 @@ export function AppRoutes() {
         >
           <Route index element={<TripsIndex />} />
           <Route path="new" element={<TripCreate />} />
-          <Route path=":tripId" element={<TripOverview />} />
+          <Route path="join/:token" element={<TripJoin />} />
+          <Route path=":tripId" element={<TripWorkspace />} />
+          <Route path=":tripId/day/:dayId" element={<TripWorkspace />} />
           <Route path=":tripId/edit" element={<TripEditRedirect />} />
-          <Route path=":tripId/places" element={<TripPlaces />} />
-          <Route path=":tripId/day/:dayId" element={<TripDayPage />} />
+          <Route path=":tripId/places" element={<TripEditRedirect />} />
           <Route path="*" element={<TripsNotFound />} />
         </Route>
 

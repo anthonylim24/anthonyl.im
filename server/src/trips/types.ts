@@ -12,6 +12,21 @@ export type CollaboratorRole = "viewer" | "editor"
 export interface TripCollaborator {
   userId: string
   role: CollaboratorRole
+  /** Display name captured when someone joins by invite link. */
+  name?: string
+}
+
+/** Shareable join link. Owner-only: never returned to other users and never
+ *  settable through the create/update payloads. */
+export interface TripInvite {
+  token: string
+  role: CollaboratorRole
+  createdAt: string
+}
+
+export interface TripCenter {
+  lat: number
+  lng: number
 }
 
 export type LocationSource = "user" | "ai" | "migration"
@@ -114,6 +129,9 @@ export interface Trip {
   tags: string[]
   description?: string
   collaborators: TripCollaborator[]
+  invites?: TripInvite[]
+  /** Map anchor for the trip; derived from located items when absent. */
+  center?: TripCenter
   // Legacy Korea behavior: every signed-in user can view and edit. New trips
   // default to private (owner + collaborators only).
   sharedWithAllUsers?: boolean
@@ -178,6 +196,24 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "expected yyyy-mm-dd")
 export const collaboratorSchema = z.object({
   userId: z.string().min(1).max(128),
   role: z.enum(["viewer", "editor"]),
+  name: z.string().max(80).optional(),
+})
+
+export const centerSchema = z.object({
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+})
+
+export const createInviteSchema = z.object({
+  role: z.enum(["viewer", "editor"]),
+})
+
+export const joinTripSchema = z.object({
+  name: z
+    .string()
+    .max(400)
+    .transform((s) => s.trim().slice(0, 80))
+    .optional(),
 })
 
 // NOTE: the editor saves the whole document on a debounce, so transient
@@ -262,6 +298,7 @@ export const createTripSchema = z.object({
   tags: z.array(z.string().max(40)).max(20).default([]),
   description: z.string().max(4000).optional(),
   collaborators: z.array(collaboratorSchema).max(50).default([]),
+  center: centerSchema.optional(),
 })
 
 export const updateTripSchema = z.object({
@@ -278,6 +315,7 @@ export const updateTripSchema = z.object({
   tags: z.array(z.string().max(40)).max(20).optional(),
   description: z.string().max(4000).nullable().optional(),
   collaborators: z.array(collaboratorSchema).max(50).optional(),
+  center: centerSchema.optional(),
   appearance: appearanceSchema.optional(),
   days: z.array(daySchema).max(60).optional(),
 })

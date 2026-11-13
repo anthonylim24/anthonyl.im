@@ -1,25 +1,29 @@
-import { Link } from 'react-router-dom'
-import { sx } from '@/lib/utils'
-import { mutedInkClass, secondaryBtnClass } from './ui'
-import { styles } from './trips.stylex'
+import { Link } from "react-router-dom"
+import { sx } from "@/styles/merge"
+import { a } from "./atlas.stylex"
+import { shell as s } from "./index.stylex"
 
 /** `/:tripId` matches first, so unknown ids never hit the splat 404. */
 export function isMissingTripError(message: string): boolean {
-  return /trip not found/i.test(message)
+  return /trip not found|forbidden|HTTP 40[34]/i.test(message)
 }
 
 /** Unknown /trips/* routes: stay inside the planner shell. */
 export function TripsNotFound() {
   return (
-    <div {...sx(styles.notFoundPage)}>
-      <p {...sx(styles.notFoundCode, mutedInkClass)}>404</p>
-      <h1 {...sx(styles.notFoundTitle)}>This page is not on the itinerary.</h1>
-      <p {...sx(styles.notFoundCopy, mutedInkClass)}>
-        The address does not match a trip, day, or editor page.
-      </p>
-      <Link to="/trips" {...sx(styles.notFoundLink, secondaryBtnClass)}>
-        All trips
-      </Link>
+    <div {...sx(s.gate)}>
+      <div {...sx(s.gateInner)}>
+        <p {...sx(a.eyebrow)}>404 · Off the map</p>
+        <h1 {...sx(a.display, s.gateTitle)}>
+          Here be <span {...sx(a.italic)}>dragons.</span>
+        </h1>
+        <p {...sx(a.body)}>
+          This address doesn’t match a trip you can open. It may have been deleted, or shared with a different account.
+        </p>
+        <Link to="/trips" {...sx(a.btn, a.btnPrimary)}>
+          Back to all trips
+        </Link>
+      </div>
     </div>
   )
 }

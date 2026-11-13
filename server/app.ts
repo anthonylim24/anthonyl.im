@@ -11,7 +11,7 @@ import entityRouter from "./src/routes/entity";
 import { createInstagramPlacesRouter } from "./src/routes/instagramPlaces";
 import { createTripsRouter } from "./src/routes/trips";
 import { getTripStore } from "./src/trips/store";
-import { createGoogleGeocoder, createTripsLlm } from "./src/trips/ai";
+import { createGoogleGeocoder, createPhotonGeocoder, createTripsLlm } from "./src/trips/ai";
 import { createClerkAuth, verifyClerkOptional } from "./src/middleware/clerkAuth";
 import { createRateLimit, trustedProxyClientAddress } from "./src/middleware/rateLimit";
 import { bootIgWorker, getQueue, listJobsForUser, listExtractedPlaces, listIgPlaceDays, setIgPlaceDays } from "./src/igPlaces/wire";
@@ -226,7 +226,8 @@ app.route(
       geminiApiKey: config.geminiApiKey,
       groqApiKey: config.groqApiKey,
     }),
-    geocode: config.googleMapsApiKey ? createGoogleGeocoder(config.googleMapsApiKey) : null,
+    // No Maps key → keyless Photon (OpenStreetMap) so AI places still get coordinates.
+    geocode: config.googleMapsApiKey ? createGoogleGeocoder(config.googleMapsApiKey) : createPhotonGeocoder(),
   }),
 );
 

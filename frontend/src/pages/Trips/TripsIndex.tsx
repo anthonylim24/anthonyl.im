@@ -1,331 +1,83 @@
-import { sx } from '@/lib/utils'
-import { styles } from './trips.stylex'
-import { index as ix } from './toy.stylex'
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent } from "react"
+import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { Link, useNavigate } from "react-router-dom"
-import { motion, useReducedMotion } from "motion/react"
-import { ArrowRight, Plus, RotateCcw, Search, Sparkles, Trash2, X } from "lucide-react"
+import { ArrowRight, Copy, MoreHorizontal, Plus, RotateCcw, Search, Share2, Sparkles, Trash2, Users } from "lucide-react"
+import { sx } from "@/styles/merge"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
-import { useAuthReady, useGetToken } from "@/lib/safeAuth"
-import { deleteTrip, listTrips } from "./tripsApi"
+import { useTabTitle } from "@/hooks/useTabTitle"
+import { useAuthReady, useGetToken, useViewer } from "@/lib/safeAuth"
+import { deleteTrip, duplicateTrip, getTrip, listTrips } from "./tripsApi"
+import { dayCount, formatRange, plural, resolveAccent, tripTiming, visibleTags, type TripPhase } from "./meta"
+import { AtlasMap } from "./map/AtlasMap"
+import { formatCoord, type AtlasPin, type LngLat } from "./map/geo"
+import { Menu, Modal, Spinner, type MenuItem } from "./components/kit"
+import { ShareDialog } from "./components/ShareDialog"
+import { TripCover } from "./components/TripCover"
 import type { TripSummary } from "./types"
-import { FlipTime } from "./components/FlipTime"
-import { TripsGlobe } from "./scene/TripsGlobe"
-import { daysUntilIn, resolveAccent, todayIsoIn } from "./theme"
-import { useTripPins } from "./useTripPins"
-import {
-  EASE,
-  ENTER_SPRING,
-  REVEAL_DURATION,
-  alertErrorClass,
-  dangerBtnClass,
-  dangerIconBtnClass,
-  dayCountInclusive,
-  formatRangeFull,
-  ghostBtnClass,
-  ghostOnTintBtnClass,
-  hoverArrowClass,
-  inlineLinkClass,
-  mutedInkClass,
-  primaryBtnClass,
-  revealDelay,
-  secondaryBtnClass,
-  skeletonClass,
-  typePageTitleClass,
-  typeSectionClass,
-  wrapAnywhereClass,
-} from "./ui"
+import { a } from "./atlas.stylex"
+import { idx as s } from "./index.stylex"
 
 type LoadState =
   | { status: "loading" }
-  | { status: "success"; trips: TripSummary[] }
   | { status: "error"; message: string }
+  | { status: "success"; trips: TripSummary[] }
 
-type TripBucket = "current" | "upcoming" | "past"
+const BUCKETS: Array<{ phase: TripPhase; label: string }> = [
+  { phase: "now", label: "Happening now" },
+  { phase: "upcoming", label: "Upcoming" },
+  { phase: "past", label: "Past" },
+]
 
-interface TripMark {
-  value: string
-  label: string
-}
+const REST_CENTER: LngLat = { lat: 22, lng: 12 }
 
-interface TripRow {
-  trip: TripSummary
-  mark: TripMark
-  dayCount: number
-  range: string
-}
-
-function bucketFor(trip: TripSummary, today: string): TripBucket {
-  if (today >= trip.startDate && today <= trip.endDate) return "current"
-  if (today < trip.startDate) return "upcoming"
-  return "past"
-}
-
-function markFor(trip: TripSummary, bucket: TripBucket, today: string, dayCount: number, timezone: string): TripMark {
-  if (bucket === "past") {
-    const year = trip.endDate.slice(0, 4)
-    return { value: year, label: `Ended in ${year}` }
-  }
-  if (bucket === "current") {
-    const day = Math.min(dayCountInclusive(trip.startDate, today), dayCount)
-    return {
-      value: `Day ${day} of ${dayCount}`,
-      label: `Under way, day ${day} of ${dayCount}`,
-    }
-  }
-  const days = daysUntilIn(trip.startDate, timezone)
-  if (days <= 0) return { value: "Today", label: "Departs today" }
-  return {
-    value: days === 1 ? "Tomorrow" : `In ${days} days`,
-    label: `${plural(days, "day", "days")} until departure`,
-  }
-}
-
-function rangeFor(trip: TripSummary, bucket: TripBucket): string {
-  const sameYear = trip.startDate.slice(0, 4) === trip.endDate.slice(0, 4)
-  return formatRangeFull(trip.startDate, trip.endDate, { year: !(bucket === "past" && sameYear) })
-}
-
-function plural(count: number, one: string, many: string): string {
-  return `${count} ${count === 1 ? one : many}`
-}
-
-/** Three-letter luggage code from the first destination ("Tokyo" → "TOK"). */
-function tagCode(trip: TripSummary): string {
-  const first = trip.destinations[0] ?? trip.name
-  const latin = first.normalize("NFKD").replace(/[^A-Za-z]/g, "")
-  return (latin || first).slice(0, 3).toUpperCase()
-}
-
-function matches(trip: TripSummary, q: string): boolean {
-  if (!q) return true
-  const hay = [trip.name, ...trip.destinations, ...trip.tags].join(" ").normalize("NFKC").toLowerCase()
-  return q
-    .normalize("NFKC")
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean)
-    .every((word) => hay.includes(word))
-}
-
-function typingTarget(target: EventTarget | null): boolean {
+function typing(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
-  return Boolean(target.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [role="alertdialog"]'))
+  return ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable || Boolean(target.closest('[role="dialog"]'))
 }
 
-function trapDialogKeys(onClose: () => void) {
-  return (e: KeyboardEvent<HTMLElement>) => {
-    if (e.key === "Escape") onClose()
-    if (e.key !== "Tab") return
-    const root = e.currentTarget
-    const buttons = [...root.querySelectorAll<HTMLElement>("button:not([disabled])")]
-    if (buttons.length < 2) return
-    const first = buttons[0]!
-    const last = buttons[buttons.length - 1]!
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault()
-      last.focus()
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault()
-      first.focus()
-    }
-  }
-}
-
-function DeleteErrorBanner({
-  trip,
-  message,
-  deleting,
-  onClose,
-  onRetry,
-  focusOnMount,
-}: {
-  trip: TripSummary
-  message: string
-  deleting: boolean
-  onClose: () => void
-  onRetry: () => void
-  focusOnMount: (el: HTMLButtonElement | null) => void
-}) {
-  return (
-    <div {...sx(alertErrorClass)} role="alert" onKeyDown={trapDialogKeys(onClose)}>
-      <div {...sx(styles.deleteErrorRow)}>
-        <p {...sx(styles.minW0, wrapAnywhereClass)}>
-          Couldn’t delete <span {...sx(styles.fontSemiboldSpan)}>{trip.name}</span>. Nothing was removed, so you can try
-          again. ({message})
-        </p>
-        <div {...sx(styles.deleteActions)}>
-          <button
-            type="button"
-            ref={focusOnMount}
-            {...sx(ghostOnTintBtnClass)}
-            onClick={onClose}
-            disabled={deleting}
-          >
-            Dismiss
-          </button>
-          <button type="button" {...sx(dangerBtnClass)} onClick={onRetry} disabled={deleting}>
-            <RotateCcw {...sx(styles.iconSm)} strokeWidth={2} aria-hidden />
-            {deleting ? "Deleting…" : "Retry delete"}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function DeleteConfirmBanner({
-  trip,
-  deleting,
-  onClose,
-  onDelete,
-  focusOnMount,
-}: {
-  trip: TripSummary
-  deleting: boolean
-  onClose: () => void
-  onDelete: () => void
-  focusOnMount: (el: HTMLButtonElement | null) => void
-}) {
-  return (
-    <div
-      {...sx(styles.deleteConfirmDialog)}
-      role="alertdialog"
-      aria-labelledby={`del-${trip.id}`}
-      onKeyDown={trapDialogKeys(onClose)}
-    >
-      <p id={`del-${trip.id}`} {...sx(styles.deleteDialogText, wrapAnywhereClass)}>
-        Delete <span {...sx(styles.fontSemiboldSpan)}>{trip.name}</span>? The whole itinerary goes with it.
-      </p>
-      <div {...sx(styles.deleteActions)}>
-        <button
-          type="button"
-          ref={focusOnMount}
-          {...sx(ghostOnTintBtnClass)}
-          onClick={onClose}
-          disabled={deleting}
-        >
-          Cancel
-        </button>
-        <button type="button" {...sx(dangerBtnClass)} onClick={onDelete} disabled={deleting}>
-          <Trash2 {...sx(styles.iconSm)} strokeWidth={2} aria-hidden />
-          {deleting ? "Deleting…" : "Delete"}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-/** A luggage tag: pastel stub with an eyelet and code, ticket body with the trip. */
-function LuggageTag({
-  row,
-  restoreTriggerFocus,
-  onConfirm,
-}: {
-  row: TripRow
-  restoreTriggerFocus: (el: HTMLButtonElement | null) => void
-  onConfirm: () => void
-}) {
-  const { trip, mark, dayCount, range } = row
-  const shared = trip.access !== "owner" || trip.collaborators.length > 0 || trip.sharedWithAllUsers
-  return (
-    <div {...sx("group", ix.tag)} data-trip-accent={resolveAccent(trip.accent)}>
-      <Link to={`/trips/${trip.slug ?? trip.id}`} {...sx(ix.tagLink)} aria-label={`Open ${trip.name}`} />
-      <div {...sx(ix.tagStub)} aria-hidden>
-        <span {...sx(ix.tagEyelet)} />
-        <span {...sx(ix.tagCode)}>{tagCode(trip)}</span>
-        <span {...sx(ix.tagStubMeta)}>{plural(dayCount, "day", "days")}</span>
-      </div>
-      <div {...sx(ix.tagBody)}>
-        <p {...sx(ix.tagMark)}>
-          <span {...sx(styles.srOnly)}>{mark.label}</span>
-          <FlipTime value={mark.value} playOnMount />
-        </p>
-        <h3 {...sx(ix.tagTitle, wrapAnywhereClass)}>{trip.name}</h3>
-        <p {...sx(ix.tagMeta, wrapAnywhereClass)}>
-          {trip.destinations.join(", ")}
-          <span aria-hidden> · </span>
-          {range}
-        </p>
-        <p {...sx(ix.tagStats)}>
-          {plural(trip.itemCount, "stop", "stops")}
-          {shared ? <span {...sx(ix.tagShared)}>Shared</span> : null}
-        </p>
-      </div>
-      {trip.access === "owner" && (
-        <div {...sx(ix.tagActions)}>
-          <button
-            type="button"
-            ref={restoreTriggerFocus}
-            data-trip-id={trip.id}
-            onClick={onConfirm}
-            {...sx(dangerIconBtnClass, styles.dangerIconHiddenSm)}
-            aria-label={`Delete ${trip.name}`}
-          >
-            <Trash2 {...sx(styles.iconSm)} strokeWidth={2} aria-hidden />
-          </button>
-        </div>
-      )}
-    </div>
-  )
+export function tripHref(trip: Pick<TripSummary, "id" | "slug">): string {
+  return `/trips/${trip.slug ?? trip.id}`
 }
 
 export function TripsIndex() {
+  useTabTitle("Trips")
+  const navigate = useNavigate()
   const getToken = useGetToken()
   const readToken = useLatestCallback(getToken)
   const authReady = useAuthReady()
-  const navigate = useNavigate()
-  const reduce = useReducedMotion()
+  const viewer = useViewer()
   const [state, setState] = useState<LoadState>({ status: "loading" })
-  const [isRefreshing, startTransition] = useTransition()
-  const [deleting, setDeleting] = useState<string | null>(null)
-  const [confirmId, setConfirmId] = useState<string | null>(null)
-  const [deleteError, setDeleteError] = useState<{ id: string; message: string } | null>(null)
-  const [deletedName, setDeletedName] = useState<string | null>(null)
-  const [pendingFocusId, setPendingFocusId] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const [, startTransition] = useTransition()
   const [query, setQuery] = useState("")
-  const deferredQuery = useDeferredValue(query.trim())
-  const newTripRef = useRef<HTMLAnchorElement>(null)
+  const deferredQuery = useDeferredValue(query)
+  const [hot, setHot] = useState<string | null>(null)
+  const [shareId, setShareId] = useState<string | null>(null)
+  const [confirm, setConfirm] = useState<TripSummary | null>(null)
+  const [busy, setBusy] = useState<string | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
-  const load = useCallback(() => setReloadKey((k) => k + 1), [])
-
-  const focusOnMount = useCallback((el: HTMLButtonElement | null) => el?.focus(), [])
-
-  const restoreTriggerFocus = useCallback(
-    (el: HTMLButtonElement | null) => {
-      if (!el || el.dataset.tripId !== pendingFocusId) return
-      el.focus()
-      setPendingFocusId(null)
-    },
-    [pendingFocusId],
-  )
 
   useEffect(() => {
+    if (!authReady) return
     let cancelled = false
-    void (async () => {
-      try {
-        const trips = await listTrips(readToken)
-        if (!cancelled) startTransition(() => setState({ status: "success", trips }))
-      } catch (err) {
-        if (!cancelled) setState({ status: "error", message: err instanceof Error ? err.message : String(err) })
-      }
-    })()
+    listTrips(readToken).then(
+      (trips) => !cancelled && startTransition(() => setState({ status: "success", trips })),
+      (err: unknown) => !cancelled && setState({ status: "error", message: err instanceof Error ? err.message : String(err) }),
+    )
     return () => {
       cancelled = true
     }
-  }, [readToken, authReady, reloadKey, startTransition])
+  }, [authReady, reloadKey, readToken])
 
-  // "/" finds a trip, "n" packs a new one.
   useEffect(() => {
-    function onKey(e: globalThis.KeyboardEvent) {
-      if (e.metaKey || e.ctrlKey || e.altKey || typingTarget(e.target)) return
-      if (e.key === "/") {
-        if (!searchRef.current) return
-        e.preventDefault()
-        searchRef.current.focus()
-      } else if (e.key === "n" || e.key === "N") {
-        e.preventDefault()
+    const onKey = (event: KeyboardEvent) => {
+      if (event.metaKey || event.ctrlKey || event.altKey || typing(event.target)) return
+      if (event.key === "/") {
+        event.preventDefault()
+        searchRef.current?.focus()
+      } else if (event.key === "n") {
+        event.preventDefault()
         navigate("/trips/new")
       }
     }
@@ -333,334 +85,377 @@ export function TripsIndex() {
     return () => window.removeEventListener("keydown", onKey)
   }, [navigate])
 
-  const allTrips = state.status === "success" ? state.trips : null
-  const visibleTrips = useMemo(() => allTrips?.filter((t) => matches(t, deferredQuery)) ?? null, [allTrips, deferredQuery])
-  const allPins = useTripPins(allTrips, readToken)
-  const pins = useMemo(() => {
-    const ids = new Set(visibleTrips?.map((t) => t.id))
-    return allPins.filter((p) => ids.has(p.id))
-  }, [allPins, visibleTrips])
+  useEffect(() => {
+    if (!toast) return
+    const timer = setTimeout(() => setToast(null), 4000)
+    return () => clearTimeout(timer)
+  }, [toast])
 
-  const grouped = useMemo(() => {
-    if (!visibleTrips) return null
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
-    const today = todayIsoIn(timezone)
-    const buckets: Record<TripBucket, TripRow[]> = { current: [], upcoming: [], past: [] }
-    for (const trip of visibleTrips) {
-      const bucket = bucketFor(trip, today)
-      const dayCount = trip.dayCount || dayCountInclusive(trip.startDate, trip.endDate)
-      buckets[bucket].push({
-        trip,
-        dayCount,
-        range: rangeFor(trip, bucket),
-        mark: markFor(trip, bucket, today, dayCount, timezone),
-      })
-    }
-    for (const key of Object.keys(buckets) as TripBucket[]) {
-      buckets[key].sort((a, b) => a.trip.startDate.localeCompare(b.trip.startDate) * (key === "past" ? -1 : 1))
-    }
-    return buckets
-  }, [visibleTrips])
+  const trips = state.status === "success" ? state.trips : null
+  const timed = useMemo(() => (trips ?? []).map((trip) => ({ trip, timing: tripTiming(trip) })), [trips])
 
-  const focus = useMemo(() => {
-    const next = grouped?.current[0] ?? grouped?.upcoming[0] ?? grouped?.past[0]
-    return (next && allPins.find((p) => p.id === next.trip.id)) ?? allPins[0] ?? null
-  }, [grouped, allPins])
-
-  const onlyPast =
-    grouped !== null && grouped.past.length > 0 && grouped.current.length + grouped.upcoming.length === 0
-
-  const onDelete = (trip: TripSummary) => {
-    void (async () => {
-      setDeleting(trip.id)
-      setDeleteError(null)
-      try {
-        await deleteTrip(readToken, trip.id)
-        setConfirmId(null)
-        newTripRef.current?.focus()
-        setDeletedName(trip.name)
-        setState((current) =>
-          current.status === "success"
-            ? { status: "success", trips: current.trips.filter((item) => item.id !== trip.id) }
-            : current,
-        )
-      } catch (err) {
-        setDeleteError({ id: trip.id, message: err instanceof Error ? err.message : String(err) })
-      } finally {
-        setDeleting(null)
-      }
-    })()
-  }
-
-  const closeConfirm = (tripId: string) => {
-    setConfirmId(null)
-    setDeleteError(null)
-    setPendingFocusId(tripId)
-  }
-
-  const renderState = (row: TripRow) => {
-    if (deleteError?.id === row.trip.id) {
-      return (
-        <DeleteErrorBanner
-          trip={row.trip}
-          message={deleteError.message}
-          deleting={deleting === row.trip.id}
-          onClose={() => closeConfirm(row.trip.id)}
-          onRetry={() => void onDelete(row.trip)}
-          focusOnMount={focusOnMount}
-        />
-      )
-    }
-    if (confirmId === row.trip.id) {
-      return (
-        <DeleteConfirmBanner
-          trip={row.trip}
-          deleting={deleting === row.trip.id}
-          onClose={() => closeConfirm(row.trip.id)}
-          onDelete={() => void onDelete(row.trip)}
-          focusOnMount={focusOnMount}
-        />
-      )
-    }
-    return null
-  }
-
-  const renderBucket = (id: string, title: string, rows: TripRow[], offset: number) => {
-    if (rows.length === 0) return null
-    return (
-      <section aria-labelledby={id}>
-        <h2 id={id} {...sx(typeSectionClass, ix.bucketTitle)}>
-          {title}
-          <span {...sx(ix.bucketCount)} aria-hidden>
-            {rows.length}
-          </span>
-        </h2>
-        <ul {...sx(ix.tagGrid)}>
-          {rows.map((row, i) => (
-            <motion.li
-              key={row.trip.id}
-              initial={reduce ? false : { opacity: 0, y: -14, rotate: i % 2 ? 3 : -3 }}
-              animate={{ opacity: 1, y: 0, rotate: 0 }}
-              transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 18, delay: revealDelay(offset + i) * 2 }}
-            >
-              {renderState(row) ?? (
-                <LuggageTag
-                  row={row}
-                  restoreTriggerFocus={restoreTriggerFocus}
-                  onConfirm={() => {
-                    setDeleteError(null)
-                    setConfirmId(row.trip.id)
-                  }}
-                />
-              )}
-            </motion.li>
-          ))}
-        </ul>
-      </section>
+  const filtered = useMemo(() => {
+    const q = deferredQuery.trim().toLowerCase()
+    if (!q) return timed
+    return timed.filter(({ trip }) =>
+      [trip.name, ...trip.destinations, ...trip.tags].some((text) => text.toLowerCase().includes(q)),
     )
+  }, [timed, deferredQuery])
+
+  const pins = useMemo<AtlasPin[]>(
+    () =>
+      filtered.flatMap(({ trip }) =>
+        trip.center
+          ? [{ id: trip.id, lat: trip.center.lat, lng: trip.center.lng, title: trip.name, variant: "trip" as const, accent: resolveAccent(trip.accent) }]
+          : [],
+      ),
+    [filtered],
+  )
+
+  const nextUp = useMemo(() => {
+    const live = timed.find((t) => t.timing.phase === "now")
+    if (live) return live
+    return timed.filter((t) => t.timing.phase === "upcoming").sort((x, y) => x.timing.daysAway - y.timing.daysAway)[0]
+  }, [timed])
+
+  const hotTrip = hot ? timed.find((t) => t.trip.id === hot)?.trip : undefined
+  const framePoints = hotTrip?.center ? [hotTrip.center] : pins
+  const upcomingCount = timed.filter((t) => t.timing.phase !== "past").length
+
+  const remove = async (trip: TripSummary) => {
+    setBusy(trip.id)
+    setActionError(null)
+    try {
+      await deleteTrip(readToken, trip.id)
+      setConfirm(null)
+      setToast(`Deleted “${trip.name}”.`)
+      setState((current) =>
+        current.status === "success" ? { status: "success", trips: current.trips.filter((t) => t.id !== trip.id) } : current,
+      )
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(null)
+    }
   }
 
-  const empty = state.status === "success" && state.trips.length === 0
-  const total = allTrips?.length ?? 0
-  const upcomingCount = grouped ? grouped.current.length + grouped.upcoming.length : 0
-  const noMatch = !empty && visibleTrips !== null && visibleTrips.length === 0
-  const pathFor = (id: string) => {
-    const trip = allTrips?.find((t) => t.id === id)
-    return trip ? `/trips/${trip.slug ?? trip.id}` : null
+  const duplicate = async (trip: TripSummary) => {
+    setBusy(trip.id)
+    try {
+      const { trip: full } = await getTrip(readToken, trip.id)
+      const copy = await duplicateTrip(readToken, full)
+      navigate(tripHref(copy))
+    } catch (err) {
+      setToast(`Couldn’t duplicate that trip. (${err instanceof Error ? err.message : String(err)})`)
+    } finally {
+      setBusy(null)
+    }
   }
+
+  const menuFor = (trip: TripSummary): MenuItem[] => [
+    { label: "Share…", icon: <Share2 size={16} strokeWidth={1.75} aria-hidden />, onSelect: () => setShareId(trip.id) },
+    { label: "Duplicate", icon: <Copy size={16} strokeWidth={1.75} aria-hidden />, onSelect: () => void duplicate(trip) },
+    ...(trip.access === "owner" && !trip.sharedWithAllUsers
+      ? [
+          {
+            label: "Delete trip…",
+            icon: <Trash2 size={16} strokeWidth={1.75} aria-hidden />,
+            danger: true,
+            separated: true,
+            onSelect: () => {
+              setActionError(null)
+              setConfirm(trip)
+            },
+          },
+        ]
+      : []),
+  ]
 
   return (
-    <div {...sx(ix.page)}>
-      <section {...sx(ix.hero)} aria-labelledby="trips-title">
-        <motion.div
-          {...sx(ix.heroCopy)}
-          initial={reduce ? false : { opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: REVEAL_DURATION * 2, ease: EASE }}
-        >
-          <p {...sx(ix.heroStamp)}>
-            {state.status === "success"
-              ? `${plural(total, "trip", "trips")} · ${upcomingCount} ahead`
-              : "Trip planner"}
+    <div {...sx(s.page)}>
+      <section {...sx(s.hero)} aria-labelledby="trips-hero-title">
+        <div {...sx(s.heroCopy)}>
+          <p {...sx(a.eyebrow)}>
+            {trips
+              ? trips.length === 0
+                ? "Atlas · Nothing pinned yet"
+                : `Atlas · ${plural(trips.length, "trip")}${upcomingCount > 0 ? ` · ${upcomingCount} ahead` : ""}`
+              : "Atlas"}
           </p>
-          <h1 id="trips-title" {...sx(ix.heroTitle)}>
-            {empty ? "No trips yet" : "Trips"}
+          <h1 id="trips-hero-title" {...sx(a.display, s.heroTitle)}>
+            Where to <span {...sx(a.italic)}>next?</span>
           </h1>
-          <p {...sx(ix.heroLede)}>
-            {empty
-              ? "Your planet is empty. Pack a bag and a pin drops where you’re going."
-              : "Every trip you’re planning, pinned to a squishy little planet. Poke it, stretch it, tap a pin to jump in."}
+          <p {...sx(s.heroLede)}>
+            Plan each day on a live 3D map, let AI draft the first pass, and share the whole thing with whoever’s coming.
           </p>
-          <div {...sx(ix.heroActions)}>
-            <Link ref={newTripRef} to="/trips/new" {...sx(primaryBtnClass)}>
-              <Plus {...sx(styles.iconSm)} strokeWidth={2.5} aria-hidden />
-              New trip
+          <div {...sx(s.heroActions)}>
+            <Link to="/trips/new" {...sx(a.btn, a.btnPrimary)}>
+              <Plus size={18} strokeWidth={2} aria-hidden />
+              Plan a trip
             </Link>
-            {!empty && (
-              <Link to="/trips/new?mode=ai" {...sx(secondaryBtnClass)}>
-                <Sparkles {...sx(styles.iconSm)} strokeWidth={2} aria-hidden />
-                Plan with AI
-              </Link>
-            )}
+            <Link to="/trips/new?ai=1" {...sx(a.btn, a.btnSecondary)}>
+              <Sparkles size={16} strokeWidth={1.75} aria-hidden />
+              Draft one with AI
+            </Link>
           </div>
-          {total > 0 && (
-            <div {...sx(ix.search)}>
-              <Search {...sx(ix.searchIcon)} strokeWidth={2.25} aria-hidden />
-              <label htmlFor="trips-search" {...sx(styles.srOnly)}>
-                Find a trip
-              </label>
-              <input
-                ref={searchRef}
-                id="trips-search"
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape" && query) {
-                    e.preventDefault()
-                    setQuery("")
-                  }
-                }}
-                placeholder="Find a trip, city or tag"
-                autoComplete="off"
-                {...sx(ix.searchInput)}
-              />
-              {query ? (
-                <button type="button" onClick={() => setQuery("")} {...sx(ix.searchClear)} aria-label="Clear search">
-                  <X {...sx(styles.iconSm)} strokeWidth={2.25} aria-hidden />
-                </button>
-              ) : (
-                <kbd {...sx(ix.kbd)} aria-hidden>
-                  /
-                </kbd>
-              )}
-            </div>
+          {nextUp && (
+            <Link to={tripHref(nextUp.trip)} {...sx(s.nextUp)} data-trip-accent={resolveAccent(nextUp.trip.accent)}>
+              <span {...sx(s.liveDot)} aria-hidden />
+              <span {...sx(a.truncate)}>
+                {nextUp.timing.phase === "now" ? "Now" : "Next"}: {nextUp.trip.name}
+              </span>
+              <span {...sx(a.mono, a.muted, a.noShrink)}>{nextUp.timing.label}</span>
+              <ArrowRight size={16} strokeWidth={1.75} aria-hidden {...sx(a.noShrink)} />
+            </Link>
           )}
-          <p {...sx(ix.shortcutHint)}>
-            <kbd {...sx(ix.kbdInline)}>N</kbd> new trip
-            {total > 0 ? (
-              <>
-                <span aria-hidden> · </span>
-                <kbd {...sx(ix.kbdInline)}>/</kbd> search
-              </>
-            ) : null}
-          </p>
-        </motion.div>
-        <div {...sx(ix.heroGlobe)}>
-          <TripsGlobe
-            mode="world"
+        </div>
+        <div {...sx(s.globe)}>
+          <AtlasMap
+            ambient
             pins={pins}
-            focus={focus}
+            framePoints={framePoints}
+            frameKey={`${hot ?? "all"}:${pins.map((p) => p.id).join(",")}`}
+            restCenter={REST_CENTER}
+            hotId={hot}
             onSelect={(id) => {
-              const to = pathFor(id)
-              if (to) navigate(to)
+              const trip = trips?.find((t) => t.id === id)
+              if (trip) navigate(tripHref(trip))
             }}
-            description={
-              pins.length
-                ? `A clay globe with pins for ${pins.map((p) => p.label).join(", ")}.`
-                : "A clay globe, waiting for its first pin."
+            onHover={setHot}
+            label={
+              pins.length > 0
+                ? `Globe with ${plural(pins.length, "trip")} pinned. Each pin opens its trip.`
+                : "Globe. Trips appear here as pins once they have a destination."
             }
           />
+          <p {...sx(a.eyebrow, s.globeCaption)} aria-hidden>
+            {hotTrip?.center ? `${hotTrip.name} · ${formatCoord(hotTrip.center)}` : "Drag to turn the globe"}
+          </p>
         </div>
       </section>
 
-      <p {...sx(styles.srOnly)} role="status">
-        {deletedName ? `Deleted ${deletedName}.` : ""}
-      </p>
-
       {state.status === "loading" && (
-        <div {...sx(ix.tagGrid, ix.listTop)} role="status" aria-label="Loading trips">
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} {...sx(ix.tagSkeleton, skeletonClass)} />
-          ))}
+        <div role="status" aria-label="Loading trips">
+          <div {...sx(s.listHead)}>
+            <h2 {...sx(a.display, s.listTitle)}>Your trips</h2>
+          </div>
+          <div {...sx(s.bucket, s.grid)}>
+            {[0, 1, 2].map((i) => (
+              <div key={i} {...sx(a.skeleton, s.skeletonCard)} />
+            ))}
+          </div>
         </div>
       )}
 
       {state.status === "error" && (
-        <div {...sx(ix.listTop, alertErrorClass)} role="alert">
-          <p {...sx(styles.minW0, wrapAnywhereClass)}>
-            Couldn’t load your trips. Check your connection, then try again. ({state.message})
-          </p>
-          <button type="button" {...sx(styles.linkSemiboldMt1, inlineLinkClass)} onClick={load}>
-            Retry
+        <div {...sx(s.empty)} role="alert">
+          <h2 {...sx(a.display, s.emptyTitle)}>Couldn’t load your trips</h2>
+          <p {...sx(a.body)}>Check your connection and try again. ({state.message})</p>
+          <button type="button" {...sx(a.btn, a.btnSecondary)} onClick={() => setReloadKey((k) => k + 1)}>
+            <RotateCcw size={16} strokeWidth={1.75} aria-hidden />
+            Try again
           </button>
         </div>
       )}
 
-      <p {...sx(styles.indexRefreshLine, mutedInkClass)} aria-live="polite">
-        {state.status === "success" && isRefreshing
-          ? "Refreshing…"
-          : deferredQuery && visibleTrips
-            ? `${plural(visibleTrips.length, "trip matches", "trips match")} “${deferredQuery}”.`
-            : ""}
-      </p>
+      {trips && trips.length === 0 && (
+        <div {...sx(s.empty)}>
+          <h2 {...sx(a.display, s.emptyTitle)}>
+            A blank <span {...sx(a.italic)}>map.</span>
+          </h2>
+          <p {...sx(a.body)}>Name a place and some dates. You can fill in the days yourself or have AI sketch them.</p>
+          <Link to="/trips/new" {...sx(a.btn, a.btnPrimary)}>
+            <Plus size={18} strokeWidth={2} aria-hidden />
+            Plan your first trip
+          </Link>
+        </div>
+      )}
 
-      {empty && (
-        <motion.div
-          {...sx(ix.emptyCard)}
-          initial={reduce ? false : { opacity: 0, y: 10, rotate: -2 }}
-          animate={{ opacity: 1, y: 0, rotate: 0 }}
-          transition={reduce ? { duration: 0 } : ENTER_SPRING}
-        >
-          <Suitcase />
-          <div {...sx(styles.minW0)}>
-            <h2 {...sx(typePageTitleClass)}>Where to next?</h2>
-            <p {...sx(ix.emptyCopy)}>
-              Start blank and build day by day, or ask AI for a structured draft you can reshape.
-            </p>
-            <div {...sx(ix.emptyActions)}>
-              <Link to="/trips/new?mode=ai" {...sx(primaryBtnClass)}>
-                <Sparkles {...sx(styles.iconSm)} strokeWidth={2} aria-hidden />
-                Plan with AI
-              </Link>
-              <Link to="/trips/new?mode=blank" {...sx(secondaryBtnClass)}>
-                Start blank
-              </Link>
-            </div>
+      {trips && trips.length > 0 && (
+        <section aria-labelledby="trips-list-title">
+          <div {...sx(s.listHead)}>
+            <h2 id="trips-list-title" {...sx(a.display, s.listTitle)}>
+              Your trips
+            </h2>
+            <label {...sx(s.search)}>
+              <Search size={16} strokeWidth={1.75} aria-hidden {...sx(a.noShrink)} />
+              <span {...sx(a.srOnly)}>Search trips</span>
+              <input
+                ref={searchRef}
+                type="search"
+                value={query}
+                placeholder="Search by name, place or tag"
+                {...sx(a.fieldBare)}
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    setQuery("")
+                    event.currentTarget.blur()
+                  }
+                }}
+              />
+              <kbd {...sx(s.kbd)}>/</kbd>
+            </label>
           </div>
-        </motion.div>
-      )}
 
-      {noMatch && (
-        <div {...sx(ix.noMatch)}>
-          <p {...sx(typeSectionClass)}>No trips match “{deferredQuery}”.</p>
-          <p {...sx(ix.emptyCopy)}>Try a city, a tag, or part of the trip name.</p>
-          <button type="button" onClick={() => setQuery("")} {...sx(ix.noMatchBtn, secondaryBtnClass)}>
-            Clear search
-          </button>
-        </div>
-      )}
-
-      {grouped && !empty && !noMatch && (
-        <div {...sx(ix.buckets)}>
-          {renderBucket("bucket-current", "Now", grouped.current, 0)}
-          {renderBucket("bucket-upcoming", "Upcoming", grouped.upcoming, grouped.current.length)}
-          {renderBucket("bucket-past", "Past", grouped.past, grouped.current.length + grouped.upcoming.length)}
-
-          {onlyPast && !deferredQuery && (
-            <Link to="/trips/new" {...sx('group', ghostBtnClass, ix.planNew)}>
-              Plan a new trip
-              <ArrowRight {...sx(styles.iconSm, hoverArrowClass)} strokeWidth={2} aria-hidden />
-            </Link>
+          {filtered.length === 0 && (
+            <div {...sx(s.empty)} role="status">
+              <p {...sx(a.body, a.ink)}>No trips match “{deferredQuery.trim()}”.</p>
+              <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} onClick={() => setQuery("")}>
+                Clear search
+              </button>
+            </div>
           )}
+
+          {BUCKETS.map(({ phase, label }) => {
+            const rows = filtered
+              .filter((t) => t.timing.phase === phase)
+              .sort((x, y) => (phase === "past" ? y.trip.startDate.localeCompare(x.trip.startDate) : x.trip.startDate.localeCompare(y.trip.startDate)))
+            if (rows.length === 0) return null
+            return (
+              <div key={phase} {...sx(s.bucket)}>
+                <div {...sx(s.bucketHead)}>
+                  <h3 {...sx(a.eyebrow)}>
+                    {label} · {rows.length}
+                  </h3>
+                  <span {...sx(s.bucketRule)} aria-hidden />
+                </div>
+                <ul {...sx(s.grid)}>
+                  {rows.map(({ trip, timing }, index) => {
+                    const tags = visibleTags(trip.tags)
+                    const points = (trip.points ?? []).map(([lng, lat]) => ({ lat, lng }))
+                    const shared = trip.sharedWithAllUsers || trip.collaborators.length > 0
+                    return (
+                      <li key={trip.id}>
+                        <article
+                          {...sx(s.card)}
+                          style={{ animationDelay: `${Math.min(index, 8) * 60}ms` }}
+                          data-trip-accent={resolveAccent(trip.accent)}
+                          onMouseEnter={() => setHot(trip.id)}
+                          onMouseLeave={() => setHot((current) => (current === trip.id ? null : current))}
+                        >
+                          <Link
+                            to={tripHref(trip)}
+                            {...sx(s.cardLink)}
+                            aria-label={`${trip.name}, ${formatRange(trip.startDate, trip.endDate)}`}
+                            onFocus={() => setHot(trip.id)}
+                            onBlur={() => setHot((current) => (current === trip.id ? null : current))}
+                          />
+                          <div {...sx(s.cardCover)}>
+                            <TripCover seed={trip.id} points={points.length > 0 ? points : trip.center ? [trip.center] : []} />
+                            <div {...sx(s.cardBadges)}>
+                              <span {...sx(s.badge)}>
+                                {timing.phase === "now" && <span {...sx(s.liveDot)} aria-hidden />}
+                                {timing.label}
+                              </span>
+                              {trip.status === "draft" && <span {...sx(s.badge)}>Draft</span>}
+                            </div>
+                          </div>
+                          <div {...sx(s.cardBody)}>
+                            <h4 {...sx(a.display, s.cardTitle, a.wrap)}>{trip.name}</h4>
+                            <p {...sx(a.mono, a.muted)}>
+                              {formatRange(trip.startDate, trip.endDate)} · {plural(dayCount(trip.startDate, trip.endDate), "day")}
+                            </p>
+                            <p {...sx(a.small, a.wrap)}>
+                              {trip.destinations.join(" · ")}
+                              {tags.length > 0 ? ` · ${tags.slice(0, 2).join(", ")}` : ""}
+                            </p>
+                          </div>
+                          <div {...sx(s.cardFoot)}>
+                            <span {...sx(a.row, a.small)}>
+                              {plural(trip.placeCount ?? 0, "pinned place")}
+                              {shared && (
+                                <span {...sx(a.chip)} title={trip.sharedWithAllUsers ? "Shared with everyone" : plural(trip.collaborators.length, "guest")}>
+                                  <Users size={12} strokeWidth={2} aria-hidden />
+                                  {trip.sharedWithAllUsers ? "Everyone" : trip.collaborators.length}
+                                </span>
+                              )}
+                            </span>
+                            <span {...sx(s.cardMenu)}>
+                              {busy === trip.id ? (
+                                <span {...sx(a.iconBtn)} role="status" aria-label="Working">
+                                  <Spinner />
+                                </span>
+                              ) : (
+                                <Menu
+                                  label={`Options for ${trip.name}`}
+                                  side="up"
+                                  trigger={<MoreHorizontal size={18} strokeWidth={1.75} aria-hidden />}
+                                  items={menuFor(trip)}
+                                />
+                              )}
+                            </span>
+                          </div>
+                        </article>
+                      </li>
+                    )
+                  })}
+                  {phase === BUCKETS.find((b) => filtered.some((t) => t.timing.phase === b.phase))?.phase && !deferredQuery.trim() && (
+                    <li>
+                      <Link to="/trips/new" {...sx(s.newCard)}>
+                        <span {...sx(s.newCardPlus)}>
+                          <Plus size={20} strokeWidth={1.75} aria-hidden />
+                        </span>
+                        <span {...sx(a.body, a.ink)}>Plan another trip</span>
+                        <span {...sx(a.small)}>
+                          or press <kbd {...sx(s.kbd)}>N</kbd>
+                        </span>
+                      </Link>
+                    </li>
+                  )}
+                </ul>
+              </div>
+            )
+          })}
+        </section>
+      )}
+
+      {shareId && (
+        <ShareDialog
+          open
+          tripId={shareId}
+          getToken={readToken}
+          viewerId={viewer.id}
+          onClose={() => {
+            setShareId(null)
+            setReloadKey((k) => k + 1)
+          }}
+          onLeft={() => {
+            setShareId(null)
+            setReloadKey((k) => k + 1)
+          }}
+        />
+      )}
+
+      <Modal
+        open={confirm !== null}
+        onClose={() => busy === null && setConfirm(null)}
+        title={confirm ? `Delete “${confirm.name}”?` : "Delete trip?"}
+        description="The itinerary, bookings and invite links are removed for everyone on the trip. This can’t be undone."
+        footer={
+          <>
+            <button type="button" {...sx(a.btn, a.btnSecondary)} disabled={busy !== null} onClick={() => setConfirm(null)}>
+              Keep trip
+            </button>
+            <button type="button" {...sx(a.btn, a.btnDanger)} disabled={busy !== null} onClick={() => confirm && void remove(confirm)}>
+              {busy !== null ? <Spinner /> : <Trash2 size={16} strokeWidth={1.75} aria-hidden />}
+              Delete trip
+            </button>
+          </>
+        }
+      >
+        {actionError ? (
+          <p {...sx(a.alert)} role="alert">
+            Couldn’t delete this trip. ({actionError})
+          </p>
+        ) : null}
+      </Modal>
+
+      {toast && (
+        <div {...sx(s.toast)} role="status">
+          {toast}
         </div>
       )}
     </div>
-  )
-}
-
-/** Little clay suitcase for the empty state, covered in stickers. */
-function Suitcase() {
-  return (
-    <svg viewBox="0 0 120 104" {...sx(ix.suitcase, "toy-wobble")} aria-hidden>
-      <rect x="44" y="6" width="32" height="16" rx="7" fill="none" stroke="#1f2440" strokeWidth="5" />
-      <rect x="10" y="18" width="100" height="78" rx="16" fill="#ffc3a6" stroke="#1f2440" strokeWidth="4" />
-      <path d="M10 46 H110" stroke="#1f2440" strokeWidth="3" strokeDasharray="6 5" />
-      <circle cx="34" cy="66" r="11" fill="#a9d8f5" stroke="#1f2440" strokeWidth="3" />
-      <rect x="62" y="56" width="30" height="20" rx="5" fill="#ffdd7f" stroke="#1f2440" strokeWidth="3" transform="rotate(-8 77 66)" />
-      <path d="M78 26 l6 10 l-12 0 z" fill="#a6e5c8" stroke="#1f2440" strokeWidth="2.5" strokeLinejoin="round" />
-      <circle cx="28" cy="98" r="5" fill="#1f2440" />
-      <circle cx="92" cy="98" r="5" fill="#1f2440" />
-    </svg>
   )
 }

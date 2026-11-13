@@ -8,7 +8,10 @@ import type {
   Trip,
   TripAccess,
   TripAppearance,
+  TripCenter,
   TripCollaborator,
+  TripInvite,
+  CollaboratorRole,
   TripDay,
   TripStatus,
   TripSummary,
@@ -30,6 +33,7 @@ export interface CreateTripInput {
   tags?: string[]
   description?: string
   collaborators?: TripCollaborator[]
+  center?: TripCenter
 }
 
 export const listTrips = (getToken: GetToken) =>
@@ -54,6 +58,7 @@ export type UpdateTripPatch = {
   slug?: string
   appearance?: TripAppearance
   description?: string | null
+  center?: TripCenter
 }
 
 export const updateTrip = (
@@ -70,6 +75,51 @@ export const updateTrip = (
 
 export const deleteTrip = (getToken: GetToken, id: string) =>
   request<{ ok: boolean }>(getToken, `/${encodeURIComponent(id)}`, { method: "DELETE" })
+
+export const createInvite = (getToken: GetToken, id: string, role: CollaboratorRole) =>
+  request<{ invite: TripInvite }>(getToken, `/${encodeURIComponent(id)}/invites`, {
+    method: "POST",
+    body: JSON.stringify({ role }),
+  }).then((r) => r.invite)
+
+export const revokeInvite = (getToken: GetToken, id: string, token: string) =>
+  request<{ ok: boolean }>(getToken, `/${encodeURIComponent(id)}/invites/${encodeURIComponent(token)}`, {
+    method: "DELETE",
+  })
+
+export const joinTrip = (getToken: GetToken, token: string, name?: string) =>
+  request<{ trip: { id: string; slug?: string; name: string }; access: TripAccess }>(
+    getToken,
+    `/join/${encodeURIComponent(token)}`,
+    { method: "POST", body: JSON.stringify(name ? { name } : {}) },
+  )
+
+export const leaveTrip = (getToken: GetToken, id: string) =>
+  request<{ ok: boolean }>(getToken, `/${encodeURIComponent(id)}/leave`, { method: "POST" })
+
+/** Copy a trip (days, look, place) into a new draft owned by the caller. */
+export async function duplicateTrip(getToken: GetToken, source: Trip): Promise<Trip> {
+  const created = await createTrip(getToken, {
+    name: `${source.name} (copy)`.slice(0, 160),
+    destinations: source.destinations,
+    startDate: source.startDate,
+    endDate: source.endDate,
+    timezone: source.timezone,
+    tags: source.tags,
+    description: source.description,
+    center: source.center,
+  })
+  const byDate = new Map(source.days.map((d) => [d.date, d]))
+  const stamp = () => `it-${crypto.randomUUID().slice(0, 8)}`
+  return updateTrip(getToken, created.id, {
+    appearance: source.appearance,
+    days: created.days.map((day) => {
+      const from = byDate.get(day.date)
+      if (!from) return day
+      return { ...from, id: day.id, items: from.items.map((item) => ({ ...item, id: stamp() })) }
+    }),
+  })
+}
 
 export const generateItinerary = (
   getToken: GetToken,

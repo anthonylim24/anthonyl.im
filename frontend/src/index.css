@@ -1010,7 +1010,7 @@ body {
 }
 
 /* Same unlayered `* { border-color }` problem as the landing: hand Trips back
-   to its StyleX layer. Keep this above the sibling-divider rules below. */
+   to its StyleX layer. */
 .trips,
 .trips * { border-color: revert-layer; }
 
@@ -1018,324 +1018,109 @@ body {
    global unlayered :focus-visible outline on its textarea so it isn't doubled. */
 .trips .trips-composer-input:focus-visible { outline: none; }
 
-/* Trips list stacks — hairline between siblings (StyleX cannot express > * + *). */
-.trips-property-table > * + * {
-  border-top-width: 1px;
-  border-top-style: solid;
-  border-top-color: var(--trips-border);
-}
-.trips-divide-stone > * + * {
-  border-top-width: 1px;
-  border-top-style: dashed;
-  border-top-color: var(--trips-border);
-}
-.trips-extracted-list-divide > * + * {
-  border-top-width: 1px;
-  border-top-style: dashed;
-  border-top-color: var(--trips-border);
-}
-
 /* ═══════════════════════════════════════════════════════
-   TRIPS — toy-world travel diorama
-   Pastel papercraft and clay: luggage tags, passport stamps, cut-paper
-   stickers with an ink outline and a hard offset shadow, a squishy clay
-   planet in the hero. Sky, mint, peach and butter on deep ink.
+   TRIPS — the atlas
+   A cartographer's desk: cool chart paper, hairline rules, serif names set
+   like map labels, coordinates in mono, and one live 3D map per page. A
+   trip's accent is the only colour; everything else is ink and paper.
    ═══════════════════════════════════════════════════════ */
 
 .trips {
-  /* Toy palette — decoration fills. Text never sits on these without ink. */
-  --toy-sky: #a9d8f5;
-  --toy-mint: #a6e5c8;
-  --toy-peach: #ffc3a6;
-  --toy-butter: #ffdd7f;
-  --toy-lilac: #cdc1f7;
-  --toy-rose: #ffb3c4;
-  --toy-paper: #fffdf6;
-  --toy-ink: #1f2440;
-
-  --trips-canvas: #edf5fb;
-  --trips-surface: #fffdf6;
-  --trips-rail: #f7efd9;
-  --trips-ink: #1f2440;
-  --trips-ink-secondary: #454b6b;
-  --trips-ink-tertiary: #646a8a;
-  --trips-border: rgb(31 36 64 / 0.16);
-  /* Sticker outline + hard offset shadow. */
-  --trips-line: #1f2440;
-  --trips-shadow: #1f2440;
-  /* Ink that sits on a pastel fill — dark in both themes. */
-  --trips-fill-ink: #1f2440;
+  --trips-canvas: #f1f0eb;
+  --trips-surface: #faf9f6;
+  --trips-raised: #ffffff;
+  --trips-sunken: #e8e7e1;
+  --trips-rail: #e8e7e1;
+  --trips-ink: #14171a;
+  --trips-ink-secondary: #4d5259;
+  --trips-ink-tertiary: #696e75;
+  --trips-ink-faint: #9a9ea4;
+  --trips-border: rgb(20 23 26 / 0.1);
+  --trips-line: rgb(20 23 26 / 0.1);
+  --trips-line-strong: rgb(20 23 26 / 0.2);
+  --trips-shadow: rgb(20 23 26 / 0.14);
+  --trips-shadow-1: 0 1px 2px rgb(20 23 26 / 0.06), 0 0 0 1px rgb(20 23 26 / 0.04);
+  --trips-shadow-2: 0 10px 30px -12px rgb(20 23 26 / 0.22), 0 2px 6px -2px rgb(20 23 26 / 0.08);
+  --trips-shadow-3: 0 32px 80px -24px rgb(20 23 26 / 0.38), 0 8px 24px -12px rgb(20 23 26 / 0.18);
+  --trips-fill-ink: #14171a;
   --trips-band: var(--ta-fill);
-  --trips-band-ink: #1f2440;
-  --trips-accent: #1d5f91;
-  --trips-accent-hover: #164a72;
-  --trips-focus: rgb(29 95 145 / 0.55);
-  --trips-scrim: rgb(20 24 48 / 0.55);
+  --trips-band-ink: var(--ta-on);
+  --trips-accent: var(--ta);
+  --trips-accent-hover: var(--ta-strong);
+  --trips-focus: var(--ta-ring);
+  --trips-scrim: rgb(12 14 17 / 0.48);
+  --trips-danger: #b3261e;
+  --trips-danger-soft: rgb(179 38 30 / 0.08);
+  --trips-ok: #0b7a5c;
   --trips-radius: 0.875rem;
-  --trips-field-radius: 0.875rem;
+  --trips-radius-sm: 0.625rem;
+  --trips-radius-lg: 1.375rem;
+  --trips-field-radius: 0.75rem;
   --trips-chrome-h: 3.5rem;
-  /* Room above + below the floating phone header (0 once it docks full width). */
-  --trips-chrome-float: 0.875rem;
-  --trips-cover-dock-h: 2.75rem;
-  --trips-cover-h: 0px;
-  --trips-cover-t: 0;
-  --trips-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --trips-ease-out: cubic-bezier(0.33, 0, 0, 1);
-  /* Accent set. App chrome default: butter fill, sky-blue ink. */
-  --ta: #1d5f91;
-  --ta-strong: #164a72;
-  --ta-fill: var(--toy-butter);
-  --ta-soft: rgb(255 221 127 / 0.42);
-  --ta-ring: rgb(29 95 145 / 0.5);
+  --trips-display: "Instrument Serif", "Cormorant Garamond", "Iowan Old Style", Georgia, serif;
+  --trips-mono: "Fragment Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --trips-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --trips-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* App accent (no trip in scope): signal orange. */
+  --ta: #b8400f;
+  --ta-strong: #96330b;
+  --ta-fill: #f0582b;
+  --ta-on: #ffffff;
+  --ta-soft: rgb(240 88 43 / 0.1);
+  --ta-ring: rgb(240 88 43 / 0.55);
   --radius: 0.875rem;
   color-scheme: light dark;
   background-color: var(--trips-canvas);
   color: var(--trips-ink);
-  /* A soft sky wash from the top, a butter glow in the far corner. */
-  background-image:
-    radial-gradient(120% 60% at 50% -10%, rgb(169 216 245 / 0.55), transparent 60%),
-    radial-gradient(60% 40% at 100% 100%, rgb(255 221 127 / 0.18), transparent 70%);
-  background-attachment: fixed;
-  caret-color: var(--trips-accent);
-}
-
-@media (min-width: 640px) {
-  .trips {
-    --trips-chrome-h: 3.75rem;
-    --trips-chrome-float: 0px;
-  }
-}
-
-.trips:has(.cover-dock) {
-  --trips-cover-h: var(--trips-cover-dock-h);
+  caret-color: var(--ta-fill);
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
 }
 
 .trips ::selection {
-  background: var(--toy-butter);
-  color: var(--toy-ink);
+  background: color-mix(in srgb, var(--ta-fill) 28%, transparent);
+  color: var(--trips-ink);
 }
 
 html.dark .trips,
 .trips.dark,
 :root.dark .trips {
-  /* Night-time toy box: navy felt, cream ink, the same pastel stickers. */
-  --trips-canvas: #151933;
-  --trips-surface: #1f2448;
-  --trips-rail: #272c56;
-  --trips-ink: #f6f0de;
-  --trips-ink-secondary: #cdc9dc;
-  --trips-ink-tertiary: #a3a1bd;
-  --trips-border: rgb(246 240 222 / 0.14);
-  --trips-line: #070918;
-  --trips-shadow: #070918;
-  --trips-accent: #9fd3f5;
-  --trips-accent-hover: #c4e5fa;
-  --trips-focus: rgb(159 211 245 / 0.6);
-  --trips-scrim: rgb(4 6 18 / 0.7);
-  --ta: #9fd3f5;
-  --ta-strong: #c4e5fa;
-  --ta-soft: rgb(255 221 127 / 0.16);
-  --ta-ring: rgb(159 211 245 / 0.55);
-  background-image:
-    radial-gradient(120% 60% at 50% -10%, rgb(93 108 196 / 0.35), transparent 60%),
-    radial-gradient(60% 40% at 100% 100%, rgb(205 193 247 / 0.1), transparent 70%);
-}
-
-.trips .font-display {
-  font-family: "Bricolage Grotesque", "Archivo", system-ui, sans-serif;
-  font-optical-sizing: auto;
-  font-weight: 750;
-  font-stretch: 92%;
-  letter-spacing: -0.025em;
-}
-
-.trips .font-mono-trips {
-  font-family: "Fragment Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0;
-}
-
-.trips .cover-band {
-  background-color: var(--trips-band);
-  color: var(--trips-band-ink);
-}
-
-.trips .cover-title {
-  transform: scale(calc(1 - var(--trips-cover-t) * 0.08));
-  transform-origin: left center;
-}
-
-.trips .cover-extra,
-.trips .cover-cta {
-  opacity: calc(1 - var(--trips-cover-t));
-}
-
-.trips[data-chrome-compact="true"] .cover-extra,
-.trips[data-chrome-compact="true"] .cover-cta {
-  pointer-events: none;
-}
-
-.trips .cover-dock {
-  position: sticky;
-  top: calc(var(--trips-chrome-h) + var(--trips-chrome-float) + env(safe-area-inset-top, 0px));
-  z-index: 25;
-  height: var(--trips-cover-dock-h);
-  margin-bottom: calc(var(--trips-cover-dock-h) * -1);
-  display: flex;
-  align-items: center;
-  background-color: var(--trips-band);
-  color: var(--trips-band-ink);
-  border-bottom: 2px solid var(--trips-line);
-  pointer-events: none;
-  opacity: var(--trips-cover-t);
-  transform: translate3d(0, calc((1 - var(--trips-cover-t)) * -0.5rem), 0);
-}
-
-@media (max-width: 639px) {
-  /* A floating sticker under the floating header (see --edge-float-x). */
-  .trips .cover-dock {
-    margin-inline: var(--edge-float-x);
-    border: 2px solid var(--trips-line);
-    border-radius: var(--trips-radius);
-  }
-}
-
-.trips .cover-dock-title {
-  font-family: "Bricolage Grotesque", "Archivo", system-ui, sans-serif;
-  font-size: 1.125rem;
-  font-weight: 750;
-  font-stretch: 92%;
-  letter-spacing: -0.02em;
-  line-height: 1.15;
-}
-
-.trips .chrome-wordmark {
-  transform: scale(calc(1 - var(--trips-cover-t) * 0.08));
-  transform-origin: left center;
-}
-
-.trips .chrome-new-trip {
-  opacity: calc(1 - var(--trips-cover-t));
-}
-
-/* The wordmark's paper plane takes off a little on hover. */
-.trips .chrome-plane {
-  transition: transform 320ms var(--trips-spring);
-}
-
-@media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  .trips .chrome-wordmark:hover .chrome-plane {
-    transform: translate(3px, -3px) rotate(-8deg);
-  }
-}
-
-.trips[data-chrome-compact="true"] .chrome-new-trip {
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .trips .cover-title,
-  .trips .cover-dock,
-  .trips .chrome-wordmark {
-    transform: none;
-  }
-}
-
-
-.trips .snap-rail-sticky {
-  top: calc(var(--trips-chrome-h) + var(--trips-chrome-float) + var(--trips-cover-h) + env(safe-area-inset-top, 0px) + 0.5rem);
-}
-
-.trips .trips-flip-cell {
-  display: inline-block;
-  overflow: hidden;
-  text-align: center;
-  vertical-align: -0.06em;
-  perspective: 160px;
-}
-
-.trips .trips-flip-digit {
-  width: 1ch;
-}
-
-.trips .trips-flip-letter {
-  min-width: 0.55em;
-  padding-inline: 0.02em;
-}
-
-.trips .trips-flip-sep {
-  width: 0.36em;
-}
-
-.trips .trips-flip-glyph {
-  display: block;
-  transform-origin: 50% 40%;
-  backface-visibility: hidden;
-  animation: trips-flip-in 380ms var(--trips-spring) both;
-}
-
-@keyframes trips-flip-in {
-  from {
-    transform: rotateX(-86deg);
-    opacity: 0.28;
-  }
-  to {
-    transform: rotateX(0deg);
-    opacity: 1;
-  }
-}
-
-
-@media (prefers-reduced-motion: reduce) {
-  .trips .trips-flip-glyph {
-    animation: none;
-  }
-
-  ::view-transition-group(trips-enhance),
-  ::view-transition-old(trips-enhance),
-  ::view-transition-new(trips-enhance),
-  ::view-transition-group(trips-concierge),
-  ::view-transition-old(trips-concierge),
-  ::view-transition-new(trips-concierge) {
-    animation: none;
-  }
-}
-
-::view-transition-group(trips-enhance),
-::view-transition-group(trips-concierge) {
-  animation-duration: 420ms;
-  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-::view-transition-old(trips-enhance),
-::view-transition-new(trips-enhance),
-::view-transition-old(trips-concierge),
-::view-transition-new(trips-concierge) {
-  animation-duration: 380ms;
-  height: 100%;
-  overflow: clip;
-  mix-blend-mode: normal;
+  --trips-canvas: #0b0d10;
+  --trips-surface: #13161a;
+  --trips-raised: #1a1e23;
+  --trips-sunken: #07090b;
+  --trips-rail: #1a1e23;
+  --trips-ink: #eceae4;
+  --trips-ink-secondary: #b0b4ba;
+  --trips-ink-tertiary: #8b9097;
+  --trips-ink-faint: #5d6269;
+  --trips-border: rgb(255 255 255 / 0.1);
+  --trips-line: rgb(255 255 255 / 0.1);
+  --trips-line-strong: rgb(255 255 255 / 0.2);
+  --trips-shadow: rgb(0 0 0 / 0.5);
+  --trips-shadow-1: 0 1px 2px rgb(0 0 0 / 0.4), 0 0 0 1px rgb(255 255 255 / 0.06);
+  --trips-shadow-2: 0 12px 32px -12px rgb(0 0 0 / 0.7), 0 0 0 1px rgb(255 255 255 / 0.06);
+  --trips-shadow-3: 0 32px 80px -24px rgb(0 0 0 / 0.85), 0 0 0 1px rgb(255 255 255 / 0.08);
+  --trips-fill-ink: #14171a;
+  --trips-scrim: rgb(0 0 0 / 0.62);
+  --trips-danger: #ff8a80;
+  --trips-danger-soft: rgb(255 138 128 / 0.12);
+  --trips-ok: #4fd1ae;
+  --ta: #ff9166;
+  --ta-strong: #ffb394;
+  --ta-soft: rgb(240 88 43 / 0.16);
 }
 
 html[data-trips-scroll] {
-  scrollbar-color: rgb(31 36 64 / 0.38) transparent;
+  scrollbar-color: rgb(20 23 26 / 0.3) transparent;
   scrollbar-width: thin;
+  background-color: #f1f0eb;
 }
 
 html.dark[data-trips-scroll] {
-  scrollbar-color: rgb(246 240 222 / 0.38) transparent;
-}
-
-/* Below 768px every input is pinned to 16px so iOS doesn't zoom on focus.
-   The trip title is a product heading (32/36px), not a magazine cover. */
-.trips .trip-display-input {
-  font-size: 2rem !important;
-}
-
-@media (min-width: 640px) {
-  .trips .trip-display-input {
-    font-size: 2.25rem !important;
-  }
+  scrollbar-color: rgb(255 255 255 / 0.28) transparent;
+  background-color: #0b0d10;
 }
 
 /* Grows a small control's hit area to 44px without resizing it — for shared
@@ -1350,106 +1135,295 @@ html.dark[data-trips-scroll] {
   inset: -6px;
 }
 
-/* ───────────────────────────────────────────────────────
-   Per-trip accent
+/* ── Per-trip accent ──────────────────────────────────────
+   `data-trip-accent` on a trip-scoped subtree swaps one variable set.
+   `--ta-fill` paints pins, routes and cover art; `--ta-on` is the ink on
+   that fill; `--ta` is the text-safe tone (4.5:1 on canvas and surface). */
 
-   `data-trip-accent` on any trip-scoped subtree (overview, day page,
-   editor, concierge) swaps one variable set. `--ta-fill` is the pastel
-   sticker colour (pins, cover band, primary buttons), always under dark
-   ink. `--ta` is the ink-safe tone for accent text and dots, chosen to
-   clear 4.5:1 on canvas, surface and `--ta-soft` in both themes.
-   ─────────────────────────────────────────────────────── */
-
-.trips [data-trip-accent] {
-  --trips-accent: var(--ta);
-  --trips-accent-hover: var(--ta-strong);
-  --trips-focus: var(--ta-ring);
-  --trips-band: var(--ta-fill);
+.trips [data-trip-accent="rose"],
+.trips[data-trip-accent="rose"] {
+  --ta: #c0303a;
+  --ta-strong: #9b2530;
+  --ta-fill: #e5484d;
+  --ta-on: #ffffff;
+  --ta-soft: rgb(229 72 77 / 0.1);
+  --ta-ring: rgb(229 72 77 / 0.55);
 }
 
-.trips [data-trip-accent="rose"] {
-  --ta: #a92e48;
-  --ta-strong: #87223a;
-  --ta-fill: var(--toy-rose);
-  --ta-soft: rgb(255 179 196 / 0.42);
-  --ta-ring: rgb(169 46 72 / 0.5);
+.trips [data-trip-accent="amber"],
+.trips[data-trip-accent="amber"] {
+  --ta: #8f5a00;
+  --ta-strong: #704600;
+  --ta-fill: #f2a71b;
+  --ta-on: #1c1400;
+  --ta-soft: rgb(242 167 27 / 0.14);
+  --ta-ring: rgb(214 141 0 / 0.6);
 }
 
-.trips [data-trip-accent="amber"] {
-  --ta: #7f5200;
-  --ta-strong: #643f00;
-  --ta-fill: var(--toy-butter);
-  --ta-soft: rgb(255 221 127 / 0.45);
-  --ta-ring: rgb(127 82 0 / 0.5);
+.trips [data-trip-accent="emerald"],
+.trips[data-trip-accent="emerald"] {
+  --ta: #0b7a5c;
+  --ta-strong: #086048;
+  --ta-fill: #0f9b76;
+  --ta-on: #ffffff;
+  --ta-soft: rgb(15 155 118 / 0.1);
+  --ta-ring: rgb(15 155 118 / 0.55);
 }
 
-.trips [data-trip-accent="emerald"] {
-  --ta: #166a46;
-  --ta-strong: #105437;
-  --ta-fill: var(--toy-mint);
-  --ta-soft: rgb(166 229 200 / 0.45);
-  --ta-ring: rgb(22 106 70 / 0.5);
+.trips [data-trip-accent="sky"],
+.trips[data-trip-accent="sky"] {
+  --ta: #1c5fc4;
+  --ta-strong: #164b9c;
+  --ta-fill: #2f7bf0;
+  --ta-on: #ffffff;
+  --ta-soft: rgb(47 123 240 / 0.1);
+  --ta-ring: rgb(47 123 240 / 0.55);
 }
 
-.trips [data-trip-accent="sky"] {
-  --ta: #1b5a8a;
-  --ta-strong: #13466d;
-  --ta-fill: var(--toy-sky);
-  --ta-soft: rgb(169 216 245 / 0.45);
-  --ta-ring: rgb(27 90 138 / 0.5);
-}
-
-.trips [data-trip-accent="violet"] {
-  --ta: #5639ab;
-  --ta-strong: #432b8a;
-  --ta-fill: var(--toy-lilac);
-  --ta-soft: rgb(205 193 247 / 0.45);
-  --ta-ring: rgb(86 57 171 / 0.5);
+.trips [data-trip-accent="violet"],
+.trips[data-trip-accent="violet"] {
+  --ta: #5a3fd0;
+  --ta-strong: #4730a8;
+  --ta-fill: #7c5cff;
+  --ta-on: #ffffff;
+  --ta-soft: rgb(124 92 255 / 0.1);
+  --ta-ring: rgb(124 92 255 / 0.55);
 }
 
 html.dark .trips [data-trip-accent="rose"],
-.trips.dark [data-trip-accent="rose"],
-:root.dark .trips [data-trip-accent="rose"] {
-  --ta: #ffa9bb;
-  --ta-strong: #ffcbd6;
-  --ta-soft: rgb(255 179 196 / 0.14);
-  --ta-ring: rgb(255 169 187 / 0.55);
+html.dark .trips[data-trip-accent="rose"] {
+  --ta: #ff8f93;
+  --ta-strong: #ffb3b6;
+  --ta-soft: rgb(229 72 77 / 0.18);
 }
 
 html.dark .trips [data-trip-accent="amber"],
-.trips.dark [data-trip-accent="amber"],
-:root.dark .trips [data-trip-accent="amber"] {
-  --ta: #ffd774;
-  --ta-strong: #ffe7a8;
-  --ta-soft: rgb(255 221 127 / 0.14);
-  --ta-ring: rgb(255 215 116 / 0.55);
+html.dark .trips[data-trip-accent="amber"] {
+  --ta: #ffc457;
+  --ta-strong: #ffd98a;
+  --ta-soft: rgb(242 167 27 / 0.16);
 }
 
 html.dark .trips [data-trip-accent="emerald"],
-.trips.dark [data-trip-accent="emerald"],
-:root.dark .trips [data-trip-accent="emerald"] {
-  --ta: #92e4bf;
-  --ta-strong: #bdf0d8;
-  --ta-soft: rgb(166 229 200 / 0.14);
-  --ta-ring: rgb(146 228 191 / 0.55);
+html.dark .trips[data-trip-accent="emerald"] {
+  --ta: #4fd1ae;
+  --ta-strong: #86e2c9;
+  --ta-soft: rgb(15 155 118 / 0.2);
 }
 
 html.dark .trips [data-trip-accent="sky"],
-.trips.dark [data-trip-accent="sky"],
-:root.dark .trips [data-trip-accent="sky"] {
-  --ta: #a4d6f6;
-  --ta-strong: #c8e7fa;
-  --ta-soft: rgb(169 216 245 / 0.14);
-  --ta-ring: rgb(164 214 246 / 0.55);
+html.dark .trips[data-trip-accent="sky"] {
+  --ta: #84b6ff;
+  --ta-strong: #b0d0ff;
+  --ta-soft: rgb(47 123 240 / 0.2);
 }
 
 html.dark .trips [data-trip-accent="violet"],
-.trips.dark [data-trip-accent="violet"],
-:root.dark .trips [data-trip-accent="violet"] {
-  --ta: #c9bcff;
-  --ta-strong: #ded6ff;
-  --ta-soft: rgb(205 193 247 / 0.14);
-  --ta-ring: rgb(201 188 255 / 0.55);
+html.dark .trips[data-trip-accent="violet"] {
+  --ta: #b6a4ff;
+  --ta-strong: #d1c6ff;
+  --ta-soft: rgb(124 92 255 / 0.2);
+}
+
+/* ── Map pins ─────────────────────────────────────────────
+   Markers are created imperatively by map/engine.ts, so they are styled
+   here. MapLibre owns `transform` on the button; every visual transform
+   lives on the inner body. */
+
+.atlas-pin {
+  position: absolute;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: var(--ta-on);
+  font-family: var(--trips-mono);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.atlas-pin::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+}
+
+.atlas-pin:focus-visible {
+  outline: none;
+}
+
+.atlas-pin__body {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  background: var(--ta-fill);
+  border: 2px solid var(--trips-raised);
+  box-shadow: 0 6px 14px -4px rgb(0 0 0 / 0.45), 0 1px 2px rgb(0 0 0 / 0.3);
+  transition:
+    transform 320ms var(--trips-spring),
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+  transform-origin: 50% 100%;
+}
+
+.atlas-pin--stop .atlas-pin__body {
+  width: 30px;
+  height: 30px;
+  margin-bottom: 7px;
+  border-radius: 50% 50% 50% 50% / 50% 50% 50% 50%;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  position: relative;
+}
+
+.atlas-pin--stop .atlas-pin__body::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  width: 2px;
+  height: 7px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--trips-ink);
+  opacity: 0.55;
+}
+
+.atlas-pin--dot .atlas-pin__body {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  transform-origin: 50% 50%;
+}
+
+.atlas-pin--trip {
+  display: flex;
+  align-items: center;
+}
+
+.atlas-pin--trip::after {
+  content: "";
+  order: -1;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  margin-right: 6px;
+  border-radius: 999px;
+  background: var(--ta-fill);
+  border: 2px solid var(--trips-raised);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ta-fill) 26%, transparent);
+}
+
+.atlas-pin--trip .atlas-pin__body {
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--trips-raised);
+  color: var(--trips-ink);
+  font-family: "Inter", system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  box-shadow: var(--trips-shadow-2);
+  transform-origin: 0 50%;
+}
+
+.atlas-pin--hot .atlas-pin__body,
+.atlas-pin:hover .atlas-pin__body,
+.atlas-pin:focus-visible .atlas-pin__body {
+  transform: scale(1.18);
+  z-index: 2;
+}
+
+.atlas-pin:focus-visible .atlas-pin__body {
+  box-shadow: 0 0 0 3px var(--trips-raised), 0 0 0 5px var(--ta-fill);
+}
+
+.atlas-pin--active {
+  z-index: 3;
+}
+
+.atlas-pin--active .atlas-pin__body {
+  transform: scale(1.3);
+  background: var(--trips-ink);
+  color: var(--trips-canvas);
+}
+
+@keyframes atlas-pin-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(-22px) scale(0.5);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(2px) scale(1.12, 0.92);
+  }
+  100% {
+    transform: none;
+  }
+}
+
+.atlas-pin--fresh .atlas-pin__body {
+  animation: atlas-pin-drop 620ms var(--trips-spring) both;
+}
+
+/* Token host for portaled dialogs — must not paint a page canvas. */
+.trips.trips-portal {
+  background: none;
+  display: contents;
+}
+
+/* MapLibre chrome, restyled to the atlas. */
+.trips .maplibregl-map {
+  font-family: "Inter", system-ui, sans-serif;
+  background: transparent;
+}
+
+.trips .maplibregl-ctrl.maplibregl-ctrl-attrib {
+  background: color-mix(in srgb, var(--trips-surface) 80%, transparent);
+  color: var(--trips-ink-tertiary);
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.trips .maplibregl-ctrl.maplibregl-ctrl-attrib a {
+  color: inherit;
+}
+
+.trips .maplibregl-ctrl.maplibregl-ctrl-attrib.maplibregl-compact {
+  border-radius: 999px;
+  margin: 0 8px 8px 0;
+  min-height: 24px;
+  background: color-mix(in srgb, var(--trips-surface) 80%, transparent);
+}
+
+.trips .maplibregl-ctrl-attrib-button {
+  opacity: 0.55;
+}
+
+html.dark .trips .maplibregl-ctrl-attrib-button {
+  filter: invert(1);
+}
+
+.trips .maplibregl-cooperative-gesture-screen {
+  font-size: 0.875rem;
+  background: var(--trips-scrim);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-pin__body {
+    transition: none;
+  }
+  .atlas-pin--fresh .atlas-pin__body {
+    animation: none;
+  }
 }
 
 /* ── Toy-world decoration (StyleX can't express masks with repeats) ── */
