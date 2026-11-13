@@ -1,668 +1,372 @@
-import { useTabTitle } from "@/hooks/useTabTitle"
-import { sx } from '@/lib/utils'
-import { styles } from './trips.stylex'
-import { pack as pk } from './toy.stylex'
-import { useEffect, useMemo, useRef, useState, useTransition } from "react"
-import { useNavigate, useSearchParams } from "react-router-dom"
-import { AnimatePresence, motion, useReducedMotion } from "motion/react"
-import { ChevronDown, Loader2, type LucideIcon, PenLine, Sparkles } from "lucide-react"
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
+import { ArrowRight, Check, Sparkles } from "lucide-react"
+import { sx } from "@/styles/merge"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
+import { useTabTitle } from "@/hooks/useTabTitle"
 import { useGetToken } from "@/lib/safeAuth"
-import { createTrip, generateItinerary } from "./tripsApi"
-import { CoverDock } from "./components/CoverDock"
-import { DateRangeField } from "./components/DateRangeField"
-import { TimezoneField } from "./components/TimezoneField"
-import { TripsGlobe, type GlobePin } from "./scene/TripsGlobe"
-import { TOY, lookupPlace, type LatLng } from "./scene/worldMap"
-import { DEFAULT_ITINERARY_PROMPT, type GeneratePreferences } from "./types"
-import {
-  EASE,
-  REVEAL_DURATION,
-  accentIconClass,
-  alertErrorClass,
-  coverBandClass,
-  ghostBtnClass,
-  hintClass,
-  inputClass,
-  labelClass,
-  pageClass,
-  primaryBtnClass,
-  secondaryBtnClass,
-  segmentOptionClass,
-  segmentTrackClass,
-  sheetRuleClass,
-  spinnerClass,
-  stampChipClass,
-  wrapAnywhereClass,
-  displayInputClass,
-} from "./ui"
+import { createTrip, generateItinerary, updateTrip } from "./tripsApi"
+import { addDays, dayCount, formatRange, plural, TRIP_ACCENTS } from "./meta"
+import { AtlasMap } from "./map/AtlasMap"
+import type { AtlasPin } from "./map/geo"
+import type { CityResult } from "./geocode"
+import { CityField } from "./components/CityField"
+import { Spinner } from "./components/kit"
+import { BriefFields, briefToRequest, EMPTY_BRIEF, type DraftBrief } from "./workspace/AiPanels"
+import { a } from "./atlas.stylex"
+import { create as c } from "./index.stylex"
+import { ws } from "./workspace.stylex"
 
-const SHEET = pageClass("form")
+// Three answers make a trip: where, when, and whether AI should sketch it.
+// The map beside the form flies to each place as it's picked.
 
-type FieldKey = "name" | "destinations" | "dates" | "timezone"
-
-interface FieldProblem {
-  field: FieldKey
-  summary: string
-  message: string
+interface Place {
+  name: string
+  city?: CityResult
 }
 
-function FieldError({
-  problem,
-  id,
-  className = styles.fieldError,
-}: {
-  problem: FieldProblem | null
-  id: string
-  className?: Parameters<typeof sx>[0]
-}) {
-  if (!problem) return null
-  return (
-    <p id={id} {...sx(className)}>
-      {problem.message}
-    </p>
-  )
-}
-
-const PREFERENCE_FIELDS: Array<{ key: keyof GeneratePreferences; label: string; placeholder: string }> = [
-  { key: "pace", label: "Pace", placeholder: "Relaxed mornings, busy afternoons" },
-  { key: "budget", label: "Budget", placeholder: "Mid-range, splurge on 2 dinners" },
-  { key: "interests", label: "Interests", placeholder: "Food, architecture, vintage shopping" },
-  { key: "food", label: "Food", placeholder: "No raw fish; loves noodles" },
-  { key: "mobility", label: "Mobility", placeholder: "Lots of walking OK; avoid stairs" },
-  { key: "mustSee", label: "Must-see", placeholder: "Teamlab, a sumo match" },
-  { key: "avoid", label: "Avoid", placeholder: "Long museum days, tourist traps" },
-  { key: "lodging", label: "Hotel / base", placeholder: "Park Hyatt, Shinjuku" },
-  { key: "transport", label: "Transport", placeholder: "Trains + walking, no rental car" },
+const LENGTHS = [
+  { label: "Weekend", days: 3 },
+  { label: "5 days", days: 5 },
+  { label: "1 week", days: 7 },
+  { label: "2 weeks", days: 14 },
 ]
 
-interface ModeOption {
-  id: "ai" | "blank"
-  title: string
-  body: string
-  Icon: LucideIcon
-  recommended?: boolean
-}
-
-const MODE_OPTIONS: ModeOption[] = [
-  {
-    id: "ai",
-    title: "AI draft",
-    body: "Structured days and places you can edit.",
-    Icon: Sparkles,
-    recommended: true,
-  },
-  {
-    id: "blank",
-    title: "Blank days",
-    body: "Empty days for each date. Build it yourself.",
-    Icon: PenLine,
-  },
+const DRAFT_STEPS = [
+  "Creating your trip…",
+  "Reading up on the area…",
+  "Choosing places worth the detour…",
+  "Arranging each day so the route flows…",
+  "Pinning everything to the map…",
 ]
 
-function parseList(raw: string): string[] {
-  return raw
-    .split(/[,，]/)
-    .map((s) => s.trim())
-    .filter(Boolean)
+function localToday(): string {
+  const now = new Date()
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10)
+}
+
+function autoName(places: readonly Place[]): string {
+  const names = places.map((p) => p.name)
+  if (names.length === 0) return ""
+  if (names.length === 1) return names[0]!
+  if (names.length === 2) return `${names[0]} & ${names[1]}`
+  return `${names[0]}, ${names[1]} & more`
+}
+
+function hashIndex(text: string, size: number): number {
+  let h = 0
+  for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) >>> 0
+  return h % size
+}
+
+function useWide(): boolean {
+  const [wide, setWide] = useState(() => typeof window === "undefined" || !window.matchMedia || window.matchMedia("(min-width: 1024px)").matches)
+  useEffect(() => {
+    if (!window.matchMedia) return
+    const query = window.matchMedia("(min-width: 1024px)")
+    const sync = () => setWide(query.matches)
+    query.addEventListener("change", sync)
+    return () => query.removeEventListener("change", sync)
+  }, [])
+  return wide
 }
 
 export function TripCreate() {
   useTabTitle("New trip · Trips")
+  const navigate = useNavigate()
+  const [params] = useSearchParams()
   const getToken = useGetToken()
   const readToken = useLatestCallback(getToken)
-  const navigate = useNavigate()
-  const reduce = useReducedMotion()
-  const [params] = useSearchParams()
-  const initialMode = params.get("mode") === "blank" ? "blank" : "ai"
-
+  const wide = useWide()
+  const formId = useId()
+  const today = useMemo(localToday, [])
+  const [places, setPlaces] = useState<Place[]>([])
+  const [startDate, setStartDate] = useState(() => addDays(today, 21))
+  const [endDate, setEndDate] = useState(() => addDays(today, 25))
   const [name, setName] = useState("")
-  const [destinations, setDestinations] = useState("")
-  const [startDate, setStartDate] = useState("")
-  const [endDate, setEndDate] = useState("")
-  const [timezone, setTimezone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC")
-  const [tags, setTags] = useState("")
-  const [description, setDescription] = useState("")
-  const [mode, setMode] = useState<"blank" | "ai">(initialMode)
-  const [prompt, setPrompt] = useState("")
-  const [prefs, setPrefs] = useState<GeneratePreferences>({})
-  const [showPrefs, setShowPrefs] = useState(false)
-  const [showCoverDetails, setShowCoverDetails] = useState(false)
-  const [isPending, startTransition] = useTransition()
-  const [phase, setPhase] = useState<"creating" | "generating">("creating")
-  const busy: "idle" | "creating" | "generating" = isPending ? phase : "idle"
-  const [elapsed, setElapsed] = useState(0)
+  const [useAi, setUseAi] = useState(params.get("ai") !== "0")
+  const [brief, setBrief] = useState<DraftBrief>(EMPTY_BRIEF)
+  const [phase, setPhase] = useState<"idle" | "creating" | "drafting">("idle")
+  const [stepIndex, setStepIndex] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [touched, setTouched] = useState(false)
+  const submitting = useRef(false)
 
-  const groupRefs = useRef<Record<FieldKey, HTMLDivElement | null>>({
-    name: null,
-    destinations: null,
-    dates: null,
-    timezone: null,
-  })
-
-  const destinationList = useMemo(() => parseList(destinations), [destinations])
-  const problems = useMemo<FieldProblem[]>(() => {
-    const list: FieldProblem[] = []
-    if (!name.trim()) list.push({ field: "name", summary: "a trip name", message: "Give the trip a name." })
-    if (destinationList.length === 0)
-      list.push({
-        field: "destinations",
-        summary: "at least one destination",
-        message: "Name at least one destination.",
-      })
-    if (!startDate || !endDate)
-      list.push({ field: "dates", summary: "dates", message: "Pick the first and last day." })
-    else if (endDate < startDate)
-      list.push({
-        field: "dates",
-        summary: "an end date on or after the start",
-        message: "The last day can’t be before the first.",
-      })
-    if (!timezone.trim()) list.push({ field: "timezone", summary: "a time zone", message: "Pick a time zone." })
-    return list
-  }, [name, destinationList, startDate, endDate, timezone])
-
-  const valid = problems.length === 0
-  // Errors stay silent until the first submit attempt, then follow the fields.
-  const shown = touched ? problems : []
-  const errorFor = (field: FieldKey) => shown.find((p) => p.field === field) ?? null
-  const errorId = (field: FieldKey) => `trip-${field}-error`
-
-  const focusField = (field: FieldKey) => {
-    groupRefs.current[field]?.querySelector<HTMLElement>("input, button, textarea, select")?.focus()
-  }
-
-  const generating = busy === "generating"
-  const selectedMode = MODE_OPTIONS.find((opt) => opt.id === mode)
+  const busy = phase !== "idle"
+  const badRange = endDate < startDate
+  const days = badRange ? 0 : dayCount(startDate, endDate)
+  const tooLong = days > 60
+  const finalName = name.trim() || autoName(places)
+  const pins = useMemo<AtlasPin[]>(
+    () =>
+      places.flatMap((p) =>
+        p.city ? [{ id: p.city.id, lat: p.city.lat, lng: p.city.lng, title: p.name, variant: "trip" as const }] : [],
+      ),
+    [places],
+  )
 
   useEffect(() => {
-    if (!generating || reduce) return
-    const startedAt = Date.now()
-    const id = window.setInterval(() => setElapsed(Math.round((Date.now() - startedAt) / 1000)), 1000)
-    return () => window.clearInterval(id)
-  }, [generating, reduce])
+    if (phase !== "drafting") return
+    const timer = setInterval(() => setStepIndex((i) => Math.min(i + 1, DRAFT_STEPS.length - 1)), 6500)
+    return () => clearInterval(timer)
+  }, [phase])
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
     setTouched(true)
-    if (isPending) return
-    if (!valid) {
-      focusField(problems[0].field)
-      return
-    }
+    if (submitting.current || places.length === 0 || badRange || tooLong || !finalName) return
+    submitting.current = true
     setError(null)
-    startTransition(async () => {
-      setPhase("creating")
-      try {
-        const trip = await createTrip(readToken, {
-          name: name.trim(),
-          destinations: destinationList,
-          startDate,
-          endDate,
-          timezone,
-          tags: parseList(tags),
-          description: description.trim() || undefined,
-        })
-        if (mode === "ai") {
-          setElapsed(0)
-          setPhase("generating")
-          const preferences = Object.fromEntries(
-            Object.entries(prefs).filter(([, v]) => v && v.trim()),
-          ) as GeneratePreferences
-          try {
-            const generated = await generateItinerary(readToken, trip.id, {
-              prompt: prompt.trim() || undefined,
-              preferences: Object.keys(preferences).length ? preferences : undefined,
-            })
-            const empty = generated.trip.days.every((d) => d.items.length === 0)
-            if (empty) {
-              navigate(`/trips/${trip.id}`, {
-                state: {
-                  notice: "The AI draft came back empty. Your days are ready; run Generate to try again.",
-                  retryGenerate: { prompt: prompt.trim() || undefined, preferences },
-                },
-              })
-              return
-            }
-          } catch (err) {
-            navigate(`/trips/${trip.id}`, {
-              state: {
-                notice: `Trip created, but the AI draft didn’t finish. Your days are empty; run Generate to try again. (${err instanceof Error ? err.message : String(err)})`,
-                retryGenerate: { prompt: prompt.trim() || undefined, preferences },
-              },
-            })
-            return
-          }
-          navigate(`/trips/${trip.id}`)
-          return
-        }
-        navigate(`/trips/${trip.id}`)
-      } catch (err) {
-        setError(
-          `Couldn’t create the trip. Nothing was saved, so you can submit again. (${err instanceof Error ? err.message : String(err)})`,
-        )
+    setPhase("creating")
+    setStepIndex(0)
+    const first = places.find((p) => p.city)?.city
+    try {
+      const trip = await createTrip(readToken, {
+        name: finalName,
+        destinations: places.map((p) => p.name),
+        startDate,
+        endDate,
+        timezone: first?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+        center: first ? { lat: first.lat, lng: first.lng } : undefined,
+      })
+      const path = `/trips/${trip.slug ?? trip.id}`
+      // A colour of its own, so the atlas isn't one hue. Best effort.
+      await updateTrip(readToken, trip.id, {
+        appearance: { accent: TRIP_ACCENTS[hashIndex(trip.id, TRIP_ACCENTS.length)] },
+      }).catch(() => undefined)
+      if (!useAi) {
+        navigate(path)
+        return
       }
-    })
+      setPhase("drafting")
+      setStepIndex(1)
+      try {
+        const generated = await generateItinerary(readToken, trip.id, briefToRequest(brief))
+        const stops = generated.trip.days.reduce((n, d) => n + d.items.length, 0)
+        navigate(path, {
+          state: {
+            notice:
+              stops > 0
+                ? `Drafted ${plural(stops, "stop")} across ${plural(generated.trip.days.length, "day")}. Everything is editable.`
+                : "The AI draft came back empty. Use “Draft with AI” to try again, or add stops yourself.",
+          },
+        })
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        navigate(path, {
+          state: {
+            notice: /GEMINI|GROQ|ai_not_configured|503/i.test(message)
+              ? "Your trip is ready. AI drafting isn’t switched on for this server, so the days start empty."
+              : `Your trip is ready, but the AI draft didn’t finish. Use “Draft with AI” to try again. (${message})`,
+          },
+        })
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+      setPhase("idle")
+      submitting.current = false
+    }
   }
 
+  const stepDone = [places.length > 0, !badRange && !tooLong, true]
+
   return (
-    <form onSubmit={onSubmit} {...sx(styles.createForm)} noValidate>
-      <CoverDock title={name.trim() || "New trip"} measure="form" />
-      <header {...sx('cover-band', coverBandClass, styles.coverBandHero)}>
-        <div {...sx(pk.headerGrid)}>
-          <div {...sx(pk.headerCopy)}>
-          <p {...sx(pk.stamp, 'cover-extra')}>New trip</p>
-          <h1 {...sx(pk.title, 'cover-extra')}>Pack your bag</h1>
-          <div {...sx(styles.createNameGroup)} ref={(el) => void (groupRefs.current.name = el)}>
-            <label htmlFor="trip-name" {...sx(styles.srOnly)}>
-              Trip name
-            </label>
-            <input
-              id="trip-name"
-              {...sx('trip-display-input', displayInputClass, styles.createBandNameInput, wrapAnywhereClass)}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Tokyo Long Weekend"
-              required
-              autoComplete="off"
-              aria-invalid={errorFor("name") ? true : undefined}
-              aria-describedby={errorFor("name") ? errorId("name") : undefined}
-            />
-            <FieldError problem={errorFor("name")} id={errorId("name")} className={styles.bandFieldError} />
-          </div>
-          </div>
-          <PackedSuitcase destinations={destinationList} />
-        </div>
-      </header>
+    <div {...sx(ws.root)}>
+      <div {...sx(ws.pane)}>
+        <form id={formId} {...sx(c.form)} onSubmit={(event) => void submit(event)} noValidate>
+          <header {...sx(a.stack)}>
+            <p {...sx(a.eyebrow)}>New trip</p>
+            <h1 {...sx(a.display, c.title)}>
+              Where <span {...sx(a.italic)}>to?</span>
+            </h1>
+          </header>
 
-      <div {...sx(SHEET)}>
-        <div {...sx(styles.createFieldsStack)}>
-          <div ref={(el) => void (groupRefs.current.destinations = el)}>
-            <label htmlFor="trip-dest" {...sx(labelClass)}>
-              Destinations
-            </label>
-            <input
-              id="trip-dest"
-              {...sx(styles.inputMt2, inputClass)}
-              value={destinations}
-              onChange={(e) => setDestinations(e.target.value)}
-              placeholder="Tokyo, Hakone"
-              required
-              aria-invalid={errorFor("destinations") ? true : undefined}
-              aria-describedby={
-                errorFor("destinations") ? `${errorId("destinations")} trip-dest-hint` : "trip-dest-hint"
-              }
-            />
-            <FieldError problem={errorFor("destinations")} id={errorId("destinations")} />
-            <p id="trip-dest-hint" {...sx(hintClass)}>
-              Comma-separated. First destination usually sets the planning center of gravity.
-            </p>
-            {destinationList.length > 0 && (
-              <ul {...sx(styles.createTagList)} aria-label="Parsed destinations">
-                {destinationList.map((d) => (
-                  <li
-                    key={d}
-                    {...sx(stampChipClass, styles.createTagChip, wrapAnywhereClass)}
-                  >
-                    {d}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          <section {...sx(c.step)}>
+            <span {...sx(c.stepNum, stepDone[0] && c.stepDone)} aria-hidden>
+              {stepDone[0] ? <Check size={14} strokeWidth={2.25} /> : 1}
+            </span>
+            <div {...sx(c.stepBody)}>
+              <label htmlFor={`${formId}-where`} {...sx(c.stepLabel)}>
+                Destinations
+              </label>
+              <CityField
+                id={`${formId}-where`}
+                autoFocus
+                disabled={busy}
+                values={places.map((p) => p.name)}
+                invalid={touched && places.length === 0}
+                placeholder="Lisbon, Kyoto, Patagonia…"
+                onAdd={(placeName, city) => setPlaces((current) => [...current, { name: placeName, city }])}
+                onRemove={(index) => setPlaces((current) => current.filter((_, i) => i !== index))}
+              />
+              {touched && places.length === 0 ? (
+                <p {...sx(a.errorText)} role="alert" style={{ marginTop: 0 }}>
+                  Add at least one place to plan around.
+                </p>
+              ) : (
+                <p {...sx(a.small)}>Add as many stops as the trip has. The first one sets the time zone.</p>
+              )}
+            </div>
+          </section>
 
-          <div {...sx(styles.gridColsDateRange, sheetRuleClass)}>
-            <div ref={(el) => void (groupRefs.current.dates = el)}>
-              <span {...sx(labelClass)} id="trip-dates-label">
+          <section {...sx(c.step)}>
+            <span {...sx(c.stepNum, stepDone[1] && places.length > 0 && c.stepDone)} aria-hidden>
+              {stepDone[1] && places.length > 0 ? <Check size={14} strokeWidth={2.25} /> : 2}
+            </span>
+            <div {...sx(c.stepBody)}>
+              <span {...sx(c.stepLabel)} id={`${formId}-when`}>
                 Dates
               </span>
-              <div {...sx(styles.createFieldGap)}>
-                <DateRangeField
-                  startDate={startDate}
-                  endDate={endDate}
-                  invalid={errorFor("dates") !== null}
-                  describedBy={errorFor("dates") ? errorId("dates") : undefined}
-                  onChange={(s, e) => {
-                    setStartDate(s)
-                    setEndDate(e)
-                  }}
-                />
-              </div>
-              <FieldError problem={errorFor("dates")} id={errorId("dates")} />
-            </div>
-            <div ref={(el) => void (groupRefs.current.timezone = el)}>
-              <span {...sx(labelClass)} id="trip-tz-label">
-                Time zone
-              </span>
-              <div {...sx(styles.createFieldGap)}>
-                <TimezoneField
-                  value={timezone}
-                  onChange={setTimezone}
-                  invalid={errorFor("timezone") !== null}
-                  describedBy={errorFor("timezone") ? errorId("timezone") : undefined}
-                />
-              </div>
-              <FieldError problem={errorFor("timezone")} id={errorId("timezone")} />
-              <p {...sx(hintClass)}>Use the destination’s time zone.</p>
-            </div>
-          </div>
-
-          <div {...sx(sheetRuleClass)}>
-            <button
-              type="button"
-              onClick={() => setShowCoverDetails((s) => !s)}
-              {...sx(secondaryBtnClass)}
-              aria-expanded={showCoverDetails}
-              aria-controls="trip-cover-details"
-            >
-              {showCoverDetails ? "Hide cover details" : "More cover details"}
-              <ChevronDown
-                {...sx(
-                  styles.chevronDisclosure,
-                  styles.motionReduceTransitionNone,
-                  showCoverDetails ? styles.rotate180 : undefined,
-                )}
-                strokeWidth={1.5}
-                aria-hidden
-              />
-            </button>
-            <div id="trip-cover-details" hidden={!showCoverDetails}>
-              <div {...sx(styles.gridCols2SmGap4, styles.mt5)}>
-                <div>
-                  <label htmlFor="trip-tags" {...sx(labelClass)}>
-                    Tags <span {...sx(styles.optionalLabel)}>(optional)</span>
-                  </label>
+              <div {...sx(c.dates)} role="group" aria-labelledby={`${formId}-when`}>
+                <label>
+                  <span {...sx(a.srOnly)}>First day</span>
                   <input
-                    id="trip-tags"
-                    {...sx(styles.inputMt2, inputClass)}
-                    value={tags}
-                    onChange={(e) => setTags(e.target.value)}
-                    placeholder="anniversary, food"
+                    type="date"
+                    required
+                    value={startDate}
+                    disabled={busy}
+                    {...sx(a.field)}
+                    onChange={(event) => {
+                      const next = event.target.value
+                      if (!next) return
+                      const length = badRange ? 4 : dayCount(startDate, endDate) - 1
+                      setStartDate(next)
+                      setEndDate(addDays(next, length))
+                    }}
                   />
-                </div>
-                <div>
-                  <label htmlFor="trip-desc" {...sx(labelClass)}>
-                    Notes <span {...sx(styles.optionalLabel)}>(optional)</span>
-                  </label>
-                  <textarea
-                    id="trip-desc"
-                    rows={2}
-                    {...sx(styles.inputMt2, inputClass)}
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Occasion, constraints, or anchors collaborators should know."
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <fieldset {...sx(styles.fieldsetMt8, sheetRuleClass)}>
-          <legend {...sx(labelClass)}>How should we start it?</legend>
-          <div {...sx(styles.segmentTrackMt3, segmentTrackClass)}>
-            {MODE_OPTIONS.map((opt) => {
-              const selected = mode === opt.id
-              return (
-                <label key={opt.id} {...sx(styles.cursorPointer, segmentOptionClass(selected))}>
-                  <input
-                    type="radio"
-                    name="mode"
-                    value={opt.id}
-                    checked={selected}
-                    onChange={() => setMode(opt.id)}
-                    {...sx(styles.srOnly)}
-                  />
-                  <opt.Icon
-                    {...sx(styles.iconSm, styles.shrink0, selected && opt.recommended ? accentIconClass : undefined)}
-                    strokeWidth={1.5}
-                    aria-hidden
-                  />
-                  {opt.title}
-                  {opt.recommended ? <span {...sx(styles.srOnly)}>, recommended</span> : null}
                 </label>
-              )
-            })}
-          </div>
-          {selectedMode ? (
-            <p {...sx(hintClass)}>
-              {selectedMode.recommended ? "Recommended. " : ""}
-              {selectedMode.body}
-            </p>
-          ) : null}
-        </fieldset>
-
-        {mode === "ai" && (
-          <motion.div
-            {...sx(styles.aiPanelMt5, sheetRuleClass)}
-            initial={reduce ? false : { opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: REVEAL_DURATION, ease: EASE }}
-          >
-            <div>
-              <label htmlFor="trip-prompt" {...sx(labelClass)}>
-                AI brief <span {...sx(styles.optionalLabel)}>(optional)</span>
-              </label>
-              <textarea
-                id="trip-prompt"
-                rows={3}
-                {...sx(styles.inputMt2, inputClass)}
-                value={prompt}
-                placeholder={DEFAULT_ITINERARY_PROMPT}
-                onChange={(e) => setPrompt(e.target.value)}
-                aria-describedby="trip-prompt-hint"
-              />
-              <p id="trip-prompt-hint" {...sx(hintClass)}>
-                Leave blank to use the balanced default shown here.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowPrefs((s) => !s)}
-              {...sx(secondaryBtnClass)}
-              aria-expanded={showPrefs}
-              aria-controls="trip-prefs"
-            >
-              {showPrefs ? "Hide traveler preferences" : "Add traveler preferences"}
-              <ChevronDown
-                {...sx(
-                  styles.chevronDisclosure,
-                  styles.motionReduceTransitionNone,
-                  showPrefs ? styles.rotate180 : undefined,
-                )}
-                strokeWidth={1.5}
-                aria-hidden
-              />
-            </button>
-            {showPrefs && (
-              <div id="trip-prefs" {...sx(styles.createPrefsGrid)}>
-                {PREFERENCE_FIELDS.map((f) => (
-                  <div key={f.key}>
-                    <label htmlFor={`pref-${f.key}`} {...sx(labelClass)}>
-                      {f.label}
-                    </label>
-                    <input
-                      id={`pref-${f.key}`}
-                      {...sx(styles.inputMt2, inputClass)}
-                      value={prefs[f.key] ?? ""}
-                      placeholder={f.placeholder}
-                      onChange={(e) => setPrefs((p) => ({ ...p, [f.key]: e.target.value }))}
-                    />
-                  </div>
+                <label>
+                  <span {...sx(a.srOnly)}>Last day</span>
+                  <input
+                    type="date"
+                    required
+                    min={startDate}
+                    value={endDate}
+                    disabled={busy}
+                    aria-invalid={badRange || tooLong || undefined}
+                    {...sx(a.field)}
+                    onChange={(event) => event.target.value && setEndDate(event.target.value)}
+                  />
+                </label>
+              </div>
+              <div {...sx(a.rowWrap)} role="group" aria-label="Trip length">
+                {LENGTHS.map((length) => (
+                  <button
+                    key={length.label}
+                    type="button"
+                    disabled={busy}
+                    aria-pressed={days === length.days}
+                    {...sx(a.pill, days === length.days && a.pillOn)}
+                    onClick={() => setEndDate(addDays(startDate, length.days - 1))}
+                  >
+                    {length.label}
+                  </button>
                 ))}
               </div>
-            )}
-          </motion.div>
-        )}
-
-        {error && (
-          <div {...sx(styles.alertMt5, alertErrorClass)} role="alert">
-            {error}
-          </div>
-        )}
-
-        <p {...sx(styles.createStatusLine, shown.length === 0 ? styles.createStatusEmpty : undefined)} role="status">
-          {shown.length > 0 ? `Still need ${shown.map((p) => p.summary).join(", ")}.` : ""}
-        </p>
-      </div>
-
-      <div {...sx(styles.createStickyFooter)}>
-        <div {...sx(styles.mxAuto, styles.createStickyBar)}>
-          <button type="submit" disabled={busy !== "idle"} {...sx(primaryBtnClass)}>
-            {busy === "idle" ? (
-              mode === "ai" ? (
-                <>
-                  <Sparkles {...sx(styles.iconSm)} strokeWidth={1.5} aria-hidden />
-                  Create & generate
-                </>
+              {badRange ? (
+                <p {...sx(a.errorText)} role="alert" style={{ marginTop: 0 }}>
+                  The last day is before the first. Pick a later date.
+                </p>
+              ) : tooLong ? (
+                <p {...sx(a.errorText)} role="alert" style={{ marginTop: 0 }}>
+                  Trips can run up to 60 days. Shorten the range, or split it into two trips.
+                </p>
               ) : (
-                "Create trip"
-              )
-            ) : (
-              <>
-                <Loader2 {...sx(styles.iconSm, spinnerClass)} strokeWidth={1.5} aria-hidden />
-                {busy === "creating" ? "Creating trip…" : "Generating itinerary…"}
-              </>
-            )}
-          </button>
-          <button type="button" onClick={() => navigate("/trips")} {...sx(ghostBtnClass)} disabled={busy !== "idle"}>
-            Cancel
-          </button>
-          {generating && (
-            <p
-              {...sx(styles.createGeneratingNote)}
-              role="status"
-              aria-live="polite"
+                <p {...sx(a.mono, a.muted)}>
+                  {formatRange(startDate, endDate)} · {plural(days, "day")}
+                </p>
+              )}
+            </div>
+          </section>
+
+          <section {...sx(c.step)}>
+            <span {...sx(c.stepNum, places.length > 0 && c.stepDone)} aria-hidden>
+              {places.length > 0 ? <Check size={14} strokeWidth={2.25} /> : 3}
+            </span>
+            <div {...sx(c.stepBody)}>
+              <label htmlFor={`${formId}-name`} {...sx(c.stepLabel)}>
+                Name <span {...sx(a.muted)} style={{ fontWeight: 400 }}>· optional</span>
+              </label>
+              <input
+                id={`${formId}-name`}
+                value={name}
+                maxLength={160}
+                disabled={busy}
+                placeholder={autoName(places) || "We’ll name it after the destination"}
+                {...sx(a.field)}
+                onChange={(event) => setName(event.target.value)}
+              />
+            </div>
+          </section>
+
+          <section {...sx(a.stack)} style={{ gap: "1rem" }}>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={useAi}
+              disabled={busy}
+              {...sx(c.aiToggle, useAi && c.aiToggleOn)}
+              onClick={() => setUseAi((v) => !v)}
             >
-              <span {...sx(styles.srOnly)}>
-                Generating your itinerary. This usually takes 20 to 40 seconds. Stay on this page.
+              <Sparkles size={20} strokeWidth={1.5} aria-hidden {...sx(a.noShrink, a.accentText)} />
+              <span {...sx(a.grow)}>
+                <span {...sx(a.body, a.ink)} style={{ fontWeight: 600, display: "block" }}>
+                  Draft the itinerary with AI
+                </span>
+                <span {...sx(a.small)} style={{ display: "block" }}>
+                  Real places, pinned and grouped into days. Takes about a minute, and you can edit all of it.
+                </span>
               </span>
-              <span aria-hidden {...sx(styles.fontMonoTrips, styles.tabularNums)}>
-                {reduce ? "Usually 20 to 40s. Stay on this page." : `Generating… ${elapsed}s · usually 20 to 40s`}
+              <span {...sx(c.switch, useAi && c.switchOn)} aria-hidden>
+                <span {...sx(c.knob, useAi && c.knobOn)} />
               </span>
+            </button>
+            {useAi && <BriefFields brief={brief} onChange={setBrief} disabled={busy} />}
+          </section>
+
+          {error && (
+            <p {...sx(a.alert)} role="alert">
+              Couldn’t create the trip. Check your connection and try again. ({error})
             </p>
           )}
+
+          <div {...sx(c.submitRow)}>
+            <button type="submit" {...sx(a.btn, a.btnPrimary)} disabled={busy}>
+              {busy ? <Spinner /> : useAi ? <Sparkles size={16} strokeWidth={1.75} aria-hidden /> : <ArrowRight size={16} strokeWidth={1.75} aria-hidden />}
+              {busy ? (phase === "drafting" ? "Drafting…" : "Creating…") : useAi ? "Create and draft itinerary" : "Create trip"}
+            </button>
+            {!busy && (
+              <Link to="/trips" {...sx(a.btn, a.btnGhost)}>
+                Cancel
+              </Link>
+            )}
+            <p {...sx(a.small, a.grow)} role="status" aria-live="polite">
+              {busy ? DRAFT_STEPS[stepIndex] : ""}
+            </p>
+          </div>
+        </form>
+      </div>
+
+      {wide && (
+        <div {...sx(ws.mapPane)}>
+          <AtlasMap
+            pins={pins}
+            frameKey={pins.map((p) => p.id).join(",")}
+            restCenter={{ lat: 24, lng: 10 }}
+            restZoom={1.5}
+            maxZoom={9.5}
+            padding={{ top: 120, right: 120, bottom: 120, left: 120 }}
+            label={pins.length > 0 ? `Map showing ${places.map((p) => p.name).join(", ")}` : "World map. It flies to each destination you add."}
+          >
+            {busy && (
+              <p {...sx(c.mapNote)} role="presentation">
+                <Spinner />
+                <span {...sx(a.truncate)}>{DRAFT_STEPS[stepIndex]}</span>
+              </p>
+            )}
+          </AtlasMap>
         </div>
-      </div>
-      <AnimatePresence>
-        {generating && <GeneratingOverlay key="generating" destinations={destinationList} elapsed={elapsed} />}
-      </AnimatePresence>
-    </form>
-  )
-}
-
-const STICKER_SPOTS = [
-  { left: "9%", top: "20%", rotate: -10 },
-  { left: "52%", top: "12%", rotate: 8 },
-  { left: "28%", top: "50%", rotate: 4 },
-  { left: "60%", top: "56%", rotate: -7 },
-  { left: "6%", top: "70%", rotate: 9 },
-  { left: "38%", top: "28%", rotate: -4 },
-]
-const STICKER_FILLS = [TOY.butter, TOY.mint, TOY.ocean, TOY.lilac, TOY.rose, TOY.paper]
-
-/** A clay suitcase that collects a sticker for every destination you type. */
-function PackedSuitcase({ destinations }: { destinations: string[] }) {
-  const reduce = useReducedMotion()
-  const shown = destinations.slice(0, STICKER_SPOTS.length)
-  return (
-    <div {...sx(pk.suitcase)} aria-hidden>
-      <span {...sx(pk.handle)} />
-      <div {...sx(pk.body)}>
-        <span {...sx(pk.strap, pk.strapLeft)} />
-        <span {...sx(pk.strap, pk.strapRight)} />
-        {shown.length === 0 && <span {...sx(pk.bodyHint)}>Add a destination for a sticker</span>}
-        <AnimatePresence>
-          {shown.map((d, i) => {
-            const spot = STICKER_SPOTS[i]!
-            return (
-              <motion.span
-                key={`${d}-${i}`}
-                {...sx(pk.sticker, i % 3 === 1 && pk.stickerRound)}
-                style={{ left: spot.left, top: spot.top, backgroundColor: STICKER_FILLS[i % STICKER_FILLS.length] }}
-                initial={reduce ? false : { scale: 0.2, rotate: spot.rotate - 40, opacity: 0 }}
-                animate={{ scale: 1, rotate: spot.rotate, opacity: 1 }}
-                exit={reduce ? { opacity: 0 } : { scale: 0.3, rotate: spot.rotate + 30, opacity: 0 }}
-                transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 520, damping: 15 }}
-              >
-                {d}
-              </motion.span>
-            )
-          })}
-        </AnimatePresence>
-      </div>
-      <span {...sx(pk.wheel, pk.wheelLeft)} />
-      <span {...sx(pk.wheel, pk.wheelRight)} />
+      )}
     </div>
-  )
-}
-
-const GEN_LINES = [
-  "Folding the paper plane…",
-  "Checking opening hours…",
-  "Pinning neighborhoods…",
-  "Plotting walking routes…",
-  "Picking dinner spots…",
-  "Packing the days…",
-]
-const GEN_FILLS = [TOY.rose, TOY.butter, TOY.mint, TOY.lilac, TOY.peach]
-const MAX_GEN_PINS = 12
-
-/** While the draft generates: the plane loops the globe and pins drop around the destinations. */
-function GeneratingOverlay({ destinations, elapsed }: { destinations: string[]; elapsed: number }) {
-  const reduce = useReducedMotion()
-  const key = destinations.join("|")
-  const anchors = useMemo(
-    () =>
-      key
-        .split("|")
-        .map((name) => ({ name, at: lookupPlace(name) }))
-        .filter((a): a is { name: string; at: LatLng } => a.at !== null),
-    [key],
-  )
-  const [count, setCount] = useState(1)
-  useEffect(() => {
-    if (reduce) return
-    const id = window.setInterval(() => setCount((n) => Math.min(MAX_GEN_PINS, n + 1)), 2500)
-    return () => window.clearInterval(id)
-  }, [reduce])
-  const pins = useMemo<GlobePin[]>(() => {
-    const base = anchors.length ? anchors : [{ name: "Somewhere new", at: { lat: 30, lng: 135 } }]
-    const n = reduce ? base.length : count
-    return Array.from({ length: n }, (_, i) => {
-      const a = base[i % base.length]!
-      const spread = i < base.length ? 0 : 2 + (i % 3)
-      return {
-        id: `gen-${i}`,
-        lat: a.at.lat + Math.sin(i * 2.3) * spread,
-        lng: a.at.lng + Math.cos(i * 1.7) * spread * 1.4,
-        fill: GEN_FILLS[i % GEN_FILLS.length]!,
-        label: a.name,
-      }
-    })
-  }, [anchors, count, reduce])
-
-  return (
-    <motion.div
-      {...sx(pk.overlay)}
-      aria-hidden
-      initial={reduce ? false : { opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.3, ease: EASE }}
-    >
-      <div {...sx(pk.overlayCard)}>
-        <div {...sx(pk.overlayGlobe)}>
-          <TripsGlobe mode="world" pins={pins} focus={anchors[0]?.at ?? null} description="" />
-        </div>
-        <p {...sx(pk.overlayTitle)}>Packing your itinerary</p>
-        <p {...sx(pk.overlayLine)}>{reduce ? "Usually 20 to 40 seconds." : GEN_LINES[Math.floor(elapsed / 4) % GEN_LINES.length]}</p>
-        <p {...sx(pk.overlayClock)}>
-          {reduce ? "Stay on this page." : `${elapsed}s · usually 20 to 40s · stay on this page`}
-        </p>
-      </div>
-    </motion.div>
   )
 }

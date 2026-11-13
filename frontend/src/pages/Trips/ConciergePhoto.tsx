@@ -2,9 +2,9 @@ import { useEffect, useId, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { X } from "lucide-react"
 import { lookupGooglePlacePhoto, lookupPhoto } from "../Korea/placePhoto"
-import { focusRingClass } from "./ui"
-import { sx } from '@/lib/utils'
-import { styles } from './trips.stylex'
+import { a } from "./atlas.stylex"
+import { c } from "./chat.stylex"
+import { sx } from "@/styles/merge"
 
 export async function lookupConciergePhoto(args: {
   name: string
@@ -67,7 +67,7 @@ export function ConciergePhotoThumb({
       type="button"
       onClick={() => onOpen(showImage ? url : null)}
       aria-label={`View photos of ${name}`}
-      {...sx(styles.photoThumbBtn, focusRingClass)}
+      {...sx(c.thumb)}
     >
       {showImage ? (
         <img
@@ -75,11 +75,11 @@ export function ConciergePhotoThumb({
           alt=""
           loading="lazy"
           decoding="async"
-          {...sx(styles.photoCover)}
+          {...sx(c.thumbImg)}
           onError={() => setFailed(true)}
         />
       ) : (
-        <span {...sx(styles.photoFallback)} aria-hidden>
+        <span {...sx(c.thumbFallback)} aria-hidden>
           {name.trim().slice(0, 1) || "·"}
         </span>
       )}
@@ -173,10 +173,11 @@ export function ConciergePhotoViewer({
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
-      {...sx(styles.photoViewerRoot)}
+      {...sx("trips", "trip-chat-portal", c.viewer)}
     >
-      <header {...sx(styles.photoViewerHeader)}>
-        <h2 id={titleId} {...sx(styles.photoViewerTitle)}>
+      <div {...sx(c.viewerBackdrop)} aria-hidden />
+      <header {...sx(c.viewerHeader)}>
+        <h2 id={titleId} {...sx(c.viewerTitle)}>
           {name}
         </h2>
         <button
@@ -184,18 +185,18 @@ export function ConciergePhotoViewer({
           type="button"
           onClick={onClose}
           aria-label="Close photos"
-          {...sx(styles.photoCloseBtn, focusRingClass)}
+          {...sx(a.iconBtn)}
         >
-          <X {...sx(styles.icon5)} />
+          <X {...sx(c.icon18)} strokeWidth={1.75} aria-hidden />
         </button>
       </header>
-      <div {...sx(styles.photoViewerBody)}>
+      <div {...sx(c.viewerBody)}>
         {status === "loading" ? (
-          <p {...sx(styles.photoViewerMuted)}>Looking up a photo…</p>
+          <p {...sx(c.viewerNote)}>Looking up a photo…</p>
         ) : url ? (
-          <img src={url} alt={name} decoding="async" {...sx(styles.photoViewerImg)} />
+          <img src={url} alt={name} decoding="async" {...sx(c.viewerImg)} />
         ) : (
-          <p {...sx(styles.photoViewerMutedCenter)}>
+          <p {...sx(c.viewerNote)}>
             No photo found for {name}. Try Maps for a street view.
           </p>
         )}

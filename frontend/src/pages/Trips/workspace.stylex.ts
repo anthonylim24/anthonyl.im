@@ -438,6 +438,8 @@ export const ws = stylex.create({
     letterSpacing: "0.12em",
     textTransform: "uppercase",
     color: "var(--trips-ink-tertiary)",
+    borderRadius: "0.25rem",
+    ":focus": { color: "var(--trips-ink)", boxShadow: "0 1px 0 0 var(--ta-fill)" },
     "::placeholder": { color: "var(--trips-ink-faint)" },
     [NARROW]: { fontSize: "1rem", letterSpacing: "0.04em" },
   },

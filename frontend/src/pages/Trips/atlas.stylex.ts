@@ -225,6 +225,7 @@ export const a = stylex.create({
     transitionDuration: "140ms",
     "::placeholder": { color: "var(--trips-ink-faint)" },
     ":focus": { borderColor: "var(--ta-fill)", boxShadow: "0 0 0 3px var(--ta-soft)" },
+    ":focus-within": { borderColor: "var(--ta-fill)", boxShadow: "0 0 0 3px var(--ta-soft)" },
     ":disabled": { opacity: 0.55 },
     "@media (min-width: 640px)": { fontSize: "0.9375rem" },
   },

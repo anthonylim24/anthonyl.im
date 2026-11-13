@@ -1018,6 +1018,15 @@ body {
    global unlayered :focus-visible outline on its textarea so it isn't doubled. */
 .trips .trips-composer-input:focus-visible { outline: none; }
 
+/* Every Trips control draws its own focus state (ring, border + halo, or the
+   shell's :focus-within ring); the global outline would double it. */
+.trips :focus-visible { outline: none; }
+
+/* Shared controls Trips doesn't own still need a visible ring. */
+.trips .trip-tap-44 > button:focus-visible {
+  box-shadow: 0 0 0 2px var(--trips-canvas), 0 0 0 4px var(--ta-ring);
+}
+
 /* ═══════════════════════════════════════════════════════
    TRIPS — the atlas
    A cartographer's desk: cool chart paper, hairline rules, serif names set
@@ -1121,6 +1130,16 @@ html[data-trips-scroll] {
 html.dark[data-trips-scroll] {
   scrollbar-color: rgb(255 255 255 / 0.28) transparent;
   background-color: #0b0d10;
+}
+
+/* Below 768px every input is pinned to 16px so iOS doesn't zoom on focus.
+   The editable trip and day titles are headings, so they opt back out. */
+.trips .trips-title-input {
+  font-size: clamp(2.25rem, 9vw, 3.25rem) !important;
+}
+
+.trips .trips-day-title-input {
+  font-size: clamp(1.875rem, 7vw, 2.5rem) !important;
 }
 
 /* Grows a small control's hit area to 44px without resizing it — for shared
@@ -1397,6 +1416,10 @@ html.dark .trips[data-trip-accent="violet"] {
   color: inherit;
 }
 
+.trips .maplibregl-ctrl-bottom-left .maplibregl-ctrl.maplibregl-ctrl-attrib.maplibregl-compact {
+  margin: 0 0 8px 8px;
+}
+
 .trips .maplibregl-ctrl.maplibregl-ctrl-attrib.maplibregl-compact {
   border-radius: 999px;
   margin: 0 8px 8px 0;
@@ -1422,94 +1445,6 @@ html.dark .trips .maplibregl-ctrl-attrib-button {
     transition: none;
   }
   .atlas-pin--fresh .atlas-pin__body {
-    animation: none;
-  }
-}
-
-/* ── Toy-world decoration (StyleX can't express masks with repeats) ── */
-
-
-/* Dashed flight path down a timeline; it marches unless motion is reduced. */
-.trips .toy-route {
-  background-image: linear-gradient(to bottom, var(--trips-ink-tertiary) 55%, transparent 55%);
-  background-size: 2px 10px;
-  background-repeat: repeat-y;
-  background-position: center top;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .trips .toy-route {
-    animation: toy-route-march 1.6s linear infinite;
-  }
-}
-
-@keyframes toy-route-march {
-  to {
-    background-position: center 10px;
-  }
-}
-
-/* Clay wobble for stickers on hover. */
-@keyframes toy-wobble {
-  0% { transform: rotate(0deg) scale(1); }
-  30% { transform: rotate(-4deg) scale(1.06, 0.95); }
-  55% { transform: rotate(3deg) scale(0.97, 1.04); }
-  80% { transform: rotate(-1deg) scale(1.01); }
-  100% { transform: rotate(0deg) scale(1); }
-}
-
-@media (prefers-reduced-motion: no-preference) and (hover: hover) {
-  .trips .toy-wobble:hover {
-    animation: toy-wobble 520ms var(--trips-ease-out);
-  }
-}
-
-/* Split action (button + disclosure): two buttons share one
-   outline. Unlayered, so it wins over the utilities' border-radius. */
-.trip-split > button {
-  border-radius: 0;
-}
-
-.trip-split > button:first-of-type {
-  border-start-start-radius: var(--trips-radius);
-  border-end-start-radius: var(--trips-radius);
-  padding-inline-end: 0.625rem;
-}
-
-.trip-split > button:last-of-type {
-  border-start-end-radius: var(--trips-radius);
-  border-end-end-radius: var(--trips-radius);
-  padding-inline: 0.5rem;
-  /* A chevron alone is narrower than the 44px touch floor; tightens with the
-     compact buttons from `sm`. */
-  min-width: 2.75rem;
-  /* Divider tracks the button's own text colour, so one rule serves the
-     filled and the bordered variant. */
-  border-inline-start: 1px solid color-mix(in srgb, currentColor 25%, transparent);
-}
-
-@media (min-width: 640px) {
-  .trip-split > button:last-of-type {
-    min-width: 2.75rem;
-  }
-}
-
-/* "This just changed" flash on items an applied AI suggestion touched. */
-@keyframes trip-flash {
-  from {
-    background-color: var(--ta-soft);
-  }
-  to {
-    background-color: transparent;
-  }
-}
-
-.trip-flash {
-  animation: trip-flash 2.6s cubic-bezier(0.33, 0, 0, 1);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .trip-flash {
     animation: none;
   }
 }

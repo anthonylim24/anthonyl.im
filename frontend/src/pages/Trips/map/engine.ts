@@ -1,4 +1,4 @@
-import { LngLatBounds, Map as MapLibre, Marker, setWorkerUrl, type GeoJSONSource } from "maplibre-gl"
+import { AttributionControl, LngLatBounds, Map as MapLibre, Marker, setWorkerUrl, type GeoJSONSource } from "maplibre-gl"
 import type { FeatureCollection } from "geojson"
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url"
 import "maplibre-gl/dist/maplibre-gl.css"
@@ -98,12 +98,22 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
     minZoom: 0.6,
     maxZoom: 18.5,
     maxPitch: 70,
-    attributionControl: { compact: true },
-    cooperativeGestures: ambient,
+    attributionControl: false,
+    // The hero globe turns under a mouse drag but never traps the page:
+    // no wheel zoom, and touch scrolls straight past it.
+    scrollZoom: !ambient,
+    doubleClickZoom: !ambient,
+    touchZoomRotate: !ambient,
+    touchPitch: !ambient,
+    keyboard: !ambient,
+    dragPan: !ambient || window.matchMedia?.("(pointer: fine)").matches !== false,
     dragRotate: !ambient,
     fadeDuration: reducedMotion ? 0 : 250,
     canvasContextAttributes: { antialias: true },
   })
+
+  // Bottom-left on working maps: the concierge button owns the other corner.
+  map.addControl(new AttributionControl({ compact: true }), ambient ? "bottom-right" : "bottom-left")
 
   const routeData = (): FeatureCollection =>
     route.length === 0

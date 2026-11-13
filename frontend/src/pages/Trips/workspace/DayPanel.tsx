@@ -163,7 +163,7 @@ export function DayPanel({
             value={day.title ?? ""}
             placeholder={`Name day ${dayIndex + 1}`}
             disabled={locked}
-            {...sx(s.titleInput, s.dayTitle)}
+            {...sx(s.titleInput, s.dayTitle, "trips-day-title-input")}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
                 event.preventDefault()

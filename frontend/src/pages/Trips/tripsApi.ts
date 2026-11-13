@@ -237,28 +237,3 @@ export const applySuggestions = (getToken: GetToken, id: string, runId: string, 
     `/${encodeURIComponent(id)}/enhancements/${encodeURIComponent(runId)}/apply`,
     { method: "POST", body: JSON.stringify({ suggestionIds }) },
   )
-
-const listForeignInstagramTripsEffect = Effect.fn("TripsService.listForeignInstagramTrips")(
-  function* (getToken: GetToken, currentTripId: string) {
-    const summaries = yield* Effect.tryPromise({
-      try: () => listTrips(getToken),
-      catch: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
-    })
-    const others = summaries.filter((s) => s.id !== currentTripId)
-    const loaded = yield* Effect.all(
-      others.map((s) =>
-        Effect.tryPromise({
-          try: () => getTrip(getToken, s.id).then((r) => r.trip),
-          catch: () => null as Trip | null,
-        }).pipe(Effect.catchAll(() => Effect.succeed<Trip | null>(null))),
-      ),
-      { concurrency: "unbounded" },
-    )
-    return loaded.filter((t): t is Trip => t != null)
-  },
-)
-
-/** Other trips' Instagram places, via list+get (routes that exist on production). */
-export function listForeignInstagramTrips(getToken: GetToken, currentTripId: string): Promise<Trip[]> {
-  return runPromise(listForeignInstagramTripsEffect(getToken, currentTripId))
-}

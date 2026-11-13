@@ -41,6 +41,7 @@ const PHOTOREAL_READY = Boolean(
 )
 const WIDE_QUERY = "(min-width: 1024px)"
 const MAP_PADDING = { top: 84, right: 72, bottom: 96, left: 72 }
+const MAP_PADDING_NARROW = { top: 76, right: 36, bottom: 120, left: 36 }
 
 function useWide(): boolean {
   const [wide, setWide] = useState(() => typeof window === "undefined" || !window.matchMedia || window.matchMedia(WIDE_QUERY).matches)
@@ -124,6 +125,15 @@ export function TripWorkspace() {
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [trip, dayIndex, basePath, navigate, dialog, activeId])
+
+  // Good news clears itself; anything that reads like a problem stays put.
+  const notice = editor.notice
+  useEffect(() => {
+    if (!notice || /couldn|didn|isn’t|not |fail|error/i.test(notice)) return
+    const timer = setTimeout(() => editor.setNotice(null), 9000)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notice])
 
   const tripCenter = useMemo<LngLat | null>(() => {
     if (!trip) return null
@@ -312,7 +322,7 @@ export function TripWorkspace() {
                 value={trip.name}
                 disabled={locked}
                 placeholder="Name this trip"
-                {...sx(s.titleInput, s.title)}
+                {...sx(s.titleInput, s.title, "trips-title-input")}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
                     event.preventDefault()
@@ -470,7 +480,7 @@ export function TripWorkspace() {
             restCenter={tripCenter ?? undefined}
             restZoom={tripCenter ? 10.5 : 1.4}
             maxZoom={focusPin ? 16.2 : undefined}
-            padding={MAP_PADDING}
+            padding={wide ? MAP_PADDING : MAP_PADDING_NARROW}
             activeId={activeId}
             hotId={hotId}
             onSelect={(id) => {
