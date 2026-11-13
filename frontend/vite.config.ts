@@ -42,7 +42,9 @@ export default defineConfig({
     // for that one intentionally-large vendor chunk.
     // The "three" chunk also carries the GLTF / DRACO / KTX2 loaders
     // + OrbitControls used by Map Mode's photorealistic tiles scene.
-    chunkSizeWarningLimit: 720,
+    // MapLibre (the Trips maps) is the largest lazy vendor chunk at ~1.07 MB
+    // (~290 kB gzip); the ceiling sits just above it.
+    chunkSizeWarningLimit: 1100,
     rollupOptions: {
       output: {
         // Rolldown's advancedChunks is the modern replacement for
@@ -64,6 +66,9 @@ export default defineConfig({
             // 3DTilesRendererJS only loads when Map Mode opens — keep
             // it in its own chunk so other Korea routes stay slim.
             { name: 'tiles3d', test: /[\\/]node_modules[\\/]3d-tiles-renderer[\\/]/, priority: 95 },
+            // MapLibre draws every Trips map; it loads with the first map, not
+            // with the Trips shell. The MLT/style-spec deps ride along.
+            { name: 'maplibre', test: /[\\/]node_modules[\\/](maplibre-gl|@maplibre|@mapbox)[\\/]/, priority: 94 },
             { name: 'react-vendor', test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/, priority: 90 },
             // motion/react is used by both Places (text-only) and MapMode
             // (heavy 3D). Without this group, rolldown buries motion inside

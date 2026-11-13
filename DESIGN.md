@@ -1,89 +1,140 @@
 ---
 name: anthonyl.im
-description: Four visual worlds in one SPA; this token set is the /trips toy-world travel diorama.
+description: Several visual worlds in one SPA; this token set is the /trips atlas (map-first trip planner).
 colors:
-  toy-sky: "#a9d8f5"
-  toy-mint: "#a6e5c8"
-  toy-peach: "#ffc3a6"
-  toy-butter: "#ffdd7f"
-  toy-lilac: "#cdc1f7"
-  toy-rose: "#ffb3c4"
-  toy-paper: "#fffdf6"
-  toy-ink: "#1f2440"
-  trips-canvas: "#edf5fb"
-  trips-surface: "#fffdf6"
-  trips-rail: "#f7efd9"
-  trips-ink: "#1f2440"
-  trips-ink-secondary: "#454b6b"
-  trips-ink-tertiary: "#646a8a"
-  trips-line: "#1f2440"
-  trips-accent: "#1d5f91"
-  trips-canvas-dark: "#151933"
-  trips-surface-dark: "#1f2448"
-  trips-rail-dark: "#272c56"
-  trips-ink-dark: "#f6f0de"
-  trips-line-dark: "#070918"
-  trips-accent-dark: "#9fd3f5"
+  trips-canvas: "#f1f0eb"
+  trips-surface: "#faf9f6"
+  trips-raised: "#ffffff"
+  trips-sunken: "#e8e7e1"
+  trips-ink: "#14171a"
+  trips-ink-secondary: "#4d5259"
+  trips-ink-tertiary: "#696e75"
+  trips-line: "rgb(20 23 26 / 0.1)"
+  trips-canvas-dark: "#0b0d10"
+  trips-surface-dark: "#13161a"
+  trips-raised-dark: "#1a1e23"
+  trips-sunken-dark: "#07090b"
+  trips-ink-dark: "#eceae4"
+  trips-ink-secondary-dark: "#b0b4ba"
+  trips-ink-tertiary-dark: "#8b9097"
+  trips-line-dark: "rgb(255 255 255 / 0.1)"
+  ta-fill: "#f0582b"
+  ta: "#b8400f"
+  ta-dark: "#ff9166"
+  accent-rose-poppy: "#e5484d"
+  accent-amber-saffron: "#f2a71b"
+  accent-emerald-jade: "#0f9b76"
+  accent-sky-cobalt: "#2f7bf0"
+  accent-violet-iris: "#7c5cff"
 typography:
-  display: "Bricolage Grotesque 750–800, font-stretch 84–92%"
-  mono: "Fragment Mono — times, codes, stamps, kbd hints"
-  body: "Inter (site body)"
+  display: "Instrument Serif (--trips-display); italic for the emphasised word"
+  mono: "Fragment Mono (--trips-mono): eyebrows, coordinates, data"
+  body: "Inter"
 rounded:
   radius: "0.875rem"
-  field: "0.875rem"
+  radius-sm: "0.625rem"
+  radius-lg: "1.375rem"
+  field: "0.75rem"
 spacing:
   target: "44px"
+motion:
+  spring: "cubic-bezier(0.34, 1.4, 0.64, 1)"
+  ease-out: "cubic-bezier(0.16, 1, 0.3, 1)"
 ---
 
-# Design System: anthonyl.im (Trips toy world)
+# Design System: anthonyl.im (Trips, "the atlas")
 
 ## Overview
 
-**Creative North Star: "A toy-world travel diorama"**
+**Creative North Star: "A cartographer's desk"**
 
-This repo hosts **four independent visual worlds** under one Vite SPA. Tokens in this file belong to **Trips** (`/trips`). Do not apply them to chatbot, BreathFlow, or the Korea Map Mode scene.
+This repo hosts **several independent visual worlds** under one Vite SPA. Tokens in this file belong to **Trips** (`/trips`) only. Do not apply them to the landing page, chatbot, BreathFlow, or the Korea Map Mode scene.
 
-Trips is pastel papercraft and clay: every surface is a sticker with a 2px ink outline and a hard offset shadow, and the hero is a squishy clay planet you can poke. Trips become luggage tags, days become ticket stubs and postage stamps, reservations become boarding passes. Light is a sky-washed afternoon desk; dark is a navy-felt toy box with the same pastel stickers and cream ink.
+Trips is a map-first planner. Cool chart-paper surfaces, hairline rules, soft layered shadows, serif names set like map labels, coordinates and data in mono, and one live 3D map per page. A trip's accent is the only colour; everything else is ink and paper.
 
 **Key characteristics**
-- Sticker material: ink outline (`--trips-line`) + hard offset shadow (`--trips-shadow`), spring hover tilt.
-- Pastel fills (sky / mint / peach / butter / lilac / rose) are decoration; text on a fill is always `--trips-fill-ink`.
-- Bricolage Grotesque display, Fragment Mono for anything a ticket machine would print.
-- `data-trip-accent` sets `--ta-fill` (cover band, tag stub, stamp, active date) and `--ta` (ink accent).
-- One squishy 3D moment per viewport. Everything else is flat paper.
+- One live map per viewport (MapLibre GL JS v6, OpenFreeMap vector tiles, no API key).
+- Paper surfaces: `--trips-canvas` / `--trips-surface` / `--trips-raised` / `--trips-sunken`, 1px `--trips-line` rules, `--trips-shadow-1/2/3`.
+- Instrument Serif display with an italic emphasised word ("Where to *next?*"), Fragment Mono eyebrows and data, Inter body.
+- Primary buttons are ink, not accent. The accent goes to pins, the route, cover art, chips and focus rings.
+- No stickers, no hard offset shadows, no pastel fills.
 
-## Three.js scenes (`frontend/src/pages/Trips/scene/`)
+## Tokens (`frontend/src/index.css`, `.trips` block: "TRIPS — the atlas")
 
-- **`TripsGlobe.tsx`** — lazy host. Renders a static SVG planet (`globe.still`) immediately and swaps in WebGL only when `canRender3D()` passes. No WebGL / happy-dom → SVG stays.
-- **`globeScene.ts`** — clay planet built on the shared `Jelly` soft body (`frontend/src/three/`). `world` mode (index hero, create overlay) paints `worldMap.ts` continents; `region` mode (overview diorama) is a mint island with trees, clouds and gumdrop pins. `setPins` / `setFocus` ease the camera to a pin (shortest way round; jumps under reduced motion). Poke and drag go through `bindJellyPointer`; clicks on a pin call `onSelect`.
-- Pins come from `useTripPins.ts`: gazetteer (`lookupPlace`) first, `getTrip` only for trips without a match (max 8, cached by `id:updatedAt`).
+| Token | Light | Dark | Usage |
+|-------|-------|------|-------|
+| `--trips-canvas` | `#f1f0eb` | `#0b0d10` | Page |
+| `--trips-surface` | `#faf9f6` | `#13161a` | Panes, cards |
+| `--trips-raised` | `#ffffff` | `#1a1e23` | Menus, dialogs, fields |
+| `--trips-sunken` | `#e8e7e1` | `#07090b` | Wells, rails |
+| `--trips-ink` | `#14171a` | `#eceae4` | Text, primary buttons |
+| `--trips-ink-secondary` | `#4d5259` | `#b0b4ba` | Body copy |
+| `--trips-ink-tertiary` | `#696e75` | `#8b9097` | Hints, eyebrows |
+| `--trips-line` | `rgb(20 23 26 / .1)` | `rgb(255 255 255 / .1)` | Hairline rules |
+| `--trips-shadow-1/2/3` | soft layered | deeper + 1px light edge | Card / popover / dialog |
+| `--trips-radius` | `0.875rem` (`-sm` `0.625rem`, `-lg` `1.375rem`) | same | Rounding |
+| `--trips-spring` | `cubic-bezier(0.34, 1.4, 0.64, 1)` | same | Pins, buttons |
+| `--trips-ease-out` | `cubic-bezier(0.16, 1, 0.3, 1)` | same | Reveals, sheets |
+
+### Accent
+
+App default (no trip in scope) is signal orange: `--ta-fill #f0582b`, text `--ta #b8400f` light / `#ff9166` dark. A trip sets `data-trip-accent` on its subtree:
+
+| Key | Name | `--ta-fill` | Note |
+|-----|------|-------------|------|
+| `rose` | Poppy | `#e5484d` | |
+| `amber` | Saffron | `#f2a71b` | Dark ink on the fill (`--ta-on`) |
+| `emerald` | Jade | `#0f9b76` | |
+| `sky` | Cobalt | `#2f7bf0` | |
+| `violet` | Iris | `#7c5cff` | |
+
+Vars: `--ta` (text-safe, 4.5:1 on canvas and surface), `--ta-fill` (pins, route, cover art), `--ta-on` (ink on the fill), `--ta-soft` (tint), `--ta-ring` (focus). Labels and helpers live in `meta.ts` (`TRIP_ACCENTS`, `ACCENT_LABEL`, `resolveAccent`).
+
+## Map (`frontend/src/pages/Trips/map/`)
+
+- **`AtlasMap.tsx`**: React host. Lazy-loads `engine.ts`, so the `maplibre` chunk loads with the first map, not with the route.
+- **`engine.ts`**: `createAtlasMap`. Owns the MapLibre instance, pins, route line and camera (fly-to, fit bounds, ambient spin on the index globe).
+- **`mapStyle.ts`**: custom two-palette basemap (light and dark) over OpenFreeMap OpenMapTiles. Globe projection with atmosphere at low zoom; extruded 3D buildings from zoom 14.5.
+- **`geo.ts`**: pure helpers (`dayPins`, `tripPins`, `dayRoute`, `centroid`, `formatCoord`, `projectToBox`).
+- **`map.stylex.ts`**: map frame, place card, phone map toggle.
+- Pins are DOM buttons styled by `.atlas-pin*` in `index.css`: numbered stop pins on a day, day-numbered dots on the overview, trip chips on the index globe. The route is a dotted accent line.
+- Hovering a list item lifts its pin. Clicking a numbered marker flies the camera to it and opens a place card with Directions.
+- Photoreal Google 3D Tiles (`pages/Korea/MapModeOverlay`) is a separate full-screen mode, opened from a day's "…" menu as "Explore in photoreal 3D" when `VITE_GOOGLE_MAP_TILES_API_KEY` or `VITE_GOOGLE_PLACES_API_KEY` is set. It must unmount when closed.
 
 ## Pages
 
-- **Index** — hero grid: copy + stamp ("4 trips · 2 ahead"), `Trips` display title, search (`/` focuses, Escape clears, `n` opens create), globe whose focus follows the filtered trips. Trips are luggage tags (stub with eyelet + 3-letter code + day count) bucketed Now / Upcoming / Past. Empty state: "Where to next?" with a wobbling suitcase. Heading is never "Inbox".
-- **Create** — "Pack your bag": destinations pop onto the suitcase as stickers (spring in/out). Generating shows a full-screen overlay with a planet collecting pins and rotating copy; the sr-only status in the footer stays the announcement.
-- **Overview** (`/trips/:tripId`, living document) — cover band in `--ta-fill` with the region diorama (pins per day, click → day + item hash), stamp-chip date strip, sticker day cards, every editor feature intact (inline edit, enhance, ingest, settings).
-- **Day** — postcard header with a date stamp + postmark, boarding-pass reservations (vertical stub label + icon), stops on a gumdrop rail with dashed route segments. Map Mode internals are untouched.
-- **Concierge** — butter header sticker, dotted paper thread, dashed suggestion chips, composer shell owns the focus ring.
+- **Index** (`/trips`): hero ("Where to *next?*") beside an ambient spinning globe with one pin per trip. Trips are cards bucketed Happening now / Upcoming / Past. `/` focuses search, `n` opens create. Heading is never "Inbox".
+- **Covers**: each card's cover is a chart of the trip's own stops (`components/TripCover.tsx`, from the summary's `points`). No stock imagery.
+- **Create** (`/trips/new`): destinations with city autocomplete (`components/CityField.tsx`), dates with length presets, optional name, and a "Draft the itinerary with AI" switch with a pace / interest brief. The map flies to each destination as it is added.
+- **Workspace** (`/trips/:tripId`, `/trips/:tripId/day/:dayId`): `TripWorkspace` is an itinerary pane plus a sticky map. `:tripId` is the overview tab; `/day/:dayId` is that day. Arrow keys change day. On phones a floating Map / Itinerary toggle swaps the pane for a full-screen map.
+- **Join** (`/trips/join/:token`): accept an invite link.
+- **Concierge**: chat FAB on the workspace (`TripChat`, `chat.stylex.ts`).
 
 ## Styling
 
-- `toy.stylex.ts` — `globe`, `index`, `overview`, `pack`, `day` namespaces for the new surfaces. `trips.stylex.ts` keeps the shared editor/chat/day vocabulary; `ui.ts` re-exports class helpers.
-- Disjoint media queries only (`max-width: 899.98px` / `min-width: 900px`) — StyleX does not order overlapping ones.
-- `index.css` `.trips` block owns tokens, `.trips, .trips * { border-color: revert-layer }`, and the few combinator rules StyleX can't express.
+- `atlas.stylex.ts`: primitives `a` (type, buttons, fields, chips, pills, menu, dialog). Compose these before writing new styles: `{...sx(a.btn, a.btnPrimary)}`.
+- `index.stylex.ts`: `shell`, `idx`, `cover`, `create`. `workspace.stylex.ts`: `share`, `ws`. `map/map.stylex.ts`, `chat.stylex.ts`.
+- `components/kit.tsx`: `Menu`, and `Modal` (Radix dialog that becomes a bottom sheet on phones). `Modal` re-declares the `.trips` token scope on its portal via `.trips.trips-portal`, so portaled content still resolves `--trips-*` / `--ta-*`.
+- `meta.ts`: pure date / accent / icon helpers. `useTripEditor.ts`: document state, autosave and AI runs.
+- `index.css` `.trips` block owns tokens, accents, `.atlas-pin*`, MapLibre chrome overrides and the few rules StyleX can't express.
 
 ## Motion
 
-Spring (`--trips-spring`) for stickers, tags and stamps; `layoutId` sticker behind the active date; jelly physics on the planet. Reduced motion: no tilt, no wobble, planet holds still (stage dt = 0), camera jumps instead of easing.
+Spring (`--trips-spring`) on pins and buttons, fly-to camera moves, a drop-in for newly added pins (`.atlas-pin--fresh`), staggered card rise. All gated on `prefers-reduced-motion`: the map uses `jumpTo` and the index globe does not spin.
 
 ## Do
 
-- Keep 44px targets, visible focus rings (`--trips-focus`), `overflow-wrap: anywhere` on user strings (Hangul destinations become stickers and tag codes).
-- Unmount Map Mode when closed; never React `Activity`.
+- Keep 44px targets.
+- Draw a focus ring on every new control with `--ta-ring`. Trips disables the global outline (`.trips :focus-visible { outline: none }`), so nothing is focus-visible by default.
+- Use the `trips-title-input` / `trips-day-title-input` classes on editable titles to opt out of the 16px phone input pin.
+- Keep `overflow-wrap: anywhere` on user strings (`a.wrap`).
 - Give AI-added places structured `TripLocation`s so they can become pins.
+- Keep the map engine a lazy chunk (`maplibre` ≈ 1.07 MB / 290 kB gzip).
 
 ## Don't
 
-- Add destination routes, Korea bloom/grain/Cormorant, glassmorphism, or gradient text.
-- Put body text directly on a pastel fill without `--trips-fill-ink`.
-- Stack two 3D scenes in one viewport.
+- Bring back the previous toy / sticker look: ink outlines with hard offset shadows, pastel fills.
+- Stack glassmorphism, use gradient text, stock travel photography, or generic SaaS dashboard chrome.
+- Put two maps in one viewport.
+- Add destination-specific routes, or restyle Trips into the Korea dossier.
+- Hide photoreal Map Mode with React `Activity`. Unmount it.

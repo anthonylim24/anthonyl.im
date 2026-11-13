@@ -30,7 +30,8 @@ Frontend network I/O uses **Effect v3** — do not add raw `fetch` for `/api`. U
 - Zustand (BreathFlow persisted state), Motion 13, Lucide (intentional — keep)
 - Effect v3 for frontend I/O
 - Bun + Hono (server), Clerk (`@clerk/clerk-react`), Supabase, PostHog
-- Three.js for Map Mode (Korea **and** Trips)
+- MapLibre GL JS v6 + OpenFreeMap vector tiles for Trips maps (no API key)
+- Three.js for photoreal Map Mode (Korea seed and any trip day)
 
 ## Shared Tokens
 
@@ -81,7 +82,7 @@ Visitors who open `/chatbot` (from the landing page or a shared link). Recruiter
 - **Layout:** desktop stage left, chat panel right; mobile stage on top (compact once chatting, so Lim stays visible while typing).
 - **Accent:** Lim coral `#FF7E6B` (send button, Lim's name, list markers). Plum ink `#2B2140` carries the text.
 - **Type:** Fredoka display (headings, chips, captions), Inter body.
-- **Anti-references:** no purple "AI" gradients, no glowing borders, no rainbow typing indicators. Do not reuse the landing's ultramarine, BreathFlow's watercolour or the Trips toy-world.
+- **Anti-references:** no purple "AI" gradients, no glowing borders, no rainbow typing indicators. Do not reuse the landing's ultramarine, BreathFlow's watercolour or the Trips atlas.
 
 ### Per-route Tokens
 - Theme classes: `chatbot-shadow` (day) / `chatbot-dark` (night), both defined in `frontend/src/chat/chat.css` (`--chat-*` vars), not `index.css`
@@ -193,6 +194,7 @@ Anthony (primary) and his partner, while planning + executing a 12-day Seoul + B
 ### Map Mode-specific Conventions
 
 - Overlay: `MapModeOverlay.tsx`. Scene: `Detailed3DScene.tsx` (Google Photorealistic 3D Tiles). `MapModeScene.tsx` is gone.
+- Trips open it from a day's "…" menu ("Explore in photoreal 3D"). Everyday Trips maps are MapLibre.
 - Reset pitch ≈ `Math.PI / 4`. No auto-rotate. Adaptive tile quality by device tier.
 - Missing tiles key or no WebGL → styled fallback list with the same filter chips.
 - **Must unmount** when closed — do not hide with React `Activity`.
@@ -216,43 +218,57 @@ Korea is the seeded trip at `/trips/korea-2026` (`/korea` redirects). Every new 
 Canonical visual spec: [`DESIGN.md`](DESIGN.md). Token source of truth: `frontend/src/index.css` `.trips`. Shared-site Cormorant / parchment does **not** apply here.
 
 ### Users
-The same travelers as Korea, plus future trips. Phone for in-trip lookups; desktop for planning, AI enhance, and concierge chat.
+The same travelers as Korea, plus future trips and the people they share a link with. Phone for in-trip lookups; desktop for planning, AI drafts, and concierge chat.
 
 ### Brand Personality
-**Toy-world travel diorama.** Pastel papercraft and clay: stickers with an ink outline and a hard offset shadow, luggage tags, ticket stubs, postage stamps, boarding passes, and a squishy clay planet (shared `Jelly` soft body) you can poke. Playful, tactile, still a precise planner. Not a hand-bound Korea dossier. Not Linear, Notion, or Airbnb.
+**"The atlas": a cartographer's desk.** Map-first planner. Cool chart-paper surfaces, hairline rules, soft layered shadows, serif names set like map labels, coordinates and data in mono, and one live 3D map per page. A trip's accent is the only colour; everything else is ink and paper. Precise and quiet. Not a hand-bound Korea dossier. Not Linear, Notion, or Airbnb.
 
-**Emotional goal:** Delight on open, then know what happens next. At night, tonight's reservation is first.
+**Emotional goal:** See the trip as a place first, then know what happens next.
 
 ### Aesthetic Direction
-- **Material:** every surface is a sticker — 2px `--trips-line` outline + hard offset `--trips-shadow`, spring hover tilt. Light is a sky-washed desk (`#edf5fb`); dark is navy felt (`#151933`) with the same pastel stickers and cream ink.
-- **Palette:** sky / mint / peach / butter / lilac / rose fills (`--toy-*`) on deep ink `#1f2440`. Fills are decoration; text on a fill always uses `--trips-fill-ink`.
-- **Type:** Bricolage Grotesque (display, 750–800, condensed stretch); Fragment Mono for times, codes, stamps, kbd hints; Inter body. No Cormorant on `/trips`.
-- **Three.js:** one squishy moment per viewport. Index hero = clay world globe with trip pins (click → trip; focus follows search). Overview cover = region diorama (mint island, trees, clouds, per-day gumdrop pins → day). Create generating overlay = planet collecting pins. All lazy (`scene/TripsGlobe.tsx` → `scene/globeScene.ts`) with a static SVG planet fallback when WebGL is unavailable.
-- **Index:** luggage tags (stub + eyelet + 3-letter code + day count) grouped Now / Upcoming / Past; search with `/` and `n` shortcuts. Heading is "Trips" or "Where to next?". **Never "Inbox".**
-- **Create:** "Pack your bag" — destinations pop onto a suitcase as stickers.
-- **Day page:** postcard header with date stamp + postmark, boarding-pass reservations, stops on a gumdrop rail with dashed route segments.
-- **Accent:** `data-trip-accent` (rose / amber / emerald / sky / violet) sets `--ta-fill` (cover band, tag stub, stamp, active date) and `--ta` (ink accent).
-- **Code:** `pages/Trips/toy.stylex.ts` (`globe` / `index` / `overview` / `pack` / `day`), `trips.stylex.ts` (shared editor/chat/day vocabulary), `ui.ts` helpers, `index.css` `.trips` tokens.
-- **IA (locked):** `/trips/:tripId` is the living document. Day pages stay. `/trips/:tripId/edit` redirects there. Concierge FAB (`TripChat`) on trip + day only. Instagram ingest is embedded on the living document.
-- **Map Mode:** photorealistic 3D tiles stay. Glass/refraction is for the YOU pin only. **Must unmount** when closed; never hide with React `Activity`. Touch targets 44px.
+- **Material:** paper surfaces (`--trips-canvas` / `-surface` / `-raised` / `-sunken`), 1px `--trips-line` rules, soft layered `--trips-shadow-1/2/3`. No stickers, no hard offset shadows, no pastel fills.
+- **Map:** MapLibre GL JS v6 + OpenFreeMap vector tiles (no API key). Custom two-palette basemap (`map/mapStyle.ts`): globe projection with atmosphere at low zoom, extruded 3D buildings from zoom 14.5. One map per viewport; the engine (`map/engine.ts`) is a lazy chunk.
+- **Pins:** DOM buttons styled by `.atlas-pin*` in `index.css`: numbered stop pins on a day, day-numbered dots on the overview, trip chips on the index globe. The route is a dotted accent line. Hovering a list item lifts its pin; clicking a numbered marker flies the camera to it and opens a place card with Directions.
+- **Type:** Instrument Serif display (`--trips-display`; italic for the emphasised word, e.g. "Where to *next?*"); Fragment Mono for eyebrows and data (`--trips-mono`); Inter body. No Cormorant on `/trips`.
+- **Accent:** app default signal orange (`--ta-fill #f0582b`). `data-trip-accent` per trip: rose "Poppy", amber "Saffron" (dark ink on fill), emerald "Jade", sky "Cobalt", violet "Iris". Vars: `--ta` (text-safe), `--ta-fill` (pins, route, cover art), `--ta-on`, `--ta-soft`, `--ta-ring` (focus). Primary buttons are ink, not accent.
+- **Index:** hero + ambient spinning globe with one pin per trip; trips as cards bucketed Happening now / Upcoming / Past; search `/`, new trip `n`. Each card's cover is a chart of the trip's own stops (`components/TripCover.tsx`), no stock imagery. **Never "Inbox".**
+- **Create:** destinations with city autocomplete, dates with length presets, optional name, "Draft the itinerary with AI" switch with a pace / interest brief. The map flies to each destination.
+- **Workspace:** `TripWorkspace` renders `/trips/:tripId` (overview tab) and `/trips/:tripId/day/:dayId` (that day): itinerary pane + sticky map. Arrow keys change day. On phones a floating Map / Itinerary toggle swaps the pane for a full-screen map.
+- **Editing:** inline trip / day titles; drag-to-reorder stops (Motion `Reorder`, grip handle; up / down buttons for keyboard); one "Add a place, note or booking…" composer per day with keyless place search (picking a result pins it on the map immediately); per-item editor (time, location search / pin, notes, status, booking type + confirmation, move to day, duplicate, delete with Undo toast); autosave with a Saved / Saving / Retry indicator; trip details dialog (name, destinations, dates, colour accent, description, status, time zone); duplicate trip, delete trip (owner), clear day.
+- **Sharing:** link-first. Owner picks "Can view" / "Can edit" and copies an invite link; anyone signed in who opens `/trips/join/:token` joins with that role. Owner can change roles, remove people, turn a link off. Collaborators can leave.
+- **AI:** full-trip draft (create, the empty overview, or "Start a fresh draft" with a replace confirmation); per-day "Ideas for this day" and whole-trip "Improve with AI" with quick-prompt chips or free text. Added places are auto-applied, flashed in the list and dropped onto the map; other suggestions are reviewed from a checklist. Concierge chat FAB (`TripChat`).
+- **Motion:** spring on pins / buttons, fly-to camera moves, drop-in for newly added pins, staggered card rise. Reduced motion: the map uses `jumpTo` and the globe does not spin.
+- **Code:** `pages/Trips/atlas.stylex.ts` (primitives `a`: type, buttons, fields, chips, pills, menu, dialog), `index.stylex.ts` (`shell`, `idx`, `cover`, `create`), `workspace.stylex.ts` (`share`, `ws`), `map/map.stylex.ts`, `chat.stylex.ts`, `components/kit.tsx` (`Menu`, `Modal`), `meta.ts`, `useTripEditor.ts`, `index.css` `.trips` tokens.
+- **IA (locked):** `/trips`, `/trips/new`, `/trips/:tripId`, `/trips/:tripId/day/:dayId`, `/trips/join/:token`. `/trips/:tripId/edit` and `/trips/:tripId/places` redirect to the trip. Removed from the UI: Instagram ingest, the extracted-places library, the per-trip places page, the clay globe scenes, the read-only day page.
+- **Photoreal Map Mode:** Google 3D Tiles (`pages/Korea/MapModeOverlay`) opens from a day's "…" menu as "Explore in photoreal 3D" when a Google tiles / Places key is set. Glass/refraction is for the YOU pin only. **Must unmount** when closed; never hide with React `Activity`. Touch targets 44px.
+- **Anti-references:** the previous toy / sticker look, glassmorphism stacks, gradient text, stock travel photography, generic SaaS dashboards.
 
 ### Per-route Tokens (`index.css` `.trips` is canonical)
 
 | Token | Light | Dark | Usage |
 |-------|-------|------|-------|
-| Canvas | `#edf5fb` | `#151933` | Sky-washed page |
-| Surface | `#fffdf6` | `#1f2448` | Stickers, panels, fields |
-| Ink / line | `#1f2440` | `#f6f0de` / `#070918` | Body text / sticker outline + shadow |
-| Fills | sky `#a9d8f5`, mint `#a6e5c8`, peach `#ffc3a6`, butter `#ffdd7f`, lilac `#cdc1f7`, rose `#ffb3c4` | same | Decoration; `--ta-fill` per trip |
-| Accent | `#1d5f91` | `#9fd3f5` | Default ink accent; `--ta` per trip |
+| Canvas | `#f1f0eb` | `#0b0d10` | Chart-paper page |
+| Surface | `#faf9f6` | `#13161a` | Panes, cards |
+| Raised | `#ffffff` | `#1a1e23` | Menus, dialogs, fields |
+| Sunken | `#e8e7e1` | `#07090b` | Wells, rails |
+| Ink | `#14171a` | `#eceae4` | Text, primary buttons |
+| Ink secondary / tertiary | `#4d5259` / `#696e75` | `#b0b4ba` / `#8b9097` | Body / hints |
+| Line | `rgb(20 23 26 / .1)` | `rgb(255 255 255 / .1)` | Hairline rules |
+| Accent (default) | `#f0582b` fill, `#b8400f` text | `#f0582b` fill, `#ff9166` text | `--ta-fill` / `--ta` |
+| Trip accents | Poppy `#e5484d`, Saffron `#f2a71b`, Jade `#0f9b76`, Cobalt `#2f7bf0`, Iris `#7c5cff` | same fills | `data-trip-accent` |
+
+Radius `0.875rem` (`-sm` `0.625rem`, `-lg` `1.375rem`). Spring `cubic-bezier(0.34, 1.4, 0.64, 1)`; ease-out `cubic-bezier(0.16, 1, 0.3, 1)`.
 
 ### Trips-specific Principles
 
 1. **Do not add `/japan`-style destination routes.** Extend `server/src/trips/` + `frontend/src/pages/Trips/`.
 2. AI-added places must carry structured `TripLocation` (lat/lng/category/source), never prose only.
-3. Map Mode uses the Korea `PlacesResponse` / `RankedPlace` shape and **must unmount** when closed.
-4. Frontend I/O is Effect v3 (`tripsApi.ts`, `tripChatApi.ts`).
-5. Keep the toy-world sticker system on `/trips`; do not restyle it into Korea parchment/bloom/Cormorant or Linear/Notion zinc, and do not restyle chatbot or BreathFlow as Trips.
+3. One map per viewport. Keep the map engine a lazy chunk (`maplibre`).
+4. Photoreal Map Mode uses the Korea `PlacesResponse` / `RankedPlace` shape and **must unmount** when closed.
+5. Frontend I/O is Effect v3 (`tripsApi.ts`, `tripChatApi.ts`, `geocode.ts` via `fetchExternal`).
+6. Trips disables the global focus outline (`.trips :focus-visible { outline: none }`). Every new control draws its own ring with `--ta-ring`.
+7. Editable titles use the `trips-title-input` / `trips-day-title-input` classes to opt out of the 16px phone input pin. Portaled UI goes through `kit.tsx` `Modal` (`.trips.trips-portal` token scope).
+8. Keep the atlas on `/trips`; do not restyle it into Korea parchment/bloom/Cormorant or Linear/Notion zinc, and do not restyle chatbot or BreathFlow as Trips.
 
 ## Service Worker / Caching Contract
 

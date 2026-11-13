@@ -247,6 +247,7 @@ export function useTripEditor() {
           tags: pending.tags,
           description: pending.description ?? null,
           days: pending.days,
+          center: pending.center,
         }).catch(() => {
           /* best-effort flush on leave */
         })

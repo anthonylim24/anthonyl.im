@@ -9,7 +9,8 @@ Read the skill before editing UI styling. Effect I/O rules still win for `/api` 
 Hard rules:
 
 1. Tailwind is removed — StyleX + `index.css` semantic classes only.
-2. Always `sx(...)` — merge StyleX styles with semantic class strings from `index.css` when the old Tailwind bundle included them (`cover-band`, `cover-dock`, `group`, animations).
+2. Always `sx(...)` — merge StyleX styles with semantic class strings from `index.css` when a rule lives there (`trips-title-input`, `group`, animations).
 3. Preflight lives in `@layer reset`; set `borderWidth` + `borderStyle` with `borderColor`.
 4. Unlayered CSS beats layered StyleX — use explicit utility classes when opacity/visibility fights layers.
-5. **Trips local testing:** matching `VITE_DEV_BEARER` + `IG_DEV_BEARER`; run Playwright `trips skips the Clerk sign-in wall under VITE_DEV_BEARER`. Previews use `clerk-agent-login.ts`, not dev bearer.
+5. **Trips:** primitives are `a.*` in `pages/Trips/atlas.stylex.ts`. The global focus outline is off inside `.trips` (draw a `--ta-ring` ring). Portals go through `components/kit.tsx` `Modal` (`.trips.trips-portal` token scope).
+6. **Trips local testing:** matching `VITE_DEV_BEARER` + `IG_DEV_BEARER`; run Playwright `trips skips the Clerk sign-in wall under VITE_DEV_BEARER`. Previews use `clerk-agent-login.ts`, not dev bearer.

@@ -1,6 +1,6 @@
 ---
 name: stylex
-description: StyleX styling methodology for this repo. Use when writing, reviewing, or migrating frontend UI, CSS, layout, tokens, visual parity, or shadcn/Radix surfaces. Triggers on StyleX, stylex.create, sx(, *.stylex.ts, index.css tokens, cover-band, or Tailwind-to-StyleX parity work.
+description: StyleX styling methodology for this repo. Use when writing, reviewing, or migrating frontend UI, CSS, layout, tokens, visual parity, or shadcn/Radix surfaces. Triggers on StyleX, stylex.create, sx(, *.stylex.ts, index.css tokens, atlas.stylex, or Tailwind-to-StyleX parity work.
 ---
 
 # StyleX (anthonyl.im)
@@ -31,11 +31,11 @@ Component  →  {...sx(stylexStyles, 'semantic-class', layout.srOnly)}  →  DOM
 | Plain CSS-var maps (not StyleX vars) | `frontend/src/styles/tokens.ts` |
 | Global tokens + semantic classes | `frontend/src/index.css` |
 | Vite plugin + CSS layers | `frontend/vite.config.ts` — `useCSSLayers: { before: ['reset','base'], after: ['utilities'], prefix: 'stylex' }` |
-| Route StyleX modules | `*.stylex.ts` next to pages (e.g. `trips.stylex.ts`, `breathflow.stylex.ts`, `Places.stylex.ts`) |
+| Route StyleX modules | `*.stylex.ts` next to pages (e.g. `atlas.stylex.ts`, `breathflow.stylex.ts`, `Places.stylex.ts`) |
 
 Per-route UI vocabulary:
 
-- Trips: `frontend/src/pages/Trips/ui.ts` exports StyleX class handles (`coverBandClass`, `primaryBtnClass`, …)
+- Trips: `frontend/src/pages/Trips/atlas.stylex.ts` exports the primitives `a` (`a.display`, `a.eyebrow`, `a.btn` + `a.btnPrimary`, `a.field`, `a.chip`, `a.pill`, `a.menu`, `a.dialog`, …). Page modules: `index.stylex.ts` (`shell`, `idx`, `cover`, `create`), `workspace.stylex.ts` (`share`, `ws`), `map/map.stylex.ts`, `chat.stylex.ts`
 - BreathFlow: `frontend/src/breathflow/styles/breathflow.stylex.ts`
 - Chatbot: `frontend/src/styles/chatbot.stylex.ts`, `layout.stylex.ts`
 
@@ -43,10 +43,12 @@ Per-route UI vocabulary:
 
 ```tsx
 import { sx } from '@/styles/merge'
-import { styles } from './trips.stylex'
+import { a } from './atlas.stylex'
+import { ws } from './workspace.stylex'
 
-<header {...sx('cover-band', coverBandClass)}>
-  <h1 {...sx(typeDisplayClass, wrapAnywhereClass)}>{title}</h1>
+<header {...sx(ws.head)}>
+  <input {...sx(a.fieldBare, a.display, 'trips-title-input')} value={title} />
+  <button {...sx(a.btn, a.btnPrimary)}>Share</button>
 </header>
 ```
 
@@ -55,7 +57,7 @@ import { styles } from './trips.stylex'
 | Do | Don't |
 |----|--------|
 | `{...sx(styles.foo, 'semantic-class')}` | Raw `className="tailwind utilities"` |
-| Pass semantic classes from `index.css` when the old Tailwind string included them (`cover-band`, `cover-dock`, `snap-rail-sticky`, `trip-display-input`, `group`, `peer`, animation utilities) | Assume StyleX padding/color styles replace semantic classes — **`coverBandClass` is padding only; `'cover-band'` supplies band bg/ink** |
+| Pass semantic classes from `index.css` when a rule lives there (`trips-title-input`, `trips-day-title-input`, `trip-tap-44`, `group`, `peer`, animation utilities) | Assume StyleX styles replace semantic classes — **a title input without `'trips-title-input'` is pinned to 16px on phones** |
 | `layout.srOnly` or `styles.srOnly` for visually hidden labels | Leave labels unstyled (empty StyleX rules render visible text) |
 | `borderWidth: '1px'` + `borderStyle: 'solid'` when setting `borderColor` | `borderColor` alone — Preflight sets `border: 0 solid` and invisible borders lose |
 | Keep route tokens in `index.css` (`--trips-*`, chatbot/breathflow/korea blocks) | `stylex.defineVars()` for shared tokens or import token maps into `stylex.create()` — Babel rejects cross-file / plain-object token imports |
@@ -78,10 +80,12 @@ Radix primitives in `frontend/src/components/ui/*` compose StyleX + semantic ani
 
 ## Trips-specific
 
-- Cover band: `sx('cover-band', coverBandClass)` on `<header>` in `TripOverview` / `TripCreate`
-- Cover dock: `sx('cover-dock', coverDockClass)` — already wired in `CoverDock.tsx`
-- Snap rail: `sx('snap-rail-sticky', snapRailStickyClass)` in `DayNavigation.tsx`
-- Timetable tokens: `.trips` in `index.css`; accent via `data-trip-accent` on trip shells
+- Compose the primitives in `atlas.stylex.ts` first: `sx(a.btn, a.btnPrimary)`, `sx(a.btn, a.btnGhost, a.btnSm)`, `sx(a.field)`, `sx(a.chip, a.chipAccent)`. Primary buttons are ink; the accent is for pins, route, chips and focus.
+- Tokens: `.trips` block in `index.css` ("TRIPS — the atlas"). Accent via `data-trip-accent` on a trip-scoped subtree sets `--ta`, `--ta-fill`, `--ta-on`, `--ta-soft`, `--ta-ring`.
+- **Focus gotcha:** `.trips :focus-visible { outline: none }` disables the global outline inside Trips. Every new control must draw its own ring with `--ta-ring` (the `a.*` primitives already do; `a.focusable` adds one to a custom element).
+- **Portal gotcha:** portaled content leaves the `.trips` subtree and loses `--trips-*` / `--ta-*`. Use `Modal` from `components/kit.tsx` (Radix dialog, bottom sheet on phones); it re-declares the token scope with `.trips.trips-portal`. Do not portal raw Radix content.
+- Editable trip / day titles take `'trips-title-input'` / `'trips-day-title-input'` to opt out of the 16px phone input pin.
+- Map pins are DOM buttons styled by `.atlas-pin*` in `index.css` (created by `map/engine.ts`, outside React), not StyleX.
 
 ## Visual parity / testing
 
@@ -103,7 +107,7 @@ Optional capture script (StyleX branch vs `main` worktree on :5174): `scripts/tr
 
 ## Common parity traps (already hit on this migration)
 
-1. Missing `'cover-band'` → trip hero renders as pale ink on canvas instead of JR cover band
+1. Trips control with no focus ring → the global outline is off inside `.trips`; add a `--ta-ring` ring
 2. Missing `sr-only` on Places search label → extra visible label shifts layout
 3. `borderColor` without width/style → chips/checkboxes lose borders after Preflight
 4. Map Mode HTML still using Tailwind class strings → use `.map-*` classes in `index.css`

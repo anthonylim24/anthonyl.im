@@ -114,6 +114,15 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
 
   // Bottom-left on working maps: the concierge button owns the other corner.
   map.addControl(new AttributionControl({ compact: true }), ambient ? "bottom-right" : "bottom-left")
+  // Start the credit collapsed to its (i) button; it opens on tap. MapLibre
+  // re-opens it when the first sources arrive, so collapse again on load.
+  const collapseCredit = () => {
+    const credit = container.querySelector(".maplibregl-ctrl-attrib")
+    credit?.classList.remove("maplibregl-compact-show")
+    credit?.removeAttribute("open")
+  }
+  collapseCredit()
+  map.once("load", collapseCredit)
 
   const routeData = (): FeatureCollection =>
     route.length === 0
@@ -208,9 +217,11 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
   }
 
   /** Zoom at which the globe just fits the container. */
-  const globeZoom = () => {
+  const globeZoom = (lat = map.getCenter().lat) => {
     const size = Math.min(container.clientWidth, container.clientHeight) || 480
-    return Math.log2((size * 0.86 * Math.PI) / 512)
+    // MapLibre grows the globe by 1/cos(latitude) to match Mercator scale at
+    // the centre, so undo that to keep the sphere the same size on screen.
+    return Math.log2((size * 0.84 * Math.PI * Math.cos((lat * Math.PI) / 180)) / 512)
   }
 
   const handle: AtlasMapHandle = {
@@ -273,7 +284,8 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
         // Hero globe: keep the whole sphere in view and just turn it to face
         // the points.
         const mid = centroid(points)!
-        const target = { center: [mid.lng, Math.max(-38, Math.min(38, mid.lat))] as [number, number], zoom: globeZoom() }
+        const lat = Math.max(-38, Math.min(38, mid.lat))
+        const target = { center: [mid.lng, lat] as [number, number], zoom: globeZoom(lat) }
         if (animate) map.easeTo({ ...target, duration: 1400, essential: true })
         else map.jumpTo(target)
         return
