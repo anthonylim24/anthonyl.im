@@ -83,6 +83,8 @@ cd frontend && bun run build && bun run test:run
 5. **No `VITE_DEV_BEARER` in `FRONTEND_ENV`** — production must not bypass Clerk.
 6. **PR previews are not a merge gate** — `.github/workflows/preview.yml` must stay out of `pr-gate`. Same-repo only; never bake `VITE_DEV_BEARER` into a preview. Agents screenshot Clerk-gated preview routes via `bun scripts/clerk-agent-login.ts` (applies a Clerk Agent Task + Testing Token in Chrome; do not paste tickets; helper re-execs from `origin/main`; Cursor cloud `gh` tokens are installation tokens, not push collaborators). Details: [`docs/pr-previews.md`](pr-previews.md).
 
+**Disk preflight.** The stage step prints free space on the droplet, clears only re-creatable caches (the previous `~/anthonyl.im.next`, Bun's install cache, day-old temp archives) when under 800 MB, and fails early with a `du` breakdown when under 300 MB. A full disk otherwise shows up as `No space left on device` in the clone or an scp `exit status 1`. It never deletes logs or live data: if the breakdown points at PM2 logs or worker files, clear those on the droplet by hand.
+
 Secrets: `SSH_HOST`, `SSH_USERNAME`, `SSH_KEY`, `FRONTEND_ENV`. Droplet runtime secrets live in `~/.env` (copied into the staged tree each deploy). Details: `deploy/README.md`.
 
 ## Known failure modes (and where they are caught)
