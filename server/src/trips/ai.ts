@@ -12,6 +12,10 @@ import {
 import { tripLatLngHint } from "./latLngHint"
 import { GEMINI_BASE, GEMINI_MODEL, geminiThinking } from "../igPlaces/gemini"
 import { haversineMeters } from "../data/koreaPlaces"
+import { ENHANCEMENT_SYSTEM, GENERATION_SYSTEM } from "./prompts"
+import { analyseDay, describeSignals, insertByTime, shorterRoute, weekday } from "./signals"
+
+export { weekday }
 import {
   aiAppearanceSchema,
   aiItemSchema,
@@ -37,6 +41,9 @@ export type LlmCall = (args: {
   user: string
   maxTokens?: number
   latLng?: { latitude: number; longitude: number }
+  /** How hard the model should think. Drafting and reviewing a plan is
+   *  routing + scheduling, so those ask for "medium"; default is "low". */
+  effort?: "low" | "medium" | "high"
 }) => Promise<string>
 
 export type Geocoder = (query: string) => Promise<{ lat: number; lng: number; address?: string; placeId?: string } | null>
@@ -126,9 +133,9 @@ export function createGroqLlm(apiKey: string): LlmCall {
 }
 
 /**
- * Preferred trips LLM: Gemini 3.7 Flash with the same tool ladder as chat
+ * Preferred trips LLM: Gemini (GEMINI_MODEL) with the same tool ladder as chat
  * (Search+Maps → Maps → Search → JSON). Maps calls send retrieval latLng
- * when the itinerary has coordinates — without that, 3.7 often 400s and
+ * when the itinerary has coordinates — without that, Gemini often 400s and
  * the old path treated that as a total Gemini failure.
  *
  * 429 is retried once on the same request, then thrown (stepping down tools
@@ -140,13 +147,13 @@ export function createGeminiLlm(
   opts?: { model?: string },
 ): LlmCall {
   const model = opts?.model ?? GEMINI_MODEL
-  return async ({ system, user, maxTokens, latLng }) => {
+  return async ({ system, user, maxTokens, latLng, effort }) => {
     const toolConfig = mapsRetrievalConfig(latLng)
     const run = async (mode: GeminiMode): Promise<string> => {
       const generationConfig: Record<string, unknown> = {
         temperature: 0.55,
         maxOutputTokens: maxTokens ?? 16_384,
-        thinkingConfig: geminiThinking("low"),
+        thinkingConfig: geminiThinking(effort ?? "low"),
       }
       // Maps/Search grounding cannot be combined with application/json mime
       // type (Gemini returns 400 INVALID_ARGUMENT). JSON mode is the last retry.
@@ -164,7 +171,7 @@ export function createGeminiLlm(
               ...(toolConfig && toolsIncludeMaps(tools) ? { toolConfig } : {}),
               generationConfig,
             }),
-            signal: AbortSignal.timeout(90_000),
+            signal: AbortSignal.timeout(effort && effort !== "low" ? 150_000 : 90_000),
           },
           fetchImpl,
         )
@@ -219,7 +226,7 @@ export function createGeminiLlm(
 
 /**
  * Optional wrapper kept for tests. `createTripsLlm` does not use this:
- * Gemini 3.7 is used alone when configured. Groq is only selected when
+ * Gemini is used alone when configured. Groq is only selected when
  * Gemini is missing.
  */
 export function withLlmFallback(primary: LlmCall, fallback: LlmCall): LlmCall {
@@ -244,7 +251,7 @@ export function withLlmFallback(primary: LlmCall, fallback: LlmCall): LlmCall {
   }
 }
 
-/** Gemini 3.7 when configured. Groq only if Gemini is missing — it is not a reliability fallback. */
+/** Gemini when configured. Groq only if Gemini is missing — it is not a reliability fallback. */
 export function pickTripsLlm(gemini: LlmCall | null, groq: LlmCall | null): LlmCall | null {
   return gemini ?? groq ?? null
 }
@@ -539,51 +546,6 @@ export interface GeneratePreferences {
   transport?: string
 }
 
-const GENERATION_SYSTEM = `You are a meticulous travel-planning agent. You produce structured itineraries as JSON only — no prose outside JSON.
-
-Output a single JSON object with this exact shape:
-{
-  "summary": string,                       // 1-3 sentence trip overview
-  "appearance": {                           // editorial theming for the trip's dossier-style pages
-    "accent": "rose" | "amber" | "emerald" | "sky" | "violet",  // pick the family that fits the destination's mood
-    "eyebrow": string,                      // 2-3 word kicker, e.g. "The dossier"
-    "subtitle": string,                     // italic serif line under the title, e.g. "a Seoul & Busan dossier"
-    "headline": string                      // 2-3 sentence editorial paragraph capturing the trip's spirit
-  },
-  "days": [                                 // EXACTLY one entry per trip day, in date order
-    {
-      "title": string,                      // short day theme, e.g. "Palaces & Hanok lanes"
-      "emoji": string,                      // ONE expressive emoji for the day, e.g. "🏯"
-      "city": string,                       // primary city/area for the day
-      "notes": string,                      // 1-2 sentence editorial day theme (rendered as prose under the title)
-      "neighborhoods": [string],            // 2-4 neighborhood/area names featured this day
-      "items": [
-        {
-          "kind": "place" | "note" | "section",
-          "title": string,
-          "time": "HH:mm",                  // optional, 24h local time
-          "notes": string,                  // optional, 1-2 useful sentences
-          "location": {                     // REQUIRED for kind "place"
-            "name": string,
-            "address": string,              // street address or precise area; used for geocoding
-            "lat": number,                  // include real coordinates when you know them
-            "lng": number,
-            "category": "restaurant" | "cafe" | "bar" | "market" | "shopping" | "museum" | "palace" | "shrine" | "park" | "viewpoint" | "experience" | "landmark" | "neighborhood" | "hotel" | "transit" | "venue"
-          }
-        }
-      ]
-    }
-  ]
-}
-
-Rules:
-- Realistic pacing: 4-7 items per day, geographically clustered to minimize backtracking.
-- Include meals (lunch + dinner) as place items with category "restaurant" or "cafe".
-- Every place item MUST have a location with at least name + address. When Google Maps grounding is available, use it to verify each venue exists and include its real lat/lng; use Google Search for hours, seasonal closures, and events. Otherwise provide coordinates only when confident.
-- Use "section" items sparingly as morning/afternoon/evening headers, "note" items for tips.
-- Respect the traveler preferences when given. Never invent reservations or claim bookings exist.
-- "notes" at the day level is editorial voice (a travel-dossier one-liner), not logistics; keep logistics in item notes.`
-
 export async function generateItinerary(args: {
   trip: Trip
   prompt?: string
@@ -602,6 +564,7 @@ export async function generateItinerary(args: {
     `Trip: ${trip.name}`,
     `Destinations: ${trip.destinations.join(", ")}`,
     `Dates: ${trip.startDate} to ${trip.endDate} (${dates.length} days)`,
+    `Days, in order (plan around each weekday's closures): ${dates.map((date, i) => `${i + 1}. ${weekday(date)} ${date}`).join("; ")}`,
     `Timezone: ${trip.timezone}`,
     trip.description ? `Context: ${trip.description}` : undefined,
     prefLines ? `Traveler preferences:\n${prefLines}` : undefined,
@@ -614,6 +577,7 @@ export async function generateItinerary(args: {
     system: GENERATION_SYSTEM,
     user,
     latLng: tripLatLngHint(trip) ?? undefined,
+    effort: "medium",
   })
   const parsed = salvageItinerary(raw)
   const appearance = parsed.appearance
@@ -701,40 +665,6 @@ export async function fillMissingCoordinates(
 
 // ── Enhancement ──────────────────────────────────────────────────────────
 
-const ENHANCEMENT_SYSTEM = `You are a travel-itinerary review agent. You receive a structured itinerary plus deterministic signals (computed distances between consecutive stops, weather forecast) and return improvement suggestions as JSON only.
-
-Output a single JSON object:
-{
-  "summary": string,                        // 1-3 sentences on the overall state of the plan
-  "outcome": "added_places" | "no_adds_needed" | "no_adds_possible",
-  "outcomeReason": string,                  // REQUIRED. 1-3 sentences: why you added places, or why you did not.
-  "suggestions": [
-    {
-      "kind": "add" | "edit" | "remove" | "reorder" | "warning" | "info",
-      "dayId": string,                      // REQUIRED for add/edit/remove/reorder — must be a dayId from input
-      "itemId": string,                     // REQUIRED for edit/remove: the target item id from input
-      "title": string,                      // short imperative, e.g. "Add a late lunch near Insadong"
-      "detail": string,                     // why, with specifics; cite the signal that triggered it
-      "confidence": "high" | "medium" | "low",
-      "proposedItem": { ... },              // REQUIRED for "add": kind/title/time/notes/location (location.name + address)
-      "proposedChanges": { ... },           // for "edit": only the changed fields
-      "proposedOrder": [string]             // for "reorder": full list of the day's item ids in new order
-    }
-  ]
-}
-
-Your primary job is to add worthwhile stops when the day has room. Review for: missing meals, empty or thin days (fewer than 4 place items), long gaps between timed stops, nearby alternatives that fit the day's geography, weather conflicts (outdoor plans on high-rain days), travel-time backtracking, and places that may need hour verification (verify with Google Maps grounding and Google Search when available; otherwise flag as "warning" with confidence "low").
-
-Rules:
-- ALWAYS set outcome + outcomeReason. The traveler must understand why places were or were not added.
-- If a day is empty, thin, missing a meal, or has a long gap, emit at least one "add" with a full proposedItem (kind "place", title, location.name, location.address; lat/lng when known). Set outcome to "added_places".
-- If the day is already well-paced (meals covered, 4–7 clustered stops, no useful gap), set outcome to "no_adds_needed" and explain specifically (e.g. "Day 2 already has lunch, dinner, and five clustered Jongno stops; another venue would overpack the afternoon.").
-- If you wanted to add but could not (unknown area, no grounded venue, traveler asked to keep it sparse), set outcome to "no_adds_possible" and say why.
-- Never emit kind "add" without a proposedItem object and a valid dayId. Use "info" if you only have a tip.
-- Preserve the traveler's intent. Do not rewrite wholesale. Max ~8 suggestions.
-- Never claim a place is closed/open as fact — phrase as a check ("verify hours") with appropriate confidence.
-- Only reference itemIds and dayIds that exist in the input.`
-
 interface TravelLeg {
   dayId: string
   fromItemId: string
@@ -769,22 +699,37 @@ export function computeTravelLegs(days: TripDay[]): TravelLeg[] {
   return legs
 }
 
-function describeDay(day: TripDay): string {
+const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text)
+
+/** A day as the reviewing model sees it: every item with its id, clock,
+ *  place and the traveller's own notes, then the computed facts. */
+export function describeDay(day: TripDay): string {
   const items = day.items
     .map((i) => {
+      const loc = i.location
       const parts = [
         `    - id=${i.id} kind=${i.kind} title=${JSON.stringify(i.title)}`,
-        i.time ? `time=${i.time}` : "",
+        i.time ? `time=${i.time}${i.endTime ? `-${i.endTime}` : ""}` : "time=none",
         i.status !== "none" ? `status=${i.status}` : "",
-        i.location
-          ? `location=${JSON.stringify(i.location.name)}${i.location.lat != null ? ` (${i.location.lat},${i.location.lng})` : " (no coordinates)"}`
+        loc
+          ? `place=${JSON.stringify(loc.name)}${loc.category ? ` [${loc.category}]` : ""}${
+              loc.lat != null && loc.lng != null ? ` (${loc.lat.toFixed(5)},${loc.lng.toFixed(5)})` : " (no coordinates)"
+            }`
           : "",
+        i.notes?.trim() ? `notes=${JSON.stringify(clip(i.notes.trim().replace(/\s+/g, " "), 140))}` : "",
       ]
       return parts.filter(Boolean).join(" ")
     })
     .join("\n")
-  return `  dayId=${day.id} date=${day.date}${day.city ? ` city=${day.city}` : ""}${day.title ? ` title=${JSON.stringify(day.title)}` : ""}\n${items || "    (empty)"}`
+  const head =
+    `  dayId=${day.id} ${weekday(day.date)} ${day.date}` +
+    (day.city ? ` city=${day.city}` : "") +
+    (day.title ? ` title=${JSON.stringify(day.title)}` : "") +
+    (day.neighborhoods?.length ? ` areas=${day.neighborhoods.join(", ")}` : "")
+  return `${head}\n${items || "    (no items)"}\n${describeSignals(analyseDay(day))}`
 }
+
+const placeKey = (name: string) => name.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim()
 
 export async function enhanceTrip(args: {
   trip: Trip
@@ -818,6 +763,20 @@ export async function enhanceTrip(args: {
   }
 
   const legs = computeTravelLegs(days)
+  // One line per other day, so a single-day review knows what the rest of
+  // the trip already covers and where it is based.
+  const elsewhere =
+    scope === "day"
+      ? trip.days
+          .filter((d) => d.id !== dayId && d.items.some((i) => i.location))
+          .map(
+            (d) =>
+              `  ${d.date}${d.city ? ` (${d.city})` : ""}: ${d.items
+                .flatMap((i) => (i.location ? [i.location.name] : []))
+                .slice(0, 12)
+                .join("; ")}`,
+          )
+      : []
   const coords = days
     .flatMap((d) => d.items)
     .map((i) => i.location)
@@ -847,12 +806,15 @@ export async function enhanceTrip(args: {
 
   const user = [
     `Trip: ${trip.name} (${trip.destinations.join(", ")}), ${trip.startDate} to ${trip.endDate}, timezone ${trip.timezone}.`,
-    `Scope: ${scope === "day" ? `single day ${dayId}` : "entire trip"}.`,
+    scope === "day"
+      ? `Scope: ONE day, ${dayId}. Every suggestion must be for ${dayId}.`
+      : "Scope: the whole trip.",
     args.prompt?.trim()
       ? `Traveler's focus for this review (prioritize this): ${args.prompt.trim()}`
       : undefined,
-    `Itinerary:`,
+    scope === "day" ? "The day under review:" : "Itinerary:",
     ...days.map(describeDay),
+    elsewhere.length ? `Already on other days of this trip (do not repeat these venues):\n${elsewhere.join("\n")}` : undefined,
     `Computed distances between consecutive located stops:`,
     legs.length
       ? legs.map((l) => `  ${l.dayId}: ${l.from} → ${l.to}: ${l.distanceKm} km`).join("\n")
@@ -868,6 +830,7 @@ export async function enhanceTrip(args: {
       system: ENHANCEMENT_SYSTEM,
       user,
       latLng: tripLatLngHint(trip, scope === "day" ? dayId : undefined) ?? undefined,
+      effort: "medium",
     })
     const parsed = salvageSuggestions(raw)
     run.summary = parsed.summary
@@ -879,8 +842,21 @@ export async function enhanceTrip(args: {
     const scoped = parsed.suggestions.map((s) =>
       scope === "day" && dayId && (!s.dayId || !validDayIds.has(s.dayId)) ? { ...s, dayId } : s,
     )
+    // Venues already on the trip (any day) are never re-added, and the model
+    // cannot add the same venue twice in one review.
+    const taken = new Set(
+      trip.days.flatMap((d) => d.items.flatMap((i) => (i.location?.name ? [placeKey(i.location.name)] : []))),
+    )
+    const isFresh = (name: string | undefined) => {
+      const key = name ? placeKey(name) : ""
+      if (!key) return true
+      if (taken.has(key)) return false
+      taken.add(key)
+      return true
+    }
     run.suggestions = scoped
       .filter((s) => !s.dayId || validDayIds.has(s.dayId))
+      .filter((s) => s.kind !== "add" || isFresh(s.proposedItem?.location?.name))
       .filter((s) => s.kind !== "add" || (s.dayId && validDayIds.has(s.dayId) && s.proposedItem))
       .filter((s) => !(s.kind === "edit" || s.kind === "remove") || (s.itemId && validItemIds.has(s.itemId)))
       .map(
@@ -922,6 +898,22 @@ export async function enhanceTrip(args: {
           proposedOrder: s.proposedOrder,
         }),
       )
+    // A shorter walking order needs no model: offer it when the review did
+    // not already propose a reorder for that day.
+    for (const day of days) {
+      if (run.suggestions.some((s) => s.kind === "reorder" && s.dayId === day.id)) continue
+      const shorter = shorterRoute(day)
+      if (!shorter) continue
+      run.suggestions.push({
+        id: newId("sug"),
+        kind: "reorder",
+        dayId: day.id,
+        title: "Walk the stops in a shorter order",
+        detail: `Visiting them nearest-first cuts the route from ${shorter.beforeKm} km to ${shorter.afterKm} km. Your first stop stays first.`,
+        confidence: "high",
+        proposedOrder: shorter.order,
+      })
+    }
     if (args.geocode) {
       await fillMissingCoordinates(
         run.suggestions.flatMap((s) => (s.proposedItem ? [s.proposedItem] : [])),
@@ -1063,7 +1055,8 @@ export function applySuggestions(trip: Trip, run: EnhancementRun, suggestionIds:
     switch (s.kind) {
       case "add":
         if (s.proposedItem && day) {
-          day.items.push(structuredClone(s.proposedItem))
+          // Timed adds land where the clock says, not at the bottom.
+          day.items = insertByTime(day.items, structuredClone(s.proposedItem))
           ok = true
         }
         break

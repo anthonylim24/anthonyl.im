@@ -89,19 +89,68 @@ export const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
 /** Single source of truth for which Gemini model every Gemini surface uses
  *  (IG text/video/carousel extraction, geocode dispute resolution, busyness,
- *  Korea chat, trips generation). 3.7 Flash is the strongest Flash tier —
- *  better Maps grounding, multimodal OCR, and structured JSON than Flash
- *  Lite. To swap app-wide, change this one line. Per-call `model` overrides
- *  on the factories still work if a specific surface needs a different tier. */
-export const GEMINI_MODEL = 'gemini-3.7-flash'
-
-/** Gemini 3 thinking levels. Prefer these over the 2.5-era `thinkingBudget`
- *  — budget is accepted for back-compat but can behave unexpectedly on 3.x.
+ *  concierge chat, trips generation and review). Gemini 4 Hydrogen is the
+ *  current fast tier: stronger grounding and planning than 3.x Flash at
+ *  lower latency. Override with the `GEMINI_MODEL` env var; per-call `model`
+ *  overrides on the factories still work.
  *
- *  `minimal` is rejected by gemini-3.7-flash (400 INVALID_ARGUMENT:
- *  "Thinking level MINIMAL is not supported for this model"). Chat used
- *  to send it and the concierge streamed a generic unavailable error.
- *  Remap to `low` so every Gemini surface stays valid on the app model. */
+ *  Hydrogen differences that matter here (Google's migration guide):
+ *  thinking is `thinkingLevel` only (`thinkingBudget` and MINIMAL are 400s),
+ *  `temperature` / `topP` / `topK` are ignored, and a request's history may
+ *  not end on a model turn. */
+export const GEMINI_MODEL = process.env.GEMINI_MODEL?.trim() || 'gemini-4-hydrogen'
+
+/** Previous app model. Used automatically when the primary model is not
+ *  available to this API key (404, or a 400 that names the model), so a
+ *  staged rollout or a regional gap degrades instead of breaking AI. */
+export const GEMINI_FALLBACK_MODEL = 'gemini-3.7-flash'
+
+let primaryModelUnavailable = false
+
+/** True when a response says "this key cannot use this model" rather than
+ *  "this request is wrong". Only then is the older model worth trying. */
+export async function isModelUnavailable(res: Response): Promise<boolean> {
+  if (res.status === 404) return true
+  if (res.status !== 400 && res.status !== 403) return false
+  const body = await res.clone().text().catch(() => '')
+  return /models\/[\w.-]+ is not (found|supported)|model (is )?not (found|supported|available)|unknown model|not available in your (country|region)/i.test(body)
+}
+
+/** Rewrite a `…/models/<primary>:method` URL to the fallback model. */
+function fallbackUrl(url: string): string | null {
+  const primary = `/models/${GEMINI_MODEL}:`
+  if (GEMINI_MODEL === GEMINI_FALLBACK_MODEL || !url.includes(primary)) return null
+  return url.replace(primary, `/models/${GEMINI_FALLBACK_MODEL}:`)
+}
+
+/**
+ * Fetch a Gemini endpoint on the app model, stepping down to the previous
+ * model when the primary is unavailable to this key. Once that happens the
+ * process stops trying the primary (no doubled latency on every call).
+ */
+export async function fetchGeminiModel(
+  f: typeof fetch,
+  url: string,
+  init: RequestInit,
+): Promise<Response> {
+  const alt = fallbackUrl(url)
+  if (alt && primaryModelUnavailable) return f(alt, init)
+  const res = await f(url, init)
+  if (!alt || res.ok || !(await isModelUnavailable(res))) return res
+  await res.text().catch(() => {})
+  primaryModelUnavailable = true
+  console.warn(`[gemini] ${GEMINI_MODEL} is unavailable to this key; using ${GEMINI_FALLBACK_MODEL}`)
+  return f(alt, init)
+}
+
+/** Test seam: forget that the primary model was unavailable. */
+export function resetGeminiModelFallback(): void {
+  primaryModelUnavailable = false
+}
+
+/** Thinking levels. Hydrogen accepts low / medium / high / xhigh and rejects
+ *  `minimal` (as 3.7 Flash did), so `minimal` maps to `low` and every
+ *  Gemini surface stays valid on both the app model and the fallback. */
 export type GeminiThinkingLevel = 'minimal' | 'low' | 'medium' | 'high'
 
 export function geminiThinking(level: GeminiThinkingLevel = 'low'): {
@@ -125,12 +174,12 @@ async function fetchGeminiGenerate(
   url: string,
   init: RequestInit,
 ): Promise<Response> {
-  const first = await f(url, init);
+  const first = await fetchGeminiModel(f, url, init);
   if (!TRANSIENT_5XX.has(first.status)) return first;
   // Drain the first body so the socket can be reused, then back off briefly.
   await first.text().catch(() => {});
   await new Promise((r) => setTimeout(r, 1500));
-  return f(url, init);
+  return fetchGeminiModel(f, url, init);
 }
 
 export interface GeminiExtractorDeps {

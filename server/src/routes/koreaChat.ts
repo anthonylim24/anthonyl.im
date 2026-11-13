@@ -204,7 +204,7 @@ koreaChat.post("/", zValidator("json", chatSchema), async (c) => {
       temperature: 0.45,
       maxOutputTokens: 2048,
       // Conversational Q&A over a pre-assembled context. `low` is the
-      // snappy 3.7 Flash tier — `minimal` 400s on this model.
+      // snappy tier — `minimal` 400s on Gemini.
       thinkingConfig: geminiThinking("low"),
     },
   }

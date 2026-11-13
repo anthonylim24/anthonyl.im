@@ -9,7 +9,7 @@
 // from Kakao Local's category_group_code and district heuristics.
 
 import type { BusynessLevel, BusynessSource } from './types';
-import { GEMINI_MODEL, GEMINI_BASE, geminiThinking } from './gemini';
+import { GEMINI_MODEL, GEMINI_BASE, fetchGeminiModel, geminiThinking } from './gemini';
 
 export interface BusynessResult {
   busyness: BusynessLevel;
@@ -72,7 +72,7 @@ async function fetchBusynessFromGemini(
   const prompt = BUSYNESS_PROMPT(name, nameRomanized ?? null, city, category);
   let r: Response;
   try {
-    r = await f(`${GEMINI_BASE}/models/${model}:generateContent`, {
+    r = await fetchGeminiModel(f, `${GEMINI_BASE}/models/${model}:generateContent`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

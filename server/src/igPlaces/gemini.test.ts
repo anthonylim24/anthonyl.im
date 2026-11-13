@@ -1,5 +1,15 @@
 import { test, expect, describe, mock } from 'bun:test';
-import { createGeminiExtractor, createGeminiVideoAnalyzer, createGeminiVideoTranscriber, geminiThinking } from './gemini';
+import {
+  createGeminiExtractor,
+  createGeminiVideoAnalyzer,
+  createGeminiVideoTranscriber,
+  fetchGeminiModel,
+  GEMINI_BASE,
+  GEMINI_FALLBACK_MODEL,
+  GEMINI_MODEL,
+  geminiThinking,
+  resetGeminiModelFallback,
+} from './gemini';
 import type { ExtractionBundle } from './types';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -21,8 +31,44 @@ function mockFetch(handlers: Array<{ url: RegExp; response: () => Response }>) {
   });
 }
 
+describe('fetchGeminiModel', () => {
+  const url = `${GEMINI_BASE}/models/${GEMINI_MODEL}:generateContent`;
+
+  test('steps down to the previous model when the primary is unavailable, and stays there', async () => {
+    resetGeminiModelFallback();
+    const seen: string[] = [];
+    const f = (async (input: string | URL | Request) => {
+      const u = String(input);
+      seen.push(u);
+      return u.includes(`/models/${GEMINI_MODEL}:`)
+        ? new Response(JSON.stringify({ error: { message: `models/${GEMINI_MODEL} is not found for API version v1beta` } }), { status: 404 })
+        : new Response('{}', { status: 200 });
+    }) as typeof fetch;
+    try {
+      expect((await fetchGeminiModel(f, url, {})).status).toBe(200);
+      expect((await fetchGeminiModel(f, url, {})).status).toBe(200);
+      expect(seen).toHaveLength(3);
+      expect(seen[1]).toContain(`/models/${GEMINI_FALLBACK_MODEL}:`);
+      expect(seen[2]).toContain(`/models/${GEMINI_FALLBACK_MODEL}:`);
+    } finally {
+      resetGeminiModelFallback();
+    }
+  });
+
+  test('a bad request is not mistaken for a missing model', async () => {
+    resetGeminiModelFallback();
+    let calls = 0;
+    const f = (async () => {
+      calls += 1;
+      return new Response(JSON.stringify({ error: { message: 'Invalid JSON payload received.' } }), { status: 400 });
+    }) as unknown as typeof fetch;
+    expect((await fetchGeminiModel(f, url, {})).status).toBe(400);
+    expect(calls).toBe(1);
+  });
+});
+
 describe('geminiThinking', () => {
-  test('remaps minimal → low so 3.7 Flash does not 400', () => {
+  test('remaps minimal → low so Gemini does not 400', () => {
     expect(geminiThinking('minimal')).toEqual({ thinkingLevel: 'low' })
     expect(geminiThinking('low')).toEqual({ thinkingLevel: 'low' })
     expect(geminiThinking('medium')).toEqual({ thinkingLevel: 'medium' })
