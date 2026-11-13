@@ -334,7 +334,8 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
                     </div>
 
                     <div {...sx(s.scroll)} ref={listRef} role="tabpanel" id="ig-panel" aria-labelledby={tab === "posts" ? "ig-tab-posts" : "ig-tab-saved"}>
-                      {!wide && map && <div {...sx(s.mapStrip)}>{map}</div>}
+                      {/* The strip is for the post being read; the library is a list first. */}
+                      {!wide && map && tab === "posts" && <div {...sx(s.mapStrip)}>{map}</div>}
 
                       {tab === "posts" &&
                         imp.pendingUrls.map((url) => (

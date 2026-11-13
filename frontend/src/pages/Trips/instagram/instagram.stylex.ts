@@ -291,13 +291,14 @@ export const ig = stylex.create({
     WebkitLineClamp: 2,
     WebkitBoxOrient: "vertical",
     overflow: "hidden",
+    [PHONE]: { WebkitLineClamp: 1 },
   },
   flags: { display: "flex", flexWrap: "wrap", gap: "0.375rem", marginTop: "0.375rem" },
   placeActions: { display: "flex", alignItems: "center", gap: "0.125rem", flexShrink: 0, minHeight: "2.25rem" },
   // Saved rows carry two actions: on a phone they drop under the text so
   // the name and address keep the full width.
-  placeWrap: { [PHONE]: { flexWrap: "wrap" } },
-  placeActionsWide: { [PHONE]: { flexBasis: "100%", justifyContent: "flex-end", marginTop: "-0.25rem" } },
+  placeWrap: { [PHONE]: { display: "grid", gridTemplateColumns: "2.25rem minmax(0, 1fr)", columnGap: "0.75rem", rowGap: "0.25rem" } },
+  placeActionsWide: { [PHONE]: { gridColumnStart: "2", justifyContent: "space-between" } },
   added: {
     display: "inline-flex",
     alignItems: "center",
