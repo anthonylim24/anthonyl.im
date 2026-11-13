@@ -201,8 +201,8 @@ export function AddStop({
                       <span {...sx(a.wrap)}>
                         {option.urls.length > 1 ? `Find the places in these ${option.urls.length} posts` : "Find the places in this post"}
                       </span>
-                      <span {...sx(a.small, a.truncate)} style={{ display: "block" }}>
-                        Reads the caption, comments and video, then pins what it names
+                      <span {...sx(a.small, a.wrap)} style={{ display: "block" }}>
+                        Reads the post and pins every place it names
                       </span>
                     </span>
                   </button>
@@ -259,7 +259,7 @@ export function AddStop({
           aria-label="Add a place, note or booking"
           autoComplete="off"
           enterKeyHint="done"
-          placeholder={onInstagram ? "Add a place, a note, or paste an Instagram link…" : "Add a place, note or booking…"}
+          placeholder={onInstagram ? "Add a place, note or Instagram link…" : "Add a place, note or booking…"}
           value={text}
           disabled={disabled}
           {...sx(a.fieldBare)}

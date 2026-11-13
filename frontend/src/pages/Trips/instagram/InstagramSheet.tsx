@@ -186,6 +186,10 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
       null,
     [trip.days, trip.center],
   )
+  const tripDotsNow = useMemo<LngLat[]>(
+    () => trip.days.flatMap((d) => d.items.filter(isLocated).map((i) => ({ lat: i.location.lat, lng: i.location.lng }))),
+    [trip.days],
+  )
   const isNear = (place: IgPlace) =>
     tripCenter != null && place.lat != null && place.lng != null && distanceMeters(tripCenter, { lat: place.lat, lng: place.lng }) < NEAR_M
   const savedNear = (saved?.places ?? []).filter(isNear)
@@ -220,10 +224,11 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
         restCenter={trip.center ?? undefined}
         restZoom={10}
         maxZoom={15}
-        padding={wide ? { top: 72, right: 96, bottom: 128, left: 72 } : { top: 30, right: 30, bottom: 26, left: 30 }}
+        padding={wide ? { top: 96, right: 96, bottom: 72, left: 72 } : { top: 30, right: 30, bottom: 26, left: 30 }}
         hotId={hot}
         activeId={hot}
         bare={!wide}
+        flat
         onHover={setHot}
         onSelect={(id) => {
           setHot(id)
@@ -234,7 +239,8 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
         {wide && (
           <p {...sx(s.mapNote)}>
             {plural(pins.length, "place")}
-            {pins.some((pin) => pin.variant === "stop") ? " · ticked ones are on the trip" : ""}
+            {tab === "saved" && savedNear.length > 0 ? " near this trip" : ""}
+            {pins.some((pin) => pin.variant === "stop") ? " · ticked are on the trip" : ""}
           </p>
         )}
       </AtlasMap>
@@ -243,7 +249,6 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
   const hint =
     imp.problem ??
     (text.trim() !== "" && urls.length === 0 ? "That doesn’t look like an Instagram link. In Instagram: Share, then Copy link." : null)
-  const working = imp.session.filter((job) => jobProgress(job).phase === "working").length
   const savedTotal = saved?.total ?? 0
 
   return (
@@ -265,8 +270,8 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
               <div {...sx(s.column)}>
                 <div {...sx(s.head)}>
                   <div>
-                    <p {...sx(a.eyebrow)}>Import</p>
-                    <DialogPrimitive.Title {...sx(s.title)}>
+                    <p {...sx(a.eyebrow, jobs.length > 0 && s.ledeQuiet)}>Import</p>
+                    <DialogPrimitive.Title {...sx(s.title, jobs.length > 0 && s.titleQuiet)}>
                       Places from <span {...sx(a.italic)}>Instagram</span>
                     </DialogPrimitive.Title>
                     <DialogPrimitive.Description {...sx(s.lede, jobs.length > 0 && s.ledeQuiet)}>
@@ -325,7 +330,6 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
                     <div {...sx(s.tabs)} role="tablist" aria-label="Instagram places">
                       <button type="button" role="tab" id="ig-tab-posts" aria-selected={tab === "posts"} aria-controls="ig-panel" {...sx(s.tab, tab === "posts" && s.tabOn)} onClick={() => setTab("posts")}>
                         Posts
-                        {working > 0 && <Spinner />}
                       </button>
                       <button type="button" role="tab" id="ig-tab-saved" aria-selected={tab === "saved"} aria-controls="ig-panel" {...sx(s.tab, tab === "saved" && s.tabOn)} onClick={() => setTab("saved")}>
                         Saved
@@ -491,6 +495,21 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
                 <div {...sx(s.mapSide)}>
                   {map ? (
                     <div {...sx(s.mapFill)}>{map}</div>
+                  ) : tripDotsNow.length > 0 ? (
+                    <div {...sx(s.mapFill)}>
+                      <AtlasMap
+                        pins={[]}
+                        dots={tripDotsNow}
+                        frameKey={`trip:${tripDotsNow.length}`}
+                        framePoints={corePoints(tripDotsNow)}
+                        padding={{ top: 88, right: 88, bottom: 64, left: 64 }}
+                        maxZoom={14}
+                        flat
+                        label="Map of the trip so far"
+                      >
+                        <p {...sx(s.mapNote)}>Your trip so far · places from posts appear here</p>
+                      </AtlasMap>
+                    </div>
                   ) : (
                     <div {...sx(s.mapEmpty)}>
                       <div {...sx(s.mapEmptyCard)}>
@@ -550,17 +569,23 @@ function PostCard({
           <p {...sx(s.postName, a.truncate)}>{postLabel(job)}</p>
           <p {...sx(s.postCaption, a.truncate)}>{caption || job.url.replace(/^https?:\/\/(www\.)?/, "")}</p>
         </div>
-        <span {...sx(s.status, !busy && progress.phase === "done" && s.statusDone, !busy && progress.phase === "failed" && s.statusBad)} role="status">
-          {busy ? "Reading" : progress.label}
-        </span>
+        {!busy && (
+          <span {...sx(s.status, progress.phase === "failed" && s.statusBad)} role="status">
+            {progress.label}
+          </span>
+        )}
       </div>
 
       {busy && (
         <>
-          <div {...sx(s.track)} role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((deepening && progress.phase !== "working" ? 0.1 : progress.fraction) * 100)}>
-            <div {...sx(s.fill)} style={{ width: `${(deepening && progress.phase !== "working" ? 0.1 : progress.fraction) * 100}%` }} />
-          </div>
-          <div {...sx(s.working)}>
+          <div
+            {...sx(s.working)}
+            role="progressbar"
+            aria-label={label}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round((deepening && progress.phase !== "working" ? 0.1 : progress.fraction) * 100)}
+          >
             <Spinner />
             <span>{label}…</span>
             <span {...sx(s.steps)} aria-hidden>
@@ -614,7 +639,7 @@ function PostCard({
           <span {...sx(a.rowWrap)}>
             <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} onClick={onDeepen}>
               <RotateCw size={14} strokeWidth={1.75} aria-hidden />
-              Read it again
+              Try again
             </button>
             <a href={job.url} target="_blank" rel="noreferrer" {...sx(s.quiet)}>
               <ExternalLink size={14} strokeWidth={1.75} aria-hidden />
@@ -669,7 +694,7 @@ function PlaceRow({
   onAdd: () => void
   onRemove?: () => void
 }) {
-  const Icon = onDay != null ? Check : itemIcon("place", placeCategory(place.category))
+  const Icon = itemIcon("place", placeCategory(place.category))
   const where = placeWhere(place)
   const romanized = place.name_romanized?.trim()
   const pinned = place.lat != null && place.lng != null
@@ -684,8 +709,8 @@ function PlaceRow({
       onMouseEnter={() => onHover(id)}
       onMouseLeave={() => onHover(null)}
     >
-      <span {...sx(s.tile, onDay != null && s.tileAdded)} aria-hidden>
-        <Icon size={17} strokeWidth={onDay != null ? 2.25 : 1.75} />
+      <span {...sx(s.tile)} aria-hidden>
+        <Icon size={17} strokeWidth={1.75} />
       </span>
       <div {...sx(a.grow)} style={{ minWidth: 0 }}>
         <p {...sx(s.placeName, a.wrap)}>
@@ -708,7 +733,10 @@ function PlaceRow({
       </div>
       <div {...sx(s.placeActions)}>
         {onDay != null ? (
-          <span {...sx(s.added)}>On day {onDay}</span>
+          <span {...sx(s.added)}>
+            <Check size={14} strokeWidth={2} aria-hidden />
+            On day {onDay}
+          </span>
         ) : (
           <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} onClick={onAdd} aria-label={`Add ${place.name} to ${dayLabel.toLowerCase()}`}>
             <Plus size={14} strokeWidth={2} aria-hidden />

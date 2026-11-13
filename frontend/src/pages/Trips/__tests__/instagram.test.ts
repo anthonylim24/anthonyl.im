@@ -81,7 +81,7 @@ describe("jobProgress", () => {
   it("keeps working through a retry backoff", () => {
     expect(jobProgress(job({ status: "pending", step: "fetching", attempts: 1, last_error: "timeout" }))).toMatchObject({
       phase: "working",
-      label: "Hit a snag, trying again",
+      label: "Instagram didn’t answer. Trying again",
     })
   })
 
@@ -141,7 +141,7 @@ describe("placing a place on the trip", () => {
 describe("postLabel", () => {
   it("uses the author when known, otherwise the kind of post", () => {
     expect(postLabel(job({ post_preview: { caption: null, owner_username: "lisboa" } }))).toBe("@lisboa")
-    expect(postLabel(job())).toBe("Instagram reel")
+    expect(postLabel(job())).toBe("Instagram Reel")
     expect(postLabel(job({ url: "https://www.instagram.com/p/x/" }))).toBe("Instagram post")
   })
 })

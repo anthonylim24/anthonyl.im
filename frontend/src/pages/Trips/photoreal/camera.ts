@@ -210,7 +210,7 @@ export function mixPose(from: Pose, to: Pose, k: number, t: number): Pose {
 
 /** How high a leg's arc rises above its ends: enough to clear rooftops, never a rainbow. */
 export function arcLift(lengthM: number): number {
-  return Math.min(260, Math.max(22, lengthM * 0.085))
+  return Math.min(180, Math.max(12, lengthM * 0.06))
 }
 
 /** Points along one leg: a shallow parabola from `a` to `b` (y up). */

@@ -190,6 +190,7 @@ export function createDevGround(ctx: GroundContext): Ground {
     update: () => {},
     busy: () => false,
     hasContent: () => true,
+    progress: () => 1,
     floorAt: (x, z) => {
       const y = roofAt(x, z)
       return { distance: 8000 - y, point: { x, y, z }, normal: { x: 0, y: 1, z: 0 } }

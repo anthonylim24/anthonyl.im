@@ -142,6 +142,7 @@ export function createTilesGround(ctx: GroundContext, apiKey: string): Ground {
     update: () => tiles.update(),
     busy: () => !failed && (tiles.loadProgress < 1 || !tiles.group.children.length),
     hasContent: () => tiles.group.children.length > 0,
+    progress: () => (tiles.group.children.length > 0 ? tiles.loadProgress : 0),
     floorAt(x, z) {
       origin.set(x, YOU_RAY_HEIGHT, z)
       ray.set(origin, down)

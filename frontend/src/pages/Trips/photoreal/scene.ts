@@ -110,6 +110,10 @@ export interface SceneOptions {
   onAttribution: (text: string) => void
   /** The traveller grabbed the camera. */
   onInteract: () => void
+  /** While the first view streams in: share of its tiles that have arrived, 0–1. */
+  onProgress: (progress: number) => void
+  /** After the reveal: whether sharper tiles are still arriving. */
+  onRefining: (refining: boolean) => void
 }
 
 type Goal = { kind: "all" } | { kind: "stop"; id: string } | null
@@ -139,7 +143,14 @@ interface Flight {
   then?: () => void
 }
 
-const ARRIVAL_DEADLINE_MS = 2500
+/** Reveal once the first view has mostly streamed in… */
+const SETTLED = 0.92
+/** …or this long after the first tile appeared… */
+const SETTLE_AFTER_CONTENT_MS = 4500
+/** …or, with nothing at all, after this. */
+const ARRIVAL_DEADLINE_MS = 9000
+/** Occlusion only means something up close; from high up every pin "hides" behind a hill. */
+const VEIL_RANGE_M = 1400
 const ORBIT_RATE = 1.5 * DEG
 const ORBIT_SECONDS = 48
 const PIN_GAP_PX = 34
@@ -169,7 +180,15 @@ export class PhotorealScene {
   private stemCount = -1
   private readonly stemMat = new LineMaterial({ linewidth: 2, transparent: true, opacity: 0.8, fog: false })
   private readonly stems: LineSegments2
-  private readonly lineMats: { casing: LineMaterial; main: LineMaterial; ghost: LineMaterial; mainHot: LineMaterial; casingHot: LineMaterial }
+  private readonly lineMats: {
+    casing: LineMaterial
+    main: LineMaterial
+    ghost: LineMaterial
+    mainHot: LineMaterial
+    casingHot: LineMaterial
+    mainDim: LineMaterial
+    casingDim: LineMaterial
+  }
   private readonly routeGroup = new Group()
   private legs: Array<{ geo: LineGeometry; casing: Line2; main: Line2; ghost: Line2 }> = []
   private ground: Ground | null = null
@@ -185,7 +204,10 @@ export class PhotorealScene {
   private last = 0
   private disposed = false
   private ready = false
-  private arrival: { pose: Pose; deadline: number } | null = null
+  private arrival: { pose: Pose; deadline: number; contentAt: number } | null = null
+  private lastProgress = -1
+  private refining = false
+  private refiningSince = 0
   private width = 1
   private height = 1
   private insets: Insets
@@ -278,12 +300,15 @@ export class PhotorealScene {
 
     const line = (linewidth: number, opacity: number, depthTest: boolean) =>
       new LineMaterial({ linewidth, transparent: true, opacity, depthTest, depthWrite: false, fog: false })
+    // Widths are screen pixels at every zoom: a hairline route, never a band.
     this.lineMats = {
-      casing: line(6.5, 0.9, true),
-      main: line(3.25, 1, true),
-      ghost: line(3.25, 0.3, false),
-      casingHot: line(8.5, 1, true),
-      mainHot: line(4.75, 1, true),
+      casing: line(5, 0.85, true),
+      main: line(3, 1, true),
+      ghost: line(3, 0.28, false),
+      casingHot: line(5.5, 0.95, true),
+      mainHot: line(3.5, 1, true),
+      casingDim: line(4.5, 0.25, true),
+      mainDim: line(2.5, 0.35, true),
     }
     this.stems = new LineSegments2(this.stemGeo, this.stemMat)
     this.stems.frustumCulled = false
@@ -364,15 +389,11 @@ export class PhotorealScene {
     this.selectedId = first
     this.goal = first ? { kind: "stop", id: first } : { kind: "all" }
     this.markSelection()
+    // Behind the veil the camera already sits where it will end up, so the
+    // tiles that stream in are the ones the reveal needs.
     const pose = this.poseFor(this.goal, null)
-    if (this.opts.reducedMotion) {
-      this.applyPose(pose)
-      this.arrival = { pose, deadline: performance.now() + ARRIVAL_DEADLINE_MS }
-    } else {
-      // Start high and a little off-axis, then settle once there is a city to settle onto.
-      this.applyPose({ ...pose, distance: Math.min(MAX_DISTANCE / 3, pose.distance * 2.3 + 500), tilt: 14 * DEG, bearing: pose.bearing - 26 * DEG })
-      this.arrival = { pose, deadline: performance.now() + ARRIVAL_DEADLINE_MS }
-    }
+    this.applyPose(pose)
+    this.arrival = { pose, deadline: performance.now() + ARRIVAL_DEADLINE_MS, contentAt: 0 }
     this.invalidate()
   }
 
@@ -446,6 +467,8 @@ export class PhotorealScene {
       // Still arriving: retarget the arrival instead of starting a second flight.
       this.goal = pin ? { kind: "stop", id: pin.stop.id } : { kind: "all" }
       this.arrival.pose = this.poseFor(this.goal, null)
+      this.applyPose(this.arrival.pose)
+      this.invalidate()
       return
     }
     if (pin && previous === pin.stop.id && this.goal?.kind === "stop" && this.goal.id === pin.stop.id) return
@@ -622,8 +645,10 @@ export class PhotorealScene {
     this.lineMats.main.color.copy(accent)
     this.lineMats.mainHot.color.copy(accent)
     this.lineMats.ghost.color.copy(accent)
+    this.lineMats.mainDim.color.copy(accent)
     this.lineMats.casing.color.copy(raised)
     this.lineMats.casingHot.color.copy(raised)
+    this.lineMats.casingDim.color.copy(raised)
     this.you?.setDim(p.dark)
   }
 
@@ -773,7 +798,9 @@ export class PhotorealScene {
     if (fly && this.opts.reducedMotion) this.applyPose(arrival.pose)
     else if (fly) {
       const stop = this.goal?.kind === "stop"
-      this.fly(arrival.pose, 2.6, easeOutQuart, false, () => {
+      // A short settle from a little higher and off-axis: enough to arrive, not enough to need other tiles.
+      this.applyPose({ ...arrival.pose, distance: arrival.pose.distance * 1.4, tilt: Math.max(TILT_FLAT, arrival.pose.tilt - 14 * DEG), bearing: arrival.pose.bearing - 16 * DEG })
+      this.fly(arrival.pose, 2.4, easeOutQuart, false, () => {
         if (stop) this.orbitUntil = performance.now() + ORBIT_SECONDS * 1000
       })
     }
@@ -792,8 +819,11 @@ export class PhotorealScene {
     this.legs.forEach((leg, i) => {
       // Leg i runs from stop i to stop i + 1.
       const hot = at >= 0 && (i === at || i === at - 1)
-      leg.main.material = hot ? this.lineMats.mainHot : this.lineMats.main
-      leg.casing.material = hot ? this.lineMats.casingHot : this.lineMats.casing
+      // With a stop selected, its own legs lead and the rest of the day recedes.
+      const dim = at >= 0 && !hot
+      leg.main.material = hot ? this.lineMats.mainHot : dim ? this.lineMats.mainDim : this.lineMats.main
+      leg.casing.material = hot ? this.lineMats.casingHot : dim ? this.lineMats.casingDim : this.lineMats.casing
+      leg.ghost.visible = leg.main.visible && !dim
       leg.main.renderOrder = hot ? 16 : 14
       leg.casing.renderOrder = hot ? 15 : 13
     })
@@ -916,8 +946,8 @@ export class PhotorealScene {
     let z = order.length
     for (const pin of order) {
       const selected = pin.stop.id === this.selectedId
-      const crowded = kept.some((k) => Math.hypot(k.sx - pin.sx, k.sy - pin.sy) < PIN_GAP_PX)
-      const dot = !selected && (crowded || pin.veiled)
+      // Only a genuine collision costs a pin its number; a hidden one just steps back.
+      const dot = !selected && kept.some((k) => Math.hypot(k.sx - pin.sx, k.sy - pin.sy) < PIN_GAP_PX)
       if (!dot) kept.push(pin)
       pin.button.classList.toggle("photoreal-pin--dot", dot)
       pin.button.classList.toggle("photoreal-pin--veiled", !selected && pin.veiled)
@@ -938,7 +968,8 @@ export class PhotorealScene {
 
   private checkVeil(pin: Pin) {
     if (!this.ground || !pin.shown) return
-    pin.veiled = this.ground.blocked(this.camera.position, this.tmp2.copy(pin.head))
+    const near = this.camera.position.distanceTo(pin.head) < VEIL_RANGE_M
+    pin.veiled = near && this.ground.blocked(this.camera.position, this.tmp2.copy(pin.head))
   }
 
   // ── Frame loop ──────────────────────────────────────────────────────────
@@ -993,9 +1024,17 @@ export class PhotorealScene {
     this.dirty = false
     let active = false
 
-    if (this.arrival) {
+    if (this.arrival && ground) {
       active = true
-      if (ground && (ground.hasContent() || now > this.arrival.deadline)) this.finishArrival(true)
+      const arrival = this.arrival
+      const progress = ground.progress()
+      if (ground.hasContent() && !arrival.contentAt) arrival.contentAt = now
+      if (Math.abs(progress - this.lastProgress) > 0.01) {
+        this.lastProgress = progress
+        this.opts.onProgress(progress)
+      }
+      const settled = ground.hasContent() && (progress >= SETTLED || now - arrival.contentAt > SETTLE_AFTER_CONTENT_MS)
+      if (settled || now > arrival.deadline) this.finishArrival(true)
     }
     if (this.flight) {
       const f = this.flight
@@ -1078,6 +1117,16 @@ export class PhotorealScene {
         this.lastAttribution = text
         this.opts.onAttribution(text)
       }
+    }
+
+    if (ground && this.ready) {
+      // Debounced so the chip doesn't flicker as single tiles come and go.
+      const busy = ground.busy()
+      if (busy !== this.refining && (busy ? now - this.refiningSince > 600 : true)) {
+        this.refining = busy
+        this.opts.onRefining(busy)
+      }
+      if (!busy) this.refiningSince = now
     }
 
     if ((active || this.dirty) && !this.raf) this.raf = requestAnimationFrame(this.tick)

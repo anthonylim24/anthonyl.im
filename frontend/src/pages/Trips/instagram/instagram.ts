@@ -47,8 +47,7 @@ export function postKey(url: string): string {
 export function postLabel(job: Pick<IgJob, "url" | "post_preview">): string {
   const owner = job.post_preview?.owner_username?.trim()
   if (owner) return `@${owner.replace(/^@/, "")}`
-  const kind = /\/reels?\//i.test(job.url) ? "Reel" : "Post"
-  return `Instagram ${kind.toLowerCase()}`
+  return /\/reels?\//i.test(job.url) ? "Instagram Reel" : "Instagram post"
 }
 
 export type JobPhase = "working" | "done" | "empty" | "failed"
@@ -120,7 +119,7 @@ export function jobProgress(job: IgJob): JobProgress {
   }
   // Waiting out a backoff after an error: still working, and say so.
   if (job.status === "pending" && job.last_error && job.attempts > 0) {
-    return { phase: "working", fraction: STEP_AT[job.step] ?? 0.05, label: "Hit a snag, trying again" }
+    return { phase: "working", fraction: STEP_AT[job.step] ?? 0.05, label: "Instagram didn’t answer. Trying again" }
   }
   return { phase: "working", fraction: STEP_AT[job.step] ?? 0.05, label: stepLabel(job) }
 }

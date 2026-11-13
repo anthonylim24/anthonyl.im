@@ -24,7 +24,7 @@ import { useViewer } from "@/lib/safeAuth"
 import { deleteTrip, duplicateTrip, generateItinerary } from "./tripsApi"
 import { dayCount, formatClock, formatRange, formatTripDate, plural, resolveAccent, titleCase, todayIsoIn, tripTiming } from "./meta"
 import { AtlasMap } from "./map/AtlasMap"
-import { addItem } from "./tripEdits"
+import { makeItem } from "./tripEdits"
 import { IgGlyph } from "./instagram/IgGlyph"
 import { extractInstagramUrls } from "./instagram/instagram"
 import { centroid, corePoints, DAY_PIN, dayPins, dayRoute, isLocated, locatedItems, tripDots, tripPins, type LngLat } from "./map/geo"
@@ -45,6 +45,8 @@ const PhotorealOverlay = lazy(() => import("./photoreal/PhotorealOverlay"))
 
 const PHOTOREAL_READY = photorealAvailable()
 const InstagramSheet = lazy(() => import("./instagram/InstagramSheet").then((m) => ({ default: m.InstagramSheet })))
+
+const TO_SCHEDULE = "To schedule"
 
 /** Notices that describe a problem: announced as alerts and never auto-dismissed. */
 const PROBLEM = /couldn|didn|isn’t|not |fail|error/i
@@ -92,6 +94,8 @@ export function TripWorkspace() {
   /** Instagram import: open with these links (possibly none). */
   const [instagram, setInstagram] = useState<{ urls: string[] } | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
+  const igAddedRef = useRef<string[]>([])
+  const [igUndo, setIgUndo] = useState<{ ids: string[]; count: number; key: number } | null>(null)
   const paneRef = useRef<HTMLDivElement>(null)
   const railRef = useRef<HTMLElement>(null)
 
@@ -207,23 +211,51 @@ export function TripWorkspace() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trip?.id, editable, wantsImport])
 
+  // Places from posts carry no time, so on a day that runs to a clock they
+  // go under a "To schedule" heading instead of trailing the last timed stop.
   const addFromInstagram = useCallback(
     (toDayId: string, items: ItineraryItem[]) => {
       if (items.length === 0) return
-      editor.setDays((days) => items.reduce((next, item) => addItem(next, toDayId, item), days))
+      const added: string[] = items.map((item) => item.id)
+      editor.setDays((days) =>
+        days.map((d) => {
+          if (d.id !== toDayId) return d
+          const timed = d.items.some((item) => item.time)
+          const hasHeading = d.items.some((item) => item.kind === "section" && item.title === TO_SCHEDULE)
+          if (!timed || hasHeading) return { ...d, items: [...d.items, ...items] }
+          const heading = makeItem("section", TO_SCHEDULE)
+          added.push(heading.id)
+          return { ...d, items: [...d.items, heading, ...items] }
+        }),
+      )
+      igAddedRef.current = [...igAddedRef.current, ...added]
       const ids = new Set(items.map((item) => item.id))
       editor.flashTouched(ids)
       setFresh(ids)
-      const at = trip ? trip.days.findIndex((d) => d.id === toDayId) + 1 : 0
-      editor.setNotice(
-        items.length === 1
-          ? `Added ${items[0]!.location?.name ?? items[0]!.title} to day ${at}.`
-          : `Added ${plural(items.length, "place")} to day ${at}.`,
-      )
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [editor.setDays, editor.flashTouched, editor.setNotice, trip?.days.length],
+    [editor.setDays, editor.flashTouched],
   )
+
+  // Closing the import: show what landed (flash + pin drop) and offer Undo.
+  const closeInstagram = () => {
+    setInstagram(null)
+    const ids = igAddedRef.current
+    igAddedRef.current = []
+    if (ids.length === 0 || !editor.trip) return
+    const places = editor.trip.days.flatMap((d) => d.items.filter((item) => ids.includes(item.id) && item.kind !== "section"))
+    if (places.length === 0) return
+    const shown = new Set(places.map((item) => item.id))
+    editor.flashTouched(shown)
+    setFresh(shown)
+    setIgUndo({ ids, count: places.length, key: Date.now() })
+  }
+
+  useEffect(() => {
+    if (!igUndo) return
+    const timer = setTimeout(() => setIgUndo(null), 12_000)
+    return () => clearTimeout(timer)
+  }, [igUndo])
 
   const draft = async (brief: DraftBrief) => {
     if (!trip) return
@@ -602,7 +634,7 @@ export function TripWorkspace() {
             pins={pins}
             routes={routes}
             frameKey={frameKey}
-            framePoints={focusPin ? [focusPin] : day ? corePoints(pins) : [...pins, ...corePoints(dots)]}
+            framePoints={focusPin ? [focusPin] : day ? (fresh.size > 0 ? pins : corePoints(pins)) : [...pins, ...corePoints(dots)]}
             restCenter={tripCenter ?? undefined}
             restZoom={tripCenter ? 10.5 : 1.4}
             maxZoom={focusPin ? 16.2 : undefined}
@@ -719,8 +751,24 @@ export function TripWorkspace() {
         </div>
       </div>
 
-      {(editor.notice || editor.deleted) && (
+      {(editor.notice || editor.deleted || igUndo) && (
         <div {...sx(s.dock)}>
+          {igUndo && (
+            <div {...sx(s.dockItem)} role="status" key={igUndo.key}>
+              <span {...sx(a.grow, a.truncate)}>Added {plural(igUndo.count, "place")} from Instagram</span>
+              <button
+                type="button"
+                {...sx(s.dockBtn)}
+                onClick={() => {
+                  const ids = igUndo.ids
+                  editor.setDays((days) => days.map((d) => ({ ...d, items: d.items.filter((item) => !ids.includes(item.id)) })))
+                  setIgUndo(null)
+                }}
+              >
+                Undo
+              </button>
+            </div>
+          )}
           {editor.notice && (
             <div {...sx(s.dockItem)} role={PROBLEM.test(editor.notice) ? "alert" : "status"}>
               <span {...sx(a.grow, a.wrap)}>{editor.notice}</span>
@@ -780,7 +828,7 @@ export function TripWorkspace() {
             dayId={day?.id}
             initialUrls={instagram.urls}
             getToken={editor.readToken}
-            onClose={() => setInstagram(null)}
+            onClose={closeInstagram}
             onAdd={addFromInstagram}
           />
         </Suspense>

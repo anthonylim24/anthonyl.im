@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
 import { createPortal } from "react-dom"
-import { Box, ChevronLeft, ChevronRight, ExternalLink, Footprints, LocateFixed, Pause, Pencil, Play, Route, Scan, X } from "lucide-react"
+import { Box, ChevronLeft, ChevronRight, ExternalLink, Footprints, LocateFixed, Pause, Pencil, Play, Route, Scan, Square, X } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { useReducedMotion } from "@/hooks/useReducedMotion"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
@@ -95,13 +95,19 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
   const [credit, setCredit] = useState("")
   const [toast, setToast] = useState<string | null>(null)
   const [locating, setLocating] = useState(false)
+  const [refining, setRefining] = useState(false)
   const [hasUser, setHasUser] = useState(false)
 
   const rootRef = useRef<HTMLDivElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
   const pinRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
-  const needleRef = useRef<SVGSVGElement>(null)
+  const needleRef = useRef<SVGGElement>(null)
+  const progressRef = useRef<HTMLSpanElement>(null)
+  /** How the traveller last acted: decides whether a selection should move keyboard focus. */
+  const keyboardRef = useRef(false)
+  const playingRef = useRef(playing)
+  playingRef.current = playing
   const plateRef = useRef<HTMLElement>(null)
   const dockRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLOListElement>(null)
@@ -186,11 +192,15 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
         onReady: () => setStatus((s) => (s === "failed" ? s : "ready")),
         onError: () => setStatus("failed"),
         onYaw: (bearing) => {
-          if (needleRef.current) needleRef.current.style.transform = `rotate(${(-bearing).toFixed(4)}rad)`
+          needleRef.current?.setAttribute("transform", `rotate(${((-bearing * 180) / Math.PI).toFixed(2)} 12 12)`)
         },
         onTilt: setTilted,
         onAttribution: setCredit,
         onInteract: () => setPlaying(false),
+        onProgress: (progress) => {
+          if (progressRef.current) progressRef.current.style.transform = `scaleX(${Math.max(0.06, progress).toFixed(3)})`
+        },
+        onRefining: setRefining,
       },
       first.sceneStops,
     )
@@ -241,7 +251,9 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
     const before = document.activeElement as HTMLElement | null
     const overflow = document.body.style.overflow
     document.body.style.overflow = "hidden"
-    closeRef.current?.focus({ preventScroll: true })
+    // Focus the dialog itself: the keyboard is inside it and Tab lands on Close,
+    // but nothing wears a focus ring until the traveller actually uses the keyboard.
+    rootRef.current?.focus({ preventScroll: true })
     return () => {
       document.body.style.overflow = overflow
       if (before?.isConnected) before.focus({ preventScroll: true })
@@ -252,6 +264,7 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
     const onKey = (event: KeyboardEvent) => {
       const root = rootRef.current
       if (!root) return
+      keyboardRef.current = true
       if (event.key === "Tab") {
         const nodes = focusables(root)
         if (nodes.length === 0) return
@@ -292,20 +305,19 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
     return () => window.removeEventListener("keydown", onKey, true)
   }, [close, fitAll, pick, reducedMotion, step, stops, toggleTour])
 
+  // Selection and focus. From the keyboard, focus follows to the stop card's
+  // heading, where the card (and the live region's news) is. By pointer or
+  // during the tour, focus stays where it was and nothing gains a ring.
   useEffect(() => {
-    if (status === "failed") closeRef.current?.focus({ preventScroll: true })
-  }, [status])
-
-  // Keep the selected row in view in the desktop list.
-  useEffect(() => {
-    if (!selectedId || !wide) return
-    const row = listRef.current?.querySelector<HTMLElement>(`[data-stop="${CSS.escape(selectedId)}"]`)
-    row?.scrollIntoView({ block: "nearest", behavior: reducedMotion ? "auto" : "smooth" })
-    // The row that was clicked (or the card's own Next button) has just been
-    // replaced; hand focus to the new card instead of dropping it on <body>.
-    const active = document.activeElement
-    if (!active || active === document.body || listRef.current?.contains(active)) {
-      row?.querySelector<HTMLElement>("article")?.focus({ preventScroll: true })
+    if (!selectedId) return
+    if (wide) {
+      const row = listRef.current?.querySelector<HTMLElement>(`[data-stop="${CSS.escape(selectedId)}"]`)
+      row?.scrollIntoView({ block: "nearest", behavior: reducedMotion ? "auto" : "smooth" })
+    }
+    if (keyboardRef.current && !playingRef.current) {
+      rootRef.current?.querySelector<HTMLElement>("[data-stop-title]")?.focus({ preventScroll: true })
+    } else if (!document.activeElement || document.activeElement === document.body) {
+      rootRef.current?.focus({ preventScroll: true })
     }
   }, [reducedMotion, selectedId, wide])
 
@@ -351,28 +363,67 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
     return () => window.clearTimeout(timer)
   }, [toast])
 
-  // Look the place up by its own name ("Time Out Market"), not the plan's wording ("Lunch at…").
-  const photoOf = useMemo(
-    () => (selected ? { id: selected.id, title: selected.item.location?.name || selected.title, lat: selected.lat, lng: selected.lng } : null),
-    [selected],
-  )
-  const photo = useStopPhoto(photoOf, city)
+  const photo = useStopPhoto(selected, city)
   const total = dayMeters(stops)
   const summary = `${plural(stops.length, "stop")}${stops.length > 1 ? ` · ${formatDistance(total)}` : ""}`
   const canTour = !reducedMotion && stops.length > 1
   const failed = status === "failed"
 
-  const card = selected && (
-    <StopCard
-      stop={selected}
-      stops={stops}
-      photo={photo}
-      playing={playing}
-      onDirections={() => setPlaying(false)}
-      onEdit={onEditStop ? () => onEditStop(selected.id) : undefined}
-      onStep={step}
-      onTourEnd={advanceTour}
-    />
+  const controls = !failed && (
+    <div {...sx(p.controls)} role="group" aria-label="Map controls">
+      <button type="button" {...sx(p.control, "group")} aria-label="Point north up" title="Point north up" onClick={() => sceneRef.current?.orientNorth()}>
+        <svg {...sx(p.compass)} width="24" height="24" viewBox="0 0 24 24" aria-hidden>
+          <circle cx="12" cy="12" r="10.5" {...sx(p.compassRing)} />
+          <g ref={needleRef}>
+            <path d="M12 3.25 15.25 12h-6.5Z" {...sx(p.compassNorth)} />
+            <path d="M12 20.75 8.75 12h6.5Z" {...sx(p.compassSouth)} />
+            <circle cx="12" cy="12" r="1.25" {...sx(p.compassHub)} />
+          </g>
+        </svg>
+        <span {...sx(p.tip)} aria-hidden>
+          North up
+        </span>
+      </button>
+      <button
+        type="button"
+        {...sx(p.control, !tilted && p.controlOn, "group")}
+        aria-label="Top-down view"
+        aria-pressed={!tilted}
+        title={tilted ? "Look straight down" : "Tilt the view"}
+        onClick={() => setTilted(sceneRef.current?.toggleTilt() ?? tilted)}
+      >
+        {tilted ? <Box size={18} strokeWidth={1.75} aria-hidden /> : <Square size={17} strokeWidth={1.75} aria-hidden />}
+        <span {...sx(p.tip)} aria-hidden>
+          {tilted ? "Top-down" : "Tilt"}
+        </span>
+      </button>
+      <span {...sx(p.controlRule)} aria-hidden />
+      <button
+        type="button"
+        {...sx(p.control, hasUser && p.controlOn, "group")}
+        aria-label={hasUser ? "Go to my location" : "Show my location"}
+        title={hasUser ? "Go to my location" : "Show my location"}
+        disabled={locating}
+        onClick={onLocate}
+      >
+        <LocateFixed size={18} strokeWidth={1.75} aria-hidden />
+        <span {...sx(p.tip)} aria-hidden>
+          My location
+        </span>
+      </button>
+      <button type="button" {...sx(p.control, "group")} aria-label="Fit all stops" title="Fit all stops (F)" onClick={fitAll}>
+        <Scan size={18} strokeWidth={1.75} aria-hidden />
+        <span {...sx(p.tip)} aria-hidden>
+          Fit all
+        </span>
+      </button>
+    </div>
+  )
+  const sharpening = status === "ready" && refining && (
+    <p {...sx(p.sharpen)} role="status">
+      <span {...sx(p.sharpenDot)} aria-hidden />
+      Sharpening…
+    </p>
   )
 
   return createPortal(
@@ -382,22 +433,26 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
         role="dialog"
         aria-modal="true"
         aria-label={`Day ${dayNumber} in 3D: ${title}`}
+        tabIndex={-1}
         {...sx(p.root)}
-        onPointerDownCapture={() => sceneRef.current?.rest()}
+        onPointerDownCapture={() => {
+          keyboardRef.current = false
+          sceneRef.current?.rest()
+        }}
       >
         <div ref={hostRef} {...sx(p.stage, status === "ready" && p.shown)} />
-        <div ref={pinRef} {...sx(p.pins, status === "ready" && p.shown)} />
 
         {!failed && (
           <div {...sx(p.veil, status === "ready" && p.veilGone)} aria-hidden={status === "ready"}>
             <div {...sx(p.veilInner)} role="status">
               <p {...sx(a.eyebrow)}>{eyebrow}</p>
-              <p {...sx(a.display, p.veilLine)}>
-                Flying to <em {...sx(a.italic)}>{city || title}</em>…
+              <p {...sx(a.display, p.veilLine)}>{title}</p>
+              <p {...sx(p.veilChip)}>
+                Loading {city || "the day"} in 3D…
+                <span {...sx(p.shimmer)} aria-hidden>
+                  <span ref={progressRef} {...sx(p.shimmerBar)} />
+                </span>
               </p>
-              <span {...sx(p.shimmer)} aria-hidden>
-                <span {...sx(p.shimmerBar)} />
-              </span>
             </div>
           </div>
         )}
@@ -417,7 +472,7 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
             </header>
             <div {...sx(p.tourRow)}>
               {canTour ? (
-                <button type="button" {...sx(a.btn, a.btnSecondary, p.tourBtn)} aria-pressed={playing} title="Play or pause the tour (Space)" onClick={toggleTour}>
+                <button type="button" {...sx(a.btn, playing ? a.btnSecondary : a.btnPrimary, p.tourBtn)} aria-pressed={playing} title="Play or pause the tour (Space)" onClick={toggleTour}>
                   {playing ? <Pause size={15} strokeWidth={2} aria-hidden /> : <Play size={15} strokeWidth={2} aria-hidden />}
                   {playing ? "Pause tour" : "Play tour"}
                 </button>
@@ -426,41 +481,53 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
               )}
               <p {...sx(a.mono, p.summary)}>{summary}</p>
             </div>
+            {selected && (
+              <div {...sx(p.cardWrap)}>
+                <StopCard
+                  key={selected.id}
+                  stop={selected}
+                  stops={stops}
+                  photo={photo}
+                  playing={playing}
+                  onDirections={() => setPlaying(false)}
+                  onEdit={onEditStop ? () => onEditStop(selected.id) : undefined}
+                  onStep={step}
+                  onTourEnd={advanceTour}
+                />
+              </div>
+            )}
             <ol ref={listRef} {...sx(p.list)}>
               {stops.map((stop, index) => {
                 const leg = legInto(stops, index)
                 const on = stop.id === selectedId
-                const hot = on || (selectedIndex >= 0 && index === selectedIndex + 1)
                 return (
                   <li key={stop.id} data-stop={stop.id} {...sx(p.item)}>
-                    {leg && (
-                      <p {...sx(p.leg)} aria-hidden={on}>
-                        <span {...sx(p.legRail, hot && p.legRailHot)} />
-                        {!on && legSummary(leg)}
+                    {/* With a card open the list is a compact index; the card carries the leg. */}
+                    {leg && !selected && (
+                      <p {...sx(p.leg)}>
+                        <span {...sx(p.legRail, on && p.legRailHot)} />
+                        {legSummary(leg)}
                       </p>
                     )}
-                    {on ? (
-                      card
-                    ) : (
-                      <button
-                        type="button"
-                        {...sx(p.row)}
-                        onClick={() => pick(stop.id)}
-                        onPointerEnter={() => sceneRef.current?.setHot(stop.id)}
-                        onPointerLeave={() => sceneRef.current?.setHot(null)}
-                        onFocus={() => sceneRef.current?.setHot(stop.id)}
-                        onBlur={() => sceneRef.current?.setHot(null)}
-                      >
-                        <span {...sx(p.badge)} aria-hidden>
-                          {stop.label}
-                        </span>
-                        <span {...sx(p.rowName)}>
-                          <span {...sx(a.srOnly)}>Stop {stop.label}: </span>
-                          {stop.title}
-                        </span>
-                        {stop.item.time && <span {...sx(p.rowTime)}>{formatClock(stop.item.time)}</span>}
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      {...sx(p.row, on && p.rowOn)}
+                      aria-current={on ? "true" : undefined}
+                      onClick={() => pick(stop.id)}
+                      onPointerEnter={() => sceneRef.current?.setHot(stop.id)}
+                      onPointerLeave={() => sceneRef.current?.setHot(null)}
+                      onFocus={() => sceneRef.current?.setHot(stop.id)}
+                      onBlur={() => sceneRef.current?.setHot(null)}
+                    >
+                      <span {...sx(p.badge, on && p.badgeOn)} aria-hidden>
+                        {stop.label}
+                      </span>
+                      <span {...sx(p.rowName)}>
+                        <span {...sx(a.srOnly)}>Stop {stop.label}: </span>
+                        {stop.title}
+                      </span>
+                      {stop.item.time && <span {...sx(p.rowTime)}>{formatClock(stop.item.time)}</span>}
+                    </button>
                   </li>
                 )
               })}
@@ -492,7 +559,12 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
               </div>
             </header>
             <div ref={dockRef} {...sx(p.dock)}>
-              {credit && <p {...sx(p.credit, p.dockCredit)}>{credit}</p>}
+              {(credit || sharpening) && (
+                <div {...sx(p.creditRow, p.dockCredit)}>
+                  {sharpening}
+                  {credit && <p {...sx(p.credit)}>{credit}</p>}
+                </div>
+              )}
               {stops.length > 1 && (
                 <ol {...sx(p.rail)} aria-label="Stops">
                   {stops.map((stop) => (
@@ -513,6 +585,7 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
               )}
               {selected ? (
                 <PhoneSheet
+                  key={selected.id}
                   stop={selected}
                   stops={stops}
                   photo={photo}
@@ -551,47 +624,20 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
           </>
         )}
 
-        {!failed && (
-          <>
-            <div {...sx(p.controls)} role="group" aria-label="Map controls">
-              <button type="button" {...sx(p.control)} aria-label="Point north up" title="Point north up" onClick={() => sceneRef.current?.orientNorth()}>
-                <svg ref={needleRef} {...sx(p.compass)} width="20" height="20" viewBox="0 0 20 20" aria-hidden>
-                  <path d="M10 1.5 13.4 10H6.6Z" {...sx(p.compassNorth)} />
-                  <path d="M10 18.5 6.6 10h6.8Z" {...sx(p.compassSouth)} />
-                </svg>
-              </button>
-              <button
-                type="button"
-                {...sx(p.control, tilted && p.controlOn)}
-                aria-label="3D tilt"
-                aria-pressed={tilted}
-                title={tilted ? "Look straight down" : "Tilt the view"}
-                onClick={() => setTilted(sceneRef.current?.toggleTilt() ?? tilted)}
-              >
-                <Box size={18} strokeWidth={1.75} aria-hidden />
-              </button>
-              <span {...sx(p.controlRule)} aria-hidden />
-              <button
-                type="button"
-                {...sx(p.control, hasUser && p.controlOn)}
-                aria-label={hasUser ? "Go to my location" : "Show my location"}
-                title={hasUser ? "Go to my location" : "Show my location"}
-                disabled={locating}
-                onClick={onLocate}
-              >
-                <LocateFixed size={18} strokeWidth={1.75} aria-hidden />
-              </button>
-              <button type="button" {...sx(p.control)} aria-label="Fit all stops" title="Fit all stops (F)" onClick={fitAll}>
-                <Scan size={18} strokeWidth={1.75} aria-hidden />
-              </button>
-            </div>
-            {wide && credit && <p {...sx(p.credit)}>{credit}</p>}
-            {toast && (
-              <p {...sx(p.toast)} role="status">
-                {toast}
-              </p>
-            )}
-          </>
+        {controls}
+        {/* After the chrome in the DOM so Tab reaches Close first; under it on screen (z-index). */}
+        <div ref={pinRef} {...sx(p.pins, status === "ready" && p.shown)} />
+
+        {!failed && wide && (credit || sharpening) && (
+          <div {...sx(p.creditRow)}>
+            {sharpening}
+            {credit && <p {...sx(p.credit)}>{credit}</p>}
+          </div>
+        )}
+        {!failed && toast && (
+          <p {...sx(p.toast)} role="status">
+            {toast}
+          </p>
         )}
 
         <p {...sx(a.srOnly)} aria-live="polite">
@@ -635,7 +681,7 @@ function Progress({ playing, stopId, onEnd }: { playing: boolean; stopId: string
 function StopCard({ stop, stops, photo, playing, onDirections, onEdit, onStep, onTourEnd }: CardProps) {
   const { leg, Icon, kind, maps, when, count } = useCardFacts(stop, stops)
   return (
-    <article {...sx(p.card)} tabIndex={-1} aria-label={`Stop ${stop.label}: ${stop.title}`}>
+    <article {...sx(p.card)} aria-label={`Stop ${stop.label}: ${stop.title}`}>
       {photo.status !== "none" && (
         <div {...sx(p.photo)}>
           {photo.status === "ready" ? <img src={photo.url} alt="" {...sx(p.photoImg)} /> : <span {...sx(a.skeleton, p.photoSkeleton)} />}
@@ -650,7 +696,10 @@ function StopCard({ stop, stops, photo, playing, onDirections, onEdit, onStep, o
             Stop {stop.index + 1} of {count}
           </p>
         </div>
-        <h3 {...sx(a.display, p.cardTitle, a.wrap)}>{stop.title}</h3>
+        <h3 data-stop-title tabIndex={-1} {...sx(a.display, p.cardTitle, a.wrap)}>
+          {stop.title}
+        </h3>
+        {stop.plan && <p {...sx(p.plan)}>{stop.plan}</p>}
         {(when || kind) && (
           <p {...sx(p.meta)}>
             {when && <span>{when}</span>}
@@ -683,13 +732,13 @@ function StopCard({ stop, stops, photo, playing, onDirections, onEdit, onStep, o
       </div>
       <div {...sx(p.actions)}>
         {maps && (
-          <a href={maps.href} target="_blank" rel="noreferrer" aria-label={maps.label} {...sx(a.btn, a.btnPrimary, p.action)} onClick={onDirections}>
+          <a href={maps.href} target="_blank" rel="noreferrer" aria-label={maps.label} {...sx(a.btn, a.btnSecondary, p.action)} onClick={onDirections}>
             <ExternalLink size={15} strokeWidth={1.75} aria-hidden />
             Directions
           </a>
         )}
         {onEdit && (
-          <button type="button" {...sx(a.btn, a.btnSecondary, p.action)} onClick={onEdit}>
+          <button type="button" {...sx(a.btn, a.btnGhost, p.action)} onClick={onEdit}>
             <Pencil size={14} strokeWidth={1.75} aria-hidden />
             Edit stop
           </button>
@@ -722,6 +771,7 @@ function PhoneSheet({
 }: CardProps & { canTour: boolean; onToggleTour: () => void }) {
   const { leg, kind, maps, when, count } = useCardFacts(stop, stops)
   const [drag, setDrag] = useState<{ x: number; dx: number } | null>(null)
+  const [noteOpen, setNoteOpen] = useState(false)
 
   const onPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
     if (event.pointerType === "mouse" && event.button !== 0) return
@@ -757,7 +807,10 @@ function PhoneSheet({
             Stop {stop.index + 1} of {count}
             {kind ? ` · ${kind}` : ""}
           </p>
-          <h3 {...sx(a.display, p.sheetTitle)}>{stop.title}</h3>
+          <h3 data-stop-title tabIndex={-1} {...sx(a.display, p.sheetTitle, p.cardTitle)}>
+            {stop.title}
+          </h3>
+          {stop.plan && <p {...sx(p.plan, p.planOne)}>{stop.plan}</p>}
           {(when || leg) && (
             <p {...sx(p.meta, p.metaLoose)}>
               {when && <span>{when}</span>}
@@ -769,7 +822,11 @@ function PhoneSheet({
               )}
             </p>
           )}
-          {stop.item.notes && <p {...sx(p.note, p.sheetNote)}>{stop.item.notes}</p>}
+          {stop.item.notes && (
+            <button type="button" {...sx(p.noteBtn)} aria-expanded={noteOpen} aria-label={noteOpen ? "Collapse note" : "Read the whole note"} onClick={() => setNoteOpen((open) => !open)}>
+              <span {...sx(p.note, p.sheetNote, noteOpen && p.noteOpen)}>{stop.item.notes}</span>
+            </button>
+          )}
         </div>
         {photo.status !== "none" && (
           <div {...sx(p.thumb)}>
@@ -778,20 +835,27 @@ function PhoneSheet({
         )}
       </div>
       <div {...sx(p.sheetActions)}>
-        {maps && (
-          <a href={maps.href} target="_blank" rel="noreferrer" aria-label={maps.label} {...sx(a.btn, a.btnPrimary, p.action)} onClick={onDirections}>
-            <ExternalLink size={15} strokeWidth={1.75} aria-hidden />
-            Directions
-          </a>
-        )}
-        {onEdit && (
-          <button type="button" {...sx(a.iconBtn)} aria-label="Edit stop" onClick={onEdit}>
-            <Pencil size={17} strokeWidth={1.75} aria-hidden />
+        {/* One labelled action leads: the tour when there is one, otherwise the way there. */}
+        {canTour && (
+          <button type="button" {...sx(a.btn, playing ? a.btnSecondary : a.btnPrimary, p.action)} aria-pressed={playing} onClick={onToggleTour}>
+            {playing ? <Pause size={15} strokeWidth={2} aria-hidden /> : <Play size={15} strokeWidth={2} aria-hidden />}
+            {playing ? "Pause" : "Play tour"}
           </button>
         )}
-        {canTour && (
-          <button type="button" {...sx(a.iconBtn)} aria-label={playing ? "Pause tour" : "Play tour"} aria-pressed={playing} onClick={onToggleTour}>
-            {playing ? <Pause size={18} strokeWidth={1.75} aria-hidden /> : <Play size={18} strokeWidth={1.75} aria-hidden />}
+        {maps &&
+          (canTour ? (
+            <a href={maps.href} target="_blank" rel="noreferrer" aria-label={maps.label} title="Directions" {...sx(a.iconBtn)} onClick={onDirections}>
+              <ExternalLink size={17} strokeWidth={1.75} aria-hidden />
+            </a>
+          ) : (
+            <a href={maps.href} target="_blank" rel="noreferrer" aria-label={maps.label} {...sx(a.btn, a.btnPrimary, p.action)} onClick={onDirections}>
+              <ExternalLink size={15} strokeWidth={1.75} aria-hidden />
+              Directions
+            </a>
+          ))}
+        {onEdit && (
+          <button type="button" {...sx(a.iconBtn)} aria-label="Edit stop" title="Edit stop" onClick={onEdit}>
+            <Pencil size={17} strokeWidth={1.75} aria-hidden />
           </button>
         )}
         <span {...sx(p.stepper)}>
@@ -843,7 +907,7 @@ function Failure({
                     {stop.label}
                   </span>
                   <span {...sx(p.failText)}>
-                    <span {...sx(p.rowName)}>{stop.title}</span>
+                    <span {...sx(p.failName)}>{stop.title}</span>
                     {stop.item.time && <span {...sx(p.rowTime)}>{timeRange(stop.item)}</span>}
                   </span>
                   {maps && (

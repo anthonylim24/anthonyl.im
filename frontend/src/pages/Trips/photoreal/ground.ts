@@ -38,6 +38,8 @@ export interface Ground {
   busy(): boolean
   /** True once there is something to look at. */
   hasContent(): boolean
+  /** Share of the tiles the current view wants that have arrived, 0–1. */
+  progress(): number
   /** Floor (or roof) under a spot, probed from the sky. */
   floorAt(x: number, z: number): TerrainHit | null
   /** Is the straight line between two points blocked? */

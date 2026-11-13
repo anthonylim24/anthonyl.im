@@ -43,6 +43,19 @@ describe("dayStops", () => {
   })
 })
 
+describe("names", () => {
+  it("leads with the place name and keeps the plan's wording as a second line", () => {
+    const [stop] = dayStops({
+      id: "d",
+      date: "2026-12-05",
+      items: [makeItem({ id: "x", title: "Opening entry at Jerónimos Monastery", location: { name: "Jerónimos Monastery", lat: 38.6979, lng: -9.2068, source: "ai" } })],
+    })
+    expect(stop!.title).toBe("Jerónimos Monastery")
+    expect(stop!.plan).toBe("Opening entry at Jerónimos Monastery")
+    expect(dayStops(day)[0]!.plan).toBeUndefined()
+  })
+})
+
 describe("legs", () => {
   const stops = dayStops(day)
 
@@ -63,7 +76,7 @@ describe("legs", () => {
     const leg = legInto(stops, 2)!
     expect(leg.meters).toBeGreaterThan(3000)
     expect(leg.walkMinutes).toBeNull()
-    expect(legSummary(leg)).toMatch(/^\d+\.\d km$/)
+    expect(legSummary(leg)).toMatch(/^\d+\.\d km · ride$/)
   })
 
   it("adds the legs up", () => {

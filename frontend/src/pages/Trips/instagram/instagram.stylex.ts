@@ -63,6 +63,8 @@ export const ig = stylex.create({
     [PHONE]: { fontSize: "1.75rem" },
   },
   ledeQuiet: { [PHONE]: { display: "none" } },
+  // With results on a phone the title steps back so rows get the room.
+  titleQuiet: { [PHONE]: { fontSize: "1.375rem", marginTop: 0 } },
   lede: {
     fontSize: "0.875rem",
     lineHeight: 1.5,
@@ -129,7 +131,17 @@ export const ig = stylex.create({
       backgroundColor: "var(--trips-ink)",
     },
   },
-  tabCount: { fontFamily: "var(--trips-mono)", fontSize: "0.6875rem", fontWeight: 400, color: "var(--trips-ink-tertiary)" },
+  tabCount: {
+    fontFamily: "var(--trips-mono)",
+    fontSize: "0.75rem",
+    fontWeight: 400,
+    lineHeight: 1,
+    paddingInline: "0.375rem",
+    paddingBlock: "0.1875rem",
+    borderRadius: "999px",
+    backgroundColor: "var(--trips-sunken)",
+    color: "var(--trips-ink-secondary)",
+  },
   scroll: {
     flexGrow: 1,
     minHeight: 0,
@@ -186,7 +198,6 @@ export const ig = stylex.create({
     textTransform: "uppercase",
     color: "var(--trips-ink-tertiary)",
   },
-  statusDone: { color: "var(--trips-ok)" },
   statusBad: { color: "var(--trips-danger)" },
   // Hairline progress under a post that is still being read.
   track: { height: "2px", backgroundColor: "var(--trips-line)" },
@@ -287,8 +298,8 @@ export const ig = stylex.create({
     minHeight: "2.25rem",
     paddingInline: "0.5rem",
     fontSize: "0.8125rem",
-    fontWeight: 600,
-    color: "var(--trips-ok)",
+    fontWeight: 500,
+    color: "var(--trips-ink-tertiary)",
     whiteSpace: "nowrap",
   },
   postFoot: {
@@ -350,7 +361,7 @@ export const ig = stylex.create({
     backgroundColor: "var(--trips-surface)",
     [NARROW]: { position: "sticky", bottom: 0, zIndex: 4, marginTop: "auto" },
   },
-  footLabel: { flexShrink: 0 },
+  footLabel: { flexShrink: 0, [PHONE]: { display: "none" } },
   daySelect: {
     appearance: "none",
     minWidth: 0,
@@ -379,7 +390,7 @@ export const ig = stylex.create({
 
   // The places, on a map. A strip on phones, the right-hand half on desktop.
   mapStrip: {
-    height: "9.5rem",
+    height: "7rem",
     flexShrink: 0,
     borderRadius: "var(--trips-radius)",
     overflow: "hidden",
@@ -397,8 +408,8 @@ export const ig = stylex.create({
   mapFill: { position: "absolute", inset: 0 },
   mapNote: {
     position: "absolute",
-    left: "1rem",
-    bottom: "1rem",
+    left: "0.875rem",
+    top: "0.875rem",
     zIndex: 2,
     maxWidth: "calc(100% - 2rem)",
     paddingInline: "0.75rem",

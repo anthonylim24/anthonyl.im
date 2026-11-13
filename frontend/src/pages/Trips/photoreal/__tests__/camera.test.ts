@@ -210,9 +210,9 @@ describe("flights", () => {
 
 describe("route arcs", () => {
   it("clears rooftops on a short leg and stays shallow on a long one", () => {
-    expect(arcLift(60)).toBe(22)
-    expect(arcLift(1000)).toBeCloseTo(85)
-    expect(arcLift(20_000)).toBe(260)
+    expect(arcLift(60)).toBe(12)
+    expect(arcLift(1000)).toBeCloseTo(60)
+    expect(arcLift(20_000)).toBe(180)
   })
 
   it("runs end to end with its apex in the middle", () => {

@@ -11,7 +11,10 @@ export interface Stop extends LngLat {
   index: number
   /** The number on the pin; matches the day map. */
   label: string
+  /** The place's own name ("Jerónimos Monastery"): what a map label should say. */
   title: string
+  /** The plan's wording ("Opening entry at Jerónimos Monastery") when it says something different. */
+  plan?: string
   item: ItineraryItem
 }
 
@@ -20,7 +23,8 @@ export function dayStops(day: TripDay): Stop[] {
     id: item.id,
     index,
     label: String(index + 1),
-    title: item.title || item.location.name,
+    title: item.location.name || item.title,
+    plan: item.title && item.location.name && item.title.trim() !== item.location.name.trim() ? item.title : undefined,
     lat: item.location.lat,
     lng: item.location.lng,
     item,
@@ -57,10 +61,10 @@ export function formatDistance(meters: number): string {
   return `${(meters / 1000).toFixed(meters < 10_000 ? 1 : 0)} km`
 }
 
-/** "650 m · 8 min walk" or, for a long hop, just "4.2 km". */
+/** "650 m · 8 min walk" or, for a hop too long to walk, "4.2 km · ride" (no invented duration). */
 export function legSummary(leg: Leg): string {
   const distance = formatDistance(leg.meters)
-  return leg.walkMinutes === null ? distance : `${distance} · ${leg.walkMinutes} min walk`
+  return leg.walkMinutes === null ? `${distance} · ride` : `${distance} · ${leg.walkMinutes} min walk`
 }
 
 export function dayMeters(stops: readonly Stop[]): number {
