@@ -78,7 +78,7 @@ async function run(label, opts) {
     await marker.click()
     await settle(p, 5000)
     await shot(p, `${label}-place`)
-    if (phone) await p.getByRole("tab", { name: "Itinerary" }).click()
+    if (phone) await p.getByRole("radio", { name: "Itinerary" }).click()
     else await p.getByRole("button", { name: "Close place" }).click()
   }
 

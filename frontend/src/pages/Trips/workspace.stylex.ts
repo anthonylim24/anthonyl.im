@@ -330,7 +330,7 @@ export const ws = stylex.create({
   sectionTitle: { fontSize: "1.625rem" },
   stats: {
     display: "grid",
-    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    gridTemplateColumns: { default: "repeat(4, minmax(0, 1fr))", "@media (max-width: 419.98px)": "repeat(2, minmax(0, 1fr))" },
     borderRadius: "var(--trips-radius-lg)",
     backgroundColor: "var(--trips-surface)",
     boxShadow: "var(--trips-shadow-1)",

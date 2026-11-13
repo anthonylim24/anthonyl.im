@@ -163,7 +163,7 @@ describe("TripsIndex", () => {
     // Still ordered now → upcoming → past, and each card keeps its timing badge.
     expect(cardTitles()).toEqual(["Seoul Now", "Lisbon Later", "Oslo Winter"])
     const list = screen.getByRole("heading", { level: 4, name: "Seoul Now" }).closest("ul")!
-    expect(within(list).getAllByRole("listitem")).toHaveLength(3)
+    expect(within(list).getAllByRole("listitem")).toHaveLength(4) // three trips + the "Plan another trip" cell
     expect(within(list).getByText("Day 3 of 8")).toBeInTheDocument()
     expect(within(list).getByText("Jan 2026")).toBeInTheDocument()
   })

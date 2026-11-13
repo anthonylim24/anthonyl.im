@@ -546,7 +546,7 @@ export function TripWorkspace() {
             pins={pins}
             routes={routes}
             frameKey={frameKey}
-            framePoints={focusPin ? [focusPin] : corePoints(day ? pins : dots)}
+            framePoints={focusPin ? [focusPin] : day ? corePoints(pins) : [...pins, ...corePoints(dots)]}
             restCenter={tripCenter ?? undefined}
             restZoom={tripCenter ? 10.5 : 1.4}
             maxZoom={focusPin ? 16.2 : undefined}

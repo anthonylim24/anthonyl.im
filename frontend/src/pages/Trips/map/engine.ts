@@ -54,6 +54,7 @@ export interface AtlasMapHandle {
 
 const ROUTE_SOURCE = "atlas-route"
 const DOTS_SOURCE = "atlas-dots"
+const GUARD_SOURCE = "atlas-guard"
 
 interface PinEntry {
   pin: AtlasPin
@@ -180,6 +181,15 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
     return { type: "FeatureCollection", features }
   }
 
+  const guardData = (): FeatureCollection => ({
+    type: "FeatureCollection",
+    features: [...pins.values()].map(({ pin }) => ({
+      type: "Feature",
+      properties: { kind: pin.variant ?? "stop", title: pin.title },
+      geometry: { type: "Point", coordinates: [pin.lng, pin.lat] },
+    })),
+  })
+
   const dotsData = (): FeatureCollection => ({
     type: "FeatureCollection",
     features: dots.map((p) => ({ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [p.lng, p.lat] } })),
@@ -235,12 +245,31 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
         "symbol-spacing": 140,
         "text-field": "›",
         "text-font": ["Noto Sans Bold"],
-        "text-size": 26,
+        "text-size": 34,
         "text-keep-upright": false,
         "text-allow-overlap": true,
         "text-ignore-placement": true,
       },
       paint: { "text-color": accent(), "text-halo-color": paper, "text-halo-width": 3 },
+    })
+    // Invisible collision boxes where the pins stand, placed above every
+    // basemap label so place names step aside instead of running under a pin.
+    map.addSource(GUARD_SOURCE, { type: "geojson", data: guardData() })
+    map.addLayer({
+      id: "atlas-guard",
+      type: "symbol",
+      source: GUARD_SOURCE,
+      filter: ["!=", ["get", "kind"], "trip"],
+      layout: { "text-field": "⬤", "text-font": ["Noto Sans Bold"], "text-size": 40, "text-anchor": "bottom", "text-allow-overlap": true, "text-padding": 4 },
+      paint: { "text-opacity": 0 },
+    })
+    map.addLayer({
+      id: "atlas-guard-chip",
+      type: "symbol",
+      source: GUARD_SOURCE,
+      filter: ["==", ["get", "kind"], "trip"],
+      layout: { "text-field": ["concat", "⬤ ", ["get", "title"], " ⬤"], "text-font": ["Noto Sans Bold"], "text-size": 22, "text-allow-overlap": true, "text-padding": 6 },
+      paint: { "text-opacity": 0 },
     })
     emphasise()
     map.addSource(DOTS_SOURCE, { type: "geojson", data: dotsData() })
@@ -285,8 +314,9 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
       entry.el.classList.toggle("atlas-pin--flip-keep", flip)
       // Near the limb a chip would hang off the sphere: keep just the dot.
       const centre = map.getCenter()
-      const far = distanceMeters({ lat: centre.lat, lng: centre.lng }, entry.pin) > 6_200_000
-      entry.el.classList.toggle("atlas-pin--far", ambient && far)
+      const away = distanceMeters({ lat: centre.lat, lng: centre.lng }, entry.pin)
+      entry.el.classList.toggle("atlas-pin--far", ambient && away > 6_200_000)
+      entry.el.classList.toggle("atlas-pin--edge", ambient && away > 8_600_000)
     }
   }
   map.on("move", placeLabels)
@@ -407,6 +437,7 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
       }
       placeLabels()
       declutter()
+      ;(map.getSource(GUARD_SOURCE) as GeoJSONSource | undefined)?.setData(guardData())
     },
     setDots(points) {
       dots = points
@@ -467,7 +498,7 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
       // further at the top, so sit slightly tighter.
       // A tilted camera shows more ground above the centre than below it, so
       // the pins would ride high over an empty foreground: weight the top.
-      const lift = view.pitch > 40 ? Math.round(container.clientHeight * 0.07) : 0
+      const lift = view.pitch > 40 ? Math.round(container.clientHeight * 0.13) : 0
       const target = {
         ...fit,
         pitch: view.pitch,
@@ -582,28 +613,49 @@ export function renderStills(
 
   map.once("load", () => {
     void (async () => {
-      map.addSource("still", { type: "geojson", data: { type: "FeatureCollection", features: [] } })
+      const empty: FeatureCollection = { type: "FeatureCollection", features: [] }
+      // Stops that would overprint each other merge into one counted badge.
+      map.addSource("still", { type: "geojson", data: empty, cluster: true, clusterRadius: 26, clusterMaxZoom: 17 })
+      map.addSource("still-route", { type: "geojson", data: empty })
+      const ring = dark ? "#0b0d10" : "#ffffff"
       map.addLayer({
-        id: "still-halo",
-        type: "circle",
-        source: "still",
-        paint: { "circle-radius": 9, "circle-color": ["get", "color"], "circle-opacity": 0.18 },
+        id: "still-route",
+        type: "line",
+        source: "still-route",
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": ["get", "color"], "line-width": 2, "line-opacity": 0.45 },
       })
       map.addLayer({
         id: "still-dot",
         type: "circle",
         source: "still",
+        filter: ["!", ["has", "point_count"]],
+        paint: { "circle-radius": 5.5, "circle-color": ["get", "color"], "circle-stroke-color": ring, "circle-stroke-width": 2 },
+      })
+      map.addLayer({
+        id: "still-cluster",
+        type: "circle",
+        source: "still",
+        filter: ["has", "point_count"],
         paint: {
-          "circle-radius": 3.5,
-          "circle-color": ["get", "color"],
-          "circle-stroke-color": dark ? "#0b0d10" : "#ffffff",
-          "circle-stroke-width": 1.5,
+          "circle-radius": ["interpolate", ["linear"], ["get", "point_count"], 2, 11, 20, 16, 80, 21],
+          "circle-color": "#000000",
+          "circle-stroke-color": ring,
+          "circle-stroke-width": 2,
         },
+      })
+      map.addLayer({
+        id: "still-count",
+        type: "symbol",
+        source: "still",
+        filter: ["has", "point_count"],
+        layout: { "text-field": ["get", "point_count_abbreviated"], "text-font": ["Noto Sans Bold"], "text-size": 12, "text-allow-overlap": true },
+        paint: { "text-color": "#ffffff" },
       })
       for (const request of requests) {
         if (cancelled) return
-        const source = map.getSource("still") as GeoJSONSource
-        source.setData({
+        const city = request.points.length > 1 && spanMeters(request.points) < 60_000
+        ;(map.getSource("still") as GeoJSONSource).setData({
           type: "FeatureCollection",
           features: request.points.map((p) => ({
             type: "Feature",
@@ -611,11 +663,27 @@ export function renderStills(
             geometry: { type: "Point", coordinates: [p.lng, p.lat] },
           })),
         })
+        // Within one city the stops are joined in order, like the day map.
+        ;(map.getSource("still-route") as GeoJSONSource).setData(
+          city
+            ? {
+                type: "FeatureCollection",
+                features: [
+                  {
+                    type: "Feature",
+                    properties: { color: request.color },
+                    geometry: { type: "LineString", coordinates: request.points.map((p) => [p.lng, p.lat]) },
+                  },
+                ],
+              }
+            : empty,
+        )
+        map.setPaintProperty("still-cluster", "circle-color", request.color)
         if (request.points.length > 1 && spanMeters(request.points) > 60) {
           const bounds = new LngLatBounds()
           for (const p of request.points) bounds.extend([p.lng, p.lat])
-          const fit = map.cameraForBounds(bounds, { padding: { top: 90, right: 80, bottom: 70, left: 80 }, maxZoom: 13.5 })
-          if (fit) map.jumpTo({ ...fit, pitch: 0, bearing: 0 })
+          const fit = map.cameraForBounds(bounds, { padding: { top: 90, right: 80, bottom: 70, left: 80 }, maxZoom: 14 })
+          if (fit) map.jumpTo({ ...fit, pitch: city ? 40 : 0, bearing: city ? -12 : 0 })
         } else {
           const at = request.points[0] ?? request.center
           if (!at) continue

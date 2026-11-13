@@ -1388,6 +1388,11 @@ html.dark .trips[data-trip-accent="violet"] {
   display: none;
 }
 
+/* Right at the limb even the dot would smear across the rim. */
+.atlas-pin--edge {
+  visibility: hidden;
+}
+
 .atlas-pin--hot,
 .atlas-pin:hover,
 .atlas-pin:focus-visible {

@@ -334,7 +334,7 @@ export function TripsIndex() {
                 ref={searchRef}
                 type="search"
                 value={query}
-                placeholder="Search by name, place or tag"
+                placeholder="Search trips"
                 {...sx(a.fieldBare)}
                 onChange={(event) => setQuery(event.target.value)}
                 onKeyDown={(event) => {
@@ -357,8 +357,8 @@ export function TripsIndex() {
             </div>
           )}
 
-          {groups.map(({ phase, label, rows }) => {
-            if (rows.length === 0) return null
+          {groups.map(({ phase, label, rows }, index) => {
+            if (rows.length === 0 && index !== groups.length - 1) return null
             return (
               <div key={phase} {...sx(s.bucket)}>
                 {label && (
@@ -369,8 +369,8 @@ export function TripsIndex() {
                     <span {...sx(s.bucketRule)} aria-hidden />
                   </div>
                 )}
-                <ul {...sx(s.grid, rows.length <= 2 && s.gridFew)}>
-                  {rows.map(({ trip, timing }, index) => {
+                <ul {...sx(s.grid, filtered.length <= 2 && s.gridFew)}>
+                  {rows.map(({ trip, timing }, order) => {
                     const tags = visibleTags(trip.tags)
                     const points = (trip.points ?? []).map(([lng, lat]) => ({ lat, lng }))
                     const shared = trip.sharedWithAllUsers || trip.collaborators.length > 0
@@ -378,7 +378,7 @@ export function TripsIndex() {
                       <li key={trip.id}>
                         <article
                           {...sx(s.card)}
-                          style={{ animationDelay: `${Math.min(index, 8) * 60}ms` }}
+                          style={{ animationDelay: `${Math.min(order, 8) * 60}ms` }}
                           data-trip-accent={resolveAccent(trip.accent)}
                           onMouseEnter={() => setHot(trip.id)}
                           onMouseLeave={() => setHot((current) => (current === trip.id ? null : current))}
@@ -414,19 +414,20 @@ export function TripsIndex() {
                               const line = [places.toLowerCase() === trip.name.trim().toLowerCase() ? "" : places, ...tags.slice(0, 2)]
                                 .filter(Boolean)
                                 .join(" · ")
-                              return <p {...sx(a.small, a.wrap)}>{line || `${plural(trip.placeCount ?? 0, "place")} pinned`}</p>
+                              return line ? <p {...sx(a.small, a.wrap)}>{line}</p> : null
                             })()}
                           </div>
                           <div {...sx(s.cardFoot)}>
                             <span {...sx(a.row, a.small)}>
-                              {trip.destinations.join(" · ").toLowerCase() === trip.name.trim().toLowerCase() && tags.length === 0
-                                ? ""
-                                : plural(trip.placeCount ?? 0, "place")}
-                              {shared && (
+                              {plural(trip.placeCount ?? 0, "place")}
+                              <span aria-hidden>·</span>
+                              {shared ? (
                                 <span {...sx(a.chip)} title={trip.sharedWithAllUsers ? "Shared with everyone" : plural(trip.collaborators.length, "guest")}>
                                   <Users size={12} strokeWidth={2} aria-hidden />
-                                  {trip.sharedWithAllUsers ? "Everyone" : trip.collaborators.length}
+                                  {trip.sharedWithAllUsers ? "Everyone" : `${trip.collaborators.length + 1} people`}
                                 </span>
+                              ) : (
+                                "Only you"
                               )}
                             </span>
                             <span {...sx(s.cardMenu)}>
@@ -448,21 +449,25 @@ export function TripsIndex() {
                       </li>
                     )
                   })}
+                  {index === groups.length - 1 && !deferredQuery.trim() && (
+                    <li>
+                      <Link to="/trips/new" {...sx(s.newCard)}>
+                        <span {...sx(s.newCardPlus)}>
+                          <Plus size={20} strokeWidth={1.75} aria-hidden />
+                        </span>
+                        <span {...sx(a.body, a.ink)} style={{ fontWeight: 500 }}>
+                          Plan another trip
+                        </span>
+                        <span {...sx(a.small)}>
+                          or press <kbd {...sx(s.kbd)}>N</kbd>
+                        </span>
+                      </Link>
+                    </li>
+                  )}
                 </ul>
               </div>
             )
           })}
-          {filtered.length > 0 && !deferredQuery.trim() && (
-            <Link to="/trips/new" {...sx(s.newCard)}>
-              <span {...sx(s.newCardPlus)}>
-                <Plus size={18} strokeWidth={1.75} aria-hidden />
-              </span>
-              <span {...sx(a.body, a.ink)} style={{ fontWeight: 500 }}>
-                Plan another trip
-              </span>
-              <kbd {...sx(s.kbd)}>N</kbd>
-            </Link>
-          )}
         </section>
       )}
 
