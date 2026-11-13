@@ -235,7 +235,7 @@ export function DayPanel({
           {editable && (
             <button type="button" {...sx(a.btn, a.btnSoft, a.btnSm)} disabled={locked} onClick={onAskAi}>
               {day.items.length === 0 ? <Sparkles size={14} strokeWidth={1.75} aria-hidden /> : <Lightbulb size={14} strokeWidth={1.75} aria-hidden />}
-              {day.items.length === 0 ? "Plan this day with AI" : "Ideas for this day"}
+              {day.items.length === 0 ? "Plan this day with AI" : <span>Ideas<span {...sx(s.wideOnly)}> for this day</span></span>}
             </button>
           )}
           {menu.length > 0 && (

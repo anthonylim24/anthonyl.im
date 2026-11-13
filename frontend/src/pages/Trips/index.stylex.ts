@@ -259,7 +259,7 @@ export const idx = stylex.create({
     padding: 0,
   },
   // One or two trips: fewer, larger cards instead of a lonely third of a row.
-  gridFew: { [DESK]: { gridTemplateColumns: "repeat(2, minmax(0, 1fr))" } },
+  gridFew: { [DESK]: { gridTemplateColumns: "repeat(2, minmax(0, 30rem))" } },
   card: {
     position: "relative",
     display: "flex",
@@ -288,7 +288,7 @@ export const idx = stylex.create({
   },
   cardCover: {
     position: "relative",
-    aspectRatio: "16 / 9",
+    aspectRatio: "3 / 2",
     borderTopLeftRadius: "inherit",
     borderTopRightRadius: "inherit",
     overflow: "hidden",

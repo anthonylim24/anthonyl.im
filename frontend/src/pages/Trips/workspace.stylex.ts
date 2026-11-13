@@ -189,6 +189,9 @@ export const ws = stylex.create({
     paddingInline: { default: "1.25rem", "@media (min-width: 640px)": "1.75rem" },
     paddingTop: "0.5rem",
   },
+  // Phones: the top bar already has Back and the rail has Overview (where
+  // Share and trip options live), so day pages start with the days.
+  headCompactHide: { "@media (max-width: 639.98px)": { display: "none" } },
   compactTitle: {
     fontFamily: "var(--trips-display)",
     fontSize: "1.5rem",
@@ -545,7 +548,7 @@ export const ws = stylex.create({
     transitionProperty: "box-shadow, background-color",
     transitionDuration: "200ms",
   },
-  cardHot: { boxShadow: "0 0 0 1px var(--trips-ink), var(--trips-shadow-2)" },
+  cardHot: { boxShadow: "0 0 0 1px var(--trips-ink-tertiary), var(--trips-shadow-2)" },
   cardFlash: {
     animationName: flash,
     animationDuration: "2.4s",
@@ -592,7 +595,8 @@ export const ws = stylex.create({
     "@media (max-width: 639.98px)": { display: "block" },
   },
   gripRow: { "@media (max-width: 639.98px)": { display: "none" } },
-  addEnd: { display: "flex", alignItems: "flex-end" },
+  wideOnly: { "@media (max-width: 479.98px)": { display: "none" } },
+  addEnd: { display: "flex", alignItems: "flex-end", paddingBottom: "0.25rem" },
   cardText: { display: "flex", flexDirection: "column", gap: "0.1875rem", flexGrow: 1, minWidth: 0 },
   cardTitle: { fontSize: "0.9375rem", fontWeight: 600, lineHeight: 1.3, color: "var(--trips-ink)" },
   cardTitleEmpty: { color: "var(--trips-ink-faint)", fontWeight: 500 },

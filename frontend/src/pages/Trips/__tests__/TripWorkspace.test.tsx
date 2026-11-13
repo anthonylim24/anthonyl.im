@@ -142,7 +142,7 @@ describe("TripWorkspace", () => {
       expect(screen.getByRole("button", { name: /Jul 10 – 11, 2026 · 2 days/ })).toBeInTheDocument()
 
       // Three stops (the note doesn't count), one of them still without a pin.
-      expect(stat("Stops")).toHaveTextContent("Stops3")
+      expect(stat("Places")).toHaveTextContent("Places3")
       expect(stat("On the map")).toHaveTextContent("On the map2 of 3")
       expect(stat("Bookings")).toHaveTextContent("Bookings1")
       expect(screen.queryByText("Days", { selector: "dt" })).toBeNull()
@@ -226,7 +226,7 @@ describe("TripWorkspace", () => {
 
       await screen.findByRole("region", { name: "Day by day" })
       // The note is not a stop.
-      expect(stat("Stops")).toHaveTextContent("Stops2")
+      expect(stat("Places")).toHaveTextContent("Places2")
       expect(stat("On the map")).toHaveTextContent("On the map1 of 2")
       expect(stat("Bookings")).toHaveTextContent("Bookings0")
       expect(screen.queryByRole("region", { name: "Bookings" })).toBeNull()
@@ -250,7 +250,7 @@ describe("TripWorkspace", () => {
       )
 
       await screen.findByRole("region", { name: "Day by day" })
-      expect(stat("Stops")).toHaveTextContent("Stops2")
+      expect(stat("Places")).toHaveTextContent("Places2")
       expect(stat("Days")).toHaveTextContent("Days2")
       expect(screen.queryByText("On the map")).toBeNull()
       // ~1.4 km between the two pinned stops.
@@ -278,7 +278,7 @@ describe("TripWorkspace", () => {
       // The drafted trip replaces the empty one and the summary is announced.
       expect(await screen.findByText("Drafted a food-first weekend.")).toBeInTheDocument()
       expect(screen.queryByRole("button", { name: "Draft itinerary" })).toBeNull()
-      expect(stat("Stops")).toHaveTextContent("Stops3")
+      expect(stat("Places")).toHaveTextContent("Places3")
       expect(stat("On the map")).toHaveTextContent("On the map2 of 3")
       expect(screen.getByRole("button", { name: "Improve with AI" })).toBeInTheDocument()
     })

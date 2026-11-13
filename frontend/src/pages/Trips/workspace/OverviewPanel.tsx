@@ -59,7 +59,8 @@ export function OverviewPanel({
     }
     return { pinned, stops, bookings, meters }
   }, [trip.days])
-  const multiCity = new Set(trip.days.map((d) => d.city).filter(Boolean)).size > 1
+  const cities = new Set(trip.days.map((d) => d.city).filter(Boolean)).size
+  const multiCity = cities > 1
   const empty = trip.days.every((d) => d.items.length === 0)
   const bookings = useMemo(
     () => trip.days.flatMap((day) => day.items.filter((i) => i.kind === "reservation").map((item) => ({ day, item }))),
@@ -74,11 +75,13 @@ export function OverviewPanel({
 
       <dl {...sx(s.stats)}>
         {[
-          { label: "Stops", value: String(stats.stops), unit: "" },
+          { label: "Places", value: String(stats.stops), unit: "" },
           // Only worth a tile when some stops still need a pin.
           stats.pinned < stats.stops
             ? { label: "On the map", value: String(stats.pinned), unit: `of ${stats.stops}` }
-            : { label: "Days", value: String(trip.days.length), unit: "" },
+            : cities > 1
+              ? { label: "Cities", value: String(cities), unit: "" }
+              : { label: "Days", value: String(trip.days.length), unit: "" },
           { label: "Bookings", value: String(stats.bookings), unit: "" },
           { label: "Walking", value: stats.meters > 500 ? formatDistance(stats.meters).replace(" km", "") : "–", unit: stats.meters > 500 ? "km" : "" },
         ].map((stat, i) => (

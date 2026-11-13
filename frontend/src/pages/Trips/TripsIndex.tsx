@@ -414,12 +414,14 @@ export function TripsIndex() {
                               const line = [places.toLowerCase() === trip.name.trim().toLowerCase() ? "" : places, ...tags.slice(0, 2)]
                                 .filter(Boolean)
                                 .join(" · ")
-                              return line ? <p {...sx(a.small, a.wrap)}>{line}</p> : null
+                              return <p {...sx(a.small, a.wrap)}>{line || `${plural(trip.placeCount ?? 0, "place")} pinned`}</p>
                             })()}
                           </div>
                           <div {...sx(s.cardFoot)}>
                             <span {...sx(a.row, a.small)}>
-                              {plural(trip.placeCount ?? 0, "pinned place")}
+                              {trip.destinations.join(" · ").toLowerCase() === trip.name.trim().toLowerCase() && tags.length === 0
+                                ? ""
+                                : plural(trip.placeCount ?? 0, "place")}
                               {shared && (
                                 <span {...sx(a.chip)} title={trip.sharedWithAllUsers ? "Shared with everyone" : plural(trip.collaborators.length, "guest")}>
                                   <Users size={12} strokeWidth={2} aria-hidden />

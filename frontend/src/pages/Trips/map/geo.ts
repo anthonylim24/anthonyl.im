@@ -58,6 +58,20 @@ export function centroid(points: readonly LngLat[]): LngLat | null {
   return { lat: lat / points.length, lng: lng / points.length }
 }
 
+/**
+ * The points worth framing: drops far outliers (one stop across the river)
+ * so the camera fits where the trip mostly happens. Falls back to every
+ * point when the trip is genuinely spread out.
+ */
+export function corePoints<T extends LngLat>(points: readonly T[]): T[] {
+  if (points.length < 5) return [...points]
+  const mid = centroid(points)!
+  const distances = points.map((p) => distanceMeters(mid, p))
+  const median = [...distances].sort((a, b) => a - b)[Math.floor(distances.length / 2)]!
+  const kept = points.filter((_, i) => distances[i]! <= Math.max(median * 2.5, 400))
+  return kept.length >= points.length * 0.7 ? kept : [...points]
+}
+
 export function isLocated(item: ItineraryItem): item is ItineraryItem & { location: LngLat & { name: string } } {
   return typeof item.location?.lat === "number" && typeof item.location?.lng === "number"
 }

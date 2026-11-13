@@ -23,7 +23,7 @@ import { useViewer } from "@/lib/safeAuth"
 import { deleteTrip, duplicateTrip, generateItinerary } from "./tripsApi"
 import { dayCount, formatClock, formatRange, formatTripDate, plural, resolveAccent, titleCase, todayIsoIn, tripTiming } from "./meta"
 import { AtlasMap } from "./map/AtlasMap"
-import { centroid, DAY_PIN, dayPins, dayRoute, isLocated, locatedItems, tripDots, tripPins, type LngLat } from "./map/geo"
+import { centroid, corePoints, DAY_PIN, dayPins, dayRoute, isLocated, locatedItems, tripDots, tripPins, type LngLat } from "./map/geo"
 import { errorText, useTripEditor } from "./useTripEditor"
 import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import { Menu, Modal, Spinner, type MenuItem } from "./components/kit"
@@ -329,7 +329,7 @@ export function TripWorkspace() {
     <div {...sx(s.root)} data-trip-accent={accent}>
       <div {...sx(s.pane)} ref={paneRef}>
         {dayId ? (
-          <header {...sx(s.headCompact)}>
+          <header {...sx(s.headCompact, s.headCompactHide)}>
             <Link to={basePath} {...sx(s.compactTitle, a.truncate)} title="Back to the trip overview">
               {trip.name}
             </Link>
@@ -416,7 +416,7 @@ export function TripWorkspace() {
               {!editable && <span {...sx(a.chip)}>View only</span>}
             </div>
             <div {...sx(s.headActions)}>
-              <button type="button" {...sx(a.btn, a.btnPrimary, a.btnSm)} onClick={() => setDialog("share")}>
+              <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} onClick={() => setDialog("share")}>
                 <Share2 size={14} strokeWidth={1.75} aria-hidden />
                 Share
               </button>
@@ -546,7 +546,7 @@ export function TripWorkspace() {
             pins={pins}
             routes={routes}
             frameKey={frameKey}
-            framePoints={focusPin ? [focusPin] : day ? undefined : dots}
+            framePoints={focusPin ? [focusPin] : corePoints(day ? pins : dots)}
             restCenter={tripCenter ?? undefined}
             restZoom={tripCenter ? 10.5 : 1.4}
             maxZoom={focusPin ? 16.2 : undefined}

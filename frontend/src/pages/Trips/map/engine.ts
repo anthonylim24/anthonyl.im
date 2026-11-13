@@ -3,7 +3,7 @@ import type { FeatureCollection } from "geojson"
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?url"
 import "maplibre-gl/dist/maplibre-gl.css"
 import { buildMapStyle } from "./mapStyle"
-import { centroid, spanMeters, type AtlasPin, type LngLat } from "./geo"
+import { centroid, distanceMeters, spanMeters, type AtlasPin, type LngLat } from "./geo"
 
 // Imperative MapLibre wrapper. Lazy-imported by AtlasMap so the map library
 // stays out of the initial Trips chunk. Pins are DOM markers (real buttons:
@@ -65,13 +65,15 @@ interface PinEntry {
  * A leg drawn as a shallow arc rather than a ruler line: it reads as "then
  * on to", never as a street, and two legs between the same stops bow apart.
  */
-function arc(from: LngLat, to: LngLat): Array<[number, number]> {
+function arc(from: LngLat, to: LngLat, leg = 0): Array<[number, number]> {
+  // Alternate the side and vary the depth so legs sharing a corridor bow apart.
+  const bow = (leg % 2 === 0 ? 1 : -1) * (0.12 + (leg % 3) * 0.07)
   const k = Math.cos((((from.lat + to.lat) / 2) * Math.PI) / 180)
   const dx = (to.lng - from.lng) * k
   const dy = to.lat - from.lat
   // Control point: off the midpoint, perpendicular to the leg, 14% of its length.
-  const cx = (from.lng + to.lng) / 2 + (-dy * 0.14) / k
-  const cy = (from.lat + to.lat) / 2 + dx * 0.14
+  const cx = (from.lng + to.lng) / 2 + (-dy * bow) / k
+  const cy = (from.lat + to.lat) / 2 + dx * bow
   const points: Array<[number, number]> = []
   for (let i = 0; i <= 20; i++) {
     const t = i / 20
@@ -169,8 +171,9 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
         seen.add(key)
         features.push({
           type: "Feature",
-          properties: {},
-          geometry: { type: "LineString", coordinates: arc(from, to) },
+          // `leg` = position of the stop this leg arrives at (0-based).
+          properties: { leg: i },
+          geometry: { type: "LineString", coordinates: arc(from, to, i) },
         })
       }
     }
@@ -183,6 +186,19 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
   })
 
   const accent = () => getComputedStyle(container).getPropertyValue("--ta-fill").trim() || "#f0582b"
+
+  // With a stop selected, the legs into and out of it stay solid and the
+  // rest of the day's route steps back.
+  const emphasise = () => {
+    if (!map.getLayer("atlas-route")) return
+    const entry = active ? pins.get(active) : undefined
+    const at = entry && entry.pin.variant !== "trip" ? Number(entry.pin.label) - 1 : NaN
+    const opacity = Number.isFinite(at)
+      ? (["case", ["any", ["==", ["get", "leg"], at], ["==", ["get", "leg"], at + 1]], 1, 0.25] as never)
+      : 1
+    map.setPaintProperty("atlas-route", "line-opacity", opacity)
+    map.setPaintProperty("atlas-route-way", "text-opacity", opacity)
+  }
 
   const installRoute = () => {
     if (map.getSource(ROUTE_SOURCE)) return
@@ -216,16 +232,17 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
       source: ROUTE_SOURCE,
       layout: {
         "symbol-placement": "line",
-        "symbol-spacing": 90,
+        "symbol-spacing": 140,
         "text-field": "›",
         "text-font": ["Noto Sans Bold"],
-        "text-size": 17,
+        "text-size": 26,
         "text-keep-upright": false,
         "text-allow-overlap": true,
         "text-ignore-placement": true,
       },
-      paint: { "text-color": accent(), "text-halo-color": paper, "text-halo-width": 2.5 },
+      paint: { "text-color": accent(), "text-halo-color": paper, "text-halo-width": 3 },
     })
+    emphasise()
     map.addSource(DOTS_SOURCE, { type: "geojson", data: dotsData() })
     map.addLayer(
       {
@@ -266,9 +283,34 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
       const flip = map.project([entry.pin.lng, entry.pin.lat]).x > mid
       entry.el.classList.toggle("atlas-pin--flip", flip)
       entry.el.classList.toggle("atlas-pin--flip-keep", flip)
+      // Near the limb a chip would hang off the sphere: keep just the dot.
+      const centre = map.getCenter()
+      const far = distanceMeters({ lat: centre.lat, lng: centre.lng }, entry.pin) > 6_200_000
+      entry.el.classList.toggle("atlas-pin--far", ambient && far)
     }
   }
   map.on("move", placeLabels)
+
+  // Stops that land on top of each other are nudged apart sideways so every
+  // number stays readable (and clickable) at the current zoom.
+  const declutter = () => {
+    const placed: Array<{ x: number; y: number }> = []
+    const stops = [...pins.values()].filter((entry) => entry.pin.variant === "stop")
+    const projected = stops
+      .map((entry) => ({ entry, at: map.project([entry.pin.lng, entry.pin.lat]) }))
+      .sort((a, b) => a.at.x - b.at.x)
+    for (const { entry, at } of projected) {
+      let x = at.x
+      for (let pass = 0; pass < 6; pass++) {
+        const hit = placed.find((p) => Math.abs(p.x - x) < 30 && Math.abs(p.y - at.y) < 26)
+        if (!hit) break
+        x = hit.x + 30
+      }
+      placed.push({ x, y: at.y })
+      entry.marker.setOffset([Math.round(x - at.x), 0])
+    }
+  }
+  map.on("moveend", declutter)
   map.on("error", (event) => {
     // Tile hiccups are routine; only a dead GL context ends the map.
     if (map.getCanvas().getContext("webgl2")?.isContextLost()) options.onError?.()
@@ -364,6 +406,7 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
         pins.delete(id)
       }
       placeLabels()
+      declutter()
     },
     setDots(points) {
       dots = points
@@ -378,6 +421,7 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
     setActive(id) {
       active = id
       for (const entry of pins.values()) classes(entry)
+      emphasise()
     },
     setHot(id) {
       hot = id
@@ -423,7 +467,7 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
       // further at the top, so sit slightly tighter.
       // A tilted camera shows more ground above the centre than below it, so
       // the pins would ride high over an empty foreground: weight the top.
-      const lift = view.pitch > 40 ? Math.round(container.clientHeight * 0.16) : 0
+      const lift = view.pitch > 40 ? Math.round(container.clientHeight * 0.07) : 0
       const target = {
         ...fit,
         pitch: view.pitch,
@@ -492,8 +536,8 @@ export interface StillRequest {
   color: string
 }
 
-const STILL_W = 640
-const STILL_H = 360
+const STILL_W = 660
+const STILL_H = 440
 
 /**
  * Render small map pictures (one per trip card) with a single off-screen map,
@@ -513,7 +557,9 @@ export function renderStills(
   let cancelled = false
   const map = new MapLibre({
     container: host,
-    style: buildMapStyle(dark),
+    // No basemap labels on covers: the card title names the place, and dots
+    // would otherwise sit on top of the city's own label.
+    style: buildMapStyle(dark, { labels: false }),
     interactive: false,
     attributionControl: false,
     fadeDuration: 0,
@@ -568,7 +614,7 @@ export function renderStills(
         if (request.points.length > 1 && spanMeters(request.points) > 60) {
           const bounds = new LngLatBounds()
           for (const p of request.points) bounds.extend([p.lng, p.lat])
-          const fit = map.cameraForBounds(bounds, { padding: { top: 70, right: 70, bottom: 50, left: 70 }, maxZoom: 13.5 })
+          const fit = map.cameraForBounds(bounds, { padding: { top: 90, right: 80, bottom: 70, left: 80 }, maxZoom: 13.5 })
           if (fit) map.jumpTo({ ...fit, pitch: 0, bearing: 0 })
         } else {
           const at = request.points[0] ?? request.center

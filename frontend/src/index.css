@@ -1384,6 +1384,10 @@ html.dark .trips[data-trip-accent="violet"] {
   transform-origin: 100% 50%;
 }
 
+.atlas-pin--far .atlas-pin__body {
+  display: none;
+}
+
 .atlas-pin--hot,
 .atlas-pin:hover,
 .atlas-pin:focus-visible {

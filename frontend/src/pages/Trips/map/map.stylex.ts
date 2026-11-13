@@ -89,7 +89,7 @@ export const mapStyles = stylex.create({
     outlineOffset: "1px",
     "::after": { content: '""', position: "absolute", inset: "-4px" },
   },
-  controlOn: { color: "var(--ta)" },
+  controlOn: { color: "var(--brand)" },
   controlRule: {
     height: "1px",
     marginBlock: "0.25rem",

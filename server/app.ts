@@ -34,7 +34,7 @@ type AppPreviewMeta = {
 // Preview cards are 1200×630 JPEGs in frontend/public, each the app's own
 // scene with its title. Bump OG_VERSION when a card changes so social caches
 // fetch the new one.
-const OG_VERSION = "2";
+const OG_VERSION = "3";
 const card = (name: string) => `/og-${name}.jpg?v=${OG_VERSION}`;
 
 const appPreviews = {
