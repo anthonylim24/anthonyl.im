@@ -19,9 +19,11 @@ import {
   applySuggestionsSchema,
   canEdit,
   canView,
+  createInviteSchema,
   createTripSchema,
   enhanceRequestSchema,
   generateRequestSchema,
+  joinTripSchema,
   tripChatRequestSchema,
   newId,
   nowIso,
@@ -30,6 +32,8 @@ import {
   updateTripSchema,
   type EnhancementRun,
   type Trip,
+  type TripAccess,
+  type TripInvite,
 } from "../trips/types"
 
 // ── /api/trips router ────────────────────────────────────────────────────
@@ -47,7 +51,44 @@ export interface TripsRouterDeps {
   fetchWeather?: WeatherFetcher
 }
 
+const MAX_SUMMARY_POINTS = 48
+const round4 = (n: number) => Math.round(n * 1e4) / 1e4
+
+/** Evenly pick at most `max` entries, keeping the first and last. */
+function downsample<T>(list: T[], max: number): T[] {
+  if (list.length <= max) return list
+  const step = (list.length - 1) / (max - 1)
+  return Array.from({ length: max }, (_, i) => list[Math.round(i * step)]!)
+}
+
+/** Full trip as a response body. Invite tokens are owner-only. */
+function present(trip: Trip, access: TripAccess): Trip {
+  if (access === "owner" || !trip.invites) return trip
+  const { invites: _invites, ...rest } = trip
+  return rest
+}
+
+/** URL-safe, crypto-random invite token (32 chars). */
+function newInviteToken(): string {
+  return Buffer.from(crypto.getRandomValues(new Uint8Array(24))).toString("base64url")
+}
+
 function summarize(trip: Trip, userId: string) {
+  const located = trip.days.flatMap((d) =>
+    d.items.flatMap((i) =>
+      typeof i.location?.lat === "number" && typeof i.location?.lng === "number"
+        ? [{ lat: i.location.lat, lng: i.location.lng }]
+        : [],
+    ),
+  )
+  const center =
+    trip.center ??
+    (located.length > 0
+      ? {
+          lat: located.reduce((n, p) => n + p.lat, 0) / located.length,
+          lng: located.reduce((n, p) => n + p.lng, 0) / located.length,
+        }
+      : undefined)
   return {
     id: trip.id,
     slug: trip.slug,
@@ -64,6 +105,9 @@ function summarize(trip: Trip, userId: string) {
     sharedWithAllUsers: trip.sharedWithAllUsers ?? false,
     dayCount: trip.days.length,
     itemCount: trip.days.reduce((n, d) => n + d.items.length, 0),
+    center,
+    points: downsample(located, MAX_SUMMARY_POINTS).map((p) => [round4(p.lng), round4(p.lat)] as [number, number]),
+    placeCount: located.length,
     access: accessFor(trip, userId),
     updatedAt: trip.updatedAt,
   }
@@ -239,6 +283,62 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     return { trip, access }
   }
 
+  /** Re-read + CAS-write a sharing change so it can't clobber (or be lost
+   *  to) a concurrent document save. `change` returns the trip untouched
+   *  when there is nothing to do. */
+  async function mutateTrip(tripId: string, change: (trip: Trip) => Trip): Promise<Trip | null> {
+    for (let attempt = 0; attempt < PERSIST_RETRIES; attempt++) {
+      const fresh = await deps.store.get(tripId)
+      if (!fresh) return null
+      const changed = change(fresh)
+      if (changed === fresh) return fresh
+      const next = { ...changed, updatedAt: nowIso() }
+      if (await deps.store.updateIfUnchanged(next, fresh.updatedAt)) return next
+    }
+    throw new Error("Trip changed while updating sharing")
+  }
+
+  // ── Sharing: join by invite link ───────────────────────────────────────
+  //
+  // Registered ahead of every `/:id/...` route so "join" is never read as a
+  // trip id.
+
+  trips.post("/join/:token", async (c) => {
+    const body = joinTripSchema.safeParse(await c.req.json().catch(() => ({})))
+    if (!body.success) return c.json({ error: "invalid request", issues: body.error.issues }, 400)
+    const token = c.req.param("token")
+    const userId = userIdOf(c)
+    const name = body.data.name || undefined
+    const holder = (await deps.store.list()).find((t) => t.invites?.some((i) => i.token === token))
+    if (!holder) return c.json({ error: "invite_not_found" }, 404)
+
+    const joined = await mutateTrip(holder.id, (trip) => {
+      // Re-check on the fresh copy: the owner may have revoked it meanwhile.
+      const invite = trip.invites?.find((i) => i.token === token)
+      if (!invite || trip.ownerId === userId) return trip
+      const existing = trip.collaborators.find((col) => col.userId === userId)
+      if (!existing) {
+        return {
+          ...trip,
+          collaborators: [...trip.collaborators, { userId, role: invite.role, ...(name ? { name } : {}) }],
+        }
+      }
+      const role = invite.role === "editor" ? "editor" : existing.role
+      const nextName = name ?? existing.name
+      if (role === existing.role && nextName === existing.name) return trip
+      return {
+        ...trip,
+        collaborators: trip.collaborators.map((col) =>
+          col === existing ? { ...col, role, ...(nextName ? { name: nextName } : {}) } : col,
+        ),
+      }
+    })
+    if (!joined) return c.json({ error: "invite_not_found" }, 404)
+    const access = accessFor(joined, userId)
+    if (!canView(access)) return c.json({ error: "invite_not_found" }, 404)
+    return c.json({ trip: { id: joined.id, slug: joined.slug, name: joined.name }, access })
+  })
+
   // ── CRUD ───────────────────────────────────────────────────────────────
 
   trips.get("/", async (c) => {
@@ -295,7 +395,7 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     await ensureSeeded(deps.store)
     const result = await loadTrip(c, c.req.param("id"))
     if ("error" in result) return result.error
-    return c.json({ trip: result.trip, access: result.access })
+    return c.json({ trip: present(result.trip, result.access), access: result.access })
   })
 
   trips.patch("/:id", async (c) => {
@@ -326,7 +426,7 @@ export function createTripsRouter(deps: TripsRouterDeps) {
       return c.json({ error: "endDate must be on or after startDate" }, 400)
     }
     await deps.store.update(next)
-    return c.json({ trip: next })
+    return c.json({ trip: present(next, result.access) })
   })
 
   trips.delete("/:id", async (c) => {
@@ -334,6 +434,51 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     if ("error" in result) return result.error
     if (result.access !== "owner") return c.json({ error: "only the owner can delete a trip" }, 403)
     await deps.store.delete(result.trip.id)
+    return c.json({ ok: true })
+  })
+
+  // ── Sharing: invite links + leaving ────────────────────────────────────
+
+  trips.post("/:id/invites", async (c) => {
+    const result = await loadTrip(c, c.req.param("id"))
+    if ("error" in result) return result.error
+    if (result.access !== "owner") return c.json({ error: "only the owner can manage invites" }, 403)
+    const body = createInviteSchema.safeParse(await c.req.json().catch(() => null))
+    if (!body.success) return c.json({ error: "invalid request", issues: body.error.issues }, 400)
+    const role = body.data.role
+    const next = await mutateTrip(result.trip.id, (trip) => {
+      if (trip.invites?.some((i) => i.role === role)) return trip
+      const invite: TripInvite = { token: newInviteToken(), role, createdAt: nowIso() }
+      return { ...trip, invites: [...(trip.invites ?? []), invite] }
+    })
+    const invite = next?.invites?.find((i) => i.role === role)
+    if (!invite) return c.json({ error: "trip not found" }, 404)
+    return c.json({ invite })
+  })
+
+  trips.delete("/:id/invites/:token", async (c) => {
+    const result = await loadTrip(c, c.req.param("id"))
+    if ("error" in result) return result.error
+    if (result.access !== "owner") return c.json({ error: "only the owner can manage invites" }, 403)
+    const token = c.req.param("token")
+    await mutateTrip(result.trip.id, (trip) =>
+      trip.invites?.some((i) => i.token === token)
+        ? { ...trip, invites: trip.invites.filter((i) => i.token !== token) }
+        : trip,
+    )
+    return c.json({ ok: true })
+  })
+
+  trips.post("/:id/leave", async (c) => {
+    const result = await loadTrip(c, c.req.param("id"))
+    if ("error" in result) return result.error
+    if (result.access === "owner") return c.json({ error: "owner_cannot_leave" }, 400)
+    const userId = userIdOf(c)
+    await mutateTrip(result.trip.id, (trip) =>
+      trip.collaborators.some((col) => col.userId === userId)
+        ? { ...trip, collaborators: trip.collaborators.filter((col) => col.userId !== userId) }
+        : trip,
+    )
     return c.json({ ok: true })
   })
 
@@ -367,7 +512,7 @@ export function createTripsRouter(deps: TripsRouterDeps) {
         updatedAt: nowIso(),
       }
       await deps.store.update(next)
-      return c.json({ trip: next, summary: generated.summary })
+      return c.json({ trip: present(next, result.access), summary: generated.summary })
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       console.warn("[trips/generate] failed:", message)
@@ -444,7 +589,7 @@ export function createTripsRouter(deps: TripsRouterDeps) {
     const trip = (await deps.store.get(result.trip.id)) ?? result.trip
     return c.json({
       run,
-      trip,
+      trip: present(trip, result.access),
       applied: run.appliedSuggestionIds,
       ...(run.status === "error"
         ? { error: "enhancement_failed" as const, message: run.error ?? "enhancement failed" }
@@ -466,7 +611,7 @@ export function createTripsRouter(deps: TripsRouterDeps) {
       run.appliedSuggestionIds = [...run.appliedSuggestionIds, ...applied]
       await deps.store.saveRun(run)
     }
-    return c.json({ trip: next, applied, skipped })
+    return c.json({ trip: present(next, result.access), applied, skipped })
   })
 
   // ── AI: concierge chat (SSE) ───────────────────────────────────────────

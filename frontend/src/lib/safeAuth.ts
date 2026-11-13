@@ -1,4 +1,4 @@
-import { useAuth } from '@clerk/clerk-react'
+import { useAuth, useUser } from '@clerk/clerk-react'
 import { CLERK_ENABLED } from './clerk'
 
 /**
@@ -49,6 +49,17 @@ export function useAuthReady(): boolean {
   return useAuth().isLoaded
 }
 
+/** The signed-in user's id and display name, or nulls when auth is not in
+ *  play (dev bearer / Clerk disabled) or still hydrating. */
+export function useViewer(): { id: string | null; name: string | null } {
+  if (DEV_BEARER || !CLERK_ENABLED) return NO_VIEWER
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const { user } = useUser()
+  if (!user) return NO_VIEWER
+  return { id: user.id, name: user.fullName || user.firstName || user.username || null }
+}
+
+const NO_VIEWER = { id: null, name: null }
 const noopGetToken = async (): Promise<string | null> => null
 const devGetToken = async (): Promise<string | null> => DEV_BEARER
 

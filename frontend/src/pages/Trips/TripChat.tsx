@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSPrope
 import { createPortal } from "react-dom"
 import { AnimatePresence, motion, useReducedMotion } from "motion/react"
 import { useLocation, useNavigate } from "react-router-dom"
-import { Maximize2, MessageSquare, Minimize2, Send, X } from "lucide-react"
+import { ArrowUp, Maximize2, MessageCircle, Minimize2, Sparkles, X } from "lucide-react"
 import {
   conciergePlaceKey,
   type ConciergeMove,
@@ -25,11 +25,36 @@ import { addItem, dayHasPlaceNamed, itemFromConciergePlace, moveItemToDay, remov
 import { getTrip, updateTrip } from "./tripsApi"
 import { emitTripChanged, useTripChanged } from "./tripsEvents"
 import { streamTripChat, type TripChatMessage } from "./tripChatApi"
-import { resolveAccent } from "./theme"
+import { resolveAccent } from "./meta"
 import type { Trip, TripAccess } from "./types"
-import { ENTER_SPRING, EASE, focusRingClass, mutedInkClass, overlayScrimClass, runTripsViewTransition, typeSectionClass } from "./ui"
-import { styles } from './trips.stylex'
-import { sx } from '@/lib/utils'
+import { a } from "./atlas.stylex"
+import { c } from "./chat.stylex"
+import { sx } from "@/styles/merge"
+
+const EASE = [0.16, 1, 0.3, 1] as const
+
+/** The panel settles into place rather than sliding to a stop. */
+const ENTER_SPRING = { type: "spring", stiffness: 420, damping: 34, mass: 0.7 } as const
+
+const FAB_SPRING = { type: "spring", stiffness: 400, damping: 28 } as const
+
+type ViewTransitionDocument = Document & {
+  startViewTransition?: (update: () => void) => { finished: Promise<void> }
+}
+
+/** Same-document View Transition, or a synchronous update when unsupported. */
+function runTripsViewTransition(update: () => void): void {
+  const reduced =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  const doc = document as ViewTransitionDocument
+  if (reduced || typeof doc.startViewTransition !== "function") {
+    update()
+    return
+  }
+  void doc.startViewTransition(update).finished.catch(() => undefined)
+}
 
 interface ChatMessage {
   id: string
@@ -526,8 +551,8 @@ export function TripChat() {
 
   const accent = resolveAccent(trip?.appearance?.accent)
   const panelSx = expanded
-    ? sx('trip-chat-panel', 'trip-chat-panel-expanded', styles.chatPanelShell)
-    : sx('trip-chat-panel', styles.chatPanelShell, styles.chatPanelCompact)
+    ? sx("trip-chat-panel", "trip-chat-panel-expanded", c.panel)
+    : sx("trip-chat-panel", c.panel, c.panelDocked)
   const panelStyle: CSSProperties = {
     ...(kbInset > 0 && !expanded ? { bottom: kbInset } : {}),
     ...(expanded
@@ -556,22 +581,23 @@ export function TripChat() {
         tabIndex={open ? -1 : undefined}
         initial={false}
         animate={open ? { opacity: 0, scale: reduce ? 1 : 0.86 } : { opacity: 1, scale: 1 }}
-        transition={reduce ? { duration: 0.15 } : { type: "spring", stiffness: 400, damping: 28 }}
-        {...sx(styles.chatFab, focusRingClass, open ? styles.chatFabHidden : undefined)}
+        whileHover={reduce || open ? undefined : { scale: 1.06 }}
+        whileTap={reduce || open ? undefined : { scale: 0.94 }}
+        transition={reduce ? { duration: 0.15 } : FAB_SPRING}
+        {...sx(c.fab, open ? c.fabHidden : undefined)}
         style={{
-          bottom: "calc(env(safe-area-inset-bottom, 0px) + 1.25rem)",
           // Shared morph with the panel. Name clears while open so the new
           // View Transition snapshot never has two `trips-concierge` nodes
           // (FAB stays mounted; EnhanceButton uses the same handoff).
           viewTransitionName: open || reduce ? "none" : "trips-concierge",
         }}
       >
-        <MessageSquare {...sx(styles.iconLg)} strokeWidth={2} />
+        <MessageCircle {...sx(c.icon22)} strokeWidth={1.75} aria-hidden />
       </motion.button>
 
       {typeof document !== "undefined" &&
         createPortal(
-          <div {...sx('trips', 'trip-chat-portal')} data-trip-accent={accent}>
+          <div {...sx("trips", "trip-chat-portal")} data-trip-accent={accent}>
       <AnimatePresence>
         {open && (
           <>
@@ -581,7 +607,7 @@ export function TripChat() {
               exit={{ opacity: 0 }}
               transition={{ duration: 0.18, ease: EASE }}
               onClick={handleClose}
-              {...sx(overlayScrimClass, expanded ? styles.chatOverlayExpanded : styles.chatOverlayCompact)}
+              {...sx(c.scrim, expanded ? undefined : c.scrimDocked)}
               aria-hidden
             />
 
@@ -600,49 +626,51 @@ export function TripChat() {
                 viewTransitionName: open && !reduce ? "trips-concierge" : "none",
               }}
             >
-              <header {...sx(styles.chatHeader)}>
-                <span {...sx(styles.chatHeaderIcon)}>
-                  <MessageSquare {...sx(styles.iconSm)} strokeWidth={2} />
-                </span>
-                <div {...sx(styles.chatHeaderBody)}>
-                  <h2 id={titleId} {...sx(styles.chatTitleTruncate, typeSectionClass)}>
-                    Trip Concierge
+              <header {...sx(c.header)}>
+                <div {...sx(c.headerBody)}>
+                  <p {...sx(a.eyebrow, a.truncate)}>{subtitle}</p>
+                  {/* Reads "Concierge"; the dialog is still named "Trip Concierge". */}
+                  <h2 id={titleId} {...sx(c.title)}>
+                    <span {...sx(a.srOnly)}>Trip </span>Concierge
                   </h2>
-                  <p {...sx(styles.chatSubtitleTruncate, mutedInkClass)}>{subtitle}</p>
                 </div>
-                <div {...sx(styles.chatHeaderActions)}>
+                <div {...sx(c.headerActions)}>
                   <button
                     type="button"
                     onClick={toggleExpanded}
                     aria-label={expanded ? "Shrink chat" : "Expand chat"}
                     aria-pressed={expanded}
                     title={expanded ? "Shrink chat" : "Expand chat"}
-                    {...sx(styles.chatHeaderIconBtn, focusRingClass)}
+                    {...sx(a.iconBtn)}
                   >
-                    {expanded ? <Minimize2 {...sx(styles.iconMd)} /> : <Maximize2 {...sx(styles.iconMd)} />}
+                    {expanded ? (
+                      <Minimize2 {...sx(c.icon18)} strokeWidth={1.75} aria-hidden />
+                    ) : (
+                      <Maximize2 {...sx(c.icon18)} strokeWidth={1.75} aria-hidden />
+                    )}
                   </button>
                   <button
                     type="button"
                     onClick={handleClose}
                     aria-label="Close chat"
-                    {...sx(styles.chatHeaderIconBtn, focusRingClass)}
+                    {...sx(a.iconBtn)}
                   >
-                    <X {...sx(styles.iconMd)} />
+                    <X {...sx(c.icon18)} strokeWidth={1.75} aria-hidden />
                   </button>
                 </div>
               </header>
 
               <div
                 ref={scrollRef}
-                {...sx(styles.chatScroll)}
+                {...sx(c.scroll)}
                 style={{ WebkitOverflowScrolling: "touch" }}
               >
                 {messages.length === 0 ? (
-                  <div {...sx(styles.chatEmpty)}>
-                    <span {...sx(styles.chatEmptyIcon)}>
-                      <MessageSquare {...sx(styles.iconLg)} />
+                  <div {...sx(c.empty)}>
+                    <span {...sx(c.emptyIcon)}>
+                      <Sparkles {...sx(c.icon22)} strokeWidth={1.5} aria-hidden />
                     </span>
-                    <p {...sx(styles.chatEmptyCopy, mutedInkClass)}>
+                    <p {...sx(c.emptyCopy)}>
                       {trip
                         ? `Your concierge for ${trip.name}. Ask about the plan, or a place to add.`
                         : "Your concierge for this itinerary. Ask about the plan, reservations, or where to eat."}
@@ -655,9 +683,9 @@ export function TripChat() {
                         key={m.id}
                         ref={m.id === lastUserId ? anchorRef : undefined}
                         data-transcript-anchor={m.id === lastUserId ? "latest-user" : undefined}
-                        {...sx(styles.chatUserRow)}
+                        {...sx(c.userRow)}
                       >
-                        <div {...sx(styles.chatUserBubble)}>
+                        <div {...sx(c.userBubble)}>
                           {m.content}
                         </div>
                       </div>
@@ -693,19 +721,19 @@ export function TripChat() {
                   )
                 )}
                 {messages.length > 0 ? (
-                  <div ref={spacerRef} data-transcript-spacer="" aria-hidden {...sx(styles.chatSpacer)} />
+                  <div ref={spacerRef} data-transcript-spacer="" aria-hidden {...sx(c.spacer)} />
                 ) : null}
               </div>
 
-              <div {...sx(styles.chatFooter)}>
+              <div {...sx(c.footer)}>
               {messages.length === 0 && suggestions.length > 0 && (
-                <div {...sx(styles.chatSuggestions)}>
+                <div {...sx(c.suggestions)}>
                   {suggestions.map((s) => (
                     <button
                       key={s}
                       type="button"
                       onClick={() => void send(s)}
-                      {...sx(styles.chatSuggestionBtn, focusRingClass)}
+                      {...sx(a.pill, c.suggestion)}
                     >
                       {s}
                     </button>
@@ -718,10 +746,9 @@ export function TripChat() {
                   e.preventDefault()
                   void send(input)
                 }}
-                {...sx(styles.chatForm)}
-                style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 0.75rem)" }}
+                {...sx(c.form)}
               >
-                <div {...sx(styles.chatComposerShell)}>
+                <div {...sx(c.composer)}>
                   <textarea
                     ref={inputRef}
                     value={input}
@@ -737,15 +764,15 @@ export function TripChat() {
                     }}
                     rows={1}
                     placeholder="Ask about this trip…"
-                    {...sx('trips-composer-input', expanded ? styles.chatComposerExpanded : styles.chatComposerCompact)}
+                    {...sx("trips-composer-input", c.input, expanded ? c.inputExpanded : c.inputDocked)}
                   />
                   <button
                     type="submit"
                     disabled={!input.trim() || streaming}
                     aria-label="Send message"
-                    {...sx(styles.chatSendBtn, focusRingClass)}
+                    {...sx(c.send)}
                   >
-                    <Send {...sx(styles.iconSend)} strokeWidth={2} />
+                    <ArrowUp {...sx(c.icon18)} strokeWidth={2} aria-hidden />
                   </button>
                 </div>
               </form>
@@ -817,8 +844,8 @@ function AssistantBubble({
   )
 
   return (
-    <div {...sx(styles.chatAssistantRow)}>
-      <div {...sx(styles.chatAssistantBubble)}>
+    <div {...sx(c.assistantRow)}>
+      <div {...sx(c.assistant)}>
         {m.content ? (
           <div>
             <ConciergeText
@@ -826,11 +853,11 @@ function AssistantBubble({
               bulletStyle={conciergeText.markerDotAccent}
               numberStyle={conciergeText.markerNumAccent}
             />
-            {streaming ? <span {...sx('trip-chat-caret')} aria-hidden /> : null}
+            {streaming ? <span {...sx("trip-chat-caret")} aria-hidden /> : null}
           </div>
         ) : streaming ? (
           <div>
-            <p {...sx(styles.chatEmptyCopy, mutedInkClass)}>Looking this up…</p>
+            <p {...sx(c.pending)}>Looking this up…</p>
             <TypingDots reduce={reduce} />
           </div>
         ) : m.error || m.places?.length || m.moves?.length || m.sources?.length ? null : (
@@ -881,7 +908,7 @@ function AssistantBubble({
           />
         ) : null}
         {m.sources ? (
-          <ConciergeSources sources={m.sources} linkStyle={styles.conciergeSourceLink} />
+          <ConciergeSources sources={m.sources} linkStyle={c.sourceLink} />
         ) : null}
         <ConciergeStreamStatus error={m.error} />
       </div>
@@ -891,14 +918,14 @@ function AssistantBubble({
 
 function TypingDots({ reduce }: { reduce: boolean }) {
   return (
-    <div {...sx(styles.chatTypingRow)} aria-label="Concierge is typing">
+    <div {...sx(c.typingRow)} aria-label="Concierge is typing">
       {[0, 1, 2].map((i) =>
         reduce ? (
-          <span key={i} {...sx(styles.chatTypingDot)} />
+          <span key={i} {...sx(c.typingDot)} />
         ) : (
           <motion.span
             key={i}
-            {...sx(styles.chatTypingDotMotion)}
+            {...sx(c.typingDot)}
             animate={{ opacity: [0.3, 1, 0.3], y: [0, -2, 0] }}
             transition={{ duration: 1, repeat: Infinity, delay: i * 0.15, ease: "easeInOut" }}
           />

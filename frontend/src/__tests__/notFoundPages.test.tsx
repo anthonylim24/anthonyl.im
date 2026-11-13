@@ -38,10 +38,8 @@ describe('not-found pages', () => {
         <TripsNotFound />
       </MemoryRouter>,
     )
-    expect(
-      screen.getByRole('heading', { name: 'This page is not on the itinerary.' }),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'All trips' })).toHaveAttribute('href', '/trips')
+    expect(screen.getByRole('heading', { name: 'Here be dragons.' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Back to all trips' })).toHaveAttribute('href', '/trips')
   })
 
   it('treats API trip-not-found as a missing document, not a network failure', () => {

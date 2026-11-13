@@ -1,5 +1,3 @@
-import { sx } from '@/lib/utils'
-import { styles } from './trips.stylex'
 import { useState } from "react"
 import { Globe2, ImageIcon, MapPin, Plus, Trash2 } from "lucide-react"
 import {
@@ -11,16 +9,9 @@ import { externalMapsLink } from "../../lib/externalMaps"
 import { ConciergePhotoThumb } from "./ConciergePhoto"
 import { dayLabel } from "./conciergeMoves"
 import type { TripDay } from "./types"
-import {
-  accentChipBtnClass,
-  compactSelectClass,
-  dangerChipBtnClass,
-  focusRingClass,
-  ghostBtnClass,
-  mutedInkClass,
-  quietBtnClass,
-  wrapAnywhereClass,
-} from "./ui"
+import { a } from "./atlas.stylex"
+import { c } from "./chat.stylex"
+import { sx } from "@/styles/merge"
 
 export function ConciergePlaceCards({
   places,
@@ -58,7 +49,7 @@ export function ConciergePlaceCards({
   if (places.length === 0 || days.length === 0) return null
   const fallbackDay = days.some((d) => d.id === defaultDayId) ? defaultDayId : days[0]?.id
   return (
-    <ul {...sx(styles.conciergeList)} aria-label={variant === "suggest" ? "Suggested places" : "Places on this trip"}>
+    <ul {...sx(c.cardList)} aria-label={variant === "suggest" ? "Suggested places" : "Places on this trip"}>
       {places.map((place) => (
         <ConciergePlaceCard
           key={conciergePlaceKey(place)}
@@ -128,7 +119,7 @@ function ConciergePlaceCard({
   const canOpenMapMode = Boolean(onMap && (place.itemId || (place.lat != null && place.lng != null)))
 
   return (
-    <li {...sx(styles.conciergeCardLi)}>
+    <li {...sx(c.card)}>
       <ConciergePhotoThumb
         name={place.name}
         city={city}
@@ -136,38 +127,38 @@ function ConciergePlaceCard({
         lng={place.lng}
         onOpen={() => onPhotos(place)}
       />
-      <div {...sx(styles.conciergeCardBody)}>
-        <div {...sx(styles.conciergeCardHeader)}>
-          <MapPin {...sx(styles.iconPinMt)} strokeWidth={1.75} aria-hidden />
-          <div {...sx(styles.minW0, styles.flex1)}>
+      <div {...sx(c.cardBody)}>
+        <div {...sx(c.cardHead)}>
+          <MapPin {...sx(c.pin)} strokeWidth={1.75} aria-hidden />
+          <div {...sx(c.cardHeadText)}>
             {maps ? (
               <a
                 href={maps.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                {...sx(styles.textSm, styles.fontMedium, focusRingClass, wrapAnywhereClass)}
+                {...sx(c.cardTitle, c.cardTitleLink)}
               >
                 {place.name}
               </a>
             ) : (
-              <p {...sx(styles.conciergeTitle, wrapAnywhereClass)}>{place.name}</p>
+              <p {...sx(c.cardTitle)}>{place.name}</p>
             )}
-            {meta ? <p {...sx(mutedInkClass, wrapAnywhereClass)}>{meta}</p> : null}
+            {meta ? <p {...sx(c.cardMeta)}>{meta}</p> : null}
             {place.notes ? (
-              <p {...sx(styles.conciergeNotes12, wrapAnywhereClass)}>{place.notes}</p>
+              <p {...sx(c.cardNotes)}>{place.notes}</p>
             ) : null}
-            {removed ? <p {...sx(styles.mt1, styles.text12, mutedInkClass)}>Removed from the itinerary.</p> : null}
+            {removed ? <p {...sx(c.cardMeta)}>Removed from the itinerary.</p> : null}
           </div>
         </div>
 
-        <div {...sx(styles.conciergeActionsRow)}>
+        <div {...sx(c.cardActions)}>
           <button
             type="button"
             onClick={() => onPhotos(place)}
             aria-label={`Photos of ${place.name}`}
-            {...sx(quietBtnClass)}
+            {...sx(a.btn, a.btnSm, a.btnGhost, c.action, c.actionQuiet)}
           >
-            <ImageIcon {...sx(styles.icon35)} strokeWidth={1.5} aria-hidden />
+            <ImageIcon {...sx(c.icon14)} strokeWidth={1.75} aria-hidden />
             Photos
           </button>
           {variant === "suggest" && maps ? (
@@ -175,10 +166,10 @@ function ConciergePlaceCard({
               href={maps.href}
               target="_blank"
               rel="noopener noreferrer"
-              {...sx(quietBtnClass, styles.quietBtnMapSm)}
+              {...sx(a.btn, a.btnSm, a.btnGhost, c.action, c.actionQuiet)}
               aria-label={maps.label}
             >
-              <Globe2 {...sx(styles.icon35)} strokeWidth={1.5} aria-hidden />
+              <Globe2 {...sx(c.icon14)} strokeWidth={1.75} aria-hidden />
               Map
             </a>
           ) : null}
@@ -186,10 +177,10 @@ function ConciergePlaceCard({
             <button
               type="button"
               onClick={() => onMap?.(place)}
-              {...sx(quietBtnClass)}
+              {...sx(a.btn, a.btnSm, a.btnGhost, c.action, c.actionQuiet)}
               aria-label={`Open ${place.name} in Map Mode`}
             >
-              <Globe2 {...sx(styles.icon35)} strokeWidth={1.5} aria-hidden />
+              <Globe2 {...sx(c.icon14)} strokeWidth={1.75} aria-hidden />
               Map
             </button>
           ) : null}
@@ -198,7 +189,7 @@ function ConciergePlaceCard({
             <>
               {days.length > 1 ? (
                 <>
-                  <label {...sx(styles.srOnly)} htmlFor={`add-place-day-${conciergePlaceKey(place)}`}>
+                  <label {...sx(a.srOnly)} htmlFor={`add-place-day-${conciergePlaceKey(place)}`}>
                     Day for {place.name}
                   </label>
                   <select
@@ -206,7 +197,7 @@ function ConciergePlaceCard({
                     value={dayId}
                     onChange={(e) => setDayId(e.target.value)}
                     disabled={added || adding}
-                    {...sx(compactSelectClass, styles.minW0, styles.flex1)}
+                    {...sx(c.daySelect, c.daySelectGrow)}
                   >
                     {days.map((day, i) => (
                       <option key={day.id} value={day.id}>
@@ -228,9 +219,9 @@ function ConciergePlaceCard({
                       ? `Adding ${place.name}`
                       : `Add ${place.name} to the itinerary`
                 }
-                {...sx(accentChipBtnClass)}
+                {...sx(a.btn, a.btnSm, c.action, added ? c.actionOk : a.btnPrimary)}
               >
-                <Plus {...sx(styles.icon35)} strokeWidth={1.5} aria-hidden />
+                <Plus {...sx(c.icon14)} strokeWidth={1.75} aria-hidden />
                 {added ? "Added" : adding ? "Adding…" : "Add"}
               </button>
             </>
@@ -238,7 +229,7 @@ function ConciergePlaceCard({
 
           {variant === "itinerary" && canEdit && !removed && onMove && days.length > 1 ? (
             <>
-              <label {...sx(styles.srOnly)} htmlFor={`move-place-day-${place.itemId ?? conciergePlaceKey(place)}`}>
+              <label {...sx(a.srOnly)} htmlFor={`move-place-day-${place.itemId ?? conciergePlaceKey(place)}`}>
                 Move {place.name} to day
               </label>
               <select
@@ -251,7 +242,7 @@ function ConciergePlaceCard({
                   setDayId(next)
                   if (next && next !== place.dayId) onMove(place, next)
                 }}
-                {...sx(compactSelectClass, styles.minW28)}
+                {...sx(c.daySelect, c.daySelectMove)}
               >
                 {days.map((day, i) => (
                   <option key={day.id} value={day.id}>
@@ -269,12 +260,12 @@ function ConciergePlaceCard({
                   type="button"
                   onClick={() => onRemove(place)}
                   aria-label={`Confirm remove ${place.name}`}
-                  {...sx(dangerChipBtnClass)}
+                  {...sx(a.btn, a.btnSm, a.btnDanger, c.action)}
                 >
-                  <Trash2 {...sx(styles.icon35)} strokeWidth={1.5} aria-hidden />
+                  <Trash2 {...sx(c.icon14)} strokeWidth={1.75} aria-hidden />
                   Remove it
                 </button>
-                <button type="button" onClick={() => setConfirmRemove(false)} {...sx(ghostBtnClass)}>
+                <button type="button" onClick={() => setConfirmRemove(false)} {...sx(a.btn, a.btnSm, a.btnGhost, c.action)}>
                   Keep
                 </button>
               </>
@@ -283,9 +274,9 @@ function ConciergePlaceCard({
                 type="button"
                 onClick={() => setConfirmRemove(true)}
                 aria-label={`Remove ${place.name} from the itinerary`}
-                {...sx(quietBtnClass)}
+                {...sx(a.btn, a.btnSm, a.btnGhost, c.action, c.actionQuiet)}
               >
-                <Trash2 {...sx(styles.icon35)} strokeWidth={1.5} aria-hidden />
+                <Trash2 {...sx(c.icon14)} strokeWidth={1.75} aria-hidden />
                 Remove
               </button>
             )

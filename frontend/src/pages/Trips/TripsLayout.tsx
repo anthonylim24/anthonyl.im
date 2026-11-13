@@ -1,31 +1,21 @@
-import { sx } from '@/lib/utils'
-import { lazy, Suspense, useEffect, type ReactNode } from 'react'
-import { Link, Outlet, useLocation } from 'react-router-dom'
-import { ArrowLeft, Lock, Plus, Send } from 'lucide-react'
-import { SignedIn, SignedOut, SignInButton, UserButton, useAuth } from '@clerk/clerk-react'
-import { CLERK_ENABLED } from '@/lib/clerk'
-import { ThemeToggle } from '../Korea/ThemeToggle'
-import { applyTheme, getInitialTheme } from '../Korea/koreaUtils'
-import { CompactChromeProvider, useCompactChrome } from './useCompactChrome'
-import { styles } from './trips.stylex'
-import {
-  chromeHeaderClass,
-  focusRingClass,
-  iconBtnClass,
-  mutedInkClass,
-  primaryBtnClass,
-  typePageTitleClass,
-  wrapAnywhereClass,
-} from './ui'
+import { lazy, Suspense, useEffect, type ReactNode } from "react"
+import { Link, Outlet, useLocation } from "react-router-dom"
+import { ArrowLeft, Lock, Plus } from "lucide-react"
+import { SignedIn, SignedOut, SignInButton, UserButton, useAuth } from "@clerk/clerk-react"
+import { sx } from "@/styles/merge"
+import { CLERK_ENABLED } from "@/lib/clerk"
+import { ThemeToggle } from "../Korea/ThemeToggle"
+import { applyTheme, getInitialTheme } from "../Korea/koreaUtils"
+import { a } from "./atlas.stylex"
+import { shell as s } from "./index.stylex"
 
-const TripChat = lazy(() => import('./TripChat').then((m) => ({ default: m.TripChat })))
+const TripChat = lazy(() => import("./TripChat").then((m) => ({ default: m.TripChat })))
 
 const DEV_BEARER: string | null =
-  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_DEV_BEARER) || null
+  (typeof import.meta !== "undefined" && import.meta.env?.VITE_DEV_BEARER) || null
 
 function TripsAuthGate({ children }: { children: ReactNode }) {
-  if (DEV_BEARER) return <>{children}</>
-  if (!CLERK_ENABLED) return <>{children}</>
+  if (DEV_BEARER || !CLERK_ENABLED) return <>{children}</>
   return <ClerkTripsGate>{children}</ClerkTripsGate>
 }
 
@@ -33,8 +23,8 @@ function ClerkTripsGate({ children }: { children: ReactNode }) {
   const { isLoaded } = useAuth()
   if (!isLoaded) {
     return (
-      <div {...sx(styles.authLoading)} role="status" aria-label="Checking sign-in">
-        <span {...sx(styles.authSignInCopy)}>Loading…</span>
+      <div {...sx(s.gate)} role="status" aria-label="Checking sign-in">
+        <span {...sx(a.eyebrow)}>Loading…</span>
       </div>
     )
   }
@@ -42,15 +32,16 @@ function ClerkTripsGate({ children }: { children: ReactNode }) {
     <>
       <SignedIn>{children}</SignedIn>
       <SignedOut>
-        <div {...sx(styles.authSignInShell)}>
-          <div {...sx(styles.authSignInInner)}>
-            <h1 {...sx(typePageTitleClass)}>Sign in to Trips</h1>
-            <p {...sx(styles.authSignInCopy, mutedInkClass)}>
-              Days, reservations, and Map Mode stay private.
-            </p>
+        <div {...sx(s.gate)}>
+          <div {...sx(s.gateInner)}>
+            <CompassMark size={40} />
+            <h1 {...sx(a.display, s.gateTitle)}>
+              Sign in to <span {...sx(a.italic)}>Trips</span>
+            </h1>
+            <p {...sx(a.body)}>Your itineraries, maps and bookings stay private to you and the people you invite.</p>
             <SignInButton mode="modal">
-              <button type="button" {...sx(styles.authSignInBtn, primaryBtnClass)}>
-                <Lock {...sx(styles.iconSm)} strokeWidth={1.5} aria-hidden />
+              <button type="button" {...sx(a.btn, a.btnPrimary)}>
+                <Lock size={16} strokeWidth={1.75} aria-hidden />
                 Sign in to continue
               </button>
             </SignInButton>
@@ -61,118 +52,64 @@ function ClerkTripsGate({ children }: { children: ReactNode }) {
   )
 }
 
-function isTripChatPad(pathname: string): boolean {
-  const segs = pathname.replace(/\/+$/, '').split('/').filter(Boolean)
-  if (segs[0] !== 'trips' || !segs[1] || segs[1] === 'new') return false
-  if (segs.length === 2) return true
-  return segs.length === 4 && segs[2] === 'day'
-}
-
-function tripCrumbFromPath(pathname: string): string | null {
-  const segs = pathname.replace(/\/+$/, '').split('/').filter(Boolean)
-  if (segs[0] !== 'trips' || !segs[1] || segs[1] === 'new') return null
-  return decodeURIComponent(segs[1])
-    .split(/[-_]+/)
-    .filter(Boolean)
-    .map((part) => (/^\d+$/.test(part) ? part : part.charAt(0).toUpperCase() + part.slice(1)))
-    .join(' ')
+/** Eight-point compass rose: the Trips mark. */
+export function CompassMark({ size = 22, style }: { size?: number; style?: Parameters<typeof sx>[0] }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden {...sx(style)}>
+      <path d="M12 1.5 14 10l8.5 2-8.5 2-2 8.5-2-8.5L1.5 12 10 10Z" fill="currentColor" />
+      <path d="m5.6 5.6 4 3.2-.8.8ZM18.4 5.6l-3.2 4-.8-.8ZM18.4 18.4l-4-3.2.8-.8ZM5.6 18.4l3.2-4 .8.8Z" fill="currentColor" opacity="0.45" />
+    </svg>
+  )
 }
 
 export function TripsLayout() {
-  const location = useLocation()
-  const atIndex = location.pathname === '/trips' || location.pathname === '/trips/'
-  const chatPad = isTripChatPad(location.pathname)
-  const crumb = tripCrumbFromPath(location.pathname)
+  const { pathname } = useLocation()
+  const atIndex = /^\/trips\/?$/.test(pathname)
+  const creating = /^\/trips\/new\/?$/.test(pathname)
 
   useEffect(() => {
     applyTheme(getInitialTheme())
   }, [])
 
   useEffect(() => {
-    document.documentElement.dataset.tripsScroll = ''
+    document.documentElement.dataset.tripsScroll = ""
     return () => {
       delete document.documentElement.dataset.tripsScroll
     }
   }, [])
 
   return (
-    <CompactChromeProvider>
-      <TripsShell atIndex={atIndex} chatPad={chatPad} crumb={crumb} />
-    </CompactChromeProvider>
-  )
-}
-
-function TripsShell({
-  atIndex,
-  chatPad,
-  crumb,
-}: {
-  atIndex: boolean
-  chatPad: boolean
-  crumb: string | null
-}) {
-  const compact = useCompactChrome()
-
-  return (
-    <div
-      {...sx('trips', styles.tripsRoot)}
-      data-chrome-compact={compact ? 'true' : undefined}
-    >
+    <div {...sx("trips", s.root)}>
+      <a href="#trips-main" {...sx(s.skip)}>
+        Skip to content
+      </a>
+      <header {...sx(s.header)}>
+        <div {...sx(s.headerSide)}>
+          {!atIndex && (
+            <Link to="/trips" {...sx(a.iconBtn)} aria-label="Back to all trips">
+              <ArrowLeft size={18} strokeWidth={1.75} aria-hidden />
+            </Link>
+          )}
+          <Link to="/trips" {...sx("group", s.brand)} aria-label="Trips home">
+            <CompassMark style={s.brandMark} />
+            Trips
+          </Link>
+        </div>
+        <div {...sx(s.headerSide)}>
+          {!creating && (
+            <Link to="/trips/new" {...sx(a.btn, a.btnGhost, a.btnSm)} aria-label="New trip">
+              <Plus size={16} strokeWidth={1.75} aria-hidden />
+              <span {...sx(s.newLabel)}>New trip</span>
+            </Link>
+          )}
+          <span {...sx("trip-tap-44")}>
+            <ThemeToggle style={s.themeToggle} />
+          </span>
+          {CLERK_ENABLED && !DEV_BEARER ? <UserButton afterSignOutUrl="/" /> : null}
+        </div>
+      </header>
       <TripsAuthGate>
-        <a href="#trips-main" {...sx(styles.skipLink)}>
-          Skip to content
-        </a>
-        <header {...sx(chromeHeaderClass)}>
-          <div {...sx(styles.chromeInner)}>
-            <nav aria-label="Breadcrumb" {...sx(styles.breadcrumbNav)}>
-              {!atIndex && (
-                <Link
-                  to="/trips"
-                  {...sx(iconBtnClass, styles.backLinkMobile)}
-                  aria-label="Back to all trips"
-                >
-                  <ArrowLeft {...sx(styles.iconSm)} strokeWidth={1.5} aria-hidden />
-                </Link>
-              )}
-              <ol {...sx(styles.breadcrumbList)}>
-                <li {...sx(styles.shrink0)}>
-                  <Link to="/trips" {...sx('chrome-wordmark', styles.chromeWordmark, focusRingClass)}>
-                    <Send {...sx('chrome-plane', styles.chromePlane)} strokeWidth={2.25} aria-hidden />
-                    Trips
-                  </Link>
-                </li>
-                {crumb ? (
-                  <li aria-current="page" {...sx(styles.breadcrumbCrumb)}>
-                    <span aria-hidden {...sx(styles.breadcrumbSep)}>
-                      /
-                    </span>
-                    <span {...sx(styles.breadcrumbTitle, wrapAnywhereClass)}>{crumb}</span>
-                  </li>
-                ) : null}
-              </ol>
-              <Link
-                to="/trips/new"
-                tabIndex={compact ? -1 : undefined}
-                aria-hidden={compact || undefined}
-                {...sx('chrome-new-trip', styles.chromeNewTrip, mutedInkClass, focusRingClass)}
-              >
-                <Plus {...sx(styles.iconXs)} strokeWidth={1.5} aria-hidden />
-                New trip
-              </Link>
-            </nav>
-            <div {...sx(styles.chromeActions)}>
-              <span {...sx('trip-tap-44', styles.themeToggleWrap)}>
-                <ThemeToggle style={styles.themeToggle} />
-              </span>
-              {CLERK_ENABLED && !DEV_BEARER ? <UserButton afterSignOutUrl="/" /> : null}
-            </div>
-          </div>
-        </header>
-        <main
-          id="trips-main"
-          tabIndex={-1}
-          {...sx(chatPad ? styles.mainChatPad : styles.mainDefault)}
-        >
+        <main id="trips-main" tabIndex={-1} {...sx(s.main)}>
           <Outlet />
         </main>
         <Suspense fallback={null}>

@@ -11,6 +11,19 @@ export type TripAccess = "none" | "view" | "edit" | "owner"
 export interface TripCollaborator {
   userId: string
   role: CollaboratorRole
+  /** Display name captured when they joined by invite link. */
+  name?: string
+}
+
+export interface TripInvite {
+  token: string
+  role: CollaboratorRole
+  createdAt: string
+}
+
+export interface TripCenter {
+  lat: number
+  lng: number
 }
 
 export interface TripLocation {
@@ -94,6 +107,10 @@ export interface Trip {
   collaborators: TripCollaborator[]
   sharedWithAllUsers?: boolean
   appearance?: TripAppearance
+  /** Where the trip is on the globe before it has any pinned places. */
+  center?: TripCenter
+  /** Owner-only: active invite links. */
+  invites?: TripInvite[]
   days: TripDay[]
   createdAt: string
   updatedAt: string
@@ -115,6 +132,11 @@ export interface TripSummary {
   sharedWithAllUsers: boolean
   dayCount: number
   itemCount: number
+  /** Items with coordinates. */
+  placeCount?: number
+  center?: TripCenter
+  /** Located stops in itinerary order as `[lng, lat]`, sampled to ≤ 48. */
+  points?: Array<[number, number]>
   access: TripAccess
   updatedAt: string
 }

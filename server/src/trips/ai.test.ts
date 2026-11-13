@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import {
+  createPhotonGeocoder,
   applySuggestions,
   autoApplyAddSuggestions,
   computeTravelLegs,
@@ -889,5 +890,61 @@ describe("salvage parsing", () => {
     expect(out.days[0]!.items).toHaveLength(1)
     expect(out.days[0]!.items[0]!.time).toBe("09:00")
     expect(out.days[0]!.items[0]!.location!.lat).toBe(35.66)
+  })
+})
+
+describe("createPhotonGeocoder", () => {
+  const stub = (handler: (url: string, init?: RequestInit) => Response | Promise<Response>) =>
+    ((input: RequestInfo | URL, init?: RequestInit) => Promise.resolve(handler(String(input), init))) as typeof fetch
+
+  test("maps a GeoJSON hit to lat/lng + address", async () => {
+    const urls: string[] = []
+    let signal: AbortSignal | null | undefined
+    const geocode = createPhotonGeocoder(
+      stub((url, init) => {
+        urls.push(url)
+        signal = init?.signal
+        return Response.json({
+          features: [
+            {
+              geometry: { type: "Point", coordinates: [139.7967, 35.7148] },
+              properties: { name: "Senso-ji", housenumber: "2-3-1", street: "Asakusa", city: "Tokyo", country: "Japan" },
+            },
+          ],
+        })
+      }),
+    )
+    const hit = await geocode("Senso-ji, Tokyo & more")
+    expect(hit).toEqual({ lat: 35.7148, lng: 139.7967, address: "Senso-ji, 2-3-1 Asakusa, Tokyo, Japan" })
+    expect(urls).toEqual(["https://photon.komoot.io/api/?q=Senso-ji%2C%20Tokyo%20%26%20more&limit=1&lang=en"])
+    expect(signal).toBeInstanceOf(AbortSignal)
+  })
+
+  test("omits the address when no properties are usable", async () => {
+    const geocode = createPhotonGeocoder(stub(() => Response.json({ features: [{ geometry: { coordinates: [1, 2] } }] })))
+    expect(await geocode("somewhere")).toEqual({ lat: 2, lng: 1, address: undefined })
+  })
+
+  test("returns null on a miss, a bad payload, an HTTP error or a blank query", async () => {
+    expect(await createPhotonGeocoder(stub(() => Response.json({ features: [] })))("x")).toBeNull()
+    expect(
+      await createPhotonGeocoder(stub(() => Response.json({ features: [{ geometry: { coordinates: ["a", 2] } }] })))("x"),
+    ).toBeNull()
+    expect(await createPhotonGeocoder(stub(() => new Response("nope", { status: 503 })))("x")).toBeNull()
+    expect(await createPhotonGeocoder(stub(() => new Response("not json")))("x")).toBeNull()
+    let called = false
+    const blank = createPhotonGeocoder(
+      stub(() => {
+        called = true
+        return Response.json({})
+      }),
+    )
+    expect(await blank("   ")).toBeNull()
+    expect(called).toBe(false)
+  })
+
+  test("never throws when fetch rejects", async () => {
+    const geocode = createPhotonGeocoder((() => Promise.reject(new Error("network down"))) as unknown as typeof fetch)
+    expect(await geocode("x")).toBeNull()
   })
 })

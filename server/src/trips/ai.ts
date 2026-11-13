@@ -277,6 +277,43 @@ export function createGoogleGeocoder(apiKey: string): Geocoder {
   }
 }
 
+/** Keyless fallback geocoder (Photon / OpenStreetMap). Same contract as the
+ *  Google geocoder: null on a miss. Never throws — a failed lookup just
+ *  leaves the place without coordinates. */
+export function createPhotonGeocoder(fetchImpl: typeof fetch = fetch): Geocoder {
+  return async (query) => {
+    const q = query.trim()
+    if (!q) return null
+    try {
+      const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=1&lang=en`
+      const res = await fetchImpl(url, { signal: AbortSignal.timeout(5_000) })
+      if (!res.ok) return null
+      const body = (await res.json()) as {
+        features?: Array<{
+          geometry?: { coordinates?: unknown }
+          properties?: Record<string, unknown>
+        }>
+      }
+      const first = body.features?.[0]
+      const coords = first?.geometry?.coordinates
+      if (!Array.isArray(coords)) return null
+      const [lng, lat] = coords as unknown[]
+      if (typeof lat !== "number" || typeof lng !== "number") return null
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null
+      const props = first?.properties ?? {}
+      const text = (key: string) => (typeof props[key] === "string" && props[key] ? (props[key] as string) : undefined)
+      const street = [text("housenumber"), text("street")].filter(Boolean).join(" ")
+      const parts = [text("name"), street || undefined, text("city"), text("country")].filter(
+        (part, i, all): part is string => !!part && all.indexOf(part) === i,
+      )
+      return { lat, lng, address: parts.length ? parts.join(", ") : undefined }
+    } catch {
+      return null
+    }
+  }
+}
+
 /** Open-Meteo daily forecast — free, no API key. Returns [] outside the
  *  ~16-day forecast window or on any failure (weather is best-effort). */
 export const fetchOpenMeteoWeather: WeatherFetcher = async ({ lat, lng, dates }) => {
@@ -468,13 +505,18 @@ export function salvageSuggestions(raw: string): {
     }),
   )
   let dropped = 0
+  let why: string | undefined
   const suggestions: AiSuggestion[] = []
   for (const rawSug of loose.suggestions) {
     const r = aiSuggestionSchema.safeParse(normalizeSuggestion(rawSug))
     if (r.success) suggestions.push(r.data)
-    else dropped++
+    else {
+      dropped++
+      // Field path + reason only: enough to fix the schema, no itinerary text.
+      why ??= r.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ")
+    }
   }
-  if (dropped > 0) console.warn(`[trips/ai] enhancement: dropped ${dropped} malformed suggestion(s)`)
+  if (dropped > 0) console.warn(`[trips/ai] enhancement: dropped ${dropped} malformed suggestion(s) (${why})`)
   return {
     summary: loose.summary,
     outcome: loose.outcome,
@@ -831,7 +873,13 @@ export async function enhanceTrip(args: {
     run.summary = parsed.summary
     const validDayIds = new Set(days.map((d) => d.id))
     const validItemIds = new Set(days.flatMap((d) => d.items.map((i) => i.id)))
-    run.suggestions = parsed.suggestions
+    // A single-day review can only be about that day: models often omit the
+    // day id (or invent one) when the day is empty, which used to drop every
+    // suggested stop.
+    const scoped = parsed.suggestions.map((s) =>
+      scope === "day" && dayId && (!s.dayId || !validDayIds.has(s.dayId)) ? { ...s, dayId } : s,
+    )
+    run.suggestions = scoped
       .filter((s) => !s.dayId || validDayIds.has(s.dayId))
       .filter((s) => s.kind !== "add" || (s.dayId && validDayIds.has(s.dayId) && s.proposedItem))
       .filter((s) => !(s.kind === "edit" || s.kind === "remove") || (s.itemId && validItemIds.has(s.itemId)))

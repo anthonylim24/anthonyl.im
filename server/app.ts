@@ -11,7 +11,7 @@ import entityRouter from "./src/routes/entity";
 import { createInstagramPlacesRouter } from "./src/routes/instagramPlaces";
 import { createTripsRouter } from "./src/routes/trips";
 import { getTripStore } from "./src/trips/store";
-import { createGoogleGeocoder, createTripsLlm } from "./src/trips/ai";
+import { createGoogleGeocoder, createPhotonGeocoder, createTripsLlm } from "./src/trips/ai";
 import { createClerkAuth, verifyClerkOptional } from "./src/middleware/clerkAuth";
 import { createRateLimit, trustedProxyClientAddress } from "./src/middleware/rateLimit";
 import { bootIgWorker, getQueue, listJobsForUser, listExtractedPlaces, listIgPlaceDays, setIgPlaceDays } from "./src/igPlaces/wire";
@@ -34,7 +34,7 @@ type AppPreviewMeta = {
 // Preview cards are 1200×630 JPEGs in frontend/public, each the app's own
 // scene with its title. Bump OG_VERSION when a card changes so social caches
 // fetch the new one.
-const OG_VERSION = "2";
+const OG_VERSION = "3";
 const card = (name: string) => `/og-${name}.jpg?v=${OG_VERSION}`;
 
 const appPreviews = {
@@ -69,7 +69,7 @@ const appPreviews = {
   trips: {
     title: "Trips — plan a trip, pin by pin",
     description:
-      "Plan trips with AI, save places from Instagram posts, ask the concierge, and explore every day in 3D Map Mode.",
+      "Plan trips on a live 3D map: let AI draft the days, pin every stop, and share the plan with whoever is coming.",
     imagePathOrUrl: card("trips"),
     imageAlt: "A squishy toy globe with a trip pin and a paper plane, under puffy clouds",
   },
@@ -226,7 +226,8 @@ app.route(
       geminiApiKey: config.geminiApiKey,
       groqApiKey: config.groqApiKey,
     }),
-    geocode: config.googleMapsApiKey ? createGoogleGeocoder(config.googleMapsApiKey) : null,
+    // No Maps key → keyless Photon (OpenStreetMap) so AI places still get coordinates.
+    geocode: config.googleMapsApiKey ? createGoogleGeocoder(config.googleMapsApiKey) : createPhotonGeocoder(),
   }),
 );
 
@@ -374,8 +375,8 @@ app.use("*", serveStatic({ root: distPath }));
 // Legacy Korea dossier URLs fold into the seeded trip.
 app.get("/korea", (c) => c.redirect("/trips/korea-2026", 301));
 app.get("/korea/", (c) => c.redirect("/trips/korea-2026", 301));
-app.get("/korea/places", (c) => c.redirect("/trips/korea-2026/places", 301));
-app.get("/korea/ingest", (c) => c.redirect("/trips/korea-2026?ingest=1", 301));
+app.get("/korea/places", (c) => c.redirect("/trips/korea-2026", 301));
+app.get("/korea/ingest", (c) => c.redirect("/trips/korea-2026", 301));
 app.get("/korea/day/:slug", (c) => c.redirect(`/trips/korea-2026/day/${c.req.param("slug")}`, 301));
 app.get("/korea/*", (c) => c.redirect("/trips/korea-2026", 301));
 

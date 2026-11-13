@@ -880,3 +880,297 @@ describe("places catalog", () => {
     expect(body.groups[0]!.cities[0]!.neighborhoods[0]!.places[0]!.name).toBe("Senso-ji")
   })
 })
+
+const OTHER = { Authorization: "Bearer other-token", "Content-Type": "application/json" }
+
+function placeItem(id: string, lat: number, lng: number) {
+  return {
+    id,
+    kind: "place",
+    title: id,
+    status: "none",
+    createdBy: "user",
+    location: { name: id, lat, lng, source: "user" },
+  }
+}
+
+type SummaryRow = {
+  id: string
+  center?: { lat: number; lng: number }
+  points: Array<[number, number]>
+  placeCount: number
+}
+
+async function summaryOf(app: Hono, tripId: string, headers: Record<string, string> = AUTH) {
+  const res = await app.request("/api/trips", { headers })
+  const { trips } = (await res.json()) as { trips: SummaryRow[] }
+  return trips.find((t) => t.id === tripId)
+}
+
+describe("trip summary geography", () => {
+  test("an empty trip has no center, no points and a zero place count", async () => {
+    const { app } = makeApp()
+    const trip = await createTrip(app)
+    const summary = (await summaryOf(app, trip.id))!
+    expect(summary.center).toBeUndefined()
+    expect(summary.points).toEqual([])
+    expect(summary.placeCount).toBe(0)
+  })
+
+  test("derives center, [lng, lat] points and placeCount from located items", async () => {
+    const { app } = makeApp()
+    const trip = await createTrip(app)
+    const patch = await app.request(`/api/trips/${trip.id}`, {
+      method: "PATCH",
+      headers: AUTH,
+      body: JSON.stringify({
+        days: [
+          {
+            id: "day-1",
+            date: "2026-07-10",
+            items: [
+              placeItem("a", 35.123456, 139.654321),
+              { id: "note", kind: "note", title: "No place", status: "none", createdBy: "user" },
+              { id: "nameonly", kind: "place", title: "x", status: "none", createdBy: "user", location: { name: "x", source: "user" } },
+            ],
+          },
+          { id: "day-2", date: "2026-07-11", items: [placeItem("b", 36, 140)] },
+        ],
+      }),
+    })
+    expect(patch.status).toBe(200)
+    const summary = (await summaryOf(app, trip.id))!
+    expect(summary.placeCount).toBe(2)
+    expect(summary.points).toEqual([
+      [139.6543, 35.1235],
+      [140, 36],
+    ])
+    expect(summary.center!.lat).toBeCloseTo((35.123456 + 36) / 2, 6)
+    expect(summary.center!.lng).toBeCloseTo((139.654321 + 140) / 2, 6)
+  })
+
+  test("an explicit center wins and points are down-sampled to 48", async () => {
+    const { app } = makeApp()
+    const trip = await createTrip(app)
+    const items = Array.from({ length: 100 }, (_, i) => placeItem(`p${i}`, 10 + i * 0.01, 20 + i * 0.01))
+    const patch = await app.request(`/api/trips/${trip.id}`, {
+      method: "PATCH",
+      headers: AUTH,
+      body: JSON.stringify({ center: { lat: 1.5, lng: 2.5 }, days: [{ id: "day-1", date: "2026-07-10", items }] }),
+    })
+    expect(patch.status).toBe(200)
+    const summary = (await summaryOf(app, trip.id))!
+    expect(summary.center).toEqual({ lat: 1.5, lng: 2.5 })
+    expect(summary.placeCount).toBe(100)
+    expect(summary.points.length).toBe(48)
+    expect(summary.points[0]).toEqual([20, 10])
+    expect(summary.points[47]).toEqual([20.99, 10.99])
+  })
+
+  test("create accepts a center and rejects an out-of-range one", async () => {
+    const { app } = makeApp()
+    const base = JSON.parse(newTripBody) as Record<string, unknown>
+    const ok = await app.request("/api/trips", {
+      method: "POST",
+      headers: AUTH,
+      body: JSON.stringify({ ...base, center: { lat: 35.68, lng: 139.76 } }),
+    })
+    expect(ok.status).toBe(201)
+    const { trip } = (await ok.json()) as { trip: { center?: { lat: number; lng: number } } }
+    expect(trip.center).toEqual({ lat: 35.68, lng: 139.76 })
+    const bad = await app.request("/api/trips", {
+      method: "POST",
+      headers: AUTH,
+      body: JSON.stringify({ ...base, center: { lat: 135, lng: 139.76 } }),
+    })
+    expect(bad.status).toBe(400)
+  })
+})
+
+describe("invites and joining", () => {
+  type Invite = { token: string; role: "viewer" | "editor"; createdAt: string }
+
+  async function createInvite(app: Hono, tripId: string, role: "viewer" | "editor", headers = AUTH) {
+    return app.request(`/api/trips/${tripId}/invites`, { method: "POST", headers, body: JSON.stringify({ role }) })
+  }
+  async function inviteFor(app: Hono, tripId: string, role: "viewer" | "editor") {
+    const res = await createInvite(app, tripId, role)
+    expect(res.status).toBe(200)
+    return ((await res.json()) as { invite: Invite }).invite
+  }
+  async function join(app: Hono, token: string, body?: unknown, headers = OTHER) {
+    return app.request(`/api/trips/join/${token}`, {
+      method: "POST",
+      headers,
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    })
+  }
+
+  test("owner creates an invite, and the same role reuses it", async () => {
+    const { app } = makeApp()
+    const trip = await createTrip(app)
+    const first = await inviteFor(app, trip.id, "viewer")
+    expect(first.role).toBe("viewer")
+    expect(first.token).toMatch(/^[A-Za-z0-9_-]{24,}$/)
+    expect(Number.isNaN(Date.parse(first.createdAt))).toBe(false)
+    const again = await inviteFor(app, trip.id, "viewer")
+    expect(again.token).toBe(first.token)
+    const editor = await inviteFor(app, trip.id, "editor")
+    expect(editor.token).not.toBe(first.token)
+  })
+
+  test("invite creation validates the role", async () => {
+    const { app } = makeApp()
+    const trip = await createTrip(app)
+    const res = await app.request(`/api/trips/${trip.id}/invites`, {
+      method: "POST",
+      headers: AUTH,
+      body: JSON.stringify({ role: "owner" }),
+    })
+    expect(res.status).toBe(400)
+  })
+
+  test("only the owner can create or delete invites", async () => {
+    const { app } = makeApp()
+    const trip = await createTrip(app)
+    const invite = await inviteFor(app, trip.id, "editor")
+    // Stranger
+    expect((await createInvite(app, trip.id, "viewer", OTHER)).status).toBe(403)
+    // Editor collaborator
+    expect((await join(app, invite.token)).status).toBe(200)
+    expect((await createInvite(app, trip.id, "viewer", OTHER)).status).toBe(403)
+    expect(
+      (await app.request(`/api/trips/${trip.id}/invites/${invite.token}`, { method: "DELETE", headers: OTHER })).status,
+    ).toBe(403)
+  })
+
+  test("deleting an invite revokes the link", async () => {
+    const { app, store } = makeApp()
+    const trip = await createTrip(app)
+    const invite = await inviteFor(app, trip.id, "viewer")
+    const del = await app.request(`/api/trips/${trip.id}/invites/${invite.token}`, { method: "DELETE", headers: AUTH })
+    expect(del.status).toBe(200)
+    expect(await del.json()).toEqual({ ok: true })
+    expect((await store.get(trip.id))!.invites).toEqual([])
+    expect((await join(app, invite.token)).status).toBe(404)
+  })
+
+  test("joining adds a collaborator with the invite role and trimmed name", async () => {
+    const { app, store } = makeApp()
+    const trip = await createTrip(app)
+    const invite = await inviteFor(app, trip.id, "viewer")
+    const res = await join(app, invite.token, { name: "  Sam  " })
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { trip: { id: string; slug: string; name: string }; access: string }
+    expect(body.access).toBe("view")
+    expect(body.trip).toEqual({ id: trip.id, slug: "tokyo-long-weekend-2026", name: "Tokyo Long Weekend" })
+    expect((await store.get(trip.id))!.collaborators).toEqual([{ userId: "user-2", role: "viewer", name: "Sam" }])
+    expect((await app.request(`/api/trips/${trip.id}`, { headers: OTHER })).status).toBe(200)
+  })
+
+  test("joining works without a body", async () => {
+    const { app, store } = makeApp()
+    const trip = await createTrip(app)
+    const invite = await inviteFor(app, trip.id, "editor")
+    const res = await join(app, invite.token)
+    expect(res.status).toBe(200)
+    expect(((await res.json()) as { access: string }).access).toBe("edit")
+    expect((await store.get(trip.id))!.collaborators).toEqual([{ userId: "user-2", role: "editor" }])
+  })
+
+  test("an editor invite upgrades a viewer; a viewer invite never downgrades", async () => {
+    const { app, store } = makeApp()
+    const trip = await createTrip(app)
+    const viewer = await inviteFor(app, trip.id, "viewer")
+    const editor = await inviteFor(app, trip.id, "editor")
+    await join(app, viewer.token, { name: "Sam" })
+
+    const up = await join(app, editor.token)
+    expect(((await up.json()) as { access: string }).access).toBe("edit")
+    expect((await store.get(trip.id))!.collaborators).toEqual([{ userId: "user-2", role: "editor", name: "Sam" }])
+
+    const down = await join(app, viewer.token, { name: "Samantha" })
+    expect(((await down.json()) as { access: string }).access).toBe("edit")
+    expect((await store.get(trip.id))!.collaborators).toEqual([{ userId: "user-2", role: "editor", name: "Samantha" }])
+  })
+
+  test("the owner joining their own link changes nothing", async () => {
+    const { app, store } = makeApp()
+    const trip = await createTrip(app)
+    const invite = await inviteFor(app, trip.id, "editor")
+    const before = (await store.get(trip.id))!.updatedAt
+    const res = await join(app, invite.token, { name: "Me" }, AUTH)
+    expect(res.status).toBe(200)
+    expect(((await res.json()) as { access: string }).access).toBe("owner")
+    const after = (await store.get(trip.id))!
+    expect(after.collaborators).toEqual([])
+    expect(after.updatedAt).toBe(before)
+  })
+
+  test("an unknown token is a 404 and joining requires auth", async () => {
+    const { app } = makeApp()
+    await createTrip(app)
+    const res = await join(app, "nope-nope-nope-nope-nope-nope")
+    expect(res.status).toBe(404)
+    expect(await res.json()).toEqual({ error: "invite_not_found" })
+    expect((await app.request("/api/trips/join/whatever", { method: "POST" })).status).toBe(401)
+  })
+
+  test("a collaborator can leave; the owner cannot", async () => {
+    const { app, store } = makeApp()
+    const trip = await createTrip(app)
+    const invite = await inviteFor(app, trip.id, "editor")
+    await join(app, invite.token)
+
+    const ownerLeave = await app.request(`/api/trips/${trip.id}/leave`, { method: "POST", headers: AUTH })
+    expect(ownerLeave.status).toBe(400)
+    expect(await ownerLeave.json()).toEqual({ error: "owner_cannot_leave" })
+
+    const leave = await app.request(`/api/trips/${trip.id}/leave`, { method: "POST", headers: OTHER })
+    expect(leave.status).toBe(200)
+    expect(await leave.json()).toEqual({ ok: true })
+    expect((await store.get(trip.id))!.collaborators).toEqual([])
+    expect((await app.request(`/api/trips/${trip.id}`, { headers: OTHER })).status).toBe(403)
+  })
+
+  test("invites are only returned to the owner and survive collaborator edits", async () => {
+    const { app, store } = makeApp()
+    const trip = await createTrip(app)
+    const invite = await inviteFor(app, trip.id, "editor")
+    await join(app, invite.token)
+
+    const asOwner = (await (await app.request(`/api/trips/${trip.id}`, { headers: AUTH })).json()) as {
+      trip: { invites?: Invite[] }
+    }
+    expect(asOwner.trip.invites).toEqual([invite])
+
+    const asEditor = (await (await app.request(`/api/trips/${trip.id}`, { headers: OTHER })).json()) as {
+      trip: Record<string, unknown>
+    }
+    expect("invites" in asEditor.trip).toBe(false)
+
+    // An editor's save neither leaks nor drops the stored invites, and
+    // cannot inject its own.
+    const patch = await app.request(`/api/trips/${trip.id}`, {
+      method: "PATCH",
+      headers: OTHER,
+      body: JSON.stringify({ name: "Renamed", invites: [{ token: "evil", role: "editor", createdAt: "x" }] }),
+    })
+    expect(patch.status).toBe(200)
+    const patched = (await patch.json()) as { trip: Record<string, unknown> }
+    expect(patched.trip.name).toBe("Renamed")
+    expect("invites" in patched.trip).toBe(false)
+    expect((await store.get(trip.id))!.invites).toEqual([invite])
+
+    const ownerPatch = await app.request(`/api/trips/${trip.id}`, {
+      method: "PATCH",
+      headers: AUTH,
+      body: JSON.stringify({ invites: [] }),
+    })
+    expect(((await ownerPatch.json()) as { trip: { invites?: Invite[] } }).trip.invites).toEqual([invite])
+
+    // Summaries never carry invites.
+    const summary = (await summaryOf(app, trip.id, AUTH)) as unknown as Record<string, unknown>
+    expect("invites" in summary).toBe(false)
+  })
+})

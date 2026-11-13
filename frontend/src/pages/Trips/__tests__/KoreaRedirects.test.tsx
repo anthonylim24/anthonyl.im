@@ -45,19 +45,19 @@ describe("Korea and editor redirects", () => {
     expect(screen.getByText("korea day")).toBeInTheDocument()
   })
 
-  it("maps /korea/places onto the seeded trip places library", () => {
+  it("maps /korea/places onto the seeded trip", () => {
     render(
       <MemoryRouter initialEntries={["/korea/places"]}>
         <Routes>
           <Route path="/korea/places" element={<KoreaPlacesRedirect />} />
-          <Route path="/trips/:tripId/places" element={<Landing label="korea places" />} />
+          <Route path="/trips/:tripId" element={<Landing label="korea places" />} />
         </Routes>
       </MemoryRouter>,
     )
     expect(screen.getByText("korea places")).toBeInTheDocument()
   })
 
-  it("opens Instagram ingest on the living document", () => {
+  it("maps /korea/ingest onto the seeded trip", () => {
     render(
       <MemoryRouter initialEntries={["/korea/ingest"]}>
         <Routes>
@@ -67,7 +67,7 @@ describe("Korea and editor redirects", () => {
       </MemoryRouter>,
     )
     expect(screen.getByText("korea ingest")).toBeInTheDocument()
-    expect(screen.getByText("/trips/korea-2026?ingest=1#trip-ingest")).toBeInTheDocument()
+    expect(screen.getByText("/trips/korea-2026")).toBeInTheDocument()
   })
 
   it("folds unknown /korea paths onto the seeded trip", () => {

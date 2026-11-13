@@ -13,18 +13,18 @@ export function KoreaDayRedirect() {
 }
 
 export function KoreaPlacesRedirect() {
-  return <Navigate to={`/trips/${KOREA}/places`} replace />
+  return <Navigate to={`/trips/${KOREA}`} replace />
 }
 
 export function KoreaIngestRedirect() {
-  return <Navigate to={`/trips/${KOREA}?ingest=1#trip-ingest`} replace />
+  return <Navigate to={`/trips/${KOREA}`} replace />
 }
 
 export function KoreaCatchRedirect() {
   return <Navigate to={`/trips/${KOREA}`} replace />
 }
 
-/** `/trips/:id/edit` folds into the living document, keeping hash + query. */
+/** `/trips/:id/edit` and `/trips/:id/places` fold into the trip page, keeping hash + query. */
 export function TripEditRedirect() {
   const { tripId } = useParams<{ tripId: string }>()
   const { hash, search } = useLocation()
