@@ -211,12 +211,21 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shown.map((p) => p.id).join(","), trip.days])
 
+  const context = useMemo<LngLat[]>(() => {
+    if (pins.length === 0 || pins.length > 2) return []
+    const day = trip.days.find((d) => d.id === (target === "auto" ? dayId : target)) ?? bestDayFor(trip, pins[0]!)
+    return (day?.items ?? []).filter(isLocated).map((i) => ({ lat: i.location.lat, lng: i.location.lng }))
+  }, [pins, trip, target, dayId])
+
   const map =
     pins.length > 0 ? (
       <AtlasMap
         pins={pins}
         frameKey={pins.map((p) => p.id).join(",")}
-        framePoints={corePoints(pins)}
+        // One or two places say little alone: frame them with the day they
+        // would join, shown as quiet dots.
+        dots={context}
+        framePoints={corePoints([...pins, ...context])}
         restCenter={trip.center ?? undefined}
         restZoom={10}
         maxZoom={15}
