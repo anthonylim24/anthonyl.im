@@ -286,6 +286,34 @@ describe("AI generation endpoint", () => {
     expect(res2.status).toBe(200)
   })
 
+  test("a slow draft keeps the connection alive and still delivers the trip", async () => {
+    const slow = async () => {
+      await new Promise((r) => setTimeout(r, 60))
+      return llmOk()
+    }
+    const { app } = makeApp({ llm: slow, generateGraceMs: 5 })
+    const trip = await createTrip(app)
+    const res = await app.request(`/api/trips/${trip.id}/generate`, { method: "POST", headers: AUTH, body: "{}" })
+    expect(res.status).toBe(200)
+    const text = await res.text()
+    expect(text.startsWith(" ")).toBe(true)
+    const body = JSON.parse(text) as { trip: { days: unknown[] }; summary: string }
+    expect(body.summary).toBe("Plan ready.")
+    expect(body.trip.days.length).toBe(3)
+  })
+
+  test("a slow draft that fails reports the error in the body", async () => {
+    const slow = async () => {
+      await new Promise((r) => setTimeout(r, 40))
+      return "garbage"
+    }
+    const { app } = makeApp({ llm: slow, generateGraceMs: 5 })
+    const trip = await createTrip(app)
+    const res = await app.request(`/api/trips/${trip.id}/generate`, { method: "POST", headers: AUTH, body: "{}" })
+    expect(res.status).toBe(200)
+    expect(((await res.json()) as { error: string }).error).toBe("generation_failed")
+  })
+
   test("maps model failure to 502", async () => {
     const { app } = makeApp({ llm: async () => "garbage" })
     const trip = await createTrip(app)
