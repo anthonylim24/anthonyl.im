@@ -42,8 +42,10 @@ export interface DayPanelProps {
   onClear: () => void
   onApplyRun: (ids: string[]) => void
   onDismissRun: () => void
-  /** Present when photoreal Map Mode is configured for this build. */
+  /** Present when the photoreal 3D view can open in this build. */
   onPhotoreal?: () => void
+  /** Opens the Instagram import with these post links. */
+  onInstagram?: (urls: string[]) => void
 }
 
 /** Timed items in clock order; untimed items stay behind the timed item they followed. */
@@ -111,6 +113,7 @@ export function DayPanel({
   onApplyRun,
   onDismissRun,
   onPhotoreal,
+  onInstagram,
 }: DayPanelProps) {
   const [notesOpen, setNotesOpen] = useState(false)
   const [spoken, setSpoken] = useState("")
@@ -163,7 +166,7 @@ export function DayPanel({
         ]
       : []),
     ...(onPhotoreal && route.length > 0
-      ? [{ label: "Explore in photoreal 3D", icon: <Orbit size={16} strokeWidth={1.75} aria-hidden />, onSelect: onPhotoreal }]
+      ? [{ label: "Fly the day in 3D", icon: <Orbit size={16} strokeWidth={1.75} aria-hidden />, onSelect: onPhotoreal }]
       : []),
     ...(editable && day.items.length > 0
       ? [
@@ -338,6 +341,7 @@ export function DayPanel({
         <AddStop
           near={near}
           disabled={locked}
+          onInstagram={onInstagram}
           onAdd={(item) => {
             onChange((days) => addItem(days, day.id, item))
             onAdded(item.id)

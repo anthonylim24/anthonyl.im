@@ -1,11 +1,12 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { ArrowRight, Copy, MoreHorizontal, Plus, RotateCcw, Search, Share2, Sparkles, Trash2, Users } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { useTabTitle } from "@/hooks/useTabTitle"
 import { useAuthReady, useGetToken, useViewer } from "@/lib/safeAuth"
 import { deleteTrip, duplicateTrip, getTrip, listTrips } from "./tripsApi"
+import { extractInstagramUrls } from "./instagram/instagram"
 import { ACCENT_FILL, dayCount, formatRange, plural, resolveAccent, tripTiming, visibleTags, type TripPhase } from "./meta"
 import { AtlasMap, canRenderMap, useIsDark } from "./map/AtlasMap"
 import { formatCoord, type AtlasPin, type LngLat } from "./map/geo"
@@ -123,6 +124,22 @@ export function TripsIndex() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trips, dark])
   const timed = useMemo(() => (trips ?? []).map((trip) => ({ trip, timing: tripTiming(trip) })), [trips])
+
+  // An Instagram link shared to the app (share sheet → /trips?url=…) goes
+  // straight to the trip it most likely belongs to: the one under way, else
+  // the next one, else the latest.
+  const [searchParams] = useSearchParams()
+  const shared = extractInstagramUrls(
+    [searchParams.get("instagram"), searchParams.get("url"), searchParams.get("text")].filter(Boolean).join(" "),
+  )[0]
+  useEffect(() => {
+    if (!shared || timed.length === 0) return
+    const rank = { now: 0, upcoming: 1, past: 2 } as const
+    const target = [...timed].sort(
+      (x, y) => rank[x.timing.phase] - rank[y.timing.phase] || Math.abs(x.timing.daysAway) - Math.abs(y.timing.daysAway),
+    )[0]!.trip
+    navigate(`/trips/${target.slug ?? target.id}?instagram=${encodeURIComponent(shared)}`, { replace: true })
+  }, [shared, timed, navigate])
 
   const filtered = useMemo(() => {
     const q = deferredQuery.trim().toLowerCase()

@@ -1,11 +1,11 @@
 import type { StyleXStyles } from '@stylexjs/stylex'
 import { sx } from '@/styles/merge'
 import { koreaDay } from './KoreaDay.stylex'
-import { lazy, Suspense, useEffect, useMemo, useState, useTransition } from "react"
+import { useEffect, useMemo, useState, useTransition } from "react"
 import { useLatestCallback } from "@/hooks/useLatestCallback"
 import { Link, useNavigate, useOutletContext, useParams } from "react-router-dom"
-import { AnimatePresence, motion, useReducedMotion } from "motion/react"
-import { ArrowUpRight, Globe2, MapPin } from "lucide-react"
+import { motion, useReducedMotion } from "motion/react"
+import { ArrowUpRight, MapPin } from "lucide-react"
 import { IgIcon } from "./IgIcon"
 import type { LoadState } from "./useKoreaData"
 import { useKoreaDay } from "./useKoreaData"
@@ -19,10 +19,6 @@ import { useScrollReveal, REVEAL_CLASSES } from "./_motion/scrollReveal"
 import { clerkEnabled, useGetToken } from "@/lib/safeAuth"
 import { fetchDayPlaces } from "./dayPlacesApi"
 import type { IgSave } from "./mapModeTypes"
-
-const MapModeOverlay = lazy(() =>
-  import("./MapModeOverlay").then((m) => ({ default: m.MapModeOverlay })),
-)
 
 /** Fetches IG saves for this day from the same /api/korea/day/:slug/places endpoint. */
 function useDayIgSaves(slug: string | undefined): IgSave[] {
@@ -56,10 +52,6 @@ export function KoreaDay() {
   const snapshotState = useOutletContext<LoadState<Snapshot>>()
   const dayState = useKoreaDay(slug)
   const reduce = useReducedMotion()
-  const [mapModeOpen, setMapModeOpen] = useState(false)
-  // Place id Map Mode should auto-focus on when next opened. Set by
-  // clicking an Instagram save card; cleared on close.
-  const [mapModeFocusId, setMapModeFocusId] = useState<string | undefined>(undefined)
   const igSaves = useDayIgSaves(slug)
 
   // Derive prev/next early so the keyboard handler in useEffect has access to
@@ -93,7 +85,6 @@ export function KoreaDay() {
   // (handled by overlay) or when focus is inside an input/textarea.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (mapModeOpen) return
       const target = e.target as HTMLElement | null
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return
       if (e.key === "ArrowLeft" && prev) {
@@ -104,7 +95,7 @@ export function KoreaDay() {
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [prev, next, navigate, mapModeOpen])
+  }, [prev, next, navigate])
 
   if (dayState.status === "loading") return <DaySkeleton />
   if (dayState.status === "error") return <DayError message={dayState.error.message} />
@@ -211,49 +202,8 @@ export function KoreaDay() {
               </DayMetaRow>
             )}
           </motion.dl>
-
-          {/* Map Mode CTA */}
-          <motion.div
-            initial={reduce ? false : { opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45, delay: 0.32 }}
-            {...sx(koreaDay.s334592)}
-          >
-            <button
-              type="button"
-              onClick={() => setMapModeOpen(true)}
-              {...sx(koreaDay.s45e81fd2, 'group')}
-            >
-              {/* Ink-stamp halo: a rose ring scales out from the button on
-                  hover, like a wax seal being pressed. Hidden on touch
-                  devices (no hover) and respects prefers-reduced-motion
-                  via the no-op end state. */}
-              <span
-                aria-hidden
-                {...sx(koreaDay.s6011f953)}
-              />
-              <Globe2 {...sx(koreaDay.sf7988188)} aria-hidden />
-              Enter Map Mode
-            </button>
-          </motion.div>
         </div>
       </header>
-
-      <AnimatePresence>
-        {mapModeOpen && (
-          <Suspense fallback={null}>
-            <MapModeOverlay
-              daySlug={day.slug}
-              dayTitle={day.title}
-              onClose={() => {
-                setMapModeOpen(false)
-                setMapModeFocusId(undefined)
-              }}
-              initialFocusPlaceId={mapModeFocusId}
-            />
-          </Suspense>
-        )}
-      </AnimatePresence>
 
       <div {...sx(koreaDay.s968fb47e)}>
         {reservations.length > 0 && (
@@ -275,10 +225,6 @@ export function KoreaDay() {
                 <IgSaveCard
                   key={save.id}
                   save={save}
-                  onOpenInMap={() => {
-                    setMapModeFocusId(`ig-${save.id}`)
-                    setMapModeOpen(true)
-                  }}
                 />
               ))}
             </div>
@@ -476,17 +422,12 @@ function DayMetaRow({
   )
 }
 
-function IgSaveCard({ save, onOpenInMap }: { save: IgSave; onOpenInMap: () => void }) {
+function IgSaveCard({ save }: { save: IgSave }) {
   const BAND_STYLES: Record<IgSave["confidence_band"], (typeof koreaDay)[keyof typeof koreaDay]> = {
     high: koreaDay.bandHigh,
     medium: koreaDay.bandMedium,
     low: koreaDay.bandLow,
   }
-  // Geocoded saves can be focused in Map Mode. Saves without coords
-  // don't have a 3D bubble to fly to, so we render them as a static
-  // article instead of a button.
-  const hasCoords = save.lat != null && save.lng != null
-
   const inner = (
     <div {...sx(koreaDay.s584bf345)}>
       <div {...sx(koreaDay.s66c6574d)}>
@@ -506,15 +447,6 @@ function IgSaveCard({ save, onOpenInMap }: { save: IgSave; onOpenInMap: () => vo
         >
           <IgIcon style={koreaDay.sd2d12d59} aria-hidden />
         </a>
-        {hasCoords && (
-          <span
-            aria-hidden
-            title="Opens in Map Mode"
-            {...sx(koreaDay.sb6ea70b1)}
-          >
-            <Globe2 {...sx(koreaDay.sd2d12d59)} />
-          </span>
-        )}
       </div>
       {save.name_romanized && save.name_romanized !== save.name && (
         <p {...sx(koreaDay.sb6b5bbf3)}>{save.name_romanized}</p>
@@ -544,35 +476,13 @@ function IgSaveCard({ save, onOpenInMap }: { save: IgSave; onOpenInMap: () => vo
     </div>
   )
 
-  if (!hasCoords) {
-    return (
-      <article
-        {...sx(koreaDay.s811e8d01)}
-        aria-label={`Instagram save: ${save.name}`}
-      >
-        {inner}
-      </article>
-    )
-  }
-
-  // role="button" instead of <button> so the nested Instagram <a>
-  // remains valid (anchors aren't allowed inside button elements).
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onOpenInMap}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault()
-          onOpenInMap()
-        }
-      }}
-      aria-label={`Open ${save.name} in Map Mode`}
-      {...sx(koreaDay.s34c7637e, 'group')}
+    <article
+      {...sx(koreaDay.s811e8d01)}
+      aria-label={`Instagram save: ${save.name}`}
     >
       {inner}
-    </div>
+    </article>
   )
 }
 

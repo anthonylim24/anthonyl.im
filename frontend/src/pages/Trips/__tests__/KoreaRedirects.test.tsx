@@ -57,7 +57,7 @@ describe("Korea and editor redirects", () => {
     expect(screen.getByText("korea places")).toBeInTheDocument()
   })
 
-  it("maps /korea/ingest onto the seeded trip", () => {
+  it("maps /korea/ingest onto the seeded trip with the import open", () => {
     render(
       <MemoryRouter initialEntries={["/korea/ingest"]}>
         <Routes>
@@ -67,7 +67,8 @@ describe("Korea and editor redirects", () => {
       </MemoryRouter>,
     )
     expect(screen.getByText("korea ingest")).toBeInTheDocument()
-    expect(screen.getByText("/trips/korea-2026")).toBeInTheDocument()
+    // ?ingest=1 opens the Instagram import sheet on the trip.
+    expect(screen.getByText("/trips/korea-2026?ingest=1")).toBeInTheDocument()
   })
 
   it("folds unknown /korea paths onto the seeded trip", () => {

@@ -119,11 +119,6 @@ function asPlaceCategory(category: string | undefined): PlaceCategory {
   return category && category in categoryIcon ? (category as PlaceCategory) : FALLBACK_CATEGORY
 }
 
-function photoUrlFor(query: string): string {
-  const seed = query.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 50)
-  return `https://source.unsplash.com/featured/1200x800/?${encodeURIComponent(query)}&sig=${seed}`
-}
-
 const PERSIST_RETRIES = 3
 
 function applyCompletedEnhancement(trip: Trip, run: EnhancementRun): { trip: Trip; run: EnhancementRun } {
@@ -663,7 +658,8 @@ export function createTripsRouter(deps: TripsRouterDeps) {
         city: day.city ?? trip.destinations[0] ?? "",
         address: loc.address,
         description: item.notes ?? item.title,
-        photoUrl: photoUrlFor(loc.name),
+        // Clients look photos up themselves; the field stays for the shared shape.
+        photoUrl: "",
         priority: (scheduled ? "scheduled" : "core") as "scheduled" | "core" | "supplemental",
         reason: scheduled
           ? item.reservation

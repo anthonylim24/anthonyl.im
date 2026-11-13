@@ -106,7 +106,7 @@ Vars: `--ta` (text-safe, 4.5:1 on canvas and surface), `--ta-fill` (pins, route,
 - Day map: numbered stop pins plus the route. One shallow arc per leg (deduplicated), a solid 3px trip-accent line on a paper casing, small direction chevrons.
 - Index globe: trip chips that flip side past the globe's midline. No basemap labels, a CSS limb shade, and at rest it faces the next trip.
 - Hovering a list item lifts its pin. Clicking a stop pin flies the camera to it and opens a place card: "Stop N of M", Directions, Edit stop, and previous / next stepping that flies the camera.
-- Photoreal Google 3D Tiles (`pages/Korea/MapModeOverlay`) is a separate full-screen mode, opened from a day's "…" menu as "Explore in photoreal 3D" when `VITE_GOOGLE_MAP_TILES_API_KEY` or `VITE_GOOGLE_PLACES_API_KEY` is set. It must unmount when closed.
+- The photoreal 3D view (`pages/Trips/photoreal/`, "Fly the day") is a separate full-screen mode on Google 3D Tiles, opened from a day's "…" menu as "Fly the day in 3D" when `photorealAvailable()` is true (a Google tiles / Places key and WebGL2; always in dev). It must unmount when closed.
 
 ## Pages
 

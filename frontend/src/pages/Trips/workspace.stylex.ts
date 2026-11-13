@@ -770,6 +770,31 @@ export const ws = stylex.create({
   },
 
   // ── Map overlays ──────────────────────────────────────
+  // The way into the photoreal 3D view, under the map's day chip.
+  flyBtn: {
+    position: "absolute",
+    top: "3.5rem",
+    left: "0.75rem",
+    zIndex: 4,
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "0.4375rem",
+    minHeight: "2.75rem",
+    paddingInline: "1rem",
+    borderRadius: "999px",
+    backgroundColor: "var(--trips-ink)",
+    color: "var(--trips-canvas)",
+    fontSize: "0.8125rem",
+    fontWeight: 600,
+    boxShadow: "var(--trips-shadow-2)",
+    cursor: "pointer",
+    outline: "none",
+    transitionProperty: "transform",
+    transitionDuration: "200ms",
+    transitionTimingFunction: "var(--trips-spring)",
+    ":focus-visible": { boxShadow: "0 0 0 2px var(--trips-surface), 0 0 0 4px var(--brand-ring)" },
+    ":active": { transform: "scale(0.96)" },
+  },
   mapChip: {
     position: "absolute",
     top: "0.75rem",

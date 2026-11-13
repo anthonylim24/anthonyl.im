@@ -1,5 +1,5 @@
 import type { ConciergePlace } from "../../lib/conciergeGrounding"
-import type { ConfidenceLevel, ItineraryItem, ItemKind, TripDay, TripLocation } from "./types"
+import type { ItineraryItem, ItemKind, TripDay, TripLocation } from "./types"
 
 // Pure itinerary-mutation helpers behind the editor UI. Every function
 // returns new arrays (no in-place mutation) so React state updates and the
@@ -97,19 +97,6 @@ export function convertNoteToPlace(days: TripDay[], dayId: string, itemId: strin
   }))
 }
 
-/** Place extracted from an Instagram post, ready to drop onto a trip day. */
-export interface ExtractedPlaceInput {
-  name: string
-  nameRomanized?: string | null
-  address?: string | null
-  lat?: number | null
-  lng?: number | null
-  category?: string | null
-  confidence?: ConfidenceLevel | null
-  quote?: string | null
-  sourceUrl?: string
-}
-
 export function itemFromConciergePlace(place: ConciergePlace): ItineraryItem {
   const location: TripLocation = {
     name: place.name,
@@ -126,27 +113,6 @@ export function itemFromConciergePlace(place: ConciergePlace): ItineraryItem {
     notes: place.notes?.trim() || undefined,
     links: place.mapsUrl ? [place.mapsUrl] : undefined,
     createdBy: "ai",
-    location,
-  }
-}
-
-export function itemFromExtractedPlace(place: ExtractedPlaceInput): ItineraryItem {
-  const romanized = place.nameRomanized?.trim()
-  const title =
-    romanized && romanized !== place.name ? `${place.name} (${romanized})` : place.name
-  const location: TripLocation = {
-    name: place.name,
-    source: "user",
-  }
-  if (place.address) location.address = place.address
-  if (typeof place.lat === "number") location.lat = place.lat
-  if (typeof place.lng === "number") location.lng = place.lng
-  if (place.category) location.category = place.category
-  if (place.confidence) location.confidence = place.confidence
-  return {
-    ...makeItem("place", title),
-    notes: place.quote?.trim() || undefined,
-    links: place.sourceUrl ? [place.sourceUrl] : undefined,
     location,
   }
 }

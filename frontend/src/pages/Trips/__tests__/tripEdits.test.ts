@@ -6,7 +6,6 @@ import {
   duplicateItem,
   insertItemAt,
   itemFromConciergePlace,
-  itemFromExtractedPlace,
   makeItem,
   moveItem,
   moveItemToDay,
@@ -102,33 +101,6 @@ describe("tripEdits", () => {
     moveItem(days, "day-1", "a", 1)
     removeItem(days, "day-1", "a")
     expect(JSON.stringify(days)).toBe(snapshot)
-  })
-
-  it("turns an extracted Instagram place into a structured itinerary item", () => {
-    const item = itemFromExtractedPlace({
-      name: "麺屋 一燈",
-      nameRomanized: "Menya Isshin",
-      address: "Tokyo",
-      lat: 35.7,
-      lng: 139.8,
-      category: "restaurant",
-      confidence: "high",
-      quote: "Best ramen",
-      sourceUrl: "https://www.instagram.com/reel/ABC/",
-    })
-    expect(item.kind).toBe("place")
-    expect(item.title).toBe("麺屋 一燈 (Menya Isshin)")
-    expect(item.notes).toBe("Best ramen")
-    expect(item.links).toEqual(["https://www.instagram.com/reel/ABC/"])
-    expect(item.location).toMatchObject({
-      name: "麺屋 一燈",
-      address: "Tokyo",
-      lat: 35.7,
-      lng: 139.8,
-      category: "restaurant",
-      confidence: "high",
-      source: "user",
-    })
   })
 
   it("builds an AI place item from a concierge suggestion", () => {

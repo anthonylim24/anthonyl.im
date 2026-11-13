@@ -436,6 +436,11 @@ export function normalizeAiItem(raw: unknown): unknown {
   const item = { ...(raw as Record<string, unknown>) }
   if (typeof item.time === "string") item.time = normalizeTime(item.time)
   if (typeof item.endTime === "string") item.endTime = normalizeTime(item.endTime)
+  // Models sometimes echo the status token into the prose; it is a field.
+  if (typeof item.notes === "string") {
+    if (/needs[_ ]review/i.test(item.notes) && item.status == null) item.status = "needs_review"
+    item.notes = item.notes.replace(/\s*\(?\bneeds[_ ]review\b\)?/gi, "").replace(/\s+([;,.])/g, "$1").trim()
+  }
   if (item.location && typeof item.location === "object" && !Array.isArray(item.location)) {
     const loc = { ...(item.location as Record<string, unknown>) }
     loc.lat = coerceCoord(loc.lat)

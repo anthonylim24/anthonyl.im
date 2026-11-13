@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { X } from "lucide-react"
-import { lookupGooglePlacePhoto, lookupPhoto } from "../Korea/placePhoto"
+import { lookupGooglePlacePhoto, lookupPhoto } from "./placePhoto"
 import { a } from "./atlas.stylex"
 import { c } from "./chat.stylex"
 import { sx } from "@/styles/merge"

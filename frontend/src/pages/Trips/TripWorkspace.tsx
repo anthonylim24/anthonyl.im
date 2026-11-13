@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import {
   CalendarDays,
   ChevronLeft,
@@ -10,6 +10,7 @@ import {
   List,
   Map as MapIcon,
   MoreHorizontal,
+  Orbit,
   Settings2,
   Share2,
   Sparkles,
@@ -23,9 +24,13 @@ import { useViewer } from "@/lib/safeAuth"
 import { deleteTrip, duplicateTrip, generateItinerary } from "./tripsApi"
 import { dayCount, formatClock, formatRange, formatTripDate, plural, resolveAccent, titleCase, todayIsoIn, tripTiming } from "./meta"
 import { AtlasMap } from "./map/AtlasMap"
+import { addItem } from "./tripEdits"
+import { IgGlyph } from "./instagram/IgGlyph"
+import { extractInstagramUrls } from "./instagram/instagram"
 import { centroid, corePoints, DAY_PIN, dayPins, dayRoute, isLocated, locatedItems, tripDots, tripPins, type LngLat } from "./map/geo"
 import { errorText, useTripEditor } from "./useTripEditor"
 import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
+import { photorealAvailable } from "./photoreal/available"
 import { Menu, Modal, Spinner, type MenuItem } from "./components/kit"
 import { ShareDialog } from "./components/ShareDialog"
 import { AiSheet, briefToRequest, type AiRequest, type DraftBrief } from "./workspace/AiPanels"
@@ -36,11 +41,11 @@ import type { ItineraryItem, Trip, TripDay } from "./types"
 import { a } from "./atlas.stylex"
 import { share, ws as s } from "./workspace.stylex"
 
-const MapModeOverlay = lazy(() => import("../Korea/MapModeOverlay").then((m) => ({ default: m.MapModeOverlay })))
+const PhotorealOverlay = lazy(() => import("./photoreal/PhotorealOverlay"))
 
-const PHOTOREAL_READY = Boolean(
-  import.meta.env.VITE_GOOGLE_MAP_TILES_API_KEY || import.meta.env.VITE_GOOGLE_PLACES_API_KEY,
-)
+const PHOTOREAL_READY = photorealAvailable()
+const InstagramSheet = lazy(() => import("./instagram/InstagramSheet").then((m) => ({ default: m.InstagramSheet })))
+
 /** Notices that describe a problem: announced as alerts and never auto-dismissed. */
 const PROBLEM = /couldn|didn|isn’t|not |fail|error/i
 const WIDE_QUERY = "(min-width: 1024px)"
@@ -84,6 +89,9 @@ export function TripWorkspace() {
   const [busy, setBusy] = useState<string | null>(null)
   const [photoreal, setPhotoreal] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
+  /** Instagram import: open with these links (possibly none). */
+  const [instagram, setInstagram] = useState<{ urls: string[] } | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
   const paneRef = useRef<HTMLDivElement>(null)
   const railRef = useRef<HTMLElement>(null)
 
@@ -186,6 +194,37 @@ export function TripWorkspace() {
 
   const hasItems = trip ? trip.days.some((d) => d.items.length > 0) : false
 
+  // Deep links: ?instagram=<post link> (share sheets, bookmarks) and the old
+  // ?ingest=1 both open the import; the query is dropped once handled.
+  const sharedLink = searchParams.get("instagram") ?? searchParams.get("url") ?? searchParams.get("text")
+  const wantsImport = sharedLink != null || searchParams.get("ingest") === "1"
+  useEffect(() => {
+    if (!trip || !editable || !wantsImport) return
+    setInstagram({ urls: extractInstagramUrls(sharedLink ?? "") })
+    const next = new URLSearchParams(searchParams)
+    for (const key of ["instagram", "url", "text", "title", "ingest"]) next.delete(key)
+    setSearchParams(next, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip?.id, editable, wantsImport])
+
+  const addFromInstagram = useCallback(
+    (toDayId: string, items: ItineraryItem[]) => {
+      if (items.length === 0) return
+      editor.setDays((days) => items.reduce((next, item) => addItem(next, toDayId, item), days))
+      const ids = new Set(items.map((item) => item.id))
+      editor.flashTouched(ids)
+      setFresh(ids)
+      const at = trip ? trip.days.findIndex((d) => d.id === toDayId) + 1 : 0
+      editor.setNotice(
+        items.length === 1
+          ? `Added ${items[0]!.location?.name ?? items[0]!.title} to day ${at}.`
+          : `Added ${plural(items.length, "place")} to day ${at}.`,
+      )
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [editor.setDays, editor.flashTouched, editor.setNotice, trip?.days.length],
+  )
+
   const draft = async (brief: DraftBrief) => {
     if (!trip) return
     setDrafting(true)
@@ -287,6 +326,16 @@ export function TripWorkspace() {
             icon: <Sparkles size={16} strokeWidth={1.75} aria-hidden />,
             disabled: locked,
             onSelect: () => setDialog({ ai: "trip" }),
+          },
+        ]
+      : []),
+    ...(editable
+      ? [
+          {
+            label: "Add places from Instagram",
+            icon: <IgGlyph size={16} />,
+            disabled: locked,
+            onSelect: () => setInstagram({ urls: [] }),
           },
         ]
       : []),
@@ -426,6 +475,12 @@ export function TripWorkspace() {
                   {hasItems ? "Improve with AI" : "Draft with AI"}
                 </button>
               )}
+              {editable && (
+                <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} disabled={locked} onClick={() => setInstagram({ urls: [] })}>
+                  <IgGlyph size={14} />
+                  From Instagram
+                </button>
+              )}
               {busy === "duplicate" ? (
                 <span {...sx(a.iconBtn, a.iconBtnSm)} role="status" aria-label="Duplicating">
                   <Spinner />
@@ -520,6 +575,7 @@ export function TripWorkspace() {
             onApplyRun={editor.applyActiveRun}
             onDismissRun={editor.dismissRun}
             onPhotoreal={PHOTOREAL_READY ? () => setPhotoreal(true) : undefined}
+            onInstagram={(urls) => setInstagram({ urls })}
           />
         ) : (
           <OverviewPanel
@@ -574,6 +630,12 @@ export function TripWorkspace() {
                 {day ? `Day ${dayIndex + 1}${day.city ? ` · ${day.city}` : ""}` : "All days"} · {plural(day ? pins.length : dots.length, "place")}
               </span>
             </p>
+            {day && PHOTOREAL_READY && pins.length > 0 && (
+              <button type="button" {...sx(s.flyBtn)} onClick={() => setPhotoreal(true)} title="Fly through this day in photoreal 3D">
+                <Orbit size={15} strokeWidth={1.75} aria-hidden />
+                Fly in 3D
+              </button>
+            )}
             {active && (
               <aside {...sx(s.placeCard)} aria-label="Selected place">
                 <div {...sx(a.between)} style={{ alignItems: "flex-start" }}>
@@ -710,6 +772,19 @@ export function TripWorkspace() {
         onClose={() => setDialog(null)}
         onRun={runAi}
       />
+      {editable && instagram && (
+        <Suspense fallback={null}>
+          <InstagramSheet
+            open
+            trip={trip}
+            dayId={day?.id}
+            initialUrls={instagram.urls}
+            getToken={editor.readToken}
+            onClose={() => setInstagram(null)}
+            onAdd={addFromInstagram}
+          />
+        </Suspense>
+      )}
       <Modal
         open={dialog === "delete"}
         onClose={() => busy === null && setDialog(null)}
@@ -770,11 +845,21 @@ export function TripWorkspace() {
 
       {photoreal && day && (
         <Suspense fallback={null}>
-          <MapModeOverlay
-            daySlug={day.id}
-            dayTitle={day.title ?? `Day ${dayIndex + 1}`}
-            placesUrl={`/api/trips/${encodeURIComponent(trip.id)}/days/${encodeURIComponent(day.id)}/places`}
+          <PhotorealOverlay
+            trip={trip}
+            day={day}
+            dayNumber={dayIndex + 1}
+            initialStopId={activeId ?? undefined}
             onClose={() => setPhotoreal(false)}
+            onEditStop={
+              editable
+                ? (itemId) => {
+                    setPhotoreal(false)
+                    setEditId(itemId)
+                    setView("list")
+                  }
+                : undefined
+            }
           />
         </Suspense>
       )}

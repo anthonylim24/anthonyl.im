@@ -949,3 +949,14 @@ describe("createPhotonGeocoder", () => {
     expect(await geocode("x")).toBeNull()
   })
 })
+
+describe("normalizeAiItem notes", () => {
+  test("moves a leaked status token out of the prose and into the field", () => {
+    const item = normalizeAiItem({ kind: "place", title: "Dinner", notes: "Book ahead (needs_review); try the octopus." }) as {
+      notes: string
+      status?: string
+    }
+    expect(item.notes).toBe("Book ahead; try the octopus.")
+    expect(item.status).toBe("needs_review")
+  })
+})

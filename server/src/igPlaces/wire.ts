@@ -616,17 +616,20 @@ export async function listExtractedPlaces(opts: ExtractedPlacesOpts) {
   params.set('status', 'neq.rejected');
   params.set('order', 'created_at.desc');
 
-  if (category) {
-    params.set('category', `eq.${encodeURIComponent(category)}`);
-  }
-  if (band) {
-    params.set('confidence_band', `eq.${encodeURIComponent(band)}`);
-  }
-  if (busyness) {
-    params.set('busyness', `eq.${encodeURIComponent(busyness)}`);
-  }
-  if (q) {
-    params.set('or', `(name.ilike.*${encodeURIComponent(q)}*,supporting_quote.ilike.*${encodeURIComponent(q)}`+ '*)');
+  // URLSearchParams encodes once; encoding here as well made non-ASCII and
+  // multi-word searches match nothing.
+  if (category) params.set('category', `eq.${category}`);
+  if (band) params.set('confidence_band', `eq.${band}`);
+  if (busyness) params.set('busyness', `eq.${busyness}`);
+  // Quote the pattern so commas, dots and parentheses in a search stay
+  // literal inside PostgREST's or=(…) list.
+  const needle = q?.replace(/["\\*%]/g, ' ').trim();
+  if (needle) {
+    const pattern = `"*${needle}*"`;
+    params.set(
+      'or',
+      `(name.ilike.${pattern},name_romanized.ilike.${pattern},city.ilike.${pattern},address.ilike.${pattern},supporting_quote.ilike.${pattern})`,
+    );
   }
 
   const url = `${supabaseUrl}/rest/v1/instagram_places?${params.toString()}`;
@@ -683,7 +686,22 @@ export async function listExtractedPlaces(opts: ExtractedPlacesOpts) {
   };
 }
 
-export async function listJobsForUser(userId: string, limit = 20) {
+/** Soft-delete: a removed place stops showing in the library and in jobs. */
+export async function removeExtractedPlace(opts: { userId: string; placeId: number }): Promise<boolean> {
+  const supabaseUrl = config.supabaseUrl;
+  const supabaseServiceKey = config.supabaseServiceKey;
+  if (!supabaseUrl || !supabaseServiceKey) return false;
+  const supabase = createSupabaseClient({ url: supabaseUrl, serviceKey: supabaseServiceKey });
+  const rows = await supabase.update<{ id: number }>(
+    'instagram_places',
+    { status: 'rejected' },
+    { id: opts.placeId, user_id: opts.userId },
+  );
+  dayPlacesCache.clear();
+  return rows.length > 0;
+}
+
+export async function listJobsForUser(userId: string, limit = 20, opts: { logs?: boolean } = {}) {
   const supabaseUrl = config.supabaseUrl;
   const supabaseServiceKey = config.supabaseServiceKey;
   if (!supabaseUrl || !supabaseServiceKey) {
@@ -694,9 +712,10 @@ export async function listJobsForUser(userId: string, limit = 20) {
   const jobs = await supabase.select<{
     id: number; url: string; status: string; step: string; step_started_at: string | null;
     attempts: number; last_error: string | null; created_at: string; updated_at: string; post_id: number | null;
+    skip_video: boolean | null;
   }>('instagram_jobs', {
     eq: { user_id: userId },
-    select: 'id,url,status,step,step_started_at,attempts,last_error,created_at,updated_at,post_id',
+    select: 'id,url,status,step,step_started_at,attempts,last_error,created_at,updated_at,post_id,skip_video',
     order: 'created_at.desc',
     limit,
   });
@@ -705,8 +724,11 @@ export async function listJobsForUser(userId: string, limit = 20) {
   let placesByPost: Record<number, unknown[]> = {};
 
   if (postIds.length) {
+    // A post is a shared scrape; places are per user. Without the user
+    // filter a shared post showed other people's rows (and removed ones).
     const url = `${supabaseUrl}/rest/v1/instagram_places?post_id=in.(${postIds.join(',')})` +
-      `&select=id,post_id,name,name_romanized,city,category,confidence,confidence_band,` +
+      `&user_id=eq.${encodeURIComponent(userId)}&status=neq.rejected&order=is_subject.desc,confidence.desc` +
+      `&select=id,post_id,name,name_romanized,city,category,confidence,confidence_band,google_place_id,rating,` +
       `is_subject,supporting_quote,address,lat,lng,geocode_source,geocode_disagree,` +
       `signal_source,vote_count,geocode_kakao_id`;
     const r = await fetch(url, {
@@ -726,10 +748,10 @@ export async function listJobsForUser(userId: string, limit = 20) {
   // Fetch a small preview of each post (caption, transcript) so the UI can
   // show users *what* the LLM saw when 0 places were extracted. Cheap query —
   // we already need post_ids for places.
-  const postsById: Record<number, { caption: string | null; transcript: string | null; ocr_text: string | null; location_tag: unknown | null }> = {};
+  const postsById: Record<number, { caption: string | null; transcript: string | null; ocr_text: string | null; location_tag: unknown | null; owner_username?: string | null; shortcode?: string | null }> = {};
   if (postIds.length) {
     const postsUrl = `${supabaseUrl}/rest/v1/instagram_posts?id=in.(${postIds.join(',')})` +
-      `&select=id,caption,transcript,ocr_text,location_tag`;
+      `&select=id,caption,transcript,ocr_text,location_tag,owner_username,shortcode`;
     const r = await fetch(postsUrl, {
       headers: {
         apikey: supabaseServiceKey,
@@ -737,14 +759,14 @@ export async function listJobsForUser(userId: string, limit = 20) {
       },
     });
     if (r.ok) {
-      const rows = await r.json() as Array<{ id: number; caption: string | null; transcript: string | null; ocr_text: string | null; location_tag: unknown | null }>;
+      const rows = await r.json() as Array<{ id: number; caption: string | null; transcript: string | null; ocr_text: string | null; location_tag: unknown | null; owner_username?: string | null; shortcode?: string | null }>;
       for (const p of rows) postsById[p.id] = p;
     }
   }
 
   let logsByJob: Record<number, unknown[]> = {};
   const jobIds = jobs.map(j => j.id);
-  if (jobIds.length) {
+  if (jobIds.length && opts.logs !== false) {
     const logsUrl = `${supabaseUrl}/rest/v1/instagram_job_logs?` +
       `job_id=in.(${jobIds.join(',')})` +
       `&select=id,job_id,step,level,message,created_at` +
@@ -779,6 +801,8 @@ export async function listJobsForUser(userId: string, limit = 20) {
         transcript_truncated: !!post.transcript && post.transcript.length > 5000,
         has_ocr: !!post.ocr_text,
         location_tag: post.location_tag,
+        owner_username: post.owner_username ?? null,
+        shortcode: post.shortcode ?? null,
       } : null,
     };
   });

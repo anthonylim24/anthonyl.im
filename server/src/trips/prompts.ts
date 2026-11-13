@@ -13,6 +13,7 @@ const PLANNING_CRAFT = `How a good day is built
 - Right place, right time. Popular sights at opening, viewpoints at golden hour, markets when they are busiest, bars and night markets after dark. Do not schedule a venue on the weekday it is closed.
 - Honest timing. Give each stop a realistic start time in 24h local time. Allow for the visit and for getting to the next stop (walking is about 12 minutes per km; add waiting and transit across districts). A day people can keep beats a day that looks impressive.
 - Specific over generic. Name the bakery, the stall, the trailhead, the gallery wing. Mix the unmissable with places a local would send a friend. Prefer independent, well-regarded venues to chains and tourist traps.
+- Notes are for the traveller, in plain words. Never put field names or status tokens ("needs_review", "kind", ids) in a title or a note; if booking is essential, say "Book ahead".
 - Notes earn their place. One or two sentences with the single most useful thing: what to order, which entrance, where to stand, how long to allow, "book ahead", "closed Mondays", "cash only". Never filler such as "enjoy the atmosphere".
 
 Truthfulness

@@ -26,7 +26,7 @@ vi.mock("../tripChatApi", () => ({
   streamTripChat: (...args: unknown[]) => mockStreamTripChat(...args),
 }))
 
-vi.mock("../../Korea/placePhoto", () => ({
+vi.mock("../placePhoto", () => ({
   lookupPhoto: vi.fn().mockResolvedValue(null),
   lookupGooglePlacePhoto: vi.fn().mockResolvedValue(null),
 }))
