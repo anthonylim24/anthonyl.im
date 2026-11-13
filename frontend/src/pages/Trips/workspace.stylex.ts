@@ -795,6 +795,10 @@ export const ws = stylex.create({
     ":focus-visible": { boxShadow: "0 0 0 2px var(--trips-surface), 0 0 0 4px var(--brand-ring)" },
     ":active": { transform: "scale(0.96)" },
   },
+  // "To schedule" divider: title and hint side by side, stacked on a phone.
+  parkHead: { flexWrap: "wrap", rowGap: "0.125rem", scrollMarginTop: "9rem" },
+  parkTitle: { whiteSpace: "nowrap", flexGrow: 1 },
+  parkHint: { "@media (max-width: 639.98px)": { flexBasis: "100%" } },
   mapChip: {
     position: "absolute",
     top: "0.75rem",

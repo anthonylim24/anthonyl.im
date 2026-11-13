@@ -186,10 +186,6 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
       null,
     [trip.days, trip.center],
   )
-  const tripDotsNow = useMemo<LngLat[]>(
-    () => trip.days.flatMap((d) => d.items.filter(isLocated).map((i) => ({ lat: i.location.lat, lng: i.location.lng }))),
-    [trip.days],
-  )
   const isNear = (place: IgPlace) =>
     tripCenter != null && place.lat != null && place.lng != null && distanceMeters(tripCenter, { lat: place.lat, lng: place.lng }) < NEAR_M
   const savedNear = (saved?.places ?? []).filter(isNear)
@@ -518,20 +514,6 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
                 <div {...sx(s.mapSide)}>
                   {map ? (
                     <div {...sx(s.mapFill)}>{map}</div>
-                  ) : tripDotsNow.length > 0 ? (
-                    <div {...sx(s.mapFill)}>
-                      <AtlasMap
-                        pins={tripDotsNow.map((point, i) => ({ id: `t${i}`, title: "On the trip", lat: point.lat, lng: point.lng, variant: "dot" as const }))}
-                        frameKey={`trip:${tripDotsNow.length}`}
-                        framePoints={corePoints(tripDotsNow)}
-                        padding={{ top: 88, right: 88, bottom: 64, left: 64 }}
-                        maxZoom={14}
-                        flat
-                        label="Map of the trip so far"
-                      >
-                        <p {...sx(s.mapNote)}>Your trip so far · places from posts appear here</p>
-                      </AtlasMap>
-                    </div>
                   ) : (
                     <div {...sx(s.mapEmpty)}>
                       <div {...sx(s.mapEmptyCard)}>

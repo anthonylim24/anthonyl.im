@@ -247,9 +247,10 @@ export function TripWorkspace() {
     editor.flashTouched(shown)
     setFresh(shown)
     setIgUndo({ ids, count: places.length, key: Date.now() })
-    // Bring the first new stop into view, clear of the toast.
-    const first = places[0]!.id
-    requestAnimationFrame(() => document.getElementById(`item-${first}`)?.scrollIntoView({ block: "center", behavior: "smooth" }))
+    // Bring the new stops to the top of the list, clear of the toast: the
+    // "To schedule" heading when there is one, else the first new stop.
+    const anchor = ids.find((id) => editor.trip?.days.some((d) => d.items.some((item) => item.id === id && item.kind === "section"))) ?? places[0]!.id
+    requestAnimationFrame(() => document.getElementById(`item-${anchor}`)?.scrollIntoView({ block: "start", behavior: "smooth" }))
   }
 
   useEffect(() => {
