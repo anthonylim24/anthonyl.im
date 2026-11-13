@@ -49,6 +49,8 @@ export interface TripsRouterDeps {
   llm?: LlmCall | null
   geocode?: Geocoder | null
   fetchWeather?: WeatherFetcher
+  /** How long /generate waits before switching to a heartbeat body (tests shorten it). */
+  generateGraceMs?: number
 }
 
 const MAX_SUMMARY_POINTS = 48
@@ -117,11 +119,6 @@ const FALLBACK_CATEGORY: PlaceCategory = "landmark"
 
 function asPlaceCategory(category: string | undefined): PlaceCategory {
   return category && category in categoryIcon ? (category as PlaceCategory) : FALLBACK_CATEGORY
-}
-
-function photoUrlFor(query: string): string {
-  const seed = query.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 50)
-  return `https://source.unsplash.com/featured/1200x800/?${encodeURIComponent(query)}&sig=${seed}`
 }
 
 const PERSIST_RETRIES = 3
@@ -496,28 +493,63 @@ export function createTripsRouter(deps: TripsRouterDeps) {
       return c.json({ error: "itinerary_not_empty", message: "pass replaceExisting: true to overwrite" }, 409)
     }
 
-    try {
-      const generated = await generateItinerary({
-        trip: result.trip,
-        prompt: body.data.prompt,
-        preferences: body.data.preferences,
-        llm: deps.llm,
-        geocode: deps.geocode,
-      })
-      const next: Trip = {
-        ...result.trip,
-        days: generated.days,
-        // AI-proposed theming fills gaps but never overwrites user choices.
-        appearance: { ...generated.appearance, ...result.trip.appearance },
-        updatedAt: nowIso(),
+    const trip = result.trip
+    const access = result.access
+    const llm = deps.llm
+    type Outcome = { status: 200 | 502; body: Record<string, unknown> }
+    const work: Promise<Outcome> = (async () => {
+      try {
+        const generated = await generateItinerary({
+          trip,
+          prompt: body.data.prompt,
+          preferences: body.data.preferences,
+          llm,
+          geocode: deps.geocode,
+        })
+        const next: Trip = {
+          ...trip,
+          days: generated.days,
+          // AI-proposed theming fills gaps but never overwrites user choices.
+          appearance: { ...generated.appearance, ...trip.appearance },
+          updatedAt: nowIso(),
+        }
+        await deps.store.update(next)
+        return { status: 200 as const, body: { trip: present(next, access), summary: generated.summary } }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        console.warn("[trips/generate] failed:", message)
+        return { status: 502 as const, body: { error: "generation_failed", message } }
       }
-      await deps.store.update(next)
-      return c.json({ trip: present(next, result.access), summary: generated.summary })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      console.warn("[trips/generate] failed:", message)
-      return c.json({ error: "generation_failed", message }, 502)
-    }
+    })()
+
+    // A grounded draft of a long trip can outlast a reverse proxy's idle
+    // timeout (60 s), which surfaced as a bare 504 with the work still
+    // running. Quick drafts answer normally; slow ones switch to a body that
+    // trickles whitespace (valid before JSON) until the result is ready, so
+    // the connection never goes quiet. A failure after that point arrives as
+    // `{ error, message }` on a 200, which the client treats as a failure.
+    const quick = await Promise.race([
+      work,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), deps.generateGraceMs ?? 15_000)),
+    ])
+    if (quick) return c.json(quick.body, quick.status)
+
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const beat = setInterval(() => controller.enqueue(encoder.encode(" \n")), 8_000)
+        controller.enqueue(encoder.encode(" \n"))
+        void work.then((outcome) => {
+          clearInterval(beat)
+          controller.enqueue(encoder.encode(JSON.stringify(outcome.body)))
+          controller.close()
+        })
+      },
+    })
+    return new Response(stream, {
+      status: 200,
+      headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-cache", "X-Accel-Buffering": "no" },
+    })
   })
 
   // ── AI: enhancement (reviewable suggestions) ───────────────────────────
@@ -663,7 +695,8 @@ export function createTripsRouter(deps: TripsRouterDeps) {
         city: day.city ?? trip.destinations[0] ?? "",
         address: loc.address,
         description: item.notes ?? item.title,
-        photoUrl: photoUrlFor(loc.name),
+        // Clients look photos up themselves; the field stays for the shared shape.
+        photoUrl: "",
         priority: (scheduled ? "scheduled" : "core") as "scheduled" | "core" | "supplemental",
         reason: scheduled
           ? item.reservation

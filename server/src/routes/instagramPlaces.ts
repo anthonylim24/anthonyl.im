@@ -8,12 +8,14 @@ import type { ExtractedPlacesOpts } from '../igPlaces/wire';
 export interface InstagramPlacesDeps {
   enqueue: (userId: string, url: string, opts?: { skipVideo?: boolean }) => Promise<EnqueueResult>;
   statsHandler: () => Promise<unknown> | unknown;
-  listJobs: (userId: string, limit?: number) => Promise<unknown>;
+  listJobs: (userId: string, limit?: number, opts?: { logs?: boolean }) => Promise<unknown>;
   retryJob: (jobId: number, userId: string) => Promise<boolean>;
   reextractJob: (jobId: number, userId: string) => Promise<boolean>;
   listExtractedPlaces: (opts: ExtractedPlacesOpts) => Promise<{ places: unknown[]; total: number; hasMore: boolean }>;
   listIgPlaceDays: (opts: { userId: string; placeId: number }) => Promise<number[]>;
   setIgPlaceDays: (opts: { userId: string; placeId: number; days: number[] }) => Promise<void>;
+  /** Hide a place from the user's library. Resolves false when it isn't theirs. */
+  removeExtractedPlace?: (opts: { userId: string; placeId: number }) => Promise<boolean>;
 }
 
 const igUrl = z.string().refine(isInstagramUrl, 'not an instagram url');
@@ -48,7 +50,8 @@ export function createInstagramPlacesRouter(deps: InstagramPlacesDeps) {
     const userId = c.get('userId' as never) as string;
     const limitParam = c.req.query('limit');
     const limit = limitParam ? Math.min(500, Math.max(1, Number(limitParam))) : 20;
-    const data = await deps.listJobs(userId, limit);
+    // `logs=0`: the trips import sheet polls this and never shows pipeline logs.
+    const data = await deps.listJobs(userId, limit, { logs: c.req.query('logs') !== '0' });
     return c.json(data);
   });
 
@@ -100,6 +103,17 @@ export function createInstagramPlacesRouter(deps: InstagramPlacesDeps) {
 
     const data = await deps.listExtractedPlaces({ userId, limit, offset, category, band, busyness, q });
     return c.json(data);
+  });
+
+  // DELETE /extracted/:id — remove a place from the caller's library
+  r.delete('/extracted/:id', async (c) => {
+    const userId = c.get('userId' as never) as string;
+    const id = Number(c.req.param('id'));
+    if (!Number.isInteger(id) || id <= 0) return c.json({ error: 'invalid place id' }, 400);
+    if (!deps.removeExtractedPlace) return c.json({ error: 'not supported' }, 501);
+    const ok = await deps.removeExtractedPlace({ userId, placeId: id });
+    if (!ok) return c.json({ error: 'place not found' }, 404);
+    return new Response(null, { status: 204 });
   });
 
   // GET /extracted/:id/days — returns { days: number[] } sorted ascending

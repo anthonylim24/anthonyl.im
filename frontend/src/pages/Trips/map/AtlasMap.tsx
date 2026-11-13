@@ -33,6 +33,8 @@ export interface AtlasMapProps {
   maxZoom?: number
   /** Hide the zoom / tilt / fit buttons (small decorative previews). */
   bare?: boolean
+  /** Start top-down rather than tilted into the buildings. */
+  flat?: boolean
   label: string
   children?: ReactNode
 }
@@ -77,13 +79,14 @@ export function AtlasMap({
   padding,
   maxZoom,
   bare = false,
+  flat = false,
   label,
   children,
 }: AtlasMapProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const handleRef = useRef<AtlasMapHandle | null>(null)
   const [status, setStatus] = useState<"loading" | "ready" | "static">("loading")
-  const [tilted, setTilted] = useState(true)
+  const [tilted, setTilted] = useState(!flat)
   const reducedMotion = useReducedMotion()
   const dark = useIsDark()
   const select = useLatestCallback((id: string) => onSelect?.(id))
@@ -119,6 +122,7 @@ export function AtlasMap({
           dark: now.dark,
           reducedMotion,
           ambient,
+          flat,
           center: now.restCenter,
           zoom: now.restZoom,
           onSelect: select,

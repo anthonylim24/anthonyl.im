@@ -47,6 +47,10 @@ vi.mock("../geocode", () => ({
 
 // The real map needs WebGL. The stub lists its pins as buttons that select
 // the pin, and renders the overlay children (map chip, selected-place card).
+// A dev build can always open the 3D view (it has a procedural ground);
+// these tests describe a build without it.
+vi.mock("../photoreal/available", () => ({ photorealAvailable: () => false }))
+
 vi.mock("../map/AtlasMap", () => ({
   useIsDark: () => false,
   canRenderMap: () => false,
@@ -491,6 +495,7 @@ describe("TripWorkspace", () => {
       fireEvent.click(screen.getByRole("button", { name: "More trip options" }))
       expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual([
         "Improve whole trip with AI",
+        "Add places from Instagram",
         "Trip details",
         "Duplicate trip",
         "Delete trip…",
@@ -830,7 +835,7 @@ describe("TripWorkspace", () => {
       expect(screen.queryByText("View only")).toBeNull()
 
       fireEvent.click(screen.getByRole("button", { name: "More trip options" }))
-      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Trip details", "Duplicate trip"])
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add places from Instagram", "Trip details", "Duplicate trip"])
     })
   })
 
@@ -852,7 +857,7 @@ describe("TripWorkspace", () => {
     it("has no Delete for a trip shared with everyone", async () => {
       renderWorkspace("/trips/lisbon", planned({ sharedWithAllUsers: true }))
       fireEvent.click(await screen.findByRole("button", { name: "More trip options" }))
-      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Trip details", "Duplicate trip"])
+      expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add places from Instagram", "Trip details", "Duplicate trip"])
     })
   })
 

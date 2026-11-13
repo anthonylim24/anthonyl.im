@@ -14,7 +14,7 @@ import { getTripStore } from "./src/trips/store";
 import { createGoogleGeocoder, createPhotonGeocoder, createTripsLlm } from "./src/trips/ai";
 import { createClerkAuth, verifyClerkOptional } from "./src/middleware/clerkAuth";
 import { createRateLimit, trustedProxyClientAddress } from "./src/middleware/rateLimit";
-import { bootIgWorker, getQueue, listJobsForUser, listExtractedPlaces, listIgPlaceDays, setIgPlaceDays } from "./src/igPlaces/wire";
+import { bootIgWorker, getQueue, listJobsForUser, listExtractedPlaces, listIgPlaceDays, setIgPlaceDays, removeExtractedPlace } from "./src/igPlaces/wire";
 import { createPreviewRouter, getPreviewRoot, previewSiteUrl } from "./src/preview";
 import { createAgentSessionRouter } from "./src/routes/agentSession";
 import { parseAgentOnBehalfOf, parseAllowedRedirectHosts } from "./src/agentTasks";
@@ -232,6 +232,7 @@ app.route(
 );
 
 // IG place extractor — Clerk-gated route + in-process worker
+const IG_ROUTE_BASES = ['/api/instagram', '/api/korea/places/from-instagram'] as const;
 const clerkAuth = (config.clerkSecretKey || config.igDevBearer)
   ? createClerkAuth({
       secretKey: config.clerkSecretKey,
@@ -257,21 +258,26 @@ if (clerkAuth) {
     listExtractedPlaces,
     listIgPlaceDays,
     setIgPlaceDays,
+    removeExtractedPlace,
   });
-  app.use('/api/korea/places/from-instagram/*', clerkAuth);
-  app.route('/api/korea/places/from-instagram', igPlacesRouter);
+  // `/api/instagram` is the path the trips planner uses; the Korea path is
+  // the same router, kept for older clients.
+  for (const base of IG_ROUTE_BASES) {
+    app.use(`${base}/*`, clerkAuth);
+    app.route(base, igPlacesRouter);
+  }
 } else {
   // Always answer JSON on this path so the SPA fallback can't intercept and
   // serve index.html with status 200 — which silently breaks the polling FE.
   console.warn('[ig-places] CLERK_SECRET_KEY and IG_DEV_BEARER both missing; route will 503 with a JSON error');
-  app.all('/api/korea/places/from-instagram', (c) => c.json({
-    error: 'ig_places_not_configured',
-    message: 'Server is missing CLERK_SECRET_KEY (or IG_DEV_BEARER for dev). Set it and restart.',
-  }, 503));
-  app.all('/api/korea/places/from-instagram/*', (c) => c.json({
-    error: 'ig_places_not_configured',
-    message: 'Server is missing CLERK_SECRET_KEY (or IG_DEV_BEARER for dev). Set it and restart.',
-  }, 503));
+  for (const base of IG_ROUTE_BASES) {
+    for (const path of [base, `${base}/*`]) {
+      app.all(path, (c) => c.json({
+        error: 'ig_places_not_configured',
+        message: 'Server is missing CLERK_SECRET_KEY (or IG_DEV_BEARER for dev). Set it and restart.',
+      }, 503));
+    }
+  }
 }
 
 bootIgWorker();

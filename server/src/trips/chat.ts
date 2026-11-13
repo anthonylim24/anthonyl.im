@@ -18,6 +18,7 @@ import { fetchGeminiStreamWithToolFallback, mapsRetrievalConfig } from "../gemin
 import { geminiThinking } from "../igPlaces/gemini"
 import { withSsePings } from "../ssePing"
 import type { ItineraryItem, Trip, TripDay } from "./types"
+import { analyseDay, describeSignals, weekday } from "./signals"
 import { tripLatLngHint } from "./latLngHint"
 
 export { tripLatLngHint }
@@ -56,7 +57,7 @@ function fmtItem(item: ItineraryItem): string {
 function dayLabel(day: TripDay, index: number): string {
   const n = index + 1
   return (
-    `Day ${n} · ${day.date}` +
+    `Day ${n} · ${weekday(day.date)} ${day.date} · dayId=${day.id}` +
     (day.city ? ` · ${day.city}` : "") +
     (day.title ? ` — ${day.title}` : "")
   )
@@ -67,7 +68,7 @@ function fmtDayOverview(day: TripDay, index: number): string {
   const titles = day.items
     .filter((i) => i.kind !== "section")
     .slice(0, MAX_ITEMS_PER_OVERVIEW_DAY)
-    .map((i) => clip(i.title, 40) || "(untitled)")
+    .map((i) => `${i.time ? `${i.time} ` : ""}${clip(i.title, 40) || "(untitled)"}`)
   const more = day.items.filter((i) => i.kind !== "section").length - titles.length
   const tail = titles.length
     ? ` — ${titles.join("; ")}${more > 0 ? `; +${more} more` : ""}`
@@ -91,14 +92,69 @@ function fmtDayDetail(day: TripDay, index: number): string {
   }
   lines.push("  Items:")
   for (const item of day.items) lines.push(fmtItem(item))
+  lines.push(`  Computed facts:\n${describeSignals(analyseDay(day))}`)
   return lines.join("\n")
 }
 
-/** Compact itinerary digest for the concierge. Focused day is expanded;
- *  every other day is a one-line overview so cross-day questions still work. */
-export function buildTripChatContext(trip: Trip, dayId?: string): string {
+/** Where "now" falls against the trip, in the trip's own time zone. */
+export function tripPhase(
+  trip: Trip,
+  now: Date = new Date(),
+): { today: string; clock: string; phase: "before" | "during" | "after"; line: string; todayId?: string } {
+  let today = now.toISOString().slice(0, 10)
+  let clock = now.toISOString().slice(11, 16)
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: trip.timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(now)
+    const get = (type: string) => parts.find((part) => part.type === type)?.value ?? ""
+    today = `${get("year")}-${get("month")}-${get("day")}`
+    clock = `${get("hour")}:${get("minute")}`
+  } catch {
+    // Unknown time zone id: fall back to UTC.
+  }
+  const days = (from: string, to: string) =>
+    Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000)
+  if (today < trip.startDate) {
+    const n = days(today, trip.startDate)
+    return { today, clock, phase: "before", line: `The trip has not started: it begins in ${n} day${n === 1 ? "" : "s"}. The traveller is planning.` }
+  }
+  if (today > trip.endDate) {
+    return { today, clock, phase: "after", line: "The trip is over. The traveller is looking back, or reusing the plan." }
+  }
+  const index = trip.days.findIndex((d) => d.date === today)
+  const day = index >= 0 ? trip.days[index] : undefined
+  return {
+    today,
+    clock,
+    phase: "during",
+    todayId: day?.id,
+    line: day
+      ? `The trip is under way: today is Day ${index + 1} of ${trip.days.length} (dayId=${day.id}). The traveller is probably there now, on a phone.`
+      : "The trip is under way.",
+  }
+}
+
+/** Budget for full-detail days (chars). Past it, far-off days collapse to a line. */
+const DETAIL_BUDGET = 28_000
+
+/** Itinerary digest for the concierge. Every day is given in full while the
+ *  trip fits the budget, so cross-day questions ("which day is the palace?",
+ *  "do we have a free evening?") are answered from data. On very long trips
+ *  the days nearest the one in view keep their detail and the rest collapse
+ *  to a line each. */
+export function buildTripChatContext(trip: Trip, dayId?: string, now: Date = new Date()): string {
   const focusedIndex = dayId ? trip.days.findIndex((d) => d.id === dayId) : -1
   const focused = focusedIndex >= 0 ? trip.days[focusedIndex] : undefined
+  const phase = tripPhase(trip, now)
+  const todayIndex = phase.todayId ? trip.days.findIndex((d) => d.id === phase.todayId) : -1
+  const anchor = focusedIndex >= 0 ? focusedIndex : todayIndex >= 0 ? todayIndex : 0
 
   const sections: string[] = []
   sections.push(
@@ -113,52 +169,83 @@ export function buildTripChatContext(trip: Trip, dayId?: string): string {
 
   if (trip.days.length === 0) {
     sections.push("ALL DAYS: (none yet)")
-  } else {
-    sections.push(`ALL DAYS (overview):\n${trip.days.map((d, i) => fmtDayOverview(d, i)).join("\n")}`)
+    return sections.join("\n\n")
+  }
+
+  sections.push(`ALL DAYS (overview):\n${trip.days.map((d, i) => fmtDayOverview(d, i)).join("\n")}`)
+
+  // Spend the budget outward from the day in view.
+  const order = trip.days
+    .map((_, i) => i)
+    .sort((x, y) => Math.abs(x - anchor) - Math.abs(y - anchor) || x - y)
+  const detail = new Map<number, string>()
+  let spent = 0
+  for (const i of order) {
+    const day = trip.days[i]!
+    if (i !== anchor && day.items.length === 0) continue
+    const text = fmtDayDetail(day, i)
+    if (i !== anchor && spent + text.length > DETAIL_BUDGET) continue
+    detail.set(i, text)
+    spent += text.length
   }
 
   if (focused) {
-    sections.push(`FOCUSED DAY (the user is currently viewing this day):\n${fmtDayDetail(focused, focusedIndex)}`)
+    sections.push(`FOCUSED DAY (the traveller is looking at this day right now):\n${detail.get(focusedIndex)!}`)
+  }
+  const rest = [...detail.entries()].filter(([i]) => i !== focusedIndex).sort(([x], [y]) => x - y)
+  if (rest.length) {
+    sections.push(`${focused ? "OTHER DAYS" : "DAYS"} (full detail):\n${rest.map(([, text]) => text).join("\n\n")}`)
   }
 
   return sections.join("\n\n")
 }
 
-export function buildTripChatSystemInstruction(trip: Trip, dayId?: string): string {
-  const nowLocal = new Date().toLocaleString("en-US", {
-    timeZone: trip.timezone,
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  })
+export function buildTripChatSystemInstruction(trip: Trip, dayId?: string, now: Date = new Date()): string {
+  const phase = tripPhase(trip, now)
   const dest = trip.destinations.join(" + ") || "this trip"
+  const exampleDay = dayId ?? phase.todayId ?? trip.days[0]?.id ?? ""
 
   return [
-    `You are the trip concierge for a private itinerary: ${trip.name} (${dest}, ${trip.startDate} to ${trip.endDate}). ` +
-      `You help during planning and in-trip lookups: restaurants and where to eat, the day's plan, ` +
-      `reservations and timings, neighborhoods, transit, and general logistics.`,
-    `Today's date in the trip time zone (${trip.timezone}) is ${nowLocal}.`,
-    `RULES:`,
-    `1. Reservations, times, and confirmation numbers come ONLY from the itinerary data below — never invent those. For restaurants, hours, reviews, transit, weather, events, and neighborhood questions, use Google Search and Google Maps grounding when those tools are available so answers stay current. Say when a detail is from Maps or the live web; if a tool is missing, do not claim the answer is Maps-verified or from the live web.`,
-    `2. Be concise and mobile-friendly: short paragraphs, bullet points, bold the key thing. This is read on a phone, often one-handed.`,
-    `3. When recommending a place, prefer ones already on the itinerary and mention why. Surface same-neighborhood / same-city picks first when a focused day is set. You may recommend new venues when the traveler asks — verify each with Maps.`,
-    `4. For reservations, lead with the time and status. Flag anything pending, tentative, or needs_review.`,
-    `5. Use a warm, confident concierge tone: like a well-briefed travel host, not a search engine.`,
-    `6. Use Markdown for structure (bold, bullets). Keep it tight.`,
-    `7. When you recommend a venue that is NOT already on the itinerary and the traveler might add it, append this machine-only block AFTER the reply (never inside a sentence):`,
+    `You are the concierge for one private trip: ${trip.name} (${dest}, ${trip.startDate} to ${trip.endDate}). You know the destination like a long-time resident and you have the traveller's full itinerary below. You are talking to the traveller, usually on a phone, often mid-walk.`,
+    ``,
+    `NOW`,
+    `- Local time at the destination (${trip.timezone}): ${weekday(phase.today)} ${phase.today}, ${phase.clock}.`,
+    `- ${phase.line}`,
+    `- Read "today", "tonight", "tomorrow", "now" and "nearby" against that clock${dayId ? " and the focused day" : ""}. During the trip, weigh what is open right now and how far it is from where the plan puts them at this hour.`,
+    ``,
+    `HOW TO ANSWER`,
+    `- Lead with the answer. The first line is the recommendation, the time, or the fact they asked for; reasons come after, briefly.`,
+    `- Decide for them. Give one pick and say why it wins; add at most two alternatives when the choice really depends on taste, each with the reason someone would prefer it. Never a list of ten.`,
+    `- Be specific and practical: what to order, which exit or entrance, how long the walk or ride is, when the queue is shortest, whether to book. Say how a suggestion fits the plan ("ten minutes from the museum you finish at 15:00").`,
+    `- Give the pick and any alternatives the same shape: name in bold, how far it is from the plan ("4 min walk from …"), then why. Do not write one as prose and the other as a bullet.`,
+    `- Plain punctuation: no em dashes, no "your best bet", no exclamation marks. Use the name on the door ("Miradouro da Senhora do Monte"), not a translation.`,
+    `- Short. Two to five lines for a simple question; brief bullets for options or steps; bold only the name of the place or the one thing they must not miss. Markdown only: no headings, no tables, no preamble, no sign-off, no "Great question".`,
+    `- Match their language. Give place names in the local script as well when it helps them show a driver or read a sign.`,
+    `- If the question is ambiguous, answer the most likely reading and name the assumption in a few words. Ask a question only when a wrong guess would waste their time.`,
+    ``,
+    `WHAT YOU KNOW AND WHAT YOU CHECK`,
+    `- Bookings, times, confirmation numbers and what is planned for which day come ONLY from the itinerary data below. Never invent or guess them. If it is not in the data, say so plainly.`,
+    `- Opening hours, closures, prices, queues, events, transit, weather and anything else that changes: check with Google Search and Google Maps before you state it, and say in a word where it came from ("per Google Maps", "the venue's site says"). Without those tools, say you could not check live and tell them what to verify.`,
+    `- Every venue you recommend must be real and operating. Verify it on Maps; if you cannot, do not recommend it.`,
+    `- For anything booked, lead with the time and status, and flag items that are pending, tentative or needs_review.`,
+    `- "Computed facts" under a day are measured from the itinerary (missing meals, long gaps, long hops). Use them when asked how a day looks or what to add. Do not recite them unasked.`,
+    `- Health, safety, visas, money and the law: give the practical answer and point to the official source. Do not guess.`,
+    ``,
+    `CHANGING THE PLAN`,
+    `You cannot edit the itinerary yourself. You propose changes in machine-readable blocks that the app turns into buttons, and the traveller confirms. Put blocks AFTER your reply, never inside a sentence, and never mention the blocks or their syntax.`,
+    `1. New places. Whenever you recommend venues that are NOT already on the itinerary, append:`,
     `:::add-places`,
-    `[{"name":"Venue","address":"street address","lat":0,"lng":0,"category":"restaurant","dayId":"${dayId ?? ""}","notes":"one-line why","placeId":"","mapsUrl":""}]`,
+    `[{"name":"Venue","address":"street address","lat":0,"lng":0,"category":"restaurant","dayId":"${exampleDay}","notes":"one-line why","placeId":"","mapsUrl":""}]`,
     `:::`,
-    `Use real Maps-verified name + address. Include lat/lng when Maps has them. Omit dayId if unsure. Omit the block for logistics-only answers or places already listed above.`,
-    `8. When the traveler asks to remove, move, or retiming a stop that IS already on the itinerary, append this second machine-only block (never auto-apply; the UI will ask them to confirm):`,
+    `Use the exact name and address from Maps, with real lat/lng when Maps has them (omit them rather than guess). "category" is one of restaurant, cafe, bar, market, shopping, museum, palace, shrine, park, viewpoint, experience, landmark, neighborhood, hotel, transit, venue. "dayId" is the day it best fits (a dayId from the data); omit it if it has no obvious day. "notes" is the single most useful thing to know. List only places you named in the reply, best first, at most five. No block for logistics-only answers or for places already on the itinerary.`,
+    `2. Changes to stops already planned. Only when the traveller asks to remove, move or re-time something, append:`,
     `:::trip-moves`,
     `[{"type":"remove","name":"Exact title","dayId":""},{"type":"move","name":"Exact title","fromDayId":"","toDayId":""},{"type":"set_time","name":"Exact title","dayId":"","time":"13:00"}]`,
     `:::`,
-    `Use exact titles from the itinerary. Omit the block unless they asked to change the plan.`,
+    `Use the stop's exact title and dayIds from the data, and 24h times. In the reply, say what you are proposing in one line so the buttons make sense.`,
     ``,
     `=== ITINERARY DATA ===`,
-    buildTripChatContext(trip, dayId),
+    buildTripChatContext(trip, dayId, now),
   ].join("\n")
 }
 
@@ -192,8 +279,9 @@ export async function streamTripChat(
     contents: [...history, { role: "user", parts: [{ text: args.prompt }] }],
     generationConfig: {
       temperature: 0.45,
-      maxOutputTokens: 2048,
-      // 3.7 Flash rejects `minimal` (400). `low` is the snappy chat tier.
+      // Room for a full answer plus the add-places / trip-moves trailers.
+      maxOutputTokens: 4096,
+      // `minimal` is rejected (400). `low` is the snappy chat tier.
       thinkingConfig: geminiThinking("low"),
     },
   }

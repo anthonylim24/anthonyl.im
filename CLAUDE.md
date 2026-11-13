@@ -24,12 +24,13 @@ anthonyl.im/
 │   │   │   ├── motion/ platform/ safety/ session/ recommend/
 │   │   ├── pages/
 │   │   │   ├── Landing/         # `/` lab landing: content, StyleX, WebGPU hero scene
-│   │   │   ├── Korea/           # Legacy Korea pages + shared photoreal Map Mode
+│   │   │   ├── Korea/           # Legacy Korea pages (unrouted) + concierge / theme helpers Trips imports
 │   │   │   └── Trips/           # "The atlas": map-first trip planner + concierge
 │   │   │       ├── TripsLayout, TripsIndex, TripCreate, TripWorkspace, TripJoin, TripChat
 │   │   │       ├── workspace/   # OverviewPanel, DayPanel, ItemCard, AddStop, AiPanels, DetailsDialog
 │   │   │       ├── components/  # kit (Menu, Modal), ShareDialog, CityField, DateRange, TripCover
 │   │   │       ├── map/         # AtlasMap, engine (MapLibre, lazy), mapStyle, geo
+│   │   │       ├── photoreal/   # "Fly the day": PhotorealOverlay, scene (Google 3D Tiles), camera / sun / stops maths
 │   │   │       └── atlas/index/workspace/chat .stylex.ts, meta.ts, geocode.ts, useTripEditor.ts
 │   │   ├── effect/              # Effect-TS HTTP/SSE/runtime
 │   │   ├── styles/              # merge.ts (sx), common.stylex.ts, tokens.ts, route *.stylex.ts
@@ -87,8 +88,9 @@ env is missing).
 | Domain model + Zod schemas | `server/src/trips/types.ts` | Shared shape mirrored in `frontend/src/pages/Trips/types.ts` |
 | Store | `server/src/trips/store.ts` | `getTripStore()`: Supabase or memory |
 | Korea migration | `server/src/trips/koreaTrip.ts` | Pure `buildKoreaTrip()` from `koreaSnapshot`/`koreaPlaces`; seeded on first `/api/trips` request as trip `korea-2026` (shared with all signed-in users, not deletable) |
-| AI generation/enhancement | `server/src/trips/ai.ts` | Gemini primary, Groq fallback; AI places missing coords are geocoded with Google, or keyless Photon (`createPhotonGeocoder`) when there is no Google Maps key; Open-Meteo weather + travel-leg pre-pass; suggestions reviewable before apply (enhance auto-applies added places); single-day reviews keep suggestions that omit or invent a day id; the dropped-suggestion log line includes the zod field path |
-| Concierge | `server/src/trips/chat.ts` | `POST /api/trips/:id/chat` SSE (Gemini Search + Maps grounding). Korea seed can fall back to `/api/korea/chat` |
+| AI generation/enhancement | `server/src/trips/ai.ts`, `prompts.ts`, `signals.ts` | Gemini 4 Hydrogen primary (`GEMINI_MODEL`; steps down to 3.7 Flash once if the key cannot use it), Groq when Gemini is missing; system prompts live in `prompts.ts`; `signals.ts` computes per-day facts (missing meals, gaps ≥ 2.5 h, hops ≥ 4 km, clock order) that the review and the concierge are given, offers a model-free shorter walking order, and inserts timed adds in clock order; AI places missing coords are geocoded with Google, or keyless Photon (`createPhotonGeocoder`) when there is no Google Maps key; Open-Meteo weather + travel-leg pre-pass; suggestions reviewable before apply (enhance auto-applies added places); single-day reviews keep suggestions that omit or invent a day id; the dropped-suggestion log line includes the zod field path |
+| Concierge | `server/src/trips/chat.ts` | `POST /api/trips/:id/chat` SSE (Gemini Search + Maps grounding). The instruction carries the local clock and trip phase (`tripPhase`), every day in full within a budget (far-off days collapse to a line on very long trips), day ids, and the computed facts. Korea seed can fall back to `/api/korea/chat` |
+| Instagram import | `server/src/routes/instagramPlaces.ts`, `server/src/igPlaces/*`, `frontend/src/pages/Trips/instagram/*` | `/api/instagram/*` (same router as the legacy `/api/korea/places/from-instagram/*`): `POST /` queues posts (`skipVideo` = quick caption read), `GET /jobs?logs=0`, `POST /jobs/:id/retry|reextract`, `GET /extracted` (the user's saved places, searchable), `DELETE /extracted/:id`. Places belong to the user, not a trip; adding one copies it into the trip document with the post link in `links[]` |
 | Place catalog | `server/src/trips/placeCatalog.ts` | `GET /api/trips/places-catalog` |
 | Router | `server/src/routes/trips.ts` | `createTripsRouter(deps)` — Clerk required. CRUD, `/generate`, `/enhance`, `/enhancements/:runId/apply`, `/chat`, `/days/:dayId/places`, plus sharing (below). Summaries from `GET /api/trips` carry `center`, `points` (≤48 `[lng,lat]`) and `placeCount`; trips carry `center` |
 | Sharing | `server/src/routes/trips.ts`, `components/ShareDialog.tsx`, `TripJoin.tsx` | Link-first. `POST /:id/invites` (owner; role viewer/editor), `POST /join/:token` (any signed-in user joins with that role), `DELETE /:id/invites/:token` (turn a link off), `POST /:id/leave` (collaborator). `invites` are stripped from trip payloads for non-owners. Collaborators carry an optional display `name` |
@@ -96,15 +98,19 @@ env is missing).
 | Frontend | `frontend/src/pages/Trips/` | `TripsLayout`, `TripsIndex`, `TripCreate`, **`TripWorkspace`** (`/:tripId` overview and `/:tripId/day/:dayId`; itinerary pane + sticky map), `TripJoin`, `TripChat` FAB, `workspace/*` (panels, item editor, AI sheets, details dialog + `resizeDays`), `components/*` (`kit`, `ShareDialog`, `CityField`, `DateRange`, `TripCover`), `map/*` (`AtlasMap`, lazy MapLibre `engine` incl. `renderStills` for card covers, `mapStyle`, `geo`), `useTripEditor.ts` (document state + debounced autosave + AI runs), `tripEdits.ts`, `meta.ts`, `geocode.ts` |
 
 **Maps:** every Trips map is MapLibre GL JS v6 over OpenFreeMap vector tiles
-(no API key; `map/mapStyle.ts`). Photoreal Map Mode is optional: a day's "…"
-menu shows "Explore in photoreal 3D" when `VITE_GOOGLE_MAP_TILES_API_KEY` or
-`VITE_GOOGLE_PLACES_API_KEY` is set.
+(no API key; `map/mapStyle.ts`). The photoreal 3D view ("Fly the day",
+`photoreal/`) is optional: a day's "…" menu shows "Fly the day in 3D" when
+`photorealAvailable()` is true (a Google tiles / Places key plus WebGL2 in
+production; always in a dev build, which falls back to a procedural ground).
 
-**Map Mode contract:** `GET /api/trips/:id/days/:dayId/places` emits the same
-`PlacesResponse`/`RankedPlace` shape as the legacy Korea endpoint, so
-`MapModeOverlay` (via its `placesUrl` prop) renders any trip's day without 3D
-scene changes. AI-added places must always carry structured locations — never
-prose only.
+**Photoreal 3D view:** `photoreal/PhotorealOverlay` (lazy, default export)
+takes `trip`, `day`, `dayNumber`, `initialStopId?`, `onClose`, `onEditStop?`
+and reads the day document directly — no fetch. `photoreal/scene.ts` is the
+engine: created once per open, driven by methods (`select`, `fitAll`,
+`setStops`, `setTheme`, `orientNorth`, `toggleTilt`, `setUser`, `dispose`),
+renders on demand. `GET /api/trips/:id/days/:dayId/places` stays for
+compatibility but the client no longer calls it. AI-added places must always
+carry structured locations — never prose only.
 
 **Permissions:** owner > editor/viewer collaborators > `sharedWithAllUsers`
 (legacy Korea behavior: all signed-in users can view/edit). Only owners delete,
@@ -115,23 +121,20 @@ destination work. Do not add new destination-specific routes or logic.
 
 ### Korea Pages (`frontend/src/pages/Korea/`)
 
-Shared photoreal Map Mode, places, and linkify implementation. Frontend `/korea*`
-redirects to `/trips/korea-2026`. Trips only imports `MapModeOverlay` (day menu,
-"Explore in photoreal 3D"); the Instagram ingest and places-library UIs here are
-no longer mounted by any route. Keep these files; do not add `/japan`-style
-routes.
+Legacy Korea pages, places, and linkify implementation. Frontend `/korea*`
+redirects to `/trips/korea-2026`; none of these pages is mounted by a route.
+Trips imports only helpers from here (`ThemeToggle`, `koreaUtils`,
+`koreaChatApi`, `ConciergeSources`, `ConciergeText*`, `types`). The old Map
+Mode (overlay, scene, effects pipelines) is gone; its successor lives in
+`pages/Trips/photoreal/`. Do not add `/japan`-style routes.
 
 | File | Purpose |
 |------|---------|
 | `KoreaLayout.tsx` | Shell with auth gate, theme toggle, KST clock; mounts `KoreaChat` |
-| `KoreaIndex.tsx` | Trip hero, day list, Map Mode entry |
+| `KoreaIndex.tsx` | Trip hero, day list |
 | `KoreaDay.tsx` | Day detail — reservations, places, timeline |
 | `KoreaChat.tsx` | Concierge SSE (`POST /api/korea/chat`) |
-| `Detailed3DScene.tsx` | Photorealistic 3D tiles Map Mode scene (replaced orbital `MapModeScene`) |
-| `MapModeOverlay.tsx` | Shared overlay (Korea + Trips via `placesUrl`) |
-| `PlaceDetailSheet.tsx` | Slide-up detail panel for a place |
 | `Places.tsx` | Full places list with skeleton loaders |
-| `Ingest.tsx` | Instagram URL ingestion UI |
 | `LinkifiedText.tsx` | Auto-links flight #s, addresses, phones |
 | `SmartEntity.tsx` | Entity cards with linked metadata |
 
@@ -283,7 +286,7 @@ Routes are lazy-loaded inside `Guarded` (`RouteErrorBoundary` + `Suspense`). All
 | `/korea` | Redirect to `/trips/korea-2026` | Clerk-gated (via trips) |
 | `/korea/day/:slug` | Redirect to `/trips/korea-2026/day/:slug` | Clerk-gated (via trips) |
 | `/korea/places` | Redirect to `/trips/korea-2026` | Clerk-gated (via trips) |
-| `/korea/ingest` | Redirect to `/trips/korea-2026` | Clerk-gated (via trips) |
+| `/korea/ingest` | Redirect to `/trips/korea-2026?ingest=1` (opens the Instagram import) | Clerk-gated (via trips) |
 | `/korea/*` | Redirect to `/trips/korea-2026` | Clerk-gated (via trips) |
 | `/trips` | Atlas index — globe with a chip per trip, trip cards (bucketed Happening now / Upcoming / Past from four trips), search `/`, new trip `n` | Clerk-gated |
 | `/trips/new` | Create — destinations, dates, optional name, optional AI draft | Clerk-gated |
@@ -294,7 +297,7 @@ Routes are lazy-loaded inside `Guarded` (`RouteErrorBoundary` + `Suspense`). All
 | `/trips/:tripId/places` | Redirect to `/trips/:tripId` (hash + query kept) | Clerk-gated |
 | `/trips/*` | `TripsNotFound` | Clerk-gated |
 
-Not separate routes: `TripChat` FAB, share dialog, trip details dialog, AI sheets, photoreal Map Mode (day "…" menu). The Trips UI no longer has Instagram ingest, an extracted-places library or a per-trip places page; the server IG routes remain. `KoreaChat` remains the `/api/korea/chat` client (trips concierge fallback). Do not add destination-specific routes.
+Not separate routes: `TripChat` FAB, share dialog, trip details dialog, AI sheets, the photoreal 3D view (day "…" menu, "Fly the day in 3D"). Instagram import is a sheet, not a route (`instagram/InstagramSheet.tsx`): opened from the trip menu, the overview's "From Instagram" button, by pasting a post link into a day's composer, or by `?instagram=<link>` / `?ingest=1` (the PWA share target sends shared links to `/trips?url=…`, which forwards to the current or next trip). `KoreaChat` remains the `/api/korea/chat` client (trips concierge fallback). Do not add destination-specific routes.
 
 ---
 
@@ -342,7 +345,7 @@ Frontend (`frontend/.env` from CI secret `FRONTEND_ENV`):
 - `VITE_CLERK_PUBLISHABLE_KEY`
 - `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY`
 - `VITE_POSTHOG_KEY`
-- `VITE_GOOGLE_PLACES_API_KEY`, `VITE_GOOGLE_MAP_TILES_API_KEY` — photoreal Map Mode photos / 3D tiles only. Trips maps (MapLibre + OpenFreeMap) and place/city search (Photon, Open-Meteo) need no key
+- `VITE_GOOGLE_PLACES_API_KEY`, `VITE_GOOGLE_MAP_TILES_API_KEY` — the photoreal 3D view's tiles and place photos only. Trips maps (MapLibre + OpenFreeMap) and place/city search (Photon, Open-Meteo) need no key
 - `VITE_ENABLE_SERVICE_WORKER` — preview builds disable registration
 - `VITE_API_BASE` / `VITE_BASE` — preview builds only
 
@@ -376,13 +379,13 @@ Full CI/CD agent memory: [`docs/ci-cd.md`](docs/ci-cd.md).
 
 | Chunk | Contents | Why |
 |-------|----------|-----|
-| `three-core` | `three.core.js` | Shared by Map Mode and every WebGPU scene |
-| `three` | three.js WebGL build + loaders + OrbitControls | Only loaded in Map Mode |
+| `three-core` | `three.core.js` | Shared by the photoreal 3D view and every WebGPU scene |
+| `three` | three.js WebGL build + loaders + OrbitControls | Only loaded by the photoreal 3D view |
 | `three-webgpu` | `three/webgpu` + `three/tsl` + TSL addons + `three-blocks` | Lazy WebGPU scenes: landing hero, Lim, BreathFlow bloom |
-| `tiles3d` | 3d-tiles-renderer | Only loaded in Detailed-3D debug mode |
+| `tiles3d` | 3d-tiles-renderer | Only loaded by the photoreal 3D view |
 | `maplibre` | maplibre-gl + `@maplibre/*` + `@mapbox/*` | Every Trips map. Lazy: loads with the first map (`map/engine.ts`), not with the route. ≈ 1.07 MB / 290 kB gzip |
 | `react-vendor` | react + react-dom + scheduler | Stable cache |
-| `motion` | motion/framer-motion | Used by Places and MapMode — split prevents Places from pulling in three.js |
+| `motion` | motion/framer-motion | Shared; split so no route drags it in through a three.js chunk |
 | `effect` | effect + `@effect/*` | Frontend I/O runtime |
 | `supabase` | @supabase/* | Auth + sync |
 | `router` | react-router | Routing |
@@ -390,7 +393,7 @@ Full CI/CD agent memory: [`docs/ci-cd.md`](docs/ci-cd.md).
 | `state` | zustand | State |
 | `icons` | lucide-react | Icons |
 | `markdown` | react-markdown + remark | Chatbot + trip concierge |
-| `korea-map` | Korea MapMode source | Photoreal 3D scene (opened from a Trips day menu via `MapModeOverlay`) |
+| `photoreal` | `pages/Trips/photoreal/` except `available.ts` | Photoreal 3D view, opened from a Trips day menu. `tiles3d` loads behind it only when there is a tiles key |
 
 Chunk size warning ceiling is 1100 kB (intentional — `maplibre` is the largest chunk at ≈ 1.07 MB; it and `three` are lazily loaded and cached by SW).
 
@@ -410,7 +413,7 @@ Chunk size warning ceiling is 1100 kB (intentional — `maplibre` is the largest
 - **Reduced motion:** All transforms / pulses / orbital rotations must honor `prefers-reduced-motion`
 - **Touch targets:** Minimum 44 × 44 px for all interactive elements
 - **Focus indicators:** Visible focus rings on every interactive element (route-specific accent color)
-- **ARIA:** Live regions, proper roles, and explicit labels on every dynamic surface (breathing orb, Map Mode bubbles, status banners)
+- **ARIA:** Live regions, proper roles, and explicit labels on every dynamic surface (breathing orb, 3D stop pins, status banners)
 - **i18n:** No layouts that break on long Korean / hangul strings; copy uses `break-words` + `overflow-wrap:anywhere` defensively
 
 ## Shared Tech Stack
@@ -422,7 +425,7 @@ Chunk size warning ceiling is 1100 kB (intentional — `maplibre` is the largest
 - Effect v3 (`effect`, `@effect/language-service`) for frontend I/O — see [Frontend Effect-TS](#frontend-effect-ts)
 - Bun + Hono (server), Clerk (`@clerk/clerk-react` ^5), Supabase, PostHog
 - MapLibre GL JS v6 + OpenFreeMap vector tiles for every Trips map (no API key)
-- Three.js: WebGL for photoreal Map Mode (Korea seed and any trip day, opened from the Trips day menu); `three/webgpu` + TSL for the landing, Lim and BreathFlow scenes, all on the shared `frontend/src/three/` toolkit. Trips has no Three.js scenes of its own
+- Three.js: WebGL for the photoreal 3D view (`pages/Trips/photoreal/`, any trip day, opened from the day menu); `three/webgpu` + TSL for the landing, Lim and BreathFlow scenes, all on the shared `frontend/src/three/` toolkit. Everyday Trips maps are MapLibre, not Three.js
 
 ## Frontend Effect-TS
 
@@ -452,7 +455,7 @@ All new frontend network I/O is Effect. Skill: [`.agents/skills/effect-ts/SKILL.
 - Replace `apiFetch` with `@effect/platform` `FetchHttpClient`
 - `Schema.decode` complex `Trip` / `ExtractedPlace` documents (`Schema.Struct` strips unknown keys)
 - Introduce `Effect.Service` / `AppLayer` / effect-atom unless a module has real injectable dependencies
-- Use React `Activity` to hide Map Mode / WebGL (must unmount)
+- Use React `Activity` to hide the photoreal 3D view / WebGL (must unmount)
 - Move BreathFlow Zustand stores or `useCloudSync` Supabase calls onto Effect
 
 Stay on Effect v3 (`effect@3`). Do not upgrade to Effect v4 beta.
@@ -505,7 +508,7 @@ Code: `frontend/src/pages/Landing/` (`Landing.tsx`, `parts.tsx`, `content.ts`, `
 - **Palette:** bone `#EDE8DF` canvas, ink `#0E1024`, one ultramarine accent `#2433E0`. Tokens are `--lim-*` vars on `.landing` in `index.css`. Display type is Archivo (wdth axis), with Fragment Mono for data.
 - **Hero:** WebGPU (WebGL2 fallback) soft-body glass droplet (`scene/heroScene.ts`). It's a three-blocks `MeshTransmissionNodeMaterial` with spring physics (drag, poke, stretch). Normals come from a procedurally hand-painted brush field (`scene/painter.ts`), which also serves as the static still and fallback. TSL post: bloom, scroll-driven ink dissolve, three-blocks `filmHD`. The scene runs only while on screen; reduced motion freezes the clock.
 - **License:** `three-blocks` is PolyForm Noncommercial 1.0.0. The footer carries the Required Notice — keep it. Commercial use needs a three-blocks license.
-- **Chunks:** the hero loads `three-core` + `three-webgpu` only; Map Mode loads `three-core` + `three`.
+- **Chunks:** the hero loads `three-core` + `three-webgpu` only; the photoreal 3D view loads `three-core` + `three`.
 
 ## Design Context: `/chatbot` — Lim, the jelly companion
 
@@ -599,45 +602,28 @@ Unlocked bloom pigments (Settings, by level) override the technique pigment with
 
 The Korea trip is the seeded trip `korea-2026` (rose accent). It renders in the atlas workspace like any other trip; there is no separate rose / amber parchment dossier any more. Page design: the "Design Context: `/trips/*`" section below. Legacy `/korea*` frontend routes redirect here. `/api/korea/*` remains. Do not add new destination-specific routes.
 
-What stays Korea-specific is data (snapshot seed, `/api/korea/chat` concierge fallback), the Korea-scoped PWA, and the photoreal Map Mode code in `frontend/src/pages/Korea/`. Everything below describes photoreal Map Mode, which any trip day opens from its "⋯" menu ("Explore in photoreal 3D").
+What stays Korea-specific is data (snapshot seed, `/api/korea/chat` concierge fallback) and the Korea-scoped PWA.
 
 ### Users
 Anthony (primary) and his partner, planning and executing a 12-day Seoul + Busan trip in late May / early June 2026. Phones for in-trip lookups, desktop for planning.
 
-### Photoreal Map Mode: Aesthetic Direction
-- **Scene:** Google Photorealistic 3D Tiles with a glassy YOU pin on the terrain. Light and dark are both first-class.
-- **YOU pin:** glassy `MeshPhysicalMaterial` droplet + water puddle (`youPin.ts`), snapped to the photogrammetry mesh. Label is DOM-projected from world coords.
-- **Place markers:** category-tinted `MeshStandardMaterial` spheres above terrain + ground beams, not glass orbs.
-- **References:** Apple Maps Look Around, `flighty.app`, `monocle.com/travel`.
-- **Anti-references:** Booking.com clutter, generic trip-planner SaaS dashboards, tourism brochures, OpenStreetMap defaults.
-
-### Photoreal Map Mode Tokens
-
-| Token | Light | Dark | Usage |
-|-------|-------|------|-------|
-| Accent — primary | `#F43F5E` (rose-500) | `#FB7185` (rose-400) | Scheduled reservations, YOU pin, primary CTAs |
-| Accent — secondary | `#F59E0B` (amber-500) | `#FBBF24` (amber-400) | Core itinerary items |
-| Accent — supplemental | `#A8A29E` (stone-400) | `#78716C` (stone-500) | Supplemental / extras in Map Mode |
-| Success | `#10B981` (emerald-500) | `#34D399` (emerald-400) | Confirmed booking status |
-| Pending | `#F59E0B` (amber-500) | `#FBBF24` (amber-400) | Reservation pending |
-| Place marker | per-place category color | same | Emissive sphere + ground beam |
-
 ### Korea-specific Principles
 
-1. **YOU is world-anchored on the mesh.** Camera target can lerp toward a selected place; reset returns to a 45° birds-eye on YOU.
-2. **Refraction is for the YOU pin only.** Place markers stay solid. BreathFlow chrome stays matte.
-3. **Distance is information, not chrome.** Every place card / marker label surfaces distance + walking ETA prominently as a colored pill — it's the most-used piece of data, not a footnote.
-4. **Smart links everywhere.** Flight numbers → carrier tracker, KTX → Korail timetable, addresses → Google Maps, phones → `tel:`, times → AM/PM tooltip. Free-form copy gets auto-linked by the `LinkifiedText` engine.
-5. **PWA auto-update is mandatory.** Service worker + client must auto-swap to the latest version after each deploy — users should never see stale Map Mode. Bump `CACHE_VERSION` on every breaking SW change.
+1. **Smart links everywhere.** Flight numbers → carrier tracker, KTX → Korail timetable, addresses → Google Maps, phones → `tel:`, times → AM/PM tooltip. Free-form copy gets auto-linked by the `LinkifiedText` engine.
+2. **PWA auto-update is mandatory.** Service worker + client must auto-swap to the latest version after each deploy. Bump `CACHE_VERSION` on every breaking SW change.
 
-### Map Mode-specific Conventions
+## Design Context: photoreal 3D view — "Fly the day"
 
-- Overlay: `MapModeOverlay.tsx` (`placesUrl`). Scene: `Detailed3DScene.tsx` (Google Photorealistic 3D Tiles). `MapModeScene.tsx` is gone.
-- Trips reuse the overlay with `/api/trips/:id/days/:dayId/places`, opened from a day's "…" menu ("Explore in photoreal 3D"). Everyday Trips maps are MapLibre, not this scene.
-- Reset pitch ≈ `Math.PI / 4`. No auto-rotate. Adaptive tile quality / DPR (`adaptiveQuality.ts`, `deviceTier.ts`).
-- Missing `VITE_GOOGLE_MAP_TILES_API_KEY` (or Places key fallback) or no WebGL → `MapModeFallbackList`.
-- **Must unmount** when closed — do not hide with React `Activity`.
-- Concierge chips may open Google/Apple Maps (`lib/externalMaps.ts`).
+Code: `frontend/src/pages/Trips/photoreal/`. Any trip day opens it from its "⋯" menu ("Fly the day in 3D"). The day's located stops stand on Google Photorealistic 3D Tiles; chrome is atlas paper plates (opaque `--trips-*` surfaces, no glass stacks).
+
+- **Files:** `PhotorealOverlay.tsx` (chrome + state, `role="dialog"` with focus trap), `photoreal.stylex.ts`, `scene.ts` (engine), `tilesGround.ts` (Google tiles) / `devGround.ts` (DEV-only procedural model city, dynamic import), `camera.ts` + `sun.ts` + `stops.ts` (pure, tested), `terrainAnchor.ts`, `adaptiveQuality.ts`, `deviceTier.ts`, `youPin.ts`, `available.ts` (`photorealAvailable()`; the only file outside the `photoreal` chunk).
+- **Stops:** the day map's `.atlas-pin` stop pins as DOM buttons (`.photoreal-pin*` in `index.css`), projected from terrain-snapped points, each with a 3D stem and ground ring. Crowded or occluded pins shrink to dots. Numbering comes from `dayStops` and matches `dayPins`.
+- **Route:** one shallow 3D arc per leg in the trip accent on a paper casing; the selected stop's legs are emphasised.
+- **Camera:** arrival fly-in once tiles exist (or after 2.5 s), fly-to on select (tilt 54°, 250–450 m), a slow idle orbit that any input stops, time-based tweens. Chrome insets shift the optical centre (`setInsets`). Reduced motion: jump cuts with a short canvas dip, no orbit, no tour.
+- **Chrome:** desktop is a left panel (title, Play tour, stop list with legs; the selected stop unfolds into the card); phones get a title plate, a numbered rail and a swipeable bottom card. Top-right: compass, tilt, locate, fit all. Keys: ← / → step, Home / End, Space tour, F fit all, Esc close.
+- **You:** no location prompt on open. Shown (brand-accent glass droplet) only when permission is already granted or the traveller taps locate, and only within 50 km of the stops.
+- **Light:** sun from the trip's time zone, the day's date and the anchor latitude (the selected stop's time when it has one). Tiles stay unlit (pre-lit photogrammetry); the dark theme tints them to dusk. No bloom, god rays or clouds.
+- **Rules:** renders on demand (no rAF at rest); disposes with `forceContextLoss()`; **must unmount** when closed (never React `Activity`); Google attribution stays visible; failure (no WebGL, tiles refused) shows a calm card with the stop list and Directions links.
 
 ---
 
@@ -654,6 +640,7 @@ Code: `frontend/src/pages/Trips/`. Full design notes: [`DESIGN.md`](DESIGN.md) /
 - **Workspace:** `TripWorkspace` renders `/trips/:tripId` (overview) and `/trips/:tripId/day/:dayId` (that day): itinerary pane + sticky map. The full trip header shows on the overview only; day pages use a compact one-row header (trip name links to the overview, Share, ⋯ with "Improve whole trip with AI"). Left / right arrow keys change day. Phones get a docked bottom bar with an Itinerary | Map switch (`radiogroup`) and the concierge button inside it.
 - **Editing:** inline trip / day titles. Stop cards have a time column on the left (above the title on phones); the drag grip (Motion `Reorder`) shows on hover / focus and is hidden on phones; Alt+↑ / ↓ reorders with a live announcement, and the item editor keeps Move up / Move down. The day menu offers "Sort stops by time" when times are out of order. Stop times use a typed `TimeField` (`parseClock` in `meta.ts`) with "Add end time". One "Add a place, note or booking…" composer per day with keyless place search (picking a result pins it on the map immediately); per-item editor (time, location search / pin, notes, status, booking type + confirmation, move to day, duplicate, delete with Undo toast); autosave with a Saved / Saving / Retry indicator; trip details dialog (name, destinations, dates, colour accent, description, status, time zone); duplicate trip, delete trip (owner), clear day.
 - **Icons:** sparkle = AI generation, lightbulb = "Ideas for this day", chat glyph = concierge.
+- **Instagram import:** "Places from Instagram" sheet. Paste a post or Reel link (pasting is the whole gesture; the day composer recognises links too). Posts are read quickly first (caption + comments) and re-read with the video on their own if that finds nothing; a hairline progress bar and plain step labels show the read. Each place found gets a row (name, address, the line from the post) and a pin on the sheet's own map; "+ Day N" adds it to the day in view or the nearest day, "Add all" adds a post's places at once, and places already on the trip show "On day N". Everything found is kept under Saved for every trip (search, remove). Never show pipeline logs or raw errors.
 - **Sharing:** link-first. Owner picks "Can view" / "Can edit" and copies an invite link; anyone signed in who opens `/trips/join/:token` joins with that role. Owner changes roles, removes people, turns links off; collaborators can leave.
 - **AI:** full-trip draft (`/generate`; from create, the empty overview, or "Start a fresh draft" with a replace confirmation), per-day "Ideas for this day" and whole-trip "Improve with AI" (`/enhance`; added places are auto-applied, flashed in the list and dropped onto the map; other suggestions are reviewed from a checklist), concierge chat FAB (`TripChat`, `chat.stylex.ts`).
 - **Type:** Instrument Serif display (`--trips-display`, italic for the emphasised word), Inter body, Fragment Mono eyebrows / data (`--trips-mono`).
@@ -685,7 +672,7 @@ Radius `0.875rem` (`-sm` `0.625rem`, `-lg` `1.375rem`); shadows `--trips-shadow-
 4. **44px targets; draw your own focus ring.** Trips sets `.trips :focus-visible { outline: none }`, so every new control needs a `--brand-ring` ring (`a.focusable`).
 5. **Editable titles** use the `trips-title-input` / `trips-day-title-input` classes to opt out of the 16px phone input pin.
 6. **Portals** go through `kit.tsx` `Modal`, which re-declares the token scope (`.trips.trips-portal`).
-7. **Photoreal Map Mode must unmount** when closed (never React `Activity`).
+7. **The photoreal 3D view must unmount** when closed (never React `Activity`).
 8. **Brand for chrome, trip accent for identity.** Never tint focus rings, AI actions, switches or links with `--ta*`.
 
 ---
@@ -724,7 +711,7 @@ The March 2025 BreathFlow audit is **historical**. BreathFlow was rebuilt in `fr
 
 - Zustand persisted stores + `lazy()` route splits + Effect I/O
 - Token system + safe-area handling + GPU-friendly motion
-- Map Mode unmount (never React `Activity`)
+- Photoreal 3D view unmount (never React `Activity`)
 
 ---
 

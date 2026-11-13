@@ -5,9 +5,11 @@ import {
   dayRoute,
   distanceMeters,
   formatCoord,
+  locatedItems,
   projectToBox,
   routeMeters,
   spanMeters,
+  splitDay,
   DAY_PIN,
   tripDots,
   tripPins,
@@ -190,5 +192,39 @@ describe("projectToBox", () => {
     // A purely horizontal spread fills the usable width.
     expect(west!.x).toBeCloseTo(20, 6)
     expect(east!.x).toBeCloseTo(380, 6)
+  })
+})
+
+describe("places parked under To schedule", () => {
+  const at = (id: string, lat: number, lng: number) =>
+    ({ id, kind: "place", title: id, status: "none", createdBy: "user", location: { name: id, lat, lng, source: "user" } }) as const
+  const day = {
+    id: "d",
+    date: "2026-12-05",
+    items: [
+      at("a", 38.715, -9.126),
+      at("b", 38.716, -9.131),
+      { id: "h", kind: "section", title: "To schedule", status: "none", createdBy: "user" } as const,
+      at("far", 38.6975, -9.2032),
+    ],
+  }
+
+  it("stay off the route and out of the stop numbering", () => {
+    expect(locatedItems(day).map((i) => i.id)).toEqual(["a", "b"])
+    expect(dayRoute(day)).toHaveLength(2)
+    expect(splitDay(day).parked.map((i) => i.id)).toEqual(["far"])
+  })
+
+  it("still show on the map, as unnumbered dots", () => {
+    const pins = dayPins(day)
+    expect(pins.map((p) => [p.id, p.variant, p.label])).toEqual([
+      ["a", "stop", "1"],
+      ["b", "stop", "2"],
+      ["far", "dot", undefined],
+    ])
+  })
+
+  it("a day without the heading is all plan", () => {
+    expect(splitDay({ items: day.items.slice(0, 2) }).parked).toEqual([])
   })
 })

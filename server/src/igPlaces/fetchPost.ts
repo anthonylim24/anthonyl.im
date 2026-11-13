@@ -116,6 +116,12 @@ async function tryBrightData(url: string, f: typeof fetch, apiKey: string | unde
         signal: AbortSignal.timeout(180_000),
       });
     if (r.status === 429) return { error: new RetryableError('bright-data rate-limited', 300_000) };
+    // A rejected key will not start working on the next attempt: fail now
+    // so the traveller is told instead of watching five retries.
+    if (r.status === 401 || r.status === 403) {
+      const body = await r.text().catch(() => '');
+      return { error: new NonRetryableError(`bright-data auth failed (${r.status}): ${body.slice(0, 120)}`) };
+    }
     if (!r.ok) {
       const body = await r.text().catch(() => '');
       return { error: new Error(`bright-data ${r.status}: ${body.slice(0, 200)}`) };

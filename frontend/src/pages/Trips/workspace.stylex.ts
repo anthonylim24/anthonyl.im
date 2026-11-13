@@ -770,6 +770,35 @@ export const ws = stylex.create({
   },
 
   // ── Map overlays ──────────────────────────────────────
+  // The way into the photoreal 3D view, under the map's day chip.
+  flyBtn: {
+    position: "absolute",
+    top: "3.5rem",
+    left: "0.75rem",
+    zIndex: 4,
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "0.4375rem",
+    minHeight: "2.75rem",
+    paddingInline: "1rem",
+    borderRadius: "999px",
+    backgroundColor: "var(--trips-ink)",
+    color: "var(--trips-canvas)",
+    fontSize: "0.8125rem",
+    fontWeight: 600,
+    boxShadow: "var(--trips-shadow-2)",
+    cursor: "pointer",
+    outline: "none",
+    transitionProperty: "transform",
+    transitionDuration: "200ms",
+    transitionTimingFunction: "var(--trips-spring)",
+    ":focus-visible": { boxShadow: "0 0 0 2px var(--trips-surface), 0 0 0 4px var(--brand-ring)" },
+    ":active": { transform: "scale(0.96)" },
+  },
+  // "To schedule" divider: title and hint side by side, stacked on a phone.
+  parkHead: { flexWrap: "wrap", rowGap: "0.125rem", scrollMarginTop: "9rem" },
+  parkTitle: { whiteSpace: "nowrap", flexGrow: 1 },
+  parkHint: { "@media (max-width: 639.98px)": { flexBasis: "100%" } },
   mapChip: {
     position: "absolute",
     top: "0.75rem",

@@ -6,7 +6,10 @@
   "scope": "/trips",
   "display": "standalone",
   "orientation": "any",
-  "categories": ["travel", "lifestyle"],
+  "categories": [
+    "travel",
+    "lifestyle"
+  ],
   "background_color": "#FBF6EE",
   "theme_color": "#FBF6EE",
   "icons": [
@@ -34,6 +37,20 @@
       "name": "Reservations",
       "short_name": "Bookings",
       "url": "/trips/korea-2026#reservations"
+    },
+    {
+      "name": "Add places from Instagram",
+      "short_name": "Instagram",
+      "url": "/trips/korea-2026?ingest=1"
     }
-  ]
+  ],
+  "share_target": {
+    "action": "/trips",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  }
 }

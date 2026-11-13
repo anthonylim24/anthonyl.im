@@ -24,6 +24,7 @@ import {
   withLlmFallback,
 } from "./ai"
 import type { EnhancementRun, Trip } from "./types"
+import { GEMINI_MODEL } from "../igPlaces/gemini"
 
 function makeTrip(overrides: Partial<Trip> = {}): Trip {
   return {
@@ -596,7 +597,7 @@ describe("createGeminiLlm", () => {
     const llm = createGeminiLlm("test-key", fetchImpl)
     const out = await llm({ system: "SYS", user: "USER" })
     expect(out).toBe('{"summary":"ok","days":[]}')
-    expect(captured!.url).toContain("gemini-3.7-flash:generateContent")
+    expect(captured!.url).toContain(`${GEMINI_MODEL}:generateContent`)
     expect(captured!.body.tools).toEqual([{ googleSearch: {} }, { googleMaps: {} }])
     expect(captured!.body.toolConfig).toBeUndefined()
     const gen = captured!.body.generationConfig as { thinkingConfig: { thinkingLevel: string } }
@@ -946,5 +947,16 @@ describe("createPhotonGeocoder", () => {
   test("never throws when fetch rejects", async () => {
     const geocode = createPhotonGeocoder((() => Promise.reject(new Error("network down"))) as unknown as typeof fetch)
     expect(await geocode("x")).toBeNull()
+  })
+})
+
+describe("normalizeAiItem notes", () => {
+  test("moves a leaked status token out of the prose and into the field", () => {
+    const item = normalizeAiItem({ kind: "place", title: "Dinner", notes: "Book ahead (needs_review); try the octopus." }) as {
+      notes: string
+      status?: string
+    }
+    expect(item.notes).toBe("Book ahead; try the octopus.")
+    expect(item.status).toBe("needs_review")
   })
 })

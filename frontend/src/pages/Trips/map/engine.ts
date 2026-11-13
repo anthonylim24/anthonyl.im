@@ -20,6 +20,8 @@ export interface AtlasMapOptions {
   zoom?: number
   /** Hero globes: no scroll-zoom hijack, slow idle rotation. */
   ambient?: boolean
+  /** Start top-down (small reference maps); the tilt button still works. */
+  flat?: boolean
   onSelect?: (id: string) => void
   onHover?: (id: string | null) => void
   onReady?: () => void
@@ -112,7 +114,7 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
   let lastFrame: { points: readonly LngLat[]; opts: FrameOptions } | null = null
   let active: string | null = null
   let hot: string | null = null
-  let tilted = true
+  let tilted = !options.flat
   let spin = false
   let spinFrame = 0
   let lastSpin = 0
@@ -492,7 +494,21 @@ export function createAtlasMap(container: HTMLElement, options: AtlasMapOptions)
       const bounds = new LngLatBounds()
       for (const point of points) bounds.extend([point.lng, point.lat])
       const view = cameraFor(points)
-      const fit = map.cameraForBounds(bounds, { padding, maxZoom: opts.maxZoom ?? 15.8, bearing: view.bearing })
+      // A host that has not been laid out yet (or is smaller than its
+      // padding) makes MapLibre throw on a NaN camera; the resize observer
+      // frames again once there is room.
+      if (
+        container.clientWidth <= padding.left + padding.right + 8 ||
+        container.clientHeight <= padding.top + padding.bottom + 8
+      ) {
+        return
+      }
+      let fit: ReturnType<typeof map.cameraForBounds>
+      try {
+        fit = map.cameraForBounds(bounds, { padding, maxZoom: opts.maxZoom ?? 15.8, bearing: view.bearing })
+      } catch {
+        return
+      }
       if (!fit) return
       // cameraForBounds fits a top-down view; a tilted camera sees a little
       // further at the top, so sit slightly tighter.

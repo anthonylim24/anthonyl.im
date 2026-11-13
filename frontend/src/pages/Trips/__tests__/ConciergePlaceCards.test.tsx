@@ -4,7 +4,7 @@ import type { ConciergePlace } from "../../../lib/conciergeGrounding"
 import { ConciergePlaceCards } from "../ConciergePlaceCards"
 import type { TripDay } from "../types"
 
-vi.mock("../../Korea/placePhoto", () => ({
+vi.mock("../placePhoto", () => ({
   lookupPhoto: vi.fn().mockResolvedValue(null),
   lookupGooglePlacePhoto: vi.fn().mockResolvedValue(null),
 }))

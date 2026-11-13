@@ -16,8 +16,9 @@ export function KoreaPlacesRedirect() {
   return <Navigate to={`/trips/${KOREA}`} replace />
 }
 
+/** The old ingest page is now the Instagram import sheet on the trip. */
 export function KoreaIngestRedirect() {
-  return <Navigate to={`/trips/${KOREA}`} replace />
+  return <Navigate to={`/trips/${KOREA}?ingest=1`} replace />
 }
 
 export function KoreaCatchRedirect() {

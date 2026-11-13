@@ -126,9 +126,14 @@ export const generateItinerary = (
   id: string,
   input: { prompt?: string; preferences?: GeneratePreferences; replaceExisting?: boolean },
 ) =>
-  request<{ trip: Trip; summary?: string }>(getToken, `/${encodeURIComponent(id)}/generate`, {
+  // A slow draft answers 200 with a heartbeat body, so a late failure
+  // arrives as `{ error, message }` rather than a status code.
+  request<{ trip?: Trip; summary?: string; error?: string; message?: string }>(getToken, `/${encodeURIComponent(id)}/generate`, {
     method: "POST",
     body: JSON.stringify(input),
+  }).then((body) => {
+    if (!body.trip) throw new Error(body.message ?? body.error ?? "The draft did not finish.")
+    return { trip: body.trip, summary: body.summary }
   })
 
 export interface EnhanceTripResult {

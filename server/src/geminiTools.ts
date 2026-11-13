@@ -1,10 +1,10 @@
 /** Gemini built-in grounding tools + a 400-fallback fetch for chat streams.
  *
- *  Gemini 3.7 Flash supports Search and Maps together. Some combinations
+ *  The app model supports Search and Maps together. Some combinations
  *  (or account/region flags) still 400 INVALID_ARGUMENT — chat then steps
  *  down Search+Maps → Maps → Search → no tools rather than failing the turn.
  */
-import { GEMINI_BASE, GEMINI_MODEL } from "./igPlaces/gemini"
+import { fetchGeminiModel, GEMINI_BASE, GEMINI_MODEL } from "./igPlaces/gemini"
 
 export type GeminiToolList = Array<Record<string, unknown>>
 
@@ -55,11 +55,11 @@ export async function fetchGeminiWithTransientRetry(
   init: RequestInit,
   fetchImpl: typeof fetch = fetch,
 ): Promise<Response> {
-  const first = await fetchImpl(url, init)
+  const first = await fetchGeminiModel(fetchImpl, url, init)
   if (!TRANSIENT_GEMINI.has(first.status)) return first
   await first.text().catch(() => {})
   await delay(800, init.signal)
-  return fetchImpl(url, init)
+  return fetchGeminiModel(fetchImpl, url, init)
 }
 
 function delay(ms: number, signal?: AbortSignal | null): Promise<void> {

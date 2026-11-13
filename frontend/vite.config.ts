@@ -54,7 +54,7 @@ export default defineConfig({
         // multiple groups match the same module.
         advancedChunks: {
           groups: [
-            // three.core is shared; the WebGL build (Map Mode) and the
+            // three.core is shared; the WebGL build (photoreal 3D view) and the
             // WebGPU/TSL build + three-blocks (landing hero) never load together.
             { name: 'three-core', test: /[\\/]node_modules[\\/]three[\\/]build[\\/]three\.core/, priority: 102 },
             {
@@ -63,18 +63,15 @@ export default defineConfig({
               priority: 101,
             },
             { name: 'three', test: /[\\/]node_modules[\\/]three[\\/]/, priority: 100 },
-            // 3DTilesRendererJS only loads when Map Mode opens — keep
-            // it in its own chunk so other Korea routes stay slim.
-            { name: 'tiles3d', test: /[\\/]node_modules[\\/]3d-tiles-renderer[\\/]/, priority: 95 },
+            // 3DTilesRendererJS only loads when the photoreal 3D view opens
+            // with a tiles key.
+            { name: 'tiles3d', test: /[\\/]node_modules[\\/]3d-tiles-renderer[\\/]/, priority: 95, includeDependenciesRecursively: false },
             // MapLibre draws every Trips map; it loads with the first map, not
             // with the Trips shell. The MLT/style-spec deps ride along.
             { name: 'maplibre', test: /[\\/]node_modules[\\/](maplibre-gl|@maplibre|@mapbox)[\\/]/, priority: 94 },
             { name: 'react-vendor', test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/, priority: 90 },
-            // motion/react is used by both Places (text-only) and MapMode
-            // (heavy 3D). Without this group, rolldown buries motion inside
-            // the korea-map chunk, which static-imports three.js (~685 KB).
-            // The Places page would then drag in 800 KB+ of 3D code it
-            // never renders. Splitting motion out keeps Places lean.
+            // motion/react is shared by many routes; its own group keeps it
+            // from being buried in a chunk that static-imports three.js.
             { name: 'motion', test: /[\\/]node_modules[\\/](motion|framer-motion)[\\/]/, priority: 85 },
             { name: 'effect', test: /[\\/]node_modules[\\/](effect|@effect)[\\/]/, priority: 82 },
             { name: 'supabase', test: /[\\/]node_modules[\\/]@supabase[\\/]/, priority: 80 },
@@ -84,10 +81,16 @@ export default defineConfig({
             { name: 'icons', test: /[\\/]node_modules[\\/]lucide-react[\\/]/, priority: 40 },
             // Shared by the homepage chatbot and the trip concierge.
             { name: 'markdown', test: /[\\/]node_modules[\\/](react-markdown|remark-gfm|remark-parse|remark-rehype|unified)[\\/]/, priority: 38 },
+            // The photoreal 3D view ("Fly the day"). `available.ts` is left
+            // out: the workspace imports it eagerly, and it must not drag
+            // this chunk (and three.js behind it) into the Trips route.
             {
-              name: 'korea-map',
-              test: /[\\/]pages[\\/]Korea[\\/](MapMode|Detailed3D|mapLocation|deviceTier|godRays|maxQuality|volumetric|timeOfDay|mapSun|mapGrade|adaptiveQuality)/,
+              name: 'photoreal',
+              test: /[\\/]pages[\\/]Trips[\\/]photoreal[\\/](?!available)/,
               priority: 30,
+              // Only these files: the atlas primitives, meta and geo they
+              // import are shared with the workspace and must stay out.
+              includeDependenciesRecursively: false,
             },
           ],
         },

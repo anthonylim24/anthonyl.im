@@ -31,7 +31,7 @@ Frontend network I/O uses **Effect v3** — do not add raw `fetch` for `/api`. U
 - Effect v3 for frontend I/O
 - Bun + Hono (server), Clerk (`@clerk/clerk-react`), Supabase, PostHog
 - MapLibre GL JS v6 + OpenFreeMap vector tiles for Trips maps (no API key)
-- Three.js for photoreal Map Mode (Korea seed and any trip day)
+- Three.js (WebGL) for the photoreal 3D view, "Fly the day" (`pages/Trips/photoreal/`)
 
 ## Shared Tokens
 
@@ -155,44 +155,28 @@ Unlocked bloom pigments (Settings, by level) override the technique pigment with
 
 The Korea trip is the seeded trip `korea-2026` (rose accent). It renders in the atlas workspace like any other trip; there is no separate rose / amber parchment dossier any more. Page design: the "Design Context: `/trips/*`" section below. Legacy `/korea*` frontend routes redirect here. `/api/korea/*` remains. Do not add new destination-specific routes.
 
-What stays Korea-specific is data (snapshot seed, `/api/korea/chat` concierge fallback), the Korea-scoped PWA, and the photoreal Map Mode code in `frontend/src/pages/Korea/`. Everything below describes photoreal Map Mode, which any trip day opens from its "⋯" menu ("Explore in photoreal 3D").
+What stays Korea-specific is data (snapshot seed, `/api/korea/chat` concierge fallback) and the Korea-scoped PWA.
 
 ### Users
 Anthony (primary) and his partner, planning and executing a 12-day Seoul + Busan trip in late May / early June 2026. Phones for in-trip lookups, desktop for planning.
 
-### Photoreal Map Mode: Aesthetic Direction
-- **Scene:** Google Photorealistic 3D Tiles with a glassy YOU pin on the terrain. Light and dark are both first-class.
-- **YOU pin:** glassy `MeshPhysicalMaterial` droplet + water puddle (`youPin.ts`), snapped to the photogrammetry mesh. Label is DOM-projected from world coords.
-- **Place markers:** category-tinted `MeshStandardMaterial` spheres above terrain + ground beams, not glass orbs.
-- **References:** Apple Maps Look Around, `flighty.app`, `monocle.com/travel`.
-- **Anti-references:** Booking.com clutter, generic trip-planner SaaS dashboards, tourism brochures, OpenStreetMap defaults.
-
-### Photoreal Map Mode Tokens
-
-| Token | Light | Dark | Usage |
-|-------|-------|------|-------|
-| Accent — primary | `#F43F5E` (rose-500) | `#FB7185` (rose-400) | Scheduled reservations, YOU pin, primary CTAs |
-| Accent — secondary | `#F59E0B` (amber-500) | `#FBBF24` (amber-400) | Core itinerary items |
-| Accent — supplemental | `#A8A29E` (stone-400) | `#78716C` (stone-500) | Supplemental / extras in Map Mode |
-| Success | `#10B981` (emerald-500) | `#34D399` (emerald-400) | Confirmed booking status |
-| Pending | `#F59E0B` (amber-500) | `#FBBF24` (amber-400) | Reservation pending |
-| Place marker | per-place category color | same | Emissive sphere + ground beam |
-
 ### Korea-specific Principles
 
-1. **YOU is world-anchored on the mesh.** Camera target can lerp toward a selected place; reset returns to a 45° birds-eye on YOU.
-2. **Refraction is for the YOU pin only.** Place markers stay solid. BreathFlow chrome stays matte.
-3. **Distance is information, not chrome.** Every place card / marker label surfaces distance + walking ETA prominently as a colored pill — it's the most-used piece of data, not a footnote.
-4. **Smart links everywhere.** Flight numbers → carrier tracker, KTX → Korail timetable, addresses → Google Maps, phones → `tel:`, times → AM/PM tooltip. Free-form copy gets auto-linked by the `LinkifiedText` engine.
-5. **PWA auto-update is mandatory.** Service worker + client must auto-swap to the latest version after each deploy — users should never see stale Map Mode. Bump `CACHE_VERSION` on every breaking SW change.
+1. **Smart links everywhere.** Flight numbers → carrier tracker, KTX → Korail timetable, addresses → Google Maps, phones → `tel:`, times → AM/PM tooltip. Free-form copy gets auto-linked by the `LinkifiedText` engine.
+2. **PWA auto-update is mandatory.** Service worker + client must auto-swap to the latest version after each deploy. Bump `CACHE_VERSION` on every breaking SW change.
 
-### Map Mode-specific Conventions
+## Design Context: photoreal 3D view — "Fly the day"
 
-- Overlay: `MapModeOverlay.tsx`. Scene: `Detailed3DScene.tsx` (Google Photorealistic 3D Tiles). `MapModeScene.tsx` is gone.
-- Trips open it from a day's "…" menu ("Explore in photoreal 3D"). Everyday Trips maps are MapLibre.
-- Reset pitch ≈ `Math.PI / 4`. No auto-rotate. Adaptive tile quality by device tier.
-- Missing tiles key or no WebGL → styled fallback list with the same filter chips.
-- **Must unmount** when closed — do not hide with React `Activity`.
+Code: `frontend/src/pages/Trips/photoreal/`. Any trip day opens it from its "⋯" menu ("Fly the day in 3D"). The day's located stops stand on Google Photorealistic 3D Tiles; chrome is atlas paper plates (opaque `--trips-*` surfaces, no glass stacks).
+
+- **Files:** `PhotorealOverlay.tsx` (chrome + state, `role="dialog"` with focus trap), `photoreal.stylex.ts`, `scene.ts` (engine), `tilesGround.ts` (Google tiles) / `devGround.ts` (DEV-only procedural model city, dynamic import), `camera.ts` + `sun.ts` + `stops.ts` (pure, tested), `terrainAnchor.ts`, `adaptiveQuality.ts`, `deviceTier.ts`, `youPin.ts`, `available.ts` (`photorealAvailable()`; the only file outside the `photoreal` chunk).
+- **Stops:** the day map's `.atlas-pin` stop pins as DOM buttons (`.photoreal-pin*` in `index.css`), projected from terrain-snapped points, each with a 3D stem and ground ring. Crowded or occluded pins shrink to dots. Numbering comes from `dayStops` and matches `dayPins`.
+- **Route:** one shallow 3D arc per leg in the trip accent on a paper casing; the selected stop's legs are emphasised.
+- **Camera:** arrival fly-in once tiles exist (or after 2.5 s), fly-to on select (tilt 54°, 250–450 m), a slow idle orbit that any input stops, time-based tweens. Chrome insets shift the optical centre (`setInsets`). Reduced motion: jump cuts with a short canvas dip, no orbit, no tour.
+- **Chrome:** desktop is a left panel (title, Play tour, stop list with legs; the selected stop unfolds into the card); phones get a title plate, a numbered rail and a swipeable bottom card. Top-right: compass, tilt, locate, fit all. Keys: ← / → step, Home / End, Space tour, F fit all, Esc close.
+- **You:** no location prompt on open. Shown (brand-accent glass droplet) only when permission is already granted or the traveller taps locate, and only within 50 km of the stops.
+- **Light:** sun from the trip's time zone, the day's date and the anchor latitude (the selected stop's time when it has one). Tiles stay unlit (pre-lit photogrammetry); the dark theme tints them to dusk. No bloom, god rays or clouds.
+- **Rules:** renders on demand (no rAF at rest); disposes with `forceContextLoss()`; **must unmount** when closed (never React `Activity`); Google attribution stays visible; failure (no WebGL, tiles refused) shows a calm card with the stop list and Directions links.
 
 ---
 
@@ -201,7 +185,6 @@ Anthony (primary) and his partner, planning and executing a 12-day Seoul + Busan
 - **`<LinkifiedText>`** (Korea) — universal smart-linker. Detects flight numbers (UA / KE / OZ / AA / DL / AS / BA / JL / NH), KTX trains, Korean phones (+82), emails, URLs, Korean street addresses (`-daero` / `-ro` + `-gil`), subway exit references, and 24-hour times (which become hover-tooltip AM/PM via `<Time>`).
 - **`<ReservationCard>`** (Korea) — status pill (✅ / 🟡 / 🔴), category icon, time with AM/PM tooltip, chip row for Maps / Call / Book.
 - **`<DayCard>`** + **`<DayTreeNav>`** (Korea) — city-tinted gradients, spring entry, today-detection ring.
-- **`<Detailed3DScene>`** (Korea) — photorealistic 3D tiles Map Mode scene (`MapModeOverlay` consumer). YOU pin is 3D `YouPin` on terrain, not a fixed viewport-center CSS pin.
 - **`<KstClock>`** (Korea) — live Asia/Seoul time pill in the tree nav.
 
 ---
@@ -236,7 +219,7 @@ The same travelers as Korea, plus future trips and the people they share a link 
 - **Motion:** spring on pins / buttons, fly-to camera moves, drop-in for newly added pins, staggered card rise. Reduced motion: the map uses `jumpTo` and the globe does not spin.
 - **Code:** `pages/Trips/atlas.stylex.ts` (primitives `a`: type, buttons, fields, chips, pills, menu, dialog), `index.stylex.ts` (`shell`, `idx`, `cover`, `create`), `workspace.stylex.ts` (`share`, `ws`), `map/map.stylex.ts`, `chat.stylex.ts`, `components/kit.tsx` (`Menu`, `Modal`), `meta.ts`, `useTripEditor.ts`, `index.css` `.trips` tokens.
 - **IA (locked):** `/trips`, `/trips/new`, `/trips/:tripId`, `/trips/:tripId/day/:dayId`, `/trips/join/:token`. `/trips/:tripId/edit` and `/trips/:tripId/places` redirect to the trip. Removed from the UI: Instagram ingest, the extracted-places library, the per-trip places page, the clay globe scenes, the read-only day page.
-- **Photoreal Map Mode:** Google 3D Tiles (`pages/Korea/MapModeOverlay`) opens from a day's "…" menu as "Explore in photoreal 3D" when a Google tiles / Places key is set. Glass/refraction is for the YOU pin only. **Must unmount** when closed; never hide with React `Activity`. Touch targets 44px.
+- **Photoreal Map Mode:** Google 3D Tiles (`pages/Trips/photoreal/`) opens from the day map's "Fly in 3D" button or the day's "…" menu when a Google tiles / Places key is set. Glass/refraction is for the YOU pin only. **Must unmount** when closed; never hide with React `Activity`. Touch targets 44px.
 - **Anti-references:** the previous toy / sticker look, glassmorphism stacks, gradient text, stock travel photography, generic SaaS dashboards.
 
 ### Per-route Tokens (`index.css` `.trips` is canonical)
@@ -260,7 +243,7 @@ Radius `0.875rem` (`-sm` `0.625rem`, `-lg` `1.375rem`). Spring `cubic-bezier(0.3
 1. **Do not add `/japan`-style destination routes.** Extend `server/src/trips/` + `frontend/src/pages/Trips/`.
 2. AI-added places must carry structured `TripLocation` (lat/lng/category/source), never prose only.
 3. One map per viewport. Keep the map engine a lazy chunk (`maplibre`).
-4. Photoreal Map Mode uses the Korea `PlacesResponse` / `RankedPlace` shape and **must unmount** when closed.
+4. The photoreal 3D view reads the day document directly and **must unmount** when closed.
 5. Frontend I/O is Effect v3 (`tripsApi.ts`, `tripChatApi.ts`, `geocode.ts` via `fetchExternal`).
 6. Trips disables the global focus outline (`.trips :focus-visible { outline: none }`). Every new control draws its own ring with `--brand-ring` (`a.focusable`).
 7. Editable titles use the `trips-title-input` / `trips-day-title-input` classes to opt out of the 16px phone input pin. Portaled UI goes through `kit.tsx` `Modal` (`.trips.trips-portal` token scope).

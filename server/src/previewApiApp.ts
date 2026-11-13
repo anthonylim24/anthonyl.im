@@ -20,6 +20,7 @@ import {
   listIgPlaceDays,
   listJobsForUser,
   setIgPlaceDays,
+  removeExtractedPlace,
 } from "./igPlaces/wire"
 
 const sseHeaders = {
@@ -116,9 +117,12 @@ export function createPreviewApiApp(): Hono {
       listExtractedPlaces,
       listIgPlaceDays,
       setIgPlaceDays,
+      removeExtractedPlace,
     })
-    app.use("/api/korea/places/from-instagram/*", clerkAuth)
-    app.route("/api/korea/places/from-instagram", igPlacesRouter)
+    for (const base of ["/api/instagram", "/api/korea/places/from-instagram"]) {
+      app.use(`${base}/*`, clerkAuth)
+      app.route(base, igPlacesRouter)
+    }
   }
 
   app.get("/health", (c) =>

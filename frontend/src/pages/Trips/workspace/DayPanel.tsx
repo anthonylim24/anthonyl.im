@@ -4,7 +4,7 @@ import { Reorder, useDragControls } from "motion/react"
 import { ArrowDownUp, ArrowLeft, ArrowRight, CloudSun, Lightbulb, Eraser, Footprints, MapPin, MoreHorizontal, NotebookPen, Orbit, Sparkles } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { formatTripDate, plural, todayIsoIn } from "../meta"
-import { dayRoute, distanceMeters, isLocated, routeMeters, type LngLat } from "../map/geo"
+import { dayRoute, distanceMeters, isLocated, routeMeters, splitDay, type LngLat } from "../map/geo"
 import { formatDistance, formatWalkMinutes } from "../reservationView"
 import { addItem } from "../tripEdits"
 import type { EnhancementRun, ItineraryItem, Trip, TripDay } from "../types"
@@ -42,8 +42,10 @@ export interface DayPanelProps {
   onClear: () => void
   onApplyRun: (ids: string[]) => void
   onDismissRun: () => void
-  /** Present when photoreal Map Mode is configured for this build. */
+  /** Present when the photoreal 3D view can open in this build. */
   onPhotoreal?: () => void
+  /** Opens the Instagram import with these post links. */
+  onInstagram?: (urls: string[]) => void
 }
 
 /** Timed items in clock order; untimed items stay behind the timed item they followed. */
@@ -111,6 +113,7 @@ export function DayPanel({
   onApplyRun,
   onDismissRun,
   onPhotoreal,
+  onInstagram,
 }: DayPanelProps) {
   const [notesOpen, setNotesOpen] = useState(false)
   const [spoken, setSpoken] = useState("")
@@ -118,7 +121,9 @@ export function DayPanel({
   const prev = dayIndex > 0 ? trip.days[dayIndex - 1] : undefined
   const next = dayIndex < trip.days.length - 1 ? trip.days[dayIndex + 1] : undefined
   const route = useMemo(() => dayRoute(day), [day])
-  const stops = day.items.filter((i) => i.kind !== "section" && i.kind !== "note").length
+  const { planned, parked } = useMemo(() => splitDay(day), [day])
+  const stops = planned.filter((i) => i.kind !== "section" && i.kind !== "note").length
+  const toSchedule = parked.filter((i) => i.kind !== "section" && i.kind !== "note").length
   const meters = routeMeters(route)
 
   const { labels, legs } = useMemo(() => {
@@ -126,19 +131,20 @@ export function DayPanel({
     const legs = new Map<string, string>()
     let n = 0
     let last: { id: string; at: LngLat } | null = null
-    for (const item of day.items) {
+    // Places parked under "To schedule" carry no number and no leg.
+    for (const item of planned) {
       if (!isLocated(item)) continue
       n += 1
       labels.set(item.id, String(n))
       const at = { lat: item.location.lat, lng: item.location.lng }
       if (last) {
         const d = distanceMeters(last.at, at)
-        if (d >= 40) legs.set(last.id, d < 4000 ? `${formatDistance(d)} · ${formatWalkMinutes(d)}` : `${formatDistance(d)} away`)
+        if (d >= 40) legs.set(last.id, d < 4000 ? `${formatDistance(d)} · ${formatWalkMinutes(d)}` : `${formatDistance(d)} · ride`)
       }
       last = { id: item.id, at }
     }
     return { labels, legs }
-  }, [day.items])
+  }, [planned])
 
   const outOfOrder = useMemo(() => {
     const times = day.items.filter((i) => i.kind !== "section" && i.time).map((i) => i.time!)
@@ -163,7 +169,7 @@ export function DayPanel({
         ]
       : []),
     ...(onPhotoreal && route.length > 0
-      ? [{ label: "Explore in photoreal 3D", icon: <Orbit size={16} strokeWidth={1.75} aria-hidden />, onSelect: onPhotoreal }]
+      ? [{ label: "Fly the day in 3D", icon: <Orbit size={16} strokeWidth={1.75} aria-hidden />, onSelect: onPhotoreal }]
       : []),
     ...(editable && day.items.length > 0
       ? [
@@ -230,6 +236,7 @@ export function DayPanel({
           <span {...sx(a.small)}>
             {plural(stops, "stop")}
             {meters > 100 ? ` · ${formatDistance(meters)}` : ""}
+            {toSchedule > 0 ? ` · ${toSchedule} to schedule` : ""}
           </span>
           <span {...sx(a.grow)} />
           {editable && (
@@ -338,6 +345,7 @@ export function DayPanel({
         <AddStop
           near={near}
           disabled={locked}
+          onInstagram={onInstagram}
           onAdd={(item) => {
             onChange((days) => addItem(days, day.id, item))
             onAdded(item.id)

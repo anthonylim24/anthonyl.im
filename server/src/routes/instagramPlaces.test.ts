@@ -451,3 +451,46 @@ describe('PUT /extracted/:id/days', () => {
     expect(capturedDays).toEqual([2, 3, 5]);
   });
 });
+
+describe('trips import additions', () => {
+  const base = {
+    enqueue: mock(async () => ({ jobId: 1, dedupeKey: 'd', status: 'pending' as const, reused: false })),
+    statsHandler: () => ({}) as any,
+    retryJob: noopRetryJob,
+    reextractJob: noopReextractJob,
+    listExtractedPlaces: noopListExtractedPlaces,
+    listIgPlaceDays: noopListIgPlaceDays,
+    setIgPlaceDays: noopSetIgPlaceDays,
+  };
+
+  test('GET /jobs?logs=0 asks for jobs without pipeline logs', async () => {
+    const listJobs = mock(async () => []);
+    const app = new Hono().use('*', withAuth('u')).route('/', createInstagramPlacesRouter({ ...base, listJobs }));
+    await app.request('/jobs?limit=30&logs=0');
+    expect(listJobs).toHaveBeenCalledWith('u', 30, { logs: false });
+    await app.request('/jobs');
+    expect(listJobs).toHaveBeenLastCalledWith('u', 20, { logs: true });
+  });
+
+  test('DELETE /extracted/:id removes only the caller’s place', async () => {
+    const removeExtractedPlace = mock(async ({ placeId }: { userId: string; placeId: number }) => placeId === 5);
+    const app = new Hono()
+      .use('*', withAuth('u'))
+      .route('/', createInstagramPlacesRouter({ ...base, listJobs: noopListJobs, removeExtractedPlace }));
+    expect((await app.request('/extracted/5', { method: 'DELETE' })).status).toBe(204);
+    expect(removeExtractedPlace).toHaveBeenCalledWith({ userId: 'u', placeId: 5 });
+    expect((await app.request('/extracted/6', { method: 'DELETE' })).status).toBe(404);
+    expect((await app.request('/extracted/nope', { method: 'DELETE' })).status).toBe(400);
+  });
+
+  test('skipVideo: false is passed through so a deeper re-read can be requested', async () => {
+    const enqueue = mock(async () => ({ jobId: 1, dedupeKey: 'd', status: 'pending' as const, reused: true }));
+    const app = new Hono().use('*', withAuth('u')).route('/', createInstagramPlacesRouter({ ...base, enqueue, listJobs: noopListJobs }));
+    await app.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls: ['https://www.instagram.com/reel/abc/'], skipVideo: false }),
+    });
+    expect(enqueue).toHaveBeenCalledWith('u', 'https://www.instagram.com/reel/abc/', { skipVideo: false });
+  });
+});
