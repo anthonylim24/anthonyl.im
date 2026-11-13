@@ -1,4 +1,5 @@
 import { memo, useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from "react"
+import { isToSchedule, TO_SCHEDULE } from "../map/geo"
 import { ArrowDown, ArrowUp, ChevronDown, Copy, ExternalLink, GripVertical, MapPin, MapPinOff, Trash2 } from "lucide-react"
 import { sx } from "@/styles/merge"
 import { externalMapsLink } from "@/lib/externalMaps"
@@ -87,6 +88,15 @@ export const ItemCard = memo(function ItemCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // "To schedule" is the planner's own divider: a plain header, not a row to edit.
+  if (isToSchedule(item)) {
+    return (
+      <div {...sx(s.sectionRow)} id={`item-${item.id}`}>
+        <h3 {...sx(a.eyebrow, a.grow)}>{TO_SCHEDULE}</h3>
+        <span {...sx(a.small)}>Give one a time, or drag it up, to add it to the route</span>
+      </div>
+    )
+  }
   if (item.kind === "section") {
     return (
       <div {...sx(s.sectionRow, "trips-section-row")} id={`item-${item.id}`}>

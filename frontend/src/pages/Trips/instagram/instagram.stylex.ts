@@ -13,9 +13,11 @@ const HOVER = "@media (hover: hover)"
 const ring = "0 0 0 2px var(--trips-surface), 0 0 0 4px var(--brand-ring)"
 
 const sweep = stylex.keyframes({ from: { backgroundPosition: "200% 0" }, to: { backgroundPosition: "-200% 0" } })
+// Movement only: content must never sit invisible while a busy main thread
+// (two maps starting up) holds the first animation frame.
 const rise = stylex.keyframes({
-  from: { opacity: 0, transform: "translateY(8px)" },
-  to: { opacity: 1, transform: "translateY(0)" },
+  from: { transform: "translateY(8px)" },
+  to: { transform: "translateY(0)" },
 })
 
 export const ig = stylex.create({
@@ -81,6 +83,7 @@ export const ig = stylex.create({
     minHeight: "3.25rem",
     marginInline: "1.5rem",
     marginTop: "1.125rem",
+    [PHONE]: { minHeight: "2.875rem", marginTop: "0.75rem" },
     paddingInline: "1rem 0.375rem",
     borderRadius: "999px",
     backgroundColor: "var(--trips-raised)",
@@ -291,6 +294,10 @@ export const ig = stylex.create({
   },
   flags: { display: "flex", flexWrap: "wrap", gap: "0.375rem", marginTop: "0.375rem" },
   placeActions: { display: "flex", alignItems: "center", gap: "0.125rem", flexShrink: 0, minHeight: "2.25rem" },
+  // Saved rows carry two actions: on a phone they drop under the text so
+  // the name and address keep the full width.
+  placeWrap: { [PHONE]: { flexWrap: "wrap" } },
+  placeActionsWide: { [PHONE]: { flexBasis: "100%", justifyContent: "flex-end", marginTop: "-0.25rem" } },
   added: {
     display: "inline-flex",
     alignItems: "center",
@@ -390,7 +397,7 @@ export const ig = stylex.create({
 
   // The places, on a map. A strip on phones, the right-hand half on desktop.
   mapStrip: {
-    height: "7rem",
+    height: "6rem",
     flexShrink: 0,
     borderRadius: "var(--trips-radius)",
     overflow: "hidden",

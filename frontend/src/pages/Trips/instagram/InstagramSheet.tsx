@@ -274,7 +274,7 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
                     <DialogPrimitive.Title {...sx(s.title, jobs.length > 0 && s.titleQuiet)}>
                       Places from <span {...sx(a.italic)}>Instagram</span>
                     </DialogPrimitive.Title>
-                    <DialogPrimitive.Description {...sx(s.lede, jobs.length > 0 && s.ledeQuiet)}>
+                    <DialogPrimitive.Description {...sx(s.lede, jobs.length > 0 && a.srOnly)}>
                       Paste a post or Reel. Every place it names gets pinned, ready to add to a day.
                     </DialogPrimitive.Description>
                   </div>
@@ -340,8 +340,31 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
                     <div {...sx(s.scroll)} ref={listRef} role="tabpanel" id="ig-panel" aria-labelledby={tab === "posts" ? "ig-tab-posts" : "ig-tab-saved"}>
                       {!wide && map && <div {...sx(s.mapStrip)}>{map}</div>}
 
+                      {tab === "posts" &&
+                        imp.pendingUrls.map((url) => (
+                          <section key={url} {...sx(s.post)} aria-label="Sending the link">
+                            <div {...sx(s.postHead)}>
+                              <span {...sx(s.glyph)}>
+                                <IgGlyph />
+                              </span>
+                              <div {...sx(a.grow)} style={{ minWidth: 0 }}>
+                                <p {...sx(s.postName, a.truncate)}>{/\/reels?\//i.test(url) ? "Instagram Reel" : "Instagram post"}</p>
+                                <p {...sx(s.postCaption, a.truncate)}>{url.replace(/^https?:\/\/(www\.)?/, "").replace(/\?.*$/, "")}</p>
+                              </div>
+                            </div>
+                            <div {...sx(s.working)} role="progressbar" aria-label="Opening the post" aria-valuemin={0} aria-valuemax={100} aria-valuenow={3}>
+                              <Spinner />
+                              <span>Opening the post…</span>
+                              <span {...sx(s.steps)} aria-hidden>
+                                {PIPELINE.map((step) => (
+                                  <span key={step} {...sx(s.step)} />
+                                ))}
+                              </span>
+                            </div>
+                          </section>
+                        ))}
                       {tab === "posts" ? (
-                        imp.status === "loading" ? (
+                        imp.pendingUrls.length > 0 && jobs.length === 0 ? null : imp.status === "loading" ? (
                           <>
                             <div {...sx(a.skeleton, s.skeletonRow)} />
                             <div {...sx(a.skeleton, s.skeletonRow)} />
@@ -498,8 +521,7 @@ export function InstagramSheet({ open, onClose, trip, dayId, initialUrls, getTok
                   ) : tripDotsNow.length > 0 ? (
                     <div {...sx(s.mapFill)}>
                       <AtlasMap
-                        pins={[]}
-                        dots={tripDotsNow}
+                        pins={tripDotsNow.map((point, i) => ({ id: `t${i}`, title: "On the trip", lat: point.lat, lng: point.lng, variant: "dot" as const }))}
                         frameKey={`trip:${tripDotsNow.length}`}
                         framePoints={corePoints(tripDotsNow)}
                         padding={{ top: 88, right: 88, bottom: 64, left: 64 }}
@@ -569,10 +591,17 @@ function PostCard({
           <p {...sx(s.postName, a.truncate)}>{postLabel(job)}</p>
           <p {...sx(s.postCaption, a.truncate)}>{caption || job.url.replace(/^https?:\/\/(www\.)?/, "")}</p>
         </div>
-        {!busy && (
-          <span {...sx(s.status, progress.phase === "failed" && s.statusBad)} role="status">
-            {progress.label}
-          </span>
+        {!busy && progress.phase === "done" && open.length > 1 ? (
+          <button type="button" {...sx(a.btn, a.btnSoft, a.btnSm, a.noShrink)} onClick={() => onAdd(open)}>
+            <Plus size={14} strokeWidth={2} aria-hidden />
+            Add all {open.length}
+          </button>
+        ) : (
+          !busy && (
+            <span {...sx(s.status, progress.phase === "failed" && s.statusBad)} role="status">
+              {progress.label}
+            </span>
+          )
         )}
       </div>
 
@@ -612,12 +641,6 @@ function PostCard({
             />
           ))}
           <div {...sx(s.postFoot)}>
-            {open.length > 1 && (
-              <button type="button" {...sx(a.btn, a.btnSoft, a.btnSm)} onClick={() => onAdd(open)}>
-                <Plus size={14} strokeWidth={2} aria-hidden />
-                Add all {open.length}
-              </button>
-            )}
             <span {...sx(a.grow)} />
             {job.skip_video !== false && (
               <button type="button" {...sx(s.quiet)} onClick={onDeepen} title="Read the post again, this time with its video">
@@ -637,14 +660,14 @@ function PostCard({
         <div {...sx(s.message)}>
           <span>We read the caption, the comments and the video, and this post doesn’t name a place we could pin.</span>
           <span {...sx(a.rowWrap)}>
-            <button type="button" {...sx(a.btn, a.btnSecondary, a.btnSm)} onClick={onDeepen}>
-              <RotateCw size={14} strokeWidth={1.75} aria-hidden />
-              Try again
-            </button>
-            <a href={job.url} target="_blank" rel="noreferrer" {...sx(s.quiet)}>
+            <a href={job.url} target="_blank" rel="noreferrer" {...sx(a.btn, a.btnSecondary, a.btnSm)}>
               <ExternalLink size={14} strokeWidth={1.75} aria-hidden />
               Open the post
             </a>
+            <button type="button" {...sx(s.quiet)} onClick={onDeepen}>
+              <RotateCw size={14} strokeWidth={1.75} aria-hidden />
+              Read it again
+            </button>
           </span>
         </div>
       )}
@@ -703,7 +726,7 @@ function PlaceRow({
 
   return (
     <div
-      {...sx(s.place, first && s.placeFirst, hot && s.placeHot)}
+      {...sx(s.place, first && s.placeFirst, hot && s.placeHot, onRemove && s.placeWrap)}
       style={{ animationDelay: `${delay}ms` }}
       data-pin={id}
       onMouseEnter={() => onHover(id)}
@@ -731,7 +754,7 @@ function PlaceRow({
           </div>
         )}
       </div>
-      <div {...sx(s.placeActions)}>
+      <div {...sx(s.placeActions, onRemove && s.placeActionsWide)}>
         {onDay != null ? (
           <span {...sx(s.added)}>
             <Check size={14} strokeWidth={2} aria-hidden />

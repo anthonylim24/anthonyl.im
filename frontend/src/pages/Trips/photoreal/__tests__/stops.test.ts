@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { makeItem } from "../../__tests__/tripFixtures"
 import { dayPins } from "../../map/geo"
+import { formatWalkMinutes } from "../../reservationView"
 import type { TripDay } from "../../types"
 import {
   announcement,
@@ -11,7 +12,9 @@ import {
   isNearby,
   legInto,
   legSummary,
+  stackLabel,
   stepIndex,
+  stopNames,
   timeRange,
   tourNext,
   tourStart,
@@ -44,15 +47,34 @@ describe("dayStops", () => {
 })
 
 describe("names", () => {
-  it("leads with the place name and keeps the plan's wording as a second line", () => {
-    const [stop] = dayStops({
-      id: "d",
-      date: "2026-12-05",
-      items: [makeItem({ id: "x", title: "Opening entry at Jerónimos Monastery", location: { name: "Jerónimos Monastery", lat: 38.6979, lng: -9.2068, source: "ai" } })],
-    })
-    expect(stop!.title).toBe("Jerónimos Monastery")
-    expect(stop!.plan).toBe("Opening entry at Jerónimos Monastery")
+  it("uses the item's title, as the day list does", () => {
+    expect(stopNames("Mosteiro dos Jerónimos", "Jerónimos Monastery")).toEqual({ title: "Mosteiro dos Jerónimos" })
+    expect(stopNames("MAAT", "MAAT - Museum of Art, Architecture and Technology")).toEqual({ title: "MAAT" })
+    expect(stopNames("Pastéis de Belém", "Pasteis de Belem")).toEqual({ title: "Pastéis de Belém" })
+    expect(stopNames("", "LX Factory")).toEqual({ title: "LX Factory" })
+    expect(stopNames("A Praça", undefined)).toEqual({ title: "A Praça" })
+  })
+
+  it("leads with the place when the title is an activity phrase about it", () => {
+    expect(stopNames("Lunch at the market", "Time Out Market Lisboa")).toEqual({ title: "Time Out Market Lisboa", plan: "Lunch at the market" })
+    // …but a title that already names the place stays as it is, matching the day list.
+    expect(stopNames("Lunch at Time Out Market Lisboa", "Time Out Market Lisboa")).toEqual({ title: "Lunch at Time Out Market Lisboa" })
+    expect(stopNames("Sunset drinks", "Miradouro de Santa Catarina")).toEqual({ title: "Miradouro de Santa Catarina", plan: "Sunset drinks" })
+  })
+
+  it("carries the names onto the stops", () => {
+    expect(dayStops(day)[0]!.title).toBe("Pastéis de Belém")
     expect(dayStops(day)[0]!.plan).toBeUndefined()
+  })
+})
+
+describe("stacked pins", () => {
+  it("labels a run as a range and a short scatter as a list", () => {
+    expect(stackLabel([4, 5, 6])).toBe("4–6")
+    expect(stackLabel([6, 4, 5])).toBe("4–6")
+    expect(stackLabel([2, 5])).toBe("2·5")
+    expect(stackLabel([1, 3, 4, 7])).toBe("1 +3")
+    expect(stackLabel([3])).toBe("3")
   })
 })
 
@@ -68,14 +90,15 @@ describe("legs", () => {
     expect(leg.from).toBe("Pastéis de Belém")
     expect(leg.meters).toBeGreaterThan(250)
     expect(leg.meters).toBeLessThan(350)
-    expect(leg.walkMinutes).toBe(Math.round(leg.meters / 80))
-    expect(legSummary(leg)).toMatch(/^\d+ m · \d+ min walk$/)
+    // The day list's own formatter, so the two views can never disagree.
+    expect(leg.walk).toBe(formatWalkMinutes(leg.meters))
+    expect(legSummary(leg)).toBe(`${formatDistance(leg.meters)} · ${formatWalkMinutes(leg.meters)}`)
   })
 
-  it("does not invent a duration past 3 km", () => {
+  it("does not invent a duration once the day list stops calling it a walk", () => {
     const leg = legInto(stops, 2)!
-    expect(leg.meters).toBeGreaterThan(3000)
-    expect(leg.walkMinutes).toBeNull()
+    expect(leg.meters).toBeGreaterThan(4000)
+    expect(leg.walk).toBeNull()
     expect(legSummary(leg)).toMatch(/^\d+\.\d km · ride$/)
   })
 
@@ -84,7 +107,6 @@ describe("legs", () => {
   })
 
   it("formats distances", () => {
-    expect(formatDistance(4)).toBe("10 m")
     expect(formatDistance(648)).toBe("650 m")
     expect(formatDistance(3449)).toBe("3.4 km")
     expect(formatDistance(18_400)).toBe("18 km")

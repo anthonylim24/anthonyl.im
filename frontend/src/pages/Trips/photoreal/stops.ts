@@ -1,9 +1,12 @@
-import { distanceMeters, isLocated, type LngLat } from "../map/geo"
+import { distanceMeters, locatedItems, type LngLat } from "../map/geo"
 import { formatClock } from "../meta"
+import { formatDistance, formatWalkMinutes } from "../reservationView"
 import type { ItineraryItem, TripDay } from "../types"
 
 // The day as the 3D view sees it: located items in itinerary order, the
 // legs between them, and the stepping rules for the tour. Pure.
+
+export { formatDistance }
 
 export interface Stop extends LngLat {
   id: string
@@ -11,60 +14,84 @@ export interface Stop extends LngLat {
   index: number
   /** The number on the pin; matches the day map. */
   label: string
-  /** The place's own name ("Jerónimos Monastery"): what a map label should say. */
+  /** What the stop is called everywhere: the same name the day list shows. */
   title: string
-  /** The plan's wording ("Opening entry at Jerónimos Monastery") when it says something different. */
+  /** A second line, only when the plan's wording says something the name doesn't. */
   plan?: string
   item: ItineraryItem
 }
 
+const fold = (text: string) =>
+  text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+
+/** "Lunch at …", "Sunset from …", "Visit …": a plan for a place rather than the place's name. */
+const ACTIVITY = /(\s(at|from)\s)|^(breakfast|brunch|lunch|dinner|coffee|drinks|sunset|sunrise|visit|explore|walk|stroll|browse|tour)\b/i
+
+/**
+ * The item's title is the name, as in the day list. Only when the title is
+ * an activity phrase about a differently-named place ("Lunch at the market"
+ * for "Time Out Market Lisboa") does the place lead and the phrase follow.
+ */
+export function stopNames(title: string | undefined, place: string | undefined): { title: string; plan?: string } {
+  const t = title?.trim() ?? ""
+  const p = place?.trim() ?? ""
+  if (!t || !p) return { title: t || p }
+  const a = fold(t)
+  const b = fold(p)
+  if (a.includes(b) || b.includes(a)) return { title: t }
+  return ACTIVITY.test(t) ? { title: p, plan: t } : { title: t }
+}
+
 export function dayStops(day: TripDay): Stop[] {
-  return day.items.filter(isLocated).map((item, index) => ({
+  // `locatedItems` decides what counts as a stop (and what is merely "to schedule").
+  return locatedItems(day).map((item, index) => ({
     id: item.id,
     index,
     label: String(index + 1),
-    title: item.location.name || item.title,
-    plan: item.title && item.location.name && item.title.trim() !== item.location.name.trim() ? item.title : undefined,
-    lat: item.location.lat,
-    lng: item.location.lng,
+    ...stopNames(item.title, item.location?.name),
+    lat: item.location!.lat!,
+    lng: item.location!.lng!,
     item,
   }))
 }
 
-/** Straight-line walking pace used across Trips. */
-export const WALK_M_PER_MIN = 80
-/** Past this a leg is not a walk, and we don't invent a duration for it. */
-export const WALK_LIMIT_M = 3000
+/** The day list's own thresholds for its leg rows (workspace/DayPanel.tsx). */
+const LEG_MIN_M = 40
+const WALK_LIMIT_M = 4000
 
 export interface Leg {
   meters: number
-  /** Null when the leg is too long to call a walk. */
-  walkMinutes: number | null
+  /** "18 min walk", from the day list's formatter; null when it stops calling the leg a walk. */
+  walk: string | null
   from: string
 }
 
-/** The leg that arrives at `index`, or null for the first stop. */
+/** The leg that arrives at `index`; null for the first stop or two stops on one spot. */
 export function legInto(stops: readonly Stop[], index: number): Leg | null {
   const to = stops[index]
   const from = stops[index - 1]
   if (!to || !from) return null
   const meters = distanceMeters(from, to)
-  return {
-    meters,
-    walkMinutes: meters <= WALK_LIMIT_M ? Math.max(1, Math.round(meters / WALK_M_PER_MIN)) : null,
-    from: from.title,
-  }
+  if (meters < LEG_MIN_M) return null
+  return { meters, walk: meters < WALK_LIMIT_M ? formatWalkMinutes(meters) : null, from: from.title }
 }
 
-export function formatDistance(meters: number): string {
-  if (meters < 1000) return `${Math.max(10, Math.round(meters / 10) * 10)} m`
-  return `${(meters / 1000).toFixed(meters < 10_000 ? 1 : 0)} km`
-}
-
-/** "650 m · 8 min walk" or, for a hop too long to walk, "4.2 km · ride" (no invented duration). */
+/** "650 m · 8 min walk", exactly as the day list says it; a longer hop is "4.2 km · ride". */
 export function legSummary(leg: Leg): string {
-  const distance = formatDistance(leg.meters)
-  return leg.walkMinutes === null ? `${distance} · ride` : `${distance} · ${leg.walkMinutes} min walk`
+  return `${formatDistance(leg.meters)} · ${leg.walk ?? "ride"}`
+}
+
+/** One pin standing for several stops that overlap on screen: "4–6", "2·5", "3 +4". */
+export function stackLabel(numbers: readonly number[]): string {
+  const sorted = [...numbers].sort((a, b) => a - b)
+  if (sorted.length < 2) return String(sorted[0] ?? "")
+  const run = sorted.every((n, i) => i === 0 || n === sorted[i - 1]! + 1)
+  if (run) return `${sorted[0]}–${sorted[sorted.length - 1]}`
+  return sorted.length <= 3 ? sorted.join("·") : `${sorted[0]} +${sorted.length - 1}`
 }
 
 export function dayMeters(stops: readonly Stop[]): number {

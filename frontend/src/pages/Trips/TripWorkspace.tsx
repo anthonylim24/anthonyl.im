@@ -27,7 +27,7 @@ import { AtlasMap } from "./map/AtlasMap"
 import { makeItem } from "./tripEdits"
 import { IgGlyph } from "./instagram/IgGlyph"
 import { extractInstagramUrls } from "./instagram/instagram"
-import { centroid, corePoints, DAY_PIN, dayPins, dayRoute, isLocated, locatedItems, tripDots, tripPins, type LngLat } from "./map/geo"
+import { centroid, corePoints, isToSchedule, TO_SCHEDULE, DAY_PIN, dayPins, dayRoute, isLocated, locatedItems, tripDots, tripPins, type LngLat } from "./map/geo"
 import { errorText, useTripEditor } from "./useTripEditor"
 import { isMissingTripError, TripsNotFound } from "./TripsNotFound"
 import { photorealAvailable } from "./photoreal/available"
@@ -45,8 +45,6 @@ const PhotorealOverlay = lazy(() => import("./photoreal/PhotorealOverlay"))
 
 const PHOTOREAL_READY = photorealAvailable()
 const InstagramSheet = lazy(() => import("./instagram/InstagramSheet").then((m) => ({ default: m.InstagramSheet })))
-
-const TO_SCHEDULE = "To schedule"
 
 /** Notices that describe a problem: announced as alerts and never auto-dismissed. */
 const PROBLEM = /couldn|didn|isn’t|not |fail|error/i
@@ -221,7 +219,7 @@ export function TripWorkspace() {
         days.map((d) => {
           if (d.id !== toDayId) return d
           const timed = d.items.some((item) => item.time)
-          const hasHeading = d.items.some((item) => item.kind === "section" && item.title === TO_SCHEDULE)
+          const hasHeading = d.items.some(isToSchedule)
           if (!timed || hasHeading) return { ...d, items: [...d.items, ...items] }
           const heading = makeItem("section", TO_SCHEDULE)
           added.push(heading.id)
@@ -249,6 +247,9 @@ export function TripWorkspace() {
     editor.flashTouched(shown)
     setFresh(shown)
     setIgUndo({ ids, count: places.length, key: Date.now() })
+    // Bring the first new stop into view, clear of the toast.
+    const first = places[0]!.id
+    requestAnimationFrame(() => document.getElementById(`item-${first}`)?.scrollIntoView({ block: "center", behavior: "smooth" }))
   }
 
   useEffect(() => {

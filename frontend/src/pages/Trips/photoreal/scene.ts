@@ -59,6 +59,7 @@ import {
 import { detectTier } from "./deviceTier"
 import type { Ground, GroundPalette } from "./ground"
 import { clockHour, hourIn, sunAt } from "./sun"
+import { stackLabel } from "./stops"
 import { refreshYouAnchor } from "./terrainAnchor"
 import { YouPin, YOU_PIN_HEIGHT } from "./youPin"
 
@@ -125,6 +126,9 @@ interface Pin {
   snapped: boolean
   head: Vector3
   button: HTMLButtonElement
+  body: HTMLSpanElement
+  /** What the badge currently reads: its own number, or a stack's range. */
+  shownLabel: string
   ring: Mesh
   disc: Mesh
   veiled: boolean
@@ -439,6 +443,8 @@ export class PhotorealScene {
         snapped: kept?.snapped ?? false,
         head: new Vector3(),
         button,
+        body,
+        shownLabel: stop.label,
         ring,
         disc,
         veiled: false,
@@ -938,24 +944,48 @@ export class PhotorealScene {
       pin.sy = ((1 - v.y) / 2) * h
       pin.depth = v.z
     }
-    // Greedy declutter: the selected pin always wins, then whichever is nearer.
+    // Declutter without ever dropping a stop: pins that overlap on screen
+    // merge into one badge carrying their numbers ("4–6"), led by the
+    // earliest of them. The selected stop always stands alone.
     const order = this.pins
       .filter((p) => p.shown)
-      .sort((a, b) => Number(b.stop.id === this.selectedId) - Number(a.stop.id === this.selectedId) || a.depth - b.depth)
-    const kept: Pin[] = []
-    let z = order.length
+      .sort((a, b) => Number(b.stop.id === this.selectedId) - Number(a.stop.id === this.selectedId))
+    const stacks = new Map<Pin, Pin[]>()
     for (const pin of order) {
       const selected = pin.stop.id === this.selectedId
-      // Only a genuine collision costs a pin its number; a hidden one just steps back.
-      const dot = !selected && kept.some((k) => Math.hypot(k.sx - pin.sx, k.sy - pin.sy) < PIN_GAP_PX)
-      if (!dot) kept.push(pin)
-      pin.button.classList.toggle("photoreal-pin--dot", dot)
-      pin.button.classList.toggle("photoreal-pin--veiled", !selected && pin.veiled)
+      let leader: Pin | undefined
+      if (!selected) {
+        for (const k of stacks.keys()) {
+          if (k.stop.id !== this.selectedId && Math.hypot(k.sx - pin.sx, k.sy - pin.sy) < PIN_GAP_PX) {
+            leader = k
+            break
+          }
+        }
+      }
+      if (leader) stacks.get(leader)!.push(pin)
+      else stacks.set(pin, [pin])
+    }
+    let z = stacks.size
+    const leaders = new Set(stacks.keys())
+    for (const [pin, members] of stacks) {
+      const selected = pin.stop.id === this.selectedId
+      const label = members.length > 1 ? stackLabel(members.map((m) => Number(m.stop.label))) : pin.stop.label
+      if (pin.shownLabel !== label) {
+        pin.shownLabel = label
+        pin.body.textContent = label
+        pin.button.classList.toggle("photoreal-pin--stack", members.length > 1)
+        pin.button.setAttribute(
+          "aria-label",
+          members.length > 1 ? `Stops ${label}: ${members.map((m) => m.stop.title).join(", ")}` : `Stop ${pin.stop.label}: ${pin.stop.title}`,
+        )
+      }
+      pin.button.classList.toggle("photoreal-pin--veiled", !selected && members.every((m) => m.veiled))
       pin.button.style.zIndex = String(selected ? 999 : z--)
     }
     for (const pin of this.pins) {
-      pin.button.style.visibility = pin.shown ? "visible" : "hidden"
-      if (pin.shown) pin.button.style.transform = `translate3d(${pin.sx.toFixed(1)}px, ${pin.sy.toFixed(1)}px, 0) translate(-50%, -100%)`
+      const on = pin.shown && leaders.has(pin)
+      pin.button.style.visibility = on ? "visible" : "hidden"
+      if (on) pin.button.style.transform = `translate3d(${pin.sx.toFixed(1)}px, ${pin.sy.toFixed(1)}px, 0) translate(-50%, -100%)`
     }
     if (this.youLabel && this.you) {
       const visible = this.you.group.visible

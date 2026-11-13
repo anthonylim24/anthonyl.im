@@ -47,6 +47,7 @@ export interface PhotorealOverlayProps {
 
 const WIDE = "(min-width: 900px)"
 const SWIPE_PX = 56
+const VEIL_MIN_MS = 700
 
 function useWide(): boolean {
   const [wide, setWide] = useState(() => typeof window === "undefined" || !window.matchMedia || window.matchMedia(WIDE).matches)
@@ -176,6 +177,8 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
     if (!host || !pinLayer || !root || !anchor) return
     let cancelled = false
     let scene: PhotorealScene | null = null
+    let revealTimer = 0
+    const openedAt = performance.now()
     PhotorealScene.create(
       {
         host,
@@ -189,7 +192,11 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
         insets: measure(),
         initialStopId: first.selectedId,
         onSelect: (id) => pick(id),
-        onReady: () => setStatus((s) => (s === "failed" ? s : "ready")),
+        onReady: () => {
+          // Hold the veil long enough to read as a moment, never a flash.
+          const wait = Math.max(0, VEIL_MIN_MS - (performance.now() - openedAt))
+          revealTimer = window.setTimeout(() => setStatus((s) => (s === "failed" ? s : "ready")), wait)
+        },
         onError: () => setStatus("failed"),
         onYaw: (bearing) => {
           needleRef.current?.setAttribute("transform", `rotate(${((-bearing * 180) / Math.PI).toFixed(2)} 12 12)`)
@@ -218,6 +225,7 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
       })
     return () => {
       cancelled = true
+      window.clearTimeout(revealTimer)
       scene?.dispose()
       sceneRef.current = null
     }
@@ -321,6 +329,18 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
     }
   }, [reducedMotion, selectedId, wide])
 
+  // The pinned card grows as its photo arrives and the list shrinks under it:
+  // keep the selected row whole whenever the list's height changes.
+  useEffect(() => {
+    const list = listRef.current
+    if (!list || !selectedId || !wide) return
+    const observer = new ResizeObserver(() => {
+      list.querySelector<HTMLElement>(`[data-stop="${CSS.escape(selectedId)}"]`)?.scrollIntoView({ block: "nearest" })
+    })
+    observer.observe(list)
+    return () => observer.disconnect()
+  }, [selectedId, wide, status])
+
   // ── "You": never prompt on open ──────────────────────────────────────────
   const showUser = useLatestCallback((user: LngLat, announce: boolean) => {
     const away = distanceToStops(user, stops)
@@ -363,7 +383,13 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
     return () => window.clearTimeout(timer)
   }, [toast])
 
-  const photo = useStopPhoto(selected, city)
+  // Photos are looked up by the place's catalogue name ("Time Out Market Lisboa"),
+  // whatever the stop is called in the plan ("Lunch at…" finds portraits, not markets).
+  const photoOf = useMemo(
+    () => (selected ? { id: selected.id, title: selected.item.location?.name || selected.title, lat: selected.lat, lng: selected.lng } : null),
+    [selected],
+  )
+  const photo = useStopPhoto(photoOf, city)
   const total = dayMeters(stops)
   const summary = `${plural(stops.length, "stop")}${stops.length > 1 ? ` · ${formatDistance(total)}` : ""}`
   const canTour = !reducedMotion && stops.length > 1
@@ -566,6 +592,7 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
                 </div>
               )}
               {stops.length > 1 && (
+                <div {...sx(p.railPlate)}>
                 <ol {...sx(p.rail)} aria-label="Stops">
                   {stops.map((stop) => (
                     <li key={stop.id}>
@@ -582,6 +609,14 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
                     </li>
                   ))}
                 </ol>
+                {/* In the overview the chips are bare numbers; say where the day begins. */}
+                {!selected && (
+                  <p {...sx(p.railCaption)}>
+                    {stops[0]!.item.time ? `${formatClock(stops[0]!.item.time)} · ` : "Starts at "}
+                    {stops[0]!.title}
+                  </p>
+                )}
+                </div>
               )}
               {selected ? (
                 <PhoneSheet
@@ -718,7 +753,7 @@ function StopCard({ stop, stops, photo, playing, onDirections, onEdit, onStep, o
         )}
         {leg && (
           <p {...sx(p.legLine)}>
-            {leg.walkMinutes === null ? (
+            {leg.walk === null ? (
               <Route size={14} strokeWidth={1.75} aria-hidden {...sx(p.legIcon)} />
             ) : (
               <Footprints size={14} strokeWidth={1.75} aria-hidden {...sx(p.legIcon)} />
@@ -772,6 +807,18 @@ function PhoneSheet({
   const { leg, kind, maps, when, count } = useCardFacts(stop, stops)
   const [drag, setDrag] = useState<{ x: number; dx: number } | null>(null)
   const [noteOpen, setNoteOpen] = useState(false)
+  const [noteClamped, setNoteClamped] = useState(false)
+  const noteRef = useRef<HTMLSpanElement>(null)
+  // Offer "More" only when the two-line clamp is actually hiding something.
+  useEffect(() => {
+    const el = noteRef.current
+    if (!el) return
+    const check = () => setNoteClamped((was) => was || el.scrollHeight > el.clientHeight + 1)
+    check()
+    const observer = new ResizeObserver(check)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
 
   const onPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
     if (event.pointerType === "mouse" && event.button !== 0) return
@@ -816,7 +863,7 @@ function PhoneSheet({
               {when && <span>{when}</span>}
               {leg && (
                 <span {...sx(p.metaIcon)}>
-                  {leg.walkMinutes === null ? <Route size={13} strokeWidth={1.75} aria-hidden /> : <Footprints size={13} strokeWidth={1.75} aria-hidden />}
+                  {leg.walk === null ? <Route size={13} strokeWidth={1.75} aria-hidden /> : <Footprints size={13} strokeWidth={1.75} aria-hidden />}
                   {legSummary(leg)}
                 </span>
               )}
@@ -824,7 +871,10 @@ function PhoneSheet({
           )}
           {stop.item.notes && (
             <button type="button" {...sx(p.noteBtn)} aria-expanded={noteOpen} aria-label={noteOpen ? "Collapse note" : "Read the whole note"} onClick={() => setNoteOpen((open) => !open)}>
-              <span {...sx(p.note, p.sheetNote, noteOpen && p.noteOpen)}>{stop.item.notes}</span>
+              <span ref={noteRef} {...sx(p.note, p.sheetNote, noteOpen && p.noteOpen)}>
+                {stop.item.notes}
+              </span>
+              {noteClamped && <span {...sx(p.more)}>{noteOpen ? "Less" : "More"}</span>}
             </button>
           )}
         </div>

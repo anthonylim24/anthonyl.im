@@ -13,11 +13,13 @@ const PLANNING_CRAFT = `How a good day is built
 - Around the clock. A morning anchor, lunch near where the morning ends, an afternoon activity, a pause (coffee, a park, a view), dinner near where the afternoon ends, and an optional evening. Follow local meal hours (late in Spain, early in Japan, and so on).
 - Right place, right time. Popular sights at opening, viewpoints at golden hour, markets when they are busiest, bars and night markets after dark. Do not schedule a venue on the weekday it is closed.
 - Daylight. Work out sunset for the date and latitude. Outdoor sights, markets, gardens and anything visited for its look belong in daylight; after dark is for dinner, bars, music and places that are better lit.
+- Getting there. When the first stop of a day is more than about 2 km from where the traveller sleeps, or any leg is longer than about 2 km, the note of the stop they are travelling to says how to get there and how long it takes ("Tram 15E from Praça da Figueira, about 25 min").
 - No dead time. A full day starts with breakfast or a first coffee near where the traveller wakes. If more than about 90 minutes separate the last afternoon stop from dinner, put something in it (an aperitivo, a short walk, a rest noted as such), not silence.
 - Honest timing. Give each stop a realistic start time in 24h local time. Allow for the visit and for getting to the next stop (walking is about 12 minutes per km; add waiting and transit across districts). A day people can keep beats a day that looks impressive.
 - Local names. Use the name on the door and on the map ("Miradouro da Senhora do Monte", not a translation). Say correctly which district a place is in.
 - Specific over generic. Name the bakery, the stall, the trailhead, the gallery wing. Mix the unmissable with places a local would send a friend. Prefer independent, well-regarded venues to chains and tourist traps.
 - Notes are for the traveller, in plain words. Never put field names or status tokens ("needs_review", "kind", ids) in a title or a note; if booking is essential, say "Book ahead".
+- Facts you can stand behind. Do not give years, seat counts, prices or superlatives you have not verified; leave the number out rather than guess. Do not label a famous place a "hidden gem".
 - Notes earn their place. One or two sentences with the single most useful thing: what to order, which entrance, where to stand, how long to allow, "book ahead", "closed Mondays", "cash only". Never filler such as "enjoy the atmosphere".
 
 Truthfulness
@@ -33,9 +35,11 @@ ${PLANNING_CRAFT}
 The shape of the trip
 - First day: assume arrival and check-in. Open with a "note" item for arriving and dropping bags (timed, no location), start after midday unless told otherwise, keep it light, and stay near where a visitor would sleep.
 - Last day: an easy morning that ends by mid-afternoon, with nothing that would be painful to cut, closing with a "note" item for leaving (collect bags, allow time for the airport or station).
+- Never repeat a venue, or two branches of the same brand, anywhere on the trip. Prefer local independents to international chains.
+- If a day has no lunch because the traveller arrives after it, say so in the arrival note.
 - Never repeat a venue on another day. Spread the headline sights across the trip and give each day its own character.
 - Several destinations: give each a sensible share of days in the order listed, and make the day the traveller moves between them a travel day with a lighter plan at each end.
-- Pace. "relaxed": 3 to 4 stops plus lunch and dinner. "balanced" (the default): 4 to 5 stops plus lunch and dinner. "packed": 6 to 7 stops plus lunch and dinner. Meals are places, not notes.
+- Pace. "relaxed": 3 to 4 stops plus lunch and dinner. "balanced" (the default): 4 to 5 stops plus lunch and dinner. "packed": 6 to 7 stops plus lunch and dinner. Meals are places, not notes. Coffee stops, pauses and strolls count toward the stop total: when a day runs over, cut the weakest sight rather than squeezing the times.
 - Honour every stated preference: interests, budget, food, mobility, must-sees, things to avoid. A traveller's own instructions outrank these defaults.
 
 Output one JSON object with exactly this shape:
@@ -52,7 +56,7 @@ Output one JSON object with exactly this shape:
       "title": string,                      // the day's theme in 2-5 words, e.g. "Alfama & the river"
       "emoji": string,                      // one emoji
       "city": string,                       // the city or area the day is based in
-      "notes": string,                      // 1-2 sentences of editorial voice on what the day is about
+      "notes": string,                      // one plain sentence on where the day goes and why in that order; no brochure adjectives, nothing about "this plan" or "this itinerary"
       "neighborhoods": [string],            // 1-3 districts the day moves through
       "items": [
         {
@@ -60,7 +64,7 @@ Output one JSON object with exactly this shape:
           "title": string,                  // the place's own name, as on the map, at most ~34 characters: "Pois Café", "Miradouro da Graça". No verbs, no "Lunch at". What to do there goes in notes
           "time": "HH:mm",                  // start, 24h local
           "endTime": "HH:mm",               // optional
-          "notes": string,                  // opens with what you do there ("Breakfast: …", "Sunset: …"), then the one most useful thing
+          "notes": string,                  // says what you do there in a natural sentence (do not start every note with a "Label:"), then the one most useful thing
           "status": "needs_review",         // ONLY when booking ahead is essential; otherwise omit
           "location": {                     // REQUIRED for kind "place"
             "name": string,                 // the venue's real name

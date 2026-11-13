@@ -27,6 +27,8 @@ export function useInstagramImport(getToken: GetToken, open: boolean) {
   const [status, setStatus] = useState<ImportStatus>("loading")
   const [sessionIds, setSessionIds] = useState<number[]>([])
   const [submitting, setSubmitting] = useState(false)
+  /** Links sent but not yet answered by the server: shown at once as cards. */
+  const [pendingUrls, setPendingUrls] = useState<string[]>([])
   const [problem, setProblem] = useState<string | null>(null)
   /** Jobs being re-read with video, until the server shows them running again. */
   const [deepening, setDeepening] = useState<ReadonlySet<number>>(() => new Set())
@@ -114,6 +116,7 @@ export function useInstagramImport(getToken: GetToken, open: boolean) {
     async (urls: string[]) => {
       if (urls.length === 0) return
       setSubmitting(true)
+      setPendingUrls(urls.slice(0, 20))
       setProblem(null)
       try {
         const result = await submitPosts(getToken, urls.slice(0, 20), true)
@@ -124,6 +127,7 @@ export function useInstagramImport(getToken: GetToken, open: boolean) {
         if (err instanceof IgNotConfiguredError) setStatus("unconfigured")
         else setProblem(`That link didn’t go through. (${errorMessage(err)})`)
       } finally {
+        setPendingUrls([])
         setSubmitting(false)
       }
     },
@@ -143,5 +147,5 @@ export function useInstagramImport(getToken: GetToken, open: boolean) {
     [getToken, refresh],
   )
 
-  return { status, session, recent, submitting, problem, setProblem, deepening, submit, retry, deepen }
+  return { status, session, recent, submitting, pendingUrls, problem, setProblem, deepening, submit, retry, deepen }
 }

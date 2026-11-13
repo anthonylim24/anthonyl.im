@@ -76,21 +76,53 @@ export function isLocated(item: ItineraryItem): item is ItineraryItem & { locati
   return typeof item.location?.lat === "number" && typeof item.location?.lng === "number"
 }
 
-export function locatedItems(day: TripDay): ItineraryItem[] {
-  return day.items.filter(isLocated)
+/**
+ * Heading that parks places the traveller has not fitted into the day yet
+ * (Instagram imports land here on a day that runs to a clock). Everything
+ * under it is on the day but not on its route.
+ */
+export const TO_SCHEDULE = "To schedule"
+
+export const isToSchedule = (item: ItineraryItem) => item.kind === "section" && item.title.trim() === TO_SCHEDULE
+
+/** The day's plan proper, and the places parked under "To schedule". */
+export function splitDay(day: Pick<TripDay, "items">): { planned: ItineraryItem[]; parked: ItineraryItem[] } {
+  const at = day.items.findIndex(isToSchedule)
+  if (at < 0) return { planned: day.items, parked: [] }
+  return { planned: day.items.slice(0, at), parked: day.items.slice(at + 1) }
 }
 
-/** Numbered stop pins for one day, in itinerary order. */
+/** Pinned stops on the day's route, in order. Parked places are not on it. */
+export function locatedItems(day: TripDay): ItineraryItem[] {
+  return splitDay(day).planned.filter(isLocated)
+}
+
+/** Numbered stop pins for one day, in itinerary order, then a plain dot for each parked place. */
 export function dayPins(day: TripDay, fresh?: ReadonlySet<string>): AtlasPin[] {
-  return locatedItems(day).map((item, index) => ({
-    id: item.id,
-    lat: item.location!.lat!,
-    lng: item.location!.lng!,
-    title: item.title || item.location!.name,
-    label: String(index + 1),
-    variant: "stop",
-    fresh: fresh?.has(item.id),
-  }))
+  const stops = locatedItems(day).map(
+    (item, index): AtlasPin => ({
+      id: item.id,
+      lat: item.location!.lat!,
+      lng: item.location!.lng!,
+      title: item.title || item.location!.name,
+      label: String(index + 1),
+      variant: "stop",
+      fresh: fresh?.has(item.id),
+    }),
+  )
+  const parked = splitDay(day)
+    .parked.filter(isLocated)
+    .map(
+      (item): AtlasPin => ({
+        id: item.id,
+        lat: item.location.lat,
+        lng: item.location.lng,
+        title: `${item.title || item.location.name} (to schedule)`,
+        variant: "dot",
+        fresh: fresh?.has(item.id),
+      }),
+    )
+  return [...stops, ...parked]
 }
 
 /** Id prefix for the overview's per-day pins. */
