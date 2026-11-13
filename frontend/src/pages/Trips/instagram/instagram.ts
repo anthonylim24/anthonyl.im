@@ -46,7 +46,8 @@ export function postKey(url: string): string {
 /** "reel/Cabc123" → what to call a post before its author is known. */
 export function postLabel(job: Pick<IgJob, "url" | "post_preview">): string {
   const owner = job.post_preview?.owner_username?.trim()
-  if (owner) return `@${owner.replace(/^@/, "")}`
+  // The fallback fetcher only knows the account's numeric id: not a name.
+  if (owner && !/^\d+$/.test(owner)) return `@${owner.replace(/^@/, "")}`
   return /\/reels?\//i.test(job.url) ? "Instagram Reel" : "Instagram post"
 }
 
