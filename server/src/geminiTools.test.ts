@@ -1,5 +1,6 @@
-import { describe, expect, test } from "bun:test"
+import { beforeEach, describe, expect, test } from "bun:test"
 import {
+  resetGeminiToolFallback,
   CHAT_TOOL_ATTEMPTS,
   describeGeminiTools,
   fetchGeminiStreamWithToolFallback,
@@ -8,9 +9,12 @@ import {
   toolsIncludeMaps,
 } from "./geminiTools"
 
+beforeEach(() => resetGeminiToolFallback())
+
 describe("gemini tool helpers", () => {
-  test("chat attempts start with search+maps", () => {
-    expect(CHAT_TOOL_ATTEMPTS[0]).toEqual(GEMINI_TOOLS_SEARCH_AND_MAPS)
+  test("chat attempts start with Maps and never pair it with Search", () => {
+    expect(CHAT_TOOL_ATTEMPTS[0]).toEqual([{ googleMaps: {} }])
+    expect(CHAT_TOOL_ATTEMPTS).not.toContainEqual(GEMINI_TOOLS_SEARCH_AND_MAPS)
     expect(describeGeminiTools(GEMINI_TOOLS_SEARCH_AND_MAPS)).toBe("search+maps")
     expect(toolsIncludeMaps(GEMINI_TOOLS_SEARCH_AND_MAPS)).toBe(true)
     expect(toolsIncludeMaps(undefined)).toBe(false)
@@ -26,7 +30,7 @@ describe("gemini tool helpers", () => {
 })
 
 describe("fetchGeminiStreamWithToolFallback", () => {
-  test("returns the first OK response and sends search+maps", async () => {
+  test("returns the first OK response and sends Maps", async () => {
     const calls: Array<Record<string, unknown>> = []
     const fetchImpl = (async (_url: RequestInfo | URL, init?: RequestInit) => {
       calls.push(JSON.parse(String(init?.body)) as Record<string, unknown>)
@@ -43,7 +47,7 @@ describe("fetchGeminiStreamWithToolFallback", () => {
     })
     expect(res.status).toBe(200)
     expect(calls).toHaveLength(1)
-    expect(calls[0]!.tools).toEqual(GEMINI_TOOLS_SEARCH_AND_MAPS)
+    expect(calls[0]!.tools).toEqual([{ googleMaps: {} }])
     expect(calls[0]!.toolConfig).toEqual({ retrievalConfig: { latLng: { latitude: 1, longitude: 2 } } })
   })
 
@@ -64,8 +68,8 @@ describe("fetchGeminiStreamWithToolFallback", () => {
       fetchImpl,
     })
     expect(res.status).toBe(200)
-    expect(tools[0]).toEqual(GEMINI_TOOLS_SEARCH_AND_MAPS)
-    expect(tools[1]).toEqual([{ googleMaps: {} }])
+    expect(tools[0]).toEqual([{ googleMaps: {} }])
+    expect(tools[1]).toEqual([{ googleSearch: {} }])
   })
 
   test("aborts the 5xx retry delay instead of starting a second fetch", async () => {
@@ -104,5 +108,23 @@ describe("fetchGeminiStreamWithToolFallback", () => {
     })
     expect(res.status).toBe(429)
     expect(calls).toBe(1)
+  })
+
+  test("remembers the tool set that worked and starts there next time", async () => {
+    const sent: string[] = []
+    const fetchImpl = (async (_url: string, init?: RequestInit) => {
+      const tools = (JSON.parse(String(init?.body)) as { tools?: unknown[] }).tools
+      sent.push(JSON.stringify(tools ?? null))
+      return tools && "googleMaps" in (tools[0] as object) ? new Response("{}", { status: 400 }) : new Response("ok", { status: 200 })
+    }) as unknown as typeof fetch
+    const call = () =>
+      fetchGeminiStreamWithToolFallback({ apiKey: "k", baseBody: {}, signal: new AbortController().signal, logLabel: "t", fetchImpl })
+    expect((await call()).ok).toBe(true)
+    expect((await call()).ok).toBe(true)
+    expect(sent).toEqual([
+      JSON.stringify([{ googleMaps: {} }]),
+      JSON.stringify([{ googleSearch: {} }]),
+      JSON.stringify([{ googleSearch: {} }]),
+    ])
   })
 })

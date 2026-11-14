@@ -25,6 +25,7 @@ import { deleteTrip, duplicateTrip, generateItinerary } from "./tripsApi"
 import { dayCount, formatClock, formatRange, formatTripDate, plural, resolveAccent, titleCase, todayIsoIn, tripTiming } from "./meta"
 import { AtlasMap } from "./map/AtlasMap"
 import { makeItem } from "./tripEdits"
+import { changedLodging, lodgingBrief, lodgingEntries, type LodgingEntry } from "./lodging"
 import { IgGlyph } from "./instagram/IgGlyph"
 import { extractInstagramUrls } from "./instagram/instagram"
 import { centroid, corePoints, isToSchedule, TO_SCHEDULE, DAY_PIN, dayPins, dayRoute, isLocated, locatedItems, tripDots, tripPins, type LngLat } from "./map/geo"
@@ -93,6 +94,9 @@ export function TripWorkspace() {
   const [instagram, setInstagram] = useState<{ urls: string[] } | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
   const igAddedRef = useRef<string[]>([])
+  /** Offered after the traveller adds or changes where they sleep. */
+  const [lodgingNudge, setLodgingNudge] = useState<LodgingEntry | null>(null)
+  const lodgingRef = useRef<{ tripId: string; entries: LodgingEntry[] } | null>(null)
   const [igUndo, setIgUndo] = useState<{ ids: string[]; count: number; key: number } | null>(null)
   const paneRef = useRef<HTMLDivElement>(null)
   const railRef = useRef<HTMLElement>(null)
@@ -253,6 +257,24 @@ export function TripWorkspace() {
     requestAnimationFrame(() => document.getElementById(`item-${anchor}`)?.scrollIntoView({ block: "start", behavior: "smooth" }))
   }
 
+  // A new or different hotel changes what a good day looks like. Offer to
+  // rework the plan around it; never do it unasked. Changes made by an AI
+  // run (a draft, an applied review) only update what we compare against.
+  const lodgingKey = trip ? lodgingEntries(trip).map((entry) => entry.key).join("|") : ""
+  const aiBusy = drafting || editor.enhancingTarget !== null
+  useEffect(() => {
+    if (!trip) return
+    const entries = lodgingEntries(trip)
+    const known = lodgingRef.current
+    lodgingRef.current = { tripId: trip.id, entries }
+    if (!known || known.tripId !== trip.id || aiBusy || !editable) return
+    const changed = changedLodging(known.entries, entries)
+    const otherStops = trip.days.some((d) => d.items.some((item) => item.kind === "place" && item.id !== changed?.itemId))
+    if (changed && otherStops) setLodgingNudge(changed)
+    else if (lodgingNudge && !entries.some((entry) => entry.key === lodgingNudge.key)) setLodgingNudge(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lodgingKey, trip?.id])
+
   useEffect(() => {
     if (!igUndo) return
     const timer = setTimeout(() => setIgUndo(null), 12_000)
@@ -265,7 +287,7 @@ export function TripWorkspace() {
     editor.setNotice(null)
     try {
       await editor.flushPendingSave()
-      const { trip: next, summary } = await generateItinerary(editor.readToken, trip.id, {
+      const { trip: next, summary, incompleteDays } = await generateItinerary(editor.readToken, trip.id, {
         ...briefToRequest(brief),
         replaceExisting: hasItems,
       })
@@ -275,9 +297,15 @@ export function TripWorkspace() {
       const added = next.days.flatMap((d) => d.items.map((i) => i.id))
       editor.flashTouched(new Set(added))
       setFresh(new Set(added))
+      const thin =
+        incompleteDays.length > 0
+          ? ` ${incompleteDays.length === 1 ? `Day ${incompleteDays[0]} needs` : `Days ${incompleteDays.join(", ")} need`} another go: open ${incompleteDays.length === 1 ? "it" : "each"} and use “Ideas for this day”.`
+          : ""
       editor.setNotice(
         added.length > 0
-          ? (summary ?? `Drafted ${plural(added.length, "stop")} across ${plural(next.days.length, "day")}. Edit anything.`)
+          ? incompleteDays.length > 0
+            ? `Drafted ${plural(added.length, "stop")}, but not every day.${thin}`
+            : (summary ?? `Drafted ${plural(added.length, "stop")} across ${plural(next.days.length, "day")}. Edit anything.`)
           : "The draft came back empty. Try again with a little more detail.",
       )
     } catch (err) {
@@ -753,8 +781,29 @@ export function TripWorkspace() {
         </div>
       </div>
 
-      {(editor.notice || editor.deleted || igUndo) && (
+      {(editor.notice || editor.deleted || igUndo || lodgingNudge) && (
         <div {...sx(s.dock)}>
+          {lodgingNudge && (
+            <div {...sx(s.dockItem)} role="status">
+              <span {...sx(a.grow, a.wrap)}>Staying at {lodgingNudge.name}. Rework the plan around it?</span>
+              <button
+                type="button"
+                {...sx(s.dockBtn)}
+                disabled={locked}
+                onClick={() => {
+                  const name = lodgingNudge.name
+                  setLodgingNudge(null)
+                  navigate(basePath)
+                  void editor.runEnhance("trip", undefined, lodgingBrief(name))
+                }}
+              >
+                Adjust plan
+              </button>
+              <button type="button" {...sx(s.dockBtn)} onClick={() => setLodgingNudge(null)}>
+                Not now
+              </button>
+            </div>
+          )}
           {igUndo && (
             <div {...sx(s.dockItem)} role="status" key={igUndo.key}>
               <span {...sx(a.grow, a.truncate)}>Added {plural(igUndo.count, "place")} from Instagram</span>

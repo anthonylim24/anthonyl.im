@@ -139,7 +139,7 @@ export function DayPanel({
       const at = { lat: item.location.lat, lng: item.location.lng }
       if (last) {
         const d = distanceMeters(last.at, at)
-        if (d >= 40) legs.set(last.id, d < 4000 ? `${formatDistance(d)} · ${formatWalkMinutes(d)}` : `${formatDistance(d)} · ride`)
+        if (d >= 40) legs.set(last.id, d < 2000 ? `${formatDistance(d)} · ${formatWalkMinutes(d)}` : `${formatDistance(d)} · ride`)
       }
       last = { id: item.id, at }
     }

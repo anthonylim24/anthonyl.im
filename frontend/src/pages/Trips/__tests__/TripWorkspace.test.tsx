@@ -264,7 +264,7 @@ describe("TripWorkspace", () => {
     it("drafts an empty trip with AI from the overview", async () => {
       const empty = makeTrip()
       const drafted = planned()
-      mockGenerateItinerary.mockResolvedValue({ trip: drafted, summary: "Drafted a food-first weekend." })
+      mockGenerateItinerary.mockResolvedValue({ trip: drafted, summary: "Drafted a food-first weekend.", incompleteDays: [] })
       renderWorkspace("/trips/lisbon", empty)
 
       expect(await screen.findByRole("heading", { name: "Let AI sketch all 2 days" })).toBeInTheDocument()
@@ -285,6 +285,14 @@ describe("TripWorkspace", () => {
       expect(stat("Places")).toHaveTextContent("Places3")
       expect(stat("On the map")).toHaveTextContent("On the map2 of 3")
       expect(screen.getByRole("button", { name: "Improve with AI" })).toBeInTheDocument()
+    })
+
+    it("says which days still need work when a draft comes back partial", async () => {
+      mockGenerateItinerary.mockResolvedValue({ trip: planned(), summary: "Drafted.", incompleteDays: [2] })
+      renderWorkspace("/trips/lisbon", makeTrip())
+
+      fireEvent.click(await screen.findByRole("button", { name: "Draft itinerary" }))
+      expect(await screen.findByText(/but not every day\. Day 2 needs another go/)).toBeInTheDocument()
     })
 
     it("explains a failed draft and leaves the trip alone", async () => {
@@ -597,6 +605,47 @@ describe("TripWorkspace", () => {
         },
       ])
       await waitFor(() => expect(screen.getByText("Saved")).toBeInTheDocument())
+    })
+
+    it("offers to rework the plan when a hotel is added, and runs a whole-trip review on yes", async () => {
+      const hotel: PlaceResult = { id: "W9", name: "Pestana Palace", context: "Rua Jau, Lisbon", address: "Rua Jau, Lisbon", lat: 38.7031, lng: -9.1853, category: "hotel" }
+      mockSearchPlaces.mockResolvedValue([hotel])
+      mockEnhanceTrip.mockResolvedValue({
+        run: { id: "run-1", tripId: "lisbon", scope: "trip", status: "complete", suggestions: [], appliedSuggestionIds: [], createdAt: "2026-07-01T00:00:00Z" },
+        applied: [],
+      })
+      renderWorkspace("/trips/lisbon/day/day-2")
+
+      const input = await screen.findByRole("combobox", { name: "Add a place, note or booking" })
+      // Nothing is offered for the trip as it was opened.
+      expect(screen.queryByRole("button", { name: "Adjust plan" })).toBeNull()
+      fireEvent.change(input, { target: { value: "pestana" } })
+      fireEvent.click(await screen.findByRole("option", { name: /Pestana Palace/ }))
+
+      expect(await screen.findByText("Staying at Pestana Palace. Rework the plan around it?")).toBeInTheDocument()
+      fireEvent.click(screen.getByRole("button", { name: "Adjust plan" }))
+
+      await waitFor(() => expect(mockEnhanceTrip).toHaveBeenCalledTimes(1))
+      const [, id, scope, dayId, prompt] = mockEnhanceTrip.mock.calls[0] as [unknown, string, string, string | undefined, string]
+      expect([id, scope, dayId]).toEqual(["lisbon", "trip", undefined])
+      expect(prompt).toContain("staying at Pestana Palace")
+      expect(screen.queryByRole("button", { name: "Adjust plan" })).toBeNull()
+    })
+
+    it("does not offer a rework for an ordinary stop, and “Not now” dismisses the offer", async () => {
+      renderWorkspace("/trips/lisbon/day/day-2")
+      const input = await screen.findByRole("combobox", { name: "Add a place, note or booking" })
+      fireEvent.change(input, { target: { value: "belem" } })
+      fireEvent.click(await screen.findByRole("option", { name: /Belém Tower/ }))
+      await screen.findByRole("button", { name: "Show Belém Tower on the map" })
+      expect(screen.queryByRole("button", { name: "Adjust plan" })).toBeNull()
+
+      mockSearchPlaces.mockResolvedValue([{ id: "W9", name: "Pestana Palace", context: "Lisbon", address: "Lisbon", lat: 38.7031, lng: -9.1853, category: "hotel" }])
+      fireEvent.change(input, { target: { value: "pestana" } })
+      fireEvent.click(await screen.findByRole("option", { name: /Pestana Palace/ }))
+      fireEvent.click(await screen.findByRole("button", { name: "Not now" }))
+      expect(screen.queryByRole("button", { name: "Adjust plan" })).toBeNull()
+      expect(mockEnhanceTrip).not.toHaveBeenCalled()
     })
 
     it("adds typed text as a note without a pin", async () => {

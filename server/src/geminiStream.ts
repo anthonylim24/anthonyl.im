@@ -219,3 +219,136 @@ export function extractGeminiTextFromBody(raw: string): GeminiStreamLine | null 
     return null
   }
 }
+
+// ── Agent rounds: text + function calls + server-side tool activity ─────────
+//
+// The concierge runs Gemini as a small tool loop. One round is one
+// streamGenerateContent response; it can carry visible text, our own
+// function calls, and (with `includeServerSideToolInvocations`) the built-in
+// tool's own `toolCall` / `toolResponse` parts, which is how real progress
+// ("Searching the web: …") reaches the traveller.
+
+export interface GeminiFunctionCall {
+  name: string
+  args: Record<string, unknown>
+  id?: string
+}
+
+/** A built-in tool the model ran on Google's side (Search, Maps, …). */
+export interface GeminiServerToolCall {
+  toolType: string
+  queries: string[]
+}
+
+export interface GeminiAgentRound {
+  /** Every part exactly as received, thought signatures included: a
+   *  follow-up request must replay them unchanged. */
+  parts: Array<Record<string, unknown>>
+  text: string
+  functionCalls: GeminiFunctionCall[]
+  finishReason?: string
+  blockReason?: string
+  grounding?: GeminiGrounding
+  /** The model that actually answered (`modelVersion` on the response). */
+  modelVersion?: string
+  usage?: Record<string, unknown>
+}
+
+export interface GeminiAgentHandlers {
+  onText?: (delta: string) => void | Promise<void>
+  onServerTool?: (call: GeminiServerToolCall) => void | Promise<void>
+  onModelVersion?: (model: string) => void | Promise<void>
+}
+
+type AgentChunk = GeminiStreamChunk & {
+  modelVersion?: string
+  usageMetadata?: Record<string, unknown>
+  candidates?: Array<{
+    content?: { parts?: Array<Record<string, unknown>> }
+    finishReason?: string
+    groundingMetadata?: GeminiGroundingMetadata
+  }>
+}
+
+function asServerToolCall(raw: unknown): GeminiServerToolCall | null {
+  if (!raw || typeof raw !== "object") return null
+  const obj = raw as { toolType?: unknown; args?: { queries?: unknown } }
+  const queries = Array.isArray(obj.args?.queries)
+    ? obj.args.queries.filter((q): q is string => typeof q === "string" && q.trim() !== "")
+    : []
+  return { toolType: typeof obj.toolType === "string" ? obj.toolType : "", queries }
+}
+
+/** Read one streamed Gemini response as an agent round. */
+export async function readGeminiAgentRound(
+  body: ReadableStream<Uint8Array>,
+  handlers: GeminiAgentHandlers = {},
+): Promise<GeminiAgentRound> {
+  const round: GeminiAgentRound = { parts: [], text: "", functionCalls: [] }
+  const reader = body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ""
+  let announcedModel = false
+
+  const take = async (line: string) => {
+    const trimmed = line.trim()
+    if (!trimmed.startsWith("data:")) return
+    const payload = trimmed.slice(5).trim()
+    if (!payload || payload === "[DONE]") return
+    let chunk: AgentChunk
+    try {
+      chunk = JSON.parse(payload) as AgentChunk
+    } catch {
+      return
+    }
+    if (!chunk || typeof chunk !== "object") return
+    if (chunk.modelVersion) {
+      round.modelVersion = chunk.modelVersion
+      if (!announcedModel) {
+        announcedModel = true
+        await handlers.onModelVersion?.(chunk.modelVersion)
+      }
+    }
+    if (chunk.usageMetadata) round.usage = chunk.usageMetadata
+    if (chunk.promptFeedback?.blockReason) round.blockReason = chunk.promptFeedback.blockReason
+    const candidate = chunk.candidates?.[0]
+    if (candidate?.finishReason) round.finishReason = candidate.finishReason
+    const grounding = groundingFromGeminiChunk(chunk)
+    if (grounding) round.grounding = mergeGeminiGrounding(round.grounding, grounding)
+    for (const part of candidate?.content?.parts ?? []) {
+      if (!part || typeof part !== "object") continue
+      round.parts.push(part)
+      const call = part.functionCall as { name?: unknown; args?: unknown; id?: unknown } | undefined
+      if (call && typeof call.name === "string") {
+        round.functionCalls.push({
+          name: call.name,
+          args: call.args && typeof call.args === "object" ? (call.args as Record<string, unknown>) : {},
+          id: typeof call.id === "string" ? call.id : undefined,
+        })
+        continue
+      }
+      if (part.toolCall) {
+        const server = asServerToolCall(part.toolCall)
+        if (server) await handlers.onServerTool?.(server)
+        continue
+      }
+      if (part.thought || typeof part.text !== "string" || !part.text) continue
+      round.text += part.text
+      await handlers.onText?.(part.text)
+    }
+  }
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) {
+      buffer += decoder.decode()
+      break
+    }
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split("\n")
+    buffer = lines.pop() ?? ""
+    for (const line of lines) await take(line)
+  }
+  if (buffer) await take(buffer)
+  return round
+}

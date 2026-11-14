@@ -1,6 +1,7 @@
-import { test, expect, describe, afterEach } from "bun:test"
+import { test, expect, describe, afterEach, beforeEach } from "bun:test"
 import { Hono } from "hono"
 import koreaChat from "./koreaChat"
+import { resetGeminiToolFallback } from "../geminiTools"
 
 // Helper: mount the router exactly as app.ts does (at /api/korea/chat).
 function makeApp() {
@@ -44,6 +45,9 @@ afterEach(() => {
 })
 
 describe("POST /api/korea/chat", () => {
+  // The tool ladder remembers the rung that worked; each test starts at the top.
+  beforeEach(() => resetGeminiToolFallback())
+
   test("503 when GEMINI_API_KEY is not configured", async () => {
     delete process.env.GEMINI_API_KEY
     const res = await makeApp().request("/api/korea/chat", {
@@ -99,7 +103,7 @@ describe("POST /api/korea/chat", () => {
       parts: [{ text: "What's for dinner?" }],
     })
     expect(capturedBody.generationConfig.thinkingConfig).toEqual({ thinkingLevel: "low" })
-    expect(capturedBody.tools).toEqual([{ googleSearch: {} }, { googleMaps: {} }])
+    expect(capturedBody.tools).toEqual([{ googleMaps: {} }])
     expect(capturedBody.systemInstruction.parts[0].text).toContain("Google Search and Google Maps")
   })
 

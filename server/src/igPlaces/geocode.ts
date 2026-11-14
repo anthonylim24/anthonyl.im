@@ -92,8 +92,17 @@ function bumpBand(b: IgConfidenceBand): IgConfidenceBand {
   return b === 'low' ? 'medium' : b === 'medium' ? 'high' : 'high';
 }
 
+const KOREA_HINT = /[\u3131-\u318E\uAC00-\uD7A3]|\b(korea|seoul|busan|jeju|incheon|daegu|daejeon|gwangju|suwon|gyeongju|gangnam|hongdae|seongsu|itaewon|myeongdong)\b/i;
+
+/** The post itself says Korea: Hangul anywhere, or a Korean city or district. */
+export function expectsKorea(p: { name: string; name_romanized?: string | null; nameRomanized?: string | null; city?: string | null; address?: string | null }): boolean {
+  return [p.name, p.name_romanized, p.nameRomanized, p.city, p.address].some((text) => typeof text === 'string' && KOREA_HINT.test(text));
+}
+
 function googlePassesQualityBar(p: VotedPlace, g: GoogleResult): boolean {
-  if (!withinKoreaBbox(g.lat, g.lng)) return false;
+  // A Korean post that resolves outside Korea is a same-name venue
+  // elsewhere. Posts from anywhere else are not held to that box.
+  if (expectsKorea(p) && !withinKoreaBbox(g.lat, g.lng)) return false;
   if (p.category === 'restaurant' || p.category === 'cafe' || p.category === 'bar') {
     if (g.userRatingCount < 10 && levenshteinDistance(canonicalize(p.name), canonicalize(g.name)) > 1) {
       return false;
@@ -318,7 +327,9 @@ export function realGoogleLookup(apiKey: string, f = fetch) {
       const r = await f(searchUrl, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ textQuery, regionCode: 'KR', languageCode: 'en' }),
+        // Bias toward Korea only when the post points there; otherwise let
+        // the query (name + city) find the venue wherever it is.
+        body: JSON.stringify({ textQuery, ...(expectsKorea(q) ? { regionCode: 'KR' } : {}), languageCode: 'en' }),
         signal: AbortSignal.timeout(15_000),
       });
       if (!r.ok) {

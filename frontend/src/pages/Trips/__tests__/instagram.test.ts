@@ -91,6 +91,12 @@ describe("jobProgress", () => {
     expect(stuck.problem).toContain("offline right now")
   })
 
+  it("explains a used-up free allowance and a server with no fetcher", () => {
+    expect(describeProblem("apify monthly credit used up (402)")).toContain("resets next month")
+    expect(describeProblem("no Instagram fetcher is configured (set APIFY_TOKEN)")).toContain("offline right now")
+    expect(describeProblem("apify: post not found (Post does not exist)")).toContain("private or deleted")
+  })
+
   it("never shows a raw server error", () => {
     expect(describeProblem("TypeError: fetch failed at wire.ts:44")).toBe("This post couldn’t be read.")
   })

@@ -91,17 +91,28 @@ function categoryFor(key?: string, value?: string): string | undefined {
   if (key === "tourism") {
     if (["museum", "gallery"].includes(v)) return "museum"
     if (v === "viewpoint") return "viewpoint"
-    if (["hotel", "hostel", "guest_house", "apartment", "motel"].includes(v)) return "hotel"
+    if (["hotel", "hostel", "guest_house", "apartment", "motel", "resort", "chalet", "alpine_hut"].includes(v)) return "hotel"
     if (["attraction", "theme_park", "zoo", "aquarium"].includes(v)) return "experience"
     return "landmark"
   }
   if (key === "historic") return v === "castle" || v === "palace" ? "palace" : "landmark"
-  if (key === "leisure") return ["park", "garden", "nature_reserve"].includes(v) ? "park" : "experience"
+  if (key === "leisure") return v === "resort" ? "hotel" : ["park", "garden", "nature_reserve"].includes(v) ? "park" : "experience"
   if (key === "natural") return v === "peak" || v === "beach" ? "viewpoint" : "park"
+  if (key === "building" && ["hotel", "dormitory"].includes(v)) return "hotel"
   if (key === "shop") return "shopping"
   if (key === "railway" || key === "aeroway" || key === "public_transport") return "transit"
   if (key === "place") return "neighborhood"
   return undefined
+}
+
+const CLUTTER_KEYS = new Set(["highway", "landuse", "boundary", "aeroway", "power", "barrier", "waterway"])
+const CLUTTER_AMENITIES = new Set(["charging_station", "parking", "parking_space", "bicycle_parking", "bench", "atm", "toilets", "waste_basket", "vending_machine"])
+
+/** Map furniture that shares a venue's name. */
+export function isClutter(key?: string, value?: string): boolean {
+  if (!key) return false
+  if (CLUTTER_KEYS.has(key)) return true
+  return key === "amenity" && CLUTTER_AMENITIES.has(value ?? "")
 }
 
 const searchPlacesEffect = Effect.fn("Geocode.searchPlaces")(function* (
@@ -110,12 +121,17 @@ const searchPlacesEffect = Effect.fn("Geocode.searchPlaces")(function* (
   signal?: AbortSignal,
 ) {
   const bias = near ? `&lat=${near.lat.toFixed(2)}&lon=${near.lng.toFixed(2)}&location_bias_scale=0.4` : ""
-  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=6&lang=en${bias}`
+  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=12&lang=en${bias}`
   const res = yield* fetchExternal(url, { signal })
   if (!res.ok) return [] as PlaceResult[]
   const body = yield* parseJson<{ features?: PhotonFeature[] }>(res)
   const out: PlaceResult[] = []
-  for (const feature of body.features ?? []) {
+  // A hotel's name also matches its bus stop, car charger and the street
+  // it is on. Those are never what a traveller is adding: keep them only
+  // when nothing better matched.
+  const features = body.features ?? []
+  const useful = features.filter((feature) => !isClutter(feature.properties?.osm_key, feature.properties?.osm_value))
+  for (const feature of (useful.length > 0 ? useful : features).slice(0, 6)) {
     const p = feature.properties ?? {}
     const coords = feature.geometry?.coordinates
     if (!p.name || !coords) continue
@@ -124,6 +140,7 @@ const searchPlacesEffect = Effect.fn("Geocode.searchPlaces")(function* (
       (part, i, all): part is string => Boolean(part) && all.indexOf(part) === i && part !== p.name,
     )
     const context = [street, ...area].filter(Boolean).join(", ")
+    if (out.some((seen) => seen.name === p.name && Math.abs(seen.lat - coords[1]) < 0.003 && Math.abs(seen.lng - coords[0]) < 0.003)) continue
     out.push({
       id: `${p.osm_type ?? "x"}${p.osm_id ?? out.length}`,
       name: p.name,

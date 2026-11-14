@@ -7,12 +7,19 @@
  *  `{ places }` / `{ sources }` objects after the text. */
 
 import {
+  asConciergeMeta,
   asConciergeMoves,
   asConciergePlaces,
+  asConciergeProposal,
   asConciergeSources,
+  asConciergeStatus,
+  asFollowups,
+  type ConciergeMeta,
   type ConciergeMove,
   type ConciergePlace,
+  type ConciergeProposal,
   type ConciergeSource,
+  type ConciergeStatus,
 } from "./conciergeGrounding"
 
 export type ConciergeSseDelta =
@@ -21,6 +28,10 @@ export type ConciergeSseDelta =
   | { kind: "places"; places: ConciergePlace[] }
   | { kind: "moves"; moves: ConciergeMove[] }
   | { kind: "sources"; sources: ConciergeSource[] }
+  | { kind: "status"; status: ConciergeStatus }
+  | { kind: "meta"; meta: ConciergeMeta }
+  | { kind: "proposal"; proposal: ConciergeProposal }
+  | { kind: "followups"; followups: string[] }
   | { kind: "ignore" }
 
 function textFromGeminiShaped(value: unknown): string {
@@ -65,6 +76,22 @@ function interpretPayload(parsed: unknown): ConciergeSseDelta {
     const obj = parsed as Record<string, unknown>
     if (obj.error != null && obj.error !== "") {
       return { kind: "error", error: errorMessage(obj.error) }
+    }
+    if (obj.status && typeof obj.status === "object") {
+      const status = asConciergeStatus(obj.status)
+      return status ? { kind: "status", status } : { kind: "ignore" }
+    }
+    if (obj.meta && typeof obj.meta === "object") {
+      const meta = asConciergeMeta(obj.meta)
+      return meta ? { kind: "meta", meta } : { kind: "ignore" }
+    }
+    if (obj.proposal && typeof obj.proposal === "object") {
+      const proposal = asConciergeProposal(obj.proposal)
+      return proposal ? { kind: "proposal", proposal } : { kind: "ignore" }
+    }
+    if (Array.isArray(obj.followups)) {
+      const followups = asFollowups(obj.followups)
+      return followups.length ? { kind: "followups", followups } : { kind: "ignore" }
     }
     if (Array.isArray(obj.places)) {
       const places = asConciergePlaces(obj.places)
