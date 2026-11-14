@@ -42,10 +42,15 @@ const TITLE = 'anthonyl.im — Applied intelligence lab'
 const BONE = '#EDE8DF'
 
 /** Routes go through the router (preview basename), hashes and URLs stay native. */
-function SmartLink({ href, children, ...rest }: { href: string; children: ReactNode } & Omit<ComponentProps<'a'>, 'href'>) {
+function SmartLink({
+  href,
+  document,
+  children,
+  ...rest
+}: { href: string; document?: boolean; children: ReactNode } & Omit<ComponentProps<'a'>, 'href'>) {
   if (href.startsWith('/')) {
     return (
-      <Link to={href} {...rest}>
+      <Link to={href} reloadDocument={document} {...rest}>
         {children}
       </Link>
     )
@@ -662,7 +667,7 @@ function Footer() {
               <ul {...sx(foot.list)}>
                 {col.links.map((l) => (
                   <li key={l.label}>
-                    <SmartLink href={l.href} {...sx(foot.link)}>
+                    <SmartLink href={l.href} document={l.document} {...sx(foot.link)}>
                       {l.label}
                     </SmartLink>
                   </li>

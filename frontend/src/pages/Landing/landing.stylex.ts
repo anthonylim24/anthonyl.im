@@ -1170,7 +1170,7 @@ export const foot = stylex.create({
   },
   grid: {
     display: 'grid',
-    gridTemplateColumns: 'minmax(0, 1.4fr) repeat(3, minmax(0, 1fr))',
+    gridTemplateColumns: 'minmax(0, 1.4fr) repeat(4, minmax(0, 1fr))',
     gap: '40px',
     '@media (max-width: 819px)': { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' },
   },

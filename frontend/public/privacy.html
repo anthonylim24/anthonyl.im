@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Privacy Policy · anthonyl.im</title>
+    <meta name="description" content="What anthonyl.im collects, why, who processes it, and how to have it deleted." />
+    <link rel="canonical" href="https://anthonyl.im/privacy" />
+    <link rel="icon" href="/favicon-lim.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/legal.css" />
+  </head>
+  <body>
+    <main>
+      <a class="brand" href="/">anthonyl.im</a>
+      <h1>Privacy Policy</h1>
+      <p class="updated">Last updated November 14, 2026</p>
+
+      <p>
+        anthonyl.im is Anthony Lim's personal site. It hosts three apps: <strong>Lim</strong>, a chatbot that answers
+        questions about Anthony (<a href="/chatbot">/chatbot</a>); <strong>BreathFlow</strong>, a guided breathing
+        app (<a href="/breathwork">/breathwork</a>); and <strong>Trips</strong>, a trip planner you sign in to
+        (<a href="/trips">/trips</a>). This policy covers all three.
+      </p>
+
+      <h2>Signing in</h2>
+      <p>
+        Trips, and cloud sync in BreathFlow, need an account. Sign-in is handled by
+        <a href="https://clerk.com/legal/privacy">Clerk</a>. You can sign in with an email code, a password, or your
+        Google account.
+      </p>
+      <p>
+        If you choose <strong>Sign in with Google</strong>, the site receives only your name, email address, and
+        profile picture (the <code>openid</code>, <code>email</code>, and <code>profile</code> scopes). It uses them to
+        create your account, show who you are, and show your name to people you share a trip with. It does not ask
+        for access to your Gmail, Drive, Calendar, contacts, or any other Google data.
+      </p>
+      <p>
+        anthonyl.im's use and transfer of information received from Google APIs adheres to the
+        <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>,
+        including the Limited Use requirements. Google user data is never sold, never used for advertising, and never
+        used to train AI models.
+      </p>
+
+      <h2>What is stored</h2>
+      <ul>
+        <li>
+          <strong>Account:</strong> your name, email address, and profile picture, kept by Clerk.
+        </li>
+        <li>
+          <strong>Trips:</strong> the trips you create or join (destinations, dates, places, notes, bookings), the
+          people you share them with, and invite links. Stored in a database hosted by
+          <a href="https://supabase.com/privacy">Supabase</a>.
+        </li>
+        <li>
+          <strong>Places from Instagram:</strong> post links you paste in and the places found in them, kept for your
+          account.
+        </li>
+        <li>
+          <strong>BreathFlow:</strong> settings, session history, and progress. Kept in your browser, and synced to
+          Supabase if you sign in.
+        </li>
+        <li>
+          <strong>Lim chat history:</strong> kept only in your browser's local storage.
+        </li>
+      </ul>
+
+      <h2>Services that process your data</h2>
+      <ul>
+        <li>
+          <strong>AI models.</strong> Messages you send to Lim go to a hosted model through Kluster. Trip drafts,
+          suggestions, and the trip concierge send your trip's contents to Google Gemini, with Groq and Cerebras as
+          fallbacks. Text from Instagram posts you import is read by the same models, and audio is transcribed with
+          Groq. Only the content needed for the request is sent.
+        </li>
+        <li>
+          <strong>Instagram posts.</strong> When you import a post, its public caption and media are fetched through
+          Bright Data.
+        </li>
+        <li>
+          <strong>Maps and places.</strong> Searches and map views use OpenFreeMap, Photon (OpenStreetMap),
+          Open-Meteo, Google Maps, and Kakao. The 3D view loads Google Photorealistic 3D Tiles.
+        </li>
+        <li>
+          <strong>Analytics.</strong> Page views and app usage are measured with PostHog and Inflect. These do not
+          receive your trips or chat messages.
+        </li>
+        <li>
+          <strong>Hosting.</strong> The site runs on DigitalOcean behind Cloudflare, which process standard request
+          data such as IP address and browser type.
+        </li>
+      </ul>
+
+      <h2>What is never done</h2>
+      <ul>
+        <li>Your data is never sold or rented.</li>
+        <li>Your data is never used for advertising.</li>
+        <li>Your data is never shared with anyone except the services above, and only to run the apps.</li>
+      </ul>
+
+      <h2>Keeping and deleting your data</h2>
+      <p>
+        Your data is kept while your account exists. You can delete any trip you own from inside Trips, remove saved
+        Instagram places, and clear BreathFlow and Lim data by clearing this site's storage in your browser. To delete
+        your account and everything tied to it, ask using the contact below. It is removed within 30 days.
+      </p>
+
+      <h2>Children</h2>
+      <p>The site is not directed at children under 13, and does not knowingly collect their data.</p>
+
+      <h2>Changes</h2>
+      <p>If this policy changes, the date at the top changes with it.</p>
+
+      <h2>Contact</h2>
+      <p>
+        Questions or deletion requests:
+        <a href="https://github.com/anthonylim24/anthonyl.im/issues">open an issue on GitHub</a>, or use the support
+        email shown on the Google sign-in screen.
+      </p>
+
+      <footer>
+        <a href="/">Home</a>
+        <a href="/terms">Terms of Service</a>
+      </footer>
+    </main>
+  </body>
+</html>

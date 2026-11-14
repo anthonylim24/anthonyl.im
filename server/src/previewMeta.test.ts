@@ -30,6 +30,25 @@ test.skipIf(!built)('each app shell gets its own preview metadata', async () => 
   }
 });
 
+test.skipIf(!built)('legal pages are plain HTML the home page links to', async () => {
+  process.env.KLUSTER_API_KEY ||= 'load-test-stub';
+  process.env.KLUSTER_API_BASE_URL ||= 'https://example.invalid';
+  process.env.IG_WORKER_ENABLED ||= 'false';
+  const app = (await import('../app')).default;
+  for (const [path, title] of [
+    ['/privacy', 'Privacy Policy · anthonyl.im'],
+    ['/terms', 'Terms of Service · anthonyl.im'],
+  ]) {
+    const res = await app.fetch(new Request(`http://localhost${path}`));
+    const html = await res.text();
+    expect(res.status).toBe(200);
+    expect(html).toContain(`<title>${title}</title>`);
+    expect(html).not.toContain('id="root"');
+  }
+  const home = await (await app.fetch(new Request('http://localhost/'))).text();
+  expect(home).toContain('href="/privacy"');
+});
+
 test.skipIf(!built)('a missing hashed asset is a 404, not the SPA shell', async () => {
   process.env.KLUSTER_API_KEY ||= 'load-test-stub';
   process.env.KLUSTER_API_BASE_URL ||= 'https://example.invalid';
