@@ -126,6 +126,7 @@ describe('reading a message without the model', () => {
   it('handles plain catalog requests locally', () => {
     expect(localIntent('give Lim a ball')?.ops[0]).toMatchObject({ op: 'item', spec: { name: 'ball' } })
     expect(localIntent('drop a rubber duck please')?.ops[0]).toMatchObject({ op: 'item', spec: { name: 'rubber duck' } })
+    expect(localIntent('can he have a teddy bear?')?.ops[0]).toMatchObject({ op: 'item', spec: { name: 'teddy' } })
     expect(localIntent('beach ball')?.ops[0]).toMatchObject({ op: 'item', spec: { name: 'ball' } })
     expect(localIntent('take him to the beach')?.ops[0]).toMatchObject({ op: 'place', spec: { name: 'beach' } })
     expect(localIntent('space!')?.ops[0]).toMatchObject({ op: 'place', spec: { name: 'space' } })
@@ -133,6 +134,7 @@ describe('reading a message without the model', () => {
     expect(localIntent('tidy up')?.ops[0]).toEqual({ op: 'clear', what: 'items' })
     expect(localIntent('make it snow')?.ops[0]).toMatchObject({ op: 'tweak', set: { weather: 'snow' } })
     expect(localIntent('low gravity please')?.ops[0]).toEqual({ op: 'tweak', set: { gravity: 0.3 } })
+    expect(localIntent('stop the rain')?.ops[0]).toEqual({ op: 'tweak', set: { weather: 'none' } })
   })
 
   it('acts on what is already there, or brings it and then acts', () => {
@@ -143,21 +145,37 @@ describe('reading a message without the model', () => {
     expect(localIntent('eat the crown')?.ops[0]).toMatchObject({ op: 'item', then: undefined })
   })
 
-  it('leaves richer requests and real questions alone', () => {
-    // More than the catalog noun: the model should build it.
+  it('knows things the model made earlier, so asking again is free', () => {
+    const snail = cleanItem({ name: 'snail', parts: [{ shape: 'bean', color: '#B9E59B' }] })!
+    const candy = cleanPlace({ name: 'candy land', sky: ['#FFC7E3', '#FFF3C4'] })!
+    const extra = { items: [snail], places: [candy] }
+    expect(localIntent('give him a snail', [], extra)?.ops[0]).toMatchObject({ op: 'item', spec: { name: 'snail' } })
+    expect(localIntent('take lim to candy land', [], extra)?.ops[0]).toMatchObject({ op: 'place', spec: { name: 'candy land' } })
+    expect(localIntent('give him a snail')).toBeNull()
+  })
+
+  it('leaves richer requests to the model', () => {
     expect(localIntent('take him to a candy land')).toBeNull()
     expect(localIntent('give lim a golden apple tree')).toBeNull()
-    expect(localIntent('the beach at night with fireworks')).toBeNull()
-    // Questions about Anthony are never world requests.
-    for (const q of ["What is Anthony's background?", 'Where has he worked?', 'Has Anthony been to the beach?', 'What are his technical skills?', 'How can I contact him?']) {
-      expect(localIntent(q), q).toBeNull()
-      expect(looksLikeWorldRequest(q), q).toBe(false)
+    expect(localIntent('take him to the beach at night with fireworks')).toBeNull()
+    expect(localIntent('make it rain frogs')).toBeNull()
+    for (const m of ['give him a kite', 'can he have a tiny castle', 'take lim to a candy land', 'put a hat on his head', 'make it rain frogs', 'Lim needs a scarf']) {
+      expect(looksLikeWorldRequest(m), m).toBe(true)
     }
   })
 
-  it('sends plausible world requests to the model, and nothing over-long', () => {
-    for (const m of ['give him a kite', 'can he have a tiny castle', 'take lim to a candy land', 'put a hat on his head', 'make it rain frogs']) {
-      expect(looksLikeWorldRequest(m), m).toBe(true)
+  it('never intercepts questions, remarks, or anything about Anthony', () => {
+    const chat = [
+      "What is Anthony's background?", 'Where has he worked?', 'Has Anthony been to the beach?', 'What are his technical skills?',
+      'How can I contact him?', 'Can he play music?', 'Bear with me', 'Sweet!', 'music', 'light', 'party', 'club', 'spring', 'pool',
+      'plant', 'moon', 'boo', 'Where did he go to school?', 'What did he build at Google?', 'how can I get in touch', 'Can I see his github',
+      'What does he like to eat?', 'Does he like the beach?', 'Is he a star engineer?', 'Tell me about his heart for teaching',
+      'What makes him tick?', 'Can you give me his email?', 'Give me a summary of his work', 'Add more detail please', 'Put simply, who is he?',
+      'Clear explanation, thanks', 'Is the ball in his court?', 'thanks!', 'cool', 'That was sweet', 'I love space', 'Show me his projects',
+    ]
+    for (const m of chat) {
+      expect(localIntent(m), m).toBeNull()
+      expect(looksLikeWorldRequest(m), m).toBe(false)
     }
     expect(looksLikeWorldRequest('give ' + 'x'.repeat(300))).toBe(false)
     expect(looksLikeWorldRequest('')).toBe(false)

@@ -78,7 +78,7 @@ export function backdropMaterial(u: PlaceUniforms) {
   const p = uv()
   const x = p.x.sub(0.5).mul(u.aspect)
   const y = p.y
-  const [, hills, dunes, waves, mountains, city, trees] = u.horizon
+  const [, hills, dunes, waves, mountains, city, trees, wall] = u.horizon
 
   let c: V3 = mix(u.skyBottom as unknown as V3, u.skyTop as unknown as V3, smoothstep(GROUND, 1, y))
 
@@ -108,6 +108,8 @@ export function backdropMaterial(u: PlaceUniforms) {
     .add(waves.mul(sin(x.mul(16).add(u.time.mul(1.4))).mul(0.006).add(0.04)))
     .add(mountains.mul(tri(x.mul(0.9).add(0.3)).mul(0.13).add(tri(x.mul(2.3).add(0.4)).mul(0.05)).add(0.03)))
     .add(city.mul(hash(vec2(floor(x.mul(7)), 3)).mul(0.11).add(0.045).mul(smoothstep(0.02, 0.06, abs(fract(x.mul(7)).sub(0.5)).mul(-1).add(0.5)))))
+    // Indoors: a flat wall with a skirting rail.
+    .add(wall.mul(0.2))
     .add(trees.mul(abs(sin(x.mul(9))).mul(0.06).add(abs(sin(x.mul(23).add(1))).mul(0.035)).add(0.07)))
   c = mix(c, u.horizonColor as unknown as V3, aaStep(y.sub(float(GROUND).add(h)), 0.003).mul(smoothstep(0.004, 0.02, h)))
 

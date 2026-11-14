@@ -19,7 +19,8 @@ export function createLimWorldRouter(deps: { complete?: Complete } = {}) {
   router.post("/world", zValidator("json", bodySchema), async (c) => {
     const { message, world } = c.req.valid("json");
     try {
-      return c.json(await askLimWorld(message, world, deps.complete));
+      // A visitor who navigates away or hits Stop cancels the model call too.
+      return c.json(await askLimWorld(message, world, deps.complete, undefined, c.req.raw.signal));
     } catch (err) {
       // The world is a nicety: the page falls back to the catalog and the chat.
       console.warn("[lim-world] unavailable:", err instanceof Error ? err.message : String(err));

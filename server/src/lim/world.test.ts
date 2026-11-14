@@ -69,6 +69,16 @@ describe("askLimWorld", () => {
     await askLimWorld("Give Lim  a duck", world, run);
     await askLimWorld("give lim a duck", world, run);
     expect(calls).toBe(1);
+    // The same request in a different world is still one call…
+    await askLimWorld("give lim a duck", { items: ["apple"], place: "beach" }, run);
+    expect(calls).toBe(1);
+    // …unless the answer acts on what is there.
+    const act = async () => (++calls, '{"ops":[{"op":"act","action":"eat","target":"apple"}],"reply":"Yum","chat":false}');
+    await askLimWorld("eat it", { items: ["apple"], place: "studio" }, act);
+    await askLimWorld("eat it", { items: ["apple"], place: "studio" }, act);
+    await askLimWorld("eat it", { items: ["donut"], place: "studio" }, act);
+    expect(calls).toBe(3);
+    calls = 1;
     const miss = async () => (++calls, "nope");
     await askLimWorld("hmm", world, miss);
     await askLimWorld("hmm", world, miss);

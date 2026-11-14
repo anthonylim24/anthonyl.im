@@ -39,7 +39,7 @@ Catalog places: ${PLACE_IDS.join(", ")}, studio.
 Use a catalog id when one fits what was asked. Otherwise invent a spec.
 Do only what the message asks: no extra ops, and never a place op unless the message asks to go somewhere.
 
-ITEM = {"name":"1-3 words","size":0.6-1.7,"traits":[...],"face":-1,"parts":[PART,...]}
+ITEM = {"name":"1-3 words","size":0.8-1.7,"traits":[...],"face":-1,"parts":[PART,...]}
 PART = {"shape":S,"color":"#RRGGBB","at":[x,y,z],"scale":[x,y,z],"tilt":degrees}
 - 1 to 6 parts. The first part is the body, at [0,0,0]. Other parts are placed relative to it in body radii: x right, y up, z toward the viewer. "scale" is each part's half-size in body radii (the body is about [1,1,1]). "tilt" leans a part left/right.
 - S is one of: ${SHAPES.join(", ")}. cone points up; disc lies flat like a plate; ring faces the viewer like a donut; drop is a teardrop, point up.
@@ -48,9 +48,9 @@ PART = {"shape":S,"color":"#RRGGBB","at":[x,y,z],"scale":[x,y,z],"tilt":degrees}
 - "face": index of a part to give two cute eyes (animals, creatures), or -1.
 - Look: chunky, simple, cute; soft candy colours (no pure black, no neon). Use 3 to 6 parts so the thing is recognisable from its silhouette: think toy blocks. Give animals and creatures a head part and set "face" to its index.
 
-PLACE = {"name":"1-2 words","sky":["#top","#bottom"],"floor":"#hex","dots":"#hex","rug":"#hex","pattern":"dots|stripes|checks|waves|plain","horizon":"none|hills|dunes|waves|mountains|city|trees","horizonColor":"#hex","orb":"none|sun|moon|planet","orbColor":"#hex","stars":false,"weather":"none|snow|rain|bubbles|leaves|petals|fireflies|embers","weatherColor":"#hex","gravity":1,"slippery":false,"dark":false,"mood":"calm|cozy|cold|hot|floaty|wet|spooky|party"}
+PLACE = {"name":"1-2 words","sky":["#top","#bottom"],"floor":"#hex","dots":"#hex","rug":"#hex","pattern":"dots|stripes|checks|waves|plain","horizon":"none|hills|dunes|waves|mountains|city|trees|wall","horizonColor":"#hex","orb":"none|sun|moon|planet","orbColor":"#hex","stars":false,"weather":"none|snow|rain|bubbles|leaves|petals|fireflies|embers","weatherColor":"#hex","gravity":1,"slippery":false,"dark":false,"mood":"calm|cozy|cold|hot|floaty|wet|spooky|party"}
 - gravity 0.25 (floaty) to 1.4 (heavy). "dark": true for night scenes. "dots" is the floor pattern colour (different from "floor"), "rug" the mat Lim stands on.
-- Make it feel like somewhere: pick a horizon (not "none" outdoors), a sky gradient with two different colours, weather when it suits, and a mood.
+- Make it feel like somewhere: pick a horizon ("wall" for indoor rooms, never "none" outdoors), a sky gradient with two different colours, weather when it suits, and a mood.
 
 ACTION = ${ACTIONS.join(" | ")}
 
@@ -146,7 +146,7 @@ export type Complete = (system: string, user: string, signal: AbortSignal) => Pr
 // the larger is rate-limited or down (each has its own quota). No SDK retries:
 // a retry waits out the rate limit, and a toy is not worth a ten-second wait.
 const GROQ_MODELS = (process.env.LIM_WORLD_MODELS || "openai/gpt-oss-120b,openai/gpt-oss-20b").split(",").map((m) => m.trim()).filter(Boolean);
-const ATTEMPT_MS = 4_500;
+const ATTEMPT_MS = 3_000;
 
 /** Groq first (two models), then the app's Gemini model. Throws when none can answer. */
 export const complete: Complete = async (system, user, signal) => {
@@ -165,7 +165,7 @@ export const complete: Complete = async (system, user, signal) => {
             messages: [{ role: "system", content: system }, { role: "user", content: user }],
             response_format: { type: "json_object" },
             temperature: 0.5,
-            max_completion_tokens: 900,
+            max_completion_tokens: 1100,
             reasoning_effort: "low",
           } as Parameters<typeof groq.chat.completions.create>[0],
           { signal: AbortSignal.any([signal, AbortSignal.timeout(ATTEMPT_MS)]) },
@@ -190,20 +190,32 @@ const CACHE_MAX = 300;
 
 export type WorldState = { items: string[]; place: string };
 
-export async function askLimWorld(message: string, world: WorldState, run: Complete = complete, timeoutMs = 12_000): Promise<LimWorldAnswer> {
-  const key = JSON.stringify([message.trim().toLowerCase().replace(/\s+/g, " "), world.items, world.place]);
-  const hit = cache.get(key);
-  if (hit) {
-    // Refresh its place in the queue.
-    cache.delete(key);
-    cache.set(key, hit);
-    return hit;
+const norm = (message: string) => message.trim().toLowerCase().replace(/\s+/g, " ");
+
+/**
+ * What a message means for the world. Cached on the message alone unless the
+ * answer acts on something already there (then what is there matters too), so
+ * "give him a kite" costs one call however the world looks.
+ */
+export async function askLimWorld(message: string, world: WorldState, run: Complete = complete, timeoutMs = 7_000, outer?: AbortSignal): Promise<LimWorldAnswer> {
+  const plain = norm(message);
+  const exact = JSON.stringify([plain, world.items, world.place]);
+  for (const key of [plain, exact]) {
+    const hit = cache.get(key);
+    if (hit) {
+      // Refresh its place in the queue.
+      cache.delete(key);
+      cache.set(key, hit);
+      return hit;
+    }
   }
-  const text = await run(SYSTEM, JSON.stringify({ message, world }), AbortSignal.timeout(timeoutMs));
+  const signal = outer ? AbortSignal.any([outer, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs);
+  const text = await run(SYSTEM, JSON.stringify({ message, world }), signal);
   const answer = readAnswer(text);
   // Only keep answers that did something; a miss may be a model hiccup.
   if (answer.ops.length) {
-    cache.set(key, answer);
+    const dependsOnWorld = answer.ops.some((op) => op.op === "act" || op.op === "clear");
+    cache.set(dependsOnWorld ? exact : plain, answer);
     if (cache.size > CACHE_MAX) cache.delete(cache.keys().next().value!);
   }
   return answer;

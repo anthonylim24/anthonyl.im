@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { sx } from "./lib/utils";
 import { useFavicon } from "./hooks/useFavicon";
+import { useReducedMotion } from "./hooks/useReducedMotion";
 import { getPostHogConfig } from "./lib/analytics";
 import { syncThemeColor } from "./lib/themeColor";
 import { chatbot } from "./styles/chatbot.stylex";
@@ -197,6 +198,8 @@ function App() {
   // Lim's world as the live scene has it; null until (unless) the 3D scene is up.
   const [world, setWorld] = useState<LimWorld | null>(null);
 
+  const reducedMotion = useReducedMotion();
+  const toyButtonRef = useRef<HTMLButtonElement>(null);
   const { messages, status, busy, send, stop, regenerate, newChat } = useChat({
     onSend: () => {
       setSad(false);
@@ -213,12 +216,20 @@ function App() {
     intercept: async (text, signal) => {
       const stage = stageRef.current;
       const now = stage?.world();
-      if (!stage || !now) return null;
-      const names = now.items.map((item) => item.name);
-      const local = localIntent(text, names);
+      const names = now?.items.map((item) => item.name) ?? [];
+      const local = localIntent(text, names, made);
+      if (!stage || !now) {
+        // No live scene (still loading, or no WebGL): say so rather than answer as if it were about Anthony.
+        return local ? "My toy box isn't ready yet. Ask me again in a moment!" : null;
+      }
+      // With motion reduced Lim stays put: say that, rather than promise a performance.
+      const honest = (ops: WorldOp[], reply: string) =>
+        reducedMotion && ops.some((op) => (op.op === "act" && !["remove", "wear", "eat", "look"].includes(op.action)) || (op.op === "item" && op.then))
+          ? "I'm keeping still (reduced motion is on), but it's right here."
+          : reply;
       if (local) {
         stage.apply(local.ops);
-        return local.reply;
+        return honest(local.ops, local.reply);
       }
       if (stuntFor(text) || !looksLikeWorldRequest(text)) return null;
       try {
@@ -227,7 +238,7 @@ function App() {
         stage.apply(answer.ops);
         setMade((m) => rememberMade(m, answer.ops, KNOWN));
         // It may have asked a real question too: then the model still answers.
-        return answer.chat ? null : answer.reply || "Done!";
+        return answer.chat ? null : honest(answer.ops, answer.reply || "Done!");
       } catch {
         return null;
       }
@@ -313,6 +324,8 @@ function App() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && toyOpen) {
         setToyOpen(false);
+        // Focus goes back to the button that opened it, not into the void.
+        toyButtonRef.current?.focus();
         return;
       }
       if (e.key === "Escape" && busy) {
@@ -397,7 +410,7 @@ function App() {
   const submit = (text: string) => {
     // "Bounce the ball" is about the ball, not a request for a jump.
     const names = stageRef.current?.world()?.items.map((item) => item.name) ?? [];
-    pendingStunt.current = localIntent(text, names) ? null : stuntFor(text);
+    pendingStunt.current = localIntent(text, names, made) ? null : stuntFor(text);
     setToyOpen(false);
     if (!send(text)) return;
     setInput("");
@@ -571,6 +584,56 @@ function App() {
             </button>
           )}
           <div {...sx(chatbot.composerInner)}>
+            <label htmlFor="chat-input" {...sx(layout.srOnly)}>
+              Ask about Anthony
+            </label>
+            <div {...sx(chatbot.box)}>
+              <button
+                type="button"
+                onClick={() => setToyOpen((open) => !open)}
+                aria-label="Toy box"
+                aria-expanded={toyOpen}
+                aria-controls={toyOpen ? "toy-box" : undefined}
+                ref={toyButtonRef}
+                {...sx(chatbot.toyButton, toyOpen && chatbot.toyButtonOn)}
+              >
+                <ToyBrick size={20} aria-hidden="true" />
+              </button>
+              <textarea
+                ref={inputRef}
+                id="chat-input"
+                rows={1}
+                value={input}
+                onChange={onInput}
+                onKeyDown={onKeyDown}
+                onKeyUp={followCaret}
+                onClick={followCaret}
+                onFocus={() => {
+                  setFocused(true);
+                  followCaret();
+                }}
+                onBlur={() => setFocused(false)}
+                placeholder="Ask Lim about Anthony…"
+                enterKeyHint="send"
+                {...sx(chatbot.textarea)}
+              />
+              <button
+                type="submit"
+                {...sx(
+                  chatbot.send,
+                  sendBeat > 0 && (sendBeat % 2 ? chatbot.sendSquish : chatbot.sendSquishAgain),
+                  !busy && !canSend && chatbot.sendIdle,
+                )}
+                aria-label={busy ? "Stop generating" : "Send message"}
+                aria-disabled={!busy && !canSend}
+              >
+                {busy ? (
+                  <Square size={16} fill="currentColor" aria-hidden="true" />
+                ) : (
+                  <ArrowUp size={20} strokeWidth={2.6} aria-hidden="true" />
+                )}
+              </button>
+            </div>
             {toyOpen && (
               <div id="toy-box" role="group" aria-label="Lim's toy box" {...sx(chatbot.toyPanel)}>
                 {world ? (
@@ -625,55 +688,6 @@ function App() {
                 )}
               </div>
             )}
-            <label htmlFor="chat-input" {...sx(layout.srOnly)}>
-              Ask about Anthony
-            </label>
-            <div {...sx(chatbot.box)}>
-              <button
-                type="button"
-                onClick={() => setToyOpen((open) => !open)}
-                aria-label="Toy box"
-                aria-expanded={toyOpen}
-                aria-controls="toy-box"
-                {...sx(chatbot.toyButton, toyOpen && chatbot.toyButtonOn)}
-              >
-                <ToyBrick size={20} aria-hidden="true" />
-              </button>
-              <textarea
-                ref={inputRef}
-                id="chat-input"
-                rows={1}
-                value={input}
-                onChange={onInput}
-                onKeyDown={onKeyDown}
-                onKeyUp={followCaret}
-                onClick={followCaret}
-                onFocus={() => {
-                  setFocused(true);
-                  followCaret();
-                }}
-                onBlur={() => setFocused(false)}
-                placeholder="Ask Lim about Anthony…"
-                enterKeyHint="send"
-                {...sx(chatbot.textarea)}
-              />
-              <button
-                type="submit"
-                {...sx(
-                  chatbot.send,
-                  sendBeat > 0 && (sendBeat % 2 ? chatbot.sendSquish : chatbot.sendSquishAgain),
-                  !busy && !canSend && chatbot.sendIdle,
-                )}
-                aria-label={busy ? "Stop generating" : "Send message"}
-                aria-disabled={!busy && !canSend}
-              >
-                {busy ? (
-                  <Square size={16} fill="currentColor" aria-hidden="true" />
-                ) : (
-                  <ArrowUp size={20} strokeWidth={2.6} aria-hidden="true" />
-                )}
-              </button>
-            </div>
             <p {...sx(chatbot.hint)}>
               <span>
                 <kbd {...sx(chatbot.kbd)}>Enter</kbd> to send

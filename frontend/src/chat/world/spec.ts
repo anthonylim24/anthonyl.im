@@ -41,7 +41,7 @@ export type ItemSpec = {
 }
 
 export const PATTERNS = ['dots', 'stripes', 'checks', 'waves', 'plain'] as const
-export const HORIZONS = ['none', 'hills', 'dunes', 'waves', 'mountains', 'city', 'trees'] as const
+export const HORIZONS = ['none', 'hills', 'dunes', 'waves', 'mountains', 'city', 'trees', 'wall'] as const
 export const ORBS = ['none', 'sun', 'moon', 'planet'] as const
 export const WEATHERS = ['none', 'snow', 'rain', 'bubbles', 'leaves', 'petals', 'fireflies', 'embers'] as const
 export const MOODS = ['calm', 'cozy', 'cold', 'hot', 'floaty', 'wet', 'spooky', 'party'] as const
@@ -177,6 +177,11 @@ export function cleanItem(raw: unknown): ItemSpec | null {
       p.scale = p.scale.map((v) => Math.min(1.8, Math.max(0.06, v * k))) as [number, number, number]
     }
   }
+  // Depth stays shallow: nothing pokes out at the camera or hides behind the body.
+  for (const p of parts) {
+    p.at[2] = Math.min(1.2, Math.max(-1.2, p.at[2]))
+    p.scale[2] = Math.min(1.4, p.scale[2])
+  }
   const traits = Array.isArray(o.traits)
     ? [...new Set(o.traits.filter((t): t is Trait => typeof t === 'string' && (TRAITS as readonly string[]).includes(t)))].slice(0, 5)
     : []
@@ -250,27 +255,27 @@ const part = (shape: Shape, color: string, scale: [number, number, number] = [1,
 const item = (name: string, traits: Trait[], parts: Part[], size = 1, face = -1): ItemSpec => ({ name, parts, size, traits, face })
 
 export const ITEMS: Record<string, { spec: ItemSpec; aliases: string[] }> = {
-  bean: { aliases: ['jelly bean', 'jellybean', 'candy', 'sweet'], spec: item('jelly bean', ['edible'], [part('bean', '#C7B6FF', [1.1, 0.7, 0.72])]) },
-  gumball: { aliases: ['gum ball', 'marble'], spec: item('gumball', ['bouncy'], [part('ball', '#9FD3FF', [0.9, 0.9, 0.9])]) },
+  bean: { aliases: ['jellybean'], spec: item('jelly bean', ['edible'], [part('bean', '#C7B6FF', [1.1, 0.7, 0.72])]) },
+  gumball: { aliases: ['gum ball'], spec: item('gumball', ['bouncy'], [part('ball', '#9FD3FF', [0.9, 0.9, 0.9])]) },
   ball: {
-    aliases: ['beach ball', 'football', 'soccer ball', 'basketball'],
+    aliases: ['beach ball'],
     spec: item('ball', ['bouncy'], [part('ball', '#FF7E6B'), part('ball', '#FFFFFF', [0.46, 0.46, 0.2], [0, 0.1, 0.84]), part('ball', '#FFD978', [0.3, 0.3, 0.16], [0.62, 0.52, 0.56]), part('ball', '#9FD3FF', [0.3, 0.3, 0.16], [-0.62, 0.52, 0.56])], 1.3),
   },
   apple: {
-    aliases: ['fruit'],
+    aliases: [],
     spec: item('apple', ['edible'], [part('ball', '#F0524F', [1, 0.92, 1]), part('cylinder', '#8A5A3C', [0.08, 0.26, 0.08], [0.04, 1.02, 0], -12), part('bean', '#7ECF8A', [0.36, 0.16, 0.14], [0.36, 1.12, 0], 24)], 1.05),
   },
   donut: { aliases: ['doughnut'], spec: item('donut', ['edible', 'soft'], [part('ring', '#FF9FC5', [1, 1, 0.42]), part('ring', '#F3C58A', [1.02, 1.02, 0.3], [0, 0, -0.14])], 1.05) },
   cupcake: {
-    aliases: ['cake', 'muffin'],
+    aliases: ['muffin'],
     spec: item('cupcake', ['edible'], [part('cylinder', '#E9B97A', [0.82, 0.62, 0.82]), part('ball', '#FF9FC5', [0.98, 0.6, 0.98], [0, 0.82, 0]), part('ball', '#F0524F', [0.24, 0.24, 0.24], [0, 1.5, 0])]),
   },
   chili: {
-    aliases: ['chilli', 'pepper', 'hot pepper'],
+    aliases: ['chilli', 'chili pepper'],
     spec: item('chili', ['edible', 'hot'], [part('cone', '#E8402E', [0.42, 1.05, 0.42], [0, 0, 0], 180), part('cylinder', '#5DAA57', [0.1, 0.24, 0.1], [0, 1.12, 0], 14)]),
   },
   'party hat': {
-    aliases: ['hat', 'cone hat'],
+    aliases: ['cone hat'],
     spec: item('party hat', ['hat'], [part('cone', '#B9A6FF', [0.82, 1.05, 0.82]), part('ball', '#FFD978', [0.24, 0.24, 0.24], [0, 1.12, 0]), part('disc', '#FF9FC5', [0.95, 0.1, 0.95], [0, -0.9, 0])], 1.15),
   },
   crown: {
@@ -278,16 +283,16 @@ export const ITEMS: Record<string, { spec: ItemSpec; aliases: string[] }> = {
     spec: item('crown', ['hat', 'glowing'], [part('cylinder', '#FFD25E', [0.92, 0.42, 0.92]), part('cone', '#FFD25E', [0.26, 0.42, 0.26], [-0.6, 0.66, 0]), part('cone', '#FFD25E', [0.26, 0.5, 0.26], [0, 0.72, 0.3]), part('cone', '#FFD25E', [0.26, 0.42, 0.26], [0.6, 0.66, 0]), part('ball', '#F0524F', [0.16, 0.16, 0.16], [0, 0.05, 0.9])], 1.1),
   },
   sunglasses: {
-    aliases: ['glasses', 'shades', 'specs'],
+    aliases: ['shades'],
     spec: item('sunglasses', ['glasses'], [part('box', '#2B2140', [0.2, 0.08, 0.12]), part('box', '#2B2140', [0.56, 0.42, 0.14], [-0.74, -0.06, 0]), part('box', '#2B2140', [0.56, 0.42, 0.14], [0.74, -0.06, 0])], 1.25),
   },
   teddy: {
-    aliases: ['teddy bear', 'bear', 'plushie', 'plush', 'stuffed animal'],
+    aliases: ['teddy bear', 'plushie', 'stuffed animal'],
     spec: item('teddy', ['soft', 'cozy'], [part('ball', '#C99A6B', [0.9, 1, 0.82]), part('ball', '#C99A6B', [0.72, 0.68, 0.66], [0, 1.3, 0.1]), part('ball', '#B98558', [0.26, 0.26, 0.2], [-0.56, 1.86, 0.1]), part('ball', '#B98558', [0.26, 0.26, 0.2], [0.56, 1.86, 0.1]), part('ball', '#F1D9BC', [0.3, 0.24, 0.2], [0, 1.16, 0.66])], 1.05, 1),
   },
-  pillow: { aliases: ['cushion', 'bed', 'blanket'], spec: item('pillow', ['soft', 'cozy'], [part('box', '#EDE6FF', [1.25, 0.5, 0.9])], 1.25) },
+  pillow: { aliases: ['cushion'], spec: item('pillow', ['soft', 'cozy'], [part('box', '#EDE6FF', [1.25, 0.5, 0.9])], 1.25) },
   drum: {
-    aliases: ['radio', 'boombox', 'speaker', 'music'],
+    aliases: ['boombox', 'bongo'],
     spec: item('drum', ['musical'], [part('cylinder', '#F0524F', [0.95, 0.7, 0.95]), part('disc', '#FFF3DC', [0.9, 0.08, 0.9], [0, 0.72, 0]), part('disc', '#FFD25E', [1.02, 0.07, 1.02], [0, 0.42, 0])], 1.15),
   },
   balloon: {
@@ -299,15 +304,15 @@ export const ITEMS: Record<string, { spec: ItemSpec; aliases: string[] }> = {
     spec: item('rubber duck', ['bouncy', 'soft'], [part('ball', '#FFD84D', [1, 0.78, 0.86]), part('ball', '#FFD84D', [0.58, 0.58, 0.56], [0.5, 0.98, 0]), part('cone', '#FF9A3D', [0.22, 0.26, 0.2], [1.12, 0.92, 0], -90), part('cone', '#FFD84D', [0.3, 0.4, 0.2], [-0.98, 0.34, 0], 62)], 1.05, 1),
   },
   cactus: {
-    aliases: ['plant', 'succulent'],
+    aliases: ['succulent'],
     spec: item('cactus', ['prickly'], [part('cylinder', '#D98A5B', [0.62, 0.42, 0.62]), part('cylinder', '#6CC08B', [0.42, 0.98, 0.42], [0, 1.3, 0]), part('cylinder', '#6CC08B', [0.2, 0.42, 0.2], [-0.6, 1.5, 0], 24), part('cylinder', '#6CC08B', [0.2, 0.36, 0.2], [0.6, 1.2, 0], -24)], 1.05, 1),
   },
   ghost: {
-    aliases: ['spook', 'boo', 'monster'],
+    aliases: ['spook'],
     spec: item('ghost', ['scary', 'floaty'], [part('drop', '#F6F2FF', [0.9, 1.05, 0.8], [0, 0, 0], 180)], 1.2, 0),
   },
-  'ice cube': { aliases: ['ice', 'icecube', 'snowball'], spec: item('ice cube', ['cold'], [part('box', '#BFE6FF', [0.82, 0.82, 0.82])]) },
-  star: { aliases: ['lamp', 'light', 'lantern'], spec: item('star', ['glowing', 'bouncy'], [part('star', '#FFD25E', [1, 1, 0.42])], 1.1) },
+  'ice cube': { aliases: ['icecube'], spec: item('ice cube', ['cold'], [part('box', '#BFE6FF', [0.82, 0.82, 0.82])]) },
+  star: { aliases: [], spec: item('star', ['glowing', 'bouncy'], [part('star', '#FFD25E', [1, 1, 0.42])], 1.1) },
   heart: { aliases: ['love heart'], spec: item('heart', ['soft'], [part('heart', '#FF6F9C', [1, 1, 0.55])], 1.05) },
 }
 
@@ -318,134 +323,160 @@ const place = (p: Omit<PlaceSpec, 'gravity' | 'slippery' | 'dark' | 'stars'> & P
 /** `studio` is Lim's own room: no spec, the page shows through. */
 export const PLACES: Record<string, { spec: PlaceSpec; aliases: string[] }> = {
   beach: {
-    aliases: ['seaside', 'ocean', 'sea', 'island', 'shore'],
+    aliases: ['seaside', 'seashore'],
     spec: place({ name: 'beach', sky: ['#7FD3F7', '#FFE9C7'], floor: '#F6DFAE', dots: '#EBCB8E', rug: '#FFB59E', pattern: 'dots', horizon: 'waves', horizonColor: '#4FB6D9', orb: 'sun', orbColor: '#FFE27A', weather: 'none', weatherColor: '#FFFFFF', mood: 'hot' }),
   },
   snow: {
-    aliases: ['winter', 'arctic', 'north pole', 'snowy', 'ice', 'tundra'],
+    aliases: ['arctic', 'north pole', 'tundra'],
     spec: place({ name: 'snow', sky: ['#BFD9F2', '#F4F8FF'], floor: '#F7FAFF', dots: '#DCE8F7', rug: '#BFE6FF', pattern: 'plain', horizon: 'mountains', horizonColor: '#C9D8EE', orb: 'none', orbColor: '#FFFFFF', weather: 'snow', weatherColor: '#FFFFFF', slippery: true, mood: 'cold' }),
   },
   space: {
-    aliases: ['outer space', 'moon', 'galaxy', 'mars', 'cosmos', 'planet'],
+    aliases: ['outer space', 'galaxy', 'cosmos'],
     spec: place({ name: 'space', sky: ['#120C2E', '#3A2470'], floor: '#8E86B8', dots: '#6F6798', rug: '#C7B6FF', pattern: 'dots', horizon: 'dunes', horizonColor: '#6F6798', orb: 'planet', orbColor: '#FF9FC5', stars: true, weather: 'none', weatherColor: '#FFFFFF', gravity: 0.3, dark: true, mood: 'floaty' }),
   },
   meadow: {
-    aliases: ['field', 'garden', 'park', 'spring', 'forest', 'woods', 'countryside'],
+    aliases: ['countryside'],
     spec: place({ name: 'meadow', sky: ['#9EDCFF', '#EAF9E1'], floor: '#B9E59B', dots: '#9CD67C', rug: '#FFE27A', pattern: 'dots', horizon: 'hills', horizonColor: '#86CC7A', orb: 'sun', orbColor: '#FFF1A8', weather: 'petals', weatherColor: '#FFB7D2', mood: 'calm' }),
   },
   underwater: {
-    aliases: ['under the sea', 'aquarium', 'reef', 'deep sea', 'pool'],
+    aliases: ['under the sea', 'aquarium', 'reef', 'deep sea'],
     spec: place({ name: 'underwater', sky: ['#1F6FA8', '#7FD6D9'], floor: '#E4D3A2', dots: '#CDB983', rug: '#7FD6B5', pattern: 'waves', horizon: 'dunes', horizonColor: '#3F9DB5', orb: 'none', orbColor: '#FFFFFF', weather: 'bubbles', weatherColor: '#DDF6FF', gravity: 0.42, mood: 'floaty' }),
   },
   volcano: {
-    aliases: ['lava', 'desert', 'hot place', 'sauna'],
+    aliases: [],
     spec: place({ name: 'volcano', sky: ['#3B1420', '#E0603A'], floor: '#5A3A40', dots: '#7A4A44', rug: '#FF8B5A', pattern: 'checks', horizon: 'mountains', horizonColor: '#2A1418', orb: 'sun', orbColor: '#FFB05A', weather: 'embers', weatherColor: '#FFB05A', dark: true, mood: 'hot' }),
   },
   haunted: {
-    aliases: ['spooky', 'graveyard', 'halloween', 'haunted house', 'night forest'],
+    aliases: ['graveyard', 'haunted house'],
     spec: place({ name: 'haunted', sky: ['#17132B', '#3B2E5C'], floor: '#4A4470', dots: '#3B3660', rug: '#6CC08B', pattern: 'stripes', horizon: 'trees', horizonColor: '#120E22', orb: 'moon', orbColor: '#F3EDFF', stars: true, weather: 'fireflies', weatherColor: '#C8FF9E', dark: true, mood: 'spooky' }),
   },
   disco: {
-    aliases: ['party', 'club', 'dance floor', 'rave'],
+    aliases: ['dance floor', 'rave'],
     spec: place({ name: 'disco', sky: ['#2B1650', '#7A3FA8'], floor: '#3B2A66', dots: '#FF9FC5', rug: '#9FD3FF', pattern: 'checks', horizon: 'city', horizonColor: '#1C1038', orb: 'none', orbColor: '#FFFFFF', stars: true, weather: 'none', weatherColor: '#FFFFFF', dark: true, mood: 'party' }),
   },
 }
 
-export const STUDIO_ALIASES = ['studio', 'home', 'room', 'normal', 'back', 'sorbet']
-
 /* ── Reading a message without the model ─────────────────────────── */
 
-const WORLD_VERB =
-  /\b(give|gimme|drop|toss|throw|add|spawn|bring|hand|feed|put|place|summon|conjure|create|make|build|turn|change|switch|set|go|take|send|move|teleport|let'?s|decorate|paint|wear|eat|kick|hug|cuddle|bounce|juggle|play|tidy|clear|clean|remove|reset|get rid|i want|i'd like|can (lim|he|she|it|they|you|we|i)|could (lim|he|she|it|they|you|we|i)|how about|what about a|needs?|gravity|weightless|rain(ing)?|snow(ing)?)\b/i
-const QUESTION = /^\s*(who|what|when|where|why|how|which|does|do|did|is|are|was|were|has|have|tell me|explain|describe)\b/i
+/*
+ * Intercepting a message means the visitor gets Lim's one-liner instead of an
+ * answer, so the bar is high: only an explicit order ("give him…", "take Lim
+ * to…", "make it rain") or a wish on Lim's behalf ("can he have…") counts.
+ * A question, a remark, or anything about Anthony always goes to the chat.
+ */
+const LEAD = String.raw`(?:(?:please|pls|hey|hi|ok|okay|now|so|and|lim)[,!]?\s+)*`
+const ORDER = new RegExp(
+  String.raw`^\s*${LEAD}(?:(?:can|could|would|will) you (?:please )?|let'?s |i(?: would|'d)? (?:like|love) (?:you )?to |i want (?:you )?to )?` +
+    String.raw`(?:give|gimme|drop|toss|throw|bring|feed|summon|conjure|spawn|add (?:a|an|some|the)|put (?:a|an|some|the|lim|him|her|it|them|on)|hand (?:lim|him|her|it|them)|` +
+    String.raw`take (?:lim|him|her|it|them)|send (?:lim|him|her|it|them)|go (?:to|home|back)|teleport|wear|eat|kick|hug|cuddle|bounce|juggle|play with|` +
+    String.raw`tidy|clean up|clear (?:up|everything|all|the)|remove|get rid of|reset the|make (?:it|lim|him|her|them|the)|let it|turn (?:on|off|it|the)|` +
+    String.raw`change the|set the|stop the|no more|decorate|create (?:a|an|some)|build (?:lim|him|her|it|them))\b`,
+  'i',
+)
+const WISH =
+  /\b(?:can|could|may|should) (?:lim|he|she|it|they) (?:please )?(?:have|get|wear|try on|eat|go to|visit|play with)\b|\b(?:lim|he|she|it) (?:needs|wants|deserves|should have|should get|should wear) (?:a|an|some|the)\b|\bi want (?:lim|him|her|it|them) to (?:have|get|wear|eat|go|visit)\b|\b(?:get|buy) (?:lim|him|her|it|them) (?:a|an|some)\b/i
+const AIR =
+  /^\s*(?:please )?(?:make|let) it (?:rain|snow)\b|^\s*(?:it'?s |it is )?(?:rain|snow)ing\b|\b(?:low|zero|no|moon|normal|regular|earth) ?-?gravity\b|\bweightless\b|^\s*(?:stop|no more|clear) (?:the )?(?:rain|snow|weather)\b/i
+const ABOUT_ANTHONY =
+  /\b(anthony|anthony's|resume|résumé|cv|career|jobs?|works?|worked|working|experience|skills?|projects?|contact|email|hire|hiring|school|college|degree|company|companies|github|linkedin|background|portfolio|salary|interview)\b/i
 
-/** Worth asking the model whether this is about Lim's world. Errs on the side of yes. */
+/** Worth asking the model what this means for Lim's world. Anything else is chat. */
 export function looksLikeWorldRequest(text: string): boolean {
   const s = text.trim()
-  if (!s || s.length > 220) return false
-  if (/\b(anthony|resume|résumé|career|job|work(ed)?|experience|skills?|projects?|contact|email|hire)\b/i.test(s)) return false
-  if (WORLD_VERB.test(s)) return true
-  const words = s.split(/\s+/).length
-  return words <= 4 && !QUESTION.test(s) && !s.endsWith('?') && findNoun(s) !== null
+  if (!s || s.length > 220 || ABOUT_ANTHONY.test(s)) return false
+  return ORDER.test(s) || WISH.test(s) || AIR.test(s)
 }
 
 const ACTION_WORDS: [RegExp, Action][] = [
   [/\b(eat|feed|munch|nom|taste|bite)\b/i, 'eat'],
-  [/\b(wear|put on|try on|dress)\b/i, 'wear'],
-  [/\b(kick|punt|shoot|boot|throw|toss)\b/i, 'kick'],
-  [/\b(bounce|juggle|header|keepy|play (with|catch))\b/i, 'bounce'],
-  [/\b(hug|cuddle|snuggle|pet|love|kiss)\b/i, 'hug'],
-  [/\b(nap|sleep|rest|lie|lay)\b/i, 'nap'],
-  [/\b(dance|boogie|drum|play (the|some) (music|drum))\b/i, 'dance'],
-  [/\b(remove|take away|put away|get rid|delete|bin|trash)\b/i, 'remove'],
-  [/\b(look|see|inspect|sniff|check)\b/i, 'look'],
+  [/\b(wear|put on|try on)\b/i, 'wear'],
+  [/\b(kick|punt|boot|throw|toss)\b/i, 'kick'],
+  [/\b(bounce|juggle|play (with|catch))\b/i, 'bounce'],
+  [/\b(hug|cuddle|snuggle)\b/i, 'hug'],
+  [/\b(nap|sleep) on\b/i, 'nap'],
+  [/\bdance\b/i, 'dance'],
+  [/\b(remove|take away|put away|get rid of)\b/i, 'remove'],
 ]
 
 const mentions = (text: string, word: string) => new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}s?\\b`, 'i').test(text)
 
-function findNoun(text: string): { kind: 'item' | 'place'; id: string } | { kind: 'studio' } | null {
+/** Things the model made earlier for this visitor: as good as catalog entries. */
+export type Extra = { items: ItemSpec[]; places: PlaceSpec[] }
+type Noun = { kind: 'item'; spec: ItemSpec; words: string[] } | { kind: 'place'; spec: PlaceSpec; words: string[] } | { kind: 'studio'; words: string[] }
+
+function nouns(extra?: Extra): Noun[] {
+  const list: Noun[] = []
+  for (const [id, { spec, aliases }] of Object.entries(ITEMS)) list.push({ kind: 'item', spec, words: [id, spec.name, ...aliases] })
+  for (const [id, { spec, aliases }] of Object.entries(PLACES)) list.push({ kind: 'place', spec, words: [id, ...aliases] })
+  for (const spec of extra?.items ?? []) list.push({ kind: 'item', spec, words: [spec.name] })
+  for (const spec of extra?.places ?? []) list.push({ kind: 'place', spec, words: [spec.name] })
+  list.push({ kind: 'studio', words: ['studio', 'go home', 'back home', 'his room', 'its room'] })
+  return list
+}
+
+function findNoun(text: string, extra?: Extra): Noun | null {
   // Longest names first, so "beach ball" is the ball and not the beach.
-  const names: { word: string; hit: { kind: 'item' | 'place'; id: string } }[] = []
-  for (const [id, { spec, aliases }] of Object.entries(ITEMS)) for (const w of [id, spec.name, ...aliases]) names.push({ word: w, hit: { kind: 'item', id } })
-  for (const [id, { aliases }] of Object.entries(PLACES)) for (const w of [id, ...aliases]) names.push({ word: w, hit: { kind: 'place', id } })
-  names.sort((a, b) => b.word.length - a.word.length)
-  for (const { word, hit } of names) if (mentions(text, word)) return hit
-  if (/\b(back|return|go) (home|to (the|his|its) (studio|room))\b/i.test(text) || /\b(studio|go home)\b/i.test(text)) return { kind: 'studio' }
-  return null
+  const hits = nouns(extra).flatMap((noun) => noun.words.map((word) => ({ word, noun })))
+  hits.sort((a, b) => b.word.length - a.word.length)
+  return hits.find(({ word }) => mentions(text, word))?.noun ?? null
+}
+
+/** The whole message is a catalog name: "beach!", "a rubber duck please". */
+function bareNoun(text: string, extra?: Extra): Noun | null {
+  const core = text.toLowerCase().replace(/[!.\s]+$/g, '').replace(/^(a|an|the|some)\s+/, '').replace(/\s+(please|pls)$/, '').trim()
+  // Single-word aliases are too easy to say by accident ("sweet!", "bear with me").
+  return nouns(extra).find((noun) => noun.kind !== 'studio' && noun.words.some((w, i) => w === core && (i < 2 || w.includes(' ')))) ?? null
 }
 
 const FILLER = new Set(
   `a an the some one another to for with at in on into of and please pls now me him her it them they he she lim lims blob jelly his its
-  give gimme drop toss throw add spawn bring hand feed put place summon make get let lets go take send move teleport can could may have has
-  want wants need needs like would i you we us up down over here there out back off away new little big more again too also then just
-  eat wear kick hug cuddle bounce juggle play nap sleep dance look see try that this my your world room stage place hey hi ok okay yes`.split(/\s+/),
+  give gimme drop toss throw add spawn bring hand feed put place summon conjure make get let lets go take send move teleport can could may would will
+  have has want wants need needs like love i you we us up down over here there out back off away new more again too also then just
+  eat wear kick hug cuddle bounce juggle play nap sleep dance try that this my your world room stage hey hi ok okay yes should deserves`.split(/\s+/),
 )
 /** Words in the message that are neither filler nor part of the noun that matched. */
-function extraWords(text: string, noun: NonNullable<ReturnType<typeof findNoun>>): number {
+function extraWords(text: string, noun: Noun): number {
   const words = text.toLowerCase().replace(/[^\p{L}\p{N}' ]/gu, ' ').split(/\s+/).filter(Boolean)
-  const own = new Set<string>()
-  if (noun.kind === 'item') for (const w of [noun.id, ITEMS[noun.id].spec.name, ...ITEMS[noun.id].aliases]) for (const x of w.split(' ')) own.add(x)
-  else if (noun.kind === 'place') for (const w of [noun.id, ...PLACES[noun.id].aliases]) for (const x of w.split(' ')) own.add(x)
-  else for (const x of ['studio', 'home', 'room', 'return']) own.add(x)
+  const own = new Set(noun.words.flatMap((w) => w.split(' ')))
   return words.filter((w) => !FILLER.has(w) && !own.has(w) && !own.has(w.replace(/s$/, ''))).length
 }
 
 export type LocalIntent = { ops: WorldOp[]; reply: string }
 
 /**
- * The free path: a clear request for something in the catalog needs no model.
- * Returns null when the message isn't one (so the caller can ask the model,
- * or just answer the question).
+ * The free path: a clear request for something in the catalog (or made
+ * earlier) needs no model. Returns null when the message isn't one, so the
+ * caller can ask the model, or just answer the question.
  */
-export function localIntent(text: string, inWorld: string[] = []): LocalIntent | null {
+export function localIntent(text: string, inWorld: string[] = [], extra?: Extra): LocalIntent | null {
   const s = text.trim()
-  if (!s || s.length > 120 || !looksLikeWorldRequest(s)) return null
-  if (/\b(tidy|clean) up\b|\b(clear|reset|remove|get rid of) (everything|all|the (toys|items|things|stuff))\b/i.test(s)) {
+  if (!s || s.length > 120 || ABOUT_ANTHONY.test(s)) return null
+  const bare = bareNoun(s, extra)
+  if (!bare && !looksLikeWorldRequest(s)) return null
+  if (/\b(tidy|clean) up\b|\b(clear|remove|get rid of) (everything|all|the (toys|items|things|stuff))\b|\breset the (world|room|stage)\b/i.test(s)) {
     return { ops: [{ op: 'clear', what: /everything|all\b|reset/i.test(s) ? 'all' : 'items' }], reply: 'All tidy!' }
   }
   // The air, not the place: "make it snow" keeps Lim where it is.
-  const sky = /\b(make|let) it (rain|snow)\b|\b(rain|snow)(ing|fall)\b/i.exec(s)
-  if (sky) {
-    const weather = /snow/i.test(sky[0]) ? 'snow' : 'rain'
+  if (AIR.test(s) && extraWords(s.replace(/\b(rain|snow|gravity|weather|low|zero|no|moon|normal|regular|earth|weightless|stop|clear|raining|snowing)\b/gi, ''), { kind: 'studio', words: [] }) === 0) {
+    if (/\b(stop|no more|clear)\b/i.test(s)) return { ops: [{ op: 'tweak', set: { weather: 'none' } }], reply: 'All clear.' }
+    if (/\b(normal|regular|earth)\b/i.test(s)) return { ops: [{ op: 'tweak', set: { gravity: 1 } }], reply: 'Feet on the ground.' }
+    if (/gravity|weightless/i.test(s)) return { ops: [{ op: 'tweak', set: { gravity: 0.3 } }], reply: 'Wheee, floaty!' }
+    const weather = /snow/i.test(s) ? 'snow' : 'rain'
     return { ops: [{ op: 'tweak', set: { weather, weatherColor: weather === 'rain' ? '#9CC7EE' : '#FFFFFF' } }], reply: weather === 'rain' ? 'Drip, drop!' : 'Snow day!' }
   }
-  if (/\b(stop|no more|clear) (the )?(rain|snow|weather)\b|\bclear skies\b/i.test(s)) return { ops: [{ op: 'tweak', set: { weather: 'none' } }], reply: 'All clear.' }
-  if (/\b(low|zero|no|moon) ?-?(gravity|g)\b|\bweightless\b/i.test(s)) return { ops: [{ op: 'tweak', set: { gravity: 0.3 } }], reply: 'Wheee, floaty!' }
-  if (/\b(normal|regular|earth) gravity\b/i.test(s)) return { ops: [{ op: 'tweak', set: { gravity: 1 } }], reply: 'Feet on the ground.' }
   const action = ACTION_WORDS.find(([re]) => re.test(s))?.[1]
   // Something already here, named with an action: just do it.
   const here = inWorld.find((name) => mentions(s, name))
   if (here && action) return { ops: [{ op: 'act', action, target: here }], reply: actReply(action, here) }
-  const noun = findNoun(s)
+  const noun = bare ?? findNoun(s, extra)
   if (!noun) return null
   // Only when that is all the message says: "a candy castle" or "the beach at
   // night" is more than the catalog's candy or beach, and goes to the model.
   if (extraWords(s, noun) > 0) return null
   if (noun.kind === 'studio') return { ops: [{ op: 'place', spec: null }], reply: 'Home sweet home.' }
-  if (noun.kind === 'place') return { ops: [{ op: 'place', spec: PLACES[noun.id].spec }], reply: `Off to the ${PLACES[noun.id].spec.name}!` }
-  const spec = ITEMS[noun.id].spec
-  const then = action && action !== 'remove' && actionsFor(spec).includes(action) ? action : undefined
-  return { ops: [{ op: 'item', spec, then }], reply: then ? actReply(then, spec.name) : `One ${spec.name}, coming up!` }
+  if (noun.kind === 'place') return { ops: [{ op: 'place', spec: noun.spec }], reply: `Next stop: ${noun.spec.name}!` }
+  const then = action && action !== 'remove' && actionsFor(noun.spec).includes(action) ? action : undefined
+  return { ops: [{ op: 'item', spec: noun.spec, then }], reply: then ? actReply(then, noun.spec.name) : `One ${noun.spec.name}, coming up!` }
 }
 
 const actReply = (action: Action, name: string) =>
