@@ -92,6 +92,14 @@ export function TripCreate() {
   const [error, setError] = useState<string | null>(null)
   const [touched, setTouched] = useState(false)
   const submitting = useRef(false)
+  /** False once the page is left: a draft that lands later must not navigate. */
+  const mounted = useRef(true)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
 
   const busy = phase !== "idle"
   const badRange = endDate < startDate
@@ -135,6 +143,7 @@ export function TripCreate() {
       await updateTrip(readToken, trip.id, {
         appearance: { accent: TRIP_ACCENTS[hashIndex(trip.id, TRIP_ACCENTS.length)] },
       }).catch(() => undefined)
+      if (!mounted.current) return
       if (!useAi) {
         navigate(path)
         return
@@ -143,6 +152,7 @@ export function TripCreate() {
       setStepIndex(1)
       try {
         const generated = await generateItinerary(readToken, trip.id, briefToRequest(brief))
+        if (!mounted.current) return
         const stops = generated.trip.days.reduce((n, d) => n + d.items.length, 0)
         navigate(path, {
           state: {
@@ -153,6 +163,7 @@ export function TripCreate() {
           },
         })
       } catch (err) {
+        if (!mounted.current) return
         const message = err instanceof Error ? err.message : String(err)
         navigate(path, {
           state: {
@@ -163,6 +174,7 @@ export function TripCreate() {
         })
       }
     } catch (err) {
+      if (!mounted.current) return
       setError(err instanceof Error ? err.message : String(err))
       setPhase("idle")
       submitting.current = false

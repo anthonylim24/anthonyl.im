@@ -86,8 +86,13 @@ export interface AssistantMessageProps {
   latest: boolean
   reduce: boolean
   canEdit: boolean
+  /** An itinerary write is in flight somewhere: every write control waits. */
+  writing: boolean
   addingKey: string | null
   proposalBusy: boolean
+  /** An Add / Apply / Undo on this reply failed. The reply itself is fine. */
+  actionError?: string | null
+  onDismissActionError?: () => void
   canUndoProposal: boolean
   skipped?: Record<string, string>
   onAdd: (place: ConciergePlace, dayId: string) => void
@@ -111,8 +116,11 @@ export function AssistantMessage({
   latest,
   reduce,
   canEdit,
+  writing,
   addingKey,
   proposalBusy,
+  actionError,
+  onDismissActionError,
   canUndoProposal,
   skipped,
   onAdd,
@@ -145,6 +153,7 @@ export function AssistantMessage({
             appliedIds={m.appliedIds}
             skipped={skipped}
             busy={proposalBusy}
+            disabled={writing}
             canEdit={canEdit}
             canUndo={canUndoProposal}
             onApply={onApply}
@@ -162,6 +171,7 @@ export function AssistantMessage({
             city={trip.destinations[0]}
             added={m.added ?? {}}
             addingKey={addingKey}
+            disabled={writing}
             canEdit={canEdit}
             onAdd={onAdd}
             onUndo={onUndoAdd}
@@ -181,6 +191,16 @@ export function AssistantMessage({
             <button type="button" onClick={onRetry} {...sx(a.btn, a.btnSm, a.btnSecondary, c.action)}>
               <RotateCcw {...sx(c.icon14)} strokeWidth={1.75} aria-hidden />
               Try again
+            </button>
+          </div>
+        ) : null}
+
+        {actionError ? (
+          <div {...sx(c.error)} role="alert" data-concierge-action-error="">
+            <TriangleAlert {...sx(c.errorIcon)} strokeWidth={1.75} aria-hidden />
+            <span {...sx(c.errorText)}>{actionError}</span>
+            <button type="button" onClick={onDismissActionError} {...sx(a.btn, a.btnSm, a.btnGhost, c.action, c.actionQuiet)}>
+              Dismiss
             </button>
           </div>
         ) : null}

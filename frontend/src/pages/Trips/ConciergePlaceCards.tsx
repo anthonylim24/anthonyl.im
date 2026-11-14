@@ -44,6 +44,7 @@ export function ConciergePlaceCards({
   city,
   added,
   addingKey,
+  disabled = false,
   canEdit,
   onAdd,
   onUndo,
@@ -57,6 +58,8 @@ export function ConciergePlaceCards({
   /** Cards already added to the trip from this reply, by card key. */
   added: Record<string, AddedPlace>
   addingKey: string | null
+  /** An itinerary write is in flight: Add and Undo wait for it. */
+  disabled?: boolean
   canEdit: boolean
   onAdd: (place: ConciergePlace, dayId: string) => void
   onUndo?: (place: ConciergePlace) => void
@@ -78,6 +81,7 @@ export function ConciergePlaceCards({
             defaultDayId={place.dayId && days.some((d) => d.id === place.dayId) ? place.dayId : fallbackDay}
             added={added[key]}
             adding={addingKey === key}
+            disabled={disabled}
             canEdit={canEdit}
             onAdd={onAdd}
             onUndo={onUndo}
@@ -97,6 +101,7 @@ function ConciergePlaceCard({
   defaultDayId,
   added,
   adding,
+  disabled,
   canEdit,
   onAdd,
   onUndo,
@@ -109,6 +114,7 @@ function ConciergePlaceCard({
   defaultDayId?: string
   added?: AddedPlace
   adding: boolean
+  disabled: boolean
   canEdit: boolean
   onAdd: (place: ConciergePlace, dayId: string) => void
   onUndo?: (place: ConciergePlace) => void
@@ -192,6 +198,7 @@ function ConciergePlaceCard({
           {canEdit && onUndo ? (
             <button
               type="button"
+              disabled={adding || disabled}
               onClick={() => onUndo(place)}
               aria-label={`Undo adding ${place.name}`}
               {...sx(a.btn, a.btnSm, a.btnGhost, c.action, c.actionQuiet)}
@@ -206,7 +213,7 @@ function ConciergePlaceCard({
             <>
               <button
                 type="button"
-                disabled={adding || !addable || !dayId}
+                disabled={adding || disabled || !addable || !dayId}
                 onClick={() => onAdd(place, dayId)}
                 aria-busy={adding}
                 aria-label={adding ? `Adding ${place.name}` : `Add ${place.name} to ${slot}`}

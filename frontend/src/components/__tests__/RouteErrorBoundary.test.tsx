@@ -101,4 +101,40 @@ describe('RouteErrorBoundary', () => {
       ).toBeTruthy()
     })
   })
+
+  it('reloads once into the new build when a lazy chunk is gone, then shows the fallback', () => {
+    sessionStorage.clear()
+    const reload = vi.fn()
+    Object.defineProperty(window, 'location', { configurable: true, value: { ...originalLocation, reload } })
+    const stale = 'Failed to fetch dynamically imported module: https://x/assets/TripWorkspace-old.js'
+
+    const first = render(
+      <RouteErrorBoundary app="trips">
+        <Bomb message={stale} />
+      </RouteErrorBoundary>,
+    )
+    expect(reload).toHaveBeenCalledTimes(1)
+    first.unmount()
+
+    // Still broken straight after the reload: no loop, the fallback stays.
+    render(
+      <RouteErrorBoundary app="trips">
+        <Bomb message={stale} />
+      </RouteErrorBoundary>,
+    )
+    expect(reload).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'Reload' })).toBeTruthy()
+  })
+
+  it('does not reload for an ordinary render error', () => {
+    sessionStorage.clear()
+    const reload = vi.fn()
+    Object.defineProperty(window, 'location', { configurable: true, value: { ...originalLocation, reload } })
+    render(
+      <RouteErrorBoundary app="trips">
+        <Bomb />
+      </RouteErrorBoundary>,
+    )
+    expect(reload).not.toHaveBeenCalled()
+  })
 })

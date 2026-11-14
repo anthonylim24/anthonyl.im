@@ -155,8 +155,8 @@ export function overviewBearing(points: readonly Vec2[], portrait: boolean): num
     sxz += e * n
   }
   const spread = Math.sqrt((sxx - szz) ** 2 + 4 * sxz * sxz)
-  // Nearly round: no axis worth turning the map for.
-  if (spread < 0.25 * (sxx + szz)) return 0
+  // Nearly round, or every stop on one spot (both sides zero): no axis worth turning the map for.
+  if (spread <= 0.25 * (sxx + szz)) return 0
   // Heading of the principal axis (clockwise from north).
   const axis = Math.atan2(2 * sxz, szz - sxx) / 2
   let bearing = portrait ? axis : axis + Math.PI / 2

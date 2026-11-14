@@ -362,6 +362,14 @@ app.use(
     },
   }),
 );
+// A hashed bundle that is not on disk must be a 404, never the SPA shell: a
+// tab left open across a deploy asks for old chunk names, and HTML served as
+// JavaScript fails the import with no way to tell why (and the service
+// worker would cache it).
+app.all("/assets/*", (c) => {
+  c.header("Cache-Control", "no-cache, no-store, must-revalidate");
+  return c.text("Not found", 404);
+});
 // The SPA shell, with per-route title / description / preview card. The HTML
 // itself must never be long-cached — it references hashed asset filenames that
 // change on every build, so a stale index.html would point at deleted bundles.

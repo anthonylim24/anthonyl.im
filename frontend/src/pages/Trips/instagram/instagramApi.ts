@@ -85,6 +85,22 @@ const check = (res: Response) =>
     return yield* Effect.fail(new HttpStatusError({ status: res.status, message }))
   })
 
+// The documents are not Schema-decoded (unknown keys must survive); only the
+// shapes the sheet iterates are made safe here, at the boundary.
+const asArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : [])
+
+export function normalizeJobs(body: unknown): IgJob[] {
+  return asArray<IgJob | null>(body)
+    .filter((job): job is IgJob => job != null && typeof job === "object")
+    .map((job) => (Array.isArray(job.places) ? job : { ...job, places: [] }))
+}
+
+export function normalizeSaved(body: unknown): { places: SavedPlace[]; total: number; hasMore: boolean } {
+  const raw = (body != null && typeof body === "object" ? body : {}) as { places?: unknown; total?: unknown; hasMore?: unknown }
+  const places = asArray<SavedPlace | null>(raw.places).filter((place): place is SavedPlace => place != null && typeof place === "object")
+  return { places, total: typeof raw.total === "number" ? raw.total : places.length, hasMore: raw.hasMore === true }
+}
+
 const submitEffect = Effect.fn("Instagram.submit")(function* (getToken: GetToken, urls: string[], skipVideo: boolean) {
   const token = yield* readAuthToken(getToken)
   const res = yield* fetchApi(BASE, {
@@ -100,7 +116,7 @@ const jobsEffect = Effect.fn("Instagram.jobs")(function* (getToken: GetToken, li
   const token = yield* readAuthToken(getToken)
   const res = yield* fetchApi(`${BASE}/jobs?limit=${limit}&logs=0`, { headers: bearerHeaders(token), cache: "no-store" })
   yield* check(res)
-  return yield* parseJson<IgJob[]>(res)
+  return normalizeJobs(yield* parseJson<unknown>(res))
 })
 
 const jobActionEffect = Effect.fn("Instagram.jobAction")(function* (
@@ -122,7 +138,7 @@ const savedEffect = Effect.fn("Instagram.saved")(function* (
   if (opts.q?.trim()) params.set("q", opts.q.trim())
   const res = yield* fetchApi(`${BASE}/extracted?${params.toString()}`, { headers: bearerHeaders(token), cache: "no-store" })
   yield* check(res)
-  return yield* parseJson<{ places: SavedPlace[]; total: number; hasMore: boolean }>(res)
+  return normalizeSaved(yield* parseJson<unknown>(res))
 })
 
 const removeSavedEffect = Effect.fn("Instagram.removeSaved")(function* (getToken: GetToken, placeId: number) {
