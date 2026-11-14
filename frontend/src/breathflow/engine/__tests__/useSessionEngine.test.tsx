@@ -53,17 +53,31 @@ describe('useSessionEngine', () => {
     expect(result.current.holdTimes).toEqual([4]) // actual held seconds, not wall clock
   })
 
-  it('stop discards the session back to idle', () => {
+  it('finish inside the first round discards the session back to idle', () => {
     const events: string[] = []
     const { result } = renderHook(() => useSessionEngine(config, (e) => events.push(e.type)))
     act(() => result.current.start())
     act(() => vi.advanceTimersByTime(6000))
 
-    act(() => result.current.stop())
+    act(() => result.current.finish())
     expect(result.current.status).toBe('idle')
     expect(result.current.holdTimes).toEqual([])
     expect(events).toContain('stop')
     expect(events).not.toContain('complete')
+  })
+
+  it('finish after a whole round completes with the rounds breathed', () => {
+    const completed: number[] = []
+    const { result } = renderHook(() => useSessionEngine({ ...config, rounds: 3 }, (e) => {
+      if (e.type === 'complete') completed.push(e.roundsCompleted)
+    }))
+    act(() => result.current.start())
+    act(() => vi.advanceTimersByTime(18_000)) // one 16 s round, 2 s into the next
+    expect(result.current.elapsedSeconds).toBe(18)
+
+    act(() => result.current.finish())
+    expect(result.current.status).toBe('complete')
+    expect(completed).toEqual([1])
   })
 
   it('restart returns to round 1 phase 1 running', () => {

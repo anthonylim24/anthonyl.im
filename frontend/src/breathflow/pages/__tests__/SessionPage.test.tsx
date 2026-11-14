@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore } from '@/stores/historyStore'
 import { useSettingsStore } from '@/stores/settingsStore'
+import { LEAD_IN_SECONDS } from '../../protocols/coaching'
 import { SessionPage } from '../SessionPage'
 
 function renderSession(search: string) {
@@ -15,6 +16,16 @@ function renderSession(search: string) {
       </Routes>
     </MemoryRouter>,
   )
+}
+
+/** Press Start and sit through the "get ready" lead-in, one second per act so each timer is scheduled. */
+function startSession() {
+  fireEvent.click(screen.getByRole('button', { name: /start/i }))
+  for (let second = 0; second < LEAD_IN_SECONDS; second++) {
+    act(() => {
+      vi.advanceTimersByTime(1000)
+    })
+  }
 }
 
 const BOX_FAST = 'technique=box_breathing&rounds=1&phase_inhale=1&phase_hold_in=1&phase_exhale=1&phase_hold_out=1'
@@ -109,7 +120,7 @@ describe('SessionPage', () => {
     vi.useFakeTimers()
     renderSession(BOX_FAST)
 
-    fireEvent.click(screen.getByRole('button', { name: /start/i }))
+    startSession()
     expect(screen.getByText('Round 1 of 1')).toBeInTheDocument()
 
     act(() => {
@@ -137,7 +148,7 @@ describe('SessionPage', () => {
     renderSession('technique=co2_tolerance&rounds=1&phase_inhale=1&phase_hold_in=1&phase_exhale=1&phase_rest=1')
 
     screen.getAllByRole('checkbox').forEach((checkbox) => fireEvent.click(checkbox))
-    fireEvent.click(screen.getByRole('button', { name: /start/i }))
+    startSession()
     act(() => {
       vi.advanceTimersByTime(4000)
     })
@@ -147,15 +158,31 @@ describe('SessionPage', () => {
     expect(screen.getByText(/90 seconds of easy breathing/)).toBeInTheDocument()
   })
 
-  it('stop discards the session: no history, no XP', () => {
+  it('counts down a lead-in before the first breath, and Cancel returns to setup', () => {
     vi.useFakeTimers()
     renderSession(BOX_FAST)
 
     fireEvent.click(screen.getByRole('button', { name: /start/i }))
+    expect(screen.getByText('Get ready')).toBeInTheDocument()
+    expect(screen.queryByText(/Round 1 of 1/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
+    expect(screen.getByRole('button', { name: /start/i })).toBeInTheDocument()
+    act(() => {
+      vi.advanceTimersByTime(10_000)
+    })
+    expect(useHistoryStore.getState().sessions).toHaveLength(0)
+  })
+
+  it('ending inside the first round discards the session: no history, no XP', () => {
+    vi.useFakeTimers()
+    renderSession(BOX_FAST)
+
+    startSession()
     act(() => {
       vi.advanceTimersByTime(2000)
     })
-    fireEvent.click(screen.getByRole('button', { name: /stop and discard/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'End session' }))
 
     // Back to setup, nothing saved.
     expect(screen.getByRole('button', { name: /start/i })).toBeInTheDocument()
@@ -163,11 +190,29 @@ describe('SessionPage', () => {
     expect(useGamificationStore.getState().xp).toBe(0)
   })
 
+  it('ending early keeps the rounds already breathed, with XP in proportion', () => {
+    vi.useFakeTimers()
+    renderSession(BOX_FAST.replace('rounds=1', 'rounds=4'))
+
+    startSession()
+    act(() => {
+      vi.advanceTimersByTime(9000) // two full rounds and one second
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'End session and keep 2 rounds', hidden: true }))
+
+    expect(screen.getByText('Ended early')).toBeInTheDocument()
+    expect(screen.getByText('2 of 4')).toBeInTheDocument()
+    const [session] = useHistoryStore.getState().sessions
+    expect(session.rounds).toBe(2)
+    expect(session.durationSeconds).toBe(8)
+    expect(useGamificationStore.getState().xp).toBe(Math.round(50 * 1.1 * 0.5))
+  })
+
   it('announces phase changes through the live region', () => {
     vi.useFakeTimers()
     renderSession(BOX_FAST)
 
-    fireEvent.click(screen.getByRole('button', { name: /start/i }))
+    startSession()
     act(() => {
       vi.advanceTimersByTime(1000) // inhale (1s) → hold
     })
@@ -180,7 +225,7 @@ describe('SessionPage', () => {
     vi.useFakeTimers()
     renderSession(BOX_FAST)
 
-    fireEvent.click(screen.getByRole('button', { name: /start/i }))
+    startSession()
     const controls = screen.getByTestId('session-controls')
     expect(controls).not.toHaveAttribute('inert')
 
@@ -197,7 +242,7 @@ describe('SessionPage', () => {
     renderSession(BOX_FAST)
 
     fireEvent.click(screen.getByRole('button', { name: 'Tense' }))
-    fireEvent.click(screen.getByRole('button', { name: /start/i }))
+    startSession()
     act(() => {
       vi.advanceTimersByTime(4000)
     })

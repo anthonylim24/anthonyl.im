@@ -131,7 +131,7 @@ function Stat({ label, value, accent = false }: { label: string; value: string; 
 /**
  * Post-session summary: protocol, duration, rounds, hold stats, XP, badges
  * (pressed as wax seals), personal-best flag, insight, and the optional
- * after-mood. Repeat is only offered for non-safety-gated protocols;
+ * after-mood. A session ended early shows the rounds it kept. Repeat is only offered for non-safety-gated protocols;
  * advanced summaries point to recovery instead.
  */
 export function SessionSummary({
@@ -147,6 +147,7 @@ export function SessionSummary({
   const advanced = isAdvancedProtocol(protocol)
   const { session } = result
   const hasHolds = session.maxHoldTime > 0
+  const endedEarly = result.plannedRounds > session.rounds
   const newBadges = result.newBadgeIds
     .map(getBadge)
     .filter((badge): badge is NonNullable<typeof badge> => Boolean(badge))
@@ -157,12 +158,14 @@ export function SessionSummary({
 
   return (
     <div {...sx(styles.root)} style={vars}>
-      <motion.p {...rise(0.15)} {...sx(wc.eyebrow, styles.eyebrow)}>Session complete</motion.p>
+      <motion.p {...rise(0.15)} {...sx(wc.eyebrow, styles.eyebrow)}>
+        {endedEarly ? 'Ended early' : 'Session complete'}
+      </motion.p>
       <motion.h2 {...rise(0.22)} {...sx('bf-display', styles.title)}>{protocol.name}</motion.h2>
 
       <motion.dl {...rise(0.32)} {...sx(styles.stats)}>
         <Stat label="Duration" value={formatDuration(session.durationSeconds)} />
-        <Stat label="Rounds" value={String(session.rounds)} />
+        <Stat label="Rounds" value={endedEarly ? `${session.rounds} of ${result.plannedRounds}` : String(session.rounds)} />
         <Stat label="XP earned" value={`+${result.xpEarned}`} accent />
         {hasHolds && <Stat label="Longest hold" value={`${session.maxHoldTime}s`} />}
         {hasHolds && <Stat label="Average hold" value={`${session.avgHoldTime}s`} />}

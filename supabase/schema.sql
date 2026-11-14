@@ -38,6 +38,11 @@ create table if not exists public.sessions (
 alter table if exists public.sessions
   add column if not exists custom_phase_durations jsonb;
 
+-- Optional calm rating before / after the session (1 = tense, 5 = calm).
+alter table if exists public.sessions
+  add column if not exists mood_before smallint check (mood_before between 1 and 5),
+  add column if not exists mood_after  smallint check (mood_after between 1 and 5);
+
 alter table public.sessions enable row level security;
 
 create policy "Users manage own sessions"

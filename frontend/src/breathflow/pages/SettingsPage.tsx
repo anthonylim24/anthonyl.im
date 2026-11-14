@@ -228,7 +228,7 @@ export function SettingsPage() {
       <Section title="Haptics">
         <Toggle
           label="Vibration feedback"
-          description="A light nudge on controls and milestones"
+          description="A tap on each breath phase, so you can follow with your eyes closed"
           checked={hapticsEnabled}
           onChange={(enabled) => {
             setHapticsEnabled(enabled)
