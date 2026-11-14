@@ -41,6 +41,12 @@ export class Jelly {
   /** Live particle positions (x, y, z interleaved). */
   readonly x: Float32Array
   readonly v: Float32Array
+  /**
+   * Where shape matching wants each particle: the rest shape under the body's
+   * best-fit turn and stretch. Always a smooth surface, however rough `x` is
+   * (see `skinJelly` in jellyMesh.ts).
+   */
+  readonly goal: Float32Array
   /** Current centroid. */
   readonly center: Vec3 = [0, 0, 0]
   /** Uniform goal scale. Animate it to inflate / breathe. */
@@ -88,6 +94,7 @@ export class Jelly {
     this.count = Math.floor(rest.length / 3)
     this.x = Float32Array.from(rest)
     this.v = new Float32Array(this.count * 3)
+    this.goal = Float32Array.from(rest)
     this.p = new Float32Array(this.count * 3)
     this.q = new Float32Array(this.count * 3)
     this.stiffness = opts.stiffness ?? 0.07
@@ -152,6 +159,11 @@ export class Jelly {
     this.center[0] += dx
     this.center[1] += dy
     this.center[2] += dz
+    for (let i = 0; i < this.count * 3; i += 3) {
+      this.goal[i] += dx
+      this.goal[i + 1] += dy
+      this.goal[i + 2] += dz
+    }
   }
 
   /** Add velocity to particles near `point`, with a smooth falloff over `radius`. */
@@ -345,6 +357,9 @@ export class Jelly {
         const gx2 = c[0] + sx * (m[0] * qx + m[1] * qy + m[2] * qz)
         const gy2 = c[1] + sy * (m[3] * qx + m[4] * qy + m[5] * qz)
         const gz2 = c[2] + sz * (m[6] * qx + m[7] * qy + m[8] * qz)
+        this.goal[i] = gx2
+        this.goal[i + 1] = gy2
+        this.goal[i + 2] = gz2
         p[i] += (gx2 - p[i]) * pull
         p[i + 1] += (gy2 - p[i + 1]) * pull
         p[i + 2] += (gz2 - p[i + 2]) * pull

@@ -16,7 +16,7 @@ import * as THREE from 'three/webgpu'
 import { float, mix, normalView, normalize, smoothstep } from 'three/tsl'
 import { createStage } from '../../three/stage'
 import { Jelly, icosphere, type Vec3 } from '../../three/jelly'
-import { jellyGeometry, syncJellyGeometry } from '../../three/jellyMesh'
+import { skinJelly, skinnedJellyGeometry, syncJellyGeometry } from '../../three/jellyMesh'
 import { bindJellyPointer } from '../../three/jellyPointer'
 import { sound } from '../sound'
 import type { Stunt } from '../eggs'
@@ -173,7 +173,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   })
   const UPRIGHT = 0.08
   lim.upright = UPRIGHT
-  const limGeo = jellyGeometry(lim, limRest.index)
+  const limGeo = skinnedJellyGeometry(lim, limRest.index)
   addRestNormals(limGeo)
   const limN = smoothNormals(u.rot, 0.6)
   const restC: Vec3 = [...lim.center]
@@ -301,25 +301,24 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   // ── Toys ─────────────────────────────────────────────────────────
   const beanShape = beanRest()
   const ballShape = icosphere(0.27, 2)
-  const SLOTS = [-0.78, 0.66, 0.92, -0.5]
-  const toys = TOYS.map(({ kind, hex, shade }, i) => {
+  const toys = TOYS.map(({ kind, hex, shade }) => {
     const shape = kind === 'bean' ? beanShape : ballShape
     const jelly = new Jelly(shape.positions, kind === 'bean'
       ? { stiffness: 0.3, beta: 0.16, damping: 1.1, maxStray: 0.09, gravity: [0, -16, 0], floor: 0, friction: 0.35, substeps: 2 }
       : { stiffness: 0.3, beta: 0.2, damping: 0.35, gravity: [0, -16, 0], floor: 0, friction: 0.86, substeps: 2 })
-    const geo = jellyGeometry(jelly, shape.index)
+    const geo = skinnedJellyGeometry(jelly, shape.index)
     const mesh = new THREE.Mesh(geo, toyMaterial(u, hex, shade))
     const hull = new THREE.Mesh(geo, hullMaterial(ink, 0.016))
     mesh.frustumCulled = hull.frustumCulled = false
     scene.add(mesh, hull)
     return {
-      kind, hex, jelly, geo, mesh, hull, shadow: makeShadow(null), slot: SLOTS[i], gravity: jelly.gravity, beta: jelly.beta, stiffness: jelly.stiffness,
+      kind, hex, jelly, geo, mesh, hull, shadow: makeShadow(null), slot: 0, depth: 0.25, gravity: jelly.gravity, beta: jelly.beta, stiffness: jelly.stiffness,
       /** Seconds at rest; the sim skips toys that have settled. */
       still: 0,
       asleep: false,
       /** Being swallowed since this time, then gone until `backAt`. */
       eatenAt: -1,
-      backAt: -1,
+      backAt: -1 as number,
     }
   })
   type Toy = (typeof toys)[number]
@@ -381,15 +380,29 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
 
   // ── Start pose: Lim pops to life where the static mascot stood ───
   lim.translate(0, 0.81, 0)
-  for (const toy of toys) {
-    const i = toys.indexOf(toy)
-    // Still (reduced motion): stand the toys clear of Lim, since nothing will nudge them apart.
-    const x = reducedMotion ? Math.sign(toy.slot) * (1.62 + (i >> 1) * 0.5) : toy.slot * (halfW - 0.5)
-    toy.jelly.translate(x, reducedMotion ? 0.2 : 1.2 + i * 0.45, 0.25)
+  // Toys stand clear of Lim and of each other. A narrow stage has room for
+  // two on the left and one on the right; a wide one seats all four.
+  {
+    const right = halfW - 0.06 - (window.matchMedia('(min-width: 1024px)').matches ? 104 / unit : 0)
+    const roomy = halfW >= 3.1
+    const seats: [number, number][] = roomy
+      ? [[-1.72, 0.1], [1.7, 0.35], [Math.min(right - 0.3, 2.3), 0.05], [-2.3, 0.45]]
+      : [[-1.62, 0.05], [Math.min(right - 0.3, 1.62), 0.3], [-9, 0], [-Math.min(halfW - 0.56, 2.1), 0.5]]
+    toys.forEach((toy, i) => {
+      toy.slot = seats[i][0]
+      toy.depth = seats[i][1]
+      if (toy.slot < -8) {
+        // No seat on this stage: this one stays in the toy box.
+        toy.backAt = Infinity
+        toy.mesh.visible = toy.hull.visible = toy.shadow.mesh.visible = false
+        return
+      }
+      toy.jelly.translate(toy.slot, reducedMotion ? 0.2 : 1.2 + i * 0.45, toy.depth)
+    })
   }
 
   /** Everything the pointer can grab and that collides; minis come and go. */
-  const bodies: Jelly[] = [lim, ...toys.map((t) => t.jelly)]
+  const bodies: Jelly[] = [lim, ...toys.filter((t) => t.backAt < 0).map((t) => t.jelly)]
   const info = new Map<Jelly, { r: number; m: number; toy?: Toy }>([[lim, { r: 1, m: 6 }]])
   for (const toy of toys) info.set(toy.jelly, { r: 0.26, m: 1, toy })
 
@@ -426,6 +439,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   let napUntil = 0
   let nextZ = 0
   let shaken = 0
+  let shakeDir = 0
   let dizzyUntil = 0
   let nextOrbit = 0
   let lastBonk = -1
@@ -460,6 +474,9 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const mouthAt: Vec3 = [0, 0, 0]
   const eyeMid: Vec3 = [0, 0, 0]
   const quat = new THREE.Quaternion()
+  const eyeQuat = new THREE.Quaternion()
+  const NO_TURN = new THREE.Quaternion()
+  const CAM_DIR = new THREE.Vector3(0, Math.sin(PITCH), Math.cos(PITCH))
   const rotM4 = new THREE.Matrix4()
   const euler = new THREE.Euler(0, 0, 0, 'YXZ')
   const proj = new THREE.Vector3()
@@ -654,7 +671,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       })
       jelly.upright = 0.14
       jelly.scale = MINI
-      const geo = jellyGeometry(jelly, rest.index)
+      const geo = skinnedJellyGeometry(jelly, rest.index)
       const mesh = new THREE.Mesh(geo, mat)
       const hull = new THREE.Mesh(geo, hullMat)
       mesh.frustumCulled = hull.frustumCulled = false
@@ -685,6 +702,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       jelly.x[i + 2] = z + rest[i + 2] * scale
     }
     jelly.v.fill(0)
+    jelly.goal.set(jelly.x)
     jelly.center[0] = x
     jelly.center[1] = y
     jelly.center[2] = z
@@ -702,6 +720,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       place(m.jelly, m.geo, MINI, cx + Math.cos(a) * 0.4, Math.max(0.4, cy) + Math.sin(a) * 0.3, cz * 0.5)
       m.jelly.kick(Math.cos(a) * 4.5, 4.5 + Math.random() * 3 + Math.sin(a) * 2, (Math.random() - 0.5) * 2)
       m.nextHop = t + 0.9 + Math.random() * 0.6
+      m.jelly.scale = MINI
       for (const p of m.parts) p.visible = true
       bodies.push(m.jelly)
     })
@@ -735,7 +754,6 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     squash.x = 0
     squash.v = 0
     setAct('happy', 1.6)
-    burst(36, 0.9)
     puff(lim.center[0], 0, 10, 1.3, 0.5)
     shock(lim.center[0], 0, 4)
     sound.pop()
@@ -758,12 +776,13 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       full += 1
       chewUntil = t + 0.72
       setAct('chew', 1.3)
-      squash.v += 4
+      squash.v += 2.2
       // Three chews, cheeks out on each, then the swallow.
       for (let k = 0; k < 3; k++) {
         later(0.06 + k * 0.18, () => {
-          cheeks.v += 7.5
-          squash.v += 2
+          cheeks.v += 6.5
+          squash.v += 0.7
+          lim.kick(k % 2 ? 0.5 : -0.5, 0, 0)
           sound.blip()
         })
       }
@@ -799,7 +818,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     toy.backAt = -1
     toy.jelly.scale = 1
     toy.jelly.gravity = toy.gravity
-    place(toy.jelly, toy.geo, 1, toy.slot * (halfW - 0.5), topY + 0.4, 0.25)
+    place(toy.jelly, toy.geo, 1, toy.slot, topY + 0.4, toy.depth)
     toy.mesh.visible = toy.hull.visible = toy.shadow.mesh.visible = true
     onTop(toy, false)
     wakeToy(toy)
@@ -992,8 +1011,10 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     }
 
     // Shaken about → dizzy.
-    const accel = Math.hypot(vbar[0] - prevV[0], vbar[1] - prevV[1]) / Math.max(dt, 1e-3)
-    if (grabbed && accel > 20) shaken += dt * 3
+    // Every hard change of direction in hand counts toward getting dizzy.
+    const dir = Math.abs(vbar[0]) > 2.2 ? Math.sign(vbar[0]) : 0
+    if (grabbed && dir && dir === -shakeDir) shaken += 0.42
+    if (dir) shakeDir = dir
     shaken = Math.max(0, shaken - dt * 0.35)
     // Material: gooey in a gentle hand (pulls out like taffy), firm when shaken
     // hard or mid-stunt, where a soft body would smear.
@@ -1080,7 +1101,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     size.v += (-90 * (size.x - sizeGoal) - 9 * size.v) * dt
     size.x += size.v * dt
     sound.setVoice(1 / Math.max(0.5, size.x) ** 1.4)
-    const breathe = sleep === 'asleep' ? Math.sin(t * 1.8) * 0.045 : Math.sin(t * 1.8) * 0.014
+    const breathe = sleep === 'asleep' ? Math.sin(t * 1.8) * 0.045 : Math.sin(t * 1.8) * (mood === 'thinking' ? 0.03 : 0.014)
     lim.scale = entryScale * size.x * (1 + breathe) * (mood === 'sad' ? 0.975 : 1)
     info.get(lim)!.r = lim.scale
     lim.squash[0] = 1 + squash.x * 0.55 + Math.max(-0.05, cheeks.x) * 0.5
@@ -1106,7 +1127,16 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     if (gather && !popped.merging && (far < 0.75 || age > 6)) {
       popped.merging = true
       for (const m of minis) m.jelly.kick(-m.jelly.center[0] * 3, 5, 0)
-      later(0.3, merge)
+      // The minis dive into the middle and shrink away under the confetti
+      // before the big body comes back, so nothing shows through it.
+      later(0.16, () => {
+        for (const m of minis!) {
+          m.jelly.scale = 0.06
+          m.parts[1].visible = false
+        }
+        burst(30, 0.9)
+      })
+      later(0.34, merge)
     }
   }
 
@@ -1172,36 +1202,41 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
 
   /** Stage walls and ceiling. Returns the hardest wall hit this frame. */
   const walls = (body: Jelly) => {
+    // Bodies meet the stage edges whole: the body is moved back inside and its
+    // motion reflected, so nothing is ever sliced flat by an invisible plane.
     const X = halfW - 0.06
     const XR = X - fadeInset()
-    const { x, v } = body
-    let hit = 0
+    const { x } = body
+    let minX = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    let minZ = Infinity
+    let maxZ = -Infinity
     for (let i = 0; i < x.length; i += 3) {
-      if (x[i] < -X) {
-        x[i] = -X
-        if (v[i] < 0) {
-          hit = Math.max(hit, -v[i])
-          v[i] *= -0.45
-        }
-      } else if (x[i] > XR) {
-        x[i] = XR
-        if (v[i] > 0) {
-          hit = Math.max(hit, v[i])
-          v[i] *= -0.45
-        }
-      }
-      if (x[i + 1] > topY) {
-        x[i + 1] = topY
-        if (v[i + 1] > 0) v[i + 1] *= -0.3
-      }
-      if (x[i + 2] < -1.1) {
-        x[i + 2] = -1.1
-        if (v[i + 2] < 0) v[i + 2] *= -0.45
-      } else if (x[i + 2] > 0.8) {
-        x[i + 2] = 0.8
-        if (v[i + 2] > 0) v[i + 2] *= -0.45
-      }
+      if (x[i] < minX) minX = x[i]
+      if (x[i] > maxX) maxX = x[i]
+      if (x[i + 1] > maxY) maxY = x[i + 1]
+      if (x[i + 2] < minZ) minZ = x[i + 2]
+      if (x[i + 2] > maxZ) maxZ = x[i + 2]
     }
+    // A body wider than the stage (big Lim on a phone) just centres.
+    const dx = maxX - minX > X + XR ? -(minX + maxX) / 2 + (XR - X) / 2 : minX < -X ? -X - minX : maxX > XR ? XR - maxX : 0
+    const dy = maxY > topY ? topY - maxY : 0
+    // Depth is a shallow lane, measured at the body's middle (a body is deeper than the lane).
+    const cz = (minZ + maxZ) / 2
+    const dz = cz < -0.6 ? -0.6 - cz : cz > 0.55 ? 0.55 - cz : 0
+    if (!dx && !dy && !dz) return 0
+    body.translate(dx, dy, dz)
+    body.velocity(tmp2)
+    let hit = 0
+    if (dx && tmp2[0] * dx < 0) {
+      hit = Math.abs(tmp2[0])
+      body.kick(-1.5 * tmp2[0], 0, 0)
+      // The near side takes the knock, so the body rings instead of just turning round.
+      body.impulse([dx > 0 ? minX : maxX, body.center[1], body.center[2]], [Math.sign(dx) * hit * 0.5, 0, 0], body.radius * 1.2)
+    }
+    if (dy && tmp2[1] > 0) body.kick(0, -1.3 * tmp2[1], 0)
+    if (dz && tmp2[2] * dz < 0) body.kick(0, 0, -1.45 * tmp2[2])
     return hit
   }
 
@@ -1209,7 +1244,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const snatch = () => {
     if (!held || held.kind !== 'bean' || popped || sleep !== 'awake' || grabbed) return
     const d = Math.hypot(held.jelly.center[0] - mouthAt[0], held.jelly.center[1] - mouthAt[1])
-    if (d > 0.5) {
+    if (d > 0.8) {
       nearSince = d < 1.7 ? nearSince : t
       return
     }
@@ -1315,8 +1350,10 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     } else if (held) {
       ;[gx, gy] = toward(held.jelly.center[0], held.jelly.center[1], 1.1)
     } else if (mood === 'thinking') {
-      gx = -0.55 + Math.sin(t * 0.9) * 0.15
-      gy = 0.6
+      // A 2.4 s loop: stare up-left, then a quick dart up-right and back.
+      const k = (t % 2.4) / 2.4
+      gx = k < 0.62 ? -0.6 + Math.sin(t * 0.9) * 0.08 : 0.55
+      gy = k < 0.62 ? 0.62 : 0.5
     } else if (mood === 'sad') {
       gy = -0.75
     } else if (call && t < call.until - 4.6) {
@@ -1351,7 +1388,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     const sway =
       sleep === 'asleep' ? Math.sin(t * 0.58) * 0.05
       : t < dizzyUntil ? Math.sin(t * 3.1) * 0.16
-      : mood === 'thinking' ? Math.sin(t * 3.14) * 0.085
+      : mood === 'thinking' ? Math.sin(t * 2.6) * 0.17
       : 0
     lean.roll = ease(lean.roll, -lean.yaw * 0.3 + (dance?.lean ?? 0) + sway, dance ? 14 : 5, dt)
     // Flips and pirouettes are rigid turns of the whole body (so nothing
@@ -1395,11 +1432,17 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     const syEye = Math.hypot(tmp[0] - tmp2[0], tmp[1] - tmp2[1], tmp[2] - tmp2[2]) / restHeight
     lim.attach(mouthRest, mouthAt)
     quat.set(...lim.rotation)
+    // Eyes counter-turn most of the way back toward the camera as the head
+    // yaws or pitches (as eyes do), so the iris never slides off round the
+    // side and leaves a blank white; they still roll with the body.
+    proj.set(0, 0, 1).applyQuaternion(quat)
+    eyeQuat.setFromUnitVectors(proj, CAM_DIR)
+    eyeQuat.slerp(NO_TURN, 0.3).multiply(quat)
     const open = 1 - f.blink
     eyes.forEach((eye, i) => {
       lim.attach(eyeRests[i], tmp)
       eye.position.set(tmp[0], tmp[1], tmp[2])
-      eye.quaternion.copy(quat)
+      eye.quaternion.copy(eyeQuat)
       // An eye turning away from the camera tucks into the body instead of
       // hanging off the silhouette.
       proj.set(...eyeNormals[i]).applyQuaternion(quat)
@@ -1426,7 +1469,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       : grabbed || name === 'shock' || name === 'whee' || name === 'worried' || name === 'ooh' ? -0.85
       : mood === 'typing' ? -0.3
       : 0
-    tuft.bend = ease(tuft.bend, bend, 7, dt)
+    // Thinking: it curls over and straightens again, like twirling a pencil.
+    tuft.bend = ease(tuft.bend, mood === 'thinking' && !grabbed ? 0.75 * Math.sin(t * 2.6 + 1) : bend, 7, dt)
 
     const blown = sleep === 'asleep' && !popped ? 0.1 + 0.17 * (0.5 - 0.5 * Math.cos(t * 1.8 - 0.6)) : 0
     bubbleSize = ease(bubbleSize, blown, blown ? 5 : 30, dt)
@@ -1443,6 +1487,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const updateMinis = () => {
     if (!popped || !minis) return
     for (const m of minis) {
+      skinJelly(m.geo, m.jelly, 0.05, 0)
       syncJellyGeometry(m.geo)
       updateShadow(m.shadow, m.jelly, 3.1 * MINI, 0.36)
       quat.set(...m.jelly.rotation)
@@ -1529,6 +1574,9 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     tuft.step(dt, (rest, out) => lim.attach(rest, out))
     for (const p of pools) p.step(dt, t, camera)
     if (!popped) {
+      // Lim is drawn as a smooth skin over the particles: all of the squash,
+      // stretch and tumble, a soft-limited share of the ripples, never a crease.
+      skinJelly(limGeo, lim, 0.15, 0)
       syncJellyGeometry(limGeo)
       u.rot.value.setFromMatrix4(rotM4.makeRotationFromQuaternion(quat.set(...lim.rotation)))
       updateShadow(limShadow, lim, 3.4 * lim.scale, 0.62)
@@ -1536,6 +1584,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     updateMinis()
     for (const toy of toys) {
       if (toy.asleep && !first) continue
+      skinJelly(toy.geo, toy.jelly, 0.045, 0)
       syncJellyGeometry(toy.geo)
       updateShadow(toy.shadow, toy.jelly, 0.9 * toy.jelly.scale, 0.24)
     }
@@ -1558,7 +1607,10 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   }
 
   // Start each toy's geometry at its slot (the shared rest got translated).
-  for (const toy of toys) syncJellyGeometry(toy.geo)
+  for (const toy of toys) {
+    skinJelly(toy.geo, toy.jelly, 0.045, 0)
+    syncJellyGeometry(toy.geo)
+  }
   await renderer.compileAsync(scene, camera)
   stage.start(frame)
   if (!reducedMotion) {
@@ -1686,7 +1738,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         nod('now')
       }
       else if (kind === 'big') {
-        resize(1.42, 6)
+        resize(1.3, 6)
         setAct('ooh', 1)
         emote('BIG.')
       } else if (kind === 'tiny') {

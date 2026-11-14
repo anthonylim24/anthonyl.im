@@ -168,7 +168,7 @@ export type LimUniforms = ReturnType<typeof createLimUniforms>
 const L = new THREE.Vector3(-0.45, 0.72, 0.53).normalize()
 // The window highlight sits further up and round the crown than the key
 // itself, clear of the brows and eyes.
-const H = new THREE.Vector3(-0.66, 1.02, 0.3).normalize()
+const H = new THREE.Vector3(-0.58, 1.08, 0.3).normalize()
 const LR = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), H).normalize()
 const LU = new THREE.Vector3().crossVectors(H, LR).normalize()
 export const LIGHT = vec3(L.x, L.y, L.z)
@@ -407,10 +407,11 @@ export function createEyeMaterial(lim: LimUniforms, side: number) {
   // Lids take the same ramp as the skin around them, so a shut eye melts into the face.
   const lidWrap = saturate(lit.add(0.45).div(1.45))
   const lidCol = mix(mix(s.shade, s.base, smoothstep(0.12, 0.54, lidWrap)), s.light, smoothstep(0.74, 0.94, lidWrap).mul(0.42))
+  const lidNight = lidCol.add(s.rim.mul(lim.night).mul(0.07))
   const closing = float(1).sub(smoothstep(0.85, 1, u.lidTop))
   const lash = aaStep(abs(ly.sub(topLine)).sub(0.05), 0.02).mul(closing)
   const lashBot = aaStep(abs(p.y.sub(botLine)).sub(0.05), 0.02).mul(float(1).sub(smoothstep(0.75, 0.95, u.lidBot)))
-  c = mix(c, lidCol, max(topLid, botLid))
+  c = mix(c, lidNight, max(topLid, botLid))
   c = mix(c, inkOf(lim), max(lash.mul(float(1).sub(botLid)), lashBot))
   mat.colorNode = c
   return { mat, u }
