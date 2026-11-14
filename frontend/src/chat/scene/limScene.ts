@@ -1,56 +1,54 @@
 /**
  * Lim, the jelly companion. A gumdrop-shaped shape-matching soft body (the
- * shared Jelly toolkit) with toon ramp shading, wrap light, fresnel rim and an
- * ink hull. The mouth, blush and brows are painted in rest space so they ride
- * every wobble; the glossy eyes are real spheres glued on with `attach`.
- * Lim stands on a polka-dot stage floor next to a few bumpable jelly beans,
- * and throws confetti when something delightful happens.
+ * shared Jelly toolkit) in a gelatin shader, with painted lidded eyes, a
+ * springy tuft, and a small stage of toys: jelly beans to bump, throw and
+ * feed to Lim, and a bouncy gumball.
  *
- * The page drives Lim through moods (typing, thinking, talking, …) plus
- * one-shot beats (hop on send, mouth flap per streamed chunk, cheer when done).
+ * The page drives Lim through moods (typing, thinking, talking, …) and
+ * one-shot beats (hop on send, babble per streamed chunk, cheer when done).
+ * Everything else is Lim's own: anticipation before every jump, stretch in
+ * the air, squash + dust + a floor ripple on landing, falling asleep when
+ * ignored, getting dizzy when shaken, and a handful of easter eggs (see
+ * `stunt`, the poke combo that pops Lim into a litter of mini Lims, and
+ * feeding).
  */
 import * as THREE from 'three/webgpu'
-import {
-  abs,
-  atan,
-  attribute,
-  cameraViewMatrix,
-  color,
-  cos,
-  dot,
-  float,
-  fract,
-  fwidth,
-  length,
-  max,
-  mix,
-  normalLocal,
-  normalView,
-  normalize,
-  positionLocal,
-  positionViewDirection,
-  positionWorld,
-  pow,
-  saturate,
-  sin,
-  smoothstep,
-  uniform,
-  uv,
-  vec2,
-  vec3,
-  vec4,
-} from 'three/tsl'
-import type { Node } from 'three/webgpu'
+import { float, mix, normalView, normalize, smoothstep } from 'three/tsl'
 import { createStage } from '../../three/stage'
 import { Jelly, icosphere, type Vec3 } from '../../three/jelly'
 import { jellyGeometry, syncJellyGeometry } from '../../three/jellyMesh'
 import { bindJellyPointer } from '../../three/jellyPointer'
-
-type F = Node<'float'>
-type V2 = Node<'vec2'>
-type V3 = Node<'vec3'>
+import { sound } from '../sound'
+import type { Stunt } from '../eggs'
+import { Pool, Tuft, heartGeometry, starGeometry } from './fx'
+import {
+  CONFETTI,
+  FACES,
+  PAL,
+  TOYS,
+  addRestNormals,
+  bubbleMaterial,
+  col,
+  createEyeMaterial,
+  createLimUniforms,
+  floorMaterial,
+  gel,
+  haloMaterial,
+  hullMaterial,
+  inkOf,
+  limBodyColor,
+  rippleMaterial,
+  shadowMaterial,
+  smoothNormals,
+  toyMaterial,
+  type Face,
+  type FaceName,
+  type V3,
+} from './limLook'
 
 export type LimMood = 'idle' | 'typing' | 'thinking' | 'talking' | 'happy' | 'sad'
+/** Small things the page tells Lim about. */
+export type LimReaction = 'key' | 'shout' | 'wink'
 
 export type LimSceneOptions = {
   canvas: HTMLCanvasElement
@@ -58,8 +56,9 @@ export type LimSceneOptions = {
   reducedMotion: boolean
   night: boolean
   mood: LimMood
-  onPoke?: () => void
-  /** Top of Lim's head in host px, plus px per world unit; every frame. */
+  /** A word to float above Lim's head ("boop!", "z", "yum!"). */
+  onEmote?: (word: string) => void
+  /** Top of Lim's head in host px, plus px per world unit. */
   onAnchor?: (x: number, y: number, unit: number) => void
   onFirstFrame?: () => void
 }
@@ -72,6 +71,8 @@ export type LimScene = {
   hop(): void
   talk(): void
   cheer(confetti: boolean): void
+  stunt(kind: Stunt): void
+  react(kind: LimReaction): void
   dispose(): void
 }
 
@@ -79,63 +80,14 @@ const FOV = 30
 const PITCH = THREE.MathUtils.degToRad(10)
 const LIM_H = 1.75
 const FLOOR_LINE = 0.8
-
-const PAL = {
-  top: '#FF8B6E',
-  bottom: '#FF6F7D',
-  belly: '#FFC9B2',
-  shade: '#D9476C',
-  light: '#FFC7AE',
-  rim: '#FFE6F2',
-  nightRim: '#B7A4FF',
-  ink: '#4A2F5C',
-  nightInk: '#140E28',
-  mouth: '#3A1838',
-  tongue: '#FF8FA8',
-  blush: '#FF4F86',
-  brow: '#3A2350',
-  pupil: '#2B2140',
-  eyeShade: '#DCD4EE',
-  shadow: '#5B2D55',
-}
-const BEANS: [string, string][] = [
-  ['#9EE6C8', '#4FB894'],
-  ['#C7B6FF', '#8B6FEA'],
-  ['#FFD978', '#EDA436'],
-]
-const CONFETTI = ['#FF7E6B', '#9EE6C8', '#C7B6FF', '#FFD978', '#9FD3FF', '#FF9FC5']
-
-type Face = {
-  w: number
-  curve: number
-  open: number
-  blush: number
-  lid: number
-  brow: number
-  browL: [number, number]
-  browR: [number, number]
-  sad: number
-  droop: number
-  pupil: number
-}
-const face = (f: Partial<Face>): Face => ({
-  w: 0.16, curve: 2.4, open: 0, blush: 0.5, lid: 1, brow: 0,
-  browL: [0, 0], browR: [0, 0], sad: 0, droop: 0, pupil: 1, ...f,
-})
-const FACES = {
-  idle: face({}),
-  typing: face({ w: 0.11, curve: 1.6, open: 0.03, blush: 0.55, lid: 1.06, brow: 0.9, browL: [-0.14, 0.03], browR: [0.14, 0.03] }),
-  thinking: face({ w: 0.07, curve: 0, open: 0.07, blush: 0.4, lid: 0.94, brow: 1, browL: [-0.22, 0.07], browR: [0.1, -0.01] }),
-  talking: face({ w: 0.15, curve: 1.8, open: 0.02, blush: 0.6 }),
-  happy: face({ w: 0.19, curve: 2.6, open: 0.1, blush: 0.95, lid: 0.5 }),
-  sad: face({ w: 0.12, curve: -2.4, blush: 0.2, lid: 0.86, brow: 1, browL: [0.4, 0.01], browR: [-0.4, 0.01], sad: 1, droop: 0.09, pupil: 0.9 }),
-  grabbed: face({ w: 0.075, curve: 0, open: 0.12, blush: 0.6, lid: 1.16, brow: 1, browL: [-0.16, 0.09], browR: [0.16, 0.09], pupil: 0.72 }),
-  poked: face({ w: 0.18, curve: 2.4, open: 0.09, blush: 1, lid: 0.12 }),
-} satisfies Record<string, Face>
+const G = 14
+const MINIS = 6
+const MINI = 0.36
+const POKE_WORDS = ['hehe!', 'boop!', 'eep!', 'squish!', 'tee-hee', 'wobble!', 'again!']
 
 /** Gumdrop: a squat sphere, wider and flat at the base. */
-function gumdropRest(): { positions: Float32Array; index: Uint32Array } {
-  const { positions, index } = icosphere(1, 4)
+function gumdropRest(detail: number): { positions: Float32Array; index: Uint32Array } {
+  const { positions, index } = icosphere(1, detail)
   for (let i = 0; i < positions.length; i += 3) {
     const y = positions[i + 1]
     const widen = 1 + 0.16 * ((1 - y) / 2) ** 1.6
@@ -177,50 +129,19 @@ function surfacePoint(rest: Float32Array, dir: Vec3): { p: Vec3; n: Vec3 } {
   return { p, n: [p[0] / r, p[1] / r, p[2] / r] }
 }
 
-// View-space key light, upper left and in front: camera-relative so the toon
-// bands stay put however the stage is framed.
-const LIGHT = normalize(vec3(-0.45, 0.72, 0.53))
-
-type Mat3U = Node<'mat3'>
-
-/**
- * Soft-body normals carry every ripple of the particle sim; blending in the
- * rest normal (turned by the body's rotation) keeps the toon bands and the
- * highlight smooth while the silhouette still squashes.
- */
-function smoothNormal(rot: Mat3U, amount: number): { local: V3; view: V3 } {
-  const restN = attribute('restNormal', 'vec3') as unknown as V3
-  const turned = rot.mul(restN) as unknown as V3
-  const local = normalize(mix(normalLocal, turned, amount))
-  const view = normalize(mix(normalize(normalView), normalize(cameraViewMatrix.mul(vec4(turned, 0)).xyz), amount))
-  return { local, view }
+const FACE_KEYS = [
+  'w', 'curve', 'open', 'o', 'blush', 'lidTop', 'lidBot', 'seam', 'smile', 'tilt', 'brow', 'sad', 'pupil', 'heart', 'dizzy',
+] as const satisfies readonly (keyof Face)[]
+/** How fast each part of the face moves (1/s): lids and mouths snap, blush lingers. */
+const FACE_RATE: Record<(typeof FACE_KEYS)[number], number> = {
+  w: 14, curve: 14, open: 16, o: 14, blush: 6, lidTop: 20, lidBot: 20, seam: 16, smile: 16, tilt: 10,
+  brow: 10, sad: 4, pupil: 11, heart: 12, dizzy: 10,
 }
 
-/** Freeze the rest-pose normals as an attribute (see smoothNormal). */
-function addRestNormals(geo: THREE.BufferGeometry) {
-  geo.setAttribute('restNormal', geo.attributes.normal.clone())
+const smooth = (k: number) => {
+  const x = Math.min(1, Math.max(0, k))
+  return x * x * (3 - 2 * x)
 }
-
-function toon(n: V3, base: V3, shade: V3, light: V3, rim: V3, rimAmt: F): V3 {
-  const v = positionViewDirection
-  const wrap = saturate(dot(n, LIGHT).add(0.4).div(1.4))
-  let c: V3 = mix(shade, base, smoothstep(0.16, 0.5, wrap))
-  c = mix(c, light, smoothstep(0.78, 0.92, wrap).mul(0.45))
-  const fres = pow(float(1).sub(saturate(dot(n, v))), 2.6)
-  c = c.add(rim.mul(fres.mul(rimAmt)))
-  const nh = saturate(dot(n, normalize(LIGHT.add(v))))
-  c = mix(c, vec3(1, 1, 1), smoothstep(0.94, 0.985, nh).mul(0.8))
-  return c.add(pow(nh, 60).mul(0.1))
-}
-
-function hullMaterial(ink: V3, width: number, normal: V3 = normalLocal) {
-  const m = new THREE.MeshBasicNodeMaterial({ side: THREE.BackSide })
-  m.positionNode = positionLocal.add(normal.mul(width))
-  m.colorNode = ink
-  return m
-}
-
-const aaStep = (d: F, aa = 0.006) => float(1).sub(smoothstep(-aa, aa, d))
 
 export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const { canvas, host, reducedMotion } = opts
@@ -230,222 +151,203 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
 
   const scene = new THREE.Scene()
   const camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 80)
-
-  const uNight = uniform(opts.night ? 1 : 0)
-  const uSad = uniform(0)
-  const uMouthW = uniform(0.16)
-  const uMouthCurve = uniform(2.4)
-  const uMouthOpen = uniform(0)
-  const uBlush = uniform(0.5)
-  const uBrow = uniform(0)
-  const uBrowL = uniform(new THREE.Vector2())
-  const uBrowR = uniform(new THREE.Vector2())
-  const ink = mix(color(PAL.ink), color(PAL.nightInk), uNight)
+  const u = createLimUniforms(opts.night)
+  const ink = inkOf(u)
+  const emote = (word: string) => opts.onEmote?.(word)
 
   // ── Lim ──────────────────────────────────────────────────────────
-  const limRest = gumdropRest()
-  // Firm-ish goal (low beta) so impacts squash and spring back instead of
-  // the linear fit "accepting" a pancake.
+  const limRest = gumdropRest(4)
+  // Soft enough to ring for a few beats after every move, firm enough (low
+  // beta) that impacts squash and spring back instead of settling as a pancake.
+  const LIM_STIFF = 0.115
+  const LIM_BETA = 0.28
   const lim = new Jelly(limRest.positions, {
-    stiffness: 0.13,
-    beta: 0.25,
-    damping: 1.6,
-    gravity: [0, -14, 0],
+    stiffness: LIM_STIFF,
+    beta: LIM_BETA,
+    damping: 1.25,
+    gravity: [0, -G, 0],
     floor: 0,
     friction: 0.45,
+    // However hard Lim is shaken or thrown, the surface never folds over itself.
+    maxStray: 0.34,
   })
-  lim.upright = 0.08
+  const UPRIGHT = 0.08
+  lim.upright = UPRIGHT
   const limGeo = jellyGeometry(lim, limRest.index)
   addRestNormals(limGeo)
-  const uLimRot = uniform(new THREE.Matrix3())
-  const limN = smoothNormal(uLimRot, 0.6)
+  const limN = smoothNormals(u.rot, 0.6)
   const restC: Vec3 = [...lim.center]
   const eyeL = surfacePoint(limRest.positions, [-0.36, 0.2, 0.91])
   const eyeR = surfacePoint(limRest.positions, [0.36, 0.2, 0.91])
-  const EYE_R = 0.205
+  const EYE_R = 0.215
   const eyeRest = (s: { p: Vec3; n: Vec3 }): Vec3 => [
     s.p[0] - s.n[0] * EYE_R * 0.3,
     s.p[1] - s.n[1] * EYE_R * 0.3,
     s.p[2] - s.n[2] * EYE_R * 0.3,
   ]
-  const eyeLRest = eyeRest(eyeL)
-  const eyeRRest = eyeRest(eyeR)
-  const eyeY = eyeL.p[1]
-  const eyeX = Math.abs(eyeL.p[0])
+  const eyeRests = [eyeRest(eyeL), eyeRest(eyeR)]
+  const eyeNormals = [eyeL.n, eyeR.n]
+  const anchors = { restC, eyeX: Math.abs(eyeL.p[0]), eyeY: eyeL.p[1] }
+  const mouthRest = surfacePoint(limRest.positions, [0, anchors.eyeY - 0.33, 0.97]).p
   const headTopRest: Vec3 = [0, 0.95, 0]
   const baseRest: Vec3 = [0, -0.8, 0]
-  const restEyeGap = Math.hypot(eyeLRest[0] - eyeRRest[0], eyeLRest[1] - eyeRRest[1], eyeLRest[2] - eyeRRest[2])
+  const restEyeGap = Math.hypot(eyeRests[0][0] - eyeRests[1][0], eyeRests[0][1] - eyeRests[1][1], eyeRests[0][2] - eyeRests[1][2])
   const restHeight = headTopRest[1] - baseRest[1]
 
   const bodyMat = new THREE.MeshBasicNodeMaterial()
-  {
-    const rest = attribute('rest', 'vec3') as unknown as V3
-    const rn = normalize(rest.sub(vec3(...restC)))
-    const front = smoothstep(0.3, 0.55, rn.z)
-    const p = rest.xy as V2
-
-    let base: V3 = mix(color(PAL.bottom), color(PAL.top), smoothstep(-0.8, 0.9, rest.y))
-    const belly = float(1).sub(smoothstep(0.22, 0.62, length(vec2(p.x.mul(0.85), p.y.add(0.42))))).mul(front)
-    base = mix(base, color(PAL.belly), belly.mul(0.55))
-    base = mix(base, color('#D9939B'), uSad.mul(0.4))
-    base = base.mul(mix(float(1), float(0.84), uNight))
-    const shade = mix(color(PAL.shade), color('#9A3A7C'), uNight)
-    const rim = mix(color(PAL.rim), color(PAL.nightRim), uNight)
-    let c = toon(limN.view, base, shade, color(PAL.light).mul(mix(float(1), float(0.86), uNight)), rim, mix(float(0.5), float(0.95), uNight))
-
-    // Blush.
-    const cheekY = eyeY - 0.29
-    const cheekX = eyeX + 0.24
-    const cheek = (x: number) =>
-      float(1).sub(smoothstep(0.05, 0.15, length(vec2(p.x.sub(x), p.y.sub(cheekY).mul(1.4)))))
-    c = mix(c, color(PAL.blush), cheek(-cheekX).add(cheek(cheekX)).mul(uBlush).mul(front).mul(0.78))
-
-    // Brows: rounded segments, tilt (radians) + raise per side.
-    const brow = (x: number, b: typeof uBrowL) => {
-      const qx = p.x.sub(x)
-      const qy = p.y.sub(b.y.add(eyeY + 0.29))
-      const cs = cos(b.x)
-      const sn = sin(b.x)
-      const rx = qx.mul(cs).add(qy.mul(sn))
-      const ry = qy.mul(cs).sub(qx.mul(sn))
-      return aaStep(length(vec2(max(abs(rx).sub(0.085), 0), ry)).sub(0.024))
-    }
-    c = mix(c, color(PAL.brow), brow(-eyeX, uBrowL).add(brow(eyeX, uBrowR)).min(1).mul(uBrow).mul(front))
-
-    // Mouth: the lens between two parabolas, with a tongue when open.
-    const mx = p.x
-    const my = p.y.sub(eyeY - 0.33)
-    const q = mx.div(uMouthW)
-    const ex = max(float(1).sub(q.mul(q)), 0)
-    const mid = uMouthCurve.mul(mx.mul(mx))
-    const top = mid.add(0.022).add(uMouthOpen.mul(ex).mul(0.28))
-    const bot = mid.sub(0.022).sub(uMouthOpen.mul(ex))
-    const d = max(abs(mx).sub(uMouthW), max(my.sub(top), bot.sub(my)))
-    const mouth = aaStep(d).mul(front)
-    const tongue = aaStep(my.sub(bot.add(uMouthOpen.mul(0.5)))).mul(smoothstep(0.035, 0.075, uMouthOpen))
-    c = mix(c, mix(color(PAL.mouth), color(PAL.tongue), tongue), mouth)
-    bodyMat.colorNode = c
-  }
+  bodyMat.colorNode = limBodyColor(u, limN, anchors)
   const limMesh = new THREE.Mesh(limGeo, bodyMat)
   const limHull = new THREE.Mesh(limGeo, hullMaterial(ink, 0.03, limN.local))
   limMesh.frustumCulled = limHull.frustumCulled = false
   scene.add(limMesh, limHull)
 
-  // Eyes: white + ink rim + pupil + two catch-lights.
+  // Eyes: a painted ball in an ink ring.
   const sphere = new THREE.SphereGeometry(1, 32, 20)
-  const whiteMat = new THREE.MeshBasicNodeMaterial()
-  whiteMat.colorNode = mix(color(PAL.eyeShade), color('#FFFFFF'), smoothstep(-0.3, 0.6, dot(normalize(normalView), LIGHT)))
-  const pupilMat = new THREE.MeshBasicNodeMaterial()
-  pupilMat.colorNode = mix(color(PAL.pupil), color('#55427A'), smoothstep(0.3, 1, dot(normalize(normalView), LIGHT)).mul(0.5))
-  const glintMat = new THREE.MeshBasicNodeMaterial({ color: '#FFFFFF' })
+  const eyeMats = [createEyeMaterial(u, -1), createEyeMaterial(u, 1)]
   const eyeHullMat = hullMaterial(ink, 0)
-  const makeEye = () => {
+  const rims: THREE.Mesh[] = []
+  const makeEye = (i: number) => {
     const group = new THREE.Group()
-    const white = new THREE.Mesh(sphere, whiteMat)
     const rim = new THREE.Mesh(sphere, eyeHullMat)
     rim.scale.setScalar(1.13)
-    const pupil = new THREE.Mesh(sphere, pupilMat)
-    const glint = new THREE.Mesh(sphere, glintMat)
-    glint.scale.setScalar(0.2)
-    glint.position.set(-0.36, 0.42, 0.9).normalize().multiplyScalar(1.02)
-    const glint2 = new THREE.Mesh(sphere, glintMat)
-    glint2.scale.setScalar(0.09)
-    glint2.position.set(0.34, -0.3, 0.92).normalize().multiplyScalar(1.02)
-    group.add(white, rim, pupil, glint, glint2)
+    group.add(new THREE.Mesh(sphere, eyeMats[i].mat), rim)
     scene.add(group)
-    return { group, pupil }
+    rims.push(rim)
+    return group
   }
-  const eyes = [makeEye(), makeEye()]
+  const eyes = [makeEye(0), makeEye(1)]
 
-  // ── Floor, rug, shadows ──────────────────────────────────────────
-  const floorMat = new THREE.MeshBasicNodeMaterial({ transparent: true })
+  // The tuft: same jelly, one size smaller.
+  const tuft = new Tuft(
+    [[0.02, 0.86, 0.04], [0.03, 1.02, 0.04], [0.09, 1.16, 0.04], [0.2, 1.24, 0.04], [0.31, 1.2, 0.04], [0.35, 1.11, 0.04]],
+    [0.085, 0.08, 0.07, 0.06, 0.048, 0.034],
+  )
+  const tuftMat = new THREE.MeshBasicNodeMaterial()
   {
-    const wp = positionWorld.xz as V2
-    const cell = fract(wp.mul(1.5)).sub(0.5)
-    const dd = length(cell)
-    const aa = fwidth(dd).mul(1.2)
-    // Dots fade out toward the horizon before they can shimmer.
-    const dots = float(1).sub(smoothstep(float(0.085).sub(aa), float(0.085).add(aa), dd)).mul(smoothstep(-6, -1.5, wp.y))
-    const r = length(wp)
-    const edge = float(1.6).add(cos(atan(wp.y, wp.x).mul(18)).mul(0.035))
-    const ea = fwidth(r).mul(1.5)
-    const rug = float(1).sub(smoothstep(edge.sub(ea), edge.add(ea), r))
-    const ring = smoothstep(1.16, 1.18, r).mul(float(1).sub(smoothstep(1.24, 1.26, r)))
-    let c: V3 = mix(color('#FCE5D8'), color('#2A2250'), uNight)
-    c = mix(c, mix(color('#F7CDBF'), color('#3B3170'), uNight), dots.mul(0.8))
-    c = mix(c, mix(color('#C8F0E0'), color('#3D3474'), uNight), rug)
-    c = mix(c, mix(color('#A6E3CA'), color('#4F4592'), uNight), ring.mul(rug))
-    floorMat.colorNode = c
-    floorMat.opacityNode = smoothstep(-7.5, -2.5, wp.y).mul(float(1).sub(smoothstep(9, 12, abs(wp.x))))
+    const n = normalize(normalView)
+    const tinted = mix(col(PAL.top), u.tint as unknown as V3, u.tintAmt)
+    tuftMat.colorNode = gel(n, n, {
+      base: mix(tinted, col('#D9939B'), u.sad.mul(0.4)).mul(mix(float(1), float(0.84), u.night)),
+      shade: mix(col(PAL.shade), col('#9A3A7C'), u.night),
+      light: col(PAL.light),
+      rim: mix(col(PAL.rim), col(PAL.nightRim), u.night),
+      rimAmt: float(0.4),
+      glow: col(PAL.glow),
+      window: 0,
+    })
   }
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 30), floorMat)
+  const tuftMesh = new THREE.Mesh(tuft.geo, tuftMat)
+  const tuftHull = new THREE.Mesh(tuft.geo, hullMaterial(ink, 0.026))
+  tuftMesh.frustumCulled = tuftHull.frustumCulled = false
+  scene.add(tuftMesh, tuftHull)
+
+  // A nose bubble for naps: swells on the out-breath, pops when Lim wakes.
+  const noseRest = surfacePoint(limRest.positions, [0.1, anchors.eyeY - 0.2, 0.97]).p
+  const bubble = new THREE.Mesh(sphere, bubbleMaterial(u))
+  bubble.visible = false
+  bubble.renderOrder = 3
+  scene.add(bubble)
+  let bubbleSize = 0
+
+  const halo = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), haloMaterial(u))
+  halo.scale.setScalar(5.2)
+  halo.renderOrder = -1
+  scene.add(halo)
+  const limParts = [limMesh, limHull, tuftMesh, tuftHull, halo, ...eyes]
+
+  // ── Floor, shadows, ripples ──────────────────────────────────────
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 30), floorMaterial(u))
   floor.rotation.x = -Math.PI / 2
   floor.position.z = 3
+  // A hair below the contact plane, so the ink line closes under every body.
+  floor.position.y = -0.045
   scene.add(floor)
 
-  const shadowGeo = new THREE.PlaneGeometry(1, 1)
-  const makeShadow = () => {
-    const strength = uniform(0.3)
-    const mat = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false })
-    mat.colorNode = mix(color(PAL.shadow), color('#07040F'), uNight)
-    mat.opacityNode = pow(saturate(float(1).sub(length(uv().sub(0.5)).mul(2))), 1.5).mul(strength)
-    const mesh = new THREE.Mesh(shadowGeo, mat)
+  const flat = new THREE.PlaneGeometry(1, 1)
+  const makeShadow = (tint: string | null) => {
+    const { mat, strength } = shadowMaterial(u, tint)
+    const mesh = new THREE.Mesh(flat, mat)
     mesh.rotation.x = -Math.PI / 2
-    mesh.position.y = 0.004
+    mesh.position.y = -0.03
     mesh.renderOrder = 1
     scene.add(mesh)
-    return { mesh, mat, strength }
+    return { mesh, strength }
   }
-  const limShadow = makeShadow()
+  type Shadow = ReturnType<typeof makeShadow>
+  const limShadow = makeShadow(PAL.top)
 
-  // ── Jelly beans ──────────────────────────────────────────────────
+  const ripples = Array.from({ length: 4 }, () => {
+    const { mat, k } = rippleMaterial(u)
+    const mesh = new THREE.Mesh(flat, mat)
+    mesh.rotation.x = -Math.PI / 2
+    mesh.position.y = -0.025
+    mesh.renderOrder = 2
+    mesh.visible = false
+    scene.add(mesh)
+    return { mesh, k, size: 1, speed: 1 }
+  })
+  let nextRipple = 0
+  const ripple = (x: number, z: number, size: number, speed = 1.6) => {
+    if (reducedMotion) return
+    const r = ripples[nextRipple++ % ripples.length]
+    r.mesh.position.x = x
+    r.mesh.position.z = z
+    r.k.value = 0
+    r.size = size
+    r.speed = speed
+    r.mesh.visible = true
+  }
+
+  // ── Toys ─────────────────────────────────────────────────────────
   const beanShape = beanRest()
-  const beans = BEANS.map(([hex, shadeHex], i) => {
-    const jelly = new Jelly(beanShape.positions, {
-      stiffness: 0.13,
-      beta: 0.35,
-      damping: 1.1,
-      gravity: [0, -16, 0],
-      floor: 0,
-      friction: 0.35,
-      substeps: 2,
-    })
-    const geo = jellyGeometry(jelly, beanShape.index)
-    const mat = new THREE.MeshBasicNodeMaterial()
-    mat.colorNode = toon(
-      normalize(normalView),
-      color(hex).mul(mix(float(1), float(0.8), uNight)),
-      color(shadeHex).mul(mix(float(1), float(0.7), uNight)),
-      color('#FFFFFF').mul(0.92),
-      mix(color('#FFFFFF'), color(PAL.nightRim), uNight),
-      float(0.45),
-    )
-    const mesh = new THREE.Mesh(geo, mat)
+  const ballShape = icosphere(0.27, 2)
+  const SLOTS = [-0.78, 0.66, 0.92, -0.5]
+  const toys = TOYS.map(({ kind, hex, shade }, i) => {
+    const shape = kind === 'bean' ? beanShape : ballShape
+    const jelly = new Jelly(shape.positions, kind === 'bean'
+      ? { stiffness: 0.3, beta: 0.16, damping: 1.1, maxStray: 0.09, gravity: [0, -16, 0], floor: 0, friction: 0.35, substeps: 2 }
+      : { stiffness: 0.3, beta: 0.2, damping: 0.35, gravity: [0, -16, 0], floor: 0, friction: 0.86, substeps: 2 })
+    const geo = jellyGeometry(jelly, shape.index)
+    const mesh = new THREE.Mesh(geo, toyMaterial(u, hex, shade))
     const hull = new THREE.Mesh(geo, hullMaterial(ink, 0.016))
     mesh.frustumCulled = hull.frustumCulled = false
     scene.add(mesh, hull)
-    return { jelly, geo, mat, hull, shadow: makeShadow(), slot: [-0.78, 0.66, 0.9][i], spin: i % 2 ? 0.6 : -0.5 }
+    return {
+      kind, hex, jelly, geo, mesh, hull, shadow: makeShadow(null), slot: SLOTS[i], gravity: jelly.gravity, beta: jelly.beta, stiffness: jelly.stiffness,
+      /** Seconds at rest; the sim skips toys that have settled. */
+      still: 0,
+      asleep: false,
+      /** Being swallowed since this time, then gone until `backAt`. */
+      eatenAt: -1,
+      backAt: -1,
+    }
   })
-
-  // ── Confetti ─────────────────────────────────────────────────────
-  const CONF_N = 96
-  const confMat = new THREE.MeshBasicNodeMaterial({ side: THREE.DoubleSide })
-  const confetti = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.12, 0.07), confMat, CONF_N)
-  confetti.frustumCulled = false
-  const conf = Array.from({ length: CONF_N }, () => ({
-    p: new THREE.Vector3(),
-    v: new THREE.Vector3(),
-    axis: new THREE.Vector3(1, 0, 0),
-    angle: 0,
-    spin: 0,
-    life: 0,
-  }))
-  {
-    const c = new THREE.Color()
-    for (let i = 0; i < CONF_N; i++) confetti.setColorAt(i, c.set(CONFETTI[i % CONFETTI.length]))
+  type Toy = (typeof toys)[number]
+  const wakeToy = (toy: Toy) => {
+    toy.asleep = false
+    toy.still = 0
   }
-  scene.add(confetti)
-  let nextConf = 0
+
+  // ── Particles ────────────────────────────────────────────────────
+  const plain = (side: THREE.Side = THREE.DoubleSide) => new THREE.MeshBasicNodeMaterial({ side })
+  const popIn = (k: number) => Math.min(1, k * 9) * Math.min(1, (1 - k) * 2.5)
+  const confetti = new Pool(new THREE.PlaneGeometry(0.12, 0.07), plain(), 140, {
+    gravity: 6.5, drag: 1.6, flutter: 1.4, settle: true, shape: (k) => Math.min(1, (1 - k) * 6),
+  })
+  // Dust puffs are little shaded clouds, so they read as volume, not dots.
+  const dustMat = plain(THREE.FrontSide)
+  dustMat.colorNode = mix(
+    mix(col('#F1D2C4'), col('#FFFDF8'), smoothstep(-0.3, 0.6, normalize(normalView).y)),
+    mix(col('#3B3170'), col('#7A6CC4'), smoothstep(-0.3, 0.6, normalize(normalView).y)),
+    u.night,
+  )
+  const dust = new Pool(new THREE.IcosahedronGeometry(1, 2), dustMat, 40, {
+    gravity: -0.6, drag: 3.2, shape: (k) => Math.sin(Math.PI * Math.min(1, k ** 0.6)) ** 0.7,
+  })
+  const stars = new Pool(starGeometry(4, 0.34), plain(), 40, { gravity: 3, drag: 2.2, billboard: true, shape: popIn })
+  const hearts = new Pool(heartGeometry(), plain(), 24, { gravity: -1.1, drag: 1.4, billboard: true, flutter: 1.8, shape: popIn })
+  const pools = [confetti, dust, stars, hearts]
+  for (const p of pools) scene.add(p.mesh)
 
   // ── Layout ───────────────────────────────────────────────────────
   let halfW = 2.5
@@ -454,6 +356,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   let w = 1
   let h = 1
   let wide = true
+  const camBase = new THREE.Vector3()
+  let camTargetY = 0
   const layout = (sw: number, sh: number) => {
     w = sw
     h = sh
@@ -463,36 +367,49 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     const minW = wide ? 5.6 : 4.6
     if (vh * aspect < minW) vh = minW / aspect
     const dist = vh / 2 / Math.tan(THREE.MathUtils.degToRad(FOV / 2))
-    const ty = (FLOOR_LINE - 0.5) * vh
+    camTargetY = (FLOOR_LINE - 0.5) * vh
     camera.aspect = aspect
-    camera.position.set(0, ty + dist * Math.sin(PITCH), dist * Math.cos(PITCH))
-    camera.lookAt(0, ty, 0)
+    camBase.set(0, camTargetY + dist * Math.sin(PITCH), dist * Math.cos(PITCH))
+    camera.position.copy(camBase)
+    camera.lookAt(0, camTargetY, 0)
     camera.updateProjectionMatrix()
     halfW = (vh * aspect) / 2
-    topY = ty + vh / 2 - 0.05
+    topY = camTargetY + vh / 2 - 0.05
     unit = sh / vh
   }
   stage.onResize(layout)
 
   // ── Start pose: Lim pops to life where the static mascot stood ───
   lim.translate(0, 0.81, 0)
-  for (const b of beans) {
-    b.jelly.translate(b.slot * (halfW - 0.5), reducedMotion ? 0.2 : 2.6 + Math.abs(b.slot) * 1.6, 0.25)
+  for (const toy of toys) {
+    const i = toys.indexOf(toy)
+    // Still (reduced motion): stand the toys clear of Lim, since nothing will nudge them apart.
+    const x = reducedMotion ? Math.sign(toy.slot) * (1.62 + (i >> 1) * 0.5) : toy.slot * (halfW - 0.5)
+    toy.jelly.translate(x, reducedMotion ? 0.2 : 1.2 + i * 0.45, 0.25)
   }
 
-  const bodies = [lim, ...beans.map((b) => b.jelly)]
-  const radius = new Map<Jelly, number>([[lim, 1], ...beans.map((b) => [b.jelly, 0.26] as [Jelly, number])])
-  const mass = new Map<Jelly, number>([[lim, 6], ...beans.map((b) => [b.jelly, 1] as [Jelly, number])])
+  /** Everything the pointer can grab and that collides; minis come and go. */
+  const bodies: Jelly[] = [lim, ...toys.map((t) => t.jelly)]
+  const info = new Map<Jelly, { r: number; m: number; toy?: Toy }>([[lim, { r: 1, m: 6 }]])
+  for (const toy of toys) info.set(toy.jelly, { r: 0.26, m: 1, toy })
 
   // ── State ────────────────────────────────────────────────────────
   let t = 0
   let mood: LimMood = opts.mood
+  let night = opts.night
   let grabbed = false
+  let grabbedAt = 0
+  let held: Toy | null = null
+  let nearSince = 0
+  let snatched = false
   let pokedUntil = 0
   let pokes: number[] = []
   let happyUntil = 0
+  let act: { face: FaceName; until: number } | null = null
+  let winkUntil = 0
   let cheerTimer: ReturnType<typeof setTimeout> | undefined
   let talkOpen = 0
+  let talkO = 0
   let lastTalk = 0
   let talkCount = 0
   let nextBlink = 1.5
@@ -501,19 +418,47 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   let nextWobble = 0
   let wobbleSide = 1
   let nextHomeHop = 0
+  let nextSaccade = 0
   let entryScale = reducedMotion ? 1 : 0.72
   let entryVel = 0
+  let lastActive = 0
+  let sleep: 'awake' | 'yawning' | 'asleep' = 'awake'
+  let napUntil = 0
+  let nextZ = 0
+  let shaken = 0
+  let dizzyUntil = 0
+  let nextOrbit = 0
+  let lastBonk = -1
+  let lastShout = -9
+  let lastKey = 0
+  let inflate = 0
+  let full = 0
+  let chewUntil = 0
+  let shake = 0
+  let call: { x: number; z: number; until: number } | null = null
+  let dance: { t0: number; until: number; step: number; lean: number } | null = null
+  let flip: { t0: number; dur: number; at: number } | null = null
+  let spin: { t0: number; dur: number; turns: number; at: number } | null = null
+  let popped: { t0: number; merging: boolean } | null = null
+  const size = { x: 1, v: 0, target: 1, until: 0 }
   const squash = { x: 0, v: 0 }
-  const kicks: { at: number; v: Vec3 }[] = []
+  /** Cheek puff: widens the body at the middle for a beat (chewing). */
+  const cheeks = { x: 0, v: 0 }
+  const queue: { at: number; fn: () => void }[] = []
   const look = { x: 0, y: 0, at: -10, clientX: 0, clientY: 0 }
   const wander = { x: 0, y: 0, until: 0 }
+  const jitter = { x: 0, y: 0 }
   const lean = { yaw: 0, pitch: 0, roll: 0 }
-  const f = { ...FACES[mood], browL: [...FACES[mood].browL], browR: [...FACES[mood].browR], lidNow: 1 }
+  const par = { x: 0, y: 0 }
+  const f: Face & { blink: number } = { ...FACES[mood], browL: [...FACES[mood].browL], browR: [...FACES[mood].browR], blink: 0 }
   let wasAirborne = false
   let lastVy = 0
   const vbar: Vec3 = [0, 0, 0]
+  const prevV: Vec3 = [0, 0, 0]
   const tmp: Vec3 = [0, 0, 0]
   const tmp2: Vec3 = [0, 0, 0]
+  const mouthAt: Vec3 = [0, 0, 0]
+  const eyeMid: Vec3 = [0, 0, 0]
   const quat = new THREE.Quaternion()
   const rotM4 = new THREE.Matrix4()
   const euler = new THREE.Euler(0, 0, 0, 'YXZ')
@@ -525,17 +470,21 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
 
   const ease = (cur: number, target: number, rate: number, dt: number) =>
     reducedMotion ? target : cur + (target - cur) * (1 - Math.exp(-rate * dt))
-
+  const later = (delay: number, fn: () => void) => queue.push({ at: t + delay, fn })
+  const setAct = (name: FaceName, dur: number) => {
+    act = { face: name, until: t + dur }
+  }
   const toHost = (p: Vec3): [number, number] => {
     proj.set(p[0], p[1], p[2]).project(camera)
     return [((proj.x + 1) / 2) * w, ((1 - proj.y) / 2) * h]
   }
 
+  // ── Effects ──────────────────────────────────────────────────────
   const burst = (count: number, power: number) => {
     if (reducedMotion) return
     lim.attach(headTopRest, tmp)
     for (let k = 0; k < count; k++) {
-      const c = conf[nextConf++ % CONF_N]
+      const c = confetti.spawn(CONFETTI[k % CONFETTI.length], 2.4 + Math.random() * 1.4)
       c.p.set(tmp[0] + (Math.random() - 0.5) * 0.6, tmp[1] + 0.1, tmp[2] + (Math.random() - 0.5) * 0.4)
       const a = Math.random() * Math.PI * 2
       const s = (1.2 + Math.random() * 2.6) * power
@@ -543,11 +492,321 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       c.axis.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize()
       c.angle = Math.random() * Math.PI
       c.spin = (Math.random() - 0.5) * 16
-      c.life = 2.4 + Math.random() * 1.4
+    }
+  }
+  /** Confetti falling from above the stage. */
+  const rain = (count: number) => {
+    if (reducedMotion) return
+    for (let k = 0; k < count; k++) {
+      const c = confetti.spawn(CONFETTI[k % CONFETTI.length], 3 + Math.random() * 1.5)
+      c.p.set((Math.random() - 0.5) * 2 * halfW, topY + Math.random() * 0.8, (Math.random() - 0.5) * 1.6)
+      c.v.set((Math.random() - 0.5) * 1.5, -Math.random() * 2, 0)
+      c.axis.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize()
+      c.spin = (Math.random() - 0.5) * 16
+    }
+  }
+  /** A ring of dust kicked out along the floor. */
+  const puff = (x: number, z: number, count: number, power: number, radius = 0.85) => {
+    if (reducedMotion) return
+    for (let k = 0; k < count; k++) {
+      const a = (k / count) * Math.PI * 2 + Math.random() * 0.6
+      const d = dust.spawn('#ffffff', 0.45 + Math.random() * 0.4, 0.09 + Math.random() * 0.1)
+      d.p.set(x + Math.cos(a) * radius, 0.07, z + Math.sin(a) * radius * 0.55 + 0.2)
+      d.v.set(Math.cos(a) * (1.4 + Math.random()) * power, 0.5 + Math.random() * 0.8, Math.sin(a) * power)
+    }
+  }
+  const sparkle = (x: number, y: number, z: number, count: number, power = 1) => {
+    if (reducedMotion) return
+    for (let k = 0; k < count; k++) {
+      const a = Math.random() * Math.PI * 2
+      const s = stars.spawn(k % 3 ? '#FFD25E' : '#FFFFFF', 0.45 + Math.random() * 0.35, 0.07 + Math.random() * 0.08)
+      s.p.set(x, y, z)
+      s.v.set(Math.cos(a) * 3 * power, Math.sin(a) * 3 * power + 1, 0)
+      s.spin = (Math.random() - 0.5) * 12
+    }
+  }
+  const love = (count: number) => {
+    if (reducedMotion) return
+    lim.attach(headTopRest, tmp)
+    for (let k = 0; k < count; k++) {
+      const hrt = hearts.spawn(k % 2 ? '#FF4F86' : '#FF8FA8', 1.3 + Math.random() * 0.7, 0.1 + Math.random() * 0.07)
+      hrt.p.set(tmp[0] + (Math.random() - 0.5) * 1.3, tmp[1] - 0.3 + Math.random() * 0.4, tmp[2] + 0.5)
+      hrt.v.set((Math.random() - 0.5) * 1.2, 1 + Math.random(), 0)
+      hrt.angle = (Math.random() - 0.5) * 0.6
+    }
+  }
+  /** A thump on the floor jolts every toy near it. */
+  const shock = (x: number, z: number, power: number) => {
+    for (const toy of toys) {
+      if (toy.eatenAt >= 0 || toy.backAt >= 0) continue
+      const d = Math.hypot(toy.jelly.center[0] - x, toy.jelly.center[2] - z)
+      const k = power / (1 + d * d * 0.6)
+      if (k < 0.4) continue
+      wakeToy(toy)
+      toy.jelly.kick(Math.sign(toy.jelly.center[0] - x) * k * 0.3, k, 0)
+      toy.jelly.spin(0, 0, (Math.random() - 0.5) * k * 2)
     }
   }
 
-  // ── Pointer: grab, fling, poke ───────────────────────────────────
+  // ── Moves ────────────────────────────────────────────────────────
+  /** Every jump is three beats: crouch (anticipation), launch stretched, land squashed. */
+  const jump = (vx: number, vy: number, vz: number, antic = 0.11) => {
+    if (reducedMotion) return
+    squash.v += 2.2 + vy * 0.2
+    later(antic, () => {
+      if (popped) return
+      lim.kick(vx, vy, vz)
+      squash.v -= 2.4 + vy * 0.26
+      tuft.flick(-vx * 0.6, -vy * 0.5, 0)
+      if (vy > 4) {
+        puff(lim.center[0], lim.center[2], 5, 0.7)
+        sound.boing(vy / 9)
+      }
+    })
+  }
+  /** Draw a toy over everything while it's in hand or on its way into Lim's mouth. */
+  const onTop = (toy: Toy, on: boolean) => {
+    // In hand it holds its shape instead of dangling from the pinned patch.
+    toy.jelly.beta = on ? 0.06 : toy.beta
+    toy.jelly.stiffness = on ? 0.4 : toy.stiffness
+    toy.hull.renderOrder = on ? 9 : 0
+    toy.mesh.renderOrder = on ? 10 : 0
+    for (const m of [toy.mesh.material, toy.hull.material] as THREE.Material[]) m.depthTest = m.depthWrite = !on
+  }
+  /** Something happened: reset the nap timer, and wake Lim unless a nap was asked for. */
+  const active = (nudge = false) => {
+    lastActive = t
+    if (nudge) napUntil = 0
+    if (sleep === 'awake' || t < napUntil) return
+    const was = sleep
+    sleep = 'awake'
+    if (was === 'asleep' && !reducedMotion) {
+      // The bubble bursts first.
+      lim.attach(noseRest, tmp)
+      sparkle(tmp[0] + 0.1, tmp[1], tmp[2] + 0.3, 4, 0.5)
+      sound.pop()
+      setAct('shock', 0.6)
+      emote('!')
+      jump(0, 3.6, 0, 0.02)
+      sound.squeak()
+    }
+  }
+  const nod = (to: 'sleepy' | 'now') => {
+    if (reducedMotion) return
+    sleep = 'yawning'
+    setAct('yawn', 1.7)
+    squash.v -= 3.2
+    sound.yawn()
+    later(to === 'now' ? 1.7 : 2.4, () => {
+      if (sleep !== 'yawning') return
+      sleep = 'asleep'
+      nextZ = t + 0.6
+    })
+  }
+  const dizzy = () => {
+    if (t < dizzyUntil) return
+    dizzyUntil = t + 3.4
+    shaken = 0
+    setAct('dizzy', 3.4)
+    emote('woah…')
+  }
+  const startDance = (dur: number) => {
+    if (popped) return
+    dance = { t0: t, until: t + dur, step: -1, lean: 0 }
+    setAct('happy', dur)
+  }
+  const startSpin = (turns: number, dur: number) => {
+    spin = { t0: t, dur, turns, at: 0 }
+    sound.whoosh()
+  }
+  const startFlip = () => {
+    const vy = Math.min(wide ? 8.2 : 6.4, Math.sqrt(2 * G * Math.max(0.25, topY - 3.05)))
+    const antic = 0.16
+    jump(0, vy, 0, antic)
+    flip = { t0: t + antic + 0.07, dur: Math.max(0.4, (2 * vy) / G - 0.16), at: 0 }
+    setAct('whee', flip.dur + antic)
+    later(antic + flip.dur + 0.05, () => {
+      setAct('smug', 1.2)
+      sparkle(lim.center[0], lim.center[1] + 1.1, 0.6, 8)
+      sound.sparkle()
+    })
+  }
+  const resize = (target: number, dur: number) => {
+    size.target = target
+    size.until = t + dur
+    size.v += (target - size.x) * 6
+    sound.boing(target > 1 ? 0.9 : 0.3)
+    if (target > 1) later(0.25, () => shock(lim.center[0], lim.center[2], 5))
+  }
+
+  // ── Mini Lims (the poke-combo easter egg) ────────────────────────
+  type Mini = { jelly: Jelly; geo: THREE.BufferGeometry; parts: THREE.Object3D[]; eyes: THREE.Group[]; shadow: Shadow; nextHop: number }
+  let minis: Mini[] | null = null
+  const buildMinis = (): Mini[] => {
+    const rest = gumdropRest(2)
+    const mat = new THREE.MeshBasicNodeMaterial()
+    const n = normalize(normalView)
+    mat.colorNode = limBodyColor(u, { view: n, spec: n }, anchors)
+    const hullMat = hullMaterial(ink, 0.02)
+    return Array.from({ length: MINIS }, () => {
+      const jelly = new Jelly(rest.positions, {
+        stiffness: 0.2, beta: 0.3, damping: 1.2, gravity: [0, -16, 0], floor: 0, friction: 0.4, substeps: 2,
+      })
+      jelly.upright = 0.14
+      jelly.scale = MINI
+      const geo = jellyGeometry(jelly, rest.index)
+      const mesh = new THREE.Mesh(geo, mat)
+      const hull = new THREE.Mesh(geo, hullMat)
+      mesh.frustumCulled = hull.frustumCulled = false
+      const miniEyes = [0, 1].map((i) => {
+        const group = new THREE.Group()
+        const rim = new THREE.Mesh(sphere, eyeHullMat)
+        rim.scale.setScalar(1.13)
+        group.add(new THREE.Mesh(sphere, eyeMats[i].mat), rim)
+        return group
+      })
+      const shadow = makeShadow(PAL.top)
+      const parts = [mesh, hull, ...miniEyes, shadow.mesh]
+      for (const p of parts) p.visible = false
+      scene.add(mesh, hull, ...miniEyes)
+      info.set(jelly, { r: MINI, m: 1 })
+      return { jelly, geo, parts, eyes: miniEyes, shadow, nextHop: 0 }
+    })
+  }
+  /** Put a body's rest shape (scaled) at a point, at rest. */
+  const place = (jelly: Jelly, geo: THREE.BufferGeometry, scale: number, x: number, y: number, z: number) => {
+    const rest = geo.attributes.rest.array as Float32Array
+    let cy = 0
+    for (let i = 1; i < rest.length; i += 3) cy += rest[i]
+    cy /= jelly.count
+    for (let i = 0; i < rest.length; i += 3) {
+      jelly.x[i] = x + rest[i] * scale
+      jelly.x[i + 1] = y + (rest[i + 1] - cy) * scale
+      jelly.x[i + 2] = z + rest[i + 2] * scale
+    }
+    jelly.v.fill(0)
+    jelly.center[0] = x
+    jelly.center[1] = y
+    jelly.center[2] = z
+  }
+  const pop = () => {
+    if (popped || reducedMotion) return
+    minis ??= buildMinis()
+    popped = { t0: t, merging: false }
+    const [cx, cy, cz] = lim.center
+    for (const p of limParts) p.visible = false
+    limShadow.mesh.visible = false
+    bodies.splice(bodies.indexOf(lim), 1)
+    minis.forEach((m, i) => {
+      const a = (i / MINIS) * Math.PI * 2
+      place(m.jelly, m.geo, MINI, cx + Math.cos(a) * 0.4, Math.max(0.4, cy) + Math.sin(a) * 0.3, cz * 0.5)
+      m.jelly.kick(Math.cos(a) * 4.5, 4.5 + Math.random() * 3 + Math.sin(a) * 2, (Math.random() - 0.5) * 2)
+      m.nextHop = t + 0.9 + Math.random() * 0.6
+      for (const p of m.parts) p.visible = true
+      bodies.push(m.jelly)
+    })
+    inflate = 0
+    pokes = []
+    dance = flip = spin = null
+    burst(60, 1.15)
+    sparkle(cx, cy, cz + 1, 12, 1.4)
+    ripple(cx, cz, 5.5, 1.3)
+    shock(cx, cz, 3.2)
+    shake += 0.09
+    setAct('whee', 6)
+    sound.pop()
+    emote('pop!')
+  }
+  const merge = () => {
+    if (!popped || !minis) return
+    let mx = 0
+    for (const m of minis) {
+      mx += m.jelly.center[0] / MINIS
+      for (const p of m.parts) p.visible = false
+      bodies.splice(bodies.indexOf(m.jelly), 1)
+    }
+    place(lim, limGeo, 1, THREE.MathUtils.clamp(mx, -halfW + 1.2, halfW - 1.2), restC[1] + 0.81, 0)
+    for (const p of limParts) p.visible = true
+    limShadow.mesh.visible = true
+    bodies.unshift(lim)
+    popped = null
+    entryScale = 0.3
+    entryVel = 7
+    squash.x = 0
+    squash.v = 0
+    setAct('happy', 1.6)
+    burst(36, 0.9)
+    puff(lim.center[0], 0, 10, 1.3, 0.5)
+    shock(lim.center[0], 0, 4)
+    sound.pop()
+    later(0.12, () => sound.chime())
+    emote('ta-da!')
+    active()
+  }
+
+  // ── Feeding ──────────────────────────────────────────────────────
+  const eat = (toy: Toy) => {
+    toy.eatenAt = t
+    toy.jelly.gravity = [0, 0, 0]
+    toy.jelly.anchor = { target: mouthAt, k: 420, c: 30 }
+    bodies.splice(bodies.indexOf(toy.jelly), 1)
+    later(0.26, () => {
+      toy.mesh.visible = toy.hull.visible = toy.shadow.mesh.visible = false
+      toy.eatenAt = -1
+      toy.backAt = t + 6 + Math.random() * 3
+      toy.jelly.anchor = null
+      full += 1
+      chewUntil = t + 0.72
+      setAct('chew', 1.3)
+      squash.v += 4
+      // Three chews, cheeks out on each, then the swallow.
+      for (let k = 0; k < 3; k++) {
+        later(0.06 + k * 0.18, () => {
+          cheeks.v += 7.5
+          squash.v += 2
+          sound.blip()
+        })
+      }
+      later(0.72, () => {
+        squash.v -= 3
+        sound.gulp()
+        // The colour rises from the belly as the bean goes down.
+        u.tint.value.set(toy.hex)
+        u.tintLevel.value = -0.9
+        tintGoal = 0.56
+        tintUntil = t + 9
+      })
+      later(1.25, () => {
+        happyUntil = t + 1.2
+        emote(full >= 3 ? 'so full…' : 'yum!')
+        if (full >= 3) later(0.9, () => nod('now'))
+      })
+      later(2.7, () => {
+        if (sleep !== 'awake' || popped) return
+        // A burp, and the embarrassment afterwards.
+        squash.v -= 4
+        lim.kick(0, 1.6, 0)
+        setAct('ooh', 0.5)
+        sound.burp()
+        emote('burp')
+        later(0.5, () => setAct('smug', 0.9))
+      })
+    })
+  }
+  let tintGoal = 0
+  let tintUntil = 0
+  const returnToy = (toy: Toy) => {
+    toy.backAt = -1
+    toy.jelly.scale = 1
+    toy.jelly.gravity = toy.gravity
+    place(toy.jelly, toy.geo, 1, toy.slot * (halfW - 0.5), topY + 0.4, 0.25)
+    toy.mesh.visible = toy.hull.visible = toy.shadow.mesh.visible = true
+    onTop(toy, false)
+    wakeToy(toy)
+    bodies.push(toy.jelly)
+  }
+
+  // ── Pointer: grab, fling, poke, feed, call ───────────────────────
   const pointer = bindJellyPointer({
     host,
     camera,
@@ -555,98 +814,300 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     reducedMotion,
     touchDrag: true,
     pokeStrength: 3.2,
+    // A wide, soft grip and a stretch limit: Lim pulls like taffy and trails a
+    // wild pointer instead of creasing where the grabbed patch ends.
+    grabRadius: 1.2,
+    maxStretch: 1.2,
     onPoke(body) {
-      if (body !== lim) return
+      active(true)
+      const toy = info.get(body)?.toy
+      if (toy) {
+        wakeToy(toy)
+        body.kick((Math.random() - 0.5) * 1.5, 3 + Math.random() * 1.5, 0)
+        body.spin(0, 0, (Math.random() - 0.5) * 9)
+        sound.squeak()
+        return
+      }
+      if (body !== lim) {
+        body.kick(0, 3.5, 0)
+        sound.squeak()
+        return
+      }
       pokedUntil = t + 0.55
       const now = t
       pokes = pokes.filter((p) => now - p < 4)
       pokes.push(now)
       // Giggle: a couple of quick side-to-side shivers.
-      for (let k = 0; k < 3; k++) kicks.push({ at: t + 0.06 + k * 0.09, v: [k % 2 ? -1.1 : 1.1, k === 0 ? 1.6 : 0, 0] })
+      for (let k = 0; k < 3; k++) later(0.06 + k * 0.09, () => lim.kick(k % 2 ? -1.1 : 1.1, k === 0 ? 1.6 : 0, 0))
       squash.v += 3
-      if (pokes.length >= 5) {
-        pokes = []
+      tuft.flick((Math.random() - 0.5) * 4, 2, 0)
+      sound.squeak()
+      // Keep poking and Lim puffs up… and up… and pops.
+      if (pokes.length === 5) {
         happyUntil = t + 2
         burst(48, 1)
+        emote('hehehe!')
+      } else if (pokes.length >= 10) {
+        pop()
+      } else if (pokes.length > 5) {
+        inflate = (pokes.length - 5) * 0.1
+        setAct('worried', 1.6)
+        emote(pokes.length === 9 ? 'uh oh…' : pokes.length === 7 ? 'careful!' : POKE_WORDS[pokes.length % POKE_WORDS.length])
+      } else {
+        emote(POKE_WORDS[Math.floor(Math.random() * POKE_WORDS.length)])
       }
-      opts.onPoke?.()
     },
     onGrab(body) {
-      if (body === lim) grabbed = true
+      active(true)
+      if (body === lim) {
+        grabbed = true
+        grabbedAt = t
+        sound.squeak()
+        return
+      }
+      const toy = info.get(body)?.toy
+      if (toy) {
+        held = toy
+        wakeToy(toy)
+        onTop(toy, true)
+      }
     },
     onRelease(body) {
-      if (body === lim) grabbed = false
+      if (body === lim) {
+        grabbed = false
+        lim.velocity(vbar)
+        if (Math.hypot(vbar[0], vbar[1]) > 6) sound.whoosh()
+        return
+      }
+      const toy = info.get(body)?.toy
+      if (!toy || snatched) return
+      held = null
+      wakeToy(toy)
+      const near = Math.hypot(toy.jelly.center[0] - mouthAt[0], toy.jelly.center[1] - mouthAt[1])
+      if (toy.kind === 'bean' && !popped && sleep === 'awake' && near < 0.62) eat(toy)
+      else onTop(toy, false)
     },
   })
 
-  // ── Frame ────────────────────────────────────────────────────────
-  const dummy = new THREE.Object3D()
-  const confQuat = new THREE.Quaternion()
+  // Tap the floor and Lim hops over to see what's there.
+  const tapRay = new THREE.Raycaster()
+  const ndc = new THREE.Vector2()
+  const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
+  const groundHit = new THREE.Vector3()
+  const onTap = (e: PointerEvent) => {
+    if (reducedMotion || e.button > 0 || pointer.grabbing() || popped) return
+    if (e.target instanceof Element && e.target.closest('a, button, input, textarea')) return
+    ndc.set(((e.clientX - hostRect.left) / w) * 2 - 1, -((e.clientY - hostRect.top) / h) * 2 + 1)
+    tapRay.setFromCamera(ndc, camera)
+    if (!tapRay.ray.intersectPlane(ground, groundHit) || groundHit.z < -1.4 || groundHit.z > 2.6) return
+    active()
+    call = {
+      x: THREE.MathUtils.clamp(groundHit.x, -halfW + 1.15, halfW - 1.15),
+      z: THREE.MathUtils.clamp(groundHit.z, -0.5, 0.6),
+      until: t + 6,
+    }
+    ripple(groundHit.x, groundHit.z, 1.5, 2.4)
+    nextHomeHop = Math.min(nextHomeHop, t + 0.28)
+  }
+  host.addEventListener('pointerdown', onTap)
 
+  // ── Frame ────────────────────────────────────────────────────────
   const brain = (dt: number) => {
     lim.velocity(vbar)
+    const speed = Math.hypot(vbar[0], vbar[1], vbar[2])
     const resting = lim.contacts > 0 && Math.abs(vbar[1]) < 0.4
-    const busy = grabbed || mood === 'thinking' || mood === 'talking'
+    const busy = grabbed || mood === 'thinking' || mood === 'talking' || Boolean(dance || flip || spin) || t < dizzyUntil
+    if (call && t > call.until) call = null
 
-    // Home: centre stage, or a step toward the chat while you type (desktop).
-    const homeX = wide && (mood === 'typing' || mood === 'talking') ? Math.max(0, halfW - 1.5) * 0.4 : 0
+    // Home: centre stage, a step toward the chat while you type (desktop), or
+    // wherever the floor was last tapped.
+    const homeX = call ? call.x : wide && (mood === 'typing' || mood === 'talking') ? Math.max(0, halfW - 1.5) * 0.4 : 0
+    const homeZ = call ? call.z : 0
     const off = homeX - lim.center[0]
-    if (resting && !grabbed && t > nextHomeHop && (Math.abs(off) > 0.28 || Math.abs(lim.center[2]) > 0.5)) {
+    const offZ = homeZ - lim.center[2]
+    if (resting && !grabbed && !dance && sleep !== 'asleep' && t > nextHomeHop && (Math.abs(off) > 0.28 || Math.abs(offZ) > 0.5)) {
       const dir = Math.sign(off) * Math.min(1, Math.abs(off))
-      kicks.push({ at: t + 0.07, v: [dir * 2.3, 4.6, -lim.center[2] * 1.6] })
-      squash.v += 3.5
+      jump(dir * 2.3, 4.6, offZ * 1.6, 0.08)
       nextHomeHop = t + 0.75
     }
 
-    for (let i = kicks.length - 1; i >= 0; i--) {
-      if (kicks[i].at <= t) {
-        lim.kick(...kicks[i].v)
-        kicks.splice(i, 1)
-      }
+    // Poke combo wears off; a full tummy settles; a tint fades.
+    if (pokes.length && t - pokes[pokes.length - 1] > 3) {
+      pokes = []
+      inflate = 0
     }
+    full = Math.max(0, full - dt * 0.04)
+    if (t > tintUntil) tintGoal = 0
+    u.tintAmt.value = ease(u.tintAmt.value, tintGoal, tintGoal > 0 ? 9 : 0.5, dt)
+    u.tintLevel.value = Math.min(2, u.tintLevel.value + dt * 2.6)
+    cheeks.v += (-260 * cheeks.x - 16 * cheeks.v) * dt
+    cheeks.x += cheeks.v * dt
 
-    if (mood === 'thinking' && t > nextWobble) {
+    if (mood === 'thinking' && !dance && !flip && t > nextWobble) {
       wobbleSide = -wobbleSide
       lim.attach(headTopRest, tmp)
       lim.impulse([tmp[0], tmp[1] - 0.2, tmp[2]], [wobbleSide * 0.9, 0, 0], 1.1)
+      tuft.flick(wobbleSide * 2.6, 0.8, 0)
       nextWobble = t + 0.42
     }
 
-    if (!busy && mood !== 'typing' && t > nextFidget) {
+    // Idle life: little unprompted beats so Lim never stands frozen.
+    if (!busy && (mood === 'idle' || mood === 'happy') && sleep === 'awake' && !held && t > nextFidget) {
       const roll = Math.random()
-      if (roll < 0.3) kicks.push({ at: t, v: [0, 3.4, 0] })
-      else if (roll < 0.6) {
+      if (roll < 0.2) jump(0, 3.4, 0)
+      else if (roll < 0.42) {
         lim.attach(headTopRest, tmp)
         lim.impulse(tmp, [(Math.random() < 0.5 ? -1 : 1) * 2.2, 0, 0], 1.1)
-      } else if (roll < 0.8) squash.v += 4
-      else {
+      } else if (roll < 0.56) squash.v += 4
+      else if (roll < 0.68) tuft.flick((Math.random() - 0.5) * 7, 3, 0)
+      else if (roll < 0.8) {
+        // Notice a toy.
+        const toy = toys[Math.floor(Math.random() * toys.length)]
+        wander.x = THREE.MathUtils.clamp((toy.jelly.center[0] - lim.center[0]) / 1.4, -1, 1)
+        wander.y = -0.55
+        wander.until = t + 1.6
+      } else if (roll < 0.9) {
+        winkUntil = t + 0.32
+        squash.v += 1.5
+      } else {
         wander.x = (Math.random() - 0.5) * 1.6
         wander.y = (Math.random() - 0.3) * 1.2
         wander.until = t + 1.4
       }
-      nextFidget = t + 4.5 + Math.random() * 4.5
+      nextFidget = t + 3.5 + Math.random() * 4
+    }
+
+    // Ignored for a while: a yawn, then a nap.
+    if (sleep === 'awake' && mood === 'idle' && !busy && !popped && !held && t - lastActive > (night ? 24 : 50)) nod('sleepy')
+    if (sleep !== 'awake' && (mood !== 'idle' || grabbed)) active(grabbed)
+    if (sleep === 'asleep' && t > nextZ) {
+      emote('z')
+      sound.snore()
+      nextZ = t + 2.4
     }
 
     if (t > nextBlink) {
-      blinkUntil = t + 0.13
-      nextBlink = t + (Math.random() < 0.2 ? 0.28 : 2.4 + Math.random() * 3.2)
+      blinkUntil = t + 0.12
+      nextBlink = t + (Math.random() < 0.2 ? 0.26 : 2.2 + Math.random() * 3.4)
     }
 
-    // Landing: extra cartoon squash proportional to impact.
+    // Shaken about → dizzy.
+    const accel = Math.hypot(vbar[0] - prevV[0], vbar[1] - prevV[1]) / Math.max(dt, 1e-3)
+    if (grabbed && accel > 20) shaken += dt * 3
+    shaken = Math.max(0, shaken - dt * 0.35)
+    // Material: gooey in a gentle hand (pulls out like taffy), firm when shaken
+    // hard or mid-stunt, where a soft body would smear.
+    const goo = grabbed ? Math.max(0, 1 - shaken / 0.45) : 0
+    const firm = flip || spin ? 1 : 0
+    // The grabbed patch can't turn with the body, so in hand Lim is held
+    // facing you: no folding round the grip, and the face stays in view.
+    if (!flip && !spin) lim.upright = grabbed ? 0.6 : UPRIGHT
+    lim.beta = LIM_BETA + (0.44 - LIM_BETA) * goo
+    lim.stiffness = LIM_STIFF + (0.095 - LIM_STIFF) * goo + (0.3 - LIM_STIFF) * firm
+    if (shaken > 1.6 && !grabbed) dizzy()
+    prevV[0] = vbar[0]
+    prevV[1] = vbar[1]
+    prevV[2] = vbar[2]
+    if (t < dizzyUntil) {
+      if (t > nextOrbit) {
+        lim.attach(headTopRest, tmp)
+        const a = t * 5
+        const s = stars.spawn('#FFD25E', 0.5, 0.085)
+        s.p.set(tmp[0] + Math.cos(a) * 0.62, tmp[1] + 0.12 + Math.sin(a * 2) * 0.04, tmp[2] + Math.sin(a) * 0.3 + 0.2)
+        s.v.set(0, 0.2, 0)
+        s.spin = 5
+        nextOrbit = t + 0.085
+      }
+      if (resting) lim.impulse([lim.center[0], lim.center[1] + 0.8, lim.center[2]], [Math.sin(t * 3.1) * 14 * dt, 0, 0], 1.2)
+    }
+
+    // Dancing: a hop on every beat, leaning into alternate sides.
+    if (dance) {
+      const step = Math.floor((t - dance.t0) / 0.25)
+      if (step !== dance.step) {
+        dance.step = step
+        sound.beat(step)
+        if (step % 2 === 0) {
+          const side = (step / 2) % 2 ? 1 : -1
+          dance.lean = side * 0.2
+          if (lim.contacts > 0) lim.kick(side * 0.7, 2.9, 0)
+          squash.v += 2.6
+          tuft.flick(-side * 4, 0, 0)
+          toys.forEach((toy, i) => {
+            if (toy.backAt >= 0 || toy.eatenAt >= 0 || (i + step / 2) % 2) return
+            wakeToy(toy)
+            toy.jelly.kick(0, 3.4, 0)
+            toy.jelly.spin(0, 0, side * 4)
+          })
+        }
+        if (step % 16 === 12) startSpin(1, 0.4)
+        if (step % 8 === 0) burst(12, 0.8)
+      }
+      if (t > dance.until) dance = null
+    }
+    u.disco.value = ease(u.disco.value, dance ? 1 : 0, 6, dt)
+
+    // Landing: squash proportional to the impact, dust, a ripple, a thump.
     const airborne = lim.contacts === 0
-    if (wasAirborne && !airborne && lastVy < -2.5) squash.v += Math.min(5, -lastVy * 0.6)
+    if (wasAirborne && !airborne && lastVy < -2.5) {
+      const impact = -lastVy
+      squash.v += Math.min(6.5, impact * 0.62)
+      tuft.flick(0, -impact * 0.7, 0)
+      if (impact > 4.5) {
+        puff(lim.center[0], lim.center[2], Math.min(12, Math.round(impact)), Math.min(1.6, impact / 7))
+        ripple(lim.center[0], lim.center[2], 2.6 + impact * 0.16)
+        shock(lim.center[0], lim.center[2], impact * 0.42)
+        shake += Math.min(0.06, impact * 0.0045)
+        sound.thud(impact / 11)
+      }
+    }
     wasAirborne = airborne
     lastVy = vbar[1]
 
-    const droop = (mood === 'sad' ? FACES.sad.droop : 0)
-    squash.v += (-150 * (squash.x - droop) - 10 * squash.v) * dt
-    squash.x = THREE.MathUtils.clamp(squash.x + squash.v * dt, -0.32, 0.38)
+    // Squash & stretch: sprung, and stretched along the fall while airborne.
+    const droop = mood === 'sad' ? FACES.sad.droop : sleep === 'asleep' ? 0.07 : 0
+    const hang = grabbed && airborne ? -0.17 : 0
+    const stretch = hang || airborne && !grabbed && !flip ? hang - Math.min(0.2, Math.abs(vbar[1]) * 0.022 + speed * 0.006) : 0
+    squash.v += (-150 * (squash.x - droop - stretch) - 10 * squash.v) * dt
+    squash.x = THREE.MathUtils.clamp(squash.x + squash.v * dt, -0.34, 0.4)
     entryVel += (-120 * (entryScale - 1) - 7 * entryVel) * dt
     entryScale += entryVel * dt
-    const breathe = Math.sin(t * 1.8) * 0.014
-    lim.scale = entryScale * (1 + breathe) * (mood === 'sad' ? 0.975 : 1)
-    lim.squash[0] = lim.squash[2] = 1 + squash.x * 0.55
+    if (size.until && t > size.until) {
+      size.target = 1
+      size.until = 0
+    }
+    const sizeGoal = size.target * (1 + inflate + Math.min(3, full) * 0.045)
+    size.v += (-90 * (size.x - sizeGoal) - 9 * size.v) * dt
+    size.x += size.v * dt
+    sound.setVoice(1 / Math.max(0.5, size.x) ** 1.4)
+    const breathe = sleep === 'asleep' ? Math.sin(t * 1.8) * 0.045 : Math.sin(t * 1.8) * 0.014
+    lim.scale = entryScale * size.x * (1 + breathe) * (mood === 'sad' ? 0.975 : 1)
+    info.get(lim)!.r = lim.scale
+    lim.squash[0] = 1 + squash.x * 0.55 + Math.max(-0.05, cheeks.x) * 0.5
+    lim.squash[2] = 1 + squash.x * 0.55
     lim.squash[1] = 1 - squash.x
+  }
+
+  const minisBrain = () => {
+    if (!popped || !minis) return
+    const age = t - popped.t0
+    const gather = age > 2.6
+    let far = 0
+    for (const m of minis) {
+      far = Math.max(far, Math.abs(m.jelly.center[0]))
+      if (m.jelly.contacts === 0 || t < m.nextHop) continue
+      if (gather && m === minis[0] && age < 3.5) continue
+      const toCentre = -m.jelly.center[0]
+      const vx = gather ? THREE.MathUtils.clamp(toCentre * 2.2, -3.2, 3.2) : (Math.random() - 0.5) * 5
+      m.jelly.kick(vx, 3 + Math.random() * 1.8, gather ? -m.jelly.center[2] * 2 : (Math.random() - 0.5) * 1.5)
+      m.nextHop = t + 0.34 + Math.random() * 0.3
+      if (Math.random() < 0.25) sound.squeak()
+    }
+    if (gather && !popped.merging && (far < 0.75 || age > 6)) {
+      popped.merging = true
+      for (const m of minis) m.jelly.kick(-m.jelly.center[0] * 3, 5, 0)
+      later(0.3, merge)
+    }
   }
 
   const collide = () => {
@@ -654,19 +1115,29 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       for (let b = a + 1; b < bodies.length; b++) {
         const A = bodies[a]
         const B = bodies[b]
+        const ia = info.get(A)!
+        const ib = info.get(B)!
+        if (ia.toy?.asleep && ib.toy?.asleep) continue
+        // Lim is a gumdrop, widest at the base: its collision ball sits low
+        // and wide so toys are pushed clear of the skirt, not just the middle.
+        const low = A === lim ? 0.26 * lim.scale : 0
         const dx = B.center[0] - A.center[0]
-        const dy = B.center[1] - A.center[1]
-        const dz = B.center[2] - A.center[2]
+        const dy = B.center[1] - (A.center[1] - low)
+        // Depth counts for less against Lim, so a toy is pushed out to the side
+        // of the silhouette instead of sitting in front of it.
+        const dz = (B.center[2] - A.center[2]) * (A === lim ? 0.35 : 1)
         const dist = Math.hypot(dx, dy, dz)
-        const min = radius.get(A)! + radius.get(B)!
+        const min = ia.r * (A === lim ? 1.16 : 1) + ib.r
         if (dist >= min || dist < 1e-4) continue
+        // Lim opens wide for a bean in hand; don't shove it away from the mouth.
+        if ((A === lim && ib.toy === held) || (B === lim && ia.toy === held)) continue
+        if (ia.toy) wakeToy(ia.toy)
+        if (ib.toy) wakeToy(ib.toy)
         const nx = dx / dist
         const ny = dy / dist
         const nz = dz / dist
-        const ma = mass.get(A)!
-        const mb = mass.get(B)!
-        const wa = mb / (ma + mb)
-        const wb = ma / (ma + mb)
+        const wa = ib.m / (ia.m + ib.m)
+        const wb = ia.m / (ia.m + ib.m)
         const pen = min - dist
         A.translate(-nx * pen * wa, -ny * pen * wa, -nz * pen * wa)
         B.translate(nx * pen * wb, ny * pen * wb, nz * pen * wb)
@@ -677,77 +1148,183 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         const j = -1.5 * rel
         A.kick(-nx * j * wa, -ny * j * wa, -nz * j * wa)
         B.kick(nx * j * wb, ny * j * wb, nz * j * wb)
+        // Something small hitting Lim leaves a dent that rings, not a shove.
+        if (A === lim && j > 2) {
+          const cx = A.center[0] + nx * ia.r
+          const cy = A.center[1] - low + ny * ia.r
+          const cz = A.center[2] + nz * ia.r
+          lim.impulse([cx, cy, cz], [-nx * j * 0.9, -ny * j * 0.9, -nz * j * 0.9], 0.9)
+          if (j > 7 && t - lastBonk > 0.3 && !grabbed) {
+            lastBonk = t
+            setAct('hit', 0.38)
+            sparkle(cx, cy, cz + 0.3, 5)
+            sound.bonk(Math.min(1, j / 14))
+          }
+        }
       }
     }
   }
 
+  // Desktop layout (the page's own breakpoint): the stage dissolves over its
+  // last 72px before the chat panel, so the right wall stands in front of that.
+  const desk = window.matchMedia('(min-width: 1024px)')
+  const fadeInset = () => (desk.matches ? 104 / unit : 0)
+
+  /** Stage walls and ceiling. Returns the hardest wall hit this frame. */
   const walls = (body: Jelly) => {
     const X = halfW - 0.06
+    const XR = X - fadeInset()
     const { x, v } = body
+    let hit = 0
     for (let i = 0; i < x.length; i += 3) {
       if (x[i] < -X) {
         x[i] = -X
-        if (v[i] < 0) v[i] *= -0.45
-      } else if (x[i] > X) {
-        x[i] = X
-        if (v[i] > 0) v[i] *= -0.45
+        if (v[i] < 0) {
+          hit = Math.max(hit, -v[i])
+          v[i] *= -0.45
+        }
+      } else if (x[i] > XR) {
+        x[i] = XR
+        if (v[i] > 0) {
+          hit = Math.max(hit, v[i])
+          v[i] *= -0.45
+        }
       }
       if (x[i + 1] > topY) {
         x[i + 1] = topY
         if (v[i + 1] > 0) v[i + 1] *= -0.3
       }
-      if (x[i + 2] < -1.2) {
-        x[i + 2] = -1.2
+      if (x[i + 2] < -1.1) {
+        x[i + 2] = -1.1
         if (v[i + 2] < 0) v[i + 2] *= -0.45
-      } else if (x[i + 2] > 1.2) {
-        x[i + 2] = 1.2
+      } else if (x[i + 2] > 0.8) {
+        x[i + 2] = 0.8
         if (v[i + 2] > 0) v[i + 2] *= -0.45
       }
     }
+    return hit
+  }
+
+  /** A bean held close enough to the open mouth gets snatched out of your hand. */
+  const snatch = () => {
+    if (!held || held.kind !== 'bean' || popped || sleep !== 'awake' || grabbed) return
+    const d = Math.hypot(held.jelly.center[0] - mouthAt[0], held.jelly.center[1] - mouthAt[1])
+    if (d > 0.5) {
+      nearSince = d < 1.7 ? nearSince : t
+      return
+    }
+    // Give the "aah" a beat to open before the bite.
+    if (t - nearSince < 0.16) return
+    const toy = held
+    snatched = true
+    pointer.release()
+    snatched = false
+    held = null
+    lim.kick(0, 1.2, 0)
+    squash.v -= 3.4
+    eat(toy)
+  }
+
+  const stepToys = (dt: number) => {
+    for (const toy of toys) {
+      if (toy.backAt >= 0) {
+        if (t > toy.backAt && !popped) returnToy(toy)
+        continue
+      }
+      if (toy.eatenAt >= 0) toy.jelly.scale = Math.max(0.05, 1 - (t - toy.eatenAt) / 0.24)
+      if (toy.asleep) continue
+      toy.jelly.step(dt)
+      toy.jelly.velocity(tmp)
+      const calm = toy.jelly.contacts > 0 && Math.hypot(tmp[0], tmp[1], tmp[2]) < 0.06 && toy !== held && toy.eatenAt < 0
+      toy.still = calm ? toy.still + dt : 0
+      if (toy.still > 0.7) toy.asleep = true
+    }
+  }
+
+  const faceName = (): FaceName => {
+    if (grabbed) {
+      // Carried: surprise, then a worried look at the drop, then up at whoever has hold.
+      const k = (t - grabbedAt) % 3.6
+      return k < 1.1 ? 'grabbed' : k < 2.4 ? 'worried' : 'ooh'
+    }
+    if (act && t < act.until) return act.face
+    if (held && held.kind === 'bean' && sleep === 'awake') {
+      const d = Math.hypot(held.jelly.center[0] - mouthAt[0], held.jelly.center[1] - mouthAt[1])
+      if (d < 1.7) return 'aah'
+    }
+    if (t < pokedUntil) return 'poked'
+    if (t < happyUntil) return 'happy'
+    if (sleep === 'asleep') return 'asleep'
+    if (lim.contacts === 0 && Math.hypot(vbar[0], vbar[1]) > 6) return 'whee'
+    if (mood === 'idle' && night && t - lastActive > 9) return 'sleepy'
+    return mood
   }
 
   const updateFace = (dt: number) => {
-    const target = grabbed ? FACES.grabbed : t < pokedUntil ? FACES.poked : t < happyUntil ? FACES.happy : FACES[mood]
-    const r = 12
-    f.w = ease(f.w, target.w, r, dt)
-    f.curve = ease(f.curve, target.curve, r, dt)
-    f.open = ease(f.open, target.open, r, dt)
-    f.blush = ease(f.blush, target.blush, 6, dt)
-    f.brow = ease(f.brow, target.brow, 9, dt)
-    f.browL[0] = ease(f.browL[0], target.browL[0], 9, dt)
-    f.browL[1] = ease(f.browL[1], target.browL[1], 9, dt)
-    f.browR[0] = ease(f.browR[0], target.browR[0], 9, dt)
-    f.browR[1] = ease(f.browR[1], target.browR[1], 9, dt)
-    f.sad = ease(f.sad, target.sad, 4, dt)
-    f.pupil = ease(f.pupil, target.pupil, 10, dt)
+    const target = FACES[faceName()]
+    for (const k of FACE_KEYS) f[k] = ease(f[k], target[k], FACE_RATE[k], dt)
+    for (let i = 0; i < 2; i++) {
+      f.browL[i] = ease(f.browL[i], target.browL[i], 10, dt)
+      f.browR[i] = ease(f.browR[i], target.browR[i], 10, dt)
+    }
     talkOpen = ease(talkOpen, 0, 16, dt)
+    talkO = ease(talkO, 0, 12, dt)
     const blinking = !reducedMotion && t < blinkUntil
-    f.lidNow = ease(f.lidNow, blinking ? 0.08 : target.lid, blinking ? 60 : 18, dt)
+    f.blink = ease(f.blink, blinking ? 1 : 0, blinking ? 70 : 20, dt)
 
-    uMouthW.value = f.w
-    uMouthCurve.value = f.curve
-    uMouthOpen.value = f.open + (mood === 'talking' ? talkOpen : 0)
-    uBlush.value = f.blush
-    uBrow.value = f.brow
-    uBrowL.value.set(f.browL[0], f.browL[1])
-    uBrowR.value.set(f.browR[0], f.browR[1])
-    uSad.value = f.sad
+    const talking = mood === 'talking'
+    // Chewing: the closed mouth works side to side.
+    u.mouthW.value = f.w * (t < chewUntil ? 1 + Math.sin(t * 24) * 0.16 : 1)
+    u.mouthCurve.value = f.curve + (t < dizzyUntil ? Math.sin(t * 9) * 1.4 : 0)
+    u.mouthOpen.value = f.open + (talking ? talkOpen : 0)
+    u.mouthO.value = Math.min(1, f.o + (talking ? talkO : 0))
+    u.mouthX.value = ease(
+      u.mouthX.value,
+      t < chewUntil ? Math.sin(t * 17.5) * 0.045 : mood === 'thinking' && !act ? Math.sin(t * 2.1) * 0.04 : 0,
+      18,
+      dt,
+    )
+    u.blush.value = f.blush
+    u.brow.value = f.brow
+    u.browL.value.set(f.browL[0], f.browL[1])
+    u.browR.value.set(f.browR[0], f.browR[1])
+    u.sad.value = f.sad
 
-    // Gaze: pointer/caret when fresh, otherwise idle wander; thinking looks
-    // up and away, sadness looks at the floor, talking looks at you.
-    lim.attach(eyeLRest, tmp)
-    lim.attach(eyeRRest, tmp2)
-    const [ex, ey] = toHost([(tmp[0] + tmp2[0]) / 2, (tmp[1] + tmp2[1]) / 2, (tmp[2] + tmp2[2]) / 2])
+    // Gaze: whatever is most interesting right now. A bean in hand beats the
+    // pointer; thinking looks up and away; sadness looks at the floor.
+    lim.attach(eyeRests[0], tmp)
+    lim.attach(eyeRests[1], tmp2)
+    eyeMid[0] = (tmp[0] + tmp2[0]) / 2
+    eyeMid[1] = (tmp[1] + tmp2[1]) / 2
+    eyeMid[2] = (tmp[2] + tmp2[2]) / 2
+    const eyeGap = Math.hypot(tmp[0] - tmp2[0], tmp[1] - tmp2[1], tmp[2] - tmp2[2])
+    const toward = (x: number, y: number, reach: number): [number, number] => {
+      const dx = (x - eyeMid[0]) / reach
+      const dy = (y - eyeMid[1]) / reach
+      const l = Math.max(1, Math.hypot(dx, dy))
+      return [dx / l, dy / l]
+    }
     let gx = 0
     let gy = 0
-    if (mood === 'thinking') {
+    if (sleep === 'asleep' || t < dizzyUntil) {
+      gy = -0.2
+    } else if (grabbed && (t - grabbedAt) % 3.6 > 1.1 && (t - grabbedAt) % 3.6 < 2.4) {
+      // A long way down.
+      gx = Math.sin(t * 2.3) * 0.25
+      gy = -0.5
+    } else if (held) {
+      ;[gx, gy] = toward(held.jelly.center[0], held.jelly.center[1], 1.1)
+    } else if (mood === 'thinking') {
       gx = -0.55 + Math.sin(t * 0.9) * 0.15
       gy = 0.6
     } else if (mood === 'sad') {
       gy = -0.75
+    } else if (call && t < call.until - 4.6) {
+      ;[gx, gy] = toward(call.x, 0, 1.4)
     } else if (mood === 'talking' && t - look.at > 0.6) {
       gx = Math.sin(t * 1.3) * 0.08
     } else if (t - look.at < (mood === 'typing' ? 6 : 2.5)) {
+      const [ex, ey] = toHost(eyeMid)
       const dx = (look.clientX - hostRect.left - ex) / (unit * 3)
       const dy = -(look.clientY - hostRect.top - ey) / (unit * 3)
       const l = Math.max(1, Math.hypot(dx, dy))
@@ -757,15 +1334,54 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       gx = wander.x
       gy = wander.y
     }
-    look.x = ease(look.x, gx, 14, dt)
-    look.y = ease(look.y, gy, 14, dt)
+    // Eyes never hold perfectly still: tiny darts between fixations.
+    if (t > nextSaccade) {
+      jitter.x = (Math.random() - 0.5) * 0.09
+      jitter.y = (Math.random() - 0.5) * 0.06
+      nextSaccade = t + 0.5 + Math.random() * 1.6
+    }
+    look.x = ease(look.x, gx + jitter.x, 16, dt)
+    look.y = ease(look.y, gy + jitter.y, 16, dt)
 
-    // Head turn + lean follow the gaze; typing leans right in.
-    const leanAmt = mood === 'typing' ? 1 : 0.4
+    // Head turn + lean follow the gaze (the eyes lead, the body follows);
+    // typing leans right in. Flips and spins ride on top.
+    const leanAmt = mood === 'typing' || held ? 1 : 0.4
     lean.yaw = ease(lean.yaw, THREE.MathUtils.clamp(look.x, -1, 1) * 0.28 * leanAmt, 5, dt)
     lean.pitch = ease(lean.pitch, -THREE.MathUtils.clamp(look.y, -1, 1) * 0.1 * leanAmt, 5, dt)
-    lean.roll = ease(lean.roll, -lean.yaw * 0.3, 5, dt)
-    euler.set(lean.pitch, lean.yaw, lean.roll)
+    const sway =
+      sleep === 'asleep' ? Math.sin(t * 0.58) * 0.05
+      : t < dizzyUntil ? Math.sin(t * 3.1) * 0.16
+      : mood === 'thinking' ? Math.sin(t * 3.14) * 0.085
+      : 0
+    lean.roll = ease(lean.roll, -lean.yaw * 0.3 + (dance?.lean ?? 0) + sway, dance ? 14 : 5, dt)
+    // Flips and pirouettes are rigid turns of the whole body (so nothing
+    // twists or creases), with the upright target turning in step. The flip
+    // is an aerial cartwheel: Lim's face stays toward you all the way round.
+    let flipAngle = 0
+    if (flip) {
+      const k = (t - flip.t0) / flip.dur
+      flipAngle = -Math.PI * 2 * smooth(k)
+      if (k >= 0) lim.rotate(0, 0, 1, flipAngle - flip.at)
+      flip.at = k >= 0 ? flipAngle : 0
+      lim.upright = k >= 0 ? 0.3 : UPRIGHT
+      if (k >= 1) {
+        flip = null
+        lim.upright = UPRIGHT
+      }
+    }
+    let spinAngle = 0
+    if (spin) {
+      const k = (t - spin.t0) / spin.dur
+      spinAngle = Math.PI * 2 * spin.turns * smooth(k)
+      lim.rotate(0, 1, 0, spinAngle - spin.at)
+      spin.at = spinAngle
+      lim.upright = 0.3
+      if (k >= 1) {
+        spin = null
+        lim.upright = UPRIGHT
+      }
+    }
+    euler.set(lean.pitch, lean.yaw + spinAngle, lean.roll + flipAngle)
     quat.setFromEuler(euler)
     lim.uprightTarget[0] = quat.x
     lim.uprightTarget[1] = quat.y
@@ -773,90 +1389,167 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     lim.uprightTarget[3] = quat.w
 
     // Eyes ride the goal shape; their scale follows the local stretch.
-    const sxEye = Math.hypot(tmp[0] - tmp2[0], tmp[1] - tmp2[1], tmp[2] - tmp2[2]) / restEyeGap
+    const sxEye = eyeGap / restEyeGap
     lim.attach(headTopRest, tmp)
     lim.attach(baseRest, tmp2)
     const syEye = Math.hypot(tmp[0] - tmp2[0], tmp[1] - tmp2[1], tmp[2] - tmp2[2]) / restHeight
+    lim.attach(mouthRest, mouthAt)
     quat.set(...lim.rotation)
-    const wideEye = grabbed ? 1.1 : 1
+    const open = 1 - f.blink
     eyes.forEach((eye, i) => {
-      lim.attach(i === 0 ? eyeLRest : eyeRRest, tmp)
-      eye.group.position.set(tmp[0], tmp[1], tmp[2])
-      eye.group.quaternion.copy(quat)
-      const s = EYE_R * wideEye
-      eye.group.scale.set(s * sxEye, s * syEye * f.lidNow, s * 0.72)
-      const px = look.x * 0.44
-      const py = look.y * 0.4 + (mood === 'sad' ? -0.05 : 0)
-      eye.pupil.position.set(px, py, Math.sqrt(Math.max(0, 1 - px * px - py * py)) * 0.82)
-      eye.pupil.scale.set(0.56 * f.pupil, 0.56 * f.pupil, 0.32)
+      lim.attach(eyeRests[i], tmp)
+      eye.position.set(tmp[0], tmp[1], tmp[2])
+      eye.quaternion.copy(quat)
+      // An eye turning away from the camera tucks into the body instead of
+      // hanging off the silhouette.
+      proj.set(...eyeNormals[i]).applyQuaternion(quat)
+      const facing = smooth((proj.y * Math.sin(PITCH) + proj.z * Math.cos(PITCH) - 0.2) / 0.42)
+      eye.scale.set(EYE_R * sxEye * facing, EYE_R * syEye * facing, EYE_R * 0.72 * facing)
+      const e = eyeMats[i].u
+      const wink = i === 1 && t < winkUntil ? 0 : 1
+      e.look.value.set(look.x * 0.3, look.y * 0.27 + (mood === 'sad' ? -0.04 : 0))
+      e.pupil.value = f.pupil
+      e.lidTop.value = f.lidTop * open * wink
+      e.lidBot.value = f.lidBot * open * wink
+      e.seam.value = f.seam
+      e.smile.value = wink ? f.smile : 1
+      e.tilt.value = f.tilt
+      e.heart.value = f.heart
+      e.dizzy.value = f.dizzy
+      // A shut eye is a lid and a lash line: the ink ring tucks away behind it.
+      rims[i].scale.setScalar(1.13 - 0.2 * (1 - smooth(e.lidTop.value * 4)))
     })
+    // The tuft shows the mood: wilts when sad or asleep, stands up when startled.
+    const name = faceName()
+    const bend =
+      sleep === 'asleep' || mood === 'sad' ? 0.9
+      : grabbed || name === 'shock' || name === 'whee' || name === 'worried' || name === 'ooh' ? -0.85
+      : mood === 'typing' ? -0.3
+      : 0
+    tuft.bend = ease(tuft.bend, bend, 7, dt)
+
+    const blown = sleep === 'asleep' && !popped ? 0.1 + 0.17 * (0.5 - 0.5 * Math.cos(t * 1.8 - 0.6)) : 0
+    bubbleSize = ease(bubbleSize, blown, blown ? 5 : 30, dt)
+    bubble.visible = bubbleSize > 0.01
+    if (bubble.visible) {
+      lim.attach(noseRest, tmp)
+      bubble.position.set(tmp[0] + bubbleSize * 0.75, tmp[1] + bubbleSize * 0.1, tmp[2] + bubbleSize * 0.8)
+      bubble.scale.setScalar(bubbleSize)
+    }
+    halo.position.set(lim.center[0], lim.center[1], lim.center[2] - 0.8)
+    halo.quaternion.copy(camera.quaternion)
   }
 
-  const updateShadow = (s: ReturnType<typeof makeShadow>, body: Jelly, size: number, base: number) => {
+  const updateMinis = () => {
+    if (!popped || !minis) return
+    for (const m of minis) {
+      syncJellyGeometry(m.geo)
+      updateShadow(m.shadow, m.jelly, 3.1 * MINI, 0.36)
+      quat.set(...m.jelly.rotation)
+      m.eyes.forEach((eye, i) => {
+        m.jelly.attach(eyeRests[i], tmp)
+        eye.position.set(tmp[0], tmp[1], tmp[2])
+        eye.quaternion.copy(quat)
+        eye.scale.set(EYE_R * MINI, EYE_R * MINI, EYE_R * MINI * 0.72)
+      })
+    }
+  }
+
+  const updateShadow = (s: Shadow, body: Jelly, size: number, base: number) => {
     let minY = Infinity
     for (let i = 1; i < body.x.length; i += 3) minY = Math.min(minY, body.x[i])
     const lift = Math.max(0, minY)
-    s.mesh.position.x = body.center[0]
+    // The key light sits up and to the left, so the shadow slides right as the body rises.
+    s.mesh.position.x = body.center[0] + lift * 0.16
     s.mesh.position.z = body.center[2]
     const k = 1 + lift * 0.35
     s.mesh.scale.set(size * k, size * 0.62 * k, 1)
     s.strength.value = base / (1 + lift * 1.6)
   }
 
-  const stepConfetti = (dt: number) => {
-    let any = false
-    for (let i = 0; i < CONF_N; i++) {
-      const c = conf[i]
-      if (c.life <= 0) {
-        dummy.scale.setScalar(0)
-      } else {
-        any = true
-        c.life -= dt
-        if (c.p.y > 0.02) {
-          c.v.y -= 6.5 * dt
-          c.v.multiplyScalar(Math.exp(-1.6 * dt))
-          c.v.x += Math.sin(t * 7 + i) * 1.4 * dt
-          c.p.addScaledVector(c.v, dt)
-          c.angle += c.spin * dt
-        } else {
-          c.p.y = 0.012
-          c.axis.set(1, 0, 0)
-          c.angle = -Math.PI / 2
-        }
-        dummy.position.copy(c.p)
-        confQuat.setFromAxisAngle(c.axis, c.angle)
-        dummy.quaternion.copy(confQuat)
-        dummy.scale.setScalar(Math.min(1, c.life * 2.5))
-      }
-      dummy.updateMatrix()
-      confetti.setMatrixAt(i, dummy.matrix)
-    }
-    confetti.instanceMatrix.needsUpdate = true
-    confetti.visible = any
+  const updateCamera = (dt: number) => {
+    if (reducedMotion) return
+    // A little parallax toward the pointer, and a shake on heavy landings.
+    const fresh = t - look.at < 3
+    const px = fresh ? THREE.MathUtils.clamp(((look.clientX - hostRect.left) / w) * 2 - 1, -1.6, 1.6) : 0
+    const py = fresh ? THREE.MathUtils.clamp(((look.clientY - hostRect.top) / h) * 2 - 1, -1.2, 1.2) : 0
+    par.x = ease(par.x, px, 2.2, dt)
+    par.y = ease(par.y, py, 2.2, dt)
+    shake *= Math.exp(-9 * dt)
+    camera.position.set(
+      camBase.x + par.x * 0.22 + Math.sin(t * 67) * shake,
+      camBase.y - par.y * 0.1 + Math.cos(t * 53) * shake,
+      camBase.z,
+    )
+    camera.lookAt(par.x * 0.05, camTargetY, 0)
   }
 
   let first = true
+  let anchorKey = ''
   const frame = (dt: number) => {
     if (dt > 0) {
       t += dt
-      brain(dt)
-      lim.step(dt)
-      for (const b of beans) b.jelly.step(dt)
+      u.time.value = t
+      for (let i = queue.length - 1; i >= 0; i--) {
+        if (queue[i].at <= t) queue.splice(i, 1)[0].fn()
+      }
+      if (popped) {
+        minisBrain()
+        for (const m of minis!) m.jelly.step(dt)
+      } else {
+        brain(dt)
+        lim.step(dt)
+      }
+      snatch()
+      stepToys(dt)
       collide()
-      for (const body of bodies) walls(body)
+      for (const body of bodies) {
+        const hit = walls(body)
+        if (body === lim && hit > 7 && t - lastBonk > 0.35) {
+          lastBonk = t
+          const side = Math.sign(lim.center[0])
+          sparkle(side > 0 ? halfW - 0.2 - fadeInset() : -halfW + 0.2, lim.center[1] + 0.3, lim.center[2] + 0.6, 7)
+          setAct('hit', 0.45)
+          shake += 0.04
+          shaken += 0.75
+          sound.bonk(Math.min(1, hit / 16))
+          if (shaken > 1.6 && !grabbed) dizzy()
+        }
+      }
+      for (const r of ripples) {
+        if (!r.mesh.visible) continue
+        r.k.value = Math.min(1, r.k.value + dt * r.speed)
+        const s = r.size * (0.25 + 0.75 * (1 - (1 - r.k.value) ** 3))
+        r.mesh.scale.set(s, s * 0.62, 1)
+        if (r.k.value >= 1) r.mesh.visible = false
+      }
+      updateCamera(dt)
     }
     updateFace(dt)
-    stepConfetti(dt)
-    syncJellyGeometry(limGeo)
-    uLimRot.value.setFromMatrix4(rotM4.makeRotationFromQuaternion(quat.set(...lim.rotation)))
-    for (const b of beans) syncJellyGeometry(b.geo)
-    updateShadow(limShadow, lim, 3.1, 0.42)
-    for (const b of beans) updateShadow(b.shadow, b.jelly, 0.9, 0.24)
+    tuft.step(dt, (rest, out) => lim.attach(rest, out))
+    for (const p of pools) p.step(dt, t, camera)
+    if (!popped) {
+      syncJellyGeometry(limGeo)
+      u.rot.value.setFromMatrix4(rotM4.makeRotationFromQuaternion(quat.set(...lim.rotation)))
+      updateShadow(limShadow, lim, 3.4 * lim.scale, 0.62)
+    }
+    updateMinis()
+    for (const toy of toys) {
+      if (toy.asleep && !first) continue
+      syncJellyGeometry(toy.geo)
+      updateShadow(toy.shadow, toy.jelly, 0.9 * toy.jelly.scale, 0.24)
+    }
     renderer.render(scene, camera)
+    if (import.meta.env.DEV) (window as { __limFrame?: () => void }).__limFrame?.()
     if (opts.onAnchor) {
       lim.attach(headTopRest, tmp)
       const [ax, ay] = toHost(tmp)
-      opts.onAnchor(ax, ay, unit)
+      // Only touch the DOM when the anchor actually moved.
+      const key = `${Math.round(ax * 2)}|${Math.round(ay * 2)}|${Math.round(unit)}`
+      if (key !== anchorKey) {
+        anchorKey = key
+        opts.onAnchor(ax, ay, unit)
+      }
     }
     if (first) {
       first = false
@@ -864,61 +1557,179 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     }
   }
 
-  // Start each bean's geometry at its slot (the shared rest got translated).
-  for (const b of beans) syncJellyGeometry(b.geo)
+  // Start each toy's geometry at its slot (the shared rest got translated).
+  for (const toy of toys) syncJellyGeometry(toy.geo)
   await renderer.compileAsync(scene, camera)
   stage.start(frame)
-  if (!reducedMotion) kicks.push({ at: 0.18, v: [0, 4.2, 0] })
+  if (!reducedMotion) {
+    // Entrance: pop, hop, shake it off, then look at you.
+    jump(0, 4.2, 0, 0.18)
+    later(0.95, () => {
+      for (let k = 0; k < 4; k++) later(k * 0.08, () => lim.kick(k % 2 ? -1.3 : 1.3, 0, 0))
+      tuft.flick(5, 0, 0)
+    })
+    later(1.5, () => {
+      blinkUntil = t + 0.12
+      nextBlink = t + 0.3
+    })
+  }
 
-  return {
+  /** Reduced motion: the scene clock is frozen, so timed smiles end on wall-clock time. */
+  const stillSmile = () => {
+    happyUntil = t + 2.2
+    stage.requestRender()
+    clearTimeout(cheerTimer)
+    cheerTimer = setTimeout(() => {
+      happyUntil = 0
+      stage.requestRender()
+    }, 2200)
+  }
+
+  const api: LimScene = {
     setMood(next) {
       if (next === mood) return
       if (next === 'talking') talkCount = 0
       mood = next
+      active()
       stage.requestRender()
     },
-    setNight(night) {
-      uNight.value = night ? 1 : 0
+    setNight(next) {
+      u.night.value = next ? 1 : 0
+      if (next !== night && !reducedMotion && t > 0.5) {
+        active()
+        if (next) {
+          // Lights out: "ooh", look up at the dark, then get comfy.
+          setAct('ooh', 1.1)
+          wander.x = 0.2
+          wander.y = 0.9
+          wander.until = t + 1.1
+          look.at = -10
+        } else {
+          // Lights on: too bright!
+          setAct('squint', 0.9)
+          squash.v += 3
+        }
+        sound.sparkle()
+      }
+      night = next
       stage.requestRender()
     },
     lookAt(clientX, clientY) {
+      if (Math.abs(clientX - look.clientX) + Math.abs(clientY - look.clientY) > 2) active()
       look.clientX = clientX
       look.clientY = clientY
       look.at = t
     },
     hop() {
-      if (reducedMotion || grabbed) return
-      squash.v += 5
-      kicks.push({ at: t + 0.09, v: [0, wide ? 6.6 : 5.2, 0] })
+      if (reducedMotion || grabbed || popped) return
+      active()
+      jump(0, wide ? 6.6 : 5.2, 0)
     },
     talk() {
       if (reducedMotion || t - lastTalk < 0.065) return
       lastTalk = t
-      talkOpen = 0.08 + Math.random() * 0.08
+      // Babble: every chunk is a new mouth shape, and a syllable if sound is on.
+      talkOpen = 0.07 + Math.random() * 0.1
+      talkO = Math.random() < 0.35 ? 0.8 : 0
+      sound.blip()
       if (++talkCount % 5 === 0) {
         squash.v -= 2.4
         lim.kick(0, 1.4, 0)
+        tuft.flick((Math.random() - 0.5) * 3, 0, 0)
       }
     },
     cheer(withConfetti) {
+      if (reducedMotion) return stillSmile()
       happyUntil = t + 2.2
-      stage.requestRender()
-      if (reducedMotion) {
-        // The scene clock is frozen here, so end the smile on wall-clock time.
-        clearTimeout(cheerTimer)
-        cheerTimer = setTimeout(() => {
-          happyUntil = 0
-          stage.requestRender()
-        }, 2200)
-        return
+      active()
+      if (popped) return
+      jump(0, wide ? 5.2 : 4.2, 0)
+      for (const toy of toys) {
+        wakeToy(toy)
+        toy.jelly.kick((Math.random() - 0.5) * 2, 4 + Math.random() * 2, 0)
       }
-      squash.v += 6
-      kicks.push({ at: t + 0.1, v: [0, wide ? 5.2 : 4.2, 0] })
-      for (const b of beans) b.jelly.kick((Math.random() - 0.5) * 2, 4 + Math.random() * 2, 0)
-      if (withConfetti) burst(64, 1)
+      if (withConfetti) {
+        burst(64, 1)
+        later(0.35, () => startSpin(1, 0.4))
+        sound.chime()
+      }
+    },
+    stunt(kind) {
+      if (reducedMotion) return stillSmile()
+      active()
+      if (popped) return
+      // No headroom for a cartwheel on a small stage: pirouette instead.
+      if (kind === 'flip' && topY > 3.3) startFlip()
+      else if (kind === 'spin' || kind === 'flip') {
+        jump(0, 3.8, 0)
+        later(0.12, () => startSpin(2, 0.72))
+        setAct('whee', 1.2)
+      } else if (kind === 'dance') startDance(8)
+      else if (kind === 'party') {
+        startDance(5)
+        for (let k = 0; k < 5; k++) later(k * 0.5, () => rain(22))
+        sound.chime()
+        emote('party!')
+      } else if (kind === 'pop') later(0.3, pop)
+      else if (kind === 'jump') {
+        jump(0, Math.min(9.2, Math.sqrt(2 * G * Math.max(0.25, topY - 3))), 0, 0.2)
+        setAct('whee', 1.5)
+        emote('whee!')
+      } else if (kind === 'love') {
+        setAct('love', 3.4)
+        jump(0, 3.6, 0)
+        for (let k = 0; k < 6; k++) later(0.2 + k * 0.35, () => love(3))
+        sound.sparkle()
+      } else if (kind === 'sleep') {
+        // Naps through the reply (and talks in its sleep) until disturbed after.
+        napUntil = t + 9
+        nod('now')
+      }
+      else if (kind === 'big') {
+        resize(1.42, 6)
+        setAct('ooh', 1)
+        emote('BIG.')
+      } else if (kind === 'tiny') {
+        resize(0.5, 6)
+        setAct('shock', 0.8)
+        emote('eep')
+      } else if (kind === 'boo') {
+        setAct('shock', 1.3)
+        lim.kick(0, 3.6, -0.8)
+        for (let k = 0; k < 8; k++) later(0.35 + k * 0.05, () => lim.kick(k % 2 ? -0.8 : 0.8, 0, 0))
+        sound.squeak()
+        emote('eek!')
+      } else if (kind === 'wave') {
+        jump(0, 3.8, 0)
+        later(0.5, () => {
+          winkUntil = t + 0.45
+          squash.v += 2
+        })
+        emote('hi!')
+      }
+    },
+    react(kind) {
+      if (reducedMotion) return
+      active()
+      if (kind === 'key') {
+        // A tiny nod per keystroke: Lim reads along.
+        if (lim.contacts > 0 && !grabbed && t - lastKey > 0.09) squash.v += 0.55
+        lastKey = t
+      } else if (kind === 'shout') {
+        if (t - lastShout < 1.5 || popped) return
+        lastShout = t
+        setAct('shock', 1)
+        lim.kick(-0.6, 2.6, 0)
+        emote('eep!')
+        sound.squeak()
+      } else if (kind === 'wink') {
+        winkUntil = t + 0.45
+        squash.v += 2
+      }
     },
     dispose() {
       clearTimeout(cheerTimer)
+      host.removeEventListener('pointerdown', onTap)
       pointer.dispose()
       stage.dispose()
       scene.traverse((o) => {
@@ -928,6 +1739,10 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
           for (const mat of Array.isArray(m) ? m : [m]) mat.dispose()
         }
       })
+      if (import.meta.env.DEV) delete (window as { __lim?: LimScene }).__lim
     },
   }
+  // Dev handle for driving beats from the console.
+  if (import.meta.env.DEV) (window as { __lim?: LimScene }).__lim = api
+  return api
 }

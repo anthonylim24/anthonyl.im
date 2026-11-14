@@ -23,6 +23,11 @@ export type JellyPointerOptions = {
   /** How firmly the grabbed patch follows the pointer (0..1 per substep). */
   grip?: number
   pokeStrength?: number
+  /**
+   * Furthest the grabbed patch may be pulled from the body's centre, in body
+   * radii. The body trails a fast pointer instead of tearing. Default: no limit.
+   */
+  maxStretch?: number
   onPoke?: (body: Jelly, point: Vec3) => void
   onGrab?: (body: Jelly) => void
   onRelease?: (body: Jelly) => void
@@ -34,6 +39,8 @@ export type JellyPointer = {
   /** Body currently under the pointer (null if none). */
   hovered(): Jelly | null
   grabbing(): Jelly | null
+  /** Let go of whatever is held, as if the pointer came up (no poke). */
+  release(): void
   dispose(): void
 }
 
@@ -46,6 +53,7 @@ export function bindJellyPointer(opts: JellyPointerOptions): JellyPointer {
   const pokeStrength = opts.pokeStrength ?? 4
   const pickScale = opts.pickScale ?? 1.08
   const grip = opts.grip ?? 0.28
+  const maxStretch = opts.maxStretch ?? Infinity
   const pointer = { ndc: new THREE.Vector2(), inside: false }
   const ray = new THREE.Raycaster()
   const sphere = new THREE.Sphere()
@@ -61,6 +69,8 @@ export function bindJellyPointer(opts: JellyPointerOptions): JellyPointer {
     x0: number
     y0: number
     moved: number
+    /** Body radius at grab (the live mean radius swings as it stretches). */
+    radius: number
   } | null = null
 
   const setPointer = (e: PointerEvent) => {
@@ -99,6 +109,13 @@ export function bindJellyPointer(opts: JellyPointerOptions): JellyPointer {
       // movementX/Y read 0 for touch in some browsers, so measure from the grab point.
       drag.moved = Math.max(drag.moved, Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0))
       if (ray.ray.intersectPlane(plane, onPlane)) {
+        const c = drag.body.center
+        const reach = maxStretch * drag.radius
+        const d = Math.hypot(onPlane.x - c[0], onPlane.y - c[1], onPlane.z - c[2])
+        if (d > reach) {
+          const k = reach / d
+          onPlane.set(c[0] + (onPlane.x - c[0]) * k, c[1] + (onPlane.y - c[1]) * k, c[2] + (onPlane.z - c[2]) * k)
+        }
         for (const pin of drag.pins) {
           drag.body.pin(pin.i, [onPlane.x + pin.offset[0], onPlane.y + pin.offset[1], onPlane.z + pin.offset[2]], pin.k)
         }
@@ -130,8 +147,13 @@ export function bindJellyPointer(opts: JellyPointerOptions): JellyPointer {
         k: grip * (1 - d / r) ** 3 + 0.004,
       }
     })
-    drag = { id: e.pointerId, body, start: point.clone(), pins, x0: e.clientX, y0: e.clientY, moved: 0 }
-    host.setPointerCapture(e.pointerId)
+    drag = { id: e.pointerId, body, start: point.clone(), pins, x0: e.clientX, y0: e.clientY, moved: 0, radius: body.radius }
+    // Capture can throw if the pointer already went away (or is synthetic).
+    try {
+      host.setPointerCapture(e.pointerId)
+    } catch {
+      /* the drag still works without capture while the pointer stays over the host */
+    }
     host.style.cursor = 'grabbing'
     opts.onGrab?.(body)
   }
@@ -171,6 +193,15 @@ export function bindJellyPointer(opts: JellyPointerOptions): JellyPointer {
     pointer,
     hovered: () => (pointer.inside ? (ray.setFromCamera(pointer.ndc, camera), pick()?.body ?? null) : null),
     grabbing: () => drag?.body ?? null,
+    release() {
+      if (!drag) return
+      const { body, id } = drag
+      body.unpinAll()
+      drag = null
+      host.style.cursor = ''
+      if (host.hasPointerCapture(id)) host.releasePointerCapture(id)
+      opts.onRelease?.(body)
+    },
     dispose() {
       host.removeEventListener('pointermove', onMove)
       host.removeEventListener('pointerdown', onDown)

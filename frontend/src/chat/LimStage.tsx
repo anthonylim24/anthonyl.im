@@ -3,13 +3,17 @@ import { sx } from '@/styles/merge'
 import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { stage as s, chatbot } from '@/styles/chatbot.stylex'
 import { LimArt } from './LimArt'
-import type { LimMood, LimScene } from './scene/limScene'
+import type { Stunt } from './eggs'
+import type { LimMood, LimReaction, LimScene } from './scene/limScene'
 
 export type LimStageHandle = {
   hop(): void
   talk(): void
   cheer(confetti: boolean): void
   lookAt(clientX: number, clientY: number): void
+  /** Act out a typed easter egg. False when there's no live Lim to do it. */
+  stunt(kind: Stunt): boolean
+  react(kind: LimReaction): void
 }
 
 const POKE_WORDS = ['hehe!', 'boop!', 'eep!', 'squish!', 'tee-hee', 'wobble!', 'again!']
@@ -39,8 +43,8 @@ export function LimStage({ mood, night, ref }: { mood: LimMood; night: boolean; 
     initial.current = { mood, night }
   })
 
-  const poked = useCallback(() => {
-    setPop((p) => ({ n: (p?.n ?? 0) + 1, word: POKE_WORDS[Math.floor(Math.random() * POKE_WORDS.length)] }))
+  const emote = useCallback((word: string) => {
+    setPop((p) => ({ n: (p?.n ?? 0) + 1, word }))
   }, [])
 
   useImperativeHandle(
@@ -53,6 +57,11 @@ export function LimStage({ mood, night, ref }: { mood: LimMood; night: boolean; 
       talk: () => sceneRef.current?.talk(),
       cheer: (confetti) => sceneRef.current?.cheer(confetti),
       lookAt: (x, y) => sceneRef.current?.lookAt(x, y),
+      stunt: (kind) => {
+        sceneRef.current?.stunt(kind)
+        return Boolean(sceneRef.current)
+      },
+      react: (kind) => sceneRef.current?.react(kind),
     }),
     [],
   )
@@ -77,7 +86,7 @@ export function LimStage({ mood, night, ref }: { mood: LimMood; night: boolean; 
         reducedMotion,
         night: initial.current.night,
         mood: initial.current.mood,
-        onPoke: poked,
+        onEmote: emote,
         onAnchor: (x, y, unit) => {
           const a = anchorRef.current
           if (!a) return
@@ -111,7 +120,7 @@ export function LimStage({ mood, night, ref }: { mood: LimMood; night: boolean; 
         a.style.removeProperty('--u')
       }
     }
-  }, [reducedMotion, poked])
+  }, [reducedMotion, emote])
 
   useEffect(() => {
     sceneRef.current?.setMood(mood)
@@ -123,7 +132,7 @@ export function LimStage({ mood, night, ref }: { mood: LimMood; night: boolean; 
   const pokeDrawing = () => {
     if (live || reducedMotion) return
     setBeat((b) => ({ kind: 'poke', n: b.n + 1 }))
-    poked()
+    emote(POKE_WORDS[Math.floor(Math.random() * POKE_WORDS.length)])
   }
 
   return (
@@ -157,7 +166,7 @@ export function LimStage({ mood, night, ref }: { mood: LimMood; night: boolean; 
           </div>
         )}
         {pop && !reducedMotion && (
-          <span key={pop.n} {...sx(s.hehe)}>
+          <span key={pop.n} {...sx(s.hehe, pop.n % 2 === 1 && s.heheAlt, pop.word === 'z' && s.zed)}>
             {pop.word}
           </span>
         )}
