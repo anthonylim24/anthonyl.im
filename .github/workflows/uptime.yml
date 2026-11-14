@@ -1,0 +1,83 @@
+name: Uptime
+
+# Probes production from outside every 15 minutes. A failure opens (or adds
+# to) one issue labelled `uptime`; the next healthy run closes it. This is the
+# only alert that still fires when the droplet itself is down.
+
+on:
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe production
+        id: probe
+        run: |
+          set -uo pipefail
+          BASE="https://anthonyl.im"
+          FAILED=""
+          # name|path|text the body must contain
+          CHECKS=(
+            "health|/health|\"status\":\"ok\""
+            "ready|/health/ready|\"status\":\"ok\""
+            "home|/|<div id=\"root\">"
+            "trips|/trips|<div id=\"root\">"
+            "sign-in API|/__clerk/v1/environment|\"auth_config\""
+          )
+          for check in "${CHECKS[@]}"; do
+            IFS='|' read -r name path expect <<<"$check"
+            ok=0
+            for attempt in 1 2 3; do
+              body="$(curl -sS --max-time 15 -w '\n%{http_code}' "$BASE$path" 2>&1)" || true
+              code="${body##*$'\n'}"
+              if [ "$code" = "200" ] && grep -qF "$expect" <<<"$body"; then ok=1; break; fi
+              sleep 5
+            done
+            if [ "$ok" -eq 1 ]; then
+              echo "ok    $name"
+            else
+              echo "FAIL  $name ($path) → HTTP ${code:-none}"
+              detail="$(head -c 300 <<<"$body" | tr '\n' ' ')"
+              FAILED="${FAILED}- **${name}** \`${path}\` → HTTP ${code:-none}: \`${detail//\`/}\`"$'\n'
+            fi
+          done
+          {
+            echo "failed<<UPTIME_EOF"
+            printf '%s' "$FAILED"
+            echo "UPTIME_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Open, update or close the uptime issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          FAILED: ${{ steps.probe.outputs.failed }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          gh label create uptime --color B60205 --description "Production probe failing" 2>/dev/null || true
+          OPEN="$(gh issue list --label uptime --state open --json number --jq '.[0].number // empty')"
+          NOW="$(date -u '+%Y-%m-%d %H:%M UTC')"
+          if [ -n "$FAILED" ]; then
+            BODY="Production probe failed at ${NOW} ([run](${RUN_URL})):"$'\n\n'"${FAILED}"
+            if [ -n "$OPEN" ]; then
+              gh issue comment "$OPEN" --body "$BODY"
+            else
+              gh issue create --label uptime --title "Production probe failing" --body "$BODY"
+            fi
+            exit 1
+          elif [ -n "$OPEN" ]; then
+            gh issue close "$OPEN" --comment "All probes passed at ${NOW} ([run](${RUN_URL}))."
+          fi

@@ -714,6 +714,8 @@ Radius `0.875rem` (`-sm` `0.625rem`, `-lg` `1.375rem`); shadows `--trips-shadow-
 | Clerk proxy | `server/src/clerkProxy.ts` | 10 s deadline per attempt; a read is retried once on a network error or 502–504, a write never; a dead upstream answers 502 in Clerk's error shape |
 | Stalled sign-in | `frontend/src/lib/authStall.ts`, `TripsLayout` | If Clerk has not loaded after 10 s (or reports `error`), `diagnose` probes `/health` and the proxy, the gate says what is unreachable (offline / this site / sign-in), keeps probing with backoff, and reloads (at most twice a tab) once everything answers |
 
+Outside the app: a systemd watchdog on the droplet restarts PM2 after three failed `/health` checks, nginx serves a self-reloading outage page for 502 / 503 / 504, and `.github/workflows/uptime.yml` probes production every 15 minutes and opens an `uptime` issue on failure. Files and install steps: [`deploy/README.md`](deploy/README.md).
+
 Some home networks (Xfinity Advanced Security) block `anthonyl.im` hostnames over TCP while HTTP/3 still gets through, so a visitor can see the shell load and sign-in fail. That is the case the stalled sign-in screen exists for; it cannot be fixed from the server.
 
 ## Service Worker / Caching Contract

@@ -36,7 +36,7 @@
     "typescript": "~7.0.2"
   },
   "dependencies": {
-    "@clerk/backend": "^3.28.0",
+    "@clerk/backend": "^3.29.0",
     "groq-sdk": "^1.6.0",
     "hono": "^4.13.18",
     "openai": "^7.57.0",
