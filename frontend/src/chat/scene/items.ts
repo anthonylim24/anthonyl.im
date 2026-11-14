@@ -5,9 +5,10 @@
  * part is the body; the others are light rigid meshes that ride on it.
  */
 import * as THREE from 'three/webgpu'
-import { icosphere, type Jelly, type Vec3 } from '../../three/jelly'
+import { attribute, normalize, positionLocal } from 'three/tsl'
+import { Jelly, icosphere, type Vec3 } from '../../three/jelly'
 import type { ItemSpec, Part, Shape } from '../world/spec'
-import { hullMaterial, toyMaterial, type LimUniforms, type V3 } from './limLook'
+import { hullMaterial, toyMaterial, type LimUniforms, type ToyPaint, type V3 } from './limLook'
 
 /** World radius of a size-1 item's body. */
 export const ITEM_R = 0.3
@@ -135,6 +136,30 @@ export function shadeOf(hex: string): string {
   return `#${c.getHexString()}`
 }
 
+/** A part's painted pattern, for `toyMaterial`. The soft body is read in rest space, so the paint turns with it. */
+export function paintOf(part: Part, soft: boolean): ToyPaint | undefined {
+  if (!part.paint || part.paint === 'plain') return undefined
+  const ink = part.ink ?? '#2B2140'
+  const at = (soft ? attribute('rest', 'vec3') : positionLocal) as unknown as V3
+  return { kind: part.paint, ink, shade: shadeOf(ink), dir: normalize(at) }
+}
+
+/** A unit shape stretched to real half-sizes, with smooth normals (so an ink hull closes at the corners). */
+export function solidGeometry(shape: Shape, sx: number, sy: number, sz: number): THREE.BufferGeometry {
+  const { positions, index } = shapeMesh(shape, 2)
+  const out = new Float32Array(positions.length)
+  for (let i = 0; i < out.length; i += 3) {
+    out[i] = positions[i] * sx
+    out[i + 1] = positions[i + 1] * sy
+    out[i + 2] = positions[i + 2] * sz
+  }
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.BufferAttribute(out, 3))
+  geo.setIndex(Array.from(index))
+  geo.computeVertexNormals()
+  return geo
+}
+
 const geoCache = new Map<Shape, THREE.BufferGeometry>()
 function rigidGeometry(shape: Shape): THREE.BufferGeometry {
   let geo = geoCache.get(shape)
@@ -150,7 +175,7 @@ function rigidGeometry(shape: Shape): THREE.BufferGeometry {
 }
 
 export type ItemMaterials = {
-  fill(hex: string): THREE.Material
+  fill(part: Pick<Part, 'color' | 'paint' | 'ink'>): THREE.Material
   hull(width: number): THREE.Material
   eye: THREE.Material
 }
@@ -161,9 +186,10 @@ export function createItemMaterials(u: LimUniforms, ink: V3): ItemMaterials {
   const eye = new THREE.MeshBasicNodeMaterial()
   eye.colorNode = ink
   return {
-    fill(hex) {
-      let m = fills.get(hex)
-      if (!m) fills.set(hex, (m = toyMaterial(u, hex, shadeOf(hex))))
+    fill(part) {
+      const key = `${part.color}|${part.paint ?? ''}|${part.ink ?? ''}`
+      let m = fills.get(key)
+      if (!m) fills.set(key, (m = toyMaterial(u, part.color, shadeOf(part.color), paintOf(part as Part, false))))
       return m
     },
     hull(width) {
@@ -209,7 +235,7 @@ export class ItemExtras {
         size: holder.scale.clone(),
       })
     }
-    spec.parts.slice(1).forEach((part) => add(rigidGeometry(part.shape), mats.fill(part.color), part, true))
+    spec.parts.slice(1).forEach((part) => add(rigidGeometry(part.shape), mats.fill(part), part, true))
     const face = spec.parts[spec.face]
     if (face) {
       const at = spec.face === 0 ? [0, 0, 0] : face.at
@@ -237,5 +263,28 @@ export class ItemExtras {
 
   dispose() {
     this.group.removeFromParent()
+  }
+}
+
+/** An item as a still model at the origin (the toy box's pictures): the same meshes the stage uses, without the physics. */
+export function buildItemModel(spec: ItemSpec, u: LimUniforms, mats: ItemMaterials): { group: THREE.Group; dispose(): void } {
+  const rest = bodyRest(spec)
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.BufferAttribute(rest.positions, 3))
+  geo.setAttribute('rest', new THREE.BufferAttribute(rest.positions, 3))
+  geo.setIndex(Array.from(rest.index))
+  geo.computeVertexNormals()
+  const hex = spec.parts[0].color
+  const fill = toyMaterial(u, hex, shadeOf(hex), paintOf(spec.parts[0], true))
+  const extras = new ItemExtras(spec, [0, 0, 0], mats)
+  extras.update(new Jelly(rest.positions))
+  const group = new THREE.Group()
+  group.add(new THREE.Mesh(geo, fill), new THREE.Mesh(geo, mats.hull(0.016)), extras.group)
+  return {
+    group,
+    dispose() {
+      geo.dispose()
+      fill.dispose()
+    },
   }
 }

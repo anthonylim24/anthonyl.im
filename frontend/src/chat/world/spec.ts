@@ -14,9 +14,13 @@ export const SHAPES = ['ball', 'box', 'cylinder', 'cone', 'disc', 'drop', 'star'
 export type Shape = (typeof SHAPES)[number]
 
 export const TRAITS = [
-  'edible', 'bouncy', 'heavy', 'floaty', 'hat', 'glasses', 'soft', 'cozy', 'musical', 'scary', 'hot', 'cold', 'glowing', 'prickly',
+  'edible', 'bouncy', 'heavy', 'floaty', 'hat', 'glasses', 'soft', 'cozy', 'musical', 'scary', 'hot', 'cold', 'glowing', 'prickly', 'hoop', 'goal',
 ] as const
 export type Trait = (typeof TRAITS)[number]
+
+/** A pattern painted on a part in a second colour (`ink`): a basketball's seams, a football's patches. */
+export const PAINTS = ['plain', 'seams', 'patches', 'stripes', 'spots'] as const
+export type Paint = (typeof PAINTS)[number]
 
 export type Part = {
   shape: Shape
@@ -27,6 +31,9 @@ export type Part = {
   scale: [number, number, number]
   /** Lean about the view axis, degrees. */
   tilt: number
+  paint?: Paint
+  /** The paint's colour. */
+  ink?: string
 }
 
 export type ItemSpec = {
@@ -45,6 +52,12 @@ export const HORIZONS = ['none', 'hills', 'dunes', 'waves', 'mountains', 'city',
 export const ORBS = ['none', 'sun', 'moon', 'planet'] as const
 export const WEATHERS = ['none', 'snow', 'rain', 'bubbles', 'leaves', 'petals', 'fireflies', 'embers'] as const
 export const MOODS = ['calm', 'cozy', 'cold', 'hot', 'floaty', 'wet', 'spooky', 'party'] as const
+/** Things that stand in the landscape behind the stage (see scene/scenery.ts). */
+export const SCENERY = [
+  'clouds', 'trees', 'pines', 'palms', 'rocks', 'flowers', 'mushrooms', 'cacti', 'volcano', 'coral', 'seaweed', 'fish', 'craters',
+  'buildings', 'spotlights', 'graves', 'deadtrees', 'snowmen', 'mist',
+] as const
+export type Scenery = (typeof SCENERY)[number]
 
 export type PlaceSpec = {
   name: string
@@ -56,6 +69,8 @@ export type PlaceSpec = {
   pattern: (typeof PATTERNS)[number]
   horizon: (typeof HORIZONS)[number]
   horizonColor: string
+  /** Up to five kinds of thing in the landscape. */
+  scenery: Scenery[]
   orb: (typeof ORBS)[number]
   orbColor: string
   stars: boolean
@@ -78,7 +93,7 @@ export type Tweak = {
   dark?: boolean
 }
 
-export const ACTIONS = ['look', 'kick', 'bounce', 'eat', 'wear', 'hug', 'nap', 'dance', 'remove'] as const
+export const ACTIONS = ['look', 'kick', 'bounce', 'eat', 'wear', 'hug', 'nap', 'dance', 'remove', 'shoot'] as const
 export type Action = (typeof ACTIONS)[number]
 
 export type WorldOp =
@@ -156,12 +171,14 @@ export function cleanItem(raw: unknown): ItemSpec | null {
   for (const p of o.parts.slice(0, 6)) {
     const q = obj(p)
     if (!q) continue
+    const paint = pick(q.paint, PAINTS, 'plain')
     parts.push({
       shape: pick(q.shape, SHAPES, 'ball'),
       color: soften(hex(q.color, '#FF9FC5')),
       at: parts.length === 0 ? [0, 0, 0] : triple(q.at, -1.8, 1.8, 0),
       scale: triple(q.scale, 0.08, 1.6, parts.length === 0 ? 1 : 0.4),
       tilt: clamp(q.tilt, -180, 180, 0),
+      ...(paint !== 'plain' ? { paint, ink: soften(hex(q.ink, '#2B2140')) } : null),
     })
   }
   if (parts.length === 0) return null
@@ -189,6 +206,18 @@ export function cleanItem(raw: unknown): ItemSpec | null {
   return { name: cleanName(o.name, 'thing'), parts, size: clamp(o.size, 0.8, 1.7, 1), traits, face }
 }
 
+/** A place saved before places had scenery (or one the model left bare) still gets a landscape. */
+function sceneryFor(horizon: PlaceSpec['horizon'], mood: PlaceSpec['mood'], dark: boolean): Scenery[] {
+  if (horizon === 'wall' || horizon === 'none') return []
+  if (horizon === 'city') return ['buildings', 'clouds']
+  if (mood === 'spooky') return ['deadtrees', 'graves', 'mist']
+  if (mood === 'cold') return ['pines', 'snowmen', 'clouds']
+  if (horizon === 'waves') return ['palms', 'rocks', 'clouds']
+  if (horizon === 'dunes') return dark ? ['craters', 'rocks'] : ['cacti', 'rocks', 'clouds']
+  if (horizon === 'mountains') return ['pines', 'rocks', 'clouds']
+  return ['trees', 'flowers', 'clouds']
+}
+
 export function cleanPlace(raw: unknown): PlaceSpec | null {
   const o = obj(raw)
   if (!o) return null
@@ -209,6 +238,9 @@ export function cleanPlace(raw: unknown): PlaceSpec | null {
     pattern: pick(o.pattern, PATTERNS, 'plain'),
     horizon: pick(o.horizon, HORIZONS, 'none'),
     horizonColor: tone(hex(o.horizonColor, floor), bottom),
+    scenery: Array.isArray(o.scenery)
+      ? [...new Set(o.scenery.filter((s): s is Scenery => typeof s === 'string' && (SCENERY as readonly string[]).includes(s)))].slice(0, 5)
+      : sceneryFor(pick(o.horizon, HORIZONS, 'none'), pick(o.mood, MOODS, 'calm'), o.dark === true),
     orb: pick(o.orb, ORBS, 'none'),
     orbColor: hex(o.orbColor, '#FFE9A8'),
     stars: o.stars === true,
@@ -238,8 +270,11 @@ export function cleanTweak(raw: unknown): Tweak | null {
 /** What Lim can do with an item: a few things with anything, more by trait. */
 export function actionsFor(item: ItemSpec): Action[] {
   const has = (t: Trait) => item.traits.includes(t)
+  // A hoop or a goal stands where it is: something to look at and shoot at.
+  if (has('hoop') || has('goal')) return ['look', 'shoot', 'remove']
   const out: Action[] = ['look', 'kick', 'hug', 'remove']
   if (has('bouncy') || has('floaty')) out.push('bounce')
+  if (has('bouncy') && !has('floaty')) out.push('shoot')
   if (has('edible')) out.push('eat')
   if (has('hat') || has('glasses')) out.push('wear')
   if (has('cozy') || has('soft')) out.push('nap')
@@ -252,6 +287,7 @@ export function actionsFor(item: ItemSpec): Action[] {
 const part = (shape: Shape, color: string, scale: [number, number, number] = [1, 1, 1], at: [number, number, number] = [0, 0, 0], tilt = 0): Part => ({
   shape, color, at, scale, tilt,
 })
+const painted = (p: Part, paint: Paint, ink: string): Part => ({ ...p, paint, ink })
 const item = (name: string, traits: Trait[], parts: Part[], size = 1, face = -1): ItemSpec => ({ name, parts, size, traits, face })
 
 export const ITEMS: Record<string, { spec: ItemSpec; aliases: string[] }> = {
@@ -314,45 +350,62 @@ export const ITEMS: Record<string, { spec: ItemSpec; aliases: string[] }> = {
   'ice cube': { aliases: ['icecube'], spec: item('ice cube', ['cold'], [part('box', '#BFE6FF', [0.82, 0.82, 0.82])]) },
   star: { aliases: [], spec: item('star', ['glowing', 'bouncy'], [part('star', '#FFD25E', [1, 1, 0.42])], 1.1) },
   heart: { aliases: ['love heart'], spec: item('heart', ['soft'], [part('heart', '#FF6F9C', [1, 1, 0.55])], 1.05) },
+  basketball: {
+    aliases: ['basket ball'],
+    spec: item('basketball', ['bouncy'], [painted(part('ball', '#F08A3C'), 'seams', '#4A2F5C')], 1.15),
+  },
+  'soccer ball': {
+    aliases: ['football', 'soccerball', 'footy'],
+    spec: item('soccer ball', ['bouncy'], [painted(part('ball', '#EBEBEB'), 'patches', '#2B2140')], 1.1),
+  },
+  // A hoop and a goal are drawn by scene/fixtures.ts; the parts are their colours (frame, then net or board) and a rough likeness.
+  hoop: {
+    aliases: ['basketball hoop', 'basket', 'basketball net'],
+    spec: item('hoop', ['hoop', 'heavy'], [part('box', '#F4F0FF', [0.9, 0.62, 0.12]), part('ring', '#F0524F', [0.5, 0.5, 0.3], [0, -0.5, 0.6]), part('cylinder', '#B9A6FF', [0.1, 0.9, 0.1], [0, -1.3, -0.2])], 1.7),
+  },
+  goal: {
+    aliases: ['soccer goal', 'football goal', 'goalpost', 'goalposts', 'goal post', 'net'],
+    spec: item('goal', ['goal', 'heavy'], [part('box', '#F4F0FF', [1.2, 0.1, 0.1]), part('cylinder', '#F4F0FF', [0.1, 0.8, 0.1], [-1.1, -0.8, 0]), part('cylinder', '#F4F0FF', [0.1, 0.8, 0.1], [1.1, -0.8, 0])], 1.7),
+  },
 }
 
-const place = (p: Omit<PlaceSpec, 'gravity' | 'slippery' | 'dark' | 'stars'> & Partial<PlaceSpec>): PlaceSpec => ({
-  gravity: 1, slippery: false, dark: false, stars: false, ...p,
+const place = (p: Omit<PlaceSpec, 'gravity' | 'slippery' | 'dark' | 'stars' | 'scenery'> & Partial<PlaceSpec>): PlaceSpec => ({
+  gravity: 1, slippery: false, dark: false, stars: false, scenery: [], ...p,
 })
 
 /** `studio` is Lim's own room: no spec, the page shows through. */
 export const PLACES: Record<string, { spec: PlaceSpec; aliases: string[] }> = {
   beach: {
     aliases: ['seaside', 'seashore'],
-    spec: place({ name: 'beach', sky: ['#7FD3F7', '#FFE9C7'], floor: '#F6DFAE', dots: '#EBCB8E', rug: '#FFB59E', pattern: 'dots', horizon: 'waves', horizonColor: '#4FB6D9', orb: 'sun', orbColor: '#FFE27A', weather: 'none', weatherColor: '#FFFFFF', mood: 'hot' }),
+    spec: place({ name: 'beach', scenery: ['palms', 'rocks', 'clouds'], sky: ['#7FD3F7', '#FFE9C7'], floor: '#F6DFAE', dots: '#EBCB8E', rug: '#FFB59E', pattern: 'dots', horizon: 'waves', horizonColor: '#4FB6D9', orb: 'sun', orbColor: '#FFE27A', weather: 'none', weatherColor: '#FFFFFF', mood: 'hot' }),
   },
   snow: {
     aliases: ['arctic', 'north pole', 'tundra'],
-    spec: place({ name: 'snow', sky: ['#BFD9F2', '#F4F8FF'], floor: '#F7FAFF', dots: '#DCE8F7', rug: '#BFE6FF', pattern: 'plain', horizon: 'mountains', horizonColor: '#C9D8EE', orb: 'none', orbColor: '#FFFFFF', weather: 'snow', weatherColor: '#FFFFFF', slippery: true, mood: 'cold' }),
+    spec: place({ name: 'snow', scenery: ['pines', 'snowmen', 'clouds', 'mist'], sky: ['#BFD9F2', '#F4F8FF'], floor: '#F7FAFF', dots: '#DCE8F7', rug: '#BFE6FF', pattern: 'plain', horizon: 'mountains', horizonColor: '#C9D8EE', orb: 'none', orbColor: '#FFFFFF', weather: 'snow', weatherColor: '#FFFFFF', slippery: true, mood: 'cold' }),
   },
   space: {
     aliases: ['outer space', 'galaxy', 'cosmos'],
-    spec: place({ name: 'space', sky: ['#120C2E', '#3A2470'], floor: '#8E86B8', dots: '#6F6798', rug: '#C7B6FF', pattern: 'dots', horizon: 'dunes', horizonColor: '#6F6798', orb: 'planet', orbColor: '#FF9FC5', stars: true, weather: 'none', weatherColor: '#FFFFFF', gravity: 0.3, dark: true, mood: 'floaty' }),
+    spec: place({ name: 'space', scenery: ['craters', 'rocks'], sky: ['#120C2E', '#3A2470'], floor: '#8E86B8', dots: '#6F6798', rug: '#C7B6FF', pattern: 'dots', horizon: 'dunes', horizonColor: '#6F6798', orb: 'planet', orbColor: '#FF9FC5', stars: true, weather: 'none', weatherColor: '#FFFFFF', gravity: 0.3, dark: true, mood: 'floaty' }),
   },
   meadow: {
     aliases: ['countryside'],
-    spec: place({ name: 'meadow', sky: ['#9EDCFF', '#EAF9E1'], floor: '#B9E59B', dots: '#9CD67C', rug: '#FFE27A', pattern: 'dots', horizon: 'hills', horizonColor: '#86CC7A', orb: 'sun', orbColor: '#FFF1A8', weather: 'petals', weatherColor: '#FFB7D2', mood: 'calm' }),
+    spec: place({ name: 'meadow', scenery: ['trees', 'flowers', 'mushrooms', 'clouds'], sky: ['#9EDCFF', '#EAF9E1'], floor: '#B9E59B', dots: '#9CD67C', rug: '#FFE27A', pattern: 'dots', horizon: 'hills', horizonColor: '#86CC7A', orb: 'sun', orbColor: '#FFF1A8', weather: 'petals', weatherColor: '#FFB7D2', mood: 'calm' }),
   },
   underwater: {
     aliases: ['under the sea', 'aquarium', 'reef', 'deep sea'],
-    spec: place({ name: 'underwater', sky: ['#1F6FA8', '#7FD6D9'], floor: '#E4D3A2', dots: '#CDB983', rug: '#7FD6B5', pattern: 'waves', horizon: 'dunes', horizonColor: '#3F9DB5', orb: 'none', orbColor: '#FFFFFF', weather: 'bubbles', weatherColor: '#DDF6FF', gravity: 0.42, mood: 'floaty' }),
+    spec: place({ name: 'underwater', scenery: ['coral', 'seaweed', 'fish', 'rocks'], sky: ['#1F6FA8', '#7FD6D9'], floor: '#E4D3A2', dots: '#CDB983', rug: '#7FD6B5', pattern: 'waves', horizon: 'dunes', horizonColor: '#3F9DB5', orb: 'none', orbColor: '#FFFFFF', weather: 'bubbles', weatherColor: '#DDF6FF', gravity: 0.42, mood: 'floaty' }),
   },
   volcano: {
     aliases: [],
-    spec: place({ name: 'volcano', sky: ['#3B1420', '#E0603A'], floor: '#5A3A40', dots: '#7A4A44', rug: '#FF8B5A', pattern: 'checks', horizon: 'mountains', horizonColor: '#2A1418', orb: 'sun', orbColor: '#FFB05A', weather: 'embers', weatherColor: '#FFB05A', dark: true, mood: 'hot' }),
+    spec: place({ name: 'volcano', scenery: ['volcano', 'rocks', 'deadtrees', 'clouds'], sky: ['#3B1420', '#E0603A'], floor: '#5A3A40', dots: '#7A4A44', rug: '#FF8B5A', pattern: 'checks', horizon: 'mountains', horizonColor: '#2A1418', orb: 'sun', orbColor: '#FFB05A', weather: 'embers', weatherColor: '#FFB05A', dark: true, mood: 'hot' }),
   },
   haunted: {
     aliases: ['graveyard', 'haunted house'],
-    spec: place({ name: 'haunted', sky: ['#17132B', '#3B2E5C'], floor: '#4A4470', dots: '#3B3660', rug: '#6CC08B', pattern: 'stripes', horizon: 'trees', horizonColor: '#120E22', orb: 'moon', orbColor: '#F3EDFF', stars: true, weather: 'fireflies', weatherColor: '#C8FF9E', dark: true, mood: 'spooky' }),
+    spec: place({ name: 'haunted', scenery: ['deadtrees', 'graves', 'mist'], sky: ['#17132B', '#3B2E5C'], floor: '#4A4470', dots: '#3B3660', rug: '#6CC08B', pattern: 'stripes', horizon: 'trees', horizonColor: '#120E22', orb: 'moon', orbColor: '#F3EDFF', stars: true, weather: 'fireflies', weatherColor: '#C8FF9E', dark: true, mood: 'spooky' }),
   },
   disco: {
     aliases: ['dance floor', 'rave'],
-    spec: place({ name: 'disco', sky: ['#2B1650', '#7A3FA8'], floor: '#3B2A66', dots: '#FF9FC5', rug: '#9FD3FF', pattern: 'checks', horizon: 'city', horizonColor: '#1C1038', orb: 'none', orbColor: '#FFFFFF', stars: true, weather: 'none', weatherColor: '#FFFFFF', dark: true, mood: 'party' }),
+    spec: place({ name: 'disco', scenery: ['buildings', 'spotlights'], sky: ['#2B1650', '#7A3FA8'], floor: '#3B2A66', dots: '#FF9FC5', rug: '#9FD3FF', pattern: 'checks', horizon: 'city', horizonColor: '#1C1038', orb: 'none', orbColor: '#FFFFFF', stars: true, weather: 'none', weatherColor: '#FFFFFF', dark: true, mood: 'party' }),
   },
 }
 
@@ -400,8 +453,10 @@ const GO_SELF = rx(String.raw`go to (?:(?:a|an|the) )?${THING}`)
 const HOME = rx(String.raw`(?:(?:take|send|bring) ${WHO} (?:home|back home|back to the studio)|go home|go back home|(?:go )?back to the studio)`)
 const FEED = rx(String.raw`feed ${WHO} (?:the|a|an|that|this|his|her|some) ${THING}`)
 const ACT = rx(
-  String.raw`(?:(?:make|let|have) ${WHO} )?(eat|wear|try on|put on|kick|punt|hug|cuddle|snuggle|bounce|juggle|nap on|sleep on|dance to|dance with|remove|take off|take away|put away|get rid of) (?:the|a|an|that|this|his|her|lim's|some) ${THING}`,
+  String.raw`(?:(?:make|let|have) ${WHO} )?(eat|wear|try on|put on|kick|punt|hug|cuddle|snuggle|bounce|juggle|shoot|dunk|nap on|sleep on|dance to|dance with|remove|take off|take away|put away|get rid of) (?:the|a|an|that|this|his|her|lim's|some) ${THING}`,
 )
+/** A game: whatever is missing is fetched, then Lim takes a shot. */
+const SPORT = rx(String.raw`(?:(?:let'?s|lets|make ${WHO}|have ${WHO}|let ${WHO}) )?play (?:some |a game of )?(soccer|football|footy|basketball|hoops)(?: with (?:${WHO}|me))?`)
 const PLAY = rx(String.raw`(?:(?:make|let|have) ${WHO} )?play with (?:the|a|an|that|this) ${THING}`)
 const TAKE_OFF = rx(String.raw`take (?:(?:(it|that)|(?:the|his|her) (hat|glasses)) off|off (?:the|his|her|lim's) (hat|glasses))`)
 const CLEAR = rx(
@@ -452,7 +507,7 @@ export function looksLikeWorldRequest(text: string): boolean {
 
 const VERBS: Record<string, Action> = {
   eat: 'eat', wear: 'wear', 'try on': 'wear', 'put on': 'wear', kick: 'kick', punt: 'kick', hug: 'hug', cuddle: 'hug', snuggle: 'hug',
-  bounce: 'bounce', juggle: 'bounce', 'nap on': 'nap', 'sleep on': 'nap', 'dance to': 'dance', 'dance with': 'dance',
+  bounce: 'bounce', juggle: 'bounce', shoot: 'shoot', dunk: 'shoot', 'nap on': 'nap', 'sleep on': 'nap', 'dance to': 'dance', 'dance with': 'dance',
   remove: 'remove', 'take off': 'remove', 'take away': 'remove', 'put away': 'remove', 'get rid of': 'remove',
 }
 
@@ -506,7 +561,22 @@ export function localIntent(text: string, inWorld: ItemSpec[] = [], extra?: Extr
   if (HOME.test(s)) return { ops: [{ op: 'place', spec: null }], reply: 'Home sweet home.' }
   if (NOT_THE_WORLD.test(s)) return null
 
-  const here = (thing: string) => inWorld.find((item) => [item.name, ...catalogWords(item.name)].some((w) => same(thing, w))) ?? null
+  // By name, catalog word, or its last word: "the ball" is the soccer ball if that is the ball here.
+  const here = (thing: string) =>
+    inWorld.find((item) => [item.name, ...catalogWords(item.name)].some((w) => same(thing, w))) ??
+    inWorld.find((item) => item.name.includes(' ') && same(thing, item.name.split(' ').pop()!)) ??
+    null
+  const sport = SPORT.exec(s)
+  if (sport) {
+    const hoops = /basket|hoops/i.test(sport[1])
+    const ball = ITEMS[hoops ? 'basketball' : 'soccer ball'].spec
+    const target = ITEMS[hoops ? 'hoop' : 'goal'].spec
+    const has = (spec: ItemSpec) => inWorld.some((item) => item.name === spec.name)
+    const ops: WorldOp[] = []
+    if (!has(target)) ops.push({ op: 'item', spec: target })
+    ops.push(has(ball) ? { op: 'act', action: 'shoot', target: ball.name } : { op: 'item', spec: ball, then: 'shoot' })
+    return { ops, reply: hoops ? 'Game on! First to swish wins.' : 'Game on! Watch this shot.' }
+  }
   const off = TAKE_OFF.exec(s)
   if (off) {
     // "The hat" is the hat Lim has on; "it" is whatever went on last. Nothing on: not ours to answer.
@@ -525,7 +595,7 @@ export function localIntent(text: string, inWorld: ItemSpec[] = [], extra?: Extr
     const spec = present ?? itemNamed(thing, extra)
     if (!spec) return null
     const able = actionsFor(spec)
-    const action: Action = fed ? 'eat' : played ? (['bounce', 'dance', 'hug'] as const).find((a) => able.includes(a))! : VERBS[act![1].toLowerCase()]
+    const action: Action = fed ? 'eat' : played ? ((['bounce', 'dance', 'hug', 'shoot'] as const).find((a) => able.includes(a)) ?? 'look') : VERBS[act![1].toLowerCase()]
     const said = fed ? 'eat' : played ? 'play with' : act![1].toLowerCase()
     if (!able.includes(action)) {
       // Only worth saying about something that is actually here.
@@ -587,6 +657,7 @@ const actReply = (action: Action, name: string) =>
     nap: `Just five minutes…`,
     dance: `Hit it!`,
     remove: `Bye, ${name}!`,
+    shoot: `Here goes!`,
   })[action]
 
 /* ── What the model sends back ───────────────────────────────────── */

@@ -18,8 +18,8 @@ describe('catalog', () => {
       }
       for (const t of spec.traits) expect(TRAITS, id).toContain(t)
       expect(spec.face, id).toBeLessThan(spec.parts.length)
-      // look, kick, hug, put away, and usually something of its own.
-      expect(actionsFor(spec).length, id).toBeGreaterThanOrEqual(4)
+      // look, kick, hug, put away, and usually something of its own. A hoop or a goal is only looked at, shot at and put away.
+      expect(actionsFor(spec).length, id).toBeGreaterThanOrEqual(spec.traits.some((t) => t === 'hoop' || t === 'goal') ? 3 : 4)
       // A catalog spec survives its own cleaner unchanged in shape.
       expect(cleanItem(spec)?.parts.length, id).toBe(spec.parts.length)
     }
@@ -303,5 +303,45 @@ describe('reading the model\'s world order', () => {
       expect(readWorldReply(bad).ops, bad).toEqual([])
     }
     expect(readWorldReply('@@world {"ops":[],"reply":"' + 'y'.repeat(500) + '"}').reply).toHaveLength(140)
+  })
+})
+
+describe('sports', () => {
+  it('sets up a game from nothing, and shoots when everything is there', () => {
+    const start = localIntent("let's play basketball")
+    expect(start?.ops.map((op) => (op.op === 'item' ? op.spec.name : op.op))).toEqual(['hoop', 'basketball'])
+    expect(start?.ops[1]).toMatchObject({ op: 'item', then: 'shoot' })
+    const again = localIntent('play basketball', [ITEMS.hoop.spec, ITEMS.basketball.spec])
+    expect(again?.ops).toEqual([{ op: 'act', action: 'shoot', target: 'basketball' }])
+    const soccer = localIntent('play soccer', [ITEMS.goal.spec])
+    expect(soccer?.ops.map((op) => (op.op === 'item' ? op.spec.name : op.op))).toEqual(['soccer ball'])
+  })
+
+  it('balls can be shot; a hoop and a goal cannot be kicked or hugged', () => {
+    expect(actionsFor(ITEMS.basketball.spec)).toContain('shoot')
+    expect(actionsFor(ITEMS['soccer ball'].spec)).toContain('shoot')
+    expect(actionsFor(ITEMS.balloon.spec)).not.toContain('shoot')
+    expect(actionsFor(ITEMS.hoop.spec)).toEqual(['look', 'shoot', 'remove'])
+    expect(localIntent('shoot the basketball', [ITEMS.basketball.spec])?.ops).toEqual([{ op: 'act', action: 'shoot', target: 'basketball' }])
+  })
+
+  it('talk about sport is not an order', () => {
+    for (const text of [
+      'does he play basketball?', 'did Anthony play soccer in college?', 'what sports does he play', 'I play football on weekends',
+      'give it a shot', 'he shoots, he scores', 'is he a team player?', 'what are his goals?', 'shoot me an email',
+    ]) expect(localIntent(text, [ITEMS.hoop.spec, ITEMS.basketball.spec]), text).toBeNull()
+  })
+
+  it('painted parts and scenery survive cleaning; junk does not', () => {
+    const ball = cleanItem({ name: 'beach ball', size: 1, traits: ['bouncy'], face: -1, parts: [{ shape: 'ball', color: '#ff0000', at: [0, 0, 0], scale: [1, 1, 1], tilt: 0, paint: 'stripes', ink: '#ffffff' }] })
+    expect(ball?.parts[0].paint).toBe('stripes')
+    const odd = cleanItem({ name: 'odd', size: 1, traits: [], face: -1, parts: [{ shape: 'ball', color: '#ff0000', at: [0, 0, 0], scale: [1, 1, 1], tilt: 0, paint: 'lava' }] })
+    expect(odd?.parts[0].paint).toBeUndefined()
+    const place = cleanPlace({ ...PLACES.meadow.spec, scenery: ['trees', 'dragons', 'trees', 'clouds'] })
+    expect(place?.scenery).toEqual(['trees', 'clouds'])
+    // A place saved before scenery existed gets one that suits it.
+    const old: Record<string, unknown> = { ...PLACES.volcano.spec }
+    delete old.scenery
+    expect(cleanPlace(old)?.scenery.length).toBeGreaterThan(0)
   })
 })

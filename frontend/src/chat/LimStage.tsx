@@ -4,7 +4,7 @@ import { useReducedMotion } from '@/hooks/useReducedMotion'
 import { stage as s, chatbot } from '@/styles/chatbot.stylex'
 import { LimArt } from './LimArt'
 import type { Stunt } from './eggs'
-import type { LimMood, LimReaction, LimScene, LimWorld } from './scene/limScene'
+import type { LimMood, LimReaction, LimScene, LimWorld, Score, ScoreEvent } from './scene/limScene'
 import type { WorldOp } from './world/spec'
 import { loadWorld, saveWorld } from './world/worldApi'
 
@@ -40,12 +40,14 @@ export function LimStage({
   mood,
   night,
   onWorld,
+  onScore,
   ref,
 }: {
   mood: LimMood
   night: boolean
   /** The items or the place changed (also called once when the scene comes up). */
   onWorld?: (world: LimWorld) => void
+  onScore?: (event: ScoreEvent) => void
   ref?: Ref<LimStageHandle>
 }) {
   const hostRef = useRef<HTMLDivElement>(null)
@@ -56,12 +58,16 @@ export function LimStage({
   const [live, setLive] = useState(false)
   const [beat, setBeat] = useState<{ kind: 'hop' | 'poke'; n: number }>({ kind: 'hop', n: 0 })
   const [pop, setPop] = useState<{ n: number; word: string } | null>(null)
+  // Shown only while there is something to score in.
+  const [score, setScore] = useState<Score | null>(null)
   const reducedMotion = useReducedMotion()
 
   const onWorldRef = useRef(onWorld)
+  const onScoreRef = useRef(onScore)
   useLayoutEffect(() => {
     initial.current = { mood, night }
     onWorldRef.current = onWorld
+    onScoreRef.current = onScore
   })
 
   const emote = useCallback((word: string) => {
@@ -135,8 +141,10 @@ export function LimStage({
         world: loadWorld(),
         onWorld: (world) => {
           saveWorld(world)
+          setScore(world.score ?? null)
           onWorldRef.current?.(world)
         },
+        onScore: (event) => onScoreRef.current?.(event),
         onAnchor: (x, y, unit) => {
           const a = anchorRef.current
           if (!a) return
@@ -153,6 +161,7 @@ export function LimStage({
         sceneRef.current = created
         created.setMood(initial.current.mood)
         created.setNight(initial.current.night)
+        setScore(created.world().score ?? null)
         onWorldRef.current?.(created.world())
       }
     })().catch((error: unknown) => {
@@ -165,6 +174,7 @@ export function LimStage({
       sceneRef.current = null
       gl.remove()
       setLive(false)
+      setScore(null)
       const a = anchorRef.current
       if (a) {
         a.style.transform = ''
@@ -204,6 +214,14 @@ export function LimStage({
         />
       </div>
       <div ref={slotRef} {...sx(s.live, live && s.liveShown)} />
+      {live && score && (
+        <div key={`${score.you}-${score.lim}`} {...sx(s.score)}>
+          <span>You</span>
+          <span {...sx(s.scoreNum)}>{score.you}</span>
+          <span {...sx(s.scoreNum, s.scoreLim)}>{score.lim}</span>
+          <span>Lim</span>
+        </div>
+      )}
       <div ref={anchorRef} {...sx(s.anchor, !live && s.anchorStatic)}>
         {mood === 'thinking' && (
           <div {...sx(s.thought)}>

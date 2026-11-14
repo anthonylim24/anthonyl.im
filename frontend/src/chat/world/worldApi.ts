@@ -4,7 +4,7 @@
  */
 import { WORLD_MARK, cleanItem, cleanOps, cleanPlace, cleanTweak, type ItemSpec, type PlaceSpec, type Tweak, type WorldOp } from "./spec"
 
-export type SavedWorld = { items: ItemSpec[]; place: PlaceSpec | null; tweak?: Tweak }
+export type SavedWorld = { items: ItemSpec[]; place: PlaceSpec | null; tweak?: Tweak; score?: { you: number; lim: number } }
 
 /** A finished or streaming reply that carries an order: the marker and its opening brace, wherever the model put them (bare, fenced, quoted, after a preface). */
 export const hasWorldOrder = (content: string) => new RegExp(`^\\s*${WORLD_MARK}|${WORLD_MARK}\\s*\\{`).test(content)
@@ -81,10 +81,13 @@ const write = (key: string, value: unknown) => {
 
 /** The world as it was left, or undefined on a first visit (so the starter toys appear). */
 export function loadWorld(): SavedWorld | undefined {
-  const raw = read(WORLD_KEY) as { items?: unknown; place?: unknown; tweak?: unknown } | null
+  const raw = read(WORLD_KEY) as { items?: unknown; place?: unknown; tweak?: unknown; score?: { you?: unknown; lim?: unknown } | null } | null
   if (!raw || typeof raw !== "object" || !Array.isArray(raw.items)) return undefined
-  const items = raw.items.map(cleanItem).filter((x): x is ItemSpec => x !== null).slice(0, 6)
-  return { items, place: cleanPlace(raw.place), tweak: cleanTweak(raw.tweak) ?? undefined }
+  // Six toys, plus a hoop and a goal.
+  const items = raw.items.map(cleanItem).filter((x): x is ItemSpec => x !== null).slice(0, 8)
+  const points = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.min(999, Math.max(0, Math.round(v))) : 0)
+  const score = raw.score && typeof raw.score === "object" ? { you: points(raw.score.you), lim: points(raw.score.lim) } : undefined
+  return { items, place: cleanPlace(raw.place), tweak: cleanTweak(raw.tweak) ?? undefined, score }
 }
 export const saveWorld = (world: SavedWorld) => write(WORLD_KEY, world)
 

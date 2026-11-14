@@ -28,12 +28,13 @@ import { chatbot } from "./styles/chatbot.stylex";
 import { layout } from "./styles/common.stylex";
 import { useChat, type ChatMessage } from "./chat/useChat";
 import { LimStage, type LimStageHandle } from "./chat/LimStage";
+import { ToyCard, useThumbs } from "./chat/ToyCard";
 import { LimArt } from "./chat/LimArt";
 import { caretPoint } from "./chat/caret";
 import type { LimMood } from "./chat/scene/limScene";
 import { konami, stuntFor, type Stunt } from "./chat/eggs";
 import { sound } from "./chat/sound";
-import type { LimWorld } from "./chat/scene/limScene";
+import type { LimWorld, ScoreEvent } from "./chat/scene/limScene";
 import { ITEMS, PLACES, localIntent, looksLikeWorldRequest, type WorldOp } from "./chat/world/spec";
 import { loadMade, readWorldReply, rememberMade } from "./chat/world/worldApi";
 import "./chat/chat.css";
@@ -223,6 +224,12 @@ function App() {
 
   const reducedMotion = useReducedMotion();
   const toyButtonRef = useRef<HTMLButtonElement>(null);
+  const thumbs = useThumbs(toyOpen && world !== null, night, reducedMotion);
+  // For screen readers: the stage itself is hidden from them.
+  const onScore = useCallback((e: ScoreEvent) => {
+    const what = e.kind === "hoop" ? `${e.points} points` : "a goal";
+    setNotice(`${e.by === "lim" ? "Lim scored" : "You scored"} ${what}. You ${e.you}, Lim ${e.lim}.`);
+  }, []);
   // With motion reduced Lim stays put: say that, rather than promise a performance.
   const honest = (ops: WorldOp[], reply: string) =>
     reducedMotion && ops.some((op) => (op.op === "act" && !["remove", "wear", "eat", "look"].includes(op.action)) || (op.op === "item" && op.then))
@@ -553,7 +560,7 @@ function App() {
       </header>
 
       <div {...sx(chatbot.stageArea)} aria-hidden="true" onPointerDown={() => setPlayed(true)}>
-        <LimStage ref={stageRef} mood={mood} night={night} onWorld={setWorld} />
+        <LimStage ref={stageRef} mood={mood} night={night} onWorld={setWorld} onScore={onScore} />
         <p {...sx(chatbot.stageCaption, (focused || !empty || played) && chatbot.stageCaptionHidden)}>
           psst — poke me, fling me, or feed me a bean
         </p>
@@ -686,17 +693,9 @@ function App() {
                 {world ? (
                   <>
                     <p {...sx(chatbot.toyLabel)}>Give Lim</p>
-                    <div {...sx(chatbot.toyChips)}>
+                    <div {...sx(chatbot.toyGrid)}>
                       {[...Object.values(ITEMS).map((x) => x.spec), ...made.items].map((spec) => (
-                        <button
-                          key={spec.name}
-                          type="button"
-                          onClick={() => give({ op: "item", spec }, `Gave Lim: ${spec.name}.`)}
-                          {...sx(chatbot.toyChip)}
-                        >
-                          <span aria-hidden="true" {...sx(chatbot.toyDot)} style={{ backgroundColor: spec.parts[0].color }} />
-                          {spec.name}
-                        </button>
+                        <ToyCard key={spec.name} spec={spec} thumbs={thumbs} onGive={() => give({ op: "item", spec }, `Gave Lim: ${spec.name}.`)} />
                       ))}
                     </div>
                     <p {...sx(chatbot.toyLabel)}>Take Lim to</p>
@@ -724,7 +723,7 @@ function App() {
                       ))}
                     </div>
                     <div {...sx(chatbot.toyFoot)}>
-                      <span>Or just ask: “give Lim a kite”, “make it rain”.</span>
+                      <span>Or just ask: “give Lim a kite”, “play basketball”.</span>
                       <button type="button" onClick={() => give({ op: "clear", what: "all" }, "All tidied up.")} {...sx(chatbot.toyTidy)}>
                         Tidy up
                       </button>

@@ -18,11 +18,14 @@ import { createStage } from '../../three/stage'
 import { Jelly, icosphere, type Vec3 } from '../../three/jelly'
 import { skinJelly, skinnedJellyGeometry, syncJellyGeometry } from '../../three/jellyMesh'
 import { bindJellyPointer } from '../../three/jellyPointer'
+import { bodyImpulse, type Collider } from '../../three/physics'
 import { sound } from '../sound'
 import type { Stunt } from '../eggs'
 import { ITEMS, actionsFor, type Action, type ItemSpec, type PlaceSpec, type Trait, type Tweak } from '../world/spec'
 import { Weather, backdropMaterial, createPlaceUniforms, easePlace } from './env'
-import { ItemExtras, bodyRest, createItemMaterials, shadeOf } from './items'
+import { ItemExtras, bodyRest, createItemMaterials, paintOf, shadeOf } from './items'
+import { Fixture, fixtureKind } from './fixtures'
+import { SceneryStage } from './scenery'
 import { Pool, Tuft, heartGeometry, starGeometry } from './fx'
 import {
   CONFETTI,
@@ -68,9 +71,22 @@ export type LimSceneOptions = {
   world?: LimWorld
   /** The items or the place changed. */
   onWorld?: (world: LimWorld) => void
+  /** Something went through the hoop or into the goal. */
+  onScore?: (event: ScoreEvent) => void
 }
 
-export type LimWorld = { items: ItemSpec[]; place: PlaceSpec | null; tweak?: Tweak; /** Names of what Lim has on. */ worn?: string[] }
+/** Points so far: the visitor's shots against Lim's. */
+export type Score = { you: number; lim: number }
+export type ScoreEvent = Score & { kind: 'hoop' | 'goal'; by: 'you' | 'lim'; points: number }
+export type LimWorld = {
+  items: ItemSpec[]
+  place: PlaceSpec | null
+  tweak?: Tweak
+  /** Names of what Lim has on. */
+  worn?: string[]
+  /** Kept while there is a hoop or a goal to score in. */
+  score?: Score
+}
 
 export type LimScene = {
   setMood(mood: LimMood): void
@@ -107,6 +123,8 @@ const ITEM_G = 16
 const MINIS = 6
 const MAX_ITEMS = 6
 const MINI = 0.36
+/** Where the backdrop's ground meets its sky, as a fraction of the canvas height (see env.ts). */
+const HORIZON = 0.47
 const POKE_WORDS = ['hehe!', 'boop!', 'eep!', 'squish!', 'tee-hee', 'wobble!', 'again!']
 
 /** Gumdrop: a squat sphere, wider and flat at the base. */
@@ -303,6 +321,10 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const weather = new Weather()
   scene.add(weather.mesh)
   weather.set(air().weather, air().weatherColor)
+  // The landscape between the stage and the sky: trees, a volcano, clouds.
+  const scenery = new SceneryStage(u, pu, { reducedMotion })
+  scene.add(scenery.group)
+  stage.onStruggle(() => scenery.thin())
 
   const flat = new THREE.PlaneGeometry(1, 1)
   const makeShadow = (tint: string | null) => {
@@ -343,6 +365,14 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   // Everything on the stage that isn't Lim: built from a spec (see items.ts),
   // so the starter toys, the catalog and things the model invents are one kind.
   const itemMats = createItemMaterials(u, ink)
+  // A hoop and a goal stand at the edges of the stage; their colliders are what balls bounce off.
+  const fixtures: Fixture[] = []
+  const colliders: Collider[] = []
+  /** Lim only minds the hoop (it can jump into the rim); the goal is simply out of bounds. */
+  const limColliders: Collider[] = []
+  lim.colliders = limColliders
+  const hoopOf = () => fixtures.find((f) => f.kind === 'hoop') ?? null
+  const goalOf = () => fixtures.find((f) => f.kind === 'goal') ?? null
   const makeToy = (spec: ItemSpec, renew: boolean) => {
     const rest = bodyRest(spec)
     const has = (trait: Trait) => spec.traits.includes(trait)
@@ -356,11 +386,18 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       floor: rest.lift,
       friction: has('bouncy') ? 0.86 : 0.4,
       substeps: 2,
+      // Bouncy things give back most of a fall, off the floor or a backboard.
+      restitution: has('bouncy') ? 0.72 : 0,
     })
+    jelly.bounceMin = 2.2
+    jelly.colliders = colliders
+    // Nothing thin (a rim, a post) is stepped over or passed through.
+    jelly.core = rest.radius * 0.55
+    jelly.maxTravel = rest.radius * 0.5
     const geo = skinnedJellyGeometry(jelly, rest.index)
     const hex = spec.parts[0].color
     // The body gets materials of its own: they change while it is in hand.
-    const mesh = new THREE.Mesh(geo, toyMaterial(u, hex, shadeOf(hex)))
+    const mesh = new THREE.Mesh(geo, toyMaterial(u, hex, shadeOf(hex), paintOf(spec.parts[0], true)))
     const hull = new THREE.Mesh(geo, hullMaterial(ink, 0.016))
     mesh.frustumCulled = hull.frustumCulled = false
     const extras = new ItemExtras(spec, [0, 0, 0], itemMats)
@@ -377,8 +414,15 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       eatenAt: -1,
       backAt: -1 as number,
       worn: null as 'hat' | 'glasses' | null,
-      lastVy: 0,
       nextFx: 0,
+      /** Something to shoot: it bounces and it comes back down. */
+      ball: has('bouncy') && !has('floaty'),
+      /** Who sent it on its way last, and from where (a long shot is worth more). */
+      by: null as 'you' | 'lim' | null,
+      from: 0,
+      /** Its centre a frame ago: a score is a crossing. */
+      prev: [0, 0, 0] as Vec3,
+      scoredAt: -9,
     }
   }
   type Toy = ReturnType<typeof makeToy>
@@ -386,6 +430,19 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const wakeToy = (toy: Toy) => {
     toy.asleep = false
     toy.still = 0
+  }
+  /** Stand each fixture at its edge of the stage (the framing, or the set of fixtures, changed). */
+  const placeFixtures = () => {
+    const rim = Math.min(2.35, topY - 1)
+    for (const f of fixtures) f.place(f.kind === 'hoop' ? Math.max(reach - 0.55, 2.3) : -Math.max(reach - 1.25, 1.9), rim)
+    colliders.length = 0
+    limColliders.length = 0
+    for (const f of fixtures) {
+      colliders.push(...f.colliders)
+      // Backboard and rim.
+      if (f.kind === 'hoop') limColliders.push(f.colliders[0], f.colliders[1])
+    }
+    for (const toy of toys) wakeToy(toy)
   }
 
   // ── Particles ────────────────────────────────────────────────────
@@ -414,6 +471,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   let wide = true
   const camBase = new THREE.Vector3()
   let camTargetY = 0
+  /** 0 to 1: the camera pulls back to take in a hoop or a goal. */
+  let court = 0
   // Desktop layout (the page's own breakpoint): the stage dissolves over its
   // last 72px before the chat panel. The camera slides over by half of that so
   // Lim stands in the middle of what's visible, and `reach` is the half-width
@@ -427,7 +486,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     wide = sw >= 820
     const aspect = sw / sh
     let vh = LIM_H / (sh < 220 ? 0.52 : wide ? 0.38 : 0.55)
-    const minW = wide ? 5.6 : 4.6
+    const minW = (wide ? 5.6 : 4.6) + court * (wide ? 2.8 : 2)
     if (vh * aspect < minW) vh = minW / aspect
     const dist = vh / 2 / Math.tan(THREE.MathUtils.degToRad(FOV / 2))
     camTargetY = (FLOOR_LINE - 0.5) * vh
@@ -444,6 +503,10 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     reach = halfW - shiftX
     topY = camTargetY + vh / 2 - 0.05
     unit = sh / vh
+    placeFixtures()
+    // Where the floor runs out at the backdrop's horizon, and how steeply the land must fall away behind it.
+    const dip = Math.tan(PITCH + Math.atan((0.5 - HORIZON) * 2 * Math.tan(THREE.MathUtils.degToRad(FOV / 2))))
+    scenery.layout({ groundZ: camBase.z - camBase.y / dip, slope: dip, halfW, dist, wide })
   }
   stage.onResize(layout)
 
@@ -462,6 +525,11 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   let held: Toy | null = null
   let errand: { toy: Toy; then: () => void; by: number; x: number } | null = null
   let keepy: { toy: Toy; count: number; until: number; cool: number } | null = null
+  const tally: Score = { you: Math.max(0, Math.round(opts.world?.score?.you ?? 0)), lim: Math.max(0, Math.round(opts.world?.score?.lim ?? 0)) }
+  /** Shots Lim still means to take, and what it is aiming at. */
+  let rally = 0
+  let aim: Fixture | null = null
+  let lastClank = -9
   let hugUntil = 0
   let hugSide = 1
   let lastOuch = -9
@@ -925,6 +993,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     toy.jelly.gravity = toyGravity(toy)
     seat(toy)
     place(toy.jelly, toy.geo, 1, toy.slot, topY + 0.4, toy.depth)
+    toy.prev = [...toy.jelly.center]
+    toy.by = null
     toy.mesh.visible = toy.hull.visible = toy.shadow.mesh.visible = toy.extras.group.visible = true
     onTop(toy, false)
     wakeToy(toy)
@@ -934,18 +1004,21 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   // ── The world: items in and out ──────────────────────────────────
   // `saved` keeps a bean that has been eaten and is growing back; otherwise only what is really on the stage.
   const worldNow = (saved = false): LimWorld => ({
-    items: toys.filter((toy) => (saved ? toy.backAt !== Infinity : toy.backAt < 0)).map((toy) => toy.spec),
+    items: [...toys.filter((toy) => (saved ? toy.backAt !== Infinity : toy.backAt < 0)).map((toy) => toy.spec), ...fixtures.map((f) => f.spec)],
     place: site,
     tweak: mods,
     worn: toys.filter((toy) => toy.worn).map((toy) => toy.spec.name),
+    score: fixtures.length ? { ...tally } : undefined,
   })
   const changed = () => opts.onWorld?.(worldNow(true))
   /** A free spot on the floor: clear of Lim's skirt, as far from the other items as it can get. */
   const seat = (toy: Toy) => {
     const edge = Math.max(1.45, reach - 0.3 - toy.r)
+    // Not inside the goal.
+    const goalLine = goalOf()?.front ?? -Infinity
     let bestScore = -Infinity
     for (let k = 0; k < 14; k++) {
-      const x = (k % 2 ? 1 : -1) * Math.min(edge, 1.5 + toy.r + Math.floor(k / 2) * 0.42)
+      const x = Math.max(goalLine + 0.35 + toy.r, (k % 2 ? 1 : -1) * Math.min(edge, 1.5 + toy.r + Math.floor(k / 2) * 0.42))
       let room = 3
       for (const other of toys) {
         if (other !== toy && other.backAt < 0 && !other.worn) room = Math.min(room, Math.abs(other.jelly.center[0] - x) - other.r - toy.r)
@@ -969,7 +1042,30 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     toy.jelly.gravity = toyGravity(toy)
     if (air().slippery) toy.jelly.friction = 0.96
     place(toy.jelly, toy.geo, 1, toy.slot, Math.max(height, toy.half[1] + 0.02), toy.depth)
+    toy.prev = [...toy.jelly.center]
     return toy
+  }
+  const addFixture = (spec: ItemSpec) => {
+    const f = new Fixture(spec, u, ink)
+    fixtures.push(f)
+    scene.add(f.group)
+    placeFixtures()
+    return f
+  }
+  const removeFixture = (f: Fixture, poof: boolean) => {
+    const i = fixtures.indexOf(f)
+    if (i < 0) return
+    fixtures.splice(i, 1)
+    if (aim === f) aim = null
+    if (poof && !reducedMotion) {
+      sparkle(f.target[0], f.target[1], f.target[2] + 0.3, 9, 0.9)
+      sound.pop()
+    }
+    f.dispose()
+    placeFixtures()
+    // Nothing left to score in: the game is over.
+    if (!fixtures.length) tally.you = tally.lim = rally = 0
+    changed()
   }
   const removeToy = (toy: Toy, poof: boolean) => {
     const i = toys.indexOf(toy)
@@ -1035,10 +1131,10 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
 
   // ── Things Lim does with an item ─────────────────────────────────
   /** Hop over next to an item, then do something once there. */
-  const approach = (toy: Toy, then: () => void, gap = 0.15) => {
-    const side = Math.sign(lim.center[0] - toy.jelly.center[0]) || 1
+  const approach = (toy: Toy, then: () => void, gap = 0.15, side = Math.sign(lim.center[0] - toy.jelly.center[0]) || 1) => {
     // Lim's skirt is about 1.25 wide: stand that far off, plus the item, plus a gap.
-    const x = THREE.MathUtils.clamp(toy.jelly.center[0] + side * (1.25 * lim.scale + toy.r + gap), -reach + 1.15, reach - 1.15)
+    const leftmost = Math.max(-reach + 1.15, (goalOf()?.front ?? -Infinity) + 1.35)
+    const x = THREE.MathUtils.clamp(toy.jelly.center[0] + side * (1.25 * lim.scale + toy.r + gap), leftmost, reach - 1.15)
     call = { x, z: 0, until: t + 3.2 }
     errand = { toy, then, by: t + 1.9, x }
     nextHomeHop = Math.min(nextHomeHop, t + 0.15)
@@ -1054,6 +1150,126 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     toy.jelly.velocity(tmp)
     toy.jelly.kick((lim.center[0] - toy.jelly.center[0]) / time - tmp[0], up - tmp[1], -tmp[2])
     toy.jelly.spin(0, 0, (Math.random() - 0.5) * 5)
+  }
+  /** Lim takes a shot: a lob at the hoop, or a low drive at the goal. False if there is nothing to shoot at. */
+  const shoot = (toy: Toy) => {
+    const hoop = hoopOf()
+    const goal = goalOf()
+    // What was asked for; else what the ball is for; else whichever is there.
+    const named = /basket/.test(toy.spec.name) ? hoop : /soccer|foot/.test(toy.spec.name) ? goal : null
+    const f = (aim && fixtures.includes(aim) ? aim : null) ?? named ?? (hoop && goal ? (Math.random() < 0.5 ? hoop : goal) : (hoop ?? goal))
+    aim = null
+    if (!f) return false
+    // Line up behind the ball, on the far side from the target.
+    approach(toy, () => {
+      if (!fixtures.includes(f)) return
+      wakeToy(toy)
+      toy.by = 'lim'
+      toy.from = toy.jelly.center[0]
+      const c = toy.jelly.center
+      // Lim is decent, not perfect: a miss rattles the rim or clears the bar.
+      const sure = Math.random() < 0.62
+      if (f.kind === 'hoop') {
+        const lob = () => {
+          if (!toys.includes(toy) || toy === held || !fixtures.includes(f)) return
+          wakeToy(toy)
+          // Solve the lob through the drag the ball flies with: v' = -g - k·v, to arrive just over the rim after T.
+          const g = Math.max(3, -toyGravity(toy)[1])
+          const k = Math.max(0.05, toy.jelly.damping)
+          const dx = f.target[0] - c[0]
+          const T = (0.95 + Math.abs(dx) * 0.1) * Math.sqrt(16 / g)
+          const glide = (1 - Math.exp(-k * T)) / k
+          const off = sure ? (Math.random() - 0.5) * 0.12 : (Math.random() < 0.5 ? -1 : 1) * (0.42 + Math.random() * 0.5)
+          toy.jelly.velocity(tmp)
+          toy.jelly.kick(
+            (dx + off) / glide - tmp[0],
+            (f.target[1] + 0.12 - c[1] + (g * T) / k) / glide - g / k - tmp[1],
+            (f.target[2] - c[2]) / glide - tmp[2],
+          )
+          // Backspin, like a proper jump shot.
+          toy.jelly.spin(0, 0, Math.sign(dx) * 5)
+        }
+        // Lim could not get behind the ball (it is against the goal or the wall): flick it up first, and shoot from over its own head.
+        if (Math.sign(lim.center[0] - c[0]) === Math.sign(f.target[0] - c[0])) {
+          toy.jelly.velocity(tmp)
+          toy.jelly.kick(-tmp[0], 7.6 - tmp[1], -tmp[2])
+          later(0.36, lob)
+        } else lob()
+        if (lim.contacts > 0) lim.kick(0, 3.4, 0)
+        squash.v -= 2.2
+        tuft.flick(0, 4, 0)
+        setAct('whee', 0.9)
+        emote('hup!')
+        sound.boing(0.6)
+      } else {
+        const dir = Math.sign(f.target[0] - c[0]) || -1
+        lim.kick(dir * 2.4, 2.6, 0)
+        squash.v += 2
+        later(0.13, () => {
+          if (!toys.includes(toy)) return
+          wakeToy(toy)
+          toy.jelly.velocity(tmp)
+          toy.jelly.kick(dir * (6.5 + Math.random() * 2) - tmp[0], (sure ? 1.5 + Math.random() * 1.2 : 4.8 + Math.random() * 1.5) - tmp[1], (f.target[2] - c[2]) * 1.2 - tmp[2])
+          toy.jelly.spin(0, 0, -dir * 7)
+          sparkle(c[0], c[1], c[2] + 0.3, 5)
+          sound.bonk(0.7)
+          setAct('whee', 0.8)
+        })
+      }
+      // Watch where it goes; in a rally, go again.
+      later(3.4, () => {
+        if (rally > 0 && toys.includes(toy) && !popped && held !== toy && sleep === 'awake' && !grabbed) {
+          rally--
+          aim = f
+          play('shoot', toy)
+        } else rally = 0
+      })
+    }, 0.12, Math.sign(toy.jelly.center[0] - f.target[0]) || 1)
+    return true
+  }
+  /** Something went through the hoop or over the line. */
+  const scoreWith = (f: Fixture, toy: Toy) => {
+    toy.scoredAt = t
+    const by = toy.by ?? 'you'
+    // One shot, one score: a rebound that rolls back in counts for nobody.
+    toy.by = null
+    // From the far side of the stage it is a three.
+    const points = f.kind === 'hoop' ? (Math.abs(toy.from - f.target[0]) > 3.1 ? 3 : 2) : 1
+    tally[by] += points
+    f.swish()
+    wakeToy(toy)
+    if (f.kind === 'hoop') {
+      // The net takes the pace off it.
+      toy.jelly.velocity(tmp)
+      toy.jelly.kick(-tmp[0] * 0.7, 0, -tmp[2] * 0.7)
+    } else {
+      // It sits in the net for a moment, then rolls back out.
+      later(1, () => {
+        if (!toys.includes(toy) || toy === held || !fixtures.includes(f)) return
+        wakeToy(toy)
+        toy.jelly.kick(f.out * (3 + Math.random()), 2.6, 0)
+      })
+    }
+    opts.onScore?.({ ...tally, kind: f.kind, by, points })
+    changed()
+    if (reducedMotion) return
+    sparkle(f.target[0], f.target[1], f.target[2] + 0.4, 10, 1.1)
+    sound.chime()
+    active(true)
+    if (popped) return
+    const hoop = f.kind === 'hoop'
+    if (by === 'lim') {
+      emote(hoop ? (points === 3 ? 'three!' : 'swish!') : 'GOAL!')
+      setAct('happy', 1.8)
+      jump(0, 4.4, 0, 0.05)
+      later(0.3, () => startSpin(1, 0.45))
+      burst(28, 0.9)
+    } else {
+      emote(hoop ? (points === 3 ? 'from downtown!' : 'nice shot!') : 'goal!')
+      setAct('whee', 1.3)
+      jump(0, 3.4, 0, 0.05)
+      burst(20, 0.8)
+    }
   }
   const play = (action: Action, toy: Toy) => {
     if (reducedMotion || popped || toy.backAt >= 0 || toy.eatenAt >= 0) return
@@ -1100,6 +1316,10 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       }
       wakeToy(toy)
       wear(toy)
+    } else if (action === 'shoot' || (action === 'kick' && goalOf() && !toy.has('heavy'))) {
+      // With a goal up, a kick is a shot on goal. With nothing to shoot at, a shot is just a kick.
+      if (action === 'kick') aim = goalOf()
+      if (!shoot(toy)) play('kick', toy)
     } else if (action === 'kick') {
       approach(toy, () => {
         const dir = Math.sign(toy.jelly.center[0] - lim.center[0]) || 1
@@ -1116,6 +1336,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
             sound.bonk(0.9)
             return
           }
+          toy.by = 'lim'
+          toy.from = toy.jelly.center[0]
           toy.jelly.kick(dir * (4.5 + Math.random() * 2), 5.5 + Math.random() * 1.5, 0)
           toy.jelly.spin(0, 0, -dir * 7)
           sparkle(toy.jelly.center[0], toy.jelly.center[1], toy.jelly.center[2] + 0.3, 5)
@@ -1167,7 +1389,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         : toy.has('hat') || toy.has('glasses') ? 'wear'
         : toy.has('musical') ? 'dance'
         : toy.has('hot') || toy.has('cold') || toy.has('prickly') ? 'hug'
-        : toy.has('bouncy') && !toy.has('floaty') ? 'bounce'
+        : toy.ball ? (fixtures.length ? 'shoot' : 'bounce')
         : 'look')
     later(0.2, () => {
       if (!toys.includes(toy)) return
@@ -1352,6 +1574,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       const toy = info.get(body)?.toy
       if (toy) {
         wakeToy(toy)
+        toy.by = 'you'
+        toy.from = body.center[0]
         body.kick((Math.random() - 0.5) * 1.5, 3 + Math.random() * 1.5, 0)
         body.spin(0, 0, (Math.random() - 0.5) * 9)
         sound.squeak()
@@ -1399,6 +1623,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       const toy = info.get(body)?.toy
       if (toy) {
         held = toy
+        toy.by = 'you'
+        rally = 0
         wakeToy(toy)
         onTop(toy, true)
       }
@@ -1413,6 +1639,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       const toy = info.get(body)?.toy
       if (!toy || snatched) return
       held = null
+      toy.from = toy.jelly.center[0]
       wakeToy(toy)
       const near = Math.hypot(toy.jelly.center[0] - mouthAt[0], toy.jelly.center[1] - mouthAt[1])
       if (toy.has('edible') && !popped && sleep === 'awake' && near < 0.62) return eat(toy)
@@ -1507,8 +1734,11 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       else if (pals.length && whim < 0.7 && !errand && !keepy) {
         // Play with something: whatever this item allows, short of eating it or putting it away.
         const toy = pals[Math.floor(Math.random() * pals.length)]
-        const options = actionsFor(toy.spec).filter((a) => a !== 'remove' && a !== 'eat' && a !== 'nap' && !(a === 'wear' && toy.worn))
-        play(options[Math.floor(Math.random() * options.length)], toy)
+        const options = actionsFor(toy.spec).filter(
+          (a) => a !== 'remove' && a !== 'eat' && a !== 'nap' && !(a === 'wear' && toy.worn) && !(a === 'shoot' && !fixtures.length),
+        )
+        // With a hoop or a goal up, a ball is mostly for shooting.
+        play(toy.ball && fixtures.length && Math.random() < 0.6 ? 'shoot' : options[Math.floor(Math.random() * options.length)], toy)
       } else if (roll < 0.2) jump(0, 3.4, 0)
       else if (roll < 0.42) {
         lim.attach(headTopRest, tmp)
@@ -1720,13 +1950,11 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
           for (let i = 1; i < body.x.length; i += 3) if (body.x[i] < low) low = body.x[i]
           if (low < ground) body.translate(0, ground - low, 0)
         }
-        A.velocity(tmp)
-        B.velocity(tmp2)
-        const rel = (tmp2[0] - tmp[0]) * nx + (tmp2[1] - tmp[1]) * ny + (tmp2[2] - tmp[2]) * nz
-        if (rel >= 0) continue
-        const j = -1.5 * rel
-        A.kick(-nx * j * wa, -ny * j * wa, -nz * j * wa)
-        B.kick(nx * j * wb, ny * j * wb, nz * j * wb)
+        // Bounce apart, rub, and let the rub turn them (Lim keeps itself upright, so it only shoves).
+        const j = bodyImpulse(A, B, nx, ny, nz, {
+          wa, wb, ra: ia.r, rb: ib.r, restitution: 0.5, friction: 0.45, spinA: A !== lim, spinB: B !== lim,
+        })
+        if (j <= 0) continue
         // Something small hitting Lim leaves a dent that rings, not a shove.
         if (A === lim && ib.toy?.has('prickly') && j > 1 && t - lastOuch > 1.4 && !grabbed) ouch(ib.toy)
         if (A === lim && j > 2) {
@@ -1749,8 +1977,11 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   const walls = (body: Jelly) => {
     // Bodies meet the stage edges whole: the body is moved back inside and its
     // motion reflected, so nothing is ever sliced flat by an invisible plane.
-    const X = reach - (body === lim ? 0.06 : 0.4)
-    const XR = X
+    // A goal's back net and a hoop's backboard stand in for the wall on their side; Lim stops at the goal line.
+    const goal = goalOf()
+    const hoop = hoopOf()
+    const L = body === lim ? (goal ? goal.front + 0.1 : -(reach - 0.06)) : goal ? goal.back : -(reach - 0.4)
+    const R = body === lim ? reach - 0.06 : hoop ? hoop.back + 0.25 : reach - 0.4
     const { x } = body
     let minX = Infinity
     let maxX = -Infinity
@@ -1765,9 +1996,9 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       if (x[i + 2] > maxZ) maxZ = x[i + 2]
     }
     // A body wider than the stage (big Lim on a phone) just centres.
-    const dx = maxX - minX > X + XR ? -(minX + maxX) / 2 + (XR - X) / 2 : minX < -X ? -X - minX : maxX > XR ? XR - maxX : 0
-    // Lim's ceiling is lower: the tuft needs the headroom.
-    const top = body === lim ? topY - 0.62 : topY
+    const dx = maxX - minX > R - L ? (L + R) / 2 - (minX + maxX) / 2 : minX < L ? L - minX : maxX > R ? R - maxX : 0
+    // Lim's ceiling is lower: the tuft needs the headroom. A shot at the hoop may arc out of frame.
+    const top = body === lim ? topY - 0.62 : hoop ? topY + 1.4 : topY
     const dy = maxY > top ? top - maxY : 0
     // Depth is a shallow lane, measured at the body's middle (a body is deeper than the lane).
     const cz = (minZ + maxZ) / 2
@@ -1807,6 +2038,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   }
 
   const stepToys = (dt: number) => {
+    const hoop = hoopOf()
     for (const toy of toys) {
       if (toy.backAt >= 0) {
         if (t > toy.backAt && !popped) returnToy(toy)
@@ -1828,17 +2060,54 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         toy.asleep = false
       }
       if (toy.asleep) continue
+      // The stage is a shallow lane and the rim sits in the middle of it: a ball coming down near the hoop drifts into line.
+      if (hoop && toy.ball && toy !== held && toy.jelly.contacts === 0) {
+        const c = toy.jelly.center
+        if (c[1] > hoop.target[1] - 0.2 && Math.abs(c[0] - hoop.target[0]) < 1.6) toy.jelly.kick(0, 0, (hoop.target[2] - c[2]) * 5 * dt)
+      }
       toy.jelly.step(dt)
       toy.jelly.velocity(tmp)
-      // Bouncy things give back most of a fall.
-      if (toy.has('bouncy') && toy.jelly.contacts > 0 && toy.lastVy < -2.2 && toy !== held && !toy.worn) {
-        toy.jelly.kick(0, -toy.lastVy * 0.72, 0)
-        tmp[1] = -toy.lastVy * 0.72
-      }
-      toy.lastVy = toy.jelly.contacts > 0 ? 0 : tmp[1]
       const calm = toy.jelly.contacts > 0 && Math.hypot(tmp[0], tmp[1], tmp[2]) < 0.06 && toy !== held && toy.eatenAt < 0 && !toy.worn
       toy.still = calm ? toy.still + dt : 0
       if (toy.still > 0.7) toy.asleep = true
+    }
+  }
+
+  /** Watch every loose thing for a score, and every fixture for a knock. */
+  const referee = () => {
+    for (const toy of toys) {
+      const c = toy.jelly.center
+      // Only a shot counts: something that was thrown, kicked or dropped in, not a toy that fell there when it arrived.
+      if (toy.by && !toy.asleep && toy.backAt < 0 && toy.eatenAt < 0 && !toy.worn && toy !== held && !toy.has('floaty') && t - toy.scoredAt > 0.8) {
+        for (const f of fixtures) if (f.scored(toy.prev, c)) scoreWith(f, toy)
+      }
+      // Nothing is left lying in the goal: it rolls back out.
+      if (toy !== held && toy.backAt < 0 && !toy.worn && t - toy.scoredAt > 1.6) {
+        for (const f of fixtures) {
+          if (f.kind !== 'goal' || c[0] > f.front - 0.05 || c[1] > 1.4) continue
+          toy.jelly.velocity(tmp)
+          if (Math.hypot(tmp[0], tmp[1], tmp[2]) > 0.8) continue
+          toy.scoredAt = t
+          wakeToy(toy)
+          toy.jelly.kick(f.out * (3 + Math.random()), 2.4, 0)
+        }
+      }
+      toy.prev[0] = c[0]
+      toy.prev[1] = c[1]
+      toy.prev[2] = c[2]
+    }
+    for (const f of fixtures) {
+      let hit = 0
+      for (const col of f.colliders) {
+        if (col.hit > hit) hit = col.hit
+        col.hit = 0
+      }
+      if (hit < 2.5) continue
+      f.bump(hit)
+      if (t - lastClank > 0.12) {
+        lastClank = t
+        sound.bonk(Math.min(1, hit / 12))
+      }
     }
   }
 
@@ -2162,6 +2431,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       snatch()
       stepToys(dt)
       collide()
+      referee()
       for (const body of bodies) {
         const hit = walls(body)
         if (body === lim && hit > 7 && t - lastBonk > 0.35) {
@@ -2185,6 +2455,14 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       updateCamera(dt)
     }
     easePlace(pu, site, dt > 0 ? 1 - Math.exp(-3.5 * dt) : 1)
+    // With something to score in, step back far enough to see the whole court.
+    const far = fixtures.length ? 1 : 0
+    if (court !== far) {
+      court = dt === 0 || Math.abs(far - court) < 0.004 ? far : court + (far - court) * (1 - Math.exp(-4.5 * dt))
+      layout(w, h)
+    }
+    scenery.step(dt, t, camera)
+    for (const f of fixtures) f.step(dt)
     updateFace(dt)
     tuft.scale = topY < 3 ? 0.62 : 1
     tuft.slack = flip || spin ? 0.3 : 1
@@ -2231,10 +2509,13 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
   }
 
   // Starter toys (or whatever was here last visit) drop in one after another.
-  ;(opts.world?.items ?? [ITEMS.gumball.spec, ITEMS.bean.spec]).slice(0, MAX_ITEMS).forEach((spec, i) => {
+  const startWith = opts.world?.items ?? [ITEMS.gumball.spec, ITEMS.bean.spec]
+  for (const spec of startWith) if (fixtureKind(spec) && !fixtures.some((f) => f.kind === fixtureKind(spec))) addFixture(spec)
+  startWith.filter((spec) => !fixtureKind(spec)).slice(0, MAX_ITEMS).forEach((spec, i) => {
     // Jelly beans grow back, so there is always something to feed Lim.
     addToy(spec, spec.name === 'jelly bean', reducedMotion ? 0 : 1.2 + i * 0.45)
   })
+  scenery.set(site)
   for (const toy of toys) {
     skinJelly(toy.geo, toy.jelly, 0.045, 0)
     syncJellyGeometry(toy.geo)
@@ -2412,6 +2693,30 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       }
     },
     addItem(spec, then) {
+      const kind = fixtureKind(spec)
+      if (kind) {
+        // One hoop, one goal: a new one takes the old one's place.
+        const old = fixtures.find((f) => f.kind === kind)
+        if (old) removeFixture(old, false)
+        const f = addFixture(spec)
+        changed()
+        stage.requestRender()
+        if (reducedMotion) return
+        f.popIn()
+        active(true)
+        puff(f.kind === 'hoop' ? f.back - 0.3 : f.front - 0.4, 0, 8, 1, 0.5)
+        sound.pop()
+        later(0.25, () => {
+          wander.x = f.side
+          wander.y = f.kind === 'hoop' ? 0.7 : -0.1
+          wander.until = t + 1.6
+          look.at = -10
+          setAct('ooh', 1)
+          squash.v += 1.5
+          emote(f.kind === 'hoop' ? 'hoops!' : 'goal!')
+        })
+        return
+      }
       // A bean that was eaten and is growing back just comes back now, rather than a second one piling up.
       const regrowing = toys.find((toy) => toy.spec.name === spec.name && toy.renew && toy.backAt >= 0 && toy.backAt !== Infinity)
       if (regrowing && !popped) {
@@ -2440,6 +2745,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       // A new place brings its own air.
       mods = {}
       applyPlace()
+      scenery.set(site)
       changed()
       stage.requestRender()
       if (reducedMotion) return
@@ -2475,7 +2781,32 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         !name || name === 'it' || name === 'that'
           ? live[live.length - 1]
           : (live.find((x) => x.spec.name === name) ?? live.find((x) => x.spec.name.includes(name) || name.includes(x.spec.name)))
-      if (!found) return false
+      if (!found) {
+        // Not a toy: the hoop or the goal, by name.
+        const f = name ? fixtures.find((x) => x.spec.name === name || name.includes(x.spec.name) || name.includes(x.kind)) : undefined
+        if (!f) return false
+        if (action === 'remove') {
+          removeFixture(f, true)
+          stage.requestRender()
+          return true
+        }
+        if (reducedMotion) return true
+        active(true)
+        wander.x = f.side
+        wander.y = f.kind === 'hoop' ? 0.7 : -0.1
+        wander.until = t + 1.6
+        look.at = -10
+        const ball = action === 'shoot' ? live.find((x) => x.ball && !x.worn) : undefined
+        if (ball) {
+          aim = f
+          rally = 2
+          play('shoot', ball)
+        } else {
+          setAct(action === 'shoot' ? 'thinking' : 'ooh', 1)
+          if (action === 'shoot') emote('no ball!')
+        }
+        return true
+      }
       // "Take it off" means the one Lim has on, if there are two alike.
       const toy = action === 'remove' && !found.worn ? (live.find((x) => x.worn && x.spec.name === found.spec.name) ?? found) : found
       if (reducedMotion) {
@@ -2501,11 +2832,16 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         stage.requestRender()
         return true
       }
+      // Asked to shoot, Lim takes three.
+      if (action === 'shoot') rally = 2
       play(action, toy)
       return true
     },
     clear(what) {
-      if (what !== 'place') for (const toy of [...toys]) removeToy(toy, true)
+      if (what !== 'place') {
+        for (const toy of [...toys]) removeToy(toy, true)
+        for (const f of [...fixtures]) removeFixture(f, true)
+      }
       if (what !== 'items') api.setPlace(null)
       changed()
       stage.requestRender()
@@ -2537,6 +2873,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       clearTimeout(cheerTimer)
       host.removeEventListener('pointerdown', onTap)
       pointer.dispose()
+      scenery.dispose()
       stage.dispose()
       scene.traverse((o) => {
         if (o instanceof THREE.Mesh) {
