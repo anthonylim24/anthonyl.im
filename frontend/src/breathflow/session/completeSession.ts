@@ -9,7 +9,10 @@ import { calculateXP } from '../gamify/xp'
 
 export interface CompletionInput {
   techniqueId: TechniqueId
+  /** Rounds actually breathed. */
   rounds: number
+  /** Rounds the session was set up for; above `rounds` when it was ended early. Defaults to `rounds`. */
+  plannedRounds?: number
   customDurations?: CustomPhaseDurations
   /** Actual held seconds per hold phase, from the session engine. */
   holdTimes: readonly number[]
@@ -24,18 +27,21 @@ export interface CompletionResult {
   newBadgeIds: string[]
   isPersonalBest: boolean
   streak: number
+  plannedRounds: number
 }
 
 /**
  * The single persistence bridge for a *completed* session: writes history,
- * awards XP and badges, and updates daily/weekly counts. Stopped sessions
- * must never reach this function.
+ * awards XP and badges, and updates daily/weekly counts. A session ended
+ * early arrives with the rounds it finished; one discarded inside its first
+ * round must never reach this function.
  */
 export function completeSession(input: CompletionInput): CompletionResult {
   const protocol = getProtocol(input.techniqueId)
   const history = useHistoryStore.getState()
   const gamification = useGamificationStore.getState()
 
+  const plannedRounds = Math.max(input.rounds, input.plannedRounds ?? input.rounds)
   const holdTimes = [...input.holdTimes]
   const maxHoldTime = holdTimes.length > 0 ? Math.max(...holdTimes) : 0
   const avgHoldTime = holdTimes.length > 0
@@ -64,7 +70,7 @@ export function completeSession(input: CompletionInput): CompletionResult {
   const session = updatedHistory.sessions[0]
   const streak = updatedHistory.getStreak()
 
-  const xpEarned = calculateXP(protocol.id, input.rounds, streak)
+  const xpEarned = calculateXP(protocol.id, input.rounds, streak, input.rounds / Math.max(1, plannedRounds))
   gamification.addXP(xpEarned)
   gamification.recordSession()
 
@@ -78,5 +84,5 @@ export function completeSession(input: CompletionInput): CompletionResult {
     gamification.unlockBadges(newBadgeIds)
   }
 
-  return { session, xpEarned, newBadgeIds, isPersonalBest, streak }
+  return { session, xpEarned, newBadgeIds, isPersonalBest, streak, plannedRounds }
 }

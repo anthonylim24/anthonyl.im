@@ -4,6 +4,8 @@ import {
   advanceOneSecond,
   createIdleState,
   createRunningState,
+  elapsedSessionSeconds,
+  finishEarly,
   getCurrentPhase,
   getCurrentPhaseSeconds,
   type EngineConfig,
@@ -22,11 +24,16 @@ export interface SessionEngineHandle {
   roundNumber: number
   totalRounds: number
   holdTimes: number[]
+  /** Seconds breathed so far, for whole-session progress. */
+  elapsedSeconds: number
   start: () => void
   pause: () => void
   resume: () => void
-  /** Discard the session entirely (no history, no XP). */
-  stop: () => void
+  /**
+   * End now. Whole rounds already breathed complete the session (a 'complete'
+   * event with that count); inside the first round it is discarded ('stop').
+   */
+  finish: () => void
   /** Back to round 1, phase 1, discarding partial progress. */
   restart: () => void
 }
@@ -122,9 +129,17 @@ export function useSessionEngine(
     emit({ type: 'resume' })
   }, [applyState, emit, bumpClock])
 
-  const stop = useCallback(() => {
-    applyState(createIdleState())
-    emit({ type: 'stop' })
+  const finish = useCallback(() => {
+    const current = stateRef.current
+    if (current.status !== 'running' && current.status !== 'paused') return
+    const result = finishEarly(current)
+    if (!result) {
+      applyState(createIdleState())
+      emit({ type: 'stop' })
+      return
+    }
+    applyState(result.state)
+    for (const event of result.events) emit(event)
   }, [applyState, emit])
 
   const restart = useCallback(() => {
@@ -142,10 +157,11 @@ export function useSessionEngine(
     roundNumber: state.roundIndex + 1,
     totalRounds: config.rounds,
     holdTimes: state.holdTimes,
+    elapsedSeconds: elapsedSessionSeconds(config, state),
     start,
     pause,
     resume,
-    stop,
+    finish,
     restart,
   }), [
     state,
@@ -155,7 +171,7 @@ export function useSessionEngine(
     start,
     pause,
     resume,
-    stop,
+    finish,
     restart,
   ])
 }

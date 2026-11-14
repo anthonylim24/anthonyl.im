@@ -3,6 +3,12 @@ import { BREATH_PHASES, TECHNIQUE_IDS, type BreathPhase, type TechniqueId } from
 /** Shown in the ready state before the first breath. */
 export const READY_CUE = 'Sit still. Next breath, easy.'
 
+/** Seconds of "get ready" between pressing Start and the first inhale. */
+export const LEAD_IN_SECONDS = 3
+
+/** Shown through the lead-in, so the first inhale starts from empty lungs. */
+export const LEAD_IN_CUE = 'Breathe out, and let your shoulders drop.'
+
 /** Persistent cue shown throughout advanced (safety-gated) sessions. */
 export const ADVANCED_SAFETY_CUE = 'Stay seated. Stop before strain or lightheadedness.'
 

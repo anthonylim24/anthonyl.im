@@ -64,7 +64,7 @@ describe('session engine state machine', () => {
     expect(state.status).toBe('complete')
     const completeEvents = events.filter((event) => event.type === 'complete')
     expect(completeEvents).toHaveLength(1)
-    expect(completeEvents[0]).toEqual({ type: 'complete', holdTimes: [4, 4, 4, 4] })
+    expect(completeEvents[0]).toEqual({ type: 'complete', holdTimes: [4, 4, 4, 4], roundsCompleted: 2 })
   })
 
   it('applies the CO2 progressive hold ladder to countdown and hold capture', () => {

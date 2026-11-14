@@ -7,9 +7,8 @@
  * 5 = calm) captured optionally before and after a session. The delta is the
  * payoff: "Tense → Calm".
  *
- * This is a local-first layer — mood is persisted in the history store and is not
- * round-tripped through the Supabase columns (which are fixed). It always works
- * locally for every user.
+ * Mood is persisted in the history store and, for signed-in users, in the
+ * `mood_before` / `mood_after` columns of `sessions` (see `useCloudSync`).
  */
 
 export const MOOD_MIN = 1

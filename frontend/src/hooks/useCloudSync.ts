@@ -9,6 +9,7 @@ import {
   type PersistedSettingsState,
 } from '@/stores/settingsStore'
 import { STORAGE_KEYS, type TechniqueId } from '@/lib/constants'
+import { isMoodValue } from '@/lib/mood'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 // ─── Merge utilities (exported for testing) ───────────────────────
@@ -378,7 +379,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function mapSessionToCloudRow(session: CompletedSession, userId: string) {
+export function mapSessionToCloudRow(session: CompletedSession, userId: string) {
   return {
     id: session.id,
     user_id: userId,
@@ -390,10 +391,12 @@ function mapSessionToCloudRow(session: CompletedSession, userId: string) {
     custom_phase_durations: session.customPhaseDurations ?? null,
     max_hold_time: session.maxHoldTime,
     avg_hold_time: session.avgHoldTime,
+    mood_before: session.moodBefore ?? null,
+    mood_after: session.moodAfter ?? null,
   }
 }
 
-function mapCloudSession(row: Record<string, unknown>): CompletedSession {
+export function mapCloudSession(row: Record<string, unknown>): CompletedSession {
   const customPhaseDurations = isRecord(row.custom_phase_durations)
     ? { customPhaseDurations: row.custom_phase_durations as CompletedSession['customPhaseDurations'] }
     : {}
@@ -406,6 +409,8 @@ function mapCloudSession(row: Record<string, unknown>): CompletedSession {
     rounds: row.rounds as number,
     holdTimes: (row.hold_times as number[]) ?? [],
     ...customPhaseDurations,
+    ...(isMoodValue(row.mood_before) ? { moodBefore: row.mood_before } : {}),
+    ...(isMoodValue(row.mood_after) ? { moodAfter: row.mood_after } : {}),
     maxHoldTime: row.max_hold_time as number,
     avgHoldTime: row.avg_hold_time as number,
   }

@@ -33,7 +33,8 @@ export interface EngineState {
 
 export type EngineEvent =
   | { type: 'phase'; phase: BreathPhase; roundIndex: number }
-  | { type: 'complete'; holdTimes: number[] }
+  /** `roundsCompleted` is below the planned count when the session was ended early. */
+  | { type: 'complete'; holdTimes: number[]; roundsCompleted: number }
 
 export function isHoldPhase(phase: BreathPhase): boolean {
   return phase === BREATH_PHASES.HOLD_IN || phase === BREATH_PHASES.HOLD_OUT
@@ -121,7 +122,7 @@ export function advanceOneSecond(config: EngineConfig, state: EngineState): Tick
       heldSecondsThisPhase: 0,
       holdTimes,
     }
-    return { state: completeState, events: [{ type: 'complete', holdTimes }] }
+    return { state: completeState, events: [{ type: 'complete', holdTimes, roundsCompleted: config.rounds }] }
   }
 
   const nextState: EngineState = {
@@ -142,4 +143,34 @@ export function advanceOneSecond(config: EngineConfig, state: EngineState): Tick
       roundIndex: nextState.roundIndex,
     }],
   }
+}
+
+/**
+ * End an active session before its last round. Whole rounds already breathed
+ * are kept: the machine completes with that count. Ending inside the first
+ * round returns `null`, because there is nothing worth recording.
+ */
+export function finishEarly(state: EngineState): TickResult | null {
+  if (state.status !== 'running' && state.status !== 'paused') return null
+  if (state.roundIndex === 0) return null
+  return {
+    state: { ...state, status: 'complete', secondsLeftInPhase: 0, heldSecondsThisPhase: 0 },
+    events: [{ type: 'complete', holdTimes: state.holdTimes, roundsCompleted: state.roundIndex }],
+  }
+}
+
+/** Seconds breathed so far: every finished round and phase, plus the current phase. */
+export function elapsedSessionSeconds(config: EngineConfig, state: EngineState): number {
+  if (state.status === 'idle') return 0
+  let elapsed = 0
+  for (let round = 0; round < state.roundIndex; round++) {
+    for (const { phase } of config.protocol.phases) {
+      elapsed += getPhaseSecondsForRound(config.protocol, phase, round, config.customDurations)
+    }
+  }
+  for (let index = 0; index < state.phaseIndex; index++) {
+    elapsed += getPhaseSecondsForRound(config.protocol, config.protocol.phases[index].phase, state.roundIndex, config.customDurations)
+  }
+  if (state.status === 'complete') return elapsed
+  return elapsed + getCurrentPhaseSeconds(config, state) - state.secondsLeftInPhase
 }

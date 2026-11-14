@@ -141,6 +141,31 @@ export const ss = stylex.create({
     overflow: 'hidden',
     backgroundColor: 'var(--bw-canvas)',
   },
+  // Whole-session progress: a hairline of the pigment along the top edge.
+  progress: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 2,
+    height: '3px',
+    backgroundColor: 'color-mix(in srgb, var(--bf-mass) 12%, transparent)',
+  },
+  progressFill: {
+    height: '100%',
+    transformOrigin: 'left center',
+    backgroundColor: 'color-mix(in srgb, var(--bf-mass) 70%, transparent)',
+    transitionProperty: 'transform',
+    transitionDuration: '1s',
+    transitionTimingFunction: 'linear',
+  },
+  progressFillStill: {
+    transitionDuration: '0s',
+  },
+  timeLeft: {
+    fontVariantNumeric: 'lining-nums tabular-nums',
+    color: 'var(--bw-text-tertiary)',
+  },
   top: {
     position: 'relative',
     zIndex: 1,

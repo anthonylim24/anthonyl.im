@@ -55,6 +55,8 @@ vi.mock('@/lib/supabase', () => ({
 
 import {
   hasNonDefaultSettings,
+  mapCloudSession,
+  mapSessionToCloudRow,
   mergeUserState,
   mergeSessionHistory,
   normalizeCloudSettings,
@@ -232,6 +234,26 @@ describe('mergeSessionHistory', () => {
     const result = mergeSessionHistory(local, cloud)
     expect(result[0].id).toBe('new')
     expect(result[1].id).toBe('old')
+  })
+})
+
+describe('session rows', () => {
+  const session = {
+    id: 'a', techniqueId: 'box_breathing' as const, date: '2026-01-01T00:00:00Z',
+    durationSeconds: 300, rounds: 4, holdTimes: [4], maxHoldTime: 4, avgHoldTime: 4,
+  }
+
+  it('round-trips the before / after mood', () => {
+    const row = mapSessionToCloudRow({ ...session, moodBefore: 2, moodAfter: 5 }, 'user_1')
+    expect(row).toMatchObject({ mood_before: 2, mood_after: 5 })
+    expect(mapCloudSession(row)).toMatchObject({ moodBefore: 2, moodAfter: 5 })
+  })
+
+  it('leaves mood off a session that was never rated, and ignores out-of-range values', () => {
+    expect(mapSessionToCloudRow(session, 'user_1')).toMatchObject({ mood_before: null, mood_after: null })
+    const restored = mapCloudSession({ ...mapSessionToCloudRow(session, 'user_1'), mood_before: 9 })
+    expect(restored).not.toHaveProperty('moodBefore')
+    expect(restored).not.toHaveProperty('moodAfter')
   })
 })
 
