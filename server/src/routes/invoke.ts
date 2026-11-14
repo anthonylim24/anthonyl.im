@@ -9,7 +9,7 @@ import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { commonConfig, SYSTEM_PROMPT } from "./constants";
 import { geminiTextStream, type GeminiTurn } from "../geminiText";
-import { limGeminiModel } from "../lim/model";
+import { routeLimModel } from "../lim/jev";
 import { worldPrompt } from "../lim/world";
 
 const invoke = new Hono();
@@ -49,16 +49,19 @@ invoke.post("/", zValidator("json", invokeSchema), async (c) => {
     return c.json({ error: "Prompt is required" }, 400);
   }
 
-  // Gemini leads (Carbon until the December switch, then Hydrogen: see
-  // lim/model.ts). If its stream cannot be opened (no key, quota, outage),
-  // the previous model on Groq answers instead.
+  // Jev (lim/jev.ts) picks the Gemini model: Hydrogen for questions about
+  // Anthony (or anything else), Carbon for playing with the jelly. If the
+  // Gemini stream cannot be opened (no key, quota, outage), the previous
+  // model on Groq answers instead.
   let chunks: AsyncIterable<string>;
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error("GEMINI_API_KEY missing");
+    const { model, route, via, pJelly } = await routeLimModel({ prompt, messages, world, signal: c.req.raw.signal });
+    console.info(`[invoke] ${model} (route=${route ?? "-"} via=${via}${pJelly === undefined ? "" : ` pJelly=${pJelly.toFixed(2)}`})`);
     chunks = await geminiTextStream({
       apiKey,
-      model: limGeminiModel(),
+      model,
       system,
       messages: [...messages, { role: "user", content: prompt }],
       signal: AbortSignal.any([AbortSignal.timeout(120_000), c.req.raw.signal]),

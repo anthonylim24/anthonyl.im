@@ -2,8 +2,8 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useSta
 import {
   ArrowDown,
   ArrowUp,
-  Briefcase,
   Check,
+  Code,
   Copy,
   Heart,
   Mail,
@@ -44,10 +44,10 @@ const MessageContent = lazy(() => import("./components/message-content"));
 const SUGGESTIONS = [
   { text: "What is Anthony's background?", Icon: Sparkles },
   { text: "What are his technical skills?", Icon: Wrench },
-  { text: "Where has he worked?", Icon: Briefcase },
   { text: "How can I contact him?", Icon: Mail },
   { text: "What is he building right now?", Icon: Rocket },
-  { text: "What's he like to work with?", Icon: Heart },
+  { text: "What did he build on this site?", Icon: Heart },
+  { text: "Can you help me with a coding question?", Icon: Code },
 ];
 /** What Lim is up to while the model invents something (it can take a while). */
 const MAKING = [
@@ -587,7 +587,7 @@ function App() {
                   Hi, I'm <span {...sx(chatbot.helloAccent)}>Lim</span>!
                 </h2>
                 <p {...sx(chatbot.intro)}>
-                  Anthony's jelly sidekick. Ask me about his work, his craft, or how to say hello. I'll answer as
+                  Anthony's jelly sidekick. Ask me about his work and projects, or bring me a coding question, a recipe hunt, or anything else. I'll answer as
                   best I can, with only a little wobbling.
                 </p>
                 <div {...sx(chatbot.chips)}>

@@ -3,7 +3,12 @@
  * Run it by hand after editing `server/src/lim/world.ts` or changing the model
  * (it calls the real API; it is not part of CI):
  *
- *   GEMINI_API_KEY=… bun scripts/eval-lim-world.ts [model]
+ *   GEMINI_API_KEY=… [JEV_API_KEY=…] bun scripts/eval-lim-world.ts [model]
+ *
+ * With JEV_API_KEY and no model argument, each case is routed by Jev
+ * (`server/src/lim/jev.ts`) as in production, and Jev's routing is scored
+ * too: chat must go to Hydrogen ("anthony"), orders to Carbon ("jelly").
+ * `--route-only` scores Jev's routing alone, with no Gemini calls.
  *
  * Chat messages must be answered in prose. Orders must come back as a
  * `@@world {json}` line that survives the page's own reader and cleaners
@@ -19,12 +24,17 @@ const { geminiText } = await import("../server/src/geminiText");
 const { SYSTEM_PROMPT } = await import("../server/src/routes/constants");
 const { WORLD_MARK, worldPrompt } = await import("../server/src/lim/world");
 const { limGeminiModel } = await import("../server/src/lim/model");
+const { routeLimModel } = await import("../server/src/lim/jev");
 const { readWorldReply, hasWorldOrder } = await import("../frontend/src/chat/world/worldApi");
 type Op = ReturnType<typeof readWorldReply>["ops"][number];
 
-const model = process.argv[2] || limGeminiModel();
+const routeOnly = process.argv.includes("--route-only");
+const fixedModel = process.argv.slice(2).find((a) => !a.startsWith("--"));
+const useJev = !fixedModel && !!process.env.JEV_API_KEY;
+const model = fixedModel || (useJev ? "jev-routed" : limGeminiModel());
 const apiKey = process.env.GEMINI_API_KEY;
-if (!apiKey) throw new Error("GEMINI_API_KEY is required");
+if (!apiKey && !routeOnly) throw new Error("GEMINI_API_KEY is required");
+if (routeOnly && !useJev) throw new Error("--route-only needs JEV_API_KEY and no model argument");
 const world = { items: ["ball", "jelly bean", "party hat"], place: "studio" };
 
 const CHAT = [
@@ -101,7 +111,7 @@ const jobs: Job[] = [
   { set: "no 3D scene", message: "Where has he worked?", expect: "chat", world: { items: [], place: "studio", unavailable: true } },
 ];
 
-type Row = Job & { ok: boolean; ms: number; out: string };
+type Row = Job & { ok: boolean; ms: number; out: string; route?: string | null; via?: string; jevMs?: number };
 const rows: Row[] = [];
 let next = 0;
 await Promise.all(
@@ -110,9 +120,20 @@ await Promise.all(
       const job = jobs[next++];
       const t0 = performance.now();
       let out = "";
+      let routed: Awaited<ReturnType<typeof routeLimModel>> | undefined;
+      let jevMs: number | undefined;
       try {
+        if (useJev) {
+          const j0 = performance.now();
+          routed = await routeLimModel({ prompt: job.message, messages: job.history, world: job.world ?? world });
+          jevMs = performance.now() - j0;
+        }
+        if (routeOnly) {
+          rows.push({ ...job, ok: true, ms: performance.now() - t0, out: "", route: routed?.route, via: routed?.via, jevMs });
+          continue;
+        }
         out = await geminiText({
-          apiKey, model, system: SYSTEM_PROMPT + worldPrompt(job.world ?? world),
+          apiKey: apiKey!, model: routed?.model ?? model, system: SYSTEM_PROMPT + worldPrompt(job.world ?? world),
           messages: [...(job.history ?? []), { role: "user", content: job.message }], signal: AbortSignal.timeout(60_000),
         });
       } catch (err) {
@@ -121,15 +142,25 @@ await Promise.all(
       // Judged as the page would see it: the same detector, reader and cleaners.
       const ordered = hasWorldOrder(out);
       const ok = !out.startsWith("ERROR") && (job.expect === "chat" ? !ordered : ordered && job.expect(readWorldReply(out).ops));
-      rows.push({ ...job, ok, ms: performance.now() - t0, out });
+      rows.push({ ...job, ok, ms: performance.now() - t0, out, route: routed?.route, via: routed?.via, jevMs });
     }
   }),
 );
 
-for (const set of [...new Set(jobs.map((j) => j.set))]) {
+for (const set of routeOnly ? [] : [...new Set(jobs.map((j) => j.set))]) {
   const group = rows.filter((r) => r.set === set);
   const times = group.map((r) => r.ms).sort((a, b) => a - b);
   console.log(`${model} ${set}: ${group.filter((r) => r.ok).length}/${group.length}, median ${(times[times.length >> 1] / 1000).toFixed(1)} s, max ${(times[times.length - 1] / 1000).toFixed(1)} s`);
   for (const r of group.filter((x) => !x.ok)) console.log(`  MISS ${JSON.stringify(r.message)} -> ${JSON.stringify(r.out.slice(0, 160))}`);
 }
-process.exit(rows.every((r) => r.ok) ? 0 : 1);
+let routeOk = true;
+if (useJev) {
+  // Chat belongs on Hydrogen ("anthony"), orders on Carbon ("jelly"). No-scene cases skip Jev by design.
+  const judged = rows.filter((r) => r.via !== "no-world");
+  const wrong = judged.filter((r) => r.route !== (r.expect === "chat" ? "anthony" : "jelly"));
+  const times = judged.map((r) => r.jevMs ?? 0).sort((a, b) => a - b);
+  console.log(`jev routing: ${judged.length - wrong.length}/${judged.length}, median ${Math.round(times[times.length >> 1])} ms, max ${Math.round(times[times.length - 1])} ms`);
+  for (const r of wrong) console.log(`  MISROUTE ${JSON.stringify(r.message)} -> ${r.route ?? r.via}`);
+  routeOk = wrong.length === 0;
+}
+process.exit(rows.every((r) => r.ok) && routeOk ? 0 : 1);
