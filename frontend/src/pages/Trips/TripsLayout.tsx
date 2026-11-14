@@ -2,10 +2,11 @@ import { Suspense, useEffect, useState, type ReactNode } from "react"
 import { OverlayBoundary } from "@/components/OverlayBoundary"
 import { lazyRetry } from "@/lib/lazyRetry"
 import { Link, Outlet, useLocation } from "react-router-dom"
-import { ArrowLeft, Lock, Plus } from "lucide-react"
-import { SignedIn, SignedOut, SignInButton, UserButton, useAuth } from "@clerk/clerk-react"
+import { ArrowLeft, Lock, Plus, RotateCw } from "lucide-react"
+import { SignedIn, SignedOut, SignInButton, UserButton, useAuth, useClerk } from "@clerk/clerk-react"
 import { sx } from "@/styles/merge"
 import { CLERK_ENABLED } from "@/lib/clerk"
+import { useAuthStall, type StallCause } from "@/lib/authStall"
 import { ThemeToggle } from "../Korea/ThemeToggle"
 import { applyTheme, getInitialTheme } from "../Korea/koreaUtils"
 import { a } from "./atlas.stylex"
@@ -21,9 +22,53 @@ function TripsAuthGate({ children }: { children: ReactNode }) {
   return <ClerkTripsGate>{children}</ClerkTripsGate>
 }
 
+const stallCopy: Record<StallCause, { title: string; body: string }> = {
+  offline: {
+    title: "You are offline",
+    body: "Trips needs a connection to sign you in. It will carry on by itself once you are back online.",
+  },
+  site: {
+    title: "anthonyl.im is not answering",
+    body: "The connection to this site dropped. This page keeps trying and will carry on by itself.",
+  },
+  auth: {
+    title: "Sign-in is not loading",
+    body: "Your network may be blocking the sign-in service. This page keeps trying and will carry on by itself; another network or turning off Wi-Fi filtering usually gets through.",
+  },
+}
+
+/** True once Clerk reports that it could not load. */
+function useClerkFailed(): boolean {
+  const clerk = useClerk()
+  const [failed, setFailed] = useState(clerk.status === "error")
+  useEffect(() => {
+    const onStatus = (status: string) => setFailed(status === "error")
+    clerk.on("status", onStatus, { notify: true })
+    return () => clerk.off("status", onStatus)
+  }, [clerk])
+  return failed
+}
+
 function ClerkTripsGate({ children }: { children: ReactNode }) {
   const { isLoaded } = useAuth()
+  const { stalled, cause } = useAuthStall(isLoaded, useClerkFailed())
   if (!isLoaded) {
+    if (stalled && cause) {
+      const copy = stallCopy[cause]
+      return (
+        <div {...sx(s.gate)} role="status" aria-live="polite">
+          <div {...sx(s.gateInner)}>
+            <CompassMark size={40} />
+            <h1 {...sx(a.display, s.gateTitle)}>{copy.title}</h1>
+            <p {...sx(a.body)}>{copy.body}</p>
+            <button type="button" {...sx(a.btn, a.btnPrimary)} onClick={() => window.location.reload()}>
+              <RotateCw size={16} strokeWidth={1.75} aria-hidden />
+              Try again
+            </button>
+          </div>
+        </div>
+      )
+    }
     return (
       <div {...sx(s.gate)} role="status" aria-label="Checking sign-in">
         <span {...sx(a.eyebrow)}>Loading…</span>
