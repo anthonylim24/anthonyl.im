@@ -37,10 +37,12 @@ export const STORAGE_KEYS = {
   USER_PREFERENCES: 'breathwork-user-preferences',
   GAMIFICATION: 'breathwork-gamification',
   SETTINGS: 'breathwork-settings',
+  PRACTICE: 'breathwork-practice',
 }
 
 export const BREATHFLOW_STORAGE_KEYS = [
   STORAGE_KEYS.SESSION_HISTORY,
   STORAGE_KEYS.GAMIFICATION,
   STORAGE_KEYS.SETTINGS,
+  STORAGE_KEYS.PRACTICE,
 ] as const

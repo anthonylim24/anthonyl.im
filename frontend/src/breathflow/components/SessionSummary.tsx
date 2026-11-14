@@ -71,7 +71,8 @@ const styles = stylex.create({
     gap: '0.5rem',
     paddingInline: '0.9rem',
     minHeight: '2.25rem',
-    borderRadius: '999px',
+    paddingBlock: '0.4rem',
+    borderRadius: '1.25rem',
     fontSize: '0.875rem',
     fontWeight: 500,
     color: 'var(--bw-text)',
@@ -109,10 +110,23 @@ const styles = stylex.create({
   },
 })
 
+/** What finishing this session did to the journey it belongs to. */
+export interface JourneyOutcome {
+  name: string
+  /** 1-based day just finished. */
+  day: number
+  total: number
+  /** This was the journey's last step. */
+  finished: boolean
+  /** Title of the step that comes next, or null when none is left. */
+  next: string | null
+}
+
 interface SessionSummaryProps {
   protocol: BreathingProtocol
   result: CompletionResult
   insight: SessionInsight
+  journey: JourneyOutcome | null
   pigment: Pigment
   moodAfter: MoodValue | undefined
   onMoodAfter: (value: MoodValue | undefined) => void
@@ -138,6 +152,7 @@ export function SessionSummary({
   protocol,
   result,
   insight,
+  journey,
   pigment,
   moodAfter,
   onMoodAfter,
@@ -171,6 +186,14 @@ export function SessionSummary({
         {hasHolds && <Stat label="Average hold" value={`${session.avgHoldTime}s`} />}
         {result.streak > 1 && <Stat label="Streak" value={`${result.streak} days`} />}
       </motion.dl>
+
+      {journey && (
+        <motion.p {...rise(0.4)} {...sx(styles.pb)}>
+          {journey.finished
+            ? `${journey.name} complete`
+            : `${journey.name}: day ${journey.day} of ${journey.total} done${journey.next ? `. Next, ${journey.next}` : ''}`}
+        </motion.p>
+      )}
 
       {result.isPersonalBest && (
         <motion.p {...rise(0.42)} {...sx(styles.pb)}>

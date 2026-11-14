@@ -17,6 +17,8 @@ export interface CompletionInput {
   /** Actual held seconds per hold phase, from the session engine. */
   holdTimes: readonly number[]
   moodBefore?: MoodValue
+  /** This session finishes a journey (for the Wayfinder badge). */
+  journeyFinished?: boolean
   /** Test seam. */
   now?: Date
 }
@@ -79,6 +81,7 @@ export function completeSession(input: CompletionInput): CompletionResult {
     completedSession: session,
     streak,
     earnedBadgeIds: useGamificationStore.getState().earnedBadges,
+    journeyFinished: input.journeyFinished,
   })
   if (newBadgeIds.length > 0) {
     gamification.unlockBadges(newBadgeIds)

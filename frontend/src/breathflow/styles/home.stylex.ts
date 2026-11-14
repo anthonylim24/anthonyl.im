@@ -304,6 +304,37 @@ export const home = stylex.create({
     backgroundColor: 'color-mix(in srgb, var(--bf-mass) 70%, transparent)',
     boxShadow: 'none',
   },
+  goal: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  goalRing: {
+    width: '2.5rem',
+    height: '2.5rem',
+    flexShrink: 0,
+  },
+  goalTrack: {
+    stroke: 'color-mix(in srgb, var(--bw-text) 12%, transparent)',
+  },
+  goalFill: {
+    stroke: 'color-mix(in srgb, var(--bf-mass) 78%, transparent)',
+    transitionProperty: 'stroke-dasharray',
+    transitionDuration: '600ms',
+    transitionTimingFunction: 'cubic-bezier(0.22, 1, 0.36, 1)',
+    '@media (prefers-reduced-motion: reduce)': { transitionDuration: '0s' },
+  },
+  goalText: {
+    display: 'flex',
+    flexDirection: 'column',
+    lineHeight: 1.2,
+  },
+  goalFigure: {
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    fontVariantNumeric: 'lining-nums tabular-nums',
+    color: 'var(--bw-text)',
+  },
   weekLabel: {
     fontSize: '10px',
     color: 'var(--bw-text-tertiary)',

@@ -23,6 +23,7 @@ export const BADGES: readonly BadgeDefinition[] = [
   { id: 'protocol_sampler', name: 'Sampler', description: 'Try 4 different techniques' },
   { id: 'resonance_keeper', name: 'Resonance Keeper', description: 'Complete 30 Resonance sessions' },
   { id: 'sleep_ritual', name: 'Sleep Ritual', description: 'Complete 20 sessions of 4-7-8' },
+  { id: 'journey_complete', name: 'Wayfinder', description: 'Finish a journey' },
   { id: 'night_owl', name: 'Night Owl', description: 'Practice between 10pm and 4am', secret: true },
   { id: 'early_bird', name: 'Early Bird', description: 'Practice between 5am and 7am', secret: true },
   { id: 'marathon', name: 'Marathon', description: 'Complete a session of 30 minutes or more', secret: true },
@@ -36,6 +37,8 @@ export interface BadgeCheckContext {
   /** Current consecutive-local-day streak (including today). */
   streak: number
   earnedBadgeIds: readonly string[]
+  /** This session was the last step of a journey. */
+  journeyFinished?: boolean
 }
 
 function countByTechnique(sessions: readonly CompletedSession[], techniqueId: TechniqueId): number {
@@ -70,6 +73,7 @@ export function checkBadgeUnlocks(ctx: BadgeCheckContext): string[] {
     protocol_sampler: distinctTechniques >= 4,
     resonance_keeper: countByTechnique(sessions, TECHNIQUE_IDS.RESONANCE_BREATHING) >= 30,
     sleep_ritual: countByTechnique(sessions, TECHNIQUE_IDS.FOUR_SEVEN_EIGHT) >= 20,
+    journey_complete: ctx.journeyFinished === true,
     night_owl: hour !== null && (hour >= 22 || hour < 4),
     early_bird: hour !== null && hour >= 5 && hour < 7,
     marathon: completedSession.durationSeconds >= 1800,

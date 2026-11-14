@@ -17,6 +17,7 @@ import { PHASE_LABELS, TECHNIQUE_IDS } from '@/lib/constants'
 import type { MoodValue } from '@/lib/mood'
 import { useGamificationStore } from '@/stores/gamificationStore'
 import { useHistoryStore } from '@/stores/historyStore'
+import { usePracticeStore } from '@/stores/practiceStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { playCue } from '../engine/audio'
 import { phaseHaptic, vibrate } from '../engine/haptics'
@@ -27,6 +28,7 @@ import { phasePhrase, speak, stopSpeaking } from '../engine/voice'
 import { levelForXP } from '../gamify/levels'
 import { buildSessionInsight, type SessionInsight } from '../gamify/insights'
 import { resolveOrbTheme } from '../gamify/orbThemes'
+import { getJourney, nextStepIndex } from '../journeys/catalog'
 import { useConstrainedViewport } from '../platform/constrainedViewport'
 import { useReducedMotion } from '../platform/useReducedMotion'
 import { useScrollLock } from '../platform/useScrollLock'
@@ -51,7 +53,7 @@ import { MoodPicker } from '../components/MoodPicker'
 import { PaintSplash } from '../components/PaintSplash'
 import { PhaseStrip } from '../components/PhaseStrip'
 import { SafetyChecklist } from '../components/SafetyChecklist'
-import { SessionSummary } from '../components/SessionSummary'
+import { SessionSummary, type JourneyOutcome } from '../components/SessionSummary'
 import { btn } from '../components/buttonStyles.stylex'
 import { sx } from '@/styles/merge'
 import { bf } from '../styles/breathflow.stylex'
@@ -77,6 +79,7 @@ interface SummaryState {
   result: CompletionResult
   insight: SessionInsight
   protocol: BreathingProtocol
+  journey: JourneyOutcome | null
 }
 
 export function SessionPage() {
@@ -87,6 +90,8 @@ export function SessionPage() {
   const protocol = getProtocol(params.techniqueId)
   const rounds = params.rounds
   const customDurations = params.customDurations
+  const journeyRef = params.journey
+  const journey = journeyRef ? getJourney(journeyRef.id) : null
   const advanced = isAdvancedProtocol(protocol)
 
   const [moodBefore, setMoodBefore] = useState<MoodValue | undefined>(undefined)
@@ -173,6 +178,21 @@ export function SessionPage() {
           playCue('complete', audio)
           speak(event.roundsCompleted < rounds ? 'Session ended' : 'Session complete', voice)
 
+          let journeyOutcome: JourneyOutcome | null = null
+          if (journey && journeyRef) {
+            const practice = usePracticeStore.getState()
+            const finished = practice.completeJourneyStep(journeyRef.id, journeyRef.step)
+            const done = usePracticeStore.getState().journeys[journeyRef.id]?.done ?? []
+            const next = nextStepIndex(journey, done)
+            journeyOutcome = {
+              name: journey.name,
+              day: journeyRef.step + 1,
+              total: journey.steps.length,
+              finished,
+              next: next === null ? null : journey.steps[next].title,
+            }
+          }
+
           const result = completeSession({
             techniqueId: protocol.id,
             rounds: event.roundsCompleted,
@@ -180,6 +200,7 @@ export function SessionPage() {
             customDurations,
             holdTimes: event.holdTimes,
             moodBefore,
+            journeyFinished: journeyOutcome?.finished === true,
           })
           const insight = buildSessionInsight({
             protocol,
@@ -190,7 +211,7 @@ export function SessionPage() {
             newBadgeCount: result.newBadgeIds.length,
           })
           vibrate(result.isPersonalBest || result.newBadgeIds.length > 0 ? 'celebration' : 'success', haptics)
-          setSummary({ result, insight, protocol })
+          setSummary({ result, insight, protocol, journey: journeyOutcome })
           setAnnouncement(
             event.roundsCompleted < rounds
               ? `Ended early. ${protocol.name}, ${event.roundsCompleted} of ${rounds} rounds kept. ${result.xpEarned} XP earned.`
@@ -200,7 +221,7 @@ export function SessionPage() {
         }
       }
     },
-    [protocol, rounds, customDurations, moodBefore],
+    [protocol, rounds, customDurations, moodBefore, journey, journeyRef],
   )
 
   const engine = useSessionEngine(engineConfig, handleEngineEvent)
@@ -268,6 +289,8 @@ export function SessionPage() {
       customDurations: isSwitch
         ? undefined
         : ('customDurations' in next ? next.customDurations : customDurations),
+      // A journey step is a technique; choosing another one leaves the journey.
+      journey: isSwitch ? undefined : journeyRef,
     })
     navigate(`/breathwork/session?${search}`, { replace: true })
     if (isSwitch) setCheckedSafety(new Set())
@@ -303,13 +326,14 @@ export function SessionPage() {
         <div {...sx(ss.summaryWrap)}>
           <PaintSplash
             pigment={pigment}
-            big={summary.result.isPersonalBest || summary.result.newBadgeIds.length > 0}
+            big={summary.result.isPersonalBest || summary.result.newBadgeIds.length > 0 || summary.journey?.finished === true}
             reducedMotion={reducedMotion}
           />
           <SessionSummary
             protocol={summary.protocol}
             result={summary.result}
             insight={summary.insight}
+            journey={summary.journey}
             pigment={pigment}
             moodAfter={moodAfter}
             onMoodAfter={handleMoodAfter}
@@ -357,6 +381,10 @@ export function SessionPage() {
             onStart={handleStart}
             reducedMotion={reducedMotion}
             pigment={pigment}
+            journeyLabel={journey && journeyRef
+              ? `${journey.name} · day ${journeyRef.step + 1} of ${journey.steps.length}`
+              : null}
+            journeyNote={journey && journeyRef ? journey.steps[journeyRef.step].note : null}
           />
         </div>
       )}
@@ -388,6 +416,9 @@ interface SessionSetupProps {
   onStart: () => void
   reducedMotion: boolean
   pigment: Pigment
+  /** "First week · day 3 of 7" when this session is a journey step. */
+  journeyLabel: string | null
+  journeyNote: string | null
 }
 
 function SessionSetup({
@@ -406,6 +437,8 @@ function SessionSetup({
   onStart,
   reducedMotion,
   pigment,
+  journeyLabel,
+  journeyNote,
 }: SessionSetupProps) {
   const maxRounds = getMaxRounds(protocol)
   const planned = plannedSessionSeconds(protocol, rounds, customDurations)
@@ -446,8 +479,9 @@ function SessionSetup({
         </div>
 
         <div {...sx(ss.setupPanel)}>
-        <p {...sx(wc.eyebrow)}>Choose a breath</p>
+        <p {...sx(wc.eyebrow)}>{journeyLabel ?? 'Choose a breath'}</p>
         <h1 {...sx('bf-display', wc.pageTitle, ss.setupTitle)}>Breathe</h1>
+        {journeyNote && <p {...sx(wc.lede, bf.mt3)}>{journeyNote}</p>}
 
         {/* Technique switch */}
         <LayoutGroup id="session-technique">

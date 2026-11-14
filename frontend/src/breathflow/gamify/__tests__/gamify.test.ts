@@ -74,12 +74,13 @@ describe('levels', () => {
 })
 
 describe('badges', () => {
-  it('defines exactly the fifteen persisted badge ids', () => {
+  it('defines exactly the sixteen persisted badge ids', () => {
     expect(BADGES.map((b) => b.id)).toEqual([
       'first_session', 'streak_7', 'streak_30', 'sessions_100',
       'hour_total', 'ten_hours',
       'box_master', 'co2_explorer', 'power_adept',
       'protocol_sampler', 'resonance_keeper', 'sleep_ritual',
+      'journey_complete',
       'night_owl', 'early_bird', 'marathon',
     ])
     expect(BADGES.filter((b) => b.secret).map((b) => b.id)).toEqual([
