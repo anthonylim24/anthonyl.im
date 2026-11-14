@@ -390,10 +390,9 @@ const spaShell = async (c: Context) => {
   return c.html(withMeta);
 };
 // Plain HTML, readable without JavaScript, because Google's OAuth branding
-// review fetches these URLs and does not run the SPA. Registered ahead of
-// serveStatic, which would otherwise answer "/" with the raw index.html.
+// review fetches these URLs and does not run the SPA.
 const staticPages: Record<string, string> = {
-  "/": "home.html",
+  "/home": "home.html",
   "/privacy": "privacy.html",
   "/terms": "terms.html",
 };
@@ -403,7 +402,14 @@ for (const [path, file] of Object.entries(staticPages)) {
     return c.html(await Bun.file(join(distPath, file)).text());
   });
 }
+// "/" is Lim. Registered ahead of serveStatic, which would otherwise answer
+// it with the raw index.html (no preview meta, no no-store).
+app.get("/", spaShell);
 app.use("*", serveStatic({ root: distPath }));
+
+// Lim used to live at /chatbot; it is the home page now.
+app.get("/chatbot", (c) => c.redirect("/", 301));
+app.get("/chatbot/", (c) => c.redirect("/", 301));
 
 // Legacy Korea dossier URLs fold into the seeded trip.
 app.get("/korea", (c) => c.redirect("/trips/korea-2026", 301));

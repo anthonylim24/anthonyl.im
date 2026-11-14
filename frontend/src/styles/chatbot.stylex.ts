@@ -1,7 +1,7 @@
 import * as stylex from '@stylexjs/stylex'
 
 /*
- * Chatbot (`/chatbot`) — Lim, the jelly companion. Tokens live on
+ * Chatbot (`/`) — Lim, the jelly companion. Tokens live on
  * `.chatbot-shadow` / `.chatbot-dark` in chat/chat.css. Fredoka (wdth/wght)
  * for display, Inter for reading. Lim coral is the only accent.
  */
@@ -228,10 +228,6 @@ export const chatbot = stylex.create({
   iconButtonLabel: {
     display: { default: 'none', '@media (min-width: 560px)': 'inline' },
   },
-  homeLink: {
-    color: 'var(--chat-mid)',
-  },
-
   // ── Stage ────────────────────────────────────────────────────────
   stageArea: {
     gridArea: 'stage',

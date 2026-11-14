@@ -1,6 +1,6 @@
-import { Suspense, useEffect, type ReactNode } from 'react'
+import { Suspense, type ReactNode } from 'react'
 import { lazyRetry } from './lib/lazyRetry'
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Landing } from './pages/Landing/Landing'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 import { routerBasename } from './lib/routerBasename'
@@ -8,7 +8,7 @@ import { sx } from './lib/utils'
 import { routeFallback } from './styles/chatbot.stylex'
 
 // The chatbot lived at `/` until the lab landing page took the root; it is
-// now `/chatbot` only, so it loads lazily like every other app.
+// now `/` only, so it loads lazily like every other app.
 const App = lazyRetry(() => import('./App'))
 const AuthPage = lazyRetry(() =>
   import('./pages/Auth/AuthPage').then((module) => ({ default: module.AuthPage })),
@@ -76,15 +76,6 @@ const TripsNotFound = lazyRetry(() =>
   import('./pages/Trips/TripsNotFound').then((module) => ({ default: module.TripsNotFound })),
 )
 
-// "/" is a static page the server sends (public/home.html). An in-app link to
-// it reloads the document so the browser gets that page, not an empty route.
-function ServerPage() {
-  useEffect(() => {
-    window.location.reload()
-  }, [])
-  return null
-}
-
 // Route-aware skeletons so a lazy chunk that's still streaming (or hung on a
 // stale SW transition) shows recognizable parchment instead of a blank canvas
 // the user reads as "site is down."
@@ -150,7 +141,14 @@ export function AppRoutes() {
   return (
     <BrowserRouter basename={routerBasename()}>
       <Routes>
-        <Route path="/" element={<ServerPage />} />
+        <Route
+          path="/"
+          element={
+            <Guarded app="chatbot" fallback={<ChatbotFallback />}>
+              <App />
+            </Guarded>
+          }
+        />
         <Route
           path="/lab"
           element={
@@ -159,14 +157,7 @@ export function AppRoutes() {
             </Guarded>
           }
         />
-        <Route
-          path="/chatbot"
-          element={
-            <Guarded app="chatbot" fallback={<ChatbotFallback />}>
-              <App />
-            </Guarded>
-          }
-        />
+        <Route path="/chatbot" element={<Navigate to="/" replace />} />
 
         <Route
           path="/breathwork"

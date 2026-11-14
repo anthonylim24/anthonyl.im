@@ -13,11 +13,8 @@ export function SiteNotFound() {
         The address does not match a page on anthonyl.im.
       </p>
       <div {...sx(siteNotFound.actions)}>
-        <Link to="/chatbot" {...sx(siteNotFound.primaryLink)}>
+        <Link to="/" {...sx(siteNotFound.primaryLink)}>
           Ask Anthony
-        </Link>
-        <Link to="/" {...sx(siteNotFound.secondaryLink)}>
-          Home
         </Link>
         <Link to="/breathwork" {...sx(siteNotFound.secondaryLink)}>
           BreathFlow

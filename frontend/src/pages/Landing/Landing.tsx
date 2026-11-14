@@ -116,7 +116,7 @@ function Nav() {
           <a href="#careers" {...sx(nav.link, nav.secondary)}>
             Careers
           </a>
-          <Link to="/chatbot" {...sx(btn.base, btn.primary, btn.small)}>
+          <Link to="/" {...sx(btn.base, btn.primary, btn.small)}>
             Talk to Lim
           </Link>
           <button
@@ -191,7 +191,7 @@ function Hero() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, ease: EASE, delay: 0.52 }}
         >
-          <Link to="/chatbot" {...sx(btn.base, btn.primary)}>
+          <Link to="/" {...sx(btn.base, btn.primary)}>
             Talk to Lim <ArrowRight size={16} aria-hidden="true" {...sx(btn.arrow)} />
           </Link>
           <a href="#research" {...sx(btn.base, btn.ghost)}>
@@ -609,7 +609,7 @@ function Company() {
                 </li>
               ))}
             </ul>
-            <Link to="/chatbot" {...sx(btn.base, btn.ghost, sec.rolesCta)}>
+            <Link to="/" {...sx(btn.base, btn.ghost, sec.rolesCta)}>
               Ask Lim about the team <ArrowRight size={16} aria-hidden="true" {...sx(btn.arrow)} />
             </Link>
           </div>
@@ -640,7 +640,7 @@ function Closing() {
           </span>
         </h2>
         <div {...sx(hero.ctas, sec.closingCtas)}>
-          <Link to="/chatbot" {...sx(btn.base, btn.primary)}>
+          <Link to="/" {...sx(btn.base, btn.primary)}>
             Talk to Lim <ArrowRight size={16} aria-hidden="true" {...sx(btn.arrow)} />
           </Link>
           <a href="#platform" {...sx(btn.base, btn.ghostOnInk)}>

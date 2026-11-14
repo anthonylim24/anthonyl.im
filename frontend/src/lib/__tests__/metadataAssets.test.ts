@@ -116,7 +116,7 @@ describe('metadata assets', () => {
 
     for (const route of [
       '/',
-      '/chatbot',
+      '/home',
       '/breathwork',
       '/breathwork/session',
       '/breathwork/progress',
