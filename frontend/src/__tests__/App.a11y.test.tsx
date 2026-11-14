@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import App from '../App'
@@ -29,5 +29,25 @@ describe('chatbot accessibility', () => {
     expect(screen.getByRole('button', { name: 'Send message' })).toHaveAttribute('aria-disabled', 'true')
     expect(screen.getByRole('button', { name: 'New chat' })).toBeInTheDocument()
     expect(screen.getByRole('status')).toBeInTheDocument()
+  })
+
+  it('lets the visitor resize Lim\'s stage from the keyboard and remembers it', () => {
+    localStorage.removeItem('lim-stage')
+    render(
+      <MemoryRouter>
+        <App />
+      </MemoryRouter>,
+    )
+
+    const grip = screen.getByRole('separator', { name: "Resize Lim's stage" })
+    expect(grip).toHaveAttribute('aria-valuenow', '50')
+    fireEvent.keyDown(grip, { key: 'ArrowDown' })
+    expect(grip).toHaveAttribute('aria-valuenow', '55')
+    expect(localStorage.getItem('lim-stage')).toBe('0.550')
+    fireEvent.keyDown(grip, { key: 'Enter' })
+    expect(grip).toHaveAttribute('aria-valuenow', '68')
+    fireEvent.keyDown(grip, { key: 'Enter' })
+    expect(grip).toHaveAttribute('aria-valuenow', '50')
+    expect(localStorage.getItem('lim-stage')).toBeNull()
   })
 })
