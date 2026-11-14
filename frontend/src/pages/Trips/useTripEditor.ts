@@ -33,7 +33,7 @@ export interface DeletedItem {
   index: number
 }
 
-export function useTripEditor() {
+export function useTripEditor({ undoHeld = false }: { undoHeld?: boolean } = {}) {
   const { tripId } = useParams<{ tripId: string }>()
   const routerLocation = useLocation()
   const reduce = useReducedMotion()
@@ -66,6 +66,17 @@ export function useTripEditor() {
   const editedRef = useRef(false)
   const tripRef = useRef<Trip | null>(null)
   tripRef.current = trip
+  /** False once this editor is unmounted: a late AI answer must not land. */
+  const aliveRef = useRef(true)
+  /** The document an AI run last put in place, so its changes aren't read as the traveller's. */
+  const aiTripRef = useRef<Trip | null>(null)
+
+  useEffect(() => {
+    aliveRef.current = true
+    return () => {
+      aliveRef.current = false
+    }
+  }, [])
 
   useEffect(() => {
     if (!tripId) return
@@ -175,8 +186,11 @@ export function useTripEditor() {
       clearTimeout(saveTimer.current)
       saveTimer.current = null
     }
+    // Nothing unsaved: don't PUT (a viewer can't, and a stale copy must not
+    // overwrite the server). Just let a save already on its way finish.
+    const unsaved = pendingPatchRef.current !== null || editedRef.current
     const latest = tripRef.current ?? pendingPatchRef.current
-    if (latest) {
+    if (unsaved && latest) {
       pendingPatchRef.current = latest
       try {
         await persistTrip(latest)
@@ -297,6 +311,12 @@ export function useTripEditor() {
     restoreScrollRef.current = null
   })
 
+  /** Put an AI-made document in place: saved already, and not the traveller's own edit. */
+  const setAiTrip = useCallback((next: Trip) => {
+    aiTripRef.current = next
+    setTrip(next)
+  }, [])
+
   const runEnhance = useCallback(
     async (scope: "day" | "trip", dayId?: string, prompt?: string) => {
       if (!tripDocId) return
@@ -304,6 +324,7 @@ export function useTripEditor() {
       setActiveRun(null)
       try {
         await flushPendingSave()
+        if (!aliveRef.current) return
         const { run, trip: refreshed, applied, error } = await enhanceTrip(
           readToken,
           tripDocId,
@@ -311,9 +332,10 @@ export function useTripEditor() {
           dayId,
           prompt,
         )
+        if (!aliveRef.current) return
         cancelPendingSave()
         holdScroll()
-        if (refreshed) setTrip(refreshed)
+        if (refreshed) setAiTrip(refreshed)
         setSaveState("saved")
         setActiveRun(run)
         const addedIds = new Set<string>()
@@ -331,6 +353,7 @@ export function useTripEditor() {
           setNotice(run.outcomeReason)
         }
       } catch (err) {
+        if (!aliveRef.current) return
         const message = errorText(err)
         setNotice(
           message.startsWith("Couldn’t save your latest edits")
@@ -341,7 +364,7 @@ export function useTripEditor() {
         setEnhancingTarget(null)
       }
     },
-    [tripDocId, cancelPendingSave, flashTouched, flushPendingSave, holdScroll],
+    [tripDocId, cancelPendingSave, flashTouched, flushPendingSave, holdScroll, setAiTrip],
   )
 
   const applyRun = useCallback(
@@ -350,12 +373,14 @@ export function useTripEditor() {
       setEnhancingTarget("apply")
       try {
         await flushPendingSave()
+        if (!aliveRef.current) return
         const { trip: next, applied, skipped } = await applySuggestions(
           readToken,
           tripDocId,
           activeRun.id,
           suggestionIds,
         )
+        if (!aliveRef.current) return
         cancelPendingSave()
         const touched = new Set<string>()
         for (const id of applied) {
@@ -363,13 +388,14 @@ export function useTripEditor() {
           const target = s?.proposedItem?.id ?? s?.itemId
           if (target && (s?.kind === "add" || s?.kind === "edit")) touched.add(target)
         }
-        setTrip(next)
+        setAiTrip(next)
         setActiveRun(null)
         setSaveState("saved")
         flashTouched(touched)
         const skipNote = skipped.length > 0 ? ` ${skipped.length} could not be applied.` : ""
         setNotice(`Applied ${applied.length} suggestion${applied.length === 1 ? "" : "s"}.${skipNote}`)
       } catch (err) {
+        if (!aliveRef.current) return
         const message = errorText(err)
         setNotice(
           message.startsWith("Couldn’t save your latest edits")
@@ -380,7 +406,7 @@ export function useTripEditor() {
         setEnhancingTarget(null)
       }
     },
-    [tripDocId, activeRun, cancelPendingSave, flashTouched, flushPendingSave],
+    [tripDocId, activeRun, cancelPendingSave, flashTouched, flushPendingSave, setAiTrip],
   )
 
   const applyActiveRun = useCallback((ids: string[]) => void applyRun(ids), [applyRun])
@@ -404,11 +430,14 @@ export function useTripEditor() {
     setDeleted(null)
   }, [deleted, setDays])
 
+  // The Undo window doesn't run down during an AI run: editing is locked, so
+  // Undo can't be pressed until it ends. `undoHeld` covers the workspace's own run (a draft).
+  const undoWaiting = undoHeld || enhancingTarget !== null
   useEffect(() => {
-    if (!deleted) return
+    if (!deleted || undoWaiting) return
     const timer = setTimeout(() => setDeleted(null), UNDO_WINDOW_MS)
     return () => clearTimeout(timer)
-  }, [deleted])
+  }, [deleted, undoWaiting])
 
   useEffect(
     () => () => {
@@ -449,6 +478,9 @@ export function useTripEditor() {
     flushPendingSave,
     flashTouched,
     setTrip,
+    setAiTrip,
+    aiTripRef,
+    aliveRef,
     setSaveState,
     runEnhance,
     applyActiveRun,

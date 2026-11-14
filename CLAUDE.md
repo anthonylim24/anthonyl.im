@@ -690,6 +690,7 @@ Radius `0.875rem` (`-sm` `0.625rem`, `-lg` `1.375rem`); shadows `--trips-shadow-
 6. **Portals** go through `kit.tsx` `Modal`, which re-declares the token scope (`.trips.trips-portal`).
 7. **The photoreal 3D view must unmount** when closed (never React `Activity`).
 8. **Brand for chrome, trip accent for identity.** Never tint focus rings, AI actions, switches or links with `--ta*`.
+9. **One state, one owner.** The workspace remounts per trip (`key={tripId}`); day-scoped overlays reset when the day changes; async results (AI runs, chat writes, duplicates) are dropped once their trip or component is gone; editing is locked while an AI run is in flight; concierge writes to the itinerary are serialised. Model a mode as one union (`status`, `mutation`, `action`), not several booleans.
 
 ---
 
@@ -701,6 +702,9 @@ The installable PWA is Korea-scoped (`korea.webmanifest`, `CACHE_VERSION = korea
 - **SPA HTML** served with `no-cache, no-store, must-revalidate`
 - **`/assets/*`** content-hashed bundles served with `public, max-age=31536000, immutable`
 - **`CACHE_VERSION`** in `sw.js` MUST be bumped on every SW-behavior change
+- **A missing `/assets/*` file is a 404**, never the SPA shell (`server/app.ts`; HTML served as JavaScript breaks lazy imports and gets cached by the SW)
+- **Deploys keep earlier builds' hashed chunks for 14 days** (`deploy.yml` copies the live `dist/assets` into the staged build), so a tab left open across a deploy can still lazy-load
+- **Lazy components go through `lazyRetry`** (`lib/lazyRetry.ts`: one retry). A route chunk that is gone reloads the page once (`RouteErrorBoundary`); an optional overlay (3D view, Instagram sheet, concierge) sits in an `OverlayBoundary`, so its failure closes only the overlay and offers Reload
 - The client (`serviceWorker.ts`) posts `SKIP_WAITING` and reloads on `controllerchange` — gives users seamless updates without a manual hard refresh
 
 ---

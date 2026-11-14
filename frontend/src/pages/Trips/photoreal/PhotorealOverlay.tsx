@@ -81,6 +81,9 @@ function locate(): Promise<LngLat> {
   })
 }
 
+/** `empty`: no located stop to stand on yet. `failed`: the engine gave up and has been disposed. */
+type ViewStatus = "empty" | "loading" | "ready" | "failed"
+
 export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, onClose, onEditStop }: PhotorealOverlayProps) {
   const stops = useMemo(() => dayStops(day), [day])
   // Places parked under "To schedule" (Instagram imports, mostly): on the map, off the route.
@@ -93,12 +96,13 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
   const title = day.title || city || trip.name
   const eyebrow = [`Day ${dayNumber}`, formatTripDate(day.date, trip.timezone).replace(",", ""), day.title && city ? city : ""].filter(Boolean).join(" · ")
 
-  const [status, setStatus] = useState<"loading" | "ready" | "failed">(stops.length + parked.length ? "loading" : "failed")
+  const located = stops.length + parked.length > 0
+  const [status, setStatus] = useState<ViewStatus>(located ? "loading" : "empty")
   const [failReason, setFailReason] = useState("")
   const [selectedId, setSelectedId] = useState<string | null>(() =>
     [...stops, ...parked].some((s) => s.id === initialStopId) ? initialStopId! : null,
   )
-  const [playing, setPlaying] = useState(false)
+  const [touring, setTouring] = useState(false)
   const [tilted, setTilted] = useState(true)
   const [credit, setCredit] = useState("")
   const [toast, setToast] = useState<string | null>(null)
@@ -114,8 +118,7 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
   const progressRef = useRef<HTMLSpanElement>(null)
   /** How the traveller last acted: decides whether a selection should move keyboard focus. */
   const keyboardRef = useRef(false)
-  const playingRef = useRef(playing)
-  playingRef.current = playing
+  const playingRef = useRef(false)
   const plateRef = useRef<HTMLElement>(null)
   const dockRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
@@ -123,6 +126,9 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
 
   const selectedIndex = selectedId ? stops.findIndex((s) => s.id === selectedId) : -1
   const selected = selectedIndex >= 0 ? stops[selectedIndex]! : ((selectedId && parked.find((s) => s.id === selectedId)) || null)
+  // The tour only ever plays on a stop that is on the route right now.
+  const playing = touring && selectedIndex >= 0
+  playingRef.current = playing
   const sceneStops = useMemo<SceneStop[]>(
     () =>
       [...stops, ...parked].map((s) => ({ id: s.id, label: s.label, title: s.title, lat: s.lat, lng: s.lng, time: s.item.time, parked: s.parked })),
@@ -133,7 +139,7 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
 
   const close = useLatestCallback(onClose)
   const pick = useCallback((id: string | null, keepTour = false) => {
-    if (!keepTour) setPlaying(false)
+    if (!keepTour) setTouring(false)
     setSelectedId(id)
   }, [])
   const step = useCallback(
@@ -144,19 +150,19 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
     [pick, selectedIndex, stops],
   )
   const toggleTour = useCallback(() => {
-    if (playing) return setPlaying(false)
+    if (playing) return setTouring(false)
     const at = tourStart(selectedIndex >= 0 ? selectedIndex : null, stops.length)
     if (at === null) return
     setSelectedId(stops[at]!.id)
-    setPlaying(true)
+    setTouring(true)
   }, [playing, selectedIndex, stops])
   const advanceTour = useCallback(() => {
     const at = tourNext(selectedIndex >= 0 ? selectedIndex : null, stops.length)
-    if (at === null) setPlaying(false)
+    if (at === null) setTouring(false)
     else setSelectedId(stops[at]!.id)
   }, [selectedIndex, stops])
   const fitAll = useCallback(() => {
-    setPlaying(false)
+    setTouring(false)
     setSelectedId(null)
     sceneRef.current?.fitAll()
   }, [])
@@ -176,17 +182,34 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
     }
   }, [])
 
-  // ── The engine: created once per open ────────────────────────────────────
+  // ── The engine: one per open, started once the day has a stop to stand on ──
   useEffect(() => {
     const host = hostRef.current
     const pinLayer = pinRef.current
     const root = rootRef.current
     const first = latest.current
     const anchor = centroid(first.sceneStops)
-    if (!host || !pinLayer || !root || !anchor) return
+    if (!host || !pinLayer || !root || !anchor) {
+      setStatus("empty")
+      return
+    }
+    setStatus("loading")
+    setFailReason("")
     let cancelled = false
     let scene: PhotorealScene | null = null
     let revealTimer = 0
+    // A failed engine is let go at once: no listeners or frames under the failure card.
+    const fail = (reason: string) => {
+      if (cancelled) return
+      cancelled = true
+      window.clearTimeout(revealTimer)
+      scene?.dispose()
+      scene = null
+      sceneRef.current = null
+      setTouring(false)
+      setFailReason(reason)
+      setStatus("failed")
+    }
     const openedAt = performance.now()
     PhotorealScene.create(
       {
@@ -204,18 +227,15 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
         onReady: () => {
           // Hold the veil long enough to read as a moment, never a flash.
           const wait = Math.max(0, VEIL_MIN_MS - (performance.now() - openedAt))
-          revealTimer = window.setTimeout(() => setStatus((s) => (s === "failed" ? s : "ready")), wait)
+          revealTimer = window.setTimeout(() => setStatus((s) => (s === "loading" ? "ready" : s)), wait)
         },
-        onError: (reason) => {
-          setFailReason(reason)
-          setStatus("failed")
-        },
+        onError: fail,
         onYaw: (bearing) => {
           needleRef.current?.setAttribute("transform", `rotate(${((-bearing * 180) / Math.PI).toFixed(2)} 12 12)`)
         },
         onTilt: setTilted,
         onAttribution: setCredit,
-        onInteract: () => setPlaying(false),
+        onInteract: () => setTouring(false),
         onProgress: (progress) => {
           if (progressRef.current) progressRef.current.style.transform = `scaleX(${Math.max(0.06, progress).toFixed(3)})`
         },
@@ -232,9 +252,7 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
         if (now.selectedId !== first.selectedId) created.select(now.selectedId)
         created.setInsets(measure())
       })
-      .catch(() => {
-        if (!cancelled) setStatus("failed")
-      })
+      .catch(() => fail(""))
     return () => {
       cancelled = true
       window.clearTimeout(revealTimer)
@@ -243,7 +261,7 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
     }
     // One engine per open; later changes flow through the effects below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reducedMotion])
+  }, [reducedMotion, located])
 
   useEffect(() => {
     sceneRef.current?.setStops(sceneStops)
@@ -255,7 +273,11 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
     sceneRef.current?.setTheme()
   }, [dark, accent])
   useEffect(() => {
-    if (selectedId && ![...stops, ...parked].some((s) => s.id === selectedId)) setSelectedId(null)
+    // The day can change under the open view: a stop that left takes its selection and the tour with it.
+    if (selectedId && ![...stops, ...parked].some((s) => s.id === selectedId)) {
+      setSelectedId(null)
+      setTouring(false)
+    }
   }, [parked, selectedId, stops])
 
   useEffect(() => {
@@ -383,7 +405,7 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
   const onLocate = () => {
     if (hasUser) return sceneRef.current?.showUser()
     setLocating(true)
-    setPlaying(false)
+    setTouring(false)
     locate()
       .then((user) => showUser(user, true))
       .catch(() => setToast("Couldn’t find your location. Check that location access is allowed for this site."))
@@ -405,7 +427,7 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
   const total = dayMeters(stops)
   const summary = `${plural(stops.length, "stop")}${stops.length > 1 ? ` · ${formatDistance(total)}` : ""}`
   const canTour = !reducedMotion && stops.length > 1
-  const failed = status === "failed"
+  const failed = status === "failed" || status === "empty"
 
   const controls = !failed && (
     <div {...sx(p.controls)} role="group" aria-label="Map controls">
@@ -496,7 +518,7 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
         )}
 
         {failed ? (
-          <Failure eyebrow={eyebrow} stops={[...stops, ...parked]} unavailable={failReason === "unavailable"} onClose={onClose} closeRef={closeRef} />
+          <Failure eyebrow={eyebrow} stops={[...stops, ...parked]} unavailable={failReason === "unavailable"} empty={status === "empty"} onClose={onClose} closeRef={closeRef} />
         ) : wide ? (
           <aside {...sx(p.panel)} aria-label="Stops">
             <header {...sx(p.head)}>
@@ -527,7 +549,7 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
                   stops={stops}
                   photo={photo}
                   playing={playing}
-                  onDirections={() => setPlaying(false)}
+                  onDirections={() => setTouring(false)}
                   onEdit={onEditStop ? () => onEditStop(selected.id) : undefined}
                   onStep={step}
                   onTourEnd={advanceTour}
@@ -692,7 +714,7 @@ export default function PhotorealOverlay({ trip, day, dayNumber, initialStopId, 
                   playing={playing}
                   canTour={canTour}
                   onToggleTour={toggleTour}
-                  onDirections={() => setPlaying(false)}
+                  onDirections={() => setTouring(false)}
                   onEdit={onEditStop ? () => onEditStop(selected.id) : undefined}
                   onStep={step}
                   onTourEnd={advanceTour}
@@ -787,7 +809,7 @@ function useCardFacts(stop: Stop, stops: readonly Stop[]) {
   const { item } = stop
   const leg = stop.parked ? null : legInto(stops, stop.index)
   const Icon = itemIcon(item.kind, item.location?.category, item.reservation?.type)
-  const kind = item.location?.category ? titleCase(item.location.category) : item.kind === "reservation" && item.reservation ? titleCase(item.reservation.type) : ""
+  const kind = item.location?.category ? titleCase(item.location.category) : item.kind === "reservation" && item.reservation?.type ? titleCase(item.reservation.type) : ""
   const maps = externalMapsLink({ name: stop.title, address: item.location?.address, lat: stop.lat, lng: stop.lng })
   return { leg, Icon, kind, maps, when: timeRange(item), count: stops.length }
 }
@@ -1030,6 +1052,7 @@ function Failure({
   eyebrow,
   stops,
   unavailable,
+  empty,
   onClose,
   closeRef,
 }: {
@@ -1037,6 +1060,8 @@ function Failure({
   stops: readonly Stop[]
   /** Google has no 3D imagery for this place, as opposed to the view failing to start. */
   unavailable: boolean
+  /** The day has no pinned stops: nothing failed. */
+  empty: boolean
   onClose: () => void
   closeRef: React.RefObject<HTMLButtonElement | null>
 }) {
@@ -1049,6 +1074,10 @@ function Failure({
             {unavailable ? (
               <>
                 3D imagery <em {...sx(a.italic)}>isn’t available</em> here yet
+              </>
+            ) : empty ? (
+              <>
+                Nothing to <em {...sx(a.italic)}>fly over</em> yet
               </>
             ) : (
               <>

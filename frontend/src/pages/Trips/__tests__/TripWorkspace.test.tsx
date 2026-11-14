@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
-import { MemoryRouter, Route, Routes } from "react-router-dom"
+import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom"
 import type { PlaceResult } from "../geocode"
 import type { AtlasMapProps } from "../map/AtlasMap"
 import type { Trip, TripAccess, TripDay } from "../types"
@@ -111,6 +111,45 @@ function renderWorkspace(path: string, trip: Trip = planned(), access: TripAcces
     </MemoryRouter>,
   )
 }
+
+/** Stands in for the browser's Back / a link elsewhere in the app. */
+function Go({ to }: { to: string }) {
+  const navigate = useNavigate()
+  return (
+    <button type="button" onClick={() => navigate(to)}>
+      Go elsewhere
+    </button>
+  )
+}
+
+function renderWithNav(path: string, to: string, trip: Trip | null = planned()) {
+  if (trip) mockGetTrip.mockResolvedValue({ trip, access: "owner" })
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <Go to={to} />
+      <Routes>
+        <Route path="/trips/:tripId" element={<TripWorkspace />} />
+        <Route path="/trips/:tripId/day/:dayId" element={<TripWorkspace />} />
+      </Routes>
+    </MemoryRouter>,
+  )
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((r) => {
+    resolve = r
+  })
+  return { promise, resolve }
+}
+
+const hotel = makeItem({
+  id: "it-hotel",
+  title: "Pestana Palace",
+  location: { name: "Pestana Palace", lat: 38.7031, lng: -9.1853, category: "hotel", source: "ai" },
+})
+
+const reviewRun = { id: "run-1", tripId: "lisbon", scope: "trip", status: "complete", suggestions: [], appliedSuggestionIds: [], createdAt: "2026-07-01T00:00:00Z" }
 
 const stat = (label: string) => screen.getByText(label, { selector: "dt" }).parentElement
 
@@ -907,6 +946,175 @@ describe("TripWorkspace", () => {
       renderWorkspace("/trips/lisbon", planned({ sharedWithAllUsers: true }))
       fireEvent.click(await screen.findByRole("button", { name: "More trip options" }))
       expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Add places from Instagram", "Trip details", "Duplicate trip"])
+    })
+  })
+
+  describe("state that belongs to one trip, one day, one run", () => {
+    it("drops a draft that lands after the traveller has moved to another trip", async () => {
+      const draft = deferred<{ trip: Trip; summary: string; incompleteDays: number[] }>()
+      mockGenerateItinerary.mockReturnValue(draft.promise)
+      const porto = planned({ id: "porto", name: "Porto Days" })
+      mockGetTrip.mockImplementation(async (_getToken: unknown, id: string) => ({ trip: id === "porto" ? porto : makeTrip(), access: "owner" }))
+      renderWithNav("/trips/lisbon", "/trips/porto", null)
+
+      fireEvent.click(await screen.findByRole("button", { name: "Draft itinerary" }))
+      await waitFor(() => expect(mockGenerateItinerary).toHaveBeenCalledTimes(1))
+      fireEvent.click(screen.getByRole("button", { name: "Go elsewhere" }))
+      await waitFor(() => expect(screen.getByRole("textbox", { name: "Trip name" })).toHaveValue("Porto Days"))
+      // A fresh workspace: nothing is locked by the other trip's run.
+      expect(screen.getByRole("button", { name: "Improve with AI" })).toBeEnabled()
+
+      await act(async () => {
+        draft.resolve({ trip: planned({ name: "Lisbon, drafted" }), summary: "Drafted a food-first weekend.", incompleteDays: [] })
+      })
+      expect(screen.getByRole("textbox", { name: "Trip name" })).toHaveValue("Porto Days")
+      expect(screen.queryByText("Drafted a food-first weekend.")).toBeNull()
+    })
+
+    it("keeps the same workspace when only the day changes", async () => {
+      renderWithNav("/trips/lisbon/day/day-1", "/trips/lisbon/day/day-2")
+      fireEvent.click(await screen.findByRole("button", { name: "Bring cash" }))
+      fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+      fireEvent.click(screen.getByRole("button", { name: "Go elsewhere" }))
+
+      expect(await screen.findByText("Nothing planned yet")).toBeInTheDocument()
+      // Not remounted: the trip was fetched once and the Undo toast is still there.
+      expect(screen.getByText("Removed “Bring cash”")).toBeInTheDocument()
+      expect(mockGetTrip).toHaveBeenCalledTimes(1)
+    })
+
+    it("duplicates for a viewer without trying to save first", async () => {
+      mockDuplicateTrip.mockResolvedValue(planned({ id: "copy" }))
+      renderWorkspace("/trips/lisbon", planned(), "view")
+
+      fireEvent.click(await screen.findByRole("button", { name: "More trip options" }))
+      fireEvent.click(screen.getByRole("menuitem", { name: "Duplicate trip" }))
+
+      await waitFor(() => expect(mockGetTrip.mock.calls[mockGetTrip.mock.calls.length - 1]![1]).toBe("copy"))
+      expect(mockUpdateTrip).not.toHaveBeenCalled()
+      expect(screen.queryByText(/didn’t go through/)).toBeNull()
+    })
+
+    it("does not overwrite the server with an unedited copy before an AI run", async () => {
+      mockEnhanceTrip.mockResolvedValue({ run: reviewRun, applied: [] })
+      renderWorkspace("/trips/lisbon")
+
+      fireEvent.click(await screen.findByRole("button", { name: "Improve with AI" }))
+      fireEvent.click(within(screen.getByRole("dialog", { name: "Improve this trip" })).getByRole("button", { name: "Review trip" }))
+
+      await waitFor(() => expect(mockEnhanceTrip).toHaveBeenCalledTimes(1))
+      expect(mockUpdateTrip).not.toHaveBeenCalled()
+    })
+
+    it("holds Trip details and Undo while an AI run is working, and keeps the Undo offer", async () => {
+      const review = deferred<{ run: typeof reviewRun; applied: string[] }>()
+      mockEnhanceTrip.mockReturnValue(review.promise)
+      renderWorkspace("/trips/lisbon/day/day-1")
+
+      fireEvent.click(await screen.findByRole("button", { name: "Bring cash" }))
+      fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+      const undo = () => within(screen.getByText("Removed “Bring cash”").closest('[role="status"]') as HTMLElement).getByRole("button", { name: "Undo" })
+      expect(undo()).toBeEnabled()
+
+      fireEvent.click(screen.getByRole("button", { name: "Ideas for this day" }))
+      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Suggest stops" }))
+      await waitFor(() => expect(mockEnhanceTrip).toHaveBeenCalledTimes(1))
+
+      expect(undo()).toBeDisabled()
+      fireEvent.click(screen.getByRole("button", { name: "More trip options" }))
+      expect(screen.getByRole("menuitem", { name: "Trip details" })).toBeDisabled()
+      fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" })
+
+      await act(async () => {
+        review.resolve({ run: { ...reviewRun, scope: "day", dayId: "day-1" } as typeof reviewRun, applied: [] })
+      })
+      await waitFor(() => expect(undo()).toBeEnabled())
+    })
+
+    it("does not offer to rework the plan around a hotel the AI draft added", async () => {
+      const drafted = planned()
+      drafted.days[1] = { id: "day-2", date: "2026-07-11", items: [hotel] }
+      mockGenerateItinerary.mockResolvedValue({ trip: drafted, summary: "Drafted a food-first weekend.", incompleteDays: [] })
+      renderWorkspace("/trips/lisbon", makeTrip())
+
+      fireEvent.click(await screen.findByRole("button", { name: "Draft itinerary" }))
+      expect(await screen.findByText("Drafted a food-first weekend.")).toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: "Adjust plan" })).toBeNull()
+      expect(screen.queryByText(/Staying at Pestana Palace/)).toBeNull()
+    })
+
+    it("does not offer a rework for a hotel an AI review added", async () => {
+      const reviewed = planned()
+      reviewed.days[1] = { id: "day-2", date: "2026-07-11", items: [hotel] }
+      mockEnhanceTrip.mockResolvedValue({ run: { ...reviewRun, outcomeReason: "Added a place to stay." }, trip: reviewed, applied: [] })
+      renderWorkspace("/trips/lisbon")
+
+      fireEvent.click(await screen.findByRole("button", { name: "Improve with AI" }))
+      fireEvent.click(within(screen.getByRole("dialog", { name: "Improve this trip" })).getByRole("button", { name: "Review trip" }))
+
+      expect((await screen.findAllByText("Added a place to stay.")).length).toBeGreaterThan(0)
+      expect(screen.queryByRole("button", { name: "Adjust plan" })).toBeNull()
+    })
+
+    it("closes “Clear day” when the traveller moves to another day", async () => {
+      renderWithNav("/trips/lisbon/day/day-1", "/trips/lisbon")
+      fireEvent.click(await screen.findByRole("button", { name: "More for day 1" }))
+      fireEvent.click(screen.getByRole("menuitem", { name: "Clear this day" }))
+      expect(await screen.findByRole("dialog", { name: "Clear day 1?" })).toBeInTheDocument()
+
+      fireEvent.click(screen.getByText("Go elsewhere"))
+
+      expect(await screen.findByRole("textbox", { name: "Trip name" })).toBeInTheDocument()
+      expect(screen.queryByRole("dialog")).toBeNull()
+      // Arrow keys work again on the overview.
+      fireEvent.keyDown(document.body, { key: "ArrowRight" })
+      expect(await screen.findByRole("textbox", { name: "Day title" })).toHaveValue("Arrival")
+    })
+
+    it("goes to the overview when a whole-trip review starts from a day", async () => {
+      const review = deferred<{ run: typeof reviewRun; applied: string[] }>()
+      mockEnhanceTrip.mockReturnValue(review.promise)
+      renderWorkspace("/trips/lisbon/day/day-1")
+
+      fireEvent.click(await screen.findByRole("button", { name: "More trip options" }))
+      fireEvent.click(screen.getByRole("menuitem", { name: "Improve whole trip with AI" }))
+      fireEvent.click(within(screen.getByRole("dialog", { name: "Improve this trip" })).getByRole("button", { name: "Review trip" }))
+
+      expect(await screen.findByRole("textbox", { name: "Trip name" })).toBeDisabled()
+      await waitFor(() => expect(mockEnhanceTrip).toHaveBeenCalledTimes(1))
+      expect(mockEnhanceTrip.mock.calls[0]!.slice(1, 4)).toEqual(["lisbon", "trip", undefined])
+      await act(async () => {
+        review.resolve({ run: reviewRun, applied: [] })
+      })
+    })
+
+    it("opens the same stop's editor again after it was closed", async () => {
+      renderWorkspace("/trips/lisbon/day/day-1")
+      const row = await screen.findByRole("button", { name: /Time Out Market/, expanded: false })
+      fireEvent.click(screen.getByRole("button", { name: "Show Time Out Market on the map" }))
+      const editStop = () => within(screen.getByRole("complementary", { name: "Selected place" })).getByRole("button", { name: "Edit stop" })
+
+      fireEvent.click(editStop())
+      expect(row).toHaveAttribute("aria-expanded", "true")
+      fireEvent.click(row)
+      expect(row).toHaveAttribute("aria-expanded", "false")
+
+      fireEvent.click(editStop())
+      expect(row).toHaveAttribute("aria-expanded", "true")
+    })
+
+    it("still saves pending edits when deleting the trip fails", async () => {
+      mockDeleteTrip.mockRejectedValue(new Error("HTTP 500"))
+      renderWorkspace("/trips/lisbon")
+
+      fireEvent.change(await screen.findByRole("textbox", { name: "Trip name" }), { target: { value: "Lisbon, renamed" } })
+      fireEvent.click(screen.getByRole("button", { name: "More trip options" }))
+      fireEvent.click(screen.getByRole("menuitem", { name: "Delete trip…" }))
+      fireEvent.click(within(await screen.findByRole("dialog", { name: /^Delete/ })).getByRole("button", { name: "Delete trip" }))
+
+      expect(await screen.findByText("That didn’t go through. (HTTP 500)")).toBeInTheDocument()
+      await waitFor(() => expect(mockUpdateTrip).toHaveBeenCalledTimes(1), { timeout: 3000 })
+      expect((mockUpdateTrip.mock.calls[0]![2] as { name: string }).name).toBe("Lisbon, renamed")
     })
   })
 

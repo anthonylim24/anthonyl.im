@@ -54,7 +54,9 @@ export function TripsIndex() {
   const [hot, setHot] = useState<string | null>(null)
   const [shareId, setShareId] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<TripSummary | null>(null)
-  const [busy, setBusy] = useState<string | null>(null)
+  /** The delete or duplicate in flight, and the trip it is for. */
+  const [action, setAction] = useState<{ kind: "delete" | "duplicate"; id: string } | null>(null)
+  const mounted = useRef(true)
   const [toast, setToast] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -66,12 +68,24 @@ export function TripsIndex() {
     let cancelled = false
     listTrips(readToken).then(
       (trips) => !cancelled && startTransition(() => setState({ status: "success", trips })),
-      (err: unknown) => !cancelled && setState({ status: "error", message: err instanceof Error ? err.message : String(err) }),
+      (err: unknown) => {
+        if (cancelled) return
+        const message = err instanceof Error ? err.message : String(err)
+        // A background refresh that fails keeps the list already on screen.
+        setState((current) => (current.status === "success" ? current : { status: "error", message }))
+      },
     )
     return () => {
       cancelled = true
     }
   }, [authReady, reloadKey, readToken])
+
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -190,7 +204,8 @@ export function TripsIndex() {
   const upcomingCount = timed.filter((t) => t.timing.phase !== "past").length
 
   const remove = async (trip: TripSummary) => {
-    setBusy(trip.id)
+    const mine = { kind: "delete" as const, id: trip.id }
+    setAction(mine)
     setActionError(null)
     try {
       await deleteTrip(readToken, trip.id)
@@ -202,22 +217,26 @@ export function TripsIndex() {
     } catch (err) {
       setActionError(err instanceof Error ? err.message : String(err))
     } finally {
-      setBusy(null)
+      setAction((current) => (current === mine ? null : current))
     }
   }
 
   const duplicate = async (trip: TripSummary) => {
-    setBusy(trip.id)
+    const mine = { kind: "duplicate" as const, id: trip.id }
+    setAction(mine)
     try {
       const { trip: full } = await getTrip(readToken, trip.id)
       const copy = await duplicateTrip(readToken, full)
-      navigate(tripHref(copy))
+      // Only open the copy if the index is still on screen.
+      if (mounted.current) navigate(tripHref(copy))
     } catch (err) {
       setToast(`Couldn’t duplicate that trip. (${err instanceof Error ? err.message : String(err)})`)
     } finally {
-      setBusy(null)
+      setAction((current) => (current === mine ? null : current))
     }
   }
+
+  const deleting = confirm !== null && action?.kind === "delete" && action.id === confirm.id
 
   const menuFor = (trip: TripSummary): MenuItem[] => [
     { label: "Share…", icon: <Share2 size={16} strokeWidth={1.75} aria-hidden />, onSelect: () => setShareId(trip.id) },
@@ -318,7 +337,14 @@ export function TripsIndex() {
         <div {...sx(s.empty)} role="alert">
           <h2 {...sx(a.display, s.emptyTitle)}>Couldn’t load your trips</h2>
           <p {...sx(a.body)}>Check your connection and try again. ({state.message})</p>
-          <button type="button" {...sx(a.btn, a.btnSecondary)} onClick={() => setReloadKey((k) => k + 1)}>
+          <button
+            type="button"
+            {...sx(a.btn, a.btnSecondary)}
+            onClick={() => {
+              setState({ status: "loading" })
+              setReloadKey((k) => k + 1)
+            }}
+          >
             <RotateCcw size={16} strokeWidth={1.75} aria-hidden />
             Try again
           </button>
@@ -448,7 +474,7 @@ export function TripsIndex() {
                               )}
                             </span>
                             <span {...sx(s.cardMenu)}>
-                              {busy === trip.id ? (
+                              {action?.id === trip.id ? (
                                 <span {...sx(a.iconBtn)} role="status" aria-label="Working">
                                   <Spinner />
                                 </span>
@@ -507,16 +533,16 @@ export function TripsIndex() {
 
       <Modal
         open={confirm !== null}
-        onClose={() => busy === null && setConfirm(null)}
+        onClose={() => !deleting && setConfirm(null)}
         title={confirm ? `Delete “${confirm.name}”?` : "Delete trip?"}
         description="The itinerary, bookings and invite links are removed for everyone on the trip. This can’t be undone."
         footer={
           <>
-            <button type="button" {...sx(a.btn, a.btnSecondary)} disabled={busy !== null} onClick={() => setConfirm(null)}>
+            <button type="button" {...sx(a.btn, a.btnSecondary)} disabled={deleting} onClick={() => setConfirm(null)}>
               Keep trip
             </button>
-            <button type="button" {...sx(a.btn, a.btnDanger)} disabled={busy !== null} onClick={() => confirm && void remove(confirm)}>
-              {busy !== null ? <Spinner /> : <Trash2 size={16} strokeWidth={1.75} aria-hidden />}
+            <button type="button" {...sx(a.btn, a.btnDanger)} disabled={deleting} onClick={() => confirm && void remove(confirm)}>
+              {deleting ? <Spinner /> : <Trash2 size={16} strokeWidth={1.75} aria-hidden />}
               Delete trip
             </button>
           </>

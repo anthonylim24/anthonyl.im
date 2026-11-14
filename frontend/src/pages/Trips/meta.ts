@@ -57,14 +57,21 @@ export function visibleTags(tags: readonly string[]): string[] {
 
 const noonUtc = (iso: string) => new Date(`${iso}T12:00:00Z`)
 
+/** Never throws: an unknown time zone falls back to UTC, an unreadable date to the raw string. */
 export function formatTripDate(iso: string, timezone: string, opts?: Intl.DateTimeFormatOptions): string {
-  return new Intl.DateTimeFormat("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    timeZone: timezone,
-    ...opts,
-  }).format(noonUtc(iso))
+  const date = noonUtc(iso)
+  if (Number.isNaN(date.getTime())) return iso ?? ""
+  const base: Intl.DateTimeFormatOptions = { weekday: "short", month: "short", day: "numeric", ...opts }
+  try {
+    return new Intl.DateTimeFormat("en-US", { timeZone: timezone, ...base }).format(date)
+  } catch {
+    try {
+      // Noon UTC is the same calendar day the ISO date names.
+      return new Intl.DateTimeFormat("en-US", { ...base, timeZone: "UTC" }).format(date)
+    } catch {
+      return iso
+    }
+  }
 }
 
 export function todayIsoIn(timezone: string): string {

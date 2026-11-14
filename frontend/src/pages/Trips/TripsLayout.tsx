@@ -1,4 +1,6 @@
-import { lazy, Suspense, useEffect, type ReactNode } from "react"
+import { Suspense, useEffect, useState, type ReactNode } from "react"
+import { OverlayBoundary } from "@/components/OverlayBoundary"
+import { lazyRetry } from "@/lib/lazyRetry"
 import { Link, Outlet, useLocation } from "react-router-dom"
 import { ArrowLeft, Lock, Plus } from "lucide-react"
 import { SignedIn, SignedOut, SignInButton, UserButton, useAuth } from "@clerk/clerk-react"
@@ -9,7 +11,7 @@ import { applyTheme, getInitialTheme } from "../Korea/koreaUtils"
 import { a } from "./atlas.stylex"
 import { shell as s } from "./index.stylex"
 
-const TripChat = lazy(() => import("./TripChat").then((m) => ({ default: m.TripChat })))
+const TripChat = lazyRetry(() => import("./TripChat").then((m) => ({ default: m.TripChat })))
 
 const DEV_BEARER: string | null =
   (typeof import.meta !== "undefined" && import.meta.env?.VITE_DEV_BEARER) || null
@@ -67,6 +69,9 @@ export function TripsLayout() {
   const atIndex = /^\/trips\/?$/.test(pathname)
   const creating = /^\/trips\/new\/?$/.test(pathname)
 
+  // The concierge is optional: if its code fails to load, the planner carries on without it.
+  const [chatFailed, setChatFailed] = useState(false)
+
   useEffect(() => {
     applyTheme(getInitialTheme())
   }, [])
@@ -112,9 +117,13 @@ export function TripsLayout() {
         <main id="trips-main" tabIndex={-1} {...sx(s.main)}>
           <Outlet />
         </main>
-        <Suspense fallback={null}>
-          <TripChat />
-        </Suspense>
+        {!chatFailed && (
+          <OverlayBoundary onError={() => setChatFailed(true)}>
+            <Suspense fallback={null}>
+              <TripChat />
+            </Suspense>
+          </OverlayBoundary>
+        )}
       </TripsAuthGate>
     </div>
   )

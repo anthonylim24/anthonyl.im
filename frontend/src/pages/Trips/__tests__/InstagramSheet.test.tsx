@@ -133,10 +133,17 @@ describe("InstagramSheet", () => {
 
   it("reads the video on its own when the caption names nothing", async () => {
     mockJobs.mockResolvedValue([job({ status: "done", step: "done", places: [] })])
+    let accept!: () => void
+    mockReextract.mockReturnValue(new Promise<void>((resolve) => (accept = resolve)))
     renderSheet({ initialUrls: [LINK] })
     await waitFor(() => expect(mockReextract).toHaveBeenCalledWith(getToken, 7))
     expect(mockSubmit).toHaveBeenLastCalledWith(getToken, [LINK], false)
     expect(await screen.findByRole("progressbar", { name: /Watching the video/ })).toBeInTheDocument()
+
+    // The re-read is over before any poll sees it running: the card must not keep watching.
+    await act(async () => accept())
+    await waitFor(() => expect(screen.queryByRole("progressbar", { name: /Watching the video/ })).not.toBeInTheDocument())
+    expect(mockReextract).toHaveBeenCalledTimes(1)
   })
 
   it("says so plainly when a post cannot be read, and lets you try again", async () => {

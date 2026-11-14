@@ -83,12 +83,9 @@ export function useChat(events: ChatEvents = {}) {
 
   useEffect(() => () => abortRef.current?.abort(), [])
 
-  const patchLast = (patch: Partial<ChatMessage>) =>
-    setMessages((prev) => {
-      const last = prev[prev.length - 1]
-      if (last?.role !== "assistant") return prev
-      return [...prev.slice(0, -1), { ...last, ...patch }]
-    })
+  /** Patch one reply by id; a reply that is gone (New chat) is left alone. */
+  const patchReply = (id: string, patch: Partial<ChatMessage>) =>
+    setMessages((prev) => (prev.some((m) => m.id === id) ? prev.map((m) => (m.id === id ? { ...m, ...patch } : m)) : prev))
 
   /** Ask `text` on top of `base` (the conversation before this turn). */
   const ask = useCallback((text: string, base: ChatMessage[]) => {
@@ -111,7 +108,7 @@ export function useChat(events: ChatEvents = {}) {
         (content) => {
           if (controller.signal.aborted) return
           latest = content
-          patchLast({ content })
+          patchReply(reply.id, { content })
           setStatus("streaming")
           eventsRef.current.onChunk?.()
         },
@@ -126,26 +123,30 @@ export function useChat(events: ChatEvents = {}) {
             if (handled === null) return answer()
             latest = handled
             wasLocal = true
-            patchLast({ content: handled })
+            patchReply(reply.id, { content: handled })
           })
       : answer()
     void work
       .then(() => {
-        patchLast({ status: "done" })
+        // Settled after New chat (or a newer send): this request no longer owns the chat.
+        if (abortRef.current !== controller) return
+        patchReply(reply.id, { status: "done" })
         eventsRef.current.onDone?.(firstReply, wasLocal)
       })
       .catch((err: unknown) => {
         if (controller.signal.aborted) {
-          patchLast({ content: latest, status: "stopped" })
+          patchReply(reply.id, { content: latest, status: "stopped" })
           return
         }
+        if (abortRef.current !== controller) return
         console.error(err)
         const partial = err instanceof TimeoutError ? err.partialContent : undefined
-        patchLast({ content: formatConciergeError(partial ?? latest, errorMessage(err) || FALLBACK_ERROR), status: "error" })
+        patchReply(reply.id, { content: formatConciergeError(partial ?? latest, errorMessage(err) || FALLBACK_ERROR), status: "error" })
         eventsRef.current.onError?.()
       })
       .finally(() => {
-        if (abortRef.current === controller) abortRef.current = null
+        if (abortRef.current !== controller) return
+        abortRef.current = null
         setStatus("idle")
       })
   }, [])

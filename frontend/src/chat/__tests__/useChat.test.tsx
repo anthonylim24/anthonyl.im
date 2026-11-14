@@ -185,4 +185,28 @@ describe('useChat', () => {
     expect(result.current.messages).toEqual([])
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull()
   })
+
+  it('a request dropped by New chat cannot settle the send that follows it', async () => {
+    const first = deferredReply()
+    const { result } = renderHook(() => useChat())
+    act(() => {
+      result.current.send('one')
+    })
+    first.chunk('Old words')
+    const second = deferredReply()
+    // New chat aborts the first request; its rejection lands after the next send.
+    act(() => result.current.newChat())
+    act(() => {
+      result.current.send('two')
+    })
+    await act(async () => {})
+    expect(result.current.status).toBe('thinking')
+    expect(result.current.messages.map((m) => m.content)).toEqual(['two', ''])
+
+    second.chunk('New words')
+    expect(last(result.current.messages)).toMatchObject({ content: 'New words', status: 'streaming' })
+    await second.finish()
+    expect(result.current.status).toBe('idle')
+    expect(last(result.current.messages)).toMatchObject({ content: 'New words', status: 'done' })
+  })
 })
