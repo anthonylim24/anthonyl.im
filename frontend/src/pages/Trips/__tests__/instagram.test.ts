@@ -142,6 +142,7 @@ describe("postLabel", () => {
   it("uses the author when known, otherwise the kind of post", () => {
     expect(postLabel(job({ post_preview: { caption: null, owner_username: "lisboa" } }))).toBe("@lisboa")
     expect(postLabel(job())).toBe("Instagram Reel")
+    expect(postLabel(job({ post_preview: { caption: null, owner_username: "3249247288" } }))).toBe("Instagram Reel")
     expect(postLabel(job({ url: "https://www.instagram.com/p/x/" }))).toBe("Instagram post")
   })
 })
