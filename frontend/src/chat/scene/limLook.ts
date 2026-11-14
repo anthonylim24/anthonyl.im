@@ -122,8 +122,9 @@ export const FACES = {
   yawn: face({ w: 0.1, curve: 0, open: 0.2, o: 1, blush: 0.5, lidTop: 0.04, lidBot: 0.2, seam: -0.1, brow: 1, browL: [0.12, 0.08], browR: [-0.12, 0.08] }),
   asleep: face({ w: 0.07, curve: 1.4, open: 0.015, blush: 0.6, lidTop: 0, lidBot: 0, seam: -0.25, smile: -0.8 }),
   aah: face({ w: 0.27, curve: 0.6, open: 0.36, o: 1, blush: 0.7, lidTop: 1.05, brow: 1, browL: [-0.12, 0.1], browR: [0.12, 0.1], pupil: 1.15 }),
-  munch: face({ w: 0.15, curve: 1.8, open: 0, blush: 0.9, lidTop: 0.5, lidBot: 0.85, brow: 1, browL: [-0.1, 0.06], browR: [0.1, 0.06] }),
-  chew: face({ w: 0.15, curve: 1.8, open: 0, blush: 0.95, ...HAPPY_EYES }),
+  flying: face({ w: 0.17, curve: 2.4, open: 0.14, blush: 0.85, lidTop: 1.05, pupil: 0.9 }),
+  munch: face({ w: 0.1, curve: 2.6, open: 0, blush: 0.9, lidTop: 0.5, lidBot: 0.85, brow: 1, browL: [-0.1, 0.06], browR: [0.1, 0.06] }),
+  chew: face({ w: 0.1, curve: 2.6, open: 0, blush: 0.95, ...HAPPY_EYES }),
   hit: face({ w: 0.11, curve: -1.6, open: 0.02, blush: 0.6, lidTop: 0, lidBot: 0, seam: -0.1, smile: -1, brow: 1, browL: [-0.45, -0.02], browR: [0.45, -0.02] }),
   dizzy: face({ w: 0.15, curve: 0, open: 0.03, blush: 0.7, lidTop: 1, dizzy: 1, brow: 1, browL: [0.2, 0.08], browR: [0.2, 0.02] }),
   love: face({ w: 0.17, curve: 2.6, open: 0.12, blush: 1, lidTop: 1.05, heart: 1 }),
@@ -262,7 +263,7 @@ export const inkOf = (u: LimUniforms): V3 => mix(col(PAL.ink), col(PAL.nightInk)
 
 /** Lim's skin tones under the current tint, mood and time of day. */
 function skin(u: LimUniforms, base: V3, reach: F) {
-  const filled = float(1).sub(smoothstep(u.tintLevel.sub(0.55), u.tintLevel, reach))
+  const filled = float(1).sub(smoothstep(u.tintLevel.sub(0.8), u.tintLevel, reach))
   const tinted = mix(base, u.tint as unknown as V3, u.tintAmt.mul(filled))
   const b = mix(tinted, col('#D9939B'), u.sad.mul(0.4)).mul(mix(float(1), float(0.84), u.night))
   const shade = mix(mix(col(PAL.shade), (u.tint as unknown as V3).mul(0.62), u.tintAmt), col('#9A3A7C'), u.night)
@@ -282,7 +283,7 @@ export type FaceAnchors = { restC: Vec3; eyeX: number; eyeY: number }
 export function limBodyColor(u: LimUniforms, n: { view: V3; spec: V3 }, a: FaceAnchors, window = 1): V3 {
   const rest = attribute('rest', 'vec3') as unknown as V3
   const rn = normalize(rest.sub(vec3(...a.restC)))
-  const front = smoothstep(0.3, 0.55, rn.z).mul(smoothstep(0.12, 0.4, n.view.z))
+  const front = smoothstep(0.3, 0.55, rn.z).mul(smoothstep(0.3, 0.55, n.view.z))
   const p = rest.xy as V2
 
   let base: V3 = mix(col(PAL.bottom), col(PAL.top), smoothstep(-0.8, 0.9, rest.y))
@@ -302,7 +303,7 @@ export function limBodyColor(u: LimUniforms, n: { view: V3; spec: V3 }, a: FaceA
   const swR = length(sw)
   const swirl = aaStep(abs(swR.sub(atan(sw.y, sw.x).add(3.1416).mul(0.044).add(0.09))).sub(0.03), 0.014)
     .mul(float(1).sub(smoothstep(0.38, 0.44, swR)))
-  c = mix(c, s.shade, swirl.mul(back).mul(0.7))
+  c = mix(c, s.shade, swirl.mul(back).mul(0.9))
 
   const cheekY = a.eyeY - 0.29
   const cheekX = a.eyeX + 0.24

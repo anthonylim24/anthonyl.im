@@ -581,8 +581,10 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
 
   // ── Moves ────────────────────────────────────────────────────────
   /** Every jump is three beats: crouch (anticipation), launch stretched, land squashed. */
-  const jump = (vx: number, vy: number, vz: number, antic = 0.11) => {
+  const jump = (vx: number, vyAsked: number, vz: number, antic = 0.11) => {
     if (reducedMotion) return
+    // Never higher than the stage has room for (head and tuft included).
+    const vy = Math.min(vyAsked, Math.sqrt(2 * G * Math.max(0.04, topY - 1.75 * lim.scale - 0.6)))
     squash.v += 2.2 + vy * 0.2
     later(antic, () => {
       if (popped) return
@@ -656,7 +658,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     const antic = 0.16
     jump(0, vy, 0, antic)
     flip = { t0: t + antic + 0.07, dur: Math.max(0.4, (2 * vy) / G - 0.16), at: 0 }
-    setAct('whee', flip.dur + antic)
+    setAct('flying', flip.dur + antic + 0.07)
     later(antic + flip.dur + 0.05, () => {
       setAct('smug', 1.2)
       sparkle(lim.center[0], lim.center[1] + 1.1, 0.6, 8)
@@ -804,7 +806,9 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         })
       }
       later(0.95, () => {
-        squash.v -= 1.1
+        // The gulp: a swallow down, and the belly swells where the colour starts.
+        squash.v += 2.6
+        size.v += 0.9
         sound.gulp()
         // The colour rises from the belly as the bean goes down.
         u.tint.value.set(toy.hex)
@@ -1087,7 +1091,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
             if (toy.backAt >= 0 || toy.eatenAt >= 0 || (i + step / 2) % 2) return
             wakeToy(toy)
             toy.jelly.kick(0, 3.4, 0)
-            toy.jelly.spin(0, 0, side * 4)
+            toy.jelly.spin(0, 0, side * 1.6)
           })
         }
         if (step % 16 === 12) startSpin(1, 0.4)
@@ -1111,7 +1115,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
         sound.thud(impact / 11)
       }
     }
-    lift = ease(lift, airborne ? 1 : 0, airborne ? 14 : 40, dt)
+    lift = ease(lift, airborne || flip ? 1 : 0, airborne || flip ? 14 : 40, dt)
     wasAirborne = airborne
     lastVy = vbar[1]
 
@@ -1132,7 +1136,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       size.target = 1
       size.until = 0
     }
-    const sizeGoal = size.target * (1 + inflate + Math.min(3, full) * 0.045)
+    // Tucks in for a cartwheel, so the turn clears the floor.
+    const sizeGoal = size.target * (1 + inflate + Math.min(3, full) * 0.045) * (flip && t > flip.t0 - 0.05 ? 0.84 : 1)
     size.v += (-90 * (size.x - sizeGoal) - 9 * size.v) * dt
     size.x += size.v * dt
     sound.setVoice(1 / Math.max(0.5, size.x) ** 1.4)
@@ -1162,17 +1167,11 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     if (gather && !popped.merging && (far < 0.75 || age > 6)) {
       popped.merging = true
       for (const m of minis) m.jelly.kick(-m.jelly.center[0] * 3, 5, 0)
-      // The minis dive into the middle and shrink away under the confetti
-      // before the big body comes back, so nothing shows through it.
-      later(0.16, () => {
-        for (const m of minis!) {
-          m.jelly.scale = 0.06
-          // Outline and eyes go first; the body shrinks away under the confetti.
-          for (const part of m.parts.slice(1, 4)) part.visible = false
-        }
+      // They dive into the middle and the big body bursts out of the pile.
+      later(0.14, () => {
         burst(30, 0.9)
+        merge()
       })
-      later(0.24, merge)
     }
   }
 
@@ -1353,7 +1352,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     u.mouthO.value = Math.min(1, f.o + (talking ? talkO : 0))
     u.mouthX.value = ease(
       u.mouthX.value,
-      t < chewUntil ? chewSide * 0.085 : mood === 'thinking' && !act ? thinkSide * 0.065 : 0,
+      t < chewUntil ? chewSide * 0.15 : mood === 'thinking' && !act ? thinkSide * 0.065 : 0,
       18,
       dt,
     )
@@ -1428,7 +1427,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       : t < dizzyUntil ? Math.sin(t * 3.1) * 0.16
       : mood === 'thinking' ? thinkSide * 0.1
       : 0
-    lean.roll = ease(lean.roll, -lean.yaw * 0.3 + (dance?.lean ?? 0) + sway, dance ? 14 : 5, dt)
+    lean.roll = ease(lean.roll, -lean.yaw * 0.3 + (dance?.lean ?? 0) + sway + (t < chewUntil ? -chewSide * 0.07 : 0), dance ? 14 : 5, dt)
     // Flips and pirouettes are rigid turns of the whole body (so nothing
     // twists or creases), with the upright target turning in step. The flip
     // is an aerial cartwheel: Lim's face stays toward you all the way round.
@@ -1508,7 +1507,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       : mood === 'typing' ? -0.3
       : 0
     // Thinking: it curls over and straightens again, like twirling a pencil.
-    tuft.bend = ease(tuft.bend, mood === 'thinking' && !grabbed ? 0.38 * Math.sin(t * 2.6 + 1) : bend, 7, dt)
+    tuft.bend = ease(tuft.bend, mood === 'thinking' && !grabbed ? -0.3 + 0.3 * Math.sin(t * 2.6 + 1) : bend, 7, dt)
 
     const blown = sleep === 'asleep' && !popped ? 0.1 + 0.17 * (0.5 - 0.5 * Math.cos(t * 1.8 - 0.6)) : 0
     bubbleSize = ease(bubbleSize, blown, blown ? 5 : 30, dt)
@@ -1577,7 +1576,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     if (lift < 0.01) return
     const out = limGeo.attributes.position.array as Float32Array
     down.set(0, -1, 0).applyQuaternion(quat.set(...lim.rotation))
-    const amt = lift * 0.24 * lim.scale
+    const amt = lift * 0.42 * lim.scale
     for (let i = 0; i < out.length; i += 3) {
       const y = limRestAttr[i + 1]
       if (y > -0.35) continue
@@ -1599,9 +1598,9 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       const x = limRestAttr[i] * chewSide
       const y = limRestAttr[i + 1]
       const z = limRestAttr[i + 2]
-      if (x < 0.15 || z < 0) continue
-      // A soft bump centred on the cheek.
-      const d2 = ((x - 0.62) / 0.42) ** 2 + ((y + 0.1) / 0.36) ** 2
+      if (x < 0.3 || z < -0.5) continue
+      // A soft bump on the side of the face, out at the silhouette.
+      const d2 = ((x - 0.95) / 0.8) ** 2 + ((y + 0.12) / 0.62) ** 2
       if (d2 >= 1) continue
       const k = amt * (1 - d2) ** 2
       out[i] += down.x * k
@@ -1652,13 +1651,14 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
       updateCamera(dt)
     }
     updateFace(dt)
-    tuft.scale = topY < 3 ? 0.7 : 1
+    tuft.scale = topY < 3 ? 0.62 : 1
+    tuft.slack = flip || spin ? 0.3 : 1
     tuft.step(dt, (rest, out) => lim.attach(rest, out))
     for (const p of pools) p.step(dt, t, camera)
     if (!popped) {
       // Lim is drawn as a smooth skin over the particles: all of the squash,
       // stretch and tumble, a soft-limited share of the ripples, never a crease.
-      skinJelly(limGeo, lim, flip ? 0.02 : 0.06 - 0.03 * Math.min(1, shaken), 0)
+      skinJelly(limGeo, lim, flip ? 0.02 : 0.052 - 0.03 * Math.min(1, shaken), 0)
       puffCheek()
       roundBase()
       syncJellyGeometry(limGeo)

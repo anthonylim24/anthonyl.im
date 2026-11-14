@@ -205,6 +205,8 @@ export class Tuft {
    */
   bend = 0
   floor = 0.07
+  /** How far it may trail its pose (1 = loose; lower mid-stunt so it turns with the body). */
+  slack = 1
   /** Length scale (a short stage wears a shorter tuft). */
   scale = 1
   /** Distance of each point from the root along the rest curve. */
@@ -249,7 +251,7 @@ export class Tuft {
         const w = i / (n - 1)
         const k = 950 - 560 * w
         const c = 17 - 8 * w
-        const reach = 0.08 + 0.24 * w
+        const reach = (0.08 + 0.24 * w) * this.slack
         for (let s = 1; s <= steps; s++) {
           const f = s / steps
           const gx = this.last[j] + (target[0] - this.last[j]) * f
