@@ -2,6 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_CLERK_PUBLISHABLE_KEY?: string
+  readonly VITE_CLERK_PROXY_URL?: string
   readonly VITE_POSTHOG_HOST?: string
   readonly VITE_POSTHOG_KEY?: string
   readonly VITE_SUPABASE_ANON_KEY?: string

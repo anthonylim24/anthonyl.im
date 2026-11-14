@@ -325,7 +325,7 @@ Always required at server boot (`config.ts` throws):
 - `KLUSTER_API_KEY` + `KLUSTER_API_BASE_URL` — homepage chatbot LLM (Deepseek via Kluster)
 
 Required for Clerk-gated **production** (`/trips`, `/trips/korea-2026`, IG ingest). Without it, JWT verification fails and `/api/trips` (and other gated routes) return 401:
-- `CLERK_SECRET_KEY` — Clerk JWT verification (`server/src/middleware/clerkAuth.ts`)
+- `CLERK_SECRET_KEY` — Clerk JWT verification (`server/src/middleware/clerkAuth.ts`). Also mounts the Clerk Frontend API proxy at `/__clerk/*` (`server/src/clerkProxy.ts`), which forwards to Clerk with `CLERK_PROXY_URL` (default `https://anthonyl.im/__clerk`). The browser uses it only when the build sets `VITE_CLERK_PROXY_URL` (GitHub Actions variable), and the production instance's domain must have the same proxy URL set in Clerk
 
 Required when the IG worker is enabled (warns if missing):
 - `APIFY_TOKEN` — Instagram post fetch (Apify's Instagram scraper; free plan is enough for personal use). `BRIGHT_DATA_API_KEY` is an optional paid fallback; yt-dlp is the last resort
