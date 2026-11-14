@@ -3,11 +3,12 @@
  * Run it by hand after editing `server/src/lim/world.ts` or changing the model
  * (it calls the real API; it is not part of CI):
  *
- *   GEMINI_API_KEY=… [TYPESAFE_API_KEY=…] bun scripts/eval-lim-world.ts [model]
+ *   GEMINI_API_KEY=… [JEV_API_KEY=…] bun scripts/eval-lim-world.ts [model]
  *
- * With TYPESAFE_API_KEY and no model argument, each case is routed by Jev
+ * With JEV_API_KEY and no model argument, each case is routed by Jev
  * (`server/src/lim/jev.ts`) as in production, and Jev's routing is scored
  * too: chat must go to Hydrogen ("anthony"), orders to Carbon ("jelly").
+ * `--route-only` scores Jev's routing alone, with no Gemini calls.
  *
  * Chat messages must be answered in prose. Orders must come back as a
  * `@@world {json}` line that survives the page's own reader and cleaners
@@ -27,11 +28,13 @@ const { routeLimModel } = await import("../server/src/lim/jev");
 const { readWorldReply, hasWorldOrder } = await import("../frontend/src/chat/world/worldApi");
 type Op = ReturnType<typeof readWorldReply>["ops"][number];
 
-const fixedModel = process.argv[2];
-const useJev = !fixedModel && !!process.env.TYPESAFE_API_KEY;
+const routeOnly = process.argv.includes("--route-only");
+const fixedModel = process.argv.slice(2).find((a) => !a.startsWith("--"));
+const useJev = !fixedModel && !!process.env.JEV_API_KEY;
 const model = fixedModel || (useJev ? "jev-routed" : limGeminiModel());
 const apiKey = process.env.GEMINI_API_KEY;
-if (!apiKey) throw new Error("GEMINI_API_KEY is required");
+if (!apiKey && !routeOnly) throw new Error("GEMINI_API_KEY is required");
+if (routeOnly && !useJev) throw new Error("--route-only needs JEV_API_KEY and no model argument");
 const world = { items: ["ball", "jelly bean", "party hat"], place: "studio" };
 
 const CHAT = [
@@ -125,8 +128,12 @@ await Promise.all(
           routed = await routeLimModel({ prompt: job.message, messages: job.history, world: job.world ?? world });
           jevMs = performance.now() - j0;
         }
+        if (routeOnly) {
+          rows.push({ ...job, ok: true, ms: performance.now() - t0, out: "", route: routed?.route, via: routed?.via, jevMs });
+          continue;
+        }
         out = await geminiText({
-          apiKey, model: routed?.model ?? model, system: SYSTEM_PROMPT + worldPrompt(job.world ?? world),
+          apiKey: apiKey!, model: routed?.model ?? model, system: SYSTEM_PROMPT + worldPrompt(job.world ?? world),
           messages: [...(job.history ?? []), { role: "user", content: job.message }], signal: AbortSignal.timeout(60_000),
         });
       } catch (err) {
@@ -140,7 +147,7 @@ await Promise.all(
   }),
 );
 
-for (const set of [...new Set(jobs.map((j) => j.set))]) {
+for (const set of routeOnly ? [] : [...new Set(jobs.map((j) => j.set))]) {
   const group = rows.filter((r) => r.set === set);
   const times = group.map((r) => r.ms).sort((a, b) => a - b);
   console.log(`${model} ${set}: ${group.filter((r) => r.ok).length}/${group.length}, median ${(times[times.length >> 1] / 1000).toFixed(1)} s, max ${(times[times.length - 1] / 1000).toFixed(1)} s`);

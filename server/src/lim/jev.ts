@@ -11,7 +11,7 @@
  * models get the same system prompt (profile + toy-world rules), so a wrong
  * route still gets a correct answer, just from the other model. Jev is
  * skipped when the page has no live toy world (nothing to play with), when
- * `LIM_GEMINI_MODEL` pins a model, and when `TYPESAFE_API_KEY` is missing;
+ * `LIM_GEMINI_MODEL` pins a model, and when `JEV_API_KEY` is missing;
  * if Jev errors or is slow, the date-based default (`limGeminiModel`) answers.
  */
 import { LIM_MODEL_AFTER_SWITCH, LIM_MODEL_UNTIL_SWITCH, limGeminiModel } from "./model";
@@ -40,12 +40,12 @@ type Turn = { role: "user" | "assistant"; content: string };
 export const INTENT_QUESTION = {
   type: "choice",
   instructions:
-    "What does the visitor want from their latest_message? Read previous_messages and lim_toy_world for context (\"kick it\" can refer to a toy in the world).",
+    "A visitor is chatting on Anthony Lim's portfolio site. Beside the chat, Lim, a small jelly mascot, stands on a little stage with toys (lim_toy_world). Is latest_message a literal instruction to change that on-screen toy world, or is it conversation? previous_messages give context (\"kick it\" can mean a toy on the stage).",
   criteria: {
     anthony:
-      "A question or request for the assistant: about Anthony Lim (his background, career, skills, projects, availability, contact), this website, or anything else (coding help, advice, explanations, small talk, feedback on an earlier answer such as 'make it shorter').",
+      "Conversation with the assistant: a question about Anthony (career, skills, projects, availability, meeting him), this website, or any topic; a reaction or thanks ('nice!', 'cool, thanks'); an idiom or figure of speech ('cut me some slack', 'give him a hand'); or a request about the chat itself or an earlier answer ('reset the conversation', 'elaborate on that', 'summarize', 'shorter please').",
     jelly:
-      "Wants to play with Lim, the little jelly mascot on screen, or change Lim's toy world: give Lim an item or gift, take Lim somewhere, change the weather, light or gravity, have Lim do something with a toy (kick, eat, wear, hug), or tidy up.",
+      "A literal instruction or wish to change Lim's on-screen toy world: give Lim an object, gift or reward, take Lim to a place, change the weather, light or gravity, have Lim do something with a toy on the stage (kick, eat, wear, hug, put away), or tidy the stage.",
   },
 } as const;
 
@@ -66,7 +66,7 @@ export async function routeLimModel(opts: {
   fetchImpl?: typeof fetch;
   signal?: AbortSignal;
 }): Promise<LimRoute> {
-  const { prompt, messages = [], world, apiKey = process.env.TYPESAFE_API_KEY, fetchImpl = fetch } = opts;
+  const { prompt, messages = [], world, apiKey = process.env.JEV_API_KEY, fetchImpl = fetch } = opts;
   const pinned = process.env.LIM_GEMINI_MODEL?.trim();
   if (pinned) return { model: pinned, route: null, via: "pinned" };
   // No live toy world: there is no jelly to play with, so everything is a question.
