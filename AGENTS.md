@@ -35,7 +35,9 @@ anthonyl.im/
 │   │   │   ├── pages/           # HomePage, SessionPage, ProgressPage, SettingsPage, BreathflowLayout
 │   │   │   ├── engine/          # useSessionEngine (ephemeral session — not Zustand)
 │   │   │   ├── protocols/       # Technique catalog + cadence
-│   │   │   ├── gamify/          # XP, badges, levels
+│   │   │   ├── gamify/          # XP, badges, levels, daily goal, practice patterns
+│   │   │   ├── journeys/        # Multi-day programmes built from the catalog
+│   │   │   ├── share/           # Shareable week card (canvas)
 │   │   │   ├── components/      # PaintSplash, PhaseStrip, BadgeGrid, LiveAnnouncer, …
 │   │   │   ├── scene/           # Watercolour breath cat: catScene (WebGPU/TSL), BloomCanvas, BloomAnchor, breathDrive
 │   │   │   ├── motion/ platform/ safety/ session/ recommend/
@@ -55,7 +57,7 @@ anthonyl.im/
 │   │   ├── three/               # Shared WebGPU toolkit: createStage, Jelly soft body, jellyMesh, bindJellyPointer
 │   │   ├── hooks/               # useReducedMotion, useLatestCallback, useCloudSync
 │   │   ├── lib/                 # apiBase, apiService, safeAuth, clerk, concierge*, externalMaps
-│   │   ├── stores/              # Zustand: settingsStore, gamificationStore, historyStore
+│   │   ├── stores/              # Zustand: settingsStore, gamificationStore, historyStore, practiceStore
 │   │   └── index.css            # Tokens (breathwork / korea / trips; chatbot in chat/chat.css)
 │   ├── public/
 │   │   ├── sw.js                # CACHE_VERSION = korea-offline-v*
@@ -270,10 +272,11 @@ All stores use **Zustand v5**. Persisted stores write to `localStorage` under th
 | `settingsStore` | `breathwork-settings` | theme, sound, haptics |
 | `gamificationStore` | `breathwork-gamification` | XP, badges, streaks |
 | `historyStore` | `breathwork-session-history` | session log |
+| `practiceStore` | `breathwork-practice` | daily goal, journey progress |
 
 Active breath session is **not** Zustand — `frontend/src/breathflow/engine/useSessionEngine.ts` (React state).
 
-Cloud sync (Supabase) is managed by `useCloudSync` + `CloudSync` — authenticated users sync settings and history. Keep those on Promise/Supabase, not Effect.
+Cloud sync (Supabase) is managed by `useCloudSync` + `CloudSync` — authenticated users sync settings, history (with mood ratings) and practice (daily goal, journeys). Keep those on Promise/Supabase, not Effect.
 
 ---
 

@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { Check } from 'lucide-react'
+import { ArrowRight, Check } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { usePracticeStore } from '@/stores/practiceStore'
 import { sx, stylex } from '@/styles/merge'
@@ -121,6 +121,44 @@ const styles = stylex.create({
     ':hover': { color: 'var(--bw-text)', backgroundColor: 'var(--bw-hover)' },
     ':focus-visible': focusRing,
   },
+  // Phones stack the Journeys section straight under the hero, so the shortcut is for wide layouts.
+  nudge: {
+    marginTop: '0.75rem',
+    display: { default: 'none', '@media (min-width: 900px)': 'flex' },
+    alignItems: 'center',
+    gap: '0.8rem',
+    minHeight: '3.25rem',
+    paddingBlock: '0.6rem',
+    paddingInline: '1rem',
+    borderRadius: '1.1rem',
+    color: 'var(--bw-text)',
+    textDecoration: 'none',
+    backgroundColor: { default: 'color-mix(in srgb, var(--bw-surface) 55%, transparent)', ':hover': 'var(--bw-surface)' },
+    boxShadow: 'inset 0 0 0 1px var(--bw-border-subtle)',
+    ':focus-visible': focusRing,
+  },
+  nudgeDab: {
+    flexShrink: 0,
+    display: 'block',
+    width: '1.15rem',
+    height: '1.15rem',
+    backgroundColor: 'color-mix(in srgb, var(--bf-mass) 78%, transparent)',
+  },
+  nudgeText: {
+    flex: '1 1 0%',
+    minWidth: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '0.1rem',
+    fontSize: '0.9375rem',
+    lineHeight: 1.35,
+    overflowWrap: 'anywhere',
+  },
+  nudgeMeta: {
+    fontSize: '0.75rem',
+    fontVariantNumeric: 'lining-nums tabular-nums',
+    color: 'var(--bw-text-secondary)',
+  },
   finished: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -220,6 +258,33 @@ export function JourneysSection() {
         })}
       </ul>
     </section>
+  )
+}
+
+/** The hero's one-line way back into a journey under way: its next day, a tap from starting. */
+export function JourneyNudge() {
+  const activeId = usePracticeStore((state) => state.activeJourneyId)
+  const done = usePracticeStore((state) => (activeId ? state.journeys[activeId]?.done : undefined))
+  const journey = activeId ? getJourney(activeId) : null
+  const index = journey ? nextStepIndex(journey, done ?? []) : null
+  if (!journey || index === null) return null
+  const step = journey.steps[index]
+  const session = stepSession(step)
+  const path = `${buildSessionPath({ ...session, journey: { id: journey.id, step: index } })}&autostart=1`
+
+  return (
+    <Link to={path} {...sx(styles.nudge)} style={pigmentVars(journey)}>
+      <span aria-hidden="true" {...sx('bf-dab', styles.nudgeDab)} />
+      <span {...sx(styles.nudgeText)}>
+        <span {...sx(styles.nudgeMeta)}>
+          {journey.name} · day {index + 1} of {journey.steps.length}
+        </span>
+        <span>
+          {step.title} · {formatDuration(session.plannedSeconds)}
+        </span>
+      </span>
+      <ArrowRight size={18} strokeWidth={1.75} aria-hidden="true" />
+    </Link>
   )
 }
 
