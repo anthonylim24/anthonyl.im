@@ -1,5 +1,6 @@
 import { Component, createRef, type ErrorInfo, type ReactNode } from 'react'
 import { isChunkLoadError, reloadForNewBuild } from '@/lib/lazyRetry'
+import { reportClientEvent } from '@/lib/telemetry'
 import { sx } from '@/lib/utils'
 import { routeError } from '@/styles/chatbot.stylex'
 
@@ -58,6 +59,9 @@ export class RouteErrorBoundary extends Component<Props, State> {
     // Surface to the browser console so the user (and any attached devtools)
     // can see the original stack instead of just the boundary's fallback UI.
     console.error('[RouteErrorBoundary]', this.props.app, error, info.componentStack)
+    reportClientEvent(isChunkLoadError(error) ? 'chunk_load_failed' : 'route_crashed', `${error.name}: ${error.message}`, {
+      app: this.props.app,
+    })
     // A chunk that no longer exists means a newer build is live: reload into
     // it once. A second failure inside a minute shows the fallback instead.
     if (isChunkLoadError(error)) reloadForNewBuild()

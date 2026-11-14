@@ -35,20 +35,25 @@ const RELOAD_KEY = "chunk-reload-at"
 const RELOAD_WINDOW_MS = 60_000
 
 /**
- * Reload to pick up the current build. Returns false, and does nothing,
- * when this tab already reloaded for the same reason in the last minute.
+ * Reload the page, at most once a minute per `key`. Returns false, and does
+ * nothing, when this tab already reloaded for the same reason in that window.
  */
-export function reloadForNewBuild(now = Date.now()): boolean {
+export function reloadOnce(key: string, now = Date.now()): boolean {
   try {
-    const last = Number(sessionStorage.getItem(RELOAD_KEY) ?? 0)
+    const last = Number(sessionStorage.getItem(key) ?? 0)
     if (now - last < RELOAD_WINDOW_MS) return false
-    sessionStorage.setItem(RELOAD_KEY, String(now))
+    sessionStorage.setItem(key, String(now))
   } catch {
     // No storage (private mode): we cannot tell a loop from a first try, so stay put.
     return false
   }
   window.location.reload()
   return true
+}
+
+/** Reload to pick up the current build (see `reloadOnce`). */
+export function reloadForNewBuild(now = Date.now()): boolean {
+  return reloadOnce(RELOAD_KEY, now)
 }
 
 /** React.lazy with one retry built in. Use for every lazily loaded component. */

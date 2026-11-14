@@ -1,10 +1,8 @@
 import { Hono, type Context } from "hono";
-import { logger } from "hono/logger";
 import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
 import { prettyJSON } from "hono/pretty-json";
 import { config } from "./src/config";
-import { errorHandler } from "./src/middleware/error";
 import invokeRouter from "./src/routes/invoke";
 import koreaRouter from "./src/routes/korea";
 import entityRouter from "./src/routes/entity";
@@ -18,7 +16,16 @@ import { bootIgWorker, getQueue, listJobsForUser, listExtractedPlaces, listIgPla
 import { createPreviewRouter, getPreviewRoot, previewSiteUrl } from "./src/preview";
 import { createAgentSessionRouter } from "./src/routes/agentSession";
 import { parseAgentOnBehalfOf, parseAllowedRedirectHosts } from "./src/agentTasks";
-import { CLERK_PROXY_PATH, createClerkProxy } from "./src/clerkProxy";
+import { CLERK_FRONTEND_API, CLERK_PROXY_PATH, clerkProxyHeaders, createClerkProxy } from "./src/clerkProxy";
+import {
+  createReadiness,
+  createTelemetryRouter,
+  httpCheck,
+  metricsSnapshot,
+  onError,
+  requestLog,
+  type HealthCheck,
+} from "./src/observability";
 import { join, resolve } from "path";
 import { BUN_IDLE_TIMEOUT_SEC } from "./src/httpIdleTimeout";
 
@@ -146,7 +153,7 @@ const injectPreviewMeta = (html: string, pathname: string): string => {
 
 // Group middleware by functionality
 const commonMiddleware = [
-  logger(),
+  requestLog(),
   prettyJSON(),
   cors({
     origin: config.corsOrigin,
@@ -156,11 +163,11 @@ const commonMiddleware = [
     allowHeaders: ["Content-Type", "Authorization"],
     maxAge: 86400,
   }),
-  errorHandler,
 ];
 
 // Apply common middleware
 app.use("*", ...commonMiddleware);
+app.onError(onError);
 
 // SSE headers middleware
 const sseHeaders = {
@@ -319,7 +326,11 @@ app.route("/", createPreviewRouter({
     siteUrl: previewSiteUrl(),
   }));
 
-// Health check
+const distPath = resolve(import.meta.dir, "../frontend/dist");
+
+// Health. `/health` answers from memory (deploys and the droplet watchdog poll
+// it); `/health/ready` also asks the services sign-in and trips depend on, and
+// `/health/metrics` reports request counts, latencies and memory.
 app.get("/health", (c) =>
   c.json({
     status: "ok",
@@ -329,7 +340,41 @@ app.get("/health", (c) =>
   })
 );
 
-const distPath = resolve(import.meta.dir, "../frontend/dist");
+const readinessChecks: HealthCheck[] = [
+  {
+    name: "frontend",
+    run: async () => {
+      if (!(await Bun.file(join(distPath, "index.html")).exists())) throw new Error("index.html missing");
+    },
+  },
+];
+if (config.clerkSecretKey) {
+  readinessChecks.push(
+    httpCheck("clerk", `${CLERK_FRONTEND_API}/v1/environment`, {
+      headers: clerkProxyHeaders(new Headers(), { secretKey: config.clerkSecretKey, proxyUrl: config.clerkProxyUrl }),
+    }),
+  );
+}
+if (config.supabaseUrl && config.supabaseServiceKey) {
+  readinessChecks.push(
+    httpCheck("supabase", `${config.supabaseUrl}/auth/v1/health`, { headers: { apikey: config.supabaseServiceKey } }),
+  );
+}
+const readiness = createReadiness(readinessChecks);
+
+app.get("/health/ready", async (c) => {
+  const report = await readiness();
+  c.header("Cache-Control", "no-store");
+  return c.json(report, report.status === "ok" ? 200 : 503);
+});
+app.get("/health/metrics", (c) => {
+  c.header("Cache-Control", "no-store");
+  return c.json(metricsSnapshot());
+});
+
+// Browser error beacon: a line in the server log per client-side failure.
+app.use("/api/telemetry", createRateLimit({ windowMs: 60_000, max: 30, keyPrefix: "telemetry" }));
+app.route("/api/telemetry", createTelemetryRouter());
 
 // `/sw.js` MUST be served fresh on every request — the browser only updates
 // the service worker when it detects a byte-difference in the SW script, so
