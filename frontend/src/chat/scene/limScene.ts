@@ -1126,7 +1126,8 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     const hang = grabbed && airborne ? -0.17 : 0
     const stretch = hang || airborne && !grabbed && !flip ? hang - Math.min(0.2, Math.abs(vbar[1]) * 0.022 + speed * 0.006) : 0
     squash.v += (-150 * (squash.x - droop - stretch) - 10 * squash.v) * dt
-    squash.x = THREE.MathUtils.clamp(squash.x + squash.v * dt, -0.34, 0.4)
+    // In the air the squash is capped lower: a wide airborne pancake pinches at the sides.
+    squash.x = THREE.MathUtils.clamp(squash.x + squash.v * dt, -0.34, airborne ? 0.24 : 0.4)
     // A cartwheel turns as one clean shape: no squash riding through it.
     if (flip && t > flip.t0) {
       squash.x *= Math.exp(-14 * dt)
@@ -1508,7 +1509,7 @@ export async function createLimScene(opts: LimSceneOptions): Promise<LimScene> {
     const name = faceName()
     const bend =
       sleep === 'asleep' || mood === 'sad' ? 0.62
-      : grabbed || name === 'shock' || name === 'whee' || name === 'worried' || name === 'ooh' ? -0.6
+      : grabbed || name === 'shock' || name === 'whee' || name === 'worried' || name === 'ooh' ? -0.42
       : mood === 'typing' ? -0.3
       : 0
     // Thinking: it curls over and straightens again, like twirling a pencil.
