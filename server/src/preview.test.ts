@@ -310,7 +310,9 @@ describe("stampFromArgs", () => {
   });
 });
 
-describe("publish-preview.sh", () => {
+// The script takes its lock with flock(1), which macOS does not ship. It only
+// ever runs on the Linux droplet, and CI covers it there.
+describe.skipIf(!Bun.which("flock"))("publish-preview.sh", () => {
   test("atomically publishes, then removes, a preview tree", async () => {
     const root = await tempDir();
     const dist = await tempDir();

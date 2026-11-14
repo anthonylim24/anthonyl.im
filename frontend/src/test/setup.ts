@@ -1,5 +1,13 @@
 import '@testing-library/jest-dom'
 
+// happy-dom 20.14+ ships a Web Animations stub whose animations never advance
+// or commit their final keyframe. Motion prefers WAAPI when `animate` exists,
+// so animated elements would stay at their initial style (opacity 0) forever.
+// Without it Motion falls back to its JS animator, which does run here.
+if (typeof Element !== 'undefined') {
+  delete (Element.prototype as { animate?: unknown }).animate
+}
+
 function createTestStorage(): Storage {
   const storage = new Map<string, string>()
 

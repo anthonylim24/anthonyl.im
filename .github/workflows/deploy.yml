@@ -15,6 +15,21 @@ name: Build & Deploy
 on:
   push:
     branches: [main]
+    # Nothing the droplet serves changes with these, so a docs-only merge
+    # does not restart production.
+    paths-ignore:
+      - "*.md"
+      - "docs/**"
+      - ".agents/**"
+      - ".claude/**"
+      - ".codex/**"
+      - ".cursor/**"
+      - ".github/dependabot.yml"
+      - ".github/branch-protection.json"
+      - ".github/workflows/pr.yml"
+      - ".github/workflows/preview.yml"
+      - ".github/workflows/dependabot-auto-merge.yml"
+  workflow_dispatch:
 
 # Never cancel an in-flight production deploy; queue the next one instead.
 concurrency:
@@ -45,16 +60,24 @@ jobs:
           install-root: "true"
           install-frontend: "true"
 
-      # Re-run the server gate on main. PR already passed, but a force-push
-      # or protection misconfig must not ship red tests.
-      - name: Run server tests
-        run: bun test --bail server/src
-
-      - name: Build frontend
-        working-directory: frontend
+      # Re-run the server gate on main while the frontend builds. PR already
+      # passed, but a force-push or protection misconfig must not ship red
+      # tests. The two share the runner's cores instead of running in series.
+      - name: Server tests + frontend build
         run: |
-          echo "${{ secrets.FRONTEND_ENV }}" > .env
-          bun run build
+          set -euo pipefail
+          bun test --parallel --bail server/src > server-tests.log 2>&1 &
+          TESTS_PID=$!
+
+          echo "${{ secrets.FRONTEND_ENV }}" > frontend/.env
+          (cd frontend && bun run build)
+
+          if ! wait "$TESTS_PID"; then
+            cat server-tests.log
+            echo "::error::Server tests failed — not deploying."
+            exit 1
+          fi
+          tail -n 6 server-tests.log
 
       # Stage the next release under ~/anthonyl.im.next (does not touch the
       # live tree yet). System tools install is idempotent + non-fatal.
@@ -103,8 +126,14 @@ jobs:
             cp "$HOME/.env" "$NEXT/.env"
             cp "$HOME/.env" "$NEXT/frontend/.env"
 
-            if [ ! -x "$HOME/.bun/bin/bun" ]; then
-              curl -fsSL https://bun.sh/install | bash
+            # Run the same Bun the tests ran on (.bun-version). The installer
+            # swaps the binary by rename, so the live process is unaffected
+            # until the PM2 restart below.
+            WANT_BUN="$(tr -d '[:space:]' < "$NEXT/.bun-version")"
+            HAVE_BUN="$("$HOME/.bun/bin/bun" --version 2>/dev/null || echo none)"
+            if [ "$HAVE_BUN" != "$WANT_BUN" ]; then
+              echo "[deploy] bun $HAVE_BUN → $WANT_BUN"
+              curl -fsSL https://bun.sh/install | bash -s "bun-v$WANT_BUN"
             fi
             export PATH="$HOME/.bun/bin:$PATH"
             bun install --frozen-lockfile
@@ -208,29 +237,48 @@ jobs:
             fi
             mv "$NEXT" "$LIVE"
 
-            pm2 delete anthonyl.im 2>/dev/null || true
-            cd "$LIVE"
             # --update-env so PM2 captures the explicit PATH we just set
             # rather than the daemon's stale environment from a previous
             # deploy (which may not have included /usr/local/bin).
-            pm2 start bun --name anthonyl.im --update-env -- run index.ts
+            # --max-memory-restart: the app idles near 70 MB; a runaway
+            # process is restarted before it can push the 1 GB droplet into
+            # swap or the OOM killer.
+            start_app() {
+              pm2 delete anthonyl.im 2>/dev/null || true
+              cd "$LIVE"
+              pm2 start bun --name anthonyl.im --update-env \
+                --max-memory-restart 700M -- run index.ts
+            }
+            # Healthy means the new process answers /health, not just that
+            # PM2 calls it online. Usually true within a second.
+            wait_healthy() {
+              for _ in $(seq 1 40); do
+                if curl -fsS --max-time 2 http://127.0.0.1:3000/health 2>/dev/null \
+                    | grep -q '"status":"ok"' \
+                  && pm2 show anthonyl.im | grep -q "status.*online"; then
+                  return 0
+                fi
+                sleep 0.5
+              done
+              return 1
+            }
 
-            sleep 3
-            pm2 logs anthonyl.im --lines 15 --nostream
-            echo ""
-
-            if pm2 show anthonyl.im | grep -q "status.*online"; then
+            start_app
+            if wait_healthy; then
+              pm2 logs anthonyl.im --lines 15 --nostream
+              echo ""
               echo 'Deployment successful to Digital Ocean'
               rm -rf "$PREV"
+              # Persist the process list so a reboot resurrects this release.
+              pm2 save >/dev/null
             else
-              echo "ERROR: Process is not online — attempting rollback to prev"
-              pm2 show anthonyl.im
+              echo "ERROR: /health did not come up — attempting rollback to prev"
+              pm2 logs anthonyl.im --lines 40 --nostream || true
+              pm2 show anthonyl.im || true
               if [ -d "$PREV" ]; then
-                pm2 delete anthonyl.im 2>/dev/null || true
                 rm -rf "$LIVE"
                 mv "$PREV" "$LIVE"
-                cd "$LIVE"
-                pm2 start bun --name anthonyl.im --update-env -- run index.ts
+                start_app
                 echo "[deploy] rolled back to previous release"
               fi
               exit 1

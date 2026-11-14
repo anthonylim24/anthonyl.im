@@ -33,6 +33,11 @@ updates:
     ignore:
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
+      # Frontend I/O stays on Effect v3 (see CLAUDE.md "Frontend Effect-TS").
+      - dependency-name: "effect"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@effect/*"
+        update-types: ["version-update:semver-major"]
     groups:
       minor-and-patch:
         update-types:

@@ -7,7 +7,7 @@
 
 ```
 PR → .github/workflows/pr.yml
-        ├─ pr-server-tests          bun test --bail server/src  (incl. appLoad smoke)
+        ├─ pr-server-tests          bun test --parallel --bail server/src  (incl. appLoad smoke)
         ├─ pr-frontend-typecheck    tsc -b --noEmit
         ├─ pr-frontend-build        tsc -b && vite build (stub .env)
         ├─ pr-frontend-tests        vitest run
